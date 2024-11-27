@@ -1,4 +1,5 @@
 import { serve } from "@hono/node-server";
+import { serveStatic } from "@hono/node-server/serve-static";
 import { captureException, close } from "@sentry/node";
 import { Hono } from "hono";
 import { trimTrailingSlash } from "hono/trailing-slash";
@@ -37,6 +38,17 @@ app.get("/.well-known/assetlinks.json", (c) =>
       },
     },
   ]),
+);
+app.use(
+  "/*",
+  serveStatic({
+    root: "app",
+    rewriteRequestPath: (path) => {
+      if (path.endsWith("/")) return `${path}/index.html`;
+      if (path.includes(".")) return path;
+      return `${path}.html`;
+    },
+  }),
 );
 
 app.onError((error, c) => {
