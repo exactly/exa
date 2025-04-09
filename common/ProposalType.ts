@@ -47,3 +47,20 @@ export function decodeRepayAtMaturity(data: `0x${string}`) {
 export function decodeWithdraw(data: `0x${string}`) {
   return decodeAbiParameters([{ type: "address" }], data)[0];
 }
+
+export function decodeRollDebt(data: `0x${string}`) {
+  return decodeAbiParameters(
+    [
+      {
+        type: "tuple",
+        components: [
+          { name: "repayMaturity", type: "uint256" },
+          { name: "borrowMaturity", type: "uint256" },
+          { name: "maxRepayAssets", type: "uint256" },
+          { name: "percentage", type: "uint256" },
+        ],
+      },
+    ],
+    data,
+  )[0];
+}

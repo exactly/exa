@@ -1,4 +1,8 @@
-import ProposalType, { decodeCrossRepayAtMaturity, decodeRepayAtMaturity } from "@exactly/common/ProposalType";
+import ProposalType, {
+  decodeCrossRepayAtMaturity,
+  decodeRepayAtMaturity,
+  decodeRollDebt,
+} from "@exactly/common/ProposalType";
 import { exaPreviewerAddress, previewerAddress } from "@exactly/common/generated/chain";
 import { ChevronRight } from "@tamagui/lucide-icons";
 import { format } from "date-fns";
@@ -46,7 +50,7 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
       </View>
       {payments.length > 0 ? (
         payments.map(([maturity, amount], index) => {
-          const isProcessing = pendingProposals?.some(({ proposal }) => {
+          const isRepaying = pendingProposals?.some(({ proposal }) => {
             const { proposalType: type, data } = proposal;
             const isRepayProposal =
               type === Number(ProposalType.RepayAtMaturity) || type === Number(ProposalType.CrossRepayAtMaturity);
@@ -57,6 +61,13 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
                 : decodeCrossRepayAtMaturity(data);
             return decoded.maturity === maturity;
           });
+          const isRollingDebt = pendingProposals?.some(({ proposal }) => {
+            const { proposalType: type, data } = proposal;
+            if (type !== Number(ProposalType.RollDebt)) return false;
+            const decoded = decodeRollDebt(data);
+            return decoded.repayMaturity === maturity;
+          });
+          const isProcessing = isRepaying || isRollingDebt; //eslint-disable-line @typescript-eslint/prefer-nullish-coalescing
           return (
             <Pressable
               key={index}
@@ -88,19 +99,14 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
                   )}
                 </XStack>
                 <XStack alignItems="center" gap="$s2">
-                  <Text
-                    sensitive
-                    emphasized
-                    body
-                    color={isProcessing ? "$interactiveTextDisabled" : "$uiNeutralPrimary"}
-                  >
+                  <Text sensitive emphasized body color={isRepaying ? "$interactiveTextDisabled" : "$uiNeutralPrimary"}>
                     {(Number(amount) / 1e18).toLocaleString(undefined, {
                       style: "currency",
                       currency: "USD",
                       currencyDisplay: "narrowSymbol",
                     })}
                   </Text>
-                  <ChevronRight size={24} color={isProcessing ? "$iconDisabled" : "$iconBrandDefault"} />
+                  <ChevronRight size={24} color={isRepaying ? "$iconDisabled" : "$iconBrandDefault"} />
                 </XStack>
               </XStack>
             </Pressable>
