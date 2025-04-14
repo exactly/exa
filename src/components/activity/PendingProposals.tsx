@@ -1,6 +1,7 @@
 import ProposalType, {
   decodeCrossRepayAtMaturity,
   decodeRepayAtMaturity,
+  decodeRollDebt,
   decodeWithdraw,
 } from "@exactly/common/ProposalType";
 import { exaPreviewerAddress } from "@exactly/common/generated/chain";
@@ -61,6 +62,8 @@ function getProposal(proposal: Proposal) {
       return {
         label: "Debt rollover",
         icon: <RefreshCw color="$interactiveOnBaseInformationSoft" />,
+        fromMaturity: decodeRollDebt(proposal.data).repayMaturity,
+        toMaturity: decodeRollDebt(proposal.data).borrowMaturity,
       };
     case ProposalType.Swap:
       return {
@@ -157,7 +160,7 @@ export default function PendingProposals() {
 }
 
 function ProposalItem({ proposal }: { proposal: Proposal }) {
-  const { label, icon, maturity, address: proposalAddress } = getProposal(proposal);
+  const { label, icon, maturity, address: proposalAddress, fromMaturity, toMaturity } = getProposal(proposal);
   const { market } = useAsset(proposal.market);
   const symbol = market ? (market.symbol.slice(3) === "WETH" ? "ETH" : market.symbol.slice(3)) : null;
   const usdValue = market ? (proposal.amount * market.usdPrice) / BigInt(10 ** market.decimals) : 0n;
@@ -186,6 +189,10 @@ function ProposalItem({ proposal }: { proposal: Proposal }) {
           ) : proposal.proposalType === ProposalType.Redeem || proposal.proposalType === ProposalType.Withdraw ? (
             <Text footnote maxFontSizeMultiplier={1} color="$uiNeutralSecondary" numberOfLines={1}>
               {shortenHex(proposalAddress ?? "", 5, 5)}
+            </Text>
+          ) : proposal.proposalType === ProposalType.RollDebt ? (
+            <Text footnote maxFontSizeMultiplier={1} color="$uiNeutralSecondary" numberOfLines={1}>
+              {`${format(new Date(Number(fromMaturity) * 1000), "MMM dd")} → ${format(new Date(Number(toMaturity) * 1000), "MMM dd")}`}
             </Text>
           ) : null}
         </YStack>
