@@ -20,6 +20,7 @@ import View from "../shared/View";
 export default function PayLater() {
   const theme = useTheme();
   const [paySheetOpen, setPaySheetOpen] = useState(false);
+
   const { account } = useAsset(marketUSDCAddress);
   const { refetch, isPending } = useReadPreviewerExactly({ address: previewerAddress, args: [account ?? zeroAddress] });
   const style = { backgroundColor: theme.backgroundSoft.val, margin: -5 };

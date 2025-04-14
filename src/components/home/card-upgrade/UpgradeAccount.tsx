@@ -13,7 +13,6 @@ import {
   upgradeableModularAccountAbi,
   useReadExaPluginPluginManifest,
   useReadUpgradeableModularAccountGetInstalledPlugins,
-  useSimulateUpgradeableModularAccountUninstallPlugin,
 } from "../../../generated/contracts";
 import { accountClient } from "../../../utils/alchemyConnector";
 import queryClient from "../../../utils/queryClient";
@@ -33,11 +32,7 @@ export default function UpgradeAccount() {
     });
   const { data: pluginManifest } = useReadExaPluginPluginManifest({ address: exaPluginAddress });
   const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
-  const { data: uninstallPluginSimulation } = useSimulateUpgradeableModularAccountUninstallPlugin({
-    address,
-    args: [installedPlugins?.[0] ?? zeroAddress, "0x", "0x"],
-    query: { enabled: !!address && !!installedPlugins && !!bytecode },
-  });
+
   const toast = useToastController();
   const { data: step } = useQuery<number | undefined>({ queryKey: ["card-upgrade"] });
   const { mutateAsync: upgradeAccount, isPending: isUpgrading } = useMutation({
@@ -49,30 +44,44 @@ export default function UpgradeAccount() {
       if (!accountClient) throw new Error("no account client");
       if (!address) throw new Error("no account address");
       if (!installedPlugins?.[0]) throw new Error("no installed plugin");
-      if (!uninstallPluginSimulation) throw new Error("no uninstall plugin simulation");
       if (!pluginManifest) throw new Error("invalid manifest");
-      const hash = await accountClient.sendUserOperation({
-        uo: [
-          { target: address, value: 0n, data: encodeFunctionData(uninstallPluginSimulation.request) },
-          {
-            target: address,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: upgradeableModularAccountAbi,
-              functionName: "installPlugin",
-              args: [
-                exaPluginAddress,
-                keccak256(
-                  encodeAbiParameters(getAbiItem({ abi: exaPluginAbi, name: "pluginManifest" }).outputs, [
-                    pluginManifest,
-                  ]),
-                ),
-                "0x",
-                [],
-              ],
-            }),
-          },
+      const executeBatchData = encodeFunctionData({
+        abi: upgradeableModularAccountAbi,
+        functionName: "executeBatch",
+        args: [
+          [
+            {
+              target: address,
+              value: 0n,
+              data: encodeFunctionData({
+                abi: upgradeableModularAccountAbi,
+                functionName: "uninstallPlugin",
+                args: [installedPlugins[0], "0x", "0x"],
+              }),
+            },
+            {
+              target: address,
+              value: 0n,
+              data: encodeFunctionData({
+                abi: upgradeableModularAccountAbi,
+                functionName: "installPlugin",
+                args: [
+                  exaPluginAddress,
+                  keccak256(
+                    encodeAbiParameters(getAbiItem({ abi: exaPluginAbi, name: "pluginManifest" }).outputs, [
+                      pluginManifest,
+                    ]),
+                  ),
+                  "0x",
+                  [],
+                ],
+              }),
+            },
+          ],
         ],
+      });
+      const hash = await accountClient.sendUserOperation({
+        uo: { target: address, value: 0n, data: executeBatchData },
       });
       await accountClient.waitForUserOperationTransaction(hash);
     },

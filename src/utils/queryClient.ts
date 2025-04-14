@@ -124,6 +124,13 @@ queryClient.setQueryDefaults(["user", "country"], {
   gcTime: Infinity,
   queryFn: () => queryClient.getQueryData(["user", "country"]),
 });
+queryClient.setQueryDefaults(["settings", "rollover-intro-shown"], {
+  initialData: false,
+  retry: false,
+  staleTime: Infinity,
+  gcTime: Infinity,
+  queryFn: () => queryClient.getQueryData(["settings", "rollover-intro-shown"]),
+});
 
 export type ActivityItem = Awaited<ReturnType<typeof getActivity>>[number];
 export interface Withdraw {
