@@ -1,6 +1,7 @@
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import chain from "@exactly/common/generated/chain";
 import { Hash } from "@exactly/common/validation";
+import { SPAN_STATUS_ERROR, SPAN_STATUS_OK } from "@sentry/core";
 import { captureException, startSpan, withScope } from "@sentry/node";
 import { parse } from "valibot";
 import {
@@ -78,7 +79,10 @@ export function extender(keeper: ReturnType<typeof createWalletClient>) {
             const receipt = await startSpan({ name: "wait for receipt", op: "tx.wait" }, () =>
               publicClient.waitForTransactionReceipt({ hash }),
             );
-            span.setStatus({ code: receipt.status === "success" ? 1 : 2, message: receipt.status });
+            span.setStatus({
+              code: receipt.status === "success" ? SPAN_STATUS_OK : SPAN_STATUS_ERROR,
+              message: receipt.status,
+            });
             scope.setContext("tx", { hash, request, receipt });
             const trace = await traceClient.traceTransaction(hash);
             scope.setContext("tx", { hash, request, receipt, trace });
@@ -103,7 +107,10 @@ export function extender(keeper: ReturnType<typeof createWalletClient>) {
                 if (ignore) return ignore;
               } else if (options.ignore.includes(reason)) return null;
             }
-            span.setStatus({ code: 2, message: error instanceof Error ? error.message : String(error) });
+            span.setStatus({
+              code: SPAN_STATUS_ERROR,
+              message: error instanceof Error ? error.message : String(error),
+            });
             captureException(error, { level: "error" });
             throw error;
           }

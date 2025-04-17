@@ -8,6 +8,7 @@ import chain, {
 } from "@exactly/common/generated/chain";
 import shortenHex from "@exactly/common/shortenHex";
 import { Address, Hash, Hex } from "@exactly/common/validation";
+import { SPAN_STATUS_ERROR, SPAN_STATUS_OK } from "@sentry/core";
 import {
   captureException,
   continueTrace,
@@ -249,7 +250,7 @@ function scheduleMessage(message: string) {
                     },
                   );
 
-                  parent.setStatus({ code: 1, message: "ok" });
+                  parent.setStatus({ code: SPAN_STATUS_OK, message: "ok" });
                   if (proposalType === ProposalType.Withdraw) {
                     const receiver = v.parse(
                       Address,
@@ -274,7 +275,7 @@ function scheduleMessage(message: string) {
                   return redis.zrem("proposals", message);
                 },
               ).catch(async (error: unknown) => {
-                parent.setStatus({ code: 2, message: "proposal_failed" });
+                parent.setStatus({ code: SPAN_STATUS_ERROR, message: "proposal_failed" });
                 captureException(error, {
                   level: "error",
                   contexts: { proposal: { account, nonce, proposalType: ProposalType[proposalType] } },
@@ -363,7 +364,7 @@ function scheduleWithdraw(message: string) {
                   abi: [...legacyExaPluginAbi, ...upgradeableModularAccountAbi, ...auditorAbi, marketAbi[6]],
                 },
               );
-              parent.setStatus({ code: 1, message: "ok" });
+              parent.setStatus({ code: SPAN_STATUS_OK, message: "ok" });
               Promise.all([
                 publicClient.readContract({ address: market, abi: marketAbi, functionName: "decimals" }),
                 publicClient.readContract({ address: market, abi: marketAbi, functionName: "symbol" }),
@@ -388,10 +389,10 @@ function scheduleWithdraw(message: string) {
               error.cause.data?.errorName === "PreExecHookReverted" &&
               error.cause.data.args?.[2] === encodeErrorResult({ errorName: "NoProposal", abi: legacyExaPluginAbi })
             ) {
-              parent.setStatus({ code: 2, message: "aborted" });
+              parent.setStatus({ code: SPAN_STATUS_ERROR, message: "aborted" });
               return redis.zrem("withdraw", message);
             }
-            parent.setStatus({ code: 2, message: "failed_precondition" });
+            parent.setStatus({ code: SPAN_STATUS_ERROR, message: "failed_precondition" });
             captureException(error);
             if (
               chain.id === optimismSepolia.id &&
