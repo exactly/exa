@@ -48,6 +48,7 @@ export function extender(keeper: ReturnType<typeof createWalletClient>) {
       withScope((scope) =>
         startSpan({ forceTransaction: true, ...spanOptions }, async (span) => {
           try {
+            scope.setContext("tx", { call });
             span.setAttributes({
               "tx.call": `${call.functionName}(${call.args?.map(String).join(", ") ?? ""})`,
               "tx.from": keeper.account?.address,
@@ -73,44 +74,39 @@ export function extender(keeper: ReturnType<typeof createWalletClient>) {
             const hash = await startSpan({ name: "send transaction", op: "tx.send" }, () =>
               keeper.writeContract(writeRequest),
             );
+            scope.setContext("tx", { request, hash });
             span.setAttribute("tx.hash", hash);
-            scope.setContext("tx", { hash, request });
             await options?.onHash?.(hash);
             const receipt = await startSpan({ name: "wait for receipt", op: "tx.wait" }, () =>
               publicClient.waitForTransactionReceipt({ hash }),
             );
-            span.setStatus({
-              code: receipt.status === "success" ? SPAN_STATUS_OK : SPAN_STATUS_ERROR,
-              message: receipt.status,
-            });
-            scope.setContext("tx", { hash, request, receipt });
+            scope.setContext("tx", { request, receipt });
             const trace = await traceClient.traceTransaction(hash);
-            scope.setContext("tx", { hash, request, receipt, trace });
+            scope.setContext("tx", { request, receipt, trace });
             if (receipt.status !== "success") {
               // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
               throw getContractError(new RawContractError({ data: trace.output }), { ...call, args: call.args ?? [] });
             }
+            span.setStatus({ code: SPAN_STATUS_OK, message: "ok" });
             return receipt;
           } catch (error: unknown) {
+            const reason =
+              error instanceof BaseError &&
+              error.cause instanceof ContractFunctionRevertedError &&
+              error.cause.data?.errorName
+                ? `${error.cause.data.errorName}(${error.cause.data.args?.map(String).join(",") ?? ""})`
+                : error instanceof Error
+                  ? error.message
+                  : String(error);
             if (options?.ignore) {
-              const reason =
-                error instanceof BaseError &&
-                error.cause instanceof ContractFunctionRevertedError &&
-                error.cause.data?.errorName
-                  ? `${error.cause.data.errorName}(${error.cause.data.args?.map(String).join(",") ?? ""})`
-                  : error instanceof Error
-                    ? error.message
-                    : String(error);
-              if (typeof options.ignore === "function") {
-                const ignore = await options.ignore(reason);
-                if (ignore === true) return null;
-                if (ignore) return ignore;
-              } else if (options.ignore.includes(reason)) return null;
+              const ignore =
+                typeof options.ignore === "function" ? await options.ignore(reason) : options.ignore.includes(reason);
+              if (ignore) {
+                span.setStatus({ code: SPAN_STATUS_OK, message: reason });
+                return ignore === true ? null : ignore;
+              }
             }
-            span.setStatus({
-              code: SPAN_STATUS_ERROR,
-              message: error instanceof Error ? error.message : String(error),
-            });
+            span.setStatus({ code: SPAN_STATUS_ERROR, message: reason });
             captureException(error, { level: "error" });
             throw error;
           }
