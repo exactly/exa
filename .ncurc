@@ -4,11 +4,6 @@
     "@openzeppelin/contracts-upgradeable-v4",
     "@react-native-async-storage/async-storage",
     "@react-navigation/bottom-tabs",
-    "@tamagui/animations-moti",
-    "@tamagui/babel-plugin",
-    "@tamagui/config",
-    "@tamagui/lucide-icons",
-    "@tamagui/toast",
     "@tanstack/react-form",
     "@types/react",
     "account-abstraction",
@@ -34,7 +29,6 @@
     "react-native-reanimated",
     "react-native-safe-area-context",
     "react-native-screens",
-    "sharp-cli",
-    "tamagui"
+    "sharp-cli"
   ]
 }
