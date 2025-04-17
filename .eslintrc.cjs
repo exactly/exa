@@ -94,11 +94,15 @@ module.exports = {
       files: ["server/test/**"],
       extends: ["plugin:@vitest/legacy-all"],
       rules: {
+        "@vitest/max-expects": "off", // incompatible with spanIt
+        "@vitest/no-done-callback": "off", // deprecated
         "@vitest/no-hooks": "off",
+        "@vitest/no-standalone-expect": ["warn", { additionalTestBlockFunctions: ["spanIt"] }],
         "@vitest/prefer-expect-assertions": [
           "warn",
           { onlyFunctionsWithExpectInLoop: true, onlyFunctionsWithExpectInCallback: true },
         ],
+        "@vitest/require-hook": ["warn", { allowedFunctionCalls: ["spanIt"] }],
         "@vitest/require-top-level-describe": "off",
       },
     },

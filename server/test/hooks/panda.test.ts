@@ -16,7 +16,7 @@ import chain, {
 } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 import { proposalManager } from "@exactly/plugin/deploy.json";
-import { captureException } from "@sentry/node";
+import { captureException, startSpan } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { parse } from "valibot";
@@ -48,6 +48,7 @@ import * as pandaUtils from "../../utils/panda";
 import publicClient from "../../utils/publicClient";
 import traceClient from "../../utils/traceClient";
 import anvilClient from "../anvilClient";
+import taskName from "../taskName";
 
 const appClient = testClient(app);
 const owner = createWalletClient({ chain, transport: http(), account: privateKeyToAccount(generatePrivateKey()) });
@@ -62,10 +63,14 @@ beforeAll(async () => {
 });
 
 describe("validation", () => {
-  it("fails with bad key", async () => {
-    const response = await appClient.index.$post({ ...authorization, header: { signature: "bad" } });
+  it("fails with bad key", async ({ task }) => {
+    expect.hasAssertions();
 
-    expect(response.status).toBe(401);
+    await startSpan({ name: taskName(task), op: "test.test" }, async () => {
+      const response = await appClient.index.$post({ ...authorization, header: { signature: "bad" } });
+
+      expect(response.status).toBe(401);
+    });
   });
 });
 
@@ -106,95 +111,121 @@ describe("card operations", () => {
         pandaUtils.getMutex(account)?.release();
       });
 
-      it("authorizes credit", async () => {
-        const response = await appClient.index.$post({
-          ...authorization,
-          json: {
-            ...authorization.json,
-            body: { ...authorization.json.body, spend: { ...authorization.json.body.spend, cardId: "card" } },
-          },
-        });
+      it("authorizes credit", async ({ task }) => {
+        expect.hasAssertions();
 
-        expect(response.status).toBe(200);
-      });
-
-      it("authorizes debit", async () => {
-        await database.insert(cards).values([{ id: "debit", credentialId: "cred", lastFour: "5678", mode: 0 }]);
-
-        const response = await appClient.index.$post({
-          ...authorization,
-          json: {
-            ...authorization.json,
-            body: { ...authorization.json.body, spend: { ...authorization.json.body.spend, cardId: "debit" } },
-          },
-        });
-
-        expect(response.status).toBe(200);
-      });
-
-      it("authorizes installments", async () => {
-        await database.insert(cards).values([{ id: "inst", credentialId: "cred", lastFour: "5678", mode: 6 }]);
-
-        const response = await appClient.index.$post({
-          ...authorization,
-          json: {
-            ...authorization.json,
-            body: { ...authorization.json.body, spend: { ...authorization.json.body.spend, cardId: "inst" } },
-          },
-        });
-
-        expect(response.status).toBe(200);
-      });
-
-      it("authorizes zero", async () => {
-        const response = await appClient.index.$post({
-          ...authorization,
-          json: {
-            ...authorization.json,
-            body: {
-              ...authorization.json.body,
-              spend: { ...authorization.json.body.spend, cardId: "card", amount: 0 },
+        await startSpan({ name: taskName(task), op: "test.test" }, async () => {
+          const response = await appClient.index.$post({
+            ...authorization,
+            json: {
+              ...authorization.json,
+              body: { ...authorization.json.body, spend: { ...authorization.json.body.spend, cardId: "card" } },
             },
-          },
-        });
+          });
 
-        expect(response.status).toBe(200);
+          expect(response.status).toBe(200);
+        });
       });
 
-      it("authorizes negative amount", async () => {
-        const response = await appClient.index.$post({
-          ...authorization,
-          json: {
-            ...authorization.json,
-            body: {
-              ...authorization.json.body,
-              spend: { ...authorization.json.body.spend, cardId: "card", amount: -100 },
+      it("authorizes debit", async ({ task }) => {
+        expect.hasAssertions();
+
+        await startSpan({ name: taskName(task), op: "test.test" }, async () => {
+          await database.insert(cards).values([{ id: "debit", credentialId: "cred", lastFour: "5678", mode: 0 }]);
+
+          const response = await appClient.index.$post({
+            ...authorization,
+            json: {
+              ...authorization.json,
+              body: { ...authorization.json.body, spend: { ...authorization.json.body.spend, cardId: "debit" } },
             },
-          },
-        });
+          });
 
-        expect(response.status).toBe(200);
+          expect(response.status).toBe(200);
+        });
       });
 
-      it("fails when tracing", async () => {
-        const trace = vi.spyOn(traceClient, "traceCall").mockResolvedValue({ ...callFrame, output: "0x" });
+      it("authorizes installments", async ({ task }) => {
+        expect.hasAssertions();
 
-        await database.insert(cards).values([{ id: "failed_trace", credentialId: "cred", lastFour: "2222", mode: 4 }]);
+        await startSpan({ name: taskName(task), op: "test.test" }, async () => {
+          await database.insert(cards).values([{ id: "inst", credentialId: "cred", lastFour: "5678", mode: 6 }]);
 
-        const response = await appClient.index.$post({
-          ...authorization,
-          json: {
-            ...authorization.json,
-            body: { ...authorization.json.body, spend: { ...authorization.json.body.spend, cardId: "failed_trace" } },
-          },
+          const response = await appClient.index.$post({
+            ...authorization,
+            json: {
+              ...authorization.json,
+              body: { ...authorization.json.body, spend: { ...authorization.json.body.spend, cardId: "inst" } },
+            },
+          });
+
+          expect(response.status).toBe(200);
         });
+      });
 
-        expect(trace).toHaveBeenCalledOnce();
-        expect(captureException).toHaveBeenCalledWith(
-          expect.objectContaining({ name: "ContractFunctionExecutionError", functionName: "collectCredit" }),
-          expect.anything(),
-        );
-        expect(response.status).toBe(550);
+      it("authorizes zero", async ({ task }) => {
+        expect.hasAssertions();
+
+        await startSpan({ name: taskName(task), op: "test.test" }, async () => {
+          const response = await appClient.index.$post({
+            ...authorization,
+            json: {
+              ...authorization.json,
+              body: {
+                ...authorization.json.body,
+                spend: { ...authorization.json.body.spend, cardId: "card", amount: 0 },
+              },
+            },
+          });
+
+          expect(response.status).toBe(200);
+        });
+      });
+
+      it("authorizes negative amount", async ({ task }) => {
+        expect.hasAssertions();
+
+        await startSpan({ name: taskName(task), op: "test.test" }, async () => {
+          const response = await appClient.index.$post({
+            ...authorization,
+            json: {
+              ...authorization.json,
+              body: {
+                ...authorization.json.body,
+                spend: { ...authorization.json.body.spend, cardId: "card", amount: -100 },
+              },
+            },
+          });
+
+          expect(response.status).toBe(200);
+        });
+      });
+
+      it("fails when tracing", async ({ task }) => {
+        expect.hasAssertions();
+
+        await startSpan({ name: taskName(task), op: "test.test" }, async () => {
+          const trace = vi.spyOn(traceClient, "traceCall").mockResolvedValue({ ...callFrame, output: "0x" });
+
+          await database
+            .insert(cards)
+            .values([{ id: "failed_trace", credentialId: "cred", lastFour: "2222", mode: 4 }]);
+
+          const response = await appClient.index.$post({
+            ...authorization,
+            json: {
+              ...authorization.json,
+              body: { ...authorization.json.body, spend: { ...authorization.json.body.spend, cardId: "failed_trace" } },
+            },
+          });
+
+          expect(trace).toHaveBeenCalledOnce();
+          expect(captureException).toHaveBeenCalledWith(
+            expect.objectContaining({ name: "ContractFunctionExecutionError", functionName: "collectCredit" }),
+            expect.anything(),
+          );
+          expect(response.status).toBe(550);
+        });
       });
 
       describe("with drain proposal", () => {
@@ -213,18 +244,22 @@ describe("card operations", () => {
           );
         });
 
-        it("declines collection", async () => {
-          await database.insert(cards).values([{ id: "drain", credentialId: "cred", lastFour: "5678", mode: 0 }]);
+        it("declines collection", async ({ task }) => {
+          expect.hasAssertions();
 
-          const response = await appClient.index.$post({
-            ...authorization,
-            json: {
-              ...authorization.json,
-              body: { ...authorization.json.body, spend: { ...authorization.json.body.spend, cardId: "drain" } },
-            },
+          await startSpan({ name: taskName(task), op: "test.test" }, async () => {
+            await database.insert(cards).values([{ id: "drain", credentialId: "cred", lastFour: "5678", mode: 0 }]);
+
+            const response = await appClient.index.$post({
+              ...authorization,
+              json: {
+                ...authorization.json,
+                body: { ...authorization.json.body, spend: { ...authorization.json.body.spend, cardId: "drain" } },
+              },
+            });
+
+            expect(response.status).toBe(550);
           });
-
-          expect(response.status).toBe(550);
         });
       });
     });
@@ -250,241 +285,271 @@ describe("card operations", () => {
         });
       });
 
-      it("clears debit", async () => {
-        const cardId = "debits";
-        await database.insert(cards).values([{ id: "debits", credentialId: "cred", lastFour: "3456", mode: 0 }]);
-        const response = await appClient.index.$post({
-          ...authorization,
-          json: {
-            ...authorization.json,
-            action: "created",
-            body: {
-              ...authorization.json.body,
-              id: cardId,
-              spend: { ...authorization.json.body.spend, cardId },
-            },
-          },
-        });
-        const card = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
-        const purchaseReceipt = await publicClient.waitForTransactionReceipt({
-          hash: card?.hashes[0] as Hex,
-          confirmations: 0,
-        });
+      it("clears debit", async ({ task }) => {
+        expect.hasAssertions();
 
-        expect(usdcToCollector(purchaseReceipt)).toBe(BigInt(authorization.json.body.spend.amount * 1e4));
-        expect(response.status).toBe(200);
-      });
-
-      it("clears credit", async () => {
-        const amount = 10;
-
-        const cardId = "credits";
-        await database.insert(cards).values([{ id: "credits", credentialId: "cred", lastFour: "7890", mode: 1 }]);
-
-        const response = await appClient.index.$post({
-          ...authorization,
-          json: {
-            ...authorization.json,
-            action: "created",
-            body: {
-              ...authorization.json.body,
-              id: cardId,
-              spend: { ...authorization.json.body.spend, cardId, amount },
-            },
-          },
-        });
-
-        const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
-        const purchaseReceipt = await publicClient.waitForTransactionReceipt({
-          hash: transaction?.hashes[0] as Hex,
-          confirmations: 0,
-        });
-
-        expect(usdcToCollector(purchaseReceipt)).toBe(BigInt(amount * 1e4));
-        expect(response.status).toBe(200);
-      });
-
-      it("clears with transaction update", async () => {
-        const amount = 100;
-        const update = 50;
-
-        const cardId = "tUpdate";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 1 }]);
-        const createResponse = await appClient.index.$post({
-          ...authorization,
-          json: {
-            ...authorization.json,
-            action: "created",
-            body: {
-              ...authorization.json.body,
-              id: cardId,
-              spend: { ...authorization.json.body.spend, cardId, amount, localAmount: amount },
-            },
-          },
-        });
-
-        const updateResponse = await appClient.index.$post({
-          ...authorization,
-          json: {
-            ...authorization.json,
-            action: "updated",
-            body: {
-              ...authorization.json.body,
-              id: cardId,
-              spend: {
-                ...authorization.json.body.spend,
-                amount: amount + update,
-                authorizationUpdateAmount: update,
-                cardId,
-                localAmount: amount + update,
+        await startSpan({ name: taskName(task), op: "test.test" }, async () => {
+          const cardId = "debits";
+          await database.insert(cards).values([{ id: "debits", credentialId: "cred", lastFour: "3456", mode: 0 }]);
+          const response = await appClient.index.$post({
+            ...authorization,
+            json: {
+              ...authorization.json,
+              action: "created",
+              body: {
+                ...authorization.json.body,
+                id: cardId,
+                spend: { ...authorization.json.body.spend, cardId },
               },
             },
-          },
-        });
+          });
+          const card = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
+          const purchaseReceipt = await publicClient.waitForTransactionReceipt({
+            hash: card?.hashes[0] as Hex,
+            confirmations: 0,
+          });
 
-        const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
-        await Promise.all(
-          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-          transaction!.hashes.map((h) => publicClient.waitForTransactionReceipt({ hash: h as Hex, confirmations: 0 })),
-        );
-
-        expect(createResponse.status).toBe(200);
-        expect(updateResponse.status).toBe(200);
-
-        expect(transaction?.payload).toMatchObject({
-          bodies: [{ action: "created" }, { action: "updated", body: { spend: { amount: amount + update } } }],
-          merchant: {
-            city: "buenos aires",
-            country: "argentina",
-            name: "99999",
-          },
+          expect(usdcToCollector(purchaseReceipt)).toBe(BigInt(authorization.json.body.spend.amount * 1e4));
+          expect(response.status).toBe(200);
         });
       });
 
-      it("clears installments", async () => {
-        const amount = 120;
+      it("clears credit", async ({ task }) => {
+        expect.hasAssertions();
 
-        const cardId = "splits";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "6754", mode: 6 }]);
+        await startSpan({ name: taskName(task), op: "test.test" }, async () => {
+          const amount = 10;
 
-        const response = await appClient.index.$post({
-          ...authorization,
-          json: {
-            ...authorization.json,
-            action: "created",
-            body: {
-              ...authorization.json.body,
-              id: cardId,
-              spend: { ...authorization.json.body.spend, cardId, amount },
+          const cardId = "credits";
+          await database.insert(cards).values([{ id: "credits", credentialId: "cred", lastFour: "7890", mode: 1 }]);
+
+          const response = await appClient.index.$post({
+            ...authorization,
+            json: {
+              ...authorization.json,
+              action: "created",
+              body: {
+                ...authorization.json.body,
+                id: cardId,
+                spend: { ...authorization.json.body.spend, cardId, amount },
+              },
             },
-          },
-        });
+          });
 
-        const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
-        const purchaseReceipt = await publicClient.waitForTransactionReceipt({
-          hash: transaction?.hashes[0] as Hex,
-          confirmations: 0,
-        });
+          const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
+          const purchaseReceipt = await publicClient.waitForTransactionReceipt({
+            hash: transaction?.hashes[0] as Hex,
+            confirmations: 0,
+          });
 
-        expect(usdcToCollector(purchaseReceipt)).toBe(BigInt(amount * 1e4));
-        expect(response.status).toBe(200);
+          expect(usdcToCollector(purchaseReceipt)).toBe(BigInt(amount * 1e4));
+          expect(response.status).toBe(200);
+        });
       });
 
-      it("fails with transaction timeout", async () => {
-        vi.spyOn(publicClient, "waitForTransactionReceipt").mockRejectedValue(new Error("timeout"));
+      it("clears with transaction update", async ({ task }) => {
+        expect.hasAssertions();
 
-        const cardId = "timeout";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "7777", mode: 6 }]);
+        await startSpan({ name: taskName(task), op: "test.test" }, async () => {
+          const amount = 100;
+          const update = 50;
 
-        const response = await appClient.index.$post({
-          ...authorization,
-          json: {
-            ...authorization.json,
-            action: "created",
-            body: {
-              ...authorization.json.body,
-              id: cardId,
-              spend: { ...authorization.json.body.spend, cardId, amount: 60 },
+          const cardId = "tUpdate";
+          await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 1 }]);
+          const createResponse = await appClient.index.$post({
+            ...authorization,
+            json: {
+              ...authorization.json,
+              action: "created",
+              body: {
+                ...authorization.json.body,
+                id: cardId,
+                spend: { ...authorization.json.body.spend, cardId, amount, localAmount: amount },
+              },
             },
-          },
+          });
+
+          const updateResponse = await appClient.index.$post({
+            ...authorization,
+            json: {
+              ...authorization.json,
+              action: "updated",
+              body: {
+                ...authorization.json.body,
+                id: cardId,
+                spend: {
+                  ...authorization.json.body.spend,
+                  amount: amount + update,
+                  authorizationUpdateAmount: update,
+                  cardId,
+                  localAmount: amount + update,
+                },
+              },
+            },
+          });
+
+          const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
+          await Promise.all(
+            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+            transaction!.hashes.map((h) =>
+              publicClient.waitForTransactionReceipt({ hash: h as Hex, confirmations: 0 }),
+            ),
+          );
+
+          expect(createResponse.status).toBe(200);
+          expect(updateResponse.status).toBe(200);
+
+          expect(transaction?.payload).toMatchObject({
+            bodies: [{ action: "created" }, { action: "updated", body: { spend: { amount: amount + update } } }],
+            merchant: {
+              city: "buenos aires",
+              country: "argentina",
+              name: "99999",
+            },
+          });
         });
-
-        const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
-
-        expect(captureException).toHaveBeenNthCalledWith(
-          1,
-          new Error("timeout"),
-          expect.objectContaining({ level: "error" }),
-        );
-        expect(captureException).toHaveBeenNthCalledWith(
-          2,
-          new Error("timeout"),
-          expect.objectContaining({ level: "fatal" }),
-        );
-        expect(transaction).toBeDefined();
-        expect(response.status).toBe(569);
       });
 
-      it("fails with transaction revert", async () => {
-        vi.spyOn(publicClient, "waitForTransactionReceipt").mockResolvedValue({
-          ...receipt,
-          status: "reverted",
-          logs: [],
-        });
+      it("clears installments", async ({ task }) => {
+        expect.hasAssertions();
 
-        const cardId = "revert";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 5 }]);
+        await startSpan({ name: taskName(task), op: "test.test" }, async () => {
+          const amount = 120;
 
-        const response = await appClient.index.$post({
-          ...authorization,
-          json: {
-            ...authorization.json,
-            action: "created",
-            body: {
-              ...authorization.json.body,
-              id: cardId,
-              spend: { ...authorization.json.body.spend, cardId, amount: 70 },
+          const cardId = "splits";
+          await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "6754", mode: 6 }]);
+
+          const response = await appClient.index.$post({
+            ...authorization,
+            json: {
+              ...authorization.json,
+              action: "created",
+              body: {
+                ...authorization.json.body,
+                id: cardId,
+                spend: { ...authorization.json.body.spend, cardId, amount },
+              },
             },
-          },
+          });
+
+          const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
+          const purchaseReceipt = await publicClient.waitForTransactionReceipt({
+            hash: transaction?.hashes[0] as Hex,
+            confirmations: 0,
+          });
+
+          expect(usdcToCollector(purchaseReceipt)).toBe(BigInt(amount * 1e4));
+          expect(response.status).toBe(200);
         });
-
-        const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
-
-        expect(captureException).toHaveBeenNthCalledWith(
-          1,
-          expect.any(BaseError),
-          expect.objectContaining({ level: "error" }),
-        );
-        expect(captureException).toHaveBeenNthCalledWith(
-          2,
-          expect.any(BaseError),
-          expect.objectContaining({ level: "fatal" }),
-        );
-        expect(transaction).toBeDefined();
-        expect(response.status).toBe(569);
       });
 
-      it("fails with unexpected error", async () => {
-        vi.spyOn(publicClient, "simulateContract").mockRejectedValue(new Error("Unexpected Error"));
+      it("fails with transaction timeout", async ({ task }) => {
+        expect.hasAssertions();
 
-        const cardId = "unexpected";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 4 }]);
+        await startSpan({ name: taskName(task), op: "test.test" }, async () => {
+          vi.spyOn(publicClient, "waitForTransactionReceipt").mockRejectedValue(new Error("timeout"));
 
-        const response = await appClient.index.$post({
-          ...authorization,
-          json: {
-            ...authorization.json,
-            action: "created",
-            body: {
-              ...authorization.json.body,
-              id: cardId,
-              spend: { ...authorization.json.body.spend, cardId, amount: 90 },
+          const cardId = "timeout";
+          await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "7777", mode: 6 }]);
+
+          const response = await appClient.index.$post({
+            ...authorization,
+            json: {
+              ...authorization.json,
+              action: "created",
+              body: {
+                ...authorization.json.body,
+                id: cardId,
+                spend: { ...authorization.json.body.spend, cardId, amount: 60 },
+              },
             },
-          },
-        });
+          });
 
-        expect(captureException).toHaveBeenCalledWith(new Error("Unexpected Error"), expect.anything());
-        expect(response.status).toBe(569);
+          const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
+
+          expect(captureException).toHaveBeenNthCalledWith(
+            1,
+            new Error("timeout"),
+            expect.objectContaining({ level: "error" }),
+          );
+          expect(captureException).toHaveBeenNthCalledWith(
+            2,
+            new Error("timeout"),
+            expect.objectContaining({ level: "fatal" }),
+          );
+          expect(transaction).toBeDefined();
+          expect(response.status).toBe(569);
+        });
+      });
+
+      it("fails with transaction revert", async ({ task }) => {
+        expect.hasAssertions();
+
+        await startSpan({ name: taskName(task), op: "test.test" }, async () => {
+          vi.spyOn(publicClient, "waitForTransactionReceipt").mockResolvedValue({
+            ...receipt,
+            status: "reverted",
+            logs: [],
+          });
+
+          const cardId = "revert";
+          await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 5 }]);
+
+          const response = await appClient.index.$post({
+            ...authorization,
+            json: {
+              ...authorization.json,
+              action: "created",
+              body: {
+                ...authorization.json.body,
+                id: cardId,
+                spend: { ...authorization.json.body.spend, cardId, amount: 70 },
+              },
+            },
+          });
+
+          const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
+
+          expect(captureException).toHaveBeenNthCalledWith(
+            1,
+            expect.any(BaseError),
+            expect.objectContaining({ level: "error" }),
+          );
+          expect(captureException).toHaveBeenNthCalledWith(
+            2,
+            expect.any(BaseError),
+            expect.objectContaining({ level: "fatal" }),
+          );
+          expect(transaction).toBeDefined();
+          expect(response.status).toBe(569);
+        });
+      });
+
+      it("fails with unexpected error", async ({ task }) => {
+        expect.hasAssertions();
+
+        await startSpan({ name: taskName(task), op: "test.test" }, async () => {
+          vi.spyOn(publicClient, "simulateContract").mockRejectedValue(new Error("Unexpected Error"));
+
+          const cardId = "unexpected";
+          await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 4 }]);
+
+          const response = await appClient.index.$post({
+            ...authorization,
+            json: {
+              ...authorization.json,
+              action: "created",
+              body: {
+                ...authorization.json.body,
+                id: cardId,
+                spend: { ...authorization.json.body.spend, cardId, amount: 90 },
+              },
+            },
+          });
+
+          expect(captureException).toHaveBeenCalledWith(new Error("Unexpected Error"), expect.anything());
+          expect(response.status).toBe(569);
+        });
       });
 
       describe("with drain proposal", () => {
@@ -503,24 +568,30 @@ describe("card operations", () => {
           );
         });
 
-        it("clears debit", async () => {
-          const amount = 180;
-          await database.insert(cards).values([{ id: "drain-coll", credentialId: "cred", lastFour: "5678", mode: 0 }]);
+        it("clears debit", async ({ task }) => {
+          expect.hasAssertions();
 
-          const response = await appClient.index.$post({
-            ...authorization,
-            json: {
-              ...authorization.json,
-              action: "created",
-              body: {
-                ...authorization.json.body,
-                id: "drain-coll",
-                spend: { ...authorization.json.body.spend, cardId: "drain-coll", amount },
+          await startSpan({ name: taskName(task), op: "test.test" }, async () => {
+            const amount = 180;
+            await database
+              .insert(cards)
+              .values([{ id: "drain-coll", credentialId: "cred", lastFour: "5678", mode: 0 }]);
+
+            const response = await appClient.index.$post({
+              ...authorization,
+              json: {
+                ...authorization.json,
+                action: "created",
+                body: {
+                  ...authorization.json.body,
+                  id: "drain-coll",
+                  spend: { ...authorization.json.body.spend, cardId: "drain-coll", amount },
+                },
               },
-            },
-          });
+            });
 
-          expect(response.status).toBe(200);
+            expect(response.status).toBe(200);
+          });
         });
       });
     });
@@ -550,218 +621,245 @@ describe("card operations", () => {
         });
       });
 
-      it("handles reversal", async () => {
-        const amount = 2073;
-        const cardId = "card";
+      it("handles reversal", async ({ task }) => {
+        expect.hasAssertions();
 
-        await appClient.index.$post({
-          ...authorization,
-          json: {
-            ...authorization.json,
-            action: "created",
-            body: {
-              ...authorization.json.body,
-              id: cardId,
-              spend: { ...authorization.json.body.spend, cardId, amount, localAmount: amount },
-            },
-          },
-        });
+        await startSpan({ name: taskName(task), op: "test.test" }, async () => {
+          const amount = 2073;
+          const cardId = "card";
 
-        const response = await appClient.index.$post({
-          ...authorization,
-          json: {
-            ...authorization.json,
-            action: "updated",
-            body: {
-              ...authorization.json.body,
-              id: cardId,
-              spend: {
-                ...authorization.json.body.spend,
-                cardId,
-                authorizationUpdateAmount: -amount,
-                status: "reversed",
+          await appClient.index.$post({
+            ...authorization,
+            json: {
+              ...authorization.json,
+              action: "created",
+              body: {
+                ...authorization.json.body,
+                id: cardId,
+                spend: { ...authorization.json.body.spend, cardId, amount, localAmount: amount },
               },
             },
-          },
-        });
+          });
 
-        const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
-        const refundReceipt = await publicClient.waitForTransactionReceipt({
-          hash: transaction?.hashes[1] as Hex,
-          confirmations: 0,
-        });
-        const deposit = refundReceipt.logs
-          .filter((l) => l.address.toLowerCase() === inject("MarketUSDC").toLowerCase())
-          .map((l) => decodeEventLog({ abi: marketAbi, eventName: "Deposit", topics: l.topics, data: l.data }))
-          .find((l) => l.args.owner === account);
+          const response = await appClient.index.$post({
+            ...authorization,
+            json: {
+              ...authorization.json,
+              action: "updated",
+              body: {
+                ...authorization.json.body,
+                id: cardId,
+                spend: {
+                  ...authorization.json.body.spend,
+                  cardId,
+                  authorizationUpdateAmount: -amount,
+                  status: "reversed",
+                },
+              },
+            },
+          });
 
-        expect(deposit?.args.assets).toBe(BigInt(amount * 1e4));
-        expect(response.status).toBe(200);
+          const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
+          const refundReceipt = await publicClient.waitForTransactionReceipt({
+            hash: transaction?.hashes[1] as Hex,
+            confirmations: 0,
+          });
+          const deposit = refundReceipt.logs
+            .filter((l) => l.address.toLowerCase() === inject("MarketUSDC").toLowerCase())
+            .map((l) => decodeEventLog({ abi: marketAbi, eventName: "Deposit", topics: l.topics, data: l.data }))
+            .find((l) => l.args.owner === account);
+
+          expect(deposit?.args.assets).toBe(BigInt(amount * 1e4));
+          expect(response.status).toBe(200);
+        });
       });
 
-      it("fails with refund higher than spend", async () => {
-        const amount = 800;
-        const cardId = "card";
+      it("fails with refund higher than spend", async ({ task }) => {
+        expect.hasAssertions();
 
-        await appClient.index.$post({
-          ...authorization,
-          json: {
-            ...authorization.json,
-            action: "created",
-            body: {
-              ...authorization.json.body,
-              id: "high-reversal",
-              spend: { ...authorization.json.body.spend, cardId, amount, localAmount: amount },
-            },
-          },
-        });
+        await startSpan({ name: taskName(task), op: "test.test" }, async () => {
+          const amount = 800;
+          const cardId = "card";
 
-        await appClient.index.$post({
-          ...authorization,
-          json: {
-            ...authorization.json,
-            action: "updated",
-            body: {
-              ...authorization.json.body,
-              id: "high-reversal",
-              spend: { ...authorization.json.body.spend, cardId, authorizationUpdateAmount: -400, status: "reversed" },
-            },
-          },
-        });
-
-        const response = await appClient.index.$post({
-          ...authorization,
-          json: {
-            ...authorization.json,
-            action: "updated",
-            body: {
-              ...authorization.json.body,
-              id: "high-reversal",
-              spend: {
-                ...authorization.json.body.spend,
-                cardId,
-                authorizationUpdateAmount: -2 * amount,
-                status: "reversed",
+          await appClient.index.$post({
+            ...authorization,
+            json: {
+              ...authorization.json,
+              action: "created",
+              body: {
+                ...authorization.json.body,
+                id: "high-reversal",
+                spend: { ...authorization.json.body.spend, cardId, amount, localAmount: amount },
               },
             },
-          },
-        });
+          });
 
-        await expect(response.json()).resolves.toBe("refund higher than spend");
-        expect(response.status).toBe(552);
+          await appClient.index.$post({
+            ...authorization,
+            json: {
+              ...authorization.json,
+              action: "updated",
+              body: {
+                ...authorization.json.body,
+                id: "high-reversal",
+                spend: {
+                  ...authorization.json.body.spend,
+                  cardId,
+                  authorizationUpdateAmount: -400,
+                  status: "reversed",
+                },
+              },
+            },
+          });
+
+          const response = await appClient.index.$post({
+            ...authorization,
+            json: {
+              ...authorization.json,
+              action: "updated",
+              body: {
+                ...authorization.json.body,
+                id: "high-reversal",
+                spend: {
+                  ...authorization.json.body.spend,
+                  cardId,
+                  authorizationUpdateAmount: -2 * amount,
+                  status: "reversed",
+                },
+              },
+            },
+          });
+
+          await expect(response.json()).resolves.toBe("refund higher than spend");
+          expect(response.status).toBe(552);
+        });
       });
 
-      it("fails with spending transaction not found", async () => {
-        const amount = 5;
-        const cardId = "card";
+      it("fails with spending transaction not found", async ({ task }) => {
+        expect.hasAssertions();
 
-        const response = await appClient.index.$post({
-          ...authorization,
-          json: {
-            ...authorization.json,
-            action: "updated",
-            body: {
-              ...authorization.json.body,
-              id: "reversal-without-pending",
-              spend: {
-                ...authorization.json.body.spend,
-                cardId,
-                authorizationUpdateAmount: -amount,
-                status: "reversed",
+        await startSpan({ name: taskName(task), op: "test.test" }, async () => {
+          const amount = 5;
+          const cardId = "card";
+
+          const response = await appClient.index.$post({
+            ...authorization,
+            json: {
+              ...authorization.json,
+              action: "updated",
+              body: {
+                ...authorization.json.body,
+                id: "reversal-without-pending",
+                spend: {
+                  ...authorization.json.body.spend,
+                  cardId,
+                  authorizationUpdateAmount: -amount,
+                  status: "reversed",
+                },
               },
             },
-          },
-        });
+          });
 
-        await expect(response.json()).resolves.toBe("spending transaction not found");
-        expect(response.status).toBe(553);
+          await expect(response.json()).resolves.toBe("spending transaction not found");
+          expect(response.status).toBe(553);
+        });
       });
 
-      it("handles refund", async () => {
-        const amount = 2000;
-        const cardId = "card";
+      it("handles refund", async ({ task }) => {
+        expect.hasAssertions();
 
-        await appClient.index.$post({
-          ...authorization,
-          json: {
-            ...authorization.json,
-            action: "created",
-            body: {
-              ...authorization.json.body,
-              id: "refund",
-              spend: { ...authorization.json.body.spend, cardId, amount, localAmount: amount },
-            },
-          },
-        });
+        await startSpan({ name: taskName(task), op: "test.test" }, async () => {
+          const amount = 2000;
+          const cardId = "card";
 
-        const response = await appClient.index.$post({
-          ...authorization,
-          json: {
-            ...authorization.json,
-            action: "completed",
-            body: {
-              ...authorization.json.body,
-              id: "refund",
-              spend: {
-                ...authorization.json.body.spend,
-                cardId,
-                amount: -amount,
-                localAmount: -amount,
-                status: "completed",
+          await appClient.index.$post({
+            ...authorization,
+            json: {
+              ...authorization.json,
+              action: "created",
+              body: {
+                ...authorization.json.body,
+                id: "refund",
+                spend: { ...authorization.json.body.spend, cardId, amount, localAmount: amount },
               },
             },
-          },
-        });
+          });
 
-        const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, "refund") });
-        const refundReceipt = await publicClient.waitForTransactionReceipt({
-          hash: transaction?.hashes[1] as Hex,
-          confirmations: 0,
-        });
-        const deposit = refundReceipt.logs
-          .filter((l) => l.address.toLowerCase() === inject("MarketUSDC").toLowerCase())
-          .map((l) => decodeEventLog({ abi: marketAbi, eventName: "Deposit", topics: l.topics, data: l.data }))
-          .find((l) => l.args.owner === account);
+          const response = await appClient.index.$post({
+            ...authorization,
+            json: {
+              ...authorization.json,
+              action: "completed",
+              body: {
+                ...authorization.json.body,
+                id: "refund",
+                spend: {
+                  ...authorization.json.body.spend,
+                  cardId,
+                  amount: -amount,
+                  localAmount: -amount,
+                  status: "completed",
+                },
+              },
+            },
+          });
 
-        expect(deposit?.args.assets).toBe(BigInt(amount * 1e4));
-        expect(response.status).toBe(200);
+          const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, "refund") });
+          const refundReceipt = await publicClient.waitForTransactionReceipt({
+            hash: transaction?.hashes[1] as Hex,
+            confirmations: 0,
+          });
+          const deposit = refundReceipt.logs
+            .filter((l) => l.address.toLowerCase() === inject("MarketUSDC").toLowerCase())
+            .map((l) => decodeEventLog({ abi: marketAbi, eventName: "Deposit", topics: l.topics, data: l.data }))
+            .find((l) => l.args.owner === account);
+
+          expect(deposit?.args.assets).toBe(BigInt(amount * 1e4));
+          expect(response.status).toBe(200);
+        });
       });
 
-      it("refunds without traceable spending", async () => {
-        const amount = 3000;
-        const cardId = "card";
+      it("refunds without traceable spending", async ({ task }) => {
+        expect.hasAssertions();
 
-        const response = await appClient.index.$post({
-          ...authorization,
-          json: {
-            ...authorization.json,
-            action: "completed",
-            body: {
-              ...authorization.json.body,
-              id: "no-spending",
-              spend: {
-                ...authorization.json.body.spend,
-                cardId,
-                amount: -amount,
-                localAmount: -amount,
-                status: "completed",
+        await startSpan({ name: taskName(task), op: "test.test" }, async () => {
+          const amount = 3000;
+          const cardId = "card";
+
+          const response = await appClient.index.$post({
+            ...authorization,
+            json: {
+              ...authorization.json,
+              action: "completed",
+              body: {
+                ...authorization.json.body,
+                id: "no-spending",
+                spend: {
+                  ...authorization.json.body.spend,
+                  cardId,
+                  amount: -amount,
+                  localAmount: -amount,
+                  status: "completed",
+                },
               },
             },
-          },
-        });
+          });
 
-        const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, "no-spending") });
-        const refundReceipt = await publicClient.waitForTransactionReceipt({
-          hash: transaction?.hashes[0] as Hex,
-          confirmations: 0,
-        });
-        const deposit = refundReceipt.logs
-          .filter((l) => l.address.toLowerCase() === inject("MarketUSDC").toLowerCase())
-          .map((l) => decodeEventLog({ abi: marketAbi, eventName: "Deposit", topics: l.topics, data: l.data }))
-          .find((l) => l.args.owner === account);
+          const transaction = await database.query.transactions.findFirst({
+            where: eq(transactions.id, "no-spending"),
+          });
+          const refundReceipt = await publicClient.waitForTransactionReceipt({
+            hash: transaction?.hashes[0] as Hex,
+            confirmations: 0,
+          });
+          const deposit = refundReceipt.logs
+            .filter((l) => l.address.toLowerCase() === inject("MarketUSDC").toLowerCase())
+            .map((l) => decodeEventLog({ abi: marketAbi, eventName: "Deposit", topics: l.topics, data: l.data }))
+            .find((l) => l.args.owner === account);
 
-        expect(deposit?.args.assets).toBe(BigInt(amount * 1e4));
-        expect(response.status).toBe(200);
+          expect(deposit?.args.assets).toBe(BigInt(amount * 1e4));
+          expect(response.status).toBe(200);
+        });
       });
     });
   });
@@ -822,95 +920,10 @@ describe("concurrency", () => {
     ]);
   });
 
-  it("handles concurrent authorizations", async () => {
-    const cardId = `${account2}-card`;
-    const promises = Promise.all([
-      appClient.index.$post({
-        ...authorization,
-        json: {
-          ...authorization.json,
-          body: {
-            ...authorization.json.body,
-            id: cardId,
-            spend: { ...authorization.json.body.spend, amount: 5000, cardId },
-          },
-        },
-      }),
-      appClient.index.$post({
-        ...authorization,
-        json: {
-          ...authorization.json,
-          body: {
-            ...authorization.json.body,
-            id: `${cardId}-2`,
-            spend: { ...authorization.json.body.spend, amount: 4000, cardId },
-          },
-        },
-      }),
-      appClient.index.$post({
-        ...authorization,
-        json: {
-          ...authorization.json,
-          action: "created",
-          body: {
-            ...authorization.json.body,
-            id: cardId,
-            spend: { ...authorization.json.body.spend, amount: 5000, cardId },
-          },
-        },
-      }),
-    ]);
+  it("handles concurrent authorizations", async ({ task }) => {
+    expect.hasAssertions();
 
-    const [spend, spend2, collect] = await promises;
-
-    expect(spend.status).toBe(200);
-    expect(spend2.status).toBe(550);
-    expect(collect.status).toBe(200);
-  });
-
-  it("releases mutex when authorization is declined", async () => {
-    const getMutex = vi.spyOn(pandaUtils, "getMutex");
-    const cardId = `${account2}-card`;
-    const spendAuthorization = await appClient.index.$post({
-      ...authorization,
-      json: {
-        ...authorization.json,
-        body: {
-          ...authorization.json.body,
-          id: cardId,
-          spend: { ...authorization.json.body.spend, amount: 800, cardId },
-        },
-      },
-    });
-
-    const collectSpendAuthorization = await appClient.index.$post({
-      ...authorization,
-      json: {
-        ...authorization.json,
-        action: "created",
-        body: {
-          ...authorization.json.body,
-          id: cardId,
-          spend: { ...authorization.json.body.spend, amount: 800, cardId, status: "declined" },
-        },
-      },
-    });
-    const lastCall = getMutex.mock.results.at(-1);
-    const mutex = lastCall?.type === "return" ? lastCall.value : undefined;
-
-    expect(mutex).toBeDefined();
-    expect(mutex?.isLocked()).toBe(false);
-    expect(spendAuthorization.status).toBe(200);
-    expect(collectSpendAuthorization.status).toBe(200);
-  });
-
-  describe("with fake timers", () => {
-    beforeEach(() => vi.useFakeTimers());
-
-    afterEach(() => vi.useRealTimers());
-
-    it("mutex timeout", async () => {
-      const getMutex = vi.spyOn(pandaUtils, "getMutex");
+    await startSpan({ name: taskName(task), op: "test.test" }, async () => {
       const cardId = `${account2}-card`;
       const promises = Promise.all([
         appClient.index.$post({
@@ -920,7 +933,7 @@ describe("concurrency", () => {
             body: {
               ...authorization.json.body,
               id: cardId,
-              spend: { ...authorization.json.body.spend, amount: 1000, cardId },
+              spend: { ...authorization.json.body.spend, amount: 5000, cardId },
             },
           },
         }),
@@ -931,7 +944,7 @@ describe("concurrency", () => {
             body: {
               ...authorization.json.body,
               id: `${cardId}-2`,
-              spend: { ...authorization.json.body.spend, amount: 1200, cardId },
+              spend: { ...authorization.json.body.spend, amount: 4000, cardId },
             },
           },
         }),
@@ -939,26 +952,123 @@ describe("concurrency", () => {
           ...authorization,
           json: {
             ...authorization.json,
+            action: "created",
             body: {
               ...authorization.json.body,
-              id: `${cardId}-3`,
-              spend: { ...authorization.json.body.spend, amount: 1300, cardId },
+              id: cardId,
+              spend: { ...authorization.json.body.spend, amount: 5000, cardId },
             },
           },
         }),
       ]);
 
-      await vi.waitUntil(() => getMutex.mock.calls.length > 2, 16_666);
-      vi.advanceTimersByTime(proposalManager.delay * 1000);
-
-      const lastCall = getMutex.mock.results.at(-1);
-      const mutex = lastCall?.type === "return" ? lastCall.value : undefined;
-      const [spend, spend2, spend3] = await promises;
+      const [spend, spend2, collect] = await promises;
 
       expect(spend.status).toBe(200);
-      expect(spend2.status).toBe(554);
-      expect(spend3.status).toBe(554);
-      expect(mutex?.isLocked()).toBe(true);
+      expect(spend2.status).toBe(550);
+      expect(collect.status).toBe(200);
+    });
+  });
+
+  it("releases mutex when authorization is declined", async ({ task }) => {
+    expect.hasAssertions();
+
+    await startSpan({ name: taskName(task), op: "test.test" }, async () => {
+      const getMutex = vi.spyOn(pandaUtils, "getMutex");
+      const cardId = `${account2}-card`;
+      const spendAuthorization = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, amount: 800, cardId },
+          },
+        },
+      });
+
+      const collectSpendAuthorization = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "created",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, amount: 800, cardId, status: "declined" },
+          },
+        },
+      });
+      const lastCall = getMutex.mock.results.at(-1);
+      const mutex = lastCall?.type === "return" ? lastCall.value : undefined;
+
+      expect(mutex).toBeDefined();
+      expect(mutex?.isLocked()).toBe(false);
+      expect(spendAuthorization.status).toBe(200);
+      expect(collectSpendAuthorization.status).toBe(200);
+    });
+  });
+
+  describe("with fake timers", () => {
+    beforeEach(() => vi.useFakeTimers());
+
+    afterEach(() => vi.useRealTimers());
+
+    it("mutex timeout", async ({ task }) => {
+      expect.hasAssertions();
+
+      await startSpan({ name: taskName(task), op: "test.test" }, async () => {
+        const getMutex = vi.spyOn(pandaUtils, "getMutex");
+        const cardId = `${account2}-card`;
+        const promises = Promise.all([
+          appClient.index.$post({
+            ...authorization,
+            json: {
+              ...authorization.json,
+              body: {
+                ...authorization.json.body,
+                id: cardId,
+                spend: { ...authorization.json.body.spend, amount: 1000, cardId },
+              },
+            },
+          }),
+          appClient.index.$post({
+            ...authorization,
+            json: {
+              ...authorization.json,
+              body: {
+                ...authorization.json.body,
+                id: `${cardId}-2`,
+                spend: { ...authorization.json.body.spend, amount: 1200, cardId },
+              },
+            },
+          }),
+          appClient.index.$post({
+            ...authorization,
+            json: {
+              ...authorization.json,
+              body: {
+                ...authorization.json.body,
+                id: `${cardId}-3`,
+                spend: { ...authorization.json.body.spend, amount: 1300, cardId },
+              },
+            },
+          }),
+        ]);
+
+        await vi.waitUntil(() => getMutex.mock.calls.length > 2, 16_666);
+        vi.advanceTimersByTime(proposalManager.delay * 1000);
+
+        const lastCall = getMutex.mock.results.at(-1);
+        const mutex = lastCall?.type === "return" ? lastCall.value : undefined;
+        const [spend, spend2, spend3] = await promises;
+
+        expect(spend.status).toBe(200);
+        expect(spend2.status).toBe(554);
+        expect(spend3.status).toBe(554);
+        expect(mutex?.isLocked()).toBe(true);
+      });
     });
   });
 });
