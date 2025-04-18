@@ -3,6 +3,7 @@ import chain from "@exactly/common/generated/chain";
 import { Hash } from "@exactly/common/validation";
 import { SPAN_STATUS_ERROR, SPAN_STATUS_OK } from "@sentry/core";
 import { captureException, startSpan, withScope } from "@sentry/node";
+import { setTimeout } from "node:timers/promises";
 import { parse } from "valibot";
 import {
   BaseError,
@@ -96,13 +97,23 @@ export function extender(keeper: WalletClient<HttpTransport, typeof chain, Priva
             const hash = keccak256(serializedTransaction);
             scope.setContext("tx", { request, prepared, hash });
             span.setAttribute("tx.hash", hash);
+            const abortController = new AbortController();
             const [, receiptResult] = await Promise.allSettled([
-              startSpan({ name: "send transaction", op: "tx.send" }, () =>
-                publicClient.sendRawTransaction({ serializedTransaction }),
-              ),
+              (async () => {
+                while (!abortController.signal.aborted) {
+                  await Promise.allSettled([
+                    startSpan({ name: "send transaction", op: "tx.send" }, () =>
+                      publicClient.sendRawTransaction({ serializedTransaction }),
+                    ),
+                    setTimeout(10_000, null, { signal: abortController.signal }),
+                  ]);
+                }
+              })(),
               startSpan({ name: "wait for receipt", op: "tx.wait" }, () =>
                 publicClient.waitForTransactionReceipt({ hash, confirmations: 0 }),
-              ),
+              ).finally(() => {
+                abortController.abort();
+              }),
               Promise.resolve(options?.onHash?.(hash)).catch((error: unknown) =>
                 captureException(error, { level: "error" }),
               ),
