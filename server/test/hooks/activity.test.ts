@@ -67,7 +67,7 @@ describe("address activity", () => {
 
     await vi.waitUntil(() => getCode.mock.calls.length > 0);
 
-    expect(captureException).toHaveBeenCalledWith(new Error("Unexpected"));
+    expect(captureException).toHaveBeenCalledWith(new Error("Unexpected"), expect.objectContaining({ level: "error" }));
 
     expect(response.status).toBe(200);
   });

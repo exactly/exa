@@ -7,6 +7,7 @@ import chain, {
   wethAddress,
 } from "@exactly/common/generated/chain";
 import { Address, Hash } from "@exactly/common/validation";
+import { SPAN_STATUS_ERROR, SPAN_STATUS_OK, type SpanStatus } from "@sentry/core";
 import {
   captureException,
   continueTrace,
@@ -120,15 +121,14 @@ export default new Hono().post(
           withScope((scope) =>
             startSpan(
               { name: "account activity", op: "exa.activity", attributes: { account }, forceTransaction: true },
-              async () => {
+              async (span) => {
                 scope.setUser({ id: account });
                 scope.setTag("exa.account", account);
                 const isDeployed = !!(await publicClient.getCode({ address: account }));
                 scope.setTag("exa.new", !isDeployed);
-                if (
-                  !isDeployed &&
-                  !(await keeper
-                    .exaSend(
+                if (!isDeployed) {
+                  try {
+                    await keeper.exaSend(
                       { name: "create account", op: "exa.account", attributes: { account } },
                       {
                         address: factory,
@@ -136,12 +136,13 @@ export default new Hono().post(
                         args: [0n, [decodePublicKey(publicKey, bytesToBigInt)]],
                         abi: exaAccountFactoryAbi,
                       },
-                    )
-                    .catch(() => null))
-                ) {
-                  return;
+                    );
+                  } catch (error: unknown) {
+                    span.setStatus({ code: SPAN_STATUS_ERROR, message: "account_failed" });
+                    throw error;
+                  }
                 }
-                await Promise.allSettled(
+                const results = await Promise.allSettled(
                   [...assets].map(async (asset) =>
                     keeper.exaSend(
                       { name: "poke account", op: "exa.poke", attributes: { account, asset } },
@@ -159,6 +160,12 @@ export default new Hono().post(
                     ),
                   ),
                 );
+                for (const result of results) {
+                  if (result.status === "fulfilled") continue;
+                  span.setStatus({ code: SPAN_STATUS_ERROR, message: "poke_failed" });
+                  throw result.reason;
+                }
+                span.setStatus({ code: SPAN_STATUS_OK, message: "ok" });
               },
             ),
           ),
@@ -166,9 +173,13 @@ export default new Hono().post(
       ),
     )
       .then((results) => {
+        let status: SpanStatus = { code: SPAN_STATUS_OK, message: "ok" };
         for (const result of results) {
-          if (result.status === "rejected") captureException(result.reason);
+          if (result.status === "fulfilled") continue;
+          status = { code: SPAN_STATUS_ERROR, message: "activity_failed" };
+          captureException(result.reason, { level: "error" });
         }
+        getActiveSpan()?.setStatus(status);
       })
       .catch((error: unknown) => captureException(error));
     return c.json({});
