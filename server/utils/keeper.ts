@@ -15,6 +15,8 @@ import {
   keccak256,
   nonceManager,
   RawContractError,
+  WaitForTransactionReceiptTimeoutError,
+  withRetry,
   type HttpTransport,
   type MaybePromise,
   type Prettify,
@@ -81,48 +83,66 @@ export function extender(keeper: WalletClient<HttpTransport, typeof chain, Priva
               ...request
             } = { from: writeRequest.account.address, to: writeRequest.address, ...writeRequest };
             scope.setContext("tx", { request });
-            const prepared = await startSpan({ name: "prepare transaction", op: "tx.prepare" }, () =>
-              keeper.prepareTransactionRequest({
-                to: call.address,
-                data: encodeFunctionData(call),
-                ...txOptions,
-                nonceManager,
-              }),
-            );
-            scope.setContext("tx", { request, prepared });
-            span.setAttribute("tx.nonce", prepared.nonce);
-            const serializedTransaction = await startSpan({ name: "sign transaction", op: "tx.sign" }, () =>
-              keeper.signTransaction(prepared),
-            );
-            const hash = keccak256(serializedTransaction);
-            scope.setContext("tx", { request, prepared, hash });
-            span.setAttribute("tx.hash", hash);
-            const abortController = new AbortController();
-            const [, receiptResult] = await Promise.allSettled([
-              (async () => {
-                while (!abortController.signal.aborted) {
-                  await Promise.allSettled([
-                    startSpan({ name: "send transaction", op: "tx.send" }, () =>
-                      publicClient.sendRawTransaction({ serializedTransaction }),
+            const receipt = await withRetry(
+              async () => {
+                const prepared = await startSpan({ name: "prepare transaction", op: "tx.prepare" }, () =>
+                  keeper.prepareTransactionRequest({
+                    to: call.address,
+                    data: encodeFunctionData(call),
+                    ...txOptions,
+                    nonceManager,
+                  }),
+                );
+                scope.setContext("tx", { request, prepared });
+                span.setAttribute("tx.nonce", prepared.nonce);
+                const serializedTransaction = await startSpan({ name: "sign transaction", op: "tx.sign" }, () =>
+                  keeper.signTransaction(prepared),
+                );
+                const hash = keccak256(serializedTransaction);
+                scope.setContext("tx", { request, prepared, hash });
+                span.setAttribute("tx.hash", hash);
+                try {
+                  const abortController = new AbortController();
+                  const [, receiptResult] = await Promise.allSettled([
+                    (async () => {
+                      while (!abortController.signal.aborted) {
+                        await Promise.allSettled([
+                          startSpan({ name: "send transaction", op: "tx.send" }, () =>
+                            publicClient.sendRawTransaction({ serializedTransaction }),
+                          ),
+                          setTimeout(10_000, null, { signal: abortController.signal }),
+                        ]);
+                      }
+                    })(),
+                    startSpan({ name: "wait for receipt", op: "tx.wait" }, () =>
+                      publicClient.waitForTransactionReceipt({ hash, confirmations: 0 }),
+                    ).finally(() => {
+                      abortController.abort();
+                    }),
+                    Promise.resolve(options?.onHash?.(hash)).catch((error: unknown) =>
+                      captureException(error, { level: "error" }),
                     ),
-                    setTimeout(10_000, null, { signal: abortController.signal }),
                   ]);
+                  if (receiptResult.status === "rejected") throw receiptResult.reason;
+                  return receiptResult.value;
+                } catch (error) {
+                  if (error instanceof WaitForTransactionReceiptTimeoutError) {
+                    captureException(new Error("bad nonce"), { level: "fatal" });
+                    nonceManager.reset({ address: keeper.account.address, chainId: chain.id });
+                  }
+                  throw error;
                 }
-              })(),
-              startSpan({ name: "wait for receipt", op: "tx.wait" }, () =>
-                publicClient.waitForTransactionReceipt({ hash, confirmations: 0 }),
-              ).finally(() => {
-                abortController.abort();
-              }),
-              Promise.resolve(options?.onHash?.(hash)).catch((error: unknown) =>
-                captureException(error, { level: "error" }),
-              ),
-            ]);
-            if (receiptResult.status === "rejected") throw receiptResult.reason;
-            const receipt = receiptResult.value;
+              },
+              { retryCount: 1, shouldRetry: ({ error }) => error instanceof WaitForTransactionReceiptTimeoutError },
+            );
+
+            span.setStatus({
+              code: receipt.status === "success" ? SPAN_STATUS_OK : SPAN_STATUS_ERROR,
+              message: receipt.status,
+            });
             scope.setContext("tx", { request, receipt });
             const trace = await startSpan({ name: "trace transaction", op: "tx.trace" }, () =>
-              traceClient.traceTransaction(hash),
+              traceClient.traceTransaction(receipt.transactionHash),
             );
             scope.setContext("tx", { request, receipt, trace });
             if (receipt.status !== "success") {
