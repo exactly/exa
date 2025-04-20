@@ -3,8 +3,8 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "build": "pkgroll --sourcemap --src .",
-    "sourcemaps": "sentry-cli sourcemaps inject -o exactly -p exa dist && sentry-cli sourcemaps upload -o exactly -p exa dist",
+    "build": "pkgroll --sourcemap --src . && sentry-cli sourcemaps inject -o exactly -p exa dist",
+    "sourcemaps": "sentry-cli sourcemaps upload -o exactly -p exa dist",
     "db:push": "drizzle-kit push",
     "test": "bash -c 'if [[ -z \"$GITHUB_ACTIONS\" ]]; then pnpm run /test:/; else set -o pipefail && pnpm run --aggregate-output --reporter-hide-prefix /test:/ 2>&1 | perl -pe \"s|(?<![a-zA-Z0-9/\\.@])([a-zA-Z][^\\s:\\\"]*?/[^\\s:\\\"]+)|server/\\1|g\"; fi'",
     "test:ts": "tsc --pretty $([ \"$GITHUB_ACTIONS\" = \"true\" ] && echo false || echo true)",
