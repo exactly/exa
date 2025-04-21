@@ -17,6 +17,7 @@ module.exports = {
     "plugin:regexp/recommended",
     "plugin:unicorn/recommended",
   ],
+  plugins: ["tsdoc"],
   rules: {
     "@eslint-community/eslint-comments/no-unused-disable": "error",
     "@typescript-eslint/consistent-type-imports": "error",
@@ -65,6 +66,7 @@ module.exports = {
           },
         ],
         "import/no-unresolved": "off", // handled by bundler
+        "tsdoc/syntax": "warn",
         "unicorn/prefer-top-level-await": "off", // unsupported in react-native
       },
     },
