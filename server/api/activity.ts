@@ -425,7 +425,7 @@ export const InstallmentsActivity = pipe(
   }),
 );
 
-const OnchainActivity = object({
+export const OnchainActivity = object({
   args: object({ assets: bigint() }),
   market: object({ decimals: number(), symbol: string(), usdPrice: bigint() }),
   blockNumber: bigint(),
