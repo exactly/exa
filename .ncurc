@@ -26,6 +26,7 @@
     "react",
     "react-dom",
     "react-native",
+    "react-native-persona",
     "react-native-reanimated",
     "react-native-safe-area-context",
     "react-native-screens",
