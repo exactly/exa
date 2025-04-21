@@ -5,6 +5,7 @@ node_modules/
 .expo/
 build/
 dist/
+docs/
 web-build/
 /android/
 /ios/
