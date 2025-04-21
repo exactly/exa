@@ -138,6 +138,7 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-native": "^5.0.0",
     "eslint-plugin-regexp": "^2.7.0",
+    "eslint-plugin-tsdoc": "^0.4.0",
     "eslint-plugin-unicorn": "^56.0.1",
     "expo-build-properties": "~0.13.1",
     "expo-dev-client": "~5.0.18",
@@ -149,6 +150,7 @@
     "sharp": "^0.34.1",
     "sharp-cli": "^2.1.1",
     "svgo": "^3.3.2",
+    "typedoc": "^0.28.3",
     "typescript": "^5.8.3",
     "ws": "^8.18.1"
   },
