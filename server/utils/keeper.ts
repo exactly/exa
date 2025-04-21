@@ -3,7 +3,7 @@ import chain from "@exactly/common/generated/chain";
 import { Hash } from "@exactly/common/validation";
 import { SPAN_STATUS_ERROR, SPAN_STATUS_OK } from "@sentry/core";
 import { captureException, startSpan, withScope } from "@sentry/node";
-import { setTimeout } from "node:timers/promises";
+// import { setTimeout } from "node:timers/promises";
 import { parse } from "valibot";
 import {
   BaseError,
@@ -53,6 +53,7 @@ export function extender(keeper: WalletClient<HttpTransport, typeof chain, Priva
       call: Prettify<Pick<WriteContractParameters, "address" | "functionName" | "args" | "abi">>,
       options?: {
         onHash?: (hash: Hash) => MaybePromise<unknown>;
+        onSend?: (hash: Hash) => MaybePromise<unknown>;
         ignore?: string[] | ((reason: string) => MaybePromise<TransactionReceipt | boolean | undefined>);
       },
     ) =>
@@ -71,9 +72,11 @@ export function extender(keeper: WalletClient<HttpTransport, typeof chain, Priva
               maxPriorityFeePerGas: 1_000_000n,
               gas: 5_000_000n,
             } as const;
+            console.log("before simulate");
             const { request: writeRequest } = await startSpan({ name: "eth_call", op: "tx.simulate" }, () =>
               publicClient.simulateContract({ account: keeper.account, ...txOptions, ...call }),
             );
+            console.log("after simulate");
             const {
               abi: _,
               account: __,
@@ -101,12 +104,31 @@ export function extender(keeper: WalletClient<HttpTransport, typeof chain, Priva
             const [, receiptResult] = await Promise.allSettled([
               (async () => {
                 while (!abortController.signal.aborted) {
+                  // @ts-expect-error -- development
+                  console.log("sending transaction", new global.OriginalDate().toISOString(), new Date().toISOString()); // eslint-disable-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
                   await Promise.allSettled([
                     startSpan({ name: "send transaction", op: "tx.send" }, () =>
-                      publicClient.sendRawTransaction({ serializedTransaction }),
-                    ),
-                    setTimeout(10_000, null, { signal: abortController.signal }),
-                  ]);
+                      publicClient.sendRawTransaction({ serializedTransaction }).then((h) => {
+                        console.log("transaction sent");
+                        options?.onSend?.(h);
+                      }),
+                    ).then(() => {
+                      console.log("transaction span ended");
+                    }),
+                    // (async () => {
+                    //   console.log("before timeout");
+                    //   await setTimeout(4000, null, { signal: abortController.signal });
+                    //   console.log("after timeout");
+                    // })(),
+                    new Promise((resolve) => {
+                      setTimeout(() => {
+                        console.log("after timeout");
+                        resolve(null);
+                      }, 4000);
+                    }),
+                  ]).then(() => {
+                    console.log("all promises settled");
+                  });
                 }
               })(),
               startSpan({ name: "wait for receipt", op: "tx.wait" }, () =>
@@ -114,9 +136,11 @@ export function extender(keeper: WalletClient<HttpTransport, typeof chain, Priva
               ).finally(() => {
                 abortController.abort();
               }),
-              Promise.resolve(options?.onHash?.(hash)).catch((error: unknown) =>
-                captureException(error, { level: "error" }),
-              ),
+              Promise.resolve(options?.onHash?.(hash))
+                .then(() => {
+                  console.log("after on hash");
+                })
+                .catch((error: unknown) => captureException(error, { level: "error" })),
             ]);
             if (receiptResult.status === "rejected") throw receiptResult.reason;
             const receipt = receiptResult.value;
