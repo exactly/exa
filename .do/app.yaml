@@ -10,6 +10,9 @@ envs:
   - key: CHAIN_ID
     scope: BUILD_TIME
     value: "10"
+  - key: SENTRY_AUTH_TOKEN
+    scope: BUILD_TIME
+    type: SECRET
 services:
   - name: server
     dockerfile_path: Dockerfile
