@@ -81,7 +81,9 @@ export function extender(keeper: ReturnType<typeof createWalletClient>) {
               publicClient.waitForTransactionReceipt({ hash }),
             );
             scope.setContext("tx", { request, receipt });
-            const trace = await traceClient.traceTransaction(hash);
+            const trace = await startSpan({ name: "trace transaction", op: "tx.trace" }, () =>
+              traceClient.traceTransaction(hash),
+            );
             scope.setContext("tx", { request, receipt, trace });
             if (receipt.status !== "success") {
               // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
