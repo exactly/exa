@@ -12,7 +12,7 @@
     "prepare:expo": "expo customize tsconfig.json",
     "prepare:wagmi": "wagmi generate",
     "prepare:version": "mkdir -p src/generated && echo \"module.exports = /** @type {const} */ ($(git rev-list --count HEAD))\" > src/generated/versionCode.js",
-    "prepare:release": "mkdir -p common/generated && echo \"module.exports = /** @type {const} */ ('$(git describe --match '@exactly/mobile@*' | sed 's/@exactly\\/mobile@/v/')')\" > common/generated/release.js",
+    "prepare:release": "mkdir -p common/generated && echo \"module.exports = /** @type {const} */ ('$(git describe --abbrev=8 --match '@exactly/mobile@*' | sed 's/@exactly\\/mobile@/v/')')\" > common/generated/release.js",
     "eas-build-on-success": "expo-updates fingerprint:generate --debug --platform $EAS_BUILD_PLATFORM",
     "test": "pnpm run --aggregate-output --reporter-hide-prefix /test:/",
     "test:spell": "cspell --gitignore '**'",
