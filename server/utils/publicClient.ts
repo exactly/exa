@@ -22,7 +22,7 @@ export function captureRequests(requests: InferOutput<typeof Requests>) {
   if (span) {
     for (const [index, { method, params }] of requests.entries()) {
       span.setAttribute(
-        `eth[${Date.now()}][${index}]`,
+        `eth[${Date.now()}]${requests.length > 1 ? `[${index}]` : ""}`,
         `${method}(${
           params
             ?.map((p) =>
