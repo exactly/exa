@@ -12,9 +12,12 @@ import {
   http,
   nonceManager,
   RawContractError,
+  type HttpTransport,
   type MaybePromise,
   type Prettify,
+  type PrivateKeyAccount,
   type TransactionReceipt,
+  type WalletClient,
   type WriteContractParameters,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -35,7 +38,7 @@ export default createWalletClient({
   ),
 }).extend(extender);
 
-export function extender(keeper: ReturnType<typeof createWalletClient>) {
+export function extender(keeper: WalletClient<HttpTransport, typeof chain, PrivateKeyAccount>) {
   return {
     exaSend: async (
       spanOptions: Prettify<{ name: string; op: string } & Omit<Parameters<typeof startSpan>[0], "name" | "op">>,
@@ -51,7 +54,7 @@ export function extender(keeper: ReturnType<typeof createWalletClient>) {
             scope.setContext("tx", { call });
             span.setAttributes({
               "tx.call": `${call.functionName}(${call.args?.map(String).join(", ") ?? ""})`,
-              "tx.from": keeper.account?.address,
+              "tx.from": keeper.account.address,
               "tx.to": call.address,
             });
             const { request: writeRequest } = await startSpan({ name: "eth_call", op: "tx.simulate" }, () =>
