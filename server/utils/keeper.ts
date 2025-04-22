@@ -22,7 +22,7 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
-import publicClient from "./publicClient";
+import publicClient, { captureRequests, Requests } from "./publicClient";
 import traceClient from "./traceClient";
 
 if (!chain.rpcUrls.alchemy?.http[0]) throw new Error("missing alchemy rpc url");
@@ -31,6 +31,9 @@ export default createWalletClient({
   chain,
   transport: http(`${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`, {
     batch: true,
+    async onFetchRequest(request) {
+      captureRequests(parse(Requests, await request.json()));
+    },
   }),
   account: privateKeyToAccount(
     parse(Hash, process.env.KEEPER_PRIVATE_KEY, {
