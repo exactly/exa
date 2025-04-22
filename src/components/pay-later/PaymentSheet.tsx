@@ -27,7 +27,10 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
       forceRemoveScrollEnabled={open}
       animation="moderate"
       dismissOnOverlayPress
-      onOpenChange={onClose}
+      onOpenChange={() => {
+        setRolloverIntroOpen(false);
+        onClose();
+      }}
       snapPointsMode="fit"
       zIndex={100_000}
       modal
@@ -50,7 +53,10 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
         ) : (
           <PaymentSheetContent
             onClose={(displayIntro?: boolean) => {
-              setRolloverIntroOpen(displayIntro ?? false);
+              if (displayIntro) {
+                setRolloverIntroOpen(true);
+                return;
+              }
               onClose();
             }}
           />
