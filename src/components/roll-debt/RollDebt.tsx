@@ -50,6 +50,8 @@ export default function Pay() {
   if (!success || !exaUSDC || !borrow) return null;
 
   const previewValue = (borrow.previewValue * exaUSDC.usdPrice) / 10n ** BigInt(exaUSDC.decimals);
+  const existingDebtPreviewValue =
+    ((rolloverMaturityBorrow?.previewValue ?? 0n) * exaUSDC.usdPrice) / 10n ** BigInt(exaUSDC.decimals);
   const rolloverPreviewValue = borrowPreview
     ? (borrowPreview.assets * exaUSDC.usdPrice) / 10n ** BigInt(exaUSDC.decimals)
     : 0n;
@@ -93,12 +95,12 @@ export default function Pay() {
                   })}
                 </Text>
               </XStack>
-              <XStack justifyContent="space-between" gap="$s3" alignItems="center">
-                <YStack>
-                  <Text headline textAlign="left">
-                    Rollover interest
-                  </Text>
-                  {borrowPreview ? (
+              {borrowPreview ? (
+                <XStack justifyContent="space-between" gap="$s3" alignItems="center">
+                  <YStack>
+                    <Text headline textAlign="left">
+                      Rollover interest
+                    </Text>
                     <Text secondary footnote textAlign="left">
                       {`${(
                         Number(
@@ -111,20 +113,20 @@ export default function Pay() {
                         maximumFractionDigits: 2,
                       })} APR`}
                     </Text>
-                  ) : (
-                    <Skeleton width={80} height={20} />
-                  )}
-                </YStack>
-                <Text primary title3 textAlign="right">
-                  {(Number(rolloverPreviewValue - previewValue) / 1e18).toLocaleString(undefined, {
-                    style: "currency",
-                    currency: "USD",
-                    currencyDisplay: "narrowSymbol",
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </Text>
-              </XStack>
+                  </YStack>
+                  <Text primary title3 textAlign="right">
+                    {(Number(rolloverPreviewValue - previewValue) / 1e18).toLocaleString(undefined, {
+                      style: "currency",
+                      currency: "USD",
+                      currencyDisplay: "narrowSymbol",
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </Text>
+                </XStack>
+              ) : (
+                <Skeleton width="100%" height={40} />
+              )}
               <XStack justifyContent="space-between" gap="$s3" alignItems="center">
                 <YStack>
                   <Text headline textAlign="left">
@@ -135,7 +137,7 @@ export default function Pay() {
                   </Text>
                 </YStack>
                 <Text primary title3 textAlign="right">
-                  {(Number(rolloverMaturityBorrow?.previewValue ?? 0n) / 1e18).toLocaleString(undefined, {
+                  {(Number(existingDebtPreviewValue) / 1e18).toLocaleString(undefined, {
                     style: "currency",
                     currency: "USD",
                     currencyDisplay: "narrowSymbol",
@@ -153,14 +155,11 @@ export default function Pay() {
                   </Text>
                 </YStack>
                 <Text title color="$uiBrandSecondary" textAlign="right">
-                  {(Number(rolloverPreviewValue + (rolloverMaturityBorrow?.previewValue ?? 0n)) / 1e18).toLocaleString(
-                    undefined,
-                    {
-                      style: "currency",
-                      currency: "USD",
-                      currencyDisplay: "narrowSymbol",
-                    },
-                  )}
+                  {(Number(existingDebtPreviewValue + rolloverPreviewValue) / 1e18).toLocaleString(undefined, {
+                    style: "currency",
+                    currency: "USD",
+                    currencyDisplay: "narrowSymbol",
+                  })}
                 </Text>
               </XStack>
             </YStack>
