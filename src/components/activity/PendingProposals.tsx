@@ -86,12 +86,9 @@ function getProposal(proposal: Proposal) {
 }
 
 export default function PendingProposals() {
+  const { canGoBack } = router;
   const { address } = useAccount();
   const { presentArticle } = useIntercom();
-  const { canGoBack } = router;
-  function back() {
-    router.back();
-  }
   const {
     data: pendingProposals,
     refetch: refetchPendingProposals,
@@ -99,18 +96,18 @@ export default function PendingProposals() {
   } = useReadExaPreviewerPendingProposals({
     address: exaPreviewerAddress,
     args: [address ?? zeroAddress],
-    query: {
-      enabled: !!address,
-      gcTime: 0,
-      refetchInterval: 30_000,
-    },
+    query: { enabled: !!address, gcTime: 0, refetchInterval: 30_000 },
   });
   return (
     <SafeView fullScreen>
       <View fullScreen padded>
         <View flexDirection="row" gap={10} paddingBottom="$s4" justifyContent="space-between" alignItems="center">
           {canGoBack() && (
-            <Pressable onPress={back}>
+            <Pressable
+              onPress={() => {
+                router.back();
+              }}
+            >
               <ArrowLeft size={24} color="$uiNeutralPrimary" />
             </Pressable>
           )}
