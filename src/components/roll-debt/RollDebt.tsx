@@ -7,7 +7,7 @@ import { format } from "date-fns";
 import { router, useLocalSearchParams } from "expo-router";
 import { Skeleton } from "moti/skeleton";
 import React, { useCallback } from "react";
-import { Pressable } from "react-native";
+import { Appearance, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
 import { nonEmpty, pipe, safeParse, string } from "valibot";
@@ -125,7 +125,7 @@ export default function Pay() {
                   </Text>
                 </XStack>
               ) : (
-                <Skeleton width="100%" height={40} />
+                <Skeleton width="100%" height={40} colorMode={Appearance.getColorScheme() ?? "light"} />
               )}
               <XStack justifyContent="space-between" gap="$s3" alignItems="center">
                 <YStack>
