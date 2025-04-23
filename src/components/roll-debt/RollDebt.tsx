@@ -165,7 +165,7 @@ export default function Pay() {
             </YStack>
           </View>
         </ScrollView>
-        <View padded paddingBottom={insets.bottom}>
+        <View padded paddingBottom={insets.bottom} marginBottom="$s4">
           <RolloverButton maturity={maturity} followingMaturity={rolloverMaturity} borrow={borrow} />
         </View>
       </View>
