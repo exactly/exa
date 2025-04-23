@@ -21,6 +21,8 @@ export default function ActivateCard() {
   const { data: step } = useQuery<number | undefined>({ queryKey: ["card-upgrade"] });
   const { presentArticle } = useIntercom();
   const { mutateAsync: activateCard, isPending: isActivating } = useMutation({
+    retry: (_, error) => error instanceof APIError && error.code === 500,
+    retryDelay: (failureCount, error) => (error instanceof APIError && error.code === 500 ? failureCount * 5000 : 1000),
     mutationFn: async () => {
       await createCard();
     },
