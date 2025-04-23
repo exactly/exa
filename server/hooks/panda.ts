@@ -39,7 +39,7 @@ import {
   toBytes,
 } from "viem";
 
-import database, { cards, transactions } from "../database/index";
+import database, { cards, credentials, transactions } from "../database/index";
 import {
   auditorAbi,
   issuerCheckerAbi,
@@ -75,37 +75,80 @@ const BaseTransaction = v.object({
   }),
 });
 
-const Payload = v.intersect([
-  v.variant("action", [
-    v.object({ action: v.literal("created") }),
-    v.object({
-      action: v.literal("updated"),
-      body: v.object({
-        ...BaseTransaction.entries,
-        spend: v.object({
-          ...BaseTransaction.entries.spend.entries,
-          authorizationUpdateAmount: v.number(),
-          status: v.picklist(["declined", "pending", "reversed"]),
-        }),
+const Transaction = v.variant("action", [
+  v.object({ action: v.literal("created"), resource: v.literal("transaction"), body: BaseTransaction }),
+  v.object({
+    resource: v.literal("transaction"),
+    action: v.literal("updated"),
+    body: v.object({
+      ...BaseTransaction.entries,
+      spend: v.object({
+        ...BaseTransaction.entries.spend.entries,
+        authorizationUpdateAmount: v.number(),
+        status: v.picklist(["declined", "pending", "reversed"]),
       }),
     }),
-    v.object({
-      action: v.literal("requested"),
-      body: v.object({
-        ...BaseTransaction.entries,
-        id: v.optional(v.string()),
-        spend: v.object({ ...BaseTransaction.entries.spend.entries, status: v.picklist(["declined", "pending"]) }),
-      }),
+  }),
+  v.object({
+    resource: v.literal("transaction"),
+    action: v.literal("requested"),
+    body: v.object({
+      ...BaseTransaction.entries,
+      id: v.optional(v.string()),
+      spend: v.object({ ...BaseTransaction.entries.spend.entries, status: v.picklist(["declined", "pending"]) }),
     }),
-    v.object({
-      action: v.literal("completed"),
-      body: v.object({
-        ...BaseTransaction.entries,
-        spend: v.object({ ...BaseTransaction.entries.spend.entries, status: v.literal("completed") }),
-      }),
+  }),
+  v.object({
+    resource: v.literal("transaction"),
+    action: v.literal("completed"),
+    body: v.object({
+      ...BaseTransaction.entries,
+      spend: v.object({ ...BaseTransaction.entries.spend.entries, status: v.literal("completed") }),
     }),
-  ]),
-  v.object({ resource: v.literal("transaction"), body: BaseTransaction }),
+  }),
+]);
+
+const Payload = v.variant("resource", [
+  Transaction,
+  v.object({
+    resource: v.literal("card"),
+    action: v.literal("updated"),
+    body: v.object({
+      expirationMonth: v.pipe(v.string(), v.length(2)),
+      expirationYear: v.pipe(v.string(), v.length(4)),
+      id: v.string(),
+      last4: v.pipe(v.string(), v.length(4)),
+      limit: v.object({
+        amount: v.number(),
+        frequency: v.picklist([
+          "per24HourPeriod",
+          "per7DayPeriod",
+          "per30DayPeriod",
+          "perYearPeriod",
+          "allTime",
+          "perAuthorization",
+        ]),
+      }),
+      status: v.picklist(["notActivated", "active", "locked", "canceled"]),
+      tokenWallets: v.union([v.array(v.literal("Apple")), v.array(v.literal("Google Pay"))]),
+      type: v.literal("virtual"),
+      userId: v.string(),
+    }),
+  }),
+  v.object({
+    resource: v.literal("user"),
+    action: v.literal("updated"),
+    body: v.object({
+      applicationReason: v.string(),
+      applicationStatus: v.string(),
+      firstName: v.string(),
+      id: v.string(),
+      isActive: v.boolean(),
+      isTermsOfServiceAccepted: v.boolean(),
+      lastName: v.string(),
+    }),
+    id: v.string(),
+  }),
 ]);
 
 export default new Hono().post(
@@ -126,9 +169,19 @@ export default new Hono().post(
   async (c) => {
     const payload = c.req.valid("json");
     setTag("panda.event", payload.action);
-    setTag("panda.status", payload.body.spend.status);
     const jsonBody = await c.req.json(); // eslint-disable-line @typescript-eslint/no-unsafe-assignment
     setContext("panda", jsonBody); // eslint-disable-line @typescript-eslint/no-unsafe-argument
+
+    if (payload.resource !== "transaction") {
+      const user = await database.query.credentials.findFirst({
+        columns: { account: true },
+        where: and(eq(credentials.pandaId, payload.resource === "card" ? payload.body.userId : payload.body.id)),
+      });
+      if (user) setUser({ id: user.account });
+      return c.json({});
+    }
+
+    setTag("panda.status", payload.body.spend.status);
 
     switch (payload.action) {
       case "requested": {
@@ -262,7 +315,7 @@ export default new Hono().post(
             where: and(eq(transactions.id, payload.body.id), eq(transactions.cardId, payload.body.spend.cardId)),
           });
           if (tx) {
-            const payloads = v.parse(v.object({ bodies: v.array(Payload) }), tx.payload);
+            const payloads = v.parse(v.object({ bodies: v.array(Transaction) }), tx.payload);
             const totalSpendUsd =
               payloads.bodies.reduce((accumulator, body) => {
                 if (body.action === "created" && body.body.spend.status === "pending") {
@@ -455,7 +508,7 @@ export default new Hono().post(
 
 async function prepareCollection(
   card: { mode: number; credential: { account: string } },
-  payload: v.InferOutput<typeof Payload>,
+  payload: v.InferOutput<typeof Transaction>,
 ) {
   const account = v.parse(Address, card.credential.account);
   setTag("exa.mode", card.mode);
