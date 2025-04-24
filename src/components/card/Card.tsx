@@ -105,7 +105,9 @@ export default function Card() {
           await createCard();
           const { data: card } = await refetchCard();
           if (card) setCardDetailsOpen(true);
-        } else {
+          return;
+        }
+        if (typeof result !== "string") {
           resumeInquiry(result.inquiryId, result.sessionToken).catch(handleError);
         }
       } catch (error) {

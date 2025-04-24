@@ -96,14 +96,21 @@ export async function getKYCLink() {
   await auth();
   const response = await client.api.kyc.$post();
   if (!response.ok) throw new APIError(response.status, await response.json());
-  return response.json();
+  const result = await response.json();
+  // @ts-expect-error intermediate api migration
+  return typeof result === "string" ? result : (result.legacy as string);
 }
 
 export async function getKYCStatus() {
   await auth();
   const response = await client.api.kyc.$get();
   if (!response.ok) throw new APIError(response.status, await response.json());
-  return response.json();
+  const result = await response.json();
+  return typeof result === "string"
+    ? result
+    : typeof result === "object" && "legacy" in result
+      ? (result.legacy as string)
+      : result;
 }
 
 export async function getPasskey() {
