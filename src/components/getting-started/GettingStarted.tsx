@@ -127,7 +127,9 @@ function CurrentStep() {
       try {
         const result = await getKYCStatus();
         if (result === "ok") return;
-        resumeInquiry(result.inquiryId, result.sessionToken).catch(reportError);
+        if (typeof result !== "string") {
+          resumeInquiry(result.inquiryId, result.sessionToken).catch(reportError);
+        }
       } catch (error) {
         if (!(error instanceof APIError)) {
           reportError(error);

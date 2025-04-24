@@ -27,7 +27,9 @@ export default function VerifyIdentity() {
           queryClient.setQueryData(["card-upgrade"], 1);
           return;
         }
-        await resumeInquiry(result.inquiryId, result.sessionToken);
+        if (typeof result !== "string") {
+          await resumeInquiry(result.inquiryId, result.sessionToken);
+        }
       } catch (error) {
         if (!(error instanceof APIError)) {
           reportError(error);

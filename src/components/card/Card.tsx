@@ -111,7 +111,9 @@ export default function Card() {
         const result = await getKYCStatus();
         if (result === "ok") {
           setDisclaimerShown(true);
-        } else {
+          return;
+        }
+        if (typeof result !== "string") {
           resumeInquiry(result.inquiryId, result.sessionToken).catch(reportError);
         }
       } catch (error) {
