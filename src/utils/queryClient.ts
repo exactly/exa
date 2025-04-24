@@ -16,14 +16,14 @@ const queryClient = new QueryClient({
       if (error instanceof Error && error.message === "don't refetch") return;
       if (error instanceof APIError) {
         if (query.queryKey[0] === "card" && query.queryKey[1] === "details") {
-          if (error.code === 404 && error.text === "card not found") return;
-          if (error.code === 403 && error.text === "kyc required") return;
-          if (error.code === 403 && error.text === "kyc not approved") return;
+          if (error.text === "card not found") return;
+          if (error.text === "kyc required") return;
+          if (error.text === "kyc not approved") return;
         }
         if (query.queryKey[0] === "kyc" && query.queryKey[1] === "status") {
-          if (error.code === 404 && error.text === "kyc not found") return;
-          if (error.code === 400 && error.text === "kyc not started") return;
-          if (error.code === 400 && error.text === "kyc not approved") return;
+          if (error.text === "kyc not found") return;
+          if (error.text === "kyc not started") return;
+          if (error.text === "kyc not approved") return;
         }
       }
       reportError(error);

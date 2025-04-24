@@ -32,12 +32,8 @@ export default function GettingStarted({ hasFunds, hasKYC }: { hasFunds: boolean
           reportError(error);
           return;
         }
-        const { code, text } = error;
-        if (
-          (code === 403 && text === "kyc required") ||
-          (code === 404 && text === "kyc not found") ||
-          (code === 400 && text === "kyc not started")
-        ) {
+        const { text } = error;
+        if (text === "kyc required" || text === "kyc not found" || text === "kyc not started") {
           createInquiry(passkey).catch(reportError);
           return;
         }

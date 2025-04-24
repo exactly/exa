@@ -121,16 +121,12 @@ export default function Card() {
           reportError(error);
           return;
         }
-        const { code, text } = error;
-        if ((code === 403 || code === 404) && text === "kyc not approved") {
+        const { text } = error;
+        if (text === "kyc not approved") {
           setVerificationFailureShown(true);
           return;
         }
-        if (
-          (code === 403 && text === "kyc required") ||
-          (code === 404 && text === "kyc not found") ||
-          (code === 400 && text === "kyc not started")
-        ) {
+        if (text === "kyc required" || text === "kyc not found" || text === "kyc not started") {
           createInquiry(passkey).catch(reportError);
         }
         reportError(error);
