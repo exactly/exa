@@ -92,7 +92,7 @@ export default function CardDetails({ open, onClose }: { open: boolean; onClose:
                           <VisaLogoDark height={40} width={72} />
                         )}
                       </View>
-                      <XStack gap="$s4" alignItems="center">
+                      <XStack gap="$s4" alignItems="center" flexWrap="wrap">
                         <Text headline letterSpacing={2} fontFamily="$mono" color="$uiNeutralInversePrimary">
                           {details.pan.match(/.{1,4}/g)?.join(" ") ?? ""}
                         </Text>
@@ -107,7 +107,7 @@ export default function CardDetails({ open, onClose }: { open: boolean; onClose:
                           }}
                         />
                       </XStack>
-                      <XStack gap="$s5" alignItems="center">
+                      <XStack gap="$s5" alignItems="center" flexWrap="wrap">
                         <XStack alignItems="center" gap="$s3">
                           <Text caption color="$uiNeutralInverseSecondary">
                             Expires
