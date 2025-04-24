@@ -168,9 +168,11 @@ export default new Hono().post(
   }),
   async (c) => {
     const payload = c.req.valid("json");
-    setTag("panda.event", payload.action);
+    setTag("panda.resource", payload.resource);
+    setTag("panda.action", payload.action);
     const jsonBody = await c.req.json(); // eslint-disable-line @typescript-eslint/no-unsafe-assignment
     setContext("panda", jsonBody); // eslint-disable-line @typescript-eslint/no-unsafe-argument
+    getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, `panda.${payload.resource}.${payload.action}`);
 
     if (payload.resource !== "transaction") {
       const user = await database.query.credentials.findFirst({
@@ -182,11 +184,11 @@ export default new Hono().post(
     }
 
     setTag("panda.status", payload.body.spend.status);
+    getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, `panda.tx.${payload.action}`);
 
     switch (payload.action) {
       case "requested": {
         if (payload.body.spend.amount < 0) return c.json({});
-        getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "panda.authorization");
         const card = await findCardById(payload.body.spend.cardId);
         const account = v.parse(Address, card.credential.account);
         setUser({ id: account });
@@ -296,7 +298,7 @@ export default new Hono().post(
       // falls through
       case "updated":
         if (payload.body.spend.status === "reversed" || payload.body.spend.status === "completed") {
-          getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, `panda.${payload.action}.refund`);
+          getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "panda.tx.refund");
           const refundAmountUsd =
             (payload.body.spend.status === "reversed"
               ? -payload.body.spend.authorizationUpdateAmount
@@ -414,14 +416,14 @@ export default new Hono().post(
         setUser({ id: account });
 
         if (payload.body.spend.status === "declined") {
-          getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, `panda.${payload.action}.declined`);
+          getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "panda.tx.declined");
           const mutex = getMutex(account);
           mutex?.release();
           setContext("mutex", { locked: mutex?.isLocked() });
           return c.json({});
         }
         if (payload.body.spend.status !== "pending") return c.json({});
-        getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, `panda.${payload.action}.clearing`);
+        getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "panda.tx.collect");
         try {
           const { call } = await prepareCollection(card, payload);
           if (!call) return c.json({});
