@@ -112,11 +112,7 @@ export default function SimulatePurchase() {
             </Pressable>
           </View>
         </View>
-
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ flex: 1, justifyContent: "space-between" }} // eslint-disable-line react-native/no-inline-styles
-        >
+        <ScrollView showsVerticalScrollIndicator={false}>
           <View padded>
             <YStack gap="$s4_5" width="100%">
               <YStack gap="$s3_5">
@@ -127,7 +123,6 @@ export default function SimulatePurchase() {
                   First due date → {format(new Date(Number(firstMaturity) * 1000), "MMM dd, yyyy")}
                 </Text>
               </YStack>
-
               <XStack gap="$s3_5" flexWrap="wrap">
                 {Array.from({ length: MAX_INSTALLMENTS }, (_, index) => index + 1).map((installment) => (
                   <InstallmentButton
@@ -139,7 +134,6 @@ export default function SimulatePurchase() {
                   />
                 ))}
               </XStack>
-
               <YStack justifyContent="space-between" gap="$s4">
                 <Text primary emphasized headline>
                   Enter purchase amount
@@ -177,10 +171,8 @@ export default function SimulatePurchase() {
             </YStack>
           </View>
         </ScrollView>
-
         <View
           padded
-          flexShrink={1}
           backgroundColor="$backgroundSoft"
           borderRadius="$r4"
           borderBottomLeftRadius={0}
@@ -261,7 +253,6 @@ export default function SimulatePurchase() {
               </YStack>
             </XStack>
             <Button
-              flexBasis={60}
               onPress={() => {
                 mutateMode(installments ?? 1).catch(reportError);
               }}
@@ -270,6 +261,7 @@ export default function SimulatePurchase() {
               main
               spaced
               fullwidth
+              noFlex
               iconAfter={
                 isLoading ? (
                   <Spinner color="$interactiveOnDisabled" />
