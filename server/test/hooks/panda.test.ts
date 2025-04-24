@@ -968,7 +968,6 @@ const authorization = {
   json: {
     resource: "transaction",
     action: "requested",
-    type: "spend",
     body: {
       id: "31eaa81e-ffd9-4a2e-97eb-dccbc5f029d7",
       type: "spend",

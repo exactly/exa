@@ -60,7 +60,7 @@ Object.assign(debug, { inspectOpts: { depth: undefined } });
 
 const BaseTransaction = v.object({
   id: v.string(),
-  type: v.string(),
+  type: v.literal("spend"),
   spend: v.object({
     amount: v.number(),
     currency: v.literal("usd"),
@@ -78,7 +78,6 @@ const Transaction = v.variant("action", [
   v.object({
     resource: v.literal("transaction"),
     action: v.literal("created"),
-    type: v.literal("spend"),
     body: v.object({
       ...BaseTransaction.entries,
       spend: v.object({ ...BaseTransaction.entries.spend.entries, status: v.picklist(["pending", "declined"]) }),
@@ -87,7 +86,6 @@ const Transaction = v.variant("action", [
   v.object({
     resource: v.literal("transaction"),
     action: v.literal("updated"),
-    type: v.literal("spend"),
     body: v.object({
       ...BaseTransaction.entries,
       spend: v.object({
@@ -100,7 +98,6 @@ const Transaction = v.variant("action", [
   v.object({
     resource: v.literal("transaction"),
     action: v.literal("requested"),
-    type: v.literal("spend"),
     body: v.object({
       ...BaseTransaction.entries,
       id: v.optional(v.string()),
@@ -110,7 +107,6 @@ const Transaction = v.variant("action", [
   v.object({
     resource: v.literal("transaction"),
     action: v.literal("completed"),
-    type: v.literal("spend"),
     body: v.object({
       ...BaseTransaction.entries,
       spend: v.object({ ...BaseTransaction.entries.spend.entries, status: v.literal("completed") }),
