@@ -7,7 +7,7 @@ import { useAccount } from "wagmi";
 import { activityRefreshControlReference, activityScrollReference } from "../../../components/activity/Activity";
 import { cardRefreshControlReference, cardScrollReference } from "../../../components/card/Card";
 import { homeRefreshControlReference, homeScrollReference } from "../../../components/home/Home";
-import { payModeRefreshControlReference, payModeScrollReference } from "../../../components/pay-later/PayMode";
+import { payModeRefreshControlReference, payModeScrollReference } from "../../../components/pay-mode/PayMode";
 import TabBar from "../../../components/shared/TabBar";
 import { enablePrompt } from "../../../utils/onesignal";
 import useIntercom from "../../../utils/useIntercom";
@@ -15,7 +15,7 @@ import useIntercom from "../../../utils/useIntercom";
 const tabs = [
   { name: "index", title: "Home", Icon: Home },
   { name: "card", title: "Card", Icon: CreditCard },
-  { name: "pay-later", title: "Pay Mode", Icon: Coins },
+  { name: "pay-mode", title: "Pay Mode", Icon: Coins },
   { name: "activity", title: "Activity", Icon: FileText },
 ] as const;
 
@@ -42,7 +42,7 @@ export default function HomeLayout() {
                   scrollView = cardScrollReference.current;
                   refreshControl = cardRefreshControlReference.current;
                   break;
-                case "pay-later":
+                case "pay-mode":
                   scrollView = payModeScrollReference.current;
                   refreshControl = payModeRefreshControlReference.current;
                   break;

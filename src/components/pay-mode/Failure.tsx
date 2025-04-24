@@ -106,7 +106,7 @@ export default function Failure({
                 <YStack alignItems="center" gap="$s4">
                   <Pressable
                     onPress={() => {
-                      router.replace("/pay-later");
+                      router.replace("/pay-mode");
                     }}
                   >
                     <Text emphasized footnote color="$uiBrandSecondary">

@@ -133,7 +133,7 @@ export default function Success({
                 <YStack alignItems="center" gap="$s4">
                   <Pressable
                     onPress={() => {
-                      router.replace(isLatestPlugin ? "/(app)/pending-proposals" : "/pay-later");
+                      router.replace(isLatestPlugin ? "/(app)/pending-proposals" : "/pay-mode");
                     }}
                   >
                     <Text emphasized footnote color="$uiBrandSecondary">

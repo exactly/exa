@@ -19,8 +19,8 @@ import { useReadExaPreviewerPendingProposals, useReadPreviewerExactly } from "..
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { getActivity, getCard, getKYCStatus } from "../../utils/server";
-import PaymentSheet from "../pay-later/PaymentSheet";
-import UpcomingPayments from "../pay-later/UpcomingPayments";
+import PaymentSheet from "../pay-mode/PaymentSheet";
+import UpcomingPayments from "../pay-mode/UpcomingPayments";
 import InfoAlert from "../shared/InfoAlert";
 import LatestActivity from "../shared/LatestActivity";
 import LiquidationAlert from "../shared/LiquidationAlert";
