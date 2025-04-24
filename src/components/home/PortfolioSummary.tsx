@@ -4,7 +4,7 @@ import { router } from "expo-router";
 import { Skeleton } from "moti/skeleton";
 import React from "react";
 import { Appearance } from "react-native";
-import { View } from "tamagui";
+import { View, XStack } from "tamagui";
 import { zeroAddress } from "viem";
 import { useAccount } from "wagmi";
 
@@ -49,39 +49,40 @@ export default function PortfolioSummary({ usdBalance }: { usdBalance: bigint })
         <Text color="$uiNeutralSecondary" emphasized footnote>
           YOUR PORTFOLIO
         </Text>
-        {symbols ? (
-          <Text
-            sensitive
-            textAlign="center"
-            subHeadline
-            emphasized
-            overflow="hidden"
-            maxFontSizeMultiplier={1}
-            numberOfLines={1}
-            adjustsFontSizeToFit
-          >
-            {(Number(usdBalance) / 1e18).toLocaleString(undefined, {
-              style: "currency",
-              currency: "USD",
-              currencyDisplay: "narrowSymbol",
-            })}
-          </Text>
-        ) : (
-          <Skeleton height={20} width={90} colorMode={Appearance.getColorScheme() ?? "light"} />
-        )}
-        <View flexDirection="row">
+        <XStack alignItems="center" gap="$s2">
           {symbols ? (
-            symbols.map((symbol, index) => (
-              <View key={symbol} marginRight={index < symbols.length - 1 ? -8 : 0} zIndex={index}>
-                <AssetLogo uri={assetLogos[symbol as keyof typeof assetLogos]} width={16} height={16} />
-              </View>
-            ))
+            <Text
+              sensitive
+              textAlign="center"
+              subHeadline
+              emphasized
+              overflow="hidden"
+              maxFontSizeMultiplier={1}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+            >
+              {(Number(usdBalance) / 1e18).toLocaleString(undefined, {
+                style: "currency",
+                currency: "USD",
+                currencyDisplay: "narrowSymbol",
+              })}
+            </Text>
           ) : (
-            <Skeleton radius="round" colorMode={Appearance.getColorScheme() ?? "light"} height={16} width={16} />
+            <Skeleton height={20} width={90} colorMode={Appearance.getColorScheme() ?? "light"} />
           )}
-        </View>
-
-        <ChevronRight size={24} color="$interactiveTextBrandDefault" />
+          <View flexDirection="row">
+            {symbols ? (
+              symbols.map((symbol, index) => (
+                <View key={symbol} marginRight={index < symbols.length - 1 ? -8 : 0} zIndex={index}>
+                  <AssetLogo uri={assetLogos[symbol as keyof typeof assetLogos]} width={16} height={16} />
+                </View>
+              ))
+            ) : (
+              <Skeleton radius="round" colorMode={Appearance.getColorScheme() ?? "light"} height={16} width={16} />
+            )}
+          </View>
+          <ChevronRight size={24} color="$interactiveTextBrandDefault" />
+        </XStack>
       </View>
     </View>
   );

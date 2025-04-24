@@ -1,1 +1,1 @@
-export { default } from "../../../components/pay-later/PayLater";
+export { default } from "../../../components/pay-later/PayMode";

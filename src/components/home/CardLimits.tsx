@@ -35,21 +35,26 @@ export default function CardLimits() {
           <Info size={16} color="$uiBrandSecondary" />
         </Pressable>
       </View>
-      {isCredit && (
-        <View
-          alignSelf="center"
-          justifyContent="center"
-          alignItems="center"
-          backgroundColor="$cardCreditInteractive"
-          borderRadius="$r2"
-          paddingVertical="$s1"
-          paddingHorizontal="$s2"
+
+      <View
+        alignSelf="center"
+        justifyContent="center"
+        alignItems="center"
+        backgroundColor={isCredit ? "$cardCreditInteractive" : "$cardDebitInteractive"}
+        borderRadius="$r2"
+        paddingVertical="$s2"
+        paddingHorizontal="$s3"
+      >
+        <Text
+          emphasized
+          textTransform="uppercase"
+          color={isCredit ? "$cardCreditText" : "$cardDebitText"}
+          maxFontSizeMultiplier={1}
         >
-          <Text emphasized color="$cardCreditText" maxFontSizeMultiplier={1}>
-            PAY LATER ENABLED
-          </Text>
-        </View>
-      )}
+          {isCredit ? `Pay in ${card?.mode} installments enabled` : "Pay in full enabled"}
+        </Text>
+      </View>
+
       <View display="flex" justifyContent="center" alignItems="center">
         <Text sensitive textAlign="center" fontFamily="$mono" fontSize={40} overflow="hidden" maxFontSizeMultiplier={1}>
           {(markets

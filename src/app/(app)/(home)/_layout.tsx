@@ -1,4 +1,4 @@
-import { CalendarClock, CreditCard, FileText, Home } from "@tamagui/lucide-icons";
+import { Coins, CreditCard, FileText, Home } from "@tamagui/lucide-icons";
 import { Tabs } from "expo-router";
 import React, { useEffect } from "react";
 import { FlatList } from "react-native";
@@ -7,7 +7,7 @@ import { useAccount } from "wagmi";
 import { activityRefreshControlReference, activityScrollReference } from "../../../components/activity/Activity";
 import { cardRefreshControlReference, cardScrollReference } from "../../../components/card/Card";
 import { homeRefreshControlReference, homeScrollReference } from "../../../components/home/Home";
-import { payLaterRefreshControlReference, payLaterScrollReference } from "../../../components/pay-later/PayLater";
+import { payModeRefreshControlReference, payModeScrollReference } from "../../../components/pay-later/PayMode";
 import TabBar from "../../../components/shared/TabBar";
 import { enablePrompt } from "../../../utils/onesignal";
 import useIntercom from "../../../utils/useIntercom";
@@ -15,7 +15,7 @@ import useIntercom from "../../../utils/useIntercom";
 const tabs = [
   { name: "index", title: "Home", Icon: Home },
   { name: "card", title: "Card", Icon: CreditCard },
-  { name: "pay-later", title: "Pay Later", Icon: CalendarClock },
+  { name: "pay-later", title: "Pay Mode", Icon: Coins },
   { name: "activity", title: "Activity", Icon: FileText },
 ] as const;
 
@@ -43,8 +43,8 @@ export default function HomeLayout() {
                   refreshControl = cardRefreshControlReference.current;
                   break;
                 case "pay-later":
-                  scrollView = payLaterScrollReference.current;
-                  refreshControl = payLaterRefreshControlReference.current;
+                  scrollView = payModeScrollReference.current;
+                  refreshControl = payModeRefreshControlReference.current;
                   break;
                 case "activity":
                   scrollView = activityScrollReference.current;
