@@ -71,15 +71,23 @@ const BaseTransaction = v.object({
     merchantCity: v.nullish(v.string()),
     merchantCountry: v.nullish(v.string()),
     merchantName: v.string(),
-    status: v.picklist(["completed", "declined", "pending", "reversed"]),
   }),
 });
 
 const Transaction = v.variant("action", [
-  v.object({ action: v.literal("created"), resource: v.literal("transaction"), body: BaseTransaction }),
+  v.object({
+    resource: v.literal("transaction"),
+    action: v.literal("created"),
+    type: v.literal("spend"),
+    body: v.object({
+      ...BaseTransaction.entries,
+      spend: v.object({ ...BaseTransaction.entries.spend.entries, status: v.picklist(["pending", "declined"]) }),
+    }),
+  }),
   v.object({
     resource: v.literal("transaction"),
     action: v.literal("updated"),
+    type: v.literal("spend"),
     body: v.object({
       ...BaseTransaction.entries,
       spend: v.object({
@@ -92,15 +100,17 @@ const Transaction = v.variant("action", [
   v.object({
     resource: v.literal("transaction"),
     action: v.literal("requested"),
+    type: v.literal("spend"),
     body: v.object({
       ...BaseTransaction.entries,
       id: v.optional(v.string()),
-      spend: v.object({ ...BaseTransaction.entries.spend.entries, status: v.picklist(["declined", "pending"]) }),
+      spend: v.object({ ...BaseTransaction.entries.spend.entries, status: v.literal("pending") }),
     }),
   }),
   v.object({
     resource: v.literal("transaction"),
     action: v.literal("completed"),
+    type: v.literal("spend"),
     body: v.object({
       ...BaseTransaction.entries,
       spend: v.object({ ...BaseTransaction.entries.spend.entries, status: v.literal("completed") }),
