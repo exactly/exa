@@ -16,36 +16,6 @@ import * as cryptomate from "../../utils/cryptomate";
 import * as panda from "../../utils/panda";
 import * as persona from "../../utils/persona";
 
-const personaTemplate = {
-  id: "inquiry-id",
-  type: "inquiry",
-  attributes: {
-    status: "approved",
-    "name-middle": null,
-    "reference-id": "ref-id",
-    "name-first": "First",
-    "name-last": "Last",
-    "email-address": "email@example.com",
-    "phone-number": "1234567890",
-  },
-} as const;
-
-const panTemplate = {
-  encryptedPan: { iv: "xfQikHU/pxVSniCKKKyv8w==", data: "VUPy5u3xdg6fnvT/ZmrE1Lev28SVRjLTTTJEaO9X7is=" },
-  encryptedCvc: { iv: "TnHuny8FHZ4lkdm1f622Dg==", data: "SRg1oMmouzr7v4FrVBURcWE9Yw==" }, // cspell:disable-line
-} as const;
-
-const cardTemplate = {
-  id: "543c1771-beae-4f26-b662-44ea48b40dc6",
-  userId: "2cf0c886-f7c0-40f3-a8cd-3c4ab3997b66",
-  type: "virtual",
-  status: "active",
-  limit: { amount: 5000, frequency: "per24HourPeriod" },
-  last4: "7394",
-  expirationMonth: "9",
-  expirationYear: "2029",
-} as const;
-
 const appClient = testClient(app);
 
 describe("authenticated", () => {
@@ -97,6 +67,7 @@ describe("authenticated", () => {
     vi.spyOn(persona, "getInquiry").mockResolvedValueOnce(personaTemplate);
     vi.spyOn(panda, "getSecrets").mockResolvedValueOnce(panTemplate);
     vi.spyOn(panda, "getCard").mockResolvedValueOnce(cardTemplate);
+    vi.spyOn(panda, "getUser").mockResolvedValueOnce(userTemplate);
 
     vi.spyOn(panda, "isPanda").mockResolvedValueOnce(true);
 
@@ -242,13 +213,55 @@ describe("authenticated", () => {
   });
 });
 
+const cardTemplate = {
+  expirationMonth: "9",
+  expirationYear: "2029",
+  id: "543c1771-beae-4f26-b662-44ea48b40dc6",
+  last4: "7394",
+  limit: { amount: 5000, frequency: "per24HourPeriod" },
+  status: "active",
+  type: "virtual",
+  userId: "2cf0c886-f7c0-40f3-a8cd-3c4ab3997b66",
+} as const;
+
 const cryptomateTemplate = {
-  id: "cm",
   card_holder_name: "First Last",
-  type: "Virtual",
-  last4: "1234",
-  status: "ACTIVE",
   daily_limit: 5000,
-  weekly_limit: 5000,
+  id: "cm",
+  last4: "1234",
   monthly_limit: 5000,
+  status: "ACTIVE",
+  type: "Virtual",
+  weekly_limit: 5000,
+} as const;
+
+const panTemplate = {
+  encryptedCvc: { iv: "TnHuny8FHZ4lkdm1f622Dg==", data: "SRg1oMmouzr7v4FrVBURcWE9Yw==" }, // cspell:disable-line
+  encryptedPan: { iv: "xfQikHU/pxVSniCKKKyv8w==", data: "VUPy5u3xdg6fnvT/ZmrE1Lev28SVRjLTTTJEaO9X7is=" },
+} as const;
+
+const personaTemplate = {
+  attributes: {
+    "email-address": "email@example.com",
+    "name-first": "First",
+    "name-last": "Last",
+    "name-middle": null,
+    "phone-number": "1234567890",
+    "reference-id": "ref-id",
+    status: "approved",
+  },
+  id: "inquiry-id",
+  type: "inquiry",
+} as const;
+
+const userTemplate = {
+  applicationReason: "test",
+  applicationStatus: "approved",
+  email: "email@example.com",
+  firstName: "First",
+  id: "543c1771-beae-4f26-b662-44ea48b40dc6",
+  isActive: true,
+  lastName: "Last",
+  phoneCountryCode: "AR",
+  phoneNumber: "1234567890",
 } as const;
