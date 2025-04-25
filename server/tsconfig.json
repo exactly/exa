@@ -21,6 +21,7 @@
     "hooks/**/*.ts",
     "middleware/**/*.ts",
     "utils/**/*.ts",
+    "script/**/*.ts",
     "test/**/*.ts",
     "index.ts",
     "instrument.cjs",
