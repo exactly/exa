@@ -1,6 +1,0 @@
-{
-  "treatWarningsAsErrors": true,
-  "entryPointStrategy": "expand",
-  "entryPoints": ["server/api"],
-  "basePath": "."
-}
