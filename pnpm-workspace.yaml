@@ -2,4 +2,5 @@ packages:
   - "."
   - common
   - contracts
+  - docs
   - server
