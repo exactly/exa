@@ -6,10 +6,10 @@ import { vValidator } from "@hono/valibot-validator";
 import { Mutex, withTimeout, type MutexInterface } from "async-mutex";
 import { eq } from "drizzle-orm";
 import { createHmac } from "node:crypto";
-import removeAccents from "remove-accents";
 import {
   type BaseIssue,
   type BaseSchema,
+  boolean,
   length,
   literal,
   maxLength,
@@ -38,19 +38,7 @@ if (!process.env.PANDA_API_KEY) throw new Error("missing panda api key");
 const key = process.env.PANDA_API_KEY;
 export default key;
 
-export function displayName({ first, middle, last }: { first: string; middle: string | null; last: string }) {
-  let cardholder = [first, middle, last].filter(Boolean).join(" ");
-  if (cardholder.length > 30 && middle) cardholder = `${first} ${last}`;
-  return removeAccents(cardholder.slice(0, 30));
-}
-
-export async function createCard({
-  userId,
-  name,
-}: {
-  userId: string;
-  name: { first: string; middle: string | null; last: string };
-}) {
+export async function createCard(userId: string) {
   return await request(
     CardResponse,
     `/issuing/users/${userId}/cards`,
@@ -60,7 +48,6 @@ export async function createCard({
       status: "active",
       limit: { amount: 1_000_000, frequency: "per7DayPeriod" },
       configuration: {
-        displayName: displayName(name),
         virtualCardArt:
           { "web.exactly.app": "81e42f27affd4e328f19651d4f2b438e" }[domain] ?? "0c515d7eb0a140fa8f938f8242b0780a",
       },
@@ -79,6 +66,10 @@ export async function createUser(user: {
   personaShareToken: string;
 }) {
   return await request(object({ id: string() }), "/issuing/applications/user", {}, user, "POST");
+}
+
+export async function getUser(userId: string) {
+  return await request(UserResponse, `/issuing/users/${userId}`);
 }
 
 export async function getCard(cardId: string) {
@@ -123,15 +114,15 @@ const CreateCardRequest = object({
   limit: object({
     amount: number(),
     frequency: picklist([
+      "perAuthorization",
       "per24HourPeriod",
       "per7DayPeriod",
       "per30DayPeriod",
       "perYearPeriod",
       "allTime",
-      "perAuthorization",
     ]),
   }),
-  configuration: object({ displayName: pipe(string(), maxLength(30)), virtualCardArt: string() }),
+  configuration: object({ virtualCardArt: string() }),
 });
 
 const CardResponse = object({
@@ -153,6 +144,27 @@ const CardResponse = object({
   last4: pipe(string(), length(4)),
   expirationMonth: pipe(string(), minLength(1), maxLength(2)),
   expirationYear: pipe(string(), length(4)),
+});
+
+const UserResponse = object({
+  id: string(),
+  firstName: string(),
+  lastName: string(),
+  email: string(),
+  isActive: boolean(),
+  phoneCountryCode: string(),
+  phoneNumber: string(),
+  applicationStatus: picklist([
+    "approved",
+    "pending",
+    "needsInformation",
+    "needsVerification",
+    "manualReview",
+    "denied",
+    "locked",
+    "canceled",
+  ]),
+  applicationReason: string(),
 });
 
 export async function isPanda(account: Address) {
