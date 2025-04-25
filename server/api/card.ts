@@ -24,7 +24,7 @@ import {
 import database, { cards, credentials } from "../database";
 import auth from "../middleware/auth";
 import { createCard as createCryptomateCard, getPAN } from "../utils/cryptomate";
-import { createCard, displayName, getCard, getSecrets, isPanda } from "../utils/panda";
+import { createCard, getCard, getSecrets, getUser, isPanda } from "../utils/panda";
 import { CRYPTOMATE_TEMPLATE, getInquiry, PANDA_TEMPLATE } from "../utils/persona";
 import { track } from "../utils/segment";
 
@@ -60,22 +60,22 @@ export default new Hono()
         if (inquiry.attributes.status !== "approved") return c.json("kyc not approved", 403);
         if (!credential.pandaId) return c.json("panda id not found", 400);
         const session = c.req.header("SessionId");
-        if (!session) return c.json("SessionId header required", 400);
-        const [pan, { expirationMonth, expirationYear }] = await Promise.all([getSecrets(id, session), getCard(id)]);
+        if (!session) return c.json("session id header required", 400);
+        const [{ expirationMonth, expirationYear }, pan, { firstName, lastName }] = await Promise.all([
+          getCard(id),
+          getSecrets(id, session),
+          getUser(credential.pandaId),
+        ]);
         return c.json(
           {
             ...pan,
-            provider: "panda" as const,
-            displayName: displayName({
-              first: inquiry.attributes["name-first"],
-              middle: inquiry.attributes["name-middle"],
-              last: inquiry.attributes["name-last"],
-            }),
+            displayName: `${firstName} ${lastName}`,
             expirationMonth,
             expirationYear,
             lastFour,
-            status,
             mode,
+            provider: "panda" as const,
+            status,
           },
           200,
         );
@@ -127,14 +127,7 @@ export default new Hono()
             }
           }
           if (cardCount > 0) return c.json(`card already exists: ${cardCount}`, 400);
-          const card = await createCard({
-            userId: credential.pandaId,
-            name: {
-              first: inquiry.attributes["name-first"],
-              middle: inquiry.attributes["name-middle"],
-              last: inquiry.attributes["name-last"],
-            },
-          });
+          const card = await createCard(credential.pandaId);
           await database.insert(cards).values([{ id: card.id, credentialId, lastFour: card.last4 }]);
           return c.json({ lastFour: card.last4, status: card.status }, 200);
         }
