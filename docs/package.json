@@ -2,6 +2,7 @@
   "name": "@exactly/docs",
   "version": "0.0.1",
   "scripts": {
+    "prepare": "pnpm run --filter server openapi",
     "dev": "astro dev",
     "start": "astro dev",
     "build": "astro build",
