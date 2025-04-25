@@ -5,3 +5,4 @@
 /generated/
 
 .env
+openapi.json
