@@ -6,7 +6,7 @@ import {
   upgradeableModularAccountAbi,
 } from "@exactly/common/generated/chain";
 import { Address, Passkey } from "@exactly/common/validation";
-import type { ExaServer } from "@exactly/server";
+import type { ExaAPI } from "@exactly/server/api";
 import { hc } from "hono/client";
 import { Platform } from "react-native";
 import { get as assert, create } from "react-native-passkeys";
@@ -26,12 +26,12 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
   queryFn: async () => {
     try {
       const credentialId = queryClient.getQueryData<Passkey>(["passkey"])?.credentialId;
-      const get = await client.api.auth.authentication.$get({ query: { credentialId } });
+      const get = await api.auth.authentication.$get({ query: { credentialId } });
       const options = await get.json();
       if (Platform.OS === "android") delete options.allowCredentials; // HACK fix android credential filtering
       const assertion = await assert(options);
       if (!assertion) throw new Error("bad assertion");
-      const post = await client.api.auth.authentication.$post({
+      const post = await api.auth.authentication.$post({
         query: { credentialId: assertion.id },
         json: assertion,
       });
@@ -53,17 +53,17 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
   },
 });
 
-const client = hc<ExaServer>(domain === "localhost" ? "http://localhost:3000/" : `https://${domain}/`, {
+const api = hc<ExaAPI>(domain === "localhost" ? "http://localhost:3000/api" : `https://${domain}/api`, {
   init: { credentials: "include" },
 });
 
 export async function registrationOptions() {
-  const response = await client.api.auth.registration.$get();
+  const response = await api.auth.registration.$get();
   return response.json();
 }
 
 export async function verifyRegistration(attestation: RegistrationResponseJSON) {
-  const response = await client.api.auth.registration.$post({ json: attestation });
+  const response = await api.auth.registration.$post({ json: attestation });
   if (!response.ok) throw new APIError(response.status, await response.json());
   const { auth: expires, ...passkey } = await response.json();
   await queryClient.setQueryData(["auth"], parse(Auth, expires));
@@ -73,7 +73,7 @@ export async function verifyRegistration(attestation: RegistrationResponseJSON) 
 export async function getCard() {
   await auth();
   const { id, secret } = await session();
-  const response = await client.api.card.$get({}, { headers: { SessionId: id } });
+  const response = await api.card.$get({}, { headers: { SessionId: id } });
   if (!response.ok) throw new APIError(response.status, await response.json());
   const card = await response.json();
   return { ...card, secret };
@@ -81,28 +81,28 @@ export async function getCard() {
 
 export async function createCard() {
   await auth();
-  const response = await client.api.card.$post();
+  const response = await api.card.$post();
   if (!response.ok) throw new APIError(response.status, await response.json());
   return response.json();
 }
 
 export async function setCardStatus(status: "ACTIVE" | "FROZEN") {
   await auth();
-  const response = await client.api.card.$patch({ json: { status } });
+  const response = await api.card.$patch({ json: { status } });
   if (!response.ok) throw new APIError(response.status, await response.json());
   return response.json();
 }
 
 export async function setCardMode(mode: number) {
   await auth();
-  const response = await client.api.card.$patch({ json: { mode } });
+  const response = await api.card.$patch({ json: { mode } });
   if (!response.ok) throw new APIError(response.status, await response.json());
   return response.json();
 }
 
 export async function getKYCLink() {
   await auth();
-  const response = await client.api.kyc.$post({ json: { templateId: await getTemplateId() } });
+  const response = await api.kyc.$post({ json: { templateId: await getTemplateId() } });
   if (!response.ok) throw new APIError(response.status, await response.json());
   const result = await response.json();
   // @ts-expect-error intermediate api migration
@@ -111,7 +111,7 @@ export async function getKYCLink() {
 
 export async function getKYCStatus() {
   await auth();
-  const response = await client.api.kyc.$get({ query: { templateId: await getTemplateId() } });
+  const response = await api.kyc.$get({ query: { templateId: await getTemplateId() } });
   queryClient.setQueryData(["user", "country"], response.headers.get("User-Country"));
   if (!response.ok) throw new APIError(response.status, await response.json());
   const result = await response.json();
@@ -124,7 +124,7 @@ export async function getKYCStatus() {
 
 export async function getPasskey() {
   await auth();
-  const response = await client.api.passkey.$get();
+  const response = await api.passkey.$get();
   if (!response.ok) throw new APIError(response.status, await response.json());
   return response.json();
 }
@@ -136,9 +136,9 @@ export async function createPasskey() {
   return verifyRegistration(attestation);
 }
 
-export async function getActivity(parameters?: NonNullable<Parameters<typeof client.api.activity.$get>[0]>["query"]) {
+export async function getActivity(parameters?: NonNullable<Parameters<typeof api.activity.$get>[0]>["query"]) {
   await auth();
-  const response = await client.api.activity.$get(
+  const response = await api.activity.$get(
     parameters?.include === undefined ? undefined : { query: { include: parameters.include } },
   );
   if (!response.ok) throw new APIError(response.status, await response.json());

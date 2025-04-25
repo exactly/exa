@@ -1,38 +1,21 @@
-import type { Base64URL } from "@exactly/common/validation";
 import { serve } from "@hono/node-server";
 import { captureException, close } from "@sentry/node";
 import { Hono } from "hono";
-import { cors } from "hono/cors";
 import { trimTrailingSlash } from "hono/trailing-slash";
 
-import activity from "./api/activity";
-import authentication from "./api/auth/authentication";
-import registration from "./api/auth/registration";
-import card from "./api/card";
-import kyc from "./api/kyc";
-import passkey from "./api/passkey";
+import api from "./api";
 import activityHook from "./hooks/activity";
 import block from "./hooks/block";
 import cryptomate from "./hooks/cryptomate";
 import panda from "./hooks/panda";
 import persona from "./hooks/persona";
 import androidFingerprints from "./utils/android/fingerprints";
-import appOrigin from "./utils/appOrigin";
 import { closeAndFlush } from "./utils/segment";
 
 const app = new Hono();
 app.use(trimTrailingSlash());
-app.use("/api/*", cors({ origin: appOrigin, credentials: true }));
 
-const api = app
-  .route("/api/auth/authentication", authentication)
-  .route("/api/auth/registration", registration)
-  .route("/api/activity", activity)
-  .route("/api/card", card)
-  .route("/api/kyc", kyc)
-  .route("/api/passkey", passkey);
-export default api;
-export type ExaServer = typeof api;
+app.route("/api", api);
 
 app.route("/hooks/activity", activityHook);
 app.route("/hooks/block", block);
@@ -74,9 +57,3 @@ const server = serve(app);
     }),
   ),
 );
-
-declare module "hono" {
-  interface ContextVariableMap {
-    credentialId: Base64URL;
-  }
-}
