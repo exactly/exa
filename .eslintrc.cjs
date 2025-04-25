@@ -3,7 +3,7 @@ const { include: nodeFiles } = require("./tsconfig.node.json");
 /** @type {import('eslint').Linter.Config} */
 module.exports = {
   parser: "@typescript-eslint/parser",
-  parserOptions: { project: ["tsconfig.json", "tsconfig.node.json", "server/tsconfig.json"] },
+  parserOptions: { project: ["tsconfig.json", "tsconfig.node.json", "server/tsconfig.json", "docs/tsconfig.json"] },
   settings: { react: { version: "detect" }, "import/resolver": "typescript" },
   extends: [
     "universe",
@@ -104,6 +104,11 @@ module.exports = {
       },
     },
     { files: ["src/**/*+html.tsx"], rules: { "react-native/no-raw-text": "off" } },
+    {
+      files: ["docs/**"],
+      extends: ["plugin:astro/recommended"],
+      rules: { "import/no-unresolved": ["error", { ignore: ["astro:*"] }] },
+    },
   ],
   ignorePatterns: [
     ".expo/",
