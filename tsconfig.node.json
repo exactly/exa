@@ -17,5 +17,5 @@
     "pretty": true,
     "strict": true
   },
-  "include": ["**/*.config.ts", "**/*.config.mjs", "**/*.config.cjs", ".eslintrc.cjs"]
+  "include": ["./*.config.ts", "./*.config.mjs", "./*.config.cjs", ".eslintrc.cjs"]
 }

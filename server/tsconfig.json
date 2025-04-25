@@ -4,7 +4,7 @@
     "target": "ESNext",
     "module": "ESNext",
     "moduleDetection": "force",
-    "moduleResolution": "Bundler",
+    "moduleResolution": "bundler",
     "noUncheckedIndexedAccess": true,
     "verbatimModuleSyntax": true,
     "resolveJsonModule": true,
@@ -24,6 +24,7 @@
     "test/**/*.ts",
     "index.ts",
     "instrument.cjs",
+    "drizzle.config.ts",
     "vitest.config.mts"
   ]
 }
