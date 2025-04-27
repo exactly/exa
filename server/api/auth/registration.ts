@@ -10,9 +10,9 @@ import {
   verifyRegistrationResponse,
 } from "@simplewebauthn/server";
 import { cose, generateChallenge, isoBase64URL } from "@simplewebauthn/server/helpers";
-import { Hono } from "hono";
+import { Hono, type Env } from "hono";
 import { setCookie, setSignedCookie } from "hono/cookie";
-import { any, array, check, literal, nullish, object, optional, parse, pipe, string, transform } from "valibot";
+import { any, array, literal, nullish, object, parse, pipe, string, transform, type InferOutput } from "valibot";
 import type { Hex } from "viem";
 import { optimism } from "viem/chains";
 
@@ -31,6 +31,8 @@ const webhookId = process.env.ALCHEMY_ACTIVITY_ID;
 
 const factory =
   { [optimism.id]: "0xcbeaAF42Cc39c17e84cBeFe85160995B515A9668" as const }[chain.id] ?? exaAccountFactoryAddress;
+
+const Cookie = object({ session_id: Base64URL });
 
 export default new Hono()
   .get("/", async (c) => {
@@ -55,13 +57,10 @@ export default new Hono()
   })
   .post(
     "/",
-    vValidator(
+    // http-only cookie
+    vValidator<typeof Cookie, "cookie", Env, "/", undefined, InferOutput<typeof Cookie>>(
       "cookie",
-      pipe(
-        optional(object({ session_id: Base64URL })),
-        check((input): input is { session_id: Base64URL } => !!input),
-        transform((input) => input as { session_id: Base64URL }),
-      ),
+      Cookie,
       ({ success }, c) => (success ? undefined : c.json("bad session", 400)),
     ),
     vValidator(

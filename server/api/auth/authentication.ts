@@ -10,15 +10,17 @@ import {
 } from "@simplewebauthn/server";
 import { generateChallenge, isoBase64URL } from "@simplewebauthn/server/helpers";
 import { eq } from "drizzle-orm";
-import { Hono } from "hono";
+import { Hono, type Env } from "hono";
 import { setCookie, setSignedCookie } from "hono/cookie";
-import { any, check, literal, object, optional, parse, pipe, transform } from "valibot";
+import { any, literal, object, optional, parse, type InferOutput } from "valibot";
 
 import database, { credentials } from "../../database";
 import androidOrigins from "../../utils/android/origins";
 import appOrigin from "../../utils/appOrigin";
 import authSecret from "../../utils/authSecret";
 import redis from "../../utils/redis";
+
+const Cookie = object({ session_id: Base64URL });
 
 export default new Hono()
   .get(
@@ -47,13 +49,10 @@ export default new Hono()
     vValidator("query", object({ credentialId: Base64URL }), ({ success }, c) => {
       if (!success) return c.json("bad credential", 400);
     }),
-    vValidator(
+    // http-only cookie
+    vValidator<typeof Cookie, "cookie", Env, "/", undefined, InferOutput<typeof Cookie>>(
       "cookie",
-      pipe(
-        optional(object({ session_id: Base64URL })),
-        check((input): input is { session_id: Base64URL } => !!input),
-        transform((input) => input as { session_id: Base64URL }),
-      ),
+      Cookie,
       ({ success }, c) => (success ? undefined : c.json("bad session", 400)),
     ),
     vValidator(
