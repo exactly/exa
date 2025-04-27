@@ -1,4 +1,3 @@
-import type { Base64URL } from "@exactly/common/validation";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 
@@ -21,9 +20,3 @@ const api = new Hono()
 
 export default api;
 export type ExaAPI = typeof api;
-
-declare module "hono" {
-  interface ContextVariableMap {
-    credentialId: Base64URL;
-  }
-}

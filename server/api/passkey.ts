@@ -8,8 +8,8 @@ import database, { credentials } from "../database";
 import auth from "../middleware/auth";
 import decodePublicKey from "../utils/decodePublicKey";
 
-export default new Hono().use(auth).get("/", async (c) => {
-  const credentialId = c.get("credentialId");
+export default new Hono().get("/", auth(), async (c) => {
+  const { credentialId } = c.req.valid("cookie");
   const credential = await database.query.credentials.findFirst({
     where: eq(credentials.id, credentialId),
     columns: { publicKey: true, account: true, factory: true },

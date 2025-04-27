@@ -45,15 +45,13 @@ import { collectors as cryptomateCollectors } from "../utils/cryptomate";
 import { collectors as pandaCollectors } from "../utils/panda";
 import publicClient from "../utils/publicClient";
 
-const app = new Hono();
-app.use(auth);
-
 const ActivityTypes = picklist(["card", "received", "repay", "sent"]);
 
 const collectors = new Set([...cryptomateCollectors, ...pandaCollectors].map((a) => a.toLowerCase() as Hex));
 
-export default app.get(
+export default new Hono().get(
   "/",
+  auth(),
   vValidator("query", optional(object({ include: optional(union([ActivityTypes, array(ActivityTypes)])) }), {})),
   async (c) => {
     const { include } = c.req.valid("query");
@@ -61,7 +59,7 @@ export default app.get(
       return include && (Array.isArray(include) ? !include.includes(type) : include !== type);
     }
 
-    const credentialId = c.get("credentialId");
+    const { credentialId } = c.req.valid("cookie");
     const credential = await database.query.credentials.findFirst({
       where: eq(credentials.id, credentialId),
       columns: { account: true },

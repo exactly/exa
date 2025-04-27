@@ -36,9 +36,8 @@ function createMutex(credentialId: string) {
 }
 
 export default new Hono()
-  .use(auth)
-  .get("/", async (c) => {
-    const credentialId = c.get("credentialId");
+  .get("/", auth(), async (c) => {
+    const { credentialId } = c.req.valid("cookie");
     const credential = await database.query.credentials.findFirst({
       where: eq(credentials.id, credentialId),
       columns: { account: true, pandaId: true },
@@ -89,8 +88,8 @@ export default new Hono()
       return c.json("card not found", 404);
     }
   })
-  .post("/", async (c) => {
-    const credentialId = c.get("credentialId");
+  .post("/", auth(), async (c) => {
+    const { credentialId } = c.req.valid("cookie");
     const mutex = mutexes.get(credentialId) ?? createMutex(credentialId);
     return mutex
       .runExclusive(async () => {
@@ -177,6 +176,7 @@ export default new Hono()
   })
   .patch(
     "/",
+    auth(),
     vValidator(
       "json",
       union([
@@ -192,7 +192,7 @@ export default new Hono()
     ),
     async (c) => {
       const patch = c.req.valid("json");
-      const credentialId = c.get("credentialId");
+      const { credentialId } = c.req.valid("cookie");
       const mutex = mutexes.get(credentialId) ?? createMutex(credentialId);
       return mutex
         .runExclusive(async () => {

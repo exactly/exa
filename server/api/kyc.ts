@@ -22,13 +22,12 @@ const debug = createDebug("exa:kyc");
 Object.assign(debug, { inspectOpts: { depth: undefined } });
 
 export default new Hono()
-  .use(auth)
-  .get("/", async (c) => {
+  .get("/", auth(), async (c) => {
     const templateId = c.req.query("templateId") ?? CRYPTOMATE_TEMPLATE;
     if (templateId !== CRYPTOMATE_TEMPLATE && templateId !== PANDA_TEMPLATE) {
       return c.json("invalid persona template", 400);
     }
-    const credentialId = c.get("credentialId");
+    const { credentialId } = c.req.valid("cookie");
     const credential = await database.query.credentials.findFirst({
       columns: { id: true, account: true },
       where: eq(credentials.id, credentialId),
@@ -51,6 +50,7 @@ export default new Hono()
   })
   .post(
     "/",
+    auth(),
     vValidator("json", object({ templateId: optional(string()) }), (validation, c) => {
       if (debug.enabled) {
         c.req
@@ -65,7 +65,7 @@ export default new Hono()
     }),
     async (c) => {
       const payload = c.req.valid("json");
-      const credentialId = c.get("credentialId");
+      const { credentialId } = c.req.valid("cookie");
       const templateId = payload.templateId ?? CRYPTOMATE_TEMPLATE;
       const credential = await database.query.credentials.findFirst({
         columns: { id: true, account: true },
