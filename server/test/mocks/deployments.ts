@@ -8,6 +8,7 @@ vi.mock("@exactly/common/generated/chain", async (importOriginal) => ({
   exaPluginAddress: inject("ExaPlugin"),
   exaPreviewerAddress: inject("ExaPreviewer"),
   marketUSDCAddress: inject("MarketUSDC"),
+  marketWETHAddress: inject("MarketWETH"),
   previewerAddress: inject("Previewer"),
   usdcAddress: inject("USDC"),
   wethAddress: inject("WETH"),

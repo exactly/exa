@@ -138,6 +138,49 @@ describe("proposal", () => {
     });
   });
 
+  describe("with weth withdraw proposal", () => {
+    beforeEach(async () => {
+      const hash = await proposeWithdraw(69n, padHex("0x69", { size: 20 }), inject("MarketWETH"));
+      await anvilClient.mine({ blocks: 1, interval: 10 * 60 });
+      proposals = await getLogs([hash]);
+      const unlock = proposals[0]?.args.unlock ?? 0n;
+      vi.setSystemTime(new Date(Number(unlock + 10n) * 1000));
+    });
+
+    it("increments nonce", async () => {
+      const withdraw = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
+      const waitForTransactionReceipt = vi.spyOn(publicClient, "waitForTransactionReceipt");
+      await Promise.all([
+        appClient.index.$post({
+          ...withdrawProposal,
+          json: {
+            ...withdrawProposal.json,
+            event: {
+              ...withdrawProposal.json.event,
+              data: {
+                ...withdrawProposal.json.event.data,
+                block: {
+                  ...withdrawProposal.json.event.data.block,
+                  logs: [{ topics: withdraw.topics, data: withdraw.data, account: { address: withdraw.address } }],
+                },
+              },
+            },
+          },
+        }),
+        vi.waitUntil(() => waitForTransactionReceipt.mock.settledResults.length >= 2, 16_666),
+      ]);
+
+      await expect(
+        publicClient.readContract({
+          address: inject("ProposalManager"),
+          abi: proposalManagerAbi,
+          functionName: "nonces",
+          args: [bobAccount],
+        }),
+      ).resolves.toBe(withdraw.args.nonce + 1n);
+    });
+  });
+
   describe("with reverting proposals", () => {
     beforeEach(async () => {
       const hash = await proposeWithdraw(maxUint256, padHex("0x69", { size: 20 }));
@@ -193,20 +236,7 @@ describe("proposal", () => {
   describe("with idle proposals", () => {
     beforeEach(async () => {
       const hashes = await Promise.all(
-        [4000n, 5000n, 6000n, 7000n, 8000n, 9000n].map((amount) =>
-          execute(
-            encodeFunctionData({
-              abi: exaPluginAbi,
-              functionName: "propose",
-              args: [
-                inject("MarketUSDC"),
-                amount,
-                ProposalType.Withdraw,
-                encodeAbiParameters([{ type: "address" }], [padHex("0x69", { size: 20 })]),
-              ],
-            }),
-          ),
-        ),
+        [4000n, 5000n, 6000n, 7000n, 8000n, 9000n].map((v) => proposeWithdraw(v, padHex("0x69", { size: 20 }))),
       );
       await anvilClient.mine({ blocks: 1, interval: 10 * 60 });
       proposals = await getLogs(hashes);
@@ -319,17 +349,12 @@ function execute(calldata: Hex) {
   });
 }
 
-function proposeWithdraw(amount: bigint, receiver: Address) {
+function proposeWithdraw(amount: bigint, receiver: Address, market = inject("MarketUSDC")) {
   return execute(
     encodeFunctionData({
       abi: exaPluginAbi,
       functionName: "propose",
-      args: [
-        inject("MarketUSDC"),
-        amount,
-        ProposalType.Withdraw,
-        encodeAbiParameters([{ type: "address" }], [receiver]),
-      ],
+      args: [market, amount, ProposalType.Withdraw, encodeAbiParameters([{ type: "address" }], [receiver])],
     }),
   );
 }

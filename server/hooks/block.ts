@@ -4,6 +4,7 @@ import chain, {
   exaPluginAddress,
   exaPreviewerAbi,
   exaPreviewerAddress,
+  marketWETHAddress,
   upgradeableModularAccountAbi,
 } from "@exactly/common/generated/chain";
 import shortenHex from "@exactly/common/shortenHex";
@@ -252,6 +253,17 @@ function scheduleMessage(message: string) {
 
                   parent.setStatus({ code: SPAN_STATUS_OK, message: "ok" });
                   if (proposalType === ProposalType.Withdraw) {
+                    if (market.toLowerCase() === marketWETHAddress.toLowerCase()) {
+                      await keeper.exaSend(
+                        { name: "exa.nonce", op: "exa.nonce", attributes: { account } },
+                        {
+                          address: account,
+                          functionName: "setProposalNonce",
+                          args: [nonce + 1n],
+                          abi: [...exaPluginAbi, ...upgradeableModularAccountAbi, ...proposalManagerAbi],
+                        },
+                      );
+                    }
                     const receiver = v.parse(
                       Address,
                       decodeAbiParameters([{ name: "receiver", type: "address" }], data)[0],
