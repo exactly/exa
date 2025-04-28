@@ -1,6 +1,6 @@
 {
   "name": "@exactly/mobile",
-  "version": "0.0.2",
+  "version": "1.0.0",
   "main": "./src/index.js",
   "scripts": {
     "start": "expo start",
@@ -32,9 +32,9 @@
     "@alchemy/aa-accounts": "^3.19.0",
     "@alchemy/aa-alchemy": "^3.19.0",
     "@alchemy/aa-core": "^3.19.0",
-    "@exactly/common": "workspace:^0.0.1",
+    "@exactly/common": "workspace:^0.0.2",
     "@exactly/lib": "exactly/lib#a8895cd",
-    "@exactly/server": "workspace:^0.0.1",
+    "@exactly/server": "workspace:^0.1.0",
     "@expo/metro-runtime": "~4.0.1",
     "@intercom/intercom-react-native": "^8.3.0",
     "@intercom/messenger-js-sdk": "^0.0.14",
@@ -107,7 +107,7 @@
     "@changesets/cli": "^2.29.2",
     "@changesets/types": "^6.1.0",
     "@eslint-community/eslint-plugin-eslint-comments": "^4.5.0",
-    "@exactly/plugin": "workspace:^0.0.5",
+    "@exactly/plugin": "workspace:^1.0.0",
     "@exactly/protocol": "exactly/protocol#16a172a",
     "@expo/fingerprint": "^0.11.11",
     "@spotlightjs/spotlight": "^2.13.0",

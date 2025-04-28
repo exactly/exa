@@ -1,6 +1,6 @@
 {
   "name": "@exactly/common",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "private": true,
   "engines": {
     "node": ">=22.14.0"
@@ -11,6 +11,6 @@
     "viem": "^2.27.2"
   },
   "devDependencies": {
-    "@exactly/plugin": "workspace:^0.0.5"
+    "@exactly/plugin": "workspace:^1.0.0"
   }
 }
