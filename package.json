@@ -17,7 +17,7 @@
     "eas-build-on-success:release": "if [ \"$EAS_BUILD_PROFILE\" = production ]; then sentry-cli releases new --finalize -o exactly -p exa $(node -e 'console.log(require(`@exactly/common/generated/release`))'); fi",
     "eas-build-on-success:fingerprint": "expo-updates fingerprint:generate --debug --platform $EAS_BUILD_PLATFORM",
     "test": "pnpm run --aggregate-output --reporter-hide-prefix /test:/",
-    "test:spell": "cspell --gitignore '**' '.changeset/**'",
+    "test:spell": "cspell --gitignore '**' '.changeset/**' '.do/**' '.github/**' '.eslintrc.*'",
     "test:deps": "pnpm audit",
     "test:build": "expo export --platform web",
     "test:ts:expo": "tsc --pretty $([ \"$GITHUB_ACTIONS\" = true ] && echo false || echo true)",
