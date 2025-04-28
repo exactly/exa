@@ -3,6 +3,7 @@
   "ignorePaths": [
     "*.svg",
     "cspell.json",
+    "contracts/broadcast",
     "pnpm-lock.yaml"
   ],
   "words": [
