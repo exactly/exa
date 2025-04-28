@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "build": "pkgroll --sourcemap --src .",
-    "sourcemaps": "sentry-cli sourcemaps inject -o exactly -p mobile dist && sentry-cli sourcemaps upload -o exactly -p mobile dist",
+    "sourcemaps": "sentry-cli sourcemaps inject -o exactly -p exa dist && sentry-cli sourcemaps upload -o exactly -p exa dist",
     "db:push": "drizzle-kit push",
     "test": "pnpm run --aggregate-output /test:/",
     "test:ts": "tsc",
