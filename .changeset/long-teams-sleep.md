@@ -2,4 +2,4 @@
 "@exactly/mobile": patch
 ---
 
-🐛 fix purchase simulator scrollview
+🐛 fix purchase simulator scroll view
