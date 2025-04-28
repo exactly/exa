@@ -22,6 +22,7 @@ import {
   useReadPreviewerPreviewBorrowAtMaturity,
   useSimulateExaPluginPropose,
 } from "../../generated/contracts";
+import reportError from "../../utils/reportError";
 import useAsset from "../../utils/useAsset";
 import Button from "../shared/Button";
 

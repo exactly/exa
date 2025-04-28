@@ -16,6 +16,7 @@ import { useAccount, useBytecode } from "wagmi";
 import CalendarImage from "../../assets/images/calendar-rollover.svg";
 import { useReadUpgradeableModularAccountGetInstalledPlugins } from "../../generated/contracts";
 import queryClient from "../../utils/queryClient";
+import reportError from "../../utils/reportError";
 import useAsset from "../../utils/useAsset";
 import useIntercom from "../../utils/useIntercom";
 import Button from "../shared/Button";
