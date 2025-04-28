@@ -26,6 +26,7 @@ module.exports = {
     "@typescript-eslint/restrict-template-expressions": ["error", { allowNumber: true }],
     "import/prefer-default-export": "error",
     "no-console": "warn",
+    "no-restricted-globals": ["error", "reportError"],
     "no-restricted-imports": ["error", { patterns: ["./server/"] }],
     "no-shadow": "off", // @typescript-eslint/no-shadow
     "unicorn/filename-case": "off", // use default export name
