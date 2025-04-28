@@ -1,6 +1,6 @@
 {
   "$schema": "https://unpkg.com/@changesets/config@3.0.3/schema.json",
-  "changelog": ["@changesets/changelog-github", { "repo": "exactly/mobile" }],
+  "changelog": ["@changesets/changelog-github", { "repo": "exactly/exa" }],
   "baseBranch": "origin/main",
   "access": "restricted",
   "privatePackages": { "version": true, "tag": true },
