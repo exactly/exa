@@ -13,6 +13,7 @@ import {
   length,
   literal,
   maxLength,
+  minLength,
   number,
   object,
   parse,
@@ -150,7 +151,7 @@ const CardResponse = object({
     ]),
   }),
   last4: pipe(string(), length(4)),
-  expirationMonth: pipe(string(), maxLength(2)),
+  expirationMonth: pipe(string(), minLength(1), maxLength(2)),
   expirationYear: pipe(string(), length(4)),
 });
 

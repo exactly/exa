@@ -120,7 +120,7 @@ const Payload = v.variant("resource", [
     resource: v.literal("card"),
     action: v.literal("updated"),
     body: v.object({
-      expirationMonth: v.pipe(v.string(), v.length(2)),
+      expirationMonth: v.pipe(v.string(), v.minLength(1), v.maxLength(2)),
       expirationYear: v.pipe(v.string(), v.length(4)),
       id: v.string(),
       last4: v.pipe(v.string(), v.length(4)),
