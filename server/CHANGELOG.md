@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.1.1
+
+### Patch Changes
+
+- [#302](https://github.com/exactly/exa/pull/302) [`e276224`](https://github.com/exactly/exa/commit/e276224854eadfbdd3518057afd55839badaa703) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚑 increment nonce after weth withdraw
+
 ## 0.1.0
 
 ### Minor Changes
