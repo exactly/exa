@@ -4,7 +4,7 @@ import { captureException, setContext, setUser } from "@sentry/node";
 import createDebug from "debug";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
-import { object, optional, parse, string } from "valibot";
+import { flatten, object, optional, parse, string } from "valibot";
 
 import database, { credentials } from "../database/index";
 import auth from "../middleware/auth";
@@ -59,7 +59,9 @@ export default new Hono()
           .catch((error: unknown) => captureException(error));
       }
       if (!validation.success) {
-        captureException(new Error("bad kyc"), { contexts: { validation } });
+        captureException(new Error("bad kyc"), {
+          contexts: { validation: { ...validation, flatten: flatten(validation.issues) } },
+        });
         return c.json("bad request", 400);
       }
     }),

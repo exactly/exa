@@ -97,7 +97,9 @@ export default new Hono().post(
         .catch((error: unknown) => captureException(error));
     }
     if (!validation.success) {
-      captureException(new Error("bad cryptomate"), { contexts: { validation } });
+      captureException(new Error("bad cryptomate"), {
+        contexts: { validation: { ...validation, flatten: v.flatten(validation.issues) } },
+      });
       return c.json("bad request", 400);
     }
   }),

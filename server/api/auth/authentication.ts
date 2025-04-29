@@ -12,7 +12,7 @@ import { generateChallenge, isoBase64URL } from "@simplewebauthn/server/helpers"
 import { eq } from "drizzle-orm";
 import { Hono, type Env } from "hono";
 import { setCookie, setSignedCookie } from "hono/cookie";
-import { any, literal, object, optional, parse, type InferOutput } from "valibot";
+import { any, flatten, literal, object, optional, parse, type InferOutput } from "valibot";
 
 import database, { credentials } from "../../database";
 import androidOrigins from "../../utils/android/origins";
@@ -66,7 +66,9 @@ export default new Hono()
       }),
       (validation, c) => {
         if (!validation.success) {
-          captureException(new Error("bad authentication"), { contexts: { validation } });
+          captureException(new Error("bad authentication"), {
+            contexts: { validation: { ...validation, flatten: flatten(validation.issues) } },
+          });
           return c.json("bad authentication", 400);
         }
       },

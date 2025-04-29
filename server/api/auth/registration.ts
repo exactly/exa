@@ -12,7 +12,19 @@ import {
 import { cose, generateChallenge, isoBase64URL } from "@simplewebauthn/server/helpers";
 import { Hono, type Env } from "hono";
 import { setCookie, setSignedCookie } from "hono/cookie";
-import { any, array, literal, nullish, object, parse, pipe, string, transform, type InferOutput } from "valibot";
+import {
+  any,
+  array,
+  flatten,
+  literal,
+  nullish,
+  object,
+  parse,
+  pipe,
+  string,
+  transform,
+  type InferOutput,
+} from "valibot";
 import type { Hex } from "viem";
 import { optimism } from "viem/chains";
 
@@ -84,7 +96,9 @@ export default new Hono()
       }),
       (validation, c) => {
         if (!validation.success) {
-          captureException(new Error("bad registration"), { contexts: { validation } });
+          captureException(new Error("bad registration"), {
+            contexts: { validation: { ...validation, flatten: flatten(validation.issues) } },
+          });
           return c.json("bad registration", 400);
         }
       },

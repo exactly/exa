@@ -5,6 +5,7 @@ import { Hono } from "hono";
 import type { InferOutput } from "valibot";
 import {
   array,
+  flatten,
   ip,
   isoTimestamp,
   literal,
@@ -80,7 +81,9 @@ export default new Hono().post(
     }),
     (validation, c) => {
       if (!validation.success) {
-        captureException(new Error("bad persona"), { contexts: { validation } });
+        captureException(new Error("bad persona"), {
+          contexts: { validation: { ...validation, flatten: flatten(validation.issues) } },
+        });
         return c.json(
           validation.issues.map((issue) => `${issue.path?.map((p) => p.key).join("/")} ${issue.message}`),
           400,
