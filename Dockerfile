@@ -2,7 +2,6 @@ FROM node:22.14.0-slim AS base
 
 ARG APP_DOMAIN="sandbox.exactly.app"
 ARG CHAIN_ID="11155420"
-ARG EXPO_PUBLIC_DEVTOOLS="false"
 
 FROM base AS build
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
