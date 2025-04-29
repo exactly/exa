@@ -1,11 +1,8 @@
-# check=skip=SecretsUsedInArgOrEnv
-
 FROM node:22.14.0-slim AS base
 
 ARG APP_DOMAIN="sandbox.exactly.app"
 ARG CHAIN_ID="11155420"
 ARG EXPO_PUBLIC_DEVTOOLS="false"
-ARG SENTRY_AUTH_TOKEN
 
 FROM base AS build
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -22,7 +19,6 @@ RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store pnpm install
 RUN pnpm expo export --platform web --no-minify --source-maps --output-dir server/app && \
   pnpm run --filter server build && \
   pnpm deploy --filter server --prod --ignore-scripts /prod/server
-RUN if [ "$APP_DOMAIN" = web.exactly.app ]; then pnpm run --filter server release; fi
 
 FROM base AS server
 # hadolint ignore=DL3008
