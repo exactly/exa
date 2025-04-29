@@ -1,15 +1,18 @@
 import { vValidator } from "@hono/valibot-validator";
+import { setContext } from "@sentry/core";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import {
   array,
   type BaseIssue,
   type BaseSchema,
+  flatten,
   literal,
   nullable,
   object,
-  parse,
   picklist,
+  safeParse,
   string,
+  ValiError,
   variant,
 } from "valibot";
 
@@ -77,7 +80,12 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
     signal: AbortSignal.timeout(timeout),
   });
   if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);
-  return parse(schema, await response.json());
+  const result = safeParse(schema, await response.json());
+  if (!result.success) {
+    setContext("validation", { ...result, flatten: flatten(result.issues) });
+    throw new ValiError(result.issues);
+  }
+  return result.output;
 }
 
 const GetAccountsResponse = object({
