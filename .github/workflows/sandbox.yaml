@@ -1,0 +1,12 @@
+name: sandbox
+on:
+  push:
+    branches: [web]
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+jobs:
+  deploy:
+    uses: ./.github/workflows/deploy.yaml
+    secrets: inherit
+    with:
+      environment: sandbox
+      url: https://sandbox.exactly.app

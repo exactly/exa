@@ -1,32 +1,27 @@
-name: exactly
+name: ${ENVIRONMENT}
 region: sfo
 domains:
-  - domain: web.exactly.app
+  - domain: ${APP_DOMAIN}
     type: PRIMARY
 envs:
   - key: APP_DOMAIN
     scope: RUN_AND_BUILD_TIME
     value: ${APP_DOMAIN}
-  - key: CHAIN_ID
-    scope: BUILD_TIME
-    value: "10"
-  - key: SENTRY_AUTH_TOKEN
-    scope: BUILD_TIME
-    type: SECRET
 services:
   - name: server
-    dockerfile_path: Dockerfile
-    github:
-      repo: exactly/exa
-      branch: main
-      deploy_on_push: true
+    image:
+      registry_type: GHCR
+      registry: exactly
+      repository: exa-${ENVIRONMENT}
+      registry_credentials: ${GHCR_CREDENTIALS}
+      digest: ${IMAGE_DIGEST_SERVER}
     http_port: 3000
     instance_count: 1
     instance_size_slug: apps-d-1vcpu-1gb # cspell:disable-line
     log_destinations:
       - name: opensearch
         open_search:
-          cluster_name: exactly-opensearch
+          cluster_name: ${OPENSEARCH_NAME}
           index_name: logs
           basic_auth:
             user: doadmin # cspell:disable-line
@@ -87,19 +82,19 @@ services:
         scope: RUN_TIME
 databases:
   - name: postgres
-    cluster_name: exactly-postgres
+    cluster_name: ${POSTGRES_NAME}
     production: true
     engine: PG
     version: "16"
     db_name: defaultdb # cspell:disable-line
     db_user: doadmin # cspell:disable-line
   - name: redis
-    cluster_name: exactly-redis
+    cluster_name: ${REDIS_NAME}
     production: true
     engine: REDIS
     version: "7"
   - name: opensearch
-    cluster_name: exactly-opensearch
+    cluster_name: ${OPENSEARCH_NAME}
     production: true
     engine: OPENSEARCH
     version: "2"

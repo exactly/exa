@@ -1,0 +1,62 @@
+name: deploy
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      url:
+        required: true
+        type: string
+    secrets:
+      DIGITALOCEAN_TOKEN:
+        required: true
+permissions:
+  packages: write
+  attestations: write
+  id-token: write
+jobs:
+  digitalocean:
+    environment:
+      name: ${{ inputs.environment }}
+      url: ${{ inputs.url }}
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_NAME: ${{ github.repository }}-${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ghcr.io/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha
+            type=ref,event=pr
+            type=ref,event=tag
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        id: push
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ghcr.io/${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+      - uses: digitalocean/app_action/deploy@v2
+        env:
+          IMAGE_DIGEST_SERVER: ${{ steps.push.outputs.digest }}
+        with:
+          app_name: ${{ inputs.environment }}
+          token: ${{ secrets.DIGITALOCEAN_TOKEN }}
