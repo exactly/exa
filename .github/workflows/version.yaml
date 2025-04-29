@@ -1,10 +1,10 @@
-name: release
+name: version
 on:
   push:
     branches: [main]
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 jobs:
-  release:
+  version:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
