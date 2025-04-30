@@ -72,10 +72,15 @@ services:
         scope: RUN_TIME
       - key: PERSONA_WEBHOOK_SECRET
         scope: RUN_TIME
+        type: SECRET
       - key: SEGMENT_WRITE_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: SENTRY_DSN
         scope: RUN_TIME
       - key: PANDA_API_KEY
         scope: RUN_TIME
+        type: SECRET
       - key: PANDA_API_URL
         scope: RUN_TIME
       - key: PANDA_ISSUING

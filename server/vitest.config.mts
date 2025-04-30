@@ -16,7 +16,6 @@ export default defineConfig({
       CRYPTOMATE_URL: "https://cryptomate.test",
       CRYPTOMATE_WEBHOOK_KEY: "cryptomate",
       EXPO_PUBLIC_ALCHEMY_API_KEY: " ",
-      EXPO_PUBLIC_SENTRY_DSN: "",
       ISSUER_PRIVATE_KEY: padHex("0x420"),
       KEEPER_PRIVATE_KEY: padHex("0x69"),
       PANDA_API_KEY: "panda",

@@ -3,11 +3,13 @@
   "version": "0.1.2",
   "private": true,
   "scripts": {
-    "build": "pkgroll --sourcemap --src . && sentry-cli sourcemaps inject -o exactly -p exa dist",
+    "build": "pkgroll --sourcemap --src . && sentry-cli sourcemaps inject -o exactly -p server dist",
+    "prepare": "(git fetch --unshallow || true) && pnpm run --aggregate-output --reporter-hide-prefix /prepare:/",
+    "prepare:release": "mkdir -p generated && echo \"module.exports = /** @type {const} */ ('$(git describe --abbrev=7 --match '@exactly/server@*' | sed 's/@exactly\\///')')\" > generated/release.js",
     "release": "pnpm run --workspace-concurrency 1 --aggregate-output --reporter-hide-prefix /release:/",
-    "release:finalize": "sentry-cli releases new --finalize -o exactly -p exa $(node -e 'console.log(require(`@exactly/common/generated/release`))')",
-    "release:commits": "sentry-cli releases set-commits --auto -o exactly -p exa $(node -e 'console.log(require(`@exactly/common/generated/release`))')",
-    "sourcemaps": "sentry-cli sourcemaps upload -o exactly -p exa -r $(node -e 'console.log(require(`@exactly/common/generated/release`))') dist",
+    "release:finalize": "sentry-cli releases new --finalize -o exactly -p exa $(node -e 'console.log(require(`./generated/release`))')",
+    "release:commits": "sentry-cli releases set-commits --auto -o exactly -p exa $(node -e 'console.log(require(`./generated/release`))')",
+    "sourcemaps": "sentry-cli sourcemaps upload -o exactly -p exa -r $(node -e 'console.log(require(`./generated/release`))') dist",
     "db:push": "drizzle-kit push",
     "test": "bash -c 'if [[ -z \"$GITHUB_ACTIONS\" ]]; then pnpm run /test:/; else set -o pipefail && pnpm run --aggregate-output --reporter-hide-prefix /test:/ 2>&1 | perl -pe \"s|(?<![a-zA-Z0-9/\\.@])([a-zA-Z][^\\s:\\\"]*?/[^\\s:\\\"]+)|server/\\1|g\"; fi'",
     "test:ts": "tsc --pretty $([ \"$GITHUB_ACTIONS\" = true ] && echo false || echo true)",
@@ -19,6 +21,7 @@
   "files": [
     "app",
     "dist",
+    "generated/release.js",
     "instrument.cjs"
   ],
   "engines": {
