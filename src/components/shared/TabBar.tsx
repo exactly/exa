@@ -4,7 +4,7 @@ import type { NavigationRoute } from "@sentry/react-native/dist/js/tracing/react
 import React, { useCallback } from "react";
 import { ToggleGroup } from "tamagui";
 import { zeroAddress } from "viem";
-import { useAccount } from "wagmi";
+import { useAccount, useBytecode } from "wagmi";
 
 import SafeView from "./SafeView";
 import StatusIndicator from "./StatusIndicator";
@@ -13,16 +13,12 @@ import View from "./View";
 import { useReadExaPreviewerPendingProposals } from "../../generated/contracts";
 export default function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const { address } = useAccount();
+  const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
   const { data: pendingProposals } = useReadExaPreviewerPendingProposals({
     address: exaPreviewerAddress,
     args: [address ?? zeroAddress],
-    query: {
-      enabled: !!address,
-      gcTime: 0,
-      refetchInterval: 30_000,
-    },
+    query: { enabled: !!address && !!bytecode, gcTime: 0, refetchInterval: 30_000 },
   });
-
   const onPress = useCallback(
     (route: NavigationRoute, focused: boolean) => {
       const event = navigation.emit({ type: "tabPress", target: route.key, canPreventDefault: true });
@@ -43,6 +39,7 @@ export default function TabBar({ state, descriptors, navigation }: BottomTabBarP
         flex={1}
       >
         {state.routes.map((route, index) => {
+          if (route.name === "activity") return null;
           const { options } = descriptors[route.key] ?? { options: undefined };
           if (!options) throw new Error("no navigation button options found");
           const label = options.title;
@@ -61,7 +58,7 @@ export default function TabBar({ state, descriptors, navigation }: BottomTabBarP
               backgroundColor="transparent"
             >
               <View>
-                {label === "Activity" && pendingProposals && pendingProposals.length > 0 && (
+                {route.name === "more" && pendingProposals && pendingProposals.length > 0 && (
                   <StatusIndicator type="notification" />
                 )}
                 {typeof icon === "function" &&
