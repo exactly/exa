@@ -1,5 +1,13 @@
 # @exactly/server
 
+## 0.1.2
+
+### Patch Changes
+
+- [`42df790`](https://github.com/exactly/exa/commit/42df79089aa83170be72c542d23ebbfced3f8d51) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 📈 add persona validation issues to context
+
+- [`1b393d1`](https://github.com/exactly/exa/commit/1b393d1eac6ea20997bb55a625d4a231a9ab2f2b) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚑 fix panda card month validation
+
 ## 0.1.1
 
 ### Patch Changes
