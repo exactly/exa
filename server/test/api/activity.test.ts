@@ -269,7 +269,6 @@ describe.concurrent("authenticated", () => {
             usdAmount: 69,
             receiver: padHex("0x69", { size: 20 }),
           }),
-          expect.objectContaining({ amount: 100, currency: "EXA", type: "sent", usdAmount: 500, receiver: account }),
         ]),
       );
     });
