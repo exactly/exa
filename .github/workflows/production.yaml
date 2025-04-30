@@ -1,7 +1,7 @@
 name: production
 on:
   push:
-    tags: ['@exactly/server@*']
+    tags: ["@exactly/server@*"]
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 jobs:
   deploy:
