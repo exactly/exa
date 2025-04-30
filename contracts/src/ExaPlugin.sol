@@ -812,7 +812,7 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
           address(this),
           msg.sender
         )
-      ) & ~bytes32(uint256(1));
+      ) | bytes32(uint256(1));
     }
 
     uint256 assets = 0;
