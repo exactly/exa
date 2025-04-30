@@ -1,4 +1,8 @@
 {
   "Pay in {{count}} installments enabled_one": "Pay in {{count}} installment enabled",
-  "Pay in {{count}} installments enabled_other": "Pay in {{count}} installments enabled"
+  "Pay in {{count}} installments enabled_other": "Pay in {{count}} installments enabled",
+  "Available for {{count}} installments or less_one": "Available for {{count}} installment",
+  "Available for {{count}} installments or less_other": "Available for {{count}} installments or less",
+  "You repay {{count}} installments of_one": "You repay {{count}} installment of",
+  "You repay {{count}} installments of_other": "You repay {{count}} installments of"
 }

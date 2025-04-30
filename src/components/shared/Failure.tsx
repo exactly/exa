@@ -1,4 +1,5 @@
-import type { Address } from "@exactly/common/validation";
+import { marketUSDCAddress } from "@exactly/common/generated/chain";
+import type { Hex } from "@exactly/common/validation";
 import { X } from "@tamagui/lucide-icons";
 import { format, isAfter } from "date-fns";
 import { LinearGradient } from "expo-linear-gradient";
@@ -25,7 +26,7 @@ export default function Failure({
   amount: number;
   currency?: string;
   maturity: bigint;
-  selectedAsset?: Address;
+  selectedAsset?: Hex;
   onClose: () => void;
 }) {
   const { externalAsset } = useAsset(selectedAsset);
@@ -87,7 +88,9 @@ export default function Failure({
                   </Text>
                   <XStack gap="$s2" alignItems="center">
                     <Text emphasized secondary subHeadline>
-                      {Number(amount).toLocaleString(undefined, { maximumFractionDigits: 8 })}
+                      {Number(amount).toLocaleString(undefined, {
+                        maximumFractionDigits: selectedAsset && selectedAsset === marketUSDCAddress ? 2 : 8,
+                      })}
                     </Text>
                     <Text emphasized secondary subHeadline>
                       &nbsp;{currency}&nbsp;
