@@ -7,9 +7,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       OPTIMISM_RPC_URL: ${{ secrets.OPTIMISM_RPC_URL }}
-      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-      EXPO_PUBLIC_ALCHEMY_API_KEY: test
-      EXPO_PUBLIC_ALCHEMY_GAS_POLICY_ID: test
     steps:
       - uses: actions/checkout@v4
         with:
@@ -33,8 +30,6 @@ jobs:
       - run: echo ::add-matcher::.github/matcher.json
 
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --recursive --aggregate-output --no-bail --reporter-hide-prefix run build
-      - run: pnpm --recursive --aggregate-output --no-bail --reporter-hide-prefix run sourcemaps
       - run: pnpm --recursive --aggregate-output --no-bail --reporter-hide-prefix test
 
       - uses: codecov/codecov-action@v4
