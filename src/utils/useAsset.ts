@@ -1,5 +1,5 @@
 import { previewerAddress } from "@exactly/common/generated/chain";
-import { withdrawLimit } from "@exactly/lib";
+import { borrowLimit, withdrawLimit } from "@exactly/lib";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { zeroAddress, type Address } from "viem";
@@ -40,12 +40,23 @@ export default function useAsset(address?: Address) {
     },
     enabled: !!address && !!account,
   });
+  const { data: borrowAvailable } = useQuery({
+    initialData: 0n,
+    queryKey: ["borrowAvailable", address, market?.asset, externalAsset, account], // eslint-disable-line @tanstack/query/exhaustive-deps
+    queryFn: () => {
+      if (markets && market) return borrowLimit(markets, market.market);
+      return 0n;
+    },
+    enabled: !!address && !!account && !externalAsset,
+  });
+
   return {
     address,
     account,
     market,
     markets,
     available,
+    borrowAvailable,
     externalAsset,
     queryKey,
     isFetching: isMarketsFetching || isExternalAssetFetching,
