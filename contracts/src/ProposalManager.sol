@@ -213,6 +213,7 @@ contract ProposalManager is IProposalManager, AccessControl {
     if (proposal.market != target) revert NoProposal();
     if (proposal.timestamp + delay > block.timestamp) revert Timelocked();
     if (proposal.proposalType == ProposalType.WITHDRAW || proposal.proposalType == ProposalType.REDEEM) {
+      if (hasRole(PROPOSER_ROLE, receiver)) return;
       if (abi.decode(proposal.data, (address)) != receiver) revert NoProposal();
     }
   }
