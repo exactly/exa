@@ -4,6 +4,7 @@ import type { Hex } from "@exactly/common/validation";
 import { fixedUtilization, globalUtilization, MATURITY_INTERVAL, splitInstallments } from "@exactly/lib";
 import { useMemo } from "react";
 
+import reportError from "./reportError";
 import useAsset from "./useAsset";
 
 export default function useInstallments({
@@ -25,25 +26,31 @@ export default function useInstallments({
     const firstMaturity =
       nextMaturity - timestamp < MIN_BORROW_INTERVAL ? nextMaturity + MATURITY_INTERVAL : nextMaturity;
     let data: ReturnType<typeof splitInstallments> | undefined;
-    if (market && totalAmount > 0n && installments > 1) {
-      data = splitInstallments(
-        totalAmount,
-        market.totalFloatingDepositAssets,
-        firstMaturity,
-        market.fixedPools.length,
-        market.fixedPools
-          .filter(
-            ({ maturity }) => maturity >= firstMaturity && maturity < firstMaturity + installments * MATURITY_INTERVAL,
-          )
-          .map(({ supplied, borrowed }) => fixedUtilization(supplied, borrowed, market.totalFloatingDepositAssets)),
-        market.floatingUtilization,
-        globalUtilization(
+
+    try {
+      if (market && totalAmount > 0n && installments > 1) {
+        data = splitInstallments(
+          totalAmount,
           market.totalFloatingDepositAssets,
-          market.totalFloatingBorrowAssets,
-          market.floatingBackupBorrowed,
-        ),
-        market.interestRateModel.parameters,
-      );
+          firstMaturity,
+          market.fixedPools.length,
+          market.fixedPools
+            .filter(
+              ({ maturity }) =>
+                maturity >= firstMaturity && maturity < firstMaturity + installments * MATURITY_INTERVAL,
+            )
+            .map(({ supplied, borrowed }) => fixedUtilization(supplied, borrowed, market.totalFloatingDepositAssets)),
+          market.floatingUtilization,
+          globalUtilization(
+            market.totalFloatingDepositAssets,
+            market.totalFloatingBorrowAssets,
+            market.floatingBackupBorrowed,
+          ),
+          market.interestRateModel.parameters,
+        );
+      }
+    } catch (error) {
+      reportError(error);
     }
 
     return {
