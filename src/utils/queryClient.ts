@@ -94,6 +94,13 @@ queryClient.setQueryDefaults(["withdrawal"], {
     throw new Error("don't refetch");
   },
 });
+queryClient.setQueryDefaults(["loan"], {
+  staleTime: Infinity,
+  gcTime: Infinity,
+  queryFn: () => {
+    throw new Error("don't refetch");
+  },
+});
 queryClient.setQueryDefaults(["activity", "details"], {
   queryFn: () => {
     throw new Error("don't refetch");
@@ -132,9 +139,17 @@ queryClient.setQueryDefaults(["settings", "rollover-intro-shown"], {
 
 export type ActivityItem = Awaited<ReturnType<typeof getActivity>>[number];
 export interface Withdraw {
-  receiver?: Address;
   market?: Address;
   amount: bigint;
+  receiver?: Address;
+}
+
+export interface Loan {
+  market?: Address;
+  amount: bigint;
+  installments: number;
+  maturity: bigint;
+  receiver?: Address;
 }
 
 export default queryClient;
