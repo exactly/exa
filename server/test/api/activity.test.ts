@@ -259,8 +259,9 @@ describe.concurrent("authenticated", () => {
 
       expect(response.status).toBe(200);
 
-      await expect(response.json()).resolves.toMatchObject(
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+      const json = await response.json();
+
+      expect(json).toMatchObject(
         expect.arrayContaining([
           expect.objectContaining({
             amount: 69,
@@ -269,9 +270,9 @@ describe.concurrent("authenticated", () => {
             usdAmount: 69,
             receiver: padHex("0x69", { size: 20 }),
           }),
-          expect.objectContaining({ amount: 100, currency: "EXA", type: "sent", usdAmount: 500, receiver: account }),
         ]),
       );
+      expect(json).length(1);
     });
   });
 

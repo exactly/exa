@@ -153,7 +153,7 @@ export default new Hono().get(
               logs
                 .filter(({ args }) => {
                   const receiver = args.receiver.toLowerCase() as Hex;
-                  return !collectors.has(receiver) && !plugins.has(receiver);
+                  return !collectors.has(receiver) && !plugins.has(receiver) && receiver !== account.toLowerCase();
                 })
                 .map((log) =>
                   parse(WithdrawActivity, { ...log, market: market(log.address) } satisfies InferInput<
