@@ -84,4 +84,5 @@ jobs:
         with:
           environment: ${{ inputs.environment }}
           release: ${{ steps.release.outputs.release }}
+          finalize: ${{ inputs.environment == 'production' }}
           sourcemaps: server/dist
