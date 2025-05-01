@@ -23,12 +23,12 @@ export default {
   scheme: "exactly",
   version: metadata.version,
   orientation: "portrait",
-  newArchEnabled: false,
   android: {
     package: "app.exactly",
     adaptiveIcon: { foregroundImage: "src/assets/icon.png", backgroundColor: "#1D1D1D" },
     permissions: ["android.permission.CAMERA"],
     userInterfaceStyle: "automatic",
+    edgeToEdgeEnabled: true,
     versionCode,
     splash: {
       backgroundColor: "#FCFCFC",
@@ -96,14 +96,14 @@ export default {
       } satisfies FontProps,
     ],
     "expo-router",
-    [
-      "@intercom/intercom-react-native",
-      {
-        appId: process.env.EXPO_PUBLIC_INTERCOM_APP_ID,
-        androidApiKey: "android_sdk-d602d62cbdb9e8e0a6f426db847ddc74d2e26090",
-        iosApiKey: "ios_sdk-ad6831098d9c2d69bd98e92a5ad7a4f030472a92",
-      } satisfies IntercomPluginProps,
-    ],
+    // [
+    //   "@intercom/intercom-react-native",
+    //   {
+    //     appId: process.env.EXPO_PUBLIC_INTERCOM_APP_ID,
+    //     androidApiKey: "android_sdk-d602d62cbdb9e8e0a6f426db847ddc74d2e26090",
+    //     iosApiKey: "ios_sdk-ad6831098d9c2d69bd98e92a5ad7a4f030472a92",
+    //   } satisfies IntercomPluginProps,
+    // ],
     [
       "@sentry/react-native/expo",
       { organization: "exactly", project: "exa" } satisfies Parameters<typeof withSentry>[1],
