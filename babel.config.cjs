@@ -5,15 +5,6 @@ module.exports = function config(api) {
     presets: ["babel-preset-expo"],
     plugins: [
       [
-        "module-resolver",
-        {
-          alias: {
-            "@wagmi/core/codegen": "@wagmi/core/dist/esm/exports/codegen",
-            "hono/client": "hono/dist/client",
-          },
-        },
-      ],
-      [
         "@tamagui/babel-plugin",
         {
           config: "tamagui.config.ts",
