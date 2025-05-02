@@ -1,5 +1,13 @@
 # @exactly/server
 
+## 0.1.3
+
+### Patch Changes
+
+- [`6d51813`](https://github.com/exactly/exa/commit/6d51813df249f8fa04552bbca229428e61de394b) Thanks [@itofarina](https://github.com/itofarina)! - ✨ filter self withdraws from activity
+
+- [`60a5f2b`](https://github.com/exactly/exa/commit/60a5f2be3a1fc8948264a70453fa8fdba3a7343d) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ♻️ use own versioning scheme
+
 ## 0.1.2
 
 ### Patch Changes
