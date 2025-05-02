@@ -1,8 +1,11 @@
+import { decodeWithdraw } from "@exactly/common/ProposalType";
 import fixedRate from "@exactly/common/fixedRate";
 import chain, {
+  exaPluginAbi,
   exaPreviewerAbi,
   exaPreviewerAddress,
   marketUSDCAddress,
+  marketWETHAddress,
   upgradeableModularAccountAbi,
 } from "@exactly/common/generated/chain";
 import { Address, Hash, type Hex } from "@exactly/common/validation";
@@ -37,9 +40,10 @@ import {
   union,
   variant,
 } from "valibot";
+import { decodeFunctionData, type Log } from "viem";
 
 import database, { credentials } from "../database";
-import { marketAbi } from "../generated/contracts";
+import { marketAbi, proposalManagerAbi, proposalManagerAddress } from "../generated/contracts";
 import auth from "../middleware/auth";
 import { collectors as cryptomateCollectors } from "../utils/cryptomate";
 import { collectors as pandaCollectors } from "../utils/panda";
@@ -139,8 +143,8 @@ export default new Hono().get(
             ),
       ignore("sent")
         ? []
-        : publicClient
-            .getContractEvents({
+        : Promise.all([
+            publicClient.getContractEvents({
               abi: marketAbi,
               eventName: "Withdraw",
               address: [...markets.keys()],
@@ -148,19 +152,51 @@ export default new Hono().get(
               toBlock: "latest",
               fromBlock: 0n,
               strict: true,
-            })
-            .then((logs) =>
+            }),
+            publicClient.getContractEvents({
+              abi: proposalManagerAbi,
+              eventName: "Proposed",
+              address: proposalManagerAddress,
+              args: { account, market: marketWETHAddress },
+              toBlock: "latest",
+              fromBlock: 0n,
+              strict: true,
+            }),
+          ]).then(([withdraw, proposed]) =>
+            Promise.all(
+              withdraw.map(async (log) => {
+                const receiver = log.args.receiver.toLowerCase() as Hex;
+                if (!collectors.has(receiver) && !plugins.has(receiver) && receiver !== account.toLowerCase()) {
+                  return log;
+                }
+                if (log.address.toLowerCase() === marketWETHAddress.toLowerCase() && plugins.has(receiver)) {
+                  const { input: data } = await publicClient.getTransaction({ hash: log.transactionHash });
+                  const { functionName, args } = decodeFunctionData({ data, abi: exaPluginAbi });
+                  if (functionName !== "executeProposal") return;
+                  const proposal = proposed.find(({ args: { nonce } }) => nonce === args[0]);
+                  if (!proposal) return;
+                  return {
+                    ...log,
+                    args: {
+                      caller: account,
+                      receiver: decodeWithdraw(proposal.args.data),
+                      owner: account,
+                      assets: proposal.args.amount,
+                      shares: -1n,
+                    },
+                  } satisfies Log<bigint, number, false, undefined, true, typeof marketAbi, "Withdraw">;
+                }
+              }),
+            ).then((logs) =>
               logs
-                .filter(({ args }) => {
-                  const receiver = args.receiver.toLowerCase() as Hex;
-                  return !collectors.has(receiver) && !plugins.has(receiver) && receiver !== account.toLowerCase();
-                })
+                .filter((log) => !!log)
                 .map((log) =>
                   parse(WithdrawActivity, { ...log, market: market(log.address) } satisfies InferInput<
                     typeof WithdrawActivity
                   >),
                 ),
             ),
+          ),
       ignore("card")
         ? undefined
         : publicClient

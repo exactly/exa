@@ -263,6 +263,13 @@ describe.concurrent("authenticated", () => {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
         expect.arrayContaining([
           expect.objectContaining({
+            amount: 0.01,
+            currency: "WETH",
+            type: "sent",
+            usdAmount: 25,
+            receiver: padHex("0x69", { size: 20 }),
+          }),
+          expect.objectContaining({
             amount: 69,
             currency: "USDC",
             type: "sent",

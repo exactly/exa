@@ -30,6 +30,7 @@ contract BobScript is BaseScript {
   MockERC20 public usdc;
   IMarket public exaEXA;
   IMarket public exaUSDC;
+  IMarket public exaWETH;
   Previewer public previewer;
   ExaPlugin public exaPlugin;
   ProposalManager public proposalManager;
@@ -47,6 +48,7 @@ contract BobScript is BaseScript {
     usdc = MockERC20(protocol("USDC"));
     exaEXA = IMarket(protocol("MarketEXA"));
     exaUSDC = IMarket(protocol("MarketUSDC"));
+    exaWETH = IMarket(protocol("MarketWETH"));
     previewer = Previewer(protocol("Previewer"));
 
     proposalManager = ProposalManager(broadcast("ProposalManager"));
@@ -100,7 +102,7 @@ contract BobScript is BaseScript {
       maturity, amounts, type(uint256).max, block.timestamp, _issuerOp(46e6, block.timestamp)
     );
     vm.stopBroadcast();
-    Call[] memory calls = new Call[](3);
+    Call[] memory calls = new Call[](4);
     calls[0] = Call(
       address(bobAccount),
       0,
@@ -140,6 +142,11 @@ contract BobScript is BaseScript {
       address(bobAccount),
       0,
       abi.encodeCall(IExaAccount.propose, (exaUSDC, 69e6, ProposalType.WITHDRAW, abi.encode(address(0x69))))
+    );
+    calls[3] = Call(
+      address(bobAccount),
+      0,
+      abi.encodeCall(IExaAccount.propose, (exaWETH, 0.01 ether, ProposalType.WITHDRAW, abi.encode(address(0x69))))
     );
     vm.broadcast(bob);
     IStandardExecutor(address(bobAccount)).executeBatch(calls);
