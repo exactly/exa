@@ -107,8 +107,7 @@ export default function Home() {
           <View flex={1}>
             <View backgroundColor="$backgroundSoft" padded gap="$s4">
               {markets && healthFactor(markets) < HEALTH_FACTOR_THRESHOLD && <LiquidationAlert />}
-
-              {(KYCStatus !== "ok" || cardDetails?.provider !== "panda") && usdBalance > 0n && (
+              {(KYCStatus !== "ok" || (cardDetails && cardDetails.provider !== "panda")) && usdBalance > 0n && (
                 <InfoAlert
                   title="We’re upgrading all Exa Cards by migrating them to a new and improved card issuer. Existing cards will work until May 18th, 2025, and upgrading will be required after this date."
                   actionText="Start Exa Card upgrade"
