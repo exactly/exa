@@ -2,7 +2,6 @@ import { optimism } from "@alchemy/aa-core";
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
-import sentryDSN from "@exactly/common/sentryDSN";
 import { createConfig, EVM } from "@lifi/sdk";
 import {
   ErrorBoundary,
@@ -74,7 +73,9 @@ const userFeedback = feedbackIntegration({
 });
 init({
   release,
-  dsn: sentryDSN,
+  dsn:
+    process.env.EXPO_PUBLIC_SENTRY_DSN ??
+    "https://ac8875331e4cecd67dd0a7519a36dfeb@o1351734.ingest.us.sentry.io/4506186349674496",
   environment: __DEV__ ? "development" : "production",
   tracesSampleRate: 1,
   attachStacktrace: true,
