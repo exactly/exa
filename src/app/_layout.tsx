@@ -2,7 +2,6 @@ import { optimism } from "@alchemy/aa-core";
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
-import release from "@exactly/common/generated/release";
 import sentryDSN from "@exactly/common/sentryDSN";
 import { createConfig, EVM } from "@lifi/sdk";
 import {
@@ -31,6 +30,7 @@ import AppIcon from "../assets/icon.png";
 import { OnboardingProvider } from "../components/context/OnboardingProvider";
 import ThemeProvider from "../components/context/ThemeProvider";
 import Error from "../components/shared/Error";
+import release from "../generated/release";
 import publicClient from "../utils/publicClient";
 import queryClient, { persister } from "../utils/queryClient";
 import reportError from "../utils/reportError";

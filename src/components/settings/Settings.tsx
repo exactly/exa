@@ -1,4 +1,3 @@
-import release from "@exactly/common/generated/release";
 import { ArrowLeft, HelpCircle } from "@tamagui/lucide-icons";
 import { setStringAsync } from "expo-clipboard";
 import { router, useRouter } from "expo-router";
@@ -6,6 +5,7 @@ import React from "react";
 import { Alert, Pressable } from "react-native";
 import { ScrollView, Separator, XStack } from "tamagui";
 
+import release from "../../generated/release";
 import reportError from "../../utils/reportError";
 import useIntercom from "../../utils/useIntercom";
 import SafeView from "../shared/SafeView";
