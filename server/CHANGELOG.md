@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.1.4
+
+### Patch Changes
+
+- [`0c7b4cd`](https://github.com/exactly/exa/commit/0c7b4cda0562b027f4e6be6600cf5702c26f8766) Thanks [@itofarina](https://github.com/itofarina)! - ✨ include weth withdraws on activity
+
 ## 0.1.3
 
 ### Patch Changes
