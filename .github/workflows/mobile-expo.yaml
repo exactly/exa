@@ -1,0 +1,37 @@
+name: mobile/expo
+on:
+  workflow_call:
+    inputs:
+      profile:
+        required: true
+        type: string
+    secrets:
+      EXPO_TOKEN:
+jobs:
+  expo:
+    environment:
+      name: expo
+      url: https://expo.dev/accounts/exactly/projects/exactly
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "9.15.9"
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ">=22.15.0"
+          cache: pnpm
+      - uses: foundry-rs/foundry-toolchain@v1
+      - uses: expo/expo-github-action@v8
+        with:
+          packager: pnpm
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - run: pnpm install --frozen-lockfile
+      - run: eas build --profile ${{ inputs.profile }} ${{ inputs.profile == 'production' && '--auto-submit' || '' }} --platform all --non-interactive --no-wait
+      - run: eas update --auto --channel ${{ inputs.profile }} --platform all --non-interactive

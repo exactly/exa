@@ -1,0 +1,11 @@
+name: mobile/production
+on:
+  push:
+    tags: ["@exactly/mobile@*"]
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+jobs:
+  expo:
+    uses: ./.github/workflows/mobile-expo.yaml
+    secrets: inherit
+    with:
+      profile: production

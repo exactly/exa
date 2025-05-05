@@ -1,0 +1,11 @@
+name: mobile/preview
+on:
+  push:
+    branches: [main]
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+jobs:
+  expo:
+    uses: ./.github/workflows/mobile-expo.yaml
+    secrets: inherit
+    with:
+      profile: preview
