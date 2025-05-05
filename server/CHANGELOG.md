@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.1.5
+
+### Patch Changes
+
+- [`b5a31b1`](https://github.com/exactly/exa/commit/b5a31b118d88706235c4be1717e99e2112422728) Thanks [@nfmelendez](https://github.com/nfmelendez)! - ✨ add merchant icon to activity
+
 ## 0.1.4
 
 ### Patch Changes
