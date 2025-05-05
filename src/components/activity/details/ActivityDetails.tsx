@@ -51,43 +51,41 @@ export default function ActivityDetails() {
               }}
               stickyHeaderHiddenOnScroll
             >
-              <View flex={1}>
-                <View flexDirection="row" gap={10} justifyContent="space-between" alignItems="center">
-                  {canGoBack() && (
-                    <Pressable
-                      onPress={() => {
-                        router.back();
-                      }}
-                    >
-                      <ArrowLeft size={24} color="$uiNeutralPrimary" />
-                    </Pressable>
-                  )}
-                </View>
-                {item.type === "card" && <CardActivity item={item} />}
-                {item.type === "received" && <ReceivedActivity item={item} />}
-                {item.type === "repay" && <RepayActivity item={item} />}
-                {item.type === "sent" && <SentActivity item={item} />}
-                {item.type === "panda" && <CardActivity item={item} />}
+              <View flexDirection="row" gap={10} justifyContent="space-between" alignItems="center">
+                {canGoBack() && (
+                  <Pressable
+                    onPress={() => {
+                      router.back();
+                    }}
+                  >
+                    <ArrowLeft size={24} color="$uiNeutralPrimary" />
+                  </Pressable>
+                )}
               </View>
-              <View flex={2} justifyContent="flex-end">
-                <ActionButton
-                  width="100%"
-                  maxHeight={60}
-                  alignSelf="flex-end"
-                  marginTop="$s4"
-                  marginBottom="$s5"
-                  onPress={() => {
-                    present().catch(reportError);
-                  }}
-                  backgroundColor="transparent"
-                  borderWidth={1}
-                  borderColor="$interactiveBaseBrandDefault"
-                  color="$interactiveBaseBrandDefault"
-                  iconAfter={<Headphones color="$interactiveBaseBrandDefault" />}
-                >
-                  Contact support
-                </ActionButton>
-              </View>
+
+              {item.type === "card" && <CardActivity item={item} />}
+              {item.type === "received" && <ReceivedActivity item={item} />}
+              {item.type === "repay" && <RepayActivity item={item} />}
+              {item.type === "sent" && <SentActivity item={item} />}
+              {item.type === "panda" && <CardActivity item={item} />}
+
+              <ActionButton
+                width="100%"
+                maxHeight={60}
+                alignSelf="flex-end"
+                marginTop="$s4"
+                marginBottom="$s5"
+                onPress={() => {
+                  present().catch(reportError);
+                }}
+                backgroundColor="transparent"
+                borderWidth={1}
+                borderColor="$interactiveBaseBrandDefault"
+                color="$interactiveBaseBrandDefault"
+                iconAfter={<Headphones color="$interactiveBaseBrandDefault" />}
+              >
+                Contact support
+              </ActionButton>
             </ScrollView>
           </View>
         </View>

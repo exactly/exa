@@ -33,7 +33,7 @@ function AssetRow({ asset }: { asset: AssetItem }) {
 
   return (
     <View flexDirection="row" alignItems="center" borderColor="$borderNeutralSoft">
-      <View flexDirection="row" alignItems="center" paddingVertical={vs(10)} gap="$s2">
+      <View flexDirection="row" alignItems="center" paddingVertical={vs(10)} gap="$s2" width="100%">
         <View flexDirection="row" gap={10} alignItems="center" flex={1}>
           {logoURI ? (
             <Image source={{ uri: logoSource }} width={32} height={32} borderRadius={16} />

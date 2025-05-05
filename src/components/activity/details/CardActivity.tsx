@@ -51,14 +51,14 @@ export default function CardActivity({
       </YStack>
       {item.type === "panda" ? (
         item.operations.map((operation) => (
-          <YStack key={operation.id} gap="$s7" flex={1}>
+          <YStack key={operation.id} gap="$s7">
             <PurchaseDetails item={operation} />
             <PaymentDetails item={operation} />
             <TransactionDetails source={operation} />
           </YStack>
         ))
       ) : (
-        <YStack gap="$s7" flex={1}>
+        <YStack gap="$s7">
           <PurchaseDetails item={item} />
           <PaymentDetails item={item} />
           <TransactionDetails />

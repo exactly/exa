@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { format, formatDistance, isAfter } from "date-fns";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
-import { Pressable, StyleSheet } from "react-native";
+import { Pressable, StyleSheet, Platform } from "react-native";
 import { Separator, Sheet, XStack, YStack } from "tamagui";
 import { titleCase } from "title-case";
 import { nonEmpty, pipe, safeParse, string } from "valibot";
@@ -66,6 +66,7 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
       snapPointsMode="fit"
       zIndex={100_000}
       modal
+      portalProps={Platform.OS === "web" ? { style: { aspectRatio: 10 / 16, justifySelf: "center" } } : undefined}
     >
       <Sheet.Overlay
         backgroundColor="#00000090"
@@ -73,7 +74,6 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
         enterStyle={{ opacity: 0 }} // eslint-disable-line react-native/no-inline-styles
         exitStyle={{ opacity: 0 }} // eslint-disable-line react-native/no-inline-styles
       />
-      <Sheet.Handle />
       <Sheet.Frame>
         <SafeView
           paddingTop={0}

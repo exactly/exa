@@ -7,12 +7,18 @@ export default function HTML({ children }: { children: ReactNode }) {
       <head>
         <meta charSet="utf-8" />
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
-        <meta
-          name="viewport"
-          content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1.00001,viewport-fit=cover"
-        />
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
         <link rel="manifest" href="/manifest.json" />
         <ScrollViewStyleReset />
+        <style>{`
+          html, body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: black !important;
+          }
+          #root { aspect-ratio: 10 / 16; }
+        `}</style>
       </head>
       <body>{children}</body>
     </html>

@@ -1,7 +1,7 @@
 import { X } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import React from "react";
-import { Pressable } from "react-native";
+import { Platform, Pressable } from "react-native";
 import { ScrollView, Sheet } from "tamagui";
 
 import ActivateCard from "./ActivateCard";
@@ -27,6 +27,7 @@ export default function CardUpgradeSheet({ open, onClose }: { open: boolean; onC
       zIndex={100_000}
       disableDrag
       modal
+      portalProps={Platform.OS === "web" ? { style: { aspectRatio: 10 / 16, justifySelf: "center" } } : undefined}
     >
       <Sheet.Overlay
         backgroundColor="#00000090"
@@ -34,7 +35,6 @@ export default function CardUpgradeSheet({ open, onClose }: { open: boolean; onC
         enterStyle={{ opacity: 0 }} // eslint-disable-line react-native/no-inline-styles
         exitStyle={{ opacity: 0 }} // eslint-disable-line react-native/no-inline-styles
       />
-      <Sheet.Handle />
       <Sheet.Frame>
         <SafeView
           paddingTop={0}

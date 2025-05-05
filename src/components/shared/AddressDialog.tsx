@@ -1,6 +1,7 @@
 import chain from "@exactly/common/generated/chain";
 import { Copy } from "@tamagui/lucide-icons";
 import React from "react";
+import { Platform } from "react-native";
 import { AlertDialog, XStack, YStack } from "tamagui";
 
 import Button from "./Button";
@@ -19,7 +20,9 @@ export default function AddressDialog({
 }) {
   return (
     <AlertDialog open={open}>
-      <AlertDialog.Portal>
+      <AlertDialog.Portal
+        style={Platform.OS === "web" ? { aspectRatio: 10 / 16, justifySelf: "center" } : undefined} // eslint-disable-line react-native/no-inline-styles
+      >
         <AlertDialog.Overlay
           onPress={onClose}
           key="overlay"
@@ -30,6 +33,7 @@ export default function AddressDialog({
           exitStyle={{ opacity: 0 }} // eslint-disable-line react-native/no-inline-styles
         />
         <AlertDialog.Content
+          style={Platform.OS === "web" ? { backgroundColor: "transparent" } : undefined} // eslint-disable-line react-native/no-inline-styles, react-native/no-color-literals
           key="content"
           animation={["quicker", { opacity: { overshootClamping: true } }]}
           enterStyle={{ x: 0, y: -20, opacity: 0, scale: 0.9 }} // eslint-disable-line react-native/no-inline-styles

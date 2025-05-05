@@ -1,5 +1,5 @@
 import React from "react";
-import { Pressable, StyleSheet } from "react-native";
+import { Platform, Pressable, StyleSheet } from "react-native";
 import { ScrollView, Sheet, YStack } from "tamagui";
 
 import SpendingLimit from "./SpendingLimit";
@@ -20,6 +20,7 @@ export default function SpendingLimits({ open, onClose }: { open: boolean; onClo
       snapPointsMode="fit"
       zIndex={100_000}
       modal
+      portalProps={Platform.OS === "web" ? { style: { aspectRatio: 10 / 16, justifySelf: "center" } } : undefined}
     >
       <Sheet.Overlay
         backgroundColor="#00000090"
@@ -27,7 +28,6 @@ export default function SpendingLimits({ open, onClose }: { open: boolean; onClo
         enterStyle={{ opacity: 0 }} // eslint-disable-line react-native/no-inline-styles
         exitStyle={{ opacity: 0 }} // eslint-disable-line react-native/no-inline-styles
       />
-      <Sheet.Handle />
       <Sheet.Frame>
         <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
           <ScrollView>

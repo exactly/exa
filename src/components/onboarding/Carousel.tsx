@@ -42,7 +42,10 @@ export interface Page {
   disabled?: boolean;
 }
 
-const containerStyle: StyleProp<ViewStyle> = { justifyContent: "center", alignItems: "center" };
+const containerStyle: StyleProp<ViewStyle> = {
+  justifyContent: Platform.OS === "web" ? undefined : "center",
+  alignItems: Platform.OS === "web" ? "stretch" : "center",
+};
 
 const pages: [Page, ...Page[]] = [
   {
