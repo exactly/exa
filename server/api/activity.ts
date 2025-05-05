@@ -289,6 +289,7 @@ export const PandaActivity = pipe(
       city: string(),
       country: string(),
       state: nullish(string(), ""),
+      icon: optional(string()),
     }),
     type: literal("panda"),
   }),
@@ -310,7 +311,12 @@ export const PandaActivity = pipe(
     });
 
     if (!operations[0]) throw new Error("First operation needs to be defined");
-    const { id, currency, timestamp } = operations[0];
+    const {
+      id,
+      currency,
+      timestamp,
+      merchant: { icon },
+    } = operations[0];
     return {
       id,
       currency,
@@ -320,6 +326,7 @@ export const PandaActivity = pipe(
         city: merchant.city.trim(),
         country: merchant.country.trim(),
         state: merchant.state.trim(),
+        icon,
       },
       operations,
       timestamp,
@@ -345,6 +352,7 @@ const CardActivity = pipe(
           merchantCountry: nullish(string()),
           merchantName: string(),
           authorizationUpdateAmount: optional(number()),
+          enrichedMerchantIcon: optional(string()),
         }),
       }),
       hash: Hash,
@@ -395,6 +403,7 @@ function transformCard(activity: InferOutput<typeof CardActivity>) {
           name: activity.body.spend.merchantName,
           city: activity.body.spend.merchantCity,
           country: activity.body.spend.merchantCountry,
+          icon: activity.body.spend.enrichedMerchantIcon,
           state: "",
         },
       }
