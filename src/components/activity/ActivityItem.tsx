@@ -8,6 +8,7 @@ import { titleCase } from "title-case";
 
 import isProcessing from "../../utils/isProcessing";
 import queryClient, { type ActivityItem as Item } from "../../utils/queryClient";
+import Image from "../shared/Image";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
@@ -44,8 +45,14 @@ export default function ActivityItem({ item, isLast }: { item: Item; isLast: boo
         {type === "received" && <ArrowDownToLine color="$interactiveOnBaseSuccessSoft" />}
         {type === "sent" && <ArrowUpFromLine color="$interactiveOnBaseErrorSoft" />}
         {type === "repay" && <CircleDollarSign color="$interactiveOnBaseErrorSoft" />}
-        {type === "panda" && processing && <ClockAlert color="$interactiveOnBaseWarningSoft" />}
-        {type === "panda" && !processing && <ShoppingCart color="$uiNeutralPrimary" />}
+        {type === "panda" &&
+          (processing ? (
+            <ClockAlert color="$interactiveOnBaseWarningSoft" />
+          ) : item.merchant.icon ? (
+            <Image source={{ uri: item.merchant.icon }} width={40} height={40} borderRadius="$r3" />
+          ) : (
+            <ShoppingCart color="$uiNeutralPrimary" />
+          ))}
       </View>
       <View flex={1} gap="$s2">
         <View flexDirection="row" justifyContent="space-between" alignItems="center" gap="$s4">

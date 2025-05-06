@@ -8,6 +8,7 @@ import PaymentDetails from "./PaymentDetails";
 import PurchaseDetails from "./PurchaseDetails";
 import TransactionDetails from "./TransactionDetails";
 import isProcessing from "../../../utils/isProcessing";
+import Image from "../../shared/Image";
 import Text from "../../shared/Text";
 
 export default function CardActivity({
@@ -24,6 +25,8 @@ export default function CardActivity({
           <Square borderRadius="$r4" backgroundColor="$backgroundStrong" size={80}>
             {processing ? (
               <ClockAlert size={48} color="$interactiveOnBaseWarningSoft" strokeWidth={2} />
+            ) : item.merchant.icon ? (
+              <Image source={{ uri: item.merchant.icon }} width={80} height={80} borderRadius="$r4" />
             ) : (
               <ShoppingCart size={48} color="$uiNeutralPrimary" strokeWidth={2} />
             )}

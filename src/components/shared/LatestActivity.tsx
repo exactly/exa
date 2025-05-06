@@ -8,6 +8,7 @@ import { YStack } from "tamagui";
 import queryClient from "../../utils/queryClient";
 import type { getActivity } from "../../utils/server";
 import InfoCard from "../home/InfoCard";
+import Image from "../shared/Image";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
@@ -80,7 +81,12 @@ export default function LatestActivity({
               {type === "received" && <ArrowDownToLine color="$interactiveOnBaseSuccessSoft" />}
               {type === "sent" && <ArrowUpFromLine color="$interactiveOnBaseErrorSoft" />}
               {type === "repay" && <CircleDollarSign color="$interactiveOnBaseErrorSoft" />}
-              {type === "panda" && <ShoppingCart color="$uiNeutralPrimary" />}
+              {type === "panda" &&
+                (item.merchant.icon ? (
+                  <Image source={{ uri: item.merchant.icon }} width={40} height={40} borderRadius="$r3" />
+                ) : (
+                  <ShoppingCart color="$uiNeutralPrimary" />
+                ))}
             </View>
             <View flex={1} gap="$s2">
               <View flexDirection="row" justifyContent="space-between" alignItems="center" gap="$s4">
