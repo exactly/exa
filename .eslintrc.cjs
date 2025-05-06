@@ -102,6 +102,7 @@ module.exports = {
         "@vitest/require-top-level-describe": "off",
       },
     },
+    { files: ["src/**/*+html.tsx"], rules: { "react-native/no-raw-text": "off" } },
   ],
   ignorePatterns: [
     ".expo/",
