@@ -1,5 +1,21 @@
 # @exactly/mobile
 
+## 1.0.1
+
+### Patch Changes
+
+- [`62fa8ae`](https://github.com/exactly/exa/commit/62fa8aec0be3d328fd00318fa6e11259990e3058) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🔨 add package name to release
+
+- [`0c93461`](https://github.com/exactly/exa/commit/0c93461a6cde7ff5a65fc651fc7f3ea94d0d0c77) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix migration ui conditional
+
+- [`e38607d`](https://github.com/exactly/exa/commit/e38607d39691ecbe62e656057d9c5588ebec31fd) Thanks [@franm91](https://github.com/franm91)! - ✨ implement pay mode screen
+
+- [`5bd4d26`](https://github.com/exactly/exa/commit/5bd4d26118f0355bb6fd45d0c04943f35e7b71e5) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ♻️ move sentry dsn to app
+
+- Updated dependencies [[`5bd4d26`](https://github.com/exactly/exa/commit/5bd4d26118f0355bb6fd45d0c04943f35e7b71e5)]:
+  - @exactly/common@0.0.3
+  - @exactly/server@0.1.5
+
 ## 1.0.0
 
 ### Major Changes

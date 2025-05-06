@@ -1,5 +1,11 @@
 # @exactly/common
 
+## 0.0.3
+
+### Patch Changes
+
+- [`5bd4d26`](https://github.com/exactly/exa/commit/5bd4d26118f0355bb6fd45d0c04943f35e7b71e5) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ♻️ move sentry dsn to app
+
 ## 0.0.2
 
 ### Patch Changes
