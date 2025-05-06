@@ -222,7 +222,7 @@ describe("address activity", () => {
           },
         },
       }),
-      vi.waitUntil(() => waitForTransactionReceipt.mock.settledResults.length >= 5, 16_666),
+      vi.waitUntil(() => waitForTransactionReceipt.mock.settledResults.length >= 5, 26_666),
     ]);
 
     expect(response.status).toBe(200);

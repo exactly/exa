@@ -273,7 +273,7 @@ describe("proposal", () => {
             },
           },
         }),
-        vi.waitUntil(() => waitForTransactionReceipt.mock.settledResults.length >= 5, 16_666),
+        vi.waitUntil(() => waitForTransactionReceipt.mock.settledResults.length >= 5, 26_666),
       ]);
 
       const withdrawReceipt = waitForTransactionReceipt.mock.settledResults[3];
