@@ -1,11 +1,11 @@
-name: production
+name: server/production
 on:
   push:
     tags: ["@exactly/server@*"]
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 jobs:
   deploy:
-    uses: ./.github/workflows/deploy.yaml
+    uses: ./.github/workflows/server-deploy.yaml
     secrets: inherit
     with:
       environment: production

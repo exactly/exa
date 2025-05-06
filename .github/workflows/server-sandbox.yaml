@@ -1,11 +1,11 @@
-name: sandbox
+name: server/sandbox
 on:
   push:
     branches: [web]
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 jobs:
   deploy:
-    uses: ./.github/workflows/deploy.yaml
+    uses: ./.github/workflows/server-deploy.yaml
     secrets: inherit
     with:
       environment: sandbox
