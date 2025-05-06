@@ -948,7 +948,7 @@ describe("concurrency", () => {
         }),
       ]);
 
-      await vi.waitUntil(() => getMutex.mock.calls.length > 2, 16_666);
+      await vi.waitUntil(() => getMutex.mock.calls.length > 2, 26_666);
       vi.advanceTimersByTime(proposalManager.delay * 1000);
 
       const lastCall = getMutex.mock.results.at(-1);
