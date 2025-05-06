@@ -1,5 +1,13 @@
 # @exactly/server
 
+## 0.1.6
+
+### Patch Changes
+
+- [`089e56b`](https://github.com/exactly/exa/commit/089e56bef2dea37b35ab2c49aa363a358d142434) Thanks [@itofarina](https://github.com/itofarina)! - ✨ filter deposits caused by cross repay on activity
+
+- [`171ab9a`](https://github.com/exactly/exa/commit/171ab9a5d43aef7ff8f718fe40bfbb51da9983d0) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ serve static app
+
 ## 0.1.5
 
 ### Patch Changes

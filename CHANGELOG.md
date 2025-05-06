@@ -1,5 +1,20 @@
 # @exactly/mobile
 
+## 1.0.2
+
+### Patch Changes
+
+- [`bf3e9bd`](https://github.com/exactly/exa/commit/bf3e9bd7f978f1a194b7ad5e900cb16531222785) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🔥 remove repay interest field
+
+- [`a9aff66`](https://github.com/exactly/exa/commit/a9aff66a622e9a6127d1772b2e88eb8d0d197cca) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix web layout
+
+- [`e69a449`](https://github.com/exactly/exa/commit/e69a449f824132a7ea455be8a0584c13db4a42b3) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ implement merchant icons
+
+- [`d7f2db7`](https://github.com/exactly/exa/commit/d7f2db795d7598b0bbb950a1cdc574775399055c) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 set web root background color
+
+- Updated dependencies [[`089e56b`](https://github.com/exactly/exa/commit/089e56bef2dea37b35ab2c49aa363a358d142434), [`171ab9a`](https://github.com/exactly/exa/commit/171ab9a5d43aef7ff8f718fe40bfbb51da9983d0)]:
+  - @exactly/server@0.1.6
+
 ## 1.0.1
 
 ### Patch Changes

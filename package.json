@@ -1,6 +1,6 @@
 {
   "name": "@exactly/mobile",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "main": "./src/index.js",
   "scripts": {
     "start": "expo start",
@@ -34,7 +34,7 @@
     "@alchemy/aa-core": "^3.19.0",
     "@exactly/common": "workspace:^0.0.3",
     "@exactly/lib": "exactly/lib#a8895cd",
-    "@exactly/server": "workspace:^0.1.5",
+    "@exactly/server": "workspace:^0.1.6",
     "@expo/metro-runtime": "~4.0.1",
     "@intercom/intercom-react-native": "^8.3.0",
     "@intercom/messenger-js-sdk": "^0.0.14",
