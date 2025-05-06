@@ -94,7 +94,7 @@ export default new Hono().get(
               strict: true,
             })
             .then((logs) => new Set(logs.map(({ args }) => args.plugin.toLowerCase() as Hex)))
-        : Promise.resolve(new Set<Hex>()),
+        : Promise.resolve(forbid(new Set<Hex>())),
     ]);
 
     const market = (address: Hex) => {
@@ -114,7 +114,7 @@ export default new Hono().get(
             fromBlock: 0n,
             strict: true,
           })
-        : Promise.resolve([]);
+        : Promise.resolve(forbid([]));
 
     const [deposits, repays, withdraws, borrows] = await Promise.all([
       ignore("received")
@@ -527,6 +527,21 @@ export const WithdrawActivity = pipe(
     type: "sent" as const,
   })),
 );
+
+function forbid<T extends object>(value: T) {
+  return new Proxy<T>(value, {
+    /* v8 ignore start */
+    get(target, property) {
+      // @ts-expect-error forward the getter
+      if (property === "then") return target[property]; // eslint-disable-line @typescript-eslint/no-unsafe-return
+      throw new Error("implementation error");
+    },
+    set() {
+      throw new Error("implementation error");
+    },
+    /* v8 ignore end */
+  });
+}
 
 /* eslint-disable @typescript-eslint/no-redeclare */
 export type CreditActivity = InferOutput<typeof CreditActivity>;
