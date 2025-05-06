@@ -15,9 +15,16 @@ export default function HTML({ children }: { children: ReactNode }) {
             display: flex;
             justify-content: center;
             align-items: center;
-            background: black !important;
           }
           #root { aspect-ratio: 10 / 16; }
+          @media (prefers-color-scheme: light) {
+            html, body { background: #F7F9F8 }
+            #root { background: #F7F9F8 }
+          }
+          @media (prefers-color-scheme: dark) {
+            html, body { background: #101211 }
+            #root { background: #101211 }
+          }
         `}</style>
       </head>
       <body>{children}</body>
