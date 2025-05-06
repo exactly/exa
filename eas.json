@@ -9,17 +9,15 @@
       "ios": { "image": "latest" }
     },
     "development": { "extends": "base", "developmentClient": true, "distribution": "internal" },
-    "preview": { "extends": "base", "distribution": "internal", "channel": "preview" },
+    "preview": { "extends": "base", "channel": "preview", "distribution": "internal" },
     "production": { "extends": "base", "channel": "production" }
   },
   "submit": {
     "base": {
+      "android": { "track": "internal" },
       "ios": { "appleTeamId": "665NDX7LBZ", "ascAppId": "6572315454", "sku": "exa" }
     },
-    "preview": {
-      "extends": "base",
-      "android": { "track": "internal" }
-    },
+    "preview": { "extends": "base" },
     "production": { "extends": "base" }
   }
 }
