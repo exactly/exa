@@ -83,7 +83,7 @@ export default new Hono().get(
       publicClient
         .readContract({ address: exaPreviewerAddress, functionName: "markets", abi: exaPreviewerAbi })
         .then((p) => new Map<Hex, (typeof p)[number]>(p.map((m) => [m.market.toLowerCase() as Hex, m]))),
-      !ignore("repay") || !ignore("sent")
+      !ignore("repay") || !ignore("sent") || !ignore("received")
         ? publicClient
             .getContractEvents({
               abi: upgradeableModularAccountAbi,
@@ -102,45 +102,54 @@ export default new Hono().get(
       if (!found) throw new Error("market not found");
       return found;
     };
+
+    const repayPromise =
+      !ignore("repay") || !ignore("received")
+        ? publicClient.getContractEvents({
+            abi: marketAbi,
+            eventName: "RepayAtMaturity",
+            address: [...markets.keys()],
+            args: { caller: [...plugins], borrower: account },
+            toBlock: "latest",
+            fromBlock: 0n,
+            strict: true,
+          })
+        : Promise.resolve([]);
+
     const [deposits, repays, withdraws, borrows] = await Promise.all([
       ignore("received")
         ? []
-        : publicClient
-            .getContractEvents({
-              abi: marketAbi,
-              eventName: "Deposit",
-              address: [...markets.keys()],
-              args: { caller: account, owner: account },
-              toBlock: "latest",
-              fromBlock: 0n,
-              strict: true,
-            })
-            .then((logs) =>
-              logs.map((log) =>
-                parse(DepositActivity, { ...log, market: market(log.address) } satisfies InferInput<
-                  typeof DepositActivity
-                >),
+        : Promise.all([
+            publicClient
+              .getContractEvents({
+                abi: marketAbi,
+                eventName: "Deposit",
+                address: [...markets.keys()],
+                args: { caller: account, owner: account },
+                toBlock: "latest",
+                fromBlock: 0n,
+                strict: true,
+              })
+              .then((logs) =>
+                logs.map((log) =>
+                  parse(DepositActivity, { ...log, market: market(log.address) } satisfies InferInput<
+                    typeof DepositActivity
+                  >),
+                ),
               ),
+            repayPromise,
+          ]).then(([deposit, repay]) =>
+            deposit.filter(
+              ({ transactionHash }) => !repay.some(({ transactionHash: repayHash }) => repayHash === transactionHash),
             ),
+          ),
       ignore("repay")
         ? []
-        : publicClient
-            .getContractEvents({
-              abi: marketAbi,
-              eventName: "RepayAtMaturity",
-              address: [...markets.keys()],
-              args: { caller: [...plugins], borrower: account },
-              toBlock: "latest",
-              fromBlock: 0n,
-              strict: true,
-            })
-            .then((logs) =>
-              logs.map((log) =>
-                parse(RepayActivity, { ...log, market: market(log.address) } satisfies InferInput<
-                  typeof RepayActivity
-                >),
-              ),
+        : repayPromise.then((logs) =>
+            logs.map((log) =>
+              parse(RepayActivity, { ...log, market: market(log.address) } satisfies InferInput<typeof RepayActivity>),
             ),
+          ),
       ignore("sent")
         ? []
         : Promise.all([

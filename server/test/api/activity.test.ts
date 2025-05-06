@@ -222,12 +222,6 @@ describe.concurrent("authenticated", () => {
 
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toMatchObject([
-        {
-          type: "received",
-          currency: "USDC",
-          amount: expect.withinRange(0.9, 1),
-          usdAmount: expect.withinRange(0.9, 1),
-        },
         { type: "received", currency: "WETH", amount: 1, usdAmount: 2500 },
         { type: "received", currency: "USDC", amount: 69_420, usdAmount: 69_420 },
         { type: "received", currency: "EXA", amount: 666, usdAmount: 3330 },
