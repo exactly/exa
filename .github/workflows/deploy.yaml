@@ -50,6 +50,9 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            CHAIN_ID=${{ vars.CHAIN_ID }}
+            APP_DOMAIN=${{ vars.APP_DOMAIN }}
       - uses: actions/attest-build-provenance@v2
         with:
           subject-name: ghcr.io/${{ env.IMAGE_NAME }}
@@ -63,7 +66,11 @@ jobs:
           token: ${{ secrets.DIGITALOCEAN_TOKEN }}
   sentry:
     needs: digitalocean
+    environment: ${{ inputs.environment }}
     runs-on: ubuntu-latest
+    env:
+      CHAIN_ID: ${{ vars.CHAIN_ID }}
+      APP_DOMAIN: ${{ vars.APP_DOMAIN }}
     steps:
       - uses: actions/checkout@v4
         with:
