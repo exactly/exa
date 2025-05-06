@@ -1,5 +1,4 @@
 import ProposalType from "@exactly/common/ProposalType";
-import fixedRate from "@exactly/common/fixedRate";
 import {
   exaPluginAbi,
   exaPluginAddress,
@@ -102,7 +101,6 @@ export default function Pay() {
     },
   });
 
-  const timestamp = BigInt(Math.floor(Date.now() / 1000));
   const isUSDCSelected = selectedAsset.address === parse(Address, marketUSDCAddress);
   const borrow = exaUSDC?.fixedBorrowPositions.find((b) => b.maturity === BigInt(success ? maturity : 0));
   const previewValue =
@@ -112,12 +110,6 @@ export default function Pay() {
       ? ((borrow.position.principal + borrow.position.fee) * exaUSDC.usdPrice) / 10n ** BigInt(exaUSDC.decimals)
       : 0n;
   const discount = positionValue === 0n ? 0 : Number(WAD - (previewValue * WAD) / positionValue) / 1e18;
-  const feeValue = borrow
-    ? (fixedRate(borrow.maturity, borrow.position.principal, borrow.position.fee, timestamp) *
-        borrow.position.principal) /
-      10n ** BigInt(exaUSDC ? exaUSDC.decimals : 0)
-    : 0n;
-
   const positions = markets
     ?.map((market) => ({
       ...market,
@@ -422,32 +414,6 @@ export default function Pay() {
                     })}
                   </Text>
                 </XStack>
-                {borrow && (
-                  <XStack justifyContent="space-between" gap="$s3" alignItems="center">
-                    <Text secondary footnote textAlign="left">
-                      Interest&nbsp;
-                      {(
-                        Number(fixedRate(borrow.maturity, borrow.position.principal, borrow.position.fee, timestamp)) /
-                        1e18
-                      )
-                        .toLocaleString(undefined, {
-                          style: "percent",
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })
-                        .replaceAll(/\s+/g, "")}
-                      &nbsp;APR
-                    </Text>
-                    <Text primary title3 textAlign="right">
-                      {(Number(feeValue) / 1e18).toLocaleString(undefined, {
-                        style: "currency",
-                        currency: "USD",
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}
-                    </Text>
-                  </XStack>
-                )}
                 <XStack justifyContent="space-between" gap="$s3" alignItems="center">
                   {discount >= 0 ? (
                     <Text secondary footnote textAlign="left">
