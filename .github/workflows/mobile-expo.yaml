@@ -7,12 +7,16 @@ on:
         type: string
     secrets:
       EXPO_TOKEN:
+      SENTRY_AUTH_TOKEN:
 jobs:
   expo:
     environment:
       name: expo
       url: https://expo.dev/accounts/exactly/projects/exactly
     runs-on: ubuntu-latest
+    env:
+      CHAIN_ID: ${{ vars.CHAIN_ID }}
+      APP_DOMAIN: ${{ vars.APP_DOMAIN }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -35,3 +39,15 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: eas build --profile ${{ inputs.profile }} ${{ inputs.profile == 'production' && '--auto-submit' || '' }} --platform all --non-interactive --no-wait
       - run: eas update --auto --channel ${{ inputs.profile }} --platform all --non-interactive
+      - run: echo "release=$(node -e 'console.log(require(`./src/generated/release`))')" >> $GITHUB_OUTPUT
+        id: release
+      - uses: getsentry/action-release@v3 # cspell:ignore getsentry
+        env:
+          SENTRY_ORG: exactly
+          SENTRY_PROJECT: exa
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        with:
+          environment: ${{ inputs.profile }}
+          release: ${{ steps.release.outputs.release }}
+          finalize: ${{ inputs.profile == 'production' }}
+          sourcemaps: dist
