@@ -54,6 +54,7 @@ export default defineConfig([
         include: [
           "ExaPlugin.sol/ExaPlugin.json",
           "ExaPreviewer.sol/ExaPreviewer.json",
+          "ProposalManager.sol/ProposalManager.json",
           "UpgradeableModularAccount.sol/UpgradeableModularAccount.json",
         ],
       }),
