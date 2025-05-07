@@ -44,8 +44,8 @@ app.use(
   serveStatic({
     root: "app",
     rewriteRequestPath: (path) => {
-      if (path.endsWith("/")) return `${path}/index.html`;
-      if (path.includes(".")) return path;
+      if (/\.[^/]+$/.test(path)) return path;
+      if (path.endsWith("/")) return `${path}index.html`;
       return `${path}.html`;
     },
   }),
