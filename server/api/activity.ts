@@ -42,6 +42,7 @@ import { decodeFunctionData, type Log } from "viem";
 
 import database, { credentials } from "../database";
 import {
+  debtManagerAddress,
   exaPluginAbi,
   exaPreviewerAbi,
   marketAbi,
@@ -53,7 +54,7 @@ import { collectors as cryptomateCollectors } from "../utils/cryptomate";
 import { collectors as pandaCollectors } from "../utils/panda";
 import publicClient from "../utils/publicClient";
 
-const ActivityTypes = picklist(["card", "received", "repay", "sent"]);
+const ActivityTypes = picklist(["card", "received", "repay", "rollover", "sent"]);
 
 const collectors = new Set([...cryptomateCollectors, ...pandaCollectors].map((a) => a.toLowerCase() as Hex));
 
@@ -108,19 +109,38 @@ export default new Hono().get(
     };
 
     const repayPromise =
-      !ignore("repay") || !ignore("received")
+      !ignore("repay") || !ignore("received") || !ignore("rollover")
         ? publicClient.getContractEvents({
             abi: marketAbi,
             eventName: "RepayAtMaturity",
             address: [...markets.keys()],
-            args: { caller: [...plugins], borrower: account },
+            args: {
+              caller: [
+                ...(ignore("rollover") ? [] : [debtManagerAddress]),
+                ...(ignore("repay") && ignore("received") ? [] : [...plugins]),
+              ],
+              borrower: account,
+            },
             toBlock: "latest",
             fromBlock: 0n,
             strict: true,
           })
         : Promise.resolve(forbid([]));
 
-    const [deposits, repays, withdraws, borrows] = await Promise.all([
+    const borrowPromise =
+      !ignore("card") || !ignore("rollover")
+        ? publicClient.getContractEvents({
+            abi: marketAbi,
+            eventName: "BorrowAtMaturity",
+            address: marketUSDCAddress,
+            args: { borrower: account },
+            toBlock: "latest",
+            fromBlock: 0n,
+            strict: true,
+          })
+        : Promise.resolve(forbid([]));
+
+    const [deposits, repays, withdraws, borrows, rollovers] = await Promise.all([
       ignore("received")
         ? []
         : Promise.all([
@@ -213,29 +233,46 @@ export default new Hono().get(
           ),
       ignore("card")
         ? undefined
-        : publicClient
-            .getContractEvents({
-              abi: marketAbi,
-              eventName: "BorrowAtMaturity",
-              address: marketUSDCAddress,
-              args: { borrower: account },
-              toBlock: "latest",
-              fromBlock: 0n,
-              strict: true,
-            })
-            .then((logs) =>
-              logs.reduce((map, { args, transactionHash, blockNumber }) => {
-                const data = map.get(transactionHash);
-                if (!data) return map.set(transactionHash, { blockNumber, events: [args] });
-                data.events.push(args);
-                return map;
-              }, new Map<Hash, { blockNumber: bigint; events: (typeof logs)[number]["args"][] }>()),
-            ),
+        : borrowPromise.then((logs) =>
+            logs.reduce((map, { args, transactionHash, blockNumber }) => {
+              const data = map.get(transactionHash);
+              if (!data) return map.set(transactionHash, { blockNumber, events: [args] });
+              data.events.push(args);
+              return map;
+            }, new Map<Hash, { blockNumber: bigint; events: (typeof logs)[number]["args"][] }>()),
+          ),
+      ignore("rollover")
+        ? []
+        : Promise.all([borrowPromise, repayPromise]).then(([borrowLogs, repayLogs]) =>
+            borrowLogs
+              .filter(({ args }) => parse(Address, args.caller) === parse(Address, debtManagerAddress))
+              .map((borrow) => {
+                const repay = repayLogs.find(
+                  (log) =>
+                    log.args.caller === debtManagerAddress &&
+                    borrow.transactionHash === log.transactionHash &&
+                    borrow.args.maturity > log.args.maturity,
+                );
+                if (!repay) throw new Error("rollover repay not found or invalid");
+                return parse(RolloverActivity, {
+                  args: { assets: borrow.args.assets },
+                  blockNumber: borrow.blockNumber,
+                  borrow: { ...borrow, market: market(borrow.address) },
+                  logIndex: 0,
+                  market: market(borrow.address),
+                  repay: { ...repay, market: market(repay.address) },
+                  transactionHash: borrow.transactionHash,
+                  transactionIndex: borrow.transactionIndex,
+                });
+              }),
+          ),
     ]);
     const blocks = await Promise.all(
       [
         ...new Set(
-          [...deposits, ...repays, ...withdraws, ...(borrows?.values() ?? [])].map(({ blockNumber }) => blockNumber),
+          [...deposits, ...repays, ...rollovers, ...withdraws, ...(borrows?.values() ?? [])].map(
+            ({ blockNumber }) => blockNumber,
+          ),
         ),
       ].map((blockNumber) => publicClient.getBlock({ blockNumber })),
     );
@@ -275,7 +312,7 @@ export default new Hono().get(
             captureException(new Error("bad transaction"), { level: "error", contexts: { cryptomate, panda } });
           }),
         ),
-        ...[...deposits, ...repays, ...withdraws].map(({ blockNumber, ...event }) => {
+        ...[...deposits, ...repays, ...rollovers, ...withdraws].map(({ blockNumber, ...event }) => {
           const timestamp = timestamps.get(blockNumber);
           if (timestamp) return { ...event, timestamp: new Date(Number(timestamp) * 1000).toISOString() };
           captureException(new Error("block not found"), {
@@ -516,9 +553,13 @@ export const DepositActivity = pipe(
 );
 
 export const RepayActivity = pipe(
-  object({ ...OnchainActivity.entries, args: object({ assets: bigint(), positionAssets: bigint() }) }),
+  object({
+    ...OnchainActivity.entries,
+    args: object({ assets: bigint(), maturity: bigint(), positionAssets: bigint() }),
+  }),
   transform((activity) => ({
     ...transformActivity(activity),
+    maturity: Number(activity.args.maturity),
     positionAmount: Number(activity.args.positionAssets) / 10 ** activity.market.decimals,
     type: "repay" as const,
   })),
@@ -531,6 +572,29 @@ export const WithdrawActivity = pipe(
     receiver: activity.args.receiver,
     type: "sent" as const,
   })),
+);
+
+export const RolloverActivity = pipe(
+  object({
+    ...OnchainActivity.entries,
+    borrow: pipe(
+      object({ ...OnchainActivity.entries, args: Borrow }),
+      transform((activity) => ({
+        ...transformActivity(activity),
+        ...transformBorrow(activity.args, activity.blockNumber),
+        assets: Number(activity.args.assets) / 10 ** activity.market.decimals,
+        fee: Number(activity.args.fee) / 1e6,
+        maturity: Number(activity.args.maturity),
+        type: "borrow" as const,
+      })),
+    ),
+    repay: RepayActivity,
+  }),
+  transform((activity) => {
+    const { blockNumber: _, ...borrow } = activity.borrow;
+    const { blockNumber: __, ...repay } = activity.repay;
+    return { ...transformActivity(activity), borrow, repay, type: "rollover" as const };
+  }),
 );
 
 function forbid<T extends object>(value: T) {
@@ -556,5 +620,6 @@ export type InstallmentsActivity = InferOutput<typeof InstallmentsActivity>;
 export type OnchainActivity = InferOutput<typeof OnchainActivity>;
 export type PandaActivity = InferOutput<typeof PandaActivity>;
 export type RepayActivity = InferOutput<typeof RepayActivity>;
+export type RolloverActivity = InferOutput<typeof RolloverActivity>;
 export type WithdrawActivity = InferOutput<typeof WithdrawActivity>;
 /* eslint-enable @typescript-eslint/no-redeclare */
