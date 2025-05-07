@@ -7,6 +7,7 @@ import {
 } from "@exactly/common/generated/chain";
 import { Address, Passkey } from "@exactly/common/validation";
 import type { ExaAPI } from "@exactly/server/api";
+import { base64URLStringToBuffer } from "@simplewebauthn/browser";
 import { hc } from "hono/client";
 import { Platform } from "react-native";
 import { get as assert, create } from "react-native-passkeys";
@@ -29,12 +30,22 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
       const get = await api.auth.authentication.$get({ query: { credentialId } });
       const options = await get.json();
       if (Platform.OS === "android") delete options.allowCredentials; // HACK fix android credential filtering
+      console.log(options); // eslint-disable-line no-console
+      // @ts-expect-error hack for safari
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+      if (options.extensions?.largeBlob && !options.extensions.largeBlob.write) {
+        // @ts-expect-error hack for safari
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        options.extensions.largeBlob = {
+          // @ts-expect-error hack for safari
+          ...options.extensions.largeBlob,
+          // @ts-expect-error hack for safari
+          write: base64URLStringToBuffer(options.extensions.largeBlob.write), // eslint-disable-line @typescript-eslint/no-unsafe-argument
+        };
+      }
       const assertion = await assert(options);
       if (!assertion) throw new Error("bad assertion");
-      const post = await api.auth.authentication.$post({
-        query: { credentialId: assertion.id },
-        json: assertion,
-      });
+      const post = await api.auth.authentication.$post({ query: { credentialId: assertion.id }, json: assertion });
       if (!post.ok) throw new APIError(post.status, await post.json());
       const { expires } = await post.json();
       return parse(Auth, expires);
