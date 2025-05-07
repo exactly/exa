@@ -11,7 +11,7 @@ import PasskeysBlob from "../../assets/images/passkeys-blob.svg";
 import PasskeysImage from "../../assets/images/passkeys.svg";
 import alchemyConnector from "../../utils/alchemyConnector";
 import reportError from "../../utils/reportError";
-import { APIError, createPasskey } from "../../utils/server";
+import { APIError, createCredential } from "../../utils/server";
 import ActionButton from "../shared/ActionButton";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
@@ -34,7 +34,7 @@ export default function Passkeys() {
     isSuccess,
     isPending,
   } = useMutation<Passkey>({
-    mutationFn: createPasskey,
+    mutationFn: createCredential,
     onError(error: unknown) {
       if (
         error instanceof Error &&

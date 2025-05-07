@@ -78,6 +78,7 @@
     "reentrancy",
     "rpid",
     "simplewebauthn",
+    "siwe",
     "solady",
     "solhint",
     "solmate",

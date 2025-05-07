@@ -5,6 +5,7 @@ import { Hono } from "hono";
 import { describeRoute } from "hono-openapi";
 import { resolver } from "hono-openapi/valibot";
 import { parse, type InferOutput } from "valibot";
+import { isHex, padHex, zeroHash } from "viem";
 
 import database, { credentials } from "../database";
 import auth from "../middleware/auth";
@@ -35,7 +36,7 @@ export default new Hono().get(
       {
         credentialId,
         factory: parse(Address, credential.factory),
-        ...decodePublicKey(credential.publicKey),
+        ...(isHex(credentialId) ? { x: padHex(credentialId), y: zeroHash } : decodePublicKey(credential.publicKey)),
       } satisfies InferOutput<typeof Passkey>,
       200,
     );
