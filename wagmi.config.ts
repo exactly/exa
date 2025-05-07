@@ -18,6 +18,7 @@ if (easBuild) {
 }
 
 const auditor = loadDeployment("Auditor");
+const debtManager = loadDeployment("DebtManager");
 const marketUSDC = loadDeployment("MarketUSDC");
 const marketWETH = loadDeployment("MarketWETH");
 const previewer = loadDeployment("Previewer");
@@ -104,6 +105,7 @@ export default defineConfig([
       addresses({
         balancerVault: balancerVault.address,
         issuerChecker: issuerChecker.contractAddress,
+        debtManager: debtManager.address,
         proposalManager: proposalManager.contractAddress,
         refunder: refunder.contractAddress,
       }),
