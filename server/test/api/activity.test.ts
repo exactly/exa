@@ -274,6 +274,23 @@ describe.concurrent("authenticated", () => {
         ]),
       );
     });
+
+    it("returns rollovers", async () => {
+      const response = await appClient.index.$get(
+        { query: { include: "rollover" } },
+        { headers: { "test-credential-id": account } },
+      );
+
+      await expect(response.json()).resolves.toMatchObject([
+        {
+          currency: "USDC",
+          borrow: { currency: "USDC", maturity: expect.withinRange(1, Infinity), type: "borrow" },
+          repay: { currency: "USDC", maturity: expect.withinRange(1, Infinity), type: "repay" },
+          type: "rollover",
+        },
+      ]);
+      expect(response.status).toBe(200);
+    });
   });
 
   it("returns everything", async () => {
@@ -288,6 +305,7 @@ describe.concurrent("authenticated", () => {
         expect.objectContaining({ type: "repay" }),
         expect.objectContaining({ type: "card" }),
         expect.objectContaining({ type: "panda" }),
+        expect.objectContaining({ type: "rollover" }),
       ]),
     );
   });

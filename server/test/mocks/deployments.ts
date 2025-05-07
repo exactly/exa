@@ -15,6 +15,7 @@ vi.mock("@exactly/common/generated/chain", async (importOriginal) => ({
 }));
 vi.mock("../../generated/contracts", async (importOriginal) => ({
   ...(await importOriginal()),
+  debtManagerAddress: inject("DebtManager"),
   issuerCheckerAddress: inject("IssuerChecker"),
   proposalManagerAddress: inject("ProposalManager"),
   refunderAddress: inject("Refunder"),
