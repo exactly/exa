@@ -2,7 +2,7 @@ import { Coins, CreditCard, FileText, Home } from "@tamagui/lucide-icons";
 import { Tabs } from "expo-router";
 import Head from "expo-router/head";
 import React, { useEffect } from "react";
-import { FlatList } from "react-native";
+import { FlatList, Platform } from "react-native";
 import { useAccount } from "wagmi";
 
 import { activityRefreshControlReference, activityScrollReference } from "../../../components/activity/Activity";
@@ -28,10 +28,12 @@ export default function HomeLayout() {
   }, []);
   return (
     <>
-      <Head>
-        <title>Exa App</title>
-        <meta name="description" content="Onchain banking, today" />
-      </Head>
+      {Platform.OS === "web" && (
+        <Head>
+          <title>Exa App</title>
+          <meta name="description" content="Onchain banking, today" />
+        </Head>
+      )}
       <Tabs screenOptions={{ headerShown: false }} tabBar={(properties) => <TabBar {...properties} />}>
         {tabs.map(({ name, title, Icon }) => (
           <Tabs.Screen
