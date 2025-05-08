@@ -6,6 +6,7 @@ import { ScrollView, Sheet, YStack } from "tamagui";
 import Blob from "../../assets/images/exa-card-blob.svg";
 import ExaCard from "../../assets/images/exa-card.svg";
 import reportError from "../../utils/reportError";
+import useAspectRatio from "../../utils/useAspectRatio";
 import useIntercom from "../../utils/useIntercom";
 import Button from "../shared/Button";
 import SafeView from "../shared/SafeView";
@@ -21,6 +22,7 @@ export default function CardDisclaimer({
   onClose: () => void;
   onActionPress: () => void;
 }) {
+  const aspectRatio = useAspectRatio();
   const { presentArticle } = useIntercom();
   return (
     <Sheet
@@ -34,7 +36,7 @@ export default function CardDisclaimer({
       snapPointsMode="fit"
       zIndex={100_000}
       modal
-      portalProps={Platform.OS === "web" ? { style: { aspectRatio: 10 / 16, justifySelf: "center" } } : undefined}
+      portalProps={Platform.OS === "web" ? { style: { aspectRatio, justifySelf: "center" } } : undefined}
     >
       <Sheet.Overlay
         backgroundColor="#00000090"

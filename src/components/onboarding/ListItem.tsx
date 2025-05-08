@@ -5,11 +5,13 @@ import { Extrapolation, interpolate, useAnimatedStyle } from "react-native-reani
 import { View, useWindowDimensions } from "tamagui";
 
 import type { Page } from "./Carousel";
+import useAspectRatio from "../../utils/useAspectRatio";
 import AnimatedView from "../shared/AnimatedView";
 
 export default memo(function ListItem({ item, index, x }: { item: Page; index: number; x: SharedValue<number> }) {
+  const aspectRatio = useAspectRatio();
   const { width, height } = useWindowDimensions();
-  const itemWidth = Platform.OS === "web" ? height * (10 / 16) : width;
+  const itemWidth = Platform.OS === "web" ? height * aspectRatio : width;
   const rBackgroundStyle = useAnimatedStyle(() => {
     const animatedScale = interpolate(
       x.value,
@@ -35,12 +37,7 @@ export default memo(function ListItem({ item, index, x }: { item: Page; index: n
     return { transform: [{ scale: animatedScale }] };
   }, [index, x]);
   return (
-    <View
-      width={itemWidth}
-      aspectRatio={Platform.OS === "web" ? 16 / 10 : 1}
-      justifyContent="center"
-      alignItems="center"
-    >
+    <View width={itemWidth} aspectRatio={aspectRatio} justifyContent="center" alignItems="center">
       <AnimatedView style={rBackgroundStyle} width="100%" height="100%">
         <item.backgroundImage width="100%" height="100%" />
       </AnimatedView>

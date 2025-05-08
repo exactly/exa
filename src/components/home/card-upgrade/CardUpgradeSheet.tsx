@@ -9,10 +9,12 @@ import Intro from "./Intro";
 import UpgradeAccount from "./UpgradeAccount";
 import VerifyIdentity from "./VerifyIdentity";
 import queryClient from "../../../utils/queryClient";
+import useAspectRatio from "../../../utils/useAspectRatio";
 import SafeView from "../../shared/SafeView";
 import View from "../../shared/View";
 
 export default function CardUpgradeSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const aspectRatio = useAspectRatio();
   const { data: step } = useQuery<number | undefined>({ queryKey: ["card-upgrade"] });
   return (
     <Sheet
@@ -27,7 +29,7 @@ export default function CardUpgradeSheet({ open, onClose }: { open: boolean; onC
       zIndex={100_000}
       disableDrag
       modal
-      portalProps={Platform.OS === "web" ? { style: { aspectRatio: 10 / 16, justifySelf: "center" } } : undefined}
+      portalProps={Platform.OS === "web" ? { style: { aspectRatio, justifySelf: "center" } } : undefined}
     >
       <Sheet.Overlay
         backgroundColor="#00000090"

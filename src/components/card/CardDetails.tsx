@@ -17,11 +17,13 @@ import { decrypt } from "../../utils/panda";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { getCard } from "../../utils/server";
+import useAspectRatio from "../../utils/useAspectRatio";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function CardDetails({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const aspectRatio = useAspectRatio();
   const { data: alertShown } = useQuery({ queryKey: ["settings", "alertShown"] });
   const toast = useToastController();
   const { data: card, isPending } = useQuery({ queryKey: ["card", "details"], queryFn: getCard });
@@ -50,7 +52,7 @@ export default function CardDetails({ open, onClose }: { open: boolean; onClose:
       snapPointsMode="fit"
       zIndex={100_000}
       modal
-      portalProps={Platform.OS === "web" ? { style: { aspectRatio: 10 / 16, justifySelf: "center" } } : undefined}
+      portalProps={Platform.OS === "web" ? { style: { aspectRatio, justifySelf: "center" } } : undefined}
     >
       <Sheet.Overlay
         backgroundColor="#00000090"

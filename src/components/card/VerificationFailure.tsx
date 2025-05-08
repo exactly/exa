@@ -5,6 +5,7 @@ import { ScrollView, Sheet, YStack } from "tamagui";
 
 import VerifyIdentity from "../../assets/images/verify-identity.svg";
 import reportError from "../../utils/reportError";
+import useAspectRatio from "../../utils/useAspectRatio";
 import useIntercom from "../../utils/useIntercom";
 import Button from "../shared/Button";
 import SafeView from "../shared/SafeView";
@@ -12,6 +13,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function VerificationFailure({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const aspectRatio = useAspectRatio();
   const { present } = useIntercom();
   return (
     <Sheet
@@ -25,7 +27,7 @@ export default function VerificationFailure({ open, onClose }: { open: boolean; 
       snapPointsMode="fit"
       zIndex={100_000}
       modal
-      portalProps={Platform.OS === "web" ? { style: { aspectRatio: 10 / 16, justifySelf: "center" } } : undefined}
+      portalProps={Platform.OS === "web" ? { style: { aspectRatio, justifySelf: "center" } } : undefined}
     >
       <Sheet.Overlay
         backgroundColor="#00000090"

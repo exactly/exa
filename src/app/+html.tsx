@@ -10,22 +10,37 @@ export default function HTML({ children }: { children: ReactNode }) {
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
         <link rel="manifest" href="/manifest.json" />
         <ScrollViewStyleReset />
-        <style>{`
+        <style>
+          {`
           html, body {
+            width: 100vw;
+            height: 100dvh;
+            margin: 0;
+            padding: 0;
             display: flex;
             justify-content: center;
             align-items: center;
           }
-          #root { aspect-ratio: 10 / 16; }
+          @media (max-aspect-ratio: 10/16) {
+            #root { width: 100vw; height: 100dvh; }
+          }
+          @media (min-aspect-ratio: 10/16) {
+            #root {
+              aspect-ratio: 10 / 16;
+              width: min(100vw, calc(100dvh * 10 / 16));
+              height: min(100dvh, calc(100vw * 16 / 10));
+            }
+          }
           @media (prefers-color-scheme: light) {
-            html, body { background: #F7F9F8 }
-            #root { background: #F7F9F8 }
+            html, body { background: white !important; }
+            #root { background: white !important; }
           }
           @media (prefers-color-scheme: dark) {
-            html, body { background: #101211 }
-            #root { background: #101211 }
+            html, body { background: black !important; }
+            #root { background: black !important; }
           }
-        `}</style>
+      `}
+        </style>
       </head>
       <body>{children}</body>
     </html>

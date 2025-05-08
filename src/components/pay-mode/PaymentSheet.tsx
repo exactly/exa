@@ -17,6 +17,7 @@ import CalendarImage from "../../assets/images/calendar-rollover.svg";
 import { useReadUpgradeableModularAccountGetInstalledPlugins } from "../../generated/contracts";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
+import useAspectRatio from "../../utils/useAspectRatio";
 import useAsset from "../../utils/useAsset";
 import useIntercom from "../../utils/useIntercom";
 import Button from "../shared/Button";
@@ -26,6 +27,7 @@ import View from "../shared/View";
 
 export default function PaymentSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { address } = useAccount();
+  const aspectRatio = useAspectRatio();
   const { presentArticle } = useIntercom();
   const { market: USDCMarket } = useAsset(marketUSDCAddress);
   const { maturity: currentMaturity } = useLocalSearchParams();
@@ -66,7 +68,7 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
       snapPointsMode="fit"
       zIndex={100_000}
       modal
-      portalProps={Platform.OS === "web" ? { style: { aspectRatio: 10 / 16, justifySelf: "center" } } : undefined}
+      portalProps={Platform.OS === "web" ? { style: { aspectRatio, justifySelf: "center" } } : undefined}
     >
       <Sheet.Overlay
         backgroundColor="#00000090"
