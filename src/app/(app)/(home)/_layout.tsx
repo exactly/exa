@@ -1,5 +1,6 @@
 import { Coins, CreditCard, FileText, Home } from "@tamagui/lucide-icons";
 import { Tabs } from "expo-router";
+import Head from "expo-router/head";
 import React, { useEffect } from "react";
 import { FlatList } from "react-native";
 import { useAccount } from "wagmi";
@@ -26,49 +27,55 @@ export default function HomeLayout() {
     enablePrompt();
   }, []);
   return (
-    <Tabs screenOptions={{ headerShown: false }} tabBar={(properties) => <TabBar {...properties} />}>
-      {tabs.map(({ name, title, Icon }) => (
-        <Tabs.Screen
-          listeners={{
-            tabPress: () => {
-              let scrollView;
-              let refreshControl;
-              switch (name) {
-                case "index":
-                  scrollView = homeScrollReference.current;
-                  refreshControl = homeRefreshControlReference.current;
-                  break;
-                case "card":
-                  scrollView = cardScrollReference.current;
-                  refreshControl = cardRefreshControlReference.current;
-                  break;
-                case "pay-mode":
-                  scrollView = payModeScrollReference.current;
-                  refreshControl = payModeRefreshControlReference.current;
-                  break;
-                case "activity":
-                  scrollView = activityScrollReference.current;
-                  refreshControl = activityRefreshControlReference.current;
-                  break;
-              }
-              if (scrollView) {
-                if (scrollView instanceof FlatList) {
-                  if (!scrollView.props.data?.length) return;
-                  scrollView.scrollToIndex({ index: 0, animated: true });
-                } else {
-                  scrollView.scrollTo({ y: 0, animated: true });
+    <>
+      <Head>
+        <title>Exa App</title>
+        <meta name="description" content="Onchain banking, today" />
+      </Head>
+      <Tabs screenOptions={{ headerShown: false }} tabBar={(properties) => <TabBar {...properties} />}>
+        {tabs.map(({ name, title, Icon }) => (
+          <Tabs.Screen
+            listeners={{
+              tabPress: () => {
+                let scrollView;
+                let refreshControl;
+                switch (name) {
+                  case "index":
+                    scrollView = homeScrollReference.current;
+                    refreshControl = homeRefreshControlReference.current;
+                    break;
+                  case "card":
+                    scrollView = cardScrollReference.current;
+                    refreshControl = cardRefreshControlReference.current;
+                    break;
+                  case "pay-mode":
+                    scrollView = payModeScrollReference.current;
+                    refreshControl = payModeRefreshControlReference.current;
+                    break;
+                  case "activity":
+                    scrollView = activityScrollReference.current;
+                    refreshControl = activityRefreshControlReference.current;
+                    break;
                 }
-              }
-              if (refreshControl) {
-                refreshControl.props.onRefresh?.();
-              }
-            },
-          }}
-          key={name}
-          name={name}
-          options={{ title, tabBarIcon: ({ color }) => <Icon size={24} color={color} /> }}
-        />
-      ))}
-    </Tabs>
+                if (scrollView) {
+                  if (scrollView instanceof FlatList) {
+                    if (!scrollView.props.data?.length) return;
+                    scrollView.scrollToIndex({ index: 0, animated: true });
+                  } else {
+                    scrollView.scrollTo({ y: 0, animated: true });
+                  }
+                }
+                if (refreshControl) {
+                  refreshControl.props.onRefresh?.();
+                }
+              },
+            }}
+            key={name}
+            name={name}
+            options={{ title, tabBarIcon: ({ color }) => <Icon size={24} color={color} /> }}
+          />
+        ))}
+      </Tabs>
+    </>
   );
 }

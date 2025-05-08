@@ -6,6 +6,9 @@ export default function HTML({ children }: { children: ReactNode }) {
     <html lang="en">
       <head>
         <meta charSet="utf-8" />
+        <title>Exa App</title>
+        <meta name="title" content="Exa App" />
+        <meta name="description" content="Onchain banking, today" />
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
         <link rel="manifest" href="/manifest.json" />
