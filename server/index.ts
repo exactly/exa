@@ -46,7 +46,7 @@ app.use(
     rewriteRequestPath: (path) => {
       if (/\.[^/]+$/.test(path)) return path;
       if (path.endsWith("/")) return `${path}index.html`;
-      return `${path}.html`;
+      return `${path}/`;
     },
   }),
 );
