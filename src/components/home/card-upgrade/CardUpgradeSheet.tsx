@@ -8,6 +8,7 @@ import ActivateCard from "./ActivateCard";
 import Intro from "./Intro";
 import UpgradeAccount from "./UpgradeAccount";
 import VerifyIdentity from "./VerifyIdentity";
+import aspectRatio from "../../../utils/aspectRatio";
 import queryClient from "../../../utils/queryClient";
 import SafeView from "../../shared/SafeView";
 import View from "../../shared/View";
@@ -27,7 +28,7 @@ export default function CardUpgradeSheet({ open, onClose }: { open: boolean; onC
       zIndex={100_000}
       disableDrag
       modal
-      portalProps={Platform.OS === "web" ? { style: { aspectRatio: 10 / 16, justifySelf: "center" } } : undefined}
+      portalProps={Platform.OS === "web" ? { style: { aspectRatio, justifySelf: "center" } } : undefined}
     >
       <Sheet.Overlay
         backgroundColor="#00000090"

@@ -8,6 +8,7 @@ import Button from "./Button";
 import Text from "./Text";
 import View from "./View";
 import OptimismImage from "../../assets/images/optimism.svg";
+import aspectRatio from "../../utils/aspectRatio";
 
 export default function AddressDialog({
   open,
@@ -21,7 +22,7 @@ export default function AddressDialog({
   return (
     <AlertDialog open={open}>
       <AlertDialog.Portal
-        style={Platform.OS === "web" ? { aspectRatio: 10 / 16, justifySelf: "center" } : undefined} // eslint-disable-line react-native/no-inline-styles
+        style={Platform.OS === "web" ? { aspectRatio, justifySelf: "center" } : undefined} // eslint-disable-line react-native/no-inline-styles
       >
         <AlertDialog.Overlay
           onPress={onClose}

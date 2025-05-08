@@ -15,6 +15,7 @@ import { useAccount, useBytecode } from "wagmi";
 
 import CalendarImage from "../../assets/images/calendar-rollover.svg";
 import { useReadUpgradeableModularAccountGetInstalledPlugins } from "../../generated/contracts";
+import aspectRatio from "../../utils/aspectRatio";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAsset from "../../utils/useAsset";
@@ -66,7 +67,7 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
       snapPointsMode="fit"
       zIndex={100_000}
       modal
-      portalProps={Platform.OS === "web" ? { style: { aspectRatio: 10 / 16, justifySelf: "center" } } : undefined}
+      portalProps={Platform.OS === "web" ? { style: { aspectRatio, justifySelf: "center" } } : undefined}
     >
       <Sheet.Overlay
         backgroundColor="#00000090"

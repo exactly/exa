@@ -4,6 +4,7 @@ import React from "react";
 import { Platform } from "react-native";
 import { Sheet } from "tamagui";
 
+import aspectRatio from "../../utils/aspectRatio";
 import AssetSelector from "../shared/AssetSelector";
 import Button from "../shared/Button";
 import SafeView from "../shared/SafeView";
@@ -43,7 +44,7 @@ export default function AssetSelectionSheet({
       snapPointsMode="fit"
       zIndex={100_000}
       modal
-      portalProps={Platform.OS === "web" ? { style: { aspectRatio: 10 / 16, justifySelf: "center" } } : undefined}
+      portalProps={Platform.OS === "web" ? { style: { aspectRatio, justifySelf: "center" } } : undefined}
     >
       <Sheet.Overlay
         backgroundColor="#00000090"

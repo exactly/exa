@@ -13,6 +13,7 @@ import ExaLogoDark from "../../assets/images/exa-logo-dark.svg";
 import ExaLogoLight from "../../assets/images/exa-logo-light.svg";
 import VisaLogoDark from "../../assets/images/visa-logo-dark.svg";
 import VisaLogoLight from "../../assets/images/visa-logo-light.svg";
+import aspectRatio from "../../utils/aspectRatio";
 import { decrypt } from "../../utils/panda";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
@@ -50,7 +51,7 @@ export default function CardDetails({ open, onClose }: { open: boolean; onClose:
       snapPointsMode="fit"
       zIndex={100_000}
       modal
-      portalProps={Platform.OS === "web" ? { style: { aspectRatio: 10 / 16, justifySelf: "center" } } : undefined}
+      portalProps={Platform.OS === "web" ? { style: { aspectRatio, justifySelf: "center" } } : undefined}
     >
       <Sheet.Overlay
         backgroundColor="#00000090"

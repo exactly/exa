@@ -3,6 +3,7 @@ import { Platform, Pressable, StyleSheet } from "react-native";
 import { ScrollView, Sheet, YStack } from "tamagui";
 
 import SpendingLimit from "./SpendingLimit";
+import aspectRatio from "../../utils/aspectRatio";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
@@ -20,7 +21,7 @@ export default function SpendingLimits({ open, onClose }: { open: boolean; onClo
       snapPointsMode="fit"
       zIndex={100_000}
       modal
-      portalProps={Platform.OS === "web" ? { style: { aspectRatio: 10 / 16, justifySelf: "center" } } : undefined}
+      portalProps={Platform.OS === "web" ? { style: { aspectRatio, justifySelf: "center" } } : undefined}
     >
       <Sheet.Overlay
         backgroundColor="#00000090"
