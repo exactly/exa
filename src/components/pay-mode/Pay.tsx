@@ -1,11 +1,5 @@
 import ProposalType from "@exactly/common/ProposalType";
-import {
-  exaPluginAbi,
-  exaPluginAddress,
-  marketUSDCAddress,
-  upgradeableModularAccountAbi,
-  usdcAddress,
-} from "@exactly/common/generated/chain";
+import { exaPluginAddress, marketUSDCAddress, usdcAddress } from "@exactly/common/generated/chain";
 import { Address, Hex } from "@exactly/common/validation";
 import { WAD, withdrawLimit } from "@exactly/lib";
 import { ArrowLeft, ChevronRight, Coins } from "@tamagui/lucide-icons";
@@ -29,7 +23,13 @@ import Button from "../../components/shared/Button";
 import SafeView from "../../components/shared/SafeView";
 import Text from "../../components/shared/Text";
 import View from "../../components/shared/View";
-import { auditorAbi, marketAbi, useReadUpgradeableModularAccountGetInstalledPlugins } from "../../generated/contracts";
+import {
+  auditorAbi,
+  exaPluginAbi,
+  marketAbi,
+  upgradeableModularAccountAbi,
+  useReadUpgradeableModularAccountGetInstalledPlugins,
+} from "../../generated/contracts";
 import { accountClient } from "../../utils/alchemyConnector";
 import assetLogos from "../../utils/assetLogos";
 import { getRoute } from "../../utils/lifi";

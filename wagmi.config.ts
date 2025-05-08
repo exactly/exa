@@ -73,6 +73,7 @@ export default defineConfig([
           marketWETH: marketWETH.address,
           mockSwapper: mockSwapper.contractAddress,
           previewer: previewer.address,
+          proposalManager: proposalManager.contractAddress,
           ratePreviewer: ratePreviewer.address,
           usdc: usdc.address,
           weth: weth.address,
@@ -82,13 +83,7 @@ export default defineConfig([
       foundry({
         forge: { build: false },
         project: "contracts",
-        include: [
-          "ExaAccountFactory.sol/ExaAccountFactory.json",
-          "ExaPlugin.sol/ExaPlugin.json",
-          "ExaPreviewer.sol/ExaPreviewer.json",
-          "MockSwapper.sol/MockSwapper.json",
-          "UpgradeableModularAccount.sol/UpgradeableModularAccount.json",
-        ],
+        include: ["ExaAccountFactory.sol/ExaAccountFactory.json", "MockSwapper.sol/MockSwapper.json"],
       }),
       chain(),
     ],
@@ -104,13 +99,14 @@ export default defineConfig([
       addresses({
         balancerVault: balancerVault.address,
         issuerChecker: issuerChecker.contractAddress,
-        proposalManager: proposalManager.contractAddress,
         refunder: refunder.contractAddress,
       }),
       foundry({
         forge: { build: false },
         project: "contracts",
         include: [
+          "ExaPlugin.sol/ExaPlugin.json",
+          "ExaPreviewer.sol/ExaPreviewer.json",
           "IssuerChecker.sol/IssuerChecker.json",
           "ProposalManager.sol/ProposalManager.json",
           "Refunder.sol/Refunder.json",
