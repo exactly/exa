@@ -1,11 +1,5 @@
 import MIN_BORROW_INTERVAL from "@exactly/common/MIN_BORROW_INTERVAL";
-import {
-  exaPluginAbi,
-  exaPreviewerAbi,
-  exaPreviewerAddress,
-  upgradeableModularAccountAbi,
-  usdcAddress,
-} from "@exactly/common/generated/chain";
+import { exaPreviewerAddress, usdcAddress } from "@exactly/common/generated/chain";
 import { Address, type Hash, type Hex } from "@exactly/common/validation";
 import { MATURITY_INTERVAL, splitInstallments } from "@exactly/lib";
 import { vValidator } from "@hono/valibot-validator";
@@ -36,7 +30,14 @@ import {
 } from "viem";
 
 import database, { cards, transactions } from "../database/index";
-import { auditorAbi, issuerCheckerAbi, marketAbi } from "../generated/contracts";
+import {
+  auditorAbi,
+  exaPluginAbi,
+  exaPreviewerAbi,
+  issuerCheckerAbi,
+  marketAbi,
+  upgradeableModularAccountAbi,
+} from "../generated/contracts";
 import { collectors, signIssuerOp } from "../utils/cryptomate";
 import keeper from "../utils/keeper";
 import { sendPushNotification } from "../utils/onesignal";
@@ -131,13 +132,7 @@ export default new Hono().post(
           if (trace.output) {
             captureException(
               getContractError(new RawContractError({ data: trace.output }), {
-                abi: [
-                  ...exaPluginAbi,
-                  ...issuerCheckerAbi,
-                  ...upgradeableModularAccountAbi,
-                  ...auditorAbi,
-                  ...marketAbi,
-                ],
+                abi: [...issuerCheckerAbi, ...auditorAbi, ...marketAbi],
                 ...call,
               }),
               { contexts: { tx: { call, trace } } },

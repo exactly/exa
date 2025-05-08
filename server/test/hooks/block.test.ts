@@ -5,7 +5,7 @@ import "../mocks/redis";
 import "../mocks/deployments";
 
 import ProposalType from "@exactly/common/ProposalType";
-import chain, { exaPluginAbi, upgradeableModularAccountAbi } from "@exactly/common/generated/chain";
+import chain from "@exactly/common/generated/chain";
 import { testClient } from "hono/testing";
 import {
   createWalletClient,
@@ -29,7 +29,14 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import { afterEach, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
-import { auditorAbi, issuerCheckerAbi, marketAbi, proposalManagerAbi } from "../../generated/contracts";
+import {
+  auditorAbi,
+  exaPluginAbi,
+  issuerCheckerAbi,
+  marketAbi,
+  proposalManagerAbi,
+  upgradeableModularAccountAbi,
+} from "../../generated/contracts";
 import app from "../../hooks/block";
 import deriveAddress from "../../utils/deriveAddress";
 import publicClient from "../../utils/publicClient";

@@ -1,11 +1,4 @@
-import chain, {
-  exaAccountFactoryAbi,
-  exaPluginAbi,
-  exaPreviewerAbi,
-  exaPreviewerAddress,
-  upgradeableModularAccountAbi,
-  wethAddress,
-} from "@exactly/common/generated/chain";
+import chain, { exaAccountFactoryAbi, exaPreviewerAddress, wethAddress } from "@exactly/common/generated/chain";
 import { Address, Hash } from "@exactly/common/validation";
 import { SPAN_STATUS_ERROR, SPAN_STATUS_OK, type SpanStatus } from "@sentry/core";
 import {
@@ -26,7 +19,13 @@ import { bytesToBigInt } from "viem";
 import { optimism } from "viem/chains";
 
 import database, { credentials } from "../database";
-import { auditorAbi, marketAbi } from "../generated/contracts";
+import {
+  auditorAbi,
+  exaPluginAbi,
+  exaPreviewerAbi,
+  marketAbi,
+  upgradeableModularAccountAbi,
+} from "../generated/contracts";
 import { headerValidator, jsonValidator } from "../utils/alchemy";
 import decodePublicKey from "../utils/decodePublicKey";
 import keeper from "../utils/keeper";

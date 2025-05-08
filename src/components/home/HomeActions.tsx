@@ -1,4 +1,4 @@
-import { exaPluginAddress, upgradeableModularAccountAbi } from "@exactly/common/generated/chain";
+import { exaPluginAddress } from "@exactly/common/generated/chain";
 import { ArrowDownToLine, ArrowUpRight } from "@tamagui/lucide-icons";
 import { router } from "expo-router";
 import React from "react";
@@ -7,7 +7,10 @@ import { Spinner, XStack } from "tamagui";
 import { zeroAddress } from "viem";
 import { useAccount, useBytecode, useReadContract } from "wagmi";
 
-import { useReadUpgradeableModularAccountGetInstalledPlugins } from "../../generated/contracts";
+import {
+  upgradeableModularAccountAbi,
+  useReadUpgradeableModularAccountGetInstalledPlugins,
+} from "../../generated/contracts";
 import reportError from "../../utils/reportError";
 import Button from "../shared/Button";
 import Text from "../shared/Text";

@@ -1,11 +1,9 @@
 import ProposalType from "@exactly/common/ProposalType";
 import chain, {
-  exaPluginAbi,
   exaPluginAddress,
-  exaPreviewerAbi,
   exaPreviewerAddress,
   marketWETHAddress,
-  upgradeableModularAccountAbi,
+  proposalManagerAddress,
 } from "@exactly/common/generated/chain";
 import shortenHex from "@exactly/common/shortenHex";
 import { Address, Hash, Hex } from "@exactly/common/validation";
@@ -40,7 +38,14 @@ import {
 } from "viem";
 import { optimism, optimismSepolia } from "viem/chains";
 
-import { auditorAbi, marketAbi, proposalManagerAbi, proposalManagerAddress } from "../generated/contracts";
+import {
+  auditorAbi,
+  exaPluginAbi,
+  exaPreviewerAbi,
+  marketAbi,
+  proposalManagerAbi,
+  upgradeableModularAccountAbi,
+} from "../generated/contracts";
 import { headerValidator, jsonValidator, webhooksKey } from "../utils/alchemy";
 import appOrigin from "../utils/appOrigin";
 import ensClient from "../utils/ensClient";
