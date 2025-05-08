@@ -11,6 +11,7 @@
     "test": "bash -c 'if [[ -z \"$GITHUB_ACTIONS\" ]]; then pnpm run /test:/; else set -o pipefail && pnpm run --aggregate-output --reporter-hide-prefix /test:/ 2>&1 | perl -pe \"s|(?<![a-zA-Z0-9/\\.@])([a-zA-Z][^\\s:\\\"]*?/[^\\s:\\\"]+)|server/\\1|g\"; fi'",
     "test:ts": "tsc --pretty $([ \"$GITHUB_ACTIONS\" = true ] && echo false || echo true)",
     "test:vi": "vitest run",
+    "test:openapi": "pnpm openapi",
     "spotlight:replay": "for f in node_modules/@exactly/.spotlight/*; do curl --data-binary @$f -H content-type:application/x-sentry-envelope http://localhost:8969/stream; done",
     "dev": "tsx --watch --env-file=.env --require=./instrument.cjs index.ts"
   },
