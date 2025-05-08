@@ -68,7 +68,7 @@ importers:
         specifier: exactly/lib#a8895cd
         version: https://codeload.github.com/exactly/lib/tar.gz/a8895cd
       '@exactly/server':
-        specifier: workspace:^0.1.6
+        specifier: workspace:^0.1.7
         version: link:server
       '@expo/metro-runtime':
         specifier: ~4.0.1

@@ -1,5 +1,22 @@
 # @exactly/mobile
 
+## 1.0.3
+
+### Patch Changes
+
+- [`e1aef5a`](https://github.com/exactly/exa/commit/e1aef5aa88acca4f83c0f3bef9fa417512739bd9) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix aspect ratio on web
+
+- [`e53b8f2`](https://github.com/exactly/exa/commit/e53b8f2d50734ffdcd47485263dcb8aa04b4eaff) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add title and description tags to web
+
+- [`1cdaba2`](https://github.com/exactly/exa/commit/1cdaba2e5cbbea4bb4d2552f36263bc5e677929c) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 improve card details
+
+- [`18f0e6f`](https://github.com/exactly/exa/commit/18f0e6fd559e3790c1f0a27086facd99aac8dd43) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 avoid head rendering on native
+
+- [`014408f`](https://github.com/exactly/exa/commit/014408ff4df4d6a98f63bc3b6da09418873336dc) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 improve home action buttons
+
+- Updated dependencies [[`ab2082f`](https://github.com/exactly/exa/commit/ab2082ffc5269e3732b47bcabaf9267583bbd2a2)]:
+  - @exactly/server@0.1.7
+
 ## 1.0.2
 
 ### Patch Changes

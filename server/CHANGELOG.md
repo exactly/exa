@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.1.7
+
+### Patch Changes
+
+- [`ab2082f`](https://github.com/exactly/exa/commit/ab2082ffc5269e3732b47bcabaf9267583bbd2a2) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🚑 use current factory to create account
+
 ## 0.1.6
 
 ### Patch Changes
