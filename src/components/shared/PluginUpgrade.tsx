@@ -1,4 +1,4 @@
-import { exaPluginAbi, exaPluginAddress } from "@exactly/common/generated/chain";
+import { exaPluginAddress } from "@exactly/common/generated/chain";
 import { useMutation } from "@tanstack/react-query";
 import React from "react";
 import { encodeAbiParameters, encodeFunctionData, getAbiItem, keccak256, zeroAddress } from "viem";
@@ -6,6 +6,7 @@ import { useAccount, useBytecode } from "wagmi";
 
 import InfoAlert from "./InfoAlert";
 import {
+  exaPluginAbi,
   upgradeableModularAccountAbi,
   useReadExaPluginPluginManifest,
   useReadUpgradeableModularAccountGetInstalledPlugins,

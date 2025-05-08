@@ -1,4 +1,4 @@
-import { exaPluginAbi, exaPluginAddress } from "@exactly/common/generated/chain";
+import { exaPluginAddress } from "@exactly/common/generated/chain";
 import { useMutation } from "@tanstack/react-query";
 import { setStringAsync } from "expo-clipboard";
 import React from "react";
@@ -7,6 +7,7 @@ import { encodeAbiParameters, encodeFunctionData, getAbiItem, keccak256, zeroAdd
 import { useAccount, useBytecode } from "wagmi";
 
 import {
+  exaPluginAbi,
   upgradeableModularAccountAbi,
   useReadExaPluginPluginManifest,
   useReadUpgradeableModularAccountGetInstalledPlugins,

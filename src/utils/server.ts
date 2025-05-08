@@ -1,10 +1,6 @@
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 import domain from "@exactly/common/domain";
-import {
-  exaAccountFactoryAddress,
-  exaPluginAddress,
-  upgradeableModularAccountAbi,
-} from "@exactly/common/generated/chain";
+import { exaAccountFactoryAddress, exaPluginAddress } from "@exactly/common/generated/chain";
 import { Address, Passkey } from "@exactly/common/validation";
 import type { ExaAPI } from "@exactly/server/api";
 import { hc } from "hono/client";
@@ -18,6 +14,7 @@ import { accountClient } from "./alchemyConnector";
 import { session } from "./panda";
 import publicClient from "./publicClient";
 import queryClient, { APIError } from "./queryClient";
+import { upgradeableModularAccountAbi } from "../generated/contracts";
 
 queryClient.setQueryDefaults<number | undefined>(["auth"], {
   staleTime: AUTH_EXPIRY,

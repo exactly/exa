@@ -7,13 +7,7 @@ import "../mocks/redis";
 import "../mocks/keeper";
 
 import ProposalType from "@exactly/common/ProposalType";
-import chain, {
-  exaAccountFactoryAbi,
-  exaPluginAbi,
-  marketUSDCAddress,
-  upgradeableModularAccountAbi,
-  usdcAddress,
-} from "@exactly/common/generated/chain";
+import chain, { exaAccountFactoryAbi, marketUSDCAddress, usdcAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 import { proposalManager } from "@exactly/plugin/deploy.json";
 import { captureException } from "@sentry/node";
@@ -40,7 +34,13 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
 import database, { cards, credentials, transactions } from "../../database";
-import { auditorAbi, issuerCheckerAbi, marketAbi } from "../../generated/contracts";
+import {
+  auditorAbi,
+  exaPluginAbi,
+  issuerCheckerAbi,
+  marketAbi,
+  upgradeableModularAccountAbi,
+} from "../../generated/contracts";
 import app from "../../hooks/panda";
 import deriveAddress from "../../utils/deriveAddress";
 import keeper from "../../utils/keeper";

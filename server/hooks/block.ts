@@ -1,12 +1,5 @@
 import ProposalType from "@exactly/common/ProposalType";
-import chain, {
-  exaPluginAbi,
-  exaPluginAddress,
-  exaPreviewerAbi,
-  exaPreviewerAddress,
-  marketWETHAddress,
-  upgradeableModularAccountAbi,
-} from "@exactly/common/generated/chain";
+import chain, { exaPluginAddress, exaPreviewerAddress, marketWETHAddress } from "@exactly/common/generated/chain";
 import shortenHex from "@exactly/common/shortenHex";
 import { Address, Hash, Hex } from "@exactly/common/validation";
 import { SPAN_STATUS_ERROR, SPAN_STATUS_OK } from "@sentry/core";
@@ -40,7 +33,15 @@ import {
 } from "viem";
 import { optimism, optimismSepolia } from "viem/chains";
 
-import { auditorAbi, marketAbi, proposalManagerAbi, proposalManagerAddress } from "../generated/contracts";
+import {
+  auditorAbi,
+  exaPluginAbi,
+  exaPreviewerAbi,
+  marketAbi,
+  proposalManagerAbi,
+  proposalManagerAddress,
+  upgradeableModularAccountAbi,
+} from "../generated/contracts";
 import { headerValidator, jsonValidator, webhooksKey } from "../utils/alchemy";
 import appOrigin from "../utils/appOrigin";
 import ensClient from "../utils/ensClient";

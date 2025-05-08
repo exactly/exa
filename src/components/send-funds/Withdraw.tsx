@@ -1,5 +1,5 @@
 import ProposalType from "@exactly/common/ProposalType";
-import { exaPluginAbi, exaPluginAddress, upgradeableModularAccountAbi } from "@exactly/common/generated/chain";
+import { exaPluginAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 import { WAD } from "@exactly/lib";
 import { useQuery } from "@tanstack/react-query";
@@ -12,7 +12,11 @@ import Failure from "./Failure";
 import Pending from "./Pending";
 import Review from "./Review";
 import Success from "./Success";
-import { useReadUpgradeableModularAccountGetInstalledPlugins } from "../../generated/contracts";
+import {
+  exaPluginAbi,
+  upgradeableModularAccountAbi,
+  useReadUpgradeableModularAccountGetInstalledPlugins,
+} from "../../generated/contracts";
 import type { Withdraw as IWithdraw } from "../../utils/queryClient";
 import queryClient from "../../utils/queryClient";
 import useAsset from "../../utils/useAsset";

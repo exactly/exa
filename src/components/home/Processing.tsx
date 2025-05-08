@@ -1,4 +1,4 @@
-import { exaPluginAbi, exaPluginAddress, upgradeableModularAccountAbi } from "@exactly/common/generated/chain";
+import { exaPluginAddress } from "@exactly/common/generated/chain";
 import shortenHex from "@exactly/common/shortenHex";
 import { WAD } from "@exactly/lib";
 import { Check, Hourglass, ArrowUpRight } from "@tamagui/lucide-icons";
@@ -10,7 +10,11 @@ import { Square, styled, useTheme, XStack, YStack } from "tamagui";
 import { formatUnits, zeroAddress } from "viem";
 import { useAccount, useBytecode, useReadContract } from "wagmi";
 
-import { useReadUpgradeableModularAccountGetInstalledPlugins } from "../../generated/contracts";
+import {
+  exaPluginAbi,
+  upgradeableModularAccountAbi,
+  useReadUpgradeableModularAccountGetInstalledPlugins,
+} from "../../generated/contracts";
 import assetLogos from "../../utils/assetLogos";
 import useAsset from "../../utils/useAsset";
 import ActionButton from "../shared/ActionButton";

@@ -1,13 +1,6 @@
 import { decodeWithdraw } from "@exactly/common/ProposalType";
 import fixedRate from "@exactly/common/fixedRate";
-import chain, {
-  exaPluginAbi,
-  exaPreviewerAbi,
-  exaPreviewerAddress,
-  marketUSDCAddress,
-  marketWETHAddress,
-  upgradeableModularAccountAbi,
-} from "@exactly/common/generated/chain";
+import chain, { exaPreviewerAddress, marketUSDCAddress, marketWETHAddress } from "@exactly/common/generated/chain";
 import { Address, Hash, type Hex } from "@exactly/common/validation";
 import { effectiveRate, WAD } from "@exactly/lib";
 import { vValidator } from "@hono/valibot-validator";
@@ -43,7 +36,14 @@ import {
 import { decodeFunctionData, type Log } from "viem";
 
 import database, { credentials } from "../database";
-import { marketAbi, proposalManagerAbi, proposalManagerAddress } from "../generated/contracts";
+import {
+  exaPluginAbi,
+  exaPreviewerAbi,
+  marketAbi,
+  proposalManagerAbi,
+  proposalManagerAddress,
+  upgradeableModularAccountAbi,
+} from "../generated/contracts";
 import auth from "../middleware/auth";
 import { collectors as cryptomateCollectors } from "../utils/cryptomate";
 import { collectors as pandaCollectors } from "../utils/panda";
