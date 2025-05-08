@@ -74,6 +74,7 @@ export default defineConfig([
           marketWETH: marketWETH.address,
           mockSwapper: mockSwapper.contractAddress,
           previewer: previewer.address,
+          proposalManager: proposalManager.contractAddress,
           ratePreviewer: ratePreviewer.address,
           usdc: usdc.address,
           weth: weth.address,

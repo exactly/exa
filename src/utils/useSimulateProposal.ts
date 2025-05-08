@@ -1,5 +1,5 @@
 import ProposalType from "@exactly/common/ProposalType";
-import { proposalManagerAddress } from "@exactly/server/generated/contracts";
+import { proposalManagerAddress } from "@exactly/common/generated/chain";
 import {
   bytesToHex,
   encodeAbiParameters,
@@ -12,7 +12,12 @@ import {
 } from "viem";
 import { useSimulateContract } from "wagmi";
 
-import { exaPluginAbi, upgradeableModularAccountAbi, useReadProposalManagerQueueNonces } from "../generated/contracts";
+import {
+  exaPluginAbi,
+  proposalManagerAbi,
+  upgradeableModularAccountAbi,
+  useReadProposalManagerQueueNonces,
+} from "../generated/contracts";
 
 export default function useSimulateProposal({
   account,
@@ -201,7 +206,7 @@ export default function useSimulateProposal({
     address: account,
     functionName: "executeProposal",
     args: [nonce ?? 0n],
-    abi: [...upgradeableModularAccountAbi, ...exaPluginAbi],
+    abi: [...upgradeableModularAccountAbi, ...exaPluginAbi, ...proposalManagerAbi],
     stateOverride: [
       {
         address: proposalManagerAddress,
@@ -238,7 +243,7 @@ export default function useSimulateProposal({
                 {
                   // proposals[account][nonce][3] (proposalType)
                   slot: encodeAbiParameters([{ type: "uint256" }], [proposalsSlot + 3n]),
-                  value: encodeAbiParameters([{ type: "enum" }], [proposal.proposalType]),
+                  value: encodeAbiParameters([{ type: "uint8" }], [proposal.proposalType]),
                 },
                 {
                   // proposals[account][nonce][4] (2 * proposalData.length + 1)
@@ -249,7 +254,7 @@ export default function useSimulateProposal({
                   // keccak256(proposalData.slot) (proposalData)
                   slot: keccak256(encodeAbiParameters([{ type: "uint256" }], [proposalDataSlot + BigInt(index)])),
                   value: encodeAbiParameters(
-                    [{ type: "bytes" }],
+                    [{ type: "bytes32" }],
                     [bytesToHex(proposalDataBytes.slice(index * 32, (index + 1) * 32))],
                   ),
                 })),
