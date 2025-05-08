@@ -63,8 +63,8 @@ export default function CardDetails({ open, onClose }: { open: boolean; onClose:
       <Sheet.Frame>
         <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
           <ScrollView>
-            <View fullScreen flex={1}>
-              <View gap="$s5" flex={1} padded>
+            <View fullScreen flex={1} alignItems="center" width="100%">
+              <View gap="$s5" flex={1} padded alignItems="center" width="100%">
                 {isPending ? (
                   <Skeleton height={200} width="100%" colorMode={Appearance.getColorScheme() ?? "light"} />
                 ) : card ? (
@@ -78,6 +78,7 @@ export default function CardDetails({ open, onClose }: { open: boolean; onClose:
                       paddingTop="$s9"
                       paddingBottom="$s9"
                       justifyContent="space-between"
+                      width="100%"
                       gap="$s4"
                     >
                       <View position="absolute" top="$s4" left="$s5">
@@ -134,7 +135,9 @@ export default function CardDetails({ open, onClose }: { open: boolean; onClose:
                       </YStack>
                     </YStack>
                   ) : (
-                    <CardBack uri={card.url} />
+                    <View width="100%" height="100%" alignItems="center" justifyContent="center">
+                      <CardBack uri={card.url} />
+                    </View>
                   )
                 ) : null}
                 {card && alertShown && (
