@@ -3,7 +3,7 @@ import { ArrowDownToLine, ArrowUpRight } from "@tamagui/lucide-icons";
 import { router } from "expo-router";
 import React from "react";
 import { PixelRatio } from "react-native";
-import { Spinner } from "tamagui";
+import { Spinner, XStack } from "tamagui";
 import { zeroAddress } from "viem";
 import { useAccount, useBytecode, useReadContract } from "wagmi";
 
@@ -11,7 +11,6 @@ import { useReadUpgradeableModularAccountGetInstalledPlugins } from "../../gener
 import reportError from "../../utils/reportError";
 import Button from "../shared/Button";
 import Text from "../shared/Text";
-import View from "../shared/View";
 
 export default function HomeActions() {
   const fontScale = PixelRatio.getFontScale();
@@ -55,7 +54,7 @@ export default function HomeActions() {
     }
   };
   return (
-    <View flexDirection="row" display="flex" gap="$s4" justifyContent="center" alignItems="center">
+    <XStack alignItems="center" gap="$s4">
       <Button
         main
         spaced
@@ -66,6 +65,7 @@ export default function HomeActions() {
         backgroundColor="$interactiveBaseBrandDefault"
         color="$interactiveOnBaseBrandDefault"
         contained
+        fullwidth
       >
         <Text fontSize={15} emphasized numberOfLines={1} adjustsFontSizeToFit color="$interactiveOnBaseBrandDefault">
           Add funds
@@ -88,11 +88,12 @@ export default function HomeActions() {
         backgroundColor="$interactiveBaseBrandSoftDefault"
         color="$interactiveOnBaseBrandSoft"
         outlined
+        fullwidth
       >
         <Text fontSize={15} emphasized numberOfLines={1} adjustsFontSizeToFit color="$interactiveOnBaseBrandSoft">
           Send
         </Text>
       </Button>
-    </View>
+    </XStack>
   );
 }
