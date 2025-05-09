@@ -26,8 +26,8 @@ import View from "../shared/View";
 export default function PaySelector() {
   const toast = useToastController();
   const { presentArticle } = useIntercom();
-  const [input, setInput] = useState("");
-  const [assets, setAssets] = useState(0n);
+  const [input, setInput] = useState("100");
+  const [assets, setAssets] = useState(parseUnits(input, 6));
   const { address } = useAccount();
   const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [address ?? zeroAddress] });
   const { firstMaturity } = useInstallments({
