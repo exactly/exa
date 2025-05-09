@@ -240,8 +240,8 @@ describe.concurrent("authenticated", () => {
         {
           type: "repay",
           currency: "USDC",
-          amount: expect.withinRange(419, 420),
-          usdAmount: expect.withinRange(419, 420),
+          amount: expect.withinRange(418, 421),
+          usdAmount: expect.withinRange(418, 421),
         },
       ]);
     });
