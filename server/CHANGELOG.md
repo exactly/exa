@@ -1,5 +1,15 @@
 # @exactly/server
 
+## 0.1.8
+
+### Patch Changes
+
+- [`8081437`](https://github.com/exactly/exa/commit/80814377938a3795dd7aea090595f7b29620f38f) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 fix app route redirect without slash
+
+- [`126b319`](https://github.com/exactly/exa/commit/126b31973c5368f7dfc411cd81bf45814563ab3b) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 👔 set default card mode to debit
+
+- [`07f4bca`](https://github.com/exactly/exa/commit/07f4bcae6d0fb48c33d9968e2d45adecc1ae5a7b) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 report credential validation issues
+
 ## 0.1.7
 
 ### Patch Changes

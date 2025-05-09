@@ -68,7 +68,7 @@ importers:
         specifier: exactly/lib#a8895cd
         version: https://codeload.github.com/exactly/lib/tar.gz/a8895cd
       '@exactly/server':
-        specifier: workspace:^0.1.7
+        specifier: workspace:^0.1.8
         version: link:server
       '@expo/metro-runtime':
         specifier: ~4.0.1
@@ -506,10 +506,10 @@ importers:
         specifier: ^0.34.3
         version: 0.34.3(astro@5.7.12(@types/node@22.14.1)(ioredis@5.6.1)(jiti@1.21.7)(lightningcss@1.27.0)(rollup@4.40.0)(terser@5.39.0)(tsx@4.19.3)(typescript@5.8.3)(yaml@2.7.1))
       '@exactly/mobile':
-        specifier: workspace:^1.0.3
+        specifier: workspace:^1.0.4
         version: link:..
       '@exactly/server':
-        specifier: workspace:^0.1.7
+        specifier: workspace:^0.1.8
         version: link:../server
       astro:
         specifier: ^5.7.12
