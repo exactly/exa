@@ -21,6 +21,8 @@ jobs:
       id-token: write
     runs-on: ubuntu-latest
     env:
+      CHAIN_ID: ${{ vars.CHAIN_ID }}
+      APP_DOMAIN: ${{ vars.APP_DOMAIN }}
       IMAGE_NAME: ${{ github.repository }}-${{ inputs.environment }}
     steps:
       - uses: actions/checkout@v4
@@ -59,24 +61,7 @@ jobs:
           subject-name: ghcr.io/${{ env.IMAGE_NAME }}
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
-      - uses: digitalocean/app_action/deploy@v2
-        env:
-          IMAGE_DIGEST_SERVER: ${{ steps.push.outputs.digest }}
-        with:
-          app_name: ${{ inputs.environment }}
-          token: ${{ secrets.DIGITALOCEAN_TOKEN }}
-  sentry:
-    needs: digitalocean
-    environment: ${{ inputs.environment }}
-    runs-on: ubuntu-latest
-    env:
-      CHAIN_ID: ${{ vars.CHAIN_ID }}
-      APP_DOMAIN: ${{ vars.APP_DOMAIN }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          fetch-tags: true
+
       - uses: pnpm/action-setup@v4
         with:
           version: "9.15.9"
@@ -100,3 +85,10 @@ jobs:
           release: ${{ steps.release.outputs.release }}
           finalize: ${{ inputs.environment == 'production' }}
           sourcemaps: server/dist
+  
+      - uses: digitalocean/app_action/deploy@v2
+        env:
+          IMAGE_DIGEST_SERVER: ${{ steps.push.outputs.digest }}
+        with:
+          app_name: ${{ inputs.environment }}
+          token: ${{ secrets.DIGITALOCEAN_TOKEN }}
