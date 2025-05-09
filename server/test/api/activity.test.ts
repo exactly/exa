@@ -224,7 +224,8 @@ describe.concurrent("authenticated", () => {
       await expect(response.json()).resolves.toMatchObject([
         { type: "received", currency: "WETH", amount: 1, usdAmount: 2500 },
         { type: "received", currency: "USDC", amount: 69_420, usdAmount: 69_420 },
-        { type: "received", currency: "EXA", amount: 666, usdAmount: 3330 },
+        { type: "received", currency: "EXA", amount: 666, usdAmount: 666 },
+        { type: "received", currency: "EXA", amount: 666, usdAmount: 666 },
       ]);
     });
 
@@ -291,6 +292,24 @@ describe.concurrent("authenticated", () => {
       ]);
       expect(response.status).toBe(200);
     });
+  });
+
+  it("returns liquidations", async () => {
+    const response = await appClient.index.$get(
+      { query: { include: "liquidated" } },
+      { headers: { "test-credential-id": account } },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject([
+      {
+        type: "liquidated",
+        currency: "USDC",
+        amount: expect.withinRange(60, 61),
+        usdAmount: expect.withinRange(60, 61),
+        seizedMarket: "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
+      },
+    ]);
   });
 
   it("returns everything", async () => {
