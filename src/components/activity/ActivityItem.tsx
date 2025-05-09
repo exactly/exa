@@ -95,22 +95,30 @@ export default function ActivityItem({ item, isLast }: { item: Item; isLast: boo
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
                     })
-                  : `< ${(0.01).toLocaleString(undefined, {
-                      style: "currency",
-                      currency: "USD",
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}`}
+                  : usdAmount < 0
+                    ? `+${usdAmount.toLocaleString(undefined, {
+                        style: "currency",
+                        currency: "USD",
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}`
+                    : `< ${(0.01).toLocaleString(undefined, {
+                        style: "currency",
+                        currency: "USD",
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}`}
               </Text>
             </View>
-            <Text sensitive fontSize={12} color="$uiNeutralSecondary" textAlign="right">
-              {Number(amount).toLocaleString(undefined, {
-                maximumFractionDigits: 8,
-                minimumFractionDigits: 0,
-              })}
-              &nbsp;
-              {currency}
-            </Text>
+            {amount && (
+              <Text sensitive fontSize={12} color="$uiNeutralSecondary" textAlign="right">
+                {`${
+                  amount >= 0
+                    ? amount.toLocaleString(undefined, { maximumFractionDigits: 8, minimumFractionDigits: 0 })
+                    : (amount * -1).toLocaleString(undefined, { maximumFractionDigits: 8, minimumFractionDigits: 0 })
+                } ${currency}`}
+              </Text>
+            )}
           </View>
         </View>
       </View>
