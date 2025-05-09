@@ -111,9 +111,6 @@ export default new Hono()
       },
       validateResponse: true,
     }),
-    vValidator("query", object({ credentialId: Base64URL }), ({ success }, c) => {
-      if (!success) return c.json("bad credential", 400);
-    }),
     // http-only cookie
     vValidator<typeof Cookie, "cookie", Env, "/", undefined, InferOutput<typeof Cookie>>(
       "cookie",
@@ -144,12 +141,12 @@ export default new Hono()
       },
     ),
     async (c) => {
-      const { credentialId } = c.req.valid("query");
+      const assertion = c.req.valid("json");
       const { session_id: sessionId } = c.req.valid("cookie");
       const [credential, challenge] = await Promise.all([
         database.query.credentials.findFirst({
           columns: { publicKey: true, account: true, transports: true, counter: true },
-          where: eq(credentials.id, credentialId),
+          where: eq(credentials.id, assertion.id),
         }),
         redis.get(sessionId),
       ]);
@@ -160,12 +157,12 @@ export default new Hono()
       let verification: Awaited<ReturnType<typeof verifyAuthenticationResponse>>;
       try {
         verification = await verifyAuthenticationResponse({
-          response: c.req.valid("json"),
+          response: assertion,
           expectedRPID: domain,
           expectedOrigin: [appOrigin, ...androidOrigins],
           expectedChallenge: challenge,
           credential: {
-            id: credentialId,
+            id: assertion.id,
             publicKey: credential.publicKey,
             transports: credential.transports ? (credential.transports as AuthenticatorTransportFuture[]) : undefined,
             counter: credential.counter,
@@ -181,11 +178,11 @@ export default new Hono()
         verified,
         authenticationInfo: { credentialID, newCounter },
       } = verification;
-      if (!verified) return c.json("bad authentication", 400);
+      if (!verified || credentialID !== assertion.id) return c.json("bad authentication", 400);
 
       const expires = new Date(Date.now() + AUTH_EXPIRY);
       await Promise.all([
-        setSignedCookie(c, "credential_id", credentialId, authSecret, { domain, expires, httpOnly: true }),
+        setSignedCookie(c, "credential_id", assertion.id, authSecret, { domain, expires, httpOnly: true }),
         database.update(credentials).set({ counter: newCounter }).where(eq(credentials.id, credentialID)),
       ]);
 

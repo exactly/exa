@@ -28,10 +28,7 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
       if (Platform.OS === "android") delete options.allowCredentials; // HACK fix android credential filtering
       const assertion = await assert(options);
       if (!assertion) throw new Error("bad assertion");
-      const post = await api.auth.authentication.$post({
-        query: { credentialId: assertion.id },
-        json: assertion,
-      });
+      const post = await api.auth.authentication.$post({ json: assertion });
       if (!post.ok) throw new APIError(post.status, await post.json());
       const { expires } = await post.json();
       return parse(Auth, expires);
