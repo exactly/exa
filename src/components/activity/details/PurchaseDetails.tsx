@@ -1,5 +1,5 @@
 import shortenHex from "@exactly/common/shortenHex";
-import type { CreditActivity, DebitActivity, InstallmentsActivity } from "@exactly/server/api/activity";
+import type { CreditActivity, DebitActivity, InstallmentsActivity, PandaActivity } from "@exactly/server/api/activity";
 import { Copy } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { format } from "date-fns";
@@ -11,13 +11,18 @@ import { Separator, XStack, YStack } from "tamagui";
 import reportError from "../../../utils/reportError";
 import Text from "../../shared/Text";
 
-export default function PurchaseDetails({ item }: { item: CreditActivity | DebitActivity | InstallmentsActivity }) {
+export default function PurchaseDetails({
+  item,
+}: {
+  item: CreditActivity | DebitActivity | InstallmentsActivity | PandaActivity;
+}) {
   const toast = useToastController();
+  const refund = item.type === "panda" && item.usdAmount < 0;
   return (
     <YStack gap="$s4">
       <YStack gap="$s4">
         <Text emphasized headline>
-          Purchase details
+          {refund ? "Refund details" : "Purchase details"}
         </Text>
         <Separator height={1} borderColor="$borderNeutralSoft" />
       </YStack>
@@ -27,7 +32,10 @@ export default function PurchaseDetails({ item }: { item: CreditActivity | Debit
             Amount
           </Text>
           <Text callout color="$uiNeutralPrimary">
-            {Number(item.amount).toLocaleString(undefined, { maximumFractionDigits: 8, minimumFractionDigits: 0 })}
+            {Math.abs(Number(item.amount)).toLocaleString(undefined, {
+              maximumFractionDigits: 8,
+              minimumFractionDigits: 0,
+            })}
             &nbsp;{item.currency}
           </Text>
         </XStack>
@@ -54,16 +62,20 @@ export default function PurchaseDetails({ item }: { item: CreditActivity | Debit
             </XStack>
           </Pressable>
         </XStack>
-        <XStack justifyContent="space-between">
-          <Text emphasized footnote color="$uiNeutralSecondary">
-            Exchange rate
-          </Text>
-          <Text callout color="$uiNeutralPrimary">
-            1 USD&nbsp;=&nbsp;
-            {Number(item.amount / item.usdAmount).toLocaleString(undefined, { maximumFractionDigits: 2 })}
-            &nbsp;{item.currency}
-          </Text>
-        </XStack>
+        {!refund && (
+          <XStack justifyContent="space-between">
+            <Text emphasized footnote color="$uiNeutralSecondary">
+              Exchange rate
+            </Text>
+            <Text callout color="$uiNeutralPrimary">
+              1 USD&nbsp;=&nbsp;
+              {Number(Math.abs(item.amount ?? 0) / Math.abs(item.usdAmount)).toLocaleString(undefined, {
+                maximumFractionDigits: 2,
+              })}
+              &nbsp;{item.currency}
+            </Text>
+          </XStack>
+        )}
         <XStack justifyContent="space-between">
           <Text emphasized footnote color="$uiNeutralSecondary">
             Date

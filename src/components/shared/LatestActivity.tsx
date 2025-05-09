@@ -1,10 +1,20 @@
-import { ArrowDownToLine, ArrowUpFromLine, ChevronRight, CircleDollarSign, ShoppingCart } from "@tamagui/lucide-icons";
+import {
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  ChevronRight,
+  CircleDollarSign,
+  ClockAlert,
+  Import,
+  ShoppingCart,
+} from "@tamagui/lucide-icons";
+import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { router } from "expo-router";
 import React from "react";
 import { Pressable } from "react-native";
 import { YStack } from "tamagui";
 
+import isProcessing from "../../utils/isProcessing";
 import queryClient from "../../utils/queryClient";
 import type { getActivity } from "../../utils/server";
 import InfoCard from "../home/InfoCard";
@@ -21,6 +31,7 @@ export default function LatestActivity({
   title?: string;
   emptyComponent?: React.ReactNode;
 }) {
+  const { data: country } = useQuery({ queryKey: ["user", "country"] });
   return (
     <InfoCard
       title={title}
@@ -58,6 +69,8 @@ export default function LatestActivity({
         ))}
       {activity?.slice(0, 4).map((item) => {
         const { amount, id, usdAmount, currency, type, timestamp } = item;
+        const processing = type === "panda" && country === "US" && isProcessing(item.timestamp);
+        const refund = type === "panda" && usdAmount < 0;
         return (
           <View
             key={id}
@@ -82,7 +95,11 @@ export default function LatestActivity({
               {type === "sent" && <ArrowUpFromLine color="$interactiveOnBaseErrorSoft" />}
               {type === "repay" && <CircleDollarSign color="$interactiveOnBaseErrorSoft" />}
               {type === "panda" &&
-                (item.merchant.icon ? (
+                (refund ? (
+                  <Import color="$uiSuccessSecondary" />
+                ) : processing ? (
+                  <ClockAlert color="$interactiveOnBaseWarningSoft" />
+                ) : item.merchant.icon ? (
                   <Image source={{ uri: item.merchant.icon }} width={40} height={40} borderRadius="$r3" />
                 ) : (
                   <ShoppingCart color="$uiNeutralPrimary" />
@@ -98,35 +115,37 @@ export default function LatestActivity({
                     {type === "repay" && "Debt payment"}
                     {type === "panda" && item.merchant.name}
                   </Text>
-                  <Text caption color="$uiNeutralSecondary" numberOfLines={1}>
-                    {format(timestamp, "yyyy-MM-dd")}
+                  <Text
+                    caption
+                    color={
+                      refund
+                        ? "$uiNeutralSecondary"
+                        : processing
+                          ? "$interactiveOnBaseWarningSoft"
+                          : "$uiNeutralSecondary"
+                    }
+                    numberOfLines={1}
+                  >
+                    {refund ? "Refund" : processing ? "Processing..." : format(timestamp, "yyyy-MM-dd")}
                   </Text>
                 </View>
                 <View gap="$s2">
                   <View flexDirection="row" alignItems="center" justifyContent="flex-end">
                     <Text sensitive fontSize={15} fontWeight="bold" textAlign="right">
-                      {usdAmount > 0.01
-                        ? usdAmount.toLocaleString(undefined, {
-                            style: "currency",
-                            currency: "USD",
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })
-                        : `< ${(0.01).toLocaleString(undefined, {
-                            style: "currency",
-                            currency: "USD",
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}`}
+                      {Math.abs(usdAmount).toLocaleString(undefined, {
+                        style: "currency",
+                        currency: "USD",
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
                     </Text>
                   </View>
                   <Text sensitive fontSize={12} color="$uiNeutralSecondary" textAlign="right">
-                    {Number(amount).toLocaleString(undefined, {
+                    {Math.abs(Number(amount ?? 0)).toLocaleString(undefined, {
                       maximumFractionDigits: 8,
                       minimumFractionDigits: 0,
                     })}
-                    &nbsp;
-                    {currency}
+                    {currency && ` ${currency}`}
                   </Text>
                 </View>
               </View>

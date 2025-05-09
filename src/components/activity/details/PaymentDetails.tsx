@@ -70,14 +70,16 @@ export default function PaymentDetails({ item }: { item: CreditActivity | DebitA
           </Text>
           <Text callout color="$uiNeutralPrimary">
             {item.mode === 0 &&
-              `${Number(item.usdAmount).toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC`}
+              `${Math.abs(Number(item.usdAmount)).toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC`}
             {item.mode === 1 &&
-              `${Number(item.usdAmount + item.borrow.fee).toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC`}
+              `${Math.abs(Number(item.usdAmount + item.borrow.fee)).toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC`}
             {item.mode > 1 &&
-              `${Number(
-                (item as InstallmentsActivity).borrow.installments.reduce(
-                  (accumulator, installment) => accumulator + installment.fee,
-                  item.usdAmount,
+              `${Math.abs(
+                Number(
+                  (item as InstallmentsActivity).borrow.installments.reduce(
+                    (accumulator, installment) => accumulator + installment.fee,
+                    item.usdAmount,
+                  ),
                 ),
               ).toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC`}
           </Text>

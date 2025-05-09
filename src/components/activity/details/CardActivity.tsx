@@ -1,5 +1,5 @@
 import type { CreditActivity, DebitActivity, InstallmentsActivity, PandaActivity } from "@exactly/server/api/activity";
-import { ClockAlert, ShoppingCart } from "@tamagui/lucide-icons";
+import { ClockAlert, Import, ShoppingCart } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import React from "react";
 import { Square, XStack, YStack } from "tamagui";
@@ -18,12 +18,15 @@ export default function CardActivity({
 }) {
   const { data: country } = useQuery({ queryKey: ["user", "country"] });
   const processing = item.type === "panda" && country === "US" && isProcessing(item.timestamp);
+  const refund = item.type === "panda" && item.usdAmount < 0;
   return (
     <>
       <YStack gap="$s7" paddingBottom="$s9">
         <XStack justifyContent="center" alignItems="center">
           <Square borderRadius="$r4" backgroundColor="$backgroundStrong" size={80}>
-            {processing ? (
+            {refund ? (
+              <Import size={48} color="$uiSuccessSecondary" strokeWidth={2} />
+            ) : processing ? (
               <ClockAlert size={48} color="$interactiveOnBaseWarningSoft" strokeWidth={2} />
             ) : item.merchant.icon ? (
               <Image source={{ uri: item.merchant.icon }} width={80} height={80} borderRadius="$r4" />
@@ -33,15 +36,18 @@ export default function CardActivity({
           </Square>
         </XStack>
         <YStack gap="$s4_5" justifyContent="center" alignItems="center">
-          <Text body color={processing ? "$interactiveOnBaseWarningSoft" : "$uiNeutralPrimary"}>
-            {processing ? "Processing..." : "Paid"}
+          <Text
+            body
+            color={refund ? "$uiNeutralSecondary" : processing ? "$interactiveOnBaseWarningSoft" : "$uiNeutralPrimary"}
+          >
+            {refund ? "Refund" : processing ? "Processing..." : "Paid"}
             <Text emphasized primary body $platform-web={{ whiteSpace: "normal" }}>
               &nbsp;
               {item.merchant.name}
             </Text>
           </Text>
-          <Text title primary color="$uiNeutralPrimary">
-            {Number(item.usdAmount).toLocaleString(undefined, {
+          <Text title primary color={refund ? "$uiSuccessSecondary" : "$uiNeutralPrimary"}>
+            {Math.abs(Number(item.usdAmount)).toLocaleString(undefined, {
               style: "currency",
               currency: "USD",
               currencyDisplay: "narrowSymbol",
@@ -56,7 +62,7 @@ export default function CardActivity({
         item.operations.map((operation) => (
           <YStack key={operation.id} gap="$s7">
             <PurchaseDetails item={operation} />
-            <PaymentDetails item={operation} />
+            {item.usdAmount > 0 && <PaymentDetails item={operation} />}
             <TransactionDetails source={operation} />
           </YStack>
         ))
