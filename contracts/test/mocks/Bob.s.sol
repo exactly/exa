@@ -15,10 +15,19 @@ import { OwnersLib } from "webauthn-owner-plugin/OwnersLib.sol";
 import { BaseScript } from "../../script/Base.s.sol";
 import { ExaAccountFactory } from "../../src/ExaAccountFactory.sol";
 import { ExaPlugin } from "../../src/ExaPlugin.sol";
-import { CrossRepayData, IExaAccount, IMarket, ProposalType, RepayData, RollDebtData } from "../../src/IExaAccount.sol";
+import {
+  CrossRepayData,
+  IAuditor,
+  IExaAccount,
+  IMarket,
+  ProposalType,
+  RepayData,
+  RollDebtData
+} from "../../src/IExaAccount.sol";
 import { IssuerChecker } from "../../src/IssuerChecker.sol";
 import { ProposalManager } from "../../src/ProposalManager.sol";
 
+import { MockPriceFeed } from "./MockPriceFeed.sol";
 import { MockSwapper } from "./MockSwapper.sol";
 
 contract BobScript is BaseScript {
@@ -41,9 +50,10 @@ contract BobScript is BaseScript {
   uint256 public bobKey = 0xb0b;
   IExaAccount public bobAccount;
   bytes32 internal domainSeparator;
+  IAuditor internal auditor;
 
   function setUp() external {
-    protocol("Auditor");
+    auditor = IAuditor(protocol("Auditor"));
     exa = MockERC20(protocol("EXA"));
     usdc = MockERC20(protocol("USDC"));
     exaEXA = IMarket(protocol("MarketEXA"));
@@ -85,14 +95,26 @@ contract BobScript is BaseScript {
     amounts[2] = 11e6;
     amounts[3] = 10e6;
 
-    vm.startBroadcast(acct("keeper"));
+    address keeper = acct("keeper");
+    vm.startBroadcast(keeper);
     bobAccount = IExaAccount(factory.createAccount(0, owners.toPublicKeys()));
     vm.label(address(bobAccount), "bobAccount");
-    _deal(address(bob), 1 ether);
-    _deal(address(bobAccount), 1 ether);
+
+    usdc.mint(keeper, 200_000e6);
+    usdc.approve(address(exaUSDC), type(uint256).max);
+    exaUSDC.deposit(100_000e6, keeper);
     exa.mint(address(bobAccount), 666e18);
-    usdc.mint(address(bobAccount), 69_420e6);
     bobAccount.poke(exaEXA);
+    bobAccount.collectCredit(maturity, 100e6, block.timestamp, _issuerOp(100e6, block.timestamp));
+    MockPriceFeed priceFeed = MockPriceFeed(address(auditor.markets(exaEXA).priceFeed));
+    priceFeed.setPrice(1e17);
+    exaUSDC.liquidate(address(bobAccount), type(uint256).max, exaEXA);
+    priceFeed.setPrice(1e18);
+
+    exa.mint(address(bobAccount), 666e18);
+    bobAccount.poke(exaEXA);
+    _deal(address(bobAccount), 1 ether);
+    usdc.mint(address(bobAccount), 69_420e6);
     bobAccount.poke(exaUSDC);
     bobAccount.pokeETH();
     bobAccount.collectDebit(666e6, block.timestamp, _issuerOp(666e6, block.timestamp));
@@ -168,6 +190,7 @@ contract BobScript is BaseScript {
         )
       )
     );
+    _deal(address(bob), 1 ether);
     vm.broadcast(bob);
     IStandardExecutor(address(bobAccount)).executeBatch(calls);
   }
