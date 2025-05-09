@@ -1,4 +1,4 @@
-import { exaPreviewerAddress, previewerAddress } from "@exactly/common/generated/chain";
+import { exaPluginAddress, exaPreviewerAddress, previewerAddress } from "@exactly/common/generated/chain";
 import { healthFactor, WAD } from "@exactly/lib";
 import { TimeToFullDisplay } from "@sentry/react-native";
 import { useQuery } from "@tanstack/react-query";
@@ -7,7 +7,7 @@ import React, { useState } from "react";
 import { RefreshControl } from "react-native";
 import { ScrollView, useTheme } from "tamagui";
 import { zeroAddress } from "viem";
-import { useAccount } from "wagmi";
+import { useAccount, useBytecode } from "wagmi";
 
 import CardLimits from "./CardLimits";
 import CardStatus from "./CardStatus";
@@ -15,7 +15,11 @@ import GettingStarted from "./GettingStarted";
 import HomeActions from "./HomeActions";
 import PortfolioSummary from "./PortfolioSummary";
 import CardUpgradeSheet from "./card-upgrade/CardUpgradeSheet";
-import { useReadExaPreviewerPendingProposals, useReadPreviewerExactly } from "../../generated/contracts";
+import {
+  useReadExaPreviewerPendingProposals,
+  useReadPreviewerExactly,
+  useReadUpgradeableModularAccountGetInstalledPlugins,
+} from "../../generated/contracts";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { getActivity, getCard, getKYCStatus } from "../../utils/server";
@@ -31,6 +35,13 @@ import View from "../shared/View";
 const HEALTH_FACTOR_THRESHOLD = (WAD * 11n) / 10n;
 
 export default function Home() {
+  const { address: account } = useAccount();
+  const { data: bytecode } = useBytecode({ address: account ?? zeroAddress, query: { enabled: !!account } });
+  const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
+    address: account ?? zeroAddress,
+    query: { enabled: !!account && !!bytecode },
+  });
+  const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
   const { address } = useAccount();
   const [paySheetOpen, setPaySheetOpen] = useState(false);
   const { data: cardDetails, refetch: refetchCard } = useQuery({
@@ -107,7 +118,8 @@ export default function Home() {
           <View flex={1}>
             <View backgroundColor="$backgroundSoft" padded gap="$s4">
               {markets && healthFactor(markets) < HEALTH_FACTOR_THRESHOLD && <LiquidationAlert />}
-              {(KYCStatus !== "ok" || (cardDetails && cardDetails.provider !== "panda")) && usdBalance > 0n && (
+              {(KYCStatus !== "ok" ||
+                (cardDetails && cardDetails.provider !== "panda" && usdBalance > 0n && !isLatestPlugin)) && (
                 <InfoAlert
                   title="We’re upgrading all Exa Cards by migrating them to a new and improved card issuer. Existing cards will work until May 18th, 2025, and upgrading will be required after this date."
                   actionText="Start Exa Card upgrade"
