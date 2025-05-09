@@ -1,8 +1,7 @@
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 import domain from "@exactly/common/domain";
 import { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
-import { Address, Base64URL } from "@exactly/common/validation";
-import { vValidator } from "@hono/valibot-validator";
+import { Address, Base64URL, Passkey } from "@exactly/common/validation";
 import { captureException, setUser } from "@sentry/node";
 import {
   type AuthenticatorTransportFuture,
@@ -12,17 +11,22 @@ import {
 import { cose, generateChallenge, isoBase64URL } from "@simplewebauthn/server/helpers";
 import { Hono, type Env } from "hono";
 import { setCookie, setSignedCookie } from "hono/cookie";
+import { describeRoute } from "hono-openapi";
+import { resolver, validator as vValidator } from "hono-openapi/valibot";
 import {
   any,
   array,
+  boolean,
   flatten,
   literal,
   nullish,
+  number,
   object,
+  optional,
   parse,
-  pipe,
+  record,
   string,
-  transform,
+  unknown,
   type InferOutput,
 } from "valibot";
 import type { Hex } from "viem";
@@ -42,29 +46,88 @@ const webhookId = process.env.ALCHEMY_ACTIVITY_ID;
 
 const Cookie = object({ session_id: Base64URL });
 
+const PublicKeyCredentialCreationOptionsJSON = object({
+  rp: object({ name: string(), id: optional(string()) }),
+  user: object({ id: string(), name: string(), displayName: string() }),
+  challenge: string(),
+  pubKeyCredParams: array(object({ type: literal("public-key"), alg: number() })),
+  timeout: optional(number()),
+  excludeCredentials: optional(
+    array(object({ id: string(), type: literal("public-key"), transports: optional(array(string())) })),
+  ),
+  authenticatorSelection: optional(
+    object({
+      authenticatorAttachment: optional(string()),
+      residentKey: optional(string()),
+      userVerification: optional(string()),
+      requireResidentKey: optional(boolean()),
+    }),
+  ),
+  hints: optional(array(string())),
+  attestation: optional(string()),
+  attestationFormats: optional(array(string())),
+  extensions: optional(record(string(), unknown())),
+});
+
+const AuthenticatedPasskey = object({ ...Passkey.entries, auth: number() });
+
 export default new Hono()
-  .get("/", async (c) => {
-    const timeout = 5 * 60_000;
-    const userName = new Date().toISOString().slice(0, 16);
-    const [options, sessionId] = await Promise.all([
-      generateRegistrationOptions({
-        rpID: domain,
-        rpName: "exactly",
-        userName,
-        userDisplayName: userName,
-        supportedAlgorithmIDs: [cose.COSEALG.ES256],
-        authenticatorSelection: { residentKey: "required", userVerification: "preferred" },
-        // TODO excludeCredentials?
-        timeout,
-      }),
-      generateChallenge().then(isoBase64URL.fromBuffer),
-    ]);
-    setCookie(c, "session_id", sessionId, { domain, expires: new Date(Date.now() + timeout), httpOnly: true });
-    await redis.set(sessionId, options.challenge, "PX", timeout);
-    return c.json({ ...options, extensions: options.extensions as Record<string, unknown> | undefined }, 200);
-  })
+  .get(
+    "/",
+    describeRoute({
+      summary: "Get registration options",
+      description: "Initiates WebAuthn registration by generating credential creation options for a new user.",
+      responses: {
+        200: {
+          description:
+            "WebAuthn registration options containing challenge, relying party info, and credential parameters for client-side credential creation.",
+          content: {
+            "application/json": { schema: resolver(PublicKeyCredentialCreationOptionsJSON, { errorMode: "ignore" }) },
+          },
+        },
+      },
+      validateResponse: true,
+    }),
+    async (c) => {
+      const timeout = 5 * 60_000;
+      const userName = new Date().toISOString().slice(0, 16);
+      const [options, sessionId] = await Promise.all([
+        generateRegistrationOptions({
+          rpID: domain,
+          rpName: "exactly",
+          userName,
+          userDisplayName: userName,
+          supportedAlgorithmIDs: [cose.COSEALG.ES256],
+          authenticatorSelection: { residentKey: "required", userVerification: "preferred" },
+          // TODO excludeCredentials?
+          timeout,
+        }),
+        generateChallenge().then(isoBase64URL.fromBuffer),
+      ]);
+      setCookie(c, "session_id", sessionId, { domain, expires: new Date(Date.now() + timeout), httpOnly: true });
+      await redis.set(sessionId, options.challenge, "PX", timeout);
+      return c.json(
+        {
+          ...options,
+          extensions: options.extensions as InferOutput<typeof PublicKeyCredentialCreationOptionsJSON>["extensions"],
+        } satisfies InferOutput<typeof PublicKeyCredentialCreationOptionsJSON>,
+        200,
+      );
+    },
+  )
   .post(
     "/",
+    describeRoute({
+      summary: "Register",
+      description: "Registers a new WebAuthn credential for a user.",
+      responses: {
+        200: {
+          description: "WebAuthn registration response containing credential ID and factory address.",
+          content: { "application/json": { schema: resolver(AuthenticatedPasskey, { errorMode: "ignore" }) } },
+        },
+      },
+      validateResponse: true,
+    }),
     // http-only cookie
     vValidator<typeof Cookie, "cookie", Env, "/", undefined, InferOutput<typeof Cookie>>(
       "cookie",
@@ -79,13 +142,7 @@ export default new Hono()
         response: object({
           clientDataJSON: Base64URL,
           attestationObject: Base64URL,
-          transports: pipe(
-            nullish(array(string())),
-            transform((value) => {
-              if (!value) return;
-              return value as AuthenticatorTransportFuture[];
-            }),
-          ),
+          transports: nullish(array(string())),
         }),
         clientExtensionResults: any(),
         type: literal("public-key"),
@@ -108,7 +165,15 @@ export default new Hono()
       let verification: Awaited<ReturnType<typeof verifyRegistrationResponse>>;
       try {
         verification = await verifyRegistrationResponse({
-          response: attestation,
+          response: {
+            ...attestation,
+            response: {
+              ...attestation.response,
+              transports: attestation.response.transports
+                ? (attestation.response.transports as AuthenticatorTransportFuture[])
+                : undefined,
+            },
+          },
           expectedRPID: domain,
           expectedOrigin: [appOrigin, ...androidOrigins],
           expectedChallenge: challenge,
@@ -161,7 +226,13 @@ export default new Hono()
       identify({ userId: account });
 
       return c.json(
-        { credentialId: credential.id, factory: exaAccountFactoryAddress, x, y, auth: expires.getTime() },
+        {
+          credentialId: credential.id,
+          factory: parse(Address, exaAccountFactoryAddress),
+          x,
+          y,
+          auth: expires.getTime(),
+        } satisfies InferOutput<typeof AuthenticatedPasskey>,
         200,
       );
     },
