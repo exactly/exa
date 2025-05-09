@@ -2,7 +2,9 @@
   "name": "@exactly/docs",
   "version": "0.0.1",
   "scripts": {
-    "prepare": "pnpm run --filter server openapi",
+    "prepare": "pnpm run --aggregate-output --reporter-hide-prefix /prepare:/",
+    "prepare:astro": "astro sync",
+    "prepare:server": "pnpm run --filter server openapi",
     "dev": "astro dev",
     "start": "astro dev",
     "build": "astro build",
