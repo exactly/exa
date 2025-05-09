@@ -54,7 +54,7 @@ import { collectors as cryptomateCollectors } from "../utils/cryptomate";
 import { collectors as pandaCollectors } from "../utils/panda";
 import publicClient from "../utils/publicClient";
 
-const ActivityTypes = picklist(["card", "received", "repay", "rollover", "sent"]);
+const ActivityTypes = picklist(["card", "liquidated", "received", "repay", "rollover", "sent"]);
 
 const collectors = new Set([...cryptomateCollectors, ...pandaCollectors].map((a) => a.toLowerCase() as Hex));
 
@@ -134,7 +134,7 @@ export default new Hono().get(
           })
         : Promise.resolve(forbid([]));
 
-    const [deposits, repays, withdraws, borrows, rollovers] = await Promise.all([
+    const [deposits, liquidations, repays, withdraws, borrows, rollovers] = await Promise.all([
       ignore("received")
         ? []
         : Promise.all([
@@ -165,6 +165,25 @@ export default new Hono().get(
                 ),
             ),
           ),
+      ignore("liquidated")
+        ? []
+        : publicClient
+            .getContractEvents({
+              abi: marketAbi,
+              eventName: "Liquidate",
+              address: [...markets.keys()],
+              args: { borrower: account },
+              toBlock: "latest",
+              fromBlock: 0n,
+              strict: true,
+            })
+            .then((logs) =>
+              logs.map((log) =>
+                parse(LiquidationActivity, { ...log, market: market(log.address) } satisfies InferInput<
+                  typeof LiquidationActivity
+                >),
+              ),
+            ),
       ignore("repay")
         ? []
         : repayPromise.then((logs) =>
@@ -272,7 +291,7 @@ export default new Hono().get(
     const blocks = await Promise.all(
       [
         ...new Set(
-          [...deposits, ...repays, ...rollovers, ...withdraws, ...(borrows?.values() ?? [])].map(
+          [...deposits, ...liquidations, ...repays, ...rollovers, ...withdraws, ...(borrows?.values() ?? [])].map(
             ({ blockNumber }) => blockNumber,
           ),
         ),
@@ -314,7 +333,7 @@ export default new Hono().get(
             captureException(new Error("bad transaction"), { level: "error", contexts: { cryptomate, panda } });
           }),
         ),
-        ...[...deposits, ...repays, ...rollovers, ...withdraws].map(({ blockNumber, ...event }) => {
+        ...[...deposits, ...liquidations, ...repays, ...rollovers, ...withdraws].map(({ blockNumber, ...event }) => {
           const timestamp = timestamps.get(blockNumber);
           if (timestamp) return { ...event, timestamp: new Date(Number(timestamp) * 1000).toISOString() };
           captureException(new Error("block not found"), {
@@ -554,6 +573,23 @@ export const DepositActivity = pipe(
   transform((activity) => ({ ...transformActivity(activity), type: "received" as const })),
 );
 
+export const LiquidationActivity = pipe(
+  object({
+    ...OnchainActivity.entries,
+    args: object({
+      assets: bigint(),
+      seizeMarket: Address,
+      seizedAssets: bigint(),
+    }),
+  }),
+  transform((activity) => ({
+    ...transformActivity(activity),
+    type: "liquidated" as const,
+    seizedMarket: activity.args.seizeMarket,
+    seizedAssets: Number(activity.args.seizedAssets),
+  })),
+);
+
 export const RepayActivity = pipe(
   object({
     ...OnchainActivity.entries,
@@ -619,6 +655,7 @@ export type CreditActivity = InferOutput<typeof CreditActivity>;
 export type DebitActivity = InferOutput<typeof DebitActivity>;
 export type DepositActivity = InferOutput<typeof DepositActivity>;
 export type InstallmentsActivity = InferOutput<typeof InstallmentsActivity>;
+export type LiquidationActivity = InferOutput<typeof LiquidationActivity>;
 export type OnchainActivity = InferOutput<typeof OnchainActivity>;
 export type PandaActivity = InferOutput<typeof PandaActivity>;
 export type RepayActivity = InferOutput<typeof RepayActivity>;
