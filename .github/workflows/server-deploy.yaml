@@ -23,6 +23,7 @@ jobs:
     env:
       CHAIN_ID: ${{ vars.CHAIN_ID }}
       APP_DOMAIN: ${{ vars.APP_DOMAIN }}
+      EXPO_PUBLIC_DEVTOOLS: ${{ vars.EXPO_PUBLIC_DEVTOOLS }}
       IMAGE_NAME: ${{ github.repository }}-${{ inputs.environment }}
     steps:
       - uses: actions/checkout@v4
@@ -56,6 +57,7 @@ jobs:
           build-args: |
             CHAIN_ID=${{ vars.CHAIN_ID }}
             APP_DOMAIN=${{ vars.APP_DOMAIN }}
+            EXPO_PUBLIC_DEVTOOLS=${{ vars.EXPO_PUBLIC_DEVTOOLS }}
       - uses: actions/attest-build-provenance@v2
         with:
           subject-name: ghcr.io/${{ env.IMAGE_NAME }}
