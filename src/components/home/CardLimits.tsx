@@ -51,7 +51,7 @@ export default function CardLimits() {
           color={isCredit ? "$cardCreditText" : "$cardDebitText"}
           maxFontSizeMultiplier={1}
         >
-          {isCredit ? `Pay in ${card?.mode} installments enabled` : "Pay in full enabled"}
+          {isCredit ? `Pay in ${card?.mode} installments enabled` : "Pay Now enabled"}
         </Text>
       </View>
 

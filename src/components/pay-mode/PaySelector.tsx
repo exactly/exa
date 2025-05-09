@@ -77,9 +77,7 @@ export default function PaySelector() {
     if (!card || card.mode === installments) return;
     mutateMode(installments).catch(reportError);
     const message =
-      installments === 0
-        ? "Pay in full selected"
-        : `${installments} installment${installments > 1 ? "s" : ""} selected`;
+      installments === 0 ? "Pay Now selected" : `${installments} installment${installments > 1 ? "s" : ""} selected`;
     toast.show(message, {
       native: true,
       duration: 1000,
@@ -104,10 +102,8 @@ export default function PaySelector() {
             </Pressable>
           </XStack>
           <Text subHeadline secondary>
-            Choose how you’d like to pay for your purchases. You can select Instant Pay to pay in full immediately or
-            choose an installment plan. Exactly Protocol offers up to
-            {` ${MAX_INSTALLMENTS} `}
-            fixed-rate installments in USDC*.
+            Choose <Text emphasized>Pay Now</Text> to instantly pay your purchases, or select a plan to split them into
+            up to 6 fixed-rate installments in USDC, powered by Exactly Protocol.*
           </Text>
 
           <XStack alignItems="center" gap="$s4">
@@ -171,7 +167,7 @@ export default function PaySelector() {
           </Text>
           <XStack gap="$s1" flex={1} justifyContent="flex-end">
             <Text caption color="$uiNeutralPlaceholder" numberOfLines={1}>
-              Available limit:
+              Credit limit:
             </Text>
             <Text sensitive caption color="$uiNeutralPlaceholder" numberOfLines={1}>
               {(markets ? Number(borrowLimit(markets, marketUSDCAddress)) / 1e6 : 0).toLocaleString(undefined, {
@@ -262,7 +258,7 @@ function InstallmentButton({
         <YStack gap="$s1" flex={1}>
           <XStack gap="$s1">
             <Text headline color={installment > 0 ? "$uiNeutralSecondary" : "$uiNeutralPrimary"}>
-              {installment > 0 ? `${installment}x` : "Pay in full"}
+              {installment > 0 ? `${installment}x` : "Pay Now"}
             </Text>
             {installment > 0 &&
               (isInstallmentsFetching || (installment === 1 && isBorrowPreviewLoading) ? (
