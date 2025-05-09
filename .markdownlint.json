@@ -1,0 +1,6 @@
+{
+  "first-line-heading": { "front_matter_title": "^(^\\s*title\\s*[:=]).*|\"@exactly\\/[\\w-]+\": (major|minor|patch)$" },
+  "line-length": false,
+  "no-duplicate-heading": { "siblings_only": true },
+  "default": true
+}
