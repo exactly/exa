@@ -20,6 +20,7 @@ import { type FontSource, useFonts } from "expo-font";
 import { SplashScreen, Stack, useNavigationContainerRef } from "expo-router";
 import { channel } from "expo-updates";
 import React, { useEffect } from "react";
+import { Platform } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { WagmiProvider } from "wagmi";
 
@@ -91,7 +92,7 @@ init({
 });
 const useServerFonts = typeof window === "undefined" ? useFonts : () => undefined;
 const useServerAssets = typeof window === "undefined" ? useAssets : () => undefined;
-const devtools = !!JSON.parse(process.env.EXPO_PUBLIC_DEVTOOLS ?? "false");
+const devtools = !!JSON.parse(process.env.EXPO_PUBLIC_DEVTOOLS ?? String(Platform.OS === "web" && __DEV__));
 createConfig({
   integrator: "exa_app",
   providers: [EVM({ getWalletClient: () => Promise.resolve(publicClient) })],
