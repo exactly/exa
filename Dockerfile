@@ -15,6 +15,9 @@ ENV PATH="$PATH:/root/.local/share/pnpm:/root/.foundry/bin"
 RUN foundryup
 WORKDIR /usr/src/app
 COPY . .
+ENV APP_DOMAIN=${APP_DOMAIN}
+ENV CHAIN_ID=${CHAIN_ID}
+ENV EXPO_PUBLIC_DEVTOOLS=${EXPO_PUBLIC_DEVTOOLS}
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store pnpm install --frozen-lockfile
 RUN pnpm expo export --platform web --no-minify --source-maps --output-dir server/app && \
   pnpm run --filter server build && \
