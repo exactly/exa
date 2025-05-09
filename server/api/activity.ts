@@ -114,13 +114,7 @@ export default new Hono().get(
             abi: marketAbi,
             eventName: "RepayAtMaturity",
             address: [...markets.keys()],
-            args: {
-              caller: [
-                ...(ignore("rollover") ? [] : [debtManagerAddress]),
-                ...(ignore("repay") && ignore("received") ? [] : [...plugins]),
-              ],
-              borrower: account,
-            },
+            args: { borrower: account },
             toBlock: "latest",
             fromBlock: 0n,
             strict: true,
@@ -164,15 +158,23 @@ export default new Hono().get(
             repayPromise,
           ]).then(([deposit, repay]) =>
             deposit.filter(
-              ({ transactionHash }) => !repay.some(({ transactionHash: repayHash }) => repayHash === transactionHash),
+              ({ transactionHash }) =>
+                !repay.some(
+                  ({ transactionHash: repayHash, args: { caller } }) =>
+                    repayHash === transactionHash && plugins.has(caller.toLowerCase() as Hex),
+                ),
             ),
           ),
       ignore("repay")
         ? []
         : repayPromise.then((logs) =>
-            logs.map((log) =>
-              parse(RepayActivity, { ...log, market: market(log.address) } satisfies InferInput<typeof RepayActivity>),
-            ),
+            logs
+              .filter(({ args: { caller } }) => plugins.has(caller.toLowerCase() as Hex))
+              .map((log) =>
+                parse(RepayActivity, { ...log, market: market(log.address) } satisfies InferInput<
+                  typeof RepayActivity
+                >),
+              ),
           ),
       ignore("sent")
         ? []
