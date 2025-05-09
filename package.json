@@ -146,6 +146,7 @@
     "expo-build-properties": "~0.13.1",
     "expo-dev-client": "~5.0.18",
     "expo-doctor": "^1.12.8",
+    "markdownlint-cli": "^0.44.0",
     "metro-config": "^0.81.0",
     "onesignal-expo-plugin": "^2.0.3",
     "prettier": "^3.5.3",
