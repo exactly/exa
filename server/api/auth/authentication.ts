@@ -25,8 +25,13 @@ const Cookie = object({ session_id: Base64URL });
 export default new Hono()
   .get(
     "/",
-    vValidator("query", object({ credentialId: optional(Base64URL) }), ({ success }, c) => {
-      if (!success) return c.json("bad credential", 400);
+    vValidator("query", object({ credentialId: optional(Base64URL) }), (validation, c) => {
+      if (!validation.success) {
+        captureException(new Error("bad credential"), {
+          contexts: { validation: { ...validation, flatten: flatten(validation.issues) } },
+        });
+        return c.json("bad credential", 400);
+      }
     }),
     async (c) => {
       const timeout = 5 * 60_000;
