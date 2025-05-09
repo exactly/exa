@@ -1,6 +1,7 @@
 {
   "name": "@exactly/docs",
   "version": "0.0.1",
+  "private": true,
   "scripts": {
     "prepare": "pnpm run --aggregate-output --reporter-hide-prefix /prepare:/",
     "prepare:astro": "astro sync",
