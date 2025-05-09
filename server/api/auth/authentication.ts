@@ -12,7 +12,23 @@ import { generateChallenge, isoBase64URL } from "@simplewebauthn/server/helpers"
 import { eq } from "drizzle-orm";
 import { Hono, type Env } from "hono";
 import { setCookie, setSignedCookie } from "hono/cookie";
-import { any, flatten, literal, object, optional, parse, type InferOutput } from "valibot";
+import { describeRoute } from "hono-openapi";
+import { resolver } from "hono-openapi/valibot";
+import {
+  any,
+  array,
+  flatten,
+  literal,
+  number,
+  object,
+  optional,
+  parse,
+  picklist,
+  record,
+  string,
+  unknown,
+  type InferOutput,
+} from "valibot";
 
 import database, { credentials } from "../../database";
 import androidOrigins from "../../utils/android/origins";
@@ -22,9 +38,36 @@ import redis from "../../utils/redis";
 
 const Cookie = object({ session_id: Base64URL });
 
+const PublicKeyCredentialRequestOptionsJSON = object({
+  challenge: Base64URL,
+  timeout: optional(number()),
+  rpId: optional(string()),
+  allowCredentials: optional(
+    array(object({ id: Base64URL, type: literal("public-key"), transports: optional(array(string())) })),
+  ),
+  userVerification: optional(picklist(["discouraged", "preferred", "required"])),
+  extensions: optional(record(string(), unknown())),
+});
+
+const Authentication = object({ expires: number() });
+
 export default new Hono()
   .get(
     "/",
+    describeRoute({
+      summary: "Get authentication options",
+      description: "Initiates WebAuthn authentication by generating authentication options for a user.",
+      responses: {
+        200: {
+          description:
+            "WebAuthn authentication options containing challenge, relying party info, and credential parameters for client-side authentication.",
+          content: {
+            "application/json": { schema: resolver(PublicKeyCredentialRequestOptionsJSON, { errorMode: "ignore" }) },
+          },
+        },
+      },
+      validateResponse: true,
+    }),
     vValidator("query", object({ credentialId: optional(Base64URL) }), (validation, c) => {
       if (!validation.success) {
         captureException(new Error("bad credential"), {
@@ -46,11 +89,28 @@ export default new Hono()
       ]);
       setCookie(c, "session_id", sessionId, { domain, expires: new Date(Date.now() + timeout), httpOnly: true });
       await redis.set(sessionId, options.challenge, "PX", timeout);
-      return c.json({ ...options, extensions: options.extensions as Record<string, unknown> | undefined }, 200);
+      return c.json(
+        {
+          ...options,
+          extensions: options.extensions as InferOutput<typeof PublicKeyCredentialRequestOptionsJSON>["extensions"],
+        } satisfies InferOutput<typeof PublicKeyCredentialRequestOptionsJSON>,
+        200,
+      );
     },
   )
   .post(
     "/",
+    describeRoute({
+      summary: "Authenticate",
+      description: "Authenticates a user using a WebAuthn credential.",
+      responses: {
+        200: {
+          description: "Authentication response containing credential ID and factory address.",
+          content: { "application/json": { schema: resolver(Authentication, { errorMode: "ignore" }) } },
+        },
+      },
+      validateResponse: true,
+    }),
     vValidator("query", object({ credentialId: Base64URL }), ({ success }, c) => {
       if (!success) return c.json("bad credential", 400);
     }),
@@ -65,7 +125,12 @@ export default new Hono()
       object({
         id: Base64URL,
         rawId: Base64URL,
-        response: object({ clientDataJSON: Base64URL, authenticatorData: Base64URL, signature: Base64URL }),
+        response: object({
+          clientDataJSON: Base64URL,
+          authenticatorData: Base64URL,
+          signature: Base64URL,
+          userHandle: optional(Base64URL),
+        }),
         clientExtensionResults: any(),
         type: literal("public-key"),
       }),
@@ -124,6 +189,6 @@ export default new Hono()
         database.update(credentials).set({ counter: newCounter }).where(eq(credentials.id, credentialID)),
       ]);
 
-      return c.json({ expires: expires.getTime() }, 200);
+      return c.json({ expires: expires.getTime() } satisfies InferOutput<typeof Authentication>, 200);
     },
   );
