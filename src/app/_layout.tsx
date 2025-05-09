@@ -18,6 +18,7 @@ import { isRunningInExpoGo } from "expo";
 import { useAssets } from "expo-asset";
 import { type FontSource, useFonts } from "expo-font";
 import { SplashScreen, Stack, useNavigationContainerRef } from "expo-router";
+import { channel } from "expo-updates";
 import React, { useEffect } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { WagmiProvider } from "wagmi";
@@ -76,7 +77,7 @@ init({
   dsn:
     process.env.EXPO_PUBLIC_SENTRY_DSN ??
     "https://ac8875331e4cecd67dd0a7519a36dfeb@o1351734.ingest.us.sentry.io/4506186349674496",
-  environment: __DEV__ ? "development" : "production",
+  environment: __DEV__ ? "development" : (channel ?? "production"),
   tracesSampleRate: 1,
   attachStacktrace: true,
   attachViewHierarchy: true,
