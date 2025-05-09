@@ -1,5 +1,10 @@
 import ProposalType from "@exactly/common/ProposalType";
-import chain, { exaPluginAddress, exaPreviewerAddress, marketWETHAddress } from "@exactly/common/generated/chain";
+import chain, {
+  exaPluginAddress,
+  exaPreviewerAddress,
+  marketWETHAddress,
+  proposalManagerAddress,
+} from "@exactly/common/generated/chain";
 import shortenHex from "@exactly/common/shortenHex";
 import { Address, Hash, Hex } from "@exactly/common/validation";
 import { SPAN_STATUS_ERROR, SPAN_STATUS_OK } from "@sentry/core";
@@ -39,7 +44,6 @@ import {
   exaPreviewerAbi,
   marketAbi,
   proposalManagerAbi,
-  proposalManagerAddress,
   upgradeableModularAccountAbi,
 } from "../generated/contracts";
 import { headerValidator, jsonValidator, webhooksKey } from "../utils/alchemy";

@@ -73,6 +73,7 @@ export default defineConfig([
           marketWETH: marketWETH.address,
           mockSwapper: mockSwapper.contractAddress,
           previewer: previewer.address,
+          proposalManager: proposalManager.contractAddress,
           ratePreviewer: ratePreviewer.address,
           usdc: usdc.address,
           weth: weth.address,
@@ -98,7 +99,6 @@ export default defineConfig([
       addresses({
         balancerVault: balancerVault.address,
         issuerChecker: issuerChecker.contractAddress,
-        proposalManager: proposalManager.contractAddress,
         refunder: refunder.contractAddress,
       }),
       foundry({
