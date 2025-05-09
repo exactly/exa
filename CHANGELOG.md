@@ -1,5 +1,24 @@
 # @exactly/mobile
 
+## 1.0.4
+
+### Patch Changes
+
+- [`b359bd4`](https://github.com/exactly/exa/commit/b359bd48e9fcc84f846be59f7160f336b3f46601) Thanks [@franm91](https://github.com/franm91)! - 💬 rename pay now mode
+
+- [`949e390`](https://github.com/exactly/exa/commit/949e390c74daa53fbf750029018f50bcbeff3cfe) Thanks [@franm91](https://github.com/franm91)! - 🐛 fix loading in the installment calculator
+
+- [`66f4227`](https://github.com/exactly/exa/commit/66f422783c6edaa05833c48cab0cb296d2cbd466) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 📈 set update channel as sentry environment
+
+- [`bab9e2a`](https://github.com/exactly/exa/commit/bab9e2a617e9dfdd7d75fcd06954f12d2a1ae954) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚸 set non-zero initial purchase simulation
+
+- [`2d70acd`](https://github.com/exactly/exa/commit/2d70acd47e46786bc6dec8ee3cddbc387c0bf9f7) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add opengraph meta tags
+
+- [`052a685`](https://github.com/exactly/exa/commit/052a6852414e762ac29442394f94bcf21f3ff215) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 fix re-authentication
+
+- Updated dependencies [[`8081437`](https://github.com/exactly/exa/commit/80814377938a3795dd7aea090595f7b29620f38f), [`126b319`](https://github.com/exactly/exa/commit/126b31973c5368f7dfc411cd81bf45814563ab3b), [`07f4bca`](https://github.com/exactly/exa/commit/07f4bcae6d0fb48c33d9968e2d45adecc1ae5a7b)]:
+  - @exactly/server@0.1.8
+
 ## 1.0.3
 
 ### Patch Changes
