@@ -22,6 +22,7 @@
     "test:build": "expo export --platform web",
     "test:ts:expo": "tsc --pretty $([ \"$GITHUB_ACTIONS\" = true ] && echo false || echo true)",
     "test:ts:node": "tsc -p tsconfig.node.json --pretty $([ \"$GITHUB_ACTIONS\" = true ] && echo false || echo true)",
+    "test:markdown": "markdownlint '**/*.md' '.changeset/**/*.md' --ignore ios",
     "test:changeset": "changeset status --since origin/main",
     "test:eslint": "eslint --max-warnings 0 ."
   },
