@@ -113,7 +113,7 @@ describe("authenticated", () => {
       expirationMonth: "9",
       expirationYear: "2029",
       lastFour: "1234",
-      mode: 1,
+      mode: 0,
       provider: "panda",
       status: "ACTIVE",
     });
