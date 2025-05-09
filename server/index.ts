@@ -40,13 +40,28 @@ app.get("/.well-known/assetlinks.json", (c) =>
   ]),
 );
 app.use(
-  "/*",
   serveStatic({
     root: "app",
     rewriteRequestPath: (path) => {
-      if (path.endsWith("/")) return `${path}/index.html`;
-      if (path.includes(".")) return path;
-      return `${path}.html`;
+      const basePath = (path.split("?")[0] ?? "").split("#")[0] ?? "";
+      return basePath === "/" ||
+        basePath.endsWith("/") ||
+        (/\.[^./]+$/.test(basePath) && basePath.lastIndexOf(".") > basePath.lastIndexOf("/"))
+        ? path
+        : `${basePath}.html`;
+    },
+  }),
+);
+app.use(
+  serveStatic({
+    root: "app",
+    rewriteRequestPath: (path) => {
+      const basePath = (path.split("?")[0] ?? "").split("#")[0] ?? "";
+      return basePath === "/" ||
+        basePath.endsWith("/") ||
+        (/\.[^./]+$/.test(basePath) && basePath.lastIndexOf(".") > basePath.lastIndexOf("/"))
+        ? path
+        : `${basePath}/`;
     },
   }),
 );
