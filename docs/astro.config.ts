@@ -5,8 +5,6 @@ import starlightOpenAPI, { openAPISidebarGroups } from "starlight-openapi";
 export default defineConfig({
   site: "https://exactly.github.io/exa",
   base: "exa",
-  trailingSlash: "never",
-  build: { format: "file" },
   integrations: [
     starlight({
       title: "Exa Docs",
