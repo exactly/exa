@@ -16,15 +16,19 @@ import { resolver, validator as vValidator } from "hono-openapi/valibot";
 import {
   any,
   array,
+  description,
   flatten,
   literal,
+  metadata,
   number,
   object,
   optional,
   parse,
   picklist,
+  pipe,
   record,
   string,
+  title,
   unknown,
   type InferOutput,
 } from "valibot";
@@ -35,47 +39,96 @@ import appOrigin from "../../utils/appOrigin";
 import authSecret from "../../utils/authSecret";
 import redis from "../../utils/redis";
 
-const Cookie = object({ session_id: Base64URL });
-
-const PublicKeyCredentialRequestOptionsJSON = object({
-  challenge: Base64URL,
-  timeout: optional(number()),
-  rpId: optional(string()),
-  allowCredentials: optional(
-    array(object({ id: Base64URL, type: literal("public-key"), transports: optional(array(string())) })),
-  ),
-  userVerification: optional(picklist(["discouraged", "preferred", "required"])),
-  extensions: optional(record(string(), unknown())),
+const Cookie = object({
+  session_id: pipe(Base64URL, title("Session identifier"), description("HTTP-only cookie.")),
 });
 
-const Authentication = object({ expires: number() });
+const AuthenticationOptions = pipe(
+  object({
+    challenge: pipe(Base64URL, title("Cryptographic challenge"), description("Random bytes to be signed.")),
+    timeout: pipe(optional(number()), title("Time limit"), description("Maximum time to complete authentication.")),
+    rpId: pipe(optional(string()), title("Service domain"), description("Domain being authenticated with.")),
+    allowCredentials: pipe(
+      optional(
+        array(
+          object({
+            id: pipe(
+              Base64URL,
+              title("Credential identifier"),
+              description("Unique identifier for the authenticator."),
+            ),
+            type: pipe(
+              literal("public-key"),
+              title("Credential type"),
+              description("Always `public-key` for WebAuthn."),
+            ),
+            transports: pipe(
+              optional(array(string())),
+              title("Transport methods"),
+              description("How the authenticator can be used."),
+              metadata({ examples: ["usb", "nfc", "ble", "hybrid", "cable", "smart-card", "internal"] }),
+            ),
+          }),
+        ),
+      ),
+      title("Valid authenticators"),
+      description("List of authenticators that can be used for authentication."),
+    ),
+    userVerification: pipe(
+      optional(picklist(["discouraged", "preferred", "required"])),
+      title("User verification"),
+      description("Whether user presence must be verified."),
+    ),
+    extensions: pipe(
+      optional(record(string(), unknown())),
+      title("Extensions"),
+      description("Additional features to enable."),
+    ),
+  }),
+  title("WebAuthn"),
+);
+
+const Authentication = pipe(
+  object({
+    expires: pipe(number(), title("Session expiry"), description("When the session will expire.")),
+  }),
+  title("Authentication response"),
+);
 
 export default new Hono()
   .get(
     "/",
     describeRoute({
       summary: "Get authentication options",
-      description: "Initiates WebAuthn authentication by generating authentication options for a user.",
+      description:
+        "Initiates WebAuthn authentication by generating authentication options for a user. Sets a session HTTP-only cookie. This endpoint provides the necessary challenge, relying party info, and credential parameters required for client-side WebAuthn authentication.",
       responses: {
         200: {
-          description:
-            "WebAuthn authentication options containing challenge, relying party info, and credential parameters for client-side authentication.",
+          description: "WebAuthn authentication options",
           content: {
-            "application/json": { schema: resolver(PublicKeyCredentialRequestOptionsJSON, { errorMode: "ignore" }) },
+            "application/json": { schema: resolver(AuthenticationOptions, { errorMode: "ignore" }) },
           },
         },
       },
       tags: ["Credential"],
       validateResponse: true,
     }),
-    vValidator("query", object({ credentialId: optional(Base64URL) }), (validation, c) => {
-      if (!validation.success) {
-        captureException(new Error("bad credential"), {
-          contexts: { validation: { ...validation, flatten: flatten(validation.issues) } },
-        });
-        return c.json("bad credential", 400);
-      }
-    }),
+    vValidator(
+      "query",
+      object({
+        credentialId: optional(
+          pipe(Base64URL, title("Credential identifier"), description("Identifier of the authenticator to use.")),
+        ),
+      }),
+      (validation, c) => {
+        if (!validation.success) {
+          captureException(new Error("bad credential"), {
+            contexts: { validation: { ...validation, flatten: flatten(validation.issues) } },
+          });
+          return c.json("bad credential", 400);
+        }
+      },
+    ),
     async (c) => {
       const timeout = 5 * 60_000;
       const { credentialId } = c.req.valid("query");
@@ -92,8 +145,8 @@ export default new Hono()
       return c.json(
         {
           ...options,
-          extensions: options.extensions as InferOutput<typeof PublicKeyCredentialRequestOptionsJSON>["extensions"],
-        } satisfies InferOutput<typeof PublicKeyCredentialRequestOptionsJSON>,
+          extensions: options.extensions as InferOutput<typeof AuthenticationOptions>["extensions"],
+        } satisfies InferOutput<typeof AuthenticationOptions>,
         200,
       );
     },
@@ -102,10 +155,11 @@ export default new Hono()
     "/",
     describeRoute({
       summary: "Authenticate",
-      description: "Authenticates a user using a WebAuthn credential.",
+      description:
+        "Authenticates a user using a WebAuthn credential. This endpoint verifies the authentication response from the client, updates the credential counter, and sets a signed cookie for the authenticated session.",
       responses: {
         200: {
-          description: "Authentication response containing credential ID and factory address.",
+          description: "Authentication response with session expiry",
           content: { "application/json": { schema: resolver(Authentication, { errorMode: "ignore" }) } },
         },
       },
@@ -120,18 +174,31 @@ export default new Hono()
     ),
     vValidator(
       "json",
-      object({
-        id: Base64URL,
-        rawId: Base64URL,
-        response: object({
-          clientDataJSON: Base64URL,
-          authenticatorData: Base64URL,
-          signature: Base64URL,
-          userHandle: optional(Base64URL),
+      pipe(
+        object({
+          id: pipe(Base64URL, title("Credential identifier"), description("Unique identifier for the authenticator.")),
+          rawId: pipe(Base64URL, title("Raw identifier"), description("Raw bytes of the credential identifier.")),
+          response: object({
+            clientDataJSON: pipe(Base64URL, title("Client data"), description("Authentication data from the client.")),
+            authenticatorData: pipe(
+              Base64URL,
+              title("Authenticator data"),
+              description("Data from the authenticator."),
+            ),
+            signature: pipe(Base64URL, title("Signature"), description("Cryptographic signature of the challenge.")),
+            userHandle: optional(
+              pipe(Base64URL, title("User handle"), description("Optional identifier for the user.")),
+            ),
+          }),
+          clientExtensionResults: pipe(
+            any(),
+            title("Extension results"),
+            description("Results of optional features enabled during authentication."),
+          ),
+          type: pipe(literal("public-key"), title("Credential type"), description("Always `public-key` for WebAuthn.")),
         }),
-        clientExtensionResults: any(),
-        type: literal("public-key"),
-      }),
+        title("WebAuthn"),
+      ),
       (validation, c) => {
         if (!validation.success) {
           captureException(new Error("bad authentication"), {

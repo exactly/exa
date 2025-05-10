@@ -17,6 +17,7 @@ import {
   any,
   array,
   boolean,
+  description,
   flatten,
   literal,
   nullish,
@@ -24,8 +25,10 @@ import {
   object,
   optional,
   parse,
+  pipe,
   record,
   string,
+  title,
   unknown,
   type InferOutput,
 } from "valibot";
@@ -44,30 +47,85 @@ import { identify } from "../../utils/segment";
 if (!process.env.ALCHEMY_ACTIVITY_ID) throw new Error("missing alchemy activity id");
 const webhookId = process.env.ALCHEMY_ACTIVITY_ID;
 
-const Cookie = object({ session_id: Base64URL });
-
-const PublicKeyCredentialCreationOptionsJSON = object({
-  rp: object({ name: string(), id: optional(string()) }),
-  user: object({ id: string(), name: string(), displayName: string() }),
-  challenge: string(),
-  pubKeyCredParams: array(object({ type: literal("public-key"), alg: literal(cose.COSEALG.ES256) })),
-  timeout: optional(number()),
-  excludeCredentials: optional(
-    array(object({ id: string(), type: literal("public-key"), transports: optional(array(string())) })),
-  ),
-  authenticatorSelection: optional(
-    object({
-      authenticatorAttachment: optional(string()),
-      residentKey: optional(string()),
-      userVerification: optional(string()),
-      requireResidentKey: optional(boolean()),
-    }),
-  ),
-  hints: optional(array(string())),
-  attestation: optional(string()),
-  attestationFormats: optional(array(string())),
-  extensions: optional(record(string(), unknown())),
+const Cookie = object({
+  session_id: pipe(Base64URL, title("Session identifier"), description("HTTP-only cookie.")),
 });
+
+const RegistrationOptions = pipe(
+  object({
+    rp: pipe(
+      object({
+        name: pipe(string(), title("Service name"), description("Name of the service being registered with.")),
+        id: pipe(
+          optional(string()),
+          title("Service domain"),
+          description("Domain of the service being registered with."),
+        ),
+      }),
+      title("Service"),
+      description("Service the credential is being created for."),
+    ),
+    user: pipe(
+      object({
+        id: pipe(string(), title("User identifier"), description("Unique identifier in the service.")),
+        name: pipe(string(), title("Username"), description("Username in the service.")),
+        displayName: pipe(string(), title("Display name"), description("Name to be shown to the user.")),
+      }),
+      title("User"),
+      description("Account information."),
+    ),
+    challenge: pipe(string(), title("Cryptographic challenge"), description("Random bytes to be signed.")),
+    pubKeyCredParams: array(
+      object({
+        type: pipe(literal("public-key"), title("Credential type"), description("Always `public-key` for WebAuthn.")),
+        alg: pipe(
+          literal(cose.COSEALG.ES256),
+          title("Cryptographic algorithm"),
+          description("Should be `ES256` (-7) for Ethereum-compatible cryptography."),
+        ),
+      }),
+    ),
+    timeout: optional(pipe(number(), title("Time limit"), description("Maximum time to complete registration."))),
+    excludeCredentials: optional(
+      array(
+        object({
+          id: pipe(string(), title("Credential identifier"), description("Identifier of an existing credential.")),
+          type: pipe(literal("public-key"), title("Credential type"), description("Always `public-key` for WebAuthn.")),
+          transports: optional(
+            pipe(array(string()), title("Transport methods"), description("How the credential can be used.")),
+          ),
+        }),
+      ),
+    ),
+    authenticatorSelection: optional(
+      object({
+        authenticatorAttachment: optional(
+          pipe(string(), title("Authenticator type"), description("Type of authenticator to use.")),
+        ),
+        residentKey: optional(
+          pipe(string(), title("Resident key"), description("Whether to create a discoverable credential.")),
+        ),
+        userVerification: optional(
+          pipe(string(), title("User verification"), description("Whether user presence must be verified.")),
+        ),
+        requireResidentKey: optional(
+          pipe(boolean(), title("Require resident key"), description("Whether a discoverable credential is required.")),
+        ),
+      }),
+    ),
+    hints: optional(pipe(array(string()), title("UI hints"), description("Type of authentication UI to show."))),
+    attestation: optional(
+      pipe(string(), title("Attestation"), description("How to handle authenticator attestation.")),
+    ),
+    attestationFormats: optional(
+      pipe(array(string()), title("Attestation formats"), description("What attestation formats to accept.")),
+    ),
+    extensions: optional(
+      pipe(record(string(), unknown()), title("Extensions"), description("Additional features to enable.")),
+    ),
+  }),
+  title("WebAuthn"),
+);
 
 const AuthenticatedPasskey = object({ ...Passkey.entries, auth: number() });
 
@@ -76,13 +134,14 @@ export default new Hono()
     "/",
     describeRoute({
       summary: "Get registration options",
-      description: "Initiates WebAuthn registration by generating credential creation options for a new user.",
+      description:
+        "Initiates WebAuthn registration by generating credential creation options for a new user. Sets a session HTTP-only cookie.",
       responses: {
         200: {
           description:
-            "WebAuthn registration options containing challenge, relying party info, and credential parameters for client-side credential creation.",
+            "WebAuthn registration options containing challenge, relying party info, and credential parameters for client-side credential creation",
           content: {
-            "application/json": { schema: resolver(PublicKeyCredentialCreationOptionsJSON, { errorMode: "ignore" }) },
+            "application/json": { schema: resolver(RegistrationOptions, { errorMode: "ignore" }) },
           },
         },
       },
@@ -110,8 +169,8 @@ export default new Hono()
       return c.json(
         {
           ...options,
-          extensions: options.extensions as InferOutput<typeof PublicKeyCredentialCreationOptionsJSON>["extensions"],
-        } satisfies InferOutput<typeof PublicKeyCredentialCreationOptionsJSON>,
+          extensions: options.extensions as InferOutput<typeof RegistrationOptions>["extensions"],
+        } satisfies InferOutput<typeof RegistrationOptions>,
         200,
       );
     },
@@ -123,7 +182,7 @@ export default new Hono()
       description: "Registers a new WebAuthn credential for a user.",
       responses: {
         200: {
-          description: "WebAuthn registration response containing credential ID and factory address.",
+          description: "WebAuthn registration response containing credential identifier and factory address.",
           content: { "application/json": { schema: resolver(AuthenticatedPasskey, { errorMode: "ignore" }) } },
         },
       },
@@ -138,17 +197,26 @@ export default new Hono()
     ),
     vValidator(
       "json",
-      object({
-        id: Base64URL,
-        rawId: Base64URL,
-        response: object({
-          clientDataJSON: Base64URL,
-          attestationObject: Base64URL,
-          transports: nullish(array(string())),
+      pipe(
+        object({
+          id: pipe(Base64URL, title("Credential identifier"), description("Unique identifier for the authenticator.")),
+          rawId: pipe(Base64URL, title("Raw identifier"), description("Raw bytes of the credential identifier.")),
+          response: object({
+            clientDataJSON: pipe(Base64URL, title("Client data"), description("Registration data from the client.")),
+            attestationObject: pipe(Base64URL, title("Attestation data"), description("Data from the authenticator.")),
+            transports: nullish(
+              array(pipe(string(), title("Transport methods"), description("How the authenticator can be used."))),
+            ),
+          }),
+          clientExtensionResults: pipe(
+            any(),
+            title("Extension results"),
+            description("Results of optional features enabled during registration."),
+          ),
+          type: pipe(literal("public-key"), title("Credential type"), description("Always `public-key` for WebAuthn.")),
         }),
-        clientExtensionResults: any(),
-        type: literal("public-key"),
-      }),
+        title("WebAuthn"),
+      ),
       (validation, c) => {
         if (!validation.success) {
           captureException(new Error("bad registration"), {
