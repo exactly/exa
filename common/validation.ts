@@ -1,4 +1,4 @@
-import { type InferOutput, brand, check, custom, object, pipe, regex, string, transform } from "valibot";
+import { type InferOutput, brand, check, custom, object, pipe, regex, string, title, transform } from "valibot";
 import {
   type Address as ViemAddress,
   checksumAddress,
@@ -22,7 +22,15 @@ export const Hash = custom<ViemHash>(isHash as (hash: unknown) => hash is ViemHa
 
 export const Hex = custom<ViemHex>(isHex, "bad hex");
 
-export const Passkey = object({ credentialId: Base64URL, factory: Address, x: Hash, y: Hash });
+export const Passkey = pipe(
+  object({
+    credentialId: pipe(Base64URL, title("Base64URL encoded credential identifier")),
+    factory: pipe(Address, title("Account factory address")),
+    x: pipe(Hash, title("Credential public key x coordinate")),
+    y: pipe(Hash, title("Credential public key y coordinate")),
+  }),
+  title("WebAuthn passkey metadata"),
+);
 
 /* eslint-disable @typescript-eslint/no-redeclare */
 export type Address = InferOutput<typeof Address>;
