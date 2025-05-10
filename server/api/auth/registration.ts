@@ -50,7 +50,7 @@ const PublicKeyCredentialCreationOptionsJSON = object({
   rp: object({ name: string(), id: optional(string()) }),
   user: object({ id: string(), name: string(), displayName: string() }),
   challenge: string(),
-  pubKeyCredParams: array(object({ type: literal("public-key"), alg: number() })),
+  pubKeyCredParams: array(object({ type: literal("public-key"), alg: literal(cose.COSEALG.ES256) })),
   timeout: optional(number()),
   excludeCredentials: optional(
     array(object({ id: string(), type: literal("public-key"), transports: optional(array(string())) })),
