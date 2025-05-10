@@ -65,6 +65,7 @@ export default new Hono()
           },
         },
       },
+      tags: ["Credential"],
       validateResponse: true,
     }),
     vValidator("query", object({ credentialId: optional(Base64URL) }), (validation, c) => {
@@ -108,6 +109,7 @@ export default new Hono()
           content: { "application/json": { schema: resolver(Authentication, { errorMode: "ignore" }) } },
         },
       },
+      tags: ["Credential"],
       validateResponse: true,
     }),
     // http-only cookie

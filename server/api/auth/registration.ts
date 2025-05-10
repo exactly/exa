@@ -86,6 +86,7 @@ export default new Hono()
           },
         },
       },
+      tags: ["Credential"],
       validateResponse: true,
     }),
     async (c) => {
@@ -126,6 +127,7 @@ export default new Hono()
           content: { "application/json": { schema: resolver(AuthenticatedPasskey, { errorMode: "ignore" }) } },
         },
       },
+      tags: ["Credential"],
       validateResponse: true,
     }),
     // http-only cookie

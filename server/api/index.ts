@@ -11,8 +11,8 @@ import appOrigin from "../utils/appOrigin";
 
 const api = new Hono()
   .use(cors({ origin: appOrigin, credentials: true }))
-  .route("/auth/authentication", authentication)
   .route("/auth/registration", registration)
+  .route("/auth/authentication", authentication)
   .route("/activity", activity)
   .route("/card", card)
   .route("/kyc", kyc)
