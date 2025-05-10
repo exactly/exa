@@ -8,10 +8,10 @@ import chain, {
 } from "@exactly/common/generated/chain";
 import { Address, Hash, type Hex } from "@exactly/common/validation";
 import { effectiveRate, WAD } from "@exactly/lib";
-import { vValidator } from "@hono/valibot-validator";
 import { captureException, setUser } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
+import { validator as vValidator } from "hono-openapi/valibot";
 import {
   array,
   bigint,

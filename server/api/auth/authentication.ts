@@ -1,7 +1,6 @@
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 import domain from "@exactly/common/domain";
 import { Address, Base64URL } from "@exactly/common/validation";
-import { vValidator } from "@hono/valibot-validator";
 import { captureException, setUser } from "@sentry/node";
 import {
   type AuthenticatorTransportFuture,
@@ -13,7 +12,7 @@ import { eq } from "drizzle-orm";
 import { Hono, type Env } from "hono";
 import { setCookie, setSignedCookie } from "hono/cookie";
 import { describeRoute } from "hono-openapi";
-import { resolver } from "hono-openapi/valibot";
+import { resolver, validator as vValidator } from "hono-openapi/valibot";
 import {
   any,
   array,

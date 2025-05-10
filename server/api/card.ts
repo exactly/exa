@@ -1,10 +1,10 @@
 import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
 import { Address } from "@exactly/common/validation";
-import { vValidator } from "@hono/valibot-validator";
 import { setContext, setUser } from "@sentry/node";
 import { Mutex } from "async-mutex";
 import { eq, inArray, ne } from "drizzle-orm";
 import { Hono } from "hono";
+import { validator as vValidator } from "hono-openapi/valibot";
 import { parsePhoneNumberWithError } from "libphonenumber-js";
 import {
   integer,

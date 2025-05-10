@@ -1,9 +1,9 @@
 import { Address } from "@exactly/common/validation";
-import { vValidator } from "@hono/valibot-validator";
 import { captureException, setContext, setUser } from "@sentry/node";
 import createDebug from "debug";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
+import { validator as vValidator } from "hono-openapi/valibot";
 import { flatten, object, optional, parse, string } from "valibot";
 
 import database, { credentials } from "../database/index";
