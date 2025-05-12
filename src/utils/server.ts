@@ -141,8 +141,12 @@ export async function getActivity(parameters?: NonNullable<Parameters<typeof api
 
 export async function auth() {
   if (queryClient.isFetching({ queryKey: ["auth"] })) return;
-  const { success } = safeParse(Auth, queryClient.getQueryData<number | undefined>(["auth"]));
-  if (!success) await queryClient.refetchQueries({ queryKey: ["auth"] });
+  const { success, output } = safeParse(Auth, queryClient.getQueryData<number | undefined>(["auth"]));
+  if (!success) {
+    await (typeof output === "number"
+      ? queryClient.refetchQueries({ queryKey: ["auth"] })
+      : queryClient.fetchQuery({ queryKey: ["auth"] }));
+  }
 }
 
 const PANDA_TEMPLATE = "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2";
