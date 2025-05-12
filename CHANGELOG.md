@@ -1,5 +1,14 @@
 # @exactly/mobile
 
+## 1.0.5
+
+### Patch Changes
+
+- [`75c9415`](https://github.com/exactly/exa/commit/75c9415884e051baa357fbdd9a8b3558357081bf) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚑 fix initial auth and re-auth
+
+- Updated dependencies [[`5b5aa1a`](https://github.com/exactly/exa/commit/5b5aa1a8c19b350112b36e5aab6592aa0dc67ed5)]:
+  - @exactly/server@0.1.9
+
 ## 1.0.4
 
 ### Patch Changes

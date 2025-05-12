@@ -1,5 +1,11 @@
 # @exactly/docs
 
+## 0.1.1
+
+### Patch Changes
+
+- [`8897596`](https://github.com/exactly/exa/commit/88975966ff84208e4f30243a0f73f5c99cc11f24) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🔧 use default trailing slash setup
+
 ## 0.1.0
 
 ### Minor Changes

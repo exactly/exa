@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.1.9
+
+### Patch Changes
+
+- [`5b5aa1a`](https://github.com/exactly/exa/commit/5b5aa1a8c19b350112b36e5aab6592aa0dc67ed5) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🦺 spec auth and validate responses
+
 ## 0.1.8
 
 ### Patch Changes
