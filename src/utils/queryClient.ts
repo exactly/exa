@@ -4,7 +4,7 @@ import { persistQueryClientRestore, persistQueryClientSubscribe } from "@tanstac
 import { QueryCache, QueryClient } from "@tanstack/react-query";
 import type { Address } from "viem";
 import { deserialize, serialize } from "wagmi";
-import { structuralSharing } from "wagmi/query";
+import { hashFn, structuralSharing } from "wagmi/query";
 
 import reportError from "./reportError";
 import type { getActivity } from "./server";
@@ -29,7 +29,7 @@ const queryClient = new QueryClient({
       reportError(error);
     },
   }),
-  defaultOptions: { queries: { structuralSharing } },
+  defaultOptions: { queries: { queryKeyHashFn: hashFn, structuralSharing } },
 });
 
 if (typeof window !== "undefined") {
