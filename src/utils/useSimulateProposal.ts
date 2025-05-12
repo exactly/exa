@@ -12,7 +12,7 @@ import {
   type Address,
   type Hex,
 } from "viem";
-import { useSimulateContract } from "wagmi";
+import { useBytecode, useSimulateContract } from "wagmi";
 
 import {
   auditorAbi,
@@ -180,13 +180,15 @@ export default function useSimulateProposal({
                     [{ assetOut: proposal.assetOut, minAmountOut: proposal.minAmountOut, route: proposal.route }],
                   )
               : proposal.receiver && encodeAbiParameters([{ type: "address" }], [proposal.receiver]);
+  const { data: deployed } = useBytecode({ address: account ?? zeroAddress, query: { enabled: enabled && !!account } });
   const propose = useSimulateContract({
     address: account,
     functionName: "propose",
     abi: [...upgradeableModularAccountAbi, ...exaPluginAbi, ...proposalManagerAbi],
     args: [market ?? zeroAddress, amount ?? 0n, proposal.proposalType, proposalData ?? "0x"],
-    query: { enabled: enabled && !!account && !!amount },
+    query: { enabled: enabled && !!deployed && !!account && !!amount },
   });
+
   const { data: swapper } = useReadExaPluginSwapper({ address: exaPluginAddress });
   const { data: assets } = useReadExaPreviewerAssets({ address: exaPreviewerAddress });
   const { data: nonce } = useReadProposalManagerQueueNonces({
@@ -293,7 +295,7 @@ export default function useSimulateProposal({
     args: [nonce ?? 0n],
     abi: [...upgradeableModularAccountAbi, ...exaPluginAbi, ...proposalManagerAbi, ...auditorAbi, ...marketAbi],
     stateOverride,
-    query: { enabled: enabled && nonce !== undefined && !!account && !!stateOverride },
+    query: { enabled: enabled && !!deployed && nonce !== undefined && !!account && !!stateOverride },
   });
 
   return { propose, executeProposal, proposalData };
