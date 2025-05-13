@@ -6,7 +6,7 @@ import { useToastController } from "@tamagui/toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Skeleton } from "moti/skeleton";
-import React, { useEffect, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Appearance, Pressable, StyleSheet } from "react-native";
 import { XStack, YStack } from "tamagui";
 import { formatUnits, parseUnits, zeroAddress } from "viem";
@@ -27,18 +27,15 @@ export default function PaySelector() {
   const toast = useToastController();
   const { presentArticle } = useIntercom();
   const [input, setInput] = useState("100");
-  const [assets, setAssets] = useState(parseUnits(input, 6));
+  const assets = useMemo(() => {
+    return parseUnits(input.replaceAll(/\D/g, ".").replaceAll(/\.(?=.*\.)/g, ""), 6);
+  }, [input]);
   const { address } = useAccount();
   const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [address ?? zeroAddress] });
   const { firstMaturity } = useInstallments({
     totalAmount: assets,
     installments: 1,
   });
-
-  useEffect(() => {
-    const value = parseUnits(input.replaceAll(/\D/g, ".").replaceAll(/\.(?=.*\.)/g, ""), 6);
-    setAssets(value);
-  }, [input]);
 
   const { data: card } = useQuery({
     queryKey: ["card", "details"],
