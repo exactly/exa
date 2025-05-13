@@ -104,7 +104,7 @@ export default function Pay() {
   const repayMarketAvailable =
     markets && selectedAsset.address && !selectedAsset.external ? withdrawLimit(markets, selectedAsset.address) : 0n;
 
-  const slippage = (WAD * 102n) / 100n;
+  const slippage = (WAD * 1001n) / 1000n;
   const maxRepay = borrow ? (borrow.previewValue * slippage) / WAD : 0n;
 
   const { data: route } = useQuery({
