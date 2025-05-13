@@ -30,24 +30,18 @@ export default function HTML({ children }: { children: ReactNode }) {
             display: flex;
             justify-content: center;
             align-items: center;
+            background: black !important;
           }
-          @media (max-aspect-ratio: 10/16) {
+          #root { background: black !important; }
+          @media (max-aspect-ratio: 9/16) {
             #root { width: 100vw; height: 100dvh; }
           }
-          @media (min-aspect-ratio: 10/16) {
+          @media (min-aspect-ratio: 9/16) {
             #root {
-              aspect-ratio: 10 / 16;
-              width: min(100vw, calc(100dvh * 10 / 16));
-              height: min(100dvh, calc(100vw * 16 / 10));
+              aspect-ratio: 9 / 16;
+              width: min(100vw, calc(100dvh * 9 / 16));
+              height: min(100dvh, calc(100vw * 16 / 9));
             }
-          }
-          @media (prefers-color-scheme: light) {
-            html, body { background: white !important; }
-            #root { background: white !important; }
-          }
-          @media (prefers-color-scheme: dark) {
-            html, body { background: black !important; }
-            #root { background: black !important; }
           }
       `}
         </style>
