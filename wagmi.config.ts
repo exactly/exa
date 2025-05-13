@@ -3,7 +3,7 @@ import { defineConfig, type Plugin } from "@wagmi/cli";
 import { foundry, react } from "@wagmi/cli/plugins";
 import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { type Abi, getAddress, zeroAddress } from "viem";
+import { type Abi, getAddress } from "viem";
 import { optimism, optimismSepolia } from "viem/chains";
 
 const easBuild = process.env.EAS_BUILD_RUNNER === "eas-build";
@@ -30,8 +30,10 @@ const [issuerChecker] = loadBroadcast("IssuerChecker").transactions;
 const [proposalManager] = loadBroadcast("ProposalManager").transactions;
 const [refunder] = loadBroadcast("Refunder").transactions;
 const [exaPreviewer] = loadBroadcast("ExaPreviewer").transactions;
-const [, mockSwapper] =
-  chainId === optimismSepolia.id ? loadBroadcast("Mocks").transactions : [{}, { contractAddress: zeroAddress }];
+const [, swapper] =
+  chainId === optimismSepolia.id
+    ? loadBroadcast("Mocks").transactions
+    : [null, { contractAddress: "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE", contractName: "LifiGateway" }];
 if (!exaPlugin || !issuerChecker || !proposalManager || !exaPreviewer || !refunder) {
   throw new Error("missing contracts");
 }
@@ -71,10 +73,10 @@ export default defineConfig([
           exaPreviewer: exaPreviewer.contractAddress,
           marketUSDC: marketUSDC.address,
           marketWETH: marketWETH.address,
-          mockSwapper: mockSwapper.contractAddress,
           previewer: previewer.address,
           proposalManager: proposalManager.contractAddress,
           ratePreviewer: ratePreviewer.address,
+          swapper: swapper.contractAddress,
           usdc: usdc.address,
           weth: weth.address,
         },
