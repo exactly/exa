@@ -7,7 +7,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { router, useLocalSearchParams } from "expo-router";
 import { Skeleton } from "moti/skeleton";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, Image, Appearance } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
@@ -45,6 +45,7 @@ export default function Pay() {
   const { accountAssets } = useAccountAssets();
   const { market: exaUSDC } = useAsset(marketUSDCAddress);
   const [assetSelectionOpen, setAssetSelectionOpen] = useState(false);
+  const [denyExchanges, setDenyExchanges] = useState<Record<string, boolean>>({});
   const [selectedAsset, setSelectedAsset] = useState<{ address?: Address; external: boolean }>({ external: true });
   const {
     markets,
@@ -108,7 +109,7 @@ export default function Pay() {
   const maxRepay = borrow ? (borrow.previewValue * slippage) / WAD : 0n;
 
   const { data: route } = useQuery({
-    initialData: { fromAmount: 0n, data: "0x" as const },
+    initialData: { exchange: "none", fromAmount: 0n, data: "0x" as const },
     queryKey: ["lifi", "route", mode, account, selectedAsset.address, repayMarket?.asset, maxRepay],
     queryFn: () => {
       switch (mode) {
@@ -121,15 +122,16 @@ export default function Pay() {
             maxRepay,
             account,
             mode === "crossRepay" ? account : exaPluginAddress,
+            denyExchanges,
           );
         case "external":
           if (!account || !selectedAsset.address) throw new Error("implementation error");
-          return getRoute(selectedAsset.address, usdcAddress, maxRepay, account, account);
+          return getRoute(selectedAsset.address, usdcAddress, maxRepay, account, account, denyExchanges);
         default:
-          return { fromAmount: 0n, data: "0x" as const };
+          return { exchange: "none", fromAmount: 0n, data: "0x" as const };
       }
     },
-    enabled: mode === "crossRepay" || mode === "legacyCrossRepay" || mode === "external",
+    enabled: !!maxRepay && (mode === "crossRepay" || mode === "legacyCrossRepay" || mode === "external"),
     refetchInterval: 5000,
   });
 
@@ -327,6 +329,11 @@ export default function Pay() {
     external: false,
     none: false,
   }[mode];
+
+  useEffect(() => {
+    if (simulationError) setDenyExchanges((state) => ({ ...state, [route.exchange]: true }));
+  }, [route.exchange, simulationError]);
+
   const isPending = mode === "external" ? isRepayingWithExternalAsset : isRepaying;
   const isSuccess = mode === "external" ? isRepayWithExternalAssetSuccess : isRepaySuccess;
   const error = mode === "external" ? isRepayWithExternalAssetError : writeContractError;
