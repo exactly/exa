@@ -1,18 +1,18 @@
 import ProposalType from "@exactly/common/ProposalType";
 import { exaPluginAddress, marketUSDCAddress, swapperAddress, usdcAddress } from "@exactly/common/generated/chain";
-import { Address, Hex } from "@exactly/common/validation";
+import { Address } from "@exactly/common/validation";
 import { WAD, withdrawLimit } from "@exactly/lib";
 import { ArrowLeft, ChevronRight, Coins } from "@tamagui/lucide-icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { router, useLocalSearchParams } from "expo-router";
 import { Skeleton } from "moti/skeleton";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { Pressable, Image, Appearance } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
-import { nonEmpty, parse, pipe, safeParse, string } from "valibot";
-import { encodeFunctionData, erc20Abi, parseUnits, zeroAddress, encodeAbiParameters } from "viem";
+import { digits, parse, pipe, safeParse, string, transform } from "valibot";
+import { encodeFunctionData, erc20Abi, parseUnits, zeroAddress } from "viem";
 import { useAccount, useBytecode, useSimulateContract, useWriteContract } from "wagmi";
 
 import AssetSelectionSheet from "./AssetSelectionSheet";
@@ -25,7 +25,6 @@ import Text from "../../components/shared/Text";
 import View from "../../components/shared/View";
 import {
   auditorAbi,
-  exaPluginAbi,
   marketAbi,
   upgradeableModularAccountAbi,
   useReadUpgradeableModularAccountGetInstalledPlugins,
@@ -37,6 +36,7 @@ import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccountAssets from "../../utils/useAccountAssets";
 import useAsset from "../../utils/useAsset";
+import useSimulateProposal from "../../utils/useSimulateProposal";
 import AssetLogo from "../shared/AssetLogo";
 
 export default function Pay() {
@@ -45,10 +45,7 @@ export default function Pay() {
   const { accountAssets } = useAccountAssets();
   const { market: exaUSDC } = useAsset(marketUSDCAddress);
   const [assetSelectionOpen, setAssetSelectionOpen] = useState(false);
-  const [selectedAsset, setSelectedAsset] = useState<{ address: Address; isExternalAsset: boolean }>({
-    address: parse(Address, zeroAddress),
-    isExternalAsset: true,
-  });
+  const [selectedAsset, setSelectedAsset] = useState<{ address?: Address; external: boolean }>({ external: true });
   const {
     markets,
     externalAsset,
@@ -65,44 +62,30 @@ export default function Pay() {
     address: account ?? zeroAddress,
     query: { enabled: !!account && !!bytecode },
   });
-  const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
+  const withUSDC = selectedAsset.address === exaUSDCAddress;
+  const mode =
+    installedPlugins && selectedAsset.address
+      ? selectedAsset.external
+        ? "external"
+        : installedPlugins[0] === exaPluginAddress
+          ? withUSDC
+            ? "repay"
+            : "crossRepay"
+          : withUSDC
+            ? "legacyRepay"
+            : "legacyCrossRepay"
+      : "none";
 
-  const { success, output: maturity } = safeParse(
-    pipe(string(), nonEmpty("no maturity")),
-    useLocalSearchParams().maturity,
-  );
+  const { maturity: maturityQuery } = useLocalSearchParams();
+  const maturity = useMemo(() => {
+    const { success, output } = safeParse(
+      pipe(string("no maturity"), digits("bad maturity"), transform(BigInt as (input: string) => bigint)),
+      maturityQuery,
+    );
+    if (success) return output;
+  }, [maturityQuery]);
 
-  const handleAssetSelect = (address: Address, isExternalAsset: boolean) => {
-    setSelectedAsset({ address, isExternalAsset });
-  };
-
-  const {
-    writeContract: repay,
-    isPending: isRepaying,
-    isSuccess: isRepaySuccess,
-    error: repayError,
-  } = useWriteContract({
-    mutation: {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: assetQueryKey }).catch(reportError);
-      },
-    },
-  });
-  const {
-    writeContract: crossRepay,
-    isPending: isCrossRepaying,
-    isSuccess: isCrossRepaySuccess,
-    error: crossRepayError,
-  } = useWriteContract({
-    mutation: {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: assetQueryKey }).catch(reportError);
-      },
-    },
-  });
-
-  const isUSDCSelected = selectedAsset.address === parse(Address, marketUSDCAddress);
-  const borrow = exaUSDC?.fixedBorrowPositions.find((b) => b.maturity === BigInt(success ? maturity : 0));
+  const borrow = exaUSDC?.fixedBorrowPositions.find((b) => b.maturity === maturity);
   const previewValue =
     borrow && exaUSDC ? (borrow.previewValue * exaUSDC.usdPrice) / 10n ** BigInt(exaUSDC.decimals) : 0n;
   const positionValue =
@@ -119,27 +102,34 @@ export default function Pay() {
 
   const repayMarket = positions?.find((p) => p.market === selectedAsset.address);
   const repayMarketAvailable =
-    markets && !selectedAsset.isExternalAsset ? withdrawLimit(markets, selectedAsset.address) : 0n;
+    markets && selectedAsset.address && !selectedAsset.external ? withdrawLimit(markets, selectedAsset.address) : 0n;
 
   const slippage = (WAD * 102n) / 100n;
   const maxRepay = borrow ? (borrow.previewValue * slippage) / WAD : 0n;
 
   const { data: route } = useQuery({
-    initialData: { fromAmount: 0n, data: parse(Hex, "0x") },
-    queryKey: ["lifi", "route", selectedAsset], // eslint-disable-line @tanstack/query/exhaustive-deps
-    queryFn: async () => {
-      if (!account || !borrow) return { fromAmount: 0n, data: parse(Hex, "0x") };
-      if (repayMarket) {
-        return await getRoute(
-          repayMarket.asset,
-          usdcAddress,
-          maxRepay,
-          account,
-          isLatestPlugin ? account : exaPluginAddress,
-        );
+    initialData: { fromAmount: 0n, data: "0x" as const },
+    queryKey: ["lifi", "route", mode, account, selectedAsset.address, repayMarket?.asset, maxRepay],
+    queryFn: () => {
+      switch (mode) {
+        case "crossRepay":
+        case "legacyCrossRepay":
+          if (!account || !repayMarket) throw new Error("implementation error");
+          return getRoute(
+            repayMarket.asset,
+            usdcAddress,
+            maxRepay,
+            account,
+            mode === "crossRepay" ? account : exaPluginAddress,
+          );
+        case "external":
+          if (!account || !selectedAsset.address) throw new Error("implementation error");
+          return getRoute(selectedAsset.address, usdcAddress, maxRepay, account, account);
+        default:
+          return { fromAmount: 0n, data: "0x" as const };
       }
-      return await getRoute(selectedAsset.address, usdcAddress, maxRepay, account, account);
     },
+    enabled: mode === "crossRepay" || mode === "legacyCrossRepay" || mode === "external",
     refetchInterval: 5000,
   });
 
@@ -147,159 +137,130 @@ export default function Pay() {
   const maxAmountIn = (route.fromAmount * slippage) / WAD;
 
   const {
-    data: repaySimulation,
-    isPending: isSimulatingRepay,
-    error: repaySimulationError,
-  } = useSimulateContract(
-    isLatestPlugin
-      ? {
-          address: account,
-          functionName: "propose",
-          args: [
-            marketUSDCAddress,
-            maxRepay,
-            ProposalType.RepayAtMaturity,
-            encodeAbiParameters(
-              [
-                {
-                  type: "tuple",
-                  components: [
-                    { name: "maturity", type: "uint256" },
-                    { name: "positionAssets", type: "uint256" },
-                  ],
-                },
-              ],
-              [{ maturity: success ? BigInt(maturity) : 0n, positionAssets }],
-            ),
-          ],
-          abi: [...auditorAbi, ...marketAbi, ...upgradeableModularAccountAbi, ...exaPluginAbi],
-          query: {
-            retry: 2,
-            enabled:
-              !!account &&
-              !!exaUSDC &&
-              success &&
-              !!maturity &&
-              selectedAsset.address === parse(Address, marketUSDCAddress),
-          },
-        }
-      : {
-          address: account,
-          functionName: "repay",
-          args: [success ? BigInt(maturity) : 0n],
-          abi: [
-            ...auditorAbi,
-            ...marketAbi,
-            ...upgradeableModularAccountAbi,
-            {
-              type: "function",
-              inputs: [{ name: "maturity", internalType: "uint256", type: "uint256" }],
-              name: "repay",
-              outputs: [],
-              stateMutability: "nonpayable",
-            },
-          ],
-          query: {
-            retry: 2,
-            enabled:
-              !!account &&
-              !!exaUSDC &&
-              success &&
-              !!maturity &&
-              selectedAsset.address === parse(Address, marketUSDCAddress),
-          },
-        },
-  );
+    propose: { data: repayPropose },
+    executeProposal: { error: repayExecuteProposalError, isPending: isSimulatingRepay },
+  } = useSimulateProposal({
+    account,
+    amount: maxAmountIn,
+    market: selectedAsset.address,
+    enabled: mode === "repay",
+    proposalType: ProposalType.RepayAtMaturity,
+    maturity,
+    positionAssets,
+  });
 
   const {
-    data: crossRepaySimulation,
-    error: crossRepaySimulationError,
-    isPending: isSimulatingCrossRepay,
-  } = useSimulateContract(
-    isLatestPlugin
-      ? {
-          address: account,
-          functionName: "propose",
-          args: [
-            selectedAsset.address,
-            maxAmountIn,
-            ProposalType.CrossRepayAtMaturity,
-            encodeAbiParameters(
-              [
-                {
-                  type: "tuple",
-                  components: [
-                    { name: "maturity", type: "uint256" },
-                    { name: "positionAssets", type: "uint256" },
-                    { name: "maxRepay", type: "uint256" },
-                    { name: "route", type: "bytes" },
-                  ],
-                },
-              ],
-              [{ maturity: success ? BigInt(maturity) : 0n, positionAssets, maxRepay, route: route.data }],
-            ),
-          ],
-          abi: [...auditorAbi, ...marketAbi, ...upgradeableModularAccountAbi, ...exaPluginAbi],
-          query: {
-            enabled:
-              !!success && !!maturity && !!account && selectedAsset.address !== parse(Address, marketUSDCAddress),
-          },
-        }
-      : {
-          address: account,
-          functionName: "crossRepay",
-          args: [success ? BigInt(maturity) : 0n, selectedAsset.address],
-          abi: [
-            ...auditorAbi,
-            ...marketAbi,
-            ...upgradeableModularAccountAbi,
-            {
-              type: "function",
-              inputs: [
-                { name: "maturity", internalType: "uint256", type: "uint256" },
-                { name: "collateral", internalType: "contract IMarket", type: "address" },
-              ],
-              name: "crossRepay",
-              outputs: [],
-              stateMutability: "nonpayable",
-            },
-          ],
-          query: {
-            enabled:
-              !!success && !!maturity && !!account && selectedAsset.address !== parse(Address, marketUSDCAddress),
-          },
-        },
-  );
+    propose: { data: crossRepayPropose },
+    executeProposal: { error: crossRepayExecuteProposalError, isPending: isSimulatingCrossRepay },
+  } = useSimulateProposal({
+    account,
+    amount: maxAmountIn,
+    market: selectedAsset.address,
+    enabled: mode === "crossRepay",
+    proposalType: ProposalType.CrossRepayAtMaturity,
+    maturity,
+    positionAssets,
+    maxRepay,
+    route: route.data,
+  });
 
-  const simulationError = isUSDCSelected ? repaySimulationError : crossRepaySimulationError;
+  const {
+    data: legacyRepaySimulation,
+    error: legacyRepaySimulationError,
+    isPending: isSimulatingLegacyRepay,
+  } = useSimulateContract({
+    address: account,
+    functionName: "repay",
+    args: [maturity ?? 0n],
+    abi: [
+      ...auditorAbi,
+      ...marketAbi,
+      ...upgradeableModularAccountAbi,
+      {
+        type: "function",
+        inputs: [{ name: "maturity", internalType: "uint256", type: "uint256" }],
+        name: "repay",
+        outputs: [],
+        stateMutability: "nonpayable",
+      },
+    ],
+    query: { enabled: mode === "legacyRepay" },
+  });
+
+  const {
+    data: legacyCrossRepaySimulation,
+    error: legacyCrossRepaySimulationError,
+    isPending: isSimulatingLegacyCrossRepay,
+  } = useSimulateContract({
+    address: account,
+    functionName: "crossRepay",
+    args: [maturity ?? 0n, selectedAsset.address ?? zeroAddress],
+    abi: [
+      ...auditorAbi,
+      ...marketAbi,
+      ...upgradeableModularAccountAbi,
+      {
+        type: "function",
+        inputs: [
+          { name: "maturity", internalType: "uint256", type: "uint256" },
+          { name: "collateral", internalType: "contract IMarket", type: "address" },
+        ],
+        name: "crossRepay",
+        outputs: [],
+        stateMutability: "nonpayable",
+      },
+    ],
+    query: { enabled: mode === "legacyCrossRepay" },
+  });
+
+  const {
+    writeContract,
+    isPending: isRepaying,
+    isSuccess: isRepaySuccess,
+    error: writeContractError,
+  } = useWriteContract({
+    mutation: {
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: assetQueryKey }).catch(reportError),
+    },
+  });
 
   const handlePayment = useCallback(() => {
     if (!repayMarket) return;
     setDisplayValues({
-      amount: Number(isUSDCSelected ? positionAssets : route.fromAmount) / 10 ** repayMarket.decimals,
+      amount: Number(withUSDC ? positionAssets : route.fromAmount) / 10 ** repayMarket.decimals,
       usdAmount: Number(previewValue) / 1e18,
     });
-    if (isUSDCSelected) {
-      if (!repaySimulation) throw new Error("no repay simulation");
-      repay(repaySimulation.request);
-    } else {
-      if (!crossRepaySimulation) throw new Error("no cross repay simulation");
-      crossRepay(crossRepaySimulation.request);
+    switch (mode) {
+      case "repay":
+        if (!repayPropose) throw new Error("no repay simulation");
+        writeContract(repayPropose.request);
+        break;
+      case "legacyRepay":
+        if (!legacyRepaySimulation) throw new Error("no legacy repay simulation");
+        writeContract(legacyRepaySimulation.request);
+        break;
+      case "crossRepay":
+        if (!crossRepayPropose) throw new Error("no cross repay simulation");
+        writeContract(crossRepayPropose.request);
+        break;
+      case "legacyCrossRepay":
+        if (!legacyCrossRepaySimulation) throw new Error("no legacy cross repay simulation");
+        writeContract(legacyCrossRepaySimulation.request);
+        break;
     }
   }, [
-    crossRepay,
-    crossRepaySimulation,
-    isUSDCSelected,
+    crossRepayPropose,
+    legacyCrossRepaySimulation,
+    legacyRepaySimulation,
+    mode,
     positionAssets,
     previewValue,
-    repay,
     repayMarket,
-    repaySimulation,
+    repayPropose,
     route.fromAmount,
+    withUSDC,
+    writeContract,
   ]);
-
-  const simulation = isUSDCSelected ? repaySimulation : crossRepaySimulation;
-  const isSimulating = isUSDCSelected ? isSimulatingRepay : isSimulatingCrossRepay;
 
   const {
     mutateAsync: repayWithExternalAsset,
@@ -309,10 +270,10 @@ export default function Pay() {
   } = useMutation({
     mutationFn: async () => {
       if (!account) throw new Error("no account");
-      if (!success) throw new Error("no maturity");
+      if (!maturity) throw new Error("no maturity");
       if (!accountClient) throw new Error("no account client");
       if (!externalAsset) throw new Error("no external asset");
-      if (!selectedAsset.isExternalAsset) throw new Error("not external asset");
+      if (!selectedAsset.external) throw new Error("not external asset");
       setDisplayValues({
         amount: Number(route.fromAmount) / 10 ** externalAsset.decimals,
         usdAmount: (Number(externalAsset.priceUSD) * Number(route.fromAmount)) / 10 ** externalAsset.decimals,
@@ -320,7 +281,7 @@ export default function Pay() {
       const uo = await accountClient.sendUserOperation({
         uo: [
           {
-            target: selectedAsset.address,
+            target: selectedAsset.address ?? zeroAddress,
             data: encodeFunctionData({
               abi: erc20Abi,
               functionName: "approve",
@@ -350,31 +311,39 @@ export default function Pay() {
     },
   });
 
-  const isPending = isUSDCSelected
-    ? isRepaying
-    : selectedAsset.isExternalAsset
-      ? isRepayingWithExternalAsset
-      : isCrossRepaying;
-  const isSuccess = isUSDCSelected
-    ? isRepaySuccess
-    : selectedAsset.isExternalAsset
-      ? isRepayWithExternalAssetSuccess
-      : isCrossRepaySuccess;
-  const error = isUSDCSelected
-    ? repayError
-    : selectedAsset.isExternalAsset
-      ? isRepayWithExternalAssetError
-      : crossRepayError;
+  const simulationError = {
+    repay: repayExecuteProposalError,
+    crossRepay: crossRepayExecuteProposalError,
+    legacyRepay: legacyRepaySimulationError,
+    legacyCrossRepay: legacyCrossRepaySimulationError,
+    external: null, // TODO simulate with [eth_simulateV1](https://viem.sh/docs/actions/public/simulateCalls)
+    none: null,
+  }[mode];
+  const isSimulating = {
+    repay: isSimulatingRepay,
+    legacyRepay: isSimulatingLegacyRepay,
+    crossRepay: isSimulatingCrossRepay,
+    legacyCrossRepay: isSimulatingLegacyCrossRepay,
+    external: false,
+    none: false,
+  }[mode];
+  const isPending = mode === "external" ? isRepayingWithExternalAsset : isRepaying;
+  const isSuccess = mode === "external" ? isRepayWithExternalAssetSuccess : isRepaySuccess;
+  const error = mode === "external" ? isRepayWithExternalAssetError : writeContractError;
 
-  if (selectedAsset.address === parse(Address, zeroAddress) && accountAssets[0]) {
+  if (!selectedAsset.address && accountAssets[0]) {
     const { type } = accountAssets[0];
     setSelectedAsset({
       address: type === "external" ? parse(Address, accountAssets[0].address) : parse(Address, accountAssets[0].market),
-      isExternalAsset: type === "external",
+      external: type === "external",
     });
   }
 
-  if (!success) return;
+  const handleAssetSelect = (address: Address, external: boolean) => {
+    setSelectedAsset({ address, external });
+  };
+
+  if (!maturity) return;
   if (!isPending && !isSuccess && !error)
     return (
       <SafeView fullScreen backgroundColor="$backgroundMild" paddingBottom={0}>
@@ -515,7 +484,7 @@ export default function Pay() {
                         height={16}
                       />
                     )}
-                    {selectedAsset.isExternalAsset && externalAsset && (
+                    {selectedAsset.external && externalAsset && (
                       <Image source={{ uri: externalAsset.logoURI }} width={16} height={16} borderRadius={50} />
                     )}
                     <Text primary emphasized headline textAlign="right">
@@ -564,7 +533,7 @@ export default function Pay() {
                           </Text>
                         </>
                       )}
-                      {selectedAsset.isExternalAsset && externalAsset && (
+                      {selectedAsset.external && externalAsset && (
                         <>
                           <Text emphasized headline primary textAlign="right">
                             {Number(
@@ -601,7 +570,7 @@ export default function Pay() {
                   )}
                 </YStack>
               </XStack>
-              {selectedAsset.isExternalAsset ? (
+              {selectedAsset.external ? (
                 <Button
                   onPress={() => {
                     repayWithExternalAsset().catch(reportError);
@@ -636,7 +605,7 @@ export default function Pay() {
                 <Button
                   onPress={handlePayment}
                   contained
-                  disabled={!simulation || isSimulating}
+                  disabled={isSimulating}
                   main
                   spaced
                   fullwidth
@@ -644,10 +613,7 @@ export default function Pay() {
                     isSimulating ? (
                       <Spinner color="$interactiveOnDisabled" />
                     ) : (
-                      <Coins
-                        strokeWidth={2.5}
-                        color={simulation ? "$interactiveOnBaseBrandDefault" : "$interactiveOnDisabled"}
-                      />
+                      <Coins strokeWidth={2.5} color="$interactiveOnBaseBrandDefault" />
                     )
                   }
                 >
@@ -699,3 +665,5 @@ export default function Pay() {
       />
     );
 }
+
+const exaUSDCAddress = parse(Address, marketUSDCAddress);

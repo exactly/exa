@@ -30,8 +30,8 @@ export default function Success({
   usdAmount: number;
   amount: number;
   currency?: string;
-  maturity: string;
-  selectedAsset: Address;
+  maturity: bigint;
+  selectedAsset?: Address;
 }) {
   const theme = useTheme();
   const { externalAsset } = useAsset(selectedAsset);
