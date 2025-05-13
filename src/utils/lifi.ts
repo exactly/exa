@@ -31,7 +31,7 @@ export async function getRoute(fromToken: Hex, toToken: Hex, toAmount: bigint, a
   config.set({ integrator: "exa_app", userId: account });
   const { estimate, transactionRequest } = await getContractCallsQuote({
     fee: 0.0025,
-    slippage: 0.02,
+    slippage: 0.015,
     integrator: "exa_app",
     fromChain: optimism.id,
     toChain: optimism.id,
