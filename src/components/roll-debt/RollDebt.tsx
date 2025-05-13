@@ -167,7 +167,7 @@ export default function Pay() {
           </View>
         </ScrollView>
         <View padded paddingBottom={insets.bottom} marginBottom="$s4">
-          <RolloverButton maturity={maturity} followingMaturity={rolloverMaturity} borrow={borrow} />
+          <RolloverButton maturity={BigInt(maturity)} followingMaturity={rolloverMaturity} borrow={borrow} />
         </View>
       </View>
     </SafeView>
@@ -179,7 +179,7 @@ function RolloverButton({
   followingMaturity,
   borrow,
 }: {
-  maturity: string;
+  maturity: bigint;
   followingMaturity: number;
   borrow: {
     maturity: bigint;
