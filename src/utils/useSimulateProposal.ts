@@ -189,6 +189,7 @@ export default function useSimulateProposal({
               : proposal.receiver && encodeAbiParameters([{ type: "address" }], [proposal.receiver]);
   const { data: deployed } = useBytecode({ address: account ?? zeroAddress, query: { enabled: enabled && !!account } });
   const propose = useSimulateContract({
+    account,
     address: account,
     functionName: "propose",
     abi: [...upgradeableModularAccountAbi, ...exaPluginAbi, ...proposalManagerAbi],
