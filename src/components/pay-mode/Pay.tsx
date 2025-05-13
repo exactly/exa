@@ -1,5 +1,5 @@
 import ProposalType from "@exactly/common/ProposalType";
-import { exaPluginAddress, marketUSDCAddress, usdcAddress } from "@exactly/common/generated/chain";
+import { exaPluginAddress, marketUSDCAddress, swapperAddress, usdcAddress } from "@exactly/common/generated/chain";
 import { Address, Hex } from "@exactly/common/validation";
 import { WAD, withdrawLimit } from "@exactly/lib";
 import { ArrowLeft, ChevronRight, Coins } from "@tamagui/lucide-icons";
@@ -313,7 +313,6 @@ export default function Pay() {
       if (!accountClient) throw new Error("no account client");
       if (!externalAsset) throw new Error("no external asset");
       if (!selectedAsset.isExternalAsset) throw new Error("not external asset");
-      const lifiGatewayAddress = "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE"; // TODO get from codegen
       setDisplayValues({
         amount: Number(route.fromAmount) / 10 ** externalAsset.decimals,
         usdAmount: (Number(externalAsset.priceUSD) * Number(route.fromAmount)) / 10 ** externalAsset.decimals,
@@ -325,10 +324,10 @@ export default function Pay() {
             data: encodeFunctionData({
               abi: erc20Abi,
               functionName: "approve",
-              args: [lifiGatewayAddress, route.fromAmount],
+              args: [swapperAddress, route.fromAmount],
             }),
           },
-          { target: lifiGatewayAddress, data: route.data },
+          { target: swapperAddress, data: route.data },
           {
             target: usdcAddress,
             data: encodeFunctionData({

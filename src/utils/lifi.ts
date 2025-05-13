@@ -1,4 +1,4 @@
-import chain, { mockSwapperAbi, mockSwapperAddress } from "@exactly/common/generated/chain";
+import chain, { mockSwapperAbi, swapperAddress } from "@exactly/common/generated/chain";
 import { Hex } from "@exactly/common/validation";
 import { getTokenBalancesByChain, getTokens, config, getContractCallsQuote } from "@lifi/sdk";
 import { parse } from "valibot";
@@ -13,7 +13,7 @@ export async function getRoute(fromToken: Hex, toToken: Hex, toAmount: bigint, a
     const fromAmount = await publicClient.readContract({
       abi: mockSwapperAbi,
       functionName: "getAmountIn",
-      address: parse(Hex, mockSwapperAddress),
+      address: parse(Hex, swapperAddress),
       args: [fromToken, toAmount, toToken],
     });
     return {

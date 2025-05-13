@@ -1,5 +1,10 @@
 import ProposalType from "@exactly/common/ProposalType";
-import { exaPluginAddress, exaPreviewerAddress, proposalManagerAddress } from "@exactly/common/generated/chain";
+import {
+  exaPluginAddress,
+  exaPreviewerAddress,
+  proposalManagerAddress,
+  swapperAddress,
+} from "@exactly/common/generated/chain";
 import { useMemo } from "react";
 import {
   bytesToHex,
@@ -20,7 +25,6 @@ import {
   marketAbi,
   proposalManagerAbi,
   upgradeableModularAccountAbi,
-  useReadExaPluginSwapper,
   useReadExaPreviewerAssets,
   useReadProposalManagerQueueNonces,
 } from "../generated/contracts";
@@ -189,7 +193,6 @@ export default function useSimulateProposal({
     query: { enabled: enabled && !!deployed && !!account && !!amount },
   });
 
-  const { data: swapper } = useReadExaPluginSwapper({ address: exaPluginAddress });
   const { data: assets } = useReadExaPreviewerAssets({ address: exaPreviewerAddress });
   const { data: nonce } = useReadProposalManagerQueueNonces({
     address: proposalManagerAddress,
@@ -202,7 +205,6 @@ export default function useSimulateProposal({
       account === undefined ||
       amount === undefined ||
       market === undefined ||
-      swapper === undefined ||
       assets === undefined ||
       nonce === undefined ||
       proposalData === undefined
@@ -279,7 +281,7 @@ export default function useSimulateProposal({
             ),
             value: encodeAbiParameters([{ type: "bool" }], [true]),
           },
-          ...[swapper, ...assets.map(({ asset }) => asset)].map((target) => ({
+          ...[swapperAddress, ...assets.map(({ asset }) => asset)].map((target) => ({
             // allowlist[target]
             slot: keccak256(encodeAbiParameters([{ type: "address" }, { type: "uint256" }], [target, 2n])),
             value: encodeAbiParameters([{ type: "bool" }], [true]),
@@ -287,7 +289,7 @@ export default function useSimulateProposal({
         ],
       },
     ];
-  }, [account, amount, assets, market, nonce, proposal.proposalType, proposalData, swapper]);
+  }, [account, amount, assets, market, nonce, proposal.proposalType, proposalData]);
   const executeProposal = useSimulateContract({
     account,
     address: account,
