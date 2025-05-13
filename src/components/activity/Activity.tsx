@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import React, { useMemo } from "react";
+import React, { useMemo, forwardRef } from "react";
+import type { FlatListProps, RefreshControlProps } from "react-native";
 import { FlatList, RefreshControl } from "react-native";
 import { styled, useTheme } from "tamagui";
 
@@ -38,12 +39,12 @@ export default function Activity() {
   return (
     <SafeView fullScreen tab backgroundColor="$backgroundSoft">
       <View gap="$s5" flex={1} backgroundColor="$backgroundMild">
-        <StyledFlatList
+        <StyledForwardedFlatList
           ref={activityScrollReference}
           backgroundColor={data.length > 0 ? "$backgroundMild" : "$backgroundSoft"}
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl
+            <ForwardedRefreshControl
               ref={activityRefreshControlReference}
               style={style}
               refreshing={isPending}
@@ -110,6 +111,16 @@ type ActivityItemType =
       type: "event";
       event: Awaited<ReturnType<typeof getActivity>>[number];
     };
-const StyledFlatList = styled(FlatList<ActivityItemType>, { backgroundColor: "$backgroundMild" });
-export const activityScrollReference = React.createRef<FlatList>();
+
+const ForwardedFlatList = forwardRef<FlatList<ActivityItemType>, FlatListProps<ActivityItemType>>(
+  (properties, reference) => <FlatList {...properties} ref={reference} />,
+);
+const StyledForwardedFlatList = styled(ForwardedFlatList, { backgroundColor: "$backgroundMild" });
+const ForwardedRefreshControl = forwardRef<RefreshControl, RefreshControlProps>((properties) => (
+  <RefreshControl {...properties} />
+));
+ForwardedFlatList.displayName = "ForwardedFlatList";
+ForwardedRefreshControl.displayName = "ForwardedRefreshControl";
+
+export const activityScrollReference = React.createRef<FlatList<ActivityItemType>>();
 export const activityRefreshControlReference = React.createRef<RefreshControl>();

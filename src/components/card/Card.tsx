@@ -4,9 +4,11 @@ import { ChevronRight, CircleHelp, CreditCard, DollarSign, Eye, EyeOff, Snowflak
 import { useToastController } from "@tamagui/toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, forwardRef } from "react";
+import type { RefreshControlProps } from "react-native";
 import { Pressable, RefreshControl } from "react-native";
-import { ScrollView, Separator, Spinner, Square, Switch, useTheme, XStack, YStack } from "tamagui";
+import { ScrollView as TamaguiScrollView, Separator, Spinner, Square, Switch, useTheme, XStack, YStack } from "tamagui";
+import type { ScrollViewProps } from "tamagui";
 import { zeroAddress } from "viem";
 import { useAccount, useBytecode } from "wagmi";
 
@@ -195,12 +197,12 @@ export default function Card() {
   return (
     <SafeView fullScreen tab backgroundColor="$backgroundSoft">
       <View fullScreen backgroundColor="$backgroundMild">
-        <ScrollView
+        <ForwardedScrollView
           ref={cardScrollReference}
           backgroundColor="$backgroundMild"
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl
+            <ForwardedRefreshControl
               ref={cardRefreshControlReference}
               style={style}
               refreshing={isPending}
@@ -379,7 +381,7 @@ export default function Card() {
               </View>
             </View>
           </View>
-        </ScrollView>
+        </ForwardedScrollView>
         <CardDetails
           open={cardDetailsOpen ?? false}
           onClose={() => {
@@ -413,5 +415,14 @@ export default function Card() {
   );
 }
 
-export const cardScrollReference = React.createRef<ScrollView>();
+const ForwardedScrollView = forwardRef<TamaguiScrollView, ScrollViewProps>((properties, reference) => (
+  <TamaguiScrollView {...properties} ref={reference} />
+));
+const ForwardedRefreshControl = forwardRef<RefreshControl, RefreshControlProps>((properties) => (
+  <RefreshControl {...properties} />
+));
+ForwardedScrollView.displayName = "ForwardedScrollView";
+ForwardedRefreshControl.displayName = "ForwardedRefreshControl";
+
+export const cardScrollReference = React.createRef<TamaguiScrollView>();
 export const cardRefreshControlReference = React.createRef<RefreshControl>();
