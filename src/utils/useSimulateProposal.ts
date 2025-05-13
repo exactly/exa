@@ -15,7 +15,9 @@ import {
   toBytes,
   zeroAddress,
   type Address,
+  type BlockOverrides,
   type Hex,
+  type StateOverride,
 } from "viem";
 import { useBytecode, useSimulateContract } from "wagmi";
 
@@ -26,6 +28,7 @@ import {
   proposalManagerAbi,
   upgradeableModularAccountAbi,
   useReadExaPreviewerAssets,
+  useReadProposalManagerDelay,
   useReadProposalManagerQueueNonces,
 } from "../generated/contracts";
 
@@ -193,7 +196,8 @@ export default function useSimulateProposal({
     query: { enabled: enabled && !!deployed && !!account && !!amount },
   });
 
-  const { data: assets } = useReadExaPreviewerAssets({ address: exaPreviewerAddress });
+  const { data: proposalDelay } = useReadProposalManagerDelay({ address: proposalManagerAddress, query: { enabled } });
+  const { data: assets } = useReadExaPreviewerAssets({ address: exaPreviewerAddress, query: { enabled } });
   const { data: nonce } = useReadProposalManagerQueueNonces({
     address: proposalManagerAddress,
     args: [account ?? zeroAddress],
@@ -288,8 +292,12 @@ export default function useSimulateProposal({
           })),
         ],
       },
-    ];
+    ] satisfies StateOverride;
   }, [account, amount, assets, market, nonce, proposal.proposalType, proposalData]);
+  const blockOverrides =
+    proposalDelay === undefined
+      ? undefined
+      : ({ time: BigInt(Math.floor(Date.now() / 1000)) + proposalDelay } satisfies BlockOverrides);
   const executeProposal = useSimulateContract({
     account,
     address: account,
@@ -297,7 +305,10 @@ export default function useSimulateProposal({
     args: [nonce ?? 0n],
     abi: [...upgradeableModularAccountAbi, ...exaPluginAbi, ...proposalManagerAbi, ...auditorAbi, ...marketAbi],
     stateOverride,
-    query: { enabled: enabled && !!deployed && nonce !== undefined && !!account && !!stateOverride },
+    blockOverrides,
+    query: {
+      enabled: enabled && !!deployed && nonce !== undefined && !!account && !!stateOverride && !!blockOverrides,
+    },
   });
 
   return { propose, executeProposal, proposalData };
