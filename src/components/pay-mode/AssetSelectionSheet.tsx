@@ -20,7 +20,7 @@ export default function AssetSelectionSheet({
 }: {
   open: boolean;
   onClose: () => void;
-  onAssetSelected: (market: Address, isExternalAsset: boolean) => void;
+  onAssetSelected: (market: Address, external: boolean) => void;
   symbol?: string;
   positions?: {
     symbol: string;

@@ -23,8 +23,8 @@ export default function Pending({
   usdAmount: number;
   amount: number;
   currency?: string;
-  maturity: string;
-  selectedAsset: Address;
+  maturity: bigint;
+  selectedAsset?: Address;
 }) {
   const { externalAsset } = useAsset(selectedAsset);
   const theme = useTheme();
