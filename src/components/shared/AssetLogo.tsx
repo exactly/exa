@@ -1,6 +1,6 @@
 import { Skeleton } from "moti/skeleton";
 import React, { useState } from "react";
-import { Appearance } from "react-native";
+import { Appearance, Platform } from "react-native";
 import { FadeIn, FadeOut } from "react-native-reanimated";
 import { SvgUri, type UriProps } from "react-native-svg";
 
@@ -23,10 +23,9 @@ export default function AssetLogo({ ...properties }: UriProps) {
         alignItems="center"
         justifyContent="center"
         display={loading ? "none" : "flex"}
-        entering={FadeIn}
-        exiting={FadeOut}
         width={Number(properties.width)}
         height={Number(properties.height)}
+        {...(Platform.OS !== "web" && { entering: FadeIn, exiting: FadeOut })}
       >
         <SvgUri
           {...properties}
