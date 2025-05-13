@@ -1,8 +1,10 @@
 import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, forwardRef } from "react";
+import type { RefreshControlProps } from "react-native";
 import { RefreshControl } from "react-native";
-import { ScrollView, useTheme } from "tamagui";
+import { ScrollView as TamaguiScrollView, useTheme } from "tamagui";
+import type { ScrollViewProps } from "tamagui";
 import { zeroAddress } from "viem";
 
 import OverduePayments from "./OverduePayments";
@@ -27,12 +29,12 @@ export default function PayMode() {
   return (
     <SafeView fullScreen tab backgroundColor="$backgroundSoft">
       <View fullScreen backgroundColor="$backgroundMild">
-        <ScrollView
+        <ForwardedScrollView
           ref={payModeScrollReference}
           showsVerticalScrollIndicator={false}
           flex={1}
           refreshControl={
-            <RefreshControl
+            <ForwardedRefreshControl
               ref={payModeRefreshControlReference}
               style={style}
               refreshing={isPending}
@@ -73,11 +75,19 @@ export default function PayMode() {
               }}
             />
           </>
-        </ScrollView>
+        </ForwardedScrollView>
       </View>
     </SafeView>
   );
 }
+const ForwardedScrollView = forwardRef<TamaguiScrollView, ScrollViewProps>((properties, reference) => (
+  <TamaguiScrollView {...properties} ref={reference} />
+));
+const ForwardedRefreshControl = forwardRef<RefreshControl, RefreshControlProps>((properties) => (
+  <RefreshControl {...properties} />
+));
+ForwardedScrollView.displayName = "ForwardedScrollView";
+ForwardedRefreshControl.displayName = "ForwardedRefreshControl";
 
-export const payModeScrollReference = React.createRef<ScrollView>();
+export const payModeScrollReference = React.createRef<TamaguiScrollView>();
 export const payModeRefreshControlReference = React.createRef<RefreshControl>();

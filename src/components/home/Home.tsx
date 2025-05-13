@@ -3,9 +3,11 @@ import { healthFactor, WAD } from "@exactly/lib";
 import { TimeToFullDisplay } from "@sentry/react-native";
 import { useQuery } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, forwardRef } from "react";
+import type { RefreshControlProps } from "react-native";
 import { RefreshControl } from "react-native";
-import { ScrollView, useTheme } from "tamagui";
+import { ScrollView as TamaguiScrollView, useTheme } from "tamagui";
+import type { ScrollViewProps } from "tamagui";
 import { zeroAddress } from "viem";
 import { useAccount, useBytecode } from "wagmi";
 
@@ -97,12 +99,12 @@ export default function Home() {
   return (
     <SafeView fullScreen tab backgroundColor="$backgroundSoft">
       <View fullScreen backgroundColor="$backgroundMild">
-        <ScrollView
+        <ForwardedScrollView
           ref={homeScrollReference}
           backgroundColor="$backgroundMild"
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl
+            <ForwardedRefreshControl
               ref={homeRefreshControlReference}
               style={style}
               refreshing={isPending}
@@ -123,7 +125,7 @@ export default function Home() {
               {(legacyKYCStatus === "ok" && KYCStatus !== "ok") ||
                 (bytecode && !isLatestPlugin && (
                   <InfoAlert
-                    title="We’re upgrading all Exa Cards by migrating them to a new and improved card issuer. Existing cards will work until May 18th, 2025, and upgrading will be required after this date."
+                    title="We're upgrading all Exa Cards by migrating them to a new and improved card issuer. Existing cards will work until May 18th, 2025, and upgrading will be required after this date."
                     actionText="Start Exa Card upgrade"
                     onPress={() => {
                       queryClient.setQueryData(["card-upgrade-open"], true);
@@ -176,12 +178,21 @@ export default function Home() {
               setSpendingLimitsInfoSheetOpen(false);
             }}
           />
-        </ScrollView>
+        </ForwardedScrollView>
         <TimeToFullDisplay record={!!markets && !!activity} />
       </View>
     </SafeView>
   );
 }
 
-export const homeScrollReference = React.createRef<ScrollView>();
+const ForwardedScrollView = forwardRef<TamaguiScrollView, ScrollViewProps>((properties, reference) => (
+  <TamaguiScrollView {...properties} ref={reference} />
+));
+ForwardedScrollView.displayName = "ForwardedScrollView";
+const ForwardedRefreshControl = forwardRef<RefreshControl, RefreshControlProps>((properties) => (
+  <RefreshControl {...properties} />
+));
+ForwardedRefreshControl.displayName = "ForwardedRefreshControl";
+
+export const homeScrollReference = React.createRef<TamaguiScrollView>();
 export const homeRefreshControlReference = React.createRef<RefreshControl>();
