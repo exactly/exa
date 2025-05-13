@@ -8,7 +8,14 @@ import { optimism, optimismSepolia } from "viem/chains";
 
 import publicClient from "./publicClient";
 
-export async function getRoute(fromToken: Hex, toToken: Hex, toAmount: bigint, account: Hex, receiver: Hex) {
+export async function getRoute(
+  fromToken: Hex,
+  toToken: Hex,
+  toAmount: bigint,
+  account: Hex,
+  receiver: Hex,
+  denyExchanges?: Record<string, boolean>,
+) {
   if (chain.id === optimismSepolia.id) {
     const fromAmount = await publicClient.readContract({
       abi: mockSwapperAbi,
@@ -17,6 +24,7 @@ export async function getRoute(fromToken: Hex, toToken: Hex, toAmount: bigint, a
       args: [fromToken, toAmount, toToken],
     });
     return {
+      exchange: "mockSwapper",
       fromAmount,
       data: parse(
         Hex,
@@ -29,7 +37,7 @@ export async function getRoute(fromToken: Hex, toToken: Hex, toAmount: bigint, a
     };
   }
   config.set({ integrator: "exa_app", userId: account });
-  const { estimate, transactionRequest } = await getContractCallsQuote({
+  const { estimate, transactionRequest, tool } = await getContractCallsQuote({
     fee: 0.0025,
     slippage: 0.015,
     integrator: "exa_app",
@@ -41,9 +49,13 @@ export async function getRoute(fromToken: Hex, toToken: Hex, toAmount: bigint, a
     fromAddress: account,
     contractCalls: [],
     toFallbackAddress: receiver,
-    denyExchanges: ["bebop"],
+    denyExchanges:
+      denyExchanges &&
+      Object.entries(denyExchanges)
+        .filter(([_, value]) => value)
+        .map(([key]) => key),
   });
-  return { fromAmount: BigInt(estimate.fromAmount), data: parse(Hex, transactionRequest?.data) };
+  return { exchange: tool, fromAmount: BigInt(estimate.fromAmount), data: parse(Hex, transactionRequest?.data) };
 }
 
 export async function getAsset(account: Address) {

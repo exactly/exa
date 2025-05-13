@@ -7,12 +7,19 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { router, useLocalSearchParams } from "expo-router";
 import { Skeleton } from "moti/skeleton";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, Image, Appearance } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
 import { digits, parse, pipe, safeParse, string, transform } from "valibot";
-import { encodeFunctionData, erc20Abi, parseUnits, zeroAddress } from "viem";
+import {
+  ContractFunctionExecutionError,
+  ContractFunctionRevertedError,
+  encodeFunctionData,
+  erc20Abi,
+  parseUnits,
+  zeroAddress,
+} from "viem";
 import { useAccount, useBytecode, useSimulateContract, useWriteContract } from "wagmi";
 
 import AssetSelectionSheet from "./AssetSelectionSheet";
@@ -45,6 +52,7 @@ export default function Pay() {
   const { accountAssets } = useAccountAssets();
   const { market: exaUSDC } = useAsset(marketUSDCAddress);
   const [assetSelectionOpen, setAssetSelectionOpen] = useState(false);
+  const [denyExchanges, setDenyExchanges] = useState<Record<string, boolean>>({});
   const [selectedAsset, setSelectedAsset] = useState<{ address?: Address; external: boolean }>({ external: true });
   const {
     markets,
@@ -119,10 +127,11 @@ export default function Pay() {
             maxRepay,
             account,
             mode === "crossRepay" ? account : exaPluginAddress,
+            denyExchanges,
           );
         case "external":
           if (!account || !selectedAsset.address) throw new Error("implementation error");
-          return getRoute(selectedAsset.address, usdcAddress, maxRepay, account, account);
+          return getRoute(selectedAsset.address, usdcAddress, maxRepay, account, account, denyExchanges);
         default:
           throw new Error("implementation error");
       }
@@ -326,6 +335,20 @@ export default function Pay() {
     external: false,
     none: false,
   }[mode];
+
+  useEffect(() => {
+    if (
+      !simulationError ||
+      !route?.exchange ||
+      !(simulationError instanceof ContractFunctionExecutionError) ||
+      !(simulationError.cause instanceof ContractFunctionRevertedError) ||
+      simulationError.cause.data?.errorName === "MarketFrozen"
+    ) {
+      return;
+    }
+    setDenyExchanges((state) => ({ ...state, [route.exchange]: true }));
+  }, [route?.exchange, simulationError]);
+
   const isPending = mode === "external" ? isExternalRepaying : isRepaying;
   const isSuccess = mode === "external" ? isExternalRepaySuccess : isRepaySuccess;
   const writeError = mode === "external" ? externalRepayError : writeContractError;
