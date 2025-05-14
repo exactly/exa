@@ -33,7 +33,7 @@ export default function PortfolioSummary({ usdBalance }: { usdBalance: bigint })
       backgroundColor="$backgroundSoft"
       borderRadius="$r3"
       paddingVertical="$s3_5"
-      paddingHorizontal="$s2_5"
+      paddingHorizontal="$s4"
       onPress={() => {
         router.push("/portfolio");
       }}
@@ -81,7 +81,7 @@ export default function PortfolioSummary({ usdBalance }: { usdBalance: bigint })
               <Skeleton radius="round" colorMode={Appearance.getColorScheme() ?? "light"} height={16} width={16} />
             )}
           </View>
-          <ChevronRight size={24} color="$interactiveTextBrandDefault" />
+          <ChevronRight size={18} color="$interactiveTextBrandDefault" />
         </XStack>
       </View>
     </View>
