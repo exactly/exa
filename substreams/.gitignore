@@ -1,0 +1,7 @@
+src/abi/**/*
+!src/abi/mod.rs
+src/proto/
+target/
+
+*.log
+*.spkg
