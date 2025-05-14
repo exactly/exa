@@ -162,12 +162,12 @@ export async function getTemplateId() {
     return exaPlugin === exaPluginAddress
       ? PANDA_TEMPLATE
       : queryClient.getQueryData<Passkey>(["passkey"])?.factory === parse(Address, exaAccountFactoryAddress)
-        ? CRYPTOMATE_TEMPLATE
-        : PANDA_TEMPLATE;
+        ? PANDA_TEMPLATE
+        : CRYPTOMATE_TEMPLATE;
   } catch {
     return queryClient.getQueryData<Passkey>(["passkey"])?.factory === parse(Address, exaAccountFactoryAddress)
-      ? CRYPTOMATE_TEMPLATE
-      : PANDA_TEMPLATE;
+      ? PANDA_TEMPLATE
+      : CRYPTOMATE_TEMPLATE;
   }
 }
 
