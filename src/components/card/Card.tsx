@@ -1,6 +1,7 @@
 import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import type { Passkey } from "@exactly/common/validation";
 import { ChevronRight, CircleHelp, CreditCard, DollarSign, Eye, EyeOff, Snowflake } from "@tamagui/lucide-icons";
+import { useToastController } from "@tamagui/toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import React, { useState } from "react";
@@ -32,6 +33,7 @@ import View from "../shared/View";
 
 export default function Card() {
   const theme = useTheme();
+  const toast = useToastController();
   const { presentArticle } = useIntercom();
   const [disclaimerShown, setDisclaimerShown] = useState(false);
   const [verificationFailureShown, setVerificationFailureShown] = useState(false);
@@ -148,15 +150,47 @@ export default function Card() {
 
   const { mutateAsync: generateCard, isPending: isGeneratingCard } = useMutation({
     mutationKey: ["card", "create"],
+    retry: (failureCount, error) => {
+      return error instanceof APIError && error.code === 500 && failureCount < 24;
+    },
+    retryDelay: (_, error) => {
+      return error instanceof APIError && error.code === 500 ? 5000 : 1000;
+    },
     mutationFn: async () => {
       if (!passkey) return;
-      try {
-        await createCard();
-        const { data: card } = await refetchCard();
-        if (card) queryClient.setQueryData(["card-details-open"], true);
-      } catch (error) {
+      await createCard();
+    },
+    onSuccess: async () => {
+      toast.show("Card activated!", {
+        native: true,
+        duration: 1000,
+        burntOptions: { haptic: "success" },
+      });
+      const { data: card } = await refetchCard();
+      if (card) queryClient.setQueryData(["card-details-open"], true);
+    },
+    onError: async (error: Error) => {
+      if (!(error instanceof APIError)) {
         reportError(error);
+        toast.show("Error activating card", {
+          native: true,
+          duration: 1000,
+          burntOptions: { haptic: "error", preset: "error" },
+        });
+        return;
       }
+      const { code, text } = error;
+      if (code === 400 && text.includes("card already exists")) {
+        await queryClient.refetchQueries({ queryKey: ["card", "details"] });
+        await queryClient.setQueryData(["card-details-open"], true);
+        return;
+      }
+      reportError(error);
+      toast.show("Error activating card", {
+        native: true,
+        duration: 1000,
+        burntOptions: { haptic: "error", preset: "error" },
+      });
     },
   });
 
