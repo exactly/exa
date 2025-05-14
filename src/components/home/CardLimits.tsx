@@ -3,6 +3,7 @@ import { borrowLimit, withdrawLimit } from "@exactly/lib";
 import { Info } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { View } from "tamagui";
 import { zeroAddress } from "viem";
@@ -15,6 +16,7 @@ import useIntercom from "../../utils/useIntercom";
 import Text from "../shared/Text";
 
 export default function CardLimits() {
+  const { t } = useTranslation();
   const { data: card } = useQuery({ queryKey: ["card", "details"], queryFn: getCard });
   const isCredit = card ? card.mode > 0 : false;
   const { address } = useAccount();
@@ -51,7 +53,7 @@ export default function CardLimits() {
           color={isCredit ? "$cardCreditText" : "$cardDebitText"}
           maxFontSizeMultiplier={1}
         >
-          {isCredit ? `Pay in ${card?.mode} installments enabled` : "Pay Now enabled"}
+          {isCredit ? t("Pay in {{count}} installments enabled", { count: card?.mode }) : t("Pay Now enabled")}
         </Text>
       </View>
 
