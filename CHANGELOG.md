@@ -1,5 +1,30 @@
 # @exactly/mobile
 
+## 1.0.6
+
+### Patch Changes
+
+- [`e4640cc`](https://github.com/exactly/exa/commit/e4640ccdcdf119cd0c2a8034cc84d8bfe79ef00a) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 decrease preferred aspect ratio on web
+
+- [`6449196`](https://github.com/exactly/exa/commit/64491966ee87047fd3d5312de6df2e98f1c0ac56) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 improve portfolio component styles
+
+- [`e5bf570`](https://github.com/exactly/exa/commit/e5bf5702116c20a8bef638aad56336a754c865c0) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚸 improve activity amount display
+
+- [`2bd2158`](https://github.com/exactly/exa/commit/2bd2158bb4a0e53bf9a6c6ea3d6c51efaa2ac88f) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ add proposal simulation hook
+
+- [`4d04ab0`](https://github.com/exactly/exa/commit/4d04ab0521dd2c3797f77205afae8e157842ba8a) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚑 fix dynamic kyc template id
+
+- [`d4e3133`](https://github.com/exactly/exa/commit/d4e31331455d174ab6482b41e2eec20b0848d170) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚸 wait for card approval upon creation
+
+- [`a545851`](https://github.com/exactly/exa/commit/a5458516547a1667d447523d31a7af9fb2d90787) Thanks [@franm91](https://github.com/franm91)! - 🚑️ fix calculator input parsing
+
+- [`cd5b037`](https://github.com/exactly/exa/commit/cd5b037a2371040862d3391586553a8dd1076208) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ override block timestamp on proposal simulation
+
+- [`4744797`](https://github.com/exactly/exa/commit/4744797d8c68f21e14113b24dc1aca5a76941746) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix upgrade condition for new accounts
+
+- Updated dependencies [[`3c1d95c`](https://github.com/exactly/exa/commit/3c1d95cb8bf47f5b7b00f53fe919f88b7c9e5224)]:
+  - @exactly/server@0.1.10
+
 ## 1.0.5
 
 ### Patch Changes

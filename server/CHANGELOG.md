@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.1.10
+
+### Patch Changes
+
+- [`3c1d95c`](https://github.com/exactly/exa/commit/3c1d95cb8bf47f5b7b00f53fe919f88b7c9e5224) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🐛 fix old weth withdraws in the activity api
+
 ## 0.1.9
 
 ### Patch Changes
