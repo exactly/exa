@@ -20,6 +20,7 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
       const credentialId = queryClient.getQueryData<Passkey>(["passkey"])?.credentialId;
       const get = await api.auth.authentication.$get({ query: { credentialId } });
       const options = await get.json();
+      if (options.method === "siwe") throw new Error("siwe not implemented");
       if (Platform.OS === "android") delete options.allowCredentials; // HACK fix android credential filtering
       const assertion = await assert(options);
       if (!assertion) throw new Error("bad assertion");
@@ -116,6 +117,7 @@ export async function getPasskey() {
 
 export async function createPasskey() {
   const options = await registrationOptions();
+  if (options.method === "siwe") throw new Error("siwe not implemented");
   const attestation = await create(options);
   if (!attestation) throw new Error("bad attestation");
   return verifyRegistration(attestation);
