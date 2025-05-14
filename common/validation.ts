@@ -10,13 +10,13 @@ import {
 } from "viem";
 
 export const Address = pipe(
-  string(),
+  string("bad address"),
   check((input) => isAddress(input, { strict: false }), "bad address"),
   transform((input) => checksumAddress(input as ViemAddress)),
   brand("Address"),
 );
 
-export const Base64URL = pipe(string(), regex(/^[\w-]+$/, "bad base64url"));
+export const Base64URL = pipe(string("bad base64url"), regex(/^[\w-]+$/, "bad base64url"));
 
 export const Hash = custom<ViemHash>(isHash as (hash: unknown) => hash is ViemHash, "bad hash");
 
