@@ -184,6 +184,7 @@ export default new Hono().get(
                 }
                 if (log.address.toLowerCase() === marketWETHAddress.toLowerCase() && plugins.has(receiver)) {
                   const { input: data } = await publicClient.getTransaction({ hash: log.transactionHash });
+                  if (data === "0x3ccfd60b") return log;
                   const { functionName, args } = decodeFunctionData({ data, abi: exaPluginAbi });
                   if (functionName !== "executeProposal") return;
                   const proposal = proposed.find(({ args: { nonce } }) => nonce === args[0]);
