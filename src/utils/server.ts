@@ -2,12 +2,18 @@ import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 import domain from "@exactly/common/domain";
 import { Passkey } from "@exactly/common/validation";
 import type { ExaAPI } from "@exactly/server/api";
+import { signMessage } from "@wagmi/core/actions";
 import { hc } from "hono/client";
 import { Platform } from "react-native";
 import { get as assert, create } from "react-native-passkeys";
-import type { RegistrationResponseJSON } from "react-native-passkeys/build/ReactNativePasskeys.types";
 import { check, number, parse, pipe, safeParse, ValiError } from "valibot";
 
+import {
+  connectAccount as connectInjectedAccount,
+  getAccount as getInjectedAccount,
+  config as injectedConfig,
+  connector as injectedConnector,
+} from "./injectedConnector";
 import { encryptPIN, session } from "./panda";
 import queryClient, { APIError } from "./queryClient";
 
@@ -16,14 +22,34 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
   gcTime: AUTH_EXPIRY,
   retry: false,
   queryFn: async () => {
-    const credentialId = queryClient.getQueryData<Passkey>(["passkey"])?.credentialId;
-    const get = await api.auth.authentication.$get({ query: { credentialId } });
+    const get = await api.auth.authentication.$get({
+      query: {
+        credentialId: (await getInjectedAccount()) ?? queryClient.getQueryData<Passkey>(["passkey"])?.credentialId,
+      },
+    });
     const options = await get.json();
-    if (options.method === "siwe") throw new Error("siwe not implemented");
-    if (Platform.OS === "android") delete options.allowCredentials; // HACK fix android credential filtering
-    const assertion = await assert(options);
-    if (!assertion) throw new Error("bad assertion");
-    const post = await api.auth.authentication.$post({ json: assertion });
+    if (options.method === "webauthn" && Platform.OS === "android") delete options.allowCredentials; // HACK fix android credential filtering
+    const post = await api.auth.authentication.$post({
+      json:
+        options.method === "siwe"
+          ? await connectInjectedAccount(options.address).then(async () => ({
+              method: "siwe" as const,
+              id: options.address,
+              signature: await signMessage(injectedConfig, {
+                connector: injectedConnector,
+                account: options.address,
+                message: options.message,
+              }),
+            }))
+          : await assert({
+              ...options,
+              allowCredentials: Platform.OS === "android" ? undefined : options.allowCredentials, // HACK fix android credential filtering
+              extensions: options.extensions as Record<string, unknown> | undefined,
+            }).then((assertion) => {
+              if (!assertion) throw new Error("bad assertion");
+              return { method: "webauthn" as const, ...assertion };
+            }),
+    });
     if (!post.ok) throw new APIError(post.status, stringOrLegacy(await post.json()));
     const { expires } = await post.json();
     return parse(Auth, expires);
@@ -43,19 +69,6 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
 const api = hc<ExaAPI>(domain === "localhost" ? "http://localhost:3000/api" : `https://${domain}/api`, {
   init: { credentials: "include" },
 });
-
-export async function registrationOptions() {
-  const response = await api.auth.registration.$get();
-  return response.json();
-}
-
-export async function verifyRegistration(attestation: RegistrationResponseJSON) {
-  const response = await api.auth.registration.$post({ json: attestation });
-  if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
-  const { auth: expires, ...passkey } = await response.json();
-  await queryClient.setQueryData(["auth"], parse(Auth, expires));
-  return parse(Passkey, passkey);
-}
 
 export async function getCard() {
   await auth();
@@ -119,12 +132,33 @@ export async function getPasskey() {
   return response.json();
 }
 
-export async function createPasskey() {
-  const options = await registrationOptions();
-  if (options.method === "siwe") throw new Error("siwe not implemented");
-  const attestation = await create(options);
-  if (!attestation) throw new Error("bad attestation");
-  return verifyRegistration(attestation);
+export async function createCredential() {
+  const get = await api.auth.registration.$get({ query: { credentialId: await getInjectedAccount() } });
+  const options = await get.json();
+  const post = await api.auth.registration.$post({
+    json:
+      options.method === "siwe"
+        ? await connectInjectedAccount(options.address).then(async () => ({
+            method: "siwe" as const,
+            id: options.address,
+            signature: await signMessage(injectedConfig, {
+              connector: injectedConnector,
+              account: options.address,
+              message: options.message,
+            }),
+          }))
+        : await create({
+            ...options,
+            extensions: options.extensions as Record<string, unknown> | undefined,
+          }).then((attestation) => {
+            if (!attestation) throw new Error("bad attestation");
+            return attestation;
+          }),
+  });
+  if (!post.ok) throw new APIError(post.status, stringOrLegacy(await post.json()));
+  const { auth: expires, ...passkey } = await post.json();
+  await queryClient.setQueryData(["auth"], parse(Auth, expires));
+  return parse(Passkey, passkey);
 }
 
 export async function getActivity(parameters?: NonNullable<Parameters<typeof api.activity.$get>[0]>["query"]) {
@@ -147,8 +181,8 @@ export async function auth() {
 }
 
 const Auth = pipe(
-  number(),
-  check((expires) => Date.now() < expires),
+  number("no auth"),
+  check((expires) => Date.now() < expires, "auth expired"),
 );
 
 export { APIError } from "./queryClient";
