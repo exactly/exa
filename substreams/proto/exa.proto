@@ -12,3 +12,19 @@ message Account {
   // internals
   uint64 log_ordinal = 30;
 }
+
+message Swaps {
+  repeated Swap swaps = 1;
+}
+
+message Swap {
+  bytes receiver = 1;
+  bytes from_asset_id = 2;
+  bytes to_asset_id = 3;
+  string from_amount = 4;
+  string to_amount = 5;
+  bytes transaction_id = 6;
+
+  // internals
+  uint64 log_ordinal = 30;
+}
