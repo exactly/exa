@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package exa;
+
+message Accounts {
+  repeated bytes accounts = 1;
+}
+
+message Transfers {
+  repeated Transfer transfers = 1;
+}
+
+message Transfer {
+  bytes asset = 1;
+  bytes receiver = 2;
+}

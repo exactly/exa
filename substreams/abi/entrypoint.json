@@ -1,0 +1,13 @@
+[
+  {
+    "type": "event",
+    "name": "AccountDeployed",
+    "inputs": [
+      { "name": "userOpHash", "type": "bytes32", "indexed": true },
+      { "name": "sender", "type": "address", "indexed": true },
+      { "name": "factory", "type": "address" },
+      { "name": "paymaster", "type": "address" }
+    ],
+    "anonymous": false
+  }
+]
