@@ -1,13 +1,13 @@
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 import domain from "@exactly/common/domain";
-import { Address, Base64URL } from "@exactly/common/validation";
+import chain from "@exactly/common/generated/chain";
+import { Address, Base64URL, Hex } from "@exactly/common/validation";
 import { captureException, setContext, setUser } from "@sentry/node";
 import {
   type AuthenticatorTransportFuture,
   generateAuthenticationOptions,
   verifyAuthenticationResponse,
 } from "@simplewebauthn/server";
-import { generateChallenge, isoBase64URL } from "@simplewebauthn/server/helpers";
 import { eq } from "drizzle-orm";
 import { Hono, type Env } from "hono";
 import { setCookie, setSignedCookie } from "hono/cookie";
@@ -29,9 +29,13 @@ import {
   record,
   string,
   title,
+  union,
   unknown,
+  variant,
   type InferOutput,
 } from "valibot";
+import { isAddress, verifyMessage } from "viem";
+import { createSiweMessage, generateSiweNonce, parseSiweMessage, validateSiweMessage } from "viem/siwe";
 
 import database, { credentials } from "../../database";
 import androidOrigins from "../../utils/android/origins";
@@ -43,55 +47,63 @@ const Cookie = object({
   session_id: pipe(Base64URL, title("Session identifier"), description("HTTP-only cookie.")),
 });
 
-const AuthenticationOptions = pipe(
-  object({
-    challenge: pipe(Base64URL, title("Cryptographic challenge"), description("Random bytes to be signed.")),
-    timeout: pipe(optional(number()), title("Time limit"), description("Maximum time to complete authentication.")),
-    rpId: pipe(optional(string()), title("Service domain"), description("Domain being authenticated with.")),
-    allowCredentials: pipe(
-      optional(
-        array(
-          object({
-            id: pipe(
-              Base64URL,
-              title("Credential identifier"),
-              description("Unique identifier for the authenticator."),
-            ),
-            type: pipe(
-              literal("public-key"),
-              title("Credential type"),
-              description("Always `public-key` for WebAuthn."),
-            ),
-            transports: pipe(
-              optional(array(string())),
-              title("Transport methods"),
-              description("How the authenticator can be used."),
-              metadata({ examples: ["usb", "nfc", "ble", "hybrid", "cable", "smart-card", "internal"] }),
-            ),
-          }),
+const AuthenticationOptions = variant("method", [
+  pipe(
+    object({
+      method: pipe(literal("siwe"), title("Method"), description("Sign-in with Ethereum.")),
+      address: pipe(Address, title("Address"), description("Address to sign in with.")),
+      message: pipe(string(), title("Message"), description("Message to sign.")),
+    }),
+    title("Sign-in with Ethereum"),
+  ),
+  pipe(
+    object({
+      method: pipe(literal("webauthn"), title("Method"), description("WebAuthn.")),
+      timeout: pipe(optional(number()), title("Time limit"), description("Maximum time to complete authentication.")),
+      rpId: pipe(optional(string()), title("Service domain"), description("Domain being authenticated with.")),
+      allowCredentials: pipe(
+        optional(
+          array(
+            object({
+              id: pipe(
+                Base64URL,
+                title("Credential identifier"),
+                description("Unique identifier for the authenticator."),
+              ),
+              type: pipe(
+                literal("public-key"),
+                title("Credential type"),
+                description("Always `public-key` for WebAuthn."),
+              ),
+              transports: pipe(
+                optional(array(string())),
+                title("Transport methods"),
+                description("How the authenticator can be used."),
+                metadata({ examples: ["usb", "nfc", "ble", "hybrid", "cable", "smart-card", "internal"] }),
+              ),
+            }),
+          ),
         ),
+        title("Valid authenticators"),
+        description("List of authenticators that can be used for authentication."),
       ),
-      title("Valid authenticators"),
-      description("List of authenticators that can be used for authentication."),
-    ),
-    userVerification: pipe(
-      optional(picklist(["discouraged", "preferred", "required"])),
-      title("User verification"),
-      description("Whether user presence must be verified."),
-    ),
-    extensions: pipe(
-      optional(record(string(), unknown())),
-      title("Extensions"),
-      description("Additional features to enable."),
-    ),
-  }),
-  title("WebAuthn"),
-);
+      userVerification: pipe(
+        optional(picklist(["discouraged", "preferred", "required"])),
+        title("User verification"),
+        description("Whether user presence must be verified."),
+      ),
+      extensions: pipe(
+        optional(record(string(), unknown())),
+        title("Extensions"),
+        description("Additional features to enable."),
+      ),
+    }),
+    title("WebAuthn"),
+  ),
+]);
 
 const Authentication = pipe(
-  object({
-    expires: pipe(number(), title("Session expiry"), description("When the session will expire.")),
-  }),
+  object({ expires: pipe(number(), title("Session expiry"), description("When the session will expire.")) }),
   title("Authentication response"),
 );
 
@@ -117,7 +129,18 @@ export default new Hono()
       "query",
       object({
         credentialId: optional(
-          pipe(Base64URL, title("Credential identifier"), description("Identifier of the authenticator to use.")),
+          union([
+            pipe(
+              Address,
+              title("Ethereum address"),
+              description("Address to sign in with. Required for Sign-in with Ethereum."),
+            ),
+            pipe(
+              Base64URL,
+              title("Credential identifier"),
+              description("Credential identifier to sign in with. Optional for WebAuthn."),
+            ),
+          ]),
         ),
       }),
       (validation, c) => {
@@ -131,21 +154,47 @@ export default new Hono()
     ),
     async (c) => {
       const timeout = 5 * 60_000;
+      const sessionId = generateSiweNonce();
+      const issuedAt = new Date();
+      const expires = new Date(issuedAt.getTime() + timeout);
+      setCookie(c, "session_id", sessionId, { domain, expires, httpOnly: true });
       const { credentialId } = c.req.valid("query");
-      const [options, sessionId] = await Promise.all([
-        generateAuthenticationOptions({
-          rpID: domain,
-          allowCredentials: credentialId ? [{ id: credentialId }] : undefined,
-          timeout,
-        }),
-        generateChallenge().then(isoBase64URL.fromBuffer),
-      ]);
-      setCookie(c, "session_id", sessionId, { domain, expires: new Date(Date.now() + timeout), httpOnly: true });
+      if (credentialId && (isAddress as (address: string) => address is Address)(credentialId)) {
+        const message = createSiweMessage({
+          resources: ["https://exactly.github.io/exa"],
+          statement: "Sign-in to the Exa App",
+          expirationTime: expires,
+          address: credentialId,
+          chainId: chain.id,
+          nonce: sessionId,
+          uri: appOrigin,
+          version: "1",
+          issuedAt,
+          domain,
+          scheme,
+        });
+        await redis.set(sessionId, message, "PX", timeout);
+        return c.json(
+          { method: "siwe" as const, address: credentialId, message } satisfies InferOutput<
+            typeof AuthenticationOptions
+          >,
+          200,
+        );
+      }
+      const options = await generateAuthenticationOptions({
+        rpID: domain,
+        allowCredentials: credentialId ? [{ id: credentialId }] : undefined,
+        timeout,
+      });
       await redis.set(sessionId, options.challenge, "PX", timeout);
       return c.json(
         {
+          method: "webauthn" as const,
           ...options,
-          extensions: options.extensions as InferOutput<typeof AuthenticationOptions>["extensions"],
+          extensions: options.extensions as Extract<
+            InferOutput<typeof AuthenticationOptions>,
+            { method: "webauthn" }
+          >["extensions"],
         } satisfies InferOutput<typeof AuthenticationOptions>,
         200,
       );
@@ -174,31 +223,54 @@ export default new Hono()
     ),
     vValidator(
       "json",
-      pipe(
-        object({
-          id: pipe(Base64URL, title("Credential identifier"), description("Unique identifier for the authenticator.")),
-          rawId: pipe(Base64URL, title("Raw identifier"), description("Raw bytes of the credential identifier.")),
-          response: object({
-            clientDataJSON: pipe(Base64URL, title("Client data"), description("Authentication data from the client.")),
-            authenticatorData: pipe(
+      variant("method", [
+        pipe(
+          object({
+            method: pipe(literal("siwe"), title("Method"), description("Sign-in with Ethereum.")),
+            id: pipe(Address, title("Address"), description("Address to sign in with.")),
+            signature: pipe(Hex, title("Signature"), description("Signature of the cryptographic challenge message.")),
+          }),
+          title("Sign-in with Ethereum"),
+        ),
+        pipe(
+          object({
+            method: pipe(optional(literal("webauthn"), "webauthn"), title("Method"), description("WebAuthn.")),
+            id: pipe(
               Base64URL,
-              title("Authenticator data"),
-              description("Data from the authenticator."),
+              title("Credential identifier"),
+              description("Unique identifier for the authenticator."),
             ),
-            signature: pipe(Base64URL, title("Signature"), description("Cryptographic signature of the challenge.")),
-            userHandle: optional(
-              pipe(Base64URL, title("User handle"), description("Optional identifier for the user.")),
+            rawId: pipe(Base64URL, title("Raw identifier"), description("Raw bytes of the credential identifier.")),
+            response: object({
+              clientDataJSON: pipe(
+                Base64URL,
+                title("Client data"),
+                description("Authentication data from the client."),
+              ),
+              authenticatorData: pipe(
+                Base64URL,
+                title("Authenticator data"),
+                description("Data from the authenticator."),
+              ),
+              signature: pipe(Base64URL, title("Signature"), description("Cryptographic signature of the challenge.")),
+              userHandle: optional(
+                pipe(Base64URL, title("User handle"), description("Optional identifier for the user.")),
+              ),
+            }),
+            clientExtensionResults: pipe(
+              any(),
+              title("Extension results"),
+              description("Results of optional features enabled during authentication."),
+            ),
+            type: pipe(
+              literal("public-key"),
+              title("Credential type"),
+              description("Always `public-key` for WebAuthn."),
             ),
           }),
-          clientExtensionResults: pipe(
-            any(),
-            title("Extension results"),
-            description("Results of optional features enabled during authentication."),
-          ),
-          type: pipe(literal("public-key"), title("Credential type"), description("Always `public-key` for WebAuthn.")),
-        }),
-        title("WebAuthn"),
-      ),
+          title("WebAuthn"),
+        ),
+      ]),
       (validation, c) => {
         if (!validation.success) {
           captureException(new Error("bad authentication"), {
@@ -223,38 +295,53 @@ export default new Hono()
       setUser({ id: parse(Address, credential.account) });
       if (!challenge) return c.json("no authentication", 400);
 
-      let verification: Awaited<ReturnType<typeof verifyAuthenticationResponse>>;
+      let newCounter: number | undefined;
       try {
-        verification = await verifyAuthenticationResponse({
-          response: assertion,
-          expectedRPID: domain,
-          expectedOrigin: [appOrigin, ...androidOrigins],
-          expectedChallenge: challenge,
-          credential: {
-            id: assertion.id,
-            publicKey: credential.publicKey,
-            transports: credential.transports ? (credential.transports as AuthenticatorTransportFuture[]) : undefined,
-            counter: credential.counter,
-          },
-        });
+        switch (assertion.method) {
+          case "siwe": {
+            const message = parseSiweMessage(challenge);
+            if (
+              !validateSiweMessage({ message, address: assertion.id, nonce: sessionId, domain, scheme }) ||
+              !(await verifyMessage({ message: challenge, address: assertion.id, signature: assertion.signature }))
+            ) {
+              return c.json("bad authentication", 400);
+            }
+            break;
+          }
+          default: {
+            const { verified, authenticationInfo } = await verifyAuthenticationResponse({
+              response: assertion,
+              expectedRPID: domain,
+              expectedOrigin: [appOrigin, ...androidOrigins],
+              expectedChallenge: challenge,
+              credential: {
+                id: assertion.id,
+                publicKey: credential.publicKey,
+                transports: credential.transports
+                  ? (credential.transports as AuthenticatorTransportFuture[])
+                  : undefined,
+                counter: credential.counter,
+              },
+            });
+            if (!verified || authenticationInfo.credentialID !== assertion.id) return c.json("bad authentication", 400);
+            newCounter = authenticationInfo.newCounter;
+          }
+        }
       } catch (error) {
         captureException(error);
         return c.json(error instanceof Error ? error.message : String(error), 400);
       } finally {
         await redis.del(sessionId);
       }
-      const {
-        verified,
-        authenticationInfo: { credentialID, newCounter },
-      } = verification;
-      if (!verified || credentialID !== assertion.id) return c.json("bad authentication", 400);
 
       const expires = new Date(Date.now() + AUTH_EXPIRY);
       await Promise.all([
         setSignedCookie(c, "credential_id", assertion.id, authSecret, { domain, expires, httpOnly: true }),
-        database.update(credentials).set({ counter: newCounter }).where(eq(credentials.id, credentialID)),
+        newCounter && database.update(credentials).set({ counter: newCounter }).where(eq(credentials.id, assertion.id)),
       ]);
 
       return c.json({ expires: expires.getTime() } satisfies InferOutput<typeof Authentication>, 200);
     },
   );
+
+const scheme = domain === "localhost" ? "http" : "https";
