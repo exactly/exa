@@ -20,7 +20,13 @@ modules:
     updatePolicy: set
     valueType: proto:exa.Accounts
     inputs:
-      - map: map_accounts
+      - map: map_accounts  
+  - name: map_deposits
+    kind: map
+    inputs:
+      - source: sf.ethereum.type.v2.Block
+    output:
+      type: proto:exa.Deposits
   - name: map_transfers
     kind: map
     inputs:

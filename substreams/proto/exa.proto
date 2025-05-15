@@ -6,6 +6,16 @@ message Accounts {
   repeated bytes accounts = 1;
 }
 
+message Deposits {
+  repeated Deposit deposits = 1;
+}
+
+message Deposit {
+  bytes market = 1;
+  bytes receiver = 2;
+  uint64 amount = 3;
+}
+
 message Transfers {
   repeated Transfer transfers = 1;
 }

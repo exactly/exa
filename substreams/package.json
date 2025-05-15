@@ -9,6 +9,7 @@
   },
   "devDependencies": {
     "@bufbuild/buf": "^1.54.0",
+    "@exactly/protocol": "exactly/protocol#16a172a",
     "protolint": "^0.55.2"
   }
 }

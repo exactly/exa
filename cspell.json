@@ -7,6 +7,7 @@
     "pnpm-lock.yaml"
   ],
   "words": [
+    "abigen",
     "abitype",
     "adduser",
     "alchemyplatform",
@@ -75,6 +76,7 @@
     "prestate",
     "prng",
     "prool",
+    "protogen",
     "rdubois",
     "reactnavigation",
     "reentrancy",
@@ -85,6 +87,7 @@
     "solmate",
     "spotlightjs",
     "staticcall",
+    "substreams",
     "surl",
     "tamagui",
     "thehubbleproject",
