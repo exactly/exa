@@ -150,12 +150,8 @@ export default function Card() {
 
   const { mutateAsync: generateCard, isPending: isGeneratingCard } = useMutation({
     mutationKey: ["card", "create"],
-    retry: (failureCount, error) => {
-      return error instanceof APIError && error.code === 500 && failureCount < 24;
-    },
-    retryDelay: (_, error) => {
-      return error instanceof APIError && error.code === 500 ? 5000 : 1000;
-    },
+    retry: (_, error) => error instanceof APIError,
+    retryDelay: (failureCount, error) => (error instanceof APIError ? failureCount * 5000 : 1000),
     mutationFn: async () => {
       if (!passkey) return;
       await createCard();
@@ -179,8 +175,7 @@ export default function Card() {
         });
         return;
       }
-      const { code, text } = error;
-      if (code === 400 && text.includes("card already exists")) {
+      if (error.text.includes("card already exists")) {
         await queryClient.refetchQueries({ queryKey: ["card", "details"] });
         await queryClient.setQueryData(["card-details-open"], true);
         return;

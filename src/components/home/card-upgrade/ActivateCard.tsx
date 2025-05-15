@@ -21,8 +21,8 @@ export default function ActivateCard() {
   const { data: step } = useQuery<number | undefined>({ queryKey: ["card-upgrade"] });
   const { presentArticle } = useIntercom();
   const { mutateAsync: activateCard, isPending: isActivating } = useMutation({
-    retry: (_, error) => error instanceof APIError && error.code === 500,
-    retryDelay: (failureCount, error) => (error instanceof APIError && error.code === 500 ? failureCount * 5000 : 1000),
+    retry: (_, error) => error instanceof APIError,
+    retryDelay: (failureCount, error) => (error instanceof APIError ? failureCount * 5000 : 1000),
     mutationFn: async () => {
       await createCard();
     },
@@ -48,8 +48,7 @@ export default function ActivateCard() {
         });
         return;
       }
-      const { code, text } = error;
-      if (code === 400 && text.includes("card already exists")) {
+      if (error.text.includes("card already exists")) {
         await queryClient.refetchQueries({ queryKey: ["card", "details"] });
         await queryClient.setQueryData(["card-upgrade-open"], false);
         await queryClient.resetQueries({ queryKey: ["card-upgrade"] });

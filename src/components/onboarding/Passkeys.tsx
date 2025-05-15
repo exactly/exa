@@ -51,7 +51,7 @@ export default function Passkeys() {
         });
         return;
       }
-      if (error instanceof APIError && error.code === 400 && error.text === "backup eligibility required") {
+      if (error instanceof APIError && error.text === "backup eligibility required") {
         toast.show("Your password manager does not support passkey backups. Please try a different one", {
           native: true,
           duration: 1000,
