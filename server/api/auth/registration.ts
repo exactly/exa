@@ -1,17 +1,16 @@
-import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
-import deriveAddress from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
-import chain, { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
+import chain from "@exactly/common/generated/chain";
 import { Address, Base64URL, Hex, Passkey } from "@exactly/common/validation";
-import { captureException, setContext, setUser } from "@sentry/node";
+import { captureException, setContext } from "@sentry/node";
 import {
   type AuthenticatorTransportFuture,
   generateRegistrationOptions,
   verifyRegistrationResponse,
+  type WebAuthnCredential,
 } from "@simplewebauthn/server";
 import { cose } from "@simplewebauthn/server/helpers";
 import { Hono, type Env } from "hono";
-import { setCookie, setSignedCookie } from "hono/cookie";
+import { setCookie } from "hono/cookie";
 import { describeRoute } from "hono-openapi";
 import { resolver, validator as vValidator } from "hono-openapi/valibot";
 import {
@@ -25,7 +24,6 @@ import {
   number,
   object,
   optional,
-  parse,
   pipe,
   record,
   string,
@@ -34,20 +32,13 @@ import {
   variant,
   type InferOutput,
 } from "valibot";
-import { hexToBytes, padHex, verifyMessage, zeroHash } from "viem";
+import { verifyMessage } from "viem";
 import { createSiweMessage, generateSiweNonce, parseSiweMessage, validateSiweMessage } from "viem/siwe";
 
-import database, { credentials } from "../../database";
-import { webhooksKey } from "../../utils/alchemy";
 import androidOrigins from "../../utils/android/origins";
 import appOrigin from "../../utils/appOrigin";
-import authSecret from "../../utils/authSecret";
-import decodePublicKey from "../../utils/decodePublicKey";
+import createCredential from "../../utils/createCredential";
 import redis from "../../utils/redis";
-import { identify } from "../../utils/segment";
-
-if (!process.env.ALCHEMY_ACTIVITY_ID) throw new Error("missing alchemy activity id");
-const webhookId = process.env.ALCHEMY_ACTIVITY_ID;
 
 const Cookie = object({
   session_id: pipe(Base64URL, title("Session identifier"), description("HTTP-only cookie.")),
@@ -316,11 +307,7 @@ export default new Hono()
       const challenge = await redis.get(sessionId);
       if (!challenge) return c.json("no registration", 400);
 
-      let account: Address;
-      let publicKey: Uint8Array;
-      let transports: string[] | undefined;
-      let x: Hex, y: Hex;
-      let counter: number | undefined;
+      let webauthn: WebAuthnCredential | undefined;
       try {
         switch (attestation.method) {
           case "siwe": {
@@ -331,10 +318,6 @@ export default new Hono()
             ) {
               return c.json("bad authentication", 400);
             }
-            publicKey = hexToBytes(attestation.id);
-            x = padHex(attestation.id);
-            y = zeroHash;
-            account = deriveAddress(parse(Address, exaAccountFactoryAddress), { x, y });
             break;
           }
           default: {
@@ -357,15 +340,7 @@ export default new Hono()
             const { credential, credentialDeviceType } = registrationInfo;
             if (credential.id !== attestation.id) return c.json("bad registration", 400);
             if (credentialDeviceType !== "multiDevice") return c.json("backup eligibility required", 400); // TODO improve ux
-            try {
-              publicKey = credential.publicKey;
-              ({ x, y } = decodePublicKey(publicKey));
-              account = deriveAddress(parse(Address, exaAccountFactoryAddress), { x, y });
-              transports = credential.transports;
-              counter = credential.counter;
-            } catch (error) {
-              return c.json(error instanceof Error ? error.message : String(error), 400);
-            }
+            webauthn = credential;
           }
         }
       } catch (error) {
@@ -375,33 +350,8 @@ export default new Hono()
         await redis.del(sessionId);
       }
 
-      setUser({ id: account });
-      const expires = new Date(Date.now() + AUTH_EXPIRY);
-      await Promise.all([
-        setSignedCookie(c, "credential_id", attestation.id, authSecret, { domain, expires, httpOnly: true }),
-        database
-          .insert(credentials)
-          .values([{ account, id: attestation.id, publicKey, factory: exaAccountFactoryAddress, transports, counter }]),
-        fetch("https://dashboard.alchemy.com/api/update-webhook-addresses", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json", "X-Alchemy-Token": webhooksKey },
-          body: JSON.stringify({ webhook_id: webhookId, addresses_to_add: [account], addresses_to_remove: [] }),
-        })
-          .then(async (response) => {
-            if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);
-          })
-          .catch((error: unknown) => captureException(error)),
-      ]);
-      identify({ userId: account });
-
       return c.json(
-        {
-          credentialId: attestation.id,
-          factory: parse(Address, exaAccountFactoryAddress),
-          x,
-          y,
-          auth: expires.getTime(),
-        } satisfies InferOutput<typeof AuthenticatedPasskey>,
+        (await createCredential(c, attestation.id, webauthn)) satisfies InferOutput<typeof AuthenticatedPasskey>,
         200,
       );
     },
