@@ -41,6 +41,7 @@ import database, { credentials } from "../../database";
 import androidOrigins from "../../utils/android/origins";
 import appOrigin from "../../utils/appOrigin";
 import authSecret from "../../utils/authSecret";
+import createCredential from "../../utils/createCredential";
 import redis from "../../utils/redis";
 
 const Cookie = object({
@@ -291,9 +292,20 @@ export default new Hono()
         }),
         redis.get(sessionId),
       ]);
-      if (!credential) return c.json("unknown credential", 400);
-      setUser({ id: parse(Address, credential.account) });
       if (!challenge) return c.json("no authentication", 400);
+      if (!credential) {
+        if (assertion.method !== "siwe") return c.json("unknown credential", 400);
+        const message = parseSiweMessage(challenge);
+        if (
+          !validateSiweMessage({ message, address: assertion.id, nonce: sessionId, domain, scheme }) ||
+          !(await verifyMessage({ message: challenge, address: assertion.id, signature: assertion.signature }))
+        ) {
+          return c.json("bad authentication", 400);
+        }
+        const { auth } = await createCredential(c, assertion.id);
+        return c.json({ expires: auth } satisfies InferOutput<typeof Authentication>, 200);
+      }
+      setUser({ id: parse(Address, credential.account) });
 
       let newCounter: number | undefined;
       try {
