@@ -20,10 +20,10 @@ import {
   useReadPreviewerExactly,
   useReadUpgradeableModularAccountGetInstalledPlugins,
 } from "../../generated/contracts";
-import { KYC_TEMPLATE_ID } from "../../utils/persona";
+import { KYC_TEMPLATE_ID, LEGACY_KYC_TEMPLATE_ID } from "../../utils/persona";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
-import { getActivity, getCard, getKYCStatus } from "../../utils/server";
+import { getActivity, getKYCStatus } from "../../utils/server";
 import PaymentSheet from "../pay-mode/PaymentSheet";
 import UpcomingPayments from "../pay-mode/UpcomingPayments";
 import InfoAlert from "../shared/InfoAlert";
@@ -36,6 +36,8 @@ import View from "../shared/View";
 const HEALTH_FACTOR_THRESHOLD = (WAD * 11n) / 10n;
 
 export default function Home() {
+  const { address } = useAccount();
+  const [paySheetOpen, setPaySheetOpen] = useState(false);
   const { address: account } = useAccount();
   const { data: bytecode } = useBytecode({ address: account ?? zeroAddress, query: { enabled: !!account } });
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
@@ -43,15 +45,6 @@ export default function Home() {
     query: { enabled: !!account && !!bytecode },
   });
   const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
-  const { address } = useAccount();
-  const [paySheetOpen, setPaySheetOpen] = useState(false);
-  const { data: cardDetails, refetch: refetchCard } = useQuery({
-    queryKey: ["card", "details"],
-    queryFn: getCard,
-    retry: false,
-    gcTime: 0,
-    staleTime: 0,
-  });
   const { data: cardUpgradeOpen } = useQuery<boolean>({
     initialData: false,
     queryKey: ["card-upgrade-open"],
@@ -83,6 +76,10 @@ export default function Home() {
     queryKey: ["kyc", "status"],
     queryFn: async () => getKYCStatus(KYC_TEMPLATE_ID),
   });
+  const { data: legacyKYCStatus, refetch: refetchLegacyKYCStatus } = useQuery({
+    queryKey: ["legacy", "kyc", "status"],
+    queryFn: async () => getKYCStatus(LEGACY_KYC_TEMPLATE_ID),
+  });
   let usdBalance = 0n;
   if (markets) {
     for (const market of markets) {
@@ -109,8 +106,8 @@ export default function Home() {
                 refetchActivity().catch(reportError);
                 refetchMarkets().catch(reportError);
                 refetchKYCStatus().catch(reportError);
+                refetchLegacyKYCStatus().catch(reportError);
                 refetchPendingProposals().catch(reportError);
-                refetchCard().catch(reportError);
               }}
             />
           }
@@ -119,16 +116,16 @@ export default function Home() {
           <View flex={1}>
             <View backgroundColor="$backgroundSoft" padded gap="$s4">
               {markets && healthFactor(markets) < HEALTH_FACTOR_THRESHOLD && <LiquidationAlert />}
-              {(KYCStatus !== "ok" ||
-                (cardDetails && cardDetails.provider !== "panda" && usdBalance > 0n && !isLatestPlugin)) && (
-                <InfoAlert
-                  title="We’re upgrading all Exa Cards by migrating them to a new and improved card issuer. Existing cards will work until May 18th, 2025, and upgrading will be required after this date."
-                  actionText="Start Exa Card upgrade"
-                  onPress={() => {
-                    queryClient.setQueryData(["card-upgrade-open"], true);
-                  }}
-                />
-              )}
+              {(legacyKYCStatus === "ok" && KYCStatus !== "ok") ||
+                (bytecode && !isLatestPlugin && (
+                  <InfoAlert
+                    title="We’re upgrading all Exa Cards by migrating them to a new and improved card issuer. Existing cards will work until May 18th, 2025, and upgrading will be required after this date."
+                    actionText="Start Exa Card upgrade"
+                    onPress={() => {
+                      queryClient.setQueryData(["card-upgrade-open"], true);
+                    }}
+                  />
+                ))}
               <CardLimits />
               <HomeActions />
               <PortfolioSummary usdBalance={usdBalance} />
