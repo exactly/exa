@@ -1,5 +1,5 @@
 import { exaPluginAddress } from "@exactly/common/generated/chain";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import React from "react";
 import { encodeAbiParameters, encodeFunctionData, getAbiItem, keccak256, zeroAddress } from "viem";
 import { useAccount, useBytecode } from "wagmi";
@@ -14,6 +14,7 @@ import {
 } from "../../generated/contracts";
 import { accountClient } from "../../utils/alchemyConnector";
 import reportError from "../../utils/reportError";
+import { getCard } from "../../utils/server";
 
 export default function PluginUpgrade() {
   const { address } = useAccount();
@@ -24,11 +25,13 @@ export default function PluginUpgrade() {
       query: { refetchOnMount: true, enabled: !!address && !!bytecode },
     });
   const { data: pluginManifest } = useReadExaPluginPluginManifest({ address: exaPluginAddress });
+  const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
   const { data: uninstallPluginSimulation } = useSimulateUpgradeableModularAccountUninstallPlugin({
     address,
     args: [installedPlugins?.[0] ?? zeroAddress, "0x", "0x"],
-    query: { enabled: !!address && !!installedPlugins && !!bytecode },
+    query: { enabled: !!address && !!installedPlugins && !!bytecode && !isLatestPlugin },
   });
+  const { data: cardDetails } = useQuery({ queryKey: ["card", "details"], queryFn: getCard });
   const { mutateAsync: updatePlugin, isPending: isUpdating } = useMutation({
     mutationFn: async () => {
       if (!accountClient) throw new Error("no account client");
@@ -65,7 +68,7 @@ export default function PluginUpgrade() {
       await refetchInstalledPlugins();
     },
   });
-  if (!installedPlugins || installedPlugins[0] === exaPluginAddress) return null;
+  if (isLatestPlugin || (cardDetails && cardDetails.provider !== "panda")) return null;
   return (
     <InfoAlert
       title="An account upgrade is required to access the latest features."
