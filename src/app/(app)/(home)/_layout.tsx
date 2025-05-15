@@ -3,7 +3,6 @@ import { Tabs } from "expo-router";
 import Head from "expo-router/head";
 import React, { useEffect } from "react";
 import { FlatList, Platform } from "react-native";
-import { useAccount } from "wagmi";
 
 import { activityRefreshControlReference, activityScrollReference } from "../../../components/activity/Activity";
 import { cardRefreshControlReference, cardScrollReference } from "../../../components/card/Card";
@@ -21,8 +20,7 @@ const tabs = [
 ] as const;
 
 export default function HomeLayout() {
-  const { address } = useAccount();
-  useIntercom(address);
+  useIntercom();
   useEffect(() => {
     enablePrompt();
   }, []);

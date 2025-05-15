@@ -1,5 +1,8 @@
+import deriveAddress from "@exactly/common/deriveAddress";
+import type { Passkey } from "@exactly/common/validation";
 import type * as IntercomNative from "@intercom/intercom-react-native";
 import type * as IntercomWeb from "@intercom/messenger-js-sdk";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Platform } from "react-native";
 
@@ -12,9 +15,9 @@ const { login, present, presentArticle } = (
     ? () => {
         const { Intercom, showArticle, showSpace } = require("@intercom/messenger-js-sdk") as typeof IntercomWeb; // eslint-disable-line @typescript-eslint/no-require-imports, unicorn/prefer-module
         return {
-          login: (userId?: string) => {
+          login: (userId: string, credentialId: string) => {
             if (!appId) return Promise.resolve(false);
-            Intercom({ app_id: appId, ...(userId && { user_id: userId }) });
+            Intercom({ app_id: appId, user_id: userId, companies: [{ id: credentialId }] });
             return Promise.resolve(true);
           },
           present: () => {
@@ -34,8 +37,10 @@ const { login, present, presentArticle } = (
           Space,
         } = require("@intercom/intercom-react-native") as typeof IntercomNative; // eslint-disable-line @typescript-eslint/no-require-imports, unicorn/prefer-module
         return {
-          login: (userId: string) =>
-            appId ? Intercom.loginUserWithUserAttributes({ userId }) : Promise.resolve(false),
+          login: (userId: string, credentialId: string) =>
+            appId
+              ? Intercom.loginUserWithUserAttributes({ userId, companies: [{ id: credentialId }] })
+              : Promise.resolve(false),
           present: () => Intercom.presentSpace(Space.home),
           presentArticle: (articleId: string) =>
             Intercom.presentContent(IntercomContent.articleWithArticleId(articleId)),
@@ -43,11 +48,14 @@ const { login, present, presentArticle } = (
       }
 )();
 
-export default function useIntercom(userId?: string) {
+export default function useIntercom() {
   const [loggedIn, setLoggedIn] = useState(false);
+  const { data: passkey } = useQuery<Passkey>({ queryKey: ["passkey"] });
   useEffect(() => {
-    if (!userId || loggedIn) return;
-    login(userId).then(setLoggedIn).catch(reportError);
-  }, [userId, loggedIn]);
+    if (!passkey || loggedIn) return;
+    login(deriveAddress(passkey.factory, { x: passkey.x, y: passkey.y }), passkey.credentialId)
+      .then(setLoggedIn)
+      .catch(reportError);
+  }, [passkey, loggedIn]);
   return { loggedIn, present, presentArticle };
 }
