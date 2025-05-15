@@ -29,7 +29,7 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
       const assertion = await assert(options);
       if (!assertion) throw new Error("bad assertion");
       const post = await api.auth.authentication.$post({ json: assertion });
-      if (!post.ok) throw new APIError(post.status, await post.json());
+      if (!post.ok) throw new APIError(post.status, stringOrLegacy(await post.json()));
       const { expires } = await post.json();
       return parse(Auth, expires);
     } catch (error: unknown) {
@@ -58,7 +58,7 @@ export async function registrationOptions() {
 
 export async function verifyRegistration(attestation: RegistrationResponseJSON) {
   const response = await api.auth.registration.$post({ json: attestation });
-  if (!response.ok) throw new APIError(response.status, await response.json());
+  if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
   const { auth: expires, ...passkey } = await response.json();
   await queryClient.setQueryData(["auth"], parse(Auth, expires));
   return parse(Passkey, passkey);
@@ -68,7 +68,7 @@ export async function getCard() {
   await auth();
   const { id, secret } = await session();
   const response = await api.card.$get({}, { headers: { SessionId: id } });
-  if (!response.ok) throw new APIError(response.status, await response.json());
+  if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
   const card = await response.json();
   return { ...card, secret };
 }
@@ -76,50 +76,46 @@ export async function getCard() {
 export async function createCard() {
   await auth();
   const response = await api.card.$post();
-  if (!response.ok) throw new APIError(response.status, await response.json());
+  if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
   return response.json();
 }
 
 export async function setCardStatus(status: "ACTIVE" | "FROZEN") {
   await auth();
   const response = await api.card.$patch({ json: { status } });
-  if (!response.ok) throw new APIError(response.status, await response.json());
+  if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
   return response.json();
 }
 
 export async function setCardMode(mode: number) {
   await auth();
   const response = await api.card.$patch({ json: { mode } });
-  if (!response.ok) throw new APIError(response.status, await response.json());
+  if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
   return response.json();
 }
 
 export async function getKYCLink() {
   await auth();
   const response = await api.kyc.$post({ json: { templateId: await getTemplateId() } });
-  if (!response.ok) throw new APIError(response.status, await response.json());
-  const result = await response.json();
-  // @ts-expect-error intermediate api migration
-  return typeof result === "string" ? result : (result.legacy as string);
+  if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
+  return stringOrLegacy(await response.json());
 }
 
 export async function getKYCStatus() {
   await auth();
   const response = await api.kyc.$get({ query: { templateId: await getTemplateId() } });
   queryClient.setQueryData(["user", "country"], response.headers.get("User-Country"));
-  if (!response.ok) throw new APIError(response.status, await response.json());
+  if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
   const result = await response.json();
-  return typeof result === "string"
-    ? result
-    : typeof result === "object" && "legacy" in result
-      ? (result.legacy as string)
-      : result;
+  return typeof result === "string" || "legacy" in result
+    ? stringOrLegacy(result as string | { legacy: string })
+    : result;
 }
 
 export async function getPasskey() {
   await auth();
   const response = await api.passkey.$get();
-  if (!response.ok) throw new APIError(response.status, await response.json());
+  if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
   return response.json();
 }
 
@@ -135,7 +131,7 @@ export async function getActivity(parameters?: NonNullable<Parameters<typeof api
   const response = await api.activity.$get(
     parameters?.include === undefined ? undefined : { query: { include: parameters.include } },
   );
-  if (!response.ok) throw new APIError(response.status, await response.json());
+  if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
   return response.json();
 }
 
@@ -177,3 +173,9 @@ const Auth = pipe(
 );
 
 export { APIError } from "./queryClient";
+
+function stringOrLegacy(response: string | { legacy: string }) {
+  if (typeof response === "string") return response;
+  if ("legacy" in response && typeof response.legacy === "string") return response.legacy;
+  throw new Error("invalid api response");
+}
