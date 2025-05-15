@@ -84,6 +84,23 @@ module.exports = {
       },
     },
     {
+      files: ["server/api/**"],
+      rules: {
+        "no-restricted-imports": [
+          "error",
+          {
+            paths: [
+              {
+                name: "hono/utils/http-status",
+                importNames: ["UnofficialStatusCode"],
+                message: "It breaks client types because its type is -1.",
+              },
+            ],
+          },
+        ],
+      },
+    },
+    {
       files: ["**/*.cjs", "**/*.js"],
       globals: { process: true },
       rules: {
