@@ -1,4 +1,4 @@
-use abi::{entrypoint::events::AccountDeployed, erc20::events::Transfer};
+use abi::{entrypoint::events::AccountDeployed, erc20::events::Transfer, market::events::Deposit};
 use proto::exa;
 use substreams::{
   errors::Error,
@@ -35,6 +35,24 @@ pub fn store_accounts(accounts: exa::Accounts, store: StoreSetProto<Vec<u8>>) {
   for account in accounts.accounts {
     store.set(0, format!("account:{}", Hex(&account)), &account);
   }
+}
+
+#[substreams::handlers::map]
+pub fn map_deposits(block: Block) -> Result<exa::Deposits, Error> {
+  Ok(exa::Deposits {
+    deposits: block
+      .logs()
+      .filter_map(|log| {
+        Deposit::match_and_decode(log).and_then(|event| {
+          Some(exa::Deposit {
+            market: log.address().to_vec(),
+            receiver: event.owner.to_vec(),
+            amount: event.assets.to_u64(),
+          })
+        })
+      })
+      .collect(),
+  })
 }
 
 #[substreams::handlers::map]
