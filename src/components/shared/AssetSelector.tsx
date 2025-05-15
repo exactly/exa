@@ -113,7 +113,7 @@ export default function AssetSelector({
           } else {
             const { symbol, assetName, decimals, usdValue, market } = item;
             return (
-              <ToggleGroup.Item unstyled key={market} value={market} borderWidth={0}>
+              <ToggleGroup.Item unstyled key={market} value={market} borderWidth={0} backgroundColor="transparent">
                 <View
                   flexDirection="row"
                   alignItems="center"
