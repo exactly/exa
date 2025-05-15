@@ -42,11 +42,11 @@ export default function Contact({
         >
           <User2 color="$interactiveOnBaseBrandSoft" fontWeight="bold" />
         </View>
-        {ens && (
+        {ens ? (
           <Text textAlign="right" subHeadline color="$uiNeutralSecondary">
             {ens}
           </Text>
-        )}
+        ) : null}
       </XStack>
       <Text textAlign="right" subHeadline color="$uiNeutralSecondary" fontFamily="$mono">
         {shortenHex(address)}

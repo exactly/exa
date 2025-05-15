@@ -68,11 +68,10 @@ export default function ActivityItem({ item, isLast }: { item: Item; isLast: boo
         <View flexDirection="row" justifyContent="space-between" alignItems="center" gap="$s4">
           <View gap="$s2" flexShrink={1}>
             <Text subHeadline color="$uiNeutralPrimary" numberOfLines={1}>
-              {type === "card" && item.merchant.name}
+              {(type === "card" || type === "panda") && item.merchant.name}
               {type === "received" && "Received"}
               {type === "sent" && "Sent"}
               {type === "repay" && "Debt payment"}
-              {type === "panda" && item.merchant.name}
             </Text>
             <Text
               caption
@@ -110,7 +109,7 @@ export default function ActivityItem({ item, isLast }: { item: Item; isLast: boo
                 })}
               </Text>
             </View>
-            {amount && (
+            {amount ? (
               <Text sensitive fontSize={12} color="$uiNeutralSecondary" textAlign="right">
                 {Math.abs(amount).toLocaleString(undefined, {
                   maximumFractionDigits: 8,
@@ -118,7 +117,7 @@ export default function ActivityItem({ item, isLast }: { item: Item; isLast: boo
                 })}
                 {currency && ` ${currency}`}
               </Text>
-            )}
+            ) : null}
           </View>
         </View>
       </View>
