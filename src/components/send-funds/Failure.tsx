@@ -1,7 +1,6 @@
 import { XCircle } from "@tamagui/lucide-icons";
 import { router } from "expo-router";
 import React from "react";
-import { Pressable } from "react-native";
 import { ScrollView } from "tamagui";
 
 import Details from "./Details";
@@ -50,17 +49,6 @@ export default function Failure({
             router.replace("/");
           }}
         />
-        <View padded alignItems="center">
-          <Pressable
-            onPress={() => {
-              router.back();
-            }}
-          >
-            <Text emphasized footnote color="$interactiveBaseBrandDefault">
-              Close
-            </Text>
-          </Pressable>
-        </View>
       </ScrollView>
     </View>
   );
