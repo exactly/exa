@@ -5,6 +5,7 @@ import "../mocks/onesignal";
 import "../mocks/redis";
 import "../mocks/keeper";
 
+import deriveAddress from "@exactly/common/deriveAddress";
 import { exaAccountFactoryAbi } from "@exactly/common/generated/chain";
 import { captureException } from "@sentry/node";
 import { eq } from "drizzle-orm";
@@ -28,7 +29,6 @@ import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 import database, { cards, credentials, transactions } from "../../database";
 import { exaPluginAbi, issuerCheckerAbi } from "../../generated/contracts";
 import app from "../../hooks/cryptomate";
-import deriveAddress from "../../utils/deriveAddress";
 import keeper from "../../utils/keeper";
 import publicClient from "../../utils/publicClient";
 import traceClient from "../../utils/traceClient";

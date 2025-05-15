@@ -1,6 +1,7 @@
-import { Address } from "@exactly/common/validation";
 import { parse } from "valibot";
 import { encodeAbiParameters, encodePacked, type Hash, keccak256, slice } from "viem";
+
+import { Address } from "./validation";
 
 const accountImplementation = "0x0046000000000151008789797b54fdb500E2a61e";
 const initCodeHashERC1967 = keccak256(

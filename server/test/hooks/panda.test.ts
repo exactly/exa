@@ -7,6 +7,7 @@ import "../mocks/redis";
 import "../mocks/keeper";
 
 import ProposalType from "@exactly/common/ProposalType";
+import deriveAddress from "@exactly/common/deriveAddress";
 import chain, { exaAccountFactoryAbi, marketUSDCAddress, usdcAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 import { proposalManager } from "@exactly/plugin/deploy.json";
@@ -42,7 +43,6 @@ import {
   upgradeableModularAccountAbi,
 } from "../../generated/contracts";
 import app from "../../hooks/panda";
-import deriveAddress from "../../utils/deriveAddress";
 import keeper from "../../utils/keeper";
 import * as pandaUtils from "../../utils/panda";
 import publicClient from "../../utils/publicClient";

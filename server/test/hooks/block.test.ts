@@ -5,6 +5,7 @@ import "../mocks/redis";
 import "../mocks/deployments";
 
 import ProposalType from "@exactly/common/ProposalType";
+import deriveAddress from "@exactly/common/deriveAddress";
 import chain from "@exactly/common/generated/chain";
 import { testClient } from "hono/testing";
 import {
@@ -38,7 +39,6 @@ import {
   upgradeableModularAccountAbi,
 } from "../../generated/contracts";
 import app from "../../hooks/block";
-import deriveAddress from "../../utils/deriveAddress";
 import publicClient from "../../utils/publicClient";
 import anvilClient from "../anvilClient";
 

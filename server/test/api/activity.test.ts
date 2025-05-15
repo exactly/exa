@@ -4,6 +4,7 @@ import "../mocks/database";
 import "../mocks/deployments";
 import "../expect";
 
+import deriveAddress from "@exactly/common/deriveAddress";
 import { captureException } from "@sentry/node";
 import { testClient } from "hono/testing";
 import { safeParse, type InferOutput } from "valibot";
@@ -14,7 +15,6 @@ import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 import app, { CreditActivity, DebitActivity, InstallmentsActivity, PandaActivity } from "../../api/activity";
 import database, { cards, credentials, transactions } from "../../database";
 import { marketAbi } from "../../generated/contracts";
-import deriveAddress from "../../utils/deriveAddress";
 import anvilClient from "../anvilClient";
 
 const appClient = testClient(app);

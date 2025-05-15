@@ -5,6 +5,7 @@ import "../mocks/deployments";
 import "../mocks/onesignal";
 import "../mocks/keeper";
 
+import deriveAddress from "@exactly/common/deriveAddress";
 import { exaAccountFactoryAbi } from "@exactly/common/generated/chain";
 import { captureException } from "@sentry/node";
 import { testClient } from "hono/testing";
@@ -26,7 +27,6 @@ import database, { credentials } from "../../database";
 import { previewerAbi } from "../../generated/contracts";
 import app from "../../hooks/activity";
 import * as decodePublicKey from "../../utils/decodePublicKey";
-import deriveAddress from "../../utils/deriveAddress";
 import keeper from "../../utils/keeper";
 import publicClient from "../../utils/publicClient";
 import anvilClient from "../anvilClient";

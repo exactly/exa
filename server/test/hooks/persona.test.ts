@@ -2,6 +2,7 @@ import "../mocks/sentry";
 import "../mocks/database";
 import "../mocks/persona";
 
+import deriveAddress from "@exactly/common/deriveAddress";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { padHex, zeroAddress, zeroHash } from "viem";
@@ -10,7 +11,6 @@ import { beforeAll, describe, expect, inject, it, vi } from "vitest";
 
 import database, { credentials } from "../../database";
 import app from "../../hooks/persona";
-import deriveAddress from "../../utils/deriveAddress";
 import * as panda from "../../utils/panda";
 
 const appClient = testClient(app);

@@ -3,6 +3,7 @@ import "../mocks/auth";
 import "../mocks/database";
 import "../mocks/deployments";
 
+import deriveAddress from "@exactly/common/deriveAddress";
 import { testClient } from "hono/testing";
 import { zeroHash, padHex, zeroAddress } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
@@ -10,7 +11,6 @@ import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 
 import app from "../../api/kyc";
 import database, { credentials } from "../../database";
-import deriveAddress from "../../utils/deriveAddress";
 import * as persona from "../../utils/persona";
 
 const appClient = testClient(app);

@@ -1,4 +1,5 @@
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
+import deriveAddress from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
 import { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 import { Address, Base64URL, Passkey } from "@exactly/common/validation";
@@ -40,7 +41,6 @@ import androidOrigins from "../../utils/android/origins";
 import appOrigin from "../../utils/appOrigin";
 import authSecret from "../../utils/authSecret";
 import decodePublicKey from "../../utils/decodePublicKey";
-import deriveAddress from "../../utils/deriveAddress";
 import redis from "../../utils/redis";
 import { identify } from "../../utils/segment";
 

@@ -3,6 +3,7 @@ import "../mocks/auth";
 import "../mocks/database";
 import "../mocks/deployments";
 
+import deriveAddress from "@exactly/common/deriveAddress";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { zeroHash, padHex, zeroAddress } from "viem";
@@ -12,7 +13,6 @@ import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 import app from "../../api/card";
 import database, { cards, credentials } from "../../database";
 import * as cryptomate from "../../utils/cryptomate";
-import deriveAddress from "../../utils/deriveAddress";
 import * as panda from "../../utils/panda";
 import * as persona from "../../utils/persona";
 
