@@ -367,7 +367,10 @@ export default new Hono().post(
                           hashes: [...tx.hashes, hash],
                           payload: {
                             ...(tx.payload as object),
-                            bodies: [...parseBodies(tx.payload), { ...jsonBody, createdAt: new Date().toISOString() }],
+                            bodies: [
+                              ...v.parse(TransactionPayload, tx.payload).bodies,
+                              { ...jsonBody, createdAt: new Date().toISOString() },
+                            ],
                           },
                         })
                         .where(
@@ -460,7 +463,10 @@ export default new Hono().post(
                           hashes: [...tx.hashes, hash],
                           payload: {
                             ...(tx.payload as object),
-                            bodies: [...parseBodies(tx.payload), { ...jsonBody, createdAt: new Date().toISOString() }],
+                            bodies: [
+                              ...v.parse(TransactionPayload, tx.payload).bodies,
+                              { ...jsonBody, createdAt: new Date().toISOString() },
+                            ],
                           },
                         })
                         .where(
@@ -618,16 +624,10 @@ class PandaError extends Error {
   }
 }
 
-function parseBodies(raw: unknown) {
-  const payload = v.safeParse(
-    v.object({
-      bodies: v.array(v.looseObject({})),
-    }),
-    raw,
-  );
-  if (!payload.success) throw new Error("invalid transaction payload");
-  return payload.output.bodies;
-}
+const TransactionPayload = v.object(
+  { bodies: v.array(v.looseObject({}), "invalid transaction payload") },
+  "invalid transaction payload",
+);
 
 async function findCardById(cardId: string) {
   const card = await database.query.cards.findFirst({
