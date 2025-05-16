@@ -73,7 +73,7 @@ describe("authenticated", () => {
     await database.insert(cards).values([{ id: "kyc", credentialId: account, lastFour: "7890" }]);
     vi.spyOn(persona, "getInquiry").mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
     const response = await appClient.index.$get(
-      { query: { credentialId: "card" } },
+      { header: { sessionid: "fakeSession" } },
       { headers: { "test-credential-id": account } },
     );
 
@@ -83,7 +83,7 @@ describe("authenticated", () => {
   it("returns 404 card not found", async () => {
     vi.spyOn(persona, "getInquiry").mockResolvedValueOnce(personaTemplate);
     const response = await appClient.index.$get(
-      { query: { credentialId: "card" } },
+      { header: { sessionid: "fakeSession" } },
       { headers: { "test-credential-id": account } },
     );
 
@@ -101,8 +101,8 @@ describe("authenticated", () => {
     vi.spyOn(panda, "isPanda").mockResolvedValueOnce(true);
 
     const response = await appClient.index.$get(
-      { query: { credentialId: "card" } },
-      { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
+      { header: { sessionid: "fakeSession" } },
+      { headers: { "test-credential-id": account } },
     );
     const json = await response.json();
 
@@ -141,8 +141,8 @@ describe("authenticated", () => {
     vi.spyOn(panda, "isPanda").mockResolvedValueOnce(true);
 
     const response = await appClient.index.$get(
-      { query: { credentialId: "card" } },
-      { headers: { "test-credential-id": foo, SessionID: "fakeSession" } },
+      { header: { sessionid: "fakeSession" } },
+      { headers: { "test-credential-id": foo } },
     );
 
     expect(response.status).toBe(400);
