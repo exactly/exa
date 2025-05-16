@@ -152,6 +152,7 @@ export default function Home() {
             open={cardUpgradeOpen}
             onClose={() => {
               queryClient.setQueryData(["card-upgrade-open"], false);
+              queryClient.resetQueries({ queryKey: ["card-upgrade"] }).catch(reportError);
             }}
           />
         </ScrollView>
