@@ -1,0 +1,25 @@
+{
+  "name": "@exactly/sdk",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "build": "vite build"
+  },
+  "main": "dist/sdk.umd.js",
+  "module": "dist/sdk.mjs",
+  "types": "dist/sdk.d.ts",
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "@exactly/server": "workspace:^0.1.0",
+    "@types/node": "^22.14.1",
+    "hono": "^4.7.7",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5",
+    "vite-plugin-dts": "^4.5.4"
+  }
+}
