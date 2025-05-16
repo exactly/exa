@@ -93,34 +93,32 @@ export default new Hono().post(
   ),
   async (c) => {
     getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "persona.inquiry");
-
-    const payload = c.req.valid("json");
     const {
       data: {
         id: personaShareToken,
         attributes: { fields, referenceId },
       },
       included,
-    } = payload.data.attributes.payload;
+    } = c.req.valid("json").data.attributes.payload;
 
     const credential = await database.query.credentials.findFirst({
       columns: { account: true, pandaId: true },
       where: eq(credentials.id, referenceId),
     });
-    if (!credential) return c.json("invalid reference id", 400);
+    if (!credential) return c.json({ code: "no credential" }, 400);
     setUser({ id: credential.account });
     setContext("persona", { inquiryId: personaShareToken });
 
-    if (credential.pandaId) return c.json("panda customer already exists", 400);
+    if (credential.pandaId) return c.json({ code: "already created" }, 400);
 
     const session = included[0];
-    if (!session) return c.json("no inquiry session", 400);
+    if (!session) return c.json({ code: "no session" }, 400);
 
     const annualSalary = fields.annualSalaryRangesUs150000?.value ?? fields.annualSalary.value;
     const expectedMonthlyVolume = fields.monthlyPurchasesRange?.value ?? fields.expectedMonthlyVolume.value;
 
-    if (!annualSalary) return c.json("no annual salary", 400);
-    if (!expectedMonthlyVolume) return c.json("no expected monthly volume", 400);
+    if (!annualSalary) return c.json({ code: "no annual salary" }, 400);
+    if (!expectedMonthlyVolume) return c.json({ code: "no monthly volume" }, 400);
 
     const { id } = await createUser({
       accountPurpose: fields.accountPurpose.value,
