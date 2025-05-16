@@ -6,7 +6,7 @@ import React, { useContext, useEffect } from "react";
 import { PixelRatio, Pressable } from "react-native";
 import { Spinner, XStack, YStack } from "tamagui";
 
-import { createInquiry, resumeInquiry } from "../../utils/persona";
+import { createInquiry, KYC_TEMPLATE_ID, resumeInquiry } from "../../utils/persona";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { APIError, getKYCStatus } from "../../utils/server";
@@ -22,7 +22,7 @@ export default function GettingStarted({ hasFunds, hasKYC }: { hasFunds: boolean
     mutationFn: async () => {
       if (!passkey) throw new Error("missing passkey");
       try {
-        const result = await getKYCStatus();
+        const result = await getKYCStatus(KYC_TEMPLATE_ID);
         if (result === "ok") return;
         if (typeof result !== "string") {
           resumeInquiry(result.inquiryId, result.sessionToken).catch(reportError);

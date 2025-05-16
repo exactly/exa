@@ -19,7 +19,7 @@ import {
   useReadPreviewerExactly,
   useReadUpgradeableModularAccountGetInstalledPlugins,
 } from "../../generated/contracts";
-import { createInquiry, resumeInquiry } from "../../utils/persona";
+import { createInquiry, KYC_TEMPLATE_ID, resumeInquiry } from "../../utils/persona";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { APIError, getActivity, getCard, createCard, getKYCStatus, setCardStatus } from "../../utils/server";
@@ -57,7 +57,7 @@ export default function Card() {
   const { address } = useAccount();
   const { data: KYCStatus, refetch: refetchKYCStatus } = useQuery({
     queryKey: ["kyc", "status"],
-    queryFn: getKYCStatus,
+    queryFn: async () => getKYCStatus(KYC_TEMPLATE_ID),
   });
   const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
   const { refetch: refetchInstalledPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
@@ -110,7 +110,7 @@ export default function Card() {
           queryClient.setQueryData(["card-details-open"], true);
           return;
         }
-        const result = await getKYCStatus();
+        const result = await getKYCStatus(KYC_TEMPLATE_ID);
         if (result === "ok") {
           setDisclaimerShown(true);
           return;

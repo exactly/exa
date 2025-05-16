@@ -20,6 +20,7 @@ import {
   useReadPreviewerExactly,
   useReadUpgradeableModularAccountGetInstalledPlugins,
 } from "../../generated/contracts";
+import { KYC_TEMPLATE_ID } from "../../utils/persona";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { getActivity, getCard, getKYCStatus } from "../../utils/server";
@@ -80,7 +81,7 @@ export default function Home() {
   } = useReadPreviewerExactly({ address: previewerAddress, args: [address ?? zeroAddress] });
   const { data: KYCStatus, refetch: refetchKYCStatus } = useQuery({
     queryKey: ["kyc", "status"],
-    queryFn: getKYCStatus,
+    queryFn: async () => getKYCStatus(KYC_TEMPLATE_ID),
   });
   let usdBalance = 0n;
   if (markets) {

@@ -1,20 +1,15 @@
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 import domain from "@exactly/common/domain";
-import { exaAccountFactoryAddress, exaPluginAddress } from "@exactly/common/generated/chain";
-import { Address, Passkey } from "@exactly/common/validation";
+import { Passkey } from "@exactly/common/validation";
 import type { ExaAPI } from "@exactly/server/api";
 import { hc } from "hono/client";
 import { Platform } from "react-native";
 import { get as assert, create } from "react-native-passkeys";
 import type { RegistrationResponseJSON } from "react-native-passkeys/build/ReactNativePasskeys.types";
 import { check, number, parse, pipe, safeParse } from "valibot";
-import { zeroAddress } from "viem";
 
-import { accountClient } from "./alchemyConnector";
 import { session } from "./panda";
-import publicClient from "./publicClient";
 import queryClient, { APIError } from "./queryClient";
-import { upgradeableModularAccountAbi } from "../generated/contracts";
 
 queryClient.setQueryDefaults<number | undefined>(["auth"], {
   staleTime: AUTH_EXPIRY,
@@ -94,16 +89,16 @@ export async function setCardMode(mode: number) {
   return response.json();
 }
 
-export async function getKYCLink() {
+export async function getKYCLink(templateId: string) {
   await auth();
-  const response = await api.kyc.$post({ json: { templateId: await getTemplateId() } });
+  const response = await api.kyc.$post({ json: { templateId } });
   if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
   return stringOrLegacy(await response.json());
 }
 
-export async function getKYCStatus() {
+export async function getKYCStatus(templateId: string) {
   await auth();
-  const response = await api.kyc.$get({ query: { templateId: await getTemplateId() } });
+  const response = await api.kyc.$get({ query: { templateId } });
   queryClient.setQueryData(["user", "country"], response.headers.get("User-Country"));
   if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
   const result = await response.json();
@@ -142,28 +137,6 @@ export async function auth() {
     await (typeof output === "number"
       ? queryClient.refetchQueries({ queryKey: ["auth"] })
       : queryClient.fetchQuery({ queryKey: ["auth"] }));
-  }
-}
-
-const PANDA_TEMPLATE = "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2";
-const CRYPTOMATE_TEMPLATE = "itmpl_8uim4FvD5P3kFpKHX37CW817";
-
-export async function getTemplateId() {
-  try {
-    const [exaPlugin] = await publicClient.readContract({
-      address: accountClient?.account.address ?? zeroAddress,
-      abi: upgradeableModularAccountAbi,
-      functionName: "getInstalledPlugins",
-    });
-    return exaPlugin === exaPluginAddress
-      ? PANDA_TEMPLATE
-      : queryClient.getQueryData<Passkey>(["passkey"])?.factory === parse(Address, exaAccountFactoryAddress)
-        ? PANDA_TEMPLATE
-        : CRYPTOMATE_TEMPLATE;
-  } catch {
-    return queryClient.getQueryData<Passkey>(["passkey"])?.factory === parse(Address, exaAccountFactoryAddress)
-      ? PANDA_TEMPLATE
-      : CRYPTOMATE_TEMPLATE;
   }
 }
 

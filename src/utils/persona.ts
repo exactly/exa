@@ -5,18 +5,20 @@ import { Environment, Inquiry } from "react-native-persona";
 
 import queryClient from "./queryClient";
 import reportError from "./reportError";
-import { getKYCLink, getTemplateId } from "./server";
+import { getKYCLink } from "./server";
 
 export const environment = __DEV__ ? Environment.SANDBOX : Environment.PRODUCTION;
+export const KYC_TEMPLATE_ID = "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2";
+export const LEGACY_KYC_TEMPLATE_ID = "itmpl_8uim4FvD5P3kFpKHX37CW817";
 
 export async function createInquiry(passkey: Passkey) {
   if (Platform.OS === "web") {
-    const otl = await getKYCLink();
+    const otl = await getKYCLink(KYC_TEMPLATE_ID);
     window.open(otl);
     return;
   }
 
-  Inquiry.fromTemplate(await getTemplateId())
+  Inquiry.fromTemplate(KYC_TEMPLATE_ID)
     .environment(environment)
     .referenceId(passkey.credentialId)
     .onCanceled(() => {
@@ -35,7 +37,7 @@ export async function createInquiry(passkey: Passkey) {
 
 export async function resumeInquiry(inquiryId: string, sessionToken: string) {
   if (Platform.OS === "web") {
-    const otl = await getKYCLink();
+    const otl = await getKYCLink(KYC_TEMPLATE_ID);
     window.open(otl);
     return;
   }
