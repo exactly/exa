@@ -3,7 +3,7 @@ import deriveAddress from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
 import { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 import { Address, Base64URL, Passkey } from "@exactly/common/validation";
-import { captureException, setUser } from "@sentry/node";
+import { captureException, setContext, setUser } from "@sentry/node";
 import {
   type AuthenticatorTransportFuture,
   generateRegistrationOptions,
@@ -232,6 +232,7 @@ export default new Hono()
       if (!challenge) return c.json("no registration", 400);
 
       const attestation = c.req.valid("json");
+      setContext("auth", attestation);
       let verification: Awaited<ReturnType<typeof verifyRegistrationResponse>>;
       try {
         verification = await verifyRegistrationResponse({

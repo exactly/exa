@@ -1,7 +1,7 @@
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 import domain from "@exactly/common/domain";
 import { Address, Base64URL } from "@exactly/common/validation";
-import { captureException, setUser } from "@sentry/node";
+import { captureException, setContext, setUser } from "@sentry/node";
 import {
   type AuthenticatorTransportFuture,
   generateAuthenticationOptions,
@@ -210,6 +210,7 @@ export default new Hono()
     ),
     async (c) => {
       const assertion = c.req.valid("json");
+      setContext("auth", assertion);
       const { session_id: sessionId } = c.req.valid("cookie");
       const [credential, challenge] = await Promise.all([
         database.query.credentials.findFirst({
