@@ -1,6 +1,6 @@
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
-import { Address, Base64URL, Hex, Passkey } from "@exactly/common/validation";
+import { Address, Base64URL, Hex } from "@exactly/common/validation";
 import { captureException, setContext } from "@sentry/node";
 import {
   type AuthenticatorTransportFuture,
@@ -35,6 +35,7 @@ import {
 import { verifyMessage } from "viem";
 import { createSiweMessage, generateSiweNonce, parseSiweMessage, validateSiweMessage } from "viem/siwe";
 
+import { Authentication } from "./authentication";
 import androidOrigins from "../../utils/android/origins";
 import appOrigin from "../../utils/appOrigin";
 import createCredential from "../../utils/createCredential";
@@ -139,8 +140,6 @@ const RegistrationOptions = variant("method", [
   ),
 ]);
 
-const AuthenticatedPasskey = object({ ...Passkey.entries, auth: number() });
-
 export default new Hono()
   .get(
     "/",
@@ -234,7 +233,7 @@ export default new Hono()
       responses: {
         200: {
           description: "WebAuthn registration response containing credential identifier and factory address.",
-          content: { "application/json": { schema: resolver(AuthenticatedPasskey, { errorMode: "ignore" }) } },
+          content: { "application/json": { schema: resolver(Authentication, { errorMode: "ignore" }) } },
         },
       },
       tags: ["Credential"],
@@ -351,7 +350,7 @@ export default new Hono()
       }
 
       return c.json(
-        (await createCredential(c, attestation.id, webauthn)) satisfies InferOutput<typeof AuthenticatedPasskey>,
+        (await createCredential(c, attestation.id, webauthn)) satisfies InferOutput<typeof Authentication>,
         200,
       );
     },
