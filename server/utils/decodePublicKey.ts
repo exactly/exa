@@ -1,5 +1,5 @@
 import { cose, decodeCredentialPublicKey } from "@simplewebauthn/server/helpers";
-import { bytesToHex, padBytes, type Hex } from "viem";
+import { bytesToHex, padBytes } from "viem";
 
 export default function decodePublicKey(bytes: Uint8Array): { x: Hex; y: Hex };
 export default function decodePublicKey<T>(bytes: Uint8Array, decoder: (input: Uint8Array) => T): { x: T; y: T };
@@ -17,3 +17,5 @@ export default function decodePublicKey<T>(bytes: Uint8Array, decoder: (input: U
 
   return { x: decoder(x), y: decoder(y) };
 }
+
+type Hex = `0x${string}`;

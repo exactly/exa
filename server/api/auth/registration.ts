@@ -3,9 +3,20 @@ import chain from "@exactly/common/generated/chain";
 import { Address, Base64URL, Hex } from "@exactly/common/validation";
 import { captureException, setContext } from "@sentry/node";
 import {
-  type AuthenticatorTransportFuture,
   generateRegistrationOptions,
   verifyRegistrationResponse,
+  type AttestationConveyancePreference,
+  type AttestationFormat,
+  type AuthenticationExtensionsClientInputs,
+  type AuthenticatorAttachment,
+  type AuthenticatorTransportFuture,
+  type Base64URLString,
+  type PublicKeyCredentialDescriptorJSON,
+  type PublicKeyCredentialHint,
+  type PublicKeyCredentialParameters,
+  type PublicKeyCredentialRpEntity,
+  type PublicKeyCredentialUserEntityJSON,
+  type UserVerificationRequirement,
   type WebAuthnCredential,
 } from "@simplewebauthn/server";
 import { cose } from "@simplewebauthn/server/helpers";
@@ -201,7 +212,7 @@ export default new Hono()
         return c.json({ method: "siwe" as const, address: query.credentialId, message }, 200);
       }
       const userName = new Date().toISOString().slice(0, 16);
-      const options = await generateRegistrationOptions({
+      const options: PublicKeyCredentialCreationOptionsJSON = await generateRegistrationOptions({
         rpID: domain,
         rpName: "exactly",
         userName,
@@ -363,3 +374,23 @@ export default new Hono()
   );
 
 const scheme = domain === "localhost" ? "http" : "https";
+
+// TODO remove after https://github.com/MasterKale/SimpleWebAuthn/pull/697
+interface PublicKeyCredentialCreationOptionsJSON {
+  rp: PublicKeyCredentialRpEntity;
+  user: PublicKeyCredentialUserEntityJSON;
+  challenge: Base64URLString;
+  pubKeyCredParams: PublicKeyCredentialParameters[];
+  timeout?: number;
+  excludeCredentials?: PublicKeyCredentialDescriptorJSON[];
+  authenticatorSelection?: {
+    authenticatorAttachment?: AuthenticatorAttachment;
+    residentKey?: "discouraged" | "preferred" | "required";
+    requireResidentKey?: boolean;
+    userVerification?: UserVerificationRequirement;
+  };
+  hints?: PublicKeyCredentialHint[];
+  attestation?: AttestationConveyancePreference;
+  attestationFormats?: AttestationFormat[];
+  extensions?: AuthenticationExtensionsClientInputs;
+}
