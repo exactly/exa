@@ -1,4 +1,4 @@
-import type { CreditActivity, DebitActivity, InstallmentsActivity } from "@exactly/server/api/activity";
+import type { CreditActivity, DebitActivity, InstallmentsActivity } from "@exactly/sdk";
 import { CalendarClock, CreditCard } from "@tamagui/lucide-icons";
 import React from "react";
 import { Separator, XStack, YStack } from "tamagui";

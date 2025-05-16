@@ -1,6 +1,6 @@
 import chain from "@exactly/common/generated/chain";
 import shortenHex from "@exactly/common/shortenHex";
-import type { CreditActivity, DebitActivity, InstallmentsActivity } from "@exactly/server/api/activity";
+import type { CreditActivity, DebitActivity, InstallmentsActivity } from "@exactly/sdk";
 import { CalendarClock, CreditCard, SquareArrowOutUpRight } from "@tamagui/lucide-icons";
 import { format } from "date-fns";
 import { setStringAsync } from "expo-clipboard";

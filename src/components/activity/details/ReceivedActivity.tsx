@@ -1,4 +1,4 @@
-import type { DepositActivity } from "@exactly/server/api/activity";
+import type { DepositActivity } from "@exactly/sdk";
 import { ArrowDownToLine } from "@tamagui/lucide-icons";
 import React from "react";
 import { Square, XStack, YStack } from "tamagui";

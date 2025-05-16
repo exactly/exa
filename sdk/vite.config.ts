@@ -4,9 +4,7 @@ import dts from "vite-plugin-dts";
 import { name } from "./package.json";
 
 export default {
-  plugins: [
-    dts({ rollupTypes: true, bundledPackages: ["@exactly/server", "@simplewebauthn/server", "hono", "valibot"] }),
-  ],
+  plugins: [dts({ rollupTypes: true, bundledPackages: ["@exactly/server"] })],
   build: {
     lib: { name, entry: "src/index.ts" },
     minify: false,

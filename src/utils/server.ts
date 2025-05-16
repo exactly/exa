@@ -1,9 +1,8 @@
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 import domain from "@exactly/common/domain";
 import { Passkey } from "@exactly/common/validation";
-import type { ExaAPI } from "@exactly/server/api";
+import { createAPIClient } from "@exactly/sdk";
 import { signMessage } from "@wagmi/core/actions";
-import { hc } from "hono/client";
 import { Platform } from "react-native";
 import { get as assert, create } from "react-native-passkeys";
 import { check, number, parse, pipe, safeParse } from "valibot";
@@ -70,9 +69,7 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
   },
 });
 
-const api = hc<ExaAPI>(domain === "localhost" ? "http://localhost:3000/api" : `https://${domain}/api`, {
-  init: { credentials: "include" },
-});
+const api = createAPIClient(domain === "localhost" ? "http://localhost:3000/api" : `https://${domain}/api`);
 
 export async function getCard() {
   await auth();

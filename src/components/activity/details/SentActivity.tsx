@@ -1,5 +1,5 @@
 import shortenHex from "@exactly/common/shortenHex";
-import type { WithdrawActivity } from "@exactly/server/api/activity";
+import type { WithdrawActivity } from "@exactly/sdk";
 import { ArrowUpFromLine } from "@tamagui/lucide-icons";
 import React from "react";
 import { Square, XStack, YStack } from "tamagui";
