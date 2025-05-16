@@ -1,7 +1,7 @@
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
-import { Address, Base64URL, Hex } from "@exactly/common/validation";
+import { Address, Base64URL, Hex, Passkey } from "@exactly/common/validation";
 import { captureException, setContext, setUser } from "@sentry/node";
 import {
   type AuthenticatorTransportFuture,
@@ -42,6 +42,7 @@ import androidOrigins from "../../utils/android/origins";
 import appOrigin from "../../utils/appOrigin";
 import authSecret from "../../utils/authSecret";
 import createCredential from "../../utils/createCredential";
+import decodePublicKey from "../../utils/decodePublicKey";
 import redis from "../../utils/redis";
 
 const Cookie = object({
@@ -103,10 +104,19 @@ const AuthenticationOptions = variant("method", [
   ),
 ]);
 
-const Authentication = pipe(
-  object({ expires: pipe(number(), title("Session expiry"), description("When the session will expire.")) }),
-  title("Authentication response"),
-);
+export const Authentication = object({
+  ...Passkey.entries,
+  auth: pipe(number(), title("Session expiry"), description("When the authenticated session will expire.")),
+});
+
+const LegacyAuthentication = object({
+  ...Authentication.entries,
+  expires: pipe(
+    number(),
+    title("Session expiry (legacy)"),
+    description("This field is deprecated in favor of `auth` and will be removed in the next major version."),
+  ),
+});
 
 export default new Hono()
   .get(
@@ -210,7 +220,7 @@ export default new Hono()
       responses: {
         200: {
           description: "Authentication response with session expiry",
-          content: { "application/json": { schema: resolver(Authentication, { errorMode: "ignore" }) } },
+          content: { "application/json": { schema: resolver(LegacyAuthentication, { errorMode: "ignore" }) } },
         },
       },
       tags: ["Credential"],
@@ -287,7 +297,7 @@ export default new Hono()
       const { session_id: sessionId } = c.req.valid("cookie");
       const [credential, challenge] = await Promise.all([
         database.query.credentials.findFirst({
-          columns: { publicKey: true, account: true, transports: true, counter: true },
+          columns: { publicKey: true, account: true, factory: true, transports: true, counter: true },
           where: eq(credentials.id, assertion.id),
         }),
         redis.get(sessionId),
@@ -302,8 +312,8 @@ export default new Hono()
         ) {
           return c.json("bad authentication", 400);
         }
-        const { auth } = await createCredential(c, assertion.id);
-        return c.json({ expires: auth } satisfies InferOutput<typeof Authentication>, 200);
+        const result = await createCredential(c, assertion.id);
+        return c.json({ ...result, expires: result.auth } satisfies InferOutput<typeof LegacyAuthentication>, 200);
       }
       setUser({ id: parse(Address, credential.account) });
 
@@ -352,7 +362,16 @@ export default new Hono()
         newCounter && database.update(credentials).set({ counter: newCounter }).where(eq(credentials.id, assertion.id)),
       ]);
 
-      return c.json({ expires: expires.getTime() } satisfies InferOutput<typeof Authentication>, 200);
+      return c.json(
+        {
+          credentialId: assertion.id,
+          factory: parse(Address, credential.factory),
+          ...decodePublicKey(credential.publicKey),
+          auth: expires.getTime(),
+          expires: expires.getTime(),
+        } satisfies InferOutput<typeof LegacyAuthentication>,
+        200,
+      );
     },
   );
 
