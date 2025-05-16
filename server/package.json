@@ -16,6 +16,10 @@
     "dev": "tsx --watch --env-file=.env --require=./instrument.cjs index.ts"
   },
   "bin": "./dist/index.cjs",
+  "exports": {
+    "./api": "./dist/api/index.d.ts",
+    "./api/activity": "./dist/api/activity.d.ts"
+  },
   "files": [
     "app",
     "dist",
@@ -38,6 +42,7 @@
     "@sentry/profiling-node": "^9.13.0",
     "@simplewebauthn/server": "^13.1.1",
     "@types/debug": "^4.1.12",
+    "@types/pg": "^8.11.13",
     "@valibot/to-json-schema": "^1.1.0",
     "async-mutex": "^0.5.0",
     "debug": "^4.4.0",
@@ -59,7 +64,6 @@
     "@sentry/cli": "^2.43.0",
     "@types/ioredis-mock": "^8.2.5",
     "@types/node": "^22.14.1",
-    "@types/pg": "^8.11.13",
     "@vitest/coverage-v8": "^3.1.2",
     "@vitest/ui": "^3.1.2",
     "@wagmi/core": "^2.16.7",

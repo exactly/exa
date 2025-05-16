@@ -568,6 +568,9 @@ importers:
       '@types/debug':
         specifier: ^4.1.12
         version: 4.1.12
+      '@types/pg':
+        specifier: ^8.11.13
+        version: 8.11.13
       '@valibot/to-json-schema':
         specifier: ^1.1.0
         version: 1.1.0(valibot@1.0.0(typescript@5.8.3))
@@ -626,9 +629,6 @@ importers:
       '@types/node':
         specifier: ^22.14.1
         version: 22.14.1
-      '@types/pg':
-        specifier: ^8.11.13
-        version: 8.11.13
       '@vitest/coverage-v8':
         specifier: ^3.1.2
         version: 3.1.2(vitest@3.1.2)
