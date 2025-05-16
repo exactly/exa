@@ -20,6 +20,7 @@
     "byscore",
     "bytea",
     "chainid",
+    "checksummed",
     "codegen",
     "cosealg",
     "cosekeys",
