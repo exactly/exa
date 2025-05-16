@@ -1,5 +1,5 @@
 import shortenHex from "@exactly/common/shortenHex";
-import type { CreditActivity, DebitActivity, InstallmentsActivity, PandaActivity } from "@exactly/server/api/activity";
+import type { CreditActivity, DebitActivity, InstallmentsActivity, PandaActivity } from "@exactly/sdk";
 import { Copy } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { format } from "date-fns";

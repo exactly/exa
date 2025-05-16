@@ -1,4 +1,4 @@
-import type { RepayActivity as RepayActivityType } from "@exactly/server/api/activity";
+import type { RepayActivity as RepayActivityType } from "@exactly/sdk";
 import { ArrowUpFromLine } from "@tamagui/lucide-icons";
 import React from "react";
 import { Square, XStack, YStack } from "tamagui";

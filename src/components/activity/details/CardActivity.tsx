@@ -1,4 +1,4 @@
-import type { CreditActivity, DebitActivity, InstallmentsActivity, PandaActivity } from "@exactly/server/api/activity";
+import type { CreditActivity, DebitActivity, InstallmentsActivity, PandaActivity } from "@exactly/sdk";
 import { ClockAlert, Import, ShoppingCart } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import React from "react";

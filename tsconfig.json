@@ -6,6 +6,7 @@
     "pretty": true,
     "strict": true,
     "checkJs": true,
+    // "declaration": true,
     "moduleDetection": "force",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
@@ -14,7 +15,7 @@
   },
   "include": [
     ".expo/types/**/*.ts",
-    "common/**/*.ts",
+    "common/**/*",
     "expo-env.d.ts",
     "src/**/*.ts",
     "src/**/*.tsx",

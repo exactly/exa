@@ -1,6 +1,6 @@
 import chain from "@exactly/common/generated/chain";
 import shortenHex from "@exactly/common/shortenHex";
-import type { CreditActivity, DebitActivity, InstallmentsActivity } from "@exactly/server/api/activity";
+import type { CreditActivity, DebitActivity, InstallmentsActivity } from "@exactly/sdk";
 import { Copy, SquareArrowOutUpRight } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { useQuery } from "@tanstack/react-query";
