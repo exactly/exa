@@ -19,11 +19,11 @@ import { isRunningInExpoGo } from "expo";
 import { useAssets } from "expo-asset";
 import { type FontSource, useFonts } from "expo-font";
 import { SplashScreen, Stack, useNavigationContainerRef } from "expo-router";
-import { channel } from "expo-updates";
+import { channel, checkForUpdateAsync, fetchUpdateAsync, reloadAsync } from "expo-updates";
 import { use as configI18n } from "i18next";
 import React, { useEffect } from "react";
 import { initReactI18next } from "react-i18next";
-import { Platform } from "react-native";
+import { AppState, Platform } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { WagmiProvider } from "wagmi";
 
@@ -122,6 +122,29 @@ export default wrap(function RootLayout() {
   useEffect(() => {
     routingInstrumentation.registerNavigationContainer(navigationContainer);
   }, [navigationContainer]);
+
+  useEffect(() => {
+    if (__DEV__) return;
+    let shouldReload = false;
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        if (shouldReload) {
+          reloadAsync().catch(reportError);
+          return;
+        }
+        checkForUpdateAsync()
+          .then(async ({ isAvailable, isRollBackToEmbedded }) => {
+            if (!isAvailable && !isRollBackToEmbedded) return;
+            await fetchUpdateAsync();
+            shouldReload = true;
+          })
+          .catch(reportError);
+      }
+    });
+    return () => {
+      subscription.remove();
+    };
+  }, []);
 
   return (
     <WagmiProvider config={wagmiConfig}>
