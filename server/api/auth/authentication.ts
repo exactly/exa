@@ -159,7 +159,7 @@ export default new Hono()
           captureException(new Error("bad credential"), {
             contexts: { validation: { ...validation, flatten: flatten(validation.issues) } },
           });
-          return c.json("bad credential", 400);
+          return c.json({ code: "bad credential", legacy: "bad credential" }, 400);
         }
       },
     ),
@@ -230,7 +230,7 @@ export default new Hono()
     vValidator<typeof Cookie, "cookie", Env, "/", undefined, InferOutput<typeof Cookie>>(
       "cookie",
       Cookie,
-      ({ success }, c) => (success ? undefined : c.json("bad session", 400)),
+      ({ success }, c) => (success ? undefined : c.json({ code: "bad session", legacy: "bad session" }, 400)),
     ),
     vValidator(
       "json",
@@ -287,7 +287,7 @@ export default new Hono()
           captureException(new Error("bad authentication"), {
             contexts: { validation: { ...validation, flatten: flatten(validation.issues) } },
           });
-          return c.json("bad authentication", 400);
+          return c.json({ code: "bad authentication", legacy: "bad authentication" }, 400);
         }
       },
     ),
@@ -302,15 +302,15 @@ export default new Hono()
         }),
         redis.get(sessionId),
       ]);
-      if (!challenge) return c.json("no authentication", 400);
+      if (!challenge) return c.json({ code: "no authentication", legacy: "no authentication" }, 400);
       if (!credential) {
-        if (assertion.method !== "siwe") return c.json("unknown credential", 400);
+        if (assertion.method !== "siwe") return c.json({ code: "no credential", legacy: "no credential" }, 400);
         const message = parseSiweMessage(challenge);
         if (
           !validateSiweMessage({ message, address: assertion.id, nonce: sessionId, domain, scheme }) ||
           !(await verifyMessage({ message: challenge, address: assertion.id, signature: assertion.signature }))
         ) {
-          return c.json("bad authentication", 400);
+          return c.json({ code: "bad authentication", legacy: "bad authentication" }, 400);
         }
         const result = await createCredential(c, assertion.id);
         return c.json({ ...result, expires: result.auth } satisfies InferOutput<typeof LegacyAuthentication>, 200);
@@ -326,7 +326,7 @@ export default new Hono()
               !validateSiweMessage({ message, address: assertion.id, nonce: sessionId, domain, scheme }) ||
               !(await verifyMessage({ message: challenge, address: assertion.id, signature: assertion.signature }))
             ) {
-              return c.json("bad authentication", 400);
+              return c.json({ code: "bad authentication", legacy: "bad authentication" }, 400);
             }
             break;
           }
@@ -345,13 +345,15 @@ export default new Hono()
                 counter: credential.counter,
               },
             });
-            if (!verified || authenticationInfo.credentialID !== assertion.id) return c.json("bad authentication", 400);
+            if (!verified || authenticationInfo.credentialID !== assertion.id) {
+              return c.json({ code: "bad authentication", legacy: "bad authentication" }, 400);
+            }
             newCounter = authenticationInfo.newCounter;
           }
         }
       } catch (error) {
-        captureException(error);
-        return c.json(error instanceof Error ? error.message : String(error), 400);
+        captureException(error, { level: "error", tags: { unhandled: true } });
+        return c.json({ code: "ouch", legacy: "ouch" }, 500);
       } finally {
         await redis.del(sessionId);
       }

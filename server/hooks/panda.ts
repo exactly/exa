@@ -167,7 +167,7 @@ export default new Hono().post(
       captureException(new Error("bad panda"), {
         contexts: { validation: { ...validation, flatten: v.flatten(validation.issues) } },
       });
-      return c.json("bad request", 400);
+      return c.json({ code: "bad request" }, 400);
     }
   }),
   async (c) => {
@@ -184,7 +184,7 @@ export default new Hono().post(
         where: and(eq(credentials.pandaId, payload.resource === "card" ? payload.body.userId : payload.body.id)),
       });
       if (user) setUser({ id: user.account });
-      return c.json({});
+      return c.json({ code: "ok" });
     }
 
     setTag("panda.status", payload.body.spend.status);
@@ -192,7 +192,7 @@ export default new Hono().post(
 
     switch (payload.action) {
       case "requested": {
-        if (payload.body.spend.amount < 0) return c.json({});
+        if (payload.body.spend.amount < 0) return c.json({ code: "ok" });
         const card = await findCardById(payload.body.spend.cardId);
         const account = v.parse(Address, card.credential.account);
         setUser({ id: account });
@@ -201,8 +201,8 @@ export default new Hono().post(
           await startSpan({ name: "acquire mutex", op: "panda.mutex" }, () => mutex.acquire());
         } catch (error: unknown) {
           if (error === E_TIMEOUT) {
-            captureException(error, { level: "fatal" });
-            return c.json({}, 554 as UnofficialStatusCode);
+            captureException(error, { level: "fatal", tags: { unhandled: true } });
+            return c.json({ code: "mutex timeout" }, 554 as UnofficialStatusCode);
           }
           throw error;
         }
@@ -292,13 +292,16 @@ export default new Hono().post(
         } catch (error: unknown) {
           mutex.release();
           setContext("mutex", { locked: mutex.isLocked() });
-          if (error instanceof PandaError) return c.json(error.message, error.statusCode as UnofficialStatusCode);
-          captureException(error);
-          return c.json({}, 569 as UnofficialStatusCode);
+          if (error instanceof PandaError) {
+            captureException(error, { level: "error", tags: { unhandled: true } });
+            return c.json({ code: error.message }, error.statusCode as UnofficialStatusCode);
+          }
+          captureException(error, { level: "error", tags: { unhandled: true } });
+          return c.json({ code: "ouch" }, 569 as UnofficialStatusCode);
         }
       }
       case "completed":
-        if (payload.body.spend.amount >= 0) return c.json({});
+        if (payload.body.spend.amount >= 0) return c.json({ code: "ok" });
       // falls through
       case "updated":
         if (payload.body.spend.status === "reversed" || payload.body.spend.status === "completed") {
@@ -336,9 +339,9 @@ export default new Hono().post(
                 return accumulator;
               }, 0) / 100;
             const totalSpend = BigInt(Math.round(totalSpendUsd * 1e6));
-            if (refundAmount > totalSpend) return c.json("refund higher than spend", 552 as UnofficialStatusCode);
+            if (refundAmount > totalSpend) return c.json({ code: "bad refund" }, 552 as UnofficialStatusCode);
           } else if (payload.body.spend.status === "reversed") {
-            return c.json("spending transaction not found", 553 as UnofficialStatusCode);
+            return c.json({ code: "transaction not found" }, 553 as UnofficialStatusCode);
           }
           const timestamp = Math.floor(Date.now() / 1000); // TODO use payload timestamp when provided
           const signature = await signIssuerOp({ account, amount: -refundAmount, timestamp }); // TODO replace with payload signature
@@ -408,15 +411,18 @@ export default new Hono().post(
             } catch (error: unknown) {
               captureException(error, { level: "error" });
             }
-            return c.json({});
+            return c.json({ code: "ok" });
           } catch (error: unknown) {
-            captureException(error, { level: "fatal", contexts: {} });
-            return c.json(error instanceof Error ? error.message : String(error), 569 as UnofficialStatusCode);
+            captureException(error, { level: "fatal", tags: { unhandled: true } });
+            return c.json(
+              { code: error instanceof Error ? error.message : String(error) },
+              569 as UnofficialStatusCode,
+            );
           }
         }
       // falls through
       case "created": {
-        if (payload.body.spend.amount < 0) return c.json({});
+        if (payload.body.spend.amount < 0) return c.json({ code: "ok" });
 
         const card = await findCardById(payload.body.spend.cardId);
         const account = v.parse(Address, card.credential.account);
@@ -427,9 +433,9 @@ export default new Hono().post(
           const mutex = getMutex(account);
           mutex?.release();
           setContext("mutex", { locked: mutex?.isLocked() });
-          return c.json({});
+          return c.json({ code: "ok" });
         }
-        if (payload.body.spend.status !== "pending") return c.json({});
+        if (payload.body.spend.status !== "pending") return c.json({ code: "ok" });
         getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "panda.tx.collect");
         try {
           const { call } = await prepareCollection(card, payload);
@@ -501,7 +507,7 @@ export default new Hono().post(
                 })} at ${payload.body.spend.merchantName.trim()}, paid in ${{ 0: "debit", 1: "credit" }[card.mode] ?? `${card.mode} installments`} with USDC`,
               },
             }).catch((error: unknown) => captureException(error, { level: "error" }));
-            return c.json({});
+            return c.json({ code: "ok" });
           } catch (error: unknown) {
             captureException(error, { level: "fatal", contexts: { tx: { call } } });
             return c.text(error instanceof Error ? error.message : String(error), 569 as UnofficialStatusCode);
@@ -513,7 +519,7 @@ export default new Hono().post(
         }
       }
       default:
-        return c.json({});
+        return c.json({ code: "ok" });
     }
   },
 );
