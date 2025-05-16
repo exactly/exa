@@ -63,7 +63,7 @@ export async function verifyRegistration(attestation: RegistrationResponseJSON) 
 export async function getCard() {
   await auth();
   const { id, secret } = await session();
-  const response = await api.card.$get({}, { headers: { SessionId: id } });
+  const response = await api.card.$get({ header: { sessionid: id } });
   if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
   const card = await response.json();
   return { ...card, secret };
