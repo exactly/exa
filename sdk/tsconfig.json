@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "lib": ["ESNext", "DOM"],
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleDetection": "force",
+    "moduleResolution": "bundler",
+    "noUncheckedIndexedAccess": true,
+    "verbatimModuleSyntax": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "declarationMap": true,
+    "skipLibCheck": true,
+    "declaration": true,
+    "checkJs": true,
+    "noEmit": true,
+    "pretty": true,
+    "strict": true
+  },
+  "include": ["src"]
+}

@@ -3,4 +3,5 @@ packages:
   - common
   - contracts
   - docs
+  - sdk
   - server
