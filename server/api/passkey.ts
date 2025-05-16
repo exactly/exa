@@ -29,7 +29,7 @@ export default new Hono().get(
       where: eq(credentials.id, credentialId),
       columns: { publicKey: true, account: true, factory: true },
     });
-    if (!credential) return c.json("credential not found", 401);
+    if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
     setUser({ id: parse(Address, credential.account) });
     return c.json(
       {

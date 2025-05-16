@@ -181,7 +181,7 @@ export async function isPanda(account: Address) {
         where: eq(credentials.account, account),
         columns: { factory: true },
       });
-      if (!credential) throw new Error("credential not found");
+      if (!credential) throw new Error("no credential");
       return credential.factory === exaAccountFactoryAddress;
     }
     throw error;
