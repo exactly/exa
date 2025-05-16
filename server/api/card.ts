@@ -1,16 +1,18 @@
 import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
 import { Address } from "@exactly/common/validation";
-import { setContext, setUser } from "@sentry/node";
+import { captureException, setContext, setUser } from "@sentry/node";
 import { Mutex } from "async-mutex";
 import { eq, inArray, ne } from "drizzle-orm";
 import { Hono } from "hono";
 import { validator as vValidator } from "hono-openapi/valibot";
 import { parsePhoneNumberWithError } from "libphonenumber-js";
 import {
+  flatten,
   integer,
   maxValue,
   minValue,
   number,
+  object,
   parse,
   picklist,
   pipe,
@@ -36,58 +38,71 @@ function createMutex(credentialId: string) {
 }
 
 export default new Hono()
-  .get("/", auth(), async (c) => {
-    const { credentialId } = c.req.valid("cookie");
-    const credential = await database.query.credentials.findFirst({
-      where: eq(credentials.id, credentialId),
-      columns: { account: true, pandaId: true },
-      with: {
-        cards: {
-          columns: { id: true, lastFour: true, status: true, mode: true },
-          where: inArray(cards.status, ["ACTIVE", "FROZEN"]),
+  .get(
+    "/",
+    vValidator("header", object({ sessionid: string() }), (validation, c) => {
+      if (!validation.success) {
+        captureException(new Error("bad session id"), {
+          contexts: { validation: { ...validation, flatten: flatten(validation.issues) } },
+        });
+        return c.json({ code: "bad session id", legacy: "bad session id" }, 400);
+      }
+    }),
+    auth(),
+    async (c) => {
+      const { credentialId } = c.req.valid("cookie");
+      const credential = await database.query.credentials.findFirst({
+        where: eq(credentials.id, credentialId),
+        columns: { account: true, pandaId: true },
+        with: {
+          cards: {
+            columns: { id: true, lastFour: true, status: true, mode: true },
+            where: inArray(cards.status, ["ACTIVE", "FROZEN"]),
+          },
         },
-      },
-    });
-    if (!credential) return c.json("credential not found", 401);
-    const account = parse(Address, credential.account);
-    setUser({ id: account });
+      });
+      if (!credential) return c.json("credential not found", 401);
+      const account = parse(Address, credential.account);
+      setUser({ id: account });
 
-    if (credential.cards.length > 0 && credential.cards[0]) {
-      const { id, lastFour, status, mode } = credential.cards[0];
-      if (await isPanda(account)) {
-        const inquiry = await getInquiry(credentialId, PANDA_TEMPLATE);
+      if (credential.cards.length > 0 && credential.cards[0]) {
+        const { id, lastFour, status, mode } = credential.cards[0];
+        if (await isPanda(account)) {
+          const inquiry = await getInquiry(credentialId, PANDA_TEMPLATE);
+          if (!inquiry) return c.json("kyc required", 403);
+          if (inquiry.attributes.status !== "approved") return c.json("kyc not approved", 403);
+          if (!credential.pandaId) return c.json("panda id not found", 400);
+          const [pan, { expirationMonth, expirationYear }] = await Promise.all([
+            getSecrets(id, c.req.valid("header").sessionid),
+            getCard(id),
+          ]);
+          return c.json(
+            {
+              ...pan,
+              provider: "panda" as const,
+              displayName: displayName({
+                first: inquiry.attributes["name-first"],
+                middle: inquiry.attributes["name-middle"],
+                last: inquiry.attributes["name-last"],
+              }),
+              expirationMonth,
+              expirationYear,
+              lastFour,
+              status,
+              mode,
+            },
+            200,
+          );
+        }
+        const inquiry = await getInquiry(credentialId, CRYPTOMATE_TEMPLATE);
         if (!inquiry) return c.json("kyc required", 403);
         if (inquiry.attributes.status !== "approved") return c.json("kyc not approved", 403);
-        if (!credential.pandaId) return c.json("panda id not found", 400);
-        const session = c.req.header("SessionId");
-        if (!session) return c.json("SessionId header required", 400);
-        const [pan, { expirationMonth, expirationYear }] = await Promise.all([getSecrets(id, session), getCard(id)]);
-        return c.json(
-          {
-            ...pan,
-            provider: "panda" as const,
-            displayName: displayName({
-              first: inquiry.attributes["name-first"],
-              middle: inquiry.attributes["name-middle"],
-              last: inquiry.attributes["name-last"],
-            }),
-            expirationMonth,
-            expirationYear,
-            lastFour,
-            status,
-            mode,
-          },
-          200,
-        );
+        return c.json({ provider: "cryptomate" as const, url: await getPAN(id), lastFour, status, mode }, 200);
+      } else {
+        return c.json("card not found", 404);
       }
-      const inquiry = await getInquiry(credentialId, CRYPTOMATE_TEMPLATE);
-      if (!inquiry) return c.json("kyc required", 403);
-      if (inquiry.attributes.status !== "approved") return c.json("kyc not approved", 403);
-      return c.json({ provider: "cryptomate" as const, url: await getPAN(id), lastFour, status, mode }, 200);
-    } else {
-      return c.json("card not found", 404);
-    }
-  })
+    },
+  )
   .post("/", auth(), async (c) => {
     const { credentialId } = c.req.valid("cookie");
     const mutex = mutexes.get(credentialId) ?? createMutex(credentialId);
