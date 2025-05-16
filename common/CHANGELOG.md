@@ -1,5 +1,11 @@
 # @exactly/common
 
+## 0.0.4
+
+### Patch Changes
+
+- [`ecf6c88`](https://github.com/exactly/exa/commit/ecf6c8802e02fc47d833543f47759dca950987c4) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚚 move address derivation to common
+
 ## 0.0.3
 
 ### Patch Changes

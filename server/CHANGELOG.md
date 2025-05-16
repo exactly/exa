@@ -1,5 +1,13 @@
 # @exactly/server
 
+## 0.1.11
+
+### Patch Changes
+
+- [`ecf6c88`](https://github.com/exactly/exa/commit/ecf6c8802e02fc47d833543f47759dca950987c4) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚚 move address derivation to common
+
+- [`c389aa8`](https://github.com/exactly/exa/commit/c389aa87a2e1e183e6cc161c00ab943b1f20a8f7) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 📈 add auth payloads to sentry context
+
 ## 0.1.10
 
 ### Patch Changes

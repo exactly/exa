@@ -1,5 +1,31 @@
 # @exactly/mobile
 
+## 1.0.7
+
+### Patch Changes
+
+- [`def6a51`](https://github.com/exactly/exa/commit/def6a51d1ad958e2c15b32f2dac7b57e37520880) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix migration banner display condition
+
+- [`6ec8314`](https://github.com/exactly/exa/commit/6ec8314542c13435baf6ceb61273d2cde22511cd) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💬 fix selected installments plural
+
+- [`21a74d7`](https://github.com/exactly/exa/commit/21a74d757d16bb8a463a49ad308d521c791235f9) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add plugin upgrade banner on card screen
+
+- [`255d533`](https://github.com/exactly/exa/commit/255d5338f3bef027c2e6186d85ed0ae0f5fe94b5) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 fix web background color in asset selector
+
+- [`558db33`](https://github.com/exactly/exa/commit/558db33e39c5cd7f313e5179e3f2b627402cf0e2) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ♻️ simplify kyc template id
+
+- [`eb84bb8`](https://github.com/exactly/exa/commit/eb84bb805445b4321d82da1227b4926ba1f14db2) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ check for updates on app activation
+
+- [`21a35b0`](https://github.com/exactly/exa/commit/21a35b00da904c3de46928eb7ff9ee70ed517df4) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 📈 set credential id for intercom user
+
+- [`31d51db`](https://github.com/exactly/exa/commit/31d51db4212f35866dd8af786576210b6cf7d72f) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚑 fix falsy values render errors
+
+- [`40d131a`](https://github.com/exactly/exa/commit/40d131a46f0bffe1e17a69c521d2cc7af037567d) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚑 reset migration query on sheet close
+
+- Updated dependencies [[`ecf6c88`](https://github.com/exactly/exa/commit/ecf6c8802e02fc47d833543f47759dca950987c4), [`c389aa8`](https://github.com/exactly/exa/commit/c389aa87a2e1e183e6cc161c00ab943b1f20a8f7)]:
+  - @exactly/common@0.0.4
+  - @exactly/server@0.1.11
+
 ## 1.0.6
 
 ### Patch Changes

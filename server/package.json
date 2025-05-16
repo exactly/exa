@@ -1,6 +1,6 @@
 {
   "name": "@exactly/server",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "private": true,
   "scripts": {
     "build": "pkgroll --sourcemap --src . && sentry-cli sourcemaps inject -o exactly -p server dist",
@@ -54,7 +54,7 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.2.17",
-    "@exactly/common": "workspace:^0.0.3",
+    "@exactly/common": "workspace:^0.0.4",
     "@exactly/plugin": "workspace:^1.0.0",
     "@sentry/cli": "^2.43.0",
     "@types/ioredis-mock": "^8.2.5",
