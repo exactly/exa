@@ -7,10 +7,9 @@ import registration from "./auth/registration";
 import card from "./card";
 import kyc from "./kyc";
 import passkey from "./passkey";
-import appOrigin from "../utils/appOrigin";
 
 const api = new Hono()
-  .use(cors({ origin: appOrigin, credentials: true }))
+  .use(cors({ origin: "*", credentials: true }))
   .route("/auth/registration", registration)
   .route("/auth/authentication", authentication)
   .route("/activity", activity)
