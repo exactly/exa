@@ -3,6 +3,7 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { captureException, close } from "@sentry/node";
 import { Hono } from "hono";
 import { trimTrailingSlash } from "hono/trailing-slash";
+import type { UnofficialStatusCode } from "hono/utils/http-status";
 
 import api from "./api";
 import activityHook from "./hooks/activity";
@@ -67,8 +68,8 @@ app.use(
 );
 
 app.onError((error, c) => {
-  captureException(error, { level: "error" });
-  return c.json(error instanceof Error ? error.message : String(error), 500);
+  captureException(error, { level: "error", tags: { unhandled: true } });
+  return c.json({ code: "unexpected error", legacy: "unexpected error" }, 555 as UnofficialStatusCode);
 });
 
 const server = serve(app);

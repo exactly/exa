@@ -173,7 +173,7 @@ export default new Hono()
         }),
       ),
       ({ success }, c) => {
-        if (!success) return c.json("bad credential", 400);
+        if (!success) return c.json({ code: "bad credential", legacy: "bad credential" }, 400);
       },
     ),
     async (c) => {
@@ -243,7 +243,7 @@ export default new Hono()
     vValidator<typeof Cookie, "cookie", Env, "/", undefined, InferOutput<typeof Cookie>>(
       "cookie",
       Cookie,
-      ({ success }, c) => (success ? undefined : c.json("bad session", 400)),
+      ({ success }, c) => (success ? undefined : c.json({ code: "bad session", legacy: "bad session" }, 400)),
     ),
     vValidator(
       "json",
@@ -295,7 +295,7 @@ export default new Hono()
           captureException(new Error("bad registration"), {
             contexts: { validation: { ...validation, flatten: flatten(validation.issues) } },
           });
-          return c.json("bad registration", 400);
+          return c.json({ code: "bad registration", legacy: "bad registration" }, 400);
         }
       },
     ),
@@ -304,7 +304,7 @@ export default new Hono()
       setContext("auth", attestation);
       const { session_id: sessionId } = c.req.valid("cookie");
       const challenge = await redis.get(sessionId);
-      if (!challenge) return c.json("no registration", 400);
+      if (!challenge) return c.json({ code: "no registration", legacy: "no registration" }, 400);
 
       let webauthn: WebAuthnCredential | undefined;
       try {
@@ -315,7 +315,7 @@ export default new Hono()
               !validateSiweMessage({ message, address: attestation.id, nonce: sessionId, domain, scheme }) ||
               !(await verifyMessage({ message: challenge, address: attestation.id, signature: attestation.signature }))
             ) {
-              return c.json("bad authentication", 400);
+              return c.json({ code: "bad authentication", legacy: "bad authentication" }, 400);
             }
             break;
           }
@@ -335,16 +335,22 @@ export default new Hono()
               expectedChallenge: challenge,
               supportedAlgorithmIDs: [cose.COSEALG.ES256],
             });
-            if (!verified || !registrationInfo) return c.json("bad registration", 400);
+            if (!verified || !registrationInfo) {
+              return c.json({ code: "bad registration", legacy: "bad registration" }, 400);
+            }
             const { credential, credentialDeviceType } = registrationInfo;
-            if (credential.id !== attestation.id) return c.json("bad registration", 400);
-            if (credentialDeviceType !== "multiDevice") return c.json("backup eligibility required", 400); // TODO improve ux
+            if (credential.id !== attestation.id) {
+              return c.json({ code: "bad registration", legacy: "bad registration" }, 400);
+            }
+            if (credentialDeviceType !== "multiDevice") {
+              return c.json({ code: "backup eligibility required", legacy: "backup eligibility required" }, 400); // TODO improve ux
+            }
             webauthn = credential;
           }
         }
       } catch (error) {
-        captureException(error);
-        return c.json(error instanceof Error ? error.message : String(error), 400);
+        captureException(error, { level: "error", tags: { unhandled: true } });
+        return c.json({ code: "ouch", legacy: "ouch" }, 500);
       } finally {
         await redis.del(sessionId);
       }

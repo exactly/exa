@@ -20,7 +20,7 @@ export function headerValidator(signingKeys: Set<string> | (() => Set<string>)) 
         return;
       }
     }
-    return c.json("unauthorized", 401);
+    return c.json({ code: "unauthorized", legacy: "unauthorized" }, 401);
   });
 }
 
@@ -39,7 +39,7 @@ export function jsonValidator<TInput, TOutput, TIssue extends BaseIssue<unknown>
     if (!result.success) {
       setContext("validation", result);
       captureException(new Error("bad alchemy"));
-      return c.json("bad request", 400);
+      return c.json({ code: "bad request", legacy: "bad request" }, 400);
     }
   });
 }
