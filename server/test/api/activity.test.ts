@@ -30,14 +30,14 @@ describe.concurrent("validation", () => {
     const response = await appClient.index.$get();
 
     expect(response.status).toBe(401);
-    await expect(response.json()).resolves.toBe("unauthorized");
+    await expect(response.json()).resolves.toStrictEqual({ code: "unauthorized", legacy: "unauthorized" });
   });
 
   it("fails with bad credential", async () => {
     const response = await appClient.index.$get(undefined, { headers: { "test-credential-id": "bad" } });
 
-    expect(response.status).toBe(401);
-    await expect(response.json()).resolves.toBe("credential not found");
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toStrictEqual({ code: "no credential", legacy: "no credential" });
   });
 
   it("succeeds with valid credential", async () => {

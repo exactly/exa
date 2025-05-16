@@ -61,7 +61,7 @@ export default new Hono()
           },
         },
       });
-      if (!credential) return c.json("credential not found", 401);
+      if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
       const account = parse(Address, credential.account);
       setUser({ id: account });
 
@@ -69,9 +69,11 @@ export default new Hono()
         const { id, lastFour, status, mode } = credential.cards[0];
         if (await isPanda(account)) {
           const inquiry = await getInquiry(credentialId, PANDA_TEMPLATE);
-          if (!inquiry) return c.json("kyc required", 403);
-          if (inquiry.attributes.status !== "approved") return c.json("kyc not approved", 403);
-          if (!credential.pandaId) return c.json("panda id not found", 400);
+          if (!inquiry) return c.json({ code: "no kyc", legacy: "kyc required" }, 403);
+          if (inquiry.attributes.status !== "approved") {
+            return c.json({ code: "bad kyc", legacy: "kyc not approved" }, 403);
+          }
+          if (!credential.pandaId) return c.json({ code: "no panda", legacy: "no panda" }, 403);
           const [{ expirationMonth, expirationYear }, pan, { firstName, lastName }] = await Promise.all([
             getCard(id),
             getSecrets(id, c.req.valid("header").sessionid),
@@ -92,11 +94,13 @@ export default new Hono()
           );
         }
         const inquiry = await getInquiry(credentialId, CRYPTOMATE_TEMPLATE);
-        if (!inquiry) return c.json("kyc required", 403);
-        if (inquiry.attributes.status !== "approved") return c.json("kyc not approved", 403);
+        if (!inquiry) return c.json({ code: "no kyc", legacy: "kyc required" }, 403);
+        if (inquiry.attributes.status !== "approved") {
+          return c.json({ code: "bad kyc", legacy: "kyc not approved" }, 403);
+        }
         return c.json({ provider: "cryptomate" as const, url: await getPAN(id), lastFour, status, mode }, 200);
       } else {
-        return c.json("card not found", 404);
+        return c.json({ code: "no card", legacy: "card not found" }, 404);
       }
     },
   )
@@ -112,15 +116,17 @@ export default new Hono()
             cards: { columns: { id: true, status: true }, where: inArray(cards.status, ["ACTIVE", "FROZEN"]) },
           },
         });
-        if (!credential) return c.json("credential not found", 401);
+        if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
         const account = parse(Address, credential.account);
         setUser({ id: account });
 
         if (await isPanda(account)) {
           const inquiry = await getInquiry(credentialId, PANDA_TEMPLATE);
-          if (!inquiry) return c.json("kyc not found", 404);
-          if (inquiry.attributes.status !== "approved") return c.json("kyc not approved", 403);
-          if (!credential.pandaId) return c.json("panda id not found", 400);
+          if (!inquiry) return c.json({ code: "no kyc", legacy: "kyc not found" }, 403);
+          if (inquiry.attributes.status !== "approved") {
+            return c.json({ code: "bad kyc", legacy: "kyc not approved" }, 403);
+          }
+          if (!credential.pandaId) return c.json({ code: "no panda", legacy: "panda id not found" }, 403);
           let cardCount = credential.cards.length;
           for (const card of credential.cards) {
             try {
@@ -138,15 +144,17 @@ export default new Hono()
               }
             }
           }
-          if (cardCount > 0) return c.json(`card already exists: ${cardCount}`, 400);
+          if (cardCount > 0) return c.json({ code: "already created", legacy: "card already exists" }, 400);
           const card = await createCard(credential.pandaId);
           await database.insert(cards).values([{ id: card.id, credentialId, lastFour: card.last4 }]);
           return c.json({ lastFour: card.last4, status: card.status }, 200);
         }
         const inquiry = await getInquiry(credentialId, CRYPTOMATE_TEMPLATE);
-        if (!inquiry) return c.json("kyc not found", 404);
-        if (inquiry.attributes.status !== "approved") return c.json("kyc not approved", 403);
-        if (credential.cards.length > 0) return c.json("card already exists", 400);
+        if (!inquiry) return c.json({ code: "no kyc", legacy: "kyc not found" }, 403);
+        if (inquiry.attributes.status !== "approved") {
+          return c.json({ code: "bad kyc", legacy: "kyc not approved" }, 403);
+        }
+        if (credential.cards.length > 0) return c.json({ code: "already created", legacy: "card already exists" }, 400);
 
         setContext("phone", { inquiry: inquiry.id, phone: inquiry.attributes["phone-number"] });
         const phone = parsePhoneNumberWithError(
@@ -208,21 +216,23 @@ export default new Hono()
               cards: { columns: { id: true, mode: true, status: true }, where: ne(cards.status, "DELETED") },
             },
           });
-          if (!credential) return c.json("credential not found", 401);
+          if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
           const account = parse(Address, credential.account);
           setUser({ id: account });
-          if (credential.cards.length === 0 || !credential.cards[0]) return c.json("no card found", 404);
+          if (credential.cards.length === 0 || !credential.cards[0]) {
+            return c.json({ code: "no card", legacy: "no card found" }, 404);
+          }
           const card = credential.cards[0];
           switch (patch.type) {
             case "mode": {
               const { mode } = patch;
-              if (card.mode === mode) return c.json(`card mode is already ${mode}`, 400);
+              if (card.mode === mode) return c.json({ code: "already set", mode, legacy: "already set" }, 400);
               await database.update(cards).set({ mode }).where(eq(cards.id, card.id));
               return c.json({ mode }, 200);
             }
             case "status": {
               const { status } = patch;
-              if (card.status === status) return c.json(`card is already ${status.toLowerCase()}`, 400);
+              if (card.status === status) return c.json({ code: "already set", status, legacy: "already set" }, 400);
               await database.update(cards).set({ status }).where(eq(cards.id, card.id));
               track({ userId: account, event: status === "FROZEN" ? "CardFrozen" : "CardUnfrozen" });
               return c.json({ status }, 200);
