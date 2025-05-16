@@ -90,7 +90,7 @@ describe("authenticated", () => {
     });
   });
 
-  it("returns 400 panda id not found when no panda customer", async () => {
+  it("returns 403 no panda when no panda customer", async () => {
     const foo = deriveAddress(inject("ExaAccountFactory"), {
       x: padHex(privateKeyToAddress(padHex("0xf00"))),
       y: zeroHash,
@@ -116,7 +116,7 @@ describe("authenticated", () => {
       { headers: { "test-credential-id": foo } },
     );
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(403);
   });
 
   it("creates a panda card", async () => {

@@ -50,7 +50,7 @@ describe("authenticated", () => {
 
     expect(getInquiry).toHaveBeenCalledWith(account, "itmpl_8uim4FvD5P3kFpKHX37CW817");
     expect(getAccount).toHaveBeenCalledOnce();
-    await expect(response.json()).resolves.toBe("ok");
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok", legacy: "ok" });
     expect(response.headers.get("User-Country")).toBe("AR");
     expect(response.status).toBe(200);
   });
@@ -78,10 +78,10 @@ describe("authenticated", () => {
   });
 
   it("returns OTL link", async () => {
-    const link = "https://new-url.com";
+    const otl = "https://new-url.com";
     const generateOTL = vi.spyOn(persona, "generateOTL").mockResolvedValueOnce({
       ...OTLTemplate,
-      meta: { ...OTLTemplate.meta, "one-time-link": link },
+      meta: { ...OTLTemplate.meta, "one-time-link": otl },
     });
     let templateId;
     const getInquiry = vi.spyOn(persona, "getInquiry").mockResolvedValueOnce(templateId);
@@ -95,16 +95,16 @@ describe("authenticated", () => {
     expect(getInquiry).toHaveBeenCalledWith(account, persona.CRYPTOMATE_TEMPLATE);
     expect(createInquiry).toHaveBeenCalledWith(account);
     expect(generateOTL).toHaveBeenCalledWith(resumeTemplate.data.id);
-    await expect(response.json()).resolves.toBe(link);
+    await expect(response.json()).resolves.toStrictEqual({ otl, legacy: otl });
     expect(response.status).toBe(200);
   });
 
   it("returns OTL link when resume inquiry", async () => {
     const templateId = "template";
-    const link = "https://resume-url.com";
+    const otl = "https://resume-url.com";
     const generateOTL = vi.spyOn(persona, "generateOTL").mockResolvedValueOnce({
       ...OTLTemplate,
-      meta: { ...OTLTemplate.meta, "one-time-link": link },
+      meta: { ...OTLTemplate.meta, "one-time-link": otl },
     });
 
     const getInquiry = vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({
@@ -118,7 +118,7 @@ describe("authenticated", () => {
 
     expect(getInquiry).toHaveBeenCalledWith(account, templateId);
     expect(generateOTL).toHaveBeenCalledWith(resumeTemplate.data.id);
-    await expect(response.json()).resolves.toBe(link);
+    await expect(response.json()).resolves.toStrictEqual({ otl, legacy: otl });
     expect(response.status).toBe(200);
   });
 });

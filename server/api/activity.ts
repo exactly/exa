@@ -80,7 +80,7 @@ export default new Hono().get(
         },
       },
     });
-    if (!credential) return c.json("credential not found", 401);
+    if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
     const account = parse(Address, credential.account);
     setUser({ id: account });
 

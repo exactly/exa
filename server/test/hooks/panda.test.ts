@@ -647,7 +647,7 @@ describe("card operations", () => {
           },
         });
 
-        await expect(response.json()).resolves.toBe("refund higher than spend");
+        await expect(response.json()).resolves.toStrictEqual({ code: "bad refund" });
         expect(response.status).toBe(552);
       });
 
@@ -673,7 +673,7 @@ describe("card operations", () => {
           },
         });
 
-        await expect(response.json()).resolves.toBe("spending transaction not found");
+        await expect(response.json()).resolves.toStrictEqual({ code: "transaction not found" });
         expect(response.status).toBe(553);
       });
 
