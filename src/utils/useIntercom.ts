@@ -39,7 +39,12 @@ const { login, present, presentArticle } = (
         return {
           login: (userId: string, credentialId: string) =>
             appId
-              ? Intercom.loginUserWithUserAttributes({ userId, companies: [{ id: credentialId }] })
+              ? Intercom.loginUserWithUserAttributes({ userId, companies: [{ id: credentialId }] }).catch(
+                  (error: unknown) => {
+                    reportError(error, { tags: { retry: true } });
+                    return Intercom.loginUserWithUserAttributes({ userId });
+                  },
+                )
               : Promise.resolve(false),
           present: () => Intercom.presentSpace(Space.home),
           presentArticle: (articleId: string) =>
