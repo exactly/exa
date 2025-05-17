@@ -30,7 +30,7 @@ export async function createInquiry(passkey: Passkey) {
       queryClient.setQueryData(["card-upgrade"], 1);
       router.replace("/(app)/(home)");
     })
-    .onError(reportError)
+    .onError((error) => reportError(error))
     .build()
     .start();
 }
