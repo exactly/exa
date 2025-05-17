@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "build": "vite build",
+    "build": "nx vite:build",
     "prepare": "pnpm run --filter server --filter sdk build"
   },
   "main": "dist/sdk.umd.js",
