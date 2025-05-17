@@ -1,5 +1,11 @@
 # @exactly/mobile
 
+## 1.0.8
+
+### Patch Changes
+
+- [`e6d6228`](https://github.com/exactly/exa/commit/e6d6228ce9deb8c47286acad4b34589fb1c93bde) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚑 handle intercom login failure
+
 ## 1.0.7
 
 ### Patch Changes
