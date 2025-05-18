@@ -100,7 +100,7 @@ init({
 });
 const useServerFonts = typeof window === "undefined" ? useFonts : () => undefined;
 const useServerAssets = typeof window === "undefined" ? useAssets : () => undefined;
-const devtools = !!JSON.parse(process.env.EXPO_PUBLIC_DEVTOOLS ?? String(Platform.OS === "web" && __DEV__));
+const devtools = !!JSON.parse(process.env.EXPO_PUBLIC_DEVTOOLS || String(Platform.OS === "web" && __DEV__)); // eslint-disable-line @typescript-eslint/prefer-nullish-coalescing -- ignore empty string
 createConfig({
   integrator: "exa_app",
   providers: [EVM({ getWalletClient: () => Promise.resolve(publicClient) })],
