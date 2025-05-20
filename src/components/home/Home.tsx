@@ -146,6 +146,7 @@ export default function Home() {
             open={paySheetOpen}
             onClose={() => {
               setPaySheetOpen(false);
+              router.replace({ pathname: "/" });
             }}
           />
           <CardUpgradeSheet

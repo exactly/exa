@@ -62,6 +62,7 @@ export default function PayMode() {
               open={paySheetOpen}
               onClose={() => {
                 setPaySheetOpen(false);
+                router.replace({ pathname: "/pay-mode" });
               }}
             />
           </>
