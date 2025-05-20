@@ -5,7 +5,7 @@ import ProposalType, {
 } from "@exactly/common/ProposalType";
 import { exaPreviewerAddress, previewerAddress } from "@exactly/common/generated/chain";
 import { ChevronRight } from "@tamagui/lucide-icons";
-import { format } from "date-fns";
+import { format, isBefore } from "date-fns";
 import React from "react";
 import { Pressable } from "react-native";
 import { XStack, YStack } from "tamagui";
@@ -54,6 +54,7 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
       </View>
       {payments.length > 0 ? (
         payments.map(([maturity, amount], index) => {
+          const overdue = isBefore(new Date(Number(maturity) * 1000), new Date());
           const isRepaying = pendingProposals?.some(({ proposal }) => {
             const { proposalType: type, data } = proposal;
             const isRepayProposal =
@@ -83,10 +84,15 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
             >
               <XStack justifyContent="space-between" alignItems="center">
                 <XStack alignItems="center" gap="$s3">
-                  <Text subHeadline color={isProcessing ? "$interactiveTextDisabled" : "$uiNeutralPrimary"}>
+                  <Text
+                    subHeadline
+                    color={
+                      isProcessing ? "$interactiveTextDisabled" : overdue ? "$uiErrorSecondary" : "$uiNeutralPrimary"
+                    }
+                  >
                     {format(new Date(Number(maturity) * 1000), "MMM dd, yyyy")}
                   </Text>
-                  {isProcessing && (
+                  {isProcessing ? (
                     <View
                       alignSelf="center"
                       justifyContent="center"
@@ -100,17 +106,41 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
                         PROCESSING
                       </Text>
                     </View>
-                  )}
+                  ) : overdue ? (
+                    <View
+                      alignSelf="center"
+                      justifyContent="center"
+                      alignItems="center"
+                      backgroundColor="$interactiveBaseErrorSoftDefault"
+                      borderRadius="$r2"
+                      paddingVertical="$s1"
+                      paddingHorizontal="$s2"
+                    >
+                      <Text emphasized color="$uiErrorSecondary" maxFontSizeMultiplier={1} caption2>
+                        OVERDUE
+                      </Text>
+                    </View>
+                  ) : null}
                 </XStack>
                 <XStack alignItems="center" gap="$s2">
-                  <Text sensitive emphasized body color={isRepaying ? "$interactiveTextDisabled" : "$uiNeutralPrimary"}>
+                  <Text
+                    sensitive
+                    emphasized
+                    body
+                    color={
+                      isRepaying ? "$interactiveTextDisabled" : overdue ? "$uiErrorSecondary" : "$uiNeutralPrimary"
+                    }
+                  >
                     {(Number(amount) / 1e18).toLocaleString(undefined, {
                       style: "currency",
                       currency: "USD",
                       currencyDisplay: "narrowSymbol",
                     })}
                   </Text>
-                  <ChevronRight size={24} color={isRepaying ? "$iconDisabled" : "$iconBrandDefault"} />
+                  <ChevronRight
+                    size={24}
+                    color={isRepaying ? "$iconDisabled" : overdue ? "$uiErrorSecondary" : "$iconBrandDefault"}
+                  />
                 </XStack>
               </XStack>
             </Pressable>
