@@ -23,8 +23,7 @@
     "test:ts:expo": "tsc --pretty $([ \"$GITHUB_ACTIONS\" = true ] && echo false || echo true)",
     "test:ts:node": "tsc -p tsconfig.node.json --pretty $([ \"$GITHUB_ACTIONS\" = true ] && echo false || echo true)",
     "test:markdown": "markdownlint '**/*.md' '.changeset/**/*.md' --ignore ios",
-    "test:changeset": "changeset status --since origin/main",
-    "test:eslint": "eslint --max-warnings 0 ."
+    "test:changeset": "changeset status --since origin/main"
   },
   "engines": {
     "node": ">=22.14.0"
@@ -112,6 +111,8 @@
     "@exactly/plugin": "workspace:^1.0.0",
     "@exactly/protocol": "exactly/protocol#16a172a",
     "@expo/fingerprint": "^0.11.11",
+    "@nx/eslint": "21.0.3",
+    "@nx/vite": "21.0.3",
     "@spotlightjs/spotlight": "^2.13.0",
     "@tamagui/babel-plugin": "1.125.26",
     "@tanstack/eslint-plugin-query": "^5.73.3",
@@ -150,6 +151,7 @@
     "expo-doctor": "^1.12.8",
     "markdownlint-cli": "^0.44.0",
     "metro-config": "^0.81.0",
+    "nx": "21.0.3",
     "onesignal-expo-plugin": "^2.0.3",
     "prettier": "^3.5.3",
     "react-native-svg-transformer": "^1.5.0",
@@ -269,6 +271,25 @@
         "react-native-webview",
         "typescript"
       ]
+    }
+  },
+  "nx": {
+    "targets": {
+      "prepare": {
+        "outputs": [
+          "{projectRoot}/src/generated"
+        ]
+      },
+      "lint": {
+        "cache": true,
+        "executor": "@nx/eslint:lint",
+        "options": {
+          "maxWarnings": 0,
+          "lintFilePatterns": [
+            "."
+          ]
+        }
+      }
     }
   },
   "private": true

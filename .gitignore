@@ -27,6 +27,10 @@ generated/
 application_x_sentry_envelope-*.txt
 lcov.info
 .vscode/
+.nx/cache
+.nx/workspace-data
+vite.config.*.timestamp*
+vitest.config.*.timestamp*
 .env
 .env*.local
 .*-version*

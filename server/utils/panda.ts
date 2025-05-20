@@ -7,10 +7,8 @@ import { Mutex, withTimeout, type MutexInterface } from "async-mutex";
 import { eq } from "drizzle-orm";
 import { createHmac } from "node:crypto";
 import {
-  type BaseIssue,
-  type BaseSchema,
   boolean,
-  type InferOutput,
+  description,
   length,
   literal,
   maxLength,
@@ -22,6 +20,10 @@ import {
   picklist,
   pipe,
   string,
+  title,
+  type BaseIssue,
+  type BaseSchema,
+  type InferOutput,
 } from "valibot";
 import { BaseError, ContractFunctionZeroDataError } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -123,9 +125,31 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
   return parse(schema, JSON.parse(new TextDecoder().decode(rawBody)));
 }
 
-const PANResponse = object({
-  encryptedPan: object({ iv: string(), data: string() }),
-  encryptedCvc: object({ iv: string(), data: string() }),
+export const PANResponse = object({
+  encryptedPan: pipe(
+    object({
+      iv: pipe(
+        string(),
+        title("Initialization Vector (IV)"),
+        description("The initialization vector used for PAN encryption."),
+      ),
+      data: pipe(string(), title("Encrypted PAN"), description("The encrypted Primary Account Number (PAN).")),
+    }),
+    title("Encrypted PAN Details"),
+    description("Contains the encrypted PAN and its associated initialization vector."),
+  ),
+  encryptedCvc: pipe(
+    object({
+      iv: pipe(
+        string(),
+        title("Initialization Vector (IV)"),
+        description("The initialization vector used for CVC encryption."),
+      ),
+      data: pipe(string(), title("Encrypted CVC"), description("The encrypted Card Verification Code (CVC).")),
+    }),
+    title("Encrypted CVC Details"),
+    description("Contains the encrypted CVC and its associated initialization vector."),
+  ),
 });
 
 export const PIN = object({
