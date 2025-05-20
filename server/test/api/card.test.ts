@@ -66,6 +66,8 @@ describe("authenticated", () => {
       .values([{ id: "543c1771-beae-4f26-b662-44ea48b40dc6", credentialId: account, lastFour: "1234" }]);
     vi.spyOn(persona, "getInquiry").mockResolvedValueOnce(personaTemplate);
     vi.spyOn(panda, "getSecrets").mockResolvedValueOnce(panTemplate);
+    vi.spyOn(panda, "getPIN").mockResolvedValueOnce(pinTemplate);
+
     vi.spyOn(panda, "getCard").mockResolvedValueOnce(cardTemplate);
     vi.spyOn(panda, "getUser").mockResolvedValueOnce(userTemplate);
 
@@ -80,6 +82,7 @@ describe("authenticated", () => {
     expect(response.status).toBe(200);
     expect(json).toStrictEqual({
       ...panTemplate,
+      ...pinTemplate,
       displayName: "First Last",
       expirationMonth: "9",
       expirationYear: "2029",
@@ -238,6 +241,10 @@ const cryptomateTemplate = {
 const panTemplate = {
   encryptedCvc: { iv: "TnHuny8FHZ4lkdm1f622Dg==", data: "SRg1oMmouzr7v4FrVBURcWE9Yw==" }, // cspell:disable-line
   encryptedPan: { iv: "xfQikHU/pxVSniCKKKyv8w==", data: "VUPy5u3xdg6fnvT/ZmrE1Lev28SVRjLTTTJEaO9X7is=" },
+} as const;
+
+const pinTemplate = {
+  pin: { iv: "xfQikHU/pxVSniCKKKyv8w==", data: "VUPy5u3xdg6fnvT/ZmrE1Lev28SVRjLTTTJEaO9X7is=" },
 } as const;
 
 const personaTemplate = {

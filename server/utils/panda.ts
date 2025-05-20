@@ -14,12 +14,14 @@ import {
   literal,
   maxLength,
   minLength,
+  nullable,
   number,
   object,
   parse,
   picklist,
   pipe,
   string,
+  transform,
 } from "valibot";
 import { BaseError, ContractFunctionZeroDataError } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -80,12 +82,27 @@ export async function getSecrets(cardId: string, sessionId: string) {
   return await request(PANResponse, `/issuing/cards/${cardId}/secrets`, { SessionId: sessionId });
 }
 
+export async function getPIN(cardId: string, sessionId: string) {
+  try {
+    return await request(PINResponse, `/issuing/cards/${cardId}/pin`, { SessionId: sessionId });
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("Failed to get PIN, card does not have PIN set")) {
+      return parse(PINResponse, { encryptedPin: null });
+    }
+    throw error;
+  }
+}
+
+export async function setPIN(cardId: string, sessionId: string, pin: { data: string; iv: string }) {
+  return await request(object({}), `/issuing/cards/${cardId}/pin`, { SessionId: sessionId }, pin, "PUT");
+}
+
 async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
   schema: BaseSchema<TInput, TOutput, TIssue>,
   url: `/${string}`,
   headers = {},
   body?: unknown,
-  method: "GET" | "POST" = body === undefined ? "GET" : "POST",
+  method: "GET" | "POST" | "PUT" = body === undefined ? "GET" : "POST",
   timeout = 10_000,
 ) {
   const response = await fetch(`${baseURL}${url}`, {
@@ -99,14 +116,24 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
     body: body ? JSON.stringify(body) : undefined,
     signal: AbortSignal.timeout(timeout),
   });
+
   if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);
-  return parse(schema, await response.json());
+  const rawBody = await response.arrayBuffer();
+  if (rawBody.byteLength === 0) return parse(schema, {});
+  return parse(schema, JSON.parse(new TextDecoder().decode(rawBody)));
 }
 
 const PANResponse = object({
   encryptedPan: object({ iv: string(), data: string() }),
   encryptedCvc: object({ iv: string(), data: string() }),
 });
+
+export const PINResponse = pipe(
+  object({
+    encryptedPin: nullable(object({ iv: string(), data: string() })),
+  }),
+  transform(({ encryptedPin }) => ({ pin: encryptedPin })),
+);
 
 const CreateCardRequest = object({
   type: picklist(["physical", "virtual"]),

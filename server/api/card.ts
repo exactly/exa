@@ -26,7 +26,7 @@ import {
 import database, { cards, credentials } from "../database";
 import auth from "../middleware/auth";
 import { createCard as createCryptomateCard, getPAN } from "../utils/cryptomate";
-import { createCard, getCard, getSecrets, getUser, isPanda } from "../utils/panda";
+import { createCard, getCard, getPIN, getSecrets, getUser, isPanda, setPIN } from "../utils/panda";
 import { CRYPTOMATE_TEMPLATE, getInquiry, PANDA_TEMPLATE } from "../utils/persona";
 import { track } from "../utils/segment";
 
@@ -74,14 +74,16 @@ export default new Hono()
             return c.json({ code: "bad kyc", legacy: "kyc not approved" }, 403);
           }
           if (!credential.pandaId) return c.json({ code: "no panda", legacy: "no panda" }, 403);
-          const [{ expirationMonth, expirationYear }, pan, { firstName, lastName }] = await Promise.all([
+          const [{ expirationMonth, expirationYear }, pan, { firstName, lastName }, pin] = await Promise.all([
             getCard(id),
             getSecrets(id, c.req.valid("header").sessionid),
             getUser(credential.pandaId),
+            getPIN(id, c.req.valid("header").sessionid),
           ]);
           return c.json(
             {
               ...pan,
+              ...pin,
               displayName: `${firstName} ${lastName}`,
               expirationMonth,
               expirationYear,
@@ -201,6 +203,10 @@ export default new Hono()
           strictObject({ status: picklist(["ACTIVE", "FROZEN"]) }),
           transform((patch) => ({ ...patch, type: "status" as const })),
         ),
+        pipe(
+          strictObject({ data: string(), iv: string(), sessionId: string() }),
+          transform((patch) => ({ ...patch, type: "pin" as const })),
+        ),
       ]),
     ),
     async (c) => {
@@ -236,6 +242,11 @@ export default new Hono()
               await database.update(cards).set({ status }).where(eq(cards.id, card.id));
               track({ userId: account, event: status === "FROZEN" ? "CardFrozen" : "CardUnfrozen" });
               return c.json({ status }, 200);
+            }
+            case "pin": {
+              const { sessionId, data, iv } = patch;
+              await setPIN(card.id, sessionId, { data, iv });
+              return c.json({ data, iv }, 200);
             }
           }
         })
