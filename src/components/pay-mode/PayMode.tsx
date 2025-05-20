@@ -1,5 +1,5 @@
 import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
 import { RefreshControl } from "react-native";
 import { ScrollView, useTheme } from "tamagui";
@@ -18,8 +18,8 @@ import View from "../shared/View";
 
 export default function PayMode() {
   const theme = useTheme();
+  const parameters = useLocalSearchParams();
   const [paySheetOpen, setPaySheetOpen] = useState(false);
-
   const { account } = useAsset(marketUSDCAddress);
   const { refetch, isPending } = useReadPreviewerExactly({ address: previewerAddress, args: [account ?? zeroAddress] });
   const style = { backgroundColor: theme.backgroundSoft.val, margin: -5 };
@@ -47,7 +47,7 @@ export default function PayMode() {
             <View padded gap="$s6">
               <UpcomingPayments
                 onSelect={(maturity) => {
-                  router.setParams({ maturity: maturity.toString() });
+                  router.setParams({ ...parameters, maturity: maturity.toString() });
                   setPaySheetOpen(true);
                 }}
               />
@@ -62,7 +62,7 @@ export default function PayMode() {
               open={paySheetOpen}
               onClose={() => {
                 setPaySheetOpen(false);
-                router.replace({ pathname: "/pay-mode" });
+                router.replace({ pathname: "/pay-mode", params: { ...parameters, maturity: null } });
               }}
             />
           </>

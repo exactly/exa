@@ -2,7 +2,7 @@ import { exaPluginAddress, exaPreviewerAddress, previewerAddress } from "@exactl
 import { healthFactor, WAD } from "@exactly/lib";
 import { TimeToFullDisplay } from "@sentry/react-native";
 import { useQuery } from "@tanstack/react-query";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
 import { RefreshControl } from "react-native";
 import { ScrollView, useTheme } from "tamagui";
@@ -37,6 +37,7 @@ const HEALTH_FACTOR_THRESHOLD = (WAD * 11n) / 10n;
 
 export default function Home() {
   const { address } = useAccount();
+  const parameters = useLocalSearchParams();
   const [paySheetOpen, setPaySheetOpen] = useState(false);
   const { address: account } = useAccount();
   const { data: bytecode } = useBytecode({ address: account ?? zeroAddress, query: { enabled: !!account } });
@@ -135,7 +136,7 @@ export default function Home() {
               <GettingStarted hasFunds={usdBalance > 0n} hasKYC={KYCStatus === "ok"} />
               <UpcomingPayments
                 onSelect={(maturity) => {
-                  router.setParams({ maturity: maturity.toString() });
+                  router.setParams({ ...parameters, maturity: maturity.toString() });
                   setPaySheetOpen(true);
                 }}
               />
@@ -146,7 +147,7 @@ export default function Home() {
             open={paySheetOpen}
             onClose={() => {
               setPaySheetOpen(false);
-              router.replace({ pathname: "/" });
+              router.replace({ pathname: "/", params: { ...parameters, maturity: null } });
             }}
           />
           <CardUpgradeSheet
