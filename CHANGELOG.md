@@ -1,5 +1,15 @@
 # @exactly/mobile
 
+## 1.0.9
+
+### Patch Changes
+
+- [`a4d5a22`](https://github.com/exactly/exa/commit/a4d5a2253453f4eb46dc828d2e62d915c10e1ab9) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix payment layouts on web
+
+- [`dd772d2`](https://github.com/exactly/exa/commit/dd772d22ba1a1cb343ce1c9a74885e2012ea4a98) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 replace route on payment sheet close
+
+- [`77641d0`](https://github.com/exactly/exa/commit/77641d0d369c6dcf067fe8df535da28d17038ec0) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix duplicate close button on error screen
+
 ## 1.0.8
 
 ### Patch Changes
