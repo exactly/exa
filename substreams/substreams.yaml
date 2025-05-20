@@ -7,6 +7,11 @@ protobuf:
     - exa.proto
   importPaths:
     - proto
+
+imports:
+  sql: https://github.com/streamingfast/substreams-sink-sql/releases/download/protodefs-v1.0.3/substreams-sink-sql-protodefs-v1.0.3.spkg
+  blockmeta: https://github.com/streamingfast/substreams-eth-block-meta/releases/download/v0.5.1/substreams-eth-block-meta-v0.5.1.spkg
+
 modules:
   - name: map_accounts
     kind: map
@@ -23,6 +28,7 @@ modules:
       - map: map_accounts  
   - name: map_deposits
     kind: map
+    initialBlock: 123125164
     inputs:
       - source: sf.ethereum.type.v2.Block
     output:
@@ -40,8 +46,36 @@ modules:
       - source: sf.ethereum.type.v2.Block
     output:
       type: proto:exa.Transfers
+  # DB
+  - name: store_block_meta_start
+    kind: store
+    updatePolicy: set_if_not_exists
+    valueType: proto:eth.block_meta.v1.BlockMeta
+    inputs:
+      - source: sf.ethereum.type.v2.Block
+  - name: db_deposits
+    kind: map
+    initialBlock: 123125164
+    inputs:
+      - map: map_deposits
+    output:
+      type: proto:sf.substreams.sink.database.v1.DatabaseChanges
+
 binaries:
   default:
     type: wasm/rust-v1
     file: target/wasm32-unknown-unknown/release/substreams.wasm
-network: ethereum
+
+network: optimism
+
+sink:
+  module: db_deposits
+  type: sf.substreams.sink.sql.v1.Service
+  config:
+    schema: "./schema.sql"
+    wire_protocol_access: true
+    engine: postgres
+    postgraphile_frontend:
+      enabled: true
+    pgweb_frontend:
+      enabled: true

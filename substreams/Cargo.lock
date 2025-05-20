@@ -201,10 +201,14 @@ dependencies = [
  "getrandom",
  "hex-literal",
  "num-bigint",
- "prost",
- "prost-types",
+ "prost 0.13.5",
+ "prost-build 0.13.5",
+ "prost-derive 0.13.5",
+ "prost-types 0.13.5",
  "substreams",
+ "substreams-database-change",
  "substreams-ethereum",
+ "substreams-ethereum-core",
 ]
 
 [[package]]
@@ -499,7 +503,7 @@ dependencies = [
  "pest_meta",
  "proc-macro2",
  "quote",
- "syn 2.0.74",
+ "syn 2.0.87",
 ]
 
 [[package]]
@@ -543,6 +547,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "prettyplease"
+version = "0.2.25"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "64d1ec885c64d0457d564db4ec299b2dae3f9c02808b8ad9c3a089c591b18033"
+dependencies = [
+ "proc-macro2",
+ "syn 2.0.87",
+]
+
+[[package]]
 name = "primitive-types"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -580,7 +594,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b82eaa1d779e9a4bc1c3217db8ffbeabaae1dca241bf70183242128d48681cd"
 dependencies = [
  "bytes",
- "prost-derive",
+ "prost-derive 0.11.9",
+]
+
+[[package]]
+name = "prost"
+version = "0.13.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2796faa41db3ec313a31f7624d9286acf277b52de526150b7e69f3debf891ee5"
+dependencies = [
+ "bytes",
+ "prost-derive 0.13.5",
 ]
 
 [[package]]
@@ -596,13 +620,33 @@ dependencies = [
  "log",
  "multimap",
  "petgraph",
- "prettyplease",
- "prost",
- "prost-types",
+ "prettyplease 0.1.25",
+ "prost 0.11.9",
+ "prost-types 0.11.9",
  "regex",
  "syn 1.0.109",
  "tempfile",
  "which",
+]
+
+[[package]]
+name = "prost-build"
+version = "0.13.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "be769465445e8c1474e9c5dac2018218498557af32d9ed057325ec9a41ae81bf"
+dependencies = [
+ "heck",
+ "itertools",
+ "log",
+ "multimap",
+ "once_cell",
+ "petgraph",
+ "prettyplease 0.2.25",
+ "prost 0.13.5",
+ "prost-types 0.13.5",
+ "regex",
+ "syn 2.0.87",
+ "tempfile",
 ]
 
 [[package]]
@@ -619,12 +663,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "prost-derive"
+version = "0.13.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8a56d757972c98b346a9b766e3f02746cde6dd1cd1d1d563472929fdd74bec4d"
+dependencies = [
+ "anyhow",
+ "itertools",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.87",
+]
+
+[[package]]
 name = "prost-types"
 version = "0.11.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "213622a1460818959ac1181aaeb2dc9c7f63df720db7d788b3e24eacd1983e13"
 dependencies = [
- "prost",
+ "prost 0.11.9",
+]
+
+[[package]]
+name = "prost-types"
+version = "0.13.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "52c2c1bf36ddb1a1c396b3601a3cec27c2462e45f07c386894ec3ccf5332bd16"
+dependencies = [
+ "prost 0.13.5",
 ]
 
 [[package]]
@@ -753,7 +819,7 @@ checksum = "6aea2634c86b0e8ef2cfdc0c340baede54ec27b1e46febd7f80dffb2aa44a00e"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.74",
+ "syn 2.0.87",
 ]
 
 [[package]]
@@ -797,9 +863,9 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
 name = "substreams"
-version = "0.5.21"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0639e6552e6ade9125122a57474c39fd2a626c520a6f49f73351698ffd838f49"
+checksum = "fdd15565feda31101521b96860e1bd4e6b549348e8d34a385cc46de7a04f61bb"
 dependencies = [
  "anyhow",
  "bigdecimal",
@@ -811,18 +877,29 @@ dependencies = [
  "pad",
  "pest",
  "pest_derive",
- "prost",
- "prost-build",
- "prost-types",
+ "prost 0.13.5",
+ "prost-build 0.13.5",
+ "prost-types 0.13.5",
  "substreams-macro",
  "thiserror",
 ]
 
 [[package]]
-name = "substreams-ethereum"
-version = "0.9.11"
+name = "substreams-database-change"
+version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ed942baf2eead40294676be39b00cd78ba71c3608686d91549801b44cf7b817"
+checksum = "06fe88d25f4c3d56fc2a92583708dc34822ea99fb3f96609f9d684f717974b27"
+dependencies = [
+ "prost 0.13.5",
+ "prost-types 0.13.5",
+ "substreams",
+]
+
+[[package]]
+name = "substreams-ethereum"
+version = "0.10.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8cbebe786a62068f91593c89038fbe5ec70c9b784df716e450c52aa01b231f11"
 dependencies = [
  "getrandom",
  "num-bigint",
@@ -834,15 +911,15 @@ dependencies = [
 
 [[package]]
 name = "substreams-ethereum-abigen"
-version = "0.9.11"
+version = "0.10.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb962e39d1bbdee95c74dfb71ef0f75f8283d892a46f430733535116f5af96e1"
+checksum = "1abdb13d5c4336d9d16ec31fbf8b4b41edde5f33b489186d7673a1017421b387"
 dependencies = [
  "anyhow",
  "ethabi",
  "heck",
  "hex",
- "prettyplease",
+ "prettyplease 0.1.25",
  "proc-macro2",
  "quote",
  "substreams-ethereum-core",
@@ -851,25 +928,25 @@ dependencies = [
 
 [[package]]
 name = "substreams-ethereum-core"
-version = "0.9.12"
+version = "0.10.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aeb6c820f4cb99affce189b536fd2f63ceeeae838e80b2ca3d0cb27983deb8ac"
+checksum = "2bd3dbe2597daba8db0ae15b9a9cb4284236d0f39b4a5ba79c7c14978639613c"
 dependencies = [
  "bigdecimal",
  "ethabi",
  "getrandom",
  "num-bigint",
- "prost",
- "prost-build",
- "prost-types",
+ "prost 0.13.5",
+ "prost-build 0.11.9",
+ "prost-types 0.13.5",
  "substreams",
 ]
 
 [[package]]
 name = "substreams-ethereum-derive"
-version = "0.9.11"
+version = "0.10.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3904b9d78bc958f813c66123b3996e9da5fe8bfa4e075d67cf25af709617b03a"
+checksum = "322330809d485b2926b65136b4b4eb1a9069c0a60275464f8a3c1f35a77f7c77"
 dependencies = [
  "ethabi",
  "heck",
@@ -883,9 +960,9 @@ dependencies = [
 
 [[package]]
 name = "substreams-macro"
-version = "0.5.21"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bd4f708b3bcf08a8045992d62d26f1d234cbb2a76f44a315595331c45d6944f5"
+checksum = "a3cf9954628fa6dee8458dade7088ce032e7f52267ef4777ad5bc2d1cfb4618a"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -906,9 +983,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "2.0.74"
+version = "2.0.87"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1fceb41e3d546d0bd83421d3409b1460cc7444cd389341a4c880fe7a042cb3d7"
+checksum = "25aa4ce346d03a6dcd68dd8b4010bcb74e54e62c90c573f394c46eae99aba32d"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -951,7 +1028,7 @@ checksum = "a4558b58466b9ad7ca0f102865eccc95938dca1a74a856f2b57b6629050da261"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.74",
+ "syn 2.0.87",
 ]
 
 [[package]]
@@ -1158,5 +1235,5 @@ checksum = "fa4f8080344d4671fb4e831a13ad1e68092748387dfc4f55e356242fae12ce3e"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.74",
+ "syn 2.0.87",
 ]

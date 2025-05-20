@@ -13,7 +13,10 @@ message Deposits {
 message Deposit {
   bytes market = 1;
   bytes receiver = 2;
-  uint64 amount = 3;
+  string amount = 3;
+  uint64 block_number = 4;
+  uint64 tx_index = 5;
+  uint64 log_index = 6;
 }
 
 message Transfers {

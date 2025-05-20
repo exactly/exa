@@ -6,28 +6,34 @@ use substreams::{
   store::{StoreGet, StoreGetProto, StoreNew, StoreSet, StoreSetProto},
   Hex,
 };
+use substreams_database_change::pb::database::{table_change::Operation, DatabaseChanges, Field, TableChange};
 use substreams_ethereum::{pb::eth::v2::Block, Event};
 
 mod abi;
+#[allow(clippy::all)]
 #[allow(clippy::all)]
 mod proto;
 
 #[substreams::handlers::map]
 pub fn map_accounts(block: Block) -> Result<exa::Accounts, Error> {
-  Ok(exa::Accounts {
-    accounts: block
-      .logs()
-      .filter_map(|log| {
-        if log.address() != hex!("5FF137D4b0FDCD49DcA30c7CF57E578a026d2789") {
-          return None;
-        }
-        AccountDeployed::match_and_decode(log).and_then(|event| match event.factory.as_slice() {
-          hex!("961EbA47650e2198A959Ef5f337E542df5E4F61b") => Some(event.sender),
-          _ => None,
+  let accounts = block
+    .logs()
+    .filter_map(|log| {
+      if log.address() == hex!("5FF137D4b0FDCD49DcA30c7CF57E578a026d2789") {
+        AccountDeployed::match_and_decode(log).and_then(|event| {
+          if event.factory.as_slice() == hex!("961EbA47650e2198A959Ef5f337E542df5E4F61b") {
+            Some(event.sender)
+          } else {
+            None
+          }
         })
-      })
-      .collect(),
-  })
+      } else {
+        None
+      }
+    })
+    .collect();
+
+  Ok(exa::Accounts { accounts })
 }
 
 #[substreams::handlers::store]
@@ -35,6 +41,40 @@ pub fn store_accounts(accounts: exa::Accounts, store: StoreSetProto<Vec<u8>>) {
   for account in accounts.accounts {
     store.set(0, format!("account:{}", Hex(&account)), &account);
   }
+}
+
+#[substreams::handlers::map]
+pub fn db_deposits(
+  deposits: exa::Deposits,
+) -> Result<substreams_database_change::pb::database::DatabaseChanges, Error> {
+  let mut changes = vec![];
+
+  for deposit in deposits.deposits {
+    let mut change = TableChange::new(
+      "deposits",
+      format!("{}_{}_{}", deposit.block_number, deposit.tx_index, deposit.log_index),
+      0,
+      Operation::Create,
+    );
+    change.fields.push(Field {
+      name: "market".to_string(),
+      new_value: Hex(&deposit.market).to_string(),
+      old_value: "".to_string(),
+    });
+    change.fields.push(Field {
+      name: "receiver".to_string(),
+      new_value: Hex(&deposit.receiver).to_string(),
+      old_value: "".to_string(),
+    });
+    change.fields.push(Field {
+      name: "amount".to_string(),
+      new_value: deposit.amount.to_string(),
+      old_value: "".to_string(),
+    });
+    changes.push(change);
+  }
+
+  Ok(DatabaseChanges { table_changes: changes })
 }
 
 #[substreams::handlers::map]
@@ -47,7 +87,10 @@ pub fn map_deposits(block: Block) -> Result<exa::Deposits, Error> {
           Some(exa::Deposit {
             market: log.address().to_vec(),
             receiver: event.owner.to_vec(),
-            amount: event.assets.to_u64(),
+            amount: event.assets.to_string(),
+            block_number: block.number,
+            tx_index: log.receipt.transaction.index as u64,
+            log_index: log.index() as u64,
           })
         })
       })
