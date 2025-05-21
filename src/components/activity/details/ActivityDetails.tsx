@@ -9,6 +9,7 @@ import { ScrollView, styled, useTheme } from "tamagui";
 import CardActivity from "./CardActivity";
 import ReceivedActivity from "./ReceivedActivity";
 import RepayActivity from "./RepayActivity";
+import RolloverActivity from "./RolloverActivity";
 import SentActivity from "./SentActivity";
 import type { ActivityItem } from "../../../utils/queryClient";
 import reportError from "../../../utils/reportError";
@@ -63,12 +64,11 @@ export default function ActivityDetails() {
                 )}
               </View>
 
-              {item.type === "card" && <CardActivity item={item} />}
-              {item.type === "received" && <ReceivedActivity item={item} />}
-              {item.type === "repay" && <RepayActivity item={item} />}
+              {(item.type === "card" || item.type === "panda") && <CardActivity item={item} />}
               {item.type === "sent" && <SentActivity item={item} />}
-              {item.type === "panda" && <CardActivity item={item} />}
-
+              {item.type === "repay" && <RepayActivity item={item} />}
+              {item.type === "received" && <ReceivedActivity item={item} />}
+              {item.type === "rollover" && <RolloverActivity item={item} />}
               <ActionButton
                 width="100%"
                 alignSelf="flex-end"
