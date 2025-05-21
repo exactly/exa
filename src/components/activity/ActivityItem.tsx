@@ -4,6 +4,7 @@ import {
   CircleDollarSign,
   ClockAlert,
   Import,
+  RefreshCw,
   ShoppingCart,
 } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
@@ -49,6 +50,7 @@ export default function ActivityItem({ item, isLast }: { item: Item; isLast: boo
         justifyContent="center"
         alignItems="center"
       >
+        {type === "rollover" && <RefreshCw color="$uiNeutralPrimary" />}
         {type === "card" && <ShoppingCart color="$uiNeutralPrimary" />}
         {type === "received" && <ArrowDownToLine color="$interactiveOnBaseSuccessSoft" />}
         {type === "sent" && <ArrowUpFromLine color="$interactiveOnBaseErrorSoft" />}
@@ -72,6 +74,7 @@ export default function ActivityItem({ item, isLast }: { item: Item; isLast: boo
               {type === "received" && "Received"}
               {type === "sent" && "Sent"}
               {type === "repay" && "Debt payment"}
+              {type === "rollover" && "Debt rollover"}
             </Text>
             <Text
               caption
@@ -84,18 +87,20 @@ export default function ActivityItem({ item, isLast }: { item: Item; isLast: boo
                 ? "Refund"
                 : processing
                   ? "Processing..."
-                  : (type === "card" || type === "panda") &&
-                    titleCase(
-                      [
-                        item.merchant.city,
-                        item.merchant.state,
-                        item.merchant.country && getName(item.merchant.country, "en"),
-                      ]
-                        .filter((field) => field && field !== "null")
-                        .join(", ")
-                        .toLowerCase(),
-                    )}
-              {type !== "card" && type !== "panda" && format(timestamp, "yyyy-MM-dd")}
+                  : type === "card" || type === "panda"
+                    ? titleCase(
+                        [
+                          item.merchant.city,
+                          item.merchant.state,
+                          item.merchant.country && getName(item.merchant.country, "en"),
+                        ]
+                          .filter((field) => field && field !== "null")
+                          .join(", ")
+                          .toLowerCase(),
+                      )
+                    : item.type === "rollover"
+                      ? `Due ${format(item.repay.maturity * 1000, "yyyy-MM-dd")}`
+                      : format(timestamp, "yyyy-MM-dd")}
             </Text>
           </View>
           <View gap="$s2">
