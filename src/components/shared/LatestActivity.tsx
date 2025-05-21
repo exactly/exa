@@ -5,6 +5,7 @@ import {
   CircleDollarSign,
   ClockAlert,
   Import,
+  RefreshCw,
   ShoppingCart,
 } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
@@ -94,6 +95,7 @@ export default function LatestActivity({
               {type === "received" && <ArrowDownToLine color="$interactiveOnBaseSuccessSoft" />}
               {type === "sent" && <ArrowUpFromLine color="$interactiveOnBaseErrorSoft" />}
               {type === "repay" && <CircleDollarSign color="$interactiveOnBaseErrorSoft" />}
+              {type === "rollover" && <RefreshCw color="$uiNeutralSecondary" />}
               {type === "panda" &&
                 (refund ? (
                   <Import color="$uiSuccessSecondary" />
@@ -109,11 +111,11 @@ export default function LatestActivity({
               <View flexDirection="row" justifyContent="space-between" alignItems="center" gap="$s4">
                 <View gap="$s2" flexShrink={1}>
                   <Text subHeadline color="$uiNeutralPrimary" numberOfLines={1}>
-                    {type === "card" && item.merchant.name}
+                    {(type === "card" || type === "panda") && item.merchant.name}
                     {type === "received" && "Received"}
                     {type === "sent" && "Sent"}
                     {type === "repay" && "Debt payment"}
-                    {type === "panda" && item.merchant.name}
+                    {type === "rollover" && "Debt rollover"}
                   </Text>
                   <Text
                     caption
@@ -126,7 +128,13 @@ export default function LatestActivity({
                     }
                     numberOfLines={1}
                   >
-                    {refund ? "Refund" : processing ? "Processing..." : format(timestamp, "yyyy-MM-dd")}
+                    {refund
+                      ? "Refund"
+                      : type === "rollover"
+                        ? `Due ${format(item.repay.maturity * 1000, "yyyy-MM-dd")}`
+                        : processing
+                          ? "Processing..."
+                          : format(timestamp, "yyyy-MM-dd")}
                   </Text>
                 </View>
                 <View gap="$s2">
