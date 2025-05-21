@@ -1,6 +1,6 @@
 import { exaPluginAddress } from "@exactly/common/generated/chain";
 import type { Address } from "@exactly/common/validation";
-import { Check, Loader } from "@tamagui/lucide-icons";
+import { Check } from "@tamagui/lucide-icons";
 import { format, isAfter } from "date-fns";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
@@ -16,6 +16,7 @@ import assetLogos from "../../utils/assetLogos";
 import useAsset from "../../utils/useAsset";
 import AssetLogo from "../shared/AssetLogo";
 import SafeView from "../shared/SafeView";
+import ExaSpinner from "../shared/Spinner";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
@@ -81,7 +82,7 @@ export default function Success({
                     size={80}
                   >
                     {isLatestPlugin ? (
-                      <Loader size={48} color="$uiInfoSecondary" strokeWidth={2} />
+                      <ExaSpinner backgroundColor="transparent" color="$uiInfoSecondary" />
                     ) : (
                       <Check size={48} color="$uiSuccessSecondary" strokeWidth={2} />
                     )}
