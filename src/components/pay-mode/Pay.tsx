@@ -603,7 +603,6 @@ export default function Pay() {
               </XStack>
               {selectedAsset.isExternalAsset ? (
                 <Button
-                  flexBasis={60}
                   onPress={() => {
                     repayWithExternalAsset().catch(reportError);
                   }}
@@ -635,7 +634,6 @@ export default function Pay() {
                 </Button>
               ) : (
                 <Button
-                  flexBasis={60}
                   onPress={handlePayment}
                   contained
                   disabled={!simulation || isSimulating}

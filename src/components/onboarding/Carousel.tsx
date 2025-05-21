@@ -209,6 +209,7 @@ export default function Carousel() {
           <View alignItems="stretch" alignSelf="stretch" gap="$s5">
             <View flexDirection="row" alignSelf="stretch">
               <ActionButton
+                flex={1}
                 disabled={isPending || isConnecting}
                 isLoading={isPending || isConnecting}
                 loadingContent="Logging in..."

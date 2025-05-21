@@ -32,6 +32,7 @@ export default function Success() {
         <View>
           <View flexDirection="row" alignSelf="stretch">
             <ActionButton
+              flex={1}
               marginTop="$s4"
               marginBottom="$s5"
               onPress={() => {

@@ -3,6 +3,7 @@ import { Button, styled } from "tamagui";
 export default styled(Button, {
   minHeight: "auto",
   fontWeight: "bold",
+  flexBasis: "auto",
   defaultVariants: { contained: true },
   fontSize: 15,
   padding: "$s3",
@@ -47,7 +48,6 @@ export default styled(Button, {
     },
     main: {
       true: {
-        flex: 1,
         borderColor: "transparent",
         fontSize: 15,
         fontWeight: "bold",
@@ -55,11 +55,9 @@ export default styled(Button, {
         padding: "$s4_5",
         borderRadius: "$r4",
         scaleIcon: 1.5,
-        maxHeight: 68,
       },
     },
     spaced: { true: { spaceFlex: true, alignItems: "center" } },
-    noFlex: { true: { flex: 0, flexBasis: "auto" } },
     fullwidth: { true: { width: "100%" } },
     halfWidth: { true: { flexBasis: "50%" } },
   } as const,

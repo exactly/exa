@@ -27,7 +27,6 @@ export default function AddCryptoAbout() {
           </View>
           <Button
             main
-            noFlex
             outlined
             spaced
             iconAfter={<X size={20} color="$interactiveOnBaseBrandSoft" fontWeight="bold" />}

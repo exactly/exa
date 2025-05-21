@@ -69,6 +69,7 @@ export default function HomeActions() {
         color="$interactiveOnBaseBrandDefault"
         contained
         fullwidth
+        flex={1}
       >
         <Text fontSize={15} emphasized numberOfLines={1} adjustsFontSizeToFit color="$interactiveOnBaseBrandDefault">
           Add funds
@@ -92,6 +93,7 @@ export default function HomeActions() {
         color="$interactiveOnBaseBrandSoft"
         outlined
         fullwidth
+        flex={1}
       >
         <Text fontSize={15} emphasized numberOfLines={1} adjustsFontSizeToFit color="$interactiveOnBaseBrandSoft">
           Send

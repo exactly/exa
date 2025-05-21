@@ -71,7 +71,6 @@ export default function ActivityDetails() {
 
               <ActionButton
                 width="100%"
-                maxHeight={60}
                 alignSelf="flex-end"
                 marginTop="$s4"
                 marginBottom="$s5"

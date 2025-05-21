@@ -98,7 +98,6 @@ export default function AmountSelector({ onChange }: { onChange: (value: bigint)
         alignSelf="flex-end"
         backgroundColor="$interactiveBaseBrandSoftDefault"
         color="$interactiveOnBaseBrandSoft"
-        padding="$s3_5"
         onPress={handleMaxAmount}
       >
         MAX
