@@ -17,7 +17,6 @@ interface ExaCardProperties {
 
 export default function ExaCard({ disabled = false, revealing, frozen, onPress }: ExaCardProperties) {
   const { data: card } = useQuery({ queryKey: ["card", "details"], queryFn: getCard });
-  const isDebit = card?.mode === 0;
   return (
     <AnimatedYStack width="100%" borderRadius="$r4" borderWidth={0}>
       <Pressable onPress={onPress}>
@@ -29,7 +28,12 @@ export default function ExaCard({ disabled = false, revealing, frozen, onPress }
           borderWidth={1}
           overflow="hidden"
         >
-          <CardContents isCredit={!isDebit} disabled={disabled} frozen={frozen} revealing={revealing} />
+          <CardContents
+            isCredit={(card && card.mode > 0) ?? false}
+            disabled={disabled}
+            frozen={frozen}
+            revealing={revealing}
+          />
         </View>
       </Pressable>
     </AnimatedYStack>
