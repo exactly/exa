@@ -13,7 +13,7 @@ import ExaLogoDark from "../../assets/images/exa-logo-dark.svg";
 import ExaLogoLight from "../../assets/images/exa-logo-light.svg";
 import VisaLogoDark from "../../assets/images/visa-logo-dark.svg";
 import VisaLogoLight from "../../assets/images/visa-logo-light.svg";
-import { decrypt, decryptPIN } from "../../utils/panda";
+import { decrypt } from "../../utils/panda";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { getCard } from "../../utils/server";
@@ -23,9 +23,9 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function CardDetails({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const toast = useToastController();
   const aspectRatio = useAspectRatio();
   const { data: alertShown } = useQuery({ queryKey: ["settings", "alertShown"] });
-  const toast = useToastController();
   const { data: card, isPending } = useQuery({ queryKey: ["card", "details"], queryFn: getCard });
   const [details, setDetails] = useState({ pan: "", cvc: "" });
   useEffect(() => {
@@ -33,9 +33,8 @@ export default function CardDetails({ open, onClose }: { open: boolean; onClose:
       Promise.all([
         decrypt(card.encryptedPan.data, card.encryptedPan.iv, card.secret),
         decrypt(card.encryptedCvc.data, card.encryptedCvc.iv, card.secret),
-        card.PIN ? decryptPIN(card.PIN.data, card.PIN.iv, card.secret) : Promise.resolve(null),
       ])
-        .then(([pan, cvc, PIN]) => {
+        .then(([pan, cvc]) => {
           setDetails({ pan, cvc });
         })
         .catch(reportError);
