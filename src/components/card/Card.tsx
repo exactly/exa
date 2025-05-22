@@ -1,6 +1,6 @@
 import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import type { Passkey } from "@exactly/common/validation";
-import { ChevronRight, CircleHelp, CreditCard, DollarSign, Eye, EyeOff, Snowflake } from "@tamagui/lucide-icons";
+import { ChevronRight, CircleHelp, CreditCard, DollarSign, Eye, EyeOff, Hash, Snowflake } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
@@ -14,6 +14,7 @@ import { useAccount, useBytecode } from "wagmi";
 
 import CardDetails from "./CardDetails";
 import CardDisclaimer from "./CardDisclaimer";
+import CardPIN from "./CardPIN";
 import SpendingLimits from "./SpendingLimits";
 import VerificationFailure from "./VerificationFailure";
 import ExaCard from "./exa-card/ExaCard";
@@ -38,6 +39,7 @@ export default function Card() {
   const theme = useTheme();
   const toast = useToastController();
   const { presentArticle } = useIntercom();
+  const [displayPIN, setDisplayPIN] = useState(false);
   const [disclaimerShown, setDisclaimerShown] = useState(false);
   const [verificationFailureShown, setVerificationFailureShown] = useState(false);
   const { data: cardDetailsOpen } = useQuery<boolean>({ queryKey: ["card-details-open"] });
@@ -338,6 +340,28 @@ export default function Card() {
 
                   <Separator borderColor="$borderNeutralSoft" />
 
+                  {cardDetails && cardDetails.provider === "panda" && (
+                    <>
+                      <XStack
+                        onPress={() => {
+                          setDisplayPIN(true);
+                        }}
+                        alignItems="center"
+                        paddingVertical="$s4"
+                        justifyContent="space-between"
+                      >
+                        <XStack gap="$s3" justifyContent="flex-start" alignItems="center">
+                          <Hash size={24} color="$backgroundBrand" />
+                          <Text subHeadline color="$uiNeutralPrimary">
+                            View PIN number
+                          </Text>
+                        </XStack>
+                        <ChevronRight color="$iconSecondary" size={24} />
+                      </XStack>
+                      <Separator borderColor="$borderNeutralSoft" />
+                    </>
+                  )}
+
                   <Pressable
                     onPress={() => {
                       setSpendingLimitsOpen(true);
@@ -347,7 +371,7 @@ export default function Card() {
                       <XStack gap="$s3" justifyContent="flex-start" alignItems="center">
                         <DollarSign size={24} color="$backgroundBrand" />
                         <Text subHeadline color="$uiNeutralPrimary">
-                          Spending limits
+                          Spending limit
                         </Text>
                       </XStack>
                       <ChevronRight color="$iconSecondary" size={24} />
@@ -398,6 +422,12 @@ export default function Card() {
           open={spendingLimitsOpen}
           onClose={() => {
             setSpendingLimitsOpen(false);
+          }}
+        />
+        <CardPIN
+          open={displayPIN}
+          onClose={() => {
+            setDisplayPIN(false);
           }}
         />
         <CardDisclaimer
