@@ -68,7 +68,7 @@ export default function PluginUpgrade() {
       await refetchInstalledPlugins();
     },
   });
-  if (isLatestPlugin || (cardDetails && cardDetails.provider !== "panda")) return null;
+  if (!bytecode || isLatestPlugin || (cardDetails && cardDetails.provider !== "panda")) return null;
   return (
     <InfoAlert
       title="An account upgrade is required to access the latest features."
