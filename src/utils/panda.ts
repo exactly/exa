@@ -88,3 +88,38 @@ export async function decrypt(base64Secret: string, base64Iv: string, secretKey:
   const decrypted = await window.crypto.subtle.decrypt({ name: "AES-GCM", iv }, cryptoKey, secret);
   return new TextDecoder().decode(decrypted);
 }
+
+async function encrypt(data: string) {
+  const { id: sessionId, secret } = await session();
+  const keyBytes = new Uint8Array(Buffer.from(secret, "hex"));
+
+  let iv: Uint8Array;
+  let encryptedData: ArrayBuffer;
+  if (Platform.OS === "web") {
+    iv = window.crypto.getRandomValues(new Uint8Array(16));
+    const key = await window.crypto.subtle.importKey("raw", keyBytes, { name: "AES-GCM" }, false, ["encrypt"]);
+    encryptedData = await window.crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(data));
+  } else {
+    const crypto = require("react-native-quick-crypto") as typeof Crypto; // eslint-disable-line @typescript-eslint/no-require-imports, unicorn/prefer-module
+    iv = crypto.randomBytes(16);
+    const key = await crypto.subtle.importKey("raw", keyBytes, { name: "AES-GCM" }, false, ["encrypt"]);
+    encryptedData = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(data));
+  }
+  return {
+    sessionId,
+    iv: window.btoa(String.fromCodePoint(...iv)),
+    data: window.btoa(String.fromCodePoint(...new Uint8Array(encryptedData))),
+  };
+}
+
+export async function encryptPIN(pin: string) {
+  if (pin.length !== 4) throw new Error(`pin must be 4 digits`);
+  const data = `2${pin.length.toString(16)}${pin}${"F".repeat(14 - pin.length)}`;
+  return await encrypt(data);
+}
+
+export async function decryptPIN(base64Secret: string, base64Iv: string, secretKey: string) {
+  const data = await decrypt(base64Secret, base64Iv, secretKey);
+  const length = data.slice(1, 2);
+  return data.slice(2, 2 + Number.parseInt(length, 10));
+}
