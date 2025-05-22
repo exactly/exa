@@ -13,7 +13,7 @@ import ExaLogoDark from "../../assets/images/exa-logo-dark.svg";
 import ExaLogoLight from "../../assets/images/exa-logo-light.svg";
 import VisaLogoDark from "../../assets/images/visa-logo-dark.svg";
 import VisaLogoLight from "../../assets/images/visa-logo-light.svg";
-import { decrypt } from "../../utils/panda";
+import { decrypt, decryptPIN } from "../../utils/panda";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { getCard } from "../../utils/server";
@@ -33,8 +33,11 @@ export default function CardDetails({ open, onClose }: { open: boolean; onClose:
       Promise.all([
         decrypt(card.encryptedPan.data, card.encryptedPan.iv, card.secret),
         decrypt(card.encryptedCvc.data, card.encryptedCvc.iv, card.secret),
+        card.encryptedPin.data && card.encryptedPin.iv
+          ? decryptPIN(card.encryptedPin.data, card.encryptedPin.iv, card.secret)
+          : Promise.resolve(null),
       ])
-        .then(([pan, cvc]) => {
+        .then(([pan, cvc, pin]) => {
           setDetails({ pan, cvc });
         })
         .catch(reportError);

@@ -8,7 +8,7 @@ import { get as assert, create } from "react-native-passkeys";
 import type { RegistrationResponseJSON } from "react-native-passkeys/build/ReactNativePasskeys.types";
 import { check, number, parse, pipe, safeParse } from "valibot";
 
-import { session } from "./panda";
+import { encryptPIN, session } from "./panda";
 import queryClient, { APIError } from "./queryClient";
 
 queryClient.setQueryDefaults<number | undefined>(["auth"], {
@@ -88,6 +88,13 @@ export async function setCardMode(mode: number) {
   const response = await api.card.$patch({ json: { mode } });
   if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
   return response.json();
+}
+
+export async function setCardPIN(pin: string) {
+  await auth();
+  const json = await encryptPIN(pin);
+  const response = await api.card.$patch({ json });
+  if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
 }
 
 export async function getKYCLink(templateId: string) {
