@@ -23,9 +23,9 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function CardDetails({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const toast = useToastController();
   const aspectRatio = useAspectRatio();
   const { data: alertShown } = useQuery({ queryKey: ["settings", "alertShown"] });
-  const toast = useToastController();
   const { data: card, isPending } = useQuery({ queryKey: ["card", "details"], queryFn: getCard });
   const [details, setDetails] = useState({ pan: "", cvc: "" });
   useEffect(() => {

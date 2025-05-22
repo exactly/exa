@@ -1,0 +1,167 @@
+import { useQuery } from "@tanstack/react-query";
+import { Skeleton } from "moti/skeleton";
+import React, { useState, useEffect } from "react";
+import { Appearance, Platform, Pressable, StyleSheet } from "react-native";
+import { ScrollView, Sheet, XStack, YStack } from "tamagui";
+
+import { decrypt, decryptPIN } from "../../utils/panda";
+import reportError from "../../utils/reportError";
+import { getCard, setCardPIN } from "../../utils/server";
+import useAspectRatio from "../../utils/useAspectRatio";
+import Button from "../shared/Button";
+import SafeView from "../shared/SafeView";
+import Text from "../shared/Text";
+import View from "../shared/View";
+
+export default function CardPIN({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const aspectRatio = useAspectRatio();
+  const [countdown, setCountdown] = useState(0);
+  const [displayPIN, setDisplayPIN] = useState(false);
+  const timerReference = React.useRef<NodeJS.Timeout>();
+  const {
+    data: card,
+    isPending,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ["card", "pin"],
+    gcTime: 0,
+    staleTime: 0,
+    enabled: open,
+    refetchOnMount: true,
+    queryFn: async () => {
+      const result = await getCard();
+      if (result.provider === "panda") {
+        const { secret, encryptedPan, encryptedCvc, pin } = result;
+        const [pan, cvc, decryptedPIN] = await Promise.all([
+          decrypt(encryptedPan.data, encryptedPan.iv, secret),
+          decrypt(encryptedCvc.data, encryptedCvc.iv, secret),
+          pin ? decryptPIN(pin.data, pin.iv, secret) : Promise.resolve(null),
+        ]);
+        if (!decryptedPIN) {
+          const newPIN = String(Math.floor(Math.random() * 10_000)).padStart(4, "0");
+          await setCardPIN(newPIN);
+          return { ...result, details: { pan, cvc, pin: newPIN } };
+        }
+        return { ...result, details: { pan, cvc, pin: decryptedPIN } };
+      }
+      return result;
+    },
+  });
+
+  function startCountdown() {
+    setDisplayPIN(true);
+    setCountdown(5);
+    timerReference.current = setInterval(() => {
+      setCountdown((previous) => {
+        if (previous <= 1) {
+          clearInterval(timerReference.current);
+          setDisplayPIN(false);
+          return 0;
+        }
+        return previous - 1;
+      });
+    }, 1000);
+  }
+
+  function stopCountdown() {
+    clearInterval(timerReference.current);
+    setDisplayPIN(false);
+    setCountdown(0);
+  }
+
+  function handlePinToggle() {
+    if (displayPIN) stopCountdown();
+    else startCountdown();
+  }
+
+  useEffect(() => {
+    if (open && card && card.provider === "panda" && card.details.pin) startCountdown();
+    else stopCountdown();
+    return () => {
+      clearInterval(timerReference.current);
+    };
+  }, [open, card]);
+  return (
+    <Sheet
+      open={open}
+      dismissOnSnapToBottom
+      unmountChildrenWhenHidden
+      forceRemoveScrollEnabled={open}
+      animation="moderate"
+      dismissOnOverlayPress
+      onOpenChange={onClose}
+      snapPointsMode="fit"
+      zIndex={100_000}
+      modal
+      portalProps={Platform.OS === "web" ? { style: { aspectRatio, justifySelf: "center" } } : undefined}
+    >
+      <Sheet.Overlay
+        backgroundColor="#00000090"
+        animation="quicker"
+        enterStyle={{ opacity: 0 }} // eslint-disable-line react-native/no-inline-styles
+        exitStyle={{ opacity: 0 }} // eslint-disable-line react-native/no-inline-styles
+      />
+      <Sheet.Frame>
+        <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
+          <ScrollView>
+            <View fullScreen flex={1}>
+              <View flex={1} padded>
+                <YStack gap="$s4_5">
+                  <YStack gap="$s4">
+                    <Text emphasized headline primary>
+                      View Exa Card PIN number
+                    </Text>
+                    <Text color="$uiNeutralSecondary" subHeadline>
+                      Your card&apos;s PIN may be required to confirm transactions and ensure security.
+                    </Text>
+                  </YStack>
+                  {isPending || !card || (card.provider === "panda" && !card.details.pin) ? (
+                    <Skeleton width="100%" height={100} colorMode={Appearance.getColorScheme() ?? "light"} />
+                  ) : (
+                    <YStack gap="$s4">
+                      {!error && card.provider === "panda" && card.details.pin ? (
+                        <XStack flexWrap="wrap" justifyContent="center" gap="$s5">
+                          {Array.from({ length: card.details.pin.length }).map((_, index) => (
+                            <Text fontSize={48} fontFamily="$mono" key={index}>
+                              {displayPIN ? card.details.pin[index] : "*"}
+                            </Text>
+                          ))}
+                        </XStack>
+                      ) : (
+                        <Text fontSize={48} fontFamily="$mono">
+                          N/A
+                        </Text>
+                      )}
+                      <Button
+                        main
+                        spaced
+                        onPress={() => {
+                          if (error) {
+                            refetch().catch(reportError);
+                            return;
+                          }
+                          handlePinToggle();
+                        }}
+                      >
+                        {error ? "Retry" : displayPIN ? "Hide PIN" : "Show PIN"}
+                        {`${!error && displayPIN && countdown > 0 ? countdown : " "}`}
+                      </Button>
+                    </YStack>
+                  )}
+                  <Pressable onPress={onClose} style={styles.close} hitSlop={20}>
+                    <Text emphasized footnote color="$interactiveTextBrandDefault">
+                      Close
+                    </Text>
+                  </Pressable>
+                </YStack>
+              </View>
+            </View>
+          </ScrollView>
+        </SafeView>
+      </Sheet.Frame>
+    </Sheet>
+  );
+}
+
+const styles = StyleSheet.create({ close: { alignSelf: "center" } });
