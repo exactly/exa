@@ -612,20 +612,21 @@ export const WithdrawActivity = pipe(
   })),
 );
 
+export const BorrowActivity = pipe(
+  object({ ...OnchainActivity.entries, args: Borrow }),
+  transform((activity) => ({
+    ...transformActivity(activity),
+    ...transformBorrow(activity.args, activity.blockNumber),
+    assets: Number(activity.args.assets) / 10 ** activity.market.decimals,
+    maturity: Number(activity.args.maturity),
+    type: "borrow" as const,
+  })),
+);
+
 export const RolloverActivity = pipe(
   object({
     ...OnchainActivity.entries,
-    borrow: pipe(
-      object({ ...OnchainActivity.entries, args: Borrow }),
-      transform((activity) => ({
-        ...transformActivity(activity),
-        ...transformBorrow(activity.args, activity.blockNumber),
-        assets: Number(activity.args.assets) / 10 ** activity.market.decimals,
-        fee: Number(activity.args.fee) / 1e6,
-        maturity: Number(activity.args.maturity),
-        type: "borrow" as const,
-      })),
-    ),
+    borrow: BorrowActivity,
     repay: RepayActivity,
   }),
   transform((activity) => {
@@ -651,6 +652,7 @@ function forbid<T extends object>(value: T) {
 }
 
 /* eslint-disable @typescript-eslint/no-redeclare */
+export type BorrowActivity = InferOutput<typeof BorrowActivity>;
 export type CreditActivity = InferOutput<typeof CreditActivity>;
 export type DebitActivity = InferOutput<typeof DebitActivity>;
 export type DepositActivity = InferOutput<typeof DepositActivity>;
