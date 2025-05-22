@@ -33,11 +33,9 @@ export default function CardDetails({ open, onClose }: { open: boolean; onClose:
       Promise.all([
         decrypt(card.encryptedPan.data, card.encryptedPan.iv, card.secret),
         decrypt(card.encryptedCvc.data, card.encryptedCvc.iv, card.secret),
-        card.encryptedPin.data && card.encryptedPin.iv
-          ? decryptPIN(card.encryptedPin.data, card.encryptedPin.iv, card.secret)
-          : Promise.resolve(null),
+        card.PIN ? decryptPIN(card.PIN.data, card.PIN.iv, card.secret) : Promise.resolve(null),
       ])
-        .then(([pan, cvc, pin]) => {
+        .then(([pan, cvc, PIN]) => {
           setDetails({ pan, cvc });
         })
         .catch(reportError);

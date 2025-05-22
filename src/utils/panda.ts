@@ -107,10 +107,8 @@ async function encrypt(data: string) {
   }
   return {
     sessionId,
-    encryptedPin: {
-      iv: window.btoa(String.fromCodePoint(...iv)),
-      data: window.btoa(String.fromCodePoint(...new Uint8Array(encryptedData))),
-    },
+    iv: window.btoa(String.fromCodePoint(...iv)),
+    data: window.btoa(String.fromCodePoint(...new Uint8Array(encryptedData))),
   };
 }
 

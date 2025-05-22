@@ -244,7 +244,7 @@ const panTemplate = {
 } as const;
 
 const pinTemplate = {
-  encryptedPin: { iv: "xfQikHU/pxVSniCKKKyv8w==", data: "VUPy5u3xdg6fnvT/ZmrE1Lev28SVRjLTTTJEaO9X7is=" },
+  PIN: { iv: "xfQikHU/pxVSniCKKKyv8w==", data: "VUPy5u3xdg6fnvT/ZmrE1Lev28SVRjLTTTJEaO9X7is=" },
 } as const;
 
 const personaTemplate = {

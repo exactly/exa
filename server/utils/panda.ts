@@ -10,7 +10,6 @@ import {
   type BaseIssue,
   type BaseSchema,
   boolean,
-  type InferOutput,
   length,
   literal,
   maxLength,
@@ -22,6 +21,7 @@ import {
   picklist,
   pipe,
   string,
+  transform,
 } from "valibot";
 import { BaseError, ContractFunctionZeroDataError } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -84,17 +84,17 @@ export async function getSecrets(cardId: string, sessionId: string) {
 
 export async function getPIN(cardId: string, sessionId: string) {
   try {
-    return await request(PIN, `/issuing/cards/${cardId}/pin`, { SessionId: sessionId });
+    return await request(PINResponse, `/issuing/cards/${cardId}/pin`, { SessionId: sessionId });
   } catch (error) {
     if (error instanceof Error && error.message.includes("Failed to get PIN, card does not have PIN set")) {
-      return parse(PIN, { encryptedPin: { iv: null, data: null } });
+      return parse(PINResponse, { encryptedPin: null });
     }
     throw error;
   }
 }
 
-export async function setPIN(cardId: string, sessionId: string, pin: InferOutput<typeof PIN>) {
-  return await request(object({}), `/issuing/cards/${cardId}/pin`, { SessionId: sessionId }, pin, "PUT");
+export async function setPIN(cardId: string, sessionId: string, PIN: { data: string; iv: string }) {
+  return await request(object({}), `/issuing/cards/${cardId}/pin`, { SessionId: sessionId }, PIN, "PUT");
 }
 
 async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
@@ -128,9 +128,12 @@ const PANResponse = object({
   encryptedCvc: object({ iv: string(), data: string() }),
 });
 
-export const PIN = object({
-  encryptedPin: object({ iv: nullable(string()), data: nullable(string()) }),
-});
+export const PINResponse = pipe(
+  object({
+    encryptedPin: nullable(object({ iv: string(), data: string() })),
+  }),
+  transform(({ encryptedPin }) => ({ PIN: encryptedPin })),
+);
 
 const CreateCardRequest = object({
   type: picklist(["physical", "virtual"]),
