@@ -106,7 +106,11 @@ export default function CardDetails({ open, onClose }: { open: boolean; onClose:
                           strokeWidth={2.5}
                           onPress={() => {
                             setStringAsync(details.pan).catch(reportError);
-                            toast.show("Copied to clipboard!");
+                            toast.show("Card number copied!", {
+                              native: true,
+                              duration: 1000,
+                              burntOptions: { haptic: "success" },
+                            });
                           }}
                         />
                       </XStack>
