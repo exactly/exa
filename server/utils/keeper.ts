@@ -11,9 +11,11 @@ import {
   encodeFunctionData,
   getContractError,
   http,
+  InvalidInputRpcError,
   keccak256,
   nonceManager,
   RawContractError,
+  withRetry,
   type HttpTransport,
   type MaybePromise,
   type Prettify,
@@ -111,10 +113,18 @@ export function extender(keeper: WalletClient<HttpTransport, typeof chain, Priva
             const receipt = receiptResult.value;
             scope.setContext("tx", { request, receipt });
             const trace = await startSpan({ name: "trace transaction", op: "tx.trace" }, () =>
-              traceClient.traceTransaction(hash),
+              withRetry(() => traceClient.traceTransaction(hash), {
+                delay: 1000,
+                retryCount: 10,
+                shouldRetry: ({ error }) => error instanceof InvalidInputRpcError,
+              }).catch((error: unknown) => {
+                captureException(error, { level: "error" });
+                return null;
+              }),
             );
             scope.setContext("tx", { request, receipt, trace });
             if (receipt.status !== "success") {
+              if (!trace) throw new Error("no trace");
               // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
               throw getContractError(new RawContractError({ data: trace.output }), { ...call, args: call.args ?? [] });
             }
