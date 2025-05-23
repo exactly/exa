@@ -30,22 +30,23 @@ export default function Pay() {
   const { address } = useAccount();
   const insets = useSafeAreaInsets();
   const { market: exaUSDC } = useAsset(marketUSDCAddress);
-  const { success, output: maturity } = safeParse(
+  const { success, output: repayMaturity } = safeParse(
     pipe(string(), nonEmpty("no maturity")),
     useLocalSearchParams().maturity,
   );
 
   const timestamp = Math.floor(Date.now() / 1000);
-  const rolloverMaturity = Number(maturity) + MATURITY_INTERVAL;
-  const borrow = exaUSDC?.fixedBorrowPositions.find((b) => b.maturity === BigInt(success ? maturity : 0));
-  const rolloverMaturityBorrow = exaUSDC?.fixedBorrowPositions.find((b) => b.maturity === BigInt(rolloverMaturity));
+  const nextMaturity = timestamp - (timestamp % MATURITY_INTERVAL) + MATURITY_INTERVAL;
+  const borrowMaturity = Number(repayMaturity) < timestamp ? nextMaturity : Number(repayMaturity) + MATURITY_INTERVAL;
+  const borrow = exaUSDC?.fixedBorrowPositions.find((b) => b.maturity === BigInt(success ? repayMaturity : 0));
+  const rolloverMaturityBorrow = exaUSDC?.fixedBorrowPositions.find((b) => b.maturity === BigInt(borrowMaturity));
 
   const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
 
   const { data: borrowPreview } = useReadPreviewerPreviewBorrowAtMaturity({
     address: previewerAddress,
-    args: [exaUSDC?.market ?? zeroAddress, BigInt(rolloverMaturity), borrow?.previewValue ?? 0n],
-    query: { enabled: !!bytecode && !!exaUSDC && !!borrow && !!address && !!rolloverMaturity },
+    args: [exaUSDC?.market ?? zeroAddress, BigInt(borrowMaturity), borrow?.previewValue ?? 0n],
+    query: { enabled: !!bytecode && !!exaUSDC && !!borrow && !!address && !!borrowMaturity },
   });
 
   if (!success || !exaUSDC || !borrow) return null;
@@ -85,7 +86,7 @@ export default function Pay() {
                     Debt to rollover
                   </Text>
                   <Text secondary footnote textAlign="left">
-                    due {format(new Date(Number(maturity) * 1000), "MMM dd, yyyy")}
+                    due {format(new Date(Number(repayMaturity) * 1000), "MMM dd, yyyy")}
                   </Text>
                 </YStack>
                 <Text primary title3 textAlign="right">
@@ -134,7 +135,7 @@ export default function Pay() {
                     Current debt
                   </Text>
                   <Text secondary footnote textAlign="left">
-                    due {format(new Date(Number(rolloverMaturity) * 1000), "MMM dd, yyyy")}
+                    due {format(new Date(Number(borrowMaturity) * 1000), "MMM dd, yyyy")}
                   </Text>
                 </YStack>
                 <Text primary title3 textAlign="right">
@@ -152,7 +153,7 @@ export default function Pay() {
                     Total after rollover
                   </Text>
                   <Text secondary footnote textAlign="left">
-                    {format(new Date(Number(rolloverMaturity) * 1000), "MMM dd, yyyy")}
+                    {format(new Date(Number(borrowMaturity) * 1000), "MMM dd, yyyy")}
                   </Text>
                 </YStack>
                 <Text title color="$uiBrandSecondary" textAlign="right">
@@ -167,7 +168,11 @@ export default function Pay() {
           </View>
         </ScrollView>
         <View padded paddingBottom={insets.bottom} marginBottom="$s4">
-          <RolloverButton maturity={maturity} followingMaturity={rolloverMaturity} borrow={borrow} />
+          <RolloverButton
+            repayMaturity={BigInt(repayMaturity)}
+            borrowMaturity={BigInt(borrowMaturity)}
+            borrow={borrow}
+          />
         </View>
       </View>
     </SafeView>
@@ -175,12 +180,12 @@ export default function Pay() {
 }
 
 function RolloverButton({
-  maturity,
-  followingMaturity,
+  repayMaturity,
+  borrowMaturity,
   borrow,
 }: {
-  maturity: string;
-  followingMaturity: number;
+  repayMaturity: bigint;
+  borrowMaturity: bigint;
   borrow: {
     maturity: bigint;
     previewValue: bigint;
@@ -190,9 +195,6 @@ function RolloverButton({
   const { address } = useAccount();
   const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
   const toast = useToastController();
-
-  const repayMaturity = BigInt(maturity);
-  const borrowMaturity = BigInt(followingMaturity);
 
   const slippage = (WAD * 105n) / 100n;
   const maxRepayAssets = (borrow.previewValue * slippage) / WAD;
