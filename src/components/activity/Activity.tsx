@@ -72,7 +72,7 @@ export default function Activity() {
             if (item.type === "header") {
               const { date } = item;
               return (
-                <View paddingHorizontal="$s5" paddingVertical="$s3" backgroundColor="$backgroundSoft">
+                <View paddingHorizontal="$s4" paddingVertical="$s3" backgroundColor="$backgroundSoft">
                   <Text subHeadline color="$uiNeutralSecondary">
                     {date}
                   </Text>

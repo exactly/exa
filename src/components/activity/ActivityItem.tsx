@@ -36,7 +36,7 @@ export default function ActivityItem({ item, isLast }: { item: Item; isLast: boo
       flexDirection="row"
       gap="$s4"
       alignItems="center"
-      paddingHorizontal="$s5"
+      paddingHorizontal="$s4"
       paddingTop="$s3"
       paddingBottom={isLast ? "$s4" : "$s3"}
       onPress={handlePress}

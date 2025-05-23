@@ -387,7 +387,7 @@ export default function Card() {
                   activity={purchases}
                   title="Latest purchases"
                   emptyComponent={
-                    <YStack alignItems="center" justifyContent="center" gap="$s4_5">
+                    <YStack alignItems="center" justifyContent="center" gap="$s4_5" padding="$s4" paddingTop={0}>
                       <Text textAlign="center" color="$uiNeutralSecondary" emphasized title>
                         💳
                       </Text>
