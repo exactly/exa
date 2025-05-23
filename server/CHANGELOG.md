@@ -1,5 +1,13 @@
 # @exactly/server
 
+## 0.1.12
+
+### Patch Changes
+
+- [`7fdcc09`](https://github.com/exactly/exa/commit/7fdcc095c723faadf3a9516c8bd552d76d7bb6b4) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 handle transaction trace error
+
+- [`2617dbf`](https://github.com/exactly/exa/commit/2617dbfdf74ed432be98be18d7234c4a0f87db52) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🔒️ use panda authorization timestamp when available
+
 ## 0.1.11
 
 ### Patch Changes

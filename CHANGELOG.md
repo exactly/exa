@@ -1,5 +1,28 @@
 # @exactly/mobile
 
+## 1.0.10
+
+### Patch Changes
+
+- [`8fc9897`](https://github.com/exactly/exa/commit/8fc98976ae726e704a4ae21f844aad31192c5a1e) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix buttons text being cut on zoomed screens
+
+- [`cdcae54`](https://github.com/exactly/exa/commit/cdcae543b036e8eb57047881089d70fc17908f27) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ differentiate overdue payments
+
+- [`dd2612f`](https://github.com/exactly/exa/commit/dd2612f146dce0a4c279939ba3c4a330c7ce3e84) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix exa card mode check
+
+- [`63e8aed`](https://github.com/exactly/exa/commit/63e8aed0070fcfcfc9572ccd379e7f8c3a96996e) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚸 open web kyc in current window
+
+- [`4ce8d88`](https://github.com/exactly/exa/commit/4ce8d886ee3a362d67e1b9b891083bd276d9e4f7) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 add missing animation to success screen
+
+- [`a7704ee`](https://github.com/exactly/exa/commit/a7704ee474374635dd4f4527d821acf01a442e01) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 display native toast on card details
+
+- [`c72997f`](https://github.com/exactly/exa/commit/c72997f76d6b1a43e95e7b5aa30c0ea6ec89a91f) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix plugin upgrade display condition
+
+- [`d94660b`](https://github.com/exactly/exa/commit/d94660be9d89ff148c7e67cdd3490237258d6454) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 keep other query parameters on payment sheet close
+
+- Updated dependencies [[`7fdcc09`](https://github.com/exactly/exa/commit/7fdcc095c723faadf3a9516c8bd552d76d7bb6b4), [`2617dbf`](https://github.com/exactly/exa/commit/2617dbfdf74ed432be98be18d7234c4a0f87db52)]:
+  - @exactly/server@0.1.12
+
 ## 1.0.9
 
 ### Patch Changes
