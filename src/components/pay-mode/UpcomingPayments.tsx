@@ -47,118 +47,120 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
   const payments = [...duePayments];
   return (
     <View backgroundColor="$backgroundSoft" borderRadius="$r3" padding="$s4" gap="$s6">
-      <View flexDirection="row" gap="$s3" alignItems="center" justifyContent="space-between">
+      <XStack alignItems="center" justifyContent="space-between">
         <Text emphasized headline flex={1}>
           Upcoming payments
         </Text>
-      </View>
-      {payments.length > 0 ? (
-        payments.map(([maturity, amount], index) => {
-          const overdue = isBefore(new Date(Number(maturity) * 1000), new Date());
-          const isRepaying = pendingProposals?.some(({ proposal }) => {
-            const { proposalType: type, data } = proposal;
-            const isRepayProposal =
-              type === Number(ProposalType.RepayAtMaturity) || type === Number(ProposalType.CrossRepayAtMaturity);
-            if (!isRepayProposal) return false;
-            const decoded =
-              type === Number(ProposalType.RepayAtMaturity)
-                ? decodeRepayAtMaturity(data)
-                : decodeCrossRepayAtMaturity(data);
-            return decoded.maturity === maturity;
-          });
-          const isRollingDebt = pendingProposals?.some(({ proposal }) => {
-            const { proposalType: type, data } = proposal;
-            if (type !== Number(ProposalType.RollDebt)) return false;
-            const decoded = decodeRollDebt(data);
-            return decoded.repayMaturity === maturity;
-          });
-          const isProcessing = isRepaying || isRollingDebt; //eslint-disable-line @typescript-eslint/prefer-nullish-coalescing
-          return (
-            <Pressable
-              key={index}
-              disabled={isProcessing}
-              onPress={() => {
-                if (isProcessing) return;
-                onSelect(maturity, amount);
-              }}
-            >
-              <XStack justifyContent="space-between" alignItems="center">
-                <XStack alignItems="center" gap="$s3">
-                  <Text
-                    subHeadline
-                    color={
-                      isProcessing ? "$interactiveTextDisabled" : overdue ? "$uiErrorSecondary" : "$uiNeutralPrimary"
-                    }
-                  >
-                    {format(new Date(Number(maturity) * 1000), "MMM dd, yyyy")}
-                  </Text>
-                  {isProcessing ? (
-                    <View
-                      alignSelf="center"
-                      justifyContent="center"
-                      alignItems="center"
-                      backgroundColor="$interactiveDisabled"
-                      borderRadius="$r2"
-                      paddingVertical="$s1"
-                      paddingHorizontal="$s2"
+      </XStack>
+      <YStack gap="$s6">
+        {payments.length > 0 ? (
+          payments.map(([maturity, amount], index) => {
+            const overdue = isBefore(new Date(Number(maturity) * 1000), new Date());
+            const isRepaying = pendingProposals?.some(({ proposal }) => {
+              const { proposalType: type, data } = proposal;
+              const isRepayProposal =
+                type === Number(ProposalType.RepayAtMaturity) || type === Number(ProposalType.CrossRepayAtMaturity);
+              if (!isRepayProposal) return false;
+              const decoded =
+                type === Number(ProposalType.RepayAtMaturity)
+                  ? decodeRepayAtMaturity(data)
+                  : decodeCrossRepayAtMaturity(data);
+              return decoded.maturity === maturity;
+            });
+            const isRollingDebt = pendingProposals?.some(({ proposal }) => {
+              const { proposalType: type, data } = proposal;
+              if (type !== Number(ProposalType.RollDebt)) return false;
+              const decoded = decodeRollDebt(data);
+              return decoded.repayMaturity === maturity;
+            });
+            const isProcessing = isRepaying || isRollingDebt; //eslint-disable-line @typescript-eslint/prefer-nullish-coalescing
+            return (
+              <Pressable
+                key={index}
+                disabled={isProcessing}
+                onPress={() => {
+                  if (isProcessing) return;
+                  onSelect(maturity, amount);
+                }}
+              >
+                <XStack justifyContent="space-between" alignItems="center">
+                  <XStack alignItems="center" gap="$s3">
+                    <Text
+                      subHeadline
+                      color={
+                        isProcessing ? "$interactiveTextDisabled" : overdue ? "$uiErrorSecondary" : "$uiNeutralPrimary"
+                      }
                     >
-                      <Text emphasized color="$interactiveOnDisabled" maxFontSizeMultiplier={1} caption2>
-                        PROCESSING
-                      </Text>
-                    </View>
-                  ) : overdue ? (
-                    <View
-                      alignSelf="center"
-                      justifyContent="center"
-                      alignItems="center"
-                      backgroundColor="$interactiveBaseErrorSoftDefault"
-                      borderRadius="$r2"
-                      paddingVertical="$s1"
-                      paddingHorizontal="$s2"
+                      {format(new Date(Number(maturity) * 1000), "MMM dd, yyyy")}
+                    </Text>
+                    {isProcessing ? (
+                      <View
+                        alignSelf="center"
+                        justifyContent="center"
+                        alignItems="center"
+                        backgroundColor="$interactiveDisabled"
+                        borderRadius="$r2"
+                        paddingVertical="$s1"
+                        paddingHorizontal="$s2"
+                      >
+                        <Text emphasized color="$interactiveOnDisabled" maxFontSizeMultiplier={1} caption2>
+                          PROCESSING
+                        </Text>
+                      </View>
+                    ) : overdue ? (
+                      <View
+                        alignSelf="center"
+                        justifyContent="center"
+                        alignItems="center"
+                        backgroundColor="$interactiveBaseErrorSoftDefault"
+                        borderRadius="$r2"
+                        paddingVertical="$s1"
+                        paddingHorizontal="$s2"
+                      >
+                        <Text emphasized color="$uiErrorSecondary" maxFontSizeMultiplier={1} caption2>
+                          OVERDUE
+                        </Text>
+                      </View>
+                    ) : null}
+                  </XStack>
+                  <XStack alignItems="center" gap="$s2">
+                    <Text
+                      sensitive
+                      emphasized
+                      body
+                      color={
+                        isRepaying ? "$interactiveTextDisabled" : overdue ? "$uiErrorSecondary" : "$uiNeutralPrimary"
+                      }
                     >
-                      <Text emphasized color="$uiErrorSecondary" maxFontSizeMultiplier={1} caption2>
-                        OVERDUE
-                      </Text>
-                    </View>
-                  ) : null}
+                      {(Number(amount) / 1e18).toLocaleString(undefined, {
+                        style: "currency",
+                        currency: "USD",
+                        currencyDisplay: "narrowSymbol",
+                      })}
+                    </Text>
+                    <ChevronRight
+                      size={24}
+                      color={isRepaying ? "$iconDisabled" : overdue ? "$uiErrorSecondary" : "$iconBrandDefault"}
+                    />
+                  </XStack>
                 </XStack>
-                <XStack alignItems="center" gap="$s2">
-                  <Text
-                    sensitive
-                    emphasized
-                    body
-                    color={
-                      isRepaying ? "$interactiveTextDisabled" : overdue ? "$uiErrorSecondary" : "$uiNeutralPrimary"
-                    }
-                  >
-                    {(Number(amount) / 1e18).toLocaleString(undefined, {
-                      style: "currency",
-                      currency: "USD",
-                      currencyDisplay: "narrowSymbol",
-                    })}
-                  </Text>
-                  <ChevronRight
-                    size={24}
-                    color={isRepaying ? "$iconDisabled" : overdue ? "$uiErrorSecondary" : "$iconBrandDefault"}
-                  />
-                </XStack>
-              </XStack>
-            </Pressable>
-          );
-        })
-      ) : (
-        <YStack alignItems="center" justifyContent="center" gap="$s4_5">
-          <Text textAlign="center" color="$uiNeutralSecondary" emphasized title>
-            🎉
-          </Text>
-          <Text textAlign="center" color="$uiBrandSecondary" emphasized headline>
-            You&apos;re all set!
-          </Text>
-          <Text textAlign="center" color="$uiNeutralSecondary" subHeadline>
-            Any purchases made with Pay Later will show up here.
-          </Text>
-        </YStack>
-      )}
+              </Pressable>
+            );
+          })
+        ) : (
+          <YStack alignItems="center" justifyContent="center" gap="$s4_5">
+            <Text textAlign="center" color="$uiNeutralSecondary" emphasized title>
+              🎉
+            </Text>
+            <Text textAlign="center" color="$uiBrandSecondary" emphasized headline>
+              You&apos;re all set!
+            </Text>
+            <Text textAlign="center" color="$uiNeutralSecondary" subHeadline>
+              Any purchases made with Pay Later will show up here.
+            </Text>
+          </YStack>
+        )}
+      </YStack>
     </View>
   );
 }
