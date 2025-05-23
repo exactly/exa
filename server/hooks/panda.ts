@@ -67,6 +67,7 @@ const BaseTransaction = v.object({
     merchantCity: v.nullish(v.string()),
     merchantCountry: v.nullish(v.string()),
     merchantName: v.string(),
+    authorizedAt: v.optional(v.pipe(v.string(), v.isoTimestamp())),
   }),
 });
 
@@ -80,6 +81,7 @@ const Transaction = v.variant("action", [
     }),
   }),
   v.object({
+    id: v.string(),
     resource: v.literal("transaction"),
     action: v.literal("updated"),
     body: v.object({
@@ -87,6 +89,7 @@ const Transaction = v.variant("action", [
       spend: v.object({
         ...BaseTransaction.entries.spend.entries,
         authorizationUpdateAmount: v.number(),
+        authorizedAt: v.pipe(v.string(), v.isoTimestamp()),
         status: v.picklist(["declined", "pending", "reversed"]),
       }),
     }),
@@ -101,11 +104,16 @@ const Transaction = v.variant("action", [
     }),
   }),
   v.object({
+    id: v.string(),
     resource: v.literal("transaction"),
     action: v.literal("completed"),
     body: v.object({
       ...BaseTransaction.entries,
-      spend: v.object({ ...BaseTransaction.entries.spend.entries, status: v.literal("completed") }),
+      spend: v.object({
+        ...BaseTransaction.entries.spend.entries,
+        authorizedAt: v.pipe(v.string(), v.isoTimestamp()),
+        status: v.literal("completed"),
+      }),
     }),
   }),
 ]);
@@ -340,7 +348,9 @@ export default new Hono().post(
           } else if (payload.body.spend.status === "reversed") {
             return c.json("spending transaction not found", 553 as UnofficialStatusCode);
           }
-          const timestamp = Math.floor(Date.now() / 1000); // TODO use payload timestamp when provided
+          const timestamp = // TODO use update timestamp when provided
+            Math.floor(new Date(payload.body.spend.authorizedAt).getTime() / 1000) -
+            Number(BigInt(`0x${payload.id.replaceAll(/[^0-9a-f]/g, "")}`) % 3600n);
           const signature = await signIssuerOp({ account, amount: -refundAmount, timestamp }); // TODO replace with payload signature
           try {
             await keeper.exaSend(
@@ -529,7 +539,9 @@ async function prepareCollection(
   const amount = BigInt(Math.round(usdAmount * 1e6));
   if (amount === 0n) return { amount, call: null, transaction: null };
   const call = await (async () => {
-    const timestamp = Math.floor(Date.now() / 1000);
+    const timestamp = Math.floor(
+      (payload.body.spend.authorizedAt ? new Date(payload.body.spend.authorizedAt) : new Date()).getTime() / 1000, // TODO remove fallback
+    );
     const signature = await signIssuerOp({ account, amount, timestamp }); // TODO replace with payload signature
     if (card.mode === 0) {
       return { functionName: "collectDebit", args: [amount, BigInt(timestamp), signature] } as const;
