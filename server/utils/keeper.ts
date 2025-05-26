@@ -128,7 +128,7 @@ export function extender(keeper: WalletClient<HttpTransport, typeof chain, Priva
               // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
               throw getContractError(new RawContractError({ data: trace.output }), { ...call, args: call.args ?? [] });
             }
-            span.setStatus({ code: SPAN_STATUS_OK, message: "ok" });
+            span.setStatus({ code: SPAN_STATUS_OK });
             return receipt;
           } catch (error: unknown) {
             const reason =
@@ -143,7 +143,8 @@ export function extender(keeper: WalletClient<HttpTransport, typeof chain, Priva
               const ignore =
                 typeof options.ignore === "function" ? await options.ignore(reason) : options.ignore.includes(reason);
               if (ignore) {
-                span.setStatus({ code: SPAN_STATUS_OK, message: reason });
+                span.setAttribute("exa.error", reason);
+                span.setStatus({ code: SPAN_STATUS_OK });
                 return ignore === true ? null : ignore;
               }
             }

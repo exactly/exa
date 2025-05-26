@@ -256,7 +256,7 @@ function scheduleMessage(message: string) {
                     },
                   );
 
-                  parent.setStatus({ code: SPAN_STATUS_OK, message: "ok" });
+                  parent.setStatus({ code: SPAN_STATUS_OK });
                   if (proposalType === ProposalType.Withdraw) {
                     if (market.toLowerCase() === marketWETHAddress.toLowerCase()) {
                       await keeper.exaSend(
@@ -381,7 +381,7 @@ function scheduleWithdraw(message: string) {
                   abi: [...legacyExaPluginAbi, ...upgradeableModularAccountAbi, ...auditorAbi, marketAbi[6]],
                 },
               );
-              parent.setStatus({ code: SPAN_STATUS_OK, message: "ok" });
+              parent.setStatus({ code: SPAN_STATUS_OK });
               Promise.all([
                 publicClient.readContract({ address: market, abi: marketAbi, functionName: "decimals" }),
                 publicClient.readContract({ address: market, abi: marketAbi, functionName: "symbol" }),

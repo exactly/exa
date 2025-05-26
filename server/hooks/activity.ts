@@ -164,7 +164,7 @@ export default new Hono().post(
                   span.setStatus({ code: SPAN_STATUS_ERROR, message: "poke_failed" });
                   throw result.reason;
                 }
-                span.setStatus({ code: SPAN_STATUS_OK, message: "ok" });
+                span.setStatus({ code: SPAN_STATUS_OK });
               },
             ),
           ),
@@ -172,7 +172,7 @@ export default new Hono().post(
       ),
     )
       .then((results) => {
-        let status: SpanStatus = { code: SPAN_STATUS_OK, message: "ok" };
+        let status: SpanStatus = { code: SPAN_STATUS_OK };
         for (const result of results) {
           if (result.status === "fulfilled") continue;
           status = { code: SPAN_STATUS_ERROR, message: "activity_failed" };
