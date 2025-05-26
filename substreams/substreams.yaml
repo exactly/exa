@@ -66,8 +66,6 @@ binaries:
     type: wasm/rust-v1
     file: target/wasm32-unknown-unknown/release/substreams.wasm
 
-network: optimism
-
 sink:
   module: db_deposits
   type: sf.substreams.sink.sql.v1.Service
