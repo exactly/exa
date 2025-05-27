@@ -280,19 +280,21 @@ function InstallmentButton({
               <Skeleton height={20} colorMode={Appearance.getColorScheme() ?? "light"} />
             ) : (
               <Text footnote color="$uiNeutralSecondary">
-                {((installment > 1 && installments
-                  ? Number(installments.effectiveRate) / 1e18
-                  : borrowPreview
-                    ? Number(
-                        ((borrowPreview.assets - calculationAssets) * WAD * 31_536_000n) /
-                          (calculationAssets * (borrowPreview.maturity - BigInt(timestamp))),
-                      ) / 1e18
-                    : null
-                )?.toLocaleString(undefined, {
-                  style: "percent",
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                }) ?? "N/A") + " APR"}
+                {`${
+                  (installment > 1 && installments
+                    ? Number(installments.effectiveRate) / 1e18
+                    : borrowPreview
+                      ? Number(
+                          ((borrowPreview.assets - calculationAssets) * WAD * 31_536_000n) /
+                            (calculationAssets * (borrowPreview.maturity - BigInt(timestamp))),
+                        ) / 1e18
+                      : null
+                  )?.toLocaleString(undefined, {
+                    style: "percent",
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  }) ?? "N/A"
+                } APR`}
               </Text>
             ))}
         </YStack>
