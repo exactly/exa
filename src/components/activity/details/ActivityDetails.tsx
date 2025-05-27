@@ -7,6 +7,7 @@ import { Pressable } from "react-native";
 import { ScrollView, styled, useTheme } from "tamagui";
 
 import CardActivity from "./CardActivity";
+import LiquidationActivity from "./LiquidationActivity";
 import ReceivedActivity from "./ReceivedActivity";
 import RepayActivity from "./RepayActivity";
 import RolloverActivity from "./RolloverActivity";
@@ -69,6 +70,7 @@ export default function ActivityDetails() {
               {item.type === "repay" && <RepayActivity item={item} />}
               {item.type === "received" && <ReceivedActivity item={item} />}
               {item.type === "rollover" && <RolloverActivity item={item} />}
+              {item.type === "liquidated" && <LiquidationActivity item={item} />}
               <ActionButton
                 width="100%"
                 alignSelf="flex-end"

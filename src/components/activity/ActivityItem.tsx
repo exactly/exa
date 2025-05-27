@@ -5,6 +5,7 @@ import {
   ClockAlert,
   Import,
   RefreshCw,
+  ScissorsLineDashed,
   ShoppingCart,
 } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
@@ -66,6 +67,7 @@ export default function ActivityItem({ item, isLast }: { item: Item; isLast: boo
           ) : (
             <ShoppingCart color="$uiNeutralPrimary" />
           ))}
+        {type === "liquidated" && <ScissorsLineDashed color="$uiNeutralPrimary" />}
       </View>
       <View flex={1} gap="$s2">
         <View flexDirection="row" justifyContent="space-between" alignItems="center" gap="$s4">
@@ -76,6 +78,7 @@ export default function ActivityItem({ item, isLast }: { item: Item; isLast: boo
               {type === "sent" && "Sent"}
               {type === "repay" && "Debt payment"}
               {type === "rollover" && "Debt rollover"}
+              {type === "liquidated" && "Forced repayment"}
             </Text>
             <Text
               caption
