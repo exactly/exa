@@ -106,8 +106,7 @@ export default function Pay() {
 
   const maxRepay = borrow ? (borrow.previewValue * slippage) / WAD : 0n;
 
-  const { data: route } = useQuery({
-    initialData: { fromAmount: 0n, data: "0x" as const },
+  const { data: route, error: routeError } = useQuery({
     queryKey: ["lifi", "route", mode, account, selectedAsset.address, repayMarket?.asset, maxRepay],
     queryFn: () => {
       switch (mode) {
@@ -125,7 +124,7 @@ export default function Pay() {
           if (!account || !selectedAsset.address) throw new Error("implementation error");
           return getRoute(selectedAsset.address, usdcAddress, maxRepay, account, account);
         default:
-          return { fromAmount: 0n, data: "0x" as const };
+          throw new Error("implementation error");
       }
     },
     enabled: !!maxRepay && (mode === "crossRepay" || mode === "legacyCrossRepay" || mode === "external"),
@@ -133,7 +132,7 @@ export default function Pay() {
   });
 
   const positionAssets = borrow ? borrow.position.principal + borrow.position.fee : 0n;
-  const maxAmountIn = (route.fromAmount * slippage) / WAD;
+  const maxAmountIn = route ? (route.fromAmount * slippage) / WAD : undefined;
 
   const {
     propose: { data: repayPropose },
@@ -160,7 +159,7 @@ export default function Pay() {
     maturity,
     positionAssets,
     maxRepay,
-    route: route.data,
+    route: route?.data,
   });
 
   const {
@@ -224,7 +223,7 @@ export default function Pay() {
   });
 
   const handlePayment = useCallback(() => {
-    if (!repayMarket) return;
+    if (!repayMarket || !route?.fromAmount) return;
     setDisplayValues({
       amount: Number(withUSDC ? positionAssets : route.fromAmount) / 10 ** repayMarket.decimals,
       usdAmount: Number(previewValue) / 1e18,
@@ -256,7 +255,7 @@ export default function Pay() {
     previewValue,
     repayMarket,
     repayPropose,
-    route.fromAmount,
+    route?.fromAmount,
     withUSDC,
     writeContract,
   ]);
@@ -273,6 +272,7 @@ export default function Pay() {
       if (!accountClient) throw new Error("no account client");
       if (!externalAsset) throw new Error("no external asset");
       if (!selectedAsset.external) throw new Error("not external asset");
+      if (!route) throw new Error("no route");
       setDisplayValues({
         amount: Number(route.fromAmount) / 10 ** externalAsset.decimals,
         usdAmount: (Number(externalAsset.priceUSD) * Number(route.fromAmount)) / 10 ** externalAsset.decimals,
@@ -575,7 +575,7 @@ export default function Pay() {
                     repayWithExternalAsset().catch(reportError);
                   }}
                   contained
-                  disabled={isExternalRepaying || route.fromAmount > externalAssetAvailable}
+                  disabled={isExternalRepaying || !route || route.fromAmount > externalAssetAvailable}
                   main
                   spaced
                   fullwidth
@@ -586,7 +586,7 @@ export default function Pay() {
                       <Coins
                         strokeWidth={2.5}
                         color={
-                          route.fromAmount > externalAssetAvailable
+                          !route || route.fromAmount > externalAssetAvailable
                             ? "$interactiveOnDisabled"
                             : "$interactiveOnBaseBrandDefault"
                         }
@@ -596,7 +596,7 @@ export default function Pay() {
                 >
                   {isExternalRepaying
                     ? "Please wait..."
-                    : route.fromAmount > externalAssetAvailable
+                    : !route || route.fromAmount > externalAssetAvailable
                       ? "Insufficient balance"
                       : "Confirm payment"}
                 </Button>
@@ -604,7 +604,7 @@ export default function Pay() {
                 <Button
                   onPress={handlePayment}
                   contained
-                  disabled={isSimulating || !!simulationError}
+                  disabled={isSimulating || !!simulationError || !!routeError}
                   main
                   spaced
                   fullwidth
@@ -616,7 +616,13 @@ export default function Pay() {
                     )
                   }
                 >
-                  {isSimulating ? "Please wait..." : simulationError ? "Cannot proceed" : "Confirm payment"}
+                  {routeError
+                    ? "No route found"
+                    : isSimulating
+                      ? "Please wait..."
+                      : simulationError
+                        ? "Cannot proceed"
+                        : "Confirm payment"}
                 </Button>
               )}
             </YStack>
