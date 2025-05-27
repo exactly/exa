@@ -29,6 +29,7 @@ module.exports = {
     "no-restricted-globals": ["error", "reportError"],
     "no-restricted-imports": ["error", { patterns: ["./server/"] }],
     "no-shadow": "off", // @typescript-eslint/no-shadow
+    "prefer-template": "error",
     "unicorn/filename-case": "off", // use default export name
     "unicorn/no-array-reduce": "off",
     "unicorn/no-null": "off", // part of multiple apis
