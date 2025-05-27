@@ -104,14 +104,9 @@ export default function PaySelector() {
           </Text>
 
           <XStack alignItems="center" gap="$s4">
-            <YStack gap="$s2">
-              <Text primary emphasized subHeadline>
-                Enter purchase amount
-              </Text>
-              <Text secondary caption2>
-                to estimate installment options
-              </Text>
-            </YStack>
+            <Text primary emphasized subHeadline>
+              Simulate purchase
+            </Text>
             <TamaguiInput borderRadius="$r3" backgroundColor="$backgroundMild" flex={1}>
               <TamaguiInput.Icon>
                 <Text subHeadline color="$uiNeutralPlaceholder">
