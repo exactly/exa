@@ -291,8 +291,8 @@ importers:
         specifier: workspace:^1.0.0
         version: link:contracts
       '@exactly/protocol':
-        specifier: exactly/protocol#16a172a
-        version: https://codeload.github.com/exactly/protocol/tar.gz/16a172a
+        specifier: ^0.2.20
+        version: 0.2.20
       '@expo/fingerprint':
         specifier: ^0.11.11
         version: 0.11.11
@@ -473,8 +473,8 @@ importers:
         version: webauthn-sol#v1.0.0@https://codeload.github.com/base/webauthn-sol/tar.gz/619f20ab0f074fef41066ee4ab24849a913263b2
     devDependencies:
       '@exactly/protocol':
-        specifier: exactly/protocol#16a172a
-        version: https://codeload.github.com/exactly/protocol/tar.gz/16a172a
+        specifier: ^0.2.20
+        version: 0.2.20
       '@openzeppelin/contracts-upgradeable':
         specifier: ^5.3.0
         version: 5.3.0(@openzeppelin/contracts@5.3.0)
@@ -2063,14 +2063,13 @@ packages:
     version: 0.0.1
     engines: {node: '>=20'}
 
-  '@exactly/protocol@https://codeload.github.com/exactly/protocol/tar.gz/16a172a':
-    resolution: {tarball: https://codeload.github.com/exactly/protocol/tar.gz/16a172a}
-    version: 0.2.19
+  '@exactly/protocol@0.2.20':
+    resolution: {integrity: sha512-YD7XhbDbQUmhPV0RqnxhYBIMKDTEJVfy+GleJUYXFcYVN+9WG41QVfJauw9dn8+cavVUoMIO5rUmQfkvkHpeIw==}
     engines: {node: '>=18'}
 
   '@expo/bunyan@4.0.1':
     resolution: {integrity: sha512-+Lla7nYSiHZirgK+U/uYzsLv/X+HaJienbD5AKX1UQZHYfWaP+9uuQluRB4GrEVWF0GZ7vEVp/jzaOT9k/SQlg==}
-    engines: {node: '>=0.10.0'}
+    engines: {'0': node >=0.10.0}
 
   '@expo/cli@0.22.26':
     resolution: {integrity: sha512-I689wc8Fn/AX7aUGiwrh3HnssiORMJtR2fpksX+JIe8Cj/EDleblYMSwRPd0025wrwOV9UN1KM/RuEt/QjCS3Q==}
@@ -13241,7 +13240,7 @@ snapshots:
 
   '@exactly/lib@https://codeload.github.com/exactly/lib/tar.gz/a8895cd': {}
 
-  '@exactly/protocol@https://codeload.github.com/exactly/protocol/tar.gz/16a172a':
+  '@exactly/protocol@0.2.20':
     dependencies:
       '@openzeppelin/contracts': 5.3.0
       '@openzeppelin/contracts-upgradeable': 5.3.0(@openzeppelin/contracts@5.3.0)

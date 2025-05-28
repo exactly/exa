@@ -111,7 +111,7 @@
     "@changesets/types": "^6.1.0",
     "@eslint-community/eslint-plugin-eslint-comments": "^4.5.0",
     "@exactly/plugin": "workspace:^1.0.0",
-    "@exactly/protocol": "exactly/protocol#16a172a",
+    "@exactly/protocol": "^0.2.20",
     "@expo/fingerprint": "^0.11.11",
     "@spotlightjs/spotlight": "^2.13.0",
     "@tamagui/babel-plugin": "1.125.26",
