@@ -652,7 +652,6 @@ export default function Pay() {
           </View>
           <AssetSelectionSheet
             positions={positions}
-            symbol={repayMarket?.assetSymbol ?? externalAsset?.symbol}
             onAssetSelected={handleAssetSelect}
             open={assetSelectionOpen}
             onClose={() => {

@@ -1,9 +1,9 @@
 import shortenHex from "@exactly/common/shortenHex";
 import { Address } from "@exactly/common/validation";
-import { ArrowLeft, ArrowRight, User, UserMinus, UserPlus } from "@tamagui/lucide-icons";
+import { ArrowLeft, User, UserMinus, UserPlus } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React from "react";
 import { Alert, Pressable } from "react-native";
 import { Avatar, ScrollView, XStack } from "tamagui";
 import { parse } from "valibot";
@@ -18,22 +18,16 @@ import View from "../shared/View";
 export default function AssetSelection() {
   const { canGoBack } = router;
   const { data: withdraw } = useQuery<Withdraw>({ queryKey: ["withdrawal"] });
-  const [selectedMarket, setSelectedMarket] = useState<Address | undefined>();
   const { data: savedContacts } = useQuery<{ address: Address; ens: string }[] | undefined>({
     queryKey: ["contacts", "saved"],
   });
-
-  const handleSubmit = () => {
-    if (selectedMarket) {
-      queryClient.setQueryData<Withdraw>(["withdrawal"], (old) => {
-        return old ? { ...old, market: selectedMarket } : { market: selectedMarket, amount: 0n };
-      });
-      router.push("/send-funds/amount");
-    }
+  const handleSubmit = (market: Address, isExternalAsset: boolean) => {
+    queryClient.setQueryData<Withdraw>(["withdrawal"], (old) => {
+      return old ? { ...old, market, isExternalAsset } : { market, isExternalAsset, amount: 0n };
+    });
+    router.push("/send-funds/amount");
   };
-
   const hasContact = savedContacts?.find((contact) => contact.address === withdraw?.receiver);
-
   return (
     <SafeView fullScreen>
       <View gap={20} fullScreen padded>
@@ -107,21 +101,11 @@ export default function AssetSelection() {
                 </Button>
               </XStack>
             )}
-            <AssetSelector onSubmit={setSelectedMarket} />
-            <Button
-              contained
-              main
-              spaced
-              disabled={!selectedMarket}
-              iconAfter={
-                <ArrowRight color={selectedMarket ? "$interactiveOnBaseBrandDefault" : "$interactiveOnDisabled"} />
-              }
-              onPress={() => {
-                handleSubmit();
+            <AssetSelector
+              onSubmit={(market, isExternalAsset) => {
+                handleSubmit(market, isExternalAsset);
               }}
-            >
-              Next
-            </Button>
+            />
           </View>
         </ScrollView>
       </View>

@@ -1,12 +1,10 @@
 import type { Address } from "@exactly/common/validation";
-import { Coins } from "@tamagui/lucide-icons";
 import React from "react";
 import { Platform } from "react-native";
 import { Sheet } from "tamagui";
 
 import useAspectRatio from "../../utils/useAspectRatio";
 import AssetSelector from "../shared/AssetSelector";
-import Button from "../shared/Button";
 import SafeView from "../shared/SafeView";
 import View from "../shared/View";
 
@@ -15,13 +13,10 @@ export default function AssetSelectionSheet({
   onClose,
   onAssetSelected,
   positions,
-  symbol,
-  disabled,
 }: {
   open: boolean;
   onClose: () => void;
   onAssetSelected: (market: Address, external: boolean) => void;
-  symbol?: string;
   positions?: {
     symbol: string;
     assetName: string;
@@ -30,7 +25,6 @@ export default function AssetSelectionSheet({
     usdValue: bigint;
     market: string;
   }[];
-  disabled?: boolean;
 }) {
   const aspectRatio = useAspectRatio();
   return (
@@ -56,28 +50,13 @@ export default function AssetSelectionSheet({
       <Sheet.Frame>
         <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
           <View padded paddingTop="$s6" fullScreen flex={1}>
-            <>
-              <View gap="$s5">
-                <AssetSelector positions={positions} onSubmit={onAssetSelected} />
-                <View>
-                  <Button
-                    onPress={onClose}
-                    contained
-                    main
-                    spaced
-                    fullwidth
-                    iconAfter={
-                      <Coins
-                        strokeWidth={2.5}
-                        color={disabled ? "$interactiveOnDisabled" : "$interactiveOnBaseBrandDefault"}
-                      />
-                    }
-                  >
-                    {symbol ? `Pay with ${symbol}` : "Select an asset"}
-                  </Button>
-                </View>
-              </View>
-            </>
+            <AssetSelector
+              positions={positions}
+              onSubmit={(market, isExternalAsset) => {
+                onAssetSelected(market, isExternalAsset);
+                onClose();
+              }}
+            />
           </View>
         </SafeView>
       </Sheet.Frame>
