@@ -1,4 +1,7 @@
-use abi::{entrypoint::events::AccountDeployed, erc20::events::Transfer, market::events::Deposit};
+use abi::{
+  entrypoint::events::AccountDeployed, erc20::events::Transfer, lifi::events::LiFiSwappedGeneric,
+  market::events::Deposit,
+};
 use proto::exa;
 use substreams::{
   errors::Error,
@@ -91,6 +94,26 @@ pub fn map_deposits(block: Block) -> Result<exa::Deposits, Error> {
             block_number: block.number,
             tx_index: log.receipt.transaction.index as u64,
             log_index: log.index() as u64,
+          })
+        })
+      })
+      .collect(),
+  })
+}
+
+#[substreams::handlers::map]
+pub fn map_swaps(block: Block) -> Result<exa::Swaps, Error> {
+  Ok(exa::Swaps {
+    swaps: block
+      .logs()
+      .filter_map(|log| {
+        LiFiSwappedGeneric::match_and_decode(log).and_then(|event| {
+          Some(exa::Swap {
+            receiver: Default::default(),
+            asset_from: event.from_asset_id.to_vec(),
+            asset_to: event.to_asset_id.to_vec(),
+            amount_from: event.from_amount.to_string(),
+            amount_to: event.to_amount.to_string(),
           })
         })
       })

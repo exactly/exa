@@ -19,6 +19,18 @@ message Deposit {
   uint64 log_index = 6;
 }
 
+message Swap {
+  bytes receiver = 1;
+  bytes asset_from = 2;
+  bytes asset_to = 3;
+  string amount_from = 4;
+  string amount_to = 5;
+}
+
+message Swaps {
+  repeated Swap swaps = 1;
+}
+
 message Transfers {
   repeated Transfer transfers = 1;
 }

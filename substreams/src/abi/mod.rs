@@ -4,3 +4,5 @@ pub mod entrypoint;
 pub mod erc20;
 #[allow(clippy::all)]
 pub mod market;
+#[allow(clippy::all)]
+pub mod lifi;

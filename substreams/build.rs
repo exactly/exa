@@ -10,6 +10,7 @@ fn main() -> Result<(), Error> {
   Abigen::new("EntryPoint", "abi/entrypoint.json")?.generate()?.write_to_file("src/abi/entrypoint.rs")?;
   Abigen::new("ERC20", "abi/erc20.json")?.generate()?.write_to_file("src/abi/erc20.rs")?;
   Abigen::new("Market", "abi/market.json")?.generate()?.write_to_file("src/abi/market.rs")?;
+  Abigen::new("LiFi", "abi/lifi.json")?.generate()?.write_to_file("src/abi/lifi.rs")?;
   // Abigen::new("Market", "node_modules/@exactly/protocol/deployments/optimism/MarketUSDC_Implementation.json")?
   //   .generate()?
   //   .write_to_file("src/abi/market.rs")?;

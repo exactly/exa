@@ -10,6 +10,15 @@ CREATE TABLE deposits (
   amount TEXT NOT NULL
 );
 
+CREATE TABLE swaps (
+  id TEXT PRIMARY KEY,
+  receiver BYTEA NOT NULL,
+  assetFrom BYTEA NOT NULL,
+  assetTo BYTEA NOT NULL,
+  amountFrom TEXT NOT NULL,
+  amountTo TEXT NOT NULL
+);
+
 CREATE TABLE transfers (
   id BIGSERIAL PRIMARY KEY,
   asset BYTEA NOT NULL,
