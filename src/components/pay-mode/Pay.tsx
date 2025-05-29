@@ -275,7 +275,7 @@ export default function Pay() {
     isSuccess: isExternalRepaySuccess,
     error: externalRepayError,
   } = useMutation({
-    mutationFn: async () => {
+    async mutationFn() {
       if (!account) throw new Error("no account");
       if (!maturity) throw new Error("no maturity");
       if (!accountClient) throw new Error("no account client");
@@ -317,14 +317,18 @@ export default function Pay() {
       });
       return await accountClient.waitForUserOperationTransaction(uo);
     },
+    onError(error) {
+      reportError(error);
+    },
   });
 
   const simulationError = {
     repay: repayExecuteProposalError,
-    crossRepay: crossRepayExecuteProposalError,
+    crossRepay: crossRepayExecuteProposalError ?? routeError,
     legacyRepay: legacyRepaySimulationError,
-    legacyCrossRepay: legacyCrossRepaySimulationError,
-    external: null, // TODO simulate with [eth_simulateV1](https://viem.sh/docs/actions/public/simulateCalls)
+    legacyCrossRepay: legacyCrossRepaySimulationError ?? routeError,
+    external:
+      routeError ?? (route && route.fromAmount > externalAssetAvailable ? new Error("insufficient funds") : undefined), // TODO simulate with [eth_simulateV1](https://viem.sh/docs/actions/public/simulateCalls)
     none: null,
   }[mode];
   const isSimulating = {
@@ -361,9 +365,9 @@ export default function Pay() {
     });
   }
 
-  const handleAssetSelect = (address: Address, external: boolean) => {
+  const handleAssetSelect = useCallback((address: Address, external: boolean) => {
     setSelectedAsset({ address, external });
-  };
+  }, []);
 
   if (!maturity) return;
   if (!isPending && !isSuccess && !writeError)
@@ -592,62 +596,26 @@ export default function Pay() {
                   )}
                 </YStack>
               </XStack>
-              {selectedAsset.external ? (
-                <Button
-                  onPress={() => {
-                    repayWithExternalAsset().catch(reportError);
-                  }}
-                  contained
-                  disabled={isExternalRepaying || !route || route.fromAmount > externalAssetAvailable}
-                  main
-                  spaced
-                  fullwidth
-                  iconAfter={
-                    isExternalRepaying ? (
-                      <Spinner color="$interactiveOnDisabled" />
-                    ) : (
-                      <Coins
-                        strokeWidth={2.5}
-                        color={
-                          !route || route.fromAmount > externalAssetAvailable
-                            ? "$interactiveOnDisabled"
-                            : "$interactiveOnBaseBrandDefault"
-                        }
-                      />
-                    )
-                  }
-                >
-                  {isExternalRepaying
-                    ? "Please wait..."
-                    : !route || route.fromAmount > externalAssetAvailable
-                      ? "Insufficient balance"
-                      : "Confirm payment"}
-                </Button>
-              ) : (
-                <Button
-                  onPress={handlePayment}
-                  contained
-                  disabled={isSimulating || !!simulationError || !!routeError}
-                  main
-                  spaced
-                  fullwidth
-                  iconAfter={
-                    isSimulating ? (
-                      <Spinner color="$interactiveOnDisabled" />
-                    ) : (
-                      <Coins strokeWidth={2.5} color="$interactiveOnBaseBrandDefault" />
-                    )
-                  }
-                >
-                  {routeError
-                    ? "No route found"
-                    : isSimulating
-                      ? "Please wait..."
-                      : simulationError
-                        ? "Cannot proceed"
-                        : "Confirm payment"}
-                </Button>
-              )}
+              <Button
+                onPress={selectedAsset.external ? () => repayWithExternalAsset() : handlePayment}
+                contained
+                disabled={isSimulating || !!simulationError}
+                main
+                spaced
+                fullwidth
+                iconAfter={
+                  isSimulating ? (
+                    <Spinner color="$interactiveOnDisabled" />
+                  ) : (
+                    <Coins
+                      strokeWidth={2.5}
+                      color={simulationError ? "$interactiveOnDisabled" : "$interactiveOnBaseBrandDefault"}
+                    />
+                  )
+                }
+              >
+                {simulationError ? "Cannot proceed" : isSimulating ? "Please wait..." : "Confirm payment"}
+              </Button>
             </YStack>
           </View>
           <AssetSelectionSheet
