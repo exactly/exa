@@ -15,7 +15,7 @@ import createDebug from "debug";
 import { inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import * as v from "valibot";
-import { bytesToBigInt } from "viem";
+import { bytesToBigInt, withRetry } from "viem";
 import { optimism } from "viem/chains";
 
 import database, { credentials } from "../database";
@@ -145,19 +145,29 @@ export default new Hono().post(
                 if (assets.has(ETH)) assets.delete(WETH);
                 const results = await Promise.allSettled(
                   [...assets].map(async (asset) =>
-                    keeper.exaSend(
-                      { name: "poke account", op: "exa.poke", attributes: { account, asset } },
+                    withRetry(
+                      () =>
+                        keeper.exaSend(
+                          { name: "poke account", op: "exa.poke", attributes: { account, asset } },
+                          {
+                            address: account,
+                            abi: [...exaPluginAbi, ...upgradeableModularAccountAbi, ...auditorAbi, ...marketAbi],
+                            ...(asset === ETH
+                              ? { functionName: "pokeETH" }
+                              : {
+                                  functionName: "poke",
+                                  args: [marketsByAsset.get(asset)!], // eslint-disable-line @typescript-eslint/no-non-null-assertion
+                                }),
+                          },
+                        ),
                       {
-                        address: account,
-                        abi: [...exaPluginAbi, ...upgradeableModularAccountAbi, ...auditorAbi, ...marketAbi],
-                        ...(asset === ETH
-                          ? { functionName: "pokeETH" }
-                          : {
-                              functionName: "poke",
-                              args: [marketsByAsset.get(asset)!], // eslint-disable-line @typescript-eslint/no-non-null-assertion
-                            }),
+                        delay: 2000,
+                        retryCount: 5,
+                        shouldRetry: ({ error }) => {
+                          captureException(error, { level: "error" });
+                          return true;
+                        },
                       },
-                      { ignore: ["NoBalance()"] },
                     ),
                   ),
                 );
