@@ -17,6 +17,15 @@ mod abi;
 #[allow(clippy::all)]
 mod proto;
 
+const MARKET_WETH: [u8; 20] = hex!("c4d4500326981eacD020e20A81b1c479c161c7EF");
+const MARKET_USDC: [u8; 20] = hex!("6926B434CCe9b5b7966aE1BfEef6D0A7DCF3A8bb");
+const MARKET_USDCE: [u8; 20] = hex!("7F5c764cBc14f9669B88837ca1490cCa17c31607");
+const MARKET_WSTETH: [u8; 20] = hex!("22ab31Cd55130435b5efBf9224b6a9d5EC36533F");
+const MARKET_WBTC: [u8; 20] = hex!("6f748FD65d7c71949BA6641B3248C4C191F3b322");
+const MARKET_OP: [u8; 20] = hex!("a430A427bd00210506589906a71B54d6C256CEdb");
+
+const MARKETS: [[u8; 20]; 6] = [MARKET_WETH, MARKET_USDC, MARKET_USDCE, MARKET_WSTETH, MARKET_WBTC, MARKET_OP];
+
 #[substreams::handlers::map]
 pub fn map_accounts(block: Block) -> Result<exa::Accounts, Error> {
   let accounts = block
@@ -87,14 +96,18 @@ pub fn map_deposits(block: Block) -> Result<exa::Deposits, Error> {
       .logs()
       .filter_map(|log| {
         Deposit::match_and_decode(log).and_then(|event| {
-          Some(exa::Deposit {
-            market: log.address().to_vec(),
-            receiver: event.owner.to_vec(),
-            amount: event.assets.to_string(),
-            block_number: block.number,
-            tx_index: log.receipt.transaction.index as u64,
-            log_index: log.index() as u64,
-          })
+          if MARKETS.contains(&log.address().to_vec().try_into().unwrap()) {
+            Some(exa::Deposit {
+              market: log.address().to_vec(),
+              receiver: event.owner.to_vec(),
+              amount: event.assets.to_string(),
+              block_number: block.number,
+              tx_index: log.receipt.transaction.index as u64,
+              log_index: log.index() as u64,
+            })
+          } else {
+            None
+          }
         })
       })
       .collect(),
