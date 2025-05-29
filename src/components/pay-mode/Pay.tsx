@@ -132,7 +132,7 @@ export default function Pay() {
   });
 
   const positionAssets = borrow ? borrow.position.principal + borrow.position.fee : 0n;
-  const maxAmountIn = route ? (route.fromAmount * slippage) / WAD : undefined;
+  const maxAmountIn = route ? (route.fromAmount * slippage) / WAD + 69n : undefined; // HACK try to avoid ZERO_SHARES on dust deposit
 
   const {
     propose: { data: repayPropose },
