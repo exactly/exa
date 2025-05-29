@@ -1,5 +1,15 @@
 # @exactly/server
 
+## 0.1.13
+
+### Patch Changes
+
+- [`48dcabc`](https://github.com/exactly/exa/commit/48dcabc6234c7dce04f014e473d921eba64e9d31) Thanks [@nfmelendez](https://github.com/nfmelendez)! - ✨ retry poke
+
+- [`50601af`](https://github.com/exactly/exa/commit/50601af021e397a8da9da7c5e8ef81175c2ba3f3) Thanks [@nfmelendez](https://github.com/nfmelendez)! - ✨ poke once when eth and weth
+
+- [`6f458f1`](https://github.com/exactly/exa/commit/6f458f16c3c91e06c672a4386476a8e5a4f557a7) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 📈 ensure ignored error is sent within span
+
 ## 0.1.12
 
 ### Patch Changes

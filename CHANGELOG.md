@@ -1,5 +1,16 @@
 # @exactly/mobile
 
+## 1.0.11
+
+### Patch Changes
+
+- [`278d5f6`](https://github.com/exactly/exa/commit/278d5f6c0b0a417646445e65c86a2c2143600b71) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💬 change purchase simulator copy
+
+- [`73b5929`](https://github.com/exactly/exa/commit/73b5929dcd5b2b78ab02745c1e79d358f79782cc) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix rollover maturity
+
+- Updated dependencies [[`48dcabc`](https://github.com/exactly/exa/commit/48dcabc6234c7dce04f014e473d921eba64e9d31), [`50601af`](https://github.com/exactly/exa/commit/50601af021e397a8da9da7c5e8ef81175c2ba3f3), [`6f458f1`](https://github.com/exactly/exa/commit/6f458f16c3c91e06c672a4386476a8e5a4f557a7)]:
+  - @exactly/server@0.1.13
+
 ## 1.0.10
 
 ### Patch Changes
