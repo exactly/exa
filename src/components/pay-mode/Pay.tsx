@@ -129,7 +129,7 @@ export default function Pay() {
       }
     },
     enabled: !!maxRepay && (mode === "crossRepay" || mode === "legacyCrossRepay" || mode === "external"),
-    refetchInterval: 5000,
+    refetchInterval: 20_000,
   });
 
   const positionAssets = borrow ? borrow.position.principal + borrow.position.fee : 0n;
