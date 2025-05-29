@@ -15,7 +15,7 @@ imports:
 modules:
   - name: map_accounts
     kind: map
-    initialBlock: 123125164
+    initialBlock: 123140000
     inputs:
       - source: sf.ethereum.type.v2.Block
     output:
@@ -28,13 +28,14 @@ modules:
       - map: map_accounts  
   - name: map_deposits
     kind: map
-    initialBlock: 123125164
+    initialBlock: 123140000
     inputs:
       - source: sf.ethereum.type.v2.Block
     output:
       type: proto:exa.Deposits
   - name: map_transfers
     kind: map
+    initialBlock: 123140000
     inputs:
       - source: sf.ethereum.type.v2.Block
       - store: store_accounts
@@ -42,22 +43,45 @@ modules:
       type: proto:exa.Transfers
   - name: map_transfers_all
     kind: map
+    initialBlock: 123140000
     inputs:
       - source: sf.ethereum.type.v2.Block
     output:
       type: proto:exa.Transfers
+  - name: map_swaps
+    kind: map
+    initialBlock: 123140000
+    inputs:
+      - source: sf.ethereum.type.v2.Block
+    output:
+      type: proto:exa.Swaps
   # DB
   - name: store_block_meta_start
     kind: store
     updatePolicy: set_if_not_exists
     valueType: proto:eth.block_meta.v1.BlockMeta
+    initialBlock: 123140000
     inputs:
       - source: sf.ethereum.type.v2.Block
   - name: db_deposits
     kind: map
-    initialBlock: 123125164
+    initialBlock: 123140000
     inputs:
       - map: map_deposits
+    output:
+      type: proto:sf.substreams.sink.database.v1.DatabaseChanges
+  - name: db_swaps
+    kind: map
+    initialBlock: 123140000
+    inputs:
+      - map: map_swaps
+    output:
+      type: proto:sf.substreams.sink.database.v1.DatabaseChanges
+  - name: db_out
+    kind: map
+    inputs:
+      - map: db_deposits
+      - map: db_swaps
     output:
       type: proto:sf.substreams.sink.database.v1.DatabaseChanges
 
@@ -67,7 +91,7 @@ binaries:
     file: target/wasm32-unknown-unknown/release/substreams.wasm
 
 sink:
-  module: db_deposits
+  module: db_out
   type: sf.substreams.sink.sql.v1.Service
   config:
     schema: "./schema.sql"
