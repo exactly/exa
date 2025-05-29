@@ -34,6 +34,7 @@ export default function PortfolioSummary({ usdBalance }: { usdBalance: bigint })
       borderRadius="$r3"
       paddingVertical="$s3_5"
       paddingHorizontal="$s4"
+      cursor="pointer"
       onPress={() => {
         router.push("/portfolio");
       }}
