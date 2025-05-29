@@ -114,11 +114,65 @@ pub fn map_swaps(block: Block) -> Result<exa::Swaps, Error> {
             asset_to: event.to_asset_id.to_vec(),
             amount_from: event.from_amount.to_string(),
             amount_to: event.to_amount.to_string(),
+            block_number: block.number,
+            tx_index: log.receipt.transaction.index as u64,
+            log_index: log.index() as u64,
           })
         })
       })
       .collect(),
   })
+}
+
+#[substreams::handlers::map]
+pub fn db_swaps(swaps: exa::Swaps) -> Result<substreams_database_change::pb::database::DatabaseChanges, Error> {
+  let mut changes = vec![];
+  for swap in swaps.swaps {
+    let mut change = TableChange::new(
+      "swaps",
+      format!("{}_{}_{}", swap.block_number, swap.tx_index, swap.log_index),
+      0,
+      Operation::Create,
+    );
+    change.fields.push(Field {
+      name: "receiver".to_string(),
+      new_value: Hex(&swap.receiver).to_string(),
+      old_value: "".to_string(),
+    });
+    change.fields.push(Field {
+      name: "asset_from".to_string(),
+      new_value: Hex(&swap.asset_from).to_string(),
+      old_value: "".to_string(),
+    });
+    change.fields.push(Field {
+      name: "asset_to".to_string(),
+      new_value: Hex(&swap.asset_to).to_string(),
+      old_value: "".to_string(),
+    });
+    change.fields.push(Field {
+      name: "amount_from".to_string(),
+      new_value: swap.amount_from.to_string(),
+      old_value: "".to_string(),
+    });
+    change.fields.push(Field {
+      name: "amount_to".to_string(),
+      new_value: swap.amount_to.to_string(),
+      old_value: "".to_string(),
+    });
+    changes.push(change);
+  }
+  Ok(DatabaseChanges { table_changes: changes })
+}
+
+#[substreams::handlers::map]
+pub fn db_out(
+  deposits_changes: substreams_database_change::pb::database::DatabaseChanges,
+  swaps_changes: substreams_database_change::pb::database::DatabaseChanges,
+) -> Result<substreams_database_change::pb::database::DatabaseChanges, Error> {
+  let mut all_changes = Vec::new();
+  all_changes.extend(deposits_changes.table_changes);
+  all_changes.extend(swaps_changes.table_changes);
+  Ok(DatabaseChanges { table_changes: all_changes })
 }
 
 #[substreams::handlers::map]
