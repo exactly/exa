@@ -275,78 +275,81 @@ export default function Card() {
                 >
                   {cardDetails && (
                     <>
-                      <Pressable>
-                        <XStack
-                          justifyContent="space-between"
-                          paddingVertical="$s4"
-                          alignItems="center"
-                          onPress={() => {
-                            if (isFetchingCard || isSettingCardStatus) return;
-                            changeCardStatus(cardDetails.status === "FROZEN" ? "ACTIVE" : "FROZEN").catch(reportError);
-                          }}
-                        >
-                          <XStack alignItems="center" gap="$s3">
-                            <Square size={24}>
-                              {isSettingCardStatus ? (
-                                <Spinner width={24} color="$interactiveBaseBrandDefault" alignSelf="flex-start" />
-                              ) : (
-                                <Snowflake size={24} color="$interactiveBaseBrandDefault" fontWeight="bold" />
-                              )}
-                            </Square>
-                            <Text subHeadline color="$uiNeutralPrimary">
-                              {displayStatus === "FROZEN" ? "Unfreeze card" : "Freeze card"}
-                            </Text>
-                          </XStack>
-                          <Switch
-                            scale={0.9}
-                            margin={0}
-                            padding={0}
-                            pointerEvents="none"
-                            checked={displayStatus === "FROZEN"}
-                            backgroundColor="$backgroundMild"
-                            borderColor="$borderNeutralSoft"
-                          >
-                            <Switch.Thumb
-                              checked={displayStatus === "FROZEN"}
-                              shadowColor="$uiNeutralSecondary"
-                              animation="moderate"
-                              backgroundColor={
-                                displayStatus === "ACTIVE" ? "$interactiveDisabled" : "$interactiveBaseBrandDefault"
-                              }
-                            />
-                          </Switch>
+                      <XStack
+                        justifyContent="space-between"
+                        paddingVertical="$s4"
+                        alignItems="center"
+                        cursor="pointer"
+                        onPress={() => {
+                          if (isFetchingCard || isSettingCardStatus) return;
+                          changeCardStatus(cardDetails.status === "FROZEN" ? "ACTIVE" : "FROZEN").catch(reportError);
+                        }}
+                      >
+                        <XStack alignItems="center" gap="$s3">
+                          <Square size={24}>
+                            {isSettingCardStatus ? (
+                              <Spinner width={24} color="$interactiveBaseBrandDefault" alignSelf="flex-start" />
+                            ) : (
+                              <Snowflake size={24} color="$interactiveBaseBrandDefault" fontWeight="bold" />
+                            )}
+                          </Square>
+                          <Text subHeadline color="$uiNeutralPrimary">
+                            {displayStatus === "FROZEN" ? "Unfreeze card" : "Freeze card"}
+                          </Text>
                         </XStack>
-                      </Pressable>
+                        <Switch
+                          scale={0.9}
+                          margin={0}
+                          padding={0}
+                          pointerEvents="none"
+                          checked={displayStatus === "FROZEN"}
+                          backgroundColor="$backgroundMild"
+                          borderColor="$borderNeutralSoft"
+                        >
+                          <Switch.Thumb
+                            checked={displayStatus === "FROZEN"}
+                            shadowColor="$uiNeutralSecondary"
+                            animation="moderate"
+                            backgroundColor={
+                              displayStatus === "ACTIVE" ? "$interactiveDisabled" : "$interactiveBaseBrandDefault"
+                            }
+                          />
+                        </Switch>
+                      </XStack>
                       <Separator borderColor="$borderNeutralSoft" />
                     </>
                   )}
-                  <Pressable
+
+                  <XStack
+                    alignItems="center"
+                    paddingVertical="$s4"
+                    justifyContent="space-between"
+                    cursor="pointer"
                     onPress={() => {
                       revealCard().catch(reportError);
                     }}
                   >
-                    <XStack alignItems="center" paddingVertical="$s4" justifyContent="space-between">
-                      <XStack gap="$s3" justifyContent="flex-start" alignItems="center">
-                        <CreditCard size={24} color="$interactiveBaseBrandDefault" fontWeight="bold" />
-                        <Text subHeadline color="$uiNeutralPrimary">
-                          Card details
-                        </Text>
-                      </XStack>
-                      <ChevronRight color="$iconSecondary" size={24} />
+                    <XStack gap="$s3" justifyContent="flex-start" alignItems="center">
+                      <CreditCard size={24} color="$interactiveBaseBrandDefault" fontWeight="bold" />
+                      <Text subHeadline color="$uiNeutralPrimary">
+                        Card details
+                      </Text>
                     </XStack>
-                  </Pressable>
+                    <ChevronRight color="$iconSecondary" size={24} />
+                  </XStack>
 
                   <Separator borderColor="$borderNeutralSoft" />
 
                   {cardDetails && cardDetails.provider === "panda" && (
                     <>
                       <XStack
-                        onPress={() => {
-                          setDisplayPIN(true);
-                        }}
                         alignItems="center"
                         paddingVertical="$s4"
                         justifyContent="space-between"
+                        cursor="pointer"
+                        onPress={() => {
+                          setDisplayPIN(true);
+                        }}
                       >
                         <XStack gap="$s3" justifyContent="flex-start" alignItems="center">
                           <Hash size={24} color="$backgroundBrand" />
@@ -360,21 +363,23 @@ export default function Card() {
                     </>
                   )}
 
-                  <Pressable
+                  <XStack
+                    alignItems="center"
+                    paddingVertical="$s4"
+                    justifyContent="space-between"
+                    cursor="pointer"
                     onPress={() => {
                       setSpendingLimitsOpen(true);
                     }}
                   >
-                    <XStack alignItems="center" paddingVertical="$s4" justifyContent="space-between">
-                      <XStack gap="$s3" justifyContent="flex-start" alignItems="center">
-                        <DollarSign size={24} color="$backgroundBrand" />
-                        <Text subHeadline color="$uiNeutralPrimary">
-                          Spending limit
-                        </Text>
-                      </XStack>
-                      <ChevronRight color="$iconSecondary" size={24} />
+                    <XStack gap="$s3" justifyContent="flex-start" alignItems="center">
+                      <DollarSign size={24} color="$backgroundBrand" />
+                      <Text subHeadline color="$uiNeutralPrimary">
+                        Spending limit
+                      </Text>
                     </XStack>
-                  </Pressable>
+                    <ChevronRight color="$iconSecondary" size={24} />
+                  </XStack>
                 </YStack>
                 {revealError && (
                   <Text color="$uiErrorPrimary" fontWeight="bold">

@@ -39,6 +39,7 @@ export default function ActivityItem({ item, isLast }: { item: Item; isLast: boo
       paddingHorizontal="$s4"
       paddingTop="$s3"
       paddingBottom={isLast ? "$s4" : "$s3"}
+      cursor="pointer"
       onPress={handlePress}
     >
       <View
