@@ -106,7 +106,8 @@ export default function Card() {
       if (isRevealing) return;
       if (!passkey) return;
       try {
-        const { isSuccess } = await refetchCard();
+        const { isSuccess, error } = await refetchCard();
+        if (error && error instanceof APIError && error.code === 500) throw error;
         if (isSuccess) {
           queryClient.setQueryData(["card-details-open"], true);
           return;
@@ -133,6 +134,11 @@ export default function Card() {
           createInquiry(passkey).catch(reportError);
         }
         reportError(error);
+        toast.show("An error occurred. Please try again later.", {
+          native: true,
+          duration: 1000,
+          burntOptions: { haptic: "error", preset: "error" },
+        });
       }
     },
   });
