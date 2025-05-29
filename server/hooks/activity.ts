@@ -36,6 +36,7 @@ if (!process.env.ALCHEMY_ACTIVITY_KEY) throw new Error("missing alchemy activity
 const signingKey = process.env.ALCHEMY_ACTIVITY_KEY;
 
 const ETH = v.parse(Address, "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
+const WETH = v.parse(Address, wethAddress);
 
 const debug = createDebug("exa:activity");
 Object.assign(debug, { inspectOpts: { depth: undefined } });
@@ -98,7 +99,7 @@ export default new Hono().post(
     for (const { toAddress: account, rawContract, value, asset: assetSymbol } of transfers) {
       if (!accounts[account]) continue;
       const asset = rawContract.address ?? ETH;
-      const underlying = asset === ETH ? v.parse(Address, wethAddress) : asset;
+      const underlying = asset === ETH ? WETH : asset;
       if (!marketsByAsset.has(underlying)) continue;
 
       sendPushNotification({
@@ -141,6 +142,7 @@ export default new Hono().post(
                     throw error;
                   }
                 }
+                if (assets.has(ETH)) assets.delete(WETH);
                 const results = await Promise.allSettled(
                   [...assets].map(async (asset) =>
                     keeper.exaSend(

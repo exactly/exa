@@ -168,7 +168,7 @@ describe("address activity", () => {
       },
     });
 
-    await vi.waitUntil(() => waitForTransactionReceipt.mock.settledResults.length >= 3, 26_666);
+    await vi.waitUntil(() => waitForTransactionReceipt.mock.settledResults.length >= 2, 26_666);
 
     const exactly = await publicClient.readContract({
       address: inject("Previewer"),
