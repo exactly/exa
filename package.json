@@ -39,7 +39,7 @@
     "@expo/metro-runtime": "~4.0.1",
     "@intercom/intercom-react-native": "^8.3.0",
     "@intercom/messenger-js-sdk": "^0.0.14",
-    "@lifi/sdk": "^3.6.8",
+    "@lifi/sdk": "^3.7.7",
     "@peculiar/asn1-ecc": "^2.3.15",
     "@peculiar/asn1-schema": "^2.3.15",
     "@peculiar/webcrypto": "^1.5.0",
@@ -181,8 +181,13 @@
       "ws": "$ws",
       "yargs@12.0.5": "^13.3.0",
       "zustand": "$zustand",
+      "@bigmi/core": "npm:@favware/skip-dependency@1.2.2",
       "@gnosis.pm/safe-contracts": "npm:@favware/skip-dependency@1.2.2",
+      "@mysten/sui": "npm:@favware/skip-dependency@1.2.2",
+      "@mysten/wallet-standard": "npm:@favware/skip-dependency@1.2.2",
       "@nomiclabs/hardhat-etherscan": "npm:@favware/skip-dependency@1.2.2",
+      "@solana/wallet-adapter-base": "npm:@favware/skip-dependency@1.2.2",
+      "@solana/web3.js": "npm:@favware/skip-dependency@1.2.2",
       "@tanstack/zod-form-adapter": "npm:@favware/skip-dependency@1.2.2",
       "@thehubbleproject/bls": "npm:@favware/skip-dependency@1.2.2",
       "@turnkey/http": "npm:@favware/skip-dependency@1.2.2",
@@ -193,7 +198,9 @@
       "@types/mocha": "npm:@favware/skip-dependency@1.2.2",
       "@wagmi/connectors": "npm:@favware/skip-dependency@1.2.2",
       "bech32": "npm:@favware/skip-dependency@1.2.2",
+      "bs58": "npm:@favware/skip-dependency@1.2.2",
       "bigint-buffer": "npm:@favware/skip-dependency@1.2.2",
+      "bitcoinjs-lib": "npm:@favware/skip-dependency@1.2.2",
       "ethereumjs-util": "npm:@favware/skip-dependency@1.2.2",
       "ethereumjs-wallet": "npm:@favware/skip-dependency@1.2.2",
       "hardhat-deploy": "npm:@favware/skip-dependency@1.2.2",
@@ -201,7 +208,8 @@
       "solidity-coverage": "npm:@favware/skip-dependency@1.2.2"
     },
     "patchedDependencies": {
-      "eslint-config-universe": "patches/eslint-config-universe.patch"
+      "eslint-config-universe": "patches/eslint-config-universe.patch",
+      "@lifi/sdk": "patches/@lifi__sdk.patch"
     },
     "updateConfig": {
       "ignoreDependencies": [

@@ -1,0 +1,918 @@
+diff --git a/src/_cjs/core/Solana/KeypairWalletAdapter.js b/src/_cjs/core/Solana/KeypairWalletAdapter.js
+deleted file mode 100644
+index 138b90b5758ad8001bd1bf4ec8017b6bde99cbe8..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/Solana/KeypairWalletAdapter.js.map b/src/_cjs/core/Solana/KeypairWalletAdapter.js.map
+deleted file mode 100644
+index fa992f45f5038f468d9d3a618e125450386a46eb..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/Solana/Solana.js b/src/_cjs/core/Solana/Solana.js
+deleted file mode 100644
+index f419d7289ad6fcdfab0c87e36b282992e73d9d6c..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/Solana/Solana.js.map b/src/_cjs/core/Solana/Solana.js.map
+deleted file mode 100644
+index 40778be4e40da49dbc8eeb09ac68f50e6f810898..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/Solana/SolanaStepExecutor.js b/src/_cjs/core/Solana/SolanaStepExecutor.js
+deleted file mode 100644
+index 45bbfe564b5bb78aeee6fbc13b645458eb1c0d2c..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/Solana/SolanaStepExecutor.js.map b/src/_cjs/core/Solana/SolanaStepExecutor.js.map
+deleted file mode 100644
+index 8e5ee78b747f4723ef8225a72dffb6759d42ec87..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/Solana/connection.js b/src/_cjs/core/Solana/connection.js
+deleted file mode 100644
+index 33b9bf844600549db6496ca6e8bffe6c19d667bd..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/Solana/connection.js.map b/src/_cjs/core/Solana/connection.js.map
+deleted file mode 100644
+index 538f25794ca6de4a577952d4bda86679f0f23adf..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/Solana/getSNSAddress.js b/src/_cjs/core/Solana/getSNSAddress.js
+deleted file mode 100644
+index 21d7f2598382920d900fa2c45a177611e8816a91..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/Solana/getSNSAddress.js.map b/src/_cjs/core/Solana/getSNSAddress.js.map
+deleted file mode 100644
+index 3d3cd1d0c9183c5b40859cbb54bcd79c9c60025e..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/Solana/getSolanaBalance.js b/src/_cjs/core/Solana/getSolanaBalance.js
+deleted file mode 100644
+index bdaa6449f3a8de6ff7d5660c74818d3206569fa9..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/Solana/getSolanaBalance.js.map b/src/_cjs/core/Solana/getSolanaBalance.js.map
+deleted file mode 100644
+index 395a947fd1d2e97bd6eb5e69315b616710beb6e4..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/Solana/isSVMAddress.js b/src/_cjs/core/Solana/isSVMAddress.js
+deleted file mode 100644
+index 4f77b04b423434f2275d1bdb8420351ba0ddcd09..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/Solana/isSVMAddress.js.map b/src/_cjs/core/Solana/isSVMAddress.js.map
+deleted file mode 100644
+index 52ba4ac83a1be328280408b5857ceb1850ea9618..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/Solana/parseSolanaErrors.js b/src/_cjs/core/Solana/parseSolanaErrors.js
+deleted file mode 100644
+index 13edcc77fb19caa18ef09edb92e9ab1ca1b61b6b..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/Solana/parseSolanaErrors.js.map b/src/_cjs/core/Solana/parseSolanaErrors.js.map
+deleted file mode 100644
+index 98769c1d09157466bfe0d3b4abdb7f2810201977..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/Solana/sendAndConfirmTransaction.js b/src/_cjs/core/Solana/sendAndConfirmTransaction.js
+deleted file mode 100644
+index ba7829d3d83eda7de048a487d6c3609f808e5066..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/Solana/sendAndConfirmTransaction.js.map b/src/_cjs/core/Solana/sendAndConfirmTransaction.js.map
+deleted file mode 100644
+index 027cedd32d64488a3efbd60d6c85ce148529777e..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/Solana/types.js b/src/_cjs/core/Solana/types.js
+deleted file mode 100644
+index a52843d2546b886e9d4d5937e20365c29f4b7b9b..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/Solana/types.js.map b/src/_cjs/core/Solana/types.js.map
+deleted file mode 100644
+index 9c8de2d3640eb51ee2806a855dcebd151d1e0a2f..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/Sui/Sui.js b/src/_cjs/core/Sui/Sui.js
+deleted file mode 100644
+index afff8dafa3fc34b13a8cc2c375929908efa1ad70..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/Sui/Sui.js.map b/src/_cjs/core/Sui/Sui.js.map
+deleted file mode 100644
+index 56cf276c006580bbfe3f0cc28ccfaa463db1b790..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/Sui/SuiStepExecutor.js b/src/_cjs/core/Sui/SuiStepExecutor.js
+deleted file mode 100644
+index 01efc84f1bd02f5808ddf5ccc597c8cb350b1041..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/Sui/SuiStepExecutor.js.map b/src/_cjs/core/Sui/SuiStepExecutor.js.map
+deleted file mode 100644
+index 9a55680b70ea32fddf7cb0812cdc27cd18815e13..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/Sui/getSuiBalance.js b/src/_cjs/core/Sui/getSuiBalance.js
+deleted file mode 100644
+index 725e37afaab23b7ef940d39bc668b2c9bffe5583..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/Sui/getSuiBalance.js.map b/src/_cjs/core/Sui/getSuiBalance.js.map
+deleted file mode 100644
+index 340ac316ecf8b8570f4d501be2925eace49ba185..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/Sui/getSuiNSAddress.js b/src/_cjs/core/Sui/getSuiNSAddress.js
+deleted file mode 100644
+index a8a0ae0198aa1f7dd800d64daa597234d4df5806..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/Sui/getSuiNSAddress.js.map b/src/_cjs/core/Sui/getSuiNSAddress.js.map
+deleted file mode 100644
+index 307621566f32b1bc19fce1f142b65924d80d5829..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/Sui/parseSuiErrors.js b/src/_cjs/core/Sui/parseSuiErrors.js
+deleted file mode 100644
+index f0675aa71de04868e397bb96055ee3dbd81a3b24..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/Sui/parseSuiErrors.js.map b/src/_cjs/core/Sui/parseSuiErrors.js.map
+deleted file mode 100644
+index fc0174adfb19a1809ec6ae8f7914fcaa84d16a09..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/Sui/suiClient.js b/src/_cjs/core/Sui/suiClient.js
+deleted file mode 100644
+index 2cb47b493baddef2adf9131cfa55fcf6b2bf5af4..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/Sui/suiClient.js.map b/src/_cjs/core/Sui/suiClient.js.map
+deleted file mode 100644
+index f0f2a6ddba664dafbcbe8dd4cde5b4a499788ae3..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/Sui/types.js b/src/_cjs/core/Sui/types.js
+deleted file mode 100644
+index 6e726d78cc940eddd2404c486e9e86b37dc98abe..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/Sui/types.js.map b/src/_cjs/core/Sui/types.js.map
+deleted file mode 100644
+index 97ed47fca5a943fd381e5e5b124f6118be5282b6..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/UTXO/UTXO.js b/src/_cjs/core/UTXO/UTXO.js
+deleted file mode 100644
+index efce7a2aae5c186083a2b8c7aa2c25c1eef1a46d..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/UTXO/UTXO.js.map b/src/_cjs/core/UTXO/UTXO.js.map
+deleted file mode 100644
+index b341f0e2ef75ec29a618fdf6dfeae782a5a7651b..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/UTXO/UTXOStepExecutor.js b/src/_cjs/core/UTXO/UTXOStepExecutor.js
+deleted file mode 100644
+index e332d2292cc2ce584ce55be6b52efaeba4677d8b..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/UTXO/UTXOStepExecutor.js.map b/src/_cjs/core/UTXO/UTXOStepExecutor.js.map
+deleted file mode 100644
+index 265277a1f68f0066fa09ee559944c122580dea53..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/UTXO/getUTXOBalance.js b/src/_cjs/core/UTXO/getUTXOBalance.js
+deleted file mode 100644
+index a362b65a7a52592a30ec68bb91a014cd31d4816d..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/UTXO/getUTXOBalance.js.map b/src/_cjs/core/UTXO/getUTXOBalance.js.map
+deleted file mode 100644
+index b58bc06590e08633c5d87968643ad987a2a937e6..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/UTXO/getUTXOPublicClient.js b/src/_cjs/core/UTXO/getUTXOPublicClient.js
+deleted file mode 100644
+index 6038f7257280ae8ef134b91476085a32e205c20a..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/UTXO/getUTXOPublicClient.js.map b/src/_cjs/core/UTXO/getUTXOPublicClient.js.map
+deleted file mode 100644
+index 220502f40c38e977aa1b61045c9c4f5e538a9ee6..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/UTXO/parseUTXOErrors.js b/src/_cjs/core/UTXO/parseUTXOErrors.js
+deleted file mode 100644
+index 9e9f44795fb836123c7ad8889dc1132ccf596928..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/UTXO/parseUTXOErrors.js.map b/src/_cjs/core/UTXO/parseUTXOErrors.js.map
+deleted file mode 100644
+index 4fd0db148563fda656c86c6220a484ff1a350397..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/UTXO/types.js b/src/_cjs/core/UTXO/types.js
+deleted file mode 100644
+index 0b5b34dde467276979afeb2658c19bfa30c90a71..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/core/UTXO/types.js.map b/src/_cjs/core/UTXO/types.js.map
+deleted file mode 100644
+index a9cc07dedf4906e355b4103761cd32b10bc7ad43..0000000000000000000000000000000000000000
+diff --git a/src/_cjs/createConfig.js b/src/_cjs/createConfig.js
+index 948e7f7ecd5570e2a326ae6ee2e80b9241d389e8..f12c8e211a31c54ca03f6dbfee9fecafcecff29d 100644
+--- a/src/_cjs/createConfig.js
++++ b/src/_cjs/createConfig.js
+@@ -19,7 +19,7 @@ function createBaseConfig(options) {
+ }
+ async function createChainsConfig() {
+     config_js_1.config.loading = (0, api_js_1.getChains)({
+-        chainTypes: [types_1.ChainType.EVM, types_1.ChainType.SVM, types_1.ChainType.UTXO, types_1.ChainType.MVM],
++        chainTypes: [types_1.ChainType.EVM],
+     })
+         .then((chains) => config_js_1.config.setChains(chains))
+         .catch();
+diff --git a/src/_cjs/createConfig.js.map b/src/_cjs/createConfig.js.map
+index bacd6b28a641e54c36921b4e7df6e52132e1e455..58406994a70551095b8340ac8bdd4206de9c23e0 100644
+--- a/src/_cjs/createConfig.js.map
++++ b/src/_cjs/createConfig.js.map
+@@ -1 +1 @@
+-{"version":3,"file":"createConfig.js","sourceRoot":"","sources":["../createConfig.ts"],"names":[],"mappings":";;AAoBA,gDAOC;AAED,oCAMC;AAnCD,uCAAuC;AACvC,2CAAoC;AACpC,8CAA6C;AAE7C,2EAAoE;AACpE,6CAA4C;AAE5C,SAAS,gBAAgB,CAAC,OAAkB;IAC1C,IAAI,CAAC,OAAO,CAAC,UAAU,EAAE,CAAC;QACxB,MAAM,IAAI,KAAK,CACb,yGAAyG,CAC1G,CAAA;IACH,CAAC;IACD,MAAM,OAAO,GAAG,kBAAM,CAAC,GAAG,CAAC,OAAO,CAAC,CAAA;IACnC,IAAI,CAAC,OAAO,CAAC,mBAAmB,IAAI,OAAO,CAAC,GAAG,CAAC,QAAQ,KAAK,aAAa,EAAE,CAAC;QAC3E,IAAA,4CAAmB,EAAC,iBAAI,EAAE,oBAAO,CAAC,CAAA;IACpC,CAAC;IACD,OAAO,OAAO,CAAA;AAChB,CAAC;AAEM,KAAK,UAAU,kBAAkB;IACtC,kBAAM,CAAC,OAAO,GAAG,IAAA,kBAAS,EAAC;QACzB,UAAU,EAAE,CAAC,iBAAS,CAAC,GAAG,EAAE,iBAAS,CAAC,GAAG,EAAE,iBAAS,CAAC,IAAI,EAAE,iBAAS,CAAC,GAAG,CAAC;KAC1E,CAAC;SACC,IAAI,CAAC,CAAC,MAAM,EAAE,EAAE,CAAC,kBAAM,CAAC,SAAS,CAAC,MAAM,CAAC,CAAC;SAC1C,KAAK,EAAE,CAAA;IACV,MAAM,kBAAM,CAAC,OAAO,CAAA;AACtB,CAAC;AAED,SAAgB,YAAY,CAAC,OAAkB;IAC7C,MAAM,OAAO,GAAG,gBAAgB,CAAC,OAAO,CAAC,CAAA;IACzC,IAAI,OAAO,CAAC,aAAa,EAAE,CAAC;QAC1B,kBAAkB,EAAE,CAAA;IACtB,CAAC;IACD,OAAO,OAAO,CAAA;AAChB,CAAC"}
+\ No newline at end of file
++{"version":3,"file":"createConfig.js","sourceRoot":"","sources":["../createConfig.ts"],"names":[],"mappings":";;AAoBA,gDAOC;AAED,oCAMC;AAnCD,uCAAuC;AACvC,2CAAoC;AACpC,8CAA6C;AAE7C,2EAAoE;AACpE,6CAA4C;AAE5C,SAAS,gBAAgB,CAAC,OAAkB;IAC1C,IAAI,CAAC,OAAO,CAAC,UAAU,EAAE,CAAC;QACxB,MAAM,IAAI,KAAK,CACb,yGAAyG,CAC1G,CAAA;IACH,CAAC;IACD,MAAM,OAAO,GAAG,kBAAM,CAAC,GAAG,CAAC,OAAO,CAAC,CAAA;IACnC,IAAI,CAAC,OAAO,CAAC,mBAAmB,IAAI,OAAO,CAAC,GAAG,CAAC,QAAQ,KAAK,aAAa,EAAE,CAAC;QAC3E,IAAA,4CAAmB,EAAC,iBAAI,EAAE,oBAAO,CAAC,CAAA;IACpC,CAAC;IACD,OAAO,OAAO,CAAA;AAChB,CAAC;AAEM,KAAK,UAAU,kBAAkB;IACtC,kBAAM,CAAC,OAAO,GAAG,IAAA,kBAAS,EAAC;QACzB,UAAU,EAAE,CAAC,iBAAS,CAAC,GAAG,CAAC;KAC5B,CAAC;SACC,IAAI,CAAC,CAAC,MAAM,EAAE,EAAE,CAAC,kBAAM,CAAC,SAAS,CAAC,MAAM,CAAC,CAAC;SAC1C,KAAK,EAAE,CAAA;IACV,MAAM,kBAAM,CAAC,OAAO,CAAA;AACtB,CAAC;AAED,SAAgB,YAAY,CAAC,OAAkB;IAC7C,MAAM,OAAO,GAAG,gBAAgB,CAAC,OAAO,CAAC,CAAA;IACzC,IAAI,OAAO,CAAC,aAAa,EAAE,CAAC;QAC1B,kBAAkB,EAAE,CAAA;IACtB,CAAC;IACD,OAAO,OAAO,CAAA;AAChB,CAAC"}
+\ No newline at end of file
+diff --git a/src/_cjs/index.js b/src/_cjs/index.js
+index f8156c583aeb013f34f21e5bc2cc7d600f148086..7594acce0eaf4d245941eebcccb15aa1c15aaee1 100644
+--- a/src/_cjs/index.js
++++ b/src/_cjs/index.js
+@@ -14,8 +14,8 @@ var __exportStar = (this && this.__exportStar) || function(m, exports) {
+     for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
+ };
+ Object.defineProperty(exports, "__esModule", { value: true });
+-exports.ErrorName = exports.ErrorMessage = exports.BaseError = exports.getNameServiceAddress = exports.getTokenBalancesByChain = exports.getTokenBalances = exports.getTokenBalance = exports.getTransactionHistory = exports.getTools = exports.getTokens = exports.getToken = exports.getStepTransaction = exports.getStatus = exports.getRoutes = exports.getRelayerQuote = exports.getQuote = exports.getGasRecommendation = exports.getContractCallsQuote = exports.getConnections = exports.getChains = exports.fetchTxErrorDetails = exports.convertQuoteToRoute = exports.checkPackageUpdates = exports.createConfig = exports.isUTXO = exports.UTXO = exports.isSolana = exports.Solana = exports.KeypairWalletName = exports.KeypairWalletAdapter = exports.isSVMAddress = exports.updateRouteExecution = exports.stopRouteExecution = exports.resumeRoute = exports.getActiveRoutes = exports.getActiveRoute = exports.executeRoute = exports.StatusManager = exports.isGaslessStep = exports.isRelayerStep = exports.convertExtendedChain = exports.isExtendedChain = exports.isBatchingSupported = exports.isEVM = exports.setTokenAllowance = exports.revokeTokenApproval = exports.getTokenAllowanceMulticall = exports.getTokenAllowance = exports.EVM = exports.config = void 0;
+-exports.isSui = exports.Sui = exports.SDKError = exports.HTTPError = exports.ValidationError = exports.UnknownError = exports.TransactionError = exports.ServerError = exports.RPCError = exports.ProviderError = exports.BalanceError = exports.LiFiErrorCode = void 0;
++exports.UnknownError = exports.TransactionError = exports.ServerError = exports.RPCError = exports.ProviderError = exports.BalanceError = exports.LiFiErrorCode = exports.ErrorName = exports.ErrorMessage = exports.BaseError = exports.getNameServiceAddress = exports.getTokenBalancesByChain = exports.getTokenBalances = exports.getTokenBalance = exports.getTransactionHistory = exports.getTools = exports.getTokens = exports.getToken = exports.getStepTransaction = exports.getStatus = exports.getRoutes = exports.getRelayerQuote = exports.getQuote = exports.getGasRecommendation = exports.getContractCallsQuote = exports.getConnections = exports.getChains = exports.fetchTxErrorDetails = exports.convertQuoteToRoute = exports.checkPackageUpdates = exports.createConfig = exports.updateRouteExecution = exports.stopRouteExecution = exports.resumeRoute = exports.getActiveRoutes = exports.getActiveRoute = exports.executeRoute = exports.StatusManager = exports.isGaslessStep = exports.isRelayerStep = exports.convertExtendedChain = exports.isExtendedChain = exports.isBatchingSupported = exports.isEVM = exports.setTokenAllowance = exports.revokeTokenApproval = exports.getTokenAllowanceMulticall = exports.getTokenAllowance = exports.EVM = exports.config = void 0;
++exports.SDKError = exports.HTTPError = exports.ValidationError = void 0;
+ __exportStar(require("@lifi/types"), exports);
+ var config_js_1 = require("./config.js");
+ Object.defineProperty(exports, "config", { enumerable: true, get: function () { return config_js_1.config; } });
+@@ -46,19 +46,6 @@ Object.defineProperty(exports, "getActiveRoutes", { enumerable: true, get: funct
+ Object.defineProperty(exports, "resumeRoute", { enumerable: true, get: function () { return execution_js_1.resumeRoute; } });
+ Object.defineProperty(exports, "stopRouteExecution", { enumerable: true, get: function () { return execution_js_1.stopRouteExecution; } });
+ Object.defineProperty(exports, "updateRouteExecution", { enumerable: true, get: function () { return execution_js_1.updateRouteExecution; } });
+-var isSVMAddress_js_1 = require("./core/Solana/isSVMAddress.js");
+-Object.defineProperty(exports, "isSVMAddress", { enumerable: true, get: function () { return isSVMAddress_js_1.isSVMAddress; } });
+-var KeypairWalletAdapter_js_1 = require("./core/Solana/KeypairWalletAdapter.js");
+-Object.defineProperty(exports, "KeypairWalletAdapter", { enumerable: true, get: function () { return KeypairWalletAdapter_js_1.KeypairWalletAdapter; } });
+-Object.defineProperty(exports, "KeypairWalletName", { enumerable: true, get: function () { return KeypairWalletAdapter_js_1.KeypairWalletName; } });
+-var Solana_js_1 = require("./core/Solana/Solana.js");
+-Object.defineProperty(exports, "Solana", { enumerable: true, get: function () { return Solana_js_1.Solana; } });
+-var types_js_2 = require("./core/Solana/types.js");
+-Object.defineProperty(exports, "isSolana", { enumerable: true, get: function () { return types_js_2.isSolana; } });
+-var UTXO_js_1 = require("./core/UTXO/UTXO.js");
+-Object.defineProperty(exports, "UTXO", { enumerable: true, get: function () { return UTXO_js_1.UTXO; } });
+-var types_js_3 = require("./core/UTXO/types.js");
+-Object.defineProperty(exports, "isUTXO", { enumerable: true, get: function () { return types_js_3.isUTXO; } });
+ var createConfig_js_1 = require("./createConfig.js");
+ Object.defineProperty(exports, "createConfig", { enumerable: true, get: function () { return createConfig_js_1.createConfig; } });
+ var checkPackageUpdates_js_1 = require("./utils/checkPackageUpdates.js");
+@@ -105,8 +92,4 @@ var httpError_js_1 = require("./errors/httpError.js");
+ Object.defineProperty(exports, "HTTPError", { enumerable: true, get: function () { return httpError_js_1.HTTPError; } });
+ var SDKError_js_1 = require("./errors/SDKError.js");
+ Object.defineProperty(exports, "SDKError", { enumerable: true, get: function () { return SDKError_js_1.SDKError; } });
+-var Sui_js_1 = require("./core/Sui/Sui.js");
+-Object.defineProperty(exports, "Sui", { enumerable: true, get: function () { return Sui_js_1.Sui; } });
+-var types_js_4 = require("./core/Sui/types.js");
+-Object.defineProperty(exports, "isSui", { enumerable: true, get: function () { return types_js_4.isSui; } });
+ //# sourceMappingURL=index.js.map
+\ No newline at end of file
+diff --git a/src/_cjs/index.js.map b/src/_cjs/index.js.map
+index 6e11e4548635768aeb56e355331d8b4478edbf11..f4ebbd7f136866a1077ec76ac5f7d4381a5f6759 100644
+--- a/src/_cjs/index.js.map
++++ b/src/_cjs/index.js.map
+@@ -1 +1 @@
+-{"version":3,"file":"index.js","sourceRoot":"","sources":["../index.ts"],"names":[],"mappings":";;;;;;;;;;;;;;;;;;AAEA,8CAA2B;AAC3B,yCAAoC;AAA3B,mGAAA,MAAM,OAAA;AACf,4CAAuC;AAA9B,6FAAA,GAAG,OAAA;AACZ,8DAGmC;AAFjC,oHAAA,iBAAiB,OAAA;AACjB,6HAAA,0BAA0B,OAAA;AAE5B,8DAGmC;AAFjC,sHAAA,mBAAmB,OAAA;AACnB,oHAAA,iBAAiB,OAAA;AAEnB,gDAA2C;AAAlC,iGAAA,KAAK,OAAA;AACd,4EAAuE;AAA9D,6HAAA,mBAAmB,OAAA;AAC5B,gDAA2E;AAAlE,2GAAA,eAAe,OAAA;AAAE,gHAAA,oBAAoB,OAAA;AAC9C,0DAAuE;AAA9D,8GAAA,aAAa,OAAA;AAAE,8GAAA,aAAa,OAAA;AAErC,4DAAuD;AAA9C,iHAAA,aAAa,OAAA;AACtB,oDAO4B;AAN1B,4GAAA,YAAY,OAAA;AACZ,8GAAA,cAAc,OAAA;AACd,+GAAA,eAAe,OAAA;AACf,2GAAA,WAAW,OAAA;AACX,kHAAA,kBAAkB,OAAA;AAClB,oHAAA,oBAAoB,OAAA;AA6BtB,iEAA4D;AAAnD,+GAAA,YAAY,OAAA;AACrB,iFAG8C;AAF5C,+HAAA,oBAAoB,OAAA;AACpB,4HAAA,iBAAiB,OAAA;AAEnB,qDAAgD;AAAvC,mGAAA,MAAM,OAAA;AACf,mDAAiD;AAAxC,oGAAA,QAAQ,OAAA;AAKjB,+CAA0C;AAAjC,+FAAA,IAAI,OAAA;AACb,iDAA6C;AAApC,kGAAA,MAAM,OAAA;AAEf,qDAAgD;AAAvC,+GAAA,YAAY,OAAA;AACrB,yEAAoE;AAA3D,6HAAA,mBAAmB,OAAA;AAC5B,yEAAoE;AAA3D,6HAAA,mBAAmB,OAAA;AAC5B,yEAAoE;AAA3D,6HAAA,mBAAmB,OAAA;AAC5B,4CAc0B;AAbxB,mGAAA,SAAS,OAAA;AACT,wGAAA,cAAc,OAAA;AACd,+GAAA,qBAAqB,OAAA;AACrB,8GAAA,oBAAoB,OAAA;AACpB,kGAAA,QAAQ,OAAA;AACR,yGAAA,eAAe,OAAA;AACf,mGAAA,SAAS,OAAA;AACT,mGAAA,SAAS,OAAA;AACT,4GAAA,kBAAkB,OAAA;AAClB,kGAAA,QAAQ,OAAA;AACR,mGAAA,SAAS,OAAA;AACT,kGAAA,QAAQ,OAAA;AACR,+GAAA,qBAAqB,OAAA;AAEvB,oDAI8B;AAH5B,6GAAA,eAAe,OAAA;AACf,8GAAA,gBAAgB,OAAA;AAChB,qHAAA,uBAAuB,OAAA;AAEzB,gFAA2E;AAAlE,iIAAA,qBAAqB,OAAA;AAE9B,sDAAiD;AAAxC,yGAAA,SAAS,OAAA;AAClB,sDAA8E;AAArE,4GAAA,YAAY,OAAA;AAAE,yGAAA,SAAS,OAAA;AAAE,6GAAA,aAAa,OAAA;AAE/C,gDAQ2B;AAPzB,yGAAA,YAAY,OAAA;AACZ,0GAAA,aAAa,OAAA;AACb,qGAAA,QAAQ,OAAA;AACR,wGAAA,WAAW,OAAA;AACX,6GAAA,gBAAgB,OAAA;AAChB,yGAAA,YAAY,OAAA;AACZ,4GAAA,eAAe,OAAA;AAEjB,sDAAiD;AAAxC,yGAAA,SAAS,OAAA;AAClB,oDAA+C;AAAtC,uGAAA,QAAQ,OAAA;AACjB,4CAAuC;AAA9B,6FAAA,GAAG,OAAA;AACZ,gDAA2C;AAAlC,iGAAA,KAAK,OAAA"}
+\ No newline at end of file
++{"version":3,"file":"index.js","sourceRoot":"","sources":["../index.ts"],"names":[],"mappings":";;;;;;;;;;;;;;;;;;AAEA,8CAA2B;AAC3B,yCAAoC;AAA3B,mGAAA,MAAM,OAAA;AACf,4CAAuC;AAA9B,6FAAA,GAAG,OAAA;AACZ,8DAGmC;AAFjC,oHAAA,iBAAiB,OAAA;AACjB,6HAAA,0BAA0B,OAAA;AAE5B,8DAGmC;AAFjC,sHAAA,mBAAmB,OAAA;AACnB,oHAAA,iBAAiB,OAAA;AAEnB,gDAA2C;AAAlC,iGAAA,KAAK,OAAA;AACd,4EAAuE;AAA9D,6HAAA,mBAAmB,OAAA;AAC5B,gDAA2E;AAAlE,2GAAA,eAAe,OAAA;AAAE,gHAAA,oBAAoB,OAAA;AAC9C,0DAAuE;AAA9D,8GAAA,aAAa,OAAA;AAAE,8GAAA,aAAa,OAAA;AAErC,4DAAuD;AAA9C,iHAAA,aAAa,OAAA;AACtB,oDAO4B;AAN1B,4GAAA,YAAY,OAAA;AACZ,8GAAA,cAAc,OAAA;AACd,+GAAA,eAAe,OAAA;AACf,2GAAA,WAAW,OAAA;AACX,kHAAA,kBAAkB,OAAA;AAClB,oHAAA,oBAAoB,OAAA;AA6BtB,qDAAgD;AAAvC,+GAAA,YAAY,OAAA;AACrB,yEAAoE;AAA3D,6HAAA,mBAAmB,OAAA;AAC5B,yEAAoE;AAA3D,6HAAA,mBAAmB,OAAA;AAC5B,yEAAoE;AAA3D,6HAAA,mBAAmB,OAAA;AAC5B,4CAc0B;AAbxB,mGAAA,SAAS,OAAA;AACT,wGAAA,cAAc,OAAA;AACd,+GAAA,qBAAqB,OAAA;AACrB,8GAAA,oBAAoB,OAAA;AACpB,kGAAA,QAAQ,OAAA;AACR,yGAAA,eAAe,OAAA;AACf,mGAAA,SAAS,OAAA;AACT,mGAAA,SAAS,OAAA;AACT,4GAAA,kBAAkB,OAAA;AAClB,kGAAA,QAAQ,OAAA;AACR,mGAAA,SAAS,OAAA;AACT,kGAAA,QAAQ,OAAA;AACR,+GAAA,qBAAqB,OAAA;AAEvB,oDAI8B;AAH5B,6GAAA,eAAe,OAAA;AACf,8GAAA,gBAAgB,OAAA;AAChB,qHAAA,uBAAuB,OAAA;AAEzB,gFAA2E;AAAlE,iIAAA,qBAAqB,OAAA;AAE9B,sDAAiD;AAAxC,yGAAA,SAAS,OAAA;AAClB,sDAA8E;AAArE,4GAAA,YAAY,OAAA;AAAE,yGAAA,SAAS,OAAA;AAAE,6GAAA,aAAa,OAAA;AAE/C,gDAQ2B;AAPzB,yGAAA,YAAY,OAAA;AACZ,0GAAA,aAAa,OAAA;AACb,qGAAA,QAAQ,OAAA;AACR,wGAAA,WAAW,OAAA;AACX,6GAAA,gBAAgB,OAAA;AAChB,yGAAA,YAAY,OAAA;AACZ,4GAAA,eAAe,OAAA;AAEjB,sDAAiD;AAAxC,yGAAA,SAAS,OAAA;AAClB,oDAA+C;AAAtC,uGAAA,QAAQ,OAAA"}
+\ No newline at end of file
+diff --git a/src/_cjs/services/api.js b/src/_cjs/services/api.js
+index 48d0a2b84a28f9f255847d5cd052e16d0f3d135f..ab8baef7eae141d8459bcf0c69758e468b9d5e95 100644
+--- a/src/_cjs/services/api.js
++++ b/src/_cjs/services/api.js
+@@ -15,7 +15,6 @@ const getQuote = async (params, options) => {
+         'fromChain',
+         'fromToken',
+         'fromAddress',
+-        'fromAmount',
+         'toChain',
+         'toToken',
+     ];
+@@ -24,6 +23,16 @@ const getQuote = async (params, options) => {
+             throw new SDKError_js_1.SDKError(new errors_js_1.ValidationError(`Required parameter "${requiredParameter}" is missing.`));
+         }
+     }
++    if ((!('fromAmount' in params) || !params.fromAmount) &&
++        (!('toAmount' in params) || !params.toAmount)) {
++        throw new SDKError_js_1.SDKError(new errors_js_1.ValidationError('Required parameter "fromAmount" or "toAmount" is missing.'));
++    }
++    if ('fromAmount' in params &&
++        'toAmount' in params &&
++        params.fromAmount &&
++        params.toAmount) {
++        throw new SDKError_js_1.SDKError(new errors_js_1.ValidationError('Cannot provide both "fromAmount" and "toAmount" parameters.'));
++    }
+     const _config = config_js_1.config.get();
+     params.integrator ??= _config.integrator;
+     params.order ??= _config.routeOptions?.order;
+@@ -41,7 +50,7 @@ const getQuote = async (params, options) => {
+             delete params[key];
+         }
+     }
+-    return await (0, request_js_1.request)(`${_config.apiUrl}/quote?${new URLSearchParams(params)}`, {
++    return await (0, request_js_1.request)(`${_config.apiUrl}/${params.fromAmount ? 'quote' : 'quote/toAmount'}?${new URLSearchParams(params)}`, {
+         signal: options?.signal,
+     });
+ };
+diff --git a/src/_cjs/services/api.js.map b/src/_cjs/services/api.js.map
+index 6d1b4db9deaa27a3cb61cbaccb8304f55fb985c0..addd30bc9187509960b10a826be8d4c59507aad6 100644
+--- a/src/_cjs/services/api.js.map
++++ b/src/_cjs/services/api.js.map
+@@ -1 +1 @@
+-{"version":3,"file":"api.js","sourceRoot":"","sources":["../../services/api.ts"],"names":[],"mappings":"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"}
+\ No newline at end of file
++{"version":3,"file":"api.js","sourceRoot":"","sources":["../../services/api.ts"],"names":[],"mappings":"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"}
+\ No newline at end of file
+diff --git a/src/_esm/core/Solana/KeypairWalletAdapter.js b/src/_esm/core/Solana/KeypairWalletAdapter.js
+deleted file mode 100644
+index 3b339f4e0a497de93c8fde29ba122de7c3d33a89..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/Solana/KeypairWalletAdapter.js.map b/src/_esm/core/Solana/KeypairWalletAdapter.js.map
+deleted file mode 100644
+index d6dce6bb3573467adbec812e7af59a59f7238d27..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/Solana/Solana.js b/src/_esm/core/Solana/Solana.js
+deleted file mode 100644
+index 0f815fbed7417c8317af5aca7022c9b4ceff24e0..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/Solana/Solana.js.map b/src/_esm/core/Solana/Solana.js.map
+deleted file mode 100644
+index 133164b58a522220c83123e98615ebceaa78ce68..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/Solana/SolanaStepExecutor.js b/src/_esm/core/Solana/SolanaStepExecutor.js
+deleted file mode 100644
+index e53ff96e2f8ab418bedb2eac359f677cf8094d98..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/Solana/SolanaStepExecutor.js.map b/src/_esm/core/Solana/SolanaStepExecutor.js.map
+deleted file mode 100644
+index 380b61b49f0ffd10b1d386d69bfa63150cd54450..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/Solana/connection.js b/src/_esm/core/Solana/connection.js
+deleted file mode 100644
+index d1ea0a95b1d038f8434fae16709dac38875a56d2..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/Solana/connection.js.map b/src/_esm/core/Solana/connection.js.map
+deleted file mode 100644
+index 7d13f9c1f351918ab2bccef218ffdb3804d62e07..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/Solana/getSNSAddress.js b/src/_esm/core/Solana/getSNSAddress.js
+deleted file mode 100644
+index 0d864f8e91ea3a6e33bef589dc62b179639f4971..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/Solana/getSNSAddress.js.map b/src/_esm/core/Solana/getSNSAddress.js.map
+deleted file mode 100644
+index 0be0c3fa26346a6735847136404c344313a278a1..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/Solana/getSolanaBalance.js b/src/_esm/core/Solana/getSolanaBalance.js
+deleted file mode 100644
+index 95c9f40aee54f6ef4ea142defa96467ad866c42f..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/Solana/getSolanaBalance.js.map b/src/_esm/core/Solana/getSolanaBalance.js.map
+deleted file mode 100644
+index fd1b18cf848d57c7bef3af87951e35f36ee36554..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/Solana/isSVMAddress.js b/src/_esm/core/Solana/isSVMAddress.js
+deleted file mode 100644
+index 6c187981b5ec572baf8413c46463084659c24079..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/Solana/isSVMAddress.js.map b/src/_esm/core/Solana/isSVMAddress.js.map
+deleted file mode 100644
+index a25c12132dc644b33dad3566419e5d78b5928990..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/Solana/parseSolanaErrors.js b/src/_esm/core/Solana/parseSolanaErrors.js
+deleted file mode 100644
+index 2333c81b7ae762dcecb1bce0186e7435582f6569..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/Solana/parseSolanaErrors.js.map b/src/_esm/core/Solana/parseSolanaErrors.js.map
+deleted file mode 100644
+index 7a9869cb810de164c63471e92cfbd0fb3b51e984..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/Solana/sendAndConfirmTransaction.js b/src/_esm/core/Solana/sendAndConfirmTransaction.js
+deleted file mode 100644
+index 1200275340d7a7f4326ed6da2434b1f9f9cfad3d..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/Solana/sendAndConfirmTransaction.js.map b/src/_esm/core/Solana/sendAndConfirmTransaction.js.map
+deleted file mode 100644
+index a182b339fb333653eed4f493c0b716410ab98e59..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/Solana/types.js b/src/_esm/core/Solana/types.js
+deleted file mode 100644
+index 2e33a0795740e303b76254a3a12ab8357376660e..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/Solana/types.js.map b/src/_esm/core/Solana/types.js.map
+deleted file mode 100644
+index ab2559b7ffb1629c5aca9cf32e80c26562556edd..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/Sui/Sui.js b/src/_esm/core/Sui/Sui.js
+deleted file mode 100644
+index 0a5312c0df8501795a10b97c4407b85f989e174f..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/Sui/Sui.js.map b/src/_esm/core/Sui/Sui.js.map
+deleted file mode 100644
+index 113b57d38bb840699a54213a68928f3b30b06244..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/Sui/SuiStepExecutor.js b/src/_esm/core/Sui/SuiStepExecutor.js
+deleted file mode 100644
+index 29d32b7f0bacf8a43fa440f3253223d9222d07f8..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/Sui/SuiStepExecutor.js.map b/src/_esm/core/Sui/SuiStepExecutor.js.map
+deleted file mode 100644
+index 8d709c36cc49c3d8083cc7ba50ad30217d5af7e5..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/Sui/getSuiBalance.js b/src/_esm/core/Sui/getSuiBalance.js
+deleted file mode 100644
+index 65f76765b298c1b85a5958fc813c2c29e2f0377a..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/Sui/getSuiBalance.js.map b/src/_esm/core/Sui/getSuiBalance.js.map
+deleted file mode 100644
+index dc104914f4af71ec4937e8df8ac7d16c71546d91..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/Sui/getSuiNSAddress.js b/src/_esm/core/Sui/getSuiNSAddress.js
+deleted file mode 100644
+index 65093cbf77768163b2a95766143b562c427b5eff..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/Sui/getSuiNSAddress.js.map b/src/_esm/core/Sui/getSuiNSAddress.js.map
+deleted file mode 100644
+index 176083a548d63ddcbc2a7d182d95017e44a73245..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/Sui/parseSuiErrors.js b/src/_esm/core/Sui/parseSuiErrors.js
+deleted file mode 100644
+index c8d59b2ef28310778aaa3442bb22f1a3100e7069..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/Sui/parseSuiErrors.js.map b/src/_esm/core/Sui/parseSuiErrors.js.map
+deleted file mode 100644
+index 5ad8658b61248342310bd67d2351df266c7ffb1f..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/Sui/suiClient.js b/src/_esm/core/Sui/suiClient.js
+deleted file mode 100644
+index 28398246f5811241c7771350e89ce45f9cca9d15..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/Sui/suiClient.js.map b/src/_esm/core/Sui/suiClient.js.map
+deleted file mode 100644
+index cacc5f0eaf4bb928e8dc472e65bda46a4f8fd704..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/Sui/types.js b/src/_esm/core/Sui/types.js
+deleted file mode 100644
+index 0685e431e1351a5ab92844b9343cfcd8bf61d290..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/Sui/types.js.map b/src/_esm/core/Sui/types.js.map
+deleted file mode 100644
+index cc38d9f71ae26ea52f5ffb8cd46024f0838ee51d..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/UTXO/UTXO.js b/src/_esm/core/UTXO/UTXO.js
+deleted file mode 100644
+index c6f4cd5c46b7b811c92d6aa990c21698af00c2b4..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/UTXO/UTXO.js.map b/src/_esm/core/UTXO/UTXO.js.map
+deleted file mode 100644
+index e04a3d562c43cd7f34b24f7596e5aa15887c419e..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/UTXO/UTXOStepExecutor.js b/src/_esm/core/UTXO/UTXOStepExecutor.js
+deleted file mode 100644
+index 66c608a0283387f15ab39b313f736a5282c3d60c..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/UTXO/UTXOStepExecutor.js.map b/src/_esm/core/UTXO/UTXOStepExecutor.js.map
+deleted file mode 100644
+index 5f6916cc5f59ff1e17bf1c53352e43791d544b3b..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/UTXO/getUTXOBalance.js b/src/_esm/core/UTXO/getUTXOBalance.js
+deleted file mode 100644
+index 468bebffffc57bc75605265bcdd9a95d4591591a..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/UTXO/getUTXOBalance.js.map b/src/_esm/core/UTXO/getUTXOBalance.js.map
+deleted file mode 100644
+index 4651c0c711cc374b8191c486ac41aa45ea4a9f91..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/UTXO/getUTXOPublicClient.js b/src/_esm/core/UTXO/getUTXOPublicClient.js
+deleted file mode 100644
+index 57fbd0ed226121d00c41e44368417ec6bcb0185b..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/UTXO/getUTXOPublicClient.js.map b/src/_esm/core/UTXO/getUTXOPublicClient.js.map
+deleted file mode 100644
+index 02250aeb6e05d9f64bc1ddf1145b99a96e5343db..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/UTXO/parseUTXOErrors.js b/src/_esm/core/UTXO/parseUTXOErrors.js
+deleted file mode 100644
+index f41a319aad58fbc979511414ce1641ab14e0a759..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/UTXO/parseUTXOErrors.js.map b/src/_esm/core/UTXO/parseUTXOErrors.js.map
+deleted file mode 100644
+index ccffe87ab7d52dcd2747a11f62abe1d291333b30..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/UTXO/types.js b/src/_esm/core/UTXO/types.js
+deleted file mode 100644
+index d6ef6a3f07147caa248f60e2b77e728894ea8b30..0000000000000000000000000000000000000000
+diff --git a/src/_esm/core/UTXO/types.js.map b/src/_esm/core/UTXO/types.js.map
+deleted file mode 100644
+index 689d89a51a39cd8eef7974adbbcf4e4935c9e707..0000000000000000000000000000000000000000
+diff --git a/src/_esm/createConfig.js b/src/_esm/createConfig.js
+index 57c4498aba26d843ea89e03b4873c0a18ab658a0..48deb72301f74bb998753171f17b53ce1f6ddd79 100644
+--- a/src/_esm/createConfig.js
++++ b/src/_esm/createConfig.js
+@@ -15,7 +15,7 @@ function createBaseConfig(options) {
+ }
+ export async function createChainsConfig() {
+     config.loading = getChains({
+-        chainTypes: [ChainType.EVM, ChainType.SVM, ChainType.UTXO, ChainType.MVM],
++        chainTypes: [ChainType.EVM],
+     })
+         .then((chains) => config.setChains(chains))
+         .catch();
+diff --git a/src/_esm/createConfig.js.map b/src/_esm/createConfig.js.map
+index d6ce6c60400dc0e9e049fcc62b207e3a6c0e9272..13bba336644ef6e6a91c769d96ece2d3eee393cb 100644
+--- a/src/_esm/createConfig.js.map
++++ b/src/_esm/createConfig.js.map
+@@ -1 +1 @@
+-{"version":3,"file":"createConfig.js","sourceRoot":"","sources":["../createConfig.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,SAAS,EAAE,MAAM,aAAa,CAAA;AACvC,OAAO,EAAE,MAAM,EAAE,MAAM,aAAa,CAAA;AACpC,OAAO,EAAE,SAAS,EAAE,MAAM,mBAAmB,CAAA;AAE7C,OAAO,EAAE,mBAAmB,EAAE,MAAM,gCAAgC,CAAA;AACpE,OAAO,EAAE,IAAI,EAAE,OAAO,EAAE,MAAM,cAAc,CAAA;AAE5C,SAAS,gBAAgB,CAAC,OAAkB;IAC1C,IAAI,CAAC,OAAO,CAAC,UAAU,EAAE,CAAC;QACxB,MAAM,IAAI,KAAK,CACb,yGAAyG,CAC1G,CAAA;IACH,CAAC;IACD,MAAM,OAAO,GAAG,MAAM,CAAC,GAAG,CAAC,OAAO,CAAC,CAAA;IACnC,IAAI,CAAC,OAAO,CAAC,mBAAmB,IAAI,OAAO,CAAC,GAAG,CAAC,QAAQ,KAAK,aAAa,EAAE,CAAC;QAC3E,mBAAmB,CAAC,IAAI,EAAE,OAAO,CAAC,CAAA;IACpC,CAAC;IACD,OAAO,OAAO,CAAA;AAChB,CAAC;AAED,MAAM,CAAC,KAAK,UAAU,kBAAkB;IACtC,MAAM,CAAC,OAAO,GAAG,SAAS,CAAC;QACzB,UAAU,EAAE,CAAC,SAAS,CAAC,GAAG,EAAE,SAAS,CAAC,GAAG,EAAE,SAAS,CAAC,IAAI,EAAE,SAAS,CAAC,GAAG,CAAC;KAC1E,CAAC;SACC,IAAI,CAAC,CAAC,MAAM,EAAE,EAAE,CAAC,MAAM,CAAC,SAAS,CAAC,MAAM,CAAC,CAAC;SAC1C,KAAK,EAAE,CAAA;IACV,MAAM,MAAM,CAAC,OAAO,CAAA;AACtB,CAAC;AAED,MAAM,UAAU,YAAY,CAAC,OAAkB;IAC7C,MAAM,OAAO,GAAG,gBAAgB,CAAC,OAAO,CAAC,CAAA;IACzC,IAAI,OAAO,CAAC,aAAa,EAAE,CAAC;QAC1B,kBAAkB,EAAE,CAAA;IACtB,CAAC;IACD,OAAO,OAAO,CAAA;AAChB,CAAC"}
+\ No newline at end of file
++{"version":3,"file":"createConfig.js","sourceRoot":"","sources":["../createConfig.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,SAAS,EAAE,MAAM,aAAa,CAAA;AACvC,OAAO,EAAE,MAAM,EAAE,MAAM,aAAa,CAAA;AACpC,OAAO,EAAE,SAAS,EAAE,MAAM,mBAAmB,CAAA;AAE7C,OAAO,EAAE,mBAAmB,EAAE,MAAM,gCAAgC,CAAA;AACpE,OAAO,EAAE,IAAI,EAAE,OAAO,EAAE,MAAM,cAAc,CAAA;AAE5C,SAAS,gBAAgB,CAAC,OAAkB;IAC1C,IAAI,CAAC,OAAO,CAAC,UAAU,EAAE,CAAC;QACxB,MAAM,IAAI,KAAK,CACb,yGAAyG,CAC1G,CAAA;IACH,CAAC;IACD,MAAM,OAAO,GAAG,MAAM,CAAC,GAAG,CAAC,OAAO,CAAC,CAAA;IACnC,IAAI,CAAC,OAAO,CAAC,mBAAmB,IAAI,OAAO,CAAC,GAAG,CAAC,QAAQ,KAAK,aAAa,EAAE,CAAC;QAC3E,mBAAmB,CAAC,IAAI,EAAE,OAAO,CAAC,CAAA;IACpC,CAAC;IACD,OAAO,OAAO,CAAA;AAChB,CAAC;AAED,MAAM,CAAC,KAAK,UAAU,kBAAkB;IACtC,MAAM,CAAC,OAAO,GAAG,SAAS,CAAC;QACzB,UAAU,EAAE,CAAC,SAAS,CAAC,GAAG,CAAC;KAC5B,CAAC;SACC,IAAI,CAAC,CAAC,MAAM,EAAE,EAAE,CAAC,MAAM,CAAC,SAAS,CAAC,MAAM,CAAC,CAAC;SAC1C,KAAK,EAAE,CAAA;IACV,MAAM,MAAM,CAAC,OAAO,CAAA;AACtB,CAAC;AAED,MAAM,UAAU,YAAY,CAAC,OAAkB;IAC7C,MAAM,OAAO,GAAG,gBAAgB,CAAC,OAAO,CAAC,CAAA;IACzC,IAAI,OAAO,CAAC,aAAa,EAAE,CAAC;QAC1B,kBAAkB,EAAE,CAAA;IACtB,CAAC;IACD,OAAO,OAAO,CAAA;AAChB,CAAC"}
+\ No newline at end of file
+diff --git a/src/_esm/index.js b/src/_esm/index.js
+index acf14acdb5d767904452fb356560646f6823b6ba..e60154b38c7be0678d753ac378d87fbe0c46269d 100644
+--- a/src/_esm/index.js
++++ b/src/_esm/index.js
+@@ -11,12 +11,6 @@ export { isExtendedChain, convertExtendedChain } from './core/EVM/utils.js';
+ export { isRelayerStep, isGaslessStep } from './core/EVM/typeguards.js';
+ export { StatusManager } from './core/StatusManager.js';
+ export { executeRoute, getActiveRoute, getActiveRoutes, resumeRoute, stopRouteExecution, updateRouteExecution, } from './core/execution.js';
+-export { isSVMAddress } from './core/Solana/isSVMAddress.js';
+-export { KeypairWalletAdapter, KeypairWalletName, } from './core/Solana/KeypairWalletAdapter.js';
+-export { Solana } from './core/Solana/Solana.js';
+-export { isSolana } from './core/Solana/types.js';
+-export { UTXO } from './core/UTXO/UTXO.js';
+-export { isUTXO } from './core/UTXO/types.js';
+ export { createConfig } from './createConfig.js';
+ export { checkPackageUpdates } from './utils/checkPackageUpdates.js';
+ export { convertQuoteToRoute } from './utils/convertQuoteToRoute.js';
+@@ -29,6 +23,4 @@ export { ErrorMessage, ErrorName, LiFiErrorCode } from './errors/constants.js';
+ export { BalanceError, ProviderError, RPCError, ServerError, TransactionError, UnknownError, ValidationError, } from './errors/errors.js';
+ export { HTTPError } from './errors/httpError.js';
+ export { SDKError } from './errors/SDKError.js';
+-export { Sui } from './core/Sui/Sui.js';
+-export { isSui } from './core/Sui/types.js';
+ //# sourceMappingURL=index.js.map
+\ No newline at end of file
+diff --git a/src/_esm/index.js.map b/src/_esm/index.js.map
+index 26b22f1aa8fee478daa50d17b59f402f45269cb3..b1e828c4c77f24d2646794a0b447c2949be8a519 100644
+--- a/src/_esm/index.js.map
++++ b/src/_esm/index.js.map
+@@ -1 +1 @@
+-{"version":3,"file":"index.js","sourceRoot":"","sources":["../index.ts"],"names":[],"mappings":"AAAA,gEAAgE;AAChE,qDAAqD;AACrD,cAAc,aAAa,CAAA;AAC3B,OAAO,EAAE,MAAM,EAAE,MAAM,aAAa,CAAA;AACpC,OAAO,EAAE,GAAG,EAAE,MAAM,mBAAmB,CAAA;AACvC,OAAO,EACL,iBAAiB,EACjB,0BAA0B,GAC3B,MAAM,4BAA4B,CAAA;AACnC,OAAO,EACL,mBAAmB,EACnB,iBAAiB,GAClB,MAAM,4BAA4B,CAAA;AACnC,OAAO,EAAE,KAAK,EAAE,MAAM,qBAAqB,CAAA;AAC3C,OAAO,EAAE,mBAAmB,EAAE,MAAM,mCAAmC,CAAA;AACvE,OAAO,EAAE,eAAe,EAAE,oBAAoB,EAAE,MAAM,qBAAqB,CAAA;AAC3E,OAAO,EAAE,aAAa,EAAE,aAAa,EAAE,MAAM,0BAA0B,CAAA;AAEvE,OAAO,EAAE,aAAa,EAAE,MAAM,yBAAyB,CAAA;AACvD,OAAO,EACL,YAAY,EACZ,cAAc,EACd,eAAe,EACf,WAAW,EACX,kBAAkB,EAClB,oBAAoB,GACrB,MAAM,qBAAqB,CAAA;AA4B5B,OAAO,EAAE,YAAY,EAAE,MAAM,+BAA+B,CAAA;AAC5D,OAAO,EACL,oBAAoB,EACpB,iBAAiB,GAClB,MAAM,uCAAuC,CAAA;AAC9C,OAAO,EAAE,MAAM,EAAE,MAAM,yBAAyB,CAAA;AAChD,OAAO,EAAE,QAAQ,EAAE,MAAM,wBAAwB,CAAA;AAKjD,OAAO,EAAE,IAAI,EAAE,MAAM,qBAAqB,CAAA;AAC1C,OAAO,EAAE,MAAM,EAAE,MAAM,sBAAsB,CAAA;AAE7C,OAAO,EAAE,YAAY,EAAE,MAAM,mBAAmB,CAAA;AAChD,OAAO,EAAE,mBAAmB,EAAE,MAAM,gCAAgC,CAAA;AACpE,OAAO,EAAE,mBAAmB,EAAE,MAAM,gCAAgC,CAAA;AACpE,OAAO,EAAE,mBAAmB,EAAE,MAAM,gCAAgC,CAAA;AACpE,OAAO,EACL,SAAS,EACT,cAAc,EACd,qBAAqB,EACrB,oBAAoB,EACpB,QAAQ,EACR,eAAe,EACf,SAAS,EACT,SAAS,EACT,kBAAkB,EAClB,QAAQ,EACR,SAAS,EACT,QAAQ,EACR,qBAAqB,GACtB,MAAM,mBAAmB,CAAA;AAC1B,OAAO,EACL,eAAe,EACf,gBAAgB,EAChB,uBAAuB,GACxB,MAAM,uBAAuB,CAAA;AAC9B,OAAO,EAAE,qBAAqB,EAAE,MAAM,qCAAqC,CAAA;AAE3E,OAAO,EAAE,SAAS,EAAE,MAAM,uBAAuB,CAAA;AACjD,OAAO,EAAE,YAAY,EAAE,SAAS,EAAE,aAAa,EAAE,MAAM,uBAAuB,CAAA;AAE9E,OAAO,EACL,YAAY,EACZ,aAAa,EACb,QAAQ,EACR,WAAW,EACX,gBAAgB,EAChB,YAAY,EACZ,eAAe,GAChB,MAAM,oBAAoB,CAAA;AAC3B,OAAO,EAAE,SAAS,EAAE,MAAM,uBAAuB,CAAA;AACjD,OAAO,EAAE,QAAQ,EAAE,MAAM,sBAAsB,CAAA;AAC/C,OAAO,EAAE,GAAG,EAAE,MAAM,mBAAmB,CAAA;AACvC,OAAO,EAAE,KAAK,EAAE,MAAM,qBAAqB,CAAA"}
+\ No newline at end of file
++{"version":3,"file":"index.js","sourceRoot":"","sources":["../index.ts"],"names":[],"mappings":"AAAA,gEAAgE;AAChE,qDAAqD;AACrD,cAAc,aAAa,CAAA;AAC3B,OAAO,EAAE,MAAM,EAAE,MAAM,aAAa,CAAA;AACpC,OAAO,EAAE,GAAG,EAAE,MAAM,mBAAmB,CAAA;AACvC,OAAO,EACL,iBAAiB,EACjB,0BAA0B,GAC3B,MAAM,4BAA4B,CAAA;AACnC,OAAO,EACL,mBAAmB,EACnB,iBAAiB,GAClB,MAAM,4BAA4B,CAAA;AACnC,OAAO,EAAE,KAAK,EAAE,MAAM,qBAAqB,CAAA;AAC3C,OAAO,EAAE,mBAAmB,EAAE,MAAM,mCAAmC,CAAA;AACvE,OAAO,EAAE,eAAe,EAAE,oBAAoB,EAAE,MAAM,qBAAqB,CAAA;AAC3E,OAAO,EAAE,aAAa,EAAE,aAAa,EAAE,MAAM,0BAA0B,CAAA;AAEvE,OAAO,EAAE,aAAa,EAAE,MAAM,yBAAyB,CAAA;AACvD,OAAO,EACL,YAAY,EACZ,cAAc,EACd,eAAe,EACf,WAAW,EACX,kBAAkB,EAClB,oBAAoB,GACrB,MAAM,qBAAqB,CAAA;AA4B5B,OAAO,EAAE,YAAY,EAAE,MAAM,mBAAmB,CAAA;AAChD,OAAO,EAAE,mBAAmB,EAAE,MAAM,gCAAgC,CAAA;AACpE,OAAO,EAAE,mBAAmB,EAAE,MAAM,gCAAgC,CAAA;AACpE,OAAO,EAAE,mBAAmB,EAAE,MAAM,gCAAgC,CAAA;AACpE,OAAO,EACL,SAAS,EACT,cAAc,EACd,qBAAqB,EACrB,oBAAoB,EACpB,QAAQ,EACR,eAAe,EACf,SAAS,EACT,SAAS,EACT,kBAAkB,EAClB,QAAQ,EACR,SAAS,EACT,QAAQ,EACR,qBAAqB,GACtB,MAAM,mBAAmB,CAAA;AAC1B,OAAO,EACL,eAAe,EACf,gBAAgB,EAChB,uBAAuB,GACxB,MAAM,uBAAuB,CAAA;AAC9B,OAAO,EAAE,qBAAqB,EAAE,MAAM,qCAAqC,CAAA;AAE3E,OAAO,EAAE,SAAS,EAAE,MAAM,uBAAuB,CAAA;AACjD,OAAO,EAAE,YAAY,EAAE,SAAS,EAAE,aAAa,EAAE,MAAM,uBAAuB,CAAA;AAE9E,OAAO,EACL,YAAY,EACZ,aAAa,EACb,QAAQ,EACR,WAAW,EACX,gBAAgB,EAChB,YAAY,EACZ,eAAe,GAChB,MAAM,oBAAoB,CAAA;AAC3B,OAAO,EAAE,SAAS,EAAE,MAAM,uBAAuB,CAAA;AACjD,OAAO,EAAE,QAAQ,EAAE,MAAM,sBAAsB,CAAA"}
+\ No newline at end of file
+diff --git a/src/_esm/services/api.js b/src/_esm/services/api.js
+index 43b827ba5e211ce35b13fbb2a7c161ab80dc2f3a..3ef6a9f7dbab80a437956542f7db7c9d2339d5aa 100644
+--- a/src/_esm/services/api.js
++++ b/src/_esm/services/api.js
+@@ -19,7 +19,6 @@ export const getQuote = async (params, options) => {
+         'fromChain',
+         'fromToken',
+         'fromAddress',
+-        'fromAmount',
+         'toChain',
+         'toToken',
+     ];
+@@ -28,6 +27,17 @@ export const getQuote = async (params, options) => {
+             throw new SDKError(new ValidationError(`Required parameter "${requiredParameter}" is missing.`));
+         }
+     }
++    if ((!('fromAmount' in params) || !params.fromAmount) &&
++        (!('toAmount' in params) || !params.toAmount)) {
++        throw new SDKError(new ValidationError('Required parameter "fromAmount" or "toAmount" is missing.'));
++    }
++    if ('fromAmount' in params &&
++        'toAmount' in params &&
++        params.fromAmount &&
++        // @ts-expect-error type-agnostic runtime check
++        params.toAmount) {
++        throw new SDKError(new ValidationError('Cannot provide both "fromAmount" and "toAmount" parameters.'));
++    }
+     const _config = config.get();
+     // apply defaults
+     params.integrator ??= _config.integrator;
+@@ -46,7 +56,7 @@ export const getQuote = async (params, options) => {
+             delete params[key];
+         }
+     }
+-    return await request(`${_config.apiUrl}/quote?${new URLSearchParams(params)}`, {
++    return await request(`${_config.apiUrl}/${params.fromAmount ? 'quote' : 'quote/toAmount'}?${new URLSearchParams(params)}`, {
+         signal: options?.signal,
+     });
+ };
+diff --git a/src/_esm/services/api.js.map b/src/_esm/services/api.js.map
+index 55999243b01f04d62b8319f6a3e8de06aef85afe..b869d3e9711a5529483a1ad3fc45b797a18b0948 100644
+--- a/src/_esm/services/api.js.map
++++ b/src/_esm/services/api.js.map
+@@ -1 +1 @@
+-{"version":3,"file":"api.js","sourceRoot":"","sources":["../../services/api.ts"],"names":[],"mappings":"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"}
+\ No newline at end of file
++{"version":3,"file":"api.js","sourceRoot":"","sources":["../../services/api.ts"],"names":[],"mappings":"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"}
+\ No newline at end of file
+diff --git a/src/_types/core/Solana/KeypairWalletAdapter.d.ts b/src/_types/core/Solana/KeypairWalletAdapter.d.ts
+deleted file mode 100644
+index 2c8861593185601255a04464abc6dcdaeedf8549..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/Solana/KeypairWalletAdapter.d.ts.map b/src/_types/core/Solana/KeypairWalletAdapter.d.ts.map
+deleted file mode 100644
+index b5f4a6785b48343fd339da502c4acb24c248a6f8..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/Solana/Solana.d.ts b/src/_types/core/Solana/Solana.d.ts
+deleted file mode 100644
+index a96d63cea4f78c6aba7ca3e613562c27ba41376f..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/Solana/Solana.d.ts.map b/src/_types/core/Solana/Solana.d.ts.map
+deleted file mode 100644
+index b58f746617e6950390416a814c1c6856de695f04..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/Solana/SolanaStepExecutor.d.ts b/src/_types/core/Solana/SolanaStepExecutor.d.ts
+deleted file mode 100644
+index 6fbc89eb8e435721bfdc9ea4a0bf7b1f39ddaccb..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/Solana/SolanaStepExecutor.d.ts.map b/src/_types/core/Solana/SolanaStepExecutor.d.ts.map
+deleted file mode 100644
+index 8a61cb42b1b97a72d1673a6c3f605adc576b5b65..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/Solana/connection.d.ts b/src/_types/core/Solana/connection.d.ts
+deleted file mode 100644
+index 6fa3c35a15957a96fc3fae7874c3fcd78b0ca968..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/Solana/connection.d.ts.map b/src/_types/core/Solana/connection.d.ts.map
+deleted file mode 100644
+index 38448996f3646a7320804e24c31c69ed084723ad..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/Solana/getSNSAddress.d.ts b/src/_types/core/Solana/getSNSAddress.d.ts
+deleted file mode 100644
+index 66be190e63b082fd7a978ba9a98fb2d8a5ac5ebb..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/Solana/getSNSAddress.d.ts.map b/src/_types/core/Solana/getSNSAddress.d.ts.map
+deleted file mode 100644
+index 4c0bac6024211c9e1bc7d0505c7ea03942261eea..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/Solana/getSolanaBalance.d.ts b/src/_types/core/Solana/getSolanaBalance.d.ts
+deleted file mode 100644
+index d78cbbba3f898f0ed1c235eacd8003ad78473660..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/Solana/getSolanaBalance.d.ts.map b/src/_types/core/Solana/getSolanaBalance.d.ts.map
+deleted file mode 100644
+index a8996bff590f664a87ed6f9434d6d07abd7b8e25..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/Solana/isSVMAddress.d.ts b/src/_types/core/Solana/isSVMAddress.d.ts
+deleted file mode 100644
+index 6ea6096c89baf49ca517b3fd13aed4f4195983ac..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/Solana/isSVMAddress.d.ts.map b/src/_types/core/Solana/isSVMAddress.d.ts.map
+deleted file mode 100644
+index 4e05f57c03d537e2cead664ab3ee4d7f80c37aca..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/Solana/parseSolanaErrors.d.ts b/src/_types/core/Solana/parseSolanaErrors.d.ts
+deleted file mode 100644
+index 76b06e042c5bfb35223a8911910746ca2a7aea9e..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/Solana/parseSolanaErrors.d.ts.map b/src/_types/core/Solana/parseSolanaErrors.d.ts.map
+deleted file mode 100644
+index e3837ed8d748769cf8369d9b27ee6f36e9f41a0b..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/Solana/sendAndConfirmTransaction.d.ts b/src/_types/core/Solana/sendAndConfirmTransaction.d.ts
+deleted file mode 100644
+index 543c83022cb0b71702f80af63f0aa20efd85b310..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/Solana/sendAndConfirmTransaction.d.ts.map b/src/_types/core/Solana/sendAndConfirmTransaction.d.ts.map
+deleted file mode 100644
+index 88040e413f4d22aaf81b3aa513c9e5226823659c..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/Solana/types.d.ts b/src/_types/core/Solana/types.d.ts
+deleted file mode 100644
+index 9b7653dc6f90ef84605961e02fb7be6adca456dd..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/Solana/types.d.ts.map b/src/_types/core/Solana/types.d.ts.map
+deleted file mode 100644
+index b1793297a18f033a0f37ef5d558371b987759049..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/Sui/Sui.d.ts b/src/_types/core/Sui/Sui.d.ts
+deleted file mode 100644
+index 001e7ef1ef7d353668425b34d7d55b361254ea88..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/Sui/Sui.d.ts.map b/src/_types/core/Sui/Sui.d.ts.map
+deleted file mode 100644
+index a3946ddf1f85d5c5f8fdd0730a30b21d552e850a..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/Sui/SuiStepExecutor.d.ts b/src/_types/core/Sui/SuiStepExecutor.d.ts
+deleted file mode 100644
+index 78ab61a43bffb8686e3097c4cf58bdf8639dd314..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/Sui/SuiStepExecutor.d.ts.map b/src/_types/core/Sui/SuiStepExecutor.d.ts.map
+deleted file mode 100644
+index 59c5a5b2936cb7479fba9b322f3aa63c3aad75a2..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/Sui/getSuiBalance.d.ts b/src/_types/core/Sui/getSuiBalance.d.ts
+deleted file mode 100644
+index 5566b14ce00e6ee44b2971e96c91f74d5025258e..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/Sui/getSuiBalance.d.ts.map b/src/_types/core/Sui/getSuiBalance.d.ts.map
+deleted file mode 100644
+index e6a4c75318ddef868e63acbe18b04bc739ca599a..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/Sui/getSuiNSAddress.d.ts b/src/_types/core/Sui/getSuiNSAddress.d.ts
+deleted file mode 100644
+index 756762cda01c6d5651e9c7aa947a2a7d62972e8d..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/Sui/getSuiNSAddress.d.ts.map b/src/_types/core/Sui/getSuiNSAddress.d.ts.map
+deleted file mode 100644
+index 6fc654b7ee3460325071808fa19d891cdee51c6d..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/Sui/parseSuiErrors.d.ts b/src/_types/core/Sui/parseSuiErrors.d.ts
+deleted file mode 100644
+index 43d73d298dc6f0974204510f2b887ea94b49e780..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/Sui/parseSuiErrors.d.ts.map b/src/_types/core/Sui/parseSuiErrors.d.ts.map
+deleted file mode 100644
+index 5c5a9e9194cf29480550a852cad840e8f8bc0cec..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/Sui/suiClient.d.ts b/src/_types/core/Sui/suiClient.d.ts
+deleted file mode 100644
+index 8331810ce676f2b4f39b4dff8a73dc7f48409936..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/Sui/suiClient.d.ts.map b/src/_types/core/Sui/suiClient.d.ts.map
+deleted file mode 100644
+index 26204d9b68607fae5418aef542f29ef55c368369..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/Sui/types.d.ts b/src/_types/core/Sui/types.d.ts
+deleted file mode 100644
+index 6e502547c91244b5a982ff035c153aeacc7aae9b..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/Sui/types.d.ts.map b/src/_types/core/Sui/types.d.ts.map
+deleted file mode 100644
+index 763c55a268dfeac3540081d78dacdaac71074940..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/UTXO/UTXO.d.ts b/src/_types/core/UTXO/UTXO.d.ts
+deleted file mode 100644
+index 0a3ef77dcb480154f89027da4a14cb785e86b66d..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/UTXO/UTXO.d.ts.map b/src/_types/core/UTXO/UTXO.d.ts.map
+deleted file mode 100644
+index 63474716f0df9edfbe82f857e8d603d509df5ffd..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/UTXO/UTXOStepExecutor.d.ts b/src/_types/core/UTXO/UTXOStepExecutor.d.ts
+deleted file mode 100644
+index 16f4741dfca1bbb63dd0a5ff988f51ecc6589985..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/UTXO/UTXOStepExecutor.d.ts.map b/src/_types/core/UTXO/UTXOStepExecutor.d.ts.map
+deleted file mode 100644
+index bcd97f52a94a16a14c6f251b56249a008a58a492..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/UTXO/getUTXOBalance.d.ts b/src/_types/core/UTXO/getUTXOBalance.d.ts
+deleted file mode 100644
+index 40ad8f2fbf2360870ada5fcbd054cca22f28058f..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/UTXO/getUTXOBalance.d.ts.map b/src/_types/core/UTXO/getUTXOBalance.d.ts.map
+deleted file mode 100644
+index 8d2312adb71372611a9ec9e0579fe65e59d332a4..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/UTXO/getUTXOPublicClient.d.ts b/src/_types/core/UTXO/getUTXOPublicClient.d.ts
+deleted file mode 100644
+index 2abedd72ff1dd3853652dfda61d7299b41a21213..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/UTXO/getUTXOPublicClient.d.ts.map b/src/_types/core/UTXO/getUTXOPublicClient.d.ts.map
+deleted file mode 100644
+index ae7aefcb97de207bb93af072e62f41134cf610d1..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/UTXO/parseUTXOErrors.d.ts b/src/_types/core/UTXO/parseUTXOErrors.d.ts
+deleted file mode 100644
+index 6d2f64daa883bf85f820dcd526f62a0216701f6b..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/UTXO/parseUTXOErrors.d.ts.map b/src/_types/core/UTXO/parseUTXOErrors.d.ts.map
+deleted file mode 100644
+index c1ead30f3c20d91ed4ac3c22da76d325c7d46733..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/UTXO/types.d.ts b/src/_types/core/UTXO/types.d.ts
+deleted file mode 100644
+index 1c4468205de71d10cf1bf3ee62521ca32961694f..0000000000000000000000000000000000000000
+diff --git a/src/_types/core/UTXO/types.d.ts.map b/src/_types/core/UTXO/types.d.ts.map
+deleted file mode 100644
+index dfd1da8e38bd2b956eea0b58adf6ba9cb19cd450..0000000000000000000000000000000000000000
+diff --git a/src/_types/index.d.ts b/src/_types/index.d.ts
+index 17f46e65a81f390469fef6ab0119ec0c608b95f3..3059798aec750e80f4317c0568332649c15f99c8 100644
+--- a/src/_types/index.d.ts
++++ b/src/_types/index.d.ts
+@@ -11,14 +11,6 @@ export type { EVMProvider, EVMProviderOptions } from './core/EVM/types.js';
+ export { StatusManager } from './core/StatusManager.js';
+ export { executeRoute, getActiveRoute, getActiveRoutes, resumeRoute, stopRouteExecution, updateRouteExecution, } from './core/execution.js';
+ export type { AcceptExchangeRateUpdateHook, AcceptSlippageUpdateHook, AcceptSlippageUpdateHookParams, ExchangeRateUpdateParams, Execution, ExecutionOptions, ExecutionStatus, InteractionSettings, LiFiStepExtended, Process, ProcessStatus, ProcessType, RouteExecutionData, RouteExecutionDataDictionary, RouteExecutionDictionary, RouteExtended, SDKProvider, StepExecutor, StepExecutorOptions, StepExtended, SwitchChainHook, TransactionParameters, TransactionRequestParameters, TransactionRequestUpdateHook, UpdateRouteHook, } from './core/types.js';
+-export { isSVMAddress } from './core/Solana/isSVMAddress.js';
+-export { KeypairWalletAdapter, KeypairWalletName, } from './core/Solana/KeypairWalletAdapter.js';
+-export { Solana } from './core/Solana/Solana.js';
+-export { isSolana } from './core/Solana/types.js';
+-export type { SolanaProvider, SolanaProviderOptions, } from './core/Solana/types.js';
+-export { UTXO } from './core/UTXO/UTXO.js';
+-export { isUTXO } from './core/UTXO/types.js';
+-export type { UTXOProvider, UTXOProviderOptions } from './core/UTXO/types.js';
+ export { createConfig } from './createConfig.js';
+ export { checkPackageUpdates } from './utils/checkPackageUpdates.js';
+ export { convertQuoteToRoute } from './utils/convertQuoteToRoute.js';
+@@ -33,7 +25,4 @@ export type { ErrorCode } from './errors/constants.js';
+ export { BalanceError, ProviderError, RPCError, ServerError, TransactionError, UnknownError, ValidationError, } from './errors/errors.js';
+ export { HTTPError } from './errors/httpError.js';
+ export { SDKError } from './errors/SDKError.js';
+-export { Sui } from './core/Sui/Sui.js';
+-export { isSui } from './core/Sui/types.js';
+-export type { SuiProvider, SuiProviderOptions } from './core/Sui/types.js';
+ //# sourceMappingURL=index.d.ts.map
+\ No newline at end of file
+diff --git a/src/_types/index.d.ts.map b/src/_types/index.d.ts.map
+index 1bce21a1a715660c445f76cc17e2c68abe66baab..1633ab546b0fd69c84b389c9185a5b96d6e2e71a 100644
+--- a/src/_types/index.d.ts.map
++++ b/src/_types/index.d.ts.map
+@@ -1 +1 @@
+-{"version":3,"file":"index.d.ts","sourceRoot":"","sources":["../index.ts"],"names":[],"mappings":"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"}
+\ No newline at end of file
++{"version":3,"file":"index.d.ts","sourceRoot":"","sources":["../index.ts"],"names":[],"mappings":"AAEA,cAAc,aAAa,CAAA;AAC3B,OAAO,EAAE,MAAM,EAAE,MAAM,aAAa,CAAA;AACpC,OAAO,EAAE,GAAG,EAAE,MAAM,mBAAmB,CAAA;AACvC,OAAO,EACL,iBAAiB,EACjB,0BAA0B,GAC3B,MAAM,4BAA4B,CAAA;AACnC,OAAO,EACL,mBAAmB,EACnB,iBAAiB,GAClB,MAAM,4BAA4B,CAAA;AACnC,OAAO,EAAE,KAAK,EAAE,MAAM,qBAAqB,CAAA;AAC3C,OAAO,EAAE,mBAAmB,EAAE,MAAM,mCAAmC,CAAA;AACvE,OAAO,EAAE,eAAe,EAAE,oBAAoB,EAAE,MAAM,qBAAqB,CAAA;AAC3E,OAAO,EAAE,aAAa,EAAE,aAAa,EAAE,MAAM,0BAA0B,CAAA;AACvE,YAAY,EAAE,WAAW,EAAE,kBAAkB,EAAE,MAAM,qBAAqB,CAAA;AAC1E,OAAO,EAAE,aAAa,EAAE,MAAM,yBAAyB,CAAA;AACvD,OAAO,EACL,YAAY,EACZ,cAAc,EACd,eAAe,EACf,WAAW,EACX,kBAAkB,EAClB,oBAAoB,GACrB,MAAM,qBAAqB,CAAA;AAC5B,YAAY,EACV,4BAA4B,EAC5B,wBAAwB,EACxB,8BAA8B,EAC9B,wBAAwB,EACxB,SAAS,EACT,gBAAgB,EAChB,eAAe,EACf,mBAAmB,EACnB,gBAAgB,EAChB,OAAO,EACP,aAAa,EACb,WAAW,EACX,kBAAkB,EAClB,4BAA4B,EAC5B,wBAAwB,EACxB,aAAa,EACb,WAAW,EACX,YAAY,EACZ,mBAAmB,EACnB,YAAY,EACZ,eAAe,EACf,qBAAqB,EACrB,4BAA4B,EAC5B,4BAA4B,EAC5B,eAAe,GAChB,MAAM,iBAAiB,CAAA;AACxB,OAAO,EAAE,YAAY,EAAE,MAAM,mBAAmB,CAAA;AAChD,OAAO,EAAE,mBAAmB,EAAE,MAAM,gCAAgC,CAAA;AACpE,OAAO,EAAE,mBAAmB,EAAE,MAAM,gCAAgC,CAAA;AACpE,OAAO,EAAE,mBAAmB,EAAE,MAAM,gCAAgC,CAAA;AACpE,OAAO,EACL,SAAS,EACT,cAAc,EACd,qBAAqB,EACrB,oBAAoB,EACpB,QAAQ,EACR,eAAe,EACf,SAAS,EACT,SAAS,EACT,kBAAkB,EAClB,QAAQ,EACR,SAAS,EACT,QAAQ,EACR,qBAAqB,GACtB,MAAM,mBAAmB,CAAA;AAC1B,OAAO,EACL,eAAe,EACf,gBAAgB,EAChB,uBAAuB,GACxB,MAAM,uBAAuB,CAAA;AAC9B,OAAO,EAAE,qBAAqB,EAAE,MAAM,qCAAqC,CAAA;AAC3E,YAAY,EAAE,OAAO,EAAE,aAAa,EAAE,SAAS,EAAE,MAAM,qBAAqB,CAAA;AAC5E,OAAO,EAAE,SAAS,EAAE,MAAM,uBAAuB,CAAA;AACjD,OAAO,EAAE,YAAY,EAAE,SAAS,EAAE,aAAa,EAAE,MAAM,uBAAuB,CAAA;AAC9E,YAAY,EAAE,SAAS,EAAE,MAAM,uBAAuB,CAAA;AACtD,OAAO,EACL,YAAY,EACZ,aAAa,EACb,QAAQ,EACR,WAAW,EACX,gBAAgB,EAChB,YAAY,EACZ,eAAe,GAChB,MAAM,oBAAoB,CAAA;AAC3B,OAAO,EAAE,SAAS,EAAE,MAAM,uBAAuB,CAAA;AACjD,OAAO,EAAE,QAAQ,EAAE,MAAM,sBAAsB,CAAA"}
+\ No newline at end of file
+diff --git a/src/_types/services/api.d.ts b/src/_types/services/api.d.ts
+index ff9abb39a4dd7b9cd2ee27ab6915a8005df598bb..2d467fee3fa96782ffbd6875561cd862bd8efd7c 100644
+--- a/src/_types/services/api.d.ts
++++ b/src/_types/services/api.d.ts
+@@ -1,4 +1,8 @@
+-import { type ChainId, type ChainKey, type ChainsRequest, type ConnectionsRequest, type ConnectionsResponse, type ContractCallsQuoteRequest, type ExtendedChain, type GasRecommendationRequest, type GasRecommendationResponse, type GetStatusRequest, type LiFiStep, type QuoteRequest, type RelayRequest, type RelayResponseData, type RelayStatusRequest, type RelayStatusResponseData, type RequestOptions, type RoutesRequest, type RoutesResponse, type StatusResponse, type Token, type TokensRequest, type TokensResponse, type ToolsRequest, type ToolsResponse, type TransactionAnalyticsRequest, type TransactionAnalyticsResponse } from '@lifi/types';
++import { type ChainId, type ChainKey, type ChainsRequest, type ConnectionsRequest, type ConnectionsResponse, type ContractCallsQuoteRequest, type ExtendedChain, type GasRecommendationRequest, type GasRecommendationResponse, type GetStatusRequest, type LiFiStep, type QuoteRequest as QuoteRequestFromAmount, type RelayRequest, type RelayResponseData, type RelayStatusRequest, type RelayStatusResponseData, type RequestOptions, type RoutesRequest, type RoutesResponse, type StatusResponse, type Token, type TokensRequest, type TokensResponse, type ToolsRequest, type ToolsResponse, type TransactionAnalyticsRequest, type TransactionAnalyticsResponse } from '@lifi/types';
++type QuoteRequest = QuoteRequestFromAmount | (Omit<QuoteRequestFromAmount, 'fromAmount'> & {
++    toAmount: string;
++    fromAmount?: never;
++});
+ /**
+  * Get a quote for a token transfer
+  * @param params - The configuration of the requested quote
+@@ -46,7 +50,7 @@ export declare const getStatus: (params: GetStatusRequest, options?: RequestOpti
+  * @throws {LiFiError} - Throws a LiFiError if request fails
+  * @returns Relayer quote for a token transfer
+  */
+-export declare const getRelayerQuote: (params: QuoteRequest, options?: RequestOptions) => Promise<LiFiStep>;
++export declare const getRelayerQuote: (params: QuoteRequestFromAmount, options?: RequestOptions) => Promise<LiFiStep>;
+ /**
+  * Relay a transaction through the relayer service
+  * @param params - The configuration for the relay request
+@@ -110,4 +114,5 @@ export declare const getGasRecommendation: (params: GasRecommendationRequest, op
+  */
+ export declare const getConnections: (connectionRequest: ConnectionsRequest, options?: RequestOptions) => Promise<ConnectionsResponse>;
+ export declare const getTransactionHistory: ({ wallet, status, fromTimestamp, toTimestamp }: TransactionAnalyticsRequest, options?: RequestOptions) => Promise<TransactionAnalyticsResponse>;
++export {};
+ //# sourceMappingURL=api.d.ts.map
+\ No newline at end of file
+diff --git a/src/_types/services/api.d.ts.map b/src/_types/services/api.d.ts.map
+index 450842d5aafad4cd196773bebd5cd71a1a8bc1db..87888f54569bad17c014654a9659e628948f09b5 100644
+--- a/src/_types/services/api.d.ts.map
++++ b/src/_types/services/api.d.ts.map
+@@ -1 +1 @@
+-{"version":3,"file":"api.d.ts","sourceRoot":"","sources":["../../services/api.ts"],"names":[],"mappings":"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"}
+\ No newline at end of file
++{"version":3,"file":"api.d.ts","sourceRoot":"","sources":["../../services/api.ts"],"names":[],"mappings":"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"}
+\ No newline at end of file
+diff --git a/src/core/Solana/KeypairWalletAdapter.ts b/src/core/Solana/KeypairWalletAdapter.ts
+deleted file mode 100644
+index 48658c2fe526c727c6849e6857ad70d987e775a5..0000000000000000000000000000000000000000
+diff --git a/src/core/Solana/Solana.ts b/src/core/Solana/Solana.ts
+deleted file mode 100644
+index dab4f9410613232bc22511da7205f185f3c31e88..0000000000000000000000000000000000000000
+diff --git a/src/core/Solana/SolanaStepExecutor.ts b/src/core/Solana/SolanaStepExecutor.ts
+deleted file mode 100644
+index 984a06edd9be360629a8bcc274330697bee8cf65..0000000000000000000000000000000000000000
+diff --git a/src/core/Solana/connection.ts b/src/core/Solana/connection.ts
+deleted file mode 100644
+index 48bd18582d38432590bbd0ce3906374b6a179255..0000000000000000000000000000000000000000
+diff --git a/src/core/Solana/getSNSAddress.ts b/src/core/Solana/getSNSAddress.ts
+deleted file mode 100644
+index 137c2270ee32fb6b18d9149f8f6096d3d1002c9d..0000000000000000000000000000000000000000
+diff --git a/src/core/Solana/getSolanaBalance.ts b/src/core/Solana/getSolanaBalance.ts
+deleted file mode 100644
+index 78c80946dbb15412e3173cf0db3bb82189dcbdd8..0000000000000000000000000000000000000000
+diff --git a/src/core/Solana/isSVMAddress.ts b/src/core/Solana/isSVMAddress.ts
+deleted file mode 100644
+index 6f45aa78368f33e2eef99ce5840ee3ab04cc9ab8..0000000000000000000000000000000000000000
+diff --git a/src/core/Solana/parseSolanaErrors.ts b/src/core/Solana/parseSolanaErrors.ts
+deleted file mode 100644
+index 5cdba7a0b531324bf581a900b0434bff91a90afd..0000000000000000000000000000000000000000
+diff --git a/src/core/Solana/sendAndConfirmTransaction.ts b/src/core/Solana/sendAndConfirmTransaction.ts
+deleted file mode 100644
+index f9182dac37f641af3f5cd751e5421381194e95f8..0000000000000000000000000000000000000000
+diff --git a/src/core/Solana/types.ts b/src/core/Solana/types.ts
+deleted file mode 100644
+index 0a784f2286021ba78cd61978aaa8ffedb1463692..0000000000000000000000000000000000000000
+diff --git a/src/core/Sui/Sui.ts b/src/core/Sui/Sui.ts
+deleted file mode 100644
+index 1de8b8b9b3f88c9ad43de1cdfa680912a0edf1c9..0000000000000000000000000000000000000000
+diff --git a/src/core/Sui/SuiStepExecutor.ts b/src/core/Sui/SuiStepExecutor.ts
+deleted file mode 100644
+index efbe0bfdc74f56f04dcd7510b1dfd75bd0868deb..0000000000000000000000000000000000000000
+diff --git a/src/core/Sui/getSuiBalance.ts b/src/core/Sui/getSuiBalance.ts
+deleted file mode 100644
+index 3bd4649c96ff67ea99a2d97876d4c7a67ddb3a08..0000000000000000000000000000000000000000
+diff --git a/src/core/Sui/getSuiNSAddress.ts b/src/core/Sui/getSuiNSAddress.ts
+deleted file mode 100644
+index faaba2cb228eb7481eca0b6533150135ce0feb6f..0000000000000000000000000000000000000000
+diff --git a/src/core/Sui/parseSuiErrors.ts b/src/core/Sui/parseSuiErrors.ts
+deleted file mode 100644
+index 0b2b6362b3d5c8bccc89fbdba1cb6cf6ae7e27ef..0000000000000000000000000000000000000000
+diff --git a/src/core/Sui/suiClient.ts b/src/core/Sui/suiClient.ts
+deleted file mode 100644
+index a32d11da87a97c523751765c6c63fb461be33dab..0000000000000000000000000000000000000000
+diff --git a/src/core/Sui/types.ts b/src/core/Sui/types.ts
+deleted file mode 100644
+index 47aaf3a0b46368b165653ae56b0ff4ffa9569cd4..0000000000000000000000000000000000000000
+diff --git a/src/core/UTXO/UTXO.ts b/src/core/UTXO/UTXO.ts
+deleted file mode 100644
+index 0b75b486915cb8be04e1b400fadde61608797d02..0000000000000000000000000000000000000000
+diff --git a/src/core/UTXO/UTXOStepExecutor.ts b/src/core/UTXO/UTXOStepExecutor.ts
+deleted file mode 100644
+index f5bb245e4022bdb2d19990a00e6aa1370f612375..0000000000000000000000000000000000000000
+diff --git a/src/core/UTXO/getUTXOBalance.ts b/src/core/UTXO/getUTXOBalance.ts
+deleted file mode 100644
+index 59a63d289c2dc8a324af6f92dafc6f8a0d3093c5..0000000000000000000000000000000000000000
+diff --git a/src/core/UTXO/getUTXOPublicClient.ts b/src/core/UTXO/getUTXOPublicClient.ts
+deleted file mode 100644
+index 704400f24275a8a995a08808227e2a380b9e9ffd..0000000000000000000000000000000000000000
+diff --git a/src/core/UTXO/parseUTXOErrors.ts b/src/core/UTXO/parseUTXOErrors.ts
+deleted file mode 100644
+index d865f2dbe3368972b8f29c922d246f69921d6fe0..0000000000000000000000000000000000000000
+diff --git a/src/core/UTXO/types.ts b/src/core/UTXO/types.ts
+deleted file mode 100644
+index 754a2d95c8ec1f8c664b96054304170ec1a73c00..0000000000000000000000000000000000000000
+diff --git a/src/createConfig.ts b/src/createConfig.ts
+index df0d23f7ea17a67b8329a726009a18ff080c08a3..a0f11b7622243f20b63d16fc3b43bdf5a0c1826f 100644
+--- a/src/createConfig.ts
++++ b/src/createConfig.ts
+@@ -20,7 +20,7 @@ function createBaseConfig(options: SDKConfig) {
+ 
+ export async function createChainsConfig() {
+   config.loading = getChains({
+-    chainTypes: [ChainType.EVM, ChainType.SVM, ChainType.UTXO, ChainType.MVM],
++    chainTypes: [ChainType.EVM],
+   })
+     .then((chains) => config.setChains(chains))
+     .catch()
+diff --git a/src/index.ts b/src/index.ts
+index 03cf44f18c4619454856dfa8788e9027ccc3a085..a58eccd14361c9ab52fb56e66d73426384436808 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -52,20 +52,6 @@ export type {
+   TransactionRequestUpdateHook,
+   UpdateRouteHook,
+ } from './core/types.js'
+-export { isSVMAddress } from './core/Solana/isSVMAddress.js'
+-export {
+-  KeypairWalletAdapter,
+-  KeypairWalletName,
+-} from './core/Solana/KeypairWalletAdapter.js'
+-export { Solana } from './core/Solana/Solana.js'
+-export { isSolana } from './core/Solana/types.js'
+-export type {
+-  SolanaProvider,
+-  SolanaProviderOptions,
+-} from './core/Solana/types.js'
+-export { UTXO } from './core/UTXO/UTXO.js'
+-export { isUTXO } from './core/UTXO/types.js'
+-export type { UTXOProvider, UTXOProviderOptions } from './core/UTXO/types.js'
+ export { createConfig } from './createConfig.js'
+ export { checkPackageUpdates } from './utils/checkPackageUpdates.js'
+ export { convertQuoteToRoute } from './utils/convertQuoteToRoute.js'
+@@ -106,6 +92,3 @@ export {
+ } from './errors/errors.js'
+ export { HTTPError } from './errors/httpError.js'
+ export { SDKError } from './errors/SDKError.js'
+-export { Sui } from './core/Sui/Sui.js'
+-export { isSui } from './core/Sui/types.js'
+-export type { SuiProvider, SuiProviderOptions } from './core/Sui/types.js'
+diff --git a/src/services/api.ts b/src/services/api.ts
+index 1be344a13c278beea2573dbc2d0a6160ba28701d..72bb1a19d5566c6b292ab7e90a7fdcf71303e8a4 100644
+--- a/src/services/api.ts
++++ b/src/services/api.ts
+@@ -11,7 +11,7 @@ import {
+   type GasRecommendationResponse,
+   type GetStatusRequest,
+   type LiFiStep,
+-  type QuoteRequest,
++  type QuoteRequest as QuoteRequestFromAmount,
+   type RelayRequest,
+   type RelayResponse,
+   type RelayResponseData,
+@@ -42,6 +42,13 @@ import { request } from '../request.js'
+ import { isRoutesRequest, isStep } from '../typeguards.js'
+ import { withDedupe } from '../utils/withDedupe.js'
+ 
++type QuoteRequest =
++  | QuoteRequestFromAmount
++  | (Omit<QuoteRequestFromAmount, 'fromAmount'> & {
++      toAmount: string
++      fromAmount?: never
++    })
++
+ /**
+  * Get a quote for a token transfer
+  * @param params - The configuration of the requested quote
+@@ -57,7 +64,6 @@ export const getQuote = async (
+     'fromChain',
+     'fromToken',
+     'fromAddress',
+-    'fromAmount',
+     'toChain',
+     'toToken',
+   ]
+@@ -70,6 +76,29 @@ export const getQuote = async (
+       )
+     }
+   }
++  if (
++    (!('fromAmount' in params) || !params.fromAmount) &&
++    (!('toAmount' in params) || !params.toAmount)
++  ) {
++    throw new SDKError(
++      new ValidationError(
++        'Required parameter "fromAmount" or "toAmount" is missing.'
++      )
++    )
++  }
++  if (
++    'fromAmount' in params &&
++    'toAmount' in params &&
++    params.fromAmount &&
++    // @ts-expect-error type-agnostic runtime check
++    params.toAmount
++  ) {
++    throw new SDKError(
++      new ValidationError(
++        'Cannot provide both "fromAmount" and "toAmount" parameters.'
++      )
++    )
++  }
+   const _config = config.get()
+   // apply defaults
+   params.integrator ??= _config.integrator
+@@ -91,7 +120,7 @@ export const getQuote = async (
+   }
+ 
+   return await request<LiFiStep>(
+-    `${_config.apiUrl}/quote?${new URLSearchParams(
++    `${_config.apiUrl}/${params.fromAmount ? 'quote' : 'quote/toAmount'}?${new URLSearchParams(
+       params as unknown as Record<string, string>
+     )}`,
+     {
+@@ -259,10 +288,10 @@ export const getStatus = async (
+  * @returns Relayer quote for a token transfer
+  */
+ export const getRelayerQuote = async (
+-  params: QuoteRequest,
++  params: QuoteRequestFromAmount,
+   options?: RequestOptions
+ ): Promise<LiFiStep> => {
+-  const requiredParameters: Array<keyof QuoteRequest> = [
++  const requiredParameters: Array<keyof QuoteRequestFromAmount> = [
+     'fromChain',
+     'fromToken',
+     'fromAddress',
