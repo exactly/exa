@@ -1,5 +1,21 @@
 # @exactly/mobile
 
+## 1.0.12
+
+### Patch Changes
+
+- [`77314f7`](https://github.com/exactly/exa/commit/77314f7314131fd7f0da9fa384cb55b853ae8d42) Thanks [@franm91](https://github.com/franm91)! - 🥅 handle repay route errors
+
+- [`9c0fcdf`](https://github.com/exactly/exa/commit/9c0fcdf0d8b437825c9888cf0ba1075bd5354d01) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🥅 handle card error
+
+- [`b3125f1`](https://github.com/exactly/exa/commit/b3125f148dc2f3acd964d41534e0e7fb98948b9a) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚸 increase repay route refetch interval
+
+- [`655b037`](https://github.com/exactly/exa/commit/655b0375ff9a9de53fb60f55c3549f906d063f50) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚸 tweak repay and swap slippage
+
+- [`f081fba`](https://github.com/exactly/exa/commit/f081fba9595869bf91a1b69b80737f8e57f2674b) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚸 simplify asset selection
+
+- [`47c114e`](https://github.com/exactly/exa/commit/47c114e319788df7ecc5c0082a23e2d24f49bb7a) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 deny exchanges on swap errors
+
 ## 1.0.11
 
 ### Patch Changes
