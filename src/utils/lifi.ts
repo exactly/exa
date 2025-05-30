@@ -1,6 +1,6 @@
 import chain, { mockSwapperAbi, swapperAddress } from "@exactly/common/generated/chain";
 import { Hex } from "@exactly/common/validation";
-import { getTokenBalancesByChain, getTokens, config, getContractCallsQuote } from "@lifi/sdk";
+import { config, getQuote, getTokenBalancesByChain, getTokens } from "@lifi/sdk";
 import { parse } from "valibot";
 import { encodeFunctionData } from "viem";
 import type { Address } from "viem";
@@ -37,7 +37,7 @@ export async function getRoute(
     };
   }
   config.set({ integrator: "exa_app", userId: account });
-  const { estimate, transactionRequest, tool } = await getContractCallsQuote({
+  const { estimate, transactionRequest, tool } = await getQuote({
     fee: 0.0025,
     slippage: 0.015,
     integrator: "exa_app",
@@ -47,8 +47,7 @@ export async function getRoute(
     toToken: toToken.toString(),
     toAmount: toAmount.toString(),
     fromAddress: account,
-    contractCalls: [],
-    toFallbackAddress: receiver,
+    toAddress: receiver,
     denyExchanges:
       denyExchanges &&
       Object.entries(denyExchanges)
