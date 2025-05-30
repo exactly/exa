@@ -4,6 +4,7 @@
     "*.svg",
     "cspell.json",
     "contracts/broadcast",
+    "patches",
     "pnpm-lock.yaml"
   ],
   "words": [
