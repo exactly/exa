@@ -89,24 +89,23 @@ pub fn db_deposits(
 
 #[substreams::handlers::map]
 pub fn map_deposits(block: Block) -> Result<exa::Deposits, Error> {
-  // const MARKET_WETH: [u8; 20] = hex!("c4d4500326981eacD020e20A81b1c479c161c7EF");
   Ok(exa::Deposits {
     deposits: block
       .logs()
       .filter_map(|log| {
         Deposit::match_and_decode(log).and_then(|event| {
-          // if log.address().to_vec() == MARKET_WETH {
-          Some(exa::Deposit {
-            market: log.address().to_vec(),
-            receiver: event.owner.to_vec(),
-            amount: event.assets.to_string(),
-            block_number: block.number,
-            tx_index: log.receipt.transaction.index as u64,
-            log_index: log.index() as u64,
-          })
-          // } else {
-          //   None
-          // }
+          if log.address().to_vec() == hex!("c4d4500326981eacD020e20A81b1c479c161c7EF") {
+            Some(exa::Deposit {
+              market: log.address().to_vec(),
+              receiver: event.owner.to_vec(),
+              amount: event.assets.to_string(),
+              block_number: block.number,
+              tx_index: log.receipt.transaction.index as u64,
+              log_index: log.index() as u64,
+            })
+          } else {
+            None
+          }
         })
       })
       .collect(),
@@ -115,9 +114,12 @@ pub fn map_deposits(block: Block) -> Result<exa::Deposits, Error> {
 
 #[substreams::handlers::map]
 pub fn map_swaps(block: Block) -> Result<exa::Swaps, Error> {
+  const LIFI_CONTRACT_ADDRESS: [u8; 20] = hex!("1231deb6f5749ef6ce6943a275a1d3e7486f4eae");
+
   Ok(exa::Swaps {
     swaps: block
       .logs()
+      .filter(|log| log.address() == LIFI_CONTRACT_ADDRESS)
       .filter_map(|log| {
         LiFiGenericSwapCompleted::match_and_decode(log).and_then(|event| {
           Some(exa::Swap {
@@ -137,7 +139,8 @@ pub fn map_swaps(block: Block) -> Result<exa::Swaps, Error> {
 }
 
 #[substreams::handlers::map]
-pub fn db_swaps(swaps: exa::Swaps) -> Result<substreams_database_change::pb::database::DatabaseChanges, Error> {
+pub fn db_swaps(swaps: exa::Swaps) -> Result<DatabaseChanges, Error> {
+  substreams::log::info!("hey!");
   let mut changes = vec![];
   for swap in swaps.swaps {
     let mut change = TableChange::new(
@@ -152,39 +155,28 @@ pub fn db_swaps(swaps: exa::Swaps) -> Result<substreams_database_change::pb::dat
       old_value: "".to_string(),
     });
     change.fields.push(Field {
-      name: "asset_from".to_string(),
+      name: "from_asset_id".to_string(),
       new_value: Hex(&swap.asset_from).to_string(),
       old_value: "".to_string(),
     });
     change.fields.push(Field {
-      name: "asset_to".to_string(),
+      name: "to_asset_id".to_string(),
       new_value: Hex(&swap.asset_to).to_string(),
       old_value: "".to_string(),
     });
     change.fields.push(Field {
-      name: "amount_from".to_string(),
+      name: "from_amount".to_string(),
       new_value: swap.amount_from.to_string(),
       old_value: "".to_string(),
     });
     change.fields.push(Field {
-      name: "amount_to".to_string(),
+      name: "to_amount".to_string(),
       new_value: swap.amount_to.to_string(),
       old_value: "".to_string(),
     });
     changes.push(change);
   }
   Ok(DatabaseChanges { table_changes: changes })
-}
-
-#[substreams::handlers::map]
-pub fn db_out(
-  deposits_changes: substreams_database_change::pb::database::DatabaseChanges,
-  swaps_changes: substreams_database_change::pb::database::DatabaseChanges,
-) -> Result<substreams_database_change::pb::database::DatabaseChanges, Error> {
-  let mut all_changes = Vec::new();
-  all_changes.extend(deposits_changes.table_changes);
-  all_changes.extend(swaps_changes.table_changes);
-  Ok(DatabaseChanges { table_changes: all_changes })
 }
 
 #[substreams::handlers::map]
