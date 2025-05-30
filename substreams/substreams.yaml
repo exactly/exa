@@ -15,7 +15,7 @@ imports:
 modules:
   - name: map_accounts
     kind: map
-    initialBlock: 123140000
+    initialBlock: 135827000
     inputs:
       - source: sf.ethereum.type.v2.Block
     output:
@@ -28,14 +28,14 @@ modules:
       - map: map_accounts  
   - name: map_deposits
     kind: map
-    initialBlock: 123140000
+    initialBlock: 135827000
     inputs:
       - source: sf.ethereum.type.v2.Block
     output:
       type: proto:exa.Deposits
   - name: map_transfers
     kind: map
-    initialBlock: 123140000
+    initialBlock: 135827000
     inputs:
       - source: sf.ethereum.type.v2.Block
       - store: store_accounts
@@ -43,14 +43,14 @@ modules:
       type: proto:exa.Transfers
   - name: map_transfers_all
     kind: map
-    initialBlock: 123140000
+    initialBlock: 135827000
     inputs:
       - source: sf.ethereum.type.v2.Block
     output:
       type: proto:exa.Transfers
   - name: map_swaps
     kind: map
-    initialBlock: 123140000
+    initialBlock: 135827000
     inputs:
       - source: sf.ethereum.type.v2.Block
     output:
@@ -60,19 +60,19 @@ modules:
     kind: store
     updatePolicy: set_if_not_exists
     valueType: proto:eth.block_meta.v1.BlockMeta
-    initialBlock: 123140000
+    initialBlock: 135827000
     inputs:
       - source: sf.ethereum.type.v2.Block
   - name: db_deposits
     kind: map
-    initialBlock: 123140000
+    initialBlock: 135827000
     inputs:
       - map: map_deposits
     output:
       type: proto:sf.substreams.sink.database.v1.DatabaseChanges
   - name: db_swaps
     kind: map
-    initialBlock: 123140000
+    initialBlock: 135827000
     inputs:
       - map: map_swaps
     output:
