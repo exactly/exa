@@ -42,14 +42,10 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
     query: { refetchOnMount: true, enabled: !!address && !!bytecode },
   });
   const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
-
   if (!success || !USDCMarket) return;
-
   const { fixedBorrowPositions, usdPrice, decimals } = USDCMarket;
   const borrow = fixedBorrowPositions.find((b) => b.maturity === BigInt(maturity));
-
   if (!borrow) return;
-
   const previewValue = (borrow.previewValue * usdPrice) / 10n ** BigInt(decimals);
   const positionValue = ((borrow.position.principal + borrow.position.fee) * usdPrice) / 10n ** BigInt(decimals);
   const discount = Number(WAD - (previewValue * WAD) / positionValue) / 1e18;

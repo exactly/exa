@@ -24,6 +24,7 @@ import { KYC_TEMPLATE_ID, LEGACY_KYC_TEMPLATE_ID } from "../../utils/persona";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { getActivity, getKYCStatus } from "../../utils/server";
+import OverduePayments from "../pay-mode/OverduePayments";
 import PaymentSheet from "../pay-mode/PaymentSheet";
 import UpcomingPayments from "../pay-mode/UpcomingPayments";
 import InfoAlert from "../shared/InfoAlert";
@@ -134,6 +135,12 @@ export default function Home() {
             <View padded gap="$s5">
               <CardStatus />
               <GettingStarted hasFunds={usdBalance > 0n} hasKYC={KYCStatus === "ok"} />
+              <OverduePayments
+                onSelect={(maturity) => {
+                  router.setParams({ ...parameters, maturity: maturity.toString() });
+                  setPaySheetOpen(true);
+                }}
+              />
               <UpcomingPayments
                 onSelect={(maturity) => {
                   router.setParams({ ...parameters, maturity: maturity.toString() });

@@ -4,13 +4,14 @@ import ProposalType, {
   decodeRollDebt,
 } from "@exactly/common/ProposalType";
 import { exaPreviewerAddress, previewerAddress } from "@exactly/common/generated/chain";
+import { WAD } from "@exactly/lib";
 import { ChevronRight } from "@tamagui/lucide-icons";
 import { format, isBefore } from "date-fns";
 import React from "react";
 import { Pressable } from "react-native";
 import { XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
-import { useAccount } from "wagmi";
+import { useAccount, useBytecode } from "wagmi";
 
 import { useReadExaPreviewerPendingProposals, useReadPreviewerExactly } from "../../generated/contracts";
 import Text from "../shared/Text";
@@ -18,147 +19,163 @@ import View from "../shared/View";
 
 export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bigint, amount: bigint) => void }) {
   const { address } = useAccount();
+  const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
   const { data: pendingProposals } = useReadExaPreviewerPendingProposals({
     address: exaPreviewerAddress,
     args: [address ?? zeroAddress],
-    query: {
-      enabled: !!address,
-      gcTime: 0,
-      refetchInterval: 30_000,
-    },
+    query: { enabled: !!address && !!bytecode, gcTime: 0, refetchInterval: 30_000 },
   });
   const { data: markets } = useReadPreviewerExactly({
     address: previewerAddress,
     args: [address ?? zeroAddress],
-    query: { enabled: !!address, refetchInterval: 30_000 },
+    query: { enabled: !!address && !!bytecode, refetchInterval: 30_000 },
   });
-  const duePayments = new Map<bigint, bigint>();
+  const duePayments = new Map<bigint, { positionAmountUSD: bigint; amount: bigint; discount: number }>();
   if (markets) {
     for (const { fixedBorrowPositions, usdPrice, decimals } of markets) {
-      for (const { maturity, previewValue } of fixedBorrowPositions) {
+      for (const { maturity, previewValue, position } of fixedBorrowPositions) {
         if (!previewValue) continue;
-        duePayments.set(
-          maturity,
-          (duePayments.get(maturity) ?? 0n) + (previewValue * usdPrice) / 10n ** BigInt(decimals),
-        );
+        const previewAmountUSD = (previewValue * usdPrice) / 10n ** BigInt(decimals);
+        const positionAmountUSD = ((position.principal + position.fee) * usdPrice) / 10n ** BigInt(decimals);
+        if (isBefore(new Date(Number(maturity) * 1000), new Date())) continue;
+        duePayments.set(maturity, {
+          positionAmountUSD,
+          amount: (duePayments.get(maturity)?.amount ?? 0n) + previewAmountUSD,
+          discount: Number(WAD - (previewAmountUSD * WAD) / positionAmountUSD) / 1e18,
+        });
       }
     }
   }
   const payments = [...duePayments];
   return (
     <View backgroundColor="$backgroundSoft" borderRadius="$r3" padding="$s4" gap="$s6">
-      <View flexDirection="row" gap="$s3" alignItems="center" justifyContent="space-between">
+      <XStack alignItems="center" justifyContent="space-between">
         <Text emphasized headline flex={1}>
           Upcoming payments
         </Text>
-      </View>
-      {payments.length > 0 ? (
-        payments.map(([maturity, amount], index) => {
-          const overdue = isBefore(new Date(Number(maturity) * 1000), new Date());
-          const isRepaying = pendingProposals?.some(({ proposal }) => {
-            const { proposalType: type, data } = proposal;
-            const isRepayProposal =
-              type === Number(ProposalType.RepayAtMaturity) || type === Number(ProposalType.CrossRepayAtMaturity);
-            if (!isRepayProposal) return false;
-            const decoded =
-              type === Number(ProposalType.RepayAtMaturity)
-                ? decodeRepayAtMaturity(data)
-                : decodeCrossRepayAtMaturity(data);
-            return decoded.maturity === maturity;
-          });
-          const isRollingDebt = pendingProposals?.some(({ proposal }) => {
-            const { proposalType: type, data } = proposal;
-            if (type !== Number(ProposalType.RollDebt)) return false;
-            const decoded = decodeRollDebt(data);
-            return decoded.repayMaturity === maturity;
-          });
-          const isProcessing = isRepaying || isRollingDebt; //eslint-disable-line @typescript-eslint/prefer-nullish-coalescing
-          return (
-            <Pressable
-              key={index}
-              disabled={isProcessing}
-              onPress={() => {
-                if (isProcessing) return;
-                onSelect(maturity, amount);
-              }}
-            >
-              <XStack justifyContent="space-between" alignItems="center">
-                <XStack alignItems="center" gap="$s3">
-                  <Text
-                    subHeadline
-                    color={
-                      isProcessing ? "$interactiveTextDisabled" : overdue ? "$uiErrorSecondary" : "$uiNeutralPrimary"
-                    }
-                  >
-                    {format(new Date(Number(maturity) * 1000), "MMM dd, yyyy")}
-                  </Text>
-                  {isProcessing ? (
+      </XStack>
+      <YStack gap="$s6">
+        {payments.length > 0 ? (
+          payments.map(([maturity, { positionAmountUSD: positionAmount, amount, discount }], index) => {
+            const isRepaying = pendingProposals?.some(({ proposal }) => {
+              const { proposalType: type, data } = proposal;
+              const isRepayProposal =
+                type === Number(ProposalType.RepayAtMaturity) || type === Number(ProposalType.CrossRepayAtMaturity);
+              if (!isRepayProposal) return false;
+              const decoded =
+                type === Number(ProposalType.RepayAtMaturity)
+                  ? decodeRepayAtMaturity(data)
+                  : decodeCrossRepayAtMaturity(data);
+              return decoded.maturity === maturity;
+            });
+            const isRollingDebt = pendingProposals?.some(({ proposal }) => {
+              const { proposalType: type, data } = proposal;
+              if (type !== Number(ProposalType.RollDebt)) return false;
+              const decoded = decodeRollDebt(data);
+              return decoded.repayMaturity === maturity;
+            });
+            const isProcessing = isRepaying || isRollingDebt; //eslint-disable-line @typescript-eslint/prefer-nullish-coalescing
+            return (
+              <Pressable
+                key={index}
+                disabled={isProcessing}
+                onPress={() => {
+                  if (isProcessing) return;
+                  onSelect(maturity, amount);
+                }}
+              >
+                <XStack justifyContent="space-between" alignItems="center">
+                  <XStack alignItems="center" gap="$s3">
+                    <YStack gap="$s2">
+                      <XStack alignItems="center" gap="$s3">
+                        <Text
+                          sensitive
+                          subHeadline
+                          color={
+                            isRepaying
+                              ? "$interactiveTextDisabled"
+                              : discount >= 0
+                                ? "$interactiveBaseSuccessDefault"
+                                : "$uiNeutralPrimary"
+                          }
+                        >
+                          {(Number(amount) / 1e18).toLocaleString(undefined, {
+                            style: "currency",
+                            currency: "USD",
+                            currencyDisplay: "narrowSymbol",
+                          })}
+                        </Text>
+                        {discount >= 0 && (
+                          <Text sensitive caption strikeThrough>
+                            {(Number(positionAmount) / 1e18).toLocaleString(undefined, {
+                              style: "currency",
+                              currency: "USD",
+                              currencyDisplay: "narrowSymbol",
+                            })}
+                          </Text>
+                        )}
+                      </XStack>
+                      <Text caption color={isProcessing ? "$interactiveTextDisabled" : "$uiNeutralPrimary"}>
+                        {format(new Date(Number(maturity) * 1000), "MMM dd, yyyy")}
+                      </Text>
+                    </YStack>
+                    {isProcessing ? (
+                      <View
+                        alignSelf="center"
+                        justifyContent="center"
+                        alignItems="center"
+                        backgroundColor="$interactiveDisabled"
+                        borderRadius="$r2"
+                        paddingVertical="$s1"
+                        paddingHorizontal="$s2"
+                      >
+                        <Text emphasized color="$interactiveOnDisabled" maxFontSizeMultiplier={1} caption2>
+                          PROCESSING
+                        </Text>
+                      </View>
+                    ) : null}
+                  </XStack>
+                  <XStack alignItems="center" gap="$s3">
                     <View
                       alignSelf="center"
                       justifyContent="center"
                       alignItems="center"
-                      backgroundColor="$interactiveDisabled"
+                      backgroundColor="$interactiveBaseSuccessDefault"
                       borderRadius="$r2"
                       paddingVertical="$s1"
                       paddingHorizontal="$s2"
                     >
-                      <Text emphasized color="$interactiveOnDisabled" maxFontSizeMultiplier={1} caption2>
-                        PROCESSING
+                      <Text emphasized color="$interactiveOnBaseSuccessDefault" maxFontSizeMultiplier={1} caption2>
+                        {`${(discount >= 0 ? discount : discount * -1).toLocaleString(undefined, {
+                          style: "percent",
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })} OFF`}
                       </Text>
                     </View>
-                  ) : overdue ? (
-                    <View
-                      alignSelf="center"
-                      justifyContent="center"
-                      alignItems="center"
-                      backgroundColor="$interactiveBaseErrorSoftDefault"
-                      borderRadius="$r2"
-                      paddingVertical="$s1"
-                      paddingHorizontal="$s2"
-                    >
-                      <Text emphasized color="$uiErrorSecondary" maxFontSizeMultiplier={1} caption2>
-                        OVERDUE
-                      </Text>
-                    </View>
-                  ) : null}
+                    <Text emphasized subHeadline color="$interactiveBaseBrandDefault">
+                      Repay
+                    </Text>
+                    <ChevronRight size={16} color={isRepaying ? "$iconDisabled" : "$iconBrandDefault"} />
+                  </XStack>
                 </XStack>
-                <XStack alignItems="center" gap="$s2">
-                  <Text
-                    sensitive
-                    emphasized
-                    body
-                    color={
-                      isRepaying ? "$interactiveTextDisabled" : overdue ? "$uiErrorSecondary" : "$uiNeutralPrimary"
-                    }
-                  >
-                    {(Number(amount) / 1e18).toLocaleString(undefined, {
-                      style: "currency",
-                      currency: "USD",
-                      currencyDisplay: "narrowSymbol",
-                    })}
-                  </Text>
-                  <ChevronRight
-                    size={24}
-                    color={isRepaying ? "$iconDisabled" : overdue ? "$uiErrorSecondary" : "$iconBrandDefault"}
-                  />
-                </XStack>
-              </XStack>
-            </Pressable>
-          );
-        })
-      ) : (
-        <YStack alignItems="center" justifyContent="center" gap="$s4_5">
-          <Text textAlign="center" color="$uiNeutralSecondary" emphasized title>
-            🎉
-          </Text>
-          <Text textAlign="center" color="$uiBrandSecondary" emphasized headline>
-            You&apos;re all set!
-          </Text>
-          <Text textAlign="center" color="$uiNeutralSecondary" subHeadline>
-            Any purchases made with Pay Later will show up here.
-          </Text>
-        </YStack>
-      )}
+              </Pressable>
+            );
+          })
+        ) : (
+          <YStack alignItems="center" justifyContent="center" gap="$s4_5">
+            <Text textAlign="center" color="$uiNeutralSecondary" emphasized title>
+              🎉
+            </Text>
+            <Text textAlign="center" color="$uiBrandSecondary" emphasized headline>
+              You&apos;re all set!
+            </Text>
+            <Text textAlign="center" color="$uiNeutralSecondary" subHeadline>
+              Any purchases made with Pay Later will show up here.
+            </Text>
+          </YStack>
+        )}
+      </YStack>
     </View>
   );
 }

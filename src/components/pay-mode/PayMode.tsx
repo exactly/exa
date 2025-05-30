@@ -5,6 +5,7 @@ import { RefreshControl } from "react-native";
 import { ScrollView, useTheme } from "tamagui";
 import { zeroAddress } from "viem";
 
+import OverduePayments from "./OverduePayments";
 import PaySelector from "./PaySelector";
 import PaymentSheet from "./PaymentSheet";
 import UpcomingPayments from "./UpcomingPayments";
@@ -45,6 +46,12 @@ export default function PayMode() {
           <>
             <PaySelector />
             <View padded gap="$s6">
+              <OverduePayments
+                onSelect={(maturity) => {
+                  router.setParams({ ...parameters, maturity: maturity.toString() });
+                  setPaySheetOpen(true);
+                }}
+              />
               <UpcomingPayments
                 onSelect={(maturity) => {
                   router.setParams({ ...parameters, maturity: maturity.toString() });
