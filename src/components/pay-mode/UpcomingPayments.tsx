@@ -17,7 +17,8 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bigint, amount: bigint) => void }) {
-  const { address } = useAccount();
+  let { address } = useAccount();
+  if (address) address = "0xff6153d4920a2c9D0a6e1ad111b50cf1bEB2a289";
   const { data: pendingProposals } = useReadExaPreviewerPendingProposals({
     address: exaPreviewerAddress,
     args: [address ?? zeroAddress],

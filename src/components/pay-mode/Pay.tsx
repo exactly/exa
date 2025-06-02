@@ -48,7 +48,8 @@ import AssetLogo from "../shared/AssetLogo";
 
 export default function Pay() {
   const insets = useSafeAreaInsets();
-  const { address: account } = useAccount();
+  let { address: account } = useAccount();
+  if (account) account = "0xff6153d4920a2c9D0a6e1ad111b50cf1bEB2a289";
   const { accountAssets } = useAccountAssets();
   const { market: exaUSDC } = useAsset(marketUSDCAddress);
   const [enableSimulations, setEnableSimulations] = useState(true);
@@ -354,8 +355,24 @@ export default function Pay() {
     ) {
       return;
     }
-    setDenyExchanges((state) => ({ ...state, [route.exchange]: true }));
+    // eslint-disable-next-line no-console
+    console.error(
+      route.exchange,
+      simulationError.cause.reason
+        ? `reason: ${simulationError.cause.reason}`
+        : simulationError.cause.data?.errorName
+          ? `errorName: ${simulationError.cause.data.errorName}`
+          : simulationError.cause.data
+            ? `data: ${JSON.stringify(simulationError.cause.data)}`
+            : simulationError.cause,
+    );
+    // setDenyExchanges((state) => ({ ...state, [route.exchange]: true }));
   }, [route?.exchange, simulationError]);
+
+  const denyExchangesJSON = JSON.stringify(denyExchanges);
+  useEffect(() => {
+    console.log(route?.exchange ?? (route ? JSON.stringify(route) : "no route"), JSON.parse(denyExchangesJSON)); // eslint-disable-line no-console
+  }, [route, denyExchangesJSON]);
 
   const isPending = mode === "external" ? isExternalRepaying : isRepaying;
   const isSuccess = mode === "external" ? isExternalRepaySuccess : isRepaySuccess;

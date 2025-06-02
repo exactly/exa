@@ -31,7 +31,8 @@ export interface ExternalAsset {
 }
 
 export default function useAccountAssets() {
-  const { address: account } = useAccount();
+  let { address: account } = useAccount();
+  if (account) account = "0xff6153d4920a2c9D0a6e1ad111b50cf1bEB2a289";
 
   const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [account ?? zeroAddress] });
 

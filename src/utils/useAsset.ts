@@ -9,7 +9,8 @@ import { getAsset, getTokenBalances } from "./lifi";
 import { useReadPreviewerExactly } from "../generated/contracts";
 
 export default function useAsset(address?: Address) {
-  const { address: account } = useAccount();
+  let { address: account } = useAccount();
+  if (account) account = "0xff6153d4920a2c9D0a6e1ad111b50cf1bEB2a289";
   const { data: externalAsset, isFetching: isExternalAssetFetching } = useQuery({
     initialData: null,
     queryKey: ["asset", address],

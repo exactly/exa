@@ -1,11 +1,11 @@
 import ProposalType from "@exactly/common/ProposalType";
-import {
+import chain, {
   exaPluginAddress,
   exaPreviewerAddress,
   proposalManagerAddress,
   swapperAddress,
 } from "@exactly/common/generated/chain";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import {
   bytesToHex,
   encodeAbiParameters,
@@ -19,7 +19,8 @@ import {
   type Hex,
   type StateOverride,
 } from "viem";
-import { useBytecode, useSimulateContract } from "wagmi";
+import { optimism, optimismSepolia } from "viem/chains";
+import { useBlockNumber, useBytecode, useSimulateContract } from "wagmi";
 
 import {
   auditorAbi,
@@ -194,7 +195,7 @@ export default function useSimulateProposal({
     functionName: "propose",
     abi: [...upgradeableModularAccountAbi, ...exaPluginAbi, ...proposalManagerAbi],
     args: [market ?? zeroAddress, amount ?? 0n, proposal.proposalType, proposalData ?? "0x"],
-    query: { enabled: enabled && !!deployed && !!account && !!amount },
+    query: { retry: false, enabled: enabled && !!deployed && !!account && !!amount },
   });
 
   const { data: proposalDelay } = useReadProposalManagerDelay({ address: proposalManagerAddress, query: { enabled } });
@@ -308,9 +309,100 @@ export default function useSimulateProposal({
     stateOverride,
     blockOverrides,
     query: {
+      retry: false,
       enabled: enabled && !!deployed && nonce !== undefined && !!account && !!stateOverride && !!blockOverrides,
     },
   });
 
+  const { data: block } = useBlockNumber({ query: { enabled: enabled && !!executeProposal.error } });
+  useEffect(() => {
+    if (!executeProposal.error || proposal.proposalType !== ProposalType.CrossRepayAtMaturity) return;
+    return;
+    // eslint-disable-next-line no-console
+    console.log(`
+vm.createSelectFork("${{ [optimism.id]: "optimism", [optimismSepolia.id]: "optimism_sepolia" }[chain.id]}", ${block});
+IExaAccount account = IExaAccount(${account});
+ExaPlugin exaPlugin = ExaPlugin(payable(broadcast("ExaPlugin")));
+address ogProposalManager = broadcast("ProposalManager");
+IMarket market = IMarket(${market});
+ProposalManager proposalManager = ProposalManager(address(0x420));
+vm.etch(address(proposalManager), address(ogProposalManager).code);
+vm.label(address(proposalManager), "FakeProposalManager");
+vm.label(address(account), "account");
+vm.label(address(ENTRYPOINT), "ENTRYPOINT");
+vm.label(ACCOUNT_IMPL, "ACCOUNT_IMPL");
+protocol("OP");
+protocol("Auditor");
+protocol("MarketOP");
+protocol("MarketUSDC");
+protocol("MarketUSDC.e");
+protocol("MarketWETH");
+protocol("MarketWBTC");
+protocol("RewardsController");
+protocol("InterestRateModelUSDC");
+protocol("InterestRateModelWBTC");
+
+vm.startPrank(protocol("ProxyAdmin"));
+ITransparentUpgradeableProxy(payable(protocol("MarketWBTC"))).upgradeTo(
+  address(new Market(ERC20(protocol("WBTC")), Auditor(protocol("Auditor"))))
+);
+
+vm.startPrank(acct("admin"));
+exaPlugin.setProposalManager(IProposalManager(proposalManager));
+
+uint256 nonce = ${nonce};
+uint256 amount = ${amount};
+ProposalType proposalType = ProposalType.${
+      {
+        [ProposalType.CrossRepayAtMaturity]: "CROSS_REPAY_AT_MATURITY",
+        [ProposalType.RepayAtMaturity]: "REPAY_AT_MATURITY",
+      }[proposal.proposalType]
+    };
+bytes memory data;
+{
+  uint256 maturity = ${proposal.maturity};
+  uint256 maxRepay = ${proposal.maxRepay};
+  uint256 positionAssets = ${proposal.positionAssets};
+  bytes memory route = hex"${proposal.route?.slice(2)}";
+
+  data = abi.encode(
+    CrossRepayData({ maturity: maturity, positionAssets: positionAssets, maxRepay: maxRepay, route: route })
+  );
+}
+
+uint256 proposalSlot = uint256(keccak256(abi.encode(nonce, keccak256(abi.encode(account, 5)))));
+vm.store(address(proposalManager), keccak256(abi.encode(account, 3)), bytes32(uint256(nonce)));
+vm.store(address(proposalManager), keccak256(abi.encode(account, 4)), bytes32(uint256(nonce + 1)));
+vm.store(address(proposalManager), bytes32(proposalSlot), bytes32(amount));
+vm.store(address(proposalManager), bytes32(proposalSlot + 1), bytes32(abi.encode(market)));
+vm.store(address(proposalManager), bytes32(proposalSlot + 3), bytes32(abi.encode(proposalType)));
+vm.store(address(proposalManager), bytes32(proposalSlot + 4), bytes32(2 * data.length + 1));
+for (uint256 start = 0; start < data.length; start += 32) {
+  vm.store(
+    address(proposalManager),
+    bytes32(uint256(keccak256(abi.encode(proposalSlot + 4))) + (start / 32)),
+    bytes32(data.slice(start, start + 32))
+  );
+}
+vm.store(
+  address(proposalManager),
+  keccak256(abi.encode(exaPlugin, keccak256(abi.encode(keccak256("PROPOSER_ROLE"), uint256(0))))),
+  bytes32(uint256(1))
+);
+vm.store(address(proposalManager), keccak256(abi.encode(acct("swapper"), 2)), bytes32(uint256(1)));
+vm.store(address(proposalManager), keccak256(abi.encode(protocol("USDC"), 2)), bytes32(uint256(1)));
+vm.store(address(proposalManager), keccak256(abi.encode(protocol("USDC.e"), 2)), bytes32(uint256(1)));
+vm.store(address(proposalManager), keccak256(abi.encode(protocol("WETH"), 2)), bytes32(uint256(1)));
+vm.store(address(proposalManager), keccak256(abi.encode(protocol("WBTC"), 2)), bytes32(uint256(1)));
+vm.store(
+  address(proposalManager),
+  keccak256(abi.encode(0x94b008aA00579c1307B0EF2c499aD98a8ce58e58, 2)),
+  bytes32(uint256(1))
+);
+
+vm.startPrank(address(account));
+account.executeProposal(nonce);
+`);
+  }, [executeProposal.error, proposal.proposalType, block, proposal, account, nonce, amount, market]);
   return { propose, executeProposal, proposalData };
 }
