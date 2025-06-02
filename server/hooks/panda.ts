@@ -327,30 +327,13 @@ export default new Hono().post(
           if (!card) throw new Error("card not found");
           const account = v.parse(Address, card.credential.account);
           setUser({ id: account });
-
           const tx = await database.query.transactions.findFirst({
             where: and(eq(transactions.id, payload.body.id), eq(transactions.cardId, payload.body.spend.cardId)),
           });
-          if (tx) {
-            const payloads = v.parse(v.object({ bodies: v.array(Transaction) }), tx.payload);
-            const totalSpendUsd =
-              payloads.bodies.reduce((accumulator, body) => {
-                if (body.action === "created" && body.body.spend.status === "pending") {
-                  return accumulator + body.body.spend.amount;
-                }
-                if (
-                  body.action === "updated" &&
-                  (body.body.spend.status === "pending" || body.body.spend.status === "reversed")
-                ) {
-                  return accumulator + body.body.spend.authorizationUpdateAmount;
-                }
-                return accumulator;
-              }, 0) / 100;
-            const totalSpend = BigInt(Math.round(totalSpendUsd * 1e6));
-            if (refundAmount > totalSpend) return c.json({ code: "bad refund" }, 552 as UnofficialStatusCode);
-          } else if (payload.body.spend.status === "reversed") {
-            return c.json({ code: "transaction not found" }, 553 as UnofficialStatusCode);
+          if (!tx && payload.body.spend.status === "reversed") {
+            return c.json("spending transaction not found", 553 as UnofficialStatusCode);
           }
+
           const timestamp = // TODO use update timestamp when provided
             Math.floor(new Date(payload.body.spend.authorizedAt).getTime() / 1000) -
             Number(BigInt(`0x${payload.id.replaceAll(/[^0-9a-f]/g, "")}`) % 3600n);
