@@ -51,6 +51,7 @@ export default function Pay() {
   const { address: account } = useAccount();
   const { accountAssets } = useAccountAssets();
   const { market: exaUSDC } = useAsset(marketUSDCAddress);
+  const [enableSimulations, setEnableSimulations] = useState(true);
   const [assetSelectionOpen, setAssetSelectionOpen] = useState(false);
   const [denyExchanges, setDenyExchanges] = useState<Record<string, boolean>>({});
   const [selectedAsset, setSelectedAsset] = useState<{ address?: Address; external: boolean }>({ external: true });
@@ -136,7 +137,8 @@ export default function Pay() {
           throw new Error("implementation error");
       }
     },
-    enabled: !!maxRepay && (mode === "crossRepay" || mode === "legacyCrossRepay" || mode === "external"),
+    enabled:
+      enableSimulations && !!maxRepay && (mode === "crossRepay" || mode === "legacyCrossRepay" || mode === "external"),
     refetchInterval: 20_000,
   });
 
@@ -150,7 +152,7 @@ export default function Pay() {
     account,
     amount: maxRepay,
     market: selectedAsset.address,
-    enabled: mode === "repay",
+    enabled: enableSimulations && mode === "repay",
     proposalType: ProposalType.RepayAtMaturity,
     maturity,
     positionAssets,
@@ -163,7 +165,7 @@ export default function Pay() {
     account,
     amount: maxAmountIn,
     market: selectedAsset.address,
-    enabled: mode === "crossRepay",
+    enabled: enableSimulations && mode === "crossRepay",
     proposalType: ProposalType.CrossRepayAtMaturity,
     maturity,
     positionAssets,
@@ -191,7 +193,7 @@ export default function Pay() {
         stateMutability: "nonpayable",
       },
     ],
-    query: { enabled: mode === "legacyRepay" },
+    query: { enabled: enableSimulations && mode === "legacyRepay" },
   });
 
   const {
@@ -217,7 +219,7 @@ export default function Pay() {
         stateMutability: "nonpayable",
       },
     ],
-    query: { enabled: mode === "legacyCrossRepay" },
+    query: { enabled: enableSimulations && mode === "legacyCrossRepay" },
   });
 
   const {
@@ -255,6 +257,7 @@ export default function Pay() {
         writeContract(legacyCrossRepaySimulation.request);
         break;
     }
+    setEnableSimulations(false);
   }, [
     crossRepayPropose,
     legacyCrossRepaySimulation,
@@ -315,6 +318,7 @@ export default function Pay() {
           },
         ],
       });
+      setEnableSimulations(false);
       return await accountClient.waitForUserOperationTransaction(uo);
     },
     onError(error) {
