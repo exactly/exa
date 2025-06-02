@@ -298,16 +298,9 @@ export const PandaActivity = pipe(
     bodies: array(looseObject({})),
     borrows: array(nullable(object({ timestamp: optional(bigint()), events: array(Borrow) }))),
     hashes: array(Hash),
-    merchant: object({
-      name: string(),
-      city: string(),
-      country: string(),
-      state: nullish(string(), ""),
-      icon: optional(string()),
-    }),
     type: literal("panda"),
   }),
-  transform(({ bodies, borrows, hashes, merchant, type }) => {
+  transform(({ bodies, borrows, hashes, type }) => {
     const operations = hashes.map((hash, index) => {
       const borrow = borrows[index];
       const validation = safeParse(
@@ -329,17 +322,17 @@ export const PandaActivity = pipe(
       id,
       currency,
       timestamp,
-      merchant: { icon },
+      merchant: { city, country, icon, name, state },
     } = operations[0];
     return {
       id,
       currency,
       amount: operations.at(-1)?.amount,
       merchant: {
-        name: merchant.name.trim(),
-        city: merchant.city.trim(),
-        country: merchant.country.trim(),
-        state: merchant.state.trim(),
+        name: name.trim(),
+        city: city?.trim(),
+        country: country?.trim(),
+        state: state?.trim(),
         icon,
       },
       operations,
