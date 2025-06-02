@@ -1,17 +1,30 @@
 import type { CreditActivity, DebitActivity, InstallmentsActivity } from "@exactly/server/api/activity";
-import { CalendarClock, CreditCard } from "@tamagui/lucide-icons";
+import { CalendarClock, CircleHelp, CreditCard } from "@tamagui/lucide-icons";
 import React from "react";
+import { Pressable } from "react-native";
 import { Separator, XStack, YStack } from "tamagui";
 
+import reportError from "../../../utils/reportError";
+import useIntercom from "../../../utils/useIntercom";
 import Text from "../../shared/Text";
 
 export default function PaymentDetails({ item }: { item: CreditActivity | DebitActivity | InstallmentsActivity }) {
+  const { presentArticle } = useIntercom();
   return (
     <YStack gap="$s4">
       <YStack gap="$s4">
-        <Text emphasized headline>
-          Payment details
-        </Text>
+        <XStack gap="$s3" alignItems="center">
+          <Text emphasized headline>
+            Payment details
+          </Text>
+          <Pressable
+            onPress={() => {
+              presentArticle("11498255").catch(reportError);
+            }}
+          >
+            <CircleHelp size={18} color="$uiNeutralPrimary" />
+          </Pressable>
+        </XStack>
         <Separator height={1} borderColor="$borderNeutralSoft" />
       </YStack>
       <YStack gap="$s3_5">
