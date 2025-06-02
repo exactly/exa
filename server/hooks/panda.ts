@@ -331,24 +331,7 @@ export default new Hono().post(
           const tx = await database.query.transactions.findFirst({
             where: and(eq(transactions.id, payload.body.id), eq(transactions.cardId, payload.body.spend.cardId)),
           });
-          if (tx) {
-            const payloads = v.parse(v.object({ bodies: v.array(Transaction) }), tx.payload);
-            const totalSpendUsd =
-              payloads.bodies.reduce((accumulator, body) => {
-                if (body.action === "created" && body.body.spend.status === "pending") {
-                  return accumulator + body.body.spend.amount;
-                }
-                if (
-                  body.action === "updated" &&
-                  (body.body.spend.status === "pending" || body.body.spend.status === "reversed")
-                ) {
-                  return accumulator + body.body.spend.authorizationUpdateAmount;
-                }
-                return accumulator;
-              }, 0) / 100;
-            const totalSpend = BigInt(Math.round(totalSpendUsd * 1e6));
-            if (refundAmount > totalSpend) return c.json({ code: "bad refund" }, 552 as UnofficialStatusCode);
-          } else if (payload.body.spend.status === "reversed") {
+          if (!tx && payload.body.spend.status === "reversed") {
             return c.json({ code: "transaction not found" }, 553 as UnofficialStatusCode);
           }
           const timestamp = // TODO use update timestamp when provided
