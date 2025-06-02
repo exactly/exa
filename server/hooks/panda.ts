@@ -30,6 +30,7 @@ import {
   padHex,
   RawContractError,
   toBytes,
+  zeroHash,
 } from "viem";
 
 import database, { cards, credentials, transactions } from "../database/index";
@@ -68,6 +69,7 @@ const BaseTransaction = v.object({
     merchantCountry: v.nullish(v.string()),
     merchantName: v.string(),
     authorizedAt: v.optional(v.pipe(v.string(), v.isoTimestamp())),
+    authorizedAmount: v.nullish(v.number()),
   }),
 });
 
@@ -100,7 +102,11 @@ const Transaction = v.variant("action", [
     body: v.object({
       ...BaseTransaction.entries,
       id: v.optional(v.string()),
-      spend: v.object({ ...BaseTransaction.entries.spend.entries, status: v.literal("pending") }),
+      spend: v.object({
+        ...BaseTransaction.entries.spend.entries,
+        authorizedAmount: v.number(),
+        status: v.literal("pending"),
+      }),
     }),
   }),
   v.object({
@@ -227,7 +233,7 @@ export default new Hono().post(
             } catch (error: unknown) {
               captureException(error, { level: "error" });
             }
-            return c.json({});
+            return c.json({ code: "ok" });
           };
           if (!transaction) return authorize();
           try {
@@ -309,15 +315,23 @@ export default new Hono().post(
         }
       }
       case "completed":
-        if (payload.body.spend.amount >= 0) return c.json({ code: "ok" });
       // falls through
       case "updated":
-        if (payload.body.spend.status === "reversed" || payload.body.spend.status === "completed") {
+        if (
+          payload.body.spend.status === "reversed" ||
+          (payload.body.spend.status === "completed" &&
+            (payload.body.spend.amount < 0 ||
+              (payload.body.spend.authorizedAmount && payload.body.spend.amount < payload.body.spend.authorizedAmount)))
+        ) {
           getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "panda.tx.refund");
           const refundAmountUsd =
-            (payload.body.spend.status === "reversed"
-              ? -payload.body.spend.authorizationUpdateAmount
-              : -payload.body.spend.amount) / 100;
+            (() => {
+              if (payload.body.spend.status === "reversed") return -payload.body.spend.authorizationUpdateAmount;
+              if (payload.body.spend.amount < 0) return -payload.body.spend.amount;
+              if (!payload.body.spend.authorizedAmount) throw new Error("authorized amount not found");
+              getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "panda.tx.capture.partial");
+              return payload.body.spend.authorizedAmount - payload.body.spend.amount;
+            })() / 100;
           const refundAmount = BigInt(Math.round(refundAmountUsd * 1e6));
           const card = await database.query.cards.findFirst({
             columns: {},
@@ -392,7 +406,10 @@ export default new Hono().post(
                 event: "TransactionRefund",
                 properties: {
                   id: payload.body.id,
-                  type: payload.body.spend.status === "reversed" ? "reversal" : "refund",
+                  type: (() => {
+                    if (payload.body.spend.status === "reversed") return "reversal";
+                    return payload.body.spend.amount < 0 ? "refund" : "partial";
+                  })(),
                   usdAmount: refundAmountUsd,
                 },
               });
@@ -423,11 +440,32 @@ export default new Hono().post(
           setContext("mutex", { locked: mutex?.isLocked() });
           return c.json({ code: "ok" });
         }
-        if (payload.body.spend.status !== "pending") return c.json({ code: "ok" });
+        if (payload.body.spend.status !== "pending" && payload.action !== "completed") return c.json({ code: "ok" });
         getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "panda.tx.collect");
+
         try {
           const { call } = await prepareCollection(card, payload);
-          if (!call) return c.json({});
+          if (!call) {
+            const tx = await database.query.transactions.findFirst({
+              where: and(eq(transactions.id, payload.body.id), eq(transactions.cardId, payload.body.spend.cardId)),
+            });
+            if (!tx) throw new Error("transaction not found");
+            await database
+              .update(transactions)
+              .set({
+                hashes: [...tx.hashes, zeroHash],
+                payload: {
+                  ...(tx.payload as object),
+                  bodies: [
+                    ...v.parse(TransactionPayload, tx.payload).bodies,
+                    { ...jsonBody, createdAt: new Date().toISOString() },
+                  ],
+                },
+              })
+              .where(and(eq(transactions.id, payload.body.id), eq(transactions.cardId, payload.body.spend.cardId)));
+
+            return c.json({ code: "ok" });
+          }
           try {
             await keeper.exaSend(
               { name: "collect credit", op: "exa.collect", attributes: { account } },
@@ -480,16 +518,22 @@ export default new Hono().post(
                 },
               },
             );
-            sendPushNotification({
-              userId: account,
-              headings: { en: "Exa Card Purchase" },
-              contents: {
-                en: `${(payload.body.spend.localAmount / 100).toLocaleString(undefined, {
-                  style: "currency",
-                  currency: payload.body.spend.localCurrency,
-                })} at ${payload.body.spend.merchantName.trim()}, paid in ${{ 0: "debit", 1: "credit" }[card.mode] ?? `${card.mode} installments`} with USDC`,
-              },
-            }).catch((error: unknown) => captureException(error, { level: "error" }));
+
+            if (
+              payload.action === "created" ||
+              (payload.action === "completed" && payload.body.spend.amount > 0 && !payload.body.spend.authorizedAmount) // force capture
+            ) {
+              sendPushNotification({
+                userId: account,
+                headings: { en: "Exa Card Purchase" },
+                contents: {
+                  en: `${(payload.body.spend.localAmount / 100).toLocaleString(undefined, {
+                    style: "currency",
+                    currency: payload.body.spend.localCurrency,
+                  })} at ${payload.body.spend.merchantName.trim()}, paid in ${{ 0: "debit", 1: "credit" }[card.mode] ?? `${card.mode} installments`} with USDC`,
+                },
+              }).catch((error: unknown) => captureException(error, { level: "error" }));
+            }
             return c.json({ code: "ok" });
           } catch (error: unknown) {
             captureException(error, { level: "fatal", contexts: { tx: { call } } });
@@ -497,7 +541,7 @@ export default new Hono().post(
           }
         } finally {
           const mutex = getMutex(account);
-          mutex?.release();
+          if (payload.action === "created" || payload.action === "updated") mutex?.release();
           setContext("mutex", { locked: mutex?.isLocked() });
         }
       }
@@ -514,7 +558,31 @@ async function prepareCollection(
   const account = v.parse(Address, card.credential.account);
   setTag("exa.mode", card.mode);
   const usdAmount =
-    (payload.action === "updated" ? payload.body.spend.authorizationUpdateAmount : payload.body.spend.amount) / 100;
+    (await (async () => {
+      switch (payload.action) {
+        case "updated":
+          return payload.body.spend.authorizationUpdateAmount;
+        case "completed": {
+          const tx = await database.query.transactions.findFirst({
+            columns: { payload: true },
+            where: and(eq(transactions.id, payload.body.id), eq(transactions.cardId, payload.body.spend.cardId)),
+          });
+          if (!tx || !v.parse(TransactionPayload, tx.payload).bodies.some((t) => t.action === "created")) {
+            getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "panda.tx.capture.force");
+            return payload.body.spend.amount;
+          }
+          getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "panda.tx.capture.settlement");
+          const capture = payload.body.spend.amount - (payload.body.spend.authorizedAmount ?? 0);
+          if (capture > 0) getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "panda.tx.capture.over");
+          return capture;
+        }
+        case "created":
+        case "requested":
+          return payload.body.spend.amount;
+        default:
+          throw new Error("unexpected action");
+      }
+    })()) / 100;
   const amount = BigInt(Math.round(usdAmount * 1e6));
   if (amount === 0n) return { amount, call: null, transaction: null };
   const call = await (async () => {
@@ -616,7 +684,7 @@ class PandaError extends Error {
 }
 
 const TransactionPayload = v.object(
-  { bodies: v.array(v.looseObject({}), "invalid transaction payload") },
+  { bodies: v.array(v.looseObject({ action: v.string() }), "invalid transaction payload") },
   "invalid transaction payload",
 );
 
