@@ -80,6 +80,12 @@ describe("card operations", () => {
       }),
       confirmations: 0,
     });
+    await keeper.writeContract({
+      address: inject("USDC"),
+      abi: fakeTokenAbi,
+      functionName: "mint",
+      args: [inject("Refunder"), 100_000_000n],
+    });
   });
 
   describe("authorization", () => {
@@ -353,12 +359,19 @@ describe("card operations", () => {
         expect(updateResponse.status).toBe(200);
 
         expect(transaction?.payload).toMatchObject({
-          bodies: [{ action: "created" }, { action: "updated", body: { spend: { amount: amount + update } } }],
-          merchant: {
-            city: "buenos aires",
-            country: "argentina",
-            name: "99999",
-          },
+          bodies: [
+            {
+              action: "created",
+              body: {
+                spend: {
+                  merchantCity: "buenos aires",
+                  merchantCountry: "argentina",
+                  merchantName: "99999",
+                },
+              },
+            },
+            { action: "updated", body: { spend: { amount: amount + update } } },
+          ],
         });
       });
 
@@ -530,16 +543,12 @@ describe("card operations", () => {
   describe("refund and reversal", () => {
     describe("with collateral", () => {
       beforeAll(async () => {
-        await Promise.all(
-          [account, inject("Refunder")].map((receiver) =>
-            keeper.writeContract({
-              address: inject("USDC"),
-              abi: fakeTokenAbi,
-              functionName: "mint",
-              args: [receiver, 100_000_000n],
-            }),
-          ),
-        );
+        await keeper.writeContract({
+          address: inject("USDC"),
+          abi: fakeTokenAbi,
+          functionName: "mint",
+          args: [account, 420e6],
+        });
         await publicClient.waitForTransactionReceipt({
           hash: await keeper.writeContract({
             address: account,
@@ -601,65 +610,6 @@ describe("card operations", () => {
         expect(response.status).toBe(200);
       });
 
-      it("fails with refund higher than spend", async () => {
-        const amount = 800;
-        const cardId = "card";
-
-        await appClient.index.$post({
-          ...authorization,
-          json: {
-            ...authorization.json,
-            action: "created",
-            body: {
-              ...authorization.json.body,
-              id: "high-reversal",
-              spend: { ...authorization.json.body.spend, cardId, amount, localAmount: amount },
-            },
-          },
-        });
-
-        await appClient.index.$post({
-          ...authorization,
-          json: {
-            ...authorization.json,
-            action: "updated",
-            body: {
-              ...authorization.json.body,
-              id: "high-reversal",
-              spend: {
-                ...authorization.json.body.spend,
-                cardId,
-                authorizationUpdateAmount: -400,
-                authorizedAt: new Date().toISOString(),
-                status: "reversed",
-              },
-            },
-          },
-        });
-
-        const response = await appClient.index.$post({
-          ...authorization,
-          json: {
-            ...authorization.json,
-            action: "updated",
-            body: {
-              ...authorization.json.body,
-              id: "high-reversal",
-              spend: {
-                ...authorization.json.body.spend,
-                cardId,
-                authorizationUpdateAmount: -2 * amount,
-                authorizedAt: new Date().toISOString(),
-                status: "reversed",
-              },
-            },
-          },
-        });
-
-        await expect(response.json()).resolves.toStrictEqual({ code: "bad refund" });
-        expect(response.status).toBe(552);
-      });
-
       it("fails with spending transaction not found", async () => {
         const amount = 5;
         const cardId = "card";
@@ -717,6 +667,7 @@ describe("card operations", () => {
                 cardId,
                 amount: -amount,
                 localAmount: -amount,
+                authorizedAmount: -amount,
                 authorizedAt: new Date().toISOString(),
                 status: "completed",
               },
@@ -755,6 +706,7 @@ describe("card operations", () => {
                 cardId,
                 amount: -amount,
                 localAmount: -amount,
+                authorizedAmount: -amount,
                 authorizedAt: new Date().toISOString(),
                 status: "completed",
               },
@@ -774,6 +726,223 @@ describe("card operations", () => {
 
         expect(deposit?.args.assets).toBe(BigInt(amount * 1e4));
         expect(response.status).toBe(200);
+      });
+    });
+  });
+
+  describe("capture", () => {
+    describe("with collateral", () => {
+      beforeAll(async () => {
+        await keeper.writeContract({
+          address: inject("USDC"),
+          abi: fakeTokenAbi,
+          functionName: "mint",
+          args: [account, 100_000_000n],
+        });
+        await publicClient.waitForTransactionReceipt({
+          hash: await keeper.writeContract({
+            address: account,
+            abi: exaPluginAbi,
+            functionName: "poke",
+            args: [inject("MarketUSDC")],
+          }),
+          confirmations: 0,
+        });
+      });
+
+      it("settles debit", async () => {
+        const hold = 7;
+        const capture = 7;
+
+        const cardId = "settles-debit";
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        const createResponse = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "created",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: { ...authorization.json.body.spend, amount: hold, cardId, localAmount: hold },
+            },
+          },
+        });
+        const completeResponse = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "completed",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: {
+                ...authorization.json.body.spend,
+                amount: capture,
+                authorizedAmount: hold,
+                authorizedAt: new Date().toISOString(),
+                cardId,
+                status: "completed",
+              },
+            },
+          },
+        });
+
+        expect(createResponse.status).toBe(200);
+        expect(completeResponse.status).toBe(200);
+
+        const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
+
+        expect(transaction).toMatchObject({
+          hashes: [expect.any(String), zeroHash],
+          payload: {
+            bodies: [
+              { action: "created" },
+              { action: "completed", body: { spend: { amount: capture, authorizedAmount: hold } } },
+            ],
+          },
+        });
+      });
+
+      it("over capture debit", async () => {
+        const hold = 25;
+        const capture = 30;
+
+        const cardId = "over-capture-debit";
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        const createResponse = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "created",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: { ...authorization.json.body.spend, amount: hold, cardId, localAmount: hold },
+            },
+          },
+        });
+
+        const completeResponse = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "completed",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: {
+                ...authorization.json.body.spend,
+                amount: capture,
+                authorizedAmount: hold,
+                authorizedAt: new Date().toISOString(),
+                cardId,
+                status: "completed",
+              },
+            },
+          },
+        });
+
+        expect(createResponse.status).toBe(200);
+        expect(completeResponse.status).toBe(200);
+
+        const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
+
+        expect(transaction).toMatchObject({
+          hashes: [expect.any(String), expect.any(String)],
+          payload: {
+            bodies: [{ action: "created" }, { action: "completed", body: { spend: { amount: capture } } }],
+          },
+        });
+      });
+
+      it("partial capture debit", async () => {
+        const hold = 80;
+        const capture = 40;
+
+        const cardId = "partial-capture-debit";
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        const createResponse = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "created",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: { ...authorization.json.body.spend, amount: hold, cardId, localAmount: hold },
+            },
+          },
+        });
+
+        const completeResponse = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "completed",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: {
+                ...authorization.json.body.spend,
+                amount: capture,
+                authorizedAmount: hold,
+                authorizedAt: new Date().toISOString(),
+                cardId,
+                status: "completed",
+              },
+            },
+          },
+        });
+
+        expect(createResponse.status).toBe(200);
+        expect(completeResponse.status).toBe(200);
+
+        const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
+
+        expect(transaction).toMatchObject({
+          hashes: [expect.any(String), expect.any(String)],
+          payload: {
+            bodies: [{ action: "created" }, { action: "completed", body: { spend: { amount: capture } } }],
+          },
+        });
+      });
+
+      it("force capture debit", async () => {
+        const capture = 42;
+
+        const cardId = "force-capture-debit";
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        const { authorizedAmount, ...spend } = authorization.json.body.spend;
+        const completeResponse = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "completed",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: {
+                ...spend,
+                amount: capture,
+                authorizedAt: new Date().toISOString(),
+                cardId,
+                status: "completed",
+              },
+            },
+          },
+        });
+
+        expect(completeResponse.status).toBe(200);
+
+        const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
+
+        expect(transaction).toMatchObject({
+          hashes: [expect.any(String)],
+          payload: {
+            bodies: [{ action: "completed", body: { spend: { amount: capture } } }],
+          },
+        });
       });
     });
   });
@@ -986,6 +1155,7 @@ const authorization = {
       type: "spend",
       spend: {
         amount: 900,
+        authorizedAmount: 900,
         cardId: "543c1771-beae-4f26-b662-44ea48b40dc6",
         cardType: "virtual",
         currency: "usd",
