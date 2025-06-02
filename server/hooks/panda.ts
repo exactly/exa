@@ -397,11 +397,6 @@ export default new Hono().post(
                           payload: {
                             bodies: [{ ...jsonBody, createdAt: new Date().toISOString() }],
                             type: "panda",
-                            merchant: {
-                              name: payload.body.spend.merchantName,
-                              city: payload.body.spend.merchantCity,
-                              country: payload.body.spend.merchantCountry,
-                            },
                           },
                         },
                       ]));
@@ -496,11 +491,6 @@ export default new Hono().post(
                           payload: {
                             bodies: [{ ...jsonBody, createdAt: new Date().toISOString() }],
                             type: "panda",
-                            merchant: {
-                              name: payload.body.spend.merchantName,
-                              city: payload.body.spend.merchantCity,
-                              country: payload.body.spend.merchantCountry,
-                            },
                           },
                         },
                       ]));
