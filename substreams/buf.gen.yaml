@@ -1,0 +1,8 @@
+version: v2
+plugins:
+  - remote: buf.build/community/neoeinstein-prost:v0.5.0 # cspell:ignore neoeinstein
+    out: src/proto
+    opt: [file_descriptor_set=false]
+  - remote: buf.build/community/neoeinstein-prost-crate:v0.5.0 # cspell:ignore neoeinstein
+    out: src/proto
+    opt: [no_features]
