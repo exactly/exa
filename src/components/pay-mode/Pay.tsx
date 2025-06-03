@@ -49,7 +49,7 @@ import AssetLogo from "../shared/AssetLogo";
 export default function Pay() {
   const insets = useSafeAreaInsets();
   const { address: account } = useAccount();
-  const { accountAssets } = useAccountAssets();
+  const { accountAssets } = useAccountAssets({ sortBy: "usdcFirst" });
   const { market: exaUSDC } = useAsset(marketUSDCAddress);
   const [enableSimulations, setEnableSimulations] = useState(true);
   const [assetSelectionOpen, setAssetSelectionOpen] = useState(false);

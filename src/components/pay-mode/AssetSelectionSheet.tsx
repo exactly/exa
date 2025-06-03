@@ -51,6 +51,7 @@ export default function AssetSelectionSheet({
         <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
           <View padded paddingTop="$s6" fullScreen flex={1}>
             <AssetSelector
+              sortBy="usdcFirst"
               positions={positions}
               onSubmit={(market, isExternalAsset) => {
                 onAssetSelected(market, isExternalAsset);

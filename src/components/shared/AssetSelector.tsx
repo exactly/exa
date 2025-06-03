@@ -19,6 +19,7 @@ import View from "../shared/View";
 
 export default function AssetSelector({
   onSubmit,
+  sortBy = "usdValue",
 }: {
   positions?: {
     symbol: string;
@@ -29,12 +30,13 @@ export default function AssetSelector({
     market: string;
   }[];
   onSubmit: (market: Address, isExternalAsset: boolean) => void;
+  sortBy?: "usdValue" | "usdcFirst";
 }) {
   const [selectedMarket, setSelectedMarket] = useState<Address | undefined>();
   const { address: account } = useAccount();
   const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [account ?? zeroAddress] });
 
-  const { accountAssets, externalAssets, isPending: isAccountAssetsPending } = useAccountAssets();
+  const { accountAssets, externalAssets, isPending: isAccountAssetsPending } = useAccountAssets({ sortBy });
 
   if (accountAssets.length === 0) {
     return (

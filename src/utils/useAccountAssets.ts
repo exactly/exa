@@ -30,7 +30,7 @@ export interface ExternalAsset {
   usdValue: number;
 }
 
-export default function useAccountAssets() {
+export default function useAccountAssets(options?: { sortBy?: "usdValue" | "usdcFirst" }) {
   const { address: account } = useAccount();
 
   const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [account ?? zeroAddress] });
@@ -63,7 +63,10 @@ export default function useAccountAssets() {
     type: "external",
   })) as ExternalAsset[];
 
-  const combinedAssets = [...protocol, ...external].sort((a, b) => Number(b.usdValue) - Number(a.usdValue));
+  const combinedAssets = [...protocol, ...external].sort((a, b) => {
+    if (options?.sortBy === "usdcFirst") return a.symbol.slice(3) === "USDC" ? -1 : 1;
+    return Number(b.usdValue) - Number(a.usdValue);
+  });
 
   return {
     accountAssets: combinedAssets,
