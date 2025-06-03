@@ -64,7 +64,6 @@ export default new Hono()
       if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
       const account = parse(Address, credential.account);
       setUser({ id: account });
-
       if (credential.cards.length > 0 && credential.cards[0]) {
         const { id, lastFour, status, mode } = credential.cards[0];
         if (await isPanda(account)) {
@@ -95,12 +94,7 @@ export default new Hono()
             200,
           );
         }
-        const inquiry = await getInquiry(credentialId, CRYPTOMATE_TEMPLATE);
-        if (!inquiry) return c.json({ code: "no kyc", legacy: "kyc required" }, 403);
-        if (inquiry.attributes.status !== "approved") {
-          return c.json({ code: "bad kyc", legacy: "kyc not approved" }, 403);
-        }
-        return c.json({ provider: "cryptomate" as const, url: await getPAN(id), lastFour, status, mode }, 200);
+        return c.json({ code: "no cryptomate", legacy: "no cryptomate" }, 404);
       } else {
         return c.json({ code: "no card", legacy: "card not found" }, 404);
       }
