@@ -1,0 +1,64 @@
+{
+  "name": "@exactly/substreams",
+  "version": "0.0.1",
+  "scripts": {
+    "build": "cargo build --release --quiet",
+    "rustup": "rustup show",
+    "test": "nx test substreams",
+    "test:clippy": "cargo clippy --quiet -- --deny warnings",
+    "test:fmt": "cargo fmt --check",
+    "test:protolint": "protolint ."
+  },
+  "devDependencies": {
+    "@bufbuild/buf": "^1.63.0",
+    "@exactly/plugin": "workspace:^1.1.0",
+    "protolint": "^0.56.4"
+  },
+  "nx": {
+    "projectType": "application",
+    "targets": {
+      "build": {
+        "dependsOn": [
+          "rustup",
+          "^build"
+        ],
+        "inputs": [
+          "{projectRoot}/build.rs",
+          "{projectRoot}/Cargo.lock",
+          "{projectRoot}/Cargo.toml",
+          "{projectRoot}/proto/**",
+          "{projectRoot}/rust-toolchain.toml",
+          "{projectRoot}/src/**",
+          "{projectRoot}/substreams.yaml",
+          {
+            "env": "CHAIN_ID"
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/target/wasm32-unknown-unknown/release/substreams.wasm"
+        ]
+      },
+      "test": {
+        "dependsOn": [
+          "test:clippy",
+          "test:fmt",
+          "test:protolint"
+        ],
+        "executor": "nx:noop"
+      },
+      "test:clippy": {
+        "dependsOn": [
+          "prepare",
+          "^prepare",
+          "^build",
+          "rustup"
+        ]
+      },
+      "test:fmt": {
+        "dependsOn": [
+          "test:clippy"
+        ]
+      }
+    }
+  }
+}
