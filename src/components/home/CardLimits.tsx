@@ -2,6 +2,7 @@ import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/c
 import { borrowLimit, withdrawLimit } from "@exactly/lib";
 import { Info } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
+import { router } from "expo-router";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
@@ -37,7 +38,6 @@ export default function CardLimits() {
           <Info size={16} color="$uiBrandSecondary" />
         </Pressable>
       </View>
-
       <View
         alignSelf="center"
         justifyContent="center"
@@ -46,6 +46,10 @@ export default function CardLimits() {
         borderRadius="$r2"
         paddingVertical="$s2"
         paddingHorizontal="$s3"
+        cursor="pointer"
+        onPress={() => {
+          router.push("/pay-mode");
+        }}
       >
         <Text
           emphasized
@@ -56,7 +60,6 @@ export default function CardLimits() {
           {isCredit ? t("Pay in {{count}} installments enabled", { count: card?.mode }) : t("Pay Now enabled")}
         </Text>
       </View>
-
       <View display="flex" justifyContent="center" alignItems="center">
         <Text sensitive textAlign="center" fontFamily="$mono" fontSize={40} overflow="hidden" maxFontSizeMultiplier={1}>
           {(markets
