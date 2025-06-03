@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package exa;
+
+message Accounts {
+  repeated Account accounts = 1;
+}
+
+message Account {
+  bytes address = 1;
+
+  // internals
+  uint64 log_ordinal = 30;
+}
