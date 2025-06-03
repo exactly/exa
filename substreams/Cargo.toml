@@ -1,0 +1,27 @@
+[package]
+name = "exactly-substreams"
+version = "0.1.0"
+edition = "2021"
+repository = "https://github.com/exactly/exa"
+
+[lib]
+name = "substreams"
+crate-type = ["cdylib"] # cspell:ignore cdylib
+
+[dependencies]
+ethabi = "18" # cspell:ignore ethabi
+hex-literal = "1"
+num-bigint = "0.4"
+prost = "0.13"
+prost-types = "0.13"
+substreams = "0.6"
+substreams-ethereum = "0.10"
+
+[build-dependencies]
+anyhow = "1"
+substreams-ethereum = "0.10"
+
+[profile.release]
+lto = true
+opt-level = 's'
+strip = "debuginfo" # cspell:ignore debuginfo

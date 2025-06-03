@@ -4,3 +4,4 @@ packages:
   - contracts
   - docs
   - server
+  - substreams

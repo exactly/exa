@@ -1,0 +1,15 @@
+{
+  "name": "@exactly/substreams",
+  "scripts": {
+    "build": "cargo build --release --quiet",
+    "test": "pnpm run --aggregate-output --reporter-hide-prefix /test:/",
+    "test:fmt": "cargo fmt --check",
+    "test:clippy": "cargo clippy --quiet -- --deny warnings",
+    "test:proto": "protolint ."
+  },
+  "devDependencies": {
+    "@bufbuild/buf": "^1.54.0",
+    "@exactly/server": "workspace:^0.2.2",
+    "protolint": "^0.55.6"
+  }
+}
