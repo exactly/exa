@@ -1,0 +1,27 @@
+specVersion: v0.1.0
+package:
+  name: exactly
+  version: v0.1.0
+protobuf:
+  files:
+    - exa.proto
+  importPaths:
+    - proto
+modules:
+  - name: map_accounts
+    kind: map
+    initialBlock: 124734205
+    inputs:
+      - source: sf.ethereum.type.v2.Block
+    output:
+      type: proto:exa.Accounts
+  - name: store_accounts
+    kind: store
+    updatePolicy: set
+    valueType: proto:exa.Accounts
+    inputs:
+      - map: map_accounts
+binaries:
+  default:
+    type: wasm/rust-v1
+    file: target/wasm32-unknown-unknown/release/substreams.wasm
