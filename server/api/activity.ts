@@ -375,28 +375,47 @@ export const PandaActivity = pipe(
       throw new Error("bad panda activity");
     });
 
-    if (!operations[0]) throw new Error("First operation needs to be defined");
+    const flow = operations.reduce<{
+      created: (typeof operations)[number] | undefined;
+      updates: (typeof operations)[number][];
+      completed: (typeof operations)[number] | undefined;
+    }>(
+      (f, operation) => {
+        if (operation.action === "updated") f.updates.push(operation);
+        else if (operation.action === "created" || operation.action === "completed") f[operation.action] = operation;
+        else throw new Error("bad action");
+        return f;
+      },
+      { created: undefined, updates: [], completed: undefined },
+    );
+
+    const details = flow.completed ?? flow.created;
+    if (!details) throw new Error("invalid flow");
+
     const {
       id,
       currency,
       timestamp,
-      merchant: { city, country, icon, name, state },
-    } = operations[0];
+      merchant: { city, country, name, state },
+    } = details;
     return {
       id,
       currency,
-      amount: operations.at(-1)?.amount,
+      amount: flow.completed ? flow.completed.amount : ([flow.created, ...flow.updates].at(-1)?.amount ?? 0),
       merchant: {
         name: name.trim(),
         city: city?.trim(),
         country: country?.trim(),
         state: state?.trim(),
-        icon,
+        icon: flow.completed ? flow.completed.merchant.icon : flow.updates.at(-1)?.merchant.icon,
       },
       operations,
       timestamp,
       type,
-      usdAmount: operations.reduce((sum, { usdAmount }) => sum + usdAmount, 0),
+      settled: !!flow.completed,
+      usdAmount: flow.completed
+        ? flow.completed.usdAmount
+        : [flow.created, ...flow.updates].reduce((sum, operation) => (operation ? sum + operation.usdAmount : sum), 0),
     };
   }),
 );
@@ -405,6 +424,7 @@ const CardActivity = pipe(
   variant("type", [
     object({
       type: literal("panda"),
+      action: picklist(["created", "completed", "updated"]),
       createdAt: pipe(string(), isoTimestamp()),
       body: object({
         id: string(),
@@ -456,6 +476,7 @@ function transformCard(activity: InferOutput<typeof CardActivity>) {
   return activity.type === "panda"
     ? {
         type: "card" as const,
+        action: activity.action,
         id: activity.body.id,
         transactionHash: activity.hash,
         timestamp: activity.createdAt,

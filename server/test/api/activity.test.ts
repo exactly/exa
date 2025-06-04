@@ -104,66 +104,66 @@ describe.concurrent("authenticated", () => {
           .map(async ([hash, { blockNumber, eventName, events }], index) => {
             const blockTimestamp = timestamps.get(blockNumber)!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
             const total = events.reduce((sum, { assets }) => sum + assets, 0n);
-            const payload =
-              index % 2 === 0
-                ? {
-                    bodies: [
-                      {
-                        body: {
-                          id: String(index),
-                          type: "spend",
-                          spend: {
-                            amount: Number(total) / 1e4,
-                            authorizedAmount: 11,
-                            authorizationMethod: "Normal presentment",
-                            cardId: "ea4dd7e7-0774-431f-9871-5e4da9322505",
-                            cardType: "virtual",
-                            currency: "usd",
-                            enrichedMerchantIcon: "https://storage.googleapis.com/icon/icon.png",
-                            localAmount: (1200 * Number(total)) / 1e4,
-                            localCurrency: "ARS",
-                            merchantCategory: "once - once",
-                            merchantCategoryCode: "once",
-                            merchantCity: "Buenos Aires",
-                            merchantCountry: "ARG",
-                            merchantName: "once",
-                            status: "pending",
-                            userEmail: "nic@exact.ly",
-                            userFirstName: "ALEXANDER J",
-                            userId: "f5eb6ea9-e9ba-4e2f-b16a-94a99f32385c",
-                            userLastName: "SAMPLEapproved",
-                          },
-                        },
-                        action: "created",
-                        resource: "transaction",
-                        createdAt: new Date(Number(blockTimestamp) * 1000).toISOString(),
+            let payload;
+            if (index % 2 === 0) {
+              payload = {
+                bodies: [
+                  {
+                    body: {
+                      id: String(index),
+                      type: "spend",
+                      spend: {
+                        ...spendTemplate,
+                        amount: Number(total) / 1e4,
+                        localAmount: (1200 * Number(total)) / 1e4,
                       },
-                    ],
-                    merchant: {
-                      city: "Buenos Aires",
-                      country: "Argentina",
-                      name: "Apple Store",
                     },
-                    type: "panda",
-                  }
-                : {
-                    operation_id: String(index),
-                    type: "cryptomate",
-                    data: {
-                      created_at: new Date(Number(blockTimestamp) * 1000).toISOString(),
-                      bill_amount: Number(total) / 1e6,
-                      transaction_amount: (1200 * Number(total)) / 1e6,
-                      transaction_currency_code: "ARS",
-                      merchant_data: { name: "Merchant", country: "ARG", city: "Buenos Aires", state: "BA" },
+                    action: "created",
+                    resource: "transaction",
+                    createdAt: new Date(Number(blockTimestamp) * 1000).toISOString(),
+                  },
+                  {
+                    body: {
+                      id: String(index),
+                      type: "spend",
+                      spend: {
+                        ...spendTemplate,
+                        amount: Number(total) / 1e4,
+                        enrichedMerchantIcon: "https://storage.googleapis.com/icon/icon.png",
+                        localAmount: (1200 * Number(total)) / 1e4,
+                      },
                     },
-                  };
-            await database
-              .insert(transactions)
-              .values({ id: String(index), cardId: "activity", hashes: [hash], payload });
+                    action: "completed",
+                    resource: "transaction",
+                    createdAt: new Date(Number(blockTimestamp) * 1000).toISOString(),
+                  },
+                ],
+                type: "panda",
+              };
+
+              await database
+                .insert(transactions)
+                .values({ id: String(index), cardId: "activity", hashes: [hash, zeroHash], payload });
+            } else {
+              payload = {
+                operation_id: String(index),
+                type: "cryptomate",
+                data: {
+                  created_at: new Date(Number(blockTimestamp) * 1000).toISOString(),
+                  bill_amount: Number(total) / 1e6,
+                  transaction_amount: (1200 * Number(total)) / 1e6,
+                  transaction_currency_code: "ARS",
+                  merchant_data: { name: "Merchant", country: "ARG", city: "Buenos Aires", state: "BA" },
+                },
+              };
+              await database
+                .insert(transactions)
+                .values({ id: String(index), cardId: "activity", hashes: [hash], payload });
+            }
 
             const panda = safeParse(PandaActivity, {
               ...(payload as object),
-              hashes: [hash],
+              hashes: [hash, zeroHash],
               borrows: eventName === "Withdraw" ? [null] : [{ blockNumber, events }],
             });
             if (panda.success) return panda.output;
@@ -333,3 +333,25 @@ describe.concurrent("authenticated", () => {
 vi.mock("@sentry/node", { spy: true });
 
 afterEach(() => vi.resetAllMocks());
+
+const spendTemplate = {
+  amount: 1e4,
+  authorizedAmount: 11,
+  authorizationMethod: "Normal presentment",
+  cardId: "ea4dd7e7-0774-431f-9871-5e4da9322505",
+  cardType: "virtual",
+  currency: "usd",
+  enrichedMerchantIcon: "https://storage.googleapis.com/icon/icon.png",
+  localAmount: 1e4,
+  localCurrency: "ARS",
+  merchantCategory: "once - once",
+  merchantCategoryCode: "once",
+  merchantCity: "Buenos Aires",
+  merchantCountry: "ARG",
+  merchantName: "once",
+  status: "pending",
+  userEmail: "nic@exact.ly",
+  userFirstName: "ALEXANDER J",
+  userId: "f5eb6ea9-e9ba-4e2f-b16a-94a99f32385c",
+  userLastName: "SAMPLEapproved",
+};
