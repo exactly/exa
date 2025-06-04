@@ -10,7 +10,7 @@ protobuf:
 modules:
   - name: map_accounts
     kind: map
-    initialBlock: 124734205
+    initialBlock: {{#if (eq CHAIN_ID "10")}}124734205{{else if (eq CHAIN_ID "11155420")}}124734205{{/if}}
     inputs:
       - source: sf.ethereum.type.v2.Block
     output:
