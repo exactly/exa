@@ -32,7 +32,7 @@ export default function SpendingLimits({ open, onClose }: { open: boolean; onClo
       />
       <Sheet.Frame>
         <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
-          <ScrollView>
+          <ScrollView $platform-web={{ maxHeight: "100vh" }}>
             <View fullScreen flex={1}>
               <View flex={1} padded>
                 <YStack gap="$s4_5">

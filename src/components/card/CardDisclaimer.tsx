@@ -51,7 +51,7 @@ export default function CardDisclaimer({
               <X size={25} color="$uiNeutralSecondary" />
             </Pressable>
           </View>
-          <ScrollView>
+          <ScrollView $platform-web={{ maxHeight: "100vh" }}>
             <View fullScreen flex={1}>
               <YStack flex={1} padding="$s4" gap="$s6">
                 <YStack flex={1} justifyContent="center" gap="$s4">

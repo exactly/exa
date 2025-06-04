@@ -50,7 +50,7 @@ export default function CardUpgradeSheet({ open, onClose }: { open: boolean; onC
               <X size={25} color="$uiNeutralSecondary" />
             </Pressable>
           </View>
-          <ScrollView>
+          <ScrollView $platform-web={{ maxHeight: "100vh" }}>
             {step === undefined ? (
               <Intro
                 onPress={() => {
