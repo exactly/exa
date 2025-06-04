@@ -1,5 +1,27 @@
 # @exactly/server
 
+## 0.2.0
+
+### Minor Changes
+
+- [`6e9d448`](https://github.com/exactly/exa/commit/6e9d448e46d16785c4a2169bf58264ac71f9bf3c) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ normalize auth responses
+
+- [`a42516d`](https://github.com/exactly/exa/commit/a42516dbf65776bdad10c383874924597b9f0a0e) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ auto register on siwe authentication
+
+- [`b020e21`](https://github.com/exactly/exa/commit/b020e21ce2246e753903861f9ee1d3ffeb57acd9) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ♻️ always return objects, improve status codes
+
+- [`ace3daf`](https://github.com/exactly/exa/commit/ace3daf8d5b12e4e5c07f3c34be2ff76bc5c86a7) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ implement sign-in with ethereum
+
+### Patch Changes
+
+- [`665e26a`](https://github.com/exactly/exa/commit/665e26afbf6faa688ab2e0479768778106389ff0) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🐛 fix panda card name
+
+- [`ff6a9bd`](https://github.com/exactly/exa/commit/ff6a9bde496258279aa98314c31f0898daaf63d4) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🦺 validate card session id
+
+- [`7f093e4`](https://github.com/exactly/exa/commit/7f093e4211157a4b116370b6c7c7620026df44b2) Thanks [@nfmelendez](https://github.com/nfmelendez)! - ✨ set card pin
+
+- [`455deab`](https://github.com/exactly/exa/commit/455deab3dce0a6690407d90f4cffb2e41d98f2fa) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🔥 remove cryptomate card details
+
 ## 0.1.13
 
 ### Patch Changes

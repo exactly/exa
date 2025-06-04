@@ -1,5 +1,54 @@
 # @exactly/mobile
 
+## 1.0.12
+
+### Patch Changes
+
+- [`a1aceff`](https://github.com/exactly/exa/commit/a1aceffbfa50743745ff626d4fa21171fcaef852) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ link intercom article on payment details title
+
+- [`77314f7`](https://github.com/exactly/exa/commit/77314f7314131fd7f0da9fa384cb55b853ae8d42) Thanks [@franm91](https://github.com/franm91)! - 🥅 handle repay route errors
+
+- [`9c0fcdf`](https://github.com/exactly/exa/commit/9c0fcdf0d8b437825c9888cf0ba1075bd5354d01) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🥅 handle card error
+
+- [`3dcc5df`](https://github.com/exactly/exa/commit/3dcc5df39987ca08615ca208d93fd5dffc889343) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚸 redirect to pay mode on card limits component press
+
+- [`b3125f1`](https://github.com/exactly/exa/commit/b3125f148dc2f3acd964d41534e0e7fb98948b9a) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚸 increase repay route refetch interval
+
+- [`a69b705`](https://github.com/exactly/exa/commit/a69b705a8b7f8b7a4abc07b48d75195af68163d3) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 change web cursor on interactable components
+
+- [`5047c17`](https://github.com/exactly/exa/commit/5047c1769143d2a0d237129db7ae510d39571a2a) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix tamagui sheet scrolling on web
+
+- [`655b037`](https://github.com/exactly/exa/commit/655b0375ff9a9de53fb60f55c3549f906d063f50) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚸 tweak repay and swap slippage
+
+- [`9979967`](https://github.com/exactly/exa/commit/9979967e4d7d5323ddb9a56ee3aaa2379a640a81) Thanks [@nfmelendez](https://github.com/nfmelendez)! - ✨ implement card pin api integration
+
+- [`c158ee2`](https://github.com/exactly/exa/commit/c158ee272ef8c03a31b188449a14872bd77d0d37) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚸 sort assets by usdc first on repay screen
+
+- [`74a7fe5`](https://github.com/exactly/exa/commit/74a7fe5e636f0cc33e238cd557b4e8d00e6f5419) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 add usdc logo on pay now mode
+
+- [`d80caa0`](https://github.com/exactly/exa/commit/d80caa01205b1d918e593c67e5aae47ff018b0db) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 display processing balance under spending limits
+
+- [`f081fba`](https://github.com/exactly/exa/commit/f081fba9595869bf91a1b69b80737f8e57f2674b) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚸 simplify asset selection
+
+- [`16cca0e`](https://github.com/exactly/exa/commit/16cca0e80d6ebd484e0ef08cff93a2a0276586f2) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🔥 drop unused component
+
+- [`47c114e`](https://github.com/exactly/exa/commit/47c114e319788df7ecc5c0082a23e2d24f49bb7a) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 deny exchanges on swap errors
+
+- [`b20ad14`](https://github.com/exactly/exa/commit/b20ad14f9882aab023826f6e6e777974250f67dc) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 👽️ remove card provider logic
+
+- [`51daad0`](https://github.com/exactly/exa/commit/51daad09817d7969455a1a96902aef098dfa2026) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ use lifi quotes to amount
+
+- [`4379c2d`](https://github.com/exactly/exa/commit/4379c2dc06182ee42b9122b234d18c903601b854) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ♻️ refactor latest activity component
+
+- [`5324377`](https://github.com/exactly/exa/commit/53243774b1663fd68176db38f8a881633374f97b) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ implement card pin
+
+- [`fff1f03`](https://github.com/exactly/exa/commit/fff1f0340a5dd93cd7fde05db52310863bd38eb7) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ implement new spending limits modal
+
+- [`d3389f7`](https://github.com/exactly/exa/commit/d3389f781de06c2b2d5b77ee0d566d0347b72386) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ update overdue payments ui
+
+- Updated dependencies [[`665e26a`](https://github.com/exactly/exa/commit/665e26afbf6faa688ab2e0479768778106389ff0), [`6e9d448`](https://github.com/exactly/exa/commit/6e9d448e46d16785c4a2169bf58264ac71f9bf3c), [`ff6a9bd`](https://github.com/exactly/exa/commit/ff6a9bde496258279aa98314c31f0898daaf63d4), [`a42516d`](https://github.com/exactly/exa/commit/a42516dbf65776bdad10c383874924597b9f0a0e), [`b020e21`](https://github.com/exactly/exa/commit/b020e21ce2246e753903861f9ee1d3ffeb57acd9), [`7f093e4`](https://github.com/exactly/exa/commit/7f093e4211157a4b116370b6c7c7620026df44b2), [`455deab`](https://github.com/exactly/exa/commit/455deab3dce0a6690407d90f4cffb2e41d98f2fa), [`ace3daf`](https://github.com/exactly/exa/commit/ace3daf8d5b12e4e5c07f3c34be2ff76bc5c86a7)]:
+  - @exactly/server@0.2.0
+
 ## 1.0.11
 
 ### Patch Changes
