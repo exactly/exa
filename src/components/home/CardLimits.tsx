@@ -6,14 +6,16 @@ import { router } from "expo-router";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
-import { View } from "tamagui";
+import { View, XStack } from "tamagui";
 import { zeroAddress } from "viem";
 import { useAccount } from "wagmi";
 
 import { useReadPreviewerExactly } from "../../generated/contracts";
+import assetLogos from "../../utils/assetLogos";
 import reportError from "../../utils/reportError";
 import { getCard } from "../../utils/server";
 import useIntercom from "../../utils/useIntercom";
+import AssetLogo from "../shared/AssetLogo";
 import Text from "../shared/Text";
 
 export default function CardLimits() {
@@ -60,7 +62,8 @@ export default function CardLimits() {
           {isCredit ? t("Pay in {{count}} installments enabled", { count: card?.mode }) : t("Pay Now enabled")}
         </Text>
       </View>
-      <View display="flex" justifyContent="center" alignItems="center">
+      <XStack justifyContent="center" alignItems="center" gap="$s3">
+        {isCredit ? null : <AssetLogo width={32} height={32} uri={assetLogos.USDC} />}
         <Text sensitive textAlign="center" fontFamily="$mono" fontSize={40} overflow="hidden" maxFontSizeMultiplier={1}>
           {(markets
             ? Number(isCredit ? borrowLimit(markets, marketUSDCAddress) : withdrawLimit(markets, marketUSDCAddress)) /
@@ -68,7 +71,7 @@ export default function CardLimits() {
             : 0
           ).toLocaleString(undefined, { style: "currency", currency: "USD", currencyDisplay: "narrowSymbol" })}
         </Text>
-      </View>
+      </XStack>
     </View>
   );
 }
