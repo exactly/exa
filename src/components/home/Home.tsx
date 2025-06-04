@@ -14,6 +14,7 @@ import CardStatus from "./CardStatus";
 import GettingStarted from "./GettingStarted";
 import HomeActions from "./HomeActions";
 import PortfolioSummary from "./PortfolioSummary";
+import SpendingLimitsSheet from "./SpendingLimitsSheet";
 import CardUpgradeSheet from "./card-upgrade/CardUpgradeSheet";
 import {
   useReadExaPreviewerPendingProposals,
@@ -40,6 +41,7 @@ export default function Home() {
   const { address } = useAccount();
   const parameters = useLocalSearchParams();
   const [paySheetOpen, setPaySheetOpen] = useState(false);
+  const [spendingLimitsInfoSheetOpen, setSpendingLimitsInfoSheetOpen] = useState(false);
   const { address: account } = useAccount();
   const { data: bytecode } = useBytecode({ address: account ?? zeroAddress, query: { enabled: !!account } });
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
@@ -128,7 +130,11 @@ export default function Home() {
                     }}
                   />
                 ))}
-              <CardLimits />
+              <CardLimits
+                onInfoPress={() => {
+                  setSpendingLimitsInfoSheetOpen(true);
+                }}
+              />
               <HomeActions />
               <PortfolioSummary usdBalance={usdBalance} />
             </View>
@@ -162,6 +168,12 @@ export default function Home() {
             onClose={() => {
               queryClient.setQueryData(["card-upgrade-open"], false);
               queryClient.resetQueries({ queryKey: ["card-upgrade"] }).catch(reportError);
+            }}
+          />
+          <SpendingLimitsSheet
+            open={spendingLimitsInfoSheetOpen}
+            onClose={() => {
+              setSpendingLimitsInfoSheetOpen(false);
             }}
           />
         </ScrollView>

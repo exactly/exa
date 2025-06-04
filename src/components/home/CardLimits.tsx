@@ -12,19 +12,16 @@ import { useAccount } from "wagmi";
 
 import { useReadPreviewerExactly } from "../../generated/contracts";
 import assetLogos from "../../utils/assetLogos";
-import reportError from "../../utils/reportError";
 import { getCard } from "../../utils/server";
-import useIntercom from "../../utils/useIntercom";
 import AssetLogo from "../shared/AssetLogo";
 import ProcessingBalance from "../shared/ProcessingBalance";
 import Text from "../shared/Text";
 
-export default function CardLimits() {
+export default function CardLimits({ onInfoPress }: { onInfoPress: () => void }) {
   const { t } = useTranslation();
   const { data: card } = useQuery({ queryKey: ["card", "details"], queryFn: getCard });
   const isCredit = card ? card.mode > 0 : false;
   const { address } = useAccount();
-  const { presentArticle } = useIntercom();
   const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [address ?? zeroAddress] });
   return (
     <YStack justifyContent="center" backgroundColor="$backgroundSoft" gap="$s4">
@@ -32,12 +29,7 @@ export default function CardLimits() {
         <Text emphasized subHeadline color="$uiNeutralSecondary" textAlign="center">
           Spending limit
         </Text>
-        <Pressable
-          onPress={() => {
-            presentArticle("9922633").catch(reportError);
-          }}
-          hitSlop={15}
-        >
+        <Pressable hitSlop={15} onPress={onInfoPress}>
           <Info size={16} color="$uiBrandSecondary" />
         </Pressable>
       </View>
