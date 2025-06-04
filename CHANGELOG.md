@@ -1,5 +1,14 @@
 # @exactly/mobile
 
+## 1.0.13
+
+### Patch Changes
+
+- [`005ff3e`](https://github.com/exactly/exa/commit/005ff3efcd082c5b0b62d1a9e2ebcc83ce617e06) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🔧 ignore patches for fingerprint
+
+- Updated dependencies [[`fa80d66`](https://github.com/exactly/exa/commit/fa80d66928ce56d000b3a2eae9807ea7578ff081)]:
+  - @exactly/server@0.2.1
+
 ## 1.0.12
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.1
+
+### Patch Changes
+
+- [`fa80d66`](https://github.com/exactly/exa/commit/fa80d66928ce56d000b3a2eae9807ea7578ff081) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🚑️ fix set pin payload
+
 ## 0.2.0
 
 ### Minor Changes
