@@ -69,7 +69,7 @@ const BaseTransaction = v.object({
     merchantCountry: v.nullish(v.string()),
     merchantName: v.string(),
     authorizedAt: v.optional(v.pipe(v.string(), v.isoTimestamp())),
-    authorizedAmount: v.optional(v.number()),
+    authorizedAmount: v.nullish(v.number()),
   }),
 });
 
