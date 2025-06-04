@@ -1,6 +1,7 @@
 abi
 src/proto/
 target/
+substreams.yaml
 
 *.log
 *.spkg
