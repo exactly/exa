@@ -94,7 +94,13 @@ export async function getPIN(cardId: string, sessionId: string) {
 }
 
 export async function setPIN(cardId: string, sessionId: string, pin: { data: string; iv: string }) {
-  return await request(object({}), `/issuing/cards/${cardId}/pin`, { SessionId: sessionId }, pin, "PUT");
+  return await request(
+    object({}),
+    `/issuing/cards/${cardId}/pin`,
+    { SessionId: sessionId },
+    { encryptedPin: pin },
+    "PUT",
+  );
 }
 
 async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
