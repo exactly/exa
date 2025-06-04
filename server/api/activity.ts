@@ -15,6 +15,7 @@ import { validator as vValidator } from "hono-openapi/valibot";
 import {
   array,
   bigint,
+  boolean,
   type InferInput,
   type InferOutput,
   intersect,
@@ -38,7 +39,7 @@ import {
   union,
   variant,
 } from "valibot";
-import { decodeFunctionData, type Log } from "viem";
+import { decodeFunctionData, zeroHash, type Log } from "viem";
 
 import database, { credentials } from "../database";
 import {
@@ -295,7 +296,7 @@ const Borrow = object({ maturity: bigint(), assets: bigint(), fee: bigint() });
 
 export const PandaActivity = pipe(
   object({
-    bodies: array(looseObject({})),
+    bodies: array(looseObject({ action: picklist(["created", "completed", "updated"]) })),
     borrows: array(nullable(object({ timestamp: optional(bigint()), events: array(Borrow) }))),
     hashes: array(Hash),
     type: literal("panda"),
@@ -307,6 +308,7 @@ export const PandaActivity = pipe(
         { 0: DebitActivity, 1: CreditActivity }[borrow?.events.length ?? 0] ?? InstallmentsActivity,
         {
           ...bodies[index],
+          forceCapture: bodies[index]?.action === "completed" && !bodies.some((b) => b.action === "created"),
           type,
           hash,
           events: borrow?.events,
@@ -317,28 +319,48 @@ export const PandaActivity = pipe(
       throw new Error("bad panda activity");
     });
 
-    if (!operations[0]) throw new Error("First operation needs to be defined");
+    const flow = operations.reduce<{
+      created: (typeof operations)[number] | undefined;
+      updates: (typeof operations)[number][];
+      completed: (typeof operations)[number] | undefined;
+    }>(
+      (f, operation) => {
+        if (operation.action === "updated") f.updates.push(operation);
+        else if (operation.action === "created" || operation.action === "completed") f[operation.action] = operation;
+        else throw new Error("bad action");
+        return f;
+      },
+      { created: undefined, updates: [], completed: undefined },
+    );
+
+    const details = flow.completed ?? flow.created;
+    if (!details) throw new Error("invalid flow");
+
     const {
       id,
       currency,
       timestamp,
-      merchant: { city, country, icon, name, state },
-    } = operations[0];
+      merchant: { city, country, name, state },
+    } = details;
+    const usdAmount = operations.reduce((sum, { usdAmount: amount }) => sum + amount, 0);
+    const exchangeRate = flow.completed?.exchangeRate ?? [flow.created, ...flow.updates].at(-1)?.exchangeRate;
+    if (!exchangeRate) throw new Error("no exchange rate");
     return {
       id,
       currency,
-      amount: operations.at(-1)?.amount,
+      amount: usdAmount * exchangeRate,
       merchant: {
         name: name.trim(),
         city: city?.trim(),
         country: country?.trim(),
         state: state?.trim(),
-        icon,
+        icon: flow.completed?.merchant.icon ?? flow.updates.at(-1)?.merchant.icon,
       },
-      operations,
+      operations: operations.filter(({ transactionHash }) => transactionHash !== zeroHash),
       timestamp,
       type,
-      usdAmount: operations.reduce((sum, { usdAmount }) => sum + usdAmount, 0),
+      settled: !!flow.completed,
+      usdAmount,
     };
   }),
 );
@@ -347,11 +369,13 @@ const CardActivity = pipe(
   variant("type", [
     object({
       type: literal("panda"),
+      action: picklist(["created", "completed", "updated"]),
       createdAt: pipe(string(), isoTimestamp()),
       body: object({
         id: string(),
         spend: object({
           amount: number(),
+          authorizedAmount: nullish(number()),
           currency: literal("usd"),
           localAmount: number(),
           localCurrency: string(),
@@ -362,6 +386,7 @@ const CardActivity = pipe(
           enrichedMerchantIcon: optional(string()),
         }),
       }),
+      forceCapture: boolean(),
       hash: Hash,
     }),
     object({
@@ -395,40 +420,51 @@ function transformBorrow(borrow: InferOutput<typeof Borrow>, timestamp: bigint) 
 }
 
 function transformCard(activity: InferOutput<typeof CardActivity>) {
-  return activity.type === "panda"
-    ? {
-        type: "card" as const,
-        id: activity.body.id,
-        transactionHash: activity.hash,
-        timestamp: activity.createdAt,
-        currency: activity.body.spend.localCurrency.toUpperCase(),
-        amount: activity.body.spend.localAmount / 100,
-        usdAmount: activity.body.spend.authorizationUpdateAmount
-          ? activity.body.spend.authorizationUpdateAmount / 100
-          : activity.body.spend.amount / 100,
-        merchant: {
-          name: activity.body.spend.merchantName,
-          city: activity.body.spend.merchantCity,
-          country: activity.body.spend.merchantCountry,
-          icon: activity.body.spend.enrichedMerchantIcon,
-          state: "",
-        },
-      }
-    : {
-        type: "card" as const,
-        id: activity.operation_id,
-        transactionHash: activity.hash,
-        timestamp: activity.data.created_at,
-        currency: activity.data.transaction_currency_code,
-        amount: activity.data.transaction_amount,
-        usdAmount: activity.data.bill_amount,
-        merchant: {
-          name: activity.data.merchant_data.name,
-          city: activity.data.merchant_data.city,
-          country: activity.data.merchant_data.country,
-          state: activity.data.merchant_data.state,
-        },
-      };
+  if (activity.type === "panda") {
+    const usdAmount =
+      (function () {
+        if (activity.action === "completed") {
+          if (activity.forceCapture) return activity.body.spend.amount;
+          return activity.body.spend.amount - (activity.body.spend.authorizedAmount ?? 0);
+        }
+        return activity.body.spend.authorizationUpdateAmount ?? activity.body.spend.amount;
+      })() / 100;
+    const exchangeRate =
+      activity.body.spend.amount === 0 ? 1 : activity.body.spend.localAmount / activity.body.spend.amount;
+    return {
+      type: "card" as const,
+      action: activity.action,
+      id: activity.body.id,
+      transactionHash: activity.hash,
+      timestamp: activity.createdAt,
+      currency: activity.body.spend.localCurrency.toUpperCase(),
+      exchangeRate,
+      amount: usdAmount * exchangeRate,
+      usdAmount,
+      merchant: {
+        name: activity.body.spend.merchantName,
+        city: activity.body.spend.merchantCity,
+        country: activity.body.spend.merchantCountry,
+        icon: activity.body.spend.enrichedMerchantIcon,
+        state: "",
+      },
+    };
+  }
+  return {
+    type: "card" as const,
+    id: activity.operation_id,
+    transactionHash: activity.hash,
+    timestamp: activity.data.created_at,
+    currency: activity.data.transaction_currency_code,
+    amount: activity.data.transaction_amount,
+    usdAmount: activity.data.bill_amount,
+    merchant: {
+      name: activity.data.merchant_data.name,
+      city: activity.data.merchant_data.city,
+      country: activity.data.merchant_data.country,
+      state: activity.data.merchant_data.state,
+    },
+  };
 }
 
 export const DebitActivity = pipe(
