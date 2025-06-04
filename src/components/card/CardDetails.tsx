@@ -7,7 +7,6 @@ import React, { useEffect, useState } from "react";
 import { Appearance, Platform, Pressable, StyleSheet } from "react-native";
 import { ScrollView, Sheet, XStack, YStack } from "tamagui";
 
-import CardBack from "./CardBack";
 import DismissableAlert from "./DismissableAlert";
 import ExaLogoDark from "../../assets/images/exa-logo-dark.svg";
 import ExaLogoLight from "../../assets/images/exa-logo-light.svg";
@@ -29,7 +28,7 @@ export default function CardDetails({ open, onClose }: { open: boolean; onClose:
   const { data: card, isPending } = useQuery({ queryKey: ["card", "details"], queryFn: getCard });
   const [details, setDetails] = useState({ pan: "", cvc: "" });
   useEffect(() => {
-    if (card && card.provider === "panda") {
+    if (card) {
       Promise.all([
         decrypt(card.encryptedPan.data, card.encryptedPan.iv, card.secret),
         decrypt(card.encryptedCvc.data, card.encryptedCvc.iv, card.secret),
@@ -68,81 +67,75 @@ export default function CardDetails({ open, onClose }: { open: boolean; onClose:
                 {isPending ? (
                   <Skeleton height={200} width="100%" colorMode={Appearance.getColorScheme() ?? "light"} />
                 ) : card ? (
-                  card.provider === "panda" ? (
-                    <YStack
-                      borderRadius="$s3"
-                      borderWidth={1}
-                      borderColor="$borderNeutralSoft"
-                      backgroundColor="$uiNeutralPrimary"
-                      paddingHorizontal="$s5"
-                      paddingTop="$s9"
-                      paddingBottom="$s9"
-                      justifyContent="space-between"
-                      width="100%"
-                      gap="$s4"
-                    >
-                      <View position="absolute" top="$s4" left="$s5">
-                        {Appearance.getColorScheme() === "light" ? (
-                          <ExaLogoLight height={20} width={63} />
-                        ) : (
-                          <ExaLogoDark height={20} width={63} />
-                        )}
-                      </View>
-                      <View position="absolute" bottom="$s4" right="$s5">
-                        {Appearance.getColorScheme() === "light" ? (
-                          <VisaLogoLight height={40} width={72} />
-                        ) : (
-                          <VisaLogoDark height={40} width={72} />
-                        )}
-                      </View>
-                      <XStack gap="$s4" alignItems="center" flexWrap="wrap">
-                        <Text headline letterSpacing={2} fontFamily="$mono" color="$uiNeutralInversePrimary">
-                          {details.pan.match(/.{1,4}/g)?.join(" ") ?? ""}
-                        </Text>
-                        <Copy
-                          hitSlop={20}
-                          size={16}
-                          color="$uiNeutralInversePrimary"
-                          strokeWidth={2.5}
-                          onPress={() => {
-                            setStringAsync(details.pan).catch(reportError);
-                            toast.show("Card number copied!", {
-                              native: true,
-                              duration: 1000,
-                              burntOptions: { haptic: "success" },
-                            });
-                          }}
-                        />
-                      </XStack>
-                      <XStack gap="$s5" alignItems="center" flexWrap="wrap">
-                        <XStack alignItems="center" gap="$s3">
-                          <Text caption color="$uiNeutralInverseSecondary">
-                            Expires
-                          </Text>
-                          <Text headline letterSpacing={2} fontFamily="$mono" color="$uiNeutralInversePrimary">
-                            {`${card.expirationMonth}/${card.expirationYear}`}
-                          </Text>
-                        </XStack>
-                        <XStack alignItems="center" gap="$s3">
-                          <Text caption color="$uiNeutralInverseSecondary">
-                            CVV&nbsp;
-                          </Text>
-                          <Text headline letterSpacing={2} fontFamily="$mono" color="$uiNeutralInversePrimary">
-                            {details.cvc}
-                          </Text>
-                        </XStack>
-                      </XStack>
-                      <YStack>
-                        <Text emphasized headline letterSpacing={2} color="$uiNeutralInversePrimary">
-                          {card.displayName}
-                        </Text>
-                      </YStack>
-                    </YStack>
-                  ) : (
-                    <View width="100%" height="100%" alignItems="center" justifyContent="center">
-                      <CardBack uri={card.url} />
+                  <YStack
+                    borderRadius="$s3"
+                    borderWidth={1}
+                    borderColor="$borderNeutralSoft"
+                    backgroundColor="$uiNeutralPrimary"
+                    paddingHorizontal="$s5"
+                    paddingTop="$s9"
+                    paddingBottom="$s9"
+                    justifyContent="space-between"
+                    width="100%"
+                    gap="$s4"
+                  >
+                    <View position="absolute" top="$s4" left="$s5">
+                      {Appearance.getColorScheme() === "light" ? (
+                        <ExaLogoLight height={20} width={63} />
+                      ) : (
+                        <ExaLogoDark height={20} width={63} />
+                      )}
                     </View>
-                  )
+                    <View position="absolute" bottom="$s4" right="$s5">
+                      {Appearance.getColorScheme() === "light" ? (
+                        <VisaLogoLight height={40} width={72} />
+                      ) : (
+                        <VisaLogoDark height={40} width={72} />
+                      )}
+                    </View>
+                    <XStack gap="$s4" alignItems="center" flexWrap="wrap">
+                      <Text headline letterSpacing={2} fontFamily="$mono" color="$uiNeutralInversePrimary">
+                        {details.pan.match(/.{1,4}/g)?.join(" ") ?? ""}
+                      </Text>
+                      <Copy
+                        hitSlop={20}
+                        size={16}
+                        color="$uiNeutralInversePrimary"
+                        strokeWidth={2.5}
+                        onPress={() => {
+                          setStringAsync(details.pan).catch(reportError);
+                          toast.show("Card number copied!", {
+                            native: true,
+                            duration: 1000,
+                            burntOptions: { haptic: "success" },
+                          });
+                        }}
+                      />
+                    </XStack>
+                    <XStack gap="$s5" alignItems="center" flexWrap="wrap">
+                      <XStack alignItems="center" gap="$s3">
+                        <Text caption color="$uiNeutralInverseSecondary">
+                          Expires
+                        </Text>
+                        <Text headline letterSpacing={2} fontFamily="$mono" color="$uiNeutralInversePrimary">
+                          {`${card.expirationMonth}/${card.expirationYear}`}
+                        </Text>
+                      </XStack>
+                      <XStack alignItems="center" gap="$s3">
+                        <Text caption color="$uiNeutralInverseSecondary">
+                          CVV&nbsp;
+                        </Text>
+                        <Text headline letterSpacing={2} fontFamily="$mono" color="$uiNeutralInversePrimary">
+                          {details.cvc}
+                        </Text>
+                      </XStack>
+                    </XStack>
+                    <YStack>
+                      <Text emphasized headline letterSpacing={2} color="$uiNeutralInversePrimary">
+                        {card.displayName}
+                      </Text>
+                    </YStack>
+                  </YStack>
                 ) : null}
                 {card && alertShown && (
                   <DismissableAlert

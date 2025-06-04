@@ -340,7 +340,7 @@ export default function Card() {
 
                   <Separator borderColor="$borderNeutralSoft" />
 
-                  {cardDetails && cardDetails.provider === "panda" && (
+                  {cardDetails && (
                     <>
                       <XStack
                         alignItems="center"

@@ -31,21 +31,18 @@ export default function CardPIN({ open, onClose }: { open: boolean; onClose: () 
     refetchOnMount: true,
     queryFn: async () => {
       const result = await getCard();
-      if (result.provider === "panda") {
-        const { secret, encryptedPan, encryptedCvc, pin } = result;
-        const [pan, cvc, decryptedPIN] = await Promise.all([
-          decrypt(encryptedPan.data, encryptedPan.iv, secret),
-          decrypt(encryptedCvc.data, encryptedCvc.iv, secret),
-          pin ? decryptPIN(pin.data, pin.iv, secret) : Promise.resolve(null),
-        ]);
-        if (!decryptedPIN) {
-          const newPIN = String(Math.floor(Math.random() * 10_000)).padStart(4, "0");
-          await setCardPIN(newPIN);
-          return { ...result, details: { pan, cvc, pin: newPIN } };
-        }
-        return { ...result, details: { pan, cvc, pin: decryptedPIN } };
+      const { secret, encryptedPan, encryptedCvc, pin } = result;
+      const [pan, cvc, decryptedPIN] = await Promise.all([
+        decrypt(encryptedPan.data, encryptedPan.iv, secret),
+        decrypt(encryptedCvc.data, encryptedCvc.iv, secret),
+        pin ? decryptPIN(pin.data, pin.iv, secret) : Promise.resolve(null),
+      ]);
+      if (!decryptedPIN) {
+        const newPIN = String(Math.floor(Math.random() * 10_000)).padStart(4, "0");
+        await setCardPIN(newPIN);
+        return { ...result, details: { pan, cvc, pin: newPIN } };
       }
-      return result;
+      return { ...result, details: { pan, cvc, pin: decryptedPIN } };
     },
   });
 
@@ -76,7 +73,7 @@ export default function CardPIN({ open, onClose }: { open: boolean; onClose: () 
   }
 
   useEffect(() => {
-    if (open && card && card.provider === "panda" && card.details.pin) startCountdown();
+    if (open && card?.details.pin) startCountdown();
     else stopCountdown();
     return () => {
       clearInterval(timerReference.current);
@@ -116,11 +113,11 @@ export default function CardPIN({ open, onClose }: { open: boolean; onClose: () 
                       Your card&apos;s PIN may be required to confirm transactions and ensure security.
                     </Text>
                   </YStack>
-                  {isPending || !card || (card.provider === "panda" && !card.details.pin) ? (
+                  {isPending || !card?.details.pin ? (
                     <Skeleton width="100%" height={100} colorMode={Appearance.getColorScheme() ?? "light"} />
                   ) : (
                     <YStack gap="$s4">
-                      {!error && card.provider === "panda" && card.details.pin ? (
+                      {!error && card.details.pin ? (
                         <XStack flexWrap="wrap" justifyContent="center" gap="$s5">
                           {Array.from({ length: card.details.pin.length }).map((_, index) => (
                             <Text fontSize={48} fontFamily="$mono" key={index}>
