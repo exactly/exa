@@ -1,7 +1,6 @@
 import { exaPreviewerAddress } from "@exactly/common/generated/chain";
 import shortenHex from "@exactly/common/shortenHex";
 import { Eye, EyeOff, Settings, ClockArrowUp } from "@tamagui/lucide-icons";
-import { useToastController } from "@tamagui/toast";
 import { useQuery } from "@tanstack/react-query";
 import { setStringAsync } from "expo-clipboard";
 import { router } from "expo-router";
@@ -11,7 +10,7 @@ import { Image } from "tamagui";
 import { zeroAddress } from "viem";
 import { useAccount, useConnect } from "wagmi";
 
-import AddressDialog from "./AddressDialog";
+import CopyAddressSheet from "./CopyAddressSheet";
 import StatusIndicator from "./StatusIndicator";
 import { useReadExaPreviewerPendingProposals } from "../../generated/contracts";
 import alchemyConnector from "../../utils/alchemyConnector";
@@ -20,16 +19,11 @@ import reportError from "../../utils/reportError";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-function settings() {
-  router.push("/settings");
-}
-
 export default function ProfileHeader() {
   const { address } = useAccount();
   const { connect } = useConnect();
   const { isConnected } = useAccount();
-  const [alertShown, setAlertShown] = useState(false);
-  const toast = useToastController();
+  const [copyAddressShown, setCopyAddressShown] = useState(false);
   const { data: pendingProposals, isFetching: pendingProposalsFetching } = useReadExaPreviewerPendingProposals({
     address: exaPreviewerAddress,
     args: [address ?? zeroAddress],
@@ -46,12 +40,7 @@ export default function ProfileHeader() {
   function copy() {
     if (!address) return;
     setStringAsync(address).catch(reportError);
-    toast.show("Account address copied!", {
-      native: true,
-      duration: 1000,
-      burntOptions: { haptic: "success" },
-    });
-    setAlertShown(false);
+    setCopyAddressShown(true);
   }
   return (
     <View padded backgroundColor="$backgroundSoft">
@@ -73,12 +62,7 @@ export default function ProfileHeader() {
             />
           </View>
           {address && (
-            <Pressable
-              onPress={() => {
-                setAlertShown(true);
-              }}
-              hitSlop={15}
-            >
+            <Pressable onPress={copy} hitSlop={15}>
               <View display="flex" flexDirection="row" alignItems="flex-start">
                 <Text fontSize={17} lineHeight={23} fontFamily="$mono">
                   {hidden ? "0x..." : shortenHex(address).toLowerCase()}
@@ -86,11 +70,10 @@ export default function ProfileHeader() {
               </View>
             </Pressable>
           )}
-          <AddressDialog
-            open={alertShown}
-            onActionPress={copy}
+          <CopyAddressSheet
+            open={copyAddressShown}
             onClose={() => {
-              setAlertShown(false);
+              setCopyAddressShown(false);
             }}
           />
         </View>
@@ -110,7 +93,12 @@ export default function ProfileHeader() {
               <ClockArrowUp color="$uiNeutralPrimary" />
             </Pressable>
           )}
-          <Pressable onPress={settings} hitSlop={15}>
+          <Pressable
+            onPress={() => {
+              router.push("/settings");
+            }}
+            hitSlop={15}
+          >
             <Settings color="$uiNeutralPrimary" />
           </Pressable>
         </View>

@@ -1,44 +1,43 @@
 import chain from "@exactly/common/generated/chain";
 import shortenHex from "@exactly/common/shortenHex";
-import { ArrowLeft, Files, Info, Share as ShareIcon } from "@tamagui/lucide-icons";
-import { useToastController } from "@tamagui/toast";
+import { AlertTriangle, ArrowLeft, Files, Share as ShareIcon } from "@tamagui/lucide-icons";
 import { setStringAsync } from "expo-clipboard";
 import { router } from "expo-router";
 import React, { useCallback, useState } from "react";
-import { Pressable, Share } from "react-native";
-import { ScrollView } from "tamagui";
+import { PixelRatio, Pressable, Share } from "react-native";
+import { ScrollView, XStack, YStack } from "tamagui";
 import { useAccount } from "wagmi";
 
+import SupportedAssetsSheet from "./SupportedAssetsSheet";
 import OptimismImage from "../../assets/images/optimism.svg";
 import assetLogos from "../../utils/assetLogos";
 import reportError from "../../utils/reportError";
-import AddressDialog from "../shared/AddressDialog";
+import useIntercom from "../../utils/useIntercom";
 import AssetLogo from "../shared/AssetLogo";
+import Button from "../shared/Button";
+import CopyAddressSheet from "../shared/CopyAddressSheet";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-// TODO remove limitation for next release
 const supportedAssets = Object.entries(assetLogos)
   .filter(([symbol]) => symbol !== "USDC.e" && symbol !== "DAI")
   .map(([symbol, image]) => ({ symbol, image }));
 
 export default function AddCrypto() {
-  const [alertShown, setAlertShown] = useState(false);
-  const toast = useToastController();
+  const fontScale = PixelRatio.getFontScale();
+  const { presentArticle } = useIntercom();
   const { address } = useAccount();
   const { canGoBack } = router;
+
+  const [copyAddressShown, setCopyAddressShown] = useState(false);
+  const [supportedAssetsShown, setSupportedAssetsShown] = useState(false);
 
   const copy = useCallback(() => {
     if (!address) return;
     setStringAsync(address).catch(reportError);
-    toast.show("Account address copied!", {
-      native: true,
-      duration: 1000,
-      burntOptions: { haptic: "success" },
-    });
-    setAlertShown(false);
-  }, [address, toast]);
+    setCopyAddressShown(true);
+  }, [address]);
 
   const share = useCallback(async () => {
     if (!address) return;
@@ -46,19 +45,23 @@ export default function AddCrypto() {
   }, [address]);
   return (
     <SafeView fullScreen>
-      <View gap={20} fullScreen padded>
-        <View gap={20}>
-          <View flexDirection="row" gap={10} justifyContent="space-between" alignItems="center">
-            {canGoBack() && (
+      <View gap="$s5" fullScreen padded>
+        <View gap="$s5">
+          <XStack gap="$s3" justifyContent="space-around" alignItems="center">
+            <View position="absolute" left={0}>
               <Pressable
                 onPress={() => {
-                  router.back();
+                  if (canGoBack()) {
+                    router.back();
+                  } else {
+                    router.replace("/");
+                  }
                 }}
               >
                 <ArrowLeft size={24} color="$uiNeutralPrimary" />
               </Pressable>
-            )}
-            <View flexDirection="row" alignItems="center">
+            </View>
+            <View flexDirection="row" alignItems="center" alignSelf="center">
               <Text color="$uiNeutralSecondary" fontSize={15} fontWeight="bold">
                 {`Add Funds / `}
               </Text>
@@ -66,110 +69,151 @@ export default function AddCrypto() {
                 Cryptocurrency
               </Text>
             </View>
-            <Pressable>
-              <Info color="$uiNeutralPrimary" />
-            </Pressable>
-          </View>
+          </XStack>
         </View>
         <ScrollView flex={1}>
-          <View gap={20} flex={1}>
-            <View flex={1} gap={10} borderBottomWidth={1} borderBottomColor="$borderNeutralSoft" paddingBottom={20}>
+          <YStack gap="$s5">
+            <YStack flex={1} borderBottomWidth={1} borderBottomColor="$borderNeutralSoft" paddingBottom={20} gap="$s5">
               <Text fontSize={15} color="$uiNeutralSecondary" fontWeight="bold">
                 Your {chain.name} address
               </Text>
-              <View flexDirection="row" justifyContent="space-between" alignItems="center">
-                <View>
-                  <Pressable
-                    hitSlop={15}
-                    onPress={() => {
-                      setAlertShown(true);
-                    }}
+              <Pressable hitSlop={15} onPress={copy}>
+                {address && (
+                  <Text fontFamily="$mono" fontSize={18} color="$uiNeutralPrimary">
+                    {shortenHex(address, 10, 12)}
+                  </Text>
+                )}
+              </Pressable>
+              <XStack alignItems="center" gap="$s4">
+                <Button
+                  main
+                  spaced
+                  onPress={copy}
+                  hitSlop={15}
+                  iconAfter={<Files size={18 * fontScale} color="$interactiveOnBaseBrandDefault" />}
+                  backgroundColor="$interactiveBaseBrandDefault"
+                  color="$interactiveOnBaseBrandDefault"
+                  contained
+                  fullwidth
+                  flex={1}
+                >
+                  <Text
+                    fontSize={15}
+                    emphasized
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    color="$interactiveOnBaseBrandDefault"
                   >
-                    {address && (
-                      <Text fontFamily="$mono" fontSize={18} color="$uiNeutralPrimary">
-                        {shortenHex(address)}
-                      </Text>
-                    )}
-                  </Pressable>
-                </View>
-                <View gap={10} flexDirection="row">
-                  <Pressable
-                    onPress={() => {
-                      setAlertShown(true);
-                    }}
-                    hitSlop={15}
+                    Copy
+                  </Text>
+                </Button>
+                <Button
+                  main
+                  spaced
+                  onPress={() => {
+                    share().catch(reportError);
+                  }}
+                  hitSlop={15}
+                  iconAfter={<ShareIcon size={18 * fontScale} color="$interactiveOnBaseBrandSoft" />}
+                  backgroundColor="$interactiveBaseBrandSoftDefault"
+                  color="$interactiveOnBaseBrandSoft"
+                  outlined
+                  fullwidth
+                  flex={1}
+                >
+                  <Text
+                    fontSize={15}
+                    emphasized
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    color="$interactiveOnBaseBrandSoft"
                   >
-                    <Files size={24} color="$interactiveBaseBrandDefault" />
-                  </Pressable>
-                  <Pressable
-                    onPress={() => {
-                      share().catch(reportError);
-                    }}
-                    hitSlop={15}
-                  >
-                    <ShareIcon size={24} color="$interactiveBaseBrandDefault" />
-                  </Pressable>
-                </View>
-              </View>
-            </View>
-            <AddressDialog
-              open={alertShown}
-              onActionPress={copy}
+                    Share
+                  </Text>
+                </Button>
+              </XStack>
+            </YStack>
+            <CopyAddressSheet
+              open={copyAddressShown}
               onClose={() => {
-                setAlertShown(false);
+                setCopyAddressShown(false);
               }}
             />
-            <View flex={1} gap="$s4" borderBottomWidth={1} borderBottomColor="$borderNeutralSoft" paddingBottom={20}>
-              <View flexDirection="row" justifyContent="space-between">
-                <Text fontSize={15} color="$uiNeutralSecondary" fontWeight="bold">
-                  Supported Assets
-                </Text>
-              </View>
-              {supportedAssets.map((asset, index) => {
-                return (
-                  <View key={index} flexDirection="row" gap={10} justifyContent="space-between" alignItems="center">
-                    <View flexDirection="row" alignItems="center" gap={10}>
-                      <AssetLogo uri={asset.image} width={32} height={32} />
-                      <Text fontSize={18} fontWeight="bold">
-                        {asset.symbol}
-                      </Text>
-                    </View>
-                  </View>
-                );
-              })}
-            </View>
-            <View flex={1} gap={15}>
-              <Text fontSize={15} color="$uiNeutralSecondary" fontWeight="bold">
+            <SupportedAssetsSheet
+              open={supportedAssetsShown}
+              onClose={() => {
+                setSupportedAssetsShown(false);
+              }}
+            />
+            <XStack justifyContent="space-between" alignItems="center">
+              <Text emphasized footnote color="$uiNeutralSecondary" textAlign="left">
                 Network
               </Text>
-              <View flexDirection="row" gap={10} justifyContent="space-between" alignItems="center" alignSelf="stretch">
-                <View flexDirection="row" alignItems="center" gap={10} flexGrow={1} maxHeight={32}>
-                  <OptimismImage height={32} width={32} />
-                  <Text fontSize={18} fontWeight="bold">
+              <Text emphasized footnote color="$uiNeutralSecondary" textAlign="right">
+                Supported Assets
+              </Text>
+            </XStack>
+            <XStack gap="$s5" justifyContent="space-between" alignItems="center">
+              <XStack alignItems="center" gap="$s3">
+                <OptimismImage height={32} width={32} />
+                <YStack>
+                  <Text emphasized primary headline>
+                    Optimism
+                  </Text>
+                  <Text emphasized primary caption color="$uiNeutralSecondary">
                     {chain.name}
                   </Text>
-                </View>
-              </View>
-              <View flex={1}>
-                <Text color="$uiNeutralPlaceholder" fontSize={13} lineHeight={16} textAlign="justify">
-                  Exa App runs on the {chain.name} network. Sending assets on other networks may result in irreversible
-                  loss of funds.
-                  <Text
-                    color="$uiBrandSecondary"
-                    fontSize={13}
-                    lineHeight={16}
-                    fontWeight="bold"
-                    onPress={() => {
-                      router.push("../add-funds/add-crypto-about");
-                    }}
-                  >
-                    &nbsp;Learn more about adding funds.
-                  </Text>
-                </Text>
-              </View>
-            </View>
-          </View>
+                </YStack>
+              </XStack>
+              <XStack
+                borderWidth={1}
+                borderColor="$borderNeutralSoft"
+                borderRadius="$r_0"
+                padding="$s3_5"
+                alignSelf="flex-end"
+                cursor="pointer"
+                onPress={() => {
+                  setSupportedAssetsShown(true);
+                }}
+              >
+                {supportedAssets.map((asset, index) => {
+                  return (
+                    <XStack key={index} marginRight={index < supportedAssets.length - 1 ? -12 : 0} zIndex={index}>
+                      <AssetLogo uri={asset.image} width={32} height={32} />
+                    </XStack>
+                  );
+                })}
+              </XStack>
+            </XStack>
+          </YStack>
         </ScrollView>
+        <XStack
+          gap="$s4"
+          alignItems="flex-start"
+          borderTopWidth={1}
+          borderTopColor="$borderNeutralSoft"
+          paddingTop="$s3"
+        >
+          <View>
+            <AlertTriangle size={16} width={16} height={16} color="$uiWarningSecondary" />
+          </View>
+          <XStack flex={1}>
+            <Text emphasized caption2 color="$uiNeutralPlaceholder" textAlign="justify">
+              Only send assets on Optimism ({chain.name}). Sending funds from other networks may cause permanent loss.
+              <Text
+                cursor="pointer"
+                emphasized
+                caption2
+                color="$uiBrandSecondary"
+                onPress={() => {
+                  presentArticle("8950801").catch(reportError);
+                }}
+              >
+                &nbsp;Learn more about adding funds.
+              </Text>
+            </Text>
+          </XStack>
+        </XStack>
       </View>
     </SafeView>
   );
