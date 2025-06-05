@@ -762,6 +762,9 @@ importers:
       '@bufbuild/buf':
         specifier: ^1.61.0
         version: 1.61.0
+      '@exactly/protocol':
+        specifier: ^0.2.22
+        version: 0.2.22
       '@exactly/server':
         specifier: workspace:^0.2.42
         version: link:../server
