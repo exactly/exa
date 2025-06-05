@@ -2,6 +2,7 @@
   "name": "@exactly/substreams",
   "scripts": {
     "build": "cargo build --release --quiet",
+    "prepare": "tsx $([ -f .env ] && echo --env-file=.env) substreams.ts",
     "test": "pnpm run --aggregate-output --reporter-hide-prefix /test:/",
     "test:fmt": "cargo fmt --check",
     "test:clippy": "cargo clippy --quiet -- --deny warnings",
