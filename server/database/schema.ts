@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm";
-import { customType, integer, jsonb, numeric, pgEnum, pgTable, text, uniqueIndex } from "drizzle-orm/pg-core";
+import { bigint, customType, integer, jsonb, numeric, pgEnum, pgTable, text, uniqueIndex } from "drizzle-orm/pg-core";
 
 const bytea = customType<{ data: Uint8Array; driverData: string }>({ dataType: () => "bytea" });
 
@@ -63,12 +63,12 @@ export const swaps = pgTable(
   (table) => [uniqueIndex("receiver_index").on(table.receiver)],
 );
 
-// export const cursors = pgTable("cursors", {
-//   id: text("id").primaryKey(),
-//   cursor: text("cursor"),
-//   blockNum: integer("block_num"),
-//   blockId: text("block_id"),
-// });
+export const cursors = pgTable("cursors", {
+  id: text("id").primaryKey(),
+  cursor: text("cursor"),
+  blockNum: bigint("block_num", { mode: "bigint" }),
+  blockId: text("block_id"),
+});
 
 // export const substreamsHistoryId = pgSequence("substreams_history_id_seq");
 

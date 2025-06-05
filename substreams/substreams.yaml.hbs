@@ -9,10 +9,11 @@ protobuf:
     - proto
 imports:
   sql: https://github.com/streamingfast/substreams-sink-sql/releases/download/protodefs-v1.0.7/substreams-sink-sql-protodefs-v1.0.7.spkg
+network: {{#if (eq CHAIN_ID "10")}}optimism{{else}}op-sepolia{{/if}}
 modules:
   - name: map_accounts
     kind: map
-    initialBlock: {{#if (eq CHAIN_ID "10")}}124734205{{else if (eq CHAIN_ID "11155420")}}124734205{{/if}}
+    initialBlock: {{#if (eq CHAIN_ID "10")}}124_734_205{{else}}16_539_899{{/if}}
     inputs:
       - source: sf.ethereum.type.v2.Block
     output:
@@ -25,7 +26,7 @@ modules:
       - map: map_accounts
   - name: map_swaps
     kind: map
-    initialBlock: {{#if (eq CHAIN_ID "10")}}124734205{{else if (eq CHAIN_ID "11155420")}}124734205{{/if}}
+    initialBlock: {{#if (eq CHAIN_ID "10")}}124_734_205{{else}}16_539_899{{/if}}
     inputs:
       - source: sf.ethereum.type.v2.Block
       - store: store_accounts
