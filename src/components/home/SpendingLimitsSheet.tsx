@@ -43,6 +43,7 @@ export default function SpendingLimitsSheet({ open, onClose }: { open: boolean; 
             backgroundColor="$backgroundSoft"
             paddingHorizontal="$s5"
             $platform-web={{ paddingVertical: "$s7" }}
+            $platform-android={{ paddingBottom: "$s5" }}
           >
             <YStack gap="$s7">
               <YStack gap="$s5">
