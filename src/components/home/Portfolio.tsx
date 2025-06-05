@@ -23,10 +23,6 @@ export default function Portfolio() {
 
   const style = { backgroundColor: theme.backgroundSoft.val, margin: -5 };
 
-  function back() {
-    router.back();
-  }
-
   const {
     data: markets,
     refetch: refetchMarkets,
@@ -45,11 +41,17 @@ export default function Portfolio() {
   return (
     <SafeView fullScreen backgroundColor="$backgroundSoft">
       <View padded flexDirection="row" gap={10} paddingBottom="$s4" justifyContent="space-between" alignItems="center">
-        {canGoBack() && (
-          <Pressable onPress={back}>
-            <ArrowLeft size={24} color="$uiNeutralPrimary" />
-          </Pressable>
-        )}
+        <Pressable
+          onPress={() => {
+            if (canGoBack()) {
+              router.back();
+              return;
+            }
+            router.replace("/");
+          }}
+        >
+          <ArrowLeft size={24} color="$uiNeutralPrimary" />
+        </Pressable>
         <Pressable
           onPress={() => {
             presentArticle("10985188").catch(reportError);
