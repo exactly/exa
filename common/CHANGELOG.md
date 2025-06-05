@@ -1,5 +1,11 @@
 # @exactly/common
 
+## 0.0.5
+
+### Patch Changes
+
+- [`38a1893`](https://github.com/exactly/exa/commit/38a1893339fb26e062c00f7acce818d6cf7dcbdf) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 👔 increment max installments
+
 ## 0.0.4
 
 ### Patch Changes
