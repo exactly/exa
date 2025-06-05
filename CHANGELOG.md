@@ -1,5 +1,25 @@
 # @exactly/mobile
 
+## 1.0.14
+
+### Patch Changes
+
+- [`4a216cd`](https://github.com/exactly/exa/commit/4a216cd719c36c24e7e1e64ed6ad458f813c612d) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚑 fix repay with usdc
+
+- [`38a1893`](https://github.com/exactly/exa/commit/38a1893339fb26e062c00f7acce818d6cf7dcbdf) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 👔 increment max installments
+
+- [`75a03ce`](https://github.com/exactly/exa/commit/75a03ceca0415d3f52abb953ecf268bf62a36797) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💬 prefer max installments constant
+
+- [`dbc85ae`](https://github.com/exactly/exa/commit/dbc85aeb82f9fa7d294e8f28f07ea9f4a6621a61) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix portfolio scroll view
+
+- [`0ab5a31`](https://github.com/exactly/exa/commit/0ab5a3150a6a9fa8917c4512a0ee572a8f4df455) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix portfolio back behavior
+
+- [`e45e735`](https://github.com/exactly/exa/commit/e45e7355dba6f48ab6b2092edd6aa3aa0c2c6a4e) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 update add funds ui
+
+- Updated dependencies [[`38a1893`](https://github.com/exactly/exa/commit/38a1893339fb26e062c00f7acce818d6cf7dcbdf)]:
+  - @exactly/common@0.0.5
+  - @exactly/server@0.2.2
+
 ## 1.0.13
 
 ### Patch Changes

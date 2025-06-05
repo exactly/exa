@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.2
+
+### Patch Changes
+
+- [`38a1893`](https://github.com/exactly/exa/commit/38a1893339fb26e062c00f7acce818d6cf7dcbdf) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 👔 increment max installments
+
 ## 0.2.1
 
 ### Patch Changes
