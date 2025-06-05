@@ -234,9 +234,9 @@ export default function Pay() {
   });
 
   const handlePayment = useCallback(() => {
-    if (!repayMarket || !route?.fromAmount) return;
+    if (!repayMarket) return;
     setDisplayValues({
-      amount: Number(withUSDC ? positionAssets : route.fromAmount) / 10 ** repayMarket.decimals,
+      amount: Number(withUSDC ? positionAssets : route?.fromAmount) / 10 ** repayMarket.decimals,
       usdAmount: Number(previewValue) / 1e18,
     });
     switch (mode) {
