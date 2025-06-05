@@ -4,5 +4,3 @@ max_width = 120
 tab_spaces = 2
 use_field_init_shorthand = true
 use_small_heuristics = "Max"
-
-ignore = ["src/abi", "src/proto"]

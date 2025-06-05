@@ -1,4 +1,5 @@
-abi
+abi/
+src/contracts/
 src/proto/
 target/
 substreams.yaml

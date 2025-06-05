@@ -1,0 +1,11 @@
+name: substreams/production
+on:
+  push:
+    tags: ["@exactly/substreams@*"]
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+jobs:
+  deploy:
+    uses: ./.github/workflows/substreams-deploy.yaml
+    secrets: inherit
+    with:
+      environment: production

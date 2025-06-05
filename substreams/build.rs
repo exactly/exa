@@ -1,19 +1,33 @@
 use anyhow::{Error, Ok, Result};
+use glob::glob;
+use indoc::indoc;
+use serde::Deserialize;
+use serde_json::from_str;
 use std::{
   env::var,
-  fs::{canonicalize, create_dir_all},
+  fs::{canonicalize, create_dir_all, read_to_string, File},
+  io::Write,
   process::Command,
 };
 use substreams_ethereum::Abigen;
 
+#[derive(Deserialize, Debug)]
+struct Market {
+  address: String,
+}
+
 fn main() -> Result<(), Error> {
   println!("cargo::rerun-if-changed=proto");
   println!("cargo::rerun-if-changed=substreams.yaml");
+  println!("cargo::rerun-if-changed=node_modules/@exactly/protocol/deployments");
   println!("cargo::rerun-if-changed=../contracts/script/ExaAccountFactory.s.sol");
   println!("cargo::rerun-if-changed=../contracts/test/mocks/MockSwapper.sol");
+  println!("cargo::rerun-if-changed=../contracts/node_modules/@exactly/contracts/contracts/Auditor.sol");
+  println!("cargo::rerun-if-changed=../contracts/node_modules/@exactly/contracts/contracts/Market.sol");
 
   create_dir_all("abi")?;
-  let contracts = [("factory", "ExaAccountFactory"), ("lifi", "MockSwapper")];
+  let contracts =
+    [("auditor", "Auditor"), ("factory", "ExaAccountFactory"), ("lifi", "MockSwapper"), ("market", "Market")];
 
   assert!(Command::new("bash")
     .arg("-c")
@@ -35,9 +49,48 @@ fn main() -> Result<(), Error> {
       .unwrap()
       .generate()
       .unwrap()
-      .write_to_file(format!("src/abi/{mod_name}.rs"))
+      .write_to_file(format!("src/contracts/{mod_name}.rs"))
       .unwrap();
   });
+
+  File::create("src/contracts/mod.rs")?.write_all(
+    format!(
+      indoc! {"// @generated
+        {}
+        use substreams::hex;
+
+        pub fn is_market(address: &[u8]) -> bool {{
+          matches!(
+            address,
+            {}
+          )
+        }}
+      "},
+      contracts
+        .iter()
+        .map(|(mod_name, _)| *mod_name)
+        .map(|mod_name| format!("#[allow(clippy::style, clippy::complexity)]\npub mod {mod_name};\n"))
+        .collect::<String>(),
+      glob(&format!(
+        "node_modules/@exactly/protocol/deployments/{}/Market*.json",
+        match option_env!("CHAIN_ID") {
+          Some("10") => "optimism",
+          _ => "op-sepolia",
+        }
+      ))?
+      .filter_map(Result::ok)
+      .filter(|path| {
+        !path.to_str().is_some_and(|s| s.contains("_Implementation") || s.contains("_Proxy") || s.contains("Router"))
+      })
+      .map(|path| -> Result<String, Error> {
+        println!("cargo::rerun-if-changed={}", path.display());
+        Ok(format!("hex!(\"{}\")", &from_str::<Market>(&read_to_string(&path)?)?.address[2..]))
+      })
+      .collect::<Result<Vec<_>, _>>()?
+      .join("\n      | ")
+    )
+    .as_bytes(),
+  )?;
 
   assert!(Command::new("substreams")
     .arg("protogen")
@@ -49,16 +102,9 @@ fn main() -> Result<(), Error> {
 
   assert!(Command::new("bash")
     .arg("-c")
-    .arg(format!(
-      "echo -e '{}' > src/abi/mod.rs",
-      contracts
-        .iter()
-        .map(|(mod_name, _)| format!("#[allow(clippy::all)]\\npub mod {mod_name};"))
-        .collect::<Vec<_>>()
-        .join("\\n")
-    ))
+    .arg("rustfmt src/{contracts,proto}/**")
     .status()
-    .expect("mod.rs generation failed")
+    .expect("formatting failed")
     .success());
 
   Ok(())

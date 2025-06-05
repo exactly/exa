@@ -2,29 +2,31 @@ syntax = "proto3";
 
 package exa;
 
-message Accounts {
-  repeated Account accounts = 1;
-}
+message Events {
+  repeated Transfer transfers = 1;
 
-message Account {
-  bytes address = 1;
+  message MarketUpdate {
+    string floating_deposit_shares = 1;
+    string floating_assets = 2;
+    string floating_borrow_shares = 3;
+    string floating_debt = 4;
+    string earnings_accumulator = 5;
+    // internals
+    uint64 log_ordinal = 30;
+  }
 
-  // internals
-  uint64 log_ordinal = 30;
-}
+  message MaxFuturePoolsSet {
+    uint64 max_future_pools = 1;
+    // internals
+    uint64 log_ordinal = 30;
+  }
 
-message Swaps {
-  repeated Swap swaps = 1;
-}
-
-message Swap {
-  bytes receiver = 1;
-  bytes from_asset_id = 2;
-  bytes to_asset_id = 3;
-  string from_amount = 4;
-  string to_amount = 5;
-  bytes transaction_id = 6;
-
-  // internals
-  uint64 log_ordinal = 30;
+  message Transfer {
+    bytes token = 1;
+    bytes from = 2;
+    bytes to = 3;
+    string amount = 4;
+    // internals
+    uint64 log_ordinal = 30;
+  }
 }

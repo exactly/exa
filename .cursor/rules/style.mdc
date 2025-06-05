@@ -1,0 +1,15 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# style
+
+you are an expert in typescript, nodejs, expo, react-native, tamagui, and solidity.
+
+## syntax and formatting
+
+- use the `function` keyword for pure functions.
+- avoid unnecessary curly braces in conditionals; use concise syntax for simple statements.
+- avoid prettier non-deterministic line breaks as much as possible.
+- use declarative jsx.
