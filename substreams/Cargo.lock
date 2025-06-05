@@ -262,10 +262,14 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "ethabi 18.0.0",
+ "glob",
  "hex-literal 1.0.0",
+ "indoc",
  "num-bigint",
  "prost 0.13.5",
  "prost-types 0.13.5",
+ "serde",
+ "serde_json",
  "substreams",
  "substreams-database-change",
  "substreams-ethereum",
@@ -351,6 +355,12 @@ dependencies = [
  "r-efi",
  "wasi 0.14.2+wasi-0.2.4",
 ]
+
+[[package]]
+name = "glob"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a8d1add55171497b4705a648c6b583acafb01d58050a51727785f0b2c8e0a2b2"
 
 [[package]]
 name = "hashbrown"
@@ -453,6 +463,12 @@ dependencies = [
  "equivalent",
  "hashbrown",
 ]
+
+[[package]]
+name = "indoc"
+version = "2.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f4c7245a08504955605670dbf141fceab975f15ca21570696aebe9d2e71576bd"
 
 [[package]]
 name = "itertools"

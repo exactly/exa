@@ -1,5 +1,18 @@
 import { relations } from "drizzle-orm";
-import { customType, integer, jsonb, numeric, pgEnum, pgTable, text, uniqueIndex } from "drizzle-orm/pg-core";
+import {
+  bigint,
+  char,
+  customType,
+  integer,
+  jsonb,
+  numeric,
+  pgEnum,
+  pgTable,
+  primaryKey,
+  serial,
+  text,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
 
 const bytea = customType<{ data: Uint8Array; driverData: string }>({ dataType: () => "bytea" });
 
@@ -50,35 +63,32 @@ export const transactionsRelations = relations(transactions, ({ one }) => ({
   card: one(cards, { fields: [transactions.cardId], references: [cards.id] }),
 }));
 
-export const swaps = pgTable(
-  "swaps",
+export const shares = pgTable(
+  "shares",
   {
-    id: text("id").primaryKey(),
-    receiver: text("receiver").notNull(),
-    fromAssetId: text("from_asset_id").notNull(),
-    toAssetId: text("to_asset_id").notNull(),
-    fromAmount: numeric("from_amount").notNull(),
-    toAmount: numeric("to_amount").notNull(),
+    market: text("market").notNull(),
+    account: text("account").notNull(),
+    timestamp: numeric("timestamp").notNull(),
+    amount: numeric("amount", { mode: "string" }).notNull(),
   },
-  (table) => [uniqueIndex("receiver_index").on(table.receiver)],
+  (table) => [
+    primaryKey({ columns: [table.market, table.account, table.timestamp] }),
+    uniqueIndex("shares_timestamp").on(table.timestamp),
+  ],
 );
 
-// export const cursors = pgTable("cursors", {
-//   id: text("id").primaryKey(),
-//   cursor: text("cursor"),
-//   blockNum: integer("block_num"),
-//   blockId: text("block_id"),
-// });
+export const cursors = pgTable("cursors", {
+  id: text("id").primaryKey(),
+  cursor: text("cursor"),
+  blockNum: bigint("block_num", { mode: "bigint" }),
+  blockId: text("block_id"),
+});
 
-// export const substreamsHistoryId = pgSequence("substreams_history_id_seq");
-
-// export const substreamsHistory = pgTable("substreams_history", {
-//   id: integer("id")
-//     .primaryKey()
-//     .default(sql`nextval('substreams_history_id_seq'::regclass)`), // cspell:ignore nextval regclass
-//   op: text("op").notNull(),
-//   tableName: text("table_name").notNull(),
-//   pk: text("pk").notNull(),
-//   prevValue: text("prev_value"),
-//   blockNum: integer("block_num"),
-// });
+export const substreamsHistory = pgTable("substreams_history", {
+  id: serial("id").primaryKey(),
+  op: char("op", { length: 1 }),
+  tableName: text("table_name"),
+  pk: text("pk"),
+  prevValue: text("prev_value"),
+  blockNum: bigint("block_num", { mode: "bigint" }),
+});
