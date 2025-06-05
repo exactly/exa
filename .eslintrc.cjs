@@ -9,6 +9,7 @@ module.exports = {
       "tsconfig.node.json",
       "docs/tsconfig.json",
       "server/tsconfig.json",
+      "substreams/tsconfig.json",
       ".maestro/tsconfig.json",
     ],
   },
