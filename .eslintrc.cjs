@@ -3,7 +3,15 @@ const { include: nodeFiles } = require("./tsconfig.node.json");
 /** @type {import('eslint').Linter.Config} */
 module.exports = {
   parser: "@typescript-eslint/parser",
-  parserOptions: { project: ["tsconfig.json", "tsconfig.node.json", "server/tsconfig.json", "docs/tsconfig.json"] },
+  parserOptions: {
+    project: [
+      "tsconfig.json",
+      "tsconfig.node.json",
+      "docs/tsconfig.json",
+      "server/tsconfig.json",
+      "substreams/tsconfig.json",
+    ],
+  },
   settings: { react: { version: "detect" }, "import/resolver": "typescript" },
   extends: [
     "universe",
