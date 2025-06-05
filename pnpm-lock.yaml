@@ -705,6 +705,12 @@ importers:
       protolint:
         specifier: ^0.55.6
         version: 0.55.6
+      tsx:
+        specifier: ^4.19.3
+        version: 4.19.3
+      typescript:
+        specifier: ^5.8.3
+        version: 5.8.3
 
 packages:
 
