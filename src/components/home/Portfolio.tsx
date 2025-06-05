@@ -58,54 +58,51 @@ export default function Portfolio() {
           <CircleHelp color="$uiNeutralPrimary" />
         </Pressable>
       </View>
-      <View fullScreen>
-        <ScrollView
-          backgroundColor="$backgroundMild"
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              style={style}
-              refreshing={isFetchingMarkets}
-              onRefresh={() => {
-                refetchMarkets().catch(reportError);
-              }}
-            />
-          }
+
+      <ScrollView
+        backgroundColor="$backgroundMild"
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            style={style}
+            refreshing={isFetchingMarkets}
+            onRefresh={() => {
+              refetchMarkets().catch(reportError);
+            }}
+          />
+        }
+      >
+        <View
+          backgroundColor="$backgroundSoft"
+          paddingHorizontal="$s4"
+          paddingVertical="$s5"
+          gap="$s4"
+          alignItems="center"
         >
-          <View flex={1}>
-            <View
-              backgroundColor="$backgroundSoft"
-              paddingHorizontal="$s4"
-              paddingVertical="$s5"
-              gap="$s4"
-              alignItems="center"
-            >
-              <Text emphasized subHeadline color="$uiNeutralSecondary">
-                Your Portfolio
-              </Text>
-              <Text
-                sensitive
-                textAlign="center"
-                fontFamily="$mono"
-                fontSize={40}
-                overflow="hidden"
-                maxFontSizeMultiplier={1}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-              >
-                {(Number(usdBalance) / 1e18).toLocaleString(undefined, {
-                  style: "currency",
-                  currency: "USD",
-                  currencyDisplay: "narrowSymbol",
-                })}
-              </Text>
-            </View>
-            <View padded>
-              <AssetList />
-            </View>
-          </View>
-        </ScrollView>
-      </View>
+          <Text emphasized subHeadline color="$uiNeutralSecondary">
+            Your Portfolio
+          </Text>
+          <Text
+            sensitive
+            textAlign="center"
+            fontFamily="$mono"
+            fontSize={40}
+            overflow="hidden"
+            maxFontSizeMultiplier={1}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+          >
+            {(Number(usdBalance) / 1e18).toLocaleString(undefined, {
+              style: "currency",
+              currency: "USD",
+              currencyDisplay: "narrowSymbol",
+            })}
+          </Text>
+        </View>
+        <View padded>
+          <AssetList />
+        </View>
+      </ScrollView>
     </SafeView>
   );
 }
