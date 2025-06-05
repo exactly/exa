@@ -14,6 +14,7 @@ contract MockSwapper {
   using SafeERC20 for IERC20;
 
   IVelodromeFactory public immutable VELODROME_FACTORY;
+  uint256 internal transactionCount;
 
   constructor(IVelodromeFactory velodromeFactory) {
     VELODROME_FACTORY = velodromeFactory;
@@ -48,6 +49,10 @@ contract MockSwapper {
 
     IERC20(tokenIn).safeTransferFrom(msg.sender, pool, amountIn);
     IVelodromePool(pool).swap(isToken0 ? 0 : amountOut, isToken0 ? amountOut : 0, receiver, "");
+
+    emit LiFiGenericSwapCompleted(
+      bytes32(transactionCount++), "exa_app", "exa_app", receiver, tokenIn, tokenOut, amountIn, amountOut
+    );
   }
 
   function swapExactAmountIn(
@@ -65,6 +70,10 @@ contract MockSwapper {
 
     IERC20(tokenIn).safeTransferFrom(msg.sender, pool, amountIn);
     IVelodromePool(pool).swap(isToken0 ? 0 : amountOut, isToken0 ? amountOut : 0, receiver, "");
+
+    emit LiFiGenericSwapCompleted(
+      bytes32(transactionCount++), "exa_app", "exa_app", receiver, tokenIn, tokenOut, amountIn, amountOut
+    );
   }
 
   function _getAmountIn(address pool, uint256 amountOut, bool isToken0, uint256 fee) internal view returns (uint256) {
@@ -85,3 +94,14 @@ contract MockSwapper {
     );
   }
 }
+
+event LiFiGenericSwapCompleted(
+  bytes32 indexed transactionId,
+  string integrator,
+  string referrer,
+  address receiver,
+  address fromAssetId,
+  address toAssetId,
+  uint256 fromAmount,
+  uint256 toAmount
+);
