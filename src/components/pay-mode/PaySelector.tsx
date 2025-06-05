@@ -100,7 +100,7 @@ export default function PaySelector() {
           </XStack>
           <Text subHeadline secondary>
             Choose <Text emphasized>Pay Now</Text> to instantly pay your purchases, or select a plan to split them into
-            up to 6 fixed-rate installments in USDC, powered by Exactly Protocol.*
+            up to {MAX_INSTALLMENTS} fixed-rate installments in USDC, powered by Exactly Protocol.*
           </Text>
 
           <XStack alignItems="center" gap="$s4">
