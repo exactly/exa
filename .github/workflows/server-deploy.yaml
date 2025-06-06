@@ -11,7 +11,7 @@ on:
     secrets:
       DIGITALOCEAN_TOKEN:
 jobs:
-  digitalocean:
+  build:
     environment:
       name: ${{ inputs.environment }}
       url: ${{ inputs.url }}
@@ -48,10 +48,11 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/build-push-action@v6
-        id: push
+        id: build
         with:
-          context: .
           push: true
+          context: .
+          file: server/Dockerfile
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
@@ -61,7 +62,7 @@ jobs:
       - uses: actions/attest-build-provenance@v2
         with:
           subject-name: ghcr.io/${{ env.IMAGE_NAME }}
-          subject-digest: ${{ steps.push.outputs.digest }}
+          subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
 
       - uses: pnpm/action-setup@v4
@@ -90,7 +91,7 @@ jobs:
   
       - uses: digitalocean/app_action/deploy@v2
         env:
-          IMAGE_DIGEST_SERVER: ${{ steps.push.outputs.digest }}
+          IMAGE_DIGEST_SERVER: ${{ steps.build.outputs.digest }}
         with:
           app_name: ${{ inputs.environment }}
           token: ${{ secrets.DIGITALOCEAN_TOKEN }}
