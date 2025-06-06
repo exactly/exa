@@ -34,6 +34,7 @@ jobs:
           key: nx-${{ runner.os }}-${{ github.sha }}
           restore-keys: nx-${{ runner.os }}-
       - run: pip install -r contracts/requirements.txt
+      - run: mkdir -p $HOME/.local/bin && cd $HOME/.local/bin && curl -L "$(curl -s https://api.github.com/repos/streamingfast/substreams/releases/latest | jq --arg arch "$(uname -m | sed 's/aarch64/arm64/')" -r '.assets[] | select(.browser_download_url | test("linux_" + $arch)) | .browser_download_url')" | tar zxf -
       - run: echo ::add-matcher::.github/matcher.json
 
       - run: pnpm install --frozen-lockfile
