@@ -13,7 +13,7 @@ fn main() -> Result<(), Error> {
   println!("cargo::rerun-if-changed=../contracts/test/mocks/MockSwapper.sol");
 
   create_dir_all("abi")?;
-  let contracts = [("factory", "ExaAccountFactory"), ("lifi", "MockSwapper")];
+  let contracts = [("factory", "ExaAccountFactory"), ("lifi", "MockSwapper"), ("market", "Market")];
 
   assert!(Command::new("bash")
     .arg("-c")

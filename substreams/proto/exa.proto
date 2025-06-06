@@ -8,9 +8,15 @@ message Accounts {
 
 message Account {
   bytes address = 1;
+  bool exa = 2;
+  map<string, AccountMarket> markets = 3;
 
   // internals
   uint64 log_ordinal = 30;
+}
+
+message AccountMarket {
+  string shares = 1;
 }
 
 message Swaps {
