@@ -1,5 +1,11 @@
 # @exactly/mobile
 
+## 1.0.15
+
+### Patch Changes
+
+- [`3550d1f`](https://github.com/exactly/exa/commit/3550d1f0c770dcc5fba6c817bf7b52f0fa0aa23e) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 💬 remove redundant network name
+
 ## 1.0.14
 
 ### Patch Changes
