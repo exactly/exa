@@ -75,8 +75,7 @@ export default function CopyAddressSheet({ open, onClose }: { open: boolean; onC
                 </View>
                 <XStack flex={1}>
                   <Text emphasized caption2 color="$uiNeutralPlaceholder" textAlign="justify">
-                    Only send assets on Optimism ({chain.name}). Sending funds from other networks may cause permanent
-                    loss.
+                    Only send assets on {chain.name}. Sending funds from other networks may cause permanent loss.
                     <Text
                       cursor="pointer"
                       emphasized

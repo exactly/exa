@@ -156,14 +156,9 @@ export default function AddCrypto() {
             <XStack gap="$s5" justifyContent="space-between" alignItems="center">
               <XStack alignItems="center" gap="$s3">
                 <OptimismImage height={32} width={32} />
-                <YStack>
-                  <Text emphasized primary headline>
-                    Optimism
-                  </Text>
-                  <Text emphasized primary caption color="$uiNeutralSecondary">
-                    {chain.name}
-                  </Text>
-                </YStack>
+                <Text emphasized primary headline>
+                  {chain.name}
+                </Text>
               </XStack>
               <XStack
                 borderWidth={1}
@@ -199,7 +194,7 @@ export default function AddCrypto() {
           </View>
           <XStack flex={1}>
             <Text emphasized caption2 color="$uiNeutralPlaceholder" textAlign="justify">
-              Only send assets on Optimism ({chain.name}). Sending funds from other networks may cause permanent loss.
+              Only send assets on {chain.name}. Sending funds from other networks may cause permanent loss.
               <Text
                 cursor="pointer"
                 emphasized
