@@ -1,5 +1,7 @@
-use abi::{factory::events::ExaAccountInitialized, lifi::events::LiFiGenericSwapCompleted};
-use proto::exa::{Account, Accounts, Swap, Swaps};
+use abi::{
+  auditor::events::MarketListed, factory::events::ExaAccountInitialized, lifi::events::LiFiGenericSwapCompleted,
+};
+use proto::exa::{markets::Market, Account, Accounts, Markets, Swap, Swaps};
 use substreams::{
   errors::Error,
   hex,
@@ -25,7 +27,7 @@ macro_rules! is_factory {
       }
       // op-sepolia
       _ => {
-        $address == $address == hex!("9cCab24277a9E6be126Df3A563c90B4eBf6D5e26")
+        $address == hex!("9cCab24277a9E6be126Df3A563c90B4eBf6D5e26")
           || $address == hex!("98b3E5C7a039A329a4446A3FACB860C506B28901")
           || $address == hex!("8cA9Bb05f6a9CDf3412d64C25907358686277E5c")
           || $address == hex!("086E2e36a98d266c81E453f0129ec01A34e64cF9")
@@ -41,6 +43,34 @@ macro_rules! is_factory {
       }
     }
   };
+}
+
+macro_rules! is_auditor {
+  ($address:expr) => {
+    match option_env!("CHAIN_ID") {
+      Some("10") => $address == hex!("aEb62e6F27BC103702E7BC879AE98bceA56f027E"), // optimism
+      _ => $address == hex!("7299b566bAa22F5C0F759b7598EeE4a219AdD2D3"),          // op-sepolia
+    }
+  };
+}
+
+#[substreams::handlers::map]
+pub fn map_markets_listed(block: Block) -> Result<Markets, Error> {
+  let markets = block
+    .logs()
+    .filter_map(|log| match (is_auditor!(log.address()), MarketListed::match_and_decode(log)) {
+      (true, Some(event)) => Some(Market { address: event.market.to_vec(), log_ordinal: log.ordinal() }),
+      _ => None,
+    })
+    .collect();
+  Ok(Markets { markets })
+}
+
+#[substreams::handlers::store]
+pub fn store_markets(markets: Markets, store: StoreSetProto<Market>) {
+  for market in markets.markets {
+    store.set(market.log_ordinal, format!("market:{}", Hex(&market.address)), &market);
+  }
 }
 
 #[substreams::handlers::map]

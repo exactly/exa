@@ -11,31 +11,23 @@ imports:
   sql: https://github.com/streamingfast/substreams-sink-sql/releases/download/protodefs-v1.0.7/substreams-sink-sql-protodefs-v1.0.7.spkg
 network: {{#if (eq CHAIN_ID "10")}}optimism{{else}}op-sepolia{{/if}}
 modules:
-  - name: map_accounts
+  - name: map_markets_listed
     kind: map
-    initialBlock: {{#if (eq CHAIN_ID "10")}}124_734_205{{else}}16_539_899{{/if}}
+    initialBlock: {{#if (eq CHAIN_ID "10")}}78_311_238{{else}}7_420_772{{/if}}
     inputs:
       - source: sf.ethereum.type.v2.Block
     output:
-      type: proto:exa.Accounts
-  - name: store_accounts
+      type: proto:exa.Markets
+  - name: store_markets
     kind: store
     updatePolicy: set
-    valueType: proto:exa.Accounts
+    valueType: proto:exa.Markets
     inputs:
-      - map: map_accounts
-  - name: map_swaps
-    kind: map
-    initialBlock: {{#if (eq CHAIN_ID "10")}}124_734_205{{else}}16_539_899{{/if}}
-    inputs:
-      - source: sf.ethereum.type.v2.Block
-      - store: store_accounts
-    output:
-      type: proto:exa.Swaps
+      - map: map_markets_listed
   - name: db_out
     kind: map
     inputs:
-      - map: map_swaps
+      - map: map_blocks
     output:
       type: proto:sf.substreams.sink.database.v1.DatabaseChanges
 sink:

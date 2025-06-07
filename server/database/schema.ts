@@ -1,5 +1,17 @@
 import { relations } from "drizzle-orm";
-import { bigint, customType, integer, jsonb, numeric, pgEnum, pgTable, text, uniqueIndex } from "drizzle-orm/pg-core";
+import {
+  bigint,
+  char,
+  customType,
+  integer,
+  jsonb,
+  numeric,
+  pgEnum,
+  pgTable,
+  serial,
+  text,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
 
 const bytea = customType<{ data: Uint8Array; driverData: string }>({ dataType: () => "bytea" });
 
@@ -70,15 +82,11 @@ export const cursors = pgTable("cursors", {
   blockId: text("block_id"),
 });
 
-// export const substreamsHistoryId = pgSequence("substreams_history_id_seq");
-
-// export const substreamsHistory = pgTable("substreams_history", {
-//   id: integer("id")
-//     .primaryKey()
-//     .default(sql`nextval('substreams_history_id_seq'::regclass)`), // cspell:ignore nextval regclass
-//   op: text("op").notNull(),
-//   tableName: text("table_name").notNull(),
-//   pk: text("pk").notNull(),
-//   prevValue: text("prev_value"),
-//   blockNum: integer("block_num"),
-// });
+export const substreamsHistory = pgTable("substreams_history", {
+  id: serial("id").primaryKey(),
+  op: char("op", { length: 1 }),
+  tableName: text("table_name"),
+  pk: text("pk"),
+  prevValue: text("prev_value"),
+  blockNum: bigint("block_num", { mode: "bigint" }),
+});

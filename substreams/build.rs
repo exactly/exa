@@ -11,9 +11,10 @@ fn main() -> Result<(), Error> {
   println!("cargo::rerun-if-changed=substreams.yaml");
   println!("cargo::rerun-if-changed=../contracts/script/ExaAccountFactory.s.sol");
   println!("cargo::rerun-if-changed=../contracts/test/mocks/MockSwapper.sol");
+  println!("cargo::rerun-if-changed=../contracts/node_modules/@exactly/protocol/contracts/Auditor.sol");
 
   create_dir_all("abi")?;
-  let contracts = [("factory", "ExaAccountFactory"), ("lifi", "MockSwapper")];
+  let contracts = [("auditor", "Auditor"), ("factory", "ExaAccountFactory"), ("lifi", "MockSwapper")];
 
   assert!(Command::new("bash")
     .arg("-c")
