@@ -17,7 +17,7 @@ export default function PurchaseDetails({
   item: CreditActivity | DebitActivity | InstallmentsActivity | PandaActivity;
 }) {
   const toast = useToastController();
-  const refund = item.type === "panda" && item.usdAmount < 0;
+  const refund = item.usdAmount < 0;
   return (
     <YStack gap="$s4">
       <YStack gap="$s4">
@@ -39,29 +39,31 @@ export default function PurchaseDetails({
             &nbsp;{item.currency}
           </Text>
         </XStack>
-        <XStack justifyContent="space-between">
-          <Text emphasized footnote color="$uiNeutralSecondary">
-            ID
-          </Text>
-          <Pressable
-            onPress={() => {
-              setStringAsync(item.id).catch(reportError);
-              toast.show("Operation ID copied!", {
-                native: true,
-                duration: 1000,
-                burntOptions: { haptic: "success" },
-              });
-            }}
-            hitSlop={15}
-          >
-            <XStack gap="$s3">
-              <Text callout color="$uiNeutralPrimary">
-                {shortenHex(item.id)}
-              </Text>
-              <Copy size={20} color="$uiNeutralPrimary" />
-            </XStack>
-          </Pressable>
-        </XStack>
+        {!refund && (
+          <XStack justifyContent="space-between">
+            <Text emphasized footnote color="$uiNeutralSecondary">
+              ID
+            </Text>
+            <Pressable
+              onPress={() => {
+                setStringAsync(item.id).catch(reportError);
+                toast.show("Operation ID copied!", {
+                  native: true,
+                  duration: 1000,
+                  burntOptions: { haptic: "success" },
+                });
+              }}
+              hitSlop={15}
+            >
+              <XStack gap="$s3">
+                <Text callout color="$uiNeutralPrimary">
+                  {shortenHex(item.id)}
+                </Text>
+                <Copy size={20} color="$uiNeutralPrimary" />
+              </XStack>
+            </Pressable>
+          </XStack>
+        )}
         {!refund && (
           <XStack justifyContent="space-between">
             <Text emphasized footnote color="$uiNeutralSecondary">
