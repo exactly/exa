@@ -63,6 +63,23 @@ export const transactionsRelations = relations(transactions, ({ one }) => ({
   card: one(cards, { fields: [transactions.cardId], references: [cards.id] }),
 }));
 
+export const marketUpdates = pgTable(
+  "market_updates",
+  {
+    market: text("market").notNull(),
+    timestamp: numeric("timestamp").notNull(),
+    floatingDepositShares: numeric("floating_deposit_shares", { mode: "string" }).notNull(),
+    floatingAssets: numeric("floating_assets", { mode: "string" }).notNull(),
+    floatingBorrowShares: numeric("floating_borrow_shares", { mode: "string" }).notNull(),
+    floatingDebt: numeric("floating_debt", { mode: "string" }).notNull(),
+    earningsAccumulator: numeric("earnings_accumulator", { mode: "string" }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.market, table.timestamp] }),
+    uniqueIndex("market_updates_timestamp").on(table.timestamp),
+  ],
+);
+
 export const shares = pgTable(
   "shares",
   {

@@ -3,14 +3,16 @@ syntax = "proto3";
 package exa;
 
 message Events {
-  repeated Transfer transfers = 1;
+  repeated MarketUpdate market_updates = 1;
+  repeated Transfer transfers = 2;
 
   message MarketUpdate {
-    string floating_deposit_shares = 1;
-    string floating_assets = 2;
-    string floating_borrow_shares = 3;
-    string floating_debt = 4;
-    string earnings_accumulator = 5;
+    bytes market = 1;
+    string floating_deposit_shares = 2;
+    string floating_assets = 3;
+    string floating_borrow_shares = 4;
+    string floating_debt = 5;
+    string earnings_accumulator = 6;
     // internals
     uint64 log_ordinal = 30;
   }
