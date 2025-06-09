@@ -10,6 +10,7 @@ import TransactionDetails from "./TransactionDetails";
 import isProcessing from "../../../utils/isProcessing";
 import Image from "../../shared/Image";
 import Text from "../../shared/Text";
+import View from "../../shared/View";
 
 export default function CardActivity({
   item,
@@ -17,8 +18,8 @@ export default function CardActivity({
   item: CreditActivity | DebitActivity | InstallmentsActivity | PandaActivity;
 }) {
   const { data: country } = useQuery({ queryKey: ["user", "country"] });
-  const processing = item.type === "panda" && country === "US" && isProcessing(item.timestamp);
-  const refund = item.type === "panda" && item.usdAmount < 0;
+  const processing = country === "US" && isProcessing(item.timestamp);
+  const refund = item.usdAmount < 0;
   return (
     <>
       <YStack gap="$s7" paddingBottom="$s9">
@@ -58,21 +59,25 @@ export default function CardActivity({
           </Text>
         </YStack>
       </YStack>
-      {item.type === "panda" ? (
-        item.operations.map((operation) => (
-          <YStack key={operation.id} gap="$s7">
-            <PurchaseDetails item={operation} />
-            {item.usdAmount > 0 && <PaymentDetails item={operation} />}
-            <TransactionDetails source={operation} />
-          </YStack>
-        ))
-      ) : (
-        <YStack gap="$s7">
-          <PurchaseDetails item={item} />
-          <PaymentDetails item={item} />
-          <TransactionDetails />
-        </YStack>
-      )}
+      <YStack gap="$s7">
+        {item.type === "panda" ? (
+          <>
+            {item.operations.map((operation, index) => (
+              <View key={index}>
+                <PurchaseDetails item={operation} />
+                {item.usdAmount > 0 && <PaymentDetails item={operation} />}
+              </View>
+            ))}
+            <TransactionDetails source={item.operations[0]} />
+          </>
+        ) : (
+          <>
+            <PurchaseDetails item={item} />
+            <PaymentDetails item={item} />
+            <TransactionDetails />
+          </>
+        )}
+      </YStack>
     </>
   );
 }
