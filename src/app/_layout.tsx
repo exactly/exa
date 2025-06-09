@@ -25,6 +25,7 @@ import React, { useEffect } from "react";
 import { initReactI18next } from "react-i18next";
 import { AppState, Platform } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { optimismSepolia } from "viem/chains";
 import { WagmiProvider } from "wagmi";
 
 import BDOGroteskDemiBold from "../assets/fonts/BDOGrotesk-DemiBold.otf";
@@ -103,6 +104,9 @@ const useServerAssets = typeof window === "undefined" ? useAssets : () => undefi
 const devtools = !!JSON.parse(process.env.EXPO_PUBLIC_DEVTOOLS ?? String(Platform.OS === "web" && __DEV__));
 createConfig({
   integrator: "exa_app",
+  ...(chain.id !== optimismSepolia.id && {
+    apiKey: "1c9f0dc4-92a4-434c-acea-ad5cf733d50b.e2e53fd5-53dc-4ac5-8c37-741360556848",
+  }),
   providers: [EVM({ getWalletClient: () => Promise.resolve(publicClient) })],
   rpcUrls: {
     [optimism.id]: [`${optimism.rpcUrls.alchemy?.http[0]}/${alchemyAPIKey}`],
