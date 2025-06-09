@@ -9,6 +9,7 @@
 - [node.js](https://github.com/asdf-vm/asdf-nodejs)
 - [pnpm](https://pnpm.io/installation)
 - react-native [dependencies per platform](https://reactnative.dev/docs/environment-setup?guide=native)
+- [foundry](https://getfoundry.sh/introduction/installation): Needed for contracts package
 
 #### install
 
