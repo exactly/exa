@@ -33,13 +33,15 @@ import IBMPlexMonoMedium from "../assets/fonts/IBMPlexMono-Medm.otf";
 import AppIcon from "../assets/icon.png";
 import { OnboardingProvider } from "../components/context/OnboardingProvider";
 import ThemeProvider from "../components/context/ThemeProvider";
-import Error from "../components/shared/Error";
+import AppError from "../components/shared/Error";
 import release from "../generated/release";
 import translation from "../i18n/en.json";
 import publicClient from "../utils/publicClient";
 import queryClient, { persister } from "../utils/queryClient";
 import reportError from "../utils/reportError";
 import wagmiConfig from "../utils/wagmi";
+
+if (!process.env.EXPO_PUBLIC_LIFI_API_KEY) throw new Error("missing lifi api key");
 
 SplashScreen.preventAutoHideAsync().catch(reportError);
 
@@ -103,6 +105,7 @@ const useServerAssets = typeof window === "undefined" ? useAssets : () => undefi
 const devtools = !!JSON.parse(process.env.EXPO_PUBLIC_DEVTOOLS ?? String(Platform.OS === "web" && __DEV__));
 createConfig({
   integrator: "exa_app",
+  ...(!__DEV__ && { apiKey: process.env.EXPO_PUBLIC_LIFI_API_KEY }),
   providers: [EVM({ getWalletClient: () => Promise.resolve(publicClient) })],
   rpcUrls: {
     [optimism.id]: [`${optimism.rpcUrls.alchemy?.http[0]}/${alchemyAPIKey}`],
@@ -155,7 +158,7 @@ export default wrap(function RootLayout() {
               <OnboardingProvider>
                 <ErrorBoundary
                   fallback={(data) => (
-                    <Error
+                    <AppError
                       resetError={() => {
                         data.resetError();
                       }}
