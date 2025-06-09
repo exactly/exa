@@ -1,12 +1,15 @@
 use contracts::{is_market, market::events};
-use proto::exa::{events::Transfer, Events};
+use proto::exa::{
+  events::{MarketUpdate, Transfer},
+  Events,
+};
 use substreams::{
   errors::Error,
   hex,
   key::segment_at,
   pb::substreams::Clock,
   scalar::BigInt,
-  store::{DeltaBigInt, DeltaExt, Deltas, StoreAdd, StoreAddBigInt, StoreNew},
+  store::{DeltaBigInt, DeltaExt, DeltaProto, Deltas, StoreAdd, StoreAddBigInt, StoreNew, StoreSet, StoreSetProto},
   Hex,
 };
 use substreams_database_change::{pb::database::DatabaseChanges, tables::Tables};
@@ -18,6 +21,21 @@ mod proto;
 #[substreams::handlers::map]
 pub fn map_blocks(block: Block) -> Result<Events, Error> {
   Ok(Events {
+    market_updates: block
+      .logs()
+      .filter_map(|log| match (is_market(log.address()), events::MarketUpdate::match_and_decode(log)) {
+        (true, Some(event)) => Some(MarketUpdate {
+          market: log.address().to_vec(),
+          floating_deposit_shares: event.floating_deposit_shares.to_string(),
+          floating_assets: event.floating_assets.to_string(),
+          floating_borrow_shares: event.floating_borrow_shares.to_string(),
+          floating_debt: event.floating_debt.to_string(),
+          earnings_accumulator: event.earnings_accumulator.to_string(),
+          log_ordinal: log.ordinal(),
+        }),
+        _ => None,
+      })
+      .collect(),
     transfers: block
       .logs()
       .filter_map(|log| match (is_market(log.address()), events::Transfer::match_and_decode(log)) {
@@ -32,6 +50,17 @@ pub fn map_blocks(block: Block) -> Result<Events, Error> {
       })
       .collect(),
   })
+}
+
+#[substreams::handlers::store]
+pub fn store_market_updates(events: Events, output: StoreSetProto<MarketUpdate>) {
+  for market_update in events.market_updates {
+    output.set(
+      market_update.log_ordinal,
+      format!("market:{market}", market = Hex(&market_update.market)),
+      &market_update,
+    );
+  }
 }
 
 #[substreams::handlers::store]
@@ -55,9 +84,22 @@ pub fn store_account_shares(events: Events, output: StoreAddBigInt) {
 }
 
 #[substreams::handlers::map]
-pub fn db_out(clock: Clock, account_shares_deltas: Deltas<DeltaBigInt>) -> Result<DatabaseChanges, Error> {
+pub fn db_out(
+  clock: Clock,
+  market_updates_deltas: Deltas<DeltaProto<MarketUpdate>>,
+  account_shares_deltas: Deltas<DeltaBigInt>,
+) -> Result<DatabaseChanges, Error> {
   let mut tables = Tables::new();
   let timestamp = clock.timestamp.unwrap_or_default().seconds.to_string();
+  for delta in market_updates_deltas.iter().key_first_segment_eq("market") {
+    tables
+      .create_row("market_updates", [("market", segment_at(&delta.key, 1)), ("timestamp", &timestamp)])
+      .set("floating_deposit_shares", &delta.new_value.floating_deposit_shares)
+      .set("floating_assets", &delta.new_value.floating_assets)
+      .set("floating_borrow_shares", &delta.new_value.floating_borrow_shares)
+      .set("floating_debt", &delta.new_value.floating_debt)
+      .set("earnings_accumulator", &delta.new_value.earnings_accumulator);
+  }
   for delta in account_shares_deltas.iter().key_first_segment_eq("shares") {
     tables
       .create_row(
