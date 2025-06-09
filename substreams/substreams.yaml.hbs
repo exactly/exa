@@ -18,6 +18,12 @@ modules:
       - source: sf.ethereum.type.v2.Block
     output:
       type: proto:exa.Events
+  - name: store_market_updates
+    kind: store
+    updatePolicy: set
+    valueType: proto:exa.Events.MarketUpdate
+    inputs:
+      - map: map_blocks
   - name: store_account_shares
     kind: store
     updatePolicy: add
@@ -28,6 +34,8 @@ modules:
     kind: map
     inputs:
       - source: sf.substreams.v1.Clock
+      - store: store_market_updates
+        mode: deltas
       - store: store_account_shares
         mode: deltas
     output:
