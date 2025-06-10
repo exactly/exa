@@ -2,7 +2,7 @@ name: server/sandbox
 on:
   push:
     branches: [web]
-concurrency: ${{ github.workflow }}-${{ github.ref }}
+concurrency: server-sandbox
 jobs:
   deploy:
     uses: ./.github/workflows/server-deploy.yaml

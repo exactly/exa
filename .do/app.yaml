@@ -103,6 +103,8 @@ workers:
       - key: SUBSTREAMS_API_TOKEN
         scope: RUN_TIME
         type: SECRET
+      - key: SUBSTREAMS_ENDPOINTS_CONFIG_${NETWORK}
+        scope: RUN_TIME
 databases:
   - name: postgres
     cluster_name: ${POSTGRES_NAME}
