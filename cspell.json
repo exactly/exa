@@ -3,6 +3,7 @@
   "ignorePaths": [
     "*.svg",
     "*.local.yaml",
+    ".github/matcher.json",
     "cspell.json",
     "contracts/broadcast",
     "substreams/target",
