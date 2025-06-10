@@ -2,6 +2,7 @@
   "language": "en",
   "ignorePaths": [
     "*.svg",
+    ".github/matcher.json",
     "cspell.json",
     "contracts/broadcast",
     "patches",
