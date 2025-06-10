@@ -168,6 +168,9 @@ workers:
       - key: SUBSTREAMS_API_TOKEN
         scope: RUN_TIME
         type: SECRET
+        value: ${{ env.ENCRYPTED_SUBSTREAMS_API_TOKEN || env.SUBSTREAMS_API_TOKEN }}
+      - key: SUBSTREAMS_ENDPOINTS_CONFIG_${{ env.NETWORK }}
+        scope: RUN_TIME
     image:
       digest: ${IMAGE_DIGEST_SUBSTREAMS}
       registry: exactly
