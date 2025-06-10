@@ -60,6 +60,35 @@
           "loop": true
         }
       ]
+    },
+    {
+      "owner": "rust",
+      "pattern": [
+        {
+          "regexp": "^(?:\\x1b\\[[\\d;]+m)*([Ww]arn(?:ing)?|[Ee]rror)(?:\\x1b\\[[\\d;]+m)*(?:\\[(.*)\\])?(?:\\x1b\\[[\\d;]+m)*:(?:\\x1b\\[[\\d;]+m)*\\s+(?:\\x1b\\[[\\d;]+m)*([^\\x1b]*)(?:\\x1b\\[[\\d;]+m)*$",
+          "severity": 1,
+          "message": 3,
+          "code": 2
+        },
+        {
+          "regexp": "^(?:\\x1b\\[[\\d;]+m)*\\s*(?:\\x1b\\[[\\d;]+m)*\\s*-->\\s+(?:\\x1b\\[[\\d;]+m)*([^:]+):(\\d+):(\\d+)(?:\\x1b\\[[\\d;]+m)*$",
+          "file": 1,
+          "line": 2,
+          "column": 3
+        }
+      ]
+    },
+    {
+      "owner": "rust-formatter",
+      "severity": "warning",
+      "pattern": [
+        {
+          "regexp": "^(?:\\x1b\\[[\\d;]+m)*(Diff in (.+)) at line (\\d+):(?:\\x1b\\[[\\d;]+m)*$",
+          "message": 1,
+          "file": 2,
+          "line": 3
+        }
+      ]
     }
   ]
 }
