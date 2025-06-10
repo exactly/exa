@@ -3,8 +3,50 @@ syntax = "proto3";
 package exa;
 
 message Events {
-  repeated MarketUpdate market_updates = 1;
-  repeated Transfer transfers = 2;
+  repeated AccumulatorAccrual accumulator_accruals = 1;
+  repeated EarningsAccumulatorSmoothFactorSet earnings_accumulator_smooth_factor_sets = 2;
+  repeated FixedEarningsUpdate fixed_earnings_updates = 3;
+  repeated FloatingDebtUpdate floating_debt_updates = 4;
+  repeated InterestRateModelSet interest_rate_model_sets = 5;
+  repeated MarketUpdate market_updates = 6;
+  repeated MaxFuturePoolsSet max_future_pools_sets = 7;
+  repeated Transfer transfers = 8;
+  repeated TreasurySet treasury_sets = 9;
+
+  message AccumulatorAccrual {
+    bytes market = 1;
+    // internals
+    uint64 log_ordinal = 30;
+  }
+
+  message EarningsAccumulatorSmoothFactorSet {
+    bytes market = 1;
+    string earnings_accumulator_smooth_factor = 2;
+    // internals
+    uint64 log_ordinal = 30;
+  }
+
+  message FixedEarningsUpdate {
+    bytes market = 1;
+    uint64 maturity = 2;
+    string unassigned_earnings = 3;
+    // internals
+    uint64 log_ordinal = 30;
+  }
+
+  message FloatingDebtUpdate {
+    bytes market = 1;
+    string utilization = 2;
+    // internals
+    uint64 log_ordinal = 30;
+  }
+
+  message InterestRateModelSet {
+    bytes market = 1;
+    bytes interest_rate_model = 2;
+    // internals
+    uint64 log_ordinal = 30;
+  }
 
   message MarketUpdate {
     bytes market = 1;
@@ -18,7 +60,8 @@ message Events {
   }
 
   message MaxFuturePoolsSet {
-    uint64 max_future_pools = 1;
+    bytes market = 1;
+    uint64 max_future_pools = 2;
     // internals
     uint64 log_ordinal = 30;
   }
@@ -28,6 +71,14 @@ message Events {
     bytes from = 2;
     bytes to = 3;
     string amount = 4;
+    // internals
+    uint64 log_ordinal = 30;
+  }
+
+  message TreasurySet {
+    bytes market = 1;
+    bytes treasury = 2;
+    string treasury_fee_rate = 3;
     // internals
     uint64 log_ordinal = 30;
   }

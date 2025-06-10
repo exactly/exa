@@ -9,21 +9,16 @@ protobuf:
     - proto
 imports:
   sql: https://github.com/streamingfast/substreams-sink-sql/releases/download/protodefs-v1.0.7/substreams-sink-sql-protodefs-v1.0.7.spkg
-network: {{#if (eq CHAIN_ID "10")}}optimism{{else}}op-sepolia{{/if}}
+network: {{#if (eq CHAIN_ID "10")}}optimism{{else}}opsepolia{{/if}}
 modules:
   - name: map_blocks
     kind: map
-    initialBlock: {{#if (eq CHAIN_ID "10")}}78_311_238{{else}}7_506_858{{/if}}
+    initialBlock: {{#if (eq CHAIN_ID "10")}}78_311_238{{else}}7_420_743{{/if}}
+    {{!-- 7_420_743 --}}
     inputs:
       - source: sf.ethereum.type.v2.Block
     output:
       type: proto:exa.Events
-  - name: store_market_updates
-    kind: store
-    updatePolicy: set
-    valueType: proto:exa.Events.MarketUpdate
-    inputs:
-      - map: map_blocks
   - name: store_account_shares
     kind: store
     updatePolicy: add
@@ -34,8 +29,7 @@ modules:
     kind: map
     inputs:
       - source: sf.substreams.v1.Clock
-      - store: store_market_updates
-        mode: deltas
+      - map: map_blocks
       - store: store_account_shares
         mode: deltas
     output:

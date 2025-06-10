@@ -55,9 +55,9 @@ jobs:
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
   
-      # - uses: digitalocean/app_action/deploy@v2
-      #   env:
-      #     IMAGE_DIGEST_SUBSTREAMS: ${{ steps.build.outputs.digest }}
-      #   with:
-      #     app_name: ${{ inputs.environment }}
-      #     token: ${{ secrets.DIGITALOCEAN_TOKEN }}
+      - uses: digitalocean/app_action/deploy@v2
+        env:
+          IMAGE_DIGEST_SUBSTREAMS: ${{ steps.build.outputs.digest }}
+        with:
+          app_name: ${{ inputs.environment }}
+          token: ${{ secrets.DIGITALOCEAN_TOKEN }}

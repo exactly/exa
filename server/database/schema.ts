@@ -3,10 +3,12 @@ import {
   bigint,
   char,
   customType,
+  index,
   integer,
   jsonb,
   numeric,
   pgEnum,
+  pgSchema,
   pgTable,
   primaryKey,
   serial,
@@ -30,7 +32,7 @@ export const credentials = pgTable(
     kycId: text("kyc_id"),
     pandaId: text("panda_id"),
   },
-  (table) => [uniqueIndex("account_index").on(table.account)],
+  ({ account }) => [uniqueIndex("account_index").on(account)],
 );
 
 export const cards = pgTable("cards", {
@@ -63,45 +65,16 @@ export const transactionsRelations = relations(transactions, ({ one }) => ({
   card: one(cards, { fields: [transactions.cardId], references: [cards.id] }),
 }));
 
-export const marketUpdates = pgTable(
-  "market_updates",
-  {
-    market: text("market").notNull(),
-    timestamp: numeric("timestamp").notNull(),
-    floatingDepositShares: numeric("floating_deposit_shares", { mode: "string" }).notNull(),
-    floatingAssets: numeric("floating_assets", { mode: "string" }).notNull(),
-    floatingBorrowShares: numeric("floating_borrow_shares", { mode: "string" }).notNull(),
-    floatingDebt: numeric("floating_debt", { mode: "string" }).notNull(),
-    earningsAccumulator: numeric("earnings_accumulator", { mode: "string" }).notNull(),
-  },
-  (table) => [
-    primaryKey({ columns: [table.market, table.timestamp] }),
-    uniqueIndex("market_updates_timestamp").on(table.timestamp),
-  ],
-);
+export const substreams = pgSchema("substreams");
 
-export const shares = pgTable(
-  "shares",
-  {
-    market: text("market").notNull(),
-    account: text("account").notNull(),
-    timestamp: numeric("timestamp").notNull(),
-    amount: numeric("amount", { mode: "string" }).notNull(),
-  },
-  (table) => [
-    primaryKey({ columns: [table.market, table.account, table.timestamp] }),
-    uniqueIndex("shares_timestamp").on(table.timestamp),
-  ],
-);
-
-export const cursors = pgTable("cursors", {
+export const cursors = substreams.table("cursors", {
   id: text("id").primaryKey(),
   cursor: text("cursor"),
   blockNum: bigint("block_num", { mode: "bigint" }),
   blockId: text("block_id"),
 });
 
-export const substreamsHistory = pgTable("substreams_history", {
+export const substreamsHistory = substreams.table("substreams_history", {
   id: serial("id").primaryKey(),
   op: char("op", { length: 1 }),
   tableName: text("table_name"),
@@ -109,3 +82,169 @@ export const substreamsHistory = pgTable("substreams_history", {
   prevValue: text("prev_value"),
   blockNum: bigint("block_num", { mode: "bigint" }),
 });
+
+export const blocks = substreams.table("blocks", {
+  number: numeric("number").primaryKey(),
+  timestamp: numeric("timestamp").notNull(),
+});
+
+export const accumulatorAccruals = substreams.table(
+  "accumulator_accruals",
+  {
+    market: text("market").notNull(),
+    block: numeric("block")
+      .references(() => blocks.number)
+      .notNull(),
+    ordinal: numeric("ordinal").notNull(),
+  },
+  ({ market, block, ordinal }) => [
+    primaryKey({ columns: [market, block, ordinal] }),
+    index("accumulator_accruals_block").on(market, block),
+    index("accumulator_accruals_market").on(market),
+  ],
+);
+
+export const earningsAccumulatorSmoothFactorSets = substreams.table(
+  "earnings_accumulator_smooth_factors",
+  {
+    market: text("market").notNull(),
+    block: numeric("block")
+      .references(() => blocks.number)
+      .notNull(),
+    ordinal: numeric("ordinal").notNull(),
+    earningsAccumulatorSmoothFactor: numeric("earnings_accumulator_smooth_factor", { mode: "string" }).notNull(),
+  },
+  ({ market, block, ordinal }) => [
+    primaryKey({ columns: [market, block, ordinal] }),
+    index("earnings_accumulator_smooth_factor_sets_block").on(market, block),
+    index("earnings_accumulator_smooth_factor_sets_market").on(market),
+  ],
+);
+
+export const fixedEarningsUpdates = substreams.table(
+  "fixed_earnings_updates",
+  {
+    market: text("market").notNull(),
+    maturity: numeric("maturity").notNull(),
+    block: numeric("block")
+      .references(() => blocks.number)
+      .notNull(),
+    ordinal: numeric("ordinal").notNull(),
+    unassignedEarnings: numeric("unassigned_earnings", { mode: "string" }).notNull(),
+  },
+  ({ market, maturity, block, ordinal }) => [
+    primaryKey({ columns: [market, maturity, block, ordinal] }),
+    index("fixed_earnings_updates_block").on(market, maturity, block),
+    index("fixed_earnings_updates_maturity").on(market, maturity),
+    index("fixed_earnings_updates_market").on(market),
+  ],
+);
+
+export const floatingDebtUpdates = substreams.table(
+  "floating_debt_updates",
+  {
+    market: text("market").notNull(),
+    block: numeric("block")
+      .references(() => blocks.number)
+      .notNull(),
+    ordinal: numeric("ordinal").notNull(),
+    utilization: numeric("utilization", { mode: "string" }).notNull(),
+  },
+  ({ market, block, ordinal }) => [
+    primaryKey({ columns: [market, block, ordinal] }),
+    index("floating_debt_updates_block").on(market, block),
+    index("floating_debt_updates_market").on(market),
+  ],
+);
+
+export const interestRateModels = substreams.table(
+  "interest_rate_models",
+  {
+    market: text("market").notNull(),
+    block: numeric("block")
+      .references(() => blocks.number)
+      .notNull(),
+    ordinal: numeric("ordinal").notNull(),
+    address: text("address").notNull(),
+  },
+  ({ market, block, ordinal }) => [
+    primaryKey({ columns: [market, block, ordinal] }),
+    index("interest_rate_models_block").on(market, block),
+    index("interest_rate_models_market").on(market),
+  ],
+);
+
+export const marketUpdates = substreams.table(
+  "market_updates",
+  {
+    market: text("market").notNull(),
+    block: numeric("block")
+      .references(() => blocks.number)
+      .notNull(),
+    ordinal: numeric("ordinal").notNull(),
+    floatingDepositShares: numeric("floating_deposit_shares", { mode: "string" }).notNull(),
+    floatingAssets: numeric("floating_assets", { mode: "string" }).notNull(),
+    floatingBorrowShares: numeric("floating_borrow_shares", { mode: "string" }).notNull(),
+    floatingDebt: numeric("floating_debt", { mode: "string" }).notNull(),
+    earningsAccumulator: numeric("earnings_accumulator", { mode: "string" }).notNull(),
+  },
+  ({ market, block, ordinal }) => [
+    primaryKey({ columns: [market, block, ordinal] }),
+    index("market_updates_block").on(market, block),
+    index("market_updates_market").on(market),
+  ],
+);
+
+export const maxFuturePools = substreams.table(
+  "max_future_pools",
+  {
+    market: text("market").notNull(),
+    block: numeric("block")
+      .references(() => blocks.number)
+      .notNull(),
+    ordinal: numeric("ordinal").notNull(),
+    maxFuturePools: numeric("max_future_pools").notNull(),
+  },
+  ({ market, block, ordinal }) => [
+    primaryKey({ columns: [market, block, ordinal] }),
+    index("max_future_pools_block").on(market, block),
+    index("max_future_pools_market").on(market),
+  ],
+);
+
+export const treasuries = substreams.table(
+  "treasuries",
+  {
+    market: text("market").notNull(),
+    block: numeric("block")
+      .references(() => blocks.number)
+      .notNull(),
+    ordinal: numeric("ordinal").notNull(),
+    treasury: text("treasury").notNull(),
+    treasuryFeeRate: numeric("treasury_fee_rate", { mode: "string" }).notNull(),
+  },
+  ({ market, block, ordinal }) => [
+    primaryKey({ columns: [market, block, ordinal] }),
+    index("treasuries_block").on(market, block),
+    index("treasuries_market").on(market),
+  ],
+);
+
+export const shares = substreams.table(
+  "shares",
+  {
+    market: text("market").notNull(),
+    account: text("account").notNull(),
+    block: numeric("block")
+      .references(() => blocks.number)
+      .notNull(),
+    ordinal: numeric("ordinal").notNull(),
+    amount: numeric("amount", { mode: "string" }).notNull(),
+  },
+  ({ market, account, block, ordinal }) => [
+    primaryKey({ columns: [market, account, block, ordinal] }),
+    index("shares_block").on(market, account, block),
+    index("shares_account").on(market, account),
+    index("shares_market").on(market),
+  ],
+);
