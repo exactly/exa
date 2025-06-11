@@ -230,8 +230,27 @@ export const treasuries = substreams.table(
   ],
 );
 
-export const shares = substreams.table(
-  "shares",
+export const borrowShares = substreams.table(
+  "borrow_shares",
+  {
+    market: text("market").notNull(),
+    borrower: text("borrower").notNull(),
+    shares: numeric("shares", { mode: "string" }).notNull(),
+    block: numeric("block")
+      .references(() => blocks.number)
+      .notNull(),
+    ordinal: numeric("ordinal").notNull(),
+  },
+  ({ market, borrower, block, ordinal }) => [
+    primaryKey({ columns: [market, borrower, block, ordinal] }),
+    index("borrow_shares_block").on(market, borrower, block),
+    index("borrow_shares_borrower").on(market, borrower),
+    index("borrow_shares_market").on(market),
+  ],
+);
+
+export const depositShares = substreams.table(
+  "deposit_shares",
   {
     market: text("market").notNull(),
     account: text("account").notNull(),
@@ -239,12 +258,12 @@ export const shares = substreams.table(
       .references(() => blocks.number)
       .notNull(),
     ordinal: numeric("ordinal").notNull(),
-    amount: numeric("amount", { mode: "string" }).notNull(),
+    shares: numeric("shares", { mode: "string" }).notNull(),
   },
   ({ market, account, block, ordinal }) => [
     primaryKey({ columns: [market, account, block, ordinal] }),
-    index("shares_block").on(market, account, block),
-    index("shares_account").on(market, account),
-    index("shares_market").on(market),
+    index("deposit_shares_block").on(market, account, block),
+    index("deposit_shares_account").on(market, account),
+    index("deposit_shares_market").on(market),
   ],
 );

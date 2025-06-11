@@ -1,8 +1,8 @@
 use contracts::{is_market, market::events};
 use proto::exa::{
   events::{
-    AccumulatorAccrual, EarningsAccumulatorSmoothFactorSet, FixedEarningsUpdate, FloatingDebtUpdate,
-    InterestRateModelSet, MarketUpdate, MaxFuturePoolsSet, Transfer, TreasurySet,
+    AccumulatorAccrual, Borrow, EarningsAccumulatorSmoothFactorSet, FixedEarningsUpdate, FloatingDebtUpdate,
+    InterestRateModelSet, MarketUpdate, MaxFuturePoolsSet, Repay, Transfer, TreasurySet,
   },
   Events,
 };
@@ -28,6 +28,18 @@ pub fn map_blocks(block: Block) -> Result<Events, Error> {
       .logs()
       .filter_map(|log| match (is_market(log.address()), events::AccumulatorAccrual::match_and_decode(log)) {
         (true, Some(_)) => Some(AccumulatorAccrual { market: log.address().to_vec(), log_ordinal: log.ordinal() }),
+        _ => None,
+      })
+      .collect(),
+    borrows: block
+      .logs()
+      .filter_map(|log| match (is_market(log.address()), events::Borrow::match_and_decode(log)) {
+        (true, Some(event)) => Some(Borrow {
+          market: log.address().to_vec(),
+          borrower: event.borrower.to_vec(),
+          shares: event.shares.to_string(),
+          log_ordinal: log.ordinal(),
+        }),
         _ => None,
       })
       .collect(),
@@ -104,6 +116,18 @@ pub fn map_blocks(block: Block) -> Result<Events, Error> {
         _ => None,
       })
       .collect(),
+    repays: block
+      .logs()
+      .filter_map(|log| match (is_market(log.address()), events::Repay::match_and_decode(log)) {
+        (true, Some(event)) => Some(Repay {
+          market: log.address().to_vec(),
+          borrower: event.borrower.to_vec(),
+          shares: event.shares.to_string(),
+          log_ordinal: log.ordinal(),
+        }),
+        _ => None,
+      })
+      .collect(),
     transfers: block
       .logs()
       .filter_map(|log| match (is_market(log.address()), events::Transfer::match_and_decode(log)) {
@@ -133,7 +157,25 @@ pub fn map_blocks(block: Block) -> Result<Events, Error> {
 }
 
 #[substreams::handlers::store]
-pub fn store_account_shares(events: Events, output: StoreAddBigInt) {
+pub fn store_borrow_shares(events: Events, output: StoreAddBigInt) {
+  for borrow in events.borrows {
+    output.add(
+      borrow.log_ordinal,
+      format!("{market}:{account}", market = Hex(&borrow.market), account = Hex(&borrow.borrower)),
+      &BigInt::try_from(borrow.shares.clone()).unwrap(),
+    );
+  }
+  for repay in events.repays {
+    output.add(
+      repay.log_ordinal,
+      format!("{market}:{account}", market = Hex(&repay.market), account = Hex(&repay.borrower)),
+      &BigInt::try_from(repay.shares.clone()).unwrap().neg(),
+    );
+  }
+}
+
+#[substreams::handlers::store]
+pub fn store_deposit_shares(events: Events, output: StoreAddBigInt) {
   for transfer in events.transfers {
     if transfer.to != hex!("0000000000000000000000000000000000000000") {
       output.add(
@@ -153,7 +195,12 @@ pub fn store_account_shares(events: Events, output: StoreAddBigInt) {
 }
 
 #[substreams::handlers::map]
-pub fn db_out(clock: Clock, events: Events, account_shares: Deltas<DeltaBigInt>) -> Result<DatabaseChanges, Error> {
+pub fn db_out(
+  clock: Clock,
+  events: Events,
+  borrow_shares: Deltas<DeltaBigInt>,
+  deposit_shares: Deltas<DeltaBigInt>,
+) -> Result<DatabaseChanges, Error> {
   let mut tables = Tables::new();
   tables
     .create_row("blocks", clock.number.to_string())
@@ -261,10 +308,23 @@ pub fn db_out(clock: Clock, events: Events, account_shares: Deltas<DeltaBigInt>)
       .set("treasury", Hex(&treasury_set.treasury).to_string())
       .set("treasury_fee_rate", treasury_set.treasury_fee_rate.to_string());
   }
-  for delta in account_shares.iter() {
+  for delta in borrow_shares.iter() {
     tables
       .create_row(
-        "shares",
+        "borrow_shares",
+        [
+          ("market", segment_at(&delta.key, 0)),
+          ("borrower", segment_at(&delta.key, 1)),
+          ("block", &clock.number.to_string()),
+          ("ordinal", &delta.ordinal.to_string()),
+        ],
+      )
+      .set("shares", delta.new_value.to_string());
+  }
+  for delta in deposit_shares.iter() {
+    tables
+      .create_row(
+        "deposit_shares",
         [
           ("market", segment_at(&delta.key, 0)),
           ("account", segment_at(&delta.key, 1)),
@@ -272,7 +332,7 @@ pub fn db_out(clock: Clock, events: Events, account_shares: Deltas<DeltaBigInt>)
           ("ordinal", &delta.ordinal.to_string()),
         ],
       )
-      .set("amount", delta.new_value.to_string());
+      .set("shares", delta.new_value.to_string());
   }
   Ok(tables.to_database_changes())
 }
