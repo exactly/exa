@@ -19,7 +19,13 @@ modules:
       - source: sf.ethereum.type.v2.Block
     output:
       type: proto:exa.Events
-  - name: store_account_shares
+  - name: store_borrow_shares
+    kind: store
+    updatePolicy: add
+    valueType: bigint
+    inputs:
+      - map: map_blocks
+  - name: store_deposit_shares
     kind: store
     updatePolicy: add
     valueType: bigint
@@ -30,7 +36,9 @@ modules:
     inputs:
       - source: sf.substreams.v1.Clock
       - map: map_blocks
-      - store: store_account_shares
+      - store: store_borrow_shares
+        mode: deltas
+      - store: store_deposit_shares
         mode: deltas
     output:
       type: proto:sf.substreams.sink.database.v1.DatabaseChanges
