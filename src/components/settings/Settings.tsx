@@ -1,4 +1,4 @@
-import { ArrowLeft, HelpCircle } from "@tamagui/lucide-icons";
+import { ArrowLeft, HelpCircle, LogOut } from "@tamagui/lucide-icons";
 import { setStringAsync } from "expo-clipboard";
 import { router, useRouter } from "expo-router";
 import React from "react";
@@ -6,6 +6,7 @@ import { Alert, Pressable } from "react-native";
 import { ScrollView, Separator, XStack } from "tamagui";
 
 import release from "../../generated/release";
+import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useIntercom from "../../utils/useIntercom";
 import SafeView from "../shared/SafeView";
@@ -51,6 +52,25 @@ export default function Settings() {
                   </XStack>
                 </XStack>
               </Pressable>
+              {__DEV__ && (
+                <>
+                  <Separator borderColor="$borderNeutralSoft" />
+                  <Pressable
+                    onPress={() => {
+                      queryClient.resetQueries().catch(reportError);
+                    }}
+                  >
+                    <XStack justifyContent="space-between" alignItems="center" padding="$s4">
+                      <XStack gap="$s3" justifyContent="flex-start" alignItems="center">
+                        <LogOut color="$interactiveBaseErrorDefault" />
+                        <Text subHeadline color="$uiNeutralPrimary">
+                          Logout
+                        </Text>
+                      </XStack>
+                    </XStack>
+                  </Pressable>
+                </>
+              )}
             </View>
             <Pressable
               hitSlop={20}
