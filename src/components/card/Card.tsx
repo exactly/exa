@@ -233,9 +233,9 @@ export default function Card() {
                   <View display="flex" flexDirection="row" alignItems="center" gap={16}>
                     <Pressable onPress={toggle} hitSlop={15}>
                       {hidden ? (
-                        <EyeOff size={24} color="$uiNeutralPrimary" />
+                        <EyeOff size={24} color="$uiNeutralSecondary" />
                       ) : (
-                        <Eye size={24} color="$uiNeutralPrimary" />
+                        <Eye size={24} color="$uiNeutralSecondary" />
                       )}
                     </Pressable>
                     <Pressable
@@ -244,7 +244,7 @@ export default function Card() {
                       }}
                       hitSlop={15}
                     >
-                      <CircleHelp size={24} color="$uiNeutralPrimary" />
+                      <CircleHelp size={24} color="$uiNeutralSecondary" />
                     </Pressable>
                   </View>
                 </XStack>
