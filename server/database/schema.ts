@@ -267,3 +267,24 @@ export const depositShares = substreams.table(
     index("deposit_shares_market").on(market),
   ],
 );
+
+export const fixedBorrows = substreams.table(
+  "fixed_borrows",
+  {
+    market: text("market").notNull(),
+    maturity: numeric("maturity").notNull(),
+    borrower: text("borrower").notNull(),
+    positionAssets: text("position_assets").notNull(),
+    block: numeric("block")
+      .references(() => blocks.number)
+      .notNull(),
+    ordinal: numeric("ordinal").notNull(),
+  },
+  ({ market, maturity, borrower, block, ordinal }) => [
+    primaryKey({ columns: [market, maturity, borrower, block, ordinal] }),
+    index("fixed_borrows_block").on(market, maturity, borrower, block),
+    index("fixed_borrows_maturity").on(market, maturity),
+    index("fixed_borrows_borrower").on(market, borrower),
+    index("fixed_borrows_market").on(market),
+  ],
+);

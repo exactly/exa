@@ -31,6 +31,12 @@ modules:
     valueType: bigint
     inputs:
       - map: map_blocks
+  - name: store_fixed_borrows
+    kind: store
+    updatePolicy: add
+    valueType: bigint
+    inputs:
+      - map: map_blocks
   - name: db_out
     kind: map
     inputs:
@@ -39,6 +45,8 @@ modules:
       - store: store_borrow_shares
         mode: deltas
       - store: store_deposit_shares
+        mode: deltas
+      - store: store_fixed_borrows
         mode: deltas
     output:
       type: proto:sf.substreams.sink.database.v1.DatabaseChanges

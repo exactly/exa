@@ -5,15 +5,17 @@ package exa;
 message Events {
   repeated AccumulatorAccrual accumulator_accruals = 1;
   repeated Borrow borrows = 2;
-  repeated EarningsAccumulatorSmoothFactorSet earnings_accumulator_smooth_factor_sets = 3;
-  repeated FixedEarningsUpdate fixed_earnings_updates = 4;
-  repeated FloatingDebtUpdate floating_debt_updates = 5;
-  repeated InterestRateModelSet interest_rate_model_sets = 6;
-  repeated MarketUpdate market_updates = 7;
-  repeated MaxFuturePoolsSet max_future_pools_sets = 8;
-  repeated Repay repays = 9;
-  repeated Transfer transfers = 10;
-  repeated TreasurySet treasury_sets = 11;
+  repeated BorrowAtMaturity borrow_at_maturities = 3;
+  repeated EarningsAccumulatorSmoothFactorSet earnings_accumulator_smooth_factor_sets = 4;
+  repeated FixedEarningsUpdate fixed_earnings_updates = 5;
+  repeated FloatingDebtUpdate floating_debt_updates = 6;
+  repeated InterestRateModelSet interest_rate_model_sets = 7;
+  repeated MarketUpdate market_updates = 8;
+  repeated MaxFuturePoolsSet max_future_pools_sets = 9;
+  repeated Repay repays = 10;
+  repeated RepayAtMaturity repay_at_maturities = 11;
+  repeated Transfer transfers = 12;
+  repeated TreasurySet treasury_sets = 13;
 
   message AccumulatorAccrual {
     bytes market = 1;
@@ -25,6 +27,16 @@ message Events {
     bytes market = 1;
     bytes borrower = 2;
     string shares = 3;
+    // internals
+    uint64 log_ordinal = 30;
+  }
+
+  message BorrowAtMaturity {
+    bytes market = 1;
+    uint64 maturity = 2;
+    bytes borrower = 3;
+    string assets = 4;
+    string fee = 5;
     // internals
     uint64 log_ordinal = 30;
   }
@@ -80,6 +92,16 @@ message Events {
     bytes market = 1;
     bytes borrower = 2;
     string shares = 3;
+    // internals
+    uint64 log_ordinal = 30;
+  }
+
+  message RepayAtMaturity {
+    bytes market = 1;
+    uint64 maturity = 2;
+    bytes borrower = 3;
+    string assets = 4;
+    string position_assets = 5;
     // internals
     uint64 log_ordinal = 30;
   }
