@@ -1,4 +1,5 @@
 import ProposalType, {
+  decodeBorrowAtMaturity,
   decodeCrossRepayAtMaturity,
   decodeRepayAtMaturity,
   decodeRollDebt,
@@ -39,48 +40,69 @@ interface Proposal {
   data: `0x${string}`;
 }
 
-function getProposal(proposal: Proposal) {
-  switch (proposal.proposalType) {
+type ProposalWithMetadata = Proposal & {
+  label: string;
+  icon: React.ReactNode;
+  decoded?:
+    | ReturnType<typeof decodeBorrowAtMaturity>
+    | ReturnType<typeof decodeRepayAtMaturity>
+    | ReturnType<typeof decodeCrossRepayAtMaturity>
+    | ReturnType<typeof decodeRollDebt>
+    | { receiver: ReturnType<typeof decodeWithdraw> };
+};
+
+function getProposal(proposal: Proposal): ProposalWithMetadata {
+  const { data, proposalType } = proposal;
+  switch (proposalType) {
     case ProposalType.BorrowAtMaturity:
       return {
+        ...proposal,
         label: "Protocol borrow",
         icon: <Coins color="$interactiveOnBaseInformationSoft" />,
+        decoded: decodeBorrowAtMaturity(data),
       };
     case ProposalType.RepayAtMaturity:
       return {
+        ...proposal,
         label: "Debt payment",
         icon: <Coins color="$interactiveOnBaseInformationSoft" />,
-        maturity: decodeRepayAtMaturity(proposal.data).maturity,
+        decoded: decodeRepayAtMaturity(data),
       };
     case ProposalType.CrossRepayAtMaturity:
       return {
+        ...proposal,
         label: "Debt payment",
         icon: <Coins color="$interactiveOnBaseInformationSoft" />,
-        maturity: decodeCrossRepayAtMaturity(proposal.data).maturity,
+        decoded: decodeCrossRepayAtMaturity(data),
       };
     case ProposalType.RollDebt:
       return {
+        ...proposal,
         label: "Debt rollover",
         icon: <RefreshCw color="$interactiveOnBaseInformationSoft" />,
-        fromMaturity: decodeRollDebt(proposal.data).repayMaturity,
-        toMaturity: decodeRollDebt(proposal.data).borrowMaturity,
+        decoded: decodeRollDebt(data),
       };
     case ProposalType.Swap:
       return {
+        ...proposal,
         label: "Swapping",
         icon: <ArrowLeftRight color="$interactiveOnBaseInformationSoft" />,
+        decoded: undefined,
       };
     case ProposalType.Redeem:
     case ProposalType.Withdraw:
       return {
+        ...proposal,
         label: "Sending to",
         icon: <ArrowUpRight color="$interactiveOnBaseInformationSoft" />,
-        address: decodeWithdraw(proposal.data),
+        decoded: { receiver: decodeWithdraw(data) },
       };
     default:
       return {
+        ...proposal,
         label: "Unknown",
         icon: <SearchSlash color="$interactiveOnBaseInformationSoft" />,
+        decoded: undefined,
       };
   }
 }
@@ -162,10 +184,32 @@ export default function PendingProposals() {
 }
 
 function ProposalItem({ proposal }: { proposal: Proposal }) {
-  const { label, icon, maturity, address: proposalAddress, fromMaturity, toMaturity } = getProposal(proposal);
-  const { market } = useAsset(proposal.market);
+  const { label, icon, decoded, market: proposalMarket, proposalType } = getProposal(proposal);
+  const { market } = useAsset(proposalMarket);
   const symbol = market ? (market.symbol.slice(3) === "WETH" ? "ETH" : market.symbol.slice(3)) : null;
   const usdValue = market ? (proposal.amount * market.usdPrice) / BigInt(10 ** market.decimals) : 0n;
+
+  const renderMaturity = () => {
+    if (!decoded) return null;
+    if ("maturity" in decoded) {
+      return format(new Date(Number(decoded.maturity) * 1000), "MMM dd");
+    }
+    if ("repayMaturity" in decoded && "borrowMaturity" in decoded) {
+      return `${format(new Date(Number(decoded.repayMaturity) * 1000), "MMM dd")} → ${format(new Date(Number(decoded.borrowMaturity) * 1000), "MMM dd")}`;
+    }
+    if ("receiver" in decoded) {
+      return shortenHex(decoded.receiver, 5, 5);
+    }
+    return null;
+  };
+
+  const rendersAmount =
+    proposalType === ProposalType.RepayAtMaturity ||
+    proposalType === ProposalType.CrossRepayAtMaturity ||
+    proposalType === ProposalType.BorrowAtMaturity ||
+    proposalType === ProposalType.Redeem ||
+    proposalType === ProposalType.Withdraw;
+
   return (
     <XStack gap="$s4" paddingVertical="$s3">
       <View
@@ -183,20 +227,11 @@ function ProposalItem({ proposal }: { proposal: Proposal }) {
           <Text subHeadline maxFontSizeMultiplier={1} color="$uiPrimary" numberOfLines={1}>
             {label}
           </Text>
-          {proposal.proposalType === ProposalType.RepayAtMaturity ||
-          proposal.proposalType === ProposalType.CrossRepayAtMaturity ? (
+          {renderMaturity() && (
             <Text footnote maxFontSizeMultiplier={1} color="$uiNeutralSecondary" numberOfLines={1}>
-              {format(new Date(Number(maturity) * 1000), "MMM dd")}
+              {renderMaturity()}
             </Text>
-          ) : proposal.proposalType === ProposalType.Redeem || proposal.proposalType === ProposalType.Withdraw ? (
-            <Text footnote maxFontSizeMultiplier={1} color="$uiNeutralSecondary" numberOfLines={1}>
-              {shortenHex(proposalAddress ?? "", 5, 5)}
-            </Text>
-          ) : proposal.proposalType === ProposalType.RollDebt ? (
-            <Text footnote maxFontSizeMultiplier={1} color="$uiNeutralSecondary" numberOfLines={1}>
-              {`${format(new Date(Number(fromMaturity) * 1000), "MMM dd")} → ${format(new Date(Number(toMaturity) * 1000), "MMM dd")}`}
-            </Text>
-          ) : null}
+          )}
         </YStack>
         <YStack alignItems="flex-end">
           <Text primary emphasized subHeadline numberOfLines={1}>
@@ -206,22 +241,7 @@ function ProposalItem({ proposal }: { proposal: Proposal }) {
               currencyDisplay: "narrowSymbol",
             })}
           </Text>
-          {proposal.proposalType === ProposalType.RepayAtMaturity ||
-          proposal.proposalType === ProposalType.CrossRepayAtMaturity ? (
-            <Text secondary footnote maxFontSizeMultiplier={1} numberOfLines={1}>
-              {`${(Number(proposal.amount) / 10 ** (market?.decimals ?? 18)).toLocaleString(undefined, {
-                minimumFractionDigits: 0,
-                maximumFractionDigits: Math.min(
-                  8,
-                  Math.max(
-                    0,
-                    (market?.decimals ?? 18) - Math.ceil(Math.log10(Math.max(1, Number(proposal.amount) / 1e18))),
-                  ),
-                ),
-                useGrouping: false,
-              })} ${symbol}`}
-            </Text>
-          ) : proposal.proposalType === ProposalType.Redeem || proposal.proposalType === ProposalType.Withdraw ? (
+          {rendersAmount ? (
             <Text secondary footnote maxFontSizeMultiplier={1} numberOfLines={1}>
               {`${(Number(proposal.amount) / 10 ** (market?.decimals ?? 18)).toLocaleString(undefined, {
                 minimumFractionDigits: 0,
