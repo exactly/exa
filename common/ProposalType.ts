@@ -64,3 +64,19 @@ export function decodeRollDebt(data: `0x${string}`) {
     data,
   )[0];
 }
+
+export function decodeBorrowAtMaturity(data: `0x${string}`) {
+  return decodeAbiParameters(
+    [
+      {
+        type: "tuple",
+        components: [
+          { name: "maturity", type: "uint256" },
+          { name: "maxAssets", type: "uint256" },
+          { name: "receiver", type: "address" },
+        ],
+      },
+    ],
+    data,
+  )[0];
+}
