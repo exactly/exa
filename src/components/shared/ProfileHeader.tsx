@@ -79,7 +79,7 @@ export default function ProfileHeader() {
         </View>
         <View display="flex" flexDirection="row" alignItems="center" gap={16}>
           <Pressable onPress={toggle} hitSlop={15}>
-            {hidden ? <EyeOff color="$uiNeutralPrimary" /> : <Eye color="$uiNeutralPrimary" />}
+            {hidden ? <EyeOff color="$uiNeutralSecondary" /> : <Eye color="$uiNeutralSecondary" />}
           </Pressable>
           {pendingProposals && pendingProposals.length > 0 && (
             <Pressable
@@ -90,7 +90,7 @@ export default function ProfileHeader() {
               hitSlop={15}
             >
               <StatusIndicator type="notification" />
-              <ClockArrowUp color="$uiNeutralPrimary" />
+              <ClockArrowUp color="$uiNeutralSecondary" />
             </Pressable>
           )}
           <Pressable
@@ -99,7 +99,7 @@ export default function ProfileHeader() {
             }}
             hitSlop={15}
           >
-            <Settings color="$uiNeutralPrimary" />
+            <Settings color="$uiNeutralSecondary" />
           </Pressable>
         </View>
       </View>
