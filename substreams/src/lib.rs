@@ -1,8 +1,9 @@
 use contracts::{is_market, market::events};
 use proto::exa::{
   events::{
-    AccumulatorAccrual, Borrow, EarningsAccumulatorSmoothFactorSet, FixedEarningsUpdate, FloatingDebtUpdate,
-    InterestRateModelSet, MarketUpdate, MaxFuturePoolsSet, Repay, Transfer, TreasurySet,
+    AccumulatorAccrual, Borrow, BorrowAtMaturity, EarningsAccumulatorSmoothFactorSet, FixedEarningsUpdate,
+    FloatingDebtUpdate, InterestRateModelSet, MarketUpdate, MaxFuturePoolsSet, Repay, RepayAtMaturity, Transfer,
+    TreasurySet,
   },
   Events,
 };
@@ -28,6 +29,20 @@ pub fn map_blocks(block: Block) -> Result<Events, Error> {
       .logs()
       .filter_map(|log| match (is_market(log.address()), events::AccumulatorAccrual::match_and_decode(log)) {
         (true, Some(_)) => Some(AccumulatorAccrual { market: log.address().to_vec(), log_ordinal: log.ordinal() }),
+        _ => None,
+      })
+      .collect(),
+    borrow_at_maturities: block
+      .logs()
+      .filter_map(|log| match (is_market(log.address()), events::BorrowAtMaturity::match_and_decode(log)) {
+        (true, Some(event)) => Some(BorrowAtMaturity {
+          market: log.address().to_vec(),
+          maturity: event.maturity.to_u64(),
+          borrower: event.borrower.to_vec(),
+          assets: event.assets.to_string(),
+          fee: event.fee.to_string(),
+          log_ordinal: log.ordinal(),
+        }),
         _ => None,
       })
       .collect(),
@@ -116,6 +131,20 @@ pub fn map_blocks(block: Block) -> Result<Events, Error> {
         _ => None,
       })
       .collect(),
+    repay_at_maturities: block
+      .logs()
+      .filter_map(|log| match (is_market(log.address()), events::RepayAtMaturity::match_and_decode(log)) {
+        (true, Some(event)) => Some(RepayAtMaturity {
+          market: log.address().to_vec(),
+          maturity: event.maturity.to_u64(),
+          borrower: event.borrower.to_vec(),
+          assets: event.assets.to_string(),
+          position_assets: event.position_assets.to_string(),
+          log_ordinal: log.ordinal(),
+        }),
+        _ => None,
+      })
+      .collect(),
     repays: block
       .logs()
       .filter_map(|log| match (is_market(log.address()), events::Repay::match_and_decode(log)) {
@@ -194,12 +223,42 @@ pub fn store_deposit_shares(events: Events, output: StoreAddBigInt) {
   }
 }
 
+#[substreams::handlers::store]
+pub fn store_fixed_borrows(events: Events, output: StoreAddBigInt) {
+  for borrow_at_maturity in events.borrow_at_maturities {
+    output.add(
+      borrow_at_maturity.log_ordinal,
+      format!(
+        "{market}:{maturity}:{borrower}",
+        market = Hex(&borrow_at_maturity.market),
+        maturity = borrow_at_maturity.maturity,
+        borrower = Hex(&borrow_at_maturity.borrower)
+      ),
+      &BigInt::try_from(borrow_at_maturity.assets.clone()).unwrap()
+        + &BigInt::try_from(borrow_at_maturity.fee.clone()).unwrap(),
+    );
+  }
+  for repay_at_maturity in events.repay_at_maturities {
+    output.add(
+      repay_at_maturity.log_ordinal,
+      format!(
+        "{market}:{maturity}:{borrower}",
+        market = Hex(&repay_at_maturity.market),
+        maturity = repay_at_maturity.maturity,
+        borrower = Hex(&repay_at_maturity.borrower)
+      ),
+      &BigInt::try_from(repay_at_maturity.position_assets.clone()).unwrap().neg(),
+    );
+  }
+}
+
 #[substreams::handlers::map]
 pub fn db_out(
   clock: Clock,
   events: Events,
   borrow_shares: Deltas<DeltaBigInt>,
   deposit_shares: Deltas<DeltaBigInt>,
+  fixed_borrows: Deltas<DeltaBigInt>,
 ) -> Result<DatabaseChanges, Error> {
   let mut tables = Tables::new();
   tables
@@ -333,6 +392,20 @@ pub fn db_out(
         ],
       )
       .set("shares", delta.new_value.to_string());
+  }
+  for delta in fixed_borrows.iter() {
+    tables
+      .create_row(
+        "fixed_borrows",
+        [
+          ("market", segment_at(&delta.key, 0)),
+          ("maturity", segment_at(&delta.key, 1)),
+          ("borrower", segment_at(&delta.key, 2)),
+          ("block", &clock.number.to_string()),
+          ("ordinal", &delta.ordinal.to_string()),
+        ],
+      )
+      .set("position_assets", delta.new_value.to_string());
   }
   Ok(tables.to_database_changes())
 }
