@@ -23,9 +23,6 @@ import {
 import { useAccount, useBytecode, useSimulateContract, useWriteContract } from "wagmi";
 
 import AssetSelectionSheet from "./AssetSelectionSheet";
-import Failure from "./Failure";
-import Pending from "./Pending";
-import Success from "./Success";
 import Button from "../../components/shared/Button";
 import SafeView from "../../components/shared/SafeView";
 import Text from "../../components/shared/Text";
@@ -45,6 +42,9 @@ import useAccountAssets from "../../utils/useAccountAssets";
 import useAsset from "../../utils/useAsset";
 import useSimulateProposal from "../../utils/useSimulateProposal";
 import AssetLogo from "../shared/AssetLogo";
+import Failure from "../shared/Failure";
+import Pending from "../shared/Pending";
+import Success from "../shared/Success";
 
 export default function Pay() {
   const insets = useSafeAreaInsets();
@@ -373,6 +373,8 @@ export default function Pay() {
     setSelectedAsset({ address, external });
   }, []);
 
+  const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
+
   if (!maturity) return;
   if (!isPending && !isSuccess && !writeError)
     return (
@@ -651,6 +653,9 @@ export default function Pay() {
         usdAmount={displayValues.usdAmount}
         currency={repayMarket?.assetSymbol ?? externalAsset?.symbol}
         selectedAsset={selectedAsset.address}
+        onClose={() => {
+          router.replace(isLatestPlugin ? "/(app)/pending-proposals" : "/pay-mode");
+        }}
       />
     );
   if (writeError)
@@ -661,6 +666,9 @@ export default function Pay() {
         usdAmount={displayValues.usdAmount}
         currency={repayMarket?.assetSymbol ?? externalAsset?.symbol}
         selectedAsset={selectedAsset.address}
+        onClose={() => {
+          router.replace("/pay-mode");
+        }}
       />
     );
 }
