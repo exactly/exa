@@ -137,9 +137,14 @@ export default function PendingProposals() {
         >
           <View flex={1}>
             {(!pendingProposals || pendingProposals.length === 0) && (
-              <Text textAlign="center" subHeadline color="$uiNeutralSecondary">
-                There are no pending requests.
-              </Text>
+              <YStack alignItems="center" justifyContent="center" gap="$s4" paddingTop="$s4">
+                <Text textAlign="center" color="$uiNeutralSecondary" emphasized headline>
+                  🙌
+                </Text>
+                <Text textAlign="center" color="$uiNeutralSecondary" footnote>
+                  There are no pending requests!
+                </Text>
+              </YStack>
             )}
             {pendingProposals?.map(({ nonce, proposal }) => {
               return <ProposalItem key={nonce.toString()} proposal={proposal} />;
