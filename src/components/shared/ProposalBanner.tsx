@@ -33,6 +33,7 @@ const ProposalBanner = () => {
         paddingVertical="$s3"
         paddingHorizontal="$s4"
         disabled={isFetching}
+        cursor="pointer"
         onPress={() => {
           router.push("/pending-proposals");
         }}
