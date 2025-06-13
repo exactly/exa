@@ -74,7 +74,7 @@ export default function OverduePayments({ onSelect }: { onSelect: (maturity: big
             const decoded = decodeRollDebt(data);
             return decoded.repayMaturity === maturity;
           });
-          const isProcessing = isRepaying || isRollingDebt; //eslint-disable-line @typescript-eslint/prefer-nullish-coalescing
+          const processing = isRepaying || isRollingDebt; //eslint-disable-line @typescript-eslint/prefer-nullish-coalescing
           return (
             <XStack
               cursor="pointer"
@@ -82,24 +82,24 @@ export default function OverduePayments({ onSelect }: { onSelect: (maturity: big
               justifyContent="space-between"
               alignItems="center"
               onPress={() => {
-                if (isProcessing) return;
+                if (processing) return;
                 onSelect(maturity, amount);
               }}
             >
               <YStack gap="$s2">
-                <Text subHeadline color={isProcessing ? "$interactiveTextDisabled" : "$uiErrorSecondary"}>
+                <Text subHeadline color={processing ? "$interactiveTextDisabled" : "$uiErrorSecondary"}>
                   {(Number(amount) / 1e18).toLocaleString(undefined, {
                     style: "currency",
                     currency: "USD",
                     currencyDisplay: "narrowSymbol",
                   })}
                 </Text>
-                <Text caption color={isProcessing ? "$interactiveTextDisabled" : "$uiErrorSecondary"}>
+                <Text caption color={processing ? "$interactiveTextDisabled" : "$uiErrorSecondary"}>
                   {format(new Date(Number(maturity) * 1000), "MMM dd, yyyy")}
                 </Text>
               </YStack>
               <XStack alignItems="center" gap="$s3">
-                {isProcessing ? (
+                {processing ? (
                   <View
                     alignSelf="center"
                     justifyContent="center"
@@ -132,10 +132,14 @@ export default function OverduePayments({ onSelect }: { onSelect: (maturity: big
                     </Text>
                   </View>
                 )}
-                <Text emphasized subHeadline color="$interactiveBaseErrorDefault">
+                <Text
+                  emphasized
+                  subHeadline
+                  color={processing ? "$interactiveOnDisabled" : "$interactiveBaseErrorDefault"}
+                >
                   Repay
                 </Text>
-                <ChevronRight size={16} color={isRepaying ? "$iconDisabled" : "$interactiveBaseBrandDefault"} />
+                <ChevronRight size={16} color={processing ? "$iconDisabled" : "$interactiveBaseBrandDefault"} />
               </XStack>
             </XStack>
           );

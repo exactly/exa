@@ -74,13 +74,13 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
               const decoded = decodeRollDebt(data);
               return decoded.repayMaturity === maturity;
             });
-            const isProcessing = isRepaying || isRollingDebt; //eslint-disable-line @typescript-eslint/prefer-nullish-coalescing
+            const processing = isRepaying || isRollingDebt; //eslint-disable-line @typescript-eslint/prefer-nullish-coalescing
             return (
               <Pressable
                 key={index}
-                disabled={isProcessing}
+                disabled={processing}
                 onPress={() => {
-                  if (isProcessing) return;
+                  if (processing) return;
                   onSelect(maturity, amount);
                 }}
               >
@@ -106,7 +106,12 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
                           })}
                         </Text>
                         {discount >= 0 && (
-                          <Text sensitive caption strikeThrough>
+                          <Text
+                            sensitive
+                            caption
+                            strikeThrough
+                            color={processing ? "$interactiveTextDisabled" : "$uiNeutralPrimary"}
+                          >
                             {(Number(positionAmount) / 1e18).toLocaleString(undefined, {
                               style: "currency",
                               currency: "USD",
@@ -115,11 +120,11 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
                           </Text>
                         )}
                       </XStack>
-                      <Text caption color={isProcessing ? "$interactiveTextDisabled" : "$uiNeutralPrimary"}>
+                      <Text caption color={processing ? "$interactiveTextDisabled" : "$uiNeutralPrimary"}>
                         {format(new Date(Number(maturity) * 1000), "MMM dd, yyyy")}
                       </Text>
                     </YStack>
-                    {isProcessing ? (
+                    {processing ? (
                       <View
                         alignSelf="center"
                         justifyContent="center"
@@ -136,24 +141,30 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
                     ) : null}
                   </XStack>
                   <XStack alignItems="center" gap="$s3">
-                    <View
-                      alignSelf="center"
-                      justifyContent="center"
-                      alignItems="center"
-                      backgroundColor="$interactiveBaseSuccessDefault"
-                      borderRadius="$r2"
-                      paddingVertical="$s1"
-                      paddingHorizontal="$s2"
+                    {processing ? null : (
+                      <View
+                        alignSelf="center"
+                        justifyContent="center"
+                        alignItems="center"
+                        backgroundColor="$interactiveBaseSuccessDefault"
+                        borderRadius="$r2"
+                        paddingVertical="$s1"
+                        paddingHorizontal="$s2"
+                      >
+                        <Text emphasized color="$interactiveOnBaseSuccessDefault" maxFontSizeMultiplier={1} caption2>
+                          {`${(discount >= 0 ? discount : discount * -1).toLocaleString(undefined, {
+                            style: "percent",
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })} OFF`}
+                        </Text>
+                      </View>
+                    )}
+                    <Text
+                      emphasized
+                      subHeadline
+                      color={processing ? "$interactiveOnDisabled" : "$interactiveBaseBrandDefault"}
                     >
-                      <Text emphasized color="$interactiveOnBaseSuccessDefault" maxFontSizeMultiplier={1} caption2>
-                        {`${(discount >= 0 ? discount : discount * -1).toLocaleString(undefined, {
-                          style: "percent",
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })} OFF`}
-                      </Text>
-                    </View>
-                    <Text emphasized subHeadline color="$interactiveBaseBrandDefault">
                       Repay
                     </Text>
                     <ChevronRight size={16} color={isRepaying ? "$iconDisabled" : "$iconBrandDefault"} />
