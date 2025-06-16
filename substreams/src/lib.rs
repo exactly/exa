@@ -1,9 +1,9 @@
-use contracts::{is_market, market::events};
+use contracts::{auditor::events as auditor_events, is_auditor, is_market, market::events};
 use proto::exa::{
   events::{
     AccumulatorAccrual, Borrow, BorrowAtMaturity, EarningsAccumulatorSmoothFactorSet, FixedEarningsUpdate,
-    FloatingDebtUpdate, InterestRateModelSet, MarketUpdate, MaxFuturePoolsSet, Repay, RepayAtMaturity, Transfer,
-    TreasurySet,
+    FloatingDebtUpdate, InterestRateModelSet, MarketEntered, MarketExited, MarketUpdate, MaxFuturePoolsSet, Repay,
+    RepayAtMaturity, Transfer, TreasurySet,
   },
   Events,
 };
@@ -13,7 +13,7 @@ use substreams::{
   key::segment_at,
   pb::substreams::Clock,
   scalar::BigInt,
-  store::{DeltaBigInt, Deltas, StoreAdd, StoreAddBigInt, StoreNew},
+  store::{DeltaBigInt, DeltaInt64, Deltas, StoreAdd, StoreAddBigInt, StoreNew, StoreSet, StoreSetInt64},
   Hex,
 };
 use substreams_database_change::{pb::database::DatabaseChanges, tables::Tables};
@@ -100,6 +100,28 @@ pub fn map_blocks(block: Block) -> Result<Events, Error> {
         (true, Some(event)) => Some(InterestRateModelSet {
           market: log.address().to_vec(),
           interest_rate_model: event.interest_rate_model.to_vec(),
+          log_ordinal: log.ordinal(),
+        }),
+        _ => None,
+      })
+      .collect(),
+    market_enters: block
+      .logs()
+      .filter_map(|log| match (is_auditor(log.address()), auditor_events::MarketEntered::match_and_decode(log)) {
+        (true, Some(event)) => Some(MarketEntered {
+          market: event.market.to_vec(),
+          account: event.account.to_vec(),
+          log_ordinal: log.ordinal(),
+        }),
+        _ => None,
+      })
+      .collect(),
+    market_exits: block
+      .logs()
+      .filter_map(|log| match (is_auditor(log.address()), auditor_events::MarketExited::match_and_decode(log)) {
+        (true, Some(event)) => Some(MarketExited {
+          market: event.market.to_vec(),
+          account: event.account.to_vec(),
           log_ordinal: log.ordinal(),
         }),
         _ => None,
@@ -252,6 +274,24 @@ pub fn store_fixed_borrows(events: Events, output: StoreAddBigInt) {
   }
 }
 
+#[substreams::handlers::store]
+pub fn store_market_enters(events: Events, output: StoreSetInt64) {
+  for market_entered in events.market_enters {
+    output.set(
+      market_entered.log_ordinal,
+      format!("{market}:{account}", market = Hex(&market_entered.market), account = Hex(&market_entered.account)),
+      &1,
+    );
+  }
+  for market_exited in events.market_exits {
+    output.set(
+      market_exited.log_ordinal,
+      format!("{market}:{account}", market = Hex(&market_exited.market), account = Hex(&market_exited.account)),
+      &0,
+    );
+  }
+}
+
 #[substreams::handlers::map]
 pub fn db_out(
   clock: Clock,
@@ -259,6 +299,7 @@ pub fn db_out(
   borrow_shares: Deltas<DeltaBigInt>,
   deposit_shares: Deltas<DeltaBigInt>,
   fixed_borrows: Deltas<DeltaBigInt>,
+  market_enters: Deltas<DeltaInt64>,
 ) -> Result<DatabaseChanges, Error> {
   let mut tables = Tables::new();
   tables
@@ -379,6 +420,19 @@ pub fn db_out(
         ],
       )
       .set("shares", delta.new_value.to_string());
+  }
+  for delta in market_enters.iter() {
+    tables
+      .create_row(
+        "market_enters",
+        [
+          ("market", segment_at(&delta.key, 0)),
+          ("account", segment_at(&delta.key, 1)),
+          ("block", &clock.number.to_string()),
+          ("ordinal", &delta.ordinal.to_string()),
+        ],
+      )
+      .set("entered", delta.new_value.to_string());
   }
   for delta in deposit_shares.iter() {
     tables

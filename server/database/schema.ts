@@ -1,6 +1,7 @@
 import { relations } from "drizzle-orm";
 import {
   bigint,
+  boolean,
   char,
   customType,
   index,
@@ -246,6 +247,24 @@ export const borrowShares = substreams.table(
     index("borrow_shares_block").on(market, borrower, block),
     index("borrow_shares_borrower").on(market, borrower),
     index("borrow_shares_market").on(market),
+  ],
+);
+
+export const marketEnters = substreams.table(
+  "market_enters",
+  {
+    market: text("market").notNull(),
+    account: text("account").notNull(),
+    entered: boolean("entered").notNull().default(false),
+    block: numeric("block")
+      .references(() => blocks.number)
+      .notNull(),
+    ordinal: numeric("ordinal").notNull(),
+  },
+  ({ market, account, entered, block, ordinal }) => [
+    primaryKey({ columns: [market, account, entered, block, ordinal] }),
+    index("market_enters_account").on(market, account),
+    index("market_enters_market").on(market),
   ],
 );
 

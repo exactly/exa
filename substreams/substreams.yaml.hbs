@@ -13,7 +13,7 @@ network: {{#if (eq CHAIN_ID "10")}}optimism{{else}}opsepolia{{/if}}
 modules:
   - name: map_blocks
     kind: map
-    initialBlock: {{#if (eq CHAIN_ID "10")}}78_311_238{{else}}29_021_724{{/if}}
+    initialBlock: {{#if (eq CHAIN_ID "10")}}78_311_238{{else}}29_145_085{{/if}}
     {{!-- 7_420_743 --}}
     inputs:
       - source: sf.ethereum.type.v2.Block
@@ -37,6 +37,12 @@ modules:
     valueType: bigint
     inputs:
       - map: map_blocks
+  - name: store_market_enters
+    kind: store
+    updatePolicy: set
+    valueType: int64
+    inputs:
+      - map: map_blocks
   - name: db_out
     kind: map
     inputs:
@@ -47,6 +53,8 @@ modules:
       - store: store_deposit_shares
         mode: deltas
       - store: store_fixed_borrows
+        mode: deltas
+      - store: store_market_enters
         mode: deltas
     output:
       type: proto:sf.substreams.sink.database.v1.DatabaseChanges

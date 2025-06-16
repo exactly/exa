@@ -10,12 +10,14 @@ message Events {
   repeated FixedEarningsUpdate fixed_earnings_updates = 5;
   repeated FloatingDebtUpdate floating_debt_updates = 6;
   repeated InterestRateModelSet interest_rate_model_sets = 7;
-  repeated MarketUpdate market_updates = 8;
-  repeated MaxFuturePoolsSet max_future_pools_sets = 9;
-  repeated Repay repays = 10;
-  repeated RepayAtMaturity repay_at_maturities = 11;
-  repeated Transfer transfers = 12;
-  repeated TreasurySet treasury_sets = 13;
+  repeated MarketEntered market_enters = 8;
+  repeated MarketExited market_exits = 9;
+  repeated MarketUpdate market_updates = 10;
+  repeated MaxFuturePoolsSet max_future_pools_sets = 11;
+  repeated Repay repays = 12;
+  repeated RepayAtMaturity repay_at_maturities = 13;
+  repeated Transfer transfers = 14;
+  repeated TreasurySet treasury_sets = 15;
 
   message AccumulatorAccrual {
     bytes market = 1;
@@ -66,6 +68,20 @@ message Events {
   message InterestRateModelSet {
     bytes market = 1;
     bytes interest_rate_model = 2;
+    // internals
+    uint64 log_ordinal = 30;
+  }
+
+  message MarketEntered {
+    bytes market = 1;
+    bytes account = 2;
+    // internals
+    uint64 log_ordinal = 30;
+  }
+
+  message MarketExited {
+    bytes market = 1;
+    bytes account = 2;
     // internals
     uint64 log_ordinal = 30;
   }
