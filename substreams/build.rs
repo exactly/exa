@@ -12,7 +12,7 @@ use std::{
 use substreams_ethereum::Abigen;
 
 #[derive(Deserialize, Debug)]
-struct Market {
+struct Deployment {
   address: String,
 }
 
@@ -65,6 +65,13 @@ fn main() -> Result<(), Error> {
             {}
           )
         }}
+
+        pub fn is_auditor(address: &[u8]) -> bool {{
+          matches!(
+            address,
+            {}
+          )
+        }}
       "},
       contracts
         .iter()
@@ -84,7 +91,21 @@ fn main() -> Result<(), Error> {
       })
       .map(|path| -> Result<String, Error> {
         println!("cargo::rerun-if-changed={}", path.display());
-        Ok(format!("hex!(\"{}\")", &from_str::<Market>(&read_to_string(&path)?)?.address[2..]))
+        Ok(format!("hex!(\"{}\")", &from_str::<Deployment>(&read_to_string(&path)?)?.address[2..]))
+      })
+      .collect::<Result<Vec<_>, _>>()?
+      .join("\n      | "),
+      glob(&format!(
+        "node_modules/@exactly/protocol/deployments/{}/Auditor.json",
+        match option_env!("CHAIN_ID") {
+          Some("10") => "optimism",
+          _ => "op-sepolia",
+        }
+      ))?
+      .filter_map(Result::ok)
+      .map(|path| -> Result<String, Error> {
+        println!("cargo::rerun-if-changed={}", path.display());
+        Ok(format!("hex!(\"{}\")", &from_str::<Deployment>(&read_to_string(&path)?)?.address[2..]))
       })
       .collect::<Result<Vec<_>, _>>()?
       .join("\n      | ")
