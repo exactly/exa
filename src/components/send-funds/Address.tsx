@@ -13,6 +13,7 @@ import Contacts from "./Contacts";
 import RecentContacts from "./RecentContacts";
 import queryClient, { type Withdraw } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
+import useIntercom from "../../utils/useIntercom";
 import Button from "../shared/Button";
 import Input from "../shared/Input";
 import SafeView from "../shared/SafeView";
@@ -21,6 +22,7 @@ import View from "../shared/View";
 
 export default function AddressSelection() {
   const parameters = useLocalSearchParams();
+  const { presentArticle } = useIntercom();
   const { canGoBack } = router;
 
   const { data: recentContacts } = useQuery<{ address: Address; ens: string }[] | undefined>({
@@ -139,8 +141,17 @@ export default function AddressSelection() {
             <Text color="$uiNeutralPlaceholder" fontSize={13} lineHeight={16} textAlign="justify">
               Make sure that the receiving address is compatible with {chain.name} network. Sending assets on other
               networks may result in irreversible loss of funds.
-              <Text color="$uiBrandSecondary" fontSize={13} lineHeight={16} fontWeight="bold">
-                &nbsp;Learn more about sending funds
+              <Text
+                color="$uiBrandSecondary"
+                fontSize={13}
+                lineHeight={16}
+                fontWeight="bold"
+                cursor="pointer"
+                onPress={() => {
+                  presentArticle("9056481").catch(reportError);
+                }}
+              >
+                &nbsp;Learn more about sending funds.
               </Text>
             </Text>
             <Text color="$uiNeutralPlaceholder" caption2 textAlign="justify">
