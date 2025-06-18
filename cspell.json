@@ -24,6 +24,7 @@
     "byscore",
     "bytea",
     "chainid",
+    "chainlink",
     "clippy",
     "codegen",
     "cosealg",

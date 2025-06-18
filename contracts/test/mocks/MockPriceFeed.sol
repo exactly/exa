@@ -22,4 +22,13 @@ contract MockPriceFeed is IPriceFeed {
   }
 
   event AnswerUpdated(int256 indexed current, uint256 indexed roundId, uint256 timestamp);
+  event NewRound(uint256 indexed roundId, address indexed startedBy, uint256 startedAt);
+  event NewTransmission(
+    uint32 indexed aggregatorRoundId,
+    int192 answer,
+    address transmitter,
+    int192[] observations,
+    bytes observers,
+    bytes32 rawReportContext
+  );
 }
