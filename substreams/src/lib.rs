@@ -1,9 +1,11 @@
-use contracts::{auditor::events as auditor_events, is_auditor, is_market, market::events};
+use contracts::{
+  auditor::events as auditor_events, chainlink::events as chainlink_events, is_auditor, is_market, market::events,
+};
 use proto::exa::{
   events::{
-    AccumulatorAccrual, Borrow, BorrowAtMaturity, EarningsAccumulatorSmoothFactorSet, FixedEarningsUpdate,
-    FloatingDebtUpdate, InterestRateModelSet, MarketEntered, MarketExited, MarketUpdate, MaxFuturePoolsSet, Repay,
-    RepayAtMaturity, Transfer, TreasurySet,
+    AccumulatorAccrual, AnswerUpdated, Borrow, BorrowAtMaturity, EarningsAccumulatorSmoothFactorSet,
+    FixedEarningsUpdate, FloatingDebtUpdate, InterestRateModelSet, MarketEntered, MarketExited, MarketUpdate,
+    MaxFuturePoolsSet, NewRound, NewTransmission, Repay, RepayAtMaturity, Transfer, TreasurySet,
   },
   Events,
 };
@@ -21,6 +23,19 @@ use substreams_ethereum::{pb::eth::v2::Block, Event};
 
 mod contracts;
 mod proto;
+
+// FIXME: hardcoded values for op-sepolia. get aggregators from price feeds
+pub fn is_chainlink_aggregator(address: &[u8]) -> bool {
+  matches!(
+    address,
+    hex!("96d0CbdA3A58c86f987ba50168802758D5617057") // DAI aggregator
+    | hex!("8a3d029338051B1B35eF06988c5F42eE2fAD81C4") // USDC aggregator
+    | hex!("7345Bb00B785ddE39756426D675C71E50e8aD492") // OP aggregator
+    | hex!("2E7B57987A1E2c7B028fD2183EB21634e260f9cc") // WBTC aggregator
+    | hex!("466A262E70d92eefd641ad508a6D7B3AC67D9949") // ETH aggregator
+    | hex!("6555df705746fdC5531e2A3c2b333a85B588D2e1") // wstETH aggregator
+  )
+}
 
 #[substreams::handlers::map]
 pub fn map_blocks(block: Block) -> Result<Events, Error> {
@@ -202,6 +217,55 @@ pub fn map_blocks(block: Block) -> Result<Events, Error> {
           log_ordinal: log.ordinal(),
         }),
         _ => None,
+      })
+      .collect(),
+    // price tracking
+    answer_updates: block
+      .logs()
+      .filter_map(|log| {
+        match (is_chainlink_aggregator(log.address()), chainlink_events::AnswerUpdated::match_and_decode(log)) {
+          (true, Some(event)) => Some(AnswerUpdated {
+            oracle: log.address().to_vec(),
+            current: event.current.to_string(),
+            round_id: event.round_id.to_u64(),
+            timestamp: event.timestamp.to_u64(),
+            log_ordinal: log.ordinal(),
+          }),
+          _ => None,
+        }
+      })
+      .collect(),
+    new_rounds: block
+      .logs()
+      .filter_map(|log| {
+        match (is_chainlink_aggregator(log.address()), chainlink_events::NewRound::match_and_decode(log)) {
+          (true, Some(event)) => Some(NewRound {
+            oracle: log.address().to_vec(),
+            round_id: event.round_id.to_u64(),
+            started_by: event.started_by.to_vec(),
+            started_at: event.started_at.to_u64(),
+            log_ordinal: log.ordinal(),
+          }),
+          _ => None,
+        }
+      })
+      .collect(),
+    new_transmissions: block
+      .logs()
+      .filter_map(|log| {
+        match (is_chainlink_aggregator(log.address()), chainlink_events::NewTransmission::match_and_decode(log)) {
+          (true, Some(event)) => Some(NewTransmission {
+            oracle: log.address().to_vec(),
+            aggregator_round_id: event.aggregator_round_id.to_u64(),
+            answer: event.answer.to_string(),
+            transmitter: event.transmitter.to_vec(),
+            observations: event.observations.iter().map(|obs| obs.to_string()).collect(),
+            observers: event.observers.to_vec(),
+            raw_report_context: event.raw_report_context.to_vec(),
+            log_ordinal: log.ordinal(),
+          }),
+          _ => None,
+        }
       })
       .collect(),
   })
