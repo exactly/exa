@@ -7,7 +7,7 @@ import chain, {
 } from "@exactly/common/generated/chain";
 import shortenHex from "@exactly/common/shortenHex";
 import { Address, Hash, Hex } from "@exactly/common/validation";
-import { SPAN_STATUS_ERROR, SPAN_STATUS_OK } from "@sentry/core";
+import { setUser, SPAN_STATUS_ERROR, SPAN_STATUS_OK } from "@sentry/core";
 import {
   captureException,
   continueTrace,
@@ -33,6 +33,7 @@ import {
   decodeAbiParameters,
   decodeEventLog,
   encodeErrorResult,
+  encodeFunctionData,
   ExecutionRevertedError,
   formatUnits,
 } from "viem";
@@ -53,6 +54,7 @@ import keeper from "../utils/keeper";
 import { sendPushNotification } from "../utils/onesignal";
 import publicClient from "../utils/publicClient";
 import redis from "../utils/redis";
+import traceClient from "../utils/traceClient";
 
 if (!process.env.ALCHEMY_BLOCK_KEY) throw new Error("missing alchemy block key");
 const signingKeys = new Set([process.env.ALCHEMY_BLOCK_KEY]);
@@ -214,51 +216,148 @@ function scheduleProposal(proposal: v.InferOutput<typeof Proposal>) {
 function scheduleMessage(message: string) {
   const { account, amount, data, id, market, nonce, proposalType, sentryBaggage, sentryTrace, timestamp, unlock } =
     v.parse(Proposal, deserialize(message));
+
   setTimeout((Number(unlock) + 10) * 1000 - Date.now())
     .then(async () => {
-      const mutex = mutexes.get(account) ?? createMutex(account);
-      await mutex
-        .runExclusive(() =>
-          continueTrace({ sentryTrace, baggage: sentryBaggage }, () =>
-            startSpan({ name: "exa.execute", op: "exa.execute", forceTransaction: true }, (parent) =>
-              startSpan(
-                {
-                  name: "execute proposal",
-                  op: "queue.process",
-                  attributes: {
-                    account,
-                    amount: String(amount),
-                    data,
-                    market,
-                    nonce: Number(nonce),
-                    proposalType,
-                    timestamp,
-                    unlock: Number(unlock),
-                    "messaging.destination.name": "proposals",
-                    "messaging.message.id": id,
-                    "messaging.message.receive.latency": Date.now() - Number(unlock) * 1000,
-                  },
-                },
-                async () => {
-                  await keeper.exaSend(
-                    { name: "exa.execute", op: "exa.execute", attributes: { account } },
+      const mutex =
+        mutexes.get(account) ??
+        continueTrace({ sentryTrace, baggage: sentryBaggage }, () =>
+          startSpan({ name: "exa.mutex.create", op: "exa.mutex" }, () => createMutex(account)),
+        );
+      await continueTrace({ sentryTrace, baggage: sentryBaggage }, () =>
+        startSpan({ name: `exa.mutex.runExclusive.${nonce}`, op: "exa.mutex" }, () =>
+          mutex
+            .runExclusive(() =>
+              continueTrace({ sentryTrace, baggage: sentryBaggage }, () =>
+                startSpan({ name: "exa.execute", op: "exa.execute", forceTransaction: true }, (parent) =>
+                  startSpan(
                     {
-                      address: account,
-                      functionName: "executeProposal",
-                      args: [nonce],
-                      abi: [
-                        ...exaPluginAbi,
-                        ...upgradeableModularAccountAbi,
-                        ...proposalManagerAbi,
-                        ...auditorAbi,
-                        ...marketAbi,
-                      ],
+                      name: "execute proposal",
+                      op: "queue.process",
+                      attributes: {
+                        account,
+                        amount: String(amount),
+                        data,
+                        market,
+                        nonce: Number(nonce),
+                        proposalType,
+                        timestamp,
+                        unlock: Number(unlock),
+                        "messaging.destination.name": "proposals",
+                        "messaging.message.id": id,
+                        "messaging.message.receive.latency": Date.now() - Number(unlock) * 1000,
+                      },
                     },
-                  );
+                    async () => {
+                      setUser({ id: account });
+                      await keeper.exaSend(
+                        { name: "exa.execute", op: "exa.execute", attributes: { account } },
+                        {
+                          address: account,
+                          functionName: "executeProposal",
+                          args: [nonce],
+                          abi: [
+                            ...exaPluginAbi,
+                            ...upgradeableModularAccountAbi,
+                            ...proposalManagerAbi,
+                            ...auditorAbi,
+                            ...marketAbi,
+                          ],
+                        },
+                      );
 
-                  parent.setStatus({ code: SPAN_STATUS_OK });
-                  if (proposalType === ProposalType.Withdraw) {
-                    if (market.toLowerCase() === marketWETHAddress.toLowerCase()) {
+                      parent.setStatus({ code: SPAN_STATUS_OK });
+                      if (proposalType === ProposalType.Withdraw) {
+                        if (market.toLowerCase() === marketWETHAddress.toLowerCase()) {
+                          await keeper.exaSend(
+                            { name: "exa.nonce", op: "exa.nonce", attributes: { account } },
+                            {
+                              address: account,
+                              functionName: "setProposalNonce",
+                              args: [nonce + 1n],
+                              abi: [...exaPluginAbi, ...upgradeableModularAccountAbi, ...proposalManagerAbi],
+                            },
+                          );
+                        }
+                        const receiver = v.parse(
+                          Address,
+                          decodeAbiParameters([{ name: "receiver", type: "address" }], data)[0],
+                        );
+                        Promise.all([
+                          publicClient.readContract({ address: market, abi: marketAbi, functionName: "decimals" }),
+                          publicClient.readContract({ address: market, abi: marketAbi, functionName: "symbol" }),
+                          ensClient.getEnsName({ address: receiver }).catch(() => null),
+                        ])
+                          .then(([decimals, symbol, ensName]) =>
+                            sendPushNotification({
+                              userId: account,
+                              headings: { en: "Withdraw completed" },
+                              contents: {
+                                en: `${formatUnits(BigInt(amount), decimals)} ${symbol.slice(3)} sent to ${ensName ?? shortenHex(receiver)}`,
+                              },
+                            }),
+                          )
+                          .catch((error: unknown) => captureException(error));
+                      }
+                      return redis.zrem("proposals", message);
+                    },
+                  ).catch(async (error: unknown) => {
+                    parent.setStatus({ code: SPAN_STATUS_ERROR, message: "proposal_failed" });
+                    captureException(error, {
+                      level: "error",
+                      contexts: { proposal: { account, nonce, proposalType: ProposalType[proposalType] } },
+                    });
+
+                    if (
+                      error instanceof BaseError &&
+                      error.cause instanceof ContractFunctionRevertedError &&
+                      error.cause.data?.errorName === "NotNext"
+                    ) {
+                      const pendingProposals = await publicClient.readContract({
+                        address: exaPreviewerAddress,
+                        functionName: "pendingProposals",
+                        abi: exaPreviewerAbi,
+                        args: [account],
+                      });
+                      const idleProposals = pendingProposals
+                        .filter((idle) => Number(idle.nonce) <= nonce)
+                        .map((idle) =>
+                          v.parse(Proposal, {
+                            ...idle.proposal,
+                            timestamp: Number(idle.proposal.timestamp),
+                            nonce: idle.nonce,
+                            account,
+                            unlock: idle.unlock,
+                          }),
+                        );
+                      setContext("exa", { idleProposals });
+                      await Promise.all(idleProposals.map((proposal) => scheduleProposal(proposal)));
+                      return redis.zrem("proposals", message);
+                    }
+
+                    if (error instanceof ContractFunctionExecutionError) {
+                      try {
+                        const trace = await startSpan({ name: "debug.trace", op: "debug.trace" }, () =>
+                          traceClient.traceCall({
+                            from: keeper.account.address,
+                            to: account,
+                            data: encodeFunctionData({
+                              functionName: "executeProposal",
+                              args: [nonce],
+                              abi: [
+                                ...exaPluginAbi,
+                                ...upgradeableModularAccountAbi,
+                                ...proposalManagerAbi,
+                                ...auditorAbi,
+                                ...marketAbi,
+                              ],
+                            }),
+                          }),
+                        );
+                        setContext("exa", { trace });
+                      } catch (traceError: unknown) {
+                        captureException(traceError, { level: "error" });
+                      }
                       await keeper.exaSend(
                         { name: "exa.nonce", op: "exa.nonce", attributes: { account } },
                         {
@@ -268,82 +367,21 @@ function scheduleMessage(message: string) {
                           abi: [...exaPluginAbi, ...upgradeableModularAccountAbi, ...proposalManagerAbi],
                         },
                       );
+                      return redis.zrem("proposals", message);
                     }
-                    const receiver = v.parse(
-                      Address,
-                      decodeAbiParameters([{ name: "receiver", type: "address" }], data)[0],
-                    );
-                    Promise.all([
-                      publicClient.readContract({ address: market, abi: marketAbi, functionName: "decimals" }),
-                      publicClient.readContract({ address: market, abi: marketAbi, functionName: "symbol" }),
-                      ensClient.getEnsName({ address: receiver }).catch(() => null),
-                    ])
-                      .then(([decimals, symbol, ensName]) =>
-                        sendPushNotification({
-                          userId: account,
-                          headings: { en: "Withdraw completed" },
-                          contents: {
-                            en: `${formatUnits(BigInt(amount), decimals)} ${symbol.slice(3)} sent to ${ensName ?? shortenHex(receiver)}`,
-                          },
-                        }),
-                      )
-                      .catch((error: unknown) => captureException(error));
-                  }
-                  return redis.zrem("proposals", message);
-                },
-              ).catch(async (error: unknown) => {
-                parent.setStatus({ code: SPAN_STATUS_ERROR, message: "proposal_failed" });
-                captureException(error, {
-                  level: "error",
-                  contexts: { proposal: { account, nonce, proposalType: ProposalType[proposalType] } },
-                });
-
-                if (
-                  error instanceof BaseError &&
-                  error.cause instanceof ContractFunctionRevertedError &&
-                  error.cause.data?.errorName === "NotNext"
-                ) {
-                  const pendingProposals = await publicClient.readContract({
-                    address: exaPreviewerAddress,
-                    functionName: "pendingProposals",
-                    abi: exaPreviewerAbi,
-                    args: [account],
-                  });
-                  const idleProposals = pendingProposals
-                    .filter((idle) => Number(idle.nonce) <= nonce)
-                    .map((idle) =>
-                      v.parse(Proposal, {
-                        ...idle.proposal,
-                        timestamp: Number(idle.proposal.timestamp),
-                        nonce: idle.nonce,
-                        account,
-                        unlock: idle.unlock,
-                      }),
-                    );
-                  setContext("exa", { idleProposals });
-                  await Promise.all(idleProposals.map((proposal) => scheduleProposal(proposal)));
-                  return redis.zrem("proposals", message);
-                }
-
-                if (error instanceof ContractFunctionExecutionError) {
-                  await keeper.exaSend(
-                    { name: "exa.nonce", op: "exa.nonce", attributes: { account } },
-                    {
-                      address: account,
-                      functionName: "setProposalNonce",
-                      args: [nonce + 1n],
-                      abi: [...exaPluginAbi, ...upgradeableModularAccountAbi, ...proposalManagerAbi],
-                    },
-                  );
-                  return redis.zrem("proposals", message);
-                }
-              }),
-            ),
-          ),
-        )
-        .finally(() => {
-          if (!mutex.isLocked()) mutexes.delete(account);
-        });
+                  }),
+                ),
+              ),
+            )
+            .finally(() => {
+              if (!mutex.isLocked()) {
+                continueTrace({ sentryTrace, baggage: sentryBaggage }, () =>
+                  startSpan({ name: "exa.mutex.delete", op: "exa.mutex" }, () => mutexes.delete(account)),
+                );
+              }
+            }),
+        ),
+      );
     })
     .catch((error: unknown) => captureException(error));
 }
