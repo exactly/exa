@@ -22,12 +22,18 @@ fn main() -> Result<(), Error> {
   println!("cargo::rerun-if-changed=node_modules/@exactly/protocol/deployments");
   println!("cargo::rerun-if-changed=../contracts/script/ExaAccountFactory.s.sol");
   println!("cargo::rerun-if-changed=../contracts/test/mocks/MockSwapper.sol");
+  println!("cargo::rerun-if-changed=../contracts/test/mocks/MockPriceFeed.sol");
   println!("cargo::rerun-if-changed=../contracts/node_modules/@exactly/contracts/contracts/Auditor.sol");
   println!("cargo::rerun-if-changed=../contracts/node_modules/@exactly/contracts/contracts/Market.sol");
 
   create_dir_all("abi")?;
-  let contracts =
-    [("auditor", "Auditor"), ("factory", "ExaAccountFactory"), ("lifi", "MockSwapper"), ("market", "Market")];
+  let contracts = [
+    ("auditor", "Auditor"),
+    ("factory", "ExaAccountFactory"),
+    ("lifi", "MockSwapper"),
+    ("market", "Market"),
+    ("chainlink", "MockPriceFeed"),
+  ];
 
   assert!(Command::new("bash")
     .arg("-c")
@@ -72,6 +78,13 @@ fn main() -> Result<(), Error> {
             {}
           )
         }}
+
+        pub fn is_chainlink(address: &[u8]) -> bool {{
+          matches!(
+            address,
+            {}
+          )
+        }}
       "},
       contracts
         .iter()
@@ -97,6 +110,21 @@ fn main() -> Result<(), Error> {
       .join("\n      | "),
       glob(&format!(
         "node_modules/@exactly/protocol/deployments/{}/Auditor.json",
+        match option_env!("CHAIN_ID") {
+          Some("10") => "optimism",
+          _ => "op-sepolia",
+        }
+      ))?
+      .filter_map(Result::ok)
+      .map(|path| -> Result<String, Error> {
+        println!("cargo::rerun-if-changed={}", path.display());
+        Ok(format!("hex!(\"{}\")", &from_str::<Deployment>(&read_to_string(&path)?)?.address[2..]))
+      })
+      .collect::<Result<Vec<_>, _>>()?
+      .join("\n      | "),
+      // FIXME: get price feed aggregators
+      glob(&format!(
+        "node_modules/@exactly/protocol/deployments/{}/PriceFeed*.json",
         match option_env!("CHAIN_ID") {
           Some("10") => "optimism",
           _ => "op-sepolia",

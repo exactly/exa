@@ -19,6 +19,11 @@ message Events {
   repeated Transfer transfers = 14;
   repeated TreasurySet treasury_sets = 15;
 
+  // price tracking
+  repeated AnswerUpdated answer_updates = 16;
+  repeated NewRound new_rounds = 17;
+  repeated NewTransmission new_transmissions = 18;
+
   message AccumulatorAccrual {
     bytes market = 1;
     // internals
@@ -135,6 +140,38 @@ message Events {
     bytes market = 1;
     bytes treasury = 2;
     string treasury_fee_rate = 3;
+    // internals
+    uint64 log_ordinal = 30;
+  }
+
+  // price tracking
+
+  message AnswerUpdated {
+    bytes oracle = 1;
+    string current = 2;
+    uint64 round_id = 3;
+    uint64 timestamp = 4;
+    // internals
+    uint64 log_ordinal = 30;
+  }
+
+  message NewRound {
+    bytes oracle = 1;
+    uint64 round_id = 2;
+    bytes started_by = 3;
+    uint64 started_at = 4;
+    // internals
+    uint64 log_ordinal = 30;
+  }
+
+  message NewTransmission {
+    bytes oracle = 1;
+    uint64 aggregator_round_id = 2;
+    string answer = 3;
+    bytes transmitter = 4;
+    repeated string observations = 5;
+    bytes observers = 6;
+    bytes raw_report_context = 7;
     // internals
     uint64 log_ordinal = 30;
   }
