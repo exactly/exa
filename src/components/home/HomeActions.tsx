@@ -1,5 +1,5 @@
 import { exaPluginAddress } from "@exactly/common/generated/chain";
-import { ArrowDownToLine, ArrowUpRight } from "@tamagui/lucide-icons";
+import { ArrowDownToLine, ArrowUpRight, Repeat } from "@tamagui/lucide-icons";
 import { router } from "expo-router";
 import React from "react";
 import { PixelRatio } from "react-native";
@@ -97,6 +97,23 @@ export default function HomeActions() {
       >
         <Text fontSize={15} emphasized numberOfLines={1} adjustsFontSizeToFit color="$interactiveOnBaseBrandSoft">
           Send
+        </Text>
+      </Button>
+      <Button
+        main
+        spaced
+        onPress={() => {
+          router.push("/swaps");
+        }}
+        iconAfter={<Repeat size={18 * fontScale} color="$interactiveOnBaseBrandSoft" />}
+        backgroundColor="$interactiveBaseBrandSoftDefault"
+        color="$interactiveOnBaseBrandSoft"
+        outlined
+        fullwidth
+        flex={1}
+      >
+        <Text fontSize={15} emphasized numberOfLines={1} adjustsFontSizeToFit color="$interactiveOnBaseBrandSoft">
+          Swap
         </Text>
       </Button>
     </XStack>
