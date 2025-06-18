@@ -9,6 +9,7 @@ import { getTokenBalances } from "./lifi";
 import { useReadPreviewerExactly } from "../generated/contracts";
 
 export interface ProtocolAsset {
+  asset: string;
   type: "protocol";
   symbol: string;
   assetName: string;
