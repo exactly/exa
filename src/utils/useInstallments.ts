@@ -1,21 +1,29 @@
 import MIN_BORROW_INTERVAL from "@exactly/common/MIN_BORROW_INTERVAL";
 import { marketUSDCAddress } from "@exactly/common/generated/chain";
+import type { Hex } from "@exactly/common/validation";
 import { fixedUtilization, globalUtilization, MATURITY_INTERVAL, splitInstallments } from "@exactly/lib";
 import { useMemo } from "react";
 
 import useAsset from "./useAsset";
 
-export default function useInstallments({ totalAmount, installments }: { totalAmount: bigint; installments: number }) {
-  const { market } = useAsset(marketUSDCAddress);
+export default function useInstallments({
+  totalAmount,
+  installments,
+  marketAddress = marketUSDCAddress,
+  timestamp = Math.floor(Date.now() / 1000),
+}: {
+  totalAmount: bigint;
+  installments: number;
+  marketAddress?: Hex;
+  timestamp?: number;
+}) {
+  const { market } = useAsset(marketAddress);
 
   return useMemo(() => {
     const isLoading = !market;
-
-    const timestamp = Math.floor(Date.now() / 1000);
     const nextMaturity = timestamp - (timestamp % MATURITY_INTERVAL) + MATURITY_INTERVAL;
     const firstMaturity =
       nextMaturity - timestamp < MIN_BORROW_INTERVAL ? nextMaturity + MATURITY_INTERVAL : nextMaturity;
-
     let data: ReturnType<typeof splitInstallments> | undefined;
     if (market && totalAmount > 0n && installments > 1) {
       data = splitInstallments(
@@ -44,5 +52,5 @@ export default function useInstallments({ totalAmount, installments }: { totalAm
       timestamp,
       isFetching: isLoading || (installments > 1 && !data && totalAmount > 0n),
     };
-  }, [market, totalAmount, installments]);
+  }, [market, timestamp, installments, totalAmount]);
 }
