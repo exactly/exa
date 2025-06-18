@@ -1,5 +1,5 @@
 import { exaPluginAddress, marketUSDCAddress } from "@exactly/common/generated/chain";
-import { ArrowDownToLine, ArrowUpRight, HandCoins } from "@tamagui/lucide-icons";
+import { ArrowDownToLine, ArrowUpRight, HandCoins, Repeat } from "@tamagui/lucide-icons";
 import { router } from "expo-router";
 import React from "react";
 import { Spinner, XStack, YStack } from "tamagui";
@@ -71,6 +71,9 @@ export default function HomeActions() {
                 case "send":
                   handleSend().catch(reportError);
                   break;
+                case "swap":
+                  router.push("/swaps");
+                  break;
                 case "borrow":
                   queryClient.setQueryData(["loan"], (old: Loan) => ({ ...old, market: marketUSDCAddress }));
                   router.push("/(app)/loan/amount");
@@ -105,6 +108,11 @@ const actions = [
     key: "send",
     title: "Send",
     icon: <ArrowUpRight size={18} color="$interactiveOnBaseBrandSoft" />,
+  },
+  {
+    key: "swap",
+    title: "Swap",
+    icon: <Repeat size={18} color="$interactiveOnBaseBrandSoft" />,
   },
   {
     key: "borrow",
