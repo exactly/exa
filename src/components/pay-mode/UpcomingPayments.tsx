@@ -141,7 +141,7 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
                     ) : null}
                   </XStack>
                   <XStack alignItems="center" gap="$s3">
-                    {processing ? null : (
+                    {processing || discount < 0.001 ? null : (
                       <View
                         alignSelf="center"
                         justifyContent="center"
@@ -152,7 +152,7 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
                         paddingHorizontal="$s2"
                       >
                         <Text emphasized color="$interactiveOnBaseSuccessDefault" maxFontSizeMultiplier={1} caption2>
-                          {`${(discount >= 0 ? discount : discount * -1).toLocaleString(undefined, {
+                          {`${discount.toLocaleString(undefined, {
                             style: "percent",
                             minimumFractionDigits: 2,
                             maximumFractionDigits: 2,
