@@ -1,5 +1,5 @@
 import { exaPreviewerAddress, marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
-import { Coins, CreditCard, HandCoins, Home, ReceiptText } from "@tamagui/lucide-icons";
+import { Coins, CreditCard, HandCoins, Home, ReceiptText, Repeat } from "@tamagui/lucide-icons";
 import { router } from "expo-router";
 import React from "react";
 import { RefreshControl } from "react-native";
@@ -56,7 +56,8 @@ export default function More() {
                 alignItems="center"
                 cursor="pointer"
                 onPress={() => {
-                  router.replace(path === "index" ? "/(app)/(home)" : `/(app)/(home)/${path}`);
+                  if (path === "swaps") router.push("/swaps");
+                  else router.replace(path === "index" ? "/(app)/(home)" : `/(app)/(home)/${path}`);
                 }}
               >
                 <View>
@@ -82,6 +83,7 @@ const screens = [
   { name: "card", title: "Card", Icon: CreditCard },
   { name: "pay-mode", title: "Pay Mode", Icon: Coins },
   { name: "loans", title: "Loans", Icon: HandCoins },
+  { name: "swaps", title: "Swaps", Icon: Repeat },
   { name: "activity", title: "Activity", Icon: ReceiptText },
 ] as const;
 

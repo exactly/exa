@@ -1,9 +1,8 @@
-import { exaPluginAddress } from "@exactly/common/generated/chain";
-import { ArrowDownToLine, ArrowUpRight } from "@tamagui/lucide-icons";
+import { exaPluginAddress, marketUSDCAddress } from "@exactly/common/generated/chain";
+import { ArrowDownToLine, ArrowUpRight, HandCoins } from "@tamagui/lucide-icons";
 import { router } from "expo-router";
 import React from "react";
-import { PixelRatio } from "react-native";
-import { Spinner, XStack } from "tamagui";
+import { Spinner, XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
 import { useAccount, useBytecode, useReadContract } from "wagmi";
 
@@ -11,12 +10,13 @@ import {
   upgradeableModularAccountAbi,
   useReadUpgradeableModularAccountGetInstalledPlugins,
 } from "../../generated/contracts";
+import type { Loan } from "../../utils/queryClient";
+import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import Button from "../shared/Button";
 import Text from "../shared/Text";
 
 export default function HomeActions() {
-  const fontScale = PixelRatio.getFontScale();
   const { address: account } = useAccount();
   const { data: bytecode } = useBytecode({ address: account ?? zeroAddress, query: { enabled: !!account } });
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
@@ -24,7 +24,7 @@ export default function HomeActions() {
     query: { enabled: !!account && !!bytecode },
   });
   const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
-  const { refetch: fetchProposals, isFetching } = useReadContract({
+  const { refetch: fetchProposals, isPending } = useReadContract({
     functionName: "proposals",
     abi: [
       ...upgradeableModularAccountAbi,
@@ -50,55 +50,65 @@ export default function HomeActions() {
     if (isLatestPlugin) {
       router.push("/send-funds");
     } else {
-      if (isFetching) return;
+      if (isPending) return;
       const { data: proposals } = await fetchProposals();
       const route = proposals && proposals[0] > 0n ? "/send-funds/processing" : "/send-funds";
       router.push(route);
     }
   };
   return (
-    <XStack alignItems="center" gap="$s4">
-      <Button
-        main
-        spaced
-        onPress={() => {
-          router.push("/add-funds/add-crypto");
-        }}
-        iconAfter={<ArrowDownToLine size={18 * fontScale} color="$interactiveOnBaseBrandDefault" />}
-        backgroundColor="$interactiveBaseBrandDefault"
-        color="$interactiveOnBaseBrandDefault"
-        contained
-        fullwidth
-        flex={1}
-      >
-        <Text fontSize={15} emphasized numberOfLines={1} adjustsFontSizeToFit color="$interactiveOnBaseBrandDefault">
-          Add funds
-        </Text>
-      </Button>
-      <Button
-        main
-        spaced
-        onPress={() => {
-          handleSend().catch(reportError);
-        }}
-        disabled={isLatestPlugin ? false : isFetching}
-        iconAfter={
-          isLatestPlugin || !isFetching ? (
-            <ArrowUpRight size={18 * fontScale} color="$interactiveOnBaseBrandSoft" />
-          ) : (
-            <Spinner height={18 * fontScale} width={18 * fontScale} color="$interactiveOnBaseBrandSoft" />
-          )
-        }
-        backgroundColor="$interactiveBaseBrandSoftDefault"
-        color="$interactiveOnBaseBrandSoft"
-        outlined
-        fullwidth
-        flex={1}
-      >
-        <Text fontSize={15} emphasized numberOfLines={1} adjustsFontSizeToFit color="$interactiveOnBaseBrandSoft">
-          Send
-        </Text>
-      </Button>
+    <XStack gap="$s4" flexWrap="wrap" width="100%" justifyContent="space-between">
+      {actions.map(({ key, title, icon }) => (
+        <YStack key={key} alignItems="center" justifyContent="center" gap="$s3_5" flex={1}>
+          <Button
+            contained={key === "deposit"}
+            outlined={key !== "deposit"}
+            onPress={() => {
+              switch (key) {
+                case "deposit":
+                  router.push("/add-funds/add-crypto");
+                  break;
+                case "send":
+                  handleSend().catch(reportError);
+                  break;
+                case "borrow":
+                  queryClient.setQueryData(["loan"], (old: Loan) => ({ ...old, market: marketUSDCAddress }));
+                  router.push("/(app)/loan/amount");
+              }
+            }}
+            cursor="pointer"
+            icon={
+              key === "send" && !isLatestPlugin && isPending ? (
+                <Spinner height={18} width={18} color="$interactiveOnBaseBrandSoft" />
+              ) : (
+                icon
+              )
+            }
+            width="100%"
+          />
+          <Text footnote adjustsFontSizeToFit color="$backgroundBrand" flex={1}>
+            {title}
+          </Text>
+        </YStack>
+      ))}
     </XStack>
   );
 }
+
+const actions = [
+  {
+    key: "deposit",
+    title: "Deposit",
+    icon: <ArrowDownToLine size={18} color="$interactiveOnBaseBrandDefault" />,
+  },
+  {
+    key: "send",
+    title: "Send",
+    icon: <ArrowUpRight size={18} color="$interactiveOnBaseBrandSoft" />,
+  },
+  {
+    key: "borrow",
+    title: "Borrow",
+    icon: <HandCoins size={18} color="$interactiveOnBaseBrandSoft" />,
+  },
+];

@@ -5,12 +5,12 @@ import { useQuery } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
 import { RefreshControl } from "react-native";
-import { ScrollView, useTheme } from "tamagui";
+import { ScrollView, useTheme, YStack } from "tamagui";
 import { zeroAddress } from "viem";
 import { useAccount, useBytecode } from "wagmi";
 
-import CardLimits from "./CardLimits";
 import CardStatus from "./CardStatus";
+import ExploreLoans from "./ExploreLoans";
 import GettingStarted from "./GettingStarted";
 import HomeActions from "./HomeActions";
 import PortfolioSummary from "./PortfolioSummary";
@@ -38,6 +38,7 @@ import View from "../shared/View";
 const HEALTH_FACTOR_THRESHOLD = (WAD * 11n) / 10n;
 
 export default function Home() {
+  const theme = useTheme();
   const { address } = useAccount();
   const parameters = useLocalSearchParams();
   const [paySheetOpen, setPaySheetOpen] = useState(false);
@@ -56,15 +57,10 @@ export default function Home() {
       return false;
     },
   });
-  const theme = useTheme();
   const { refetch: refetchPendingProposals } = useReadExaPreviewerPendingProposals({
     address: exaPreviewerAddress,
     args: [address ?? zeroAddress],
-    query: {
-      enabled: !!address,
-      gcTime: 0,
-      refetchInterval: 30_000,
-    },
+    query: { enabled: !!address, gcTime: 0, refetchInterval: 30_000 },
   });
   const {
     data: activity,
@@ -128,7 +124,7 @@ export default function Home() {
         >
           <ProfileHeader />
           <View flex={1}>
-            <View backgroundColor="$backgroundSoft" padded gap="$s4">
+            <YStack backgroundColor="$backgroundSoft" padding="$s4" gap="$s4">
               {markets && healthFactor(markets) < HEALTH_FACTOR_THRESHOLD && <LiquidationAlert />}
               {(legacyKYCStatus === "ok" && KYCStatus !== "ok") ||
                 (bytecode && !isLatestPlugin && (
@@ -140,16 +136,17 @@ export default function Home() {
                     }}
                   />
                 ))}
-              <CardLimits
+              <YStack gap="$s8">
+                <PortfolioSummary usdBalance={usdBalance} />
+                <HomeActions />
+              </YStack>
+            </YStack>
+            <View padded gap="$s5">
+              <CardStatus
                 onInfoPress={() => {
                   setSpendingLimitsInfoSheetOpen(true);
                 }}
               />
-              <HomeActions />
-              <PortfolioSummary usdBalance={usdBalance} />
-            </View>
-            <View padded gap="$s5">
-              <CardStatus />
               <GettingStarted hasFunds={usdBalance > 0n} hasKYC={KYCStatus === "ok"} />
               <OverduePayments
                 onSelect={(maturity) => {
