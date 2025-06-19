@@ -124,15 +124,17 @@ export default function PendingProposals() {
     <SafeView fullScreen>
       <View fullScreen padded>
         <View flexDirection="row" gap={10} paddingBottom="$s4" justifyContent="space-between" alignItems="center">
-          {canGoBack() && (
-            <Pressable
-              onPress={() => {
+          <Pressable
+            onPress={() => {
+              if (canGoBack()) {
                 router.back();
-              }}
-            >
-              <ArrowLeft size={24} color="$uiNeutralPrimary" />
-            </Pressable>
-          )}
+              } else {
+                router.replace("/");
+              }
+            }}
+          >
+            <ArrowLeft size={24} color="$uiNeutralPrimary" />
+          </Pressable>
           <View flexDirection="row" alignItems="center">
             <Text color="$uiNeutralSecondary" fontSize={15} fontWeight="bold">
               Pending requests
