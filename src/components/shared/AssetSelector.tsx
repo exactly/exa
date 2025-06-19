@@ -53,14 +53,14 @@ export default function AssetSelector({
         flexDirection="column"
         backgroundColor="transparent"
         padding="$s3"
-        onValueChange={(value) => {
-          const market = safeParse(Address, value);
-          if (!market.success) return;
-          setSelectedMarket(market.output);
-          const isExternalAsset = externalAssets.some(({ address }) => address === market.output);
-          onSubmit(market.output, isExternalAsset);
-        }}
         value={selectedMarket}
+        onValueChange={(value) => {
+          const { success, output } = safeParse(Address, value === "" ? selectedMarket : value);
+          if (!success) return;
+          setSelectedMarket(output);
+          const isExternalAsset = externalAssets.some(({ address }) => address === output);
+          onSubmit(output, isExternalAsset);
+        }}
       >
         {accountAssets.map((item) => {
           if (item.type === "external") {
