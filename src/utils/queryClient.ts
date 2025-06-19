@@ -138,6 +138,13 @@ queryClient.setQueryDefaults(["settings", "rollover-intro-shown"], {
   gcTime: Infinity,
   queryFn: () => queryClient.getQueryData(["settings", "rollover-intro-shown"]),
 });
+queryClient.setQueryDefaults(["settings", "explore-loans-shown"], {
+  initialData: true,
+  retry: false,
+  staleTime: Infinity,
+  gcTime: Infinity,
+  queryFn: () => queryClient.getQueryData(["settings", "explore-loans-shown"]),
+});
 
 export type ActivityItem = Awaited<ReturnType<typeof getActivity>>[number];
 export interface Withdraw {
