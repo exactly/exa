@@ -9,10 +9,10 @@ import { formatUnits } from "viem";
 
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
-import TransactionDetails from "../pay-mode/TransactionDetails";
 import SafeView from "../shared/SafeView";
 import ExaSpinner from "../shared/Spinner";
 import Text from "../shared/Text";
+import TransactionDetails from "../shared/TransactionDetails";
 import View from "../shared/View";
 
 export default function Success({

@@ -5,11 +5,10 @@ import { useQuery } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
 import { RefreshControl } from "react-native";
-import { ScrollView, useTheme } from "tamagui";
+import { ScrollView, useTheme, YStack } from "tamagui";
 import { zeroAddress } from "viem";
 import { useAccount, useBytecode } from "wagmi";
 
-import CardLimits from "./CardLimits";
 import CardStatus from "./CardStatus";
 import GettingStarted from "./GettingStarted";
 import HomeActions from "./HomeActions";
@@ -118,7 +117,7 @@ export default function Home() {
         >
           <ProfileHeader />
           <View flex={1}>
-            <View backgroundColor="$backgroundSoft" padded gap="$s4">
+            <YStack backgroundColor="$backgroundSoft" padding="$s4" gap="$s4">
               {markets && healthFactor(markets) < HEALTH_FACTOR_THRESHOLD && <LiquidationAlert />}
               {(legacyKYCStatus === "ok" && KYCStatus !== "ok") ||
                 (bytecode && !isLatestPlugin && (
@@ -130,16 +129,17 @@ export default function Home() {
                     }}
                   />
                 ))}
-              <CardLimits
+              <YStack gap="$s8">
+                <PortfolioSummary usdBalance={usdBalance} />
+                <HomeActions />
+              </YStack>
+            </YStack>
+            <View padded gap="$s5">
+              <CardStatus
                 onInfoPress={() => {
                   setSpendingLimitsInfoSheetOpen(true);
                 }}
               />
-              <HomeActions />
-              <PortfolioSummary usdBalance={usdBalance} />
-            </View>
-            <View padded gap="$s5">
-              <CardStatus />
               <GettingStarted hasFunds={usdBalance > 0n} hasKYC={KYCStatus === "ok"} />
               <OverduePayments
                 onSelect={(maturity) => {
