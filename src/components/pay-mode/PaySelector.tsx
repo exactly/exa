@@ -245,7 +245,7 @@ function InstallmentButton({
           alignItems="center"
           justifyContent="center"
         >
-          {selected && <Check size={12} color="$backgroundSoft" />}
+          {selected && <Check size={12} color="$interactiveOnBaseBrandDefault" />}
         </XStack>
         <YStack gap="$s1" flex={1}>
           <XStack gap="$s1">
