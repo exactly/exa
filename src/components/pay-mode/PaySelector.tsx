@@ -5,9 +5,8 @@ import { CircleHelp, Check } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Skeleton } from "moti/skeleton";
 import React, { useMemo, useState } from "react";
-import { useColorScheme, Pressable, StyleSheet } from "react-native";
+import { Pressable, StyleSheet } from "react-native";
 import { XStack, YStack } from "tamagui";
 import { formatUnits, parseUnits, zeroAddress } from "viem";
 import { useAccount } from "wagmi";
@@ -19,6 +18,7 @@ import { getCard, setCardMode } from "../../utils/server";
 import useAsset from "../../utils/useAsset";
 import useInstallments from "../../utils/useInstallments";
 import useIntercom from "../../utils/useIntercom";
+import Skeleton from "../shared/Skeleton";
 import TamaguiInput from "../shared/TamaguiInput";
 import Text from "../shared/Text";
 import View from "../shared/View";
@@ -200,7 +200,6 @@ function InstallmentButton({
   onSelect: (installment: number) => void;
   assets: bigint;
 }) {
-  const theme = useColorScheme();
   const { market, account } = useAsset(marketUSDCAddress);
   const calculationAssets = assets === 0n ? 100_000_000n : assets;
   const {
@@ -254,7 +253,7 @@ function InstallmentButton({
             </Text>
             {installment > 0 &&
               (isInstallmentsFetching || (installment === 1 && isBorrowPreviewLoading) ? (
-                <Skeleton height={20} width="100%" colorMode={theme ?? "light"} />
+                <Skeleton height={20} width="100%" />
               ) : (
                 <Text headline numberOfLines={1} adjustsFontSizeToFit flex={1}>
                   {Number(
@@ -272,7 +271,7 @@ function InstallmentButton({
           </XStack>
           {installment > 0 &&
             (isInstallmentsFetching || isBorrowPreviewLoading ? (
-              <Skeleton height={20} colorMode={theme ?? "light"} />
+              <Skeleton height={20} />
             ) : (
               <Text footnote color="$uiNeutralSecondary">
                 {`${
@@ -301,7 +300,7 @@ function InstallmentButton({
             adjustsFontSizeToFit
           >
             {isInstallmentsFetching || (installment === 1 && isBorrowPreviewLoading) ? (
-              <Skeleton height={20} width="100%" colorMode={theme ?? "light"} />
+              <Skeleton height={20} width="100%" />
             ) : (
               (assets === 0n
                 ? Number(assets)

@@ -1,15 +1,15 @@
 import { WAD } from "@exactly/lib";
 import type { Token } from "@lifi/sdk";
 import { useForm } from "@tanstack/react-form";
-import { Skeleton } from "moti/skeleton";
 import React, { useCallback, useEffect } from "react";
-import { useColorScheme, Image, Pressable } from "react-native";
+import { Image, Pressable } from "react-native";
 import { styled, XStack, YStack } from "tamagui";
 import { pipe, string, nonEmpty } from "valibot";
 import { formatUnits, parseUnits } from "viem";
 
 import useAccountAssets from "../../utils/useAccountAssets";
 import Input from "../shared/Input";
+import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
@@ -36,7 +36,6 @@ export default function TokenInput({
   onFocus,
   onChange,
 }: TokenInputProperties) {
-  const theme = useColorScheme();
   const { externalAssets, protocolAssets } = useAccountAssets();
 
   const { Field, setFieldValue } = useForm({
@@ -88,7 +87,7 @@ export default function TokenInput({
           {token ? (
             <Image source={{ uri: token.logoURI }} width={40} height={40} borderRadius={16} />
           ) : (
-            <Skeleton radius="round" colorMode={theme ?? "light"} height={40} width={40} />
+            <Skeleton radius="round" height={40} width={40} />
           )}
         </Pressable>
 
@@ -96,7 +95,7 @@ export default function TokenInput({
           <XStack alignItems="center" gap="$s2" justifyContent="space-between">
             {isLoading && !isActive ? (
               <View flex={1}>
-                <Skeleton height={28} width="100%" colorMode={theme ?? "light"} />
+                <Skeleton height={28} width="100%" />
               </View>
             ) : (
               <Field name="amountInput" validators={{ onChange: pipe(string(), nonEmpty("empty")) }}>
@@ -120,7 +119,7 @@ export default function TokenInput({
           <XStack paddingHorizontal="$s3">
             {isLoading && !isActive ? (
               <View flex={1}>
-                <Skeleton height={28} width={100} colorMode={theme ?? "light"} />
+                <Skeleton height={28} width={100} />
               </View>
             ) : (
               <Text callout color="$uiNeutralPlaceholder">
