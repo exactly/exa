@@ -7,7 +7,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Skeleton } from "moti/skeleton";
 import React, { useMemo, useState } from "react";
-import { Appearance, Pressable, StyleSheet } from "react-native";
+import { useColorScheme, Pressable, StyleSheet } from "react-native";
 import { XStack, YStack } from "tamagui";
 import { formatUnits, parseUnits, zeroAddress } from "viem";
 import { useAccount } from "wagmi";
@@ -81,7 +81,6 @@ export default function PaySelector() {
       burntOptions: { haptic: "success" },
     });
   }
-
   return (
     <>
       <View backgroundColor="$backgroundSoft" padded>
@@ -201,6 +200,7 @@ function InstallmentButton({
   onSelect: (installment: number) => void;
   assets: bigint;
 }) {
+  const theme = useColorScheme();
   const { market, account } = useAsset(marketUSDCAddress);
   const calculationAssets = assets === 0n ? 100_000_000n : assets;
   const {
@@ -254,7 +254,7 @@ function InstallmentButton({
             </Text>
             {installment > 0 &&
               (isInstallmentsFetching || (installment === 1 && isBorrowPreviewLoading) ? (
-                <Skeleton height={20} width="100%" colorMode={Appearance.getColorScheme() ?? "light"} />
+                <Skeleton height={20} width="100%" colorMode={theme ?? "light"} />
               ) : (
                 <Text headline numberOfLines={1} adjustsFontSizeToFit flex={1}>
                   {Number(
@@ -272,7 +272,7 @@ function InstallmentButton({
           </XStack>
           {installment > 0 &&
             (isInstallmentsFetching || isBorrowPreviewLoading ? (
-              <Skeleton height={20} colorMode={Appearance.getColorScheme() ?? "light"} />
+              <Skeleton height={20} colorMode={theme ?? "light"} />
             ) : (
               <Text footnote color="$uiNeutralSecondary">
                 {`${
@@ -301,7 +301,7 @@ function InstallmentButton({
             adjustsFontSizeToFit
           >
             {isInstallmentsFetching || (installment === 1 && isBorrowPreviewLoading) ? (
-              <Skeleton height={20} width="100%" colorMode={Appearance.getColorScheme() ?? "light"} />
+              <Skeleton height={20} width="100%" colorMode={theme ?? "light"} />
             ) : (
               (assets === 0n
                 ? Number(assets)

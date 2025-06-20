@@ -7,7 +7,7 @@ import { format } from "date-fns";
 import { router, useLocalSearchParams } from "expo-router";
 import { Skeleton } from "moti/skeleton";
 import React, { useCallback } from "react";
-import { Appearance, Pressable } from "react-native";
+import { useColorScheme, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
 import { nonEmpty, pipe, safeParse, string } from "valibot";
@@ -27,6 +27,7 @@ import useAsset from "../../utils/useAsset";
 import Button from "../shared/Button";
 
 export default function Pay() {
+  const theme = useColorScheme();
   const { address } = useAccount();
   const insets = useSafeAreaInsets();
   const { market: exaUSDC } = useAsset(marketUSDCAddress);
@@ -127,7 +128,7 @@ export default function Pay() {
                   </Text>
                 </XStack>
               ) : (
-                <Skeleton width="100%" height={40} colorMode={Appearance.getColorScheme() ?? "light"} />
+                <Skeleton width="100%" height={40} colorMode={theme ?? "light"} />
               )}
               <XStack justifyContent="space-between" gap="$s3" alignItems="center">
                 <YStack>

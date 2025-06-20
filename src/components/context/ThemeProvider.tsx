@@ -1,6 +1,6 @@
 import { StatusBar } from "expo-status-bar";
 import React, { type ReactNode } from "react";
-import { Appearance } from "react-native";
+import { useColorScheme } from "react-native";
 import { TamaguiProvider } from "tamagui";
 
 import tamagui from "../../../tamagui.config";
@@ -8,8 +8,9 @@ import NotificationToast from "../shared/Toast";
 import SafeToastViewport from "../shared/ToastViewport";
 
 export default function ThemeProvider({ children }: { children: ReactNode }) {
+  const theme = useColorScheme();
   return (
-    <TamaguiProvider config={tamagui} defaultTheme={Appearance.getColorScheme() ?? "light"}>
+    <TamaguiProvider config={tamagui} defaultTheme={theme ?? "light"}>
       {children}
       <NotificationToast />
       <SafeToastViewport />
