@@ -3,9 +3,8 @@ import { ArrowLeft, Coins, User, FilePen } from "@tamagui/lucide-icons";
 import { useForm } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { Skeleton } from "moti/skeleton";
 import React from "react";
-import { useColorScheme, Pressable } from "react-native";
+import { Pressable } from "react-native";
 import { Avatar, ScrollView, XStack } from "tamagui";
 import { bigint, check, pipe } from "valibot";
 
@@ -15,12 +14,12 @@ import useAsset from "../../utils/useAsset";
 import AmountSelector from "../shared/AmountSelector";
 import Button from "../shared/Button";
 import SafeView from "../shared/SafeView";
+import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function Amount() {
   const { canGoBack } = router;
-  const theme = useColorScheme();
   const { data: withdraw } = useQuery<Withdraw>({ queryKey: ["withdrawal"] });
   const { market, externalAsset, available, isFetching } = useAsset(withdraw?.market);
 
@@ -86,7 +85,7 @@ export default function Amount() {
                   gap="$s3"
                 >
                   {isFetching ? (
-                    <Skeleton width="100%" height={45} colorMode={theme ?? "light"} />
+                    <Skeleton width="100%" height={45} />
                   ) : (
                     <XStack alignItems="center" gap="$s3" padding="$s3">
                       <Avatar size={32} backgroundColor="$interactiveBaseBrandDefault" borderRadius="$r_0">

@@ -2,7 +2,6 @@ import { Copy } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { useQuery } from "@tanstack/react-query";
 import { setStringAsync } from "expo-clipboard";
-import { Skeleton } from "moti/skeleton";
 import React, { useEffect, useState } from "react";
 import { Platform, Pressable, StyleSheet, useColorScheme } from "react-native";
 import { ScrollView, Sheet, XStack, YStack } from "tamagui";
@@ -18,6 +17,7 @@ import reportError from "../../utils/reportError";
 import { getCard } from "../../utils/server";
 import useAspectRatio from "../../utils/useAspectRatio";
 import SafeView from "../shared/SafeView";
+import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
@@ -66,7 +66,7 @@ export default function CardDetails({ open, onClose }: { open: boolean; onClose:
             <View fullScreen flex={1} alignItems="center" width="100%">
               <View gap="$s5" flex={1} padded alignItems="center" width="100%">
                 {isPending ? (
-                  <Skeleton height={200} width="100%" colorMode={theme ?? "light"} />
+                  <Skeleton height={200} width="100%" />
                 ) : card ? (
                   <YStack
                     borderRadius="$s3"
