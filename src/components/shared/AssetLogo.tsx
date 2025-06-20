@@ -1,25 +1,17 @@
-import { Skeleton } from "moti/skeleton";
 import React, { useState } from "react";
-import { Platform, useColorScheme } from "react-native";
+import { Platform } from "react-native";
 import { FadeIn, FadeOut } from "react-native-reanimated";
 import { SvgUri, type UriProps } from "react-native-svg";
 
 import AnimatedView from "./AnimatedView";
+import Skeleton from "./Skeleton";
 import View from "./View";
 
 export default function AssetLogo({ ...properties }: UriProps) {
-  const theme = useColorScheme();
   const [loading, setLoading] = useState(true);
   return (
     <View borderRadius="$r_0" overflow="hidden">
-      {loading && (
-        <Skeleton
-          radius="round"
-          colorMode={theme ?? "light"}
-          height={Number(properties.height)}
-          width={Number(properties.width)}
-        />
-      )}
+      {loading && <Skeleton radius="round" height={Number(properties.height)} width={Number(properties.width)} />}
       <AnimatedView
         alignItems="center"
         justifyContent="center"

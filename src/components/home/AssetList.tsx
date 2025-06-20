@@ -1,8 +1,7 @@
 import { previewerAddress, ratePreviewerAddress } from "@exactly/common/generated/chain";
 import { floatingDepositRates } from "@exactly/lib";
-import { Skeleton } from "moti/skeleton";
 import React from "react";
-import { Image, useColorScheme } from "react-native";
+import { Image } from "react-native";
 import { vs } from "react-native-size-matters";
 import { YStack } from "tamagui";
 import { zeroAddress } from "viem";
@@ -12,8 +11,10 @@ import { useReadPreviewerExactly, useReadRatePreviewerSnapshot } from "../../gen
 import assetLogos from "../../utils/assetLogos";
 import useAccountAssets from "../../utils/useAccountAssets";
 import AssetLogo from "../shared/AssetLogo";
+import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 import View from "../shared/View";
+
 interface AssetItem {
   symbol: string;
   logoURI?: string;
@@ -27,7 +28,6 @@ interface AssetItem {
 }
 
 function AssetRow({ asset }: { asset: AssetItem }) {
-  const theme = useColorScheme();
   const { symbol, logoURI, amount, decimals, usdPrice, usdValue, rate } = asset;
   const logoSource = logoURI ?? assetLogos[symbol as keyof typeof assetLogos];
 
@@ -57,8 +57,8 @@ function AssetRow({ asset }: { asset: AssetItem }) {
           {rate === undefined ? (
             asset.market ? (
               <>
-                <Skeleton height={15} width={50} colorMode={theme ?? "light"} />
-                <Skeleton height={12} width={50} colorMode={theme ?? "light"} />
+                <Skeleton height={15} width={50} />
+                <Skeleton height={12} width={50} />
               </>
             ) : (
               <Text caption textAlign="right" color="transparent">

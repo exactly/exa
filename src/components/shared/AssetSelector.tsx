@@ -1,9 +1,8 @@
 import { previewerAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 import { withdrawLimit } from "@exactly/lib";
-import { Skeleton } from "moti/skeleton";
 import React, { useState } from "react";
-import { useColorScheme, Image } from "react-native";
+import { Image } from "react-native";
 import { vs } from "react-native-size-matters";
 import { ToggleGroup, YStack } from "tamagui";
 import { safeParse } from "valibot";
@@ -11,6 +10,7 @@ import { zeroAddress } from "viem";
 import { useAccount } from "wagmi";
 
 import AssetLogo from "./AssetLogo";
+import Skeleton from "./Skeleton";
 import { useReadPreviewerExactly } from "../../generated/contracts";
 import assetLogos from "../../utils/assetLogos";
 import useAccountAssets from "../../utils/useAccountAssets";
@@ -32,12 +32,10 @@ export default function AssetSelector({
   onSubmit: (market: Address, isExternalAsset: boolean) => void;
   sortBy?: "usdValue" | "usdcFirst";
 }) {
-  const theme = useColorScheme();
   const [selectedMarket, setSelectedMarket] = useState<Address | undefined>();
   const { address: account } = useAccount();
   const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [account ?? zeroAddress] });
   const { accountAssets, externalAssets, isPending: isAccountAssetsPending } = useAccountAssets({ sortBy });
-
   if (accountAssets.length === 0) {
     return (
       <Text textAlign="center" emphasized footnote color="$uiNeutralSecondary">
@@ -45,7 +43,6 @@ export default function AssetSelector({
       </Text>
     );
   }
-
   return (
     <YStack gap="$s2" borderWidth={1} borderRadius="$r3" borderColor="$borderNeutralSeparator">
       <ToggleGroup
@@ -174,7 +171,7 @@ export default function AssetSelector({
         })}
         {isAccountAssetsPending && (
           <View flexDirection="row" alignItems="center" width="100%">
-            <Skeleton height={50} width="100%" colorMode={theme ?? "light"} />
+            <Skeleton height={50} width="100%" />
           </View>
         )}
       </ToggleGroup>
