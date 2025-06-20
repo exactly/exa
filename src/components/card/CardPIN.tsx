@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { Skeleton } from "moti/skeleton";
 import React, { useState, useEffect } from "react";
-import { Platform, Pressable, StyleSheet, useColorScheme } from "react-native";
+import { Platform, Pressable, StyleSheet } from "react-native";
 import { ScrollView, Sheet, XStack, YStack } from "tamagui";
 
 import { decrypt, decryptPIN } from "../../utils/panda";
@@ -10,11 +9,11 @@ import { getCard, setCardPIN } from "../../utils/server";
 import useAspectRatio from "../../utils/useAspectRatio";
 import Button from "../shared/Button";
 import SafeView from "../shared/SafeView";
+import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function CardPIN({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const theme = useColorScheme();
   const aspectRatio = useAspectRatio();
   const [countdown, setCountdown] = useState(0);
   const [displayPIN, setDisplayPIN] = useState(false);
@@ -115,7 +114,7 @@ export default function CardPIN({ open, onClose }: { open: boolean; onClose: () 
                     </Text>
                   </YStack>
                   {isPending || !card?.details.pin ? (
-                    <Skeleton width="100%" height={100} colorMode={theme ?? "light"} />
+                    <Skeleton width="100%" height={100} />
                   ) : (
                     <YStack gap="$s4">
                       {!error && card.details.pin ? (

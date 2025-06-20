@@ -5,9 +5,8 @@ import { ArrowLeft, ArrowRight } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { format } from "date-fns";
 import { router, useLocalSearchParams } from "expo-router";
-import { Skeleton } from "moti/skeleton";
 import React, { useCallback } from "react";
-import { useColorScheme, Pressable } from "react-native";
+import { Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
 import { nonEmpty, pipe, safeParse, string } from "valibot";
@@ -25,9 +24,9 @@ import {
 import reportError from "../../utils/reportError";
 import useAsset from "../../utils/useAsset";
 import Button from "../shared/Button";
+import Skeleton from "../shared/Skeleton";
 
 export default function Pay() {
-  const theme = useColorScheme();
   const { address } = useAccount();
   const insets = useSafeAreaInsets();
   const { market: exaUSDC } = useAsset(marketUSDCAddress);
@@ -128,7 +127,7 @@ export default function Pay() {
                   </Text>
                 </XStack>
               ) : (
-                <Skeleton width="100%" height={40} colorMode={theme ?? "light"} />
+                <Skeleton width="100%" height={40} />
               )}
               <XStack justifyContent="space-between" gap="$s3" alignItems="center">
                 <YStack>
