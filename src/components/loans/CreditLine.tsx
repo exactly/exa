@@ -66,11 +66,9 @@ export default function CreditLine() {
             }}
             main
             spaced
-            outlined
-            backgroundColor="$interactiveBaseBrandSoftDefault"
-            color="$interactiveOnBaseBrandSoft"
-            iconAfter={<ArrowRight color="$interactiveOnBaseBrandSoft" strokeWidth={2.5} />}
+            iconAfter={<ArrowRight color="$interactiveOnBaseBrandDefault" strokeWidth={2.5} />}
             flex={0}
+            contained
           >
             Explore loan options
           </Button>
