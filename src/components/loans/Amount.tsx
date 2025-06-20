@@ -34,7 +34,7 @@ export default function Amount() {
   const { data: loan } = useQuery<Loan>({ queryKey: ["loan"], enabled: !!address });
   const { market, borrowAvailable } = useAsset(loan?.market);
   const [amount, setAmount] = useState<bigint>(loan?.amount ?? 0n);
-  const disabled = !loan?.market;
+  const disabled = !loan?.market || amount <= 0n || amount > borrowAvailable;
   return (
     <SafeView fullScreen>
       <View padded flexDirection="row" gap={10} paddingBottom="$s4" justifyContent="space-between" alignItems="center">
