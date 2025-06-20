@@ -2,7 +2,7 @@ import type { Token } from "@lifi/sdk";
 import { Search } from "@tamagui/lucide-icons";
 import { Skeleton } from "moti/skeleton";
 import React, { useState, useMemo } from "react";
-import { Appearance, FlatList, Image, Platform, Pressable } from "react-native";
+import { FlatList, Image, Platform, Pressable, useColorScheme } from "react-native";
 import { XStack, YStack, Sheet, ButtonIcon } from "tamagui";
 
 import useAspectRatio from "../../utils/useAspectRatio";
@@ -60,13 +60,13 @@ function TokenListItem({ token, isSelected, onPress }: TokenListItemProperties) 
 }
 
 function TokenSkeletonItem() {
+  const theme = useColorScheme();
   return (
     <XStack padding="$s4" alignItems="center" gap="$s3_5">
-      <Skeleton radius="round" colorMode={Appearance.getColorScheme() ?? "light"} height={40} width={40} />
-
+      <Skeleton radius="round" colorMode={theme ?? "light"} height={40} width={40} />
       <YStack flex={1} gap="$s2">
-        <Skeleton colorMode={Appearance.getColorScheme() ?? "light"} height={16} width={60} />
-        <Skeleton colorMode={Appearance.getColorScheme() ?? "light"} height={12} width={120} />
+        <Skeleton colorMode={theme ?? "light"} height={16} width={60} />
+        <Skeleton colorMode={theme ?? "light"} height={12} width={120} />
       </YStack>
     </XStack>
   );
