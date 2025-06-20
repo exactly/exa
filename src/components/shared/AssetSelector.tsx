@@ -3,7 +3,7 @@ import { Address } from "@exactly/common/validation";
 import { withdrawLimit } from "@exactly/lib";
 import { Skeleton } from "moti/skeleton";
 import React, { useState } from "react";
-import { Appearance, Image } from "react-native";
+import { useColorScheme, Image } from "react-native";
 import { vs } from "react-native-size-matters";
 import { ToggleGroup, YStack } from "tamagui";
 import { safeParse } from "valibot";
@@ -32,10 +32,10 @@ export default function AssetSelector({
   onSubmit: (market: Address, isExternalAsset: boolean) => void;
   sortBy?: "usdValue" | "usdcFirst";
 }) {
+  const theme = useColorScheme();
   const [selectedMarket, setSelectedMarket] = useState<Address | undefined>();
   const { address: account } = useAccount();
   const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [account ?? zeroAddress] });
-
   const { accountAssets, externalAssets, isPending: isAccountAssetsPending } = useAccountAssets({ sortBy });
 
   if (accountAssets.length === 0) {
@@ -174,7 +174,7 @@ export default function AssetSelector({
         })}
         {isAccountAssetsPending && (
           <View flexDirection="row" alignItems="center" width="100%">
-            <Skeleton height={50} width="100%" colorMode={Appearance.getColorScheme() ?? "light"} />
+            <Skeleton height={50} width="100%" colorMode={theme ?? "light"} />
           </View>
         )}
       </ToggleGroup>
