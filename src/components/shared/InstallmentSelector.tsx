@@ -5,7 +5,7 @@ import { WAD } from "@exactly/lib";
 import { Check } from "@tamagui/lucide-icons";
 import { Skeleton } from "moti/skeleton";
 import React from "react";
-import { Appearance } from "react-native";
+import { useColorScheme } from "react-native";
 import { XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
 
@@ -65,6 +65,7 @@ function Installment({
   onSelect: (value: number) => void;
   selected: boolean;
 }) {
+  const theme = useColorScheme();
   const hasInstallments = installment > 0;
   const isBorrow = installment === 1;
   const isPayNow = installment === 0;
@@ -136,7 +137,7 @@ function Installment({
           <AssetLogo uri={assetLogos[symbol as keyof typeof assetLogos]} width={16} height={16} />
           {hasInstallments &&
             (isInstallmentsPending || isBorrowPending ? (
-              <Skeleton height={18} colorMode={Appearance.getColorScheme() ?? "light"} />
+              <Skeleton height={18} colorMode={theme ?? "light"} />
             ) : (
               <Text headline numberOfLines={1} adjustsFontSizeToFit flex={1}>
                 {(Number(installmentAmountUsd) / 1e18).toLocaleString(undefined, {
@@ -148,7 +149,7 @@ function Installment({
         </XStack>
         {hasInstallments &&
           (isInstallmentsPending || isBorrowPending ? (
-            <Skeleton height={20} colorMode={Appearance.getColorScheme() ?? "light"} />
+            <Skeleton height={20} colorMode={theme ?? "light"} />
           ) : (
             <Text footnote color="$uiNeutralSecondary">
               {`${
@@ -178,7 +179,7 @@ function Installment({
           adjustsFontSizeToFit
         >
           {isInstallmentsPending || isBorrowPending ? (
-            <Skeleton height={18} width="100%" colorMode={Appearance.getColorScheme() ?? "light"} />
+            <Skeleton height={18} width="100%" colorMode={theme ?? "light"} />
           ) : (
             (Number(resolvedAmountUsd) / 1e18).toLocaleString(undefined, {
               style: "currency",

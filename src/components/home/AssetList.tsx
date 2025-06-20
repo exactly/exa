@@ -2,7 +2,7 @@ import { previewerAddress, ratePreviewerAddress } from "@exactly/common/generate
 import { floatingDepositRates } from "@exactly/lib";
 import { Skeleton } from "moti/skeleton";
 import React from "react";
-import { Appearance, Image } from "react-native";
+import { Image, useColorScheme } from "react-native";
 import { vs } from "react-native-size-matters";
 import { YStack } from "tamagui";
 import { zeroAddress } from "viem";
@@ -27,8 +27,8 @@ interface AssetItem {
 }
 
 function AssetRow({ asset }: { asset: AssetItem }) {
+  const theme = useColorScheme();
   const { symbol, logoURI, amount, decimals, usdPrice, usdValue, rate } = asset;
-
   const logoSource = logoURI ?? assetLogos[symbol as keyof typeof assetLogos];
 
   return (
@@ -57,8 +57,8 @@ function AssetRow({ asset }: { asset: AssetItem }) {
           {rate === undefined ? (
             asset.market ? (
               <>
-                <Skeleton height={15} width={50} colorMode={Appearance.getColorScheme() ?? "light"} />
-                <Skeleton height={12} width={50} colorMode={Appearance.getColorScheme() ?? "light"} />
+                <Skeleton height={15} width={50} colorMode={theme ?? "light"} />
+                <Skeleton height={12} width={50} colorMode={theme ?? "light"} />
               </>
             ) : (
               <Text caption textAlign="right" color="transparent">

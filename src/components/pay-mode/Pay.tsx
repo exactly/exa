@@ -8,7 +8,7 @@ import { format } from "date-fns";
 import { router, useLocalSearchParams } from "expo-router";
 import { Skeleton } from "moti/skeleton";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Pressable, Image, Appearance } from "react-native";
+import { Pressable, Image, useColorScheme } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
 import { digits, parse, pipe, safeParse, string, transform } from "valibot";
@@ -47,6 +47,7 @@ import Pending from "../shared/Pending";
 import Success from "../shared/Success";
 
 export default function Pay() {
+  const theme = useColorScheme();
   const insets = useSafeAreaInsets();
   const { address: account } = useAccount();
   const { accountAssets } = useAccountAssets({ sortBy: "usdcFirst" });
@@ -535,8 +536,8 @@ export default function Pay() {
                 <YStack gap="$s2">
                   {isFetchingAsset ? (
                     <>
-                      <Skeleton height={20} width={100} colorMode={Appearance.getColorScheme() ?? "light"} />
-                      <Skeleton height={20} width={100} colorMode={Appearance.getColorScheme() ?? "light"} />
+                      <Skeleton height={20} width={100} colorMode={theme ?? "light"} />
+                      <Skeleton height={20} width={100} colorMode={theme ?? "light"} />
                     </>
                   ) : (
                     <>

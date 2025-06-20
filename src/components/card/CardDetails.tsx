@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { setStringAsync } from "expo-clipboard";
 import { Skeleton } from "moti/skeleton";
 import React, { useEffect, useState } from "react";
-import { Appearance, Platform, Pressable, StyleSheet } from "react-native";
+import { Platform, Pressable, StyleSheet, useColorScheme } from "react-native";
 import { ScrollView, Sheet, XStack, YStack } from "tamagui";
 
 import DismissableAlert from "./DismissableAlert";
@@ -22,6 +22,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function CardDetails({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const theme = useColorScheme();
   const toast = useToastController();
   const aspectRatio = useAspectRatio();
   const { data: alertShown } = useQuery({ queryKey: ["settings", "alertShown"] });
@@ -65,7 +66,7 @@ export default function CardDetails({ open, onClose }: { open: boolean; onClose:
             <View fullScreen flex={1} alignItems="center" width="100%">
               <View gap="$s5" flex={1} padded alignItems="center" width="100%">
                 {isPending ? (
-                  <Skeleton height={200} width="100%" colorMode={Appearance.getColorScheme() ?? "light"} />
+                  <Skeleton height={200} width="100%" colorMode={theme ?? "light"} />
                 ) : card ? (
                   <YStack
                     borderRadius="$s3"
@@ -80,14 +81,14 @@ export default function CardDetails({ open, onClose }: { open: boolean; onClose:
                     gap="$s4"
                   >
                     <View position="absolute" top="$s4" left="$s5">
-                      {Appearance.getColorScheme() === "light" ? (
+                      {theme === "light" ? (
                         <ExaLogoLight height={20} width={63} />
                       ) : (
                         <ExaLogoDark height={20} width={63} />
                       )}
                     </View>
                     <View position="absolute" bottom="$s4" right="$s5">
-                      {Appearance.getColorScheme() === "light" ? (
+                      {theme === "light" ? (
                         <VisaLogoLight height={40} width={72} />
                       ) : (
                         <VisaLogoDark height={40} width={72} />
