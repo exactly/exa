@@ -182,7 +182,7 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
               You&apos;re all set!
             </Text>
             <Text textAlign="center" color="$uiNeutralSecondary" subHeadline>
-              Any purchases made with Pay Later will show up here.
+              Any loans or purchases will show up here.
             </Text>
           </YStack>
         )}
