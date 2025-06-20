@@ -1,6 +1,7 @@
 import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import { CircleHelp } from "@tamagui/lucide-icons";
-import React from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import React, { useState } from "react";
 import { Pressable, RefreshControl } from "react-native";
 import { ScrollView, useTheme, XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
@@ -11,6 +12,8 @@ import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAsset from "../../utils/useAsset";
 import useIntercom from "../../utils/useIntercom";
+import PaymentSheet from "../pay-mode/PaymentSheet";
+import UpcomingPayments from "../pay-mode/UpcomingPayments";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
@@ -18,7 +21,9 @@ import View from "../shared/View";
 export default function Loans() {
   const theme = useTheme();
   const { presentArticle } = useIntercom();
+  const parameters = useLocalSearchParams();
   const { account } = useAsset(marketUSDCAddress);
+  const [paySheetOpen, setPaySheetOpen] = useState(false);
   const { refetch, isPending } = useReadPreviewerExactly({ address: previewerAddress, args: [account ?? zeroAddress] });
   const style = { backgroundColor: theme.backgroundSoft.val, margin: -5 };
   return (
@@ -63,12 +68,25 @@ export default function Loans() {
             </View>
             <View gap="$s6" padded>
               <CreditLine />
+              <UpcomingPayments
+                onSelect={(maturity) => {
+                  router.setParams({ ...parameters, maturity: maturity.toString() });
+                  setPaySheetOpen(true);
+                }}
+              />
             </View>
             <View padded>
               <Text caption2 color="$interactiveOnDisabled" textAlign="justify">
                 All borrowing and spending features are enabled by non-custodial smart contracts. Terms apply.
               </Text>
             </View>
+            <PaymentSheet
+              open={paySheetOpen}
+              onClose={() => {
+                setPaySheetOpen(false);
+                router.replace({ pathname: "/loans", params: { ...parameters, maturity: null } });
+              }}
+            />
           </>
         </ScrollView>
       </View>
