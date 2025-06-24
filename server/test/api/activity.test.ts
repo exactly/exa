@@ -13,7 +13,13 @@ import { zeroHash, padHex, type Hash, zeroAddress } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 
-import app, { CreditActivity, DebitActivity, InstallmentsActivity, PandaActivity } from "../../api/activity";
+import app, {
+  type BorrowActivity,
+  CreditActivity,
+  DebitActivity,
+  InstallmentsActivity,
+  PandaActivity,
+} from "../../api/activity";
 import database, { cards, credentials, transactions } from "../../database";
 import { marketAbi } from "../../generated/contracts";
 import anvilClient from "../anvilClient";
@@ -72,7 +78,11 @@ describe.concurrent("authenticated", () => {
 
   describe.sequential("card", () => {
     let activity: InferOutput<
-      typeof DebitActivity | typeof CreditActivity | typeof InstallmentsActivity | typeof PandaActivity
+      | typeof DebitActivity
+      | typeof CreditActivity
+      | typeof InstallmentsActivity
+      | typeof PandaActivity
+      | typeof BorrowActivity
     >[];
 
     beforeAll(async () => {
@@ -82,7 +92,7 @@ describe.concurrent("authenticated", () => {
           abi: marketAbi,
           eventName: "BorrowAtMaturity",
           address: [inject("MarketEXA"), inject("MarketUSDC"), inject("MarketWETH")],
-          args: { borrower: account },
+          args: { borrower: account, receiver: "0xDb90CDB64CfF03f254e4015C4F705C3F3C834400" },
           toBlock: "latest",
           fromBlock: 0n,
           strict: true,
@@ -317,6 +327,29 @@ describe.concurrent("authenticated", () => {
         ]),
       );
     });
+
+    it("returns borrows", async () => {
+      const response = await appClient.index.$get(
+        { query: { include: "borrow" } },
+        { headers: { "test-credential-id": account } },
+      );
+
+      expect(response.status).toBe(200);
+
+      await expect(response.json()).resolves.toMatchObject([
+        {
+          type: "borrow",
+          currency: "USDC",
+          amount: 100,
+          usdAmount: 100,
+          maturity: 1_753_920_000,
+          receiver: padHex("0x69", { size: 20 }),
+          borrower: account,
+          assets: 100_000_000,
+          fee: expect.withinRange(250_000, 350_000),
+        },
+      ]);
+    });
   });
 
   it("returns everything", async () => {
@@ -331,6 +364,7 @@ describe.concurrent("authenticated", () => {
         expect.objectContaining({ type: "repay" }),
         expect.objectContaining({ type: "card" }),
         expect.objectContaining({ type: "panda" }),
+        expect.objectContaining({ type: "borrow" }),
       ]),
     );
   });

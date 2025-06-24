@@ -55,7 +55,7 @@ import { collectors as pandaCollectors } from "../utils/panda";
 import publicClient from "../utils/publicClient";
 import validatorHook from "../utils/validatorHook";
 
-const ActivityTypes = picklist(["card", "received", "repay", "sent"]);
+const ActivityTypes = picklist(["card", "received", "repay", "sent", "borrow"]);
 
 const collectors = new Set([...cryptomateCollectors, ...pandaCollectors].map((a) => a.toLowerCase() as Hex));
 
@@ -126,7 +126,20 @@ export default new Hono().get(
           })
         : Promise.resolve(forbid([]));
 
-    const [deposits, repays, withdraws, borrows] = await Promise.all([
+    const borrowPromise =
+      !ignore("borrow") || !ignore("card")
+        ? publicClient.getContractEvents({
+            abi: marketAbi,
+            eventName: "BorrowAtMaturity",
+            address: marketUSDCAddress,
+            args: { borrower: account },
+            toBlock: "latest",
+            fromBlock: 0n,
+            strict: true,
+          })
+        : Promise.resolve(forbid([]));
+
+    const [deposits, repays, withdraws, borrows, loans] = await Promise.all([
       ignore("received")
         ? []
         : Promise.all([
@@ -219,29 +232,44 @@ export default new Hono().get(
           ),
       ignore("card")
         ? undefined
-        : publicClient
-            .getContractEvents({
-              abi: marketAbi,
-              eventName: "BorrowAtMaturity",
-              address: marketUSDCAddress,
-              args: { borrower: account },
-              toBlock: "latest",
-              fromBlock: 0n,
-              strict: true,
-            })
-            .then((logs) =>
-              logs.reduce((map, { args, transactionHash, blockNumber }) => {
-                const data = map.get(transactionHash);
+        : borrowPromise.then((logs) =>
+            logs.reduce((map, { args, transactionHash, blockNumber }) => {
+              const data = map.get(transactionHash);
+              if (collectors.has(args.receiver.toLowerCase() as Hex)) {
                 if (!data) return map.set(transactionHash, { blockNumber, events: [args] });
                 data.events.push(args);
-                return map;
-              }, new Map<Hash, { blockNumber: bigint; events: (typeof logs)[number]["args"][] }>()),
-            ),
+              }
+              return map;
+            }, new Map<Hash, { blockNumber: bigint; events: (typeof logs)[number]["args"][] }>()),
+          ),
+      ignore("borrow")
+        ? []
+        : borrowPromise.then((logs) =>
+            logs
+              .map((log) => {
+                if (!collectors.has(log.args.receiver.toLowerCase() as Hex)) {
+                  return parse(BorrowActivity, {
+                    ...log,
+                    market: market(log.address),
+                    args: {
+                      assets: log.args.assets,
+                      maturity: log.args.maturity,
+                      receiver: log.args.receiver,
+                      borrower: log.args.borrower,
+                      fee: log.args.fee,
+                    },
+                  } satisfies InferInput<typeof BorrowActivity>);
+                }
+              })
+              .filter((borrow) => !!borrow),
+          ),
     ]);
     const blocks = await Promise.all(
       [
         ...new Set(
-          [...deposits, ...repays, ...withdraws, ...(borrows?.values() ?? [])].map(({ blockNumber }) => blockNumber),
+          [...deposits, ...repays, ...withdraws, ...(borrows?.values() ?? []), ...loans].map(
+            ({ blockNumber }) => blockNumber,
+          ),
         ),
       ].map((blockNumber) => publicClient.getBlock({ blockNumber })),
     );
@@ -281,7 +309,7 @@ export default new Hono().get(
             captureException(new Error("bad transaction"), { level: "error", contexts: { cryptomate, panda } });
           }),
         ),
-        ...[...deposits, ...repays, ...withdraws].map(({ blockNumber, ...event }) => {
+        ...[...deposits, ...repays, ...withdraws, ...loans].map(({ blockNumber, ...event }) => {
           const timestamp = timestamps.get(blockNumber);
           if (timestamp) return { ...event, timestamp: new Date(Number(timestamp) * 1000).toISOString() };
           captureException(new Error("block not found"), {
@@ -549,6 +577,22 @@ export const DepositActivity = pipe(
   transform((activity) => ({ ...transformActivity(activity), type: "received" as const })),
 );
 
+export const BorrowActivity = pipe(
+  object({
+    ...OnchainActivity.entries,
+    args: object({ assets: bigint(), maturity: bigint(), receiver: Address, borrower: Address, fee: bigint() }),
+  }),
+  transform((activity) => ({
+    ...transformActivity(activity),
+    maturity: Number(activity.args.maturity),
+    receiver: activity.args.receiver,
+    borrower: activity.args.borrower,
+    assets: Number(activity.args.assets),
+    fee: Number(activity.args.fee),
+    type: "borrow" as const,
+  })),
+);
+
 export const RepayActivity = pipe(
   object({ ...OnchainActivity.entries, args: object({ assets: bigint(), positionAssets: bigint() }) }),
   transform((activity) => ({
@@ -587,6 +631,7 @@ export type CreditActivity = InferOutput<typeof CreditActivity>;
 export type DebitActivity = InferOutput<typeof DebitActivity>;
 export type DepositActivity = InferOutput<typeof DepositActivity>;
 export type InstallmentsActivity = InferOutput<typeof InstallmentsActivity>;
+export type BorrowActivity = InferOutput<typeof BorrowActivity>;
 export type OnchainActivity = InferOutput<typeof OnchainActivity>;
 export type PandaActivity = InferOutput<typeof PandaActivity>;
 export type RepayActivity = InferOutput<typeof RepayActivity>;
