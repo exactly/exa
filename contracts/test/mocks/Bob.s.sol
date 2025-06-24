@@ -15,7 +15,7 @@ import { OwnersLib } from "webauthn-owner-plugin/OwnersLib.sol";
 import { BaseScript } from "../../script/Base.s.sol";
 import { ExaAccountFactory } from "../../src/ExaAccountFactory.sol";
 import { ExaPlugin } from "../../src/ExaPlugin.sol";
-import { CrossRepayData, IExaAccount, IMarket, ProposalType, RepayData } from "../../src/IExaAccount.sol";
+import { BorrowAtMaturityData, CrossRepayData, IExaAccount, IMarket, ProposalType, RepayData } from "../../src/IExaAccount.sol";
 import { IssuerChecker } from "../../src/IssuerChecker.sol";
 import { ProposalManager } from "../../src/ProposalManager.sol";
 
@@ -102,7 +102,7 @@ contract BobScript is BaseScript {
       maturity, amounts, type(uint256).max, block.timestamp, _issuerOp(46e6, block.timestamp)
     );
     vm.stopBroadcast();
-    Call[] memory calls = new Call[](4);
+    Call[] memory calls = new Call[](5);
     calls[0] = Call(
       address(bobAccount),
       0,
@@ -147,6 +147,21 @@ contract BobScript is BaseScript {
       address(bobAccount),
       0,
       abi.encodeCall(IExaAccount.propose, (exaWETH, 0.01 ether, ProposalType.WITHDRAW, abi.encode(address(0x69))))
+    );
+    calls[4] = Call(
+      address(bobAccount),
+      0,
+      abi.encodeCall(
+        IExaAccount.propose,
+        (
+          exaUSDC,
+          100e6,
+          ProposalType.BORROW_AT_MATURITY,
+          abi.encode(
+            BorrowAtMaturityData({ maturity: maturity + FixedLib.INTERVAL, maxAssets: 110e6, receiver: address(0x69) })
+          )
+        )
+      )
     );
     vm.broadcast(bob);
     IStandardExecutor(address(bobAccount)).executeBatch(calls);
