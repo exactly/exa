@@ -26,7 +26,8 @@ generated/
 *.dump
 application_x_sentry_envelope-*.txt
 lcov.info
-.vscode/
+**/.vscode/*
+!/.vscode/extensions.json
 .env
 .env*.local
 .*-version*
