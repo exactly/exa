@@ -12,6 +12,7 @@ import { zeroHash, padHex, type Hash, zeroAddress } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 
+import type { LoanActivity } from "../../api/activity";
 import app, { CreditActivity, DebitActivity, InstallmentsActivity, PandaActivity } from "../../api/activity";
 import database, { cards, credentials, transactions } from "../../database";
 import { marketAbi } from "../../generated/contracts";
@@ -62,7 +63,11 @@ describe.concurrent("authenticated", () => {
 
   describe.sequential("card", () => {
     let activity: InferOutput<
-      typeof DebitActivity | typeof CreditActivity | typeof InstallmentsActivity | typeof PandaActivity
+      | typeof DebitActivity
+      | typeof CreditActivity
+      | typeof InstallmentsActivity
+      | typeof PandaActivity
+      | typeof LoanActivity
     >[];
 
     beforeAll(async () => {
@@ -72,7 +77,7 @@ describe.concurrent("authenticated", () => {
           abi: marketAbi,
           eventName: "BorrowAtMaturity",
           address: [inject("MarketEXA"), inject("MarketUSDC"), inject("MarketWETH")],
-          args: { borrower: account },
+          args: { borrower: account, receiver: "0xDb90CDB64CfF03f254e4015C4F705C3F3C834400" },
           toBlock: "latest",
           fromBlock: 0n,
           strict: true,
@@ -274,6 +279,18 @@ describe.concurrent("authenticated", () => {
         ]),
       );
     });
+
+    it("returns loans", async () => {
+      const response = await appClient.index.$get(
+        { query: { include: "loan" } },
+        { headers: { "test-credential-id": account } },
+      );
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toMatchObject([
+        { type: "loan", currency: "USDC", amount: 100, usdAmount: 100 },
+      ]);
+    });
   });
 
   it("returns everything", async () => {
@@ -288,6 +305,7 @@ describe.concurrent("authenticated", () => {
         expect.objectContaining({ type: "repay" }),
         expect.objectContaining({ type: "card" }),
         expect.objectContaining({ type: "panda" }),
+        expect.objectContaining({ type: "loan" }),
       ]),
     );
   });
