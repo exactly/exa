@@ -165,6 +165,8 @@
       "@tanstack/react-form@0.19.5": "^0.42.1",
       "@wagmi/core": "$@wagmi/core",
       "abitype": "$abitype",
+      "brace-expansion@1.1.11": "^1.1.12",
+      "brace-expansion@2.0.1": "^2.0.2",
       "cookie": "^0.7.0",
       "elliptic": "^6.5.7",
       "esbuild": "^0.25.0",
