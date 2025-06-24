@@ -1,0 +1,19 @@
+{
+  "recommendations": [
+    "astro-build.astro-vscode",
+    "davidanson.vscode-markdownlint",
+    "dbaeumer.vscode-eslint",
+    "eamodio.gitlens",
+    "esbenp.prettier-vscode",
+    "expo.vscode-expo-tools",
+    "github.vscode-pull-request-github",
+    "gruntfuggly.todo-tree",
+    "redhat.vscode-yaml",
+    "streetsidesoftware.code-spell-checker",
+    "tamasfe.even-better-toml",
+    "unifiedjs.vscode-mdx",
+    "yoavbls.pretty-ts-errors",
+    "yutengjing.vscode-classic-experience",
+    "yzhang.markdown-all-in-one"
+  ]
+}
