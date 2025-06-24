@@ -1,0 +1,65 @@
+---
+description: 
+globs: contracts/**
+alwaysApply: false
+---
+# contracts style guide
+
+this guide provides the specific style rules and best practices for the exa smart contracts, developed with solidity and the foundry framework. it complements the global `style.mdc`.
+
+## key files
+
+- **`foundry.toml`**: the configuration file for the foundry toolchain.
+- **`solhint.json`**: the configuration file for the `solhint` linter.
+
+## formatting & linting
+
+the contracts are automatically formatted by `forge fmt` and linted by `solhint`. these tools are run on every commit and must pass. the configuration enforces several key conventions:
+
+- **import order**: imports must be sorted alphabetically and grouped by type (`openzeppelin`, `solady`, internal, etc.). this is enforced by the formatter.
+- **explicit visibility**: all functions and state variables must have an explicit visibility (`public`, `private`, `internal`, `external`).
+- **custom errors**: `require()` statements with string messages are forbidden. use custom errors for all checks.
+- **no console logs**: `console.log` is forbidden in contract code.
+- **security rules**: a strict set of `solhint` security rules are enabled, including:
+  - `not-reentrant`: flags potential reentrancy vulnerabilities.
+  - `no-inline-assembly`: discourages the use of inline assembly.
+  - `no-tx-origin`: prevents the use of `tx.origin` for authorization.
+
+## security & best practices
+
+- **checks-effects-interactions pattern**: this is a non-negotiable rule. all functions must first perform checks (e.g., `require`), then update state (effects), and only then interact with external contracts.
+- **reentrancy guard**: all `external` and `public` functions that modify state must be protected by a reentrancy guard, unless it is explicitly proven to be unnecessary.
+- **access control**: use modifiers like `onlyOwner` or function-level checks for all privileged functions. default to the strictest possible access level (e.g., `private` -> `internal` -> `external` -> `public`).
+- **named parameters in mappings**: use named parameters in mappings for clarity.
+  - ✅ `mapping(address user => uint256 balance)`
+  - ❌ `mapping(address => uint256)`
+- **`slither` and `solhint`**: all code must pass `pnpm --filter plugin test:slither` and `pnpm --filter plugin test:solhint` with zero warnings. do not ignore warnings.
+
+## solidity conventions
+
+- **import order**: follow the standard solidity import order:
+  - `openzeppelin` or other external libraries
+  - project-internal contracts
+- **natspec comments**: all `public` and `external` functions and state variables must have complete natspec comments (`@notice`, `@dev`, `@param`, `@return`). this is essential for documentation generation and developer clarity.
+- **error handling**: use custom errors instead of `require` statements with string messages. it is more gas-efficient and provides better error information.
+  - ✅ `if (caller != owner) revert NotOwner();`
+  - ❌ `require(caller == owner, "not owner");`
+- **variable naming**:
+  - `internal` and `private` variables should be prefixed with an underscore (`_`).
+  - function arguments should not be prefixed with an underscore.
+- **constants**: define true constants using `constant`. define configurable "constants" (like contract addresses) using `immutable`.
+
+## foundry & testing
+
+- **test file naming**: test files must end with `.t.sol` and mirror the name of the contract they are testing (e.g., `ExaPlugin.sol` -> `ExaPlugin.t.sol`).
+- **test function naming**: test functions must start with `test`. use descriptive names that explain the scenario being tested (e.g., `test_revert_when_caller_is_not_owner()`).
+- **fuzz testing**: use fuzz testing (`testFuzz_...`) extensively for functions that take numerical or address inputs to cover a wide range of scenarios.
+- **gas snapshots**: always run `pnpm --filter plugin snapshot` after making changes and commit the resulting `.gas-snapshot` file. this tracks gas costs over time. failing to do so will break the `test:gas` check.
+- **`vm.prank`**: use `vm.prank` to simulate calls from different addresses. avoid changing `msg.sender` through other means.
+
+## gas optimization
+
+- **storage is expensive**: minimize writes to storage. read data into memory or `calldata` whenever possible.
+- **efficient data types**: use the smallest integer size that is safe for the variable (e.g., `uint32` for timestamps). be aware of struct packing.
+- **`solady` library**: prefer using the `solady` library over `openzeppelin` where possible, as it is highly optimized for gas.
+- **view vs. pure**: correctly label functions as `view` or `pure` when they do not modify state.

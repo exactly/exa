@@ -1,0 +1,63 @@
+---
+description: 
+globs: src/**
+alwaysApply: false
+---
+# app style guide
+
+this guide provides the specific style rules and best practices for the exa mobile frontend, built with react native, expo, tamagui, and tanstack query. it complements the global style.mdc.
+
+## component design
+
+- **composition over configuration**: build complex components by composing smaller, single-purpose components. avoid creating monolithic components with dozens of props.
+- **smart vs. dumb components**:
+  - **smart components (screens)**: handle data fetching, state management, and business logic. they are connected to hooks (`useQuery`). location: `src/app/**`.
+  - **dumb components (ui)**: receive data and callbacks via props. they have no knowledge of the application's state. location: `src/components/**`.
+- **props**:
+  - keep prop interfaces minimal.
+  - do not pass entire objects as props if only a few fields are needed. destructure and pass only what's required.
+  - for boolean props, the name should clearly indicate the positive condition (e.g., `isActive`, `isLoading`). do not use negative names like `isNotActive`.
+
+## linting
+
+the app's code is strictly enforced by a dedicated eslint configuration that builds upon the global rules. key enforcements include:
+
+- **`@tanstack/eslint-plugin-query`**: ensures best practices for tanstack query, such as using array query keys and handling mutation states correctly.
+- **`react-hooks/recommended`**: enforces the rules of hooks, preventing common bugs related to `useEffect` and `useState`.
+- **`react-native/all`**: applies a comprehensive set of rules specific to react native development.
+- **`jsx-a11y/recommended`**: enforces accessibility best practices within `jsx` to ensure the app is usable by a wider audience.
+
+## state management
+
+- **tanstack query**: use for all server state management (fetching, caching, updating asynchronous data). it is the single source of truth for data from the api.
+  - **query keys**: must be an array. start with a string identifying the domain, followed by any dynamic parameters. be consistent.
+    - ✅ `['user', userId]`
+    - ✅ `['cards', { status: 'active' }]`
+    - ❌ `'user-details'` (not an array)
+  - **mutations**: use for any server-side effects (creating, updating, deleting data). handle `onSuccess` and `onError` to invalidate relevant queries and provide user feedback.
+
+## styling (tamagui)
+
+- **design tokens only**: all styling must use the predefined design tokens from `tamagui.config.ts`. never use hardcoded values for colors, spacing, fonts, etc.
+  - ✅ `padding="$4"`
+  - ✅ `color="$color.text.brand"`
+  - ❌ `padding: 16`
+  - ❌ `color: '#ff0000'`
+- **stacks over views**: use `tamagui`'s `XStack` and `YStack` for layout instead of react native's `View`.
+- **shorthand props**: prefer shorthand props for brevity and consistency.
+  - ✅ `p="$4"`, `m="$2"`, `f={1}`
+  - ❌ `paddingLeft="$4"`, `marginRight="$2"`
+- **responsive styles**: use `tamagui`'s responsive platform selectors (`$platform-web`, `$platform-ios`) and media queries for platform-specific and screen-specific styles.
+
+## navigation (expo router)
+
+- **file-based routing**: all routes are defined by the file structure in `src/app`. adhere to this convention strictly.
+- **typed routes**: leverage `expo router`'s typed routes to ensure link safety. do not construct route strings manually.
+- **layouts**: use `_layout.tsx` files to define shared ui and logic for a route segment (e.g., headers, authentication checks).
+
+## prohibited patterns
+
+- **`useEffect` for data fetching**: absolutely forbidden. all data fetching must be handled by tanstack query. `useEffect` should only be used for side effects that don't involve fetching server state (e.g., interacting with a third-party sdk).
+- **inline styles**: do not use the react native `style` prop with object literals. all styling must go through `tamagui`'s styled system props.
+- **manual theme/color logic**: do not write components that manually switch between light/dark mode colors. this is handled automatically by `tamagui`.
+- **`any` type**: the use of `any` is strictly forbidden. use `unknown` and perform type checking if a type is truly unknown.
