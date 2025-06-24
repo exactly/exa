@@ -4,8 +4,10 @@ import { router, useRouter } from "expo-router";
 import React from "react";
 import { Alert, Pressable } from "react-native";
 import { ScrollView, Separator, XStack } from "tamagui";
+import { useAccount } from "wagmi";
 
 import release from "../../generated/release";
+import { logout as logoutOneSignal } from "../../utils/onesignal";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useIntercom from "../../utils/useIntercom";
@@ -15,7 +17,8 @@ import View from "../shared/View";
 
 export default function Settings() {
   const { canGoBack } = useRouter();
-  const { present } = useIntercom();
+  const { connector } = useAccount();
+  const { present, logout } = useIntercom();
   function handleSupport() {
     present().catch(reportError);
   }
@@ -57,7 +60,15 @@ export default function Settings() {
                   <Separator borderColor="$borderNeutralSoft" />
                   <Pressable
                     onPress={() => {
-                      queryClient.resetQueries().catch(reportError);
+                      if (!connector) return;
+                      Promise.all([queryClient.cancelQueries(), connector.disconnect(), logout()])
+                        .then(() => {
+                          logoutOneSignal();
+                          queryClient.clear();
+                          queryClient.unmount();
+                          router.replace("/onboarding");
+                        })
+                        .catch(reportError);
                     }}
                   >
                     <XStack justifyContent="space-between" alignItems="center" padding="$s4">
