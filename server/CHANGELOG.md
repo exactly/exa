@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.3
+
+### Patch Changes
+
+- [`f6c340e`](https://github.com/exactly/exa/commit/f6c340ed69546ba52de86625e4fda45d08d4e5aa) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🚑️ set cookie only for new users
+
 ## 0.2.2
 
 ### Patch Changes
