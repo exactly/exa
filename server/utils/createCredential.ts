@@ -32,18 +32,18 @@ export default async function createCredential<C extends string>(
 
   setUser({ id: account });
   const expires = new Date(Date.now() + AUTH_EXPIRY);
+  await database.insert(credentials).values([
+    {
+      account,
+      id: credentialId,
+      publicKey,
+      factory: exaAccountFactoryAddress,
+      transports: webauthn?.transports,
+      counter: webauthn?.counter,
+    },
+  ]);
   await Promise.all([
     setSignedCookie(c, "credential_id", credentialId, authSecret, { domain, expires, httpOnly: true }),
-    database.insert(credentials).values([
-      {
-        account,
-        id: credentialId,
-        publicKey,
-        factory: exaAccountFactoryAddress,
-        transports: webauthn?.transports,
-        counter: webauthn?.counter,
-      },
-    ]),
     fetch("https://dashboard.alchemy.com/api/update-webhook-addresses", {
       method: "PATCH",
       headers: { "Content-Type": "application/json", "X-Alchemy-Token": webhooksKey },
