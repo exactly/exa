@@ -94,6 +94,7 @@ export function extender(keeper: WalletClient<HttpTransport, typeof chain, Priva
                     nonceManager,
                   }),
                 );
+                console.log("exa send nonce", prepared.nonce); // eslint-disable-line no-console
                 scope.setContext("tx", { request, prepared });
                 span.setAttribute("tx.nonce", prepared.nonce);
                 const serializedTransaction = await startSpan({ name: "sign transaction", op: "tx.sign" }, () =>
@@ -132,7 +133,8 @@ export function extender(keeper: WalletClient<HttpTransport, typeof chain, Priva
                 } catch (error) {
                   if (error instanceof WaitForTransactionReceiptTimeoutError) {
                     captureException(new Error("bad nonce"), { level: "fatal" });
-                    nonceManager.reset({ address: keeper.account.address, chainId: chain.id });
+                    console.log("bad nonce, resetting", prepared.nonce); // eslint-disable-line no-console
+                    nonceManager.hardReset({ address: keeper.account.address, chainId: chain.id });
                   }
                   throw error;
                 }
