@@ -12,6 +12,7 @@ process.env.CRYPTOMATE_API_KEY = "cryptomate";
 process.env.CRYPTOMATE_ISSUER_PRIVATE_KEY = padHex("0x420");
 process.env.CRYPTOMATE_URL = "https://cryptomate.test";
 process.env.ISSUER_PRIVATE_KEY = padHex("0x420");
+process.env.KEEPER_PRIVATE_KEY = padHex("0x69");
 process.env.PANDA_API_KEY = "panda";
 process.env.PANDA_API_URL = "https://panda.test";
 process.env.PERSONA_API_KEY = "persona";

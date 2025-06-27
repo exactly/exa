@@ -99,7 +99,7 @@
     "tamagui": "1.125.26",
     "title-case": "^4.3.2",
     "valibot": "^1.0.0",
-    "viem": "^2.29.2",
+    "viem": "^2.31.4",
     "wagmi": "^2.14.16",
     "zustand": "^5.0.3"
   },
@@ -211,7 +211,8 @@
     },
     "patchedDependencies": {
       "eslint-config-universe": "patches/eslint-config-universe.patch",
-      "@lifi/sdk": "patches/@lifi__sdk.patch"
+      "@lifi/sdk": "patches/@lifi__sdk.patch",
+      "viem@2.31.4": "patches/viem@2.31.4.patch"
     },
     "updateConfig": {
       "ignoreDependencies": [
