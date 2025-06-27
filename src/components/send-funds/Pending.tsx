@@ -1,7 +1,6 @@
 import shortenHex from "@exactly/common/shortenHex";
 import { useQuery } from "@tanstack/react-query";
 import React from "react";
-import { Image } from "react-native";
 import { Square, XStack, YStack } from "tamagui";
 
 import type { WithdrawDetails } from "./Amount";
@@ -47,11 +46,11 @@ export default function Pending({ details: { name: assetName, amount, usdValue }
               <Text emphasized secondary subHeadline>
                 &nbsp;{assetName}&nbsp;
               </Text>
-              {externalAsset ? (
-                <Image source={{ uri: externalAsset.logoURI }} width={16} height={16} borderRadius={20} />
-              ) : (
-                <AssetLogo uri={assetLogos[assetName as keyof typeof assetLogos]} width={16} height={16} />
-              )}
+              <AssetLogo
+                {...(externalAsset
+                  ? { external: true, source: { uri: externalAsset.logoURI }, width: 16, height: 16, borderRadius: 20 }
+                  : { uri: assetLogos[assetName as keyof typeof assetLogos], width: 16, height: 16 })}
+              />
             </XStack>
           </YStack>
         </YStack>

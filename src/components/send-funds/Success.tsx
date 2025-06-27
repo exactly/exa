@@ -3,7 +3,6 @@ import { Check } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import React from "react";
-import { Image } from "react-native";
 import { Square, XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
 import { useAccount, useBytecode } from "wagmi";
@@ -76,11 +75,11 @@ export default function Success({
               <Text emphasized secondary subHeadline>
                 &nbsp;{assetName}&nbsp;
               </Text>
-              {externalAsset ? (
-                <Image source={{ uri: externalAsset.logoURI }} width={16} height={16} borderRadius={20} />
-              ) : (
-                <AssetLogo uri={assetLogos[assetName as keyof typeof assetLogos]} width={16} height={16} />
-              )}
+              <AssetLogo
+                {...(externalAsset
+                  ? { external: true, source: { uri: externalAsset.logoURI }, width: 16, height: 16, borderRadius: 20 }
+                  : { uri: assetLogos[assetName as keyof typeof assetLogos], width: 16, height: 16 })}
+              />
             </XStack>
           </YStack>
           <TransactionDetails hash={hash} />

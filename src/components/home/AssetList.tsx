@@ -1,7 +1,6 @@
 import { previewerAddress, ratePreviewerAddress } from "@exactly/common/generated/chain";
 import { floatingDepositRates } from "@exactly/lib";
 import React from "react";
-import { Image } from "react-native";
 import { vs } from "react-native-size-matters";
 import { YStack } from "tamagui";
 import { zeroAddress } from "viem";
@@ -35,11 +34,11 @@ function AssetRow({ asset }: { asset: AssetItem }) {
     <View flexDirection="row" alignItems="center" borderColor="$borderNeutralSoft">
       <View flexDirection="row" alignItems="center" paddingVertical={vs(10)} gap="$s2" width="100%">
         <View flexDirection="row" gap={10} alignItems="center" flex={1}>
-          {logoURI ? (
-            <Image source={{ uri: logoSource }} width={32} height={32} borderRadius={16} />
-          ) : (
-            <AssetLogo uri={logoSource} width={32} height={32} />
-          )}
+          <AssetLogo
+            {...(logoURI
+              ? { external: true, source: { uri: logoSource }, width: 32, height: 32, blurRadius: 16 }
+              : { uri: logoSource, width: 32, height: 32 })}
+          />
           <View gap="$s2" alignItems="flex-start">
             <Text subHeadline color="$uiNeutralPrimary" numberOfLines={1}>
               {symbol}
