@@ -1,12 +1,18 @@
 import chain from "@exactly/common/generated/chain";
+import shortenHex from "@exactly/common/shortenHex";
+import { ExternalLink } from "@tamagui/lucide-icons";
 import { format } from "date-fns";
+import { setStringAsync } from "expo-clipboard";
+import { openBrowserAsync } from "expo-web-browser";
 import React from "react";
+import { Alert } from "react-native";
 import { Separator, XStack, YStack } from "tamagui";
 
 import OptimismImage from "../../assets/images/optimism.svg";
+import reportError from "../../utils/reportError";
 import Text from "../shared/Text";
 
-export default function TransactionDetails() {
+export default function TransactionDetails({ hash }: { hash?: string }) {
   return (
     <YStack gap="$s4">
       <YStack gap="$s4">
@@ -35,6 +41,36 @@ export default function TransactionDetails() {
             <OptimismImage height={20} width={20} />
           </XStack>
         </XStack>
+        {hash && (
+          <>
+            <XStack
+              hitSlop={15}
+              justifyContent="space-between"
+              alignItems="center"
+              onPress={() => {
+                setStringAsync(hash).catch(reportError);
+                Alert.alert("Copied", "The transaction hash has been copied to the clipboard.");
+              }}
+            >
+              <Text emphasized footnote color="$uiNeutralSecondary">
+                Transaction hash
+              </Text>
+              <XStack gap="$s2" alignItems="center" cursor="pointer">
+                <Text
+                  callout
+                  fontFamily="$mono"
+                  textDecorationLine="underline"
+                  onPress={() => {
+                    openBrowserAsync(`${chain.blockExplorers?.default.url}/tx/${hash}`).catch(reportError);
+                  }}
+                >
+                  {shortenHex(hash)}
+                </Text>
+                <ExternalLink size={20} color="$uiBrandPrimary" />
+              </XStack>
+            </XStack>
+          </>
+        )}
         <XStack justifyContent="space-between">
           <Text emphasized footnote color="$uiNeutralSecondary">
             Date

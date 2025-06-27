@@ -3,6 +3,7 @@ import { exaPluginAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 import { WAD } from "@exactly/lib";
 import { useQuery } from "@tanstack/react-query";
+import { router } from "expo-router";
 import React, { useCallback, useEffect } from "react";
 import { parse } from "valibot";
 import { encodeAbiParameters, erc20Abi, formatUnits, parseUnits, zeroAddress } from "viem";
@@ -24,7 +25,7 @@ import SafeView from "../shared/SafeView";
 import View from "../shared/View";
 
 export interface WithdrawDetails {
-  isExternalAsset: boolean;
+  external: boolean;
   assetName?: string;
   amount: string;
   usdValue: string;
@@ -99,7 +100,7 @@ export default function Withdraw() {
   }, [market, proposeSimulation, writeContract, externalAsset, transferSimulation]);
 
   const details: WithdrawDetails = {
-    isExternalAsset: !!externalAsset,
+    external: !!externalAsset,
     assetName: market ? (market.symbol.slice(3) === "WETH" ? "ETH" : market.symbol.slice(3)) : externalAsset?.symbol,
     amount: market
       ? formatUnits(withdraw?.amount ?? 0n, market.decimals)
@@ -131,9 +132,21 @@ export default function Withdraw() {
     <SafeView fullScreen>
       <View fullScreen>
         {isIdle && <Review onSend={handleSubmit} details={details} canSend={canSend} isFirstSend={isFirstSend} />}
-        {isPending && <Pending details={details} hash={hash} />}
+        {isPending && <Pending details={details} />}
         {isSuccess && <Success details={details} hash={hash} />}
-        {isError && <Failure details={details} hash={hash} />}
+        {isError && (
+          <Failure
+            details={details}
+            hash={hash}
+            onClose={() => {
+              if (isLatestPlugin) {
+                router.replace("/pending-proposals");
+              } else {
+                router.back();
+              }
+            }}
+          />
+        )}
       </View>
     </SafeView>
   );
