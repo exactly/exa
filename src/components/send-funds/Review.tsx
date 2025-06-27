@@ -3,7 +3,7 @@ import { ArrowRight } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import React from "react";
-import { Pressable, Image } from "react-native";
+import { Pressable } from "react-native";
 import { ScrollView, XStack, YStack, Image as TamaguiImage } from "tamagui";
 
 import type { WithdrawDetails } from "./Withdraw";
@@ -27,7 +27,7 @@ export default function Review({
   onSend: () => void;
 }) {
   const { data: withdraw } = useQuery<Withdraw>({ queryKey: ["withdrawal"] });
-  const { market, externalAsset } = useAsset(withdraw?.market);
+  const { externalAsset } = useAsset(withdraw?.market);
   const { canGoBack } = router;
   return (
     <>
@@ -43,11 +43,11 @@ export default function Review({
               Sending
             </Text>
             <XStack alignItems="center" gap="$s3">
-              {market ? (
-                <AssetLogo uri={assetLogos[assetName as keyof typeof assetLogos]} width={40} height={40} />
-              ) : externalAsset ? (
-                <Image source={{ uri: externalAsset.logoURI }} width={40} height={40} borderRadius={20} />
-              ) : null}
+              <AssetLogo
+                {...(externalAsset
+                  ? { external: true, source: { uri: externalAsset.logoURI }, width: 40, height: 40, borderRadius: 20 }
+                  : { uri: assetLogos[assetName as keyof typeof assetLogos], width: 40, height: 40 })}
+              />
 
               <YStack flex={1}>
                 <Text title color="$uiNeutralPrimary">
