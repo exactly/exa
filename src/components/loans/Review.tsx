@@ -1,17 +1,17 @@
 import type { BatchUserOperationCallData } from "@alchemy/aa-core";
 import ProposalType from "@exactly/common/ProposalType";
-import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
+import { exaPluginAddress, marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import shortenHex from "@exactly/common/shortenHex";
 import { Address } from "@exactly/common/validation";
 import { MATURITY_INTERVAL, WAD } from "@exactly/lib";
-import { ArrowLeft, ArrowRight, CircleHelp } from "@tamagui/lucide-icons";
+import { ArrowLeft, ArrowRight, Check, CircleHelp, X } from "@tamagui/lucide-icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable } from "react-native";
-import { ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
+import { Pressable, Image } from "react-native";
+import { ScrollView, Separator, Spinner, Square, XStack, YStack } from "tamagui";
 import { parse } from "valibot";
 import { encodeAbiParameters, encodeFunctionData, maxUint256, zeroAddress } from "viem";
 import { useAccount, useBytecode } from "wagmi";
@@ -20,6 +20,7 @@ import {
   exaPluginAbi,
   upgradeableModularAccountAbi,
   useReadPreviewerPreviewBorrowAtMaturity,
+  useReadUpgradeableModularAccountGetInstalledPlugins,
 } from "../../generated/contracts";
 import { accountClient } from "../../utils/alchemyConnector";
 import assetLogos from "../../utils/assetLogos";
@@ -30,11 +31,10 @@ import useInstallments from "../../utils/useInstallments";
 import useIntercom from "../../utils/useIntercom";
 import AssetLogo from "../shared/AssetLogo";
 import Button from "../shared/Button";
-import Failure from "../shared/Failure";
+import GradientScrollView from "../shared/GradientScrollView";
 import PaymentScheduleSheet from "../shared/PaymentScheduleSheet";
-import Pending from "../shared/Pending";
 import SafeView from "../shared/SafeView";
-import Success from "../shared/Success";
+import ExaSpinner from "../shared/Spinner";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
@@ -58,7 +58,7 @@ export default function Review() {
     market: zeroAddress,
     receiver: "",
   };
-  const { market: assetMarket, isFetching: isAssetPending } = useAsset(market);
+  const { market: assetMarket, isFetching: isAssetPending, externalAsset } = useAsset(market);
 
   const symbol = assetMarket?.symbol.slice(3) === "WETH" ? "ETH" : assetMarket?.symbol.slice(3);
   const usdPrice = assetMarket?.usdPrice ?? 0n;
@@ -148,6 +148,12 @@ export default function Review() {
   const success = isProposingBorrowInstallmentsSuccess;
   const error = !!proposeBorrowInstallmentsError;
   const disabled = pending;
+
+  const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
+    address: address ?? zeroAddress,
+    query: { enabled: !!address && !!bytecode },
+  });
+  const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
 
   if (!processing && !error && !success) {
     return (
@@ -347,40 +353,92 @@ export default function Review() {
       </SafeView>
     );
   }
-  if (processing)
-    return (
-      <Pending
-        maturity={maturity}
-        amount={Number((amount * usdPrice) / 10n ** BigInt(decimals)) / 1e18}
-        usdAmount={Number(totalAmountUSD) / 1e18}
-        currency={symbol}
-        selectedAsset={parse(Address, market)}
-      />
-    );
-  if (success)
-    return (
-      <Success
-        maturity={maturity}
-        amount={Number((amount * usdPrice) / 10n ** BigInt(decimals)) / 1e18}
-        usdAmount={Number(totalAmountUSD) / 1e18}
-        currency={symbol}
-        selectedAsset={parse(Address, market)}
-        onClose={() => {
-          router.replace("/pending-proposals");
-        }}
-      />
-    );
-  if (error)
-    return (
-      <Failure
-        maturity={maturity}
-        amount={Number((amount * usdPrice) / 10n ** BigInt(decimals)) / 1e18}
-        usdAmount={Number(totalAmountUSD) / 1e18}
-        currency={symbol}
-        selectedAsset={parse(Address, market)}
-        onClose={() => {
-          router.replace("/loans");
-        }}
-      />
-    );
+  const properties = { maturity, currency: symbol, selectedAsset: parse(Address, market), isLatestPlugin };
+  return (
+    <GradientScrollView variant={error ? "error" : success ? (isLatestPlugin ? "info" : "success") : "neutral"}>
+      <View flex={1}>
+        <YStack gap="$s7" paddingBottom="$s9">
+          <XStack justifyContent="center" alignItems="center">
+            <Square
+              size={80}
+              borderRadius="$r4"
+              backgroundColor={
+                error
+                  ? "$interactiveBaseErrorSoftDefault"
+                  : success
+                    ? isLatestPlugin
+                      ? "$interactiveBaseInformationSoftDefault"
+                      : "$interactiveBaseSuccessSoftDefault"
+                    : "$backgroundStrong"
+              }
+            >
+              {processing && <ExaSpinner backgroundColor="transparent" color="$uiNeutralPrimary" />}
+              {success && isLatestPlugin && <ExaSpinner backgroundColor="transparent" color="$uiInfoSecondary" />}
+              {success && !isLatestPlugin && <Check size={48} color="$uiSuccessSecondary" strokeWidth={2} />}
+              {error && <X size={48} color="$uiErrorSecondary" strokeWidth={2} />}
+            </Square>
+          </XStack>
+          <YStack gap="$s4_5" justifyContent="center" alignItems="center">
+            <Text secondary body>
+              {error ? "Failed requesting" : success ? "Processed" : "Processing"}&nbsp;
+              <Text emphasized primary body>
+                Loan
+              </Text>
+            </Text>
+            <Text title primary color="$uiNeutralPrimary">
+              {(Number(totalAmountUSD) / 1e18).toLocaleString(undefined, {
+                style: "currency",
+                currency: "USD",
+                currencyDisplay: "narrowSymbol",
+              })}
+            </Text>
+            <XStack gap="$s2" alignItems="center">
+              <Text emphasized secondary subHeadline>
+                {(Number(amount) / 1e18).toLocaleString(undefined, {
+                  maximumFractionDigits: market === marketUSDCAddress ? 2 : 8,
+                })}
+              </Text>
+              <Text emphasized secondary subHeadline>
+                &nbsp;{properties.currency}&nbsp;
+              </Text>
+              {externalAsset ? (
+                <Image source={{ uri: externalAsset.logoURI }} width={16} height={16} borderRadius={20} />
+              ) : (
+                <AssetLogo uri={assetLogos[properties.currency as keyof typeof assetLogos]} width={16} height={16} />
+              )}
+            </XStack>
+          </YStack>
+        </YStack>
+      </View>
+      {!processing && (
+        <View flex={2} justifyContent="flex-end">
+          <Text
+            hitSlop={20}
+            cursor="pointer"
+            alignSelf="center"
+            emphasized
+            footnote
+            color="$uiBrandSecondary"
+            onPress={() => {
+              if (success && isLatestPlugin) {
+                router.replace("/pending-proposals");
+                return;
+              }
+              if (success && !isLatestPlugin) {
+                router.replace("/loans");
+                return;
+              }
+              if (canGoBack()) {
+                router.back();
+                return;
+              }
+              router.replace("/loans");
+            }}
+          >
+            {error ? "Go back" : success ? (isLatestPlugin ? "View request" : "Close") : "Close"}
+          </Text>
+        </View>
+      )}
+    </GradientScrollView>
+  );
 }
