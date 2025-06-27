@@ -13,19 +13,11 @@ const StatusIndicator = styled(View, {
   borderColor: "$borderBrandSoft",
   variants: {
     type: {
-      online: {
-        backgroundColor: "$uiBrandPrimary",
-        borderColor: "$borderBrandSoft",
-      },
-      notification: {
-        backgroundColor: "$uiInfoSecondary",
-        borderColor: "$interactiveBaseInformationSoftDefault",
-      },
+      online: { backgroundColor: "$uiBrandPrimary", borderColor: "$borderBrandSoft" },
+      notification: { backgroundColor: "$uiInfoSecondary", borderColor: "$interactiveBaseInformationSoftDefault" },
     },
   },
-  defaultVariants: {
-    type: "online",
-  },
+  defaultVariants: { type: "online" },
   zIndex: 1,
 });
 
