@@ -26,6 +26,7 @@ import reportError from "../../utils/reportError";
 import { APIError, getActivity, getCard, createCard, getKYCStatus, setCardStatus } from "../../utils/server";
 import useAsset from "../../utils/useAsset";
 import useIntercom from "../../utils/useIntercom";
+import ExaCardDisclaimer from "../shared/ExaCardDisclaimer";
 import InfoAlert from "../shared/InfoAlert";
 import LatestActivity from "../shared/LatestActivity";
 import PluginUpgrade from "../shared/PluginUpgrade";
@@ -405,12 +406,7 @@ export default function Card() {
                     </YStack>
                   }
                 />
-                <Text color="$interactiveOnDisabled" caption2 textAlign="justify">
-                  *The Exa Card is issued by Third National pursuant to a license from Visa. Any credit issued by
-                  Exactly Protocol subject to its separate terms and conditions. Third National is not a party to any
-                  agreement with Exactly Protocol and is not responsible for any loan or credit arrangement between user
-                  and Exactly Protocol.
-                </Text>
+                <ExaCardDisclaimer caption2 />
               </View>
             </View>
           </View>

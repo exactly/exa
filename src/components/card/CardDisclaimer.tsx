@@ -9,6 +9,7 @@ import reportError from "../../utils/reportError";
 import useAspectRatio from "../../utils/useAspectRatio";
 import useIntercom from "../../utils/useIntercom";
 import Button from "../shared/Button";
+import ExaCardDisclaimer from "../shared/ExaCardDisclaimer";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
@@ -93,12 +94,7 @@ export default function CardDisclaimer({
                       Accept and enable card
                     </Button>
                   </YStack>
-                  <Text color="$interactiveOnDisabled" caption textAlign="justify">
-                    *The Exa Card is issued by Third National pursuant to a license from Visa. Any credit issued by
-                    Exactly Protocol subject to its separate terms and conditions. Third National is not a party to any
-                    agreement with Exactly Protocol and is not responsible for any loan or credit arrangement between
-                    user and Exactly Protocol.
-                  </Text>
+                  <ExaCardDisclaimer />
                 </YStack>
               </YStack>
             </View>

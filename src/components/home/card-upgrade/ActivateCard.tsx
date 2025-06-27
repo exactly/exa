@@ -12,6 +12,7 @@ import reportError from "../../../utils/reportError";
 import { APIError, createCard } from "../../../utils/server";
 import useIntercom from "../../../utils/useIntercom";
 import Button from "../../shared/Button";
+import ExaCardDisclaimer from "../../shared/ExaCardDisclaimer";
 import Spinner from "../../shared/Spinner";
 import Text from "../../shared/Text";
 import View from "../../shared/View";
@@ -136,14 +137,7 @@ export default function ActivateCard() {
             Accept and activate Exa Card
           </Button>
         </YStack>
-        {!isActivating && (
-          <Text color="$interactiveOnDisabled" caption textAlign="justify">
-            *The Exa Card is issued by Third National pursuant to a license from Visa. Any credit issued by Exactly
-            Protocol subject to its separate terms and conditions. Third National is not a party to any agreement with
-            Exactly Protocol and is not responsible for any loan or credit arrangement between user and Exactly
-            Protocol.
-          </Text>
-        )}
+        {isActivating ? null : <ExaCardDisclaimer />}
       </YStack>
     </View>
   );
