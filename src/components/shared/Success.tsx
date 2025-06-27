@@ -3,7 +3,6 @@ import type { Hex } from "@exactly/common/validation";
 import { Check } from "@tamagui/lucide-icons";
 import { format, isAfter } from "date-fns";
 import React from "react";
-import { Image } from "react-native";
 import { Square, XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
 import { useAccount, useBytecode } from "wagmi";
@@ -90,11 +89,17 @@ export default function Success({
                 <Text emphasized secondary subHeadline>
                   &nbsp;{currency}&nbsp;
                 </Text>
-                {externalAsset ? (
-                  <Image source={{ uri: externalAsset.logoURI }} width={16} height={16} borderRadius={20} />
-                ) : (
-                  <AssetLogo uri={assetLogos[currency as keyof typeof assetLogos]} width={16} height={16} />
-                )}
+                <AssetLogo
+                  {...(externalAsset
+                    ? {
+                        external: true,
+                        source: { uri: externalAsset.logoURI },
+                        width: 16,
+                        height: 16,
+                        borderRadius: 20,
+                      }
+                    : { uri: assetLogos[currency as keyof typeof assetLogos], width: 16, height: 16 })}
+                />
               </XStack>
             </YStack>
           </YStack>
