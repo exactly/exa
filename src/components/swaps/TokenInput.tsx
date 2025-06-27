@@ -2,12 +2,12 @@ import { WAD } from "@exactly/lib";
 import type { Token } from "@lifi/sdk";
 import { useForm } from "@tanstack/react-form";
 import React, { useCallback, useEffect } from "react";
-import { Image } from "react-native";
 import { styled, XStack, YStack } from "tamagui";
 import { pipe, string, nonEmpty } from "valibot";
 import { formatUnits, parseUnits } from "viem";
 
 import OptimismImage from "../../assets/images/optimism.svg";
+import AssetLogo from "../shared/AssetLogo";
 import Input from "../shared/Input";
 import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
@@ -76,8 +76,8 @@ export default function TokenInput({
         <TokenImageContainer onPress={onTokenSelect}>
           {token ? (
             <>
-              <Image source={{ uri: token.logoURI }} width={40} height={40} borderRadius={16} />
-              <ChainLogoWrapper>
+              <AssetLogo external source={{ uri: token.logoURI }} width={40} height={40} borderRadius="$r_0" />
+              <ChainLogoWrapper borderRadius="$r_0">
                 <OptimismImage width="100%" height="100%" />
               </ChainLogoWrapper>
             </>
@@ -160,7 +160,6 @@ const ChainLogoWrapper = styled(View, {
   right: 0,
   width: 20,
   height: 20,
-  borderRadius: 10,
   borderWidth: 2,
   borderColor: "white",
   overflow: "hidden",
