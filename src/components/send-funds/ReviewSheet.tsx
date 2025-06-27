@@ -2,7 +2,7 @@ import shortenHex from "@exactly/common/shortenHex";
 import { ArrowRight, User } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import React from "react";
-import { Platform, Pressable, Image } from "react-native";
+import { Platform, Pressable } from "react-native";
 import { ScrollView, Sheet, XStack, YStack } from "tamagui";
 
 import type { WithdrawDetails } from "./Amount";
@@ -77,11 +77,22 @@ export default function ReviewSheet({
                     Sending
                   </Text>
                   <XStack alignItems="center" gap="$s3">
-                    {market ? (
-                      <AssetLogo uri={assetLogos[assetName as keyof typeof assetLogos]} width={40} height={40} />
-                    ) : externalAsset ? (
-                      <Image source={{ uri: externalAsset.logoURI }} width={40} height={40} borderRadius={20} />
-                    ) : null}
+                    <AssetLogo
+                      {...(market
+                        ? {
+                            external: false,
+                            uri: assetLogos[assetName as keyof typeof assetLogos],
+                            width: 40,
+                            height: 40,
+                          }
+                        : {
+                            external: true,
+                            source: { uri: externalAsset?.logoURI },
+                            width: 40,
+                            height: 40,
+                            borderRadius: 20,
+                          })}
+                    />
                     <YStack flex={1}>
                       <Text title color="$uiNeutralPrimary">
                         {amount} {assetName}

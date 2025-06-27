@@ -1,7 +1,6 @@
 import { previewerAddress, ratePreviewerAddress } from "@exactly/common/generated/chain";
 import { floatingDepositRates } from "@exactly/lib";
 import React from "react";
-import { Image } from "react-native";
 import { vs } from "react-native-size-matters";
 import { XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
@@ -28,15 +27,14 @@ interface AssetItem {
 
 function AssetRow({ asset }: { asset: AssetItem }) {
   const { symbol, logoURI, amount, decimals, usdPrice, usdValue, rate } = asset;
-  const logoSource = logoURI ?? assetLogos[symbol as keyof typeof assetLogos];
   return (
     <XStack alignItems="center" borderColor="$borderNeutralSoft" paddingVertical={vs(10)} gap="$s2" width="100%">
       <XStack gap={10} alignItems="center" flex={1} $platform-web={{ flexBasis: 1 / 3 }}>
-        {logoURI ? (
-          <Image source={{ uri: logoSource }} width={32} height={32} borderRadius={16} />
-        ) : (
-          <AssetLogo uri={logoSource} width={32} height={32} />
-        )}
+        <AssetLogo
+          {...(logoURI
+            ? { external: true, source: { uri: logoURI }, width: 32, height: 32, borderRadius: "$r_0" }
+            : { uri: assetLogos[symbol as keyof typeof assetLogos], width: 32, height: 32 })}
+        />
         <YStack gap="$s2" alignItems="flex-start">
           <Text subHeadline color="$uiNeutralPrimary" numberOfLines={1}>
             {symbol}
