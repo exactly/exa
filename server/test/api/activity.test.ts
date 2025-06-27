@@ -291,6 +291,17 @@ describe.concurrent("authenticated", () => {
         { type: "loan", currency: "USDC", amount: 100, usdAmount: 100 },
       ]);
     });
+
+    it.only("returns swaps", async () => {
+      const response = await appClient.index.$get(
+        { query: { include: "swap" } },
+        { headers: { "test-credential-id": account } },
+      );
+
+      // expect(response.status).toBe(200);
+      const json = await response.json();
+      console.log({ json });
+    });
   });
 
   it("returns everything", async () => {

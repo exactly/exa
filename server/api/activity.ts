@@ -41,6 +41,7 @@ import {
 import { decodeFunctionData, type Log } from "viem";
 
 import database, { credentials } from "../database";
+import swapperAbi from "./aux.swapperAbi"; // FIXME include MockSwapper contract in the generated abis
 import {
   exaPluginAbi,
   exaPreviewerAbi,
@@ -53,7 +54,7 @@ import { collectors as cryptomateCollectors } from "../utils/cryptomate";
 import { collectors as pandaCollectors } from "../utils/panda";
 import publicClient from "../utils/publicClient";
 
-const ActivityTypes = picklist(["card", "received", "repay", "sent", "loan"]);
+const ActivityTypes = picklist(["card", "received", "repay", "sent", "loan", "swap"]);
 
 const collectors = new Set([...cryptomateCollectors, ...pandaCollectors].map((a) => a.toLowerCase() as Hex));
 
@@ -101,6 +102,23 @@ export default new Hono().get(
         : Promise.resolve(forbid(new Set<Hex>())),
     ]);
 
+    console.log("*********  get swappers  *********");
+    console.log({ plugins });
+    // FIXME get swappers reading from plugin.swapper
+    // option2: listen to SwapperSet event
+
+    const swappers = await Promise.all(
+      [...plugins].map((plugin) =>
+        publicClient.readContract({
+          address: plugin,
+          functionName: "swapper",
+          abi: exaPluginAbi,
+        }),
+      ),
+    );
+
+    console.log({ swappers });
+
     const market = (address: Hex) => {
       const found = markets.get(address.toLowerCase() as Hex);
       if (!found) throw new Error("market not found");
@@ -133,7 +151,7 @@ export default new Hono().get(
           })
         : Promise.resolve(forbid([]));
 
-    const [deposits, repays, withdraws, borrows, loans] = await Promise.all([
+    const [deposits, repays, withdraws, borrows, loans, swaps] = await Promise.all([
       ignore("received")
         ? []
         : Promise.all([
@@ -250,11 +268,27 @@ export default new Hono().get(
               })
               .filter((loan) => !!loan),
           ),
+      ignore("swap")
+        ? []
+        : publicClient
+            .getContractEvents({
+              abi: swapperAbi,
+              eventName: "LiFiGenericSwapCompleted",
+              address: [...swappers],
+              toBlock: "latest",
+              fromBlock: 0n,
+              strict: true,
+            })
+            .then((logs) =>
+              logs
+                .filter((log) => log.args.receiver.toLowerCase() === account.toLowerCase())
+                .map((log) => parse(SwapActivity, log satisfies InferInput<typeof SwapActivity>)),
+            ),
     ]);
     const blocks = await Promise.all(
       [
         ...new Set(
-          [...deposits, ...repays, ...withdraws, ...(borrows?.values() ?? []), ...loans].map(
+          [...deposits, ...repays, ...withdraws, ...(borrows?.values() ?? []), ...loans, ...swaps].map(
             ({ blockNumber }) => blockNumber,
           ),
         ),
@@ -296,7 +330,7 @@ export default new Hono().get(
             captureException(new Error("bad transaction"), { level: "error", contexts: { cryptomate, panda } });
           }),
         ),
-        ...[...deposits, ...repays, ...withdraws, ...loans].map(({ blockNumber, ...event }) => {
+        ...[...deposits, ...repays, ...withdraws, ...loans, ...swaps].map(({ blockNumber, ...event }) => {
           const timestamp = timestamps.get(blockNumber);
           if (timestamp) return { ...event, timestamp: new Date(Number(timestamp) * 1000).toISOString() };
           captureException(new Error("block not found"), {
@@ -550,6 +584,27 @@ export const RepayActivity = pipe(
   })),
 );
 
+export const SwapActivity = pipe(
+  object({
+    args: object({
+      receiver: Address,
+      fromAssetId: Address,
+      toAssetId: Address,
+      fromAmount: bigint(),
+      toAmount: bigint(),
+    }),
+    blockNumber: bigint(),
+    transactionHash: Hash,
+    transactionIndex: number(),
+    logIndex: number(),
+  }),
+  transform((activity) => ({
+    ...activity,
+    id: `${chain.id}:${String(activity.blockNumber)}:${activity.transactionIndex}:${activity.logIndex}`,
+    type: "swap" as const,
+  })),
+);
+
 export const WithdrawActivity = pipe(
   object({ ...OnchainActivity.entries, args: object({ assets: bigint(), receiver: Address }) }),
   transform((activity) => ({
@@ -583,5 +638,6 @@ export type LoanActivity = InferOutput<typeof LoanActivity>;
 export type OnchainActivity = InferOutput<typeof OnchainActivity>;
 export type PandaActivity = InferOutput<typeof PandaActivity>;
 export type RepayActivity = InferOutput<typeof RepayActivity>;
+export type SwapActivity = InferOutput<typeof SwapActivity>;
 export type WithdrawActivity = InferOutput<typeof WithdrawActivity>;
 /* eslint-enable @typescript-eslint/no-redeclare */
