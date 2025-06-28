@@ -2,6 +2,7 @@ import "../mocks/sentry";
 import "../mocks/deployments";
 import "../mocks/keeper";
 
+import { captureException } from "@sentry/node";
 import type * as timers from "node:timers/promises";
 import { afterEach, describe, expect, inject, it, vi } from "vitest";
 
@@ -12,7 +13,7 @@ import publicClient from "../../utils/publicClient";
 describe("fault tolerance", () => {
   it("recovers if transaction is missing", async () => {
     const sendRawTransaction = vi.spyOn(publicClient, "sendRawTransaction");
-    sendRawTransaction.mockResolvedValueOnce("0x");
+    sendRawTransaction.mockRejectedValueOnce(new Error("send"));
     const onHash = vi.fn<() => void>();
     const receipt = await keeper.exaSend(
       { name: "test transfer", op: "test.transfer" },
@@ -20,6 +21,7 @@ describe("fault tolerance", () => {
       { onHash },
     );
 
+    expect(captureException).toHaveBeenCalledWith(new Error("send"), expect.objectContaining({ level: "error" }));
     expect(onHash).toHaveBeenCalledOnce();
     expect(receipt?.status).toBe("success");
     expect(sendRawTransaction).toHaveBeenCalledTimes(2);
@@ -46,6 +48,7 @@ describe("fault tolerance", () => {
   });
 });
 
+vi.mock("@sentry/node", { spy: true });
 vi.mock("node:timers/promises", async (importOriginal) => {
   const original = await importOriginal<typeof timers>();
   return { ...original, setTimeout: (...arguments_: unknown[]) => original.setTimeout(500, ...arguments_.slice(1)) };

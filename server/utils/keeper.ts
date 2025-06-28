@@ -106,7 +106,10 @@ export function extender(keeper: WalletClient<HttpTransport, typeof chain, Priva
                   await Promise.allSettled([
                     startSpan({ name: "send transaction", op: "tx.send" }, () =>
                       publicClient.sendRawTransaction({ serializedTransaction }),
-                    ),
+                    ).catch((error: unknown) => {
+                      captureException(error, { level: "error" });
+                      throw error;
+                    }),
                     setTimeout(10_000, null, { signal: abortController.signal }),
                   ]);
                 }
