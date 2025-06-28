@@ -1,5 +1,13 @@
 # @exactly/server
 
+## 0.2.4
+
+### Patch Changes
+
+- [`f05fc6c`](https://github.com/exactly/exa/commit/f05fc6c3258d455e6a929b3912cc5ed95e8501d8) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 report transaction sending error
+
+- [`8fae524`](https://github.com/exactly/exa/commit/8fae5245d4ac9ebb881a376575d13773f37630da) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 recover from missing sent transaction
+
 ## 0.2.3
 
 ### Patch Changes
