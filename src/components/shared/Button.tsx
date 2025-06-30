@@ -21,10 +21,7 @@ export default styled(Button, {
         backgroundColor: "$interactiveBaseBrandSoftDefault",
         color: "$interactiveOnBaseBrandSoft",
         hoverStyle: { backgroundColor: "$interactiveBaseBrandSoftHover" },
-        pressStyle: {
-          backgroundColor: "$interactiveBaseBrandSoftPressed",
-          color: "$interactiveOnBaseBrandSoft",
-        },
+        pressStyle: { backgroundColor: "$interactiveBaseBrandSoftPressed", color: "$interactiveOnBaseBrandSoft" },
       },
     },
     disabled: {
@@ -35,10 +32,7 @@ export default styled(Button, {
         backgroundColor: "$interactiveBaseErrorSoftDefault",
         color: "$interactiveOnBaseErrorSoft",
         hoverStyle: { backgroundColor: "$interactiveBaseErrorSoftHover" },
-        pressStyle: {
-          backgroundColor: "$interactiveBaseErrorSoftPressed",
-          color: "$interactiveOnBaseErrorSoft",
-        },
+        pressStyle: { backgroundColor: "$interactiveBaseErrorSoftPressed", color: "$interactiveOnBaseErrorSoft" },
       },
     },
     dangerSecondary: {
@@ -54,9 +48,9 @@ export default styled(Button, {
         borderColor: "transparent",
         fontSize: 15,
         fontWeight: "bold",
-        height: 68,
+        height: 64,
         padding: "$s4_5",
-        borderRadius: "$r4",
+        borderRadius: "$r3",
         scaleIcon: 1.5,
       },
     },
