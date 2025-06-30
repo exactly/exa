@@ -146,9 +146,9 @@ export interface Withdraw {
 
 export interface Loan {
   market?: Address;
-  amount: bigint;
-  installments: number;
-  maturity: bigint;
+  amount?: bigint;
+  installments?: number;
+  maturity?: bigint;
   receiver?: Address;
 }
 
