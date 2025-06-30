@@ -1,14 +1,14 @@
 import chain from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
-import { ArrowLeft, ArrowRight, Check, CircleHelp, ClipboardPaste } from "@tamagui/lucide-icons";
+import { ArrowLeft, ArrowRight, Check, CircleHelp, ClipboardPaste, TriangleAlert } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
-import { useForm } from "@tanstack/react-form";
+import { useForm, useStore } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import { getStringAsync } from "expo-clipboard";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Pressable } from "react-native";
-import { ButtonIcon, ScrollView, XStack, YStack } from "tamagui";
+import { ScrollView, Separator, XStack, YStack } from "tamagui";
 import { parse } from "valibot";
 import { useAccount } from "wagmi";
 
@@ -17,9 +17,9 @@ import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAsset from "../../utils/useAsset";
 import useIntercom from "../../utils/useIntercom";
-import Button from "../shared/Button";
 import Input from "../shared/Input";
 import SafeView from "../shared/SafeView";
+import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
@@ -51,7 +51,17 @@ export default function Receiver() {
     },
   });
 
+  const receiver = useStore(form.store, (state) => state.values.receiver);
+  const isValid = useStore(form.store, (state) => state.isValid);
+
   const displayInput = receiverType === "external";
+  useEffect(() => {
+    return () => {
+      queryClient.setQueryData<Loan>(["loan"], (old) => {
+        return { ...old, receiver: undefined };
+      });
+    };
+  }, []);
   return (
     <SafeView fullScreen>
       <View padded flexDirection="row" gap={10} paddingBottom="$s4" justifyContent="space-between" alignItems="center">
@@ -156,65 +166,42 @@ export default function Receiver() {
                 </XStack>
                 {displayInput && (
                   <form.Field name="receiver" validators={{ onChange: Address }}>
-                    {({ state: { value, meta }, handleChange, setValue }) => {
+                    {({ state: { value }, handleChange, setValue }) => {
                       return (
-                        <YStack gap="$s4">
-                          <XStack flexDirection="row">
-                            <Input
-                              neutral
-                              flex={1}
-                              placeholder="Enter receiver address"
-                              borderColor="$uiNeutralTertiary"
-                              borderRightColor="transparent"
-                              borderTopRightRadius={0}
-                              borderBottomRightRadius={0}
-                              value={value}
-                              onChangeText={handleChange}
-                            />
-                            <Button
-                              outlined
-                              borderColor="$uiNeutralTertiary"
-                              borderRadius="$r3"
-                              borderTopLeftRadius={0}
-                              borderBottomLeftRadius={0}
-                              borderLeftWidth={0}
-                              onPress={() => {
-                                getStringAsync()
-                                  .then((text) => {
-                                    setValue(text);
-                                  })
-                                  .catch(reportError);
-                              }}
-                            >
-                              <ButtonIcon>
-                                <ClipboardPaste size={24} color="$interactiveOnBaseBrandSoft" />
-                              </ButtonIcon>
-                            </Button>
-                          </XStack>
-                          {meta.errors.length > 0 ? (
-                            <Text padding="$s3" footnote color="$uiNeutralSecondary">
-                              {meta.errors[0]?.message.split(",")[0]}
-                            </Text>
-                          ) : undefined}
-                          <Text caption2 color="$uiNeutralPlaceholder">
-                            Send funds only to {chain.name} addresses. Sending assets to any other network will cause
-                            irreversible loss of funds.
-                            <Text
-                              caption2
-                              emphasized
-                              color="$uiBrandSecondary"
-                              cursor="pointer"
-                              onPress={() => {
-                                presentArticle("9056481").catch(reportError);
-                              }}
-                            >
-                              &nbsp;Learn more about sending funds.
-                            </Text>
-                          </Text>
-                          <Text caption2 color="$uiNeutralPlaceholder">
-                            Arrival time ≈ 5 min.
-                          </Text>
-                        </YStack>
+                        <XStack alignItems="center">
+                          <Input
+                            neutral
+                            flex={1}
+                            placeholder="Enter receiver address"
+                            borderColor="$uiNeutralTertiary"
+                            borderRightColor="transparent"
+                            borderTopRightRadius={0}
+                            borderBottomRightRadius={0}
+                            value={value}
+                            onChangeText={handleChange}
+                          />
+                          <Button
+                            outlined
+                            borderColor="$uiNeutralTertiary"
+                            borderRadius="$r3"
+                            borderTopLeftRadius={0}
+                            borderBottomLeftRadius={0}
+                            borderLeftWidth={0}
+                            minHeight={44}
+                            height={44}
+                            onPress={() => {
+                              getStringAsync()
+                                .then((text) => {
+                                  setValue(text);
+                                })
+                                .catch(reportError);
+                            }}
+                          >
+                            <Button.Icon>
+                              <ClipboardPaste size={24} />
+                            </Button.Icon>
+                          </Button>
+                        </XStack>
                       );
                     }}
                   </form.Field>
@@ -222,29 +209,45 @@ export default function Receiver() {
               </YStack>
             </YStack>
           </YStack>
-          <YStack>
-            <form.Subscribe selector={({ canSubmit, isValid }) => [canSubmit, isValid]}>
-              {([, isValid]) => {
+          <YStack gap="$s4_5">
+            {displayInput && (
+              <YStack gap="$s4_5">
+                <Separator borderColor="$borderNeutralSoft" />
+                <XStack gap="$s3" alignItems="center">
+                  <TriangleAlert size={16} color="$uiWarningSecondary" />
+                  <Text caption2 color="$uiNeutralPlaceholder" flex={1}>
+                    Send funds only to {chain.name} addresses. Sending assets to any other network will cause
+                    irreversible loss of funds. Arrival time ≈ 5 min.
+                    <Text
+                      caption2
+                      emphasized
+                      color="$uiBrandSecondary"
+                      cursor="pointer"
+                      onPress={() => {
+                        presentArticle("9056481").catch(reportError);
+                      }}
+                    >
+                      &nbsp;Learn more about sending funds.
+                    </Text>
+                  </Text>
+                </XStack>
+              </YStack>
+            )}
+            <form.Subscribe>
+              {() => {
+                const disabled = !receiver || !isValid;
                 return (
                   <Button
-                    main
-                    spaced
-                    outlined
+                    primary
                     onPress={() => {
                       form.handleSubmit().catch(reportError);
                     }}
-                    disabled={!isValid}
-                    backgroundColor={isValid ? "$interactiveBaseBrandSoftDefault" : "$interactiveDisabled"}
-                    color={isValid ? "$interactiveOnBaseBrandSoft" : "$interactiveOnDisabled"}
-                    iconAfter={
-                      <ArrowRight
-                        color={isValid ? "$interactiveOnBaseBrandSoft" : "$interactiveOnDisabled"}
-                        strokeWidth={2.5}
-                      />
-                    }
-                    flex={0}
+                    disabled={disabled}
                   >
-                    Continue
+                    <Button.Text>Review loan terms</Button.Text>
+                    <Button.Icon>
+                      <ArrowRight />
+                    </Button.Icon>
                   </Button>
                 );
               }}

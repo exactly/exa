@@ -12,8 +12,8 @@ import assetLogos from "../../utils/assetLogos";
 import type { Loan } from "../../utils/queryClient";
 import useAspectRatio from "../../utils/useAspectRatio";
 import useAsset from "../../utils/useAsset";
-import Button from "../shared/Button";
 import SafeView from "../shared/SafeView";
+import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 
 export default function PaymentScheduleSheet({
@@ -94,16 +94,11 @@ export default function PaymentScheduleSheet({
                 </YStack>
               </YStack>
               <YStack gap="$s5">
-                <Button
-                  onPress={onClose}
-                  flexBasis={60}
-                  contained
-                  main
-                  spaced
-                  fullwidth
-                  iconAfter={<X strokeWidth={2.5} color="$interactiveOnBaseBrandDefault" />}
-                >
-                  Close
+                <Button onPress={onClose} primary>
+                  <Button.Text>Close</Button.Text>
+                  <Button.Icon>
+                    <X />
+                  </Button.Icon>
                 </Button>
               </YStack>
             </YStack>
