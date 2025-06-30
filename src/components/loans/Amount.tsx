@@ -1,9 +1,9 @@
 import { previewerAddress } from "@exactly/common/generated/chain";
 import { WAD } from "@exactly/lib";
-import { ArrowLeft, ArrowRight, Check, CircleHelp } from "@tamagui/lucide-icons";
+import { ArrowLeft, ArrowRight, Check, CircleHelp, TriangleAlert } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Pressable } from "react-native";
 import { Checkbox, ScrollView, XStack, YStack } from "tamagui";
 import { formatUnits, zeroAddress } from "viem";
@@ -16,8 +16,8 @@ import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAsset from "../../utils/useAsset";
 import useIntercom from "../../utils/useIntercom";
-import Button from "../shared/Button";
 import SafeView from "../shared/SafeView";
+import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
@@ -35,18 +35,26 @@ export default function Amount() {
   const { market, borrowAvailable } = useAsset(loan?.market);
 
   const [acknowledged, setAcknowledged] = useState(false);
-  const [state, setState] = useState<{ amount: bigint; danger: boolean }>({
+
+  const [state, setState] = useState<{ amount: bigint; warning: boolean }>({
     amount: loan?.amount ?? 0n,
-    danger: false,
+    warning: false,
   });
 
-  const disabled =
-    !loan?.market || state.amount <= 0n || state.amount > borrowAvailable || (state.danger && !acknowledged);
+  const insufficient = Number(state.amount) > borrowAvailable;
+  const disabled = !loan?.market || state.amount <= 0n || insufficient || (state.warning && !acknowledged);
+
+  useEffect(() => {
+    return () => {
+      queryClient.setQueryData<Loan>(["loan"], undefined);
+    };
+  }, []);
   return (
     <SafeView fullScreen>
       <View padded flexDirection="row" gap={10} paddingBottom="$s4" justifyContent="space-between" alignItems="center">
         <Pressable
           onPress={() => {
+            queryClient.setQueryData(["loan"], (old: Loan) => ({ ...old, amount: null }));
             if (canGoBack()) {
               router.back();
               return;
@@ -108,16 +116,24 @@ export default function Amount() {
               {loan?.market && (
                 <AmountSelector
                   market={loan.market}
-                  onChange={(amount, danger) => {
-                    setState({ amount, danger });
+                  onChange={(amount, warning) => {
+                    setState({ amount, warning });
                     setAcknowledged(false);
                   }}
                 />
               )}
+              {insufficient && (
+                <XStack gap="$s3" flex={1} alignItems="center">
+                  <TriangleAlert size={16} color="$uiErrorSecondary" />
+                  <Text secondary caption flex={1}>
+                    You&apos;re trying to borrow more than your collateral allows. Please enter a lower amount.
+                  </Text>
+                </XStack>
+              )}
             </YStack>
           </YStack>
           <YStack gap="$s4_5">
-            {state.danger && (
+            {state.warning && !insufficient && (
               <XStack
                 gap="$s3"
                 flex={1}
@@ -134,10 +150,10 @@ export default function Amount() {
                   checked={acknowledged}
                 >
                   <Checkbox.Indicator>
-                    <Check size={16} color="$uiNeutralPrimary" />
+                    <Check size={16} color="white" />
                   </Checkbox.Indicator>
                 </Checkbox>
-                <Text secondary caption>
+                <Text secondary caption flex={1}>
                   I acknowledge the risks of borrowing this much against my collateral.
                 </Text>
               </XStack>
@@ -147,34 +163,14 @@ export default function Amount() {
                 queryClient.setQueryData(["loan"], (old: Loan) => ({ ...old, amount: state.amount }));
                 router.push("/(app)/loan/installments");
               }}
-              main
-              spaced
-              outlined
-              flex={0}
-              danger={state.danger}
+              primary={!state.warning || !acknowledged}
+              dangerSecondary={state.warning && acknowledged}
               disabled={disabled}
-              iconAfter={
-                <ArrowRight
-                  // eslint-disable-next-line react-native/no-inline-styles, react-native/no-color-literals
-                  pressStyle={{
-                    color: disabled
-                      ? "$interactiveOnDisabled"
-                      : state.danger
-                        ? "$interactiveOnBaseErrorSoft"
-                        : "$interactiveOnBaseBrandSoft",
-                  }}
-                  color={
-                    disabled
-                      ? "$interactiveOnDisabled"
-                      : state.danger
-                        ? "$interactiveOnBaseErrorSoft"
-                        : "$interactiveOnBaseBrandSoft"
-                  }
-                  strokeWidth={2.5}
-                />
-              }
             >
-              Continue
+              <Button.Text>Continue</Button.Text>
+              <Button.Icon>
+                <ArrowRight />
+              </Button.Icon>
             </Button>
           </YStack>
         </YStack>

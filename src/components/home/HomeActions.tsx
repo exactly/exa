@@ -75,8 +75,14 @@ export default function HomeActions() {
                   router.push("/swaps");
                   break;
                 case "borrow":
-                  queryClient.setQueryData(["loan"], (old: Loan) => ({ ...old, market: marketUSDCAddress }));
-                  router.push("/(app)/loan/amount");
+                  queryClient.setQueryData<Loan>(["loan"], () => ({
+                    market: marketUSDCAddress,
+                    amount: undefined,
+                    installments: undefined,
+                    maturity: undefined,
+                    receiver: undefined,
+                  }));
+                  router.push("/(app)/(home)/loans");
               }
             }}
             cursor="pointer"
