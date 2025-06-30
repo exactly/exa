@@ -61,7 +61,13 @@ export default function CreditLine() {
           </YStack>
           <Button
             onPress={() => {
-              queryClient.setQueryData(["loan"], (old: Loan) => ({ ...old, market: marketUSDCAddress }));
+              queryClient.setQueryData<Loan>(["loan"], () => ({
+                market: marketUSDCAddress,
+                amount: undefined,
+                installments: undefined,
+                maturity: undefined,
+                receiver: undefined,
+              }));
               router.push("/(app)/loan/amount");
             }}
             main
@@ -69,6 +75,9 @@ export default function CreditLine() {
             iconAfter={<ArrowRight color="$interactiveOnBaseBrandDefault" strokeWidth={2.5} />}
             flex={0}
             contained
+            height={64}
+            maxFontSizeMultiplier={1.1}
+            borderRadius="$r3"
           >
             Explore loan options
           </Button>

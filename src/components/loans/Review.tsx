@@ -4,14 +4,14 @@ import { exaPluginAddress, marketUSDCAddress, previewerAddress } from "@exactly/
 import shortenHex from "@exactly/common/shortenHex";
 import { Address } from "@exactly/common/validation";
 import { MATURITY_INTERVAL, WAD } from "@exactly/lib";
-import { ArrowLeft, ArrowRight, Check, CircleHelp, X } from "@tamagui/lucide-icons";
+import { ArrowLeft, ArrowRight, Check, ChevronRight, CircleHelp, X } from "@tamagui/lucide-icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, Image } from "react-native";
-import { ScrollView, Separator, Spinner, Square, XStack, YStack } from "tamagui";
+import { ScrollView, Separator, Square, XStack, YStack } from "tamagui";
 import { parse } from "valibot";
 import { encodeAbiParameters, encodeFunctionData, maxUint256, zeroAddress } from "viem";
 import { useAccount, useBytecode } from "wagmi";
@@ -30,11 +30,11 @@ import useAsset from "../../utils/useAsset";
 import useInstallments from "../../utils/useInstallments";
 import useIntercom from "../../utils/useIntercom";
 import AssetLogo from "../shared/AssetLogo";
-import Button from "../shared/Button";
 import GradientScrollView from "../shared/GradientScrollView";
 import PaymentScheduleSheet from "../shared/PaymentScheduleSheet";
 import SafeView from "../shared/SafeView";
 import ExaSpinner from "../shared/Spinner";
+import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
@@ -69,13 +69,13 @@ export default function Review() {
 
   const { data: borrow, isPending: isBorrowPending } = useReadPreviewerPreviewBorrowAtMaturity({
     address: previewerAddress,
-    args: [marketUSDCAddress, maturity, amount],
+    args: [marketUSDCAddress, maturity ?? 0n, amount ?? 0n],
     query: { enabled: !!address && !!bytecode && !!maturity && !!amount && singleInstallment },
   });
 
   const { data: split, isFetching: isInstallmentsPending } = useInstallments({
-    totalAmount: amount,
-    installments: count,
+    totalAmount: amount ?? 0n,
+    installments: count ?? 0,
     marketAddress: market,
     timestamp: Number(maturity),
   });
@@ -88,9 +88,9 @@ export default function Review() {
       : 0n;
   const installmentsAmountUSD = split ? ((split.installments[0] ?? 0n) * usdPrice) / 10n ** BigInt(decimals) : 0n;
   const feeUSD = borrow
-    ? ((borrow.assets - amount) * usdPrice) / 10n ** BigInt(decimals)
+    ? ((borrow.assets - (amount ?? 0n)) * usdPrice) / 10n ** BigInt(decimals)
     : split
-      ? ((split.installments.reduce((accumulator, current) => accumulator + current, 0n) - amount) * usdPrice) /
+      ? ((split.installments.reduce((accumulator, current) => accumulator + current, 0n) - (amount ?? 0n)) * usdPrice) /
         10n ** BigInt(decimals)
       : 0n;
 
@@ -107,7 +107,7 @@ export default function Review() {
       if (!split) throw new Error("no installment data");
       if (!accountClient) throw new Error("no account client");
       const uo: BatchUserOperationCallData = [];
-      for (let index = 0; index < count; index++) {
+      for (let index = 0; index < (count ?? 0); index++) {
         const borrowAmount = split.amounts[index];
         const borrowMaturity = BigInt(Number(loan?.maturity) + index * MATURITY_INTERVAL);
         if (!borrowAmount) return;
@@ -138,7 +138,10 @@ export default function Review() {
 
   const timestamp = Math.floor(Date.now() / 1000);
   const rate = borrow
-    ? Number(((borrow.assets - amount) * WAD * 31_536_000n) / (amount * (borrow.maturity - BigInt(timestamp)))) / 1e18
+    ? Number(
+        ((borrow.assets - (amount ?? 0n)) * WAD * 31_536_000n) /
+          ((amount ?? 0n) * (borrow.maturity - BigInt(timestamp))),
+      ) / 1e18
     : split
       ? Number(split.effectiveRate) / 1e18
       : 0;
@@ -206,10 +209,10 @@ export default function Review() {
                 <XStack alignItems="center" gap="$s2">
                   <AssetLogo uri={assetLogos[symbol as keyof typeof assetLogos]} width={16} height={16} />
                   <Text title3 color="$uiNeutralPrimary">
-                    {Number(Number((amount * usdPrice) / 10n ** BigInt(decimals)) / 1e18).toLocaleString(undefined, {
-                      style: "currency",
-                      currency: "USD",
-                    })}
+                    {Number(Number(((amount ?? 0n) * usdPrice) / 10n ** BigInt(decimals)) / 1e18).toLocaleString(
+                      undefined,
+                      { style: "currency", currency: "USD" },
+                    )}
                   </Text>
                 </XStack>
               </XStack>
@@ -235,12 +238,13 @@ export default function Review() {
                 </XStack>
               </XStack>
               <Separator height={1} borderColor="$borderNeutralSoft" />
-              <XStack gap="$s4" alignItems="center" justifyContent="space-between">
-                <Text footnote color="$uiNeutralSecondary">
-                  {t("You repay {{count}} installments of", { count })}
-                </Text>
-                <XStack alignItems="center" gap="$s2">
-                  <YStack alignItems="flex-end">
+
+              <YStack>
+                <XStack gap="$s4" alignItems="center" justifyContent="space-between">
+                  <Text footnote color="$uiNeutralSecondary">
+                    {t("You repay {{count}} installments of", { count })}
+                  </Text>
+                  <XStack alignItems="center" gap="$s2">
                     <XStack alignItems="center" gap="$s2">
                       <AssetLogo uri={assetLogos[symbol as keyof typeof assetLogos]} width={16} height={16} />
                       <Text title3 color="$uiNeutralPrimary">
@@ -250,14 +254,16 @@ export default function Review() {
                         )}
                       </Text>
                     </XStack>
-                    {singleInstallment ? null : (
-                      <Text footnote color="$uiNeutralSecondary">
-                        each
-                      </Text>
-                    )}
-                  </YStack>
+                  </XStack>
                 </XStack>
-              </XStack>
+                {singleInstallment ? null : (
+                  <XStack gap="$s4" alignItems="center" justifyContent="flex-end">
+                    <Text footnote color="$uiNeutralSecondary">
+                      each
+                    </Text>
+                  </XStack>
+                )}
+              </YStack>
               {singleInstallment ? null : (
                 <XStack gap="$s4" alignItems="center" justifyContent="space-between">
                   <Text footnote color="$uiNeutralSecondary">
@@ -284,14 +290,18 @@ export default function Review() {
                 </Text>
               </XStack>
               {!singleInstallment && (
-                <XStack gap="$s4" justifyContent="space-between">
-                  <Text footnote color="$uiNeutralSecondary">
-                    Following installments due
-                  </Text>
-                  <YStack alignItems="flex-end">
-                    <Text headline color="$uiNeutralPrimary">
-                      Every 28 days
+                <YStack>
+                  <XStack gap="$s4" justifyContent="space-between">
+                    <Text footnote color="$uiNeutralSecondary">
+                      Following installments due
                     </Text>
+                    <YStack alignItems="flex-end">
+                      <Text headline color="$uiNeutralPrimary">
+                        Every 28 days
+                      </Text>
+                    </YStack>
+                  </XStack>
+                  <XStack alignItems="center" justifyContent="flex-end">
                     <Text
                       cursor="pointer"
                       subHeadline
@@ -302,8 +312,9 @@ export default function Review() {
                     >
                       payment schedule
                     </Text>
-                  </YStack>
-                </XStack>
+                    <ChevronRight size={12} color="$interactiveBaseBrandDefault" strokeWidth={2} />
+                  </XStack>
+                </YStack>
               )}
               <Separator height={1} borderColor="$borderNeutralSoft" />
               <XStack gap="$s4" alignItems="center" justifyContent="space-between">
@@ -317,28 +328,17 @@ export default function Review() {
             </YStack>
             <YStack>
               <Button
-                main
-                spaced
-                outlined
+                primary
                 onPress={() => {
                   propose(undefined, {}).catch(reportError);
                 }}
+                loading={pending}
                 disabled={disabled}
-                backgroundColor={disabled ? "$interactiveDisabled" : "$interactiveBaseBrandSoftDefault"}
-                color={disabled ? "$interactiveOnDisabled" : "$interactiveOnBaseBrandSoft"}
-                iconAfter={
-                  pending ? (
-                    <Spinner color="$interactiveOnDisabled" />
-                  ) : (
-                    <ArrowRight
-                      color={disabled ? "$interactiveOnDisabled" : "$interactiveOnBaseBrandSoft"}
-                      strokeWidth={2.5}
-                    />
-                  )
-                }
-                flex={0}
               >
-                {`Confirm and ${receiver === address ? "receive" : "borrow"} ${symbol}`}
+                <Button.Text>{`Confirm and ${receiver === address ? "receive" : "borrow"} ${symbol}`}</Button.Text>
+                <Button.Icon>
+                  <ArrowRight />
+                </Button.Icon>
               </Button>
             </YStack>
           </YStack>
