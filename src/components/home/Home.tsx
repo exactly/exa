@@ -13,6 +13,7 @@ import CardStatus from "./CardStatus";
 import ExploreLoans from "./ExploreLoans";
 import GettingStarted from "./GettingStarted";
 import HomeActions from "./HomeActions";
+import HomeDisclaimer from "./HomeDisclaimer";
 import PortfolioSummary from "./PortfolioSummary";
 import SpendingLimitsSheet from "./SpendingLimitsSheet";
 import CardUpgradeSheet from "./card-upgrade/CardUpgradeSheet";
@@ -161,6 +162,7 @@ export default function Home() {
                 }}
               />
               <LatestActivity activity={activity} />
+              <HomeDisclaimer />
             </View>
           </View>
           <PaymentSheet

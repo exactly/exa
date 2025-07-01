@@ -1,8 +1,9 @@
 import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import { router, useLocalSearchParams } from "expo-router";
+import { openBrowserAsync } from "expo-web-browser";
 import React, { useState } from "react";
 import { RefreshControl } from "react-native";
-import { ScrollView, useTheme } from "tamagui";
+import { ScrollView, useTheme, XStack } from "tamagui";
 import { zeroAddress } from "viem";
 
 import OverduePayments from "./OverduePayments";
@@ -13,6 +14,7 @@ import { useReadPreviewerExactly } from "../../generated/contracts";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAsset from "../../utils/useAsset";
+import useIntercom from "../../utils/useIntercom";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
@@ -20,6 +22,7 @@ import View from "../shared/View";
 export default function PayMode() {
   const theme = useTheme();
   const parameters = useLocalSearchParams();
+  const { presentCollection } = useIntercom();
   const [paySheetOpen, setPaySheetOpen] = useState(false);
   const { account } = useAsset(marketUSDCAddress);
   const { refetch, isPending } = useReadPreviewerExactly({ address: previewerAddress, args: [account ?? zeroAddress] });
@@ -58,12 +61,35 @@ export default function PayMode() {
                   setPaySheetOpen(true);
                 }}
               />
-              <Text caption2 color="$interactiveOnDisabled" textAlign="justify">
-                *The Exa Card is issued by Third National pursuant to a license from Visa. Any credit issued by Exactly
-                Protocol subject to its separate terms and conditions. Third National is not a party to any agreement
-                with Exactly Protocol and is not responsible for any loan or credit arrangement between user and Exactly
-                Protocol.
-              </Text>
+              <XStack gap="$s4" alignItems="flex-start" paddingTop="$s3" flexWrap="wrap">
+                <Text caption2 color="$interactiveOnDisabled" textAlign="justify">
+                  Onchain credit is powered by&nbsp;
+                  <Text
+                    cursor="pointer"
+                    caption2
+                    color="$interactiveOnDisabled"
+                    textDecorationLine="underline"
+                    onPress={() => {
+                      openBrowserAsync(`https://exact.ly/`).catch(reportError);
+                    }}
+                  >
+                    Exactly Protocol
+                  </Text>
+                  &nbsp;and is subject to separate&nbsp;
+                  <Text
+                    cursor="pointer"
+                    caption2
+                    color="$interactiveOnDisabled"
+                    textDecorationLine="underline"
+                    onPress={() => {
+                      presentCollection("10544608").catch(reportError);
+                    }}
+                  >
+                    Terms and conditions
+                  </Text>
+                  . The Exa App does not issue or guarantee any loans.
+                </Text>
+              </XStack>
             </View>
             <PaymentSheet
               open={paySheetOpen}
