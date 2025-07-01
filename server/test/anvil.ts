@@ -56,6 +56,15 @@ export default async function setup({ provide }: TestProject) {
   const debtManager = protocol[28].contractAddress;
   const previewer = protocol[30].contractAddress;
   const installmentsRouter = protocol[31].contractAddress;
+  const swapper = parse(
+    object({
+      transactions: tuple([
+        object({ contractName: literal("MockVelodromeFactory"), contractAddress: Address }),
+        object({ contractName: literal("MockSwapper"), contractAddress: Address }),
+      ]),
+    }),
+    await import(`@exactly/plugin/broadcast/Mocks.s.sol/${foundry.id}/run-latest.json`),
+  ).transactions[1].contractAddress;
 
   if (initialize) {
     // cspell:ignoreRegExp [\b_][A-Z]+_ADDRESS\b
@@ -75,15 +84,7 @@ export default async function setup({ provide }: TestProject) {
 
     await $(shell)`forge script test/mocks/Mocks.s.sol
       --unlocked ${deployer} --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
-    shell.env.SWAPPER_ADDRESS = parse(
-      object({
-        transactions: tuple([
-          object({ contractName: literal("MockVelodromeFactory"), contractAddress: Address }),
-          object({ contractName: literal("MockSwapper"), contractAddress: Address }),
-        ]),
-      }),
-      await import(`@exactly/plugin/broadcast/Mocks.s.sol/${foundry.id}/run-latest.json`),
-    ).transactions[1].contractAddress;
+    shell.env.SWAPPER_ADDRESS = swapper;
 
     await $(shell)`forge script node_modules/webauthn-owner-plugin/script/Plugin.s.sol --sender ${deployer}
       --unlocked ${deployer} --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
@@ -196,6 +197,7 @@ export default async function setup({ provide }: TestProject) {
   provide("Previewer", previewer);
   provide("ProposalManager", proposalManager);
   provide("Refunder", refunder);
+  provide("Swapper", swapper);
   provide("USDC", usdc);
   provide("WETH", weth);
 
@@ -265,6 +267,7 @@ declare module "vitest" {
     ProposalManager: Address;
     Previewer: Address;
     Refunder: Address;
+    Swapper: Address;
     USDC: Address;
     WETH: Address;
   }

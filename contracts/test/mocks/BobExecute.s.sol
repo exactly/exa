@@ -52,6 +52,7 @@ contract BobExecuteScript is BaseScript {
     bobAccount.executeProposal(3);
     bobAccount.setProposalNonce(4);
     bobAccount.executeProposal(4);
+    bobAccount.executeProposal(5);
     vm.stopBroadcast();
   }
 }

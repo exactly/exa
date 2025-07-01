@@ -13,6 +13,7 @@ vi.mock("@exactly/common/generated/chain", async (importOriginal) => ({
   proposalManagerAddress: inject("ProposalManager"),
   usdcAddress: inject("USDC"),
   wethAddress: inject("WETH"),
+  swapperAddress: inject("Swapper"),
 }));
 vi.mock("../../generated/contracts", async (importOriginal) => ({
   ...(await importOriginal()),
