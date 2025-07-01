@@ -210,6 +210,8 @@ const tokens = createTokens({
   },
   radius: { r0: 0, true: 4, r1: 2, r2: 4, r3: 8, r4: 12, r5: 16, r6: 20, r_0: 9999 },
   size: config.tokens.size,
+  iconSize: { xs: 12, sm: 14, md: 20, lg: 24, xl: 32, xxl: 48 },
+  iconStroke: { xs: 1, sm: 1.2, md: 1.4, lg: 1.6, xl: 2, xxl: 2.2 },
   zIndex: config.tokens.zIndex,
 });
 
