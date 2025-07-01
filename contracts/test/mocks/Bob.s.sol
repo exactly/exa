@@ -15,7 +15,16 @@ import { OwnersLib } from "webauthn-owner-plugin/OwnersLib.sol";
 import { BaseScript } from "../../script/Base.s.sol";
 import { ExaAccountFactory } from "../../src/ExaAccountFactory.sol";
 import { ExaPlugin } from "../../src/ExaPlugin.sol";
-import { BorrowAtMaturityData, CrossRepayData, IExaAccount, IMarket, ProposalType, RepayData } from "../../src/IExaAccount.sol";
+import {
+  BorrowAtMaturityData,
+  CrossRepayData,
+  IERC20,
+  IExaAccount,
+  IMarket,
+  ProposalType,
+  RepayData,
+  SwapData
+} from "../../src/IExaAccount.sol";
 import { IssuerChecker } from "../../src/IssuerChecker.sol";
 import { ProposalManager } from "../../src/ProposalManager.sol";
 
@@ -102,7 +111,7 @@ contract BobScript is BaseScript {
       maturity, amounts, type(uint256).max, block.timestamp, _issuerOp(46e6, block.timestamp)
     );
     vm.stopBroadcast();
-    Call[] memory calls = new Call[](5);
+    Call[] memory calls = new Call[](6);
     calls[0] = Call(
       address(bobAccount),
       0,
@@ -159,6 +168,27 @@ contract BobScript is BaseScript {
           ProposalType.BORROW_AT_MATURITY,
           abi.encode(
             BorrowAtMaturityData({ maturity: maturity + FixedLib.INTERVAL, maxAssets: 110e6, receiver: address(0x69) })
+          )
+        )
+      )
+    );
+    calls[5] = Call(
+      address(bobAccount),
+      0,
+      abi.encodeCall(
+        IExaAccount.propose,
+        (
+          exaEXA,
+          100e18,
+          ProposalType.SWAP,
+          abi.encode(
+            SwapData({
+              assetOut: IERC20(address(usdc)),
+              minAmountOut: 1,
+              route: abi.encodeCall(
+                MockSwapper.swapExactAmountOut, (address(exa), 100e18, address(usdc), 82e6, address(bobAccount))
+              )
+            })
           )
         )
       )
