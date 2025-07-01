@@ -4,6 +4,7 @@ import { ChevronRight, CircleHelp, CreditCard, DollarSign, Eye, EyeOff, Hash, Sn
 import { useToastController } from "@tamagui/toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
+import { openBrowserAsync } from "expo-web-browser";
 import React, { useState } from "react";
 import { Pressable, RefreshControl } from "react-native";
 import { ScrollView, Separator, Spinner, Square, Switch, useTheme, XStack, YStack } from "tamagui";
@@ -410,12 +411,37 @@ export default function Card() {
                     </YStack>
                   }
                 />
-                <Text color="$interactiveOnDisabled" caption2 textAlign="justify">
-                  *The Exa Card is issued by Third National pursuant to a license from Visa. Any credit issued by
-                  Exactly Protocol subject to its separate terms and conditions. Third National is not a party to any
-                  agreement with Exactly Protocol and is not responsible for any loan or credit arrangement between user
-                  and Exactly Protocol.
-                </Text>
+                <XStack gap="$s4" alignItems="flex-start" paddingTop="$s3" flexWrap="wrap">
+                  <Text caption2 color="$interactiveOnDisabled" textAlign="justify">
+                    The Exa Card is issued by Third National Bank under a Visa license. Credit features are provided
+                    solely by&nbsp;
+                    <Text
+                      cursor="pointer"
+                      caption2
+                      color="$interactiveOnDisabled"
+                      textDecorationLine="underline"
+                      onPress={() => {
+                        openBrowserAsync(`https://exact.ly/`).catch(reportError);
+                      }}
+                    >
+                      Exactly Protocol
+                    </Text>
+                    , a decentralized service not affiliated with Third National. Third National Bank is not responsible
+                    for any loan or credit services provided by&nbsp;
+                    <Text
+                      cursor="pointer"
+                      caption2
+                      color="$interactiveOnDisabled"
+                      textDecorationLine="underline"
+                      onPress={() => {
+                        openBrowserAsync(`https://exact.ly/`).catch(reportError);
+                      }}
+                    >
+                      Exactly Protocol
+                    </Text>
+                    .
+                  </Text>
+                </XStack>
               </View>
             </View>
           </View>

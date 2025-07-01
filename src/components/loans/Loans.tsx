@@ -1,6 +1,7 @@
 import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import { CircleHelp } from "@tamagui/lucide-icons";
 import { router, useLocalSearchParams } from "expo-router";
+import { openBrowserAsync } from "expo-web-browser";
 import React, { useState } from "react";
 import { Pressable, RefreshControl } from "react-native";
 import { ScrollView, useTheme, XStack, YStack } from "tamagui";
@@ -61,8 +62,8 @@ export default function Loans() {
                   </Pressable>
                 </XStack>
                 <Text subHeadline secondary>
-                  Use your collateral to get a fixed-interest loan, no credit check required. Simply choose an amount
-                  and a repayment plan to receive USDC.
+                  Use assets from your Portfolio as collateral to access fixed-rate USDC onchain loans, powered by
+                  Exactly Protocol.
                 </Text>
               </YStack>
             </View>
@@ -75,11 +76,23 @@ export default function Loans() {
                 }}
               />
             </View>
-            <View padded>
+            <XStack gap="$s4" alignItems="flex-start" padding="$s4" flexWrap="wrap">
               <Text caption2 color="$interactiveOnDisabled" textAlign="justify">
-                All borrowing and spending features are enabled by non-custodial smart contracts. Terms apply.
+                Loan services are decentralized and powered by&nbsp;
+                <Text
+                  cursor="pointer"
+                  caption2
+                  color="$interactiveOnDisabled"
+                  textDecorationLine="underline"
+                  onPress={() => {
+                    openBrowserAsync(`https://exact.ly/`).catch(reportError);
+                  }}
+                >
+                  Exactly Protocol
+                </Text>
+                . The Exa App does not underwrite or originate any credit products.
               </Text>
-            </View>
+            </XStack>
             <PaymentSheet
               open={paySheetOpen}
               onClose={() => {

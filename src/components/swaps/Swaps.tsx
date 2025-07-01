@@ -6,6 +6,7 @@ import type { Token } from "@lifi/sdk";
 import { ArrowLeft, Check, CircleHelp, Repeat, TriangleAlert } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
+import { openBrowserAsync } from "expo-web-browser";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -441,9 +442,9 @@ export default function Swaps() {
             </YStack>
           </View>
         </ScrollView>
-        <YStack padding="$s4" paddingBottom={insets.bottom} gap="$s4_5">
+        <YStack padding="$s4" paddingBottom={insets.bottom} gap="$s2_5">
           {(caution || danger) && showWarning && (
-            <YStack padding="$s4" gap="$s4_5">
+            <YStack paddingHorizontal="$s4" gap="$s4_5">
               <Separator borderColor={danger ? "$borderErrorStrong" : "$borderNeutralSoft"} />
               <XStack
                 gap="$s3"
@@ -475,6 +476,24 @@ export default function Swaps() {
               </XStack>
             </YStack>
           )}
+          <XStack gap="$s4" alignItems="flex-start" paddingTop="$s3" flexWrap="wrap">
+            <Text caption2 color="$interactiveOnDisabled" textAlign="justify">
+              Swap functionality is provided via&nbsp;
+              <Text
+                cursor="pointer"
+                caption2
+                color="$interactiveOnDisabled"
+                textDecorationLine="underline"
+                onPress={() => {
+                  openBrowserAsync(`https://li.fi/`).catch(reportError);
+                }}
+              >
+                LI.FI
+              </Text>
+              &nbsp; and executed on decentralized networks. Availability and pricing depend on network conditions and
+              third-party protocols.
+            </Text>
+          </XStack>
           <Button
             onPress={handleSwap}
             contained
