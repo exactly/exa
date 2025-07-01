@@ -1,9 +1,10 @@
 import { previewerAddress } from "@exactly/common/generated/chain";
 import { ArrowLeft, CircleHelp } from "@tamagui/lucide-icons";
 import { router } from "expo-router";
+import { openBrowserAsync } from "expo-web-browser";
 import React from "react";
 import { Pressable, RefreshControl } from "react-native";
-import { ScrollView, useTheme } from "tamagui";
+import { ScrollView, useTheme, XStack } from "tamagui";
 import { zeroAddress } from "viem";
 import { useAccount } from "wagmi";
 
@@ -104,6 +105,24 @@ export default function Portfolio() {
         <View padded>
           <AssetList />
         </View>
+        <XStack gap="$s4" padding="$s4" flexWrap="wrap">
+          <Text caption2 color="$interactiveOnDisabled" textAlign="justify">
+            Yield is variable, not guaranteed, and powered by&nbsp;
+            <Text
+              cursor="pointer"
+              caption2
+              color="$interactiveOnDisabled"
+              textDecorationLine="underline"
+              onPress={() => {
+                openBrowserAsync(`https://exact.ly/`).catch(reportError);
+              }}
+            >
+              Exactly Protocol
+            </Text>
+            . Returns depend on protocol performance and network activity. Past performance does not guarantee future
+            results.
+          </Text>
+        </XStack>
       </ScrollView>
     </SafeView>
   );
