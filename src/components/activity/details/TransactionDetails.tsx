@@ -1,7 +1,7 @@
 import chain from "@exactly/common/generated/chain";
 import shortenHex from "@exactly/common/shortenHex";
 import type { CreditActivity, DebitActivity, InstallmentsActivity } from "@exactly/server/api/activity";
-import { Copy, SquareArrowOutUpRight } from "@tamagui/lucide-icons";
+import { Copy } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -20,9 +20,9 @@ export default function TransactionDetails({
 }: {
   source?: CreditActivity | DebitActivity | InstallmentsActivity;
 }) {
+  const toast = useToastController();
   const query = useQuery<ActivityItem>({ queryKey: ["activity", "details"] });
   const item = source ?? query.data;
-  const toast = useToastController();
   return (
     <YStack gap="$s4">
       <YStack gap="$s4">
@@ -100,17 +100,29 @@ export default function TransactionDetails({
             <Text emphasized footnote color="$uiNeutralSecondary">
               Transaction hash
             </Text>
-            <XStack
-              alignItems="center"
-              gap="$s3"
-              onPress={() => {
-                openBrowserAsync(`${chain.blockExplorers?.default.url}/tx/${item.transactionHash}`).catch(reportError);
-              }}
-            >
-              <Text textDecorationLine="underline" callout color="$uiNeutralPrimary">
+            <XStack alignItems="center" gap="$s3">
+              <Text
+                textDecorationLine="underline"
+                callout
+                color="$uiNeutralPrimary"
+                cursor="pointer"
+                onPress={() => {
+                  openBrowserAsync(`${chain.blockExplorers?.default.url}/tx/${item.transactionHash}`).catch(
+                    reportError,
+                  );
+                }}
+              >
                 {shortenHex(item.transactionHash)}
               </Text>
-              <SquareArrowOutUpRight size={20} color="$uiNeutralSecondary" />
+              <XStack
+                cursor="pointer"
+                onPress={() => {
+                  setStringAsync(`${chain.blockExplorers?.default.url}/tx/${item.transactionHash}`).catch(reportError);
+                  toast.show("Link copied!", { native: true, duration: 1000, burntOptions: { haptic: "success" } });
+                }}
+              >
+                <Copy size="$iconSize.md" strokeWidth="$iconStroke.md" color="$interactiveBaseBrandDefault" />
+              </XStack>
             </XStack>
           </XStack>
         )}
