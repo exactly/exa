@@ -5,6 +5,7 @@ import React from "react";
 import { Pressable } from "react-native";
 import { XStack } from "tamagui";
 
+import BorrowActivity from "./BorrowActivity";
 import CardActivity from "./CardActivity";
 import ReceivedActivity from "./ReceivedActivity";
 import RepayActivity from "./RepayActivity";
@@ -40,6 +41,7 @@ export default function ActivityDetails() {
       {item.type === "repay" && <RepayActivity item={item} />}
       {item.type === "sent" && <SentActivity item={item} />}
       {item.type === "panda" && <CardActivity item={item} />}
+      {item.type === "borrow" && <BorrowActivity item={item} />}
       <ActionButton
         width="100%"
         alignSelf="flex-end"
