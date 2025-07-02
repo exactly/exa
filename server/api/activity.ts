@@ -141,7 +141,7 @@ export default new Hono().get(
           })
         : Promise.resolve(forbid([]));
 
-    const [deposits, repays, withdraws, borrows, loans, swaps] = await Promise.all([
+    const [deposits, repays, withdraws, cardBorrows, borrows, swaps] = await Promise.all([
       ignore("received")
         ? []
         : Promise.all([
@@ -250,17 +250,15 @@ export default new Hono().get(
             logs
               .map((log) => {
                 if (!collectors.has(log.args.receiver.toLowerCase() as Hex)) {
-                  return parse(BorrowActivity, {
+                  return {
                     ...log,
                     market: market(log.address),
-                    args: {
-                      assets: log.args.assets,
-                      maturity: log.args.maturity,
-                      receiver: log.args.receiver,
-                      borrower: log.args.borrower,
-                      fee: log.args.fee,
-                    },
-                  } satisfies InferInput<typeof BorrowActivity>);
+                    assets: log.args.assets,
+                    maturity: log.args.maturity,
+                    receiver: log.args.receiver,
+                    borrower: log.args.borrower,
+                    fee: log.args.fee,
+                  };
                 }
               })
               .filter((borrow) => !!borrow),
@@ -296,7 +294,7 @@ export default new Hono().get(
     const blocks = await Promise.all(
       [
         ...new Set(
-          [...deposits, ...repays, ...withdraws, ...(borrows?.values() ?? []), ...loans, ...swaps].map(
+          [...deposits, ...repays, ...withdraws, ...(cardBorrows?.values() ?? []), ...borrows, ...swaps].map(
             ({ blockNumber }) => blockNumber,
           ),
         ),
@@ -311,8 +309,8 @@ export default new Hono().get(
             const panda = safeParse(PandaActivity, {
               ...(payload as object),
               hashes,
-              borrows: hashes.map((h) => {
-                const b = borrows?.get(h as Hash);
+              cardBorrows: hashes.map((h) => {
+                const b = cardBorrows?.get(h as Hash);
                 if (!b) return null;
                 return {
                   events: b.events,
@@ -324,21 +322,47 @@ export default new Hono().get(
 
             if (hashes.length !== 1) throw new Error("cryptomate transactions need to have only one hash");
             const hash = hashes[0];
-            const borrow = borrows?.get(hash as Hash);
+            const cardBorrow = cardBorrows?.get(hash as Hash);
             const cryptomate = safeParse(
-              { 0: DebitActivity, 1: CreditActivity }[borrow?.events.length ?? 0] ?? InstallmentsActivity,
+              { 0: DebitActivity, 1: CreditActivity }[cardBorrow?.events.length ?? 0] ?? InstallmentsActivity,
               {
                 ...(payload as object),
                 hash,
-                events: borrow?.events,
-                blockTimestamp: borrow?.blockNumber && timestamps.get(borrow.blockNumber),
+                events: cardBorrow?.events,
+                blockTimestamp: cardBorrow?.blockNumber && timestamps.get(cardBorrow.blockNumber),
               },
             );
             if (cryptomate.success) return cryptomate.output;
             captureException(new Error("bad transaction"), { level: "error", contexts: { cryptomate, panda } });
           }),
         ),
-        ...[...deposits, ...repays, ...withdraws, ...loans, ...swaps].map(({ blockNumber, ...event }) => {
+        ...borrows.map(({ blockNumber, ...event }) => {
+          const timestamp = timestamps.get(blockNumber);
+          if (timestamp) {
+            const borrow = {
+              ...parse(BorrowActivity, {
+                ...event,
+                blockNumber,
+                assets: event.assets,
+                maturity: event.maturity,
+                receiver: event.receiver,
+                borrower: event.borrower,
+                fee: event.fee,
+                blockTimestamp: timestamp,
+              } satisfies InferInput<typeof BorrowActivity>),
+            };
+            return {
+              ...borrow,
+              blockNumber: undefined,
+              timestamp: new Date(Number(timestamp) * 1000).toISOString(),
+            };
+          }
+          captureException(new Error("block not found"), {
+            level: "error",
+            contexts: { event: { ...event, timestamp } },
+          });
+        }),
+        ...[...deposits, ...repays, ...withdraws, ...swaps].map(({ blockNumber, ...event }) => {
           const timestamp = timestamps.get(blockNumber);
           if (timestamp) return { ...event, timestamp: new Date(Number(timestamp) * 1000).toISOString() };
           captureException(new Error("block not found"), {
@@ -359,13 +383,13 @@ const Borrow = object({ maturity: bigint(), assets: bigint(), fee: bigint() });
 export const PandaActivity = pipe(
   object({
     bodies: array(looseObject({ action: picklist(["created", "completed", "updated"]) })),
-    borrows: array(nullable(object({ timestamp: optional(bigint()), events: array(Borrow) }))),
+    cardBorrows: array(nullable(object({ timestamp: optional(bigint()), events: array(Borrow) }))),
     hashes: array(Hash),
     type: literal("panda"),
   }),
-  transform(({ bodies, borrows, hashes, type }) => {
+  transform(({ bodies, cardBorrows, hashes, type }) => {
     const operations = hashes.map((hash, index) => {
-      const borrow = borrows[index];
+      const borrow = cardBorrows[index];
       const validation = safeParse(
         { 0: DebitActivity, 1: CreditActivity }[borrow?.events.length ?? 0] ?? InstallmentsActivity,
         {
@@ -607,17 +631,22 @@ export const DepositActivity = pipe(
 );
 
 export const BorrowActivity = pipe(
-  object({
-    ...OnchainActivity.entries,
-    args: object({ assets: bigint(), maturity: bigint(), receiver: Address, borrower: Address, fee: bigint() }),
-  }),
+  intersect([
+    OnchainActivity,
+    Borrow,
+    object({
+      receiver: Address,
+      borrower: Address,
+      blockTimestamp: bigint(),
+    }),
+  ]),
   transform((activity) => ({
     ...transformActivity(activity),
-    maturity: Number(activity.args.maturity),
-    receiver: activity.args.receiver,
-    borrower: activity.args.borrower,
-    assets: Number(activity.args.assets),
-    fee: Number(activity.args.fee),
+    ...transformBorrow(activity, activity.blockTimestamp),
+    maturity: Number(activity.maturity),
+    receiver: activity.receiver,
+    borrower: activity.borrower,
+    assets: Number(activity.assets),
     type: "borrow" as const,
   })),
 );

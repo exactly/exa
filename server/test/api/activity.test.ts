@@ -342,11 +342,11 @@ describe.concurrent("authenticated", () => {
           currency: "USDC",
           amount: 100,
           usdAmount: 100,
-          maturity: 1_753_920_000,
           receiver: padHex("0x69", { size: 20 }),
           borrower: account,
           assets: 100_000_000,
-          fee: expect.withinRange(250_000, 350_000),
+          fee: expect.withinRange(0.5, 0.7),
+          rate: expect.withinRange(0.02, 0.05),
         },
       ]);
     });
