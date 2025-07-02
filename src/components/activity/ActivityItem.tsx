@@ -3,6 +3,7 @@ import {
   ArrowUpFromLine,
   CircleDollarSign,
   ClockAlert,
+  HandCoins,
   Import,
   ShoppingCart,
 } from "@tamagui/lucide-icons";
@@ -11,13 +12,13 @@ import { format } from "date-fns";
 import { router } from "expo-router";
 import { getName, registerLocale, type LocaleData } from "i18n-iso-countries/index";
 import React from "react";
+import { XStack, YStack } from "tamagui";
 import { titleCase } from "title-case";
 
 import isProcessing from "../../utils/isProcessing";
 import queryClient, { type ActivityItem as Item } from "../../utils/queryClient";
 import Image from "../shared/Image";
 import Text from "../shared/Text";
-import View from "../shared/View";
 
 registerLocale(require("i18n-iso-countries/langs/en.json") as LocaleData); // eslint-disable-line @typescript-eslint/no-require-imports, unicorn/prefer-module
 
@@ -31,9 +32,8 @@ export default function ActivityItem({ item, isLast }: { item: Item; isLast: boo
   const processing = type === "panda" && country === "US" && isProcessing(item.timestamp);
   const refund = type === "panda" && usdAmount < 0;
   return (
-    <View
+    <XStack
       key={id}
-      flexDirection="row"
       gap="$s4"
       alignItems="center"
       paddingHorizontal="$s4"
@@ -42,7 +42,7 @@ export default function ActivityItem({ item, isLast }: { item: Item; isLast: boo
       cursor="pointer"
       onPress={handlePress}
     >
-      <View
+      <YStack
         width={40}
         height={40}
         backgroundColor="$backgroundStrong"
@@ -54,6 +54,7 @@ export default function ActivityItem({ item, isLast }: { item: Item; isLast: boo
         {type === "received" && <ArrowDownToLine color="$interactiveOnBaseSuccessSoft" />}
         {type === "sent" && <ArrowUpFromLine color="$interactiveOnBaseErrorSoft" />}
         {type === "repay" && <CircleDollarSign color="$interactiveOnBaseErrorSoft" />}
+        {type === "borrow" && <HandCoins color="$uiNeutralPrimary" />}
         {type === "panda" &&
           (refund ? (
             <Import color="$uiSuccessSecondary" />
@@ -64,22 +65,22 @@ export default function ActivityItem({ item, isLast }: { item: Item; isLast: boo
           ) : (
             <ShoppingCart color="$uiNeutralPrimary" />
           ))}
-      </View>
-      <View flex={1} gap="$s2">
-        <View flexDirection="row" justifyContent="space-between" alignItems="center" gap="$s4">
-          <View gap="$s2" flexShrink={1}>
-            <Text subHeadline color="$uiNeutralPrimary" numberOfLines={1}>
+      </YStack>
+      <YStack flex={1} gap="$s2">
+        <XStack justifyContent="space-between" alignItems="center" gap="$s4">
+          <YStack gap="$s2" flexShrink={1}>
+            <Text primary subHeadline numberOfLines={1}>
               {(type === "card" || type === "panda") && item.merchant.name}
               {type === "received" && "Received"}
               {type === "sent" && "Sent"}
               {type === "repay" && "Debt payment"}
+              {type === "borrow" && "Loan taken"}
             </Text>
             <Text
+              secondary
               caption
-              color={
-                refund ? "$uiNeutralSecondary" : processing ? "$interactiveOnBaseWarningSoft" : "$uiNeutralSecondary"
-              }
               numberOfLines={1}
+              color={processing ? "$interactiveOnBaseWarningSoft" : "$uiNeutralSecondary"}
             >
               {refund
                 ? "Refund"
@@ -96,12 +97,13 @@ export default function ActivityItem({ item, isLast }: { item: Item; isLast: boo
                         .join(", ")
                         .toLowerCase(),
                     )}
-              {type !== "card" && type !== "panda" && format(timestamp, "yyyy-MM-dd")}
+              {type === "borrow" && `Due ${format(item.maturity * 1000, "yyyy-MM-dd")}`}
+              {type !== "card" && type !== "panda" && type !== "borrow" && format(timestamp, "yyyy-MM-dd")}
             </Text>
-          </View>
-          <View gap="$s2">
-            <View flexDirection="row" alignItems="center" justifyContent="flex-end">
-              <Text sensitive fontSize={15} fontWeight="bold" textAlign="right">
+          </YStack>
+          <YStack gap="$s2">
+            <XStack alignItems="center" justifyContent="flex-end">
+              <Text sensitive emphasized subHeadline textAlign="right">
                 {Math.abs(usdAmount).toLocaleString(undefined, {
                   style: "currency",
                   currency: "USD",
@@ -109,19 +111,15 @@ export default function ActivityItem({ item, isLast }: { item: Item; isLast: boo
                   maximumFractionDigits: 2,
                 })}
               </Text>
-            </View>
+            </XStack>
             {amount ? (
-              <Text sensitive fontSize={12} color="$uiNeutralSecondary" textAlign="right">
-                {Math.abs(amount).toLocaleString(undefined, {
-                  maximumFractionDigits: 8,
-                  minimumFractionDigits: 0,
-                })}
-                {currency && ` ${currency}`}
+              <Text sensitive secondary caption textAlign="right">
+                {`${currency && currency} ${Math.abs(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: currency === "USDC" ? 2 : 8 })}`}
               </Text>
             ) : null}
-          </View>
-        </View>
-      </View>
-    </View>
+          </YStack>
+        </XStack>
+      </YStack>
+    </XStack>
   );
 }
