@@ -10,7 +10,6 @@ import TransactionDetails from "./TransactionDetails";
 import isProcessing from "../../../utils/isProcessing";
 import Image from "../../shared/Image";
 import Text from "../../shared/Text";
-import View from "../../shared/View";
 
 export default function CardActivity({
   item,
@@ -63,10 +62,10 @@ export default function CardActivity({
         {item.type === "panda" ? (
           <>
             {item.operations.map((operation, index) => (
-              <View key={index}>
+              <YStack key={index} gap="$s7">
                 <PurchaseDetails item={operation} />
                 {item.usdAmount > 0 && <PaymentDetails item={operation} />}
-              </View>
+              </YStack>
             ))}
             <TransactionDetails source={item.operations[0]} />
           </>
