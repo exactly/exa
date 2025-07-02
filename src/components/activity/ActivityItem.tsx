@@ -3,6 +3,7 @@ import {
   ArrowUpFromLine,
   CircleDollarSign,
   ClockAlert,
+  HandCoins,
   Import,
   ShoppingCart,
   SquareDashed,
@@ -38,7 +39,7 @@ export default function ActivityItem({ item, isLast }: { item: Item; isLast: boo
       paddingBottom={isLast ? "$s4" : "$s3"}
       cursor="pointer"
       onPress={() => {
-        if (["card", "received", "sent", "repay", "panda"].includes(item.type)) {
+        if (["card", "received", "sent", "repay", "panda", "borrow"].includes(item.type)) {
           queryClient.setQueryData(["activity", "details"], item);
           navigation.navigate("activity-details");
         }
@@ -122,6 +123,8 @@ function getActivityIcon(item: Item, processing: boolean, refund: boolean) {
       return <ArrowUpFromLine color="$interactiveOnBaseErrorSoft" />;
     case "repay":
       return <CircleDollarSign color="$interactiveOnBaseErrorSoft" />;
+    case "borrow":
+      return <HandCoins color="$uiNeutralPrimary" />;
     case "panda":
       if (refund) return <Import color="$uiSuccessSecondary" />;
       if (processing) return <ClockAlert color="$interactiveOnBaseWarningSoft" />;
@@ -148,6 +151,9 @@ function getActivityTitle(item: Item) {
       break;
     case "repay":
       title = "Debt payment";
+      break;
+    case "borrow":
+      title = "Funding requested";
       break;
     default:
       title = undefined;
