@@ -3,17 +3,20 @@ import "../mocks/database";
 import "../mocks/persona";
 
 import deriveAddress from "@exactly/common/deriveAddress";
+import { captureException } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { padHex, zeroAddress, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
-import { beforeAll, describe, expect, inject, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 
 import database, { credentials } from "../../database";
 import app from "../../hooks/persona";
 import * as panda from "../../utils/panda";
 
 const appClient = testClient(app);
+
+vi.mock("@sentry/node", { spy: true });
 
 describe("with reference", () => {
   const bob = privateKeyToAddress(padHex("0xb0b"));
@@ -24,6 +27,8 @@ describe("with reference", () => {
       .insert(credentials)
       .values([{ id: account, publicKey: new Uint8Array(), account, factory: zeroAddress }]);
   });
+
+  afterEach(() => vi.resetAllMocks());
 
   it("creates a panda account", async () => {
     const id = "panda-id";
@@ -56,6 +61,196 @@ describe("with reference", () => {
     expect(p?.pandaId).toBe(id);
 
     expect(response.status).toBe(200);
+  });
+
+  it("returns 200 if already created", async () => {
+    const createdAccount = "already-created";
+    await database.insert(credentials).values({
+      id: createdAccount,
+      publicKey: new Uint8Array(),
+      account: createdAccount,
+      factory: zeroAddress,
+      pandaId: "test-id",
+    });
+
+    const response = await appClient.index.$post({
+      ...personaPayload,
+      json: {
+        ...personaPayload.json,
+        data: {
+          ...personaPayload.json.data,
+          attributes: {
+            ...personaPayload.json.data.attributes,
+            payload: {
+              ...personaPayload.json.data.attributes.payload,
+              data: {
+                ...personaPayload.json.data.attributes.payload.data,
+                attributes: {
+                  ...personaPayload.json.data.attributes.payload.data.attributes,
+                  referenceId: createdAccount,
+                },
+              },
+              included: [...personaPayload.json.data.attributes.payload.included],
+            },
+          },
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(panda.createUser).not.toHaveBeenCalled();
+  });
+
+  it("returns 200 if no credential", async () => {
+    vi.spyOn(database.query.credentials, "findFirst").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
+
+    const response = await appClient.index.$post({
+      ...personaPayload,
+      json: {
+        ...personaPayload.json,
+        data: {
+          ...personaPayload.json.data,
+          attributes: {
+            ...personaPayload.json.data.attributes,
+            payload: {
+              ...personaPayload.json.data.attributes.payload,
+              data: {
+                ...personaPayload.json.data.attributes.payload.data,
+                attributes: {
+                  ...personaPayload.json.data.attributes.payload.data.attributes,
+                  referenceId: account,
+                },
+              },
+              included: [...personaPayload.json.data.attributes.payload.included],
+            },
+          },
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(captureException).toHaveBeenCalledOnce();
+    expect(captureException).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "no credential" }),
+      expect.anything(),
+    );
+    expect(panda.createUser).not.toHaveBeenCalled();
+  });
+
+  describe("handles invalid payload", () => {
+    it("returns 200 if no inquiry session", async () => {
+      const response = await appClient.index.$post({
+        ...personaPayload,
+        json: {
+          ...personaPayload.json,
+          data: {
+            ...personaPayload.json.data,
+            attributes: {
+              ...personaPayload.json.data.attributes,
+              payload: {
+                ...personaPayload.json.data.attributes.payload,
+                included: personaPayload.json.data.attributes.payload.included.filter(
+                  (session) => session.type !== "inquiry-session",
+                ),
+              },
+            },
+          },
+        },
+      });
+
+      expect(captureException).toHaveBeenCalledOnce();
+      expect(captureException).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "bad persona" }),
+        expect.anything(),
+      );
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual([
+        "data/attributes/payload/included Invalid length: Expected >=1 but received 0",
+      ]);
+      expect(panda.createUser).not.toHaveBeenCalled();
+    });
+
+    it("returns 200 if no value for annual-salary or annual-salary-ranges-us-150000", async () => {
+      const response = await appClient.index.$post({
+        ...personaPayload,
+        json: {
+          ...personaPayload.json,
+          data: {
+            ...personaPayload.json.data,
+            attributes: {
+              ...personaPayload.json.data.attributes,
+              payload: {
+                ...personaPayload.json.data.attributes.payload,
+                data: {
+                  ...personaPayload.json.data.attributes.payload.data,
+                  attributes: {
+                    ...personaPayload.json.data.attributes.payload.data.attributes,
+                    fields: {
+                      ...personaPayload.json.data.attributes.payload.data.attributes.fields,
+                      annualSalary: { value: null },
+                      annualSalaryRangesUs150000: undefined,
+                    },
+                  },
+                },
+                included: [...personaPayload.json.data.attributes.payload.included],
+              },
+            },
+          },
+        },
+      });
+
+      expect(captureException).toHaveBeenCalledOnce();
+      expect(captureException).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "bad persona" }),
+        expect.anything(),
+      );
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual([
+        "data/attributes/payload/data/attributes/fields Either annualSalary or annualSalaryRangesUs150000 must have a value",
+      ]);
+      expect(panda.createUser).not.toHaveBeenCalled();
+    });
+
+    it("returns 200 if no value for monthly-purchases-range or expected-monthly-volume", async () => {
+      const response = await appClient.index.$post({
+        ...personaPayload,
+        json: {
+          ...personaPayload.json,
+          data: {
+            ...personaPayload.json.data,
+            attributes: {
+              ...personaPayload.json.data.attributes,
+              payload: {
+                ...personaPayload.json.data.attributes.payload,
+                data: {
+                  ...personaPayload.json.data.attributes.payload.data,
+                  attributes: {
+                    ...personaPayload.json.data.attributes.payload.data.attributes,
+                    fields: {
+                      ...personaPayload.json.data.attributes.payload.data.attributes.fields,
+                      monthlyPurchasesRange: undefined,
+                      expectedMonthlyVolume: { value: null },
+                    },
+                  },
+                },
+                included: [...personaPayload.json.data.attributes.payload.included],
+              },
+            },
+          },
+        },
+      });
+
+      expect(captureException).toHaveBeenCalledOnce();
+      expect(captureException).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "bad persona" }),
+        expect.anything(),
+      );
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual([
+        "data/attributes/payload/data/attributes/fields Either monthlyPurchasesRange or expectedMonthlyVolume must have a value",
+      ]);
+      expect(panda.createUser).not.toHaveBeenCalled();
+    });
   });
 });
 
