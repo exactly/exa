@@ -2,7 +2,7 @@ import { exaPluginAddress, marketUSDCAddress } from "@exactly/common/generated/c
 import { ArrowDownToLine, ArrowUpRight, HandCoins, Repeat } from "@tamagui/lucide-icons";
 import { router } from "expo-router";
 import React from "react";
-import { Spinner, XStack, YStack } from "tamagui";
+import { XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
 import { useAccount, useBytecode, useReadContract } from "wagmi";
 
@@ -13,7 +13,7 @@ import {
 import type { Loan } from "../../utils/queryClient";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
-import Button from "../shared/Button";
+import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 
 export default function HomeActions() {
@@ -57,12 +57,14 @@ export default function HomeActions() {
     }
   };
   return (
-    <XStack gap="$s4" flexWrap="wrap" width="100%" justifyContent="space-between">
-      {actions.map(({ key, title, icon }) => (
-        <YStack key={key} alignItems="center" justifyContent="center" gap="$s3_5" flex={1}>
+    <XStack gap="$s4" justifyContent="space-between" width="100%">
+      {actions.map(({ key, title, Icon }) => (
+        <YStack key={key} alignItems="center" flexBasis="25%" flex={1} flexShrink={1} gap="$s3_5">
           <Button
-            contained={key === "deposit"}
-            outlined={key !== "deposit"}
+            primary={key === "deposit"}
+            secondary={key !== "deposit"}
+            disabled={key !== "deposit" && !bytecode}
+            loading={key === "send" && !isLatestPlugin && isPending && !!bytecode}
             onPress={() => {
               switch (key) {
                 case "deposit":
@@ -85,17 +87,21 @@ export default function HomeActions() {
                   router.push("/(app)/(home)/loans");
               }
             }}
-            cursor="pointer"
-            icon={
-              key === "send" && !isLatestPlugin && isPending ? (
-                <Spinner height={18} width={18} color="$interactiveOnBaseBrandSoft" />
-              ) : (
-                icon
-              )
-            }
+            minHeight={48}
+            paddingHorizontal="$s3_5"
+            justifyContent="center"
             width="100%"
-          />
-          <Text footnote adjustsFontSizeToFit color="$backgroundBrand" flex={1}>
+          >
+            <Button.Icon>
+              <Icon size="$iconSize.lg" strokeWidth="$iconStroke.lg" />
+            </Button.Icon>
+          </Button>
+          <Text
+            footnote
+            adjustsFontSizeToFit
+            color={key !== "deposit" && !bytecode ? "$interactiveTextDisabled" : "$backgroundBrand"}
+            flex={1}
+          >
             {title}
           </Text>
         </YStack>
@@ -105,24 +111,8 @@ export default function HomeActions() {
 }
 
 const actions = [
-  {
-    key: "deposit",
-    title: "Deposit",
-    icon: <ArrowDownToLine size={18} color="$interactiveOnBaseBrandDefault" />,
-  },
-  {
-    key: "send",
-    title: "Send",
-    icon: <ArrowUpRight size={18} color="$interactiveOnBaseBrandSoft" />,
-  },
-  {
-    key: "swap",
-    title: "Swap",
-    icon: <Repeat size={18} color="$interactiveOnBaseBrandSoft" />,
-  },
-  {
-    key: "borrow",
-    title: "Borrow",
-    icon: <HandCoins size={18} color="$interactiveOnBaseBrandSoft" />,
-  },
+  { key: "deposit", title: "Deposit", Icon: ArrowDownToLine },
+  { key: "send", title: "Send", Icon: ArrowUpRight },
+  { key: "swap", title: "Swap", Icon: Repeat },
+  { key: "borrow", title: "Borrow", Icon: HandCoins },
 ];
