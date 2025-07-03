@@ -9,7 +9,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
+import { ScrollView, Separator, XStack, YStack } from "tamagui";
 import { digits, parse, pipe, safeParse, string, transform } from "valibot";
 import {
   ContractFunctionExecutionError,
@@ -22,8 +22,8 @@ import {
 import { useAccount, useBytecode, useSimulateContract, useWriteContract } from "wagmi";
 
 import AssetSelectionSheet from "./AssetSelectionSheet";
-import Button from "../../components/shared/Button";
 import SafeView from "../../components/shared/SafeView";
+import Button from "../../components/shared/StyledButton";
 import Text from "../../components/shared/Text";
 import View from "../../components/shared/View";
 import {
@@ -71,7 +71,7 @@ export default function Pay() {
     address: account ?? zeroAddress,
     query: { enabled: !!account && !!bytecode },
   });
-  const withUSDC = selectedAsset.address === exaUSDCAddress;
+  const withUSDC = selectedAsset.address === (marketUSDCAddress as Address);
   const mode =
     installedPlugins && selectedAsset.address
       ? selectedAsset.external
@@ -115,7 +115,11 @@ export default function Pay() {
 
   const maxRepay = borrow ? (borrow.previewValue * slippage) / WAD : 0n;
 
-  const { data: route, error: routeError } = useQuery({
+  const {
+    data: route,
+    error: routeError,
+    isPending: isRoutePending,
+  } = useQuery({
     queryKey: ["lifi", "route", mode, account, selectedAsset.address, repayMarket?.asset, maxRepay],
     queryFn: () => {
       switch (mode) {
@@ -374,7 +378,8 @@ export default function Pay() {
   }, []);
 
   const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
-
+  const disabled = isSimulating || !!simulationError || (selectedAsset.external && !route);
+  const loading = isSimulating || isPending || (selectedAsset.external && isRoutePending);
   if (!maturity) return;
   if (!isPending && !isSuccess && !writeError)
     return (
@@ -444,7 +449,6 @@ export default function Pay() {
                       </Text>
                     </Text>
                   )}
-
                   <Text
                     primary
                     title3
@@ -603,24 +607,17 @@ export default function Pay() {
                 </YStack>
               </XStack>
               <Button
+                primary
+                loading={loading}
+                disabled={disabled}
                 onPress={selectedAsset.external ? () => repayWithExternalAsset() : handlePayment}
-                contained
-                disabled={isSimulating || !!simulationError}
-                main
-                spaced
-                fullwidth
-                iconAfter={
-                  isSimulating ? (
-                    <Spinner color="$interactiveOnDisabled" />
-                  ) : (
-                    <Coins
-                      strokeWidth={2.5}
-                      color={simulationError ? "$interactiveOnDisabled" : "$interactiveOnBaseBrandDefault"}
-                    />
-                  )
-                }
               >
-                {simulationError ? "Cannot proceed" : isSimulating ? "Please wait..." : "Confirm payment"}
+                <Button.Text>
+                  {simulationError ? "Cannot proceed" : loading ? "Please wait..." : "Confirm payment"}
+                </Button.Text>
+                <Button.Icon>
+                  <Coins />
+                </Button.Icon>
               </Button>
             </YStack>
           </View>
@@ -667,11 +664,14 @@ export default function Pay() {
         currency={repayMarket?.assetSymbol ?? externalAsset?.symbol}
         selectedAsset={selectedAsset.address}
         onClose={() => {
-          router.replace("/pay-mode");
+          if (router.canGoBack()) {
+            router.back();
+          } else {
+            router.replace("/(app)/(home)");
+          }
         }}
       />
     );
 }
 
 const slippage = (WAD * 1001n) / 1000n;
-const exaUSDCAddress = parse(Address, marketUSDCAddress);
