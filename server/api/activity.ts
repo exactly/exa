@@ -145,29 +145,58 @@ export default new Hono().get(
       ignore("received")
         ? []
         : Promise.all([
-            publicClient
-              .getContractEvents({
-                abi: marketAbi,
-                eventName: "Deposit",
-                address: [...markets.keys()],
-                args: { caller: account, owner: account },
-                toBlock: "latest",
-                fromBlock: 0n,
-                strict: true,
-              })
-              .then((logs) =>
-                logs.map((log) =>
-                  parse(DepositActivity, { ...log, market: market(log.address) } satisfies InferInput<
-                    typeof DepositActivity
-                  >),
-                ),
-              ),
+            publicClient.getContractEvents({
+              abi: marketAbi,
+              eventName: "Deposit",
+              address: [...markets.keys()],
+              args: { caller: account, owner: account },
+              toBlock: "latest",
+              fromBlock: 0n,
+              strict: true,
+            }),
             repayPromise,
-          ]).then(([deposit, repay]) =>
-            deposit.filter(
-              ({ transactionHash }) => !repay.some(({ transactionHash: repayHash }) => repayHash === transactionHash),
-            ),
-          ),
+          ]).then(([deposit, repay]) => {
+            const marketDeposits: Record<Hex, (typeof deposit)[number][]> = {};
+            for (const d of deposit) {
+              if (repay.some(({ transactionHash: repayHash }) => repayHash === d.transactionHash)) continue;
+              const key = d.address;
+              marketDeposits[key] ??= [];
+              marketDeposits[key].push(d);
+            }
+            const BLOCK_NUMBER_RANGE = 16;
+            const groups: (typeof deposit)[] = [];
+            for (const marketDeposit of Object.values(marketDeposits)) {
+              if (!marketDeposit[0]) throw new Error("invalid marketDeposit group");
+              let cluster = [marketDeposit[0]];
+              for (let index = 1; index < marketDeposit.length; index++) {
+                const previous = marketDeposit[index - 1];
+                const current = marketDeposit[index];
+                if (!current || !previous) throw new Error("invalid marketDeposit group");
+                if (current.blockNumber - previous.blockNumber <= BLOCK_NUMBER_RANGE) cluster.push(current);
+                else {
+                  groups.push(cluster);
+                  cluster = [current];
+                }
+              }
+              groups.push(cluster);
+            }
+
+            return groups.map((cluster) => {
+              if (!cluster[0]) throw new Error("invalid cluster");
+              return parse(DepositActivity, {
+                ...cluster[0],
+                market: market(cluster[0].address),
+                operations: cluster.map((log) => ({
+                  args: { assets: log.args.assets },
+                  market: market(log.address),
+                  blockNumber: log.blockNumber,
+                  transactionIndex: log.transactionIndex,
+                  logIndex: log.logIndex,
+                  transactionHash: log.transactionHash,
+                })),
+              } satisfies InferInput<typeof DepositActivity>);
+            });
+          }),
       ignore("repay")
         ? []
         : repayPromise.then((logs) =>
@@ -625,9 +654,41 @@ function transformActivity({
   };
 }
 
+function transformDeposit({
+  args: { assets: value },
+  market: { decimals, symbol, usdPrice },
+  blockNumber,
+  transactionHash,
+  transactionIndex,
+  logIndex,
+}: InferOutput<typeof OnchainActivity>) {
+  const baseUnit = 10 ** decimals;
+  return {
+    id: `${chain.id}:${String(blockNumber)}:${transactionIndex}:${logIndex}`,
+    currency: symbol,
+    amount: Number(value) / baseUnit,
+    usdAmount: Number((value * usdPrice) / WAD) / baseUnit,
+    transactionHash,
+  };
+}
+
 export const DepositActivity = pipe(
-  OnchainActivity,
-  transform((activity) => ({ ...transformActivity(activity), type: "received" as const })),
+  intersect([OnchainActivity, object({ operations: array(OnchainActivity) })]),
+  transform((activity) => {
+    const {
+      market: { decimals, usdPrice },
+      operations,
+    } = activity;
+    const baseUnit = 10 ** decimals;
+    return {
+      ...transformActivity(activity),
+      operations: operations.map((operation) => transformDeposit(operation)),
+      amount: operations.reduce((sum, operation) => sum + Number(operation.args.assets), 0) / baseUnit,
+      usdAmount:
+        Number(operations.reduce((sum, operation) => sum + operation.args.assets * usdPrice, 0n) / WAD) / baseUnit,
+      type: "received" as const,
+    };
+  }),
 );
 
 export const BorrowActivity = pipe(

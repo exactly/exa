@@ -110,6 +110,16 @@ contract BobScript is BaseScript {
     bobAccount.collectInstallments(
       maturity, amounts, type(uint256).max, block.timestamp, _issuerOp(46e6, block.timestamp)
     );
+    for (uint256 i = 0; i < 16; i++) {
+      usdc.mint(address(0x1), 1);
+    }
+    usdc.mint(address(bobAccount), 1e6);
+    bobAccount.poke(exaUSDC);
+    usdc.mint(address(bobAccount), 1e6);
+    bobAccount.poke(exaUSDC);
+    usdc.mint(address(bobAccount), 1e6);
+    bobAccount.poke(exaUSDC);
+
     vm.stopBroadcast();
     Call[] memory calls = new Call[](6);
     calls[0] = Call(
