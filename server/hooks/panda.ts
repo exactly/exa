@@ -118,6 +118,7 @@ const Transaction = v.variant("action", [
       spend: v.object({
         ...BaseTransaction.entries.spend.entries,
         authorizedAt: v.pipe(v.string(), v.isoTimestamp()),
+        postedAt: v.pipe(v.string(), v.isoTimestamp()),
         status: v.literal("completed"),
       }),
     }),
@@ -370,6 +371,7 @@ export default new Hono().post(
               },
               {
                 async onHash(hash) {
+                  const createdAt = getCreatedAt(payload) ?? new Date().toISOString();
                   await (tx
                     ? database
                         .update(transactions)
@@ -377,10 +379,7 @@ export default new Hono().post(
                           hashes: [...tx.hashes, hash],
                           payload: {
                             ...(tx.payload as object),
-                            bodies: [
-                              ...v.parse(TransactionPayload, tx.payload).bodies,
-                              { ...jsonBody, createdAt: new Date().toISOString() },
-                            ],
+                            bodies: [...v.parse(TransactionPayload, tx.payload).bodies, { ...jsonBody, createdAt }],
                           },
                         })
                         .where(
@@ -392,7 +391,7 @@ export default new Hono().post(
                           cardId: payload.body.spend.cardId,
                           hashes: [hash],
                           payload: {
-                            bodies: [{ ...jsonBody, createdAt: new Date().toISOString() }],
+                            bodies: [{ ...jsonBody, createdAt }],
                             type: "panda",
                           },
                         },
@@ -488,6 +487,7 @@ export default new Hono().post(
                       eq(transactions.cardId, payload.body.spend.cardId),
                     ),
                   });
+                  const createdAt = getCreatedAt(payload) ?? new Date().toISOString();
                   await (tx
                     ? database
                         .update(transactions)
@@ -495,10 +495,7 @@ export default new Hono().post(
                           hashes: [...tx.hashes, hash],
                           payload: {
                             ...(tx.payload as object),
-                            bodies: [
-                              ...v.parse(TransactionPayload, tx.payload).bodies,
-                              { ...jsonBody, createdAt: new Date().toISOString() },
-                            ],
+                            bodies: [...v.parse(TransactionPayload, tx.payload).bodies, { ...jsonBody, createdAt }],
                           },
                         })
                         .where(
@@ -510,7 +507,7 @@ export default new Hono().post(
                           cardId: payload.body.spend.cardId,
                           hashes: [hash],
                           payload: {
-                            bodies: [{ ...jsonBody, createdAt: new Date().toISOString() }],
+                            bodies: [{ ...jsonBody, createdAt }],
                             type: "panda",
                           },
                         },
@@ -550,6 +547,18 @@ export default new Hono().post(
     }
   },
 );
+
+function getCreatedAt(payload: v.InferOutput<typeof Transaction>): string | undefined {
+  switch (payload.action) {
+    case "completed":
+      return payload.body.spend.postedAt;
+    case "created":
+    case "updated":
+      return payload.body.spend.authorizedAt;
+    default:
+      return undefined;
+  }
+}
 
 async function prepareCollection(
   card: { mode: number; credential: { account: string } },

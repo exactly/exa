@@ -313,6 +313,7 @@ describe("card operations", () => {
       it("clears with transaction update", async () => {
         const amount = 100;
         const update = 50;
+        const createdAt = new Date().toISOString();
 
         const cardId = "tUpdate";
         await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 1 }]);
@@ -324,11 +325,12 @@ describe("card operations", () => {
             body: {
               ...authorization.json.body,
               id: cardId,
-              spend: { ...authorization.json.body.spend, cardId, amount, localAmount: amount },
+              spend: { ...authorization.json.body.spend, cardId, amount, localAmount: amount, authorizedAt: createdAt },
             },
           },
         });
 
+        const updatedAt = new Date(new Date(createdAt).getTime() + 1000 * 30).toISOString();
         const updateResponse = await appClient.index.$post({
           ...authorization,
           json: {
@@ -341,7 +343,7 @@ describe("card operations", () => {
                 ...authorization.json.body.spend,
                 amount: amount + update,
                 authorizationUpdateAmount: update,
-                authorizedAt: new Date().toISOString(),
+                authorizedAt: updatedAt,
                 cardId,
                 localAmount: amount + update,
               },
@@ -362,6 +364,7 @@ describe("card operations", () => {
           bodies: [
             {
               action: "created",
+              createdAt,
               body: {
                 spend: {
                   merchantCity: "buenos aires",
@@ -370,7 +373,7 @@ describe("card operations", () => {
                 },
               },
             },
-            { action: "updated", body: { spend: { amount: amount + update } } },
+            { action: "updated", createdAt: updatedAt, body: { spend: { amount: amount + update } } },
           ],
         });
       });
@@ -564,6 +567,7 @@ describe("card operations", () => {
         const amount = 2073;
         const cardId = "card";
 
+        const createdAt = new Date().toISOString();
         await appClient.index.$post({
           ...authorization,
           json: {
@@ -572,11 +576,12 @@ describe("card operations", () => {
             body: {
               ...authorization.json.body,
               id: cardId,
-              spend: { ...authorization.json.body.spend, cardId, amount, localAmount: amount },
+              spend: { ...authorization.json.body.spend, cardId, amount, localAmount: amount, authorizedAt: createdAt },
             },
           },
         });
 
+        const updatedAt = new Date(new Date(createdAt).getTime() + 1000 * 30).toISOString();
         const response = await appClient.index.$post({
           ...authorization,
           json: {
@@ -589,7 +594,7 @@ describe("card operations", () => {
                 ...authorization.json.body.spend,
                 cardId,
                 authorizationUpdateAmount: -amount,
-                authorizedAt: new Date().toISOString(),
+                authorizedAt: updatedAt,
                 status: "reversed",
               },
             },
@@ -641,6 +646,7 @@ describe("card operations", () => {
         const amount = 2000;
         const cardId = "card";
 
+        const createdAt = new Date().toISOString();
         await appClient.index.$post({
           ...authorization,
           json: {
@@ -649,11 +655,12 @@ describe("card operations", () => {
             body: {
               ...authorization.json.body,
               id: "refund",
-              spend: { ...authorization.json.body.spend, cardId, amount, localAmount: amount },
+              spend: { ...authorization.json.body.spend, cardId, amount, localAmount: amount, authorizedAt: createdAt },
             },
           },
         });
 
+        const completedAt = new Date(new Date(createdAt).getTime() + 1000 * 30).toISOString();
         const response = await appClient.index.$post({
           ...authorization,
           json: {
@@ -668,7 +675,8 @@ describe("card operations", () => {
                 amount: -amount,
                 localAmount: -amount,
                 authorizedAmount: -amount,
-                authorizedAt: new Date().toISOString(),
+                authorizedAt: createdAt,
+                postedAt: completedAt,
                 status: "completed",
               },
             },
@@ -685,6 +693,12 @@ describe("card operations", () => {
           .map((l) => decodeEventLog({ abi: marketAbi, eventName: "Deposit", topics: l.topics, data: l.data }))
           .find((l) => l.args.owner === account);
 
+        expect(transaction?.payload).toMatchObject({
+          bodies: [
+            { action: "created", createdAt },
+            { action: "completed", createdAt: completedAt },
+          ],
+        });
         expect(deposit?.args.assets).toBe(BigInt(amount * 1e4));
         expect(response.status).toBe(200);
       });
@@ -693,6 +707,7 @@ describe("card operations", () => {
         const amount = 3000;
         const cardId = "card";
 
+        const createdAt = new Date().toISOString();
         const response = await appClient.index.$post({
           ...authorization,
           json: {
@@ -707,7 +722,8 @@ describe("card operations", () => {
                 amount: -amount,
                 localAmount: -amount,
                 authorizedAmount: -amount,
-                authorizedAt: new Date().toISOString(),
+                authorizedAt: createdAt,
+                postedAt: createdAt,
                 status: "completed",
               },
             },
@@ -724,6 +740,9 @@ describe("card operations", () => {
           .map((l) => decodeEventLog({ abi: marketAbi, eventName: "Deposit", topics: l.topics, data: l.data }))
           .find((l) => l.args.owner === account);
 
+        expect(transaction?.payload).toMatchObject({
+          bodies: [{ action: "completed", createdAt }],
+        });
         expect(deposit?.args.assets).toBe(BigInt(amount * 1e4));
         expect(response.status).toBe(200);
       });
@@ -781,6 +800,7 @@ describe("card operations", () => {
                 amount: capture,
                 authorizedAmount: hold,
                 authorizedAt: new Date().toISOString(),
+                postedAt: new Date().toISOString(),
                 cardId,
                 status: "completed",
               },
@@ -836,6 +856,7 @@ describe("card operations", () => {
                 amount: capture,
                 authorizedAmount: hold,
                 authorizedAt: new Date().toISOString(),
+                postedAt: new Date().toISOString(),
                 cardId,
                 status: "completed",
               },
@@ -888,6 +909,7 @@ describe("card operations", () => {
                 amount: capture,
                 authorizedAmount: hold,
                 authorizedAt: new Date().toISOString(),
+                postedAt: new Date().toISOString(),
                 cardId,
                 status: "completed",
               },
@@ -926,6 +948,7 @@ describe("card operations", () => {
                 ...spend,
                 amount: capture,
                 authorizedAt: new Date().toISOString(),
+                postedAt: new Date().toISOString(),
                 cardId,
                 status: "completed",
               },
