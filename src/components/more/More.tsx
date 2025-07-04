@@ -49,28 +49,32 @@ export default function More() {
         <YStack gap="$s5">
           <ProfileHeader />
           <View padded gap="$s4_5">
-            {screens.map(({ name: path, title, Icon }, index) => (
-              <XStack
-                key={index}
-                gap="$s3_5"
-                alignItems="center"
-                cursor="pointer"
-                onPress={() => {
-                  if (path === "swaps") router.push("/swaps");
-                  else router.replace(path === "index" ? "/(app)/(home)" : `/(app)/(home)/${path}`);
-                }}
-              >
-                <View>
-                  {path === "activity" && pendingProposals && pendingProposals.length > 0 && (
-                    <StatusIndicator type="notification" />
-                  )}
-                  <Icon color="$uiBrandSecondary" />
-                </View>
-                <Text primary subHeadline>
-                  {title}
-                </Text>
-              </XStack>
-            ))}
+            {screens.map(({ name: path, title, Icon }, index) => {
+              const disabled = (path === "swaps" || path === "loans") && !bytecode;
+              return (
+                <XStack
+                  key={index}
+                  gap="$s3_5"
+                  alignItems="center"
+                  cursor={disabled ? "not-allowed" : "pointer"}
+                  onPress={() => {
+                    if (disabled) return;
+                    if (path === "swaps") router.push("/swaps");
+                    else router.replace(path === "index" ? "/(app)/(home)" : `/(app)/(home)/${path}`);
+                  }}
+                >
+                  <View>
+                    {path === "activity" && pendingProposals && pendingProposals.length > 0 && (
+                      <StatusIndicator type="notification" />
+                    )}
+                    <Icon color={disabled ? "$interactiveTextDisabled" : "$uiBrandSecondary"} />
+                  </View>
+                  <Text primary subHeadline color={disabled ? "$interactiveTextDisabled" : "$backgroundBrand"}>
+                    {title}
+                  </Text>
+                </XStack>
+              );
+            })}
           </View>
         </YStack>
       </ScrollView>
