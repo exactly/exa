@@ -25,6 +25,14 @@ const queryClient = new QueryClient({
           if (error.text === "kyc not started") return;
           if (error.text === "kyc not approved") return;
         }
+        if (
+          query.queryKey[0] === "legacy" &&
+          query.queryKey[1] === "kyc" &&
+          query.queryKey[2] === "status" &&
+          error.text === "kyc not found"
+        ) {
+          return;
+        }
       }
       reportError(error);
     },
