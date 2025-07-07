@@ -51,6 +51,7 @@ import { collectors, createMutex, getMutex, headerValidator, signIssuerOp } from
 import publicClient from "../utils/publicClient";
 import { track } from "../utils/segment";
 import traceClient, { type CallFrame } from "../utils/traceClient";
+import validatorHook from "../utils/validatorHook";
 
 const debug = createDebug("exa:panda");
 Object.assign(debug, { inspectOpts: { depth: undefined } });
@@ -172,20 +173,7 @@ const Payload = v.variant("resource", [
 export default new Hono().post(
   "/",
   headerValidator(),
-  vValidator("json", Payload, (validation, c) => {
-    if (debug.enabled) {
-      c.req
-        .text()
-        .then(debug)
-        .catch((error: unknown) => captureException(error));
-    }
-    if (!validation.success) {
-      captureException(new Error("bad panda"), {
-        contexts: { validation: { ...validation, flatten: v.flatten(validation.issues) } },
-      });
-      return c.json({ code: "bad request" }, 400);
-    }
-  }),
+  vValidator("json", Payload, validatorHook({ code: "bad panda", status: 200, debug })),
   async (c) => {
     const payload = c.req.valid("json");
     setTag("panda.resource", payload.resource);

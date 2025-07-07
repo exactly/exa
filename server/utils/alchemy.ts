@@ -1,8 +1,4 @@
-import { vValidator } from "@hono/valibot-validator";
-import { captureException, setContext } from "@sentry/node";
-import type { Debugger } from "debug";
 import { validator } from "hono/validator";
-import type { BaseIssue, BaseSchema } from "valibot";
 
 import verifySignature from "./verifySignature";
 
@@ -16,25 +12,5 @@ export function headerValidator(signingKeys: Set<string> | (() => Set<string>)) 
       if (verifySignature({ signature, signingKey, payload })) return;
     }
     return c.json({ code: "unauthorized", legacy: "unauthorized" }, 401);
-  });
-}
-
-export function jsonValidator<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
-  schema: BaseSchema<TInput, TOutput, TIssue>,
-  debug: Debugger,
-  filter?: (result: TOutput) => boolean,
-) {
-  return vValidator("json", schema, (result, c) => {
-    if (debug.enabled && (!result.success || !filter || filter(result.output))) {
-      c.req
-        .text()
-        .then(debug)
-        .catch((error: unknown) => captureException(error));
-    }
-    if (!result.success) {
-      setContext("validation", result);
-      captureException(new Error("bad alchemy"));
-      return c.json({ code: "bad request", legacy: "bad request" }, 400);
-    }
   });
 }

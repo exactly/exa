@@ -1,12 +1,11 @@
 import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
 import { Address } from "@exactly/common/validation";
-import { captureException, setContext, setUser } from "@sentry/node";
+import { setContext, setUser } from "@sentry/node";
 import { Mutex } from "async-mutex";
 import { eq, inArray, ne } from "drizzle-orm";
 import { Hono } from "hono";
 import { validator as vValidator } from "hono-openapi/valibot";
 import {
-  flatten,
   integer,
   maxValue,
   minValue,
@@ -27,6 +26,7 @@ import auth from "../middleware/auth";
 import { createCard, getCard, getPIN, getSecrets, getUser, setPIN } from "../utils/panda";
 import { getInquiry, PANDA_TEMPLATE } from "../utils/persona";
 import { track } from "../utils/segment";
+import validatorHook from "../utils/validatorHook";
 
 const mutexes = new Map<string, Mutex>();
 function createMutex(credentialId: string) {
@@ -38,14 +38,7 @@ function createMutex(credentialId: string) {
 export default new Hono()
   .get(
     "/",
-    vValidator("header", object({ sessionid: string() }), (validation, c) => {
-      if (!validation.success) {
-        captureException(new Error("bad session id"), {
-          contexts: { validation: { ...validation, flatten: flatten(validation.issues) } },
-        });
-        return c.json({ code: "bad session id", legacy: "bad session id" }, 400);
-      }
-    }),
+    vValidator("header", object({ sessionid: string() }), validatorHook({ code: "bad session id", status: 400 })),
     auth(),
     async (c) => {
       const { credentialId } = c.req.valid("cookie");
@@ -163,6 +156,7 @@ export default new Hono()
           transform((patch) => ({ ...patch, type: "pin" as const })),
         ),
       ]),
+      validatorHook(),
     ),
     async (c) => {
       const patch = c.req.valid("json");

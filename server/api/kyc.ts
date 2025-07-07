@@ -1,10 +1,10 @@
 import { Address } from "@exactly/common/validation";
-import { captureException, setContext, setUser } from "@sentry/node";
+import { setContext, setUser } from "@sentry/node";
 import createDebug from "debug";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { validator as vValidator } from "hono-openapi/valibot";
-import { flatten, object, optional, parse, string } from "valibot";
+import { object, optional, parse, string } from "valibot";
 
 import database, { credentials } from "../database/index";
 import auth from "../middleware/auth";
@@ -17,6 +17,7 @@ import {
   PANDA_TEMPLATE,
   resumeInquiry,
 } from "../utils/persona";
+import validatorHook from "../utils/validatorHook";
 
 const debug = createDebug("exa:kyc");
 Object.assign(debug, { inspectOpts: { depth: undefined } });
@@ -54,20 +55,7 @@ export default new Hono()
   .post(
     "/",
     auth(),
-    vValidator("json", object({ templateId: optional(string()) }), (validation, c) => {
-      if (debug.enabled) {
-        c.req
-          .text()
-          .then(debug)
-          .catch((error: unknown) => captureException(error));
-      }
-      if (!validation.success) {
-        captureException(new Error("bad kyc"), {
-          contexts: { validation: { ...validation, flatten: flatten(validation.issues) } },
-        });
-        return c.json({ code: "bad request", legacy: "bad request" }, 400);
-      }
-    }),
+    vValidator("json", object({ templateId: optional(string()) }), validatorHook({ debug })),
     async (c) => {
       const payload = c.req.valid("json");
       const { credentialId } = c.req.valid("cookie");

@@ -1,5 +1,6 @@
 import chain, { exaAccountFactoryAbi, exaPreviewerAddress, wethAddress } from "@exactly/common/generated/chain";
 import { Address, Hash } from "@exactly/common/validation";
+import { vValidator } from "@hono/valibot-validator";
 import { SPAN_STATUS_ERROR, SPAN_STATUS_OK, type SpanStatus } from "@sentry/core";
 import {
   captureException,
@@ -26,12 +27,13 @@ import {
   marketAbi,
   upgradeableModularAccountAbi,
 } from "../generated/contracts";
-import { headerValidator, jsonValidator } from "../utils/alchemy";
+import { headerValidator } from "../utils/alchemy";
 import decodePublicKey from "../utils/decodePublicKey";
 import keeper from "../utils/keeper";
 import { sendPushNotification } from "../utils/onesignal";
 import publicClient from "../utils/publicClient";
 import { track } from "../utils/segment";
+import validatorHook from "../utils/validatorHook";
 
 if (!process.env.ALCHEMY_ACTIVITY_KEY) throw new Error("missing alchemy activity key");
 const signingKey = process.env.ALCHEMY_ACTIVITY_KEY;
@@ -45,7 +47,8 @@ Object.assign(debug, { inspectOpts: { depth: undefined } });
 export default new Hono().post(
   "/",
   headerValidator(new Set([signingKey])),
-  jsonValidator(
+  vValidator(
+    "json",
     v.object({
       type: v.literal("ADDRESS_ACTIVITY"),
       event: v.object({
@@ -71,7 +74,7 @@ export default new Hono().post(
         ),
       }),
     }),
-    debug,
+    validatorHook({ code: "bad alchemy", status: 200, debug }),
   ),
   async (c) => {
     setContext("alchemy", await c.req.json());

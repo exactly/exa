@@ -7,6 +7,7 @@ import chain, {
 } from "@exactly/common/generated/chain";
 import shortenHex from "@exactly/common/shortenHex";
 import { Address, Hash, Hex } from "@exactly/common/validation";
+import { vValidator } from "@hono/valibot-validator";
 import { SPAN_STATUS_ERROR, SPAN_STATUS_OK } from "@sentry/core";
 import {
   captureException,
@@ -46,13 +47,14 @@ import {
   proposalManagerAbi,
   upgradeableModularAccountAbi,
 } from "../generated/contracts";
-import { headerValidator, jsonValidator, webhooksKey } from "../utils/alchemy";
+import { headerValidator, webhooksKey } from "../utils/alchemy";
 import appOrigin from "../utils/appOrigin";
 import ensClient from "../utils/ensClient";
 import keeper from "../utils/keeper";
 import { sendPushNotification } from "../utils/onesignal";
 import publicClient from "../utils/publicClient";
 import redis from "../utils/redis";
+import validatorHook from "../utils/validatorHook";
 
 if (!process.env.ALCHEMY_BLOCK_KEY) throw new Error("missing alchemy block key");
 const signingKeys = new Set([process.env.ALCHEMY_BLOCK_KEY]);
@@ -84,7 +86,8 @@ redis
 export default new Hono().post(
   "/",
   headerValidator(() => signingKeys),
-  jsonValidator(
+  vValidator(
+    "json",
     v.object({
       type: v.literal("GRAPHQL"),
       event: v.object({
@@ -99,8 +102,12 @@ export default new Hono().post(
         }),
       }),
     }),
-    debug,
-    ({ event }) => event.data.block.logs.length > 0,
+    validatorHook({
+      code: "bad alchemy",
+      status: 200,
+      filter: ({ event }) => event.data.block.logs.length > 0,
+      debug,
+    }),
   ),
   async (c) => {
     getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "alchemy.block");

@@ -164,9 +164,11 @@ describe("with reference", () => {
         expect.anything(),
       );
       expect(response.status).toBe(200);
-      await expect(response.json()).resolves.toStrictEqual([
-        "data/attributes/payload/included Invalid length: Expected >=1 but received 0",
-      ]);
+      await expect(response.json()).resolves.toStrictEqual({
+        code: "bad persona",
+        legacy: "bad persona",
+        message: ["data/attributes/payload/included Invalid length: Expected >=1 but received 0"],
+      });
       expect(panda.createUser).not.toHaveBeenCalled();
     });
 
@@ -205,9 +207,13 @@ describe("with reference", () => {
         expect.anything(),
       );
       expect(response.status).toBe(200);
-      await expect(response.json()).resolves.toStrictEqual([
-        "data/attributes/payload/data/attributes/fields Either annualSalary or annualSalaryRangesUs150000 must have a value",
-      ]);
+      await expect(response.json()).resolves.toStrictEqual({
+        code: "bad persona",
+        legacy: "bad persona",
+        message: [
+          "data/attributes/payload/data/attributes/fields Either annualSalary or annualSalaryRangesUs150000 must have a value",
+        ],
+      });
       expect(panda.createUser).not.toHaveBeenCalled();
     });
 
@@ -246,9 +252,13 @@ describe("with reference", () => {
         expect.anything(),
       );
       expect(response.status).toBe(200);
-      await expect(response.json()).resolves.toStrictEqual([
-        "data/attributes/payload/data/attributes/fields Either monthlyPurchasesRange or expectedMonthlyVolume must have a value",
-      ]);
+      await expect(response.json()).resolves.toStrictEqual({
+        code: "bad persona",
+        legacy: "bad persona",
+        message: [
+          "data/attributes/payload/data/attributes/fields Either monthlyPurchasesRange or expectedMonthlyVolume must have a value",
+        ],
+      });
       expect(panda.createUser).not.toHaveBeenCalled();
     });
   });

@@ -53,6 +53,7 @@ import auth from "../middleware/auth";
 import { collectors as cryptomateCollectors } from "../utils/cryptomate";
 import { collectors as pandaCollectors } from "../utils/panda";
 import publicClient from "../utils/publicClient";
+import validatorHook from "../utils/validatorHook";
 
 const ActivityTypes = picklist(["card", "received", "repay", "sent"]);
 
@@ -61,7 +62,11 @@ const collectors = new Set([...cryptomateCollectors, ...pandaCollectors].map((a)
 export default new Hono().get(
   "/",
   auth(),
-  vValidator("query", optional(object({ include: optional(union([ActivityTypes, array(ActivityTypes)])) }), {})),
+  vValidator(
+    "query",
+    optional(object({ include: optional(union([ActivityTypes, array(ActivityTypes)])) }), {}),
+    validatorHook(),
+  ),
   async (c) => {
     const { include } = c.req.valid("query");
     function ignore(type: InferInput<typeof ActivityTypes>) {

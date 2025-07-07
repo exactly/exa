@@ -17,7 +17,6 @@ import {
   any,
   array,
   description,
-  flatten,
   literal,
   metadata,
   number,
@@ -44,6 +43,7 @@ import authSecret from "../../utils/authSecret";
 import createCredential from "../../utils/createCredential";
 import decodePublicKey from "../../utils/decodePublicKey";
 import redis from "../../utils/redis";
+import validatorHook from "../../utils/validatorHook";
 
 const Cookie = object({
   session_id: pipe(Base64URL, title("Session identifier"), description("HTTP-only cookie.")),
@@ -154,14 +154,7 @@ export default new Hono()
           ]),
         ),
       }),
-      (validation, c) => {
-        if (!validation.success) {
-          captureException(new Error("bad credential"), {
-            contexts: { validation: { ...validation, flatten: flatten(validation.issues) } },
-          });
-          return c.json({ code: "bad credential", legacy: "bad credential" }, 400);
-        }
-      },
+      validatorHook({ code: "bad credential" }),
     ),
     async (c) => {
       const timeout = 5 * 60_000;
@@ -230,7 +223,7 @@ export default new Hono()
     vValidator<typeof Cookie, "cookie", Env, "/", undefined, InferOutput<typeof Cookie>>(
       "cookie",
       Cookie,
-      ({ success }, c) => (success ? undefined : c.json({ code: "bad session", legacy: "bad session" }, 400)),
+      validatorHook({ code: "bad session" }),
     ),
     vValidator(
       "json",
@@ -282,14 +275,7 @@ export default new Hono()
           title("WebAuthn"),
         ),
       ]),
-      (validation, c) => {
-        if (!validation.success) {
-          captureException(new Error("bad authentication"), {
-            contexts: { validation: { ...validation, flatten: flatten(validation.issues) } },
-          });
-          return c.json({ code: "bad authentication", legacy: "bad authentication" }, 400);
-        }
-      },
+      validatorHook({ code: "bad authentication" }),
     ),
     async (c) => {
       const assertion = c.req.valid("json");

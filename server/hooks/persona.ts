@@ -6,7 +6,6 @@ import type { InferOutput } from "valibot";
 import {
   array,
   check,
-  flatten,
   ip,
   isoTimestamp,
   literal,
@@ -24,6 +23,7 @@ import {
 import database, { credentials } from "../database/index";
 import { createUser } from "../utils/panda";
 import { headerValidator } from "../utils/persona";
+import validatorHook from "../utils/validatorHook";
 
 const Session = pipe(
   object({
@@ -117,17 +117,7 @@ export default new Hono().post(
         }),
       }),
     }),
-    (validation, c) => {
-      if (!validation.success) {
-        captureException(new Error("bad persona"), {
-          contexts: { validation: { ...validation, flatten: flatten(validation.issues) } },
-        });
-        return c.json(
-          validation.issues.map((issue) => `${issue.path?.map((p) => p.key).join("/")} ${issue.message}`),
-          200,
-        );
-      }
-    },
+    validatorHook({ code: "bad persona", status: 200 }),
   ),
   async (c) => {
     getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "persona.inquiry");

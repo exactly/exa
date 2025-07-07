@@ -41,6 +41,15 @@ describe.concurrent("validation", () => {
     await expect(response.json()).resolves.toStrictEqual({ code: "no credential", legacy: "no credential" });
   });
 
+  it("fails with validation error", async () => {
+    const response = await appClient.index.$get(
+      { query: { include: "bad-include" } },
+      { headers: { "test-credential-id": "cred" } },
+    );
+
+    expect(response.status).toBe(400);
+  });
+
   it("succeeds with valid credential", async () => {
     const response = await appClient.index.$get(
       { query: { include: "card" } },
