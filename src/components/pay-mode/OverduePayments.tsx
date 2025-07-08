@@ -8,6 +8,7 @@ import { WAD } from "@exactly/lib";
 import { ChevronRight } from "@tamagui/lucide-icons";
 import { format, isBefore } from "date-fns";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
 import { useAccount, useBytecode } from "wagmi";
@@ -17,6 +18,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function OverduePayments({ onSelect }: { onSelect: (maturity: bigint, amount: bigint) => void }) {
+  const { t } = useTranslation();
   const { address } = useAccount();
   const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
   const { data: pendingProposals } = useReadExaPreviewerPendingProposals({
@@ -51,7 +53,7 @@ export default function OverduePayments({ onSelect }: { onSelect: (maturity: big
     <View backgroundColor="$backgroundSoft" borderRadius="$r3" padding="$s4" gap="$s6">
       <XStack alignItems="center" justifyContent="space-between">
         <Text emphasized headline flex={1}>
-          Overdue payments
+          {t("Overdue payments")}
         </Text>
       </XStack>
       <YStack gap="$s6">
@@ -107,8 +109,14 @@ export default function OverduePayments({ onSelect }: { onSelect: (maturity: big
                     paddingVertical="$s1"
                     paddingHorizontal="$s2"
                   >
-                    <Text emphasized color="$interactiveOnDisabled" maxFontSizeMultiplier={1} caption2>
-                      PROCESSING
+                    <Text
+                      emphasized
+                      color="$interactiveOnDisabled"
+                      maxFontSizeMultiplier={1}
+                      caption2
+                      textTransform="uppercase"
+                    >
+                      {t("Processing")}
                     </Text>
                   </View>
                 ) : (
@@ -121,8 +129,14 @@ export default function OverduePayments({ onSelect }: { onSelect: (maturity: big
                     paddingVertical="$s1"
                     paddingHorizontal="$s2"
                   >
-                    <Text emphasized color="$interactiveOnBaseErrorDefault" maxFontSizeMultiplier={1} caption2>
-                      {`PENALTIES ${(discount >= 0 ? discount : discount * -1).toLocaleString(undefined, {
+                    <Text
+                      emphasized
+                      color="$interactiveOnBaseErrorDefault"
+                      maxFontSizeMultiplier={1}
+                      caption2
+                      textTransform="uppercase"
+                    >
+                      {`${t("Penalties")} ${(discount >= 0 ? discount : discount * -1).toLocaleString(undefined, {
                         style: "percent",
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2,
@@ -135,7 +149,7 @@ export default function OverduePayments({ onSelect }: { onSelect: (maturity: big
                   subHeadline
                   color={processing ? "$interactiveOnDisabled" : "$interactiveBaseErrorDefault"}
                 >
-                  Repay
+                  {t("Repay")}
                 </Text>
                 <ChevronRight size={16} color={processing ? "$iconDisabled" : "$interactiveBaseBrandDefault"} />
               </XStack>

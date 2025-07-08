@@ -1,6 +1,7 @@
 import chain from "@exactly/common/generated/chain";
 import { AlertTriangle, CheckCircle, X } from "@tamagui/lucide-icons";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Platform } from "react-native";
 import { ScrollView, Sheet, XStack, YStack } from "tamagui";
 import { useAccount } from "wagmi";
@@ -14,6 +15,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function CopyAddressSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { t } = useTranslation();
   const { address } = useAccount();
   const aspectRatio = useAspectRatio();
   const { presentArticle } = useIntercom();
@@ -53,11 +55,11 @@ export default function CopyAddressSheet({ open, onClose }: { open: boolean; onC
                 <XStack gap="$s3" alignItems="center">
                   <CheckCircle size={24} color="$uiSuccessSecondary" />
                   <Text emphasized primary headline color="$uiSuccessSecondary">
-                    Address copied
+                    {t("Address copied")}
                   </Text>
                 </XStack>
                 <Text emphasized secondary subHeadline>
-                  Double-check your address before sending funds to avoid losing them.
+                  {t("Double-check your address before sending funds to avoid losing them.")}
                 </Text>
               </YStack>
               <Text primary title fontFamily="$mono" textAlign="center">
@@ -75,7 +77,9 @@ export default function CopyAddressSheet({ open, onClose }: { open: boolean; onC
                 </View>
                 <XStack flex={1}>
                   <Text emphasized caption2 color="$uiNeutralPlaceholder" textAlign="justify">
-                    Only send assets on {chain.name}. Sending funds from other networks may cause permanent loss.
+                    {t("Only send assets on {{chain}}. Sending funds from other networks may cause permanent loss.", {
+                      chain: chain.name,
+                    })}
                     <Text
                       cursor="pointer"
                       emphasized
@@ -85,7 +89,7 @@ export default function CopyAddressSheet({ open, onClose }: { open: boolean; onC
                         presentArticle("8950801").catch(reportError);
                       }}
                     >
-                      &nbsp;Learn more about adding funds.
+                      &nbsp;{t("Learn more about adding funds.")}
                     </Text>
                   </Text>
                 </XStack>
@@ -99,7 +103,7 @@ export default function CopyAddressSheet({ open, onClose }: { open: boolean; onC
                 fullwidth
                 iconAfter={<X strokeWidth={2.5} color="$interactiveOnBaseBrandDefault" />}
               >
-                Close
+                {t("Close")}
               </Button>
             </YStack>
           </SafeView>

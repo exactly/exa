@@ -8,6 +8,7 @@ import { useForm, useStore } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { Avatar, ScrollView, XStack } from "tamagui";
 import { bigint, check, parse, pipe } from "valibot";
@@ -42,6 +43,7 @@ export interface WithdrawDetails {
 export default function Amount() {
   const { canGoBack } = router;
   const { address } = useAccount();
+  const { t } = useTranslation();
   const [reviewOpen, setReviewOpen] = useState(false);
   const { data: withdraw } = useQuery<Withdraw>({ queryKey: ["withdrawal"] });
   const { market, externalAsset: external, available, isFetching } = useAsset(withdraw?.market);
@@ -176,7 +178,7 @@ export default function Amount() {
               </Pressable>
             </View>
             <Text color="$uiNeutralPrimary" fontSize={15} fontWeight="bold">
-              Enter amount
+              {t("Enter amount")}
             </Text>
           </View>
           <ScrollView
@@ -198,7 +200,7 @@ export default function Amount() {
                       <User size={20} color="$interactiveOnBaseBrandDefault" />
                     </Avatar>
                     <Text emphasized callout color="$uiNeutralSecondary">
-                      To:
+                      {t("To")}:
                     </Text>
                     <Text callout color="$uiNeutralPrimary" fontFamily="$mono">
                       {withdraw?.receiver ? shortenHex(withdraw.receiver) : "..."}
@@ -220,7 +222,7 @@ export default function Amount() {
                         <Coins size={20} color="$interactiveOnBaseBrandDefault" />
                       </Avatar>
                       <Text callout color="$uiNeutralSecondary">
-                        Available:
+                        {t("Available")}:
                       </Text>
                       <Text callout color="$uiNeutralPrimary" numberOfLines={1}>
                         {market ? (
@@ -250,12 +252,15 @@ export default function Amount() {
                 validators={{
                   onChange: pipe(
                     bigint(),
-                    check((value) => {
-                      return value !== 0n;
-                    }, "amount cannot be 0"),
+                    check(
+                      (value) => {
+                        return value !== 0n;
+                      },
+                      t("Amount cannot be {{amount}}", { amount: 0 }),
+                    ),
                     check((value) => {
                       return value <= available;
-                    }, "amount cannot be greater than available"),
+                    }, t("Amount cannot be greater than available")),
                   ),
                 }}
               >
@@ -288,7 +293,7 @@ export default function Amount() {
                       setReviewOpen(true);
                     }}
                   >
-                    Review
+                    {t("Review")}
                   </Button>
                 );
               }}

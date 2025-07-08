@@ -1,6 +1,7 @@
 import { ChevronRight } from "@tamagui/lucide-icons";
 import { router } from "expo-router";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { XStack, YStack } from "tamagui";
 
@@ -18,11 +19,12 @@ export default function LatestActivity({
   title?: string;
   emptyComponent?: React.ReactNode;
 }) {
+  const { t } = useTranslation();
   return (
     <View backgroundColor="$backgroundSoft" borderRadius="$r3" gap="$s4">
       <XStack alignItems="center" justifyContent="space-between" paddingHorizontal="$s4" paddingTop="$s4">
         <Text emphasized headline flex={1}>
-          {title}
+          {t(title)}
         </Text>
         {activity?.length ? (
           <Pressable
@@ -33,7 +35,7 @@ export default function LatestActivity({
           >
             <XStack gap="$s1" alignItems="center">
               <Text color="$interactiveTextBrandDefault" emphasized footnote fontWeight="bold">
-                View all
+                {t("View all")}
               </Text>
               <ChevronRight size={14} color="$interactiveTextBrandDefault" strokeWidth={2.5} />
             </XStack>
@@ -48,10 +50,10 @@ export default function LatestActivity({
                 📋
               </Text>
               <Text textAlign="center" color="$uiBrandSecondary" emphasized headline>
-                No activity yet
+                {t("No activity yet")}
               </Text>
               <Text textAlign="center" color="$uiNeutralSecondary" subHeadline>
-                Your transactions will show up here once you get started. Add funds to begin!
+                {t("Your transactions will show up here once you get started. Add funds to begin!")}
               </Text>
             </YStack>
           ))}

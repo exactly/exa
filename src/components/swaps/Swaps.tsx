@@ -8,6 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { openBrowserAsync } from "expo-web-browser";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Checkbox, ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
@@ -65,6 +66,7 @@ const SLIPPAGE_PERCENT = 5n;
 
 export default function Swaps() {
   const { canGoBack } = router;
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const { presentArticle } = useIntercom();
   const { address: account } = useAccount();
@@ -132,8 +134,8 @@ export default function Swaps() {
 
   useEffect(() => {
     if (!fromToken && !toToken && tokens && markets) {
-      const usdc = tokens.find((t) => t.symbol === "USDC");
-      const exa = tokens.find((t) => t.symbol === "EXA");
+      const usdc = tokens.find((token) => token.symbol === "USDC");
+      const exa = tokens.find((token) => token.symbol === "EXA");
       if (usdc && exa) {
         updateSwap((old) => ({
           ...old,
@@ -397,6 +399,11 @@ export default function Swaps() {
         <ScrollView ref={swapsScrollReference} showsVerticalScrollIndicator={false} flex={1}>
           <View padded>
             <YStack paddingBottom="$s3" gap="$s4_5">
+              <XStack gap={10} alignItems="center">
+                <Text fontSize={20} fontWeight="bold">
+                  {t("Swap")}
+                </Text>
+              </XStack>
               <YStack gap="$s3_5">
                 {(["from", "to"] as const).map((type) => {
                   const tokenData = type === "from" ? fromToken : toToken;
@@ -405,7 +412,7 @@ export default function Swaps() {
                   return (
                     <TokenInput
                       key={type}
-                      label={type === "from" ? "You pay" : "You receive"}
+                      label={type === "from" ? t("You pay") : t("You receive")}
                       token={tokenData?.token}
                       amount={amount}
                       balance={getBalance(tokenData?.token)}
@@ -469,8 +476,10 @@ export default function Swaps() {
                   )}
                   <Text caption color={danger ? "$uiErrorSecondary" : "$uiNeutralSecondary"} flex={1}>
                     {danger
-                      ? "Swapping this much of your collateral could instantly trigger liquidation. Try a smaller amount to stay protected."
-                      : "I acknowledge the risks of swapping this much of my collateral assets."}
+                      ? t(
+                          "Swapping this much of your collateral could instantly trigger liquidation. Try a smaller amount to stay protected.",
+                        )
+                      : t("I acknowledge the risks of swapping this much of my collateral assets.")}
                   </Text>
                 </XStack>
                 <Separator borderColor="$borderNeutralSoft" />
@@ -478,7 +487,7 @@ export default function Swaps() {
             )}
             <XStack alignItems="flex-start" flexWrap="wrap" paddingBottom="$s3">
               <Text caption2 color="$interactiveOnDisabled" textAlign="justify">
-                Swap functionality is provided via&nbsp;
+                {t("Swap functionality is provided via")}&nbsp;
                 <Text
                   cursor="pointer"
                   caption2
@@ -490,8 +499,10 @@ export default function Swaps() {
                 >
                   LI.FI
                 </Text>
-                &nbsp; and executed on decentralized networks. Availability and pricing depend on network conditions and
-                third-party protocols.
+                &nbsp;
+                {t(
+                  "and executed on decentralized networks. Availability and pricing depend on network conditions and third-party protocols.",
+                )}
               </Text>
             </XStack>
           </YStack>
@@ -526,13 +537,16 @@ export default function Swaps() {
           >
             {isSimulating && route
               ? isInsufficientBalance
-                ? "Insufficient balance"
-                : "Please wait..."
+                ? t("Insufficient balance")
+                : t("Please wait...")
               : simulationError
-                ? "Cannot proceed"
+                ? t("Cannot proceed")
                 : danger
-                  ? "Enter a lower amount to swap"
-                  : `Swap ${fromToken?.token.symbol} for ${toToken?.token.symbol}`}
+                  ? t("Enter a lower amount to swap")
+                  : t("Swap {{fromToken}} for {{toToken}}", {
+                      fromToken: fromToken?.token.symbol,
+                      toToken: toToken?.token.symbol,
+                    })}
           </Button>
         </YStack>
         <TokenSelectModal
@@ -543,7 +557,7 @@ export default function Swaps() {
           onSelect={handleTokenSelect}
           onClose={handleCloseTokenModal}
           isLoading={isTokensLoading}
-          title={tokenSelectionType === "from" ? "Select token to pay" : "Select token to receive"}
+          title={tokenSelectionType === "from" ? t("Select token to pay") : t("Select token to receive")}
         />
       </SafeView>
     );

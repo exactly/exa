@@ -2,6 +2,7 @@ import { ArrowLeft, HelpCircle, LogOut } from "@tamagui/lucide-icons";
 import { setStringAsync } from "expo-clipboard";
 import { router, useRouter } from "expo-router";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Alert, Pressable } from "react-native";
 import { ScrollView, Separator, XStack } from "tamagui";
 import { useAccount } from "wagmi";
@@ -16,6 +17,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function Settings() {
+  const { t } = useTranslation();
   const { canGoBack } = useRouter();
   const { connector } = useAccount();
   const { present, logout } = useIntercom();
@@ -38,7 +40,7 @@ export default function Settings() {
             )}
           </View>
           <Text emphasized subHeadline color="$uiNeutralPrimary">
-            Settings
+            {t("Settings")}
           </Text>
         </View>
         <ScrollView flex={1}>
@@ -50,7 +52,7 @@ export default function Settings() {
                   <XStack gap="$s3" justifyContent="flex-start" alignItems="center">
                     <HelpCircle color="$backgroundBrand" />
                     <Text subHeadline color="$uiNeutralPrimary">
-                      Support
+                      {t("Support")}
                     </Text>
                   </XStack>
                 </XStack>
@@ -73,7 +75,7 @@ export default function Settings() {
                   <XStack gap="$s3" justifyContent="flex-start" alignItems="center">
                     <LogOut color="$interactiveBaseErrorDefault" />
                     <Text subHeadline color="$uiNeutralPrimary">
-                      Logout
+                      {t("Logout")}
                     </Text>
                   </XStack>
                 </XStack>
@@ -83,7 +85,7 @@ export default function Settings() {
               hitSlop={20}
               onPress={() => {
                 setStringAsync(release).catch(reportError);
-                Alert.alert("Copied", "App version has been copied to the clipboard.");
+                Alert.alert(t("Copied"), t("App version has been copied to the clipboard."));
               }}
             >
               <Text footnote color="$uiNeutralSecondary" textAlign="center">

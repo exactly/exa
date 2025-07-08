@@ -8,6 +8,7 @@ import { WAD } from "@exactly/lib";
 import { ChevronRight } from "@tamagui/lucide-icons";
 import { format, isBefore } from "date-fns";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
@@ -20,6 +21,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bigint, amount: bigint) => void }) {
+  const { t } = useTranslation();
   const { address } = useAccount();
   const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
   const { data: pendingProposals } = useReadExaPreviewerPendingProposals({
@@ -52,7 +54,7 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
     <View backgroundColor="$backgroundSoft" borderRadius="$r3" padding="$s4" gap="$s6">
       <XStack alignItems="center" justifyContent="space-between">
         <Text emphasized headline flex={1}>
-          Upcoming payments
+          {t("Upcoming payments")}
         </Text>
       </XStack>
       <YStack gap="$s6">
@@ -121,8 +123,14 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
                         paddingVertical="$s1"
                         paddingHorizontal="$s2"
                       >
-                        <Text emphasized color="$interactiveOnDisabled" maxFontSizeMultiplier={1} caption2>
-                          PROCESSING
+                        <Text
+                          emphasized
+                          color="$interactiveOnDisabled"
+                          maxFontSizeMultiplier={1}
+                          caption2
+                          textTransform="uppercase"
+                        >
+                          {t("Processing")}
                         </Text>
                       </View>
                     ) : null}
@@ -138,12 +146,20 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
                         paddingVertical="$s1"
                         paddingHorizontal="$s2"
                       >
-                        <Text emphasized color="$interactiveOnBaseSuccessDefault" maxFontSizeMultiplier={1} caption2>
-                          {`${discount.toLocaleString(undefined, {
-                            style: "percent",
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })} OFF`}
+                        <Text
+                          emphasized
+                          color="$interactiveOnBaseSuccessDefault"
+                          maxFontSizeMultiplier={1}
+                          caption2
+                          textTransform="uppercase"
+                        >
+                          {t("{{percent}} off", {
+                            percent: discount.toLocaleString(undefined, {
+                              style: "percent",
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            }),
+                          })}
                         </Text>
                       </View>
                     )}
@@ -152,7 +168,7 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
                       subHeadline
                       color={processing ? "$interactiveOnDisabled" : "$interactiveBaseBrandDefault"}
                     >
-                      Repay
+                      {t("Repay")}
                     </Text>
                     <ChevronRight size={16} color={isRepaying ? "$iconDisabled" : "$iconBrandDefault"} />
                   </XStack>

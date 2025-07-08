@@ -2,6 +2,7 @@ import shortenHex from "@exactly/common/shortenHex";
 import { ArrowRight, User } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Platform, Pressable } from "react-native";
 import { ScrollView, Sheet, XStack, YStack } from "tamagui";
 
@@ -31,6 +32,7 @@ export default function ReviewSheet({
   details: WithdrawDetails;
   isFirstSend: boolean;
 }) {
+  const { t } = useTranslation();
   const aspectRatio = useAspectRatio();
   const { data: withdraw } = useQuery<Withdraw>({ queryKey: ["withdrawal"] });
   const { market, externalAsset } = useAsset(withdraw?.market);
@@ -68,13 +70,13 @@ export default function ReviewSheet({
             <YStack gap="$s7">
               <YStack gap="$s5">
                 <Text emphasized primary headline textAlign="center">
-                  Review transaction
+                  {t("Review transaction")}
                 </Text>
               </YStack>
               <YStack gap="$s3_5">
                 <YStack gap="$s4">
                   <Text emphasized footnote color="$uiNeutralSecondary">
-                    Sending
+                    {t("Sending")}
                   </Text>
                   <XStack alignItems="center" gap="$s3">
                     <AssetLogo
@@ -110,7 +112,7 @@ export default function ReviewSheet({
                 </YStack>
                 <YStack gap="$s4">
                   <Text emphasized footnote color="$uiNeutralSecondary">
-                    To
+                    {t("To")}
                   </Text>
                   <XStack alignItems="center" gap="$s3">
                     <View
@@ -131,7 +133,7 @@ export default function ReviewSheet({
                       </Text>
                       {isFirstSend && (
                         <Text subHeadline color="$uiNeutralSecondary">
-                          First time send
+                          {t("First time send")}
                         </Text>
                       )}
                     </YStack>
@@ -151,11 +153,11 @@ export default function ReviewSheet({
                     <ArrowRight color={canSend ? "$interactiveOnBaseBrandDefault" : "$interactiveOnDisabled"} />
                   }
                 >
-                  Send
+                  {t("Send")}
                 </Button>
                 <Pressable onPress={onClose}>
                   <Text emphasized footnote color="$interactiveBaseBrandDefault" alignSelf="center">
-                    Close
+                    {t("Close")}
                   </Text>
                 </Pressable>
               </YStack>
