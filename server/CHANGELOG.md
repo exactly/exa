@@ -1,5 +1,19 @@
 # @exactly/server
 
+## 0.2.5
+
+### Patch Changes
+
+- [`c705961`](https://github.com/exactly/exa/commit/c705961eb8b9a47ab2e0c6e59833deaaa1371489) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🔥 remove duplicated merchant data
+
+- [`563f485`](https://github.com/exactly/exa/commit/563f485a36bfeda42efdc566ec47f6e6ab7b0c0b) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🔥 remove wrong health check
+
+- [`6756e65`](https://github.com/exactly/exa/commit/6756e653c9150f495f1adb34dc621067bac3f905) Thanks [@nfmelendez](https://github.com/nfmelendez)! - ✨ handle transaction complete event
+
+- [`0b330d0`](https://github.com/exactly/exa/commit/0b330d04dc18179a094779b0186985017cc3b8b9) Thanks [@mainqueg](https://github.com/mainqueg)! - 🐛 use timestamp from panda payload
+
+- [`1c32890`](https://github.com/exactly/exa/commit/1c3289034a99746c0e263d659fdfe1e18f1f387f) Thanks [@nfmelendez](https://github.com/nfmelendez)! - ✨ add settlement to card activity
+
 ## 0.2.4
 
 ### Patch Changes
