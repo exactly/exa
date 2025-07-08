@@ -5,6 +5,7 @@ import { useForm } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { ButtonIcon, ScrollView, Separator, XStack, YStack } from "tamagui";
 import { safeParse } from "valibot";
@@ -23,6 +24,7 @@ import View from "../shared/View";
 export default function ReceiverSelection() {
   const router = useRouter();
   const { receiver } = useLocalSearchParams();
+  const { t } = useTranslation();
 
   const { data: recentContacts } = useQuery<{ address: Address; ens: string }[] | undefined>({
     queryKey: ["contacts", "recent"],
@@ -52,7 +54,7 @@ export default function ReceiverSelection() {
         <View flexDirection="row" gap={10} justifyContent="space-around" alignItems="center">
           <View position="absolute" left={0}>
             <Pressable
-              aria-label="Back"
+              aria-label={t("Back")}
               onPress={() => {
                 queryClient.setQueryData(["withdrawal"], { receiver: undefined, market: undefined, amount: 0n });
                 if (router.canGoBack()) {
@@ -66,7 +68,7 @@ export default function ReceiverSelection() {
             </Pressable>
           </View>
           <Text color="$uiNeutralPrimary" fontSize={15} fontWeight="bold">
-            Send to
+            {t("Send to")}
           </Text>
         </View>
         <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
@@ -78,7 +80,7 @@ export default function ReceiverSelection() {
                     <XStack flexDirection="row">
                       <Input
                         flex={1}
-                        placeholder={`Enter ${chain.name} address`}
+                        placeholder={t("Enter {{chain}} address", { chain: chain.name })}
                         borderColor="$uiNeutralTertiary"
                         borderTopRightRadius={0}
                         borderBottomRightRadius={0}
@@ -137,8 +139,10 @@ export default function ReceiverSelection() {
                 </ScrollView>
               )}
               <Text color="$uiNeutralPlaceholder" fontSize={13} lineHeight={16} textAlign="justify">
-                Make sure that the receiving address is compatible with {chain.name} network. Sending assets on other
-                networks may result in irreversible loss of funds.
+                {t(
+                  "Make sure that the receiving address is compatible with {{chain}} network. Sending assets on other networks may result in irreversible loss of funds.",
+                  { chain: chain.name },
+                )}
                 <Text
                   color="$uiBrandSecondary"
                   fontSize={13}
@@ -149,11 +153,12 @@ export default function ReceiverSelection() {
                     presentArticle("9056481").catch(reportError);
                   }}
                 >
-                  &nbsp;Learn more about sending funds.
+                  {" "}
+                  {t("Learn more about sending funds.")}
                 </Text>
               </Text>
               <Text color="$uiNeutralPlaceholder" caption2 textAlign="justify">
-                Arrival time ≈ 1 min.
+                {t("Arrival time ≈ {{minutes}} min.", { minutes: 1 })}
               </Text>
             </YStack>
             <form.Subscribe selector={({ canSubmit }) => canSubmit}>
@@ -171,7 +176,7 @@ export default function ReceiverSelection() {
                       form.handleSubmit().catch(reportError);
                     }}
                   >
-                    Next
+                    {t("Next")}
                   </Button>
                 );
               }}

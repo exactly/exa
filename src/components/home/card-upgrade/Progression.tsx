@@ -1,11 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { XStack, YStack } from "tamagui";
 
 import Text from "../../shared/Text";
 import View from "../../shared/View";
 
 export default function Progression() {
+  const { t } = useTranslation();
   const { data: step } = useQuery<number | undefined>({ queryKey: ["card-upgrade"] });
   const remainingSteps = Math.max(0, 3 - (step ?? 0));
   return (
@@ -22,7 +24,7 @@ export default function Progression() {
         ))}
       </XStack>
       <Text color="$uiBrandTertiary" subHeadline>
-        {`${remainingSteps} step${remainingSteps === 1 ? "" : "s"} remaining`}
+        {t("{{count}} step remaining", { count: remainingSteps })}
       </Text>
     </YStack>
   );

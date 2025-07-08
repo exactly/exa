@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Platform, useWindowDimensions } from "react-native";
 import Carousel from "react-native-reanimated-carousel";
 import { XStack, View } from "tamagui";
@@ -27,7 +28,7 @@ const BENEFITS = [
     title: "20% OFF on eSims",
     subtitle: "Stay connected everywhere",
     description:
-      "Stay connected around the world. \n\n Activate your eSIM and get online from anywhere with 20% off on Airalo. \n\n Available in 200+ countries and regions.",
+      "Stay connected around the world. \n\nActivate your eSIM and get online from anywhere with 20% off on Airalo. \n\nAvailable in 200+ countries and regions.",
     logo: AiraloLogo,
     url: "https://airalo.pxf.io/c/6807698/3734384/15608?p.code=exaapp",
     termsURL: "https://www.airalo.com/more-info/terms-conditions",
@@ -39,7 +40,7 @@ const BENEFITS = [
     longTitle: "Visa Signature Exa Card benefits",
     subtitle: "Access exclusive discounts",
     description:
-      "A world of benefits. \n\n Your Visa Signature Exa Card comes with multiple benefits including car rental discounts, travel assistance, and more. \n\n Learn more about all Visa Signature benefits.",
+      "A world of benefits. \n\nYour Visa Signature Exa Card comes with multiple benefits including car rental discounts, travel assistance, and more. \n\nLearn more about all Visa Signature benefits.",
     logo: VisaLogo,
     linkText: "Learn more",
     buttonText: "Go to Visa",
@@ -50,6 +51,7 @@ const BENEFITS = [
 export type Benefit = (typeof BENEFITS)[number];
 
 export default function BenefitsSection() {
+  const { t } = useTranslation();
   const [selectedBenefit, setSelectedBenefit] = useState<Benefit>();
   const [sheetOpen, setSheetOpen] = useState(false);
 
@@ -65,13 +67,17 @@ export default function BenefitsSection() {
       <View backgroundColor="$backgroundSoft" padding="$s4" gap="$s3_5">
         <XStack alignItems="center" justifyContent="center" gap="$s2" paddingTop="$s2">
           <Text emphasized headline flex={1}>
-            Benefits
+            {t("Benefits")}
           </Text>
           {BENEFITS.map((benefit, index) => (
             <View
               key={benefit.id}
               role="tab"
-              aria-label={`${benefit.partner}, page ${index + 1} of ${BENEFITS.length}`}
+              aria-label={t("{{partner}}, page {{current}} of {{total}}", {
+                partner: benefit.partner,
+                current: index + 1,
+                total: BENEFITS.length,
+              })}
               aria-selected={index === currentIndex}
               backgroundColor="$interactiveDisabled"
               height="$s2"

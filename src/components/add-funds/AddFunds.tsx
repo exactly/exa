@@ -5,6 +5,7 @@ import { ArrowLeft, CircleHelp, Info, Wallet } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 import { isAddress } from "viem";
@@ -19,6 +20,7 @@ import View from "../shared/View";
 
 export default function AddFunds() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const ownerAccount = credential && isAddress(credential.credentialId) ? credential.credentialId : undefined;
   return (
@@ -38,7 +40,7 @@ export default function AddFunds() {
               <ArrowLeft size={24} color="$uiNeutralPrimary" />
             </Pressable>
             <Text emphasized subHeadline primary>
-              Add Funds
+              {t("Add Funds")}
             </Text>
             <Pressable
               onPress={() => {
@@ -53,7 +55,7 @@ export default function AddFunds() {
           <YStack flex={1} gap="$s3_5">
             <AddFundsOption
               icon={<Wallet width={40} height={40} color="$iconBrandDefault" />}
-              title="From connected wallet"
+              title={t("From connected wallet")}
               subtitle={
                 // TODO add support for ens resolution
                 ownerAccount ? shortenHex(ownerAccount, 4, 6) : ""
@@ -64,8 +66,8 @@ export default function AddFunds() {
             />
             <AddFundsOption
               icon={<OptimismImage width={40} height={40} />}
-              title="From another wallet"
-              subtitle={`On ${chain.name}`}
+              title={t("From another wallet")}
+              subtitle={t("On {{chain}}", { chain: chain.name })}
               onPress={() => {
                 router.push("/add-funds/add-crypto");
               }}
@@ -84,7 +86,7 @@ export default function AddFunds() {
           </View>
           <XStack flex={1}>
             <Text emphasized caption2 color="$uiNeutralPlaceholder">
-              Assets are added to your balance as collateral to increase your credit limit.
+              {t("Assets are added to your balance as collateral to increase your credit limit.")}
               <Text
                 cursor="pointer"
                 emphasized
@@ -94,7 +96,7 @@ export default function AddFunds() {
                   presentArticle("8950805").catch(reportError);
                 }}
               >
-                &nbsp;Learn more about collateral.
+                &nbsp;{t("Learn more about collateral.")}
               </Text>
             </Text>
           </XStack>

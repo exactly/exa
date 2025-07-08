@@ -1,6 +1,7 @@
 import { ArrowRight } from "@tamagui/lucide-icons";
 import { useRouter } from "expo-router";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { StyleSheet } from "react-native";
 
 import AccountCreatedBlob from "../../assets/images/account-created-blob.svg";
@@ -11,6 +12,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function Success() {
+  const { t } = useTranslation();
   const router = useRouter();
   return (
     <SafeView fullScreen backgroundColor="$backgroundSoft">
@@ -26,7 +28,7 @@ export default function Success() {
           </View>
           <View gap="$s5" justifyContent="center">
             <Text emphasized title brand centered>
-              Account created successfully!
+              {t("Account created successfully!")}
             </Text>
           </View>
         </View>
@@ -41,7 +43,7 @@ export default function Success() {
               }}
               iconAfter={<ArrowRight color="$interactiveOnBaseBrandDefault" />}
             >
-              Get started
+              {t("Get started")}
             </ActionButton>
           </View>
         </View>

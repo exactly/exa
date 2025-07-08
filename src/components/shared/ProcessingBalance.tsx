@@ -1,12 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { XStack } from "tamagui";
 
 import Text from "./Text";
 import isProcessing from "../../utils/isProcessing";
 import { getActivity } from "../../utils/server";
 
-const ProcessingBalance = () => {
+export default function ProcessingBalance() {
+  const {
+    t,
+    i18n: { language },
+  } = useTranslation();
   const { data: country } = useQuery({ queryKey: ["user", "country"] });
   const { data: processingBalance } = useQuery({
     queryKey: ["processing-balance"],
@@ -21,13 +26,15 @@ const ProcessingBalance = () => {
   if (!processingBalance) return null;
   return (
     <XStack cursor="pointer">
-      <Text emphasized subHeadline secondary>{`Processing balance ${processingBalance.toLocaleString(undefined, {
-        style: "currency",
-        currency: "USD",
-        currencyDisplay: "narrowSymbol",
-      })}`}</Text>
+      <Text emphasized subHeadline secondary>
+        {t("Processing balance {{amount}}", {
+          amount: processingBalance.toLocaleString(language, {
+            style: "currency",
+            currency: "USD",
+            currencyDisplay: "narrowSymbol",
+          }),
+        })}
+      </Text>
     </XStack>
   );
-};
-
-export default ProcessingBalance;
+}

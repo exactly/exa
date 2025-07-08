@@ -1,6 +1,7 @@
 import * as Sentry from "@sentry/react-native";
 import { File } from "@tamagui/lucide-icons";
 import React from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { Pressable, StyleSheet } from "react-native";
 import { YStack } from "tamagui";
 
@@ -13,6 +14,7 @@ import openBrowser from "../../utils/openBrowser";
 import reportError from "../../utils/reportError";
 
 export default function Error({ resetError }: { resetError: () => void }) {
+  const { t } = useTranslation();
   return (
     <SafeView fullScreen gap="$s4" padded backgroundColor="$backgroundSoft">
       <YStack flex={1} paddingHorizontal="$s6" gap="$s7">
@@ -24,30 +26,38 @@ export default function Error({ resetError }: { resetError: () => void }) {
           </View>
           <YStack gap="$s5">
             <Text emphasized textAlign="center" color="$interactiveTextBrandDefault" title>
-              Something&apos;s not working as expected
+              {t("Something's not working as expected")}
             </Text>
             <Text color="$uiNeutralSecondary" footnote textAlign="center">
-              Check out our&nbsp;
-              <Text
-                textDecorationLine="underline"
-                color="$interactiveBaseBrandDefault"
-                onPress={() => {
-                  openBrowser("https://x.com/Exa_App").catch(reportError);
+              <Trans
+                i18nKey="Check out our <x>X</x> or <discord>Discord</discord> for updates—or report the issue so we can take a closer look."
+                components={{
+                  x: (
+                    <Text
+                      footnote
+                      textDecorationLine="underline"
+                      color="$interactiveBaseBrandDefault"
+                      role="link"
+                      aria-label={t("Open Exa on X")}
+                      onPress={() => {
+                        openBrowser("https://x.com/Exa_App").catch(reportError);
+                      }}
+                    />
+                  ),
+                  discord: (
+                    <Text
+                      footnote
+                      textDecorationLine="underline"
+                      color="$interactiveBaseBrandDefault"
+                      role="link"
+                      aria-label={t("Open Exa Discord")}
+                      onPress={() => {
+                        openBrowser("https://discord.gg/fBdVmbH38Y").catch(reportError);
+                      }}
+                    />
+                  ),
                 }}
-              >
-                X
-              </Text>
-              &nbsp;or&nbsp;
-              <Text
-                textDecorationLine="underline"
-                color="$interactiveBaseBrandDefault"
-                onPress={() => {
-                  openBrowser("https://discord.gg/fBdVmbH38Y").catch(reportError);
-                }}
-              >
-                Discord
-              </Text>
-              &nbsp;for updates—or report the issue so we can take a closer look.
+              />
             </Text>
           </YStack>
         </YStack>
@@ -64,7 +74,7 @@ export default function Error({ resetError }: { resetError: () => void }) {
           fullwidth
           iconAfter={<File strokeWidth={2.5} color="$interactiveOnBaseBrandDefault" />}
         >
-          Send error report
+          {t("Send error report")}
         </Button>
         <Pressable
           onPress={() => {
@@ -72,7 +82,7 @@ export default function Error({ resetError }: { resetError: () => void }) {
           }}
         >
           <Text emphasized footnote centered color="$interactiveBaseBrandDefault">
-            Retry
+            {t("Retry")}
           </Text>
         </Pressable>
       </YStack>

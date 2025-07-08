@@ -2,6 +2,7 @@ import type { CreditActivity, DebitActivity, InstallmentsActivity, PandaActivity
 import { ClockAlert, Import, ShoppingCart } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Square, XStack, YStack } from "tamagui";
 
 import PaymentDetails from "./PaymentDetails";
@@ -17,6 +18,10 @@ export default function CardActivity({
   item: CreditActivity | DebitActivity | InstallmentsActivity | PandaActivity;
 }) {
   const { data: country } = useQuery({ queryKey: ["user", "country"] });
+  const {
+    t,
+    i18n: { language },
+  } = useTranslation();
   const processing = country === "US" && isProcessing(item.timestamp);
   const refund = item.usdAmount < 0;
   return (
@@ -40,14 +45,14 @@ export default function CardActivity({
             body
             color={refund ? "$uiNeutralSecondary" : processing ? "$interactiveOnBaseWarningSoft" : "$uiNeutralPrimary"}
           >
-            {refund ? "Refund" : processing ? "Processing..." : "Paid"}
+            {refund ? t("Refund") : processing ? t("Processing...") : t("Paid")}
             <Text emphasized primary body $platform-web={{ whiteSpace: "normal" }}>
               &nbsp;
               {item.merchant.name}
             </Text>
           </Text>
           <Text title primary color={refund ? "$uiSuccessSecondary" : "$uiNeutralPrimary"}>
-            {Math.abs(item.usdAmount).toLocaleString(undefined, {
+            {Math.abs(item.usdAmount).toLocaleString(language, {
               style: "currency",
               currency: "USD",
               currencyDisplay: "narrowSymbol",

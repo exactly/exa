@@ -1,11 +1,13 @@
 import { ArrowRight } from "@tamagui/lucide-icons";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { XStack, YStack } from "tamagui";
 
 import Image from "../shared/Image";
 import Text from "../shared/Text";
 
 export default function VisaSignatureBanner({ onPress }: { onPress: () => void }) {
+  const { t } = useTranslation();
   return (
     <XStack
       backgroundColor="$grayscaleLight12"
@@ -21,11 +23,11 @@ export default function VisaSignatureBanner({ onPress }: { onPress: () => void }
       <YStack padding="$s4" gap="$s2" height="100%" flex={1}>
         <YStack height="100%" justifyContent="space-between" alignItems="flex-start">
           <Text textAlign="left" maxFontSizeMultiplier={1} emphasized body color="white">
-            Get your Visa Signature Exa Card
+            {t("Get your Visa Signature Exa Card")}
           </Text>
           <XStack alignSelf="flex-start" alignItems="center" gap="$s2">
             <Text emphasized footnote color="white" maxFontSizeMultiplier={1}>
-              Upgrade now
+              {t("Upgrade now")}
             </Text>
             <ArrowRight size={16} color="white" />
           </XStack>

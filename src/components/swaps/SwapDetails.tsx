@@ -1,5 +1,6 @@
 import type { Token } from "@lifi/sdk";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { XStack, YStack } from "tamagui";
 
 import Text from "../shared/Text";
@@ -17,28 +18,34 @@ export default function SwapDetails({
   fromToken: Token;
   toToken: Token;
 }) {
+  const {
+    t,
+    i18n: { language },
+  } = useTranslation();
   return (
     <YStack gap="$s4" paddingHorizontal="$s4">
       <YStack gap="$s3_5">
         <XStack justifyContent="space-between">
           <Text caption color="$uiNeutralSecondary">
-            Exchange rate
+            {t("Exchange rate")}
           </Text>
           <Text caption color="$uiNeutralPrimary">
-            1 {fromToken.symbol} = {exchangeRate.toFixed(2)} {toToken.symbol}
+            1 {fromToken.symbol} ={" "}
+            {exchangeRate.toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{" "}
+            {toToken.symbol}
           </Text>
         </XStack>
         <XStack justifyContent="space-between">
           <Text caption color="$uiNeutralSecondary">
-            Network fee
+            {t("Network fee")}
           </Text>
           <Text caption color="$uiSuccessSecondary">
-            FREE
+            {t("FREE")}
           </Text>
         </XStack>
         <XStack justifyContent="space-between">
           <Text caption color="$uiNeutralSecondary">
-            Swap via
+            {t("Swap via")}
           </Text>
           <Text caption color="$uiNeutralPrimary" textTransform="uppercase">
             {exchange}
@@ -46,18 +53,26 @@ export default function SwapDetails({
         </XStack>
         <XStack justifyContent="space-between">
           <Text caption color="$uiNeutralSecondary">
-            Swap fee
+            {t("Swap fee")}
           </Text>
           <Text caption color="$uiNeutralPrimary">
-            0.025%
+            {(0.000_25).toLocaleString(language, {
+              style: "percent",
+              minimumFractionDigits: 3,
+              maximumFractionDigits: 3,
+            })}
           </Text>
         </XStack>
         <XStack justifyContent="space-between">
           <Text caption color="$uiNeutralSecondary">
-            Max slippage
+            {t("Max slippage")}
           </Text>
           <Text caption color="$uiNeutralPrimary">
-            {(Number(slippage) * 100) / 1000}%
+            {(Number(slippage) / 1000).toLocaleString(language, {
+              style: "percent",
+              minimumFractionDigits: 1,
+              maximumFractionDigits: 2,
+            })}
           </Text>
         </XStack>
       </YStack>

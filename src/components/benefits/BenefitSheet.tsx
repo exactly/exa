@@ -3,6 +3,7 @@ import { useToastController } from "@tamagui/toast";
 import { useQuery } from "@tanstack/react-query";
 import { setStringAsync } from "expo-clipboard";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { YStack, XStack, Spinner, ScrollView } from "tamagui";
 
@@ -23,6 +24,7 @@ interface BenefitSheetProperties {
 }
 
 export default function BenefitSheet({ benefit, open, onClose }: BenefitSheetProperties) {
+  const { t } = useTranslation();
   const toast = useToastController();
 
   const {
@@ -59,15 +61,15 @@ export default function BenefitSheet({ benefit, open, onClose }: BenefitSheetPro
               <XStack alignItems="center" gap="$s3">
                 <LogoComponent width={32} height={32} />
                 <Text emphasized title3>
-                  {benefit.partner}
+                  {t(benefit.partner)}
                 </Text>
               </XStack>
 
               <Text emphasized title>
-                {benefit.longTitle ?? benefit.title}
+                {t(benefit.longTitle ?? benefit.title)}
               </Text>
               <Text subHeadline secondary>
-                {benefit.description}
+                {t(benefit.description)}
               </Text>
 
               {benefit.id === "pax" && (
@@ -77,7 +79,7 @@ export default function BenefitSheet({ benefit, open, onClose }: BenefitSheetPro
                     if (!paxData) return;
                     setStringAsync(paxData.associateId)
                       .then(() => {
-                        toast.show("Pax ID copied!", {
+                        toast.show(t("Pax ID copied!"), {
                           native: true,
                           duration: 1000,
                           burntOptions: { haptic: "success" },
@@ -101,7 +103,7 @@ export default function BenefitSheet({ benefit, open, onClose }: BenefitSheetPro
                       </Text>
                     ) : (
                       <Text body color="$uiNeutralSecondary">
-                        Failed to load
+                        {t("Failed to load")}
                       </Text>
                     )}
                     <XStack
@@ -112,7 +114,7 @@ export default function BenefitSheet({ benefit, open, onClose }: BenefitSheetPro
                       paddingVertical="$s2"
                     >
                       <Text caption2 color="$interactiveOnBaseSuccessDefault">
-                        COPY ID
+                        {t("COPY ID")}
                       </Text>
                       <Copy size={16} color="$interactiveOnBaseSuccessDefault" />
                     </XStack>
@@ -135,7 +137,7 @@ export default function BenefitSheet({ benefit, open, onClose }: BenefitSheetPro
               }}
             >
               <Button.Text emphasized subHeadline color="$interactiveOnBaseBrandDefault">
-                {benefit.buttonText ?? "Get benefit"}
+                {benefit.buttonText ? t(benefit.buttonText) : t("Get benefit")}
               </Button.Text>
               <ExternalLink size={20} color="$interactiveOnBaseBrandDefault" />
             </Button>
@@ -151,7 +153,7 @@ export default function BenefitSheet({ benefit, open, onClose }: BenefitSheetPro
                 }}
               >
                 <Button.Text emphasized footnote textAlign="center">
-                  Terms & conditions
+                  {t("Terms & conditions")}
                 </Button.Text>
               </Button>
             )}

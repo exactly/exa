@@ -1,5 +1,6 @@
 import { min } from "@exactly/lib";
 import React, { useCallback, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Separator, Slider, XStack, YStack } from "tamagui";
 import { formatUnits, parseUnits } from "viem";
 
@@ -23,6 +24,10 @@ export default function RepayAmountSelector({
   balancerBalance: bigint | undefined;
   positionValue: bigint;
 }) {
+  const {
+    t,
+    i18n: { language },
+  } = useTranslation();
   const [focused, setFocused] = useState(false);
   const [editingValue, setEditingValue] = useState<string | undefined>();
 
@@ -95,7 +100,7 @@ export default function RepayAmountSelector({
     >
       <XStack justifyContent="flex-end" alignItems="center">
         <Text emphasized subHeadline color="$uiBrandSecondary" onPress={handleMaxPress} cursor="pointer">
-          Max
+          {t("Max")}
         </Text>
       </XStack>
       <YStack gap="$s4">
@@ -162,19 +167,19 @@ export default function RepayAmountSelector({
           </Slider>
           {maxReached && (
             <Text caption color="$uiNeutralSecondary">
-              {canPayFullDebt ? "Full repayment selected." : "Maximum amount selected."}
+              {canPayFullDebt ? t("Full repayment selected.") : t("Maximum amount selected.")}
             </Text>
           )}
         </YStack>
         {balancerBalance !== undefined && positionValue > balancerBalance && (
           <Text caption color="$uiNeutralPlaceholder">
-            Limit&nbsp;
-            {(Number(balancerBalance) / 1e6).toLocaleString(undefined, {
-              style: "currency",
-              currency: "USD",
-              currencyDisplay: "narrowSymbol",
+            {t("Limit {{amount}} per repay. Please split larger amounts into smaller payments.", {
+              amount: (Number(balancerBalance) / 1e6).toLocaleString(language, {
+                style: "currency",
+                currency: "USD",
+                currencyDisplay: "narrowSymbol",
+              }),
             })}
-            &nbsp;per repay. Please split larger amounts into smaller payments.
           </Text>
         )}
       </YStack>

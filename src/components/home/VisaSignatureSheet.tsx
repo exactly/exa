@@ -3,6 +3,7 @@ import { useToastController } from "@tamagui/toast";
 import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Platform, Pressable } from "react-native";
 import { SvgUri } from "react-native-svg";
 import { ScrollView, Spinner, XStack, YStack } from "tamagui";
@@ -20,6 +21,7 @@ import View from "../shared/View";
 const scrollContentContainerStyle = { flexGrow: 1, paddingTop: 50 };
 
 export default function VisaSignatureSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { t } = useTranslation();
   const toast = useToastController();
   const router = useRouter();
 
@@ -36,14 +38,14 @@ export default function VisaSignatureSheet({ open, onClose }: { open: boolean; o
     mutationFn: setCardStatus,
     onSuccess: async () => {
       await queryClient.resetQueries({ queryKey: ["card", "details"] });
-      toast.show("Card deactivated successfully", {
+      toast.show(t("Card upgraded successfully"), {
         native: true,
         duration: 1000,
         burntOptions: { haptic: "success" },
       });
     },
     onError: () => {
-      toast.show("Error upgrading card", {
+      toast.show(t("Error upgrading card"), {
         native: true,
         duration: 1000,
         burntOptions: { haptic: "error", preset: "error" },
@@ -100,10 +102,10 @@ export default function VisaSignatureSheet({ open, onClose }: { open: boolean; o
               <>
                 <YStack flex={1} gap="$s5" alignItems="center" justifyContent="center">
                   <Text emphasized title color="white" textAlign="center">
-                    Level up your Exa Card
+                    {t("Level up your Exa Card")}
                   </Text>
                   <Text footnote color="white" textAlign="center">
-                    Move from Visa Platinum to Visa Signature and unlock premium benefits and perks.
+                    {t("Move from Visa Platinum to Visa Signature and unlock premium benefits and perks.")}
                   </Text>
                 </YStack>
                 <YStack gap="$s5">
@@ -133,8 +135,9 @@ export default function VisaSignatureSheet({ open, onClose }: { open: boolean; o
                         </View>
                       </XStack>
                       <Text color="white" caption flex={1}>
-                        I understand that my current card will be deactivated. After the upgrade, I&apos;ll need to
-                        remove it from my digital wallet and add the new one.
+                        {t(
+                          "I understand that my current card will be deactivated. After the upgrade, I'll need to remove it from my digital wallet and add the new one.",
+                        )}
                       </Text>
                     </XStack>
                     <Button
@@ -146,14 +149,14 @@ export default function VisaSignatureSheet({ open, onClose }: { open: boolean; o
                         upgradeCard("DELETED").catch(reportError);
                       }}
                     >
-                      <Button.Text>Upgrade Exa Card</Button.Text>
+                      <Button.Text>{t("Upgrade Exa Card")}</Button.Text>
                       <Button.Icon>
                         <ArrowRight />
                       </Button.Icon>
                     </Button>
                   </YStack>
                   <Text onPress={close} color="$interactiveBaseBrandDefault" emphasized footnote alignSelf="center">
-                    I&apos;ll upgrade later
+                    {t("I'll upgrade later")}
                   </Text>
                 </YStack>
               </>
@@ -168,32 +171,34 @@ export default function VisaSignatureSheet({ open, onClose }: { open: boolean; o
 }
 
 function Pending() {
+  const { t } = useTranslation();
   return (
     <YStack flex={1} gap="$s5" alignItems="center">
       <Spinner color="white" size="large" width={40} height={40} />
       <Text emphasized title3 color="white" textAlign="center">
-        Deactivating current Exa Card
+        {t("Deactivating current Exa Card")}
       </Text>
     </YStack>
   );
 }
 
 function Success({ onPress }: { onPress: () => void }) {
+  const { t } = useTranslation();
   return (
     <YStack flex={1} justifyContent="space-between" alignItems="center">
       <YStack gap="$s5" alignItems="center">
         <Check size={40} color="$backgroundBrand" />
         <YStack gap="$s3_5">
           <Text emphasized title3 color="white" textAlign="center">
-            Upgrade successful
+            {t("Upgrade successful")}
           </Text>
           <Text footnote color="white" textAlign="center">
-            Your Exa Card is now upgraded to Visa Signature.
+            {t("Your Exa Card is now upgraded to Visa Signature.")}
           </Text>
         </YStack>
       </YStack>
       <Button primary onPress={onPress}>
-        <Button.Text>Activate new Exa Card</Button.Text>
+        <Button.Text>{t("Activate new Exa Card")}</Button.Text>
         <Button.Icon>
           <ArrowRight />
         </Button.Icon>

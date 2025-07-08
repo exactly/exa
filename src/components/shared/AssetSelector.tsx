@@ -3,6 +3,7 @@ import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { Address } from "@exactly/common/validation";
 import { withdrawLimit } from "@exactly/lib";
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { vs } from "react-native-size-matters";
 import { ToggleGroup, YStack } from "tamagui";
 import { safeParse } from "valibot";
@@ -23,6 +24,10 @@ export default function AssetSelector({
   onSubmit: (market: Address, isExternalAsset: boolean) => void;
   sortBy?: "usdValue" | "usdcFirst";
 }) {
+  const {
+    t,
+    i18n: { language },
+  } = useTranslation();
   const [selectedMarket, setSelectedMarket] = useState<Address | undefined>();
   const { address: account } = useAccount();
   const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [account ?? zeroAddress] });
@@ -38,7 +43,7 @@ export default function AssetSelector({
     }
     return (
       <Text textAlign="center" emphasized footnote color="$uiNeutralSecondary">
-        No available assets.
+        {t("No available assets.")}
       </Text>
     );
   }
@@ -66,7 +71,7 @@ export default function AssetSelector({
               : Number(markets ? withdrawLimit(markets, asset.market) : 0n) / 10 ** asset.decimals;
 
           const usdPrice = asset.type === "external" ? Number(asset.priceUSD) : Number(asset.usdPrice) / 1e18;
-          const balance = availableBalance.toLocaleString(undefined, {
+          const balance = availableBalance.toLocaleString(language, {
             minimumFractionDigits: 0,
             maximumFractionDigits: Math.min(
               8,
@@ -81,8 +86,7 @@ export default function AssetSelector({
           const isSelected = selectedMarket === (asset.type === "external" ? asset.address : asset.market);
           return (
             <ToggleGroup.Item
-              aria-label={`${symbol}, ${balance} available`}
-              aria-describedby="tap to select"
+              aria-label={t("{{symbol}}, {{balance}} available", { symbol, balance })}
               unstyled
               key={asset.type === "external" ? asset.address : asset.market}
               value={(asset.type === "external" ? asset.address : asset.market) as Address}
@@ -122,7 +126,7 @@ export default function AssetSelector({
                 <View gap="$s2" flex={1}>
                   <View flexDirection="row" alignItems="center" justifyContent="flex-end">
                     <Text fontSize={15} fontWeight="bold" textAlign="right" color="$uiNeutralPrimary">
-                      {asset.usdValue.toLocaleString(undefined, {
+                      {asset.usdValue.toLocaleString(language, {
                         style: "currency",
                         currency: "USD",
                         currencyDisplay: "narrowSymbol",

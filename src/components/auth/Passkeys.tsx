@@ -2,11 +2,14 @@ import { Key, X } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { Pressable, StyleSheet } from "react-native";
 import { XStack } from "tamagui";
 
 import PasskeysBlob from "../../assets/images/passkeys-blob.svg";
 import PasskeysImage from "../../assets/images/passkeys.svg";
+import openBrowser from "../../utils/openBrowser";
+import reportError from "../../utils/reportError";
 import useAuth from "../../utils/useAuth";
 import ActionButton from "../shared/ActionButton";
 import ConnectSheet from "../shared/ConnectSheet";
@@ -20,6 +23,7 @@ export default function Passkeys() {
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
   const [connectModalOpen, setConnectModalOpen] = useState(false);
   const { data: isOwnerAvailable } = useQuery({ queryKey: ["is-owner-available"] });
+  const { t } = useTranslation();
 
   const { signIn, isPending: loading } = useAuth(() => {
     setErrorDialogOpen(true);
@@ -52,21 +56,34 @@ export default function Passkeys() {
           </View>
           <View gap="$s5" justifyContent="center">
             <Text emphasized title brand centered>
-              A secure and easy way to access your account
+              {t("A secure and easy way to access your account")}
             </Text>
             <Text fontSize={13} color="$uiNeutralSecondary" textAlign="center">
-              To keep your account secure, Exa App uses passkeys, a passwordless authentication method protected by your
-              device biometric verification.
+              {t(
+                "To keep your account secure, Exa App uses passkeys, a passwordless authentication method protected by your device biometric verification.",
+              )}
             </Text>
           </View>
         </View>
         <View alignItems="stretch" alignSelf="stretch">
           <View flexDirection="row" alignSelf="stretch" justifyContent="center">
             <Text fontSize={11} color="$uiNeutralPlaceholder">
-              By continuing, I accept the&nbsp;
-            </Text>
-            <Text fontSize={11} color="$interactiveBaseBrandDefault">
-              Terms & Conditions
+              <Trans
+                i18nKey="By continuing, I accept the <terms>Terms & Conditions</terms>"
+                components={{
+                  terms: (
+                    <Text
+                      fontSize={11}
+                      color="$interactiveBaseBrandDefault"
+                      onPress={() => {
+                        openBrowser(
+                          "https://intercom.help/exa-app/en/articles/9942510-exa-app-terms-and-conditions",
+                        ).catch(reportError);
+                      }}
+                    />
+                  ),
+                }}
+              />
             </Text>
           </View>
           <View>
@@ -76,7 +93,7 @@ export default function Passkeys() {
                 marginTop="$s4"
                 marginBottom="$s5"
                 isLoading={loading}
-                loadingContent="Creating account..."
+                loadingContent={t("Creating account...")}
                 iconAfter={
                   <Key
                     size={20}
@@ -90,7 +107,7 @@ export default function Passkeys() {
                   signIn({ method: "webauthn", register: true });
                 }}
               >
-                Set passkey and create account
+                {t("Set passkey and create account")}
               </ActionButton>
             </View>
             <XStack justifyContent="center">
@@ -104,7 +121,7 @@ export default function Passkeys() {
                 fontWeight="bold"
                 color="$interactiveBaseBrandDefault"
               >
-                Learn more about passkeys
+                {t("Learn more about passkeys")}
               </Text>
             </XStack>
           </View>
@@ -112,8 +129,10 @@ export default function Passkeys() {
       </View>
       <ErrorDialog
         open={errorDialogOpen}
-        title="Verification failed"
-        description="Please check your internet connection and try again in a moment. If the problem persists, reinstalling the app may help."
+        title={t("Verification failed")}
+        description={t(
+          "Please check your internet connection and try again in a moment. If the problem persists, reinstalling the app may help.",
+        )}
         onClose={() => {
           setErrorDialogOpen(false);
         }}
@@ -126,10 +145,10 @@ export default function Passkeys() {
             if (!method) return;
             signIn({ method });
           }}
-          title="Create account"
-          description="Choose your preferred authentication method"
-          webAuthnText="Sign up with Passkey"
-          siweText="Sign up with browser wallet"
+          title={t("Create account")}
+          description={t("Choose your preferred authentication method")}
+          webAuthnText={t("Sign up with Passkey")}
+          siweText={t("Sign up with browser wallet")}
         />
       ) : null}
     </SafeView>

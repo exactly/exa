@@ -4,6 +4,7 @@ import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
 import { borrowLimit, withdrawLimit } from "@exactly/lib";
 import { Loader, LockKeyhole, Snowflake } from "@tamagui/lucide-icons";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Platform } from "react-native";
 import { useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 import { AnimatePresence, XStack, YStack } from "tamagui";
@@ -31,6 +32,10 @@ export default function CardContents({
 }) {
   const { address } = useAccount();
   const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [address ?? zeroAddress] });
+  const {
+    t,
+    i18n: { language },
+  } = useTranslation();
 
   const rotation = useSharedValue(0);
   /* istanbul ignore next */
@@ -68,23 +73,15 @@ export default function CardContents({
                 transform={[{ translateX: 0 }]}
               >
                 <Text sensitive color="white" title maxFontSizeMultiplier={1} numberOfLines={1}>
-                  {(markets ? Number(borrowLimit(markets, marketUSDCAddress)) / 1e6 : 0).toLocaleString(undefined, {
+                  {(markets ? Number(borrowLimit(markets, marketUSDCAddress)) / 1e6 : 0).toLocaleString(language, {
                     style: "currency",
                     currency: "USD",
                     currencyDisplay: "narrowSymbol",
                   })}
                 </Text>
-                <View flexShrink={1} minWidth={0} width="100%">
-                  <Text
-                    color="white"
-                    emphasized
-                    caption
-                    maxFontSizeMultiplier={1}
-                    width="100%"
-                    numberOfLines={2}
-                    ellipsizeMode="clip"
-                  >
-                    AVAILABLE BALANCE
+                <View>
+                  <Text color="white" emphasized caption maxFontSizeMultiplier={1} textTransform="uppercase">
+                    {t("Available balance")}
                   </Text>
                 </View>
               </View>
@@ -97,23 +94,15 @@ export default function CardContents({
                 transform={[{ translateX: 0 }]}
               >
                 <Text sensitive color="white" title maxFontSizeMultiplier={1} numberOfLines={1}>
-                  {(markets ? Number(withdrawLimit(markets, marketUSDCAddress)) / 1e6 : 0).toLocaleString(undefined, {
+                  {(markets ? Number(withdrawLimit(markets, marketUSDCAddress)) / 1e6 : 0).toLocaleString(language, {
                     style: "currency",
                     currency: "USD",
                     currencyDisplay: "narrowSymbol",
                   })}
                 </Text>
-                <View flexShrink={1} minWidth={0} width="100%">
-                  <Text
-                    color="white"
-                    emphasized
-                    caption
-                    maxFontSizeMultiplier={1}
-                    width="100%"
-                    numberOfLines={2}
-                    ellipsizeMode="clip"
-                  >
-                    AVAILABLE BALANCE
+                <View>
+                  <Text color="white" emphasized caption maxFontSizeMultiplier={1} textTransform="uppercase">
+                    {t("Available balance")}
                   </Text>
                 </View>
               </View>

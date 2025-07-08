@@ -6,7 +6,8 @@ import {
 import { ArrowDownToLine, ArrowUpRight } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
-import React from "react";
+import React, { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
 import { useBytecode, useReadContract } from "wagmi";
@@ -21,6 +22,14 @@ export default function HomeActions() {
   const { address: account } = useAccount();
   const { data: method } = useQuery<AuthMethod>({ queryKey: ["method"] });
   const { data: bytecode } = useBytecode({ address: account ?? zeroAddress, query: { enabled: !!account } });
+  const { t } = useTranslation();
+  const actions = useMemo(
+    () => [
+      { key: "deposit", title: t("Add funds"), Icon: ArrowDownToLine },
+      { key: "send", title: t("Send"), Icon: ArrowUpRight },
+    ],
+    [t],
+  );
 
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
     address: account ?? zeroAddress,
@@ -102,8 +111,3 @@ export default function HomeActions() {
     </XStack>
   );
 }
-
-const actions = [
-  { key: "deposit", title: "Add funds", Icon: ArrowDownToLine },
-  { key: "send", title: "Send", Icon: ArrowUpRight },
-];

@@ -2,6 +2,7 @@ import { ArrowLeft, Headphones } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { XStack } from "tamagui";
 
@@ -17,6 +18,7 @@ import GradientScrollView from "../../shared/GradientScrollView";
 
 export default function ActivityDetails() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { data: item } = useQuery<ActivityItem>({ queryKey: ["activity", "details"] });
   if (!item) return null;
   return (
@@ -53,7 +55,7 @@ export default function ActivityDetails() {
         color="$interactiveBaseBrandDefault"
         iconAfter={<Headphones color="$interactiveBaseBrandDefault" />}
       >
-        Contact support
+        {t("Contact support")}
       </ActionButton>
     </GradientScrollView>
   );

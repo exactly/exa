@@ -2,6 +2,7 @@ import shortenHex from "@exactly/common/shortenHex";
 import type { Address } from "@exactly/common/validation";
 import { setStringAsync } from "expo-clipboard";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Alert } from "react-native";
 import { XStack } from "tamagui";
 
@@ -17,6 +18,7 @@ export default function Contact({
   contact: { address: Address; ens: string };
   onContactPress: (address: Address) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <XStack
       borderRadius="$r3"
@@ -29,7 +31,7 @@ export default function Contact({
       }}
       onLongPress={() => {
         setStringAsync(address).catch(reportError);
-        Alert.alert("Address copied", "The contact's address has been copied to the clipboard.");
+        Alert.alert(t("Address copied"), t("The contact's address has been copied to the clipboard."));
       }}
     >
       <XStack alignItems="center" gap="$s2">

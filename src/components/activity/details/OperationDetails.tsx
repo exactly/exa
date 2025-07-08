@@ -5,6 +5,7 @@ import { CalendarClock, CreditCard, SquareArrowOutUpRight } from "@tamagui/lucid
 import { format } from "date-fns";
 import { setStringAsync } from "expo-clipboard";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Alert } from "react-native";
 import { Separator, XStack, YStack } from "tamagui";
 
@@ -13,25 +14,29 @@ import reportError from "../../../utils/reportError";
 import Text from "../../shared/Text";
 
 export default function OperationDetails({ item }: { item: CreditActivity | DebitActivity | InstallmentsActivity }) {
+  const {
+    t,
+    i18n: { language },
+  } = useTranslation();
   return (
     <YStack gap="$s4">
       <YStack gap="$s4">
         <Text emphasized headline>
-          Purchase details
+          {t("Purchase details")}
         </Text>
         <Separator height={1} borderColor="$borderNeutralSoft" />
       </YStack>
       <YStack gap="$s3_5">
         <XStack justifyContent="space-between">
           <Text emphasized footnote color="$uiNeutralSecondary">
-            ID
+            {t("ID")}
           </Text>
           <Text
             callout
             color="$uiNeutralPrimary"
             onPress={() => {
               setStringAsync(item.id).catch(reportError);
-              Alert.alert("Copied!", "The operation ID has been copied to the clipboard.");
+              Alert.alert(t("Copied!"), t("The operation ID has been copied to the clipboard."));
             }}
             hitSlop={15}
           >
@@ -41,10 +46,10 @@ export default function OperationDetails({ item }: { item: CreditActivity | Debi
 
         <XStack justifyContent="space-between">
           <Text emphasized footnote color="$uiNeutralSecondary">
-            Total
+            {t("Total")}
           </Text>
           <Text callout color="$uiNeutralPrimary">
-            {item.usdAmount.toLocaleString(undefined, {
+            {item.usdAmount.toLocaleString(language, {
               style: "currency",
               currency: "USD",
               currencyDisplay: "narrowSymbol",
@@ -55,12 +60,17 @@ export default function OperationDetails({ item }: { item: CreditActivity | Debi
         {item.mode !== 0 && (
           <XStack justifyContent="space-between">
             <Text emphasized footnote color="$uiNeutralSecondary">
-              Installments
+              {t("Installments")}
             </Text>
             <Text emphasized callout color="$uiNeutralPrimary">
-              {item.mode === 1 && `1x ${(item.usdAmount + item.borrow.fee).toFixed(2)}`}
+              {item.mode === 1 &&
+                `1x ${(item.usdAmount + item.borrow.fee).toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
               {item.mode > 1 && `${(item as InstallmentsActivity).borrow.installments.length}x`}&nbsp;
-              {item.mode > 1 && (item.usdAmount / (item as InstallmentsActivity).borrow.installments.length).toFixed(2)}
+              {item.mode > 1 &&
+                (item.usdAmount / (item as InstallmentsActivity).borrow.installments.length).toLocaleString(language, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
               &nbsp;USDC
             </Text>
           </XStack>
@@ -68,11 +78,11 @@ export default function OperationDetails({ item }: { item: CreditActivity | Debi
 
         <XStack justifyContent="space-between">
           <Text emphasized footnote color="$uiNeutralSecondary">
-            Mode
+            {t("Mode")}
           </Text>
           <XStack alignItems="center" gap="$s2">
             <Text primary callout>
-              {item.mode > 0 ? "Pay Later" : "Card"}
+              {item.mode > 0 ? t("Pay Later") : t("Card")}
             </Text>
             {item.mode > 0 ? (
               <CalendarClock size={20} color="$uiBrandPrimary" />
@@ -85,10 +95,10 @@ export default function OperationDetails({ item }: { item: CreditActivity | Debi
         {item.mode > 0 && (
           <XStack justifyContent="space-between">
             <Text emphasized footnote color="$uiNeutralSecondary">
-              Fixed rate APR
+              {t("Fixed rate APR")}
             </Text>
             <Text callout color="$uiNeutralPrimary">
-              {Number(item.mode > 0 && (item as CreditActivity).borrow.rate).toLocaleString(undefined, {
+              {(item as CreditActivity).borrow.rate.toLocaleString(language, {
                 style: "percent",
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
@@ -99,7 +109,7 @@ export default function OperationDetails({ item }: { item: CreditActivity | Debi
 
         <XStack justifyContent="space-between">
           <Text emphasized footnote color="$uiNeutralSecondary">
-            Date
+            {t("Date")}
           </Text>
           <Text callout color="$uiNeutralPrimary">
             {format(item.timestamp, "yyyy-MM-dd")}
@@ -107,7 +117,7 @@ export default function OperationDetails({ item }: { item: CreditActivity | Debi
         </XStack>
         <XStack justifyContent="space-between">
           <Text emphasized footnote color="$uiNeutralSecondary">
-            Time
+            {t("Time")}
           </Text>
           <Text callout color="$uiNeutralPrimary">
             {format(item.timestamp, "HH:mm:ss")}
@@ -116,7 +126,7 @@ export default function OperationDetails({ item }: { item: CreditActivity | Debi
 
         <XStack justifyContent="space-between">
           <Text emphasized footnote color="$uiNeutralSecondary">
-            Transaction hash
+            {t("Transaction hash")}
           </Text>
           <XStack
             alignItems="center"

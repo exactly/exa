@@ -8,9 +8,9 @@ import {
 import { MATURITY_INTERVAL, WAD } from "@exactly/lib";
 import { ArrowLeft, ArrowRight } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
-import { format } from "date-fns";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import React, { useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
@@ -28,6 +28,10 @@ import Button from "../shared/Button";
 import Skeleton from "../shared/Skeleton";
 
 export default function Pay() {
+  const {
+    t,
+    i18n: { language },
+  } = useTranslation();
   const { address } = useAccount();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -83,23 +87,31 @@ export default function Pay() {
         >
           <View padded>
             <Text emphasized title3 textAlign="left">
-              Review rollover
+              {t("Review rollover")}
             </Text>
             <YStack gap="$s4" paddingTop="$s5">
               <XStack justifyContent="space-between" gap="$s3" alignItems="center">
                 <YStack>
                   <Text headline textAlign="left">
-                    Debt to rollover
+                    {t("Debt to rollover")}
                   </Text>
                   <Text secondary footnote textAlign="left">
-                    due {format(new Date(Number(repayMaturity) * 1000), "MMM dd, yyyy")}
+                    {t("due {{date}}", {
+                      date: new Date(Number(repayMaturity) * 1000).toLocaleDateString(language, {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                      }),
+                    })}
                   </Text>
                 </YStack>
                 <Text primary title3 textAlign="right">
-                  {(Number(previewValue) / 1e18).toLocaleString(undefined, {
+                  {(Number(previewValue) / 1e18).toLocaleString(language, {
                     style: "currency",
                     currency: "USD",
                     currencyDisplay: "narrowSymbol",
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
                   })}
                 </Text>
               </XStack>
@@ -107,23 +119,27 @@ export default function Pay() {
                 <XStack justifyContent="space-between" gap="$s3" alignItems="center">
                   <YStack>
                     <Text headline textAlign="left">
-                      Rollover interest
+                      {t("Rollover interest")}
                     </Text>
                     <Text secondary footnote textAlign="left">
-                      {`${(
-                        Number(
-                          ((borrowPreview.assets - borrow.previewValue) * WAD * 31_536_000n) /
-                            (borrow.previewValue * (borrowPreview.maturity - BigInt(timestamp))),
-                        ) / 1e18
-                      ).toLocaleString(undefined, {
-                        style: "percent",
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })} APR`}
+                      {t("{{rate}} APR", {
+                        rate: (
+                          Number(
+                            ((borrowPreview.assets - borrow.previewValue) * WAD * 31_536_000n) /
+                              (borrow.previewValue * (borrowPreview.maturity - BigInt(timestamp))),
+                          ) /
+                          1e18 /
+                          100
+                        ).toLocaleString(language, {
+                          style: "percent",
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        }),
+                      })}
                     </Text>
                   </YStack>
                   <Text primary title3 textAlign="right">
-                    {(Number(rolloverPreviewValue - previewValue) / 1e18).toLocaleString(undefined, {
+                    {(Number(rolloverPreviewValue - previewValue) / 1e18).toLocaleString(language, {
                       style: "currency",
                       currency: "USD",
                       currencyDisplay: "narrowSymbol",
@@ -138,35 +154,49 @@ export default function Pay() {
               <XStack justifyContent="space-between" gap="$s3" alignItems="center">
                 <YStack>
                   <Text headline textAlign="left">
-                    Current debt
+                    {t("Current debt")}
                   </Text>
                   <Text secondary footnote textAlign="left">
-                    due {format(new Date(borrowMaturity * 1000), "MMM dd, yyyy")}
+                    {t("due {{date}}", {
+                      date: new Date(borrowMaturity * 1000).toLocaleDateString(language, {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                      }),
+                    })}
                   </Text>
                 </YStack>
                 <Text primary title3 textAlign="right">
-                  {(Number(existingDebtPreviewValue) / 1e18).toLocaleString(undefined, {
+                  {(Number(existingDebtPreviewValue) / 1e18).toLocaleString(language, {
                     style: "currency",
                     currency: "USD",
                     currencyDisplay: "narrowSymbol",
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
                   })}
                 </Text>
               </XStack>
               <Separator height={1} borderColor="$borderNeutralSoft" paddingVertical="$s2" />
               <XStack justifyContent="space-between" gap="$s3" alignItems="center">
-                <YStack>
+                <YStack flex={1}>
                   <Text headline color="$uiBrandSecondary" textAlign="left">
-                    Total after rollover
+                    {t("Total after rollover")}
                   </Text>
                   <Text secondary footnote textAlign="left">
-                    {format(new Date(borrowMaturity * 1000), "MMM dd, yyyy")}
+                    {new Date(borrowMaturity * 1000).toLocaleDateString(language, {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                    })}
                   </Text>
                 </YStack>
                 <Text title color="$uiBrandSecondary" textAlign="right">
-                  {(Number(existingDebtPreviewValue + rolloverPreviewValue) / 1e18).toLocaleString(undefined, {
+                  {(Number(existingDebtPreviewValue + rolloverPreviewValue) / 1e18).toLocaleString(language, {
                     style: "currency",
                     currency: "USD",
                     currencyDisplay: "narrowSymbol",
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
                   })}
                 </Text>
               </XStack>
@@ -198,6 +228,7 @@ function RolloverButton({
     position: { principal: bigint; fee: bigint };
   };
 }) {
+  const { t } = useTranslation();
   const { address } = useAccount();
   const router = useRouter();
   const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
@@ -248,7 +279,7 @@ function RolloverButton({
   } = useWriteContract({
     mutation: {
       onSuccess: async () => {
-        toast.show("Processing rollover", {
+        toast.show(t("Processing rollover"), {
           native: true,
           duration: 1000,
           burntOptions: { haptic: "success", preset: "done" },
@@ -257,7 +288,7 @@ function RolloverButton({
         router.replace("/pending-proposals");
       },
       onError: (error) => {
-        toast.show("Rollover failed", {
+        toast.show(t("Rollover failed"), {
           native: true,
           duration: 1000,
           burntOptions: { haptic: "error", preset: "error" },
@@ -307,7 +338,7 @@ function RolloverButton({
       }
       flex={0}
     >
-      Confirm rollover
+      {t("Confirm rollover")}
     </Button>
   );
 }

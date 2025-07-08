@@ -11,7 +11,9 @@ import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useRouter } from "expo-router";
 import { getName, registerLocale, type LocaleData } from "i18n-iso-countries/index";
+import type { TFunction } from "i18next";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { XStack, YStack } from "tamagui";
 import { titleCase } from "title-case";
 
@@ -35,6 +37,10 @@ export default function ActivityItem({
   const { data: country } = useQuery({ queryKey: ["user", "country"] });
   const processing = item.type === "panda" && country === "US" && isProcessing(item.timestamp);
   const refund = item.type === "panda" && item.usdAmount < 0;
+  const {
+    t,
+    i18n: { language },
+  } = useTranslation();
   return (
     <XStack
       key={item.id}
@@ -67,7 +73,7 @@ export default function ActivityItem({
         <XStack justifyContent="space-between" alignItems="center" gap="$s4">
           <YStack gap="$s2" flexShrink={1}>
             <Text primary subHeadline numberOfLines={1}>
-              {getActivityTitle(item)}
+              {getActivityTitle(item, t)}
             </Text>
             <Text
               secondary
@@ -76,9 +82,9 @@ export default function ActivityItem({
               color={processing ? "$interactiveOnBaseWarningSoft" : "$uiNeutralSecondary"}
             >
               {refund
-                ? "Refund"
+                ? t("Refund")
                 : processing
-                  ? "Processing..."
+                  ? t("Processing...")
                   : (item.type === "card" || item.type === "panda") &&
                     titleCase(
                       [
@@ -100,7 +106,7 @@ export default function ActivityItem({
             <YStack gap="$s2">
               <XStack alignItems="center" justifyContent="flex-end">
                 <Text sensitive emphasized subHeadline textAlign="right">
-                  {Math.abs(item.usdAmount).toLocaleString(undefined, {
+                  {Math.abs(item.usdAmount).toLocaleString(language, {
                     style: "currency",
                     currency: "USD",
                     minimumFractionDigits: 2,
@@ -110,7 +116,7 @@ export default function ActivityItem({
               </XStack>
               {"amount" in item && item.amount ? (
                 <Text sensitive secondary caption textAlign="right">
-                  {`${"currency" in item && item.currency ? item.currency : ""} ${Math.abs(item.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: "currency" in item && item.currency === "USDC" ? 2 : 8 })}`}
+                  {`${"currency" in item && item.currency ? item.currency : ""} ${Math.abs(item.amount).toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: "currency" in item && item.currency === "USDC" ? 2 : 8 })}`}
                 </Text>
               ) : null}
             </YStack>
@@ -142,7 +148,7 @@ function getActivityIcon(item: Item, processing: boolean, refund: boolean) {
   }
 }
 
-function getActivityTitle(item: Item) {
+function getActivityTitle(item: Item, t: TFunction) {
   let title;
   switch (item.type) {
     case "card":
@@ -150,17 +156,17 @@ function getActivityTitle(item: Item) {
       title = item.merchant.name;
       break;
     case "received":
-      title = "Received";
+      title = t("Received");
       break;
     case "sent":
-      title = "Sent";
+      title = t("Sent");
       break;
     case "repay":
-      title = "Debt payment";
+      title = t("Debt payment");
       break;
     default:
       title = undefined;
   }
-  title ??= "type" in item ? item.type.charAt(0).toUpperCase() + item.type.slice(1) : "Unknown";
+  title ??= t("Unknown");
   return title;
 }

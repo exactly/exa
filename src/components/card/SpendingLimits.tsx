@@ -1,7 +1,8 @@
 import { Plus } from "@tamagui/lucide-icons";
 import React from "react";
-import { Pressable, StyleSheet } from "react-native";
-import { ScrollView, YStack } from "tamagui";
+import { useTranslation } from "react-i18next";
+import { Pressable } from "react-native";
+import { ScrollView, XStack, YStack } from "tamagui";
 
 import SpendingLimit from "./SpendingLimit";
 import { newMessage } from "../../utils/intercom";
@@ -23,6 +24,7 @@ export default function SpendingLimits({
   totalSpent: number;
   limit?: number;
 }) {
+  const { t } = useTranslation();
   return (
     <ModalSheet open={open} onClose={onClose}>
       <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
@@ -32,31 +34,33 @@ export default function SpendingLimits({
               <YStack gap="$s4_5">
                 <YStack gap="$s4">
                   <Text emphasized headline primary>
-                    Spending limits
+                    {t("Spending limits")}
                   </Text>
                   <Text color="$uiNeutralSecondary" subHeadline>
-                    Track your spending and see how much you&apos;ve spent with your Exa Card so far.
+                    {t("Track your spending and see how much you’ve spent with your Exa Card so far.")}
                   </Text>
                 </YStack>
                 <YStack paddingBottom="$s4">
-                  <SpendingLimit title="Weekly" limit={limit} totalSpent={totalSpent} />
+                  <SpendingLimit title={t("Weekly")} limit={limit} totalSpent={totalSpent} />
                 </YStack>
                 <Button
                   onPress={() => {
-                    newMessage("I want to increase my spending limit").catch(reportError);
+                    newMessage(t("I want to increase my spending limit")).catch(reportError);
                   }}
                   primary
                 >
-                  <Button.Text>Increase spending limit</Button.Text>
+                  <Button.Text>{t("Increase spending limit")}</Button.Text>
                   <Button.Icon>
                     <Plus />
                   </Button.Icon>
                 </Button>
-                <Pressable onPress={onClose} style={styles.close} hitSlop={20}>
-                  <Text emphasized footnote color="$interactiveTextBrandDefault">
-                    Close
-                  </Text>
-                </Pressable>
+                <XStack alignSelf="center">
+                  <Pressable onPress={onClose} hitSlop={20}>
+                    <Text emphasized footnote color="$interactiveTextBrandDefault">
+                      {t("Close")}
+                    </Text>
+                  </Pressable>
+                </XStack>
               </YStack>
             </View>
           </View>
@@ -65,5 +69,3 @@ export default function SpendingLimits({
     </ModalSheet>
   );
 }
-
-const styles = StyleSheet.create({ close: { alignSelf: "center" } });

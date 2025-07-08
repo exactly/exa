@@ -2,6 +2,7 @@ import type { Address } from "@exactly/common/validation";
 import { TimerReset } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import React, { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { XStack, YStack } from "tamagui";
 
 import Contact from "./Contact";
@@ -12,6 +13,7 @@ export default function RecentContacts({ onContactPress }: { onContactPress: (ad
   const { data } = useQuery<{ address: Address; ens: string; lastUsed: Date }[] | undefined>({
     queryKey: ["contacts", "recent"],
   });
+  const { t } = useTranslation();
   const contacts = useMemo(() => {
     if (!data) return;
     const seen = new Set<Address>();
@@ -26,7 +28,7 @@ export default function RecentContacts({ onContactPress }: { onContactPress: (ad
       <XStack gap="$s2" alignItems="center">
         <TimerReset size={20} color="$interactiveBaseBrandDefault" fontWeight="bold" />
         <Text emphasized footnote color="$uiNeutralSecondary">
-          Recent
+          {t("Recent")}
         </Text>
       </XStack>
       {contacts ? (
@@ -38,7 +40,7 @@ export default function RecentContacts({ onContactPress }: { onContactPress: (ad
       ) : (
         <View margin="$s2" borderRadius="$r3" backgroundColor="$uiNeutralTertiary" padding="$s3_5" alignSelf="center">
           <Text textAlign="center" subHeadline color="$uiNeutralSecondary">
-            No recent contacts.
+            {t("No recent contacts.")}
           </Text>
         </View>
       )}

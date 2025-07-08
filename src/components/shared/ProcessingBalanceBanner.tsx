@@ -1,12 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
 import React from "react";
+import { useTranslation } from "react-i18next";
 
 import Text from "./Text";
 import View from "./View";
 import isProcessing from "../../utils/isProcessing";
 import { getActivity } from "../../utils/server";
 
-const ProcessingBalanceBanner = () => {
+export default function ProcessingBalanceBanner() {
+  const {
+    t,
+    i18n: { language },
+  } = useTranslation();
   const { data: country } = useQuery({ queryKey: ["user", "country"] });
   const { data: processingBalance } = useQuery({
     queryKey: ["processing-balance"],
@@ -28,17 +33,15 @@ const ProcessingBalanceBanner = () => {
       paddingVertical="$s3"
       paddingHorizontal="$s4"
     >
-      <Text
-        emphasized
-        footnote
-        color="$interactiveOnBaseWarningSoft"
-      >{`Processing balance → ${processingBalance.toLocaleString(undefined, {
-        style: "currency",
-        currency: "USD",
-        currencyDisplay: "narrowSymbol",
-      })}`}</Text>
+      <Text emphasized footnote color="$interactiveOnBaseWarningSoft">
+        {t("Processing balance → {{amount}}", {
+          amount: processingBalance.toLocaleString(language, {
+            style: "currency",
+            currency: "USD",
+            currencyDisplay: "narrowSymbol",
+          }),
+        })}
+      </Text>
     </View>
   );
-};
-
-export default ProcessingBalanceBanner;
+}

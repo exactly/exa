@@ -5,6 +5,7 @@ import { useToastController } from "@tamagui/toast";
 import { format } from "date-fns";
 import { setStringAsync } from "expo-clipboard";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { Separator, XStack, YStack } from "tamagui";
 
@@ -17,22 +18,26 @@ export default function PurchaseDetails({
   item: CreditActivity | DebitActivity | InstallmentsActivity | PandaActivity;
 }) {
   const toast = useToastController();
+  const {
+    t,
+    i18n: { language },
+  } = useTranslation();
   const refund = item.usdAmount < 0;
   return (
     <YStack gap="$s4">
       <YStack gap="$s4">
         <Text emphasized headline>
-          {refund ? "Refund details" : "Purchase details"}
+          {refund ? t("Refund details") : t("Purchase details")}
         </Text>
         <Separator height={1} borderColor="$borderNeutralSoft" />
       </YStack>
       <YStack gap="$s3_5">
         <XStack justifyContent="space-between">
           <Text emphasized footnote color="$uiNeutralSecondary">
-            Amount
+            {t("Amount")}
           </Text>
           <Text callout color="$uiNeutralPrimary">
-            {Math.abs(item.amount).toLocaleString(undefined, {
+            {Math.abs(item.amount).toLocaleString(language, {
               maximumFractionDigits: 8,
               minimumFractionDigits: 0,
             })}
@@ -42,12 +47,12 @@ export default function PurchaseDetails({
         {!refund && (
           <XStack justifyContent="space-between">
             <Text emphasized footnote color="$uiNeutralSecondary">
-              ID
+              {t("ID")}
             </Text>
             <Pressable
               onPress={() => {
                 setStringAsync(item.id).catch(reportError);
-                toast.show("Operation ID copied!", {
+                toast.show(t("Operation ID copied!"), {
                   native: true,
                   duration: 1000,
                   burntOptions: { haptic: "success" },
@@ -67,11 +72,11 @@ export default function PurchaseDetails({
         {!refund && Math.abs(item.usdAmount) > 0 && (
           <XStack justifyContent="space-between">
             <Text emphasized footnote color="$uiNeutralSecondary">
-              Exchange rate
+              {t("Exchange rate")}
             </Text>
             <Text callout color="$uiNeutralPrimary">
               1 USD&nbsp;=&nbsp;
-              {(Math.abs(item.amount) / Math.abs(item.usdAmount)).toLocaleString(undefined, {
+              {(Math.abs(item.amount) / Math.abs(item.usdAmount)).toLocaleString(language, {
                 maximumFractionDigits: 2,
               })}
               &nbsp;{item.currency}
@@ -80,7 +85,7 @@ export default function PurchaseDetails({
         )}
         <XStack justifyContent="space-between">
           <Text emphasized footnote color="$uiNeutralSecondary">
-            Date
+            {t("Date")}
           </Text>
           <Text callout color="$uiNeutralPrimary">
             {format(item.timestamp, "yyyy-MM-dd")}
@@ -88,7 +93,7 @@ export default function PurchaseDetails({
         </XStack>
         <XStack justifyContent="space-between">
           <Text emphasized footnote color="$uiNeutralSecondary">
-            Time
+            {t("Time")}
           </Text>
           <Text callout color="$uiNeutralPrimary">
             {format(item.timestamp, "HH:mm:ss")}

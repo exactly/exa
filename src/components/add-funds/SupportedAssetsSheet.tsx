@@ -1,6 +1,7 @@
 import chain from "@exactly/common/generated/chain";
 import { AlertTriangle, X } from "@tamagui/lucide-icons";
 import React from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import assetLogos from "../../utils/assetLogos";
@@ -18,6 +19,7 @@ const supportedAssets = Object.entries(assetLogos)
   .map(([symbol, image]) => ({ symbol, image }));
 
 export default function SupportedAssetsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { t } = useTranslation();
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
       <ScrollView $platform-web={{ maxHeight: "100vh" }}>
@@ -32,7 +34,7 @@ export default function SupportedAssetsSheet({ open, onClose }: { open: boolean;
           <YStack gap="$s7">
             <YStack>
               <Text emphasized primary headline>
-                Supported assets
+                {t("Supported assets")}
               </Text>
             </YStack>
             <XStack justifyContent="center" flexWrap="wrap">
@@ -69,18 +71,23 @@ export default function SupportedAssetsSheet({ open, onClose }: { open: boolean;
               </View>
               <XStack flex={1}>
                 <Text emphasized caption2 color="$uiNeutralPlaceholder" textAlign="justify">
-                  Only send assets on {chain.name}. Sending funds from other networks may cause permanent loss.
-                  <Text
-                    cursor="pointer"
-                    emphasized
-                    caption2
-                    color="$uiBrandSecondary"
-                    onPress={() => {
-                      presentArticle("8950801").catch(reportError);
+                  <Trans
+                    i18nKey="Only send assets on {{chain}}. Sending funds from other networks may cause permanent loss.<learn> Learn more about adding funds.</learn>"
+                    values={{ chain: chain.name }}
+                    components={{
+                      learn: (
+                        <Text
+                          cursor="pointer"
+                          emphasized
+                          caption2
+                          color="$uiBrandSecondary"
+                          onPress={() => {
+                            presentArticle("8950801").catch(reportError);
+                          }}
+                        />
+                      ),
                     }}
-                  >
-                    &nbsp;Learn more about adding funds.
-                  </Text>
+                  />
                 </Text>
               </XStack>
             </XStack>
@@ -93,7 +100,7 @@ export default function SupportedAssetsSheet({ open, onClose }: { open: boolean;
               fullwidth
               iconAfter={<X strokeWidth={2.5} color="$interactiveOnBaseBrandDefault" />}
             >
-              Close
+              {t("Close")}
             </Button>
           </YStack>
         </SafeView>

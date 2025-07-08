@@ -1,5 +1,6 @@
 import { ArrowRight, Check } from "@tamagui/lucide-icons";
 import React, { useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { ScrollView, Separator, XStack, YStack } from "tamagui";
 
 import ModalSheet from "../shared/ModalSheet";
@@ -12,11 +13,17 @@ export default function ManualRepaymentSheet({
   open,
   onClose,
   onActionPress,
+  penaltyRate,
 }: {
   open: boolean;
   onClose: () => void;
   onActionPress: () => void;
+  penaltyRate?: bigint;
 }) {
+  const {
+    t,
+    i18n: { language },
+  } = useTranslation();
   const [acknowledged, setAcknowledged] = useState(true);
   return (
     <ModalSheet key={open ? "open" : "closed"} open={open} onClose={onClose} disableDrag>
@@ -33,14 +40,20 @@ export default function ManualRepaymentSheet({
             <YStack flex={1} paddingHorizontal="$s5" paddingTop="$s7" gap="$s4">
               <YStack flex={1} gap="$s5">
                 <Text emphasized headline>
-                  How installment repayment works
+                  {t("How installment repayment works")}
                 </Text>
                 <Text subHeadline secondary>
-                  When you make a purchase using an installment plan,
-                  <Text color="$uiInfoSecondary">
-                    &nbsp;you must repay each installment manually before its due date.&nbsp;
-                  </Text>
-                  If not, a 0.45% penalty is added every day the payment is late.
+                  <Trans
+                    i18nKey="When you make a purchase using an installment plan, <highlight>you must pay each installment manually before the due date.</highlight> Otherwise, a daily penalty of {{rate}} is added while the payment is late."
+                    values={{
+                      rate: (penaltyRate ? Number(penaltyRate * 86_400n) / 1e18 : 0).toLocaleString(language, {
+                        style: "percent",
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      }),
+                    }}
+                    components={{ highlight: <Text color="$uiInfoSecondary" /> }}
+                  />
                 </Text>
               </YStack>
               <Separator height={1} borderColor="$borderNeutralSoft" paddingVertical="$s2" />
@@ -68,12 +81,12 @@ export default function ManualRepaymentSheet({
                       {acknowledged && <Check size="$iconSize.xs" color="white" />}
                     </View>
                     <Text color="$uiNeutralSecondary" caption flex={1}>
-                      I understand I have to repay each installment before the due date to avoid daily penalties.
+                      {t("I understand I have to repay each installment before the due date to avoid daily penalties.")}
                     </Text>
                   </XStack>
                 </XStack>
                 <Button onPress={onActionPress} primary disabled={!acknowledged}>
-                  <Button.Text>Close</Button.Text>
+                  <Button.Text>{t("Close")}</Button.Text>
                   <Button.Icon>
                     <ArrowRight />
                   </Button.Icon>

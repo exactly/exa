@@ -1,5 +1,6 @@
 import { ChevronRight } from "@tamagui/lucide-icons";
 import React, { memo, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { YStack, XStack } from "tamagui";
 
@@ -12,6 +13,7 @@ interface BenefitCardProperties {
 }
 
 export default memo(function BenefitCard({ benefit, onPress }: BenefitCardProperties) {
+  const { t } = useTranslation();
   const BenefitLogo = benefit.logo;
   const tap = useMemo(() => Gesture.Tap().onEnd(onPress), [onPress]);
   return (
@@ -26,22 +28,22 @@ export default memo(function BenefitCard({ benefit, onPress }: BenefitCardProper
       >
         <YStack gap="$s2">
           <Text footnote secondary>
-            {benefit.subtitle}
+            {t(benefit.subtitle)}
           </Text>
           <Text emphasized headline>
-            {benefit.title}
+            {t(benefit.title)}
           </Text>
         </YStack>
         <XStack justifyContent="space-between">
           <XStack alignItems="center" gap="$s2">
             <BenefitLogo width={24} height={24} />
             <Text emphasized callout>
-              {benefit.partner}
+              {t(benefit.partner)}
             </Text>
           </XStack>
           <XStack alignItems="center" gap="$1">
             <Text emphasized footnote color="$interactiveBaseBrandDefault">
-              {benefit.linkText ?? "Get now"}
+              {benefit.linkText ? t(benefit.linkText) : t("Get now")}
             </Text>
             <ChevronRight color="$uiBrandSecondary" size={16} />
           </XStack>

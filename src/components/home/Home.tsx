@@ -10,6 +10,7 @@ import { TimeToFullDisplay } from "@sentry/react-native";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import React, { useState, type RefObject } from "react";
+import { useTranslation } from "react-i18next";
 import { RefreshControl } from "react-native";
 import { ScrollView, YStack } from "tamagui";
 import { zeroAddress } from "viem";
@@ -46,6 +47,10 @@ const HEALTH_FACTOR_THRESHOLD = (WAD * 11n) / 10n;
 export default function Home() {
   const parameters = useLocalSearchParams();
   const router = useRouter();
+  const {
+    t,
+    i18n: { language },
+  } = useTranslation();
   const [paySheetOpen, setPaySheetOpen] = useState(false);
   const [spendingLimitsInfoSheetOpen, setSpendingLimitsInfoSheetOpen] = useState(false);
   const [visaSignatureModalOpen, setVisaSignatureModalOpen] = useState(false);
@@ -146,8 +151,17 @@ export default function Home() {
               {((isKYCFetched && isLegacyKYCFetched && legacyKYCStatus === "ok" && KYCStatus !== "ok") ||
                 (!!bytecode && !!installedPlugins && !isLatestPlugin)) && (
                 <InfoAlert
-                  title="We’re upgrading all Exa Cards by migrating them to a new and improved card issuer. Existing cards will work until May 18th, 2025, and upgrading will be required after this date."
-                  actionText="Start Exa Card upgrade"
+                  title={t(
+                    "We're upgrading all Exa Cards by migrating them to a new and improved card issuer. Existing cards will work until {{deadline}}, and upgrading will be required after this date.",
+                    {
+                      deadline: new Date(2025, 4, 18).toLocaleDateString(language, {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                      }),
+                    },
+                  )}
+                  actionText={t("Start Exa Card upgrade")}
                   onPress={() => {
                     queryClient.setQueryData(["card-upgrade-open"], true);
                   }}

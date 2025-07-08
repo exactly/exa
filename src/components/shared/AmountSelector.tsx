@@ -3,6 +3,7 @@ import { WAD } from "@exactly/lib";
 import { useForm } from "@tanstack/react-form";
 import { useLocalSearchParams } from "expo-router";
 import React, { useCallback, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { StyleSheet, type TextInput } from "react-native";
 import { YStack } from "tamagui";
 import { nonEmpty, parse, pipe, string } from "valibot";
@@ -15,6 +16,10 @@ import View from "./View";
 import useAsset from "../../utils/useAsset";
 
 export default function AmountSelector({ onChange }: { onChange: (value: bigint) => void }) {
+  const {
+    t,
+    i18n: { language },
+  } = useTranslation();
   const usdInputReference = useRef<TextInput | null>(null); // eslint-disable-line @eslint-react/naming-convention/ref-name
   const [overlayShown, setOverlayShown] = useState(false);
 
@@ -99,7 +104,7 @@ export default function AmountSelector({ onChange }: { onChange: (value: bigint)
         color="$interactiveOnBaseBrandSoft"
         onPress={handleMaxAmount}
       >
-        MAX
+        {t("MAX")}
       </Button>
       <View borderRadius="$r3" gap="$s3" backgroundColor="$backgroundBrandSoft" padding="$s3">
         <Field name="assetInput" validators={{ onChange: pipe(string(), nonEmpty("empty amount")) }}>
@@ -135,7 +140,7 @@ export default function AmountSelector({ onChange }: { onChange: (value: bigint)
                 ref={usdInputReference}
                 inputMode="decimal"
                 onChangeText={handleUsdChange}
-                placeholder="USD"
+                placeholder={t("USD")}
                 value={value}
                 onBlur={() => {
                   setOverlayShown(true);
@@ -162,7 +167,7 @@ export default function AmountSelector({ onChange }: { onChange: (value: bigint)
                 flex={1}
               >
                 <Text emphasized textAlign="center" fontSize={24}>
-                  {Number(value.replaceAll(/\D/g, ".").replaceAll(/\.(?=.*\.)/g, "")).toLocaleString(undefined, {
+                  {Number(value.replaceAll(/\D/g, ".").replaceAll(/\.(?=.*\.)/g, "")).toLocaleString(language, {
                     style: "currency",
                     currency: "USD",
                     currencyDisplay: "narrowSymbol",

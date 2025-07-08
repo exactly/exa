@@ -2,6 +2,7 @@ import { WAD } from "@exactly/lib";
 import type { Token } from "@lifi/sdk";
 import { useForm } from "@tanstack/react-form";
 import React, { useCallback, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { XStack, YStack } from "tamagui";
 import { pipe, string, nonEmpty } from "valibot";
 import { formatUnits, parseUnits } from "viem";
@@ -46,6 +47,10 @@ export default function TokenInput({
   chainLogoUri?: string;
 }) {
   const { Field, setFieldValue, getFieldValue } = useForm({ defaultValues: { amountInput: "" } });
+  const {
+    t,
+    i18n: { language },
+  } = useTranslation();
 
   const valueUSD =
     amount && token ? Number(formatUnits((amount * parseUnits(token.priceUSD, 18)) / WAD, token.decimals)) : 0;
@@ -111,14 +116,14 @@ export default function TokenInput({
           pressStyle={{ opacity: 0.85 }}
         >
           <Text emphasized footnote color="$interactiveOnBaseBrandSoft">
-            MAX
+            {t("MAX")}
           </Text>
         </View>
       </XStack>
       <YStack gap="$s3_5">
         <XStack gap="$s3_5" alignItems="center">
           <View
-            aria-label="Select token"
+            aria-label={t("Select token")}
             onPress={onTokenSelect}
             cursor="pointer"
             hitSlop={20}
@@ -193,7 +198,7 @@ export default function TokenInput({
                     </View>
                   ) : (
                     <Text callout color="$uiNeutralPlaceholder">
-                      {`${valueUSD > 0 ? "≈" : ""}${valueUSD.toLocaleString(undefined, {
+                      {`${valueUSD > 0 ? "≈" : ""}${valueUSD.toLocaleString(language, {
                         style: "currency",
                         currency: "USD",
                         currencyDisplay: "narrowSymbol",
@@ -202,11 +207,13 @@ export default function TokenInput({
                   )}
                   {token ? (
                     <Text footnote color="$uiNeutralSecondary">
-                      {`Balance: ${balanceUSD.toLocaleString(undefined, {
-                        style: "currency",
-                        currency: "USD",
-                        currencyDisplay: "narrowSymbol",
-                      })}`}
+                      {t("Balance: {{value}}", {
+                        value: balanceUSD.toLocaleString(language, {
+                          style: "currency",
+                          currency: "USD",
+                          currencyDisplay: "narrowSymbol",
+                        }),
+                      })}
                     </Text>
                   ) : null}
                 </XStack>

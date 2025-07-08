@@ -1,6 +1,7 @@
 import chain from "@exactly/common/generated/chain";
 import { Copy } from "@tamagui/lucide-icons";
 import React from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { AlertDialog, XStack, YStack } from "tamagui";
 
 import Button from "./Button";
@@ -18,6 +19,7 @@ export default function AddressDialog({
   onActionPress: () => void;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const aspectRatio = useAspectRatio();
   return (
     <AlertDialog open={open}>
@@ -48,7 +50,7 @@ export default function AddressDialog({
             <XStack alignItems="center" gap="$s3" justifyContent="flex-start">
               <AlertDialog.Title>
                 <Text emphasized headline>
-                  Network reminder
+                  {t("Network reminder")}
                 </Text>
               </AlertDialog.Title>
             </XStack>
@@ -65,11 +67,11 @@ export default function AddressDialog({
                   </Text>
                 </XStack>
                 <Text secondary subHeadline>
-                  Add funds using
-                  <Text emphasized secondary>
-                    &nbsp;{chain.name}&nbsp;
-                  </Text>
-                  only. Sending assets on any other network will cause irreversible loss of funds.
+                  <Trans
+                    i18nKey="Add funds using <emphasis>{{network}}</emphasis> only. Sending assets on any other network will cause irreversible loss of funds."
+                    values={{ network: chain.name }}
+                    components={{ emphasis: <Text emphasized secondary /> }}
+                  />
                 </Text>
               </YStack>
               <XStack>
@@ -82,7 +84,7 @@ export default function AddressDialog({
                     fullwidth
                     iconAfter={<Copy strokeWidth={3} color="$interactiveOnBaseBrandDefault" />}
                   >
-                    Copy account address
+                    {t("Copy account address")}
                   </Button>
                 </AlertDialog.Action>
               </XStack>

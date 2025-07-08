@@ -4,7 +4,8 @@ import { useToastController } from "@tamagui/toast";
 import { useQuery } from "@tanstack/react-query";
 import { setStringAsync } from "expo-clipboard";
 import React, { useEffect, useState } from "react";
-import { Pressable, StyleSheet, useColorScheme } from "react-native";
+import { useTranslation } from "react-i18next";
+import { Pressable, useColorScheme } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import DismissableAlert from "./DismissableAlert";
@@ -27,10 +28,10 @@ import View from "../shared/View";
 export default function CardDetails({ open, onClose }: { open: boolean; onClose: () => void }) {
   const theme = useColorScheme();
   const toast = useToastController();
+  const { t } = useTranslation();
   const { data: alertShown } = useQuery({ queryKey: ["settings", "alertShown"] });
   const { data: card, isPending } = useQuery<CardDetailsData>({ queryKey: ["card", "details"] });
   const [details, setDetails] = useState({ pan: "", cvc: "" });
-
   useEffect(() => {
     if (card) {
       Promise.all([
@@ -107,7 +108,7 @@ export default function CardDetails({ open, onClose }: { open: boolean; onClose:
                       strokeWidth={2.5}
                       onPress={() => {
                         setStringAsync(details.pan).catch(reportError);
-                        toast.show("Card number copied!", {
+                        toast.show(t("Card number copied!"), {
                           native: true,
                           duration: 1000,
                           burntOptions: { haptic: "success" },
@@ -123,7 +124,7 @@ export default function CardDetails({ open, onClose }: { open: boolean; onClose:
                           card.productId === PLATINUM_PRODUCT_ID ? "$uiNeutralInverseSecondary" : "$grayscaleLight3"
                         }
                       >
-                        Expires
+                        {t("Expires")}
                       </Text>
                       <Text
                         headline
@@ -141,7 +142,7 @@ export default function CardDetails({ open, onClose }: { open: boolean; onClose:
                           card.productId === PLATINUM_PRODUCT_ID ? "$uiNeutralInverseSecondary" : "$grayscaleLight3"
                         }
                       >
-                        CVV&nbsp;
+                        {t("CVV")}
                       </Text>
                       <Text
                         headline
@@ -167,17 +168,19 @@ export default function CardDetails({ open, onClose }: { open: boolean; onClose:
               ) : null}
               {card && alertShown ? (
                 <DismissableAlert
-                  text="Manually add your card to Apple Pay & Google Pay to make contactless payments."
+                  text={t("Manually add your card to Apple Pay & Google Pay to make contactless payments.")}
                   onDismiss={() => {
                     queryClient.setQueryData(["settings", "alertShown"], false);
                   }}
                 />
               ) : null}
-              <Pressable onPress={onClose} style={styles.close} hitSlop={20}>
-                <Text emphasized footnote color="$interactiveTextBrandDefault">
-                  Close
-                </Text>
-              </Pressable>
+              <XStack alignSelf="center">
+                <Pressable onPress={onClose} hitSlop={20}>
+                  <Text emphasized footnote color="$interactiveTextBrandDefault">
+                    {t("Close")}
+                  </Text>
+                </Pressable>
+              </XStack>
             </View>
           </View>
         </ScrollView>
@@ -185,5 +188,3 @@ export default function CardDetails({ open, onClose }: { open: boolean; onClose:
     </ModalSheet>
   );
 }
-
-const styles = StyleSheet.create({ close: { alignSelf: "center" } });

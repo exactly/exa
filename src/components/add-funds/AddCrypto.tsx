@@ -4,6 +4,7 @@ import { AlertTriangle, ArrowLeft, Files, Share as ShareIcon } from "@tamagui/lu
 import { setStringAsync } from "expo-clipboard";
 import { useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { PixelRatio, Pressable, Share } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 
@@ -28,6 +29,7 @@ export default function AddCrypto() {
   const router = useRouter();
   const fontScale = PixelRatio.getFontScale();
   const { address } = useAccount();
+  const { t } = useTranslation();
 
   const [copyAddressShown, setCopyAddressShown] = useState(false);
   const [supportedAssetsShown, setSupportedAssetsShown] = useState(false);
@@ -40,8 +42,8 @@ export default function AddCrypto() {
 
   const share = useCallback(async () => {
     if (!address) return;
-    await Share.share({ message: address, title: `Share ${chain.name} address` });
-  }, [address]);
+    await Share.share({ message: address, title: t("Share {{chain}} address", { chain: chain.name }) });
+  }, [address, t]);
   return (
     <SafeView fullScreen>
       <View gap="$s5" fullScreen padded>
@@ -62,7 +64,7 @@ export default function AddCrypto() {
             </View>
             <View flexDirection="row" alignItems="center" alignSelf="center">
               <Text emphasized subHeadline primary>
-                Add Funds
+                {t("Add Funds")}
               </Text>
             </View>
           </XStack>
@@ -71,7 +73,7 @@ export default function AddCrypto() {
           <YStack gap="$s5">
             <YStack flex={1} borderBottomWidth={1} borderBottomColor="$borderNeutralSoft" paddingBottom={20} gap="$s5">
               <Text emphasized subHeadline secondary>
-                Your {chain.name} address
+                {t("Your {{chain}} address", { chain: chain.name })}
               </Text>
               <Pressable hitSlop={15} onPress={copy}>
                 {address && (
@@ -82,7 +84,7 @@ export default function AddCrypto() {
               </Pressable>
               <XStack alignItems="center" gap="$s4">
                 <Button primary flex={1} onPress={copy}>
-                  <Button.Text>Copy</Button.Text>
+                  <Button.Text>{t("Copy")}</Button.Text>
                   <Button.Icon>
                     <Files size={18 * fontScale} />
                   </Button.Icon>
@@ -94,7 +96,7 @@ export default function AddCrypto() {
                     share().catch(reportError);
                   }}
                 >
-                  <Button.Text>Share</Button.Text>
+                  <Button.Text>{t("Share")}</Button.Text>
                   <Button.Icon>
                     <ShareIcon size={18 * fontScale} />
                   </Button.Icon>
@@ -115,10 +117,10 @@ export default function AddCrypto() {
             />
             <XStack justifyContent="space-between" alignItems="center">
               <Text emphasized footnote color="$uiNeutralSecondary" textAlign="left">
-                Network
+                {t("Network")}
               </Text>
               <Text emphasized footnote color="$uiNeutralSecondary" textAlign="right">
-                Supported Assets
+                {t("Supported Assets")}
               </Text>
             </XStack>
             <XStack gap="$s5" justifyContent="space-between" alignItems="center">
@@ -162,7 +164,9 @@ export default function AddCrypto() {
           </View>
           <XStack flex={1}>
             <Text emphasized caption2 color="$uiNeutralPlaceholder" textAlign="justify">
-              Only send assets on {chain.name}. Sending funds from other networks may cause permanent loss.
+              {t("Only send assets on {{chain}}. Sending funds from other networks may cause permanent loss.", {
+                chain: chain.name,
+              })}
               <Text
                 cursor="pointer"
                 emphasized
@@ -172,7 +176,8 @@ export default function AddCrypto() {
                   presentArticle("8950801").catch(reportError);
                 }}
               >
-                &nbsp;Learn more about adding funds.
+                {" "}
+                {t("Learn more about adding funds.")}
               </Text>
             </Text>
           </XStack>

@@ -13,6 +13,7 @@ import { useForm, useStore } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { Avatar, ScrollView, Square, XStack, YStack } from "tamagui";
 import { bigint, check, parse, pipe, safeParse } from "valibot";
@@ -39,6 +40,10 @@ import View from "../shared/View";
 export default function Amount() {
   const router = useRouter();
   const { address } = useAccount();
+  const {
+    t,
+    i18n: { language },
+  } = useTranslation();
   const [reviewOpen, setReviewOpen] = useState(false);
 
   const { asset: assetAddress, receiver: receiverAddress, amount } = useLocalSearchParams();
@@ -172,7 +177,7 @@ export default function Amount() {
       <SafeView fullScreen>
         <View gap="$s5" fullScreen padded justifyContent="center" alignItems="center">
           <Text body primary color="$uiNeutralPrimary">
-            {invalidReceiver ? "Invalid receiver address" : "Invalid asset address"}
+            {invalidReceiver ? t("Invalid receiver address") : t("Invalid asset address")}
           </Text>
           <Button
             dangerSecondary
@@ -185,7 +190,7 @@ export default function Amount() {
               }
             }}
           >
-            <Button.Text>Go back</Button.Text>
+            <Button.Text>{t("Go back")}</Button.Text>
             <Button.Icon>
               <ArrowLeft size={24} color="$uiNeutralPrimary" />
             </Button.Icon>
@@ -214,7 +219,7 @@ export default function Amount() {
               </Pressable>
             </View>
             <Text color="$uiNeutralPrimary" fontSize={15} fontWeight="bold">
-              Enter amount
+              {t("Enter amount")}
             </Text>
           </View>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }} gap="$s5">
@@ -231,7 +236,7 @@ export default function Amount() {
                       <Blocky seed={receiver} />
                     </View>
                     <Text emphasized callout color="$uiNeutralSecondary">
-                      To:
+                      {t("To:")}
                     </Text>
                     <Text callout color="$uiNeutralPrimary" fontFamily="$mono">
                       {shortenHex(receiver)}
@@ -253,19 +258,19 @@ export default function Amount() {
                         <Coins size={20} color="$interactiveOnBaseBrandDefault" />
                       </Avatar>
                       <Text callout color="$uiNeutralSecondary">
-                        Available:
+                        {t("Available:")}
                       </Text>
                       <Text callout color="$uiNeutralPrimary" numberOfLines={1}>
                         {market ? (
                           <>
-                            {`${(Number(available) / 10 ** market.decimals).toLocaleString(undefined, {
+                            {`${(Number(available) / 10 ** market.decimals).toLocaleString(language, {
                               minimumFractionDigits: 0,
                               maximumFractionDigits: market.decimals,
                             })} ${market.symbol.slice(3)}`}
                           </>
                         ) : external ? (
                           <>
-                            {`${(Number(available) / 10 ** external.decimals).toLocaleString(undefined, {
+                            {`${(Number(available) / 10 ** external.decimals).toLocaleString(language, {
                               minimumFractionDigits: 0,
                               maximumFractionDigits: external.decimals,
                             })} ${external.symbol}`}
@@ -283,10 +288,10 @@ export default function Amount() {
                     bigint(),
                     check((value) => {
                       return value !== 0n;
-                    }, "amount cannot be 0"),
+                    }, t("Amount cannot be zero")),
                     check((value) => {
                       return value <= available;
-                    }, "amount cannot be greater than available"),
+                    }, t("Amount cannot be greater than available")),
                   ),
                 }}
               >
@@ -312,7 +317,7 @@ export default function Amount() {
                       setReviewOpen(true);
                     }}
                   >
-                    <Button.Text>Review</Button.Text>
+                    <Button.Text>{t("Review")}</Button.Text>
                     <Button.Icon>
                       <FilePen size={24} />
                     </Button.Icon>
@@ -349,7 +354,7 @@ export default function Amount() {
       <View flex={1}>
         <YStack gap="$s7" paddingBottom="$s9">
           <Pressable
-            aria-label="Close"
+            aria-label={t("Close")}
             onPress={() => {
               router.replace("/(main)/(home)");
             }}
@@ -380,7 +385,7 @@ export default function Amount() {
             <Text secondary body>
               {pending && (
                 <>
-                  Sending to&nbsp;
+                  {t("Sending to")}{" "}
                   <Text emphasized primary body color="$uiNeutralPrimary">
                     {shortenHex(receiver, 5, 7)}
                   </Text>
@@ -388,15 +393,15 @@ export default function Amount() {
               )}
               {success && (
                 <>
-                  {isLatestPlugin ? "Processing" : "Paid"}&nbsp;
+                  {t(isLatestPlugin ? "Processing" : "Paid")}{" "}
                   <Text emphasized primary body color="$uiNeutralPrimary">
-                    Withdrawal
+                    {t("Withdrawal")}
                   </Text>
                 </>
               )}
               {error && (
                 <>
-                  Failed&nbsp;
+                  {t("Failed")}{" "}
                   <Text emphasized primary body color="$uiNeutralPrimary">
                     {shortenHex(receiver, 3, 5)}
                   </Text>
@@ -404,7 +409,7 @@ export default function Amount() {
               )}
             </Text>
             <Text title primary color="$uiNeutralPrimary">
-              {Number(details.usdValue).toLocaleString(undefined, {
+              {Number(details.usdValue).toLocaleString(language, {
                 style: "currency",
                 currency: "USD",
                 currencyDisplay: "narrowSymbol",
@@ -412,7 +417,7 @@ export default function Amount() {
             </Text>
             <XStack gap="$s2" alignItems="center">
               <Text emphasized secondary subHeadline>
-                {Number(details.amount).toLocaleString(undefined, { maximumFractionDigits: 8 })}
+                {Number(details.amount).toLocaleString(language, { maximumFractionDigits: 8 })}
               </Text>
               <Text emphasized secondary subHeadline>
                 &nbsp;{details.symbol}&nbsp;
@@ -452,7 +457,7 @@ export default function Amount() {
                   }
                 }}
               >
-                {!details.external && isLatestPlugin ? "View pending requests" : "Close"}
+                {!details.external && isLatestPlugin ? t("View pending requests") : t("Close")}
               </Text>
             </View>
           )}
@@ -460,7 +465,7 @@ export default function Amount() {
             <YStack alignItems="center" gap="$s4">
               <Pressable onPress={reset}>
                 <Text emphasized footnote color="$uiBrandSecondary">
-                  Close
+                  {t("Close")}
                 </Text>
               </Pressable>
             </YStack>

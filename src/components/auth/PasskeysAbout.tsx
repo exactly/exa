@@ -1,6 +1,7 @@
 import { X } from "@tamagui/lucide-icons";
 import { useRouter } from "expo-router";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { ScrollView } from "tamagui";
 
 import Button from "../shared/Button";
@@ -9,6 +10,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function PasskeysAbout() {
+  const { t } = useTranslation();
   const router = useRouter();
   return (
     <SafeView fullScreen paddingTop={0} backgroundColor="$backgroundSoft">
@@ -34,35 +36,37 @@ export default function PasskeysAbout() {
               <View flex={1} gap="$s8">
                 <View gap="$s5">
                   <Text fontSize={17} fontWeight="bold" textAlign="left">
-                    How passkeys work
+                    {t("How passkeys work")}
                   </Text>
                   <Text fontSize={16} color="$uiNeutralSecondary" textAlign="left">
-                    Passkeys replace passwords with cryptographic keys. Your private key stays on your device, while the
-                    public key is shared with the service. This ensures secure and seamless authentication.
+                    {t(
+                      "Passkeys replace passwords with cryptographic keys. Your private key stays on your device, while the public key is shared with the service. This ensures secure and seamless authentication.",
+                    )}
                   </Text>
                 </View>
                 <View gap="$s5">
                   <Text fontSize={17} fontWeight="bold" textAlign="left">
-                    Passkeys advantages
+                    {t("Passkeys advantages")}
                   </Text>
                   <Text fontSize={16} color="$uiNeutralSecondary" textAlign="left">
                     <Text color="$uiNeutralSecondary" fontWeight="bold">
-                      {`Strong credentials.   `}
+                      {`${t("Strong credentials.")}   `}
                     </Text>
-                    Every passkey is strong. They&apos;re never guessable, reused, or weak.
+                    {t("\n\nEvery passkey is strong. They're never guessable, reused, or weak.")}
                   </Text>
                   <Text fontSize={16} color="$uiNeutralSecondary" textAlign="left">
                     <Text color="$uiNeutralSecondary" fontWeight="bold">
-                      {`Safe from server leaks.   `}
+                      {`${t("Safe from server leaks.")}   `}
                     </Text>
-                    Because servers only keep public keys, servers are less valuable targets for hackers.
+                    {t("\n\nBecause servers only keep public keys, servers are less valuable targets for hackers.")}
                   </Text>
                   <Text fontSize={16} color="$uiNeutralSecondary" textAlign="left">
                     <Text color="$uiNeutralSecondary" fontWeight="bold">
-                      {`Safe from phishing.   `}
+                      {`${t("Safe from phishing.")}   `}
                     </Text>
-                    Passkeys are intrinsically linked with the app or website they were created for, so people can never
-                    be tricked into using their passkey to sign in to a fraudulent app or website.
+                    {t(
+                      "\n\nPasskeys are intrinsically linked with the app or website they were created for, so people can never be tricked into using their passkey to sign in to a fraudulent app or website.",
+                    )}
                   </Text>
                 </View>
               </View>
@@ -81,7 +85,7 @@ export default function PasskeysAbout() {
               fontWeight="bold"
               iconAfter={<X color="$interactiveOnBaseBrandSoft" />}
             >
-              Close
+              {t("Close")}
             </Button>
           </View>
         </View>

@@ -3,12 +3,13 @@ import ProposalType, {
   decodeRepayAtMaturity,
   decodeRollDebt,
 } from "@exactly/common/ProposalType";
-import { exaPreviewerAddress, previewerAddress } from "@exactly/common/generated/chain";
+import { exaPreviewerAddress, marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import { useReadExaPreviewerPendingProposals, useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { WAD } from "@exactly/lib";
 import { ChevronRight } from "@tamagui/lucide-icons";
-import { format, isBefore } from "date-fns";
+import { isBefore } from "date-fns";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
 import { useBytecode } from "wagmi";
@@ -20,6 +21,10 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bigint, amount: bigint) => void }) {
+  const {
+    t,
+    i18n: { language },
+  } = useTranslation();
   const { address } = useAccount();
   const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
   const { data: pendingProposals } = useReadExaPreviewerPendingProposals({
@@ -32,6 +37,7 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
     args: [address ?? zeroAddress],
     query: { enabled: !!address && !!bytecode, refetchInterval: 30_000 },
   });
+  const exaUSDC = markets?.find(({ market }) => market === marketUSDCAddress);
   const duePayments = new Map<bigint, { positionAmount: bigint; amount: bigint; discount: number }>();
   if (markets) {
     for (const { fixedBorrowPositions } of markets) {
@@ -52,7 +58,7 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
     <View backgroundColor="$backgroundSoft" borderRadius="$r3" padding="$s4" gap="$s6">
       <XStack alignItems="center" justifyContent="space-between">
         <Text emphasized headline flex={1}>
-          Upcoming payments
+          {t("Upcoming payments")}
         </Text>
       </XStack>
       <YStack gap="$s6">
@@ -103,14 +109,18 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
                               : "$uiNeutralPrimary"
                         }
                       >
-                        {(Number(amount) / 1e6).toLocaleString(undefined, {
+                        {(Number(amount) / 10 ** (exaUSDC?.decimals ?? 6)).toLocaleString(language, {
                           minimumFractionDigits: 2,
                           maximumFractionDigits: 2,
                         })}
                       </Text>
                     </XStack>
                     <Text caption color={processing ? "$interactiveTextDisabled" : "$uiNeutralPrimary"}>
-                      {format(new Date(Number(maturity) * 1000), "MMM dd, yyyy")}
+                      {new Date(Number(maturity) * 1000).toLocaleDateString(language, {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                      })}
                     </Text>
                   </YStack>
                   {processing ? (
@@ -123,8 +133,14 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
                       paddingVertical="$s1"
                       paddingHorizontal="$s2"
                     >
-                      <Text emphasized color="$interactiveOnDisabled" maxFontSizeMultiplier={1} caption2>
-                        PROCESSING
+                      <Text
+                        emphasized
+                        color="$interactiveOnDisabled"
+                        maxFontSizeMultiplier={1}
+                        caption2
+                        textTransform="uppercase"
+                      >
+                        {t("Processing")}
                       </Text>
                     </View>
                   ) : null}
@@ -140,12 +156,20 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
                       paddingVertical="$s1"
                       paddingHorizontal="$s2"
                     >
-                      <Text emphasized color="$interactiveOnBaseSuccessDefault" maxFontSizeMultiplier={1} caption2>
-                        {`${discount.toLocaleString(undefined, {
-                          style: "percent",
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })} OFF`}
+                      <Text
+                        emphasized
+                        color="$interactiveOnBaseSuccessDefault"
+                        maxFontSizeMultiplier={1}
+                        caption2
+                        textTransform="uppercase"
+                      >
+                        {t("{{discount}} off", {
+                          discount: discount.toLocaleString(language, {
+                            style: "percent",
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          }),
+                        })}
                       </Text>
                     </View>
                   )}
@@ -154,7 +178,7 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
                     subHeadline
                     color={processing ? "$interactiveOnDisabled" : "$interactiveBaseBrandDefault"}
                   >
-                    Repay
+                    {t("Repay")}
                   </Text>
                   <ChevronRight size={16} color={processing ? "$iconDisabled" : "$iconBrandDefault"} />
                 </XStack>
@@ -167,19 +191,25 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
               🎉
             </Text>
             <Text textAlign="center" color="$uiBrandSecondary" emphasized headline>
-              You&apos;re all set!
+              {t("You're all set!")}
             </Text>
             <Text textAlign="center" color="$uiNeutralSecondary" subHeadline>
-              Any funding or purchases will show up here.
+              {t("Any funding or purchases will show up here.")}
             </Text>
           </YStack>
         )}
         {payments.length > 0 && (
           <Text caption color="$uiNeutralSecondary">
             <Text color="$uiInfoSecondary" emphasized>
-              You must repay each installment manually before its due date.&nbsp;
+              {t("You must repay each installment manually before its due date.")}{" "}
             </Text>
-            If not, a 0.45% penalty is added every day the payment is late.
+            {t("If not, a {{rate}} penalty is added every day the payment is late.", {
+              rate: (exaUSDC ? Number(exaUSDC.penaltyRate * 86_400n) / 1e18 : 0).toLocaleString(language, {
+                style: "percent",
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              }),
+            })}
           </Text>
         )}
       </YStack>
