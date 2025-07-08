@@ -11,6 +11,7 @@ import StatusIndicator from "./StatusIndicator";
 import Text from "./Text";
 import View from "./View";
 import { useReadExaPreviewerPendingProposals } from "../../generated/contracts";
+
 export default function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const { address } = useAccount();
   const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
@@ -40,6 +41,7 @@ export default function TabBar({ state, descriptors, navigation }: BottomTabBarP
       >
         {state.routes.map((route, index) => {
           if (route.name === "activity") return null;
+          if (route.name === "loans") return null;
           const { options } = descriptors[route.key] ?? { options: undefined };
           if (!options) throw new Error("no navigation button options found");
           const label = options.title;

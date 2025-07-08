@@ -153,6 +153,28 @@ queryClient.setQueryDefaults(["settings", "explore-loans-shown"], {
   gcTime: Infinity,
   queryFn: () => queryClient.getQueryData(["settings", "explore-loans-shown"]),
 });
+queryClient.setQueryDefaults(["settings", "defi-intro-shown"], {
+  initialData: false,
+  retry: false,
+  staleTime: Infinity,
+  gcTime: Infinity,
+  queryFn: () => queryClient.getQueryData(["settings", "defi-intro-shown"]),
+});
+queryClient.setQueryDefaults(["defi", "usdc-funding-connected"], {
+  initialData: false,
+  retry: false,
+  staleTime: Infinity,
+  gcTime: Infinity,
+  queryFn: () => queryClient.getQueryData(["defi", "usdc-funding-connected"]),
+});
+
+queryClient.setQueryDefaults(["defi", "lifi-connected"], {
+  initialData: false,
+  retry: false,
+  staleTime: Infinity,
+  gcTime: Infinity,
+  queryFn: () => queryClient.getQueryData(["defi", "lifi-connected"]),
+});
 
 export type ActivityItem = Awaited<ReturnType<typeof getActivity>>[number];
 export interface Withdraw {
