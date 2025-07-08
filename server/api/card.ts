@@ -142,6 +142,7 @@ export default new Hono()
           }
           if (cardCount > 0) return c.json({ code: "already created", legacy: "card already exists" }, 400);
           const card = await createCard(credential.pandaId);
+          track({ event: "CardIssued", userId: account });
           await database.insert(cards).values([{ id: card.id, credentialId, lastFour: card.last4 }]);
           return c.json({ lastFour: card.last4, status: card.status }, 200);
         }
