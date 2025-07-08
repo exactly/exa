@@ -35,7 +35,9 @@ import { OnboardingProvider } from "../components/context/OnboardingProvider";
 import ThemeProvider from "../components/context/ThemeProvider";
 import Error from "../components/shared/Error";
 import release from "../generated/release";
-import translation from "../i18n/en.json";
+import en from "../i18n/en.json";
+import es from "../i18n/es.json";
+import languageDetector from "../utils/languageDetector";
 import publicClient from "../utils/publicClient";
 import queryClient, { persister } from "../utils/queryClient";
 import reportError from "../utils/reportError";
@@ -44,7 +46,8 @@ import wagmiConfig from "../utils/wagmi";
 SplashScreen.preventAutoHideAsync().catch(reportError);
 
 configI18n(initReactI18next)
-  .init({ fallbackLng: "en", resources: { en: { translation } } })
+  .use(languageDetector)
+  .init({ fallbackLng: "en", resources: { en: { translation: en }, es: { translation: es } } })
   .catch(reportError);
 
 export { ErrorBoundary } from "expo-router";
