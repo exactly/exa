@@ -10,7 +10,6 @@ import { zeroAddress } from "viem";
 import { useAccount, useBytecode } from "wagmi";
 
 import CardStatus from "./CardStatus";
-import ExploreLoans from "./ExploreLoans";
 import GettingStarted from "./GettingStarted";
 import HomeActions from "./HomeActions";
 import HomeDisclaimer from "./HomeDisclaimer";
@@ -58,7 +57,6 @@ export default function Home() {
       return false;
     },
   });
-  const { data: exploreLoansShown } = useQuery<boolean>({ queryKey: ["settings", "explore-loans-shown"] });
   const { refetch: refetchPendingProposals } = useReadExaPreviewerPendingProposals({
     address: exaPreviewerAddress,
     args: [address ?? zeroAddress],
@@ -139,7 +137,6 @@ export default function Home() {
                   setSpendingLimitsInfoSheetOpen(true);
                 }}
               />
-              {bytecode && exploreLoansShown && <ExploreLoans />}
               <GettingStarted hasFunds={usdBalance > 0n} hasKYC={KYCStatus === "ok"} />
               <OverduePayments
                 onSelect={(maturity) => {
