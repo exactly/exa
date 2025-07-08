@@ -1,13 +1,14 @@
-import { Coins, CreditCard, Ellipsis, HandCoins, Home } from "@tamagui/lucide-icons";
+import { Boxes, Coins, CreditCard, Home, FileText } from "@tamagui/lucide-icons";
 import { Tabs } from "expo-router";
 import Head from "expo-router/head";
 import React, { useEffect } from "react";
 import { FlatList, Platform } from "react-native";
 
+import { activityRefreshControlReference, activityScrollReference } from "../../../components/activity/Activity";
 import { cardRefreshControlReference, cardScrollReference } from "../../../components/card/Card";
+import { defiRefreshControlReference, defiScrollReference } from "../../../components/defi/DeFi";
 import { homeRefreshControlReference, homeScrollReference } from "../../../components/home/Home";
-import { loansRefreshControlReference, loansScrollReference } from "../../../components/loans/Loans";
-import { moreRefreshControlReference, moreScrollReference } from "../../../components/more/More";
+import { payModeRefreshControlReference, payModeScrollReference } from "../../../components/pay-mode/PayMode";
 import TabBar from "../../../components/shared/TabBar";
 import { enablePrompt } from "../../../utils/onesignal";
 import useIntercom from "../../../utils/useIntercom";
@@ -16,8 +17,8 @@ const tabs = [
   { name: "index", title: "Home", Icon: Home },
   { name: "card", title: "Card", Icon: CreditCard },
   { name: "pay-mode", title: "Pay Mode", Icon: Coins },
-  { name: "loans", title: "Loans", Icon: HandCoins },
-  { name: "more", title: "More", Icon: Ellipsis },
+  { name: "defi", title: "DeFi", Icon: Boxes },
+  { name: "activity", title: "Activity", Icon: FileText },
 ] as const;
 
 export default function HomeLayout() {
@@ -53,14 +54,18 @@ export default function HomeLayout() {
                       scrollView = cardScrollReference.current;
                       refreshControl = cardRefreshControlReference.current;
                       break;
-                    case "loans":
-                      scrollView = loansScrollReference.current;
-                      refreshControl = loansRefreshControlReference.current;
+                    case "pay-mode":
+                      scrollView = payModeScrollReference.current;
+                      refreshControl = payModeRefreshControlReference.current;
                       break;
-                    case "more":
-                      scrollView = moreScrollReference.current;
-                      refreshControl = moreRefreshControlReference.current;
-                      return;
+                    case "defi":
+                      scrollView = defiScrollReference.current;
+                      refreshControl = defiRefreshControlReference.current;
+                      break;
+                    case "activity":
+                      scrollView = activityScrollReference.current;
+                      refreshControl = activityRefreshControlReference.current;
+                      break;
                     default:
                       return;
                   }
