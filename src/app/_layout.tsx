@@ -39,6 +39,7 @@ import View from "../components/shared/View";
 import release from "../generated/release";
 import translation from "../i18n/en.json";
 import appKit from "../utils/appkit";
+import languageDetector from "../utils/languageDetector";
 import publicClient from "../utils/publicClient";
 import queryClient, { persister } from "../utils/queryClient";
 import reportError from "../utils/reportError";
@@ -48,6 +49,7 @@ import ownerConfig, { getConnector as getOwnerConnector } from "../utils/wagmi/o
 SplashScreen.preventAutoHideAsync().catch(reportError);
 
 configI18n(initReactI18next)
+  .use(languageDetector)
   .init({ fallbackLng: "en", resources: { en: { translation } } })
   .catch(reportError);
 
