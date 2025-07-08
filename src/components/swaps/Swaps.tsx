@@ -383,6 +383,9 @@ export default function Swaps() {
           >
             <ArrowLeft size={24} color="$uiNeutralPrimary" />
           </Pressable>
+          <Text primary emphasized subHeadline>
+            Swaps
+          </Text>
           <Pressable
             onPress={() => {
               presentArticle("10985188").catch(reportError);
@@ -394,11 +397,6 @@ export default function Swaps() {
         <ScrollView ref={swapsScrollReference} showsVerticalScrollIndicator={false} flex={1}>
           <View padded>
             <YStack paddingBottom="$s3" gap="$s4_5">
-              <XStack gap={10} alignItems="center">
-                <Text fontSize={20} fontWeight="bold">
-                  Swap
-                </Text>
-              </XStack>
               <YStack gap="$s3_5">
                 {(["from", "to"] as const).map((type) => {
                   const tokenData = type === "from" ? fromToken : toToken;
@@ -443,57 +441,60 @@ export default function Swaps() {
           </View>
         </ScrollView>
         <YStack padding="$s4" paddingBottom={insets.bottom} gap="$s2_5">
-          {(caution || danger) && showWarning && (
-            <YStack paddingHorizontal="$s4" gap="$s4_5">
-              <Separator borderColor={danger ? "$borderErrorStrong" : "$borderNeutralSoft"} />
-              <XStack
-                gap="$s3"
-                alignItems="center"
-                cursor="pointer"
-                onPress={() => {
-                  setAcknowledged(!acknowledged);
-                }}
-              >
-                {danger ? (
-                  <TriangleAlert size={16} color="$uiErrorSecondary" />
-                ) : (
-                  <Checkbox
-                    pointerEvents="none"
-                    borderColor="$backgroundBrand"
-                    backgroundColor={acknowledged ? "$backgroundBrand" : "transparent"}
-                    checked={acknowledged}
-                  >
-                    <Checkbox.Indicator>
-                      <Check size={16} color="$uiNeutralPrimary" />
-                    </Checkbox.Indicator>
-                  </Checkbox>
-                )}
-                <Text caption color={danger ? "$uiErrorSecondary" : "$uiNeutralSecondary"}>
-                  {danger
-                    ? "Swapping this much of your collateral could instantly trigger liquidation. Try a smaller amount to stay protected."
-                    : "I acknowledge the risks of swapping this much of my collateral assets."}
+          <YStack gap="$s3">
+            {(caution || danger) && showWarning && (
+              <YStack gap="$s4_5">
+                <Separator borderColor={danger ? "$borderErrorStrong" : "$borderNeutralSoft"} />
+                <XStack
+                  gap="$s3"
+                  alignItems="center"
+                  cursor="pointer"
+                  onPress={() => {
+                    setAcknowledged(!acknowledged);
+                  }}
+                >
+                  {danger ? (
+                    <TriangleAlert size={16} color="$uiErrorSecondary" />
+                  ) : (
+                    <Checkbox
+                      pointerEvents="none"
+                      borderColor="$backgroundBrand"
+                      backgroundColor={acknowledged ? "$backgroundBrand" : "transparent"}
+                      checked={acknowledged}
+                    >
+                      <Checkbox.Indicator>
+                        <Check size={16} color="$uiNeutralPrimary" />
+                      </Checkbox.Indicator>
+                    </Checkbox>
+                  )}
+                  <Text caption color={danger ? "$uiErrorSecondary" : "$uiNeutralSecondary"} flex={1}>
+                    {danger
+                      ? "Swapping this much of your collateral could instantly trigger liquidation. Try a smaller amount to stay protected."
+                      : "I acknowledge the risks of swapping this much of my collateral assets."}
+                  </Text>
+                </XStack>
+                <Separator borderColor="$borderNeutralSoft" />
+              </YStack>
+            )}
+            <XStack alignItems="flex-start" flexWrap="wrap" paddingBottom="$s3">
+              <Text caption2 color="$interactiveOnDisabled" textAlign="justify">
+                Swap functionality is provided via&nbsp;
+                <Text
+                  cursor="pointer"
+                  caption2
+                  color="$interactiveOnDisabled"
+                  textDecorationLine="underline"
+                  onPress={() => {
+                    openBrowserAsync(`https://li.fi/`).catch(reportError);
+                  }}
+                >
+                  LI.FI
                 </Text>
-              </XStack>
-            </YStack>
-          )}
-          <XStack gap="$s4" alignItems="flex-start" paddingTop="$s3" flexWrap="wrap">
-            <Text caption2 color="$interactiveOnDisabled" textAlign="justify">
-              Swap functionality is provided via&nbsp;
-              <Text
-                cursor="pointer"
-                caption2
-                color="$interactiveOnDisabled"
-                textDecorationLine="underline"
-                onPress={() => {
-                  openBrowserAsync(`https://li.fi/`).catch(reportError);
-                }}
-              >
-                LI.FI
+                &nbsp; and executed on decentralized networks. Availability and pricing depend on network conditions and
+                third-party protocols.
               </Text>
-              &nbsp; and executed on decentralized networks. Availability and pricing depend on network conditions and
-              third-party protocols.
-            </Text>
-          </XStack>
+            </XStack>
+          </YStack>
           <Button
             onPress={handleSwap}
             contained
@@ -562,8 +563,7 @@ export default function Swaps() {
     };
     if (isSwapping) return <Pending {...properties} />;
     if (isSwapSuccess) return <Success {...properties} />;
-    if (simulationError) return <Failure {...properties} />;
-    return null;
+    return <Failure {...properties} />;
   }
 }
 
