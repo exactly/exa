@@ -2,6 +2,7 @@ import { ArrowLeft, ArrowRight, CircleHelp } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigation } from "expo-router";
 import React, { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { ScrollView, YStack } from "tamagui";
 
@@ -21,6 +22,7 @@ import View from "../shared/View";
 export default function Installments() {
   const navigation = useNavigation<AppNavigationProperties>();
   const { presentArticle } = useIntercom();
+  const { t } = useTranslation();
   const { address } = useAccount();
   const { data: loan } = useQuery<Loan>({ queryKey: ["loan"], enabled: !!address });
   const disabled = !loan?.installments;
@@ -65,7 +67,7 @@ export default function Installments() {
             <YStack gap="$s6">
               <YStack gap="$s4_5">
                 <Text primary emphasized body>
-                  Select your funding installment plan
+                  {t("Select your funding installment plan")}
                 </Text>
                 {loan?.market && loan.amount && (
                   <InstallmentSelector
@@ -91,7 +93,7 @@ export default function Installments() {
           primary
           disabled={disabled}
         >
-          <Button.Text>Continue</Button.Text>
+          <Button.Text>{t("Continue")}</Button.Text>
           <Button.Icon>
             <ArrowRight />
           </Button.Icon>

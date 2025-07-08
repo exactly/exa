@@ -2,6 +2,7 @@ import { WAD } from "@exactly/lib";
 import type { Token } from "@lifi/sdk";
 import { useForm } from "@tanstack/react-form";
 import React, { useCallback, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Image } from "react-native";
 import { XStack, YStack } from "tamagui";
 import { pipe, string, nonEmpty } from "valibot";
@@ -46,6 +47,7 @@ export default function TokenInput({
   chainLogoUri?: string;
 }) {
   const { Field, setFieldValue, getFieldValue } = useForm({ defaultValues: { amountInput: "" } });
+  const { t } = useTranslation();
 
   const valueUSD =
     amount && token ? Number(formatUnits((amount * parseUnits(token.priceUSD, 18)) / WAD, token.decimals)) : 0;
@@ -111,7 +113,7 @@ export default function TokenInput({
           pressStyle={{ opacity: 0.85 }} // eslint-disable-line react-native/no-inline-styles
         >
           <Text emphasized footnote color="$interactiveOnBaseBrandSoft">
-            MAX
+            {t("MAX")}
           </Text>
         </View>
       </XStack>
@@ -196,11 +198,13 @@ export default function TokenInput({
                   )}
                   {token ? (
                     <Text footnote color="$uiNeutralSecondary">
-                      {`Balance: ${balanceUSD.toLocaleString(undefined, {
-                        style: "currency",
-                        currency: "USD",
-                        currencyDisplay: "narrowSymbol",
-                      })}`}
+                      {t("Balance: {{value}}", {
+                        value: balanceUSD.toLocaleString(undefined, {
+                          style: "currency",
+                          currency: "USD",
+                          currencyDisplay: "narrowSymbol",
+                        }),
+                      })}
                     </Text>
                   ) : null}
                 </XStack>

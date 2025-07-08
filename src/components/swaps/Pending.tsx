@@ -2,6 +2,7 @@ import type { Token } from "@lifi/sdk";
 import { ArrowDown, X } from "@tamagui/lucide-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
+import { Trans } from "react-i18next";
 import { Image, Pressable } from "react-native";
 import { ScrollView, Square, styled, useTheme, XStack, YStack } from "tamagui";
 import { formatUnits } from "viem";
@@ -63,10 +64,10 @@ export default function Pending({
                 </XStack>
                 <YStack gap="$s4_5" justifyContent="center" alignItems="center">
                   <Text secondary body>
-                    Processing{" "}
-                    <Text secondary body emphasized>
-                      swap request
-                    </Text>
+                    <Trans
+                      i18nKey="Processing <em>swap request</em>"
+                      components={{ em: <Text secondary body emphasized /> }}
+                    />
                   </Text>
                   <Text title primary color="$uiNeutralPrimary">
                     {fromUsdAmount.toLocaleString(undefined, {

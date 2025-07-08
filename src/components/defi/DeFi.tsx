@@ -2,6 +2,7 @@ import { CircleHelp, Link } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigation } from "expo-router";
 import React, { useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import type { RefreshControl } from "react-native";
 import { Pressable } from "react-native";
 import { ScrollView, useTheme, XStack, YStack } from "tamagui";
@@ -26,6 +27,7 @@ export default function DeFi() {
   const theme = useTheme();
   const openBrowser = useOpenBrowser();
   const navigation = useNavigation<AppNavigationProperties>();
+  const { t } = useTranslation();
   const { data: shown } = useQuery<boolean>({ queryKey: ["settings", "defi-intro-shown"] });
   const { data: fundingConnected } = useQuery<boolean>({ queryKey: ["defi", "usdc-funding-connected"] });
   const { data: lifiConnected } = useQuery<boolean>({ queryKey: ["defi", "lifi-connected"] });
@@ -42,7 +44,7 @@ export default function DeFi() {
         <YStack gap="$s4_5" paddingHorizontal="$s4" paddingVertical="$s3">
           <XStack justifyContent="space-between" alignItems="center">
             <Text emphasized title3>
-              DeFi
+              {t("DeFi")}
             </Text>
             <Pressable
               onPress={() => {
@@ -53,8 +55,8 @@ export default function DeFi() {
             </Pressable>
           </XStack>
           <DeFiServiceButton
-            title="USDC funding"
-            description="Connect your wallet to Exactly Protocol"
+            title={t("USDC funding")}
+            description={t("Connect your wallet to Exactly Protocol")}
             connected={fundingConnected ?? false}
             onPress={() => {
               if (fundingConnected) {
@@ -70,8 +72,8 @@ export default function DeFi() {
           />
           {bytecode && (
             <DeFiServiceButton
-              title="Swap tokens"
-              description="Connect your wallet to LI.FI"
+              title={t("Swap tokens")}
+              description={t("Connect your wallet to LI.FI")}
               connected={lifiConnected ?? false}
               onPress={() => {
                 if (lifiConnected) {
@@ -105,39 +107,46 @@ export default function DeFi() {
         onClose={() => {
           setFundingSheetOpen(false);
         }}
-        title="Connect to Exactly Protocol to access USDC funding"
+        title={t("Connect to Exactly Protocol to access USDC funding")}
         disclaimer={
           <Text color="$uiNeutralPlaceholder" caption2 flex={1}>
-            USDC funding service provided by&nbsp;
-            <Text
-              color="$interactiveTextBrandDefault"
-              caption2
-              cursor="pointer"
-              onPress={() => {
-                openBrowser("https://exact.ly/").catch(reportError);
+            <Trans
+              i18nKey="USDC funding service provided by <provider>Exactly Protocol</provider>, executed on decentralized networks. Prices depend on network conditions and third-party protocols."
+              components={{
+                provider: (
+                  <Text
+                    color="$interactiveTextBrandDefault"
+                    caption2
+                    cursor="pointer"
+                    onPress={() => {
+                      openBrowser("https://exact.ly/").catch(reportError);
+                    }}
+                  />
+                ),
               }}
-            >
-              Exactly Protocol
-            </Text>
-            , executed on decentralized networks. Pricing depends on network conditions and third-party protocols.
+            />
           </Text>
         }
         terms={
           <XStack alignItems="center" cursor="pointer">
             <Text caption secondary>
-              Accept Exactly Protocol&apos;s&nbsp;
-              <Text
-                color="$interactiveTextBrandDefault"
-                onPress={() => {
-                  openBrowser("https://docs.exact.ly/legal/terms-and-conditions-of-use").catch(reportError);
+              <Trans
+                i18nKey="I accept the <link>Terms and Conditions</link> of Exactly Protocol."
+                components={{
+                  link: (
+                    <Text
+                      color="$interactiveTextBrandDefault"
+                      onPress={() => {
+                        openBrowser("https://docs.exact.ly/legal/terms-and-conditions-of-use").catch(reportError);
+                      }}
+                    />
+                  ),
                 }}
-              >
-                terms & conditions
-              </Text>
+              />
             </Text>
           </XStack>
         }
-        actionText="Connect wallet to Exactly Protocol"
+        actionText={t("Connect wallet to Exactly Protocol")}
         onActionPress={() => {
           setFundingSheetOpen(false);
           queryClient.setQueryData(["defi", "usdc-funding-connected"], true);
@@ -149,37 +158,43 @@ export default function DeFi() {
         onClose={() => {
           setLifiSheetOpen(false);
         }}
-        title="Connect to LI.FI to swap tokens"
-        actionText="Connect wallet to LI.FI"
+        title={t("Connect to LI.FI to swap tokens")}
+        actionText={t("Connect wallet to LI.FI")}
         disclaimer={
           <Text color="$uiNeutralPlaceholder" caption2 flex={1}>
-            Swap service provided by&nbsp;
-            <Text
-              color="$interactiveTextBrandDefault"
-              caption2
-              cursor="pointer"
-              onPress={() => {
-                openBrowser("https://li.fi/").catch(reportError);
+            <Trans
+              i18nKey="Swap service provided by <provider>LI.FI</provider>, executed on decentralized networks. Availability and pricing depend on network conditions and third-party protocols."
+              components={{
+                provider: (
+                  <Text
+                    color="$interactiveTextBrandDefault"
+                    caption2
+                    cursor="pointer"
+                    onPress={() => {
+                      openBrowser("https://li.fi/").catch(reportError);
+                    }}
+                  />
+                ),
               }}
-            >
-              LI.FI
-            </Text>
-            , executed on decentralized networks. Availability and pricing depend on network conditions and third-party
-            protocols.
+            />
           </Text>
         }
         terms={
           <XStack alignItems="center" cursor="pointer">
             <Text caption secondary>
-              Accept LI.FI&apos;s&nbsp;
-              <Text
-                color="$interactiveTextBrandDefault"
-                onPress={() => {
-                  openBrowser("https://li.fi/legal/terms-and-conditions/").catch(reportError);
+              <Trans
+                i18nKey="I accept the <link>Terms and Conditions</link> of LI.FI."
+                components={{
+                  link: (
+                    <Text
+                      color="$interactiveTextBrandDefault"
+                      onPress={() => {
+                        openBrowser("https://li.fi/legal/terms-and-conditions/").catch(reportError);
+                      }}
+                    />
+                  ),
                 }}
-              >
-                terms & conditions
-              </Text>
+              />
             </Text>
           </XStack>
         }
@@ -230,6 +245,7 @@ function DeFiServiceButton({
   onPress: () => void;
   onActionPress: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <XStack
       borderWidth={1}
@@ -280,7 +296,7 @@ function DeFiServiceButton({
               emphasized
               textAlign="center"
             >
-              Disconnect
+              {t("Disconnect")}
             </Text>
           </XStack>
         ) : (

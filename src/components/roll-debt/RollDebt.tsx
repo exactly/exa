@@ -6,6 +6,7 @@ import { useToastController } from "@tamagui/toast";
 import { format } from "date-fns";
 import { useNavigation, useLocalSearchParams } from "expo-router";
 import React, { useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
@@ -199,6 +200,7 @@ function RolloverButton({
     position: { principal: bigint; fee: bigint };
   };
 }) {
+  const { t } = useTranslation();
   const { address } = useAccount();
   const navigation = useNavigation<AppNavigationProperties>();
   const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
@@ -249,7 +251,7 @@ function RolloverButton({
   } = useWriteContract({
     mutation: {
       onSuccess: async () => {
-        toast.show("Processing rollover", {
+        toast.show(t("Processing rollover"), {
           native: true,
           duration: 1000,
           burntOptions: { haptic: "success", preset: "done" },
@@ -258,7 +260,7 @@ function RolloverButton({
         navigation.replace("pending-proposals/index");
       },
       onError: (error) => {
-        toast.show("Rollover failed", {
+        toast.show(t("Rollover failed"), {
           native: true,
           duration: 1000,
           burntOptions: { haptic: "error", preset: "error" },

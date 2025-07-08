@@ -2,6 +2,7 @@ import { marketUSDCAddress } from "@exactly/common/generated/chain";
 import type { Hex } from "@exactly/common/validation";
 import { useForm } from "@tanstack/react-form";
 import React, { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Separator, Slider, styled, XStack, YStack } from "tamagui";
 import { nonEmpty, pipe, string } from "valibot";
 import { formatUnits, parseUnits } from "viem";
@@ -25,6 +26,7 @@ export default function RepayAmountSelector({
   positionValue: bigint;
   repayMarket?: Hex;
 }) {
+  const { t } = useTranslation();
   const { market: exaUSDC } = useAsset(marketUSDCAddress);
   const { Field, setFieldValue } = useForm({ defaultValues: { assetInput: "" } });
   const [focused, setFocused] = useState(false);
@@ -95,7 +97,12 @@ export default function RepayAmountSelector({
     >
       <YStack gap="$s4">
         <YStack maxWidth="80%" minWidth="60%" alignSelf="center">
-          <Field name="assetInput" validators={{ onChange: pipe(string(), nonEmpty("empty amount")) }}>
+          <Field
+            name="assetInput"
+            validators={{
+              onChange: pipe(string(), nonEmpty(t("Amount is required", { defaultValue: "Amount is required" }))),
+            }}
+          >
             {({ state: { value } }) => {
               return (
                 <XStack
@@ -154,19 +161,20 @@ export default function RepayAmountSelector({
           )}
           {maxReached && (
             <Text caption color="$interactiveBaseErrorDefault">
-              Maximum balance reached
+              {t("Maximum balance reached", { defaultValue: "Maximum balance reached" })}
             </Text>
           )}
         </YStack>
         {balancerBalance && positionValue > balancerBalance && (
           <Text caption color="$uiNeutralPlaceholder">
-            Limit&nbsp;
-            {(Number(balancerBalanceUSD) / 1e18).toLocaleString(undefined, {
-              style: "currency",
-              currency: "USD",
-              currencyDisplay: "narrowSymbol",
+            {t("Limit {{amount}} per repay. Please split larger amounts into smaller payments.", {
+              amount: (Number(balancerBalanceUSD) / 1e18).toLocaleString(undefined, {
+                style: "currency",
+                currency: "USD",
+                currencyDisplay: "narrowSymbol",
+              }),
+              defaultValue: "Limit {{amount}} per repay. Please split larger amounts into smaller payments.",
             })}
-            &nbsp;per repay. Please split larger amounts into smaller payments.
           </Text>
         )}
       </YStack>

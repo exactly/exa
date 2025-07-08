@@ -15,9 +15,9 @@ import { useQuery } from "@tanstack/react-query";
 import { format, formatDistance, isAfter } from "date-fns";
 import { useNavigation, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable, StyleSheet } from "react-native";
 import { Separator, XStack, YStack } from "tamagui";
-import { titleCase } from "title-case";
 import { digits, nonEmpty, pipe, safeParse, string } from "valibot";
 import { zeroAddress } from "viem";
 import { optimismSepolia } from "viem/chains";
@@ -58,6 +58,7 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
     address,
     query: { refetchOnMount: true, enabled: !!address && !!bytecode },
   });
+  const { t } = useTranslation();
 
   const handleStatement = useCallback(() => {
     openBrowser(
@@ -77,6 +78,22 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
   const previewValue = (borrow.previewValue * usdPrice) / 10n ** BigInt(decimals);
   const positionValue = ((borrow.position.principal + borrow.position.fee) * usdPrice) / 10n ** BigInt(decimals);
   const discount = Number(WAD - (previewValue * WAD) / positionValue) / 1e18;
+  const dueDate = new Date(Number(maturity) * 1000);
+  const now = new Date();
+  const isUpcoming = isAfter(dueDate, now);
+  const timeDistance = formatDistance(isUpcoming ? now : dueDate, isUpcoming ? dueDate : now);
+  const dueStatus = isUpcoming
+    ? t("Due in {{time}}", { time: timeDistance })
+    : t("{{time}} past due", { time: timeDistance });
+  const discountPercentDisplay = (discount >= 0 ? discount : discount * -1).toLocaleString(undefined, {
+    style: "percent",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  const discountLabel =
+    discount >= 0
+      ? t("PAY NOW AND SAVE {{percent}}", { percent: discountPercentDisplay })
+      : t("DAILY PENALTIES {{percent}}", { percent: discountPercentDisplay });
   return (
     <ModalSheet
       open={open}
@@ -104,30 +121,31 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
               <YStack gap="$s7">
                 <YStack gap="$s4_5">
                   <Text primary emphasized title3>
-                    Refinance your debt
+                    {t("Refinance your debt")}
                   </Text>
                   <Text secondary subHeadline>
-                    Roll over your debt to avoid penalties and gain more time to repay. It’s a smart way to manage your
-                    cash flow and possibly reduce your rate.
+                    {t(
+                      "Roll over your debt to avoid penalties and gain more time to repay. It’s a smart way to manage your cash flow and possibly reduce your rate.",
+                    )}
                   </Text>
                 </YStack>
                 <YStack gap="$s4">
                   <XStack gap="$s3" alignItems="center" justifyContent="center">
                     <Siren strokeWidth={2.5} color="$uiBrandSecondary" />
                     <Text color="$uiBrandSecondary" emphasized headline>
-                      Avoid penalties by extending your deadline
+                      {t("Avoid penalties by extending your deadline")}
                     </Text>
                   </XStack>
                   <XStack gap="$s3" alignItems="center" justifyContent="center">
                     <CirclePercent strokeWidth={2.5} color="$uiBrandSecondary" />
                     <Text color="$uiBrandSecondary" emphasized headline>
-                      Refinance at a better rate
+                      {t("Refinance at a better rate")}
                     </Text>
                   </XStack>
                   <XStack gap="$s3" alignItems="center" justifyContent="center">
                     <Calendar strokeWidth={2.5} color="$uiBrandSecondary" />
                     <Text color="$uiBrandSecondary" emphasized headline>
-                      Get more time to repay
+                      {t("Get more time to repay")}
                     </Text>
                   </XStack>
                 </YStack>
@@ -135,7 +153,7 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
                   primary
                   onPress={() => {
                     if (!isLatestPlugin) {
-                      toast.show("Upgrade account to rollover", {
+                      toast.show(t("Upgrade account to rollover"), {
                         native: true,
                         duration: 1000,
                         burntOptions: { haptic: "error", preset: "error" },
@@ -147,7 +165,7 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
                     navigation.navigate("roll-debt", { screen: "index", params: { maturity: maturity.toString() } });
                   }}
                 >
-                  <Button.Text>Review refinance details</Button.Text>
+                  <Button.Text>{t("Review refinance details")}</Button.Text>
                   <Button.Icon>
                     <ArrowRight color="$interactiveOnBaseBrandDefault" strokeWidth={2.5} />
                   </Button.Icon>
@@ -166,19 +184,12 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
                       textAlign="center"
                       emphasized
                       subHeadline
-                      color={
-                        isAfter(new Date(Number(maturity) * 1000), new Date())
-                          ? "$uiNeutralSecondary"
-                          : "$uiErrorSecondary"
-                      }
+                      color={isUpcoming ? "$uiNeutralSecondary" : "$uiErrorSecondary"}
                     >
-                      {titleCase(
-                        isAfter(new Date(Number(maturity) * 1000), new Date())
-                          ? `Due in ${formatDistance(new Date(), new Date(Number(maturity) * 1000))}`
-                          : `${formatDistance(new Date(Number(maturity) * 1000), new Date())} past due`,
-                      )}
+                      {dueStatus}
                       <Text secondary textAlign="center" emphasized subHeadline color="$uiNeutralSecondary">
-                        &nbsp;-&nbsp;{format(new Date(Number(maturity) * 1000), "MMM dd, yyyy")}
+                        {" - "}
+                        {format(dueDate, "MMM dd, yyyy")}
                       </Text>
                     </Text>
                     <Pressable
@@ -197,11 +208,7 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
                       fontFamily="$mono"
                       fontSize={40}
                       overflow="hidden"
-                      color={
-                        isAfter(new Date(Number(maturity) * 1000), new Date())
-                          ? "$uiNeutralPrimary"
-                          : "$uiErrorSecondary"
-                      }
+                      color={isUpcoming ? "$uiNeutralPrimary" : "$uiErrorSecondary"}
                     >
                       {(Number(previewValue) / 1e18).toLocaleString(undefined, {
                         style: "currency",
@@ -228,12 +235,7 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
                         }
                         color={discount >= 0 ? "$uiSuccessSecondary" : "$uiErrorSecondary"}
                       >
-                        {discount >= 0 ? "PAY NOW AND SAVE " : "DAILY PENALTIES "}
-                        {(discount >= 0 ? discount : discount * -1).toLocaleString(undefined, {
-                          style: "percent",
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
+                        {discountLabel}
                       </Text>
                     )}
                   </View>
@@ -247,7 +249,7 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
                           navigation.navigate("pay", { screen: "index", params: { maturity: maturity.toString() } });
                         }}
                       >
-                        <Button.Text>Repay</Button.Text>
+                        <Button.Text>{t("Repay")}</Button.Text>
                         <Button.Icon>
                           <Coins color="$interactiveOnBaseBrandDefault" strokeWidth={2.5} />
                         </Button.Icon>
@@ -261,7 +263,7 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
                             return;
                           }
                           if (!isLatestPlugin) {
-                            toast.show("Upgrade account to rollover", {
+                            toast.show(t("Upgrade account to rollover"), {
                               native: true,
                               duration: 1000,
                               burntOptions: { haptic: "error", preset: "error" },
@@ -275,7 +277,7 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
                           });
                         }}
                       >
-                        <Button.Text>Rollover</Button.Text>
+                        <Button.Text>{t("Rollover")}</Button.Text>
                         <Button.Icon>
                           <RefreshCw color="$interactiveOnBaseBrandSoft" strokeWidth={2.5} />
                         </Button.Icon>
@@ -290,7 +292,7 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
                         flex={1}
                       >
                         <Button.Text emphasized footnote textTransform="uppercase">
-                          View Statement
+                          {t("View Statement")}
                         </Button.Text>
                         <Button.Icon>
                           <ChevronRight color="$interactiveOnBaseBrandSoft" strokeWidth={2.5} />

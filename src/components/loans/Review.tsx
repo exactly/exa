@@ -154,6 +154,11 @@ export default function Review() {
   const success = isProposingBorrowInstallmentsSuccess;
   const error = !!proposeBorrowInstallmentsError;
   const disabled = pending;
+  const statusMessage = error
+    ? t("Funding failed")
+    : success
+      ? t("Funding request sent")
+      : t("Funding request processing");
 
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
     address: address ?? zeroAddress,
@@ -200,11 +205,11 @@ export default function Review() {
           <YStack padding="$s4" gap="$s4" flex={1} justifyContent="space-between">
             <YStack gap="$s4">
               <Text primary emphasized body>
-                Review terms
+                {t("Review terms")}
               </Text>
               <XStack gap="$s4" alignItems="center" justifyContent="space-between">
                 <Text footnote color="$uiNeutralSecondary">
-                  {`You ${receiver === address ? "receive" : "send"}`}
+                  {receiver === address ? t("You receive") : t("You send")}
                 </Text>
                 <XStack alignItems="center" gap="$s2">
                   <AssetLogo source={{ uri: assetLogos[symbol as keyof typeof assetLogos] }} width={16} height={16} />
@@ -218,11 +223,13 @@ export default function Review() {
               </XStack>
               <XStack gap="$s4" alignItems="center" justifyContent="space-between">
                 <Text footnote color="$uiNeutralSecondary">
-                  {`Fixed ${rate.toLocaleString(undefined, {
-                    style: "percent",
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })} APR`}
+                  {t("Fixed {{rate}} APR", {
+                    rate: rate.toLocaleString(undefined, {
+                      style: "percent",
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    }),
+                  })}
                 </Text>
                 <XStack alignItems="center" gap="$s2">
                   <AssetLogo source={{ uri: assetLogos[symbol as keyof typeof assetLogos] }} width={16} height={16} />
@@ -259,7 +266,7 @@ export default function Review() {
                 {singleInstallment ? null : (
                   <XStack gap="$s4" alignItems="center" justifyContent="flex-end">
                     <Text footnote color="$uiNeutralSecondary">
-                      each
+                      {t("each")}
                     </Text>
                   </XStack>
                 )}
@@ -267,7 +274,7 @@ export default function Review() {
               {singleInstallment ? null : (
                 <XStack gap="$s4" alignItems="center" justifyContent="space-between">
                   <Text footnote color="$uiNeutralSecondary">
-                    Total
+                    {t("Total")}
                   </Text>
                   <XStack alignItems="center" gap="$s2">
                     <AssetLogo source={{ uri: assetLogos[symbol as keyof typeof assetLogos] }} width={16} height={16} />
@@ -283,7 +290,7 @@ export default function Review() {
               <Separator height={1} borderColor="$borderNeutralSoft" />
               <XStack gap="$s4" alignItems="center" justifyContent="space-between">
                 <Text footnote color="$uiNeutralSecondary">
-                  {`${singleInstallment ? "Installment" : "First installment"} due`}
+                  {singleInstallment ? t("Installment due") : t("First installment due")}
                 </Text>
                 <Text headline color="$uiNeutralPrimary">
                   {format(new Date(Number(maturity) * 1000), "MMM d, yyyy")}
@@ -293,11 +300,11 @@ export default function Review() {
                 <YStack>
                   <XStack gap="$s4" justifyContent="space-between">
                     <Text footnote color="$uiNeutralSecondary">
-                      Following installments due
+                      {t("Following installments due")}
                     </Text>
                     <YStack alignItems="flex-end">
                       <Text headline color="$uiNeutralPrimary">
-                        Every 28 days
+                        {t("Every 28 days")}
                       </Text>
                     </YStack>
                   </XStack>
@@ -310,7 +317,7 @@ export default function Review() {
                         setPaymentScheduleShown(true);
                       }}
                     >
-                      payment schedule
+                      {t("payment schedule")}
                     </Text>
                     <ChevronRight size={12} color="$interactiveBaseBrandDefault" strokeWidth={2} />
                   </XStack>
@@ -319,10 +326,10 @@ export default function Review() {
               <Separator height={1} borderColor="$borderNeutralSoft" />
               <XStack gap="$s4" alignItems="center" justifyContent="space-between">
                 <Text footnote color="$uiNeutralSecondary">
-                  Receiving address
+                  {t("Receiving address")}
                 </Text>
                 <Text headline color="$uiNeutralPrimary">
-                  {receiver === address ? "Your Exa account" : shortenHex(receiver ?? "", 6, 8)}
+                  {receiver === address ? t("Your Exa account") : shortenHex(receiver ?? "", 6, 8)}
                 </Text>
               </XStack>
             </YStack>
@@ -335,7 +342,11 @@ export default function Review() {
                 loading={pending}
                 disabled={disabled}
               >
-                <Button.Text>{`Confirm and ${receiver === address ? "receive" : "borrow"} ${symbol}`}</Button.Text>
+                <Button.Text>
+                  {receiver === address
+                    ? t("Confirm and receive {{symbol}}", { symbol })
+                    : t("Confirm and borrow {{symbol}}", { symbol })}
+                </Button.Text>
                 <Button.Icon>
                   <ArrowRight />
                 </Button.Icon>
@@ -392,9 +403,9 @@ export default function Review() {
           </XStack>
           <YStack gap="$s4_5" justifyContent="center" alignItems="center">
             <Text secondary body>
-              {!error && !success && "Processing"}&nbsp;
+              {!error && !success ? `${t("Processing")} ` : ""}
               <Text emphasized primary body>
-                Funding {error ? "failed" : success ? "request sent" : null}
+                {statusMessage}
               </Text>
             </Text>
             <XStack gap="$s2" alignItems="center" justifyContent="center">
@@ -418,7 +429,7 @@ export default function Review() {
                 navigation.replace("pending-proposals/index");
               }}
             >
-              <Button.Text>Go to Requests</Button.Text>
+              <Button.Text>{t("Go to Requests")}</Button.Text>
               <Button.Icon>
                 <ArrowRight />
               </Button.Icon>
@@ -439,7 +450,7 @@ export default function Review() {
               navigation.replace("(home)", { screen: "loans" });
             }}
           >
-            {error ? "Go back" : "Close"}
+            {error ? t("Go back") : t("Close")}
           </Text>
         </YStack>
       )}

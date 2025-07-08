@@ -1,5 +1,6 @@
 import { Skeleton } from "moti/skeleton";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { View, XStack, YStack } from "tamagui";
 
 import Text from "../shared/Text";
@@ -14,6 +15,7 @@ export default function SpendingLimit({
   limit?: number;
   totalSpent: number;
 }) {
+  const { t } = useTranslation();
   return (
     <YStack justifyContent="flex-start" paddingHorizontal="$s3">
       <XStack flexDirection="row" flex={1} height={46} alignItems="center" justifyContent="space-between">
@@ -49,7 +51,7 @@ export default function SpendingLimit({
                 })}
               </Text>
               <Text callout sensitive color="$uiBrandSecondary">
-                left
+                {t("left")}
               </Text>
             </>
           ) : (

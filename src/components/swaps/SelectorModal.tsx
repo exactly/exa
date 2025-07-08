@@ -1,6 +1,7 @@
 import type { Token } from "@lifi/sdk";
 import { Search } from "@tamagui/lucide-icons";
 import React, { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { FlatList, Image, Pressable } from "react-native";
 import { XStack, YStack, ButtonIcon } from "tamagui";
 
@@ -12,23 +13,6 @@ import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 import View from "../shared/View";
-
-interface TokenSelectModalProperties {
-  open: boolean;
-  tokens: Token[];
-  selectedToken?: Token | null;
-  onSelect: (token: Token) => void;
-  onClose: () => void;
-  isLoading?: boolean;
-  title?: string;
-  withBalanceOnly?: boolean;
-}
-
-interface TokenListItemProperties {
-  token: Token;
-  isSelected: boolean;
-  onPress: () => void;
-}
 
 const formatUSDValue = (value: number) => {
   return value.toLocaleString(undefined, {
@@ -46,7 +30,7 @@ const formatTokenAmount = (amount: bigint, decimals: number) => {
   });
 };
 
-function TokenListItem({ token, isSelected, onPress }: TokenListItemProperties) {
+function TokenListItem({ token, isSelected, onPress }: { token: Token; isSelected: boolean; onPress: () => void }) {
   const { accountAssets } = useAccountAssets();
   const matchingAsset = accountAssets.find(
     (asset) =>
@@ -113,11 +97,21 @@ export default function TokenSelectModal({
   onSelect,
   onClose,
   isLoading = false,
-  title = "Select Token",
+  title,
   withBalanceOnly = false,
-}: TokenSelectModalProperties) {
+}: {
+  open: boolean;
+  tokens: Token[];
+  selectedToken?: Token | null;
+  onSelect: (token: Token) => void;
+  onClose: () => void;
+  isLoading?: boolean;
+  title?: string;
+  withBalanceOnly?: boolean;
+}) {
   const [searchQuery, setSearchQuery] = useState("");
   const { accountAssets } = useAccountAssets();
+  const { t } = useTranslation();
 
   const filteredTokens = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
@@ -172,14 +166,14 @@ export default function TokenSelectModal({
         <View padded paddingTop="$s6" fullScreen flex={1}>
           <View paddingBottom="$s4">
             <Text fontSize={20} fontWeight="bold" textAlign="center">
-              {title}
+              {title ?? t("Select Token")}
             </Text>
           </View>
           <View paddingBottom="$s4" flexDirection="row">
             <Input
               neutral
               flex={1}
-              placeholder="Search by token name or address"
+              placeholder={t("Search by token name or address")}
               placeholderTextColor="$interactiveTextDisabled"
               borderColor="$uiNeutralTertiary"
               borderRightColor="transparent"
@@ -213,7 +207,7 @@ export default function TokenSelectModal({
                 ListEmptyComponent={() => (
                   <View padding="$s6" alignItems="center">
                     <Text subHeadline color="$uiNeutralSecondary">
-                      {searchQuery ? "No tokens found" : "No tokens available"}
+                      {searchQuery ? t("No tokens found") : t("No tokens available")}
                     </Text>
                   </View>
                 )}

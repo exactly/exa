@@ -1,5 +1,6 @@
 import { CircleDollarSign, Coins } from "@tamagui/lucide-icons";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { styled, Switch } from "tamagui";
 
@@ -19,13 +20,14 @@ const StyledAction = styled(View, {
 });
 
 export default function PaymentsActions() {
+  const { t } = useTranslation();
   return (
     <View flexDirection="row" justifyContent="space-between" gap={10}>
       <StyledAction>
         <Pressable>
           <View gap={10}>
             <Coins size={24} color="$backgroundBrand" fontWeight="bold" />
-            <Text fontSize={15}>Auto-pay</Text>
+            <Text fontSize={15}>{t("Auto-pay", { defaultValue: "Auto-pay" })}</Text>
             <Switch disabled backgroundColor="$backgroundMild" borderColor="$borderNeutralSoft">
               <Switch.Thumb animation="quicker" backgroundColor="$backgroundSoft" shadowColor="$uiNeutralPrimary" />
             </Switch>
@@ -37,10 +39,10 @@ export default function PaymentsActions() {
           <View gap={10}>
             <CircleDollarSign size={24} color="$interactiveDisabled" fontWeight="bold" />
             <Text fontSize={15} color="$interactiveDisabled">
-              Collateral
+              {t("Collateral", { defaultValue: "Collateral" })}
             </Text>
             <Text color="$interactiveDisabled" fontSize={15} fontWeight="bold">
-              Manage
+              {t("Manage", { defaultValue: "Manage" })}
             </Text>
           </View>
         </Pressable>
