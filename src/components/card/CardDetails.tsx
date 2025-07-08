@@ -3,6 +3,7 @@ import { useToastController } from "@tamagui/toast";
 import { useQuery } from "@tanstack/react-query";
 import { setStringAsync } from "expo-clipboard";
 import React, { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable, StyleSheet, useColorScheme } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 
@@ -27,6 +28,7 @@ export default function CardDetails({ open, onClose }: { open: boolean; onClose:
   const { data: alertShown } = useQuery({ queryKey: ["settings", "alertShown"] });
   const { data: card, isPending } = useQuery({ queryKey: ["card", "details"], queryFn: getCard });
   const [details, setDetails] = useState({ pan: "", cvc: "" });
+  const { t } = useTranslation();
   useEffect(() => {
     if (card) {
       Promise.all([
@@ -85,7 +87,7 @@ export default function CardDetails({ open, onClose }: { open: boolean; onClose:
                       strokeWidth={2.5}
                       onPress={() => {
                         setStringAsync(details.pan).catch(reportError);
-                        toast.show("Card number copied!", {
+                        toast.show(t("Card number copied!"), {
                           native: true,
                           duration: 1000,
                           burntOptions: { haptic: "success" },
@@ -96,7 +98,7 @@ export default function CardDetails({ open, onClose }: { open: boolean; onClose:
                   <XStack gap="$s5" alignItems="center" flexWrap="wrap">
                     <XStack alignItems="center" gap="$s3">
                       <Text caption color="$uiNeutralInverseSecondary">
-                        Expires
+                        {t("Expires")}
                       </Text>
                       <Text headline letterSpacing={2} fontFamily="$mono" color="$uiNeutralInversePrimary">
                         {`${card.expirationMonth}/${card.expirationYear}`}
@@ -104,7 +106,8 @@ export default function CardDetails({ open, onClose }: { open: boolean; onClose:
                     </XStack>
                     <XStack alignItems="center" gap="$s3">
                       <Text caption color="$uiNeutralInverseSecondary">
-                        CVV&nbsp;
+                        {t("CVV")}
+                        {"\u00A0"}
                       </Text>
                       <Text headline letterSpacing={2} fontFamily="$mono" color="$uiNeutralInversePrimary">
                         {details.cvc}
@@ -120,7 +123,7 @@ export default function CardDetails({ open, onClose }: { open: boolean; onClose:
               ) : null}
               {card && alertShown && (
                 <DismissableAlert
-                  text="Manually add your card to Apple Pay & Google Pay to make contactless payments."
+                  text={t("Manually add your card to Apple Pay & Google Pay to make contactless payments.")}
                   onDismiss={() => {
                     queryClient.setQueryData(["settings", "alertShown"], false);
                   }}
@@ -128,7 +131,7 @@ export default function CardDetails({ open, onClose }: { open: boolean; onClose:
               )}
               <Pressable onPress={onClose} style={styles.close} hitSlop={20}>
                 <Text emphasized footnote color="$interactiveTextBrandDefault">
-                  Close
+                  {t("Close")}
                 </Text>
               </Pressable>
             </View>

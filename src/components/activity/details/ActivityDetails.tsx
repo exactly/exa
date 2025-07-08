@@ -2,6 +2,7 @@ import { useNavigation } from "@react-navigation/native";
 import { ArrowLeft, Headphones } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { XStack } from "tamagui";
 
@@ -20,6 +21,7 @@ export default function ActivityDetails() {
   const navigation = useNavigation<AppNavigationProperties>();
   const { data: item } = useQuery<ActivityItem>({ queryKey: ["activity", "details"] });
   const { present } = useIntercom();
+  const { t } = useTranslation();
   if (!item) return null;
   return (
     <GradientScrollView variant="neutral" stickyHeader>
@@ -55,7 +57,7 @@ export default function ActivityDetails() {
         color="$interactiveBaseBrandDefault"
         iconAfter={<Headphones color="$interactiveBaseBrandDefault" />}
       >
-        Contact support
+        {t("Contact support")}
       </ActionButton>
     </GradientScrollView>
   );

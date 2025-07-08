@@ -4,6 +4,7 @@ import { ArrowLeft, User, UserMinus, UserPlus } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useLocalSearchParams, useNavigation } from "expo-router";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Alert, Pressable } from "react-native";
 import { Avatar, ScrollView, XStack } from "tamagui";
 import { parse } from "valibot";
@@ -20,6 +21,7 @@ export default function AssetSelection() {
   const navigation = useNavigation<AppNavigationProperties>();
   const { receiver: receiverAddress } = useLocalSearchParams();
   const receiver = parse(Address, receiverAddress);
+  const { t } = useTranslation();
 
   const { data: savedContacts } = useQuery<{ address: Address; ens: string }[] | undefined>({
     queryKey: ["contacts", "saved"],
@@ -52,7 +54,7 @@ export default function AssetSelection() {
             </Pressable>
           </View>
           <Text emphasized color="$uiNeutralPrimary" fontSize={15}>
-            Choose asset
+            {t("Choose asset")}
           </Text>
         </View>
         <ScrollView flex={1}>
@@ -70,7 +72,7 @@ export default function AssetSelection() {
                   <User size={20} color="$interactiveOnBaseBrandDefault" />
                 </Avatar>
                 <Text emphasized callout color="$uiNeutralSecondary">
-                  To:
+                  {t("To")}:
                 </Text>
                 <Text callout color="$uiNeutralPrimary" fontFamily="$mono">
                   {shortenHex(receiver)}
@@ -87,16 +89,16 @@ export default function AssetSelection() {
                         return old?.filter((contact) => contact.address !== receiver);
                       } else {
                         return old && old.length > 0
-                          ? [...old, { name: "New Contact", address: receiver, ens: "" }]
-                          : [{ name: "New Contact", address: receiver, ens: "" }];
+                          ? [...old, { name: t("New Contact"), address: receiver, ens: "" }]
+                          : [{ name: t("New Contact"), address: receiver, ens: "" }];
                       }
                     },
                   );
                   Alert.alert(
-                    hasContact ? "Contact removed" : "Contact added",
+                    hasContact ? t("Contact removed") : t("Contact added"),
                     hasContact
-                      ? "This address has been removed from your contacts list."
-                      : "This address has been added to your contacts list.",
+                      ? t("This address has been removed from your contacts list.")
+                      : t("This address has been added to your contacts list."),
                   );
                 }}
               >

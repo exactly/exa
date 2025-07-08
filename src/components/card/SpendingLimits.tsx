@@ -1,5 +1,6 @@
 import { Plus } from "@tamagui/lucide-icons";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable, StyleSheet } from "react-native";
 import { ScrollView, YStack } from "tamagui";
 
@@ -24,8 +25,9 @@ export default function SpendingLimits({
   limit?: number;
 }) {
   const { newMessage } = useIntercom();
+  const { t } = useTranslation();
   function handleSupport() {
-    newMessage("I want to increase my spending limit").catch(reportError);
+    newMessage(t("I want to increase my spending limit")).catch(reportError);
   }
   return (
     <ModalSheet open={open} onClose={onClose}>
@@ -36,24 +38,24 @@ export default function SpendingLimits({
               <YStack gap="$s4_5">
                 <YStack gap="$s4">
                   <Text emphasized headline primary>
-                    Spending limits
+                    {t("Spending limits")}
                   </Text>
                   <Text color="$uiNeutralSecondary" subHeadline>
-                    Track your spending and see how much you&apos;ve spent with your Exa Card so far.
+                    {t("Track your spending and see how much you’ve spent with your Exa Card so far.")}
                   </Text>
                 </YStack>
                 <YStack paddingBottom="$s4">
-                  <SpendingLimit title="Weekly" limit={limit} totalSpent={totalSpent} />
+                  <SpendingLimit title={t("Weekly")} limit={limit} totalSpent={totalSpent} />
                 </YStack>
                 <Button onPress={handleSupport} primary>
-                  <Button.Text>Increase spending limit</Button.Text>
+                  <Button.Text>{t("Increase spending limit")}</Button.Text>
                   <Button.Icon>
                     <Plus />
                   </Button.Icon>
                 </Button>
                 <Pressable onPress={onClose} style={styles.close} hitSlop={20}>
                   <Text emphasized footnote color="$interactiveTextBrandDefault">
-                    Close
+                    {t("Close")}
                   </Text>
                 </Pressable>
               </YStack>

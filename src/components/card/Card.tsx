@@ -4,7 +4,8 @@ import { ChevronRight, CircleHelp, CreditCard, DollarSign, Eye, EyeOff, Hash, Sn
 import { useToastController } from "@tamagui/toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigation } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { Pressable, RefreshControl } from "react-native";
 import { ScrollView, Separator, Spinner, Square, Switch, useTheme, XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
@@ -41,7 +42,11 @@ export default function Card() {
   const theme = useTheme();
   const toast = useToastController();
   const openBrowser = useOpenBrowser();
+  const { t } = useTranslation();
   const { presentArticle } = useIntercom();
+  const handleOpenProtocol = useCallback(() => {
+    openBrowser("https://exact.ly/").catch(reportError);
+  }, [openBrowser]);
   const [displayPIN, setDisplayPIN] = useState(false);
   const navigation = useNavigation<AppNavigationProperties>();
   const [disclaimerShown, setDisclaimerShown] = useState(false);
@@ -153,7 +158,7 @@ export default function Card() {
           await createInquiry(credential, navigation);
         }
         reportError(error);
-        toast.show("An error occurred. Please try again later.", {
+        toast.show(t("An error occurred. Please try again later."), {
           native: true,
           duration: 1000,
           burntOptions: { haptic: "error", preset: "error" },
@@ -183,7 +188,7 @@ export default function Card() {
       await createCard();
     },
     onSuccess: async () => {
-      toast.show("Card activated!", {
+      toast.show(t("Card activated!"), {
         native: true,
         duration: 1000,
         burntOptions: { haptic: "success" },
@@ -194,7 +199,7 @@ export default function Card() {
     onError: async (error: Error) => {
       if (!(error instanceof APIError)) {
         reportError(error);
-        toast.show("Error activating card", {
+        toast.show(t("Error activating card"), {
           native: true,
           duration: 1000,
           burntOptions: { haptic: "error", preset: "error" },
@@ -207,7 +212,7 @@ export default function Card() {
         return;
       }
       reportError(error);
-      toast.show("Error activating card", {
+      toast.show(t("Error activating card"), {
         native: true,
         duration: 1000,
         burntOptions: { haptic: "error", preset: "error" },
@@ -245,7 +250,7 @@ export default function Card() {
               <View alignItems="center" gap="$s4" width="100%" backgroundColor="$backgroundSoft" padded>
                 <XStack gap={10} justifyContent="space-between" alignItems="center" width="100%">
                   <Text fontSize={20} fontWeight="bold">
-                    My Exa Card*
+                    {t("My Exa Card*")}
                   </Text>
                   <View display="flex" flexDirection="row" alignItems="center" gap={16}>
                     <Pressable
@@ -272,8 +277,8 @@ export default function Card() {
                 </XStack>
                 {(usdBalance === 0n || KYCStatus !== "ok") && (
                   <InfoAlert
-                    title="Your card is awaiting activation. Follow the steps to enable it."
-                    actionText="Get started"
+                    title={t("Your card is awaiting activation. Follow the steps to enable it.")}
+                    actionText={t("Get started")}
                     onPress={() => {
                       navigation.navigate("getting-started");
                     }}
@@ -316,7 +321,7 @@ export default function Card() {
                             )}
                           </Square>
                           <Text subHeadline color="$uiNeutralPrimary">
-                            {displayStatus === "FROZEN" ? "Unfreeze card" : "Freeze card"}
+                            {displayStatus === "FROZEN" ? t("Unfreeze card") : t("Freeze card")}
                           </Text>
                         </XStack>
                         <Switch
@@ -354,7 +359,7 @@ export default function Card() {
                     <XStack gap="$s3" justifyContent="flex-start" alignItems="center">
                       <CreditCard size={24} color="$interactiveBaseBrandDefault" fontWeight="bold" />
                       <Text subHeadline color="$uiNeutralPrimary">
-                        Card details
+                        {t("Card details")}
                       </Text>
                     </XStack>
                     <ChevronRight color="$uiBrandSecondary" size={24} />
@@ -376,7 +381,7 @@ export default function Card() {
                         <XStack gap="$s3" justifyContent="flex-start" alignItems="center">
                           <Hash size={24} color="$backgroundBrand" />
                           <Text subHeadline color="$uiNeutralPrimary">
-                            View PIN number
+                            {t("View PIN number")}
                           </Text>
                         </XStack>
                         <ChevronRight color="$uiBrandSecondary" size={24} />
@@ -398,7 +403,7 @@ export default function Card() {
                     <XStack gap="$s3" justifyContent="flex-start" alignItems="center">
                       <DollarSign size={24} color="$backgroundBrand" />
                       <Text subHeadline color="$uiNeutralPrimary">
-                        Weekly spending limit
+                        {t("Weekly spending limit")}
                       </Text>
                     </XStack>
                     <XStack alignItems="center">
@@ -436,43 +441,30 @@ export default function Card() {
                         💳
                       </Text>
                       <Text textAlign="center" color="$uiBrandSecondary" emphasized headline>
-                        Make your first purchase today!
+                        {t("Make your first purchase today!")}
                       </Text>
                       <Text textAlign="center" color="$uiNeutralSecondary" subHeadline>
-                        Your transactions will show up here once you start using your card.
+                        {t("Your transactions will show up here once you start using your card.")}
                       </Text>
                     </YStack>
                   }
                 />
                 <XStack gap="$s4" alignItems="flex-start" paddingTop="$s3" flexWrap="wrap">
                   <Text caption2 color="$interactiveOnDisabled" textAlign="justify">
-                    The Exa Card is issued by Third National Bank under a Visa license. Credit features are provided
-                    solely by&nbsp;
-                    <Text
-                      cursor="pointer"
-                      caption2
-                      color="$interactiveOnDisabled"
-                      textDecorationLine="underline"
-                      onPress={() => {
-                        openBrowser(`https://exact.ly/`).catch(reportError);
+                    <Trans
+                      i18nKey="The Exa Card is issued by Third National Bank under a Visa license. Credit features are provided solely by <link>Exactly Protocol</link>, a decentralized service not affiliated with Third National. Third National Bank is not responsible for any funding or credit services provided by <link>Exactly Protocol</link>."
+                      components={{
+                        link: (
+                          <Text
+                            cursor="pointer"
+                            caption2
+                            color="$interactiveOnDisabled"
+                            textDecorationLine="underline"
+                            onPress={handleOpenProtocol}
+                          />
+                        ),
                       }}
-                    >
-                      Exactly Protocol
-                    </Text>
-                    , a decentralized service not affiliated with Third National. Third National Bank is not responsible
-                    for any funding or credit services provided by&nbsp;
-                    <Text
-                      cursor="pointer"
-                      caption2
-                      color="$interactiveOnDisabled"
-                      textDecorationLine="underline"
-                      onPress={() => {
-                        openBrowser(`https://exact.ly/`).catch(reportError);
-                      }}
-                    >
-                      Exactly Protocol
-                    </Text>
-                    .
+                    />
                   </Text>
                 </XStack>
               </View>

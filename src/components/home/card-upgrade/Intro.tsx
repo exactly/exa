@@ -1,5 +1,6 @@
 import { IdCard, ArrowUpToLine, CreditCard } from "@tamagui/lucide-icons";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { StyleSheet } from "react-native";
 import { XStack, YStack } from "tamagui";
 
@@ -9,6 +10,7 @@ import Text from "../../shared/Text";
 import View from "../../shared/View";
 
 export default function Intro({ onPress }: { onPress: () => void }) {
+  const { t } = useTranslation();
   return (
     <View fullScreen flex={1} gap="$s7">
       <YStack flex={1} paddingHorizontal="$s6" gap="$s7">
@@ -20,11 +22,12 @@ export default function Intro({ onPress }: { onPress: () => void }) {
           </View>
           <YStack gap="$s5">
             <Text emphasized textAlign="center" color="$interactiveTextBrandDefault" title>
-              Upgrade to your new Exa Card
+              {t("Upgrade to your new Exa Card")}
             </Text>
             <Text color="$uiNeutralPlaceholder" footnote textAlign="center">
-              Upgrade your Exa Card in 3 steps to keep spending seamlessly. Your current card works until June 21st,
-              2025, but upgrading will be required after that.
+              {t(
+                "Upgrade your Exa Card in 3 steps to keep spending seamlessly. Your current card works until June 21st, 2025, but upgrading will be required after that.",
+              )}
             </Text>
           </YStack>
         </YStack>
@@ -32,19 +35,19 @@ export default function Intro({ onPress }: { onPress: () => void }) {
           <XStack gap="$s3" alignItems="center" justifyContent="center">
             <IdCard strokeWidth={2.5} color="$uiBrandSecondary" />
             <Text color="$uiBrandSecondary" emphasized headline>
-              Verify your identity
+              {t("Verify your identity")}
             </Text>
           </XStack>
           <XStack gap="$s3" alignItems="center" justifyContent="center">
             <ArrowUpToLine strokeWidth={2.5} color="$uiBrandSecondary" />
             <Text color="$uiBrandSecondary" emphasized headline>
-              Upgrade your account
+              {t("Upgrade your account")}
             </Text>
           </XStack>
           <XStack gap="$s3" alignItems="center" justifyContent="center">
             <CreditCard strokeWidth={2.5} color="$uiBrandSecondary" />
             <Text color="$uiBrandSecondary" emphasized headline>
-              Activate your new Exa Card
+              {t("Activate your new Exa Card")}
             </Text>
           </XStack>
         </YStack>
@@ -59,7 +62,7 @@ export default function Intro({ onPress }: { onPress: () => void }) {
           fullwidth
           iconAfter={<IdCard strokeWidth={2.5} color="$interactiveOnBaseBrandDefault" />}
         >
-          Verify your identity
+          {t("Verify your identity")}
         </Button>
       </YStack>
     </View>

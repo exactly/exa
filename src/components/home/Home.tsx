@@ -4,6 +4,7 @@ import { TimeToFullDisplay } from "@sentry/react-native";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigation, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { RefreshControl } from "react-native";
 import { ScrollView, useTheme, YStack } from "tamagui";
 import { zeroAddress } from "viem";
@@ -45,6 +46,7 @@ export default function Home() {
   const theme = useTheme();
   const parameters = useLocalSearchParams();
   const navigation = useNavigation<AppNavigationProperties>();
+  const { t } = useTranslation();
   const [paySheetOpen, setPaySheetOpen] = useState(false);
   const [spendingLimitsInfoSheetOpen, setSpendingLimitsInfoSheetOpen] = useState(false);
   const { address: account } = useAccount();
@@ -135,8 +137,10 @@ export default function Home() {
               {(legacyKYCStatus === "ok" && KYCStatus !== "ok") ||
                 (bytecode && !isLatestPlugin && (
                   <InfoAlert
-                    title="We’re upgrading all Exa Cards by migrating them to a new and improved card issuer. Existing cards will work until May 18th, 2025, and upgrading will be required after this date."
-                    actionText="Start Exa Card upgrade"
+                    title={t(
+                      "We’re upgrading all Exa Cards by migrating them to a new and improved card issuer. Existing cards will work until May 18th, 2025, and upgrading will be required after this date.",
+                    )}
+                    actionText={t("Start Exa Card upgrade")}
                     onPress={() => {
                       queryClient.setQueryData(["card-upgrade-open"], true);
                     }}

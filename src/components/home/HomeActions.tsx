@@ -2,6 +2,7 @@ import { exaPluginAddress } from "@exactly/common/generated/chain";
 import { ArrowDownToLine, ArrowUpRight } from "@tamagui/lucide-icons";
 import { useNavigation } from "expo-router";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
 import { useBytecode, useReadContract } from "wagmi";
@@ -19,6 +20,7 @@ export default function HomeActions() {
   const navigation = useNavigation<AppNavigationProperties>("/(main)");
   const { address: account } = useAccount();
   const { data: bytecode } = useBytecode({ address: account ?? zeroAddress, query: { enabled: !!account } });
+  const { t } = useTranslation();
 
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
     address: account ?? zeroAddress,
@@ -82,7 +84,7 @@ export default function HomeActions() {
               }}
               width="100%"
             >
-              <Button.Text adjustsFontSizeToFit>{title}</Button.Text>
+              <Button.Text adjustsFontSizeToFit>{t(title)}</Button.Text>
               <Button.Icon>
                 <Icon />
               </Button.Icon>

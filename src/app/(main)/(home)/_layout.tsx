@@ -4,6 +4,7 @@ import { Boxes, Coins, CreditCard, Home, FileText } from "@tamagui/lucide-icons"
 import { Tabs } from "expo-router";
 import Head from "expo-router/head";
 import React, { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { FlatList, Platform } from "react-native";
 
 import { activityRefreshControlReference, activityScrollReference } from "../../../components/activity/Activity";
@@ -25,6 +26,7 @@ const tabs = [
 
 export default function HomeLayout() {
   useIntercom();
+  const { t } = useTranslation();
   useEffect(() => {
     enablePrompt();
   }, []);
@@ -42,7 +44,7 @@ export default function HomeLayout() {
             <Tabs.Screen
               key={name}
               name={name}
-              options={{ title, tabBarIcon: ({ color }) => <Icon size={24} color={color} /> }}
+              options={{ title: t(title), tabBarIcon: ({ color }) => <Icon size={24} color={color} /> }}
               listeners={{
                 tabPress: () => {
                   let scrollView;

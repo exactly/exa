@@ -2,6 +2,7 @@ import { ChevronRight } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigation } from "expo-router";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { XStack, YStack } from "tamagui";
 
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
@@ -20,6 +21,7 @@ export default function PortfolioSummary({
   const { usdBalance, depositMarkets } = portfolio;
   const navigation = useNavigation<AppNavigationProperties>();
   const { data: country } = useQuery({ queryKey: ["user", "country"] });
+  const { t } = useTranslation();
 
   const { data: processingBalance } = useQuery({
     queryKey: ["processing-balance"],
@@ -43,7 +45,7 @@ export default function PortfolioSummary({
     >
       <XStack alignItems="center" gap="$s2">
         <Text secondary emphasized subHeadline>
-          Your portfolio
+          {t("Your portfolio")}
         </Text>
         <ChevronRight size={16} color="$uiNeutralSecondary" />
       </XStack>
@@ -79,11 +81,17 @@ export default function PortfolioSummary({
           gap="$s2"
           alignItems="center"
         >
-          <Text emphasized subHeadline secondary>{`Processing balance ${processingBalance.toLocaleString(undefined, {
-            style: "currency",
-            currency: "USD",
-            currencyDisplay: "narrowSymbol",
-          })}`}</Text>
+          <Text emphasized subHeadline secondary>
+            {t("Processing balance {{amount}}", {
+              amount: processingBalance
+                ? processingBalance.toLocaleString(undefined, {
+                    style: "currency",
+                    currency: "USD",
+                    currencyDisplay: "narrowSymbol",
+                  })
+                : "",
+            })}
+          </Text>
           <ChevronRight size={16} color="$uiNeutralSecondary" />
         </XStack>
       ) : usdBalance > 0n ? (

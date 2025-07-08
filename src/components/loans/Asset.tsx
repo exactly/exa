@@ -2,6 +2,7 @@ import { previewerAddress } from "@exactly/common/generated/chain";
 import { ArrowLeft, ArrowRight, Check, CircleHelp } from "@tamagui/lucide-icons";
 import { useNavigation } from "expo-router";
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
@@ -23,6 +24,7 @@ export default function Asset() {
   const navigation = useNavigation<AppNavigationProperties>();
   const { address } = useAccount();
   const { presentArticle } = useIntercom();
+  const { t } = useTranslation();
   const [selectedMarket, setSelectedMarket] = useState<string>();
   const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [address ?? zeroAddress] });
   return (
@@ -57,7 +59,7 @@ export default function Asset() {
           <YStack gap="$s4">
             <YStack>
               <Text primary emphasized body>
-                Select the asset to fund
+                {t("Select the asset to fund")}
               </Text>
             </YStack>
             <YStack gap="$s3">
@@ -128,7 +130,7 @@ export default function Asset() {
               }
               flex={0}
             >
-              Continue
+              {t("Continue")}
             </Button>
           </YStack>
         </YStack>
