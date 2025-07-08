@@ -1,6 +1,7 @@
 import { ArrowRight, XCircle } from "@tamagui/lucide-icons";
 import { router } from "expo-router";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Platform } from "react-native";
 import { XStack, YStack } from "tamagui";
 
@@ -9,6 +10,7 @@ import queryClient from "../../utils/queryClient";
 import Text from "../shared/Text";
 
 export default function ExploreLoans() {
+  const { t } = useTranslation();
   return (
     <XStack
       backgroundColor="$interactiveBaseBrandDefault"
@@ -26,11 +28,11 @@ export default function ExploreLoans() {
     >
       <YStack height="100%" justifyContent="space-between" alignItems="flex-start" zIndex={2} maxWidth="50%">
         <Text textAlign="left" maxFontSizeMultiplier={1} emphasized body color="$backgroundBrandSoft">
-          Get a fixed-rate loan without selling your crypto
+          {t("Get a fixed-rate loan without selling your crypto")}
         </Text>
         <XStack alignSelf="flex-start" alignItems="center" gap="$s2">
           <Text emphasized footnote color="$interactiveBaseBrandSoftDefault" maxFontSizeMultiplier={1}>
-            Explore loan options
+            {t("Explore loan options")}
           </Text>
           <ArrowRight size={16} color="$interactiveBaseBrandSoftDefault" />
         </XStack>
