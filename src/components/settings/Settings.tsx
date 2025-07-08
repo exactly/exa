@@ -2,6 +2,7 @@ import { ArrowLeft, Check, HelpCircle, LogOut, SendHorizontal } from "@tamagui/l
 import { setStringAsync } from "expo-clipboard";
 import { useRouter } from "expo-router";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Alert, Pressable } from "react-native";
 import { ScrollView, Separator, XStack } from "tamagui";
 import { useDisconnect } from "wagmi";
@@ -20,6 +21,7 @@ import View from "../shared/View";
 export default function Settings() {
   const router = useRouter();
   const { connector } = useAccount();
+  const { t } = useTranslation();
   const { mutate: disconnectAccount } = useDisconnect();
   const { mutate: submitCoverage, isSuccess: coverageSuccess, isError: coverageError } = useSubmitCoverage();
   return (
@@ -28,7 +30,7 @@ export default function Settings() {
         <View flexDirection="row" gap="$s3" justifyContent="space-around" alignItems="center">
           <View position="absolute" left={0}>
             <Pressable
-              aria-label="Back"
+              aria-label={t("Back")}
               onPress={() => {
                 if (router.canGoBack()) {
                   router.back();
@@ -41,7 +43,7 @@ export default function Settings() {
             </Pressable>
           </View>
           <Text emphasized subHeadline color="$uiNeutralPrimary">
-            Settings
+            {t("Settings")}
           </Text>
         </View>
         <ScrollView flex={1}>
@@ -57,7 +59,7 @@ export default function Settings() {
                   <XStack gap="$s3" justifyContent="flex-start" alignItems="center">
                     <HelpCircle color="$backgroundBrand" />
                     <Text subHeadline color="$uiNeutralPrimary">
-                      Support
+                      {t("Support")}
                     </Text>
                   </XStack>
                 </XStack>
@@ -81,7 +83,7 @@ export default function Settings() {
                   <XStack gap="$s3" justifyContent="flex-start" alignItems="center">
                     <LogOut color="$interactiveBaseErrorDefault" />
                     <Text subHeadline color="$uiNeutralPrimary">
-                      Logout
+                      {t("Logout")}
                     </Text>
                   </XStack>
                 </XStack>
@@ -101,7 +103,7 @@ export default function Settings() {
                       </XStack>
                       {(coverageSuccess || coverageError) && (
                         <Check
-                          accessibilityLabel="Finished"
+                          accessibilityLabel={t("Finished")}
                           color={coverageSuccess ? "$backgroundBrand" : "$interactiveBaseErrorDefault"}
                         />
                       )}
@@ -114,7 +116,7 @@ export default function Settings() {
               hitSlop={20}
               onPress={() => {
                 setStringAsync(release).catch(reportError);
-                Alert.alert("Copied", "App version has been copied to the clipboard.");
+                Alert.alert(t("Copied"), t("App version has been copied to the clipboard."));
               }}
             >
               <Text footnote color="$uiNeutralSecondary" textAlign="center">

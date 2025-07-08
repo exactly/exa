@@ -1,5 +1,6 @@
 import { X } from "@tamagui/lucide-icons";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { ScrollView, YStack } from "tamagui";
 
 import openBrowser from "../../utils/openBrowser";
@@ -11,6 +12,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function AboutDefiSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { t } = useTranslation();
   return (
     <ModalSheet open={open} onClose={onClose}>
       <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
@@ -20,12 +22,12 @@ export default function AboutDefiSheet({ open, onClose }: { open: boolean; onClo
               <YStack gap="$s4_5">
                 <YStack gap="$s4">
                   <Text headline emphasized>
-                    About DeFi
+                    {t("About DeFi")}
                   </Text>
                   <Text subHeadline color="$uiNeutralPlaceholder">
-                    Here you&apos;ll find integrations with decentralized services powered by our partners. Exa App
-                    never controls your assets or how you use them when connected to the integrations provided by our
-                    partners.
+                    {t(
+                      "Here you’ll find integrations with decentralized services powered by our partners. Exa App never controls your assets or how you use them when connected to the integrations provided by our partners.",
+                    )}
                   </Text>
 
                   <Button
@@ -37,7 +39,7 @@ export default function AboutDefiSheet({ open, onClose }: { open: boolean; onClo
                     fullwidth
                     iconAfter={<X strokeWidth={2.5} color="$interactiveOnBaseBrandDefault" />}
                   >
-                    Close
+                    {t("Close")}
                   </Button>
                   <Text
                     footnote
@@ -51,7 +53,7 @@ export default function AboutDefiSheet({ open, onClose }: { open: boolean; onClo
                       ).catch(reportError);
                     }}
                   >
-                    Learn more about integrations
+                    {t("Learn more about integrations")}
                   </Text>
                 </YStack>
               </YStack>

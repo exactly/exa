@@ -16,7 +16,10 @@ import AssetLogo from "../shared/AssetLogo";
 import Text from "../shared/Text";
 
 export default function CardLimits({ onPress }: { onPress: () => void }) {
-  const { t } = useTranslation();
+  const {
+    t,
+    i18n: { language },
+  } = useTranslation();
   const { address } = useAccount();
   const router = useRouter();
   const { data: card } = useQuery<CardDetails>({ queryKey: ["card", "details"] });
@@ -41,12 +44,12 @@ export default function CardLimits({ onPress }: { onPress: () => void }) {
                   isCredit ? borrowLimit(markets, marketUSDCAddress) : withdrawLimit(markets, marketUSDCAddress, WAD),
                 ) / 1e6
               : 0
-            ).toLocaleString(undefined, { style: "currency", currency: "USD", currencyDisplay: "narrowSymbol" })}
+            ).toLocaleString(language, { style: "currency", currency: "USD", currencyDisplay: "narrowSymbol" })}
           </Text>
         </XStack>
         <XStack justifyContent="center" alignItems="center" gap="$s2" hitSlop={15} onPress={onPress} cursor="pointer">
-          <Text emphasized footnote secondary color="white">
-            SPENDING LIMIT
+          <Text emphasized footnote secondary color="white" textTransform="uppercase">
+            {t("Spending limit")}
           </Text>
           <Info size={12} color="white" />
         </XStack>

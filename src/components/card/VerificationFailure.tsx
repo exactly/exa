@@ -1,5 +1,6 @@
 import { ArrowRight, X } from "@tamagui/lucide-icons";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { ScrollView, YStack } from "tamagui";
 
@@ -13,6 +14,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function VerificationFailure({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { t } = useTranslation();
   return (
     <ModalSheet open={open} onClose={onClose}>
       <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
@@ -33,10 +35,10 @@ export default function VerificationFailure({ open, onClose }: { open: boolean; 
               </YStack>
               <YStack gap="$s4_5">
                 <Text emphasized textAlign="center" color="$interactiveTextBrandDefault" title>
-                  We couldn&apos;t verify your identity{/* cspell:ignoreRegExp \bcouldn&apos;t\b */}
+                  {t("We couldn’t verify your identity")}
                 </Text>
                 <Text color="$uiNeutralPlaceholder" footnote textAlign="center">
-                  This may be due to missing or incorrect information. Please contact support to resolve it.
+                  {t("This may be due to missing or incorrect information. Please contact support to resolve it.")}
                 </Text>
                 <Button
                   flexBasis={60}
@@ -49,7 +51,7 @@ export default function VerificationFailure({ open, onClose }: { open: boolean; 
                   fullwidth
                   iconAfter={<ArrowRight strokeWidth={2.5} color="$interactiveOnBaseBrandDefault" />}
                 >
-                  Contact support
+                  {t("Contact support")}
                 </Button>
               </YStack>
             </YStack>

@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import React, { useState, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 
@@ -13,6 +14,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function CardPIN({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { t } = useTranslation();
   const { data: card, isPending, error, refetch } = useQuery<CardWithPIN>({ queryKey: ["card", "pin"], enabled: open });
   return (
     <ModalSheet open={open} onClose={onClose}>
@@ -23,10 +25,10 @@ export default function CardPIN({ open, onClose }: { open: boolean; onClose: () 
               <YStack gap="$s4_5">
                 <YStack gap="$s4">
                   <Text emphasized headline primary>
-                    View Exa Card PIN number
+                    {t("View Exa Card PIN number")}
                   </Text>
                   <Text color="$uiNeutralSecondary" subHeadline>
-                    Your card&apos;s PIN may be required to confirm transactions and ensure security.
+                    {t("Your card’s PIN may be required to confirm transactions and ensure security.")}
                   </Text>
                 </YStack>
                 {isPending ? (
@@ -42,7 +44,7 @@ export default function CardPIN({ open, onClose }: { open: boolean; onClose: () 
                 )}
                 <Pressable onPress={onClose} style={{ alignSelf: "center" }} hitSlop={20}>
                   <Text emphasized footnote color="$interactiveTextBrandDefault">
-                    Close
+                    {t("Close")}
                   </Text>
                 </Pressable>
               </YStack>
@@ -55,6 +57,7 @@ export default function CardPIN({ open, onClose }: { open: boolean; onClose: () 
 }
 
 function Countdown({ pin, error, onRetry }: { pin?: string; error: unknown; onRetry: () => void }) {
+  const { t } = useTranslation();
   const [displayPIN, setDisplayPIN] = useState(true);
   const [countdown, setCountdown] = useState(5);
   const timerRef = useRef<ReturnType<typeof setInterval>>(undefined);
@@ -105,7 +108,7 @@ function Countdown({ pin, error, onRetry }: { pin?: string; error: unknown; onRe
         </XStack>
       ) : (
         <Text fontSize={48} fontFamily="$mono">
-          N/A
+          {t("N/A")}
         </Text>
       )}
       <Button
@@ -119,7 +122,7 @@ function Countdown({ pin, error, onRetry }: { pin?: string; error: unknown; onRe
           handleToggle();
         }}
       >
-        {error ? "Retry" : displayPIN ? "Hide PIN" : "Show PIN"}
+        {error ? t("Retry") : displayPIN ? t("Hide PIN") : t("Show PIN")}
         {`${!error && displayPIN && countdown > 0 ? countdown : " "}`}
       </Button>
     </YStack>

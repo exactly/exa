@@ -59,7 +59,10 @@ function Installment({
   onSelect: (value: number) => void;
   selected: boolean;
 }) {
-  const { t } = useTranslation();
+  const {
+    t,
+    i18n: { language },
+  } = useTranslation();
   const hasInstallments = installment > 0;
   const isBorrow = installment === 1;
   const symbol = market?.symbol.slice(3) === "WETH" ? "ETH" : market?.symbol.slice(3);
@@ -105,7 +108,7 @@ function Installment({
           {selected && <Check size={12} color="$interactiveOnBaseBrandDefault" />}
         </XStack>
         <Text headline color={hasInstallments ? "$uiNeutralSecondary" : "$uiNeutralPrimary"}>
-          {hasInstallments ? `${t("{{count}} installments", { count: installment })} of` : t("Pay Now")}
+          {hasInstallments ? t("{{count}} installments of", { count: installment }) : t("Pay Now")}
         </Text>
       </XStack>
       <XStack gap="$s2" alignItems="center" justifyContent="flex-end" flex={1}>
@@ -120,7 +123,7 @@ function Installment({
               <Skeleton height={18} />
             ) : (
               <Text headline numberOfLines={1} adjustsFontSizeToFit>
-                {(Number(installmentAmount) / 1e6).toLocaleString(undefined, {
+                {(Number(installmentAmount) / 1e6).toLocaleString(language, {
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2,
                 })}

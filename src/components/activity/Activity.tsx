@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import React, { memo, useMemo, type RefObject } from "react";
+import { useTranslation } from "react-i18next";
 import { FlatList, RefreshControl } from "react-native";
-import { styled } from "tamagui";
+import { styled, useTheme } from "tamagui";
 
 import ActivityItem from "./ActivityItem";
 import Empty from "./Empty";
@@ -21,6 +22,8 @@ type ActivityEvent = Awaited<ReturnType<typeof getActivity>>[number];
 export default function Activity() {
   const { data: activity, refetch, isPending } = useQuery({ queryKey: ["activity"], queryFn: () => getActivity() });
   const { queryKey } = useAsset();
+  const { t } = useTranslation();
+  const theme = useTheme();
 
   const { data, stickyHeaderIndices } = useMemo(() => {
     if (!activity?.length) return { data: [] as ActivityItemType[], stickyHeaderIndices: [] as number[] };
@@ -34,8 +37,8 @@ export default function Activity() {
     for (const event of activity) {
       const date = format(event.timestamp, "yyyy-MM-dd");
       if (date !== currentDate) {
-        items.push({ type: "header", date });
         stickyIndices.push(items.length);
+        items.push({ type: "header", date });
         currentDate = date;
       }
 
@@ -53,6 +56,11 @@ export default function Activity() {
         <View position="absolute" top={0} left={0} right={0} height="50%" backgroundColor="$backgroundSoft" />
         <StyledFlatList
           ref={activityScrollReference}
+          style={{ flex: 1 }}
+          contentContainerStyle={{
+            flexGrow: 1,
+            backgroundColor: data.length > 0 ? theme.backgroundMild.val : theme.backgroundSoft.val,
+          }}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
@@ -69,7 +77,7 @@ export default function Activity() {
               <View padded gap="$s5" backgroundColor="$backgroundSoft">
                 <View flexDirection="row" gap={10} justifyContent="space-between" alignItems="center">
                   <Text fontSize={20} fontWeight="bold">
-                    All Activity
+                    {t("All Activity")}
                   </Text>
                 </View>
               </View>

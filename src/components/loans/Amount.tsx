@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, Check, CircleHelp, TriangleAlert } from "@tamagu
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { Checkbox, ScrollView, XStack, YStack } from "tamagui";
 import { formatUnits, zeroAddress } from "viem";
@@ -24,6 +25,10 @@ import View from "../shared/View";
 export default function Amount() {
   const router = useRouter();
   const { address } = useAccount();
+  const {
+    t,
+    i18n: { language },
+  } = useTranslation();
   const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
   const { data: markets } = useReadPreviewerExactly({
     address: previewerAddress,
@@ -82,13 +87,13 @@ export default function Amount() {
             <YStack gap="$s6">
               <YStack gap="$s3_5">
                 <Text primary emphasized body>
-                  Select amount
+                  {t("Select amount")}
                 </Text>
                 {markets && market && loan?.market && (
                   <XStack alignItems="center" gap="$s2">
                     <Text footnote color="$uiNeutralPlaceholder">
-                      Available funding:&nbsp;
-                      {Number(formatUnits(borrowAvailable, market.decimals)).toLocaleString(undefined, {
+                      {t("Available funding:")}{" "}
+                      {Number(formatUnits(borrowAvailable, market.decimals)).toLocaleString(language, {
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2,
                       })}
@@ -116,7 +121,7 @@ export default function Amount() {
                 <XStack gap="$s3" flex={1} alignItems="center">
                   <TriangleAlert size={16} color="$uiErrorSecondary" />
                   <Text secondary caption flex={1}>
-                    You&apos;re trying to borrow more than your collateral allows. Please enter a lower amount.
+                    {t("You're trying to borrow more than your collateral allows. Please enter a lower amount.")}
                   </Text>
                 </XStack>
               )}
@@ -144,7 +149,7 @@ export default function Amount() {
                   </Checkbox.Indicator>
                 </Checkbox>
                 <Text secondary caption flex={1}>
-                  I acknowledge the risks of borrowing this much against my collateral.
+                  {t("I acknowledge the risks of borrowing this much against my collateral.")}
                 </Text>
               </XStack>
             )}
@@ -157,7 +162,7 @@ export default function Amount() {
               dangerSecondary={state.warning && acknowledged}
               disabled={disabled}
             >
-              <Button.Text>Continue</Button.Text>
+              <Button.Text>{t("Continue")}</Button.Text>
               <Button.Icon>
                 <ArrowRight />
               </Button.Icon>

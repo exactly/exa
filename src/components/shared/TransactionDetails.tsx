@@ -4,6 +4,7 @@ import { ExternalLink } from "@tamagui/lucide-icons";
 import { format } from "date-fns";
 import { setStringAsync } from "expo-clipboard";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Alert } from "react-native";
 import { Separator, XStack, YStack } from "tamagui";
 
@@ -13,26 +14,27 @@ import reportError from "../../utils/reportError";
 import Text from "../shared/Text";
 
 export default function TransactionDetails({ hash }: { hash?: string }) {
+  const { t } = useTranslation();
   return (
     <YStack gap="$s4">
       <YStack gap="$s4">
         <Text emphasized headline>
-          Transaction details
+          {t("Transaction details")}
         </Text>
         <Separator height={1} borderColor="$borderNeutralSoft" />
       </YStack>
       <YStack gap="$s3_5">
         <XStack justifyContent="space-between">
           <Text emphasized footnote color="$uiNeutralSecondary">
-            Network fee
+            {t("Network fee")}
           </Text>
           <Text callout color="$uiSuccessSecondary">
-            FREE
+            {t("FREE")}
           </Text>
         </XStack>
         <XStack justifyContent="space-between">
           <Text emphasized footnote color="$uiNeutralSecondary">
-            Network
+            {t("Network")}
           </Text>
           <XStack gap="$s3" alignItems="center">
             <Text callout color="$uiNeutralPrimary" alignContent="center">
@@ -49,15 +51,15 @@ export default function TransactionDetails({ hash }: { hash?: string }) {
             cursor="pointer"
             onPress={() => {
               setStringAsync(hash)
-                .then(() => Alert.alert("Copied", "The transaction hash has been copied to the clipboard."))
+                .then(() => Alert.alert(t("Copied"), t("The transaction hash has been copied to the clipboard.")))
                 .catch((error: unknown) => {
                   reportError(error);
-                  Alert.alert("Error", "Failed to copy the transaction hash to the clipboard.");
+                  Alert.alert(t("Error"), t("Failed to copy the transaction hash to the clipboard."));
                 });
             }}
           >
             <Text emphasized footnote color="$uiNeutralSecondary">
-              Transaction hash
+              {t("Transaction hash")}
             </Text>
             <XStack
               gap="$s2"
@@ -79,7 +81,7 @@ export default function TransactionDetails({ hash }: { hash?: string }) {
         )}
         <XStack justifyContent="space-between">
           <Text emphasized footnote color="$uiNeutralSecondary">
-            Date
+            {t("Date")}
           </Text>
           <Text callout color="$uiNeutralPrimary">
             {format(new Date(), "yyyy-MM-dd")}
@@ -87,7 +89,7 @@ export default function TransactionDetails({ hash }: { hash?: string }) {
         </XStack>
         <XStack justifyContent="space-between">
           <Text emphasized footnote color="$uiNeutralSecondary">
-            Time
+            {t("Time")}
           </Text>
           <Text callout color="$uiNeutralPrimary">
             {format(new Date(), "HH:mm:ss")}

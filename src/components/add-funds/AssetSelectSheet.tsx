@@ -1,6 +1,7 @@
 import type { Chain, Token } from "@lifi/sdk";
 import { Search } from "@tamagui/lucide-icons";
 import React, { useCallback, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 import { formatUnits } from "viem";
@@ -32,6 +33,10 @@ export default function AssetSelectSheet({
   hideBalances?: boolean;
   label?: string;
 }) {
+  const {
+    t,
+    i18n: { language },
+  } = useTranslation();
   const [searchQuery, setSearchQuery] = useState("");
 
   const filteredGroups = useMemo(() => {
@@ -62,7 +67,7 @@ export default function AssetSelectSheet({
       <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
         <View padded paddingTop="$s4" paddingBottom={0} flex={1} gap="$s4_5">
           <Text fontSize={15} fontWeight="bold" textAlign="center">
-            {label}
+            {t(label)}
           </Text>
           <XStack
             borderColor="$uiNeutralTertiary"
@@ -76,7 +81,7 @@ export default function AssetSelectSheet({
             <XStack alignItems="center" gap="$s2" flex={1} paddingHorizontal="$s3">
               <Search size={18} color="$uiNeutralSecondary" />
               <Input
-                placeholder="Search tokens"
+                placeholder={t("Search tokens")}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
                 placeholderTextColor="$uiNeutralPlaceholder"
@@ -135,14 +140,14 @@ export default function AssetSelectSheet({
                             {!hideBalances && (
                               <YStack alignItems="flex-end" gap="$s1">
                                 <Text callout color="$uiNeutralPrimary">
-                                  {usdValue.toLocaleString(undefined, {
+                                  {usdValue.toLocaleString(language, {
                                     style: "currency",
                                     currency: "USD",
                                     currencyDisplay: "narrowSymbol",
                                   })}
                                 </Text>
                                 <Text footnote color="$uiNeutralSecondary">
-                                  {`${Number(formatUnits(balance, token.decimals)).toLocaleString(undefined, {
+                                  {`${Number(formatUnits(balance, token.decimals)).toLocaleString(language, {
                                     minimumFractionDigits: 0,
                                     maximumFractionDigits: Math.min(
                                       8,
@@ -166,7 +171,9 @@ export default function AssetSelectSheet({
               {filteredGroups.length === 0 && (
                 <View alignItems="center" paddingVertical="$s8">
                   <Text footnote color="$uiNeutralSecondary">
-                    {searchQuery ? "No assets match your filters." : "No assets with balance available to bridge."}
+                    {searchQuery
+                      ? t("No assets match your filters.")
+                      : t("No assets with balance available to bridge.")}
                   </Text>
                 </View>
               )}

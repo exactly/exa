@@ -2,6 +2,7 @@ import { ChevronRight } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { XStack, YStack } from "tamagui";
 
 import isProcessing from "../../utils/isProcessing";
@@ -19,6 +20,10 @@ export default function PortfolioSummary({
   const { usdBalance, depositMarkets } = portfolio;
   const router = useRouter();
   const { data: country } = useQuery({ queryKey: ["user", "country"] });
+  const {
+    t,
+    i18n: { language },
+  } = useTranslation();
 
   const { data: processingBalance } = useQuery({
     queryKey: ["processing-balance"],
@@ -42,7 +47,7 @@ export default function PortfolioSummary({
     >
       <XStack alignItems="center" gap="$s2">
         <Text secondary emphasized subHeadline>
-          Your portfolio
+          {t("Your portfolio")}
         </Text>
         <ChevronRight size={16} color="$uiNeutralSecondary" />
       </XStack>
@@ -58,7 +63,7 @@ export default function PortfolioSummary({
         fontSize={40}
         lineHeight={40}
       >
-        {(Number(usdBalance) / 1e18).toLocaleString(undefined, {
+        {(Number(usdBalance) / 1e18).toLocaleString(language, {
           style: "currency",
           currency: "USD",
           currencyDisplay: "narrowSymbol",
@@ -78,11 +83,15 @@ export default function PortfolioSummary({
           gap="$s2"
           alignItems="center"
         >
-          <Text emphasized subHeadline secondary>{`Processing balance ${processingBalance.toLocaleString(undefined, {
-            style: "currency",
-            currency: "USD",
-            currencyDisplay: "narrowSymbol",
-          })}`}</Text>
+          <Text emphasized subHeadline secondary>
+            {t("Processing balance {{amount}}", {
+              amount: processingBalance.toLocaleString(language, {
+                style: "currency",
+                currency: "USD",
+                currencyDisplay: "narrowSymbol",
+              }),
+            })}
+          </Text>
           <ChevronRight size={16} color="$uiNeutralSecondary" />
         </XStack>
       ) : usdBalance > 0n ? (

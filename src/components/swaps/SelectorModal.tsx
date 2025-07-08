@@ -1,6 +1,7 @@
 import type { Token } from "@lifi/sdk";
 import { Search } from "@tamagui/lucide-icons";
 import React, { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { FlatList, Pressable } from "react-native";
 import { XStack, YStack, ButtonIcon } from "tamagui";
 import { formatUnits } from "viem";
@@ -15,7 +16,17 @@ import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-function TokenListItem({ token, isSelected, onPress }: { token: Token; isSelected: boolean; onPress: () => void }) {
+function TokenListItem({
+  token,
+  isSelected,
+  onPress,
+  language,
+}: {
+  token: Token;
+  isSelected: boolean;
+  onPress: () => void;
+  language: string;
+}) {
   const { accountAssets } = useAccountAssets();
   const matchingAsset = accountAssets.find(
     (asset) =>
@@ -43,14 +54,14 @@ function TokenListItem({ token, isSelected, onPress }: { token: Token; isSelecte
           </YStack>
           <YStack alignItems="flex-end" justifyContent="flex-end" gap="$s2">
             <Text emphasized callout color="$uiNeutralPrimary" textAlign="right">
-              {formatUSDValue(matchingAsset?.usdValue ?? 0)}
+              {formatUSDValue(matchingAsset?.usdValue ?? 0, language)}
             </Text>
             <Text footnote color="$uiNeutralSecondary" textAlign="right">
               {matchingAsset
                 ? matchingAsset.type === "protocol"
-                  ? formatTokenAmount(matchingAsset.floatingDepositAssets, matchingAsset.decimals)
-                  : formatTokenAmount(matchingAsset.amount ?? 0n, matchingAsset.decimals)
-                : formatTokenAmount(0n, 0)}
+                  ? formatTokenAmount(matchingAsset.floatingDepositAssets, matchingAsset.decimals, language)
+                  : formatTokenAmount(matchingAsset.amount ?? 0n, matchingAsset.decimals, language)
+                : formatTokenAmount(0n, 0, language)}
             </Text>
           </YStack>
         </XStack>
@@ -78,7 +89,7 @@ export default function TokenSelectModal({
   onSelect,
   onClose,
   isLoading = false,
-  title = "Select token",
+  title,
   withBalanceOnly = false,
 }: {
   open: boolean;
@@ -92,6 +103,10 @@ export default function TokenSelectModal({
 }) {
   const [searchQuery, setSearchQuery] = useState("");
   const { accountAssets } = useAccountAssets();
+  const {
+    t,
+    i18n: { language },
+  } = useTranslation();
 
   const filteredTokens = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
@@ -121,13 +136,13 @@ export default function TokenSelectModal({
         <View padded paddingTop="$s6" fullScreen flex={1}>
           <View paddingBottom="$s4">
             <Text fontSize={20} fontWeight="bold" textAlign="center">
-              {title}
+              {title ?? t("Select token")}
             </Text>
           </View>
           <View paddingBottom="$s4" flexDirection="row">
             <Input
               flex={1}
-              placeholder="Search by token name or address"
+              placeholder={t("Search by token name or address")}
               placeholderTextColor="$interactiveTextDisabled"
               borderColor="$uiNeutralTertiary"
               borderRightColor="transparent"
@@ -162,6 +177,7 @@ export default function TokenSelectModal({
                       onSelect(item);
                       setSearchQuery("");
                     }}
+                    language={language}
                   />
                 )}
                 keyExtractor={(item) => item.address}
@@ -170,7 +186,7 @@ export default function TokenSelectModal({
                 ListEmptyComponent={() => (
                   <View padding="$s6" alignItems="center">
                     <Text subHeadline color="$uiNeutralSecondary">
-                      {searchQuery ? "No tokens found" : "No tokens available"}
+                      {searchQuery ? t("No tokens found") : t("No tokens available")}
                     </Text>
                   </View>
                 )}
@@ -193,18 +209,18 @@ function SkeletonItems() {
   );
 }
 
-function formatUSDValue(value: number) {
-  return value.toLocaleString(undefined, {
+function formatUSDValue(value: number, language: string) {
+  return value.toLocaleString(language, {
     style: "currency",
     currency: "USD",
     currencyDisplay: "narrowSymbol",
   });
 }
 
-function formatTokenAmount(amount: bigint, decimals: number) {
+function formatTokenAmount(amount: bigint, decimals: number, language: string) {
   const tokenAmount = Number(formatUnits(amount, decimals));
   if (tokenAmount === 0) return "0";
-  return tokenAmount.toLocaleString(undefined, {
+  return tokenAmount.toLocaleString(language, {
     minimumFractionDigits: 0,
     maximumFractionDigits: Math.min(8, Math.max(0, decimals - Math.ceil(Math.log10(tokenAmount)))),
   });

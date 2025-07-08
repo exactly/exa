@@ -1,5 +1,6 @@
 import { ArrowRight, Info, X } from "@tamagui/lucide-icons";
 import React from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 
@@ -13,6 +14,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function IntroSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { t } = useTranslation();
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
       <SafeView
@@ -36,10 +38,10 @@ export default function IntroSheet({ open, onClose }: { open: boolean; onClose: 
                 </View>
                 <YStack gap="$s4" alignSelf="center">
                   <Text emphasized textAlign="center" color="$interactiveTextBrandDefault" title>
-                    Welcome to DeFi
+                    {t("Welcome to DeFi")}
                   </Text>
                   <Text color="$uiNeutralPlaceholder" footnote textAlign="center">
-                    Access decentralized services provided by third-party DeFi protocols.
+                    {t("Access decentralized services provided by third-party DeFi protocols.")}
                   </Text>
                 </YStack>
               </YStack>
@@ -49,23 +51,25 @@ export default function IntroSheet({ open, onClose }: { open: boolean; onClose: 
                     <Info size="$iconSize.md" strokeWidth="$iconStroke.md" color="$uiInfoSecondary" />
                   </XStack>
                   <Text color="$uiNeutralPlaceholder" caption2 textAlign="justify" flex={1}>
-                    {/* cspell:ignoreRegExp \bdoesn&apos;t\b */}
-                    The Exa App doesn&apos;t control your assets nor offer financial services. All integrations are
-                    powered by independent third-party DeFi protocols.&nbsp;
-                    <Text
-                      color="$interactiveTextBrandDefault"
-                      caption2
-                      cursor="pointer"
-                      onPress={() => {
-                        presentArticle("11731646").catch(reportError);
+                    <Trans
+                      i18nKey="Exa App does not control your assets or provide financial services. All integrations are powered by independent third-party DeFi protocols. <link>Learn more about how to connect your wallet to DeFi.</link>"
+                      components={{
+                        link: (
+                          <Text
+                            color="$interactiveTextBrandDefault"
+                            caption2
+                            cursor="pointer"
+                            onPress={() => {
+                              presentArticle("11731646").catch(reportError);
+                            }}
+                          />
+                        ),
                       }}
-                    >
-                      Learn more about connecting your wallet to DeFi.
-                    </Text>
+                    />
                   </Text>
                 </XStack>
                 <Button onPress={onClose} primary>
-                  <Button.Text>Explore decentralized services</Button.Text>
+                  <Button.Text>{t("Explore decentralized services")}</Button.Text>
                   <Button.Icon>
                     <ArrowRight />
                   </Button.Icon>

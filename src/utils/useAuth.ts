@@ -3,6 +3,8 @@ import type { Credential } from "@exactly/common/validation";
 import { useToastController } from "@tamagui/toast";
 import { useMutation } from "@tanstack/react-query";
 import { getConnection } from "@wagmi/core";
+import type { TFunction } from "i18next";
+import { useTranslation } from "react-i18next";
 import { UserRejectedRequestError } from "viem";
 import { base } from "viem/chains";
 import { useConnect } from "wagmi";
@@ -14,6 +16,7 @@ import { APIError, createCredential, getCredential } from "./server";
 import ownerConfig, { getConnector as getOwnerConnector } from "./wagmi/owner";
 
 export default function useAuth(onDomainError: () => void, onSuccess?: (credential: Credential) => unknown) {
+  const { t } = useTranslation();
   const toast = useToastController();
   const { mutateAsync: connectExa } = useConnect();
   const { mutateAsync: connectOwner } = useConnect({ config: ownerConfig });
@@ -30,13 +33,18 @@ export default function useAuth(onDomainError: () => void, onSuccess?: (credenti
     },
     onSuccess,
     onError: (error: unknown) => {
-      handleError(error, toast, onDomainError);
+      handleError(error, toast, onDomainError, t);
     },
   });
   return { signIn, ...mutation };
 }
 
-function handleError(error: unknown, toast: ReturnType<typeof useToastController>, onDomainError: () => void) {
+function handleError(
+  error: unknown,
+  toast: ReturnType<typeof useToastController>,
+  onDomainError: () => void,
+  t: TFunction,
+) {
   if (
     (error instanceof Error &&
       (error.message ===
@@ -49,7 +57,7 @@ function handleError(error: unknown, toast: ReturnType<typeof useToastController
     error instanceof UserRejectedRequestError
   ) {
     queryClient.setQueryData(["method"], undefined);
-    toast.show("Authentication cancelled", {
+    toast.show(t("Authentication cancelled"), {
       native: true,
       duration: 1000,
       burntOptions: { haptic: "error", preset: "error" },
@@ -57,7 +65,7 @@ function handleError(error: unknown, toast: ReturnType<typeof useToastController
     return;
   }
   if (error instanceof APIError && error.text === "backup eligibility required") {
-    toast.show("Your password manager does not support passkey backups. Please try a different one", {
+    toast.show(t("Your password manager does not support passkey backups. Please try a different one"), {
       native: true,
       duration: 1000,
       burntOptions: { haptic: "error", preset: "error" },

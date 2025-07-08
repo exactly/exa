@@ -1,5 +1,6 @@
 import { Skeleton } from "moti/skeleton";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { XStack, YStack } from "tamagui";
 
 import Text from "../shared/Text";
@@ -13,6 +14,10 @@ export default function SpendingLimit({
   limit?: number;
   totalSpent: number;
 }) {
+  const {
+    t,
+    i18n: { language },
+  } = useTranslation();
   const percent =
     limit !== undefined && Number.isFinite(limit) && limit > 0
       ? Math.max(0, Math.min(100, (totalSpent / limit) * 100))
@@ -29,7 +34,7 @@ export default function SpendingLimit({
           </Text>
           {limit ? (
             <Text callout sensitive color="$uiNeutralSecondary">
-              {limit.toLocaleString(undefined, {
+              {limit.toLocaleString(language, {
                 style: "currency",
                 currency: "USD",
                 currencyDisplay: "narrowSymbol",
@@ -44,7 +49,7 @@ export default function SpendingLimit({
           {limit ? (
             <>
               <Text callout sensitive color="$uiBrandSecondary">
-                {(limit - totalSpent).toLocaleString(undefined, {
+                {(limit - totalSpent).toLocaleString(language, {
                   style: "currency",
                   currency: "USD",
                   currencyDisplay: "narrowSymbol",
@@ -52,7 +57,7 @@ export default function SpendingLimit({
                 })}
               </Text>
               <Text callout sensitive color="$uiBrandSecondary">
-                left
+                {t("left")}
               </Text>
             </>
           ) : (

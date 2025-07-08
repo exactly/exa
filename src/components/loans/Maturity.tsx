@@ -2,7 +2,6 @@ import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
 import { MATURITY_INTERVAL } from "@exactly/lib";
 import { ArrowLeft, ArrowRight, Check, CircleHelp } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
-import { format } from "date-fns";
 import { useRouter } from "expo-router";
 import React, { useEffect } from "react";
 import { useTranslation } from "react-i18next";
@@ -22,7 +21,10 @@ import View from "../shared/View";
 
 export default function Maturity() {
   const router = useRouter();
-  const { t } = useTranslation();
+  const {
+    t,
+    i18n: { language },
+  } = useTranslation();
   const { address } = useAccount();
   const { data: loan } = useQuery<Loan>({ queryKey: ["loan"], enabled: !!address });
   const timestamp = Math.floor(Date.now() / 1000);
@@ -70,7 +72,7 @@ export default function Maturity() {
             <YStack gap="$s4_5">
               <YStack gap="$s4_5">
                 <Text primary emphasized body>
-                  Select first due date
+                  {t("Select first due date")}
                 </Text>
                 <YStack gap="$s3">
                   {Array.from({ length: MAX_INSTALLMENTS }).map((_, index) => {
@@ -112,7 +114,11 @@ export default function Maturity() {
                         </XStack>
                         <YStack>
                           <Text headline color={invalid ? "$interactiveOnDisabled" : "$uiNeutralPrimary"}>
-                            {format(new Date(maturity * 1000), "MMM dd, yyyy")}
+                            {new Date(maturity * 1000).toLocaleDateString(language, {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            })}
                           </Text>
                           {invalid ? (
                             <Text footnote color="$uiNeutralPlaceholder">
@@ -138,7 +144,7 @@ export default function Maturity() {
           primary
           disabled={disabled}
         >
-          <Button.Text>Continue</Button.Text>
+          <Button.Text>{t("Continue")}</Button.Text>
           <Button.Icon>
             <ArrowRight />
           </Button.Icon>

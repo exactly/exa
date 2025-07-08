@@ -1,5 +1,6 @@
 import { X } from "@tamagui/lucide-icons";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { AlertDialog, XStack, YStack } from "tamagui";
 
 import Button from "./Button";
@@ -17,6 +18,7 @@ export default function ErrorDialog({
   description: string;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const aspectRatio = useAspectRatio();
   return (
     <AlertDialog open={open}>
@@ -68,7 +70,7 @@ export default function ErrorDialog({
                     danger
                     iconAfter={<X strokeWidth={3} color="$interactiveOnBaseErrorSoft" />}
                   >
-                    Close
+                    {t("Close")}
                   </Button>
                 </AlertDialog.Action>
               </XStack>

@@ -1,5 +1,6 @@
 import { TrendingUp } from "@tamagui/lucide-icons";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import type { GestureResponderEvent } from "react-native";
 import { XStack } from "tamagui";
 
@@ -18,6 +19,10 @@ export default function WeightedRate({
   displayLogos?: boolean;
   onPress?: (event: GestureResponderEvent) => void;
 }) {
+  const {
+    t,
+    i18n: { language },
+  } = useTranslation();
   return (
     <XStack
       backgroundColor="$interactiveBaseSuccessSoftDefault"
@@ -30,11 +35,13 @@ export default function WeightedRate({
     >
       <TrendingUp size={16} color="$interactiveOnBaseBrandSoft" />
       <Text emphasized caption color="$interactiveOnBaseBrandSoft" textAlign="left">
-        {`${(Number(averageRate) / 1e18).toLocaleString(undefined, {
-          style: "percent",
-          minimumFractionDigits: 0,
-          maximumFractionDigits: 2,
-        })} APR`}
+        {t("{{rate}} APR", {
+          rate: (Number(averageRate) / 1e18).toLocaleString(language, {
+            style: "percent",
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 2,
+          }),
+        })}
       </Text>
       {displayLogos && (
         <XStack alignItems="center">

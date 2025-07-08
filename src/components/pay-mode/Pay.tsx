@@ -23,9 +23,9 @@ import { divWad, fixedRepayAssets, fixedRepayPosition, min, mulWad, WAD } from "
 import { ArrowLeft, ChevronRight, Coins } from "@tamagui/lucide-icons";
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { waitForCallsStatus } from "@wagmi/core/actions";
-import { format } from "date-fns";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useReducer, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScrollView, Separator, XStack, YStack } from "tamagui";
@@ -56,6 +56,10 @@ import Success from "../shared/Success";
 
 export default function Pay() {
   const insets = useSafeAreaInsets();
+  const {
+    t,
+    i18n: { language },
+  } = useTranslation();
   const { address: account } = useAccount();
   const router = useRouter();
   const { accountAssets } = useAccountAssets({ sortBy: "usdcFirst" });
@@ -498,12 +502,19 @@ export default function Pay() {
 
   const symbol =
     repayMarket?.symbol.slice(3) === "WETH" ? "ETH" : (repayMarket?.symbol.slice(3) ?? externalAsset?.symbol);
+  const dueDateFormatted = maturity
+    ? new Date(Number(maturity) * 1000).toLocaleDateString(language, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      })
+    : "";
 
   const handleButtonText = () => {
-    if (repayAssets === 0n) return "Enter amount";
-    if (simulationError || repayAssets > maxRepayInput) return "Cannot proceed";
-    if (loading) return "Please wait...";
-    return "Confirm payment";
+    if (repayAssets === 0n) return t("Enter amount");
+    if (simulationError || repayAssets > maxRepayInput) return t("Cannot proceed");
+    if (loading) return t("Please wait...");
+    return t("Confirm payment");
   };
 
   if (!maturity) return;
@@ -525,10 +536,8 @@ export default function Pay() {
                 <ArrowLeft size={24} color="$uiNeutralPrimary" />
               </Pressable>
             </View>
-            <Text color="$uiNeutralPrimary" emphasized subHeadline>
-              <Text primary textAlign="center" emphasized subHeadline>
-                Pay due {format(new Date(Number(maturity) * 1000), "MMM dd, yyyy")}
-              </Text>
+            <Text color="$uiNeutralPrimary" emphasized subHeadline textAlign="center">
+              {t("Pay due {{date}}", { date: dueDateFormatted })}
             </Text>
           </View>
           <ScrollView
@@ -539,12 +548,12 @@ export default function Pay() {
               <YStack gap="$s4" paddingTop="$s5">
                 <XStack justifyContent="space-between" gap="$s3" alignItems="center">
                   <Text secondary footnote textAlign="left">
-                    Debt
+                    {t("Debt")}
                   </Text>
                   <XStack alignItems="center" gap="$s2">
                     <AssetLogo source={{ uri: assetLogos.USDC }} width={24} height={24} />
                     <Text primary title3 textAlign="right">
-                      {(Number(positionValue) / 1e6).toLocaleString(undefined, {
+                      {(Number(positionValue) / 1e6).toLocaleString(language, {
                         minimumFractionDigits: 0,
                         maximumFractionDigits: 6,
                       })}
@@ -553,7 +562,7 @@ export default function Pay() {
                 </XStack>
                 <XStack justifyContent="space-between" gap="$s3" alignItems="center">
                   <Text secondary footnote textAlign="left">
-                    Enter amount
+                    {t("Enter amount")}
                   </Text>
                 </XStack>
 
@@ -572,7 +581,7 @@ export default function Pay() {
                 {positionAssets ? (
                   <XStack justifyContent="space-between" gap="$s3" alignItems="center">
                     <Text secondary footnote textAlign="left">
-                      Subtotal
+                      {t("Subtotal")}
                     </Text>
                     <XStack alignItems="center" gap="$s2_5">
                       <AssetLogo source={{ uri: assetLogos.USDC }} width={20} height={20} />
@@ -580,7 +589,7 @@ export default function Pay() {
                         <Skeleton height={25} width={40} />
                       ) : (
                         <Text title3 maxFontSizeMultiplier={1} numberOfLines={1} textAlign="right">
-                          {(Number(positionAssets) / 1e6).toLocaleString(undefined, {
+                          {(Number(positionAssets) / 1e6).toLocaleString(language, {
                             minimumFractionDigits: 0,
                             maximumFractionDigits: 2,
                             useGrouping: false,
@@ -594,28 +603,32 @@ export default function Pay() {
                   <XStack justifyContent="space-between" gap="$s3" alignItems="center">
                     {discountOrPenaltyPercentage >= 0 ? (
                       <Text secondary footnote textAlign="left">
-                        Early repay discount&nbsp;
+                        {t("Early repay discount")}{" "}
                         <Text color="$uiSuccessSecondary" footnote textAlign="left">
-                          {`${discountOrPenaltyPercentage
-                            .toLocaleString(undefined, {
-                              style: "percent",
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2,
-                            })
-                            .replaceAll(/\s+/g, "")} OFF`}
+                          {t("{{discount}} off", {
+                            discount: Math.abs(discountOrPenaltyPercentage)
+                              .toLocaleString(language, {
+                                style: "percent",
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })
+                              .replaceAll(/\s+/g, ""),
+                          })}
                         </Text>
                       </Text>
                     ) : (
                       <Text secondary footnote textAlign="left">
-                        Late repay&nbsp;
+                        {t("Late repay")}{" "}
                         <Text color="$uiErrorSecondary" footnote textAlign="left">
-                          {`${Math.abs(discountOrPenaltyPercentage)
-                            .toLocaleString(undefined, {
-                              style: "percent",
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2,
-                            })
-                            .replaceAll(/\s+/g, "")} PENALTY`}
+                          {t("Penalties {{percent}}", {
+                            percent: Math.abs(discountOrPenaltyPercentage)
+                              .toLocaleString(language, {
+                                style: "percent",
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })
+                              .replaceAll(/\s+/g, ""),
+                          })}
                         </Text>
                       </Text>
                     )}
@@ -631,7 +644,7 @@ export default function Pay() {
                             : "$interactiveOnBaseErrorSoft"
                         }
                       >
-                        {Math.abs(Number(positionAssets - repayAssets) / 1e6).toLocaleString(undefined, {
+                        {Math.abs(Number(positionAssets - repayAssets) / 1e6).toLocaleString(language, {
                           minimumFractionDigits: 0,
                           maximumFractionDigits: 2,
                         })}
@@ -644,7 +657,7 @@ export default function Pay() {
                     <Separator height={1} borderColor="$borderNeutralSoft" />
                     <XStack justifyContent="space-between" gap="$s3" alignItems="center">
                       <Text secondary footnote textAlign="left">
-                        You will pay
+                        {t("You will pay")}
                       </Text>
                       <YStack alignItems="flex-end">
                         <XStack alignItems="center" gap="$s2_5">
@@ -659,7 +672,7 @@ export default function Pay() {
                               textAlign="right"
                               color={discountOrPenaltyPercentage >= 0 ? "$uiSuccessSecondary" : "$uiErrorSecondary"}
                             >
-                              {(Number(repayAssets) / 1e6).toLocaleString(undefined, {
+                              {(Number(repayAssets) / 1e6).toLocaleString(language, {
                                 minimumFractionDigits: 2,
                                 maximumFractionDigits: 2,
                                 useGrouping: false,
@@ -673,7 +686,7 @@ export default function Pay() {
                               {`${(
                                 Number(route.fromAmount) /
                                 10 ** (externalAsset ? externalAsset.decimals : (repayMarket?.decimals ?? 18))
-                              ).toLocaleString(undefined, {
+                              ).toLocaleString(language, {
                                 minimumFractionDigits: 2,
                                 maximumFractionDigits: 8,
                                 useGrouping: false,
@@ -699,7 +712,7 @@ export default function Pay() {
             <YStack gap="$s4" paddingBottom={insets.bottom}>
               <XStack justifyContent="space-between" gap="$s3" alignItems="center">
                 <Text secondary callout textAlign="left">
-                  Pay with
+                  {t("Pay with")}
                 </Text>
                 <YStack>
                   <XStack
@@ -732,7 +745,7 @@ export default function Pay() {
               </XStack>
               <XStack justifyContent="space-between" gap="$s3">
                 <Text secondary callout textAlign="left">
-                  Portfolio balance
+                  {t("Portfolio balance")}
                 </Text>
                 <YStack gap="$s2">
                   <XStack alignItems="center" gap="$s2">
@@ -755,7 +768,7 @@ export default function Pay() {
                         {(repayMarket
                           ? Number(repayMarketAvailable) / 10 ** repayMarket.decimals
                           : Number(externalAssetAvailable) / 10 ** (externalAsset?.decimals ?? 18)
-                        ).toLocaleString(undefined, {
+                        ).toLocaleString(language, {
                           minimumFractionDigits: 0,
                           maximumFractionDigits: 8,
                           useGrouping: false,
@@ -772,7 +785,7 @@ export default function Pay() {
                 pointerEvents={selectedAsset.address === exaUSDC?.market ? "none" : "auto"}
               >
                 <Text secondary callout textAlign="left">
-                  Available for repayment
+                  {t("Available for repayment")}
                 </Text>
                 <YStack gap="$s2">
                   <XStack alignItems="center" gap="$s2">
@@ -781,7 +794,7 @@ export default function Pay() {
                       <Skeleton height={23} width={50} />
                     ) : (
                       <Text emphasized headline primary textAlign="right">
-                        {(Number(availableForRepayment) / 1e6).toLocaleString(undefined, {
+                        {(Number(availableForRepayment) / 1e6).toLocaleString(language, {
                           minimumFractionDigits: 0,
                           maximumFractionDigits: 2,
                         })}

@@ -1,5 +1,6 @@
 import { ChevronRight, AlertTriangle } from "@tamagui/lucide-icons";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { View, Text } from "tamagui";
 
@@ -7,6 +8,7 @@ import { presentArticle } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
 
 export default function LiquidationAlert() {
+  const { t } = useTranslation();
   return (
     <View
       borderRadius="$r6"
@@ -32,7 +34,7 @@ export default function LiquidationAlert() {
 
       <View gap={10} padding={25} flex={1}>
         <Text fontSize={15} color="$interactiveOnBaseErrorSoft">
-          Some of your assets are at risk of being liquidated.
+          {t("Some of your assets are at risk of being liquidated.")}
         </Text>
         <Pressable
           onPress={() => {
@@ -41,7 +43,7 @@ export default function LiquidationAlert() {
         >
           <View flexDirection="row" gap={2} alignItems="center">
             <Text color="$interactiveOnBaseErrorSoft" fontSize={15} lineHeight={18} fontWeight="bold">
-              Learn more
+              {t("Learn more")}
             </Text>
             <ChevronRight size={14} color="$interactiveOnBaseErrorSoft" fontWeight="bold" />
           </View>

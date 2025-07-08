@@ -3,6 +3,7 @@ import { ArrowDownToLine, ArrowLeft, Check, IdCard } from "@tamagui/lucide-icons
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 
@@ -19,6 +20,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function GettingStarted() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { steps } = useOnboardingSteps();
   return (
@@ -40,7 +42,7 @@ export default function GettingStarted() {
               </Pressable>
             </View>
             <Text color="$uiNeutralPrimary" fontSize={15} fontWeight="bold">
-              Getting started
+              {t("Getting started")}
             </Text>
           </View>
         </View>
@@ -55,10 +57,10 @@ export default function GettingStarted() {
           >
             <YStack gap="$s4">
               <Text emphasized headline primary>
-                Remaining steps
+                {t("Remaining steps")}
               </Text>
               <Text footnote secondary>
-                You are almost set to start using the Exa Card.
+                {t("You are almost set to start using the Exa Card.")}
               </Text>
             </YStack>
             <YStack gap="$s4">
@@ -85,13 +87,13 @@ export default function GettingStarted() {
                   <Check size={14} strokeWidth={4} color="$interactiveOnBaseSuccessDefault" />
                 </View>
                 <Text emphasized subHeadline color="$uiBrandSecondary">
-                  Account created
+                  {t("Account created")}
                 </Text>
               </XStack>
               <Step
-                title="Add funds to your account"
-                description="Your funds serve as collateral to increase your spending limits."
-                action="Learn more about collateral"
+                title={t("Add funds to your account")}
+                description={t("Your funds serve as collateral to increase your spending limits.")}
+                action={t("Learn more about collateral")}
                 icon={<ArrowDownToLine size={20} strokeWidth={2} color="$uiBrandSecondary" />}
                 completed={steps.find(({ id }) => id === "add-funds")?.completed ?? false}
                 onPress={() => {
@@ -99,9 +101,9 @@ export default function GettingStarted() {
                 }}
               />
               <Step
-                title="Verify your identity"
-                description="To enable the Exa Card we need to verify that you are you."
-                action="Learn more about the KYC process"
+                title={t("Verify your identity")}
+                description={t("To enable the Exa Card we need to verify that you are you.")}
+                action={t("Learn more about the KYC process")}
                 icon={<IdCard size={20} strokeWidth={2} color="$uiBrandSecondary" />}
                 completed={steps.find(({ id }) => id === "verify-identity")?.completed ?? false}
                 onPress={() => {
@@ -117,6 +119,7 @@ export default function GettingStarted() {
 }
 
 function CurrentStep() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { currentStep, completedSteps } = useOnboardingSteps();
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
@@ -164,14 +167,18 @@ function CurrentStep() {
           <ArrowDownToLine size={32} color="$uiBrandSecondary" />
         </XStack>
         <Text emphasized title3 color="$uiBrandSecondary">
-          {currentStep.id === "add-funds" ? "Add funds to your account" : "Verify your identity"}
+          {currentStep.id === "add-funds" ? t("Add funds to your account") : t("Verify your identity")}
         </Text>
       </YStack>
       <YStack>
         <Text subHeadline color="$uiNeutralSecondary">
           {currentStep.id === "add-funds"
-            ? "Your funds serve as collateral, increasing your spending limits. The more funds you add, the more you can spend with the Exa Card."
-            : "Verifying your identity grants you access to our onchain Exa Card, enabling you to easily spend your crypto."}
+            ? t(
+                "Your funds serve as collateral, increasing your spending limits. The more funds you add, the more you can spend with the Exa Card.",
+              )
+            : t(
+                "Verifying your identity grants you access to our onchain Exa Card, enabling you to easily spend your crypto.",
+              )}
         </Text>
       </YStack>
       <StepCounter completedSteps={completedSteps} />
@@ -188,7 +195,7 @@ function CurrentStep() {
             )
           }
         >
-          {currentStep.id === "add-funds" ? "Add funds" : "Begin verifying"}
+          {currentStep.id === "add-funds" ? t("Add funds") : t("Begin verifying")}
         </ActionButton>
       </YStack>
     </YStack>
@@ -196,6 +203,7 @@ function CurrentStep() {
 }
 
 function StepCounter({ completedSteps }: { completedSteps: number }) {
+  const { t } = useTranslation();
   return (
     <YStack gap="$s3_5">
       <XStack flex={1} gap="$s2">
@@ -211,7 +219,7 @@ function StepCounter({ completedSteps }: { completedSteps: number }) {
       </XStack>
       <XStack justifyContent="space-between" gap="$s3">
         <Text emphasized subHeadline color="$uiBrandTertiary">
-          {completedSteps > 1 ? "One step left" : "Two steps left"}
+          {completedSteps > 1 ? t("One step left") : t("Two steps left")}
         </Text>
         <Text emphasized subHeadline color="$uiBrandTertiary">
           {completedSteps}/3

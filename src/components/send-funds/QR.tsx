@@ -3,6 +3,7 @@ import { ArrowLeft, BoxSelect, SwitchCamera } from "@tamagui/lucide-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Linking, Pressable, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useWindowDimensions, XStack, YStack } from "tamagui";
@@ -23,6 +24,7 @@ export default function QR() {
   const [active, setActive] = useState(true);
   const [cameraFacing, setCameraFacing] = useState<"front" | "back">("back");
   const [permission, requestPermission] = useCameraPermissions();
+  const { t } = useTranslation();
 
   useFocusEffect(
     useCallback(() => {
@@ -56,13 +58,14 @@ export default function QR() {
             gap="$s2"
           >
             <ArrowLeft size={24} color="white" />
-            <Text headline>Back</Text>
+            <Text headline>{t("Back")}</Text>
           </XStack>
           <View padded>
             <YStack gap="$s4">
               <Text secondary subHeadline textAlign="center">
-                Camera access is currently disabled for Exa App. In order to continue, enable camera access for Exa App
-                from your device settings.
+                {t(
+                  "Camera access is currently disabled for Exa App. In order to continue, enable camera access for Exa App from your device settings.",
+                )}
               </Text>
               <Button
                 alignSelf="center"
@@ -70,7 +73,7 @@ export default function QR() {
                   Linking.openSettings().catch(reportError);
                 }}
               >
-                Go to Settings
+                {t("Go to Settings")}
               </Button>
             </YStack>
           </View>
@@ -97,16 +100,17 @@ export default function QR() {
           gap="$s2"
         >
           <ArrowLeft size={24} color="white" />
-          <Text headline>Back</Text>
+          <Text headline>{t("Back")}</Text>
         </XStack>
         <View padded>
           <YStack gap="$s4">
             <Text secondary subHeadline textAlign="center">
-              Before we continue, we need your permission to access the camera. The camera will only be used for
-              scanning valid addresses.
+              {t(
+                "Before we continue, we need your permission to access the camera. The camera will only be used for scanning valid addresses.",
+              )}
             </Text>
             <Text secondary footnote textAlign="center">
-              Press &apos;Continue&apos; to proceed or &apos;Back&apos; to cancel.
+              {t("Press 'Continue' to proceed or 'Back' to cancel.")}
             </Text>
             <Button
               alignSelf="center"
@@ -118,7 +122,7 @@ export default function QR() {
               }}
               outlined
             >
-              Continue
+              {t("Continue")}
             </Button>
           </YStack>
         </View>

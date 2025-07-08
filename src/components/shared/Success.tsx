@@ -2,8 +2,9 @@ import { exaPluginAddress, marketUSDCAddress } from "@exactly/common/generated/c
 import { useReadUpgradeableModularAccountGetInstalledPlugins } from "@exactly/common/generated/hooks";
 import type { Hex } from "@exactly/common/validation";
 import { Check, X } from "@tamagui/lucide-icons";
-import { format, isAfter } from "date-fns";
+import { isAfter } from "date-fns";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { Square, XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
@@ -34,6 +35,10 @@ export default function Success({
   selectedAsset?: Hex;
   onClose: () => void;
 }) {
+  const {
+    t,
+    i18n: { language },
+  } = useTranslation();
   const { externalAsset } = useAsset(selectedAsset);
   const { address } = useAccount();
   const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
@@ -64,7 +69,7 @@ export default function Success({
               </XStack>
               <YStack gap="$s4_5" justifyContent="center" alignItems="center">
                 <Text secondary body>
-                  {isLatestPlugin ? "Processing" : "Paid"}&nbsp;
+                  {isLatestPlugin ? t("Processing") : t("Paid")}&nbsp;
                   <Text
                     emphasized
                     primary
@@ -73,12 +78,18 @@ export default function Success({
                       isAfter(new Date(Number(maturity) * 1000), new Date()) ? "$uiNeutralPrimary" : "$uiErrorSecondary"
                     }
                   >
-                    {`Due ${format(new Date(Number(maturity) * 1000), "MMM dd, yyyy")}`}
+                    {t("Due {{date}}", {
+                      date: new Date(Number(maturity) * 1000).toLocaleDateString(language, {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                      }),
+                    })}
                   </Text>
                 </Text>
                 <XStack gap="$s2" alignItems="center">
                   <Text title primary color="$uiNeutralPrimary">
-                    {(Number(repayAssets) / 1e6).toLocaleString(undefined, {
+                    {(Number(repayAssets) / 1e6).toLocaleString(language, {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
                       useGrouping: false,
@@ -92,10 +103,10 @@ export default function Success({
                 {currency !== "USDC" && (
                   <XStack gap="$s2" alignItems="center">
                     <Text headline primary color="$uiNeutralPrimary">
-                      with&nbsp;
+                      {t("with")}&nbsp;
                     </Text>
                     <Text title2 primary color="$uiNeutralPrimary">
-                      {amount.toLocaleString(undefined, {
+                      {amount.toLocaleString(language, {
                         maximumFractionDigits: selectedAsset && selectedAsset === marketUSDCAddress ? 2 : 8,
                       })}
                     </Text>
@@ -124,7 +135,7 @@ export default function Success({
           <YStack alignItems="center" gap="$s4">
             <Pressable onPress={onClose}>
               <Text emphasized footnote color="$uiBrandSecondary">
-                Close
+                {t("Close")}
               </Text>
             </Pressable>
           </YStack>

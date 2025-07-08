@@ -3,6 +3,7 @@ import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { ArrowLeft, CircleHelp } from "@tamagui/lucide-icons";
 import { useRouter } from "expo-router";
 import React from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { Pressable, RefreshControl } from "react-native";
 import { ScrollView, XStack } from "tamagui";
 import { zeroAddress } from "viem";
@@ -22,7 +23,10 @@ export default function Portfolio() {
   const { address } = useAccount();
   const { averageRate, portfolio } = usePortfolio(address);
   const router = useRouter();
-
+  const {
+    t,
+    i18n: { language },
+  } = useTranslation();
   const { usdBalance } = portfolio;
 
   const { refetch: refetchMarkets, isFetching: isFetchingMarkets } = useReadPreviewerExactly({
@@ -74,7 +78,7 @@ export default function Portfolio() {
           alignItems="center"
         >
           <Text emphasized subHeadline color="$uiNeutralSecondary">
-            Your Portfolio
+            {t("Your Portfolio")}
           </Text>
           <Text
             sensitive
@@ -86,7 +90,7 @@ export default function Portfolio() {
             numberOfLines={1}
             adjustsFontSizeToFit
           >
-            {(Number(usdBalance) / 1e18).toLocaleString(undefined, {
+            {(Number(usdBalance) / 1e18).toLocaleString(language, {
               style: "currency",
               currency: "USD",
               currencyDisplay: "narrowSymbol",
@@ -108,20 +112,24 @@ export default function Portfolio() {
         </View>
         <XStack gap="$s4" padding="$s4" flexWrap="wrap">
           <Text caption2 color="$interactiveOnDisabled" textAlign="justify">
-            Yield is variable, not guaranteed, and powered by&nbsp;
-            <Text
-              cursor="pointer"
-              caption2
-              color="$interactiveOnDisabled"
-              textDecorationLine="underline"
-              onPress={() => {
-                openBrowser(`https://exact.ly/`).catch(reportError);
+            <Trans
+              i18nKey="Performance is variable, not guaranteed, and powered by <protocol>Exactly Protocol</protocol>. Yields depend on protocol performance and network activity. Past performance does not guarantee future results."
+              components={{
+                protocol: (
+                  <Text
+                    cursor="pointer"
+                    caption2
+                    color="$interactiveOnDisabled"
+                    textDecorationLine="underline"
+                    aria-label={t("Exactly protocol website")}
+                    role="link"
+                    onPress={() => {
+                      openBrowser(`https://exact.ly/`).catch(reportError);
+                    }}
+                  />
+                ),
               }}
-            >
-              Exactly Protocol
-            </Text>
-            . Returns depend on protocol performance and network activity. Past performance does not guarantee future
-            results.
+            />
           </Text>
         </XStack>
       </ScrollView>

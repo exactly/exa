@@ -18,9 +18,10 @@ import {
   Shuffle,
 } from "@tamagui/lucide-icons";
 import type { MutationState } from "@tanstack/react-query";
-import { format } from "date-fns";
 import { useRouter } from "expo-router";
+import type { TFunction } from "i18next";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable, RefreshControl, ScrollView } from "react-native";
 import { XStack, YStack } from "tamagui";
 import { extractChain, type Chain } from "viem";
@@ -54,41 +55,60 @@ type ProposalWithMetadata = Proposal & {
     | { receiver: ReturnType<typeof decodeWithdraw> };
 };
 
-function getProposal(proposal: Proposal): ProposalWithMetadata {
+function getProposalLabel(proposalType: ProposalType, t: TFunction): string {
+  switch (proposalType) {
+    case ProposalType.BorrowAtMaturity:
+      return t("Protocol borrow");
+    case ProposalType.RepayAtMaturity:
+    case ProposalType.CrossRepayAtMaturity:
+      return t("Debt payment");
+    case ProposalType.RollDebt:
+      return t("Debt rollover");
+    case ProposalType.Swap:
+      return t("Swapping");
+    case ProposalType.Redeem:
+    case ProposalType.Withdraw:
+      return t("Sending to");
+    default:
+      return t("Unknown");
+  }
+}
+
+function getProposal(proposal: Proposal, t: TFunction): ProposalWithMetadata {
   const { data, proposalType } = proposal;
   switch (proposalType) {
     case ProposalType.BorrowAtMaturity:
       return {
         ...proposal,
-        label: "Protocol borrow",
+        label: getProposalLabel(proposalType, t),
         icon: <Coins color="$interactiveOnBaseInformationSoft" />,
         decoded: decodeBorrowAtMaturity(data),
       };
     case ProposalType.RepayAtMaturity:
       return {
         ...proposal,
-        label: "Debt payment",
+        label: getProposalLabel(proposalType, t),
         icon: <Coins color="$interactiveOnBaseInformationSoft" />,
         decoded: decodeRepayAtMaturity(data),
       };
     case ProposalType.CrossRepayAtMaturity:
       return {
         ...proposal,
-        label: "Debt payment",
+        label: getProposalLabel(proposalType, t),
         icon: <Coins color="$interactiveOnBaseInformationSoft" />,
         decoded: decodeCrossRepayAtMaturity(data),
       };
     case ProposalType.RollDebt:
       return {
         ...proposal,
-        label: "Debt rollover",
+        label: getProposalLabel(proposalType, t),
         icon: <RefreshCw color="$interactiveOnBaseInformationSoft" />,
         decoded: decodeRollDebt(data),
       };
     case ProposalType.Swap:
       return {
         ...proposal,
-        label: "Swapping",
+        label: getProposalLabel(proposalType, t),
         icon: <ArrowLeftRight color="$interactiveOnBaseInformationSoft" />,
         decoded: undefined,
       };
@@ -96,14 +116,14 @@ function getProposal(proposal: Proposal): ProposalWithMetadata {
     case ProposalType.Withdraw:
       return {
         ...proposal,
-        label: "Sending to",
+        label: getProposalLabel(proposalType, t),
         icon: <ArrowUpRight color="$interactiveOnBaseInformationSoft" />,
         decoded: { receiver: decodeWithdraw(data) },
       };
     default:
       return {
         ...proposal,
-        label: "Unknown",
+        label: getProposalLabel(proposalType, t),
         icon: <SearchSlash color="$interactiveOnBaseInformationSoft" />,
         decoded: undefined,
       };
@@ -111,6 +131,7 @@ function getProposal(proposal: Proposal): ProposalWithMetadata {
 }
 
 export default function PendingProposals() {
+  const { t } = useTranslation();
   const router = useRouter();
   const {
     count,
@@ -134,7 +155,7 @@ export default function PendingProposals() {
           </Pressable>
           <View flexDirection="row" alignItems="center">
             <Text color="$uiNeutralSecondary" fontSize={15} fontWeight="bold">
-              Pending requests
+              {t("Pending requests")}
             </Text>
           </View>
           <Pressable
@@ -163,7 +184,7 @@ export default function PendingProposals() {
                   🙌
                 </Text>
                 <Text textAlign="center" color="$uiNeutralSecondary" footnote>
-                  There are no pending requests!
+                  {t("There are no pending requests!")}
                 </Text>
               </YStack>
             )}
@@ -177,7 +198,7 @@ export default function PendingProposals() {
         </ScrollView>
         <View paddingHorizontal="$s8">
           <Text color="$uiNeutralPlaceholder" caption2 textAlign="center">
-            Each request takes about 1 minute to complete and is processed in order.
+            {t("Each request takes about 1 minute to complete and is processed in order.")}
           </Text>
         </View>
       </View>
@@ -186,7 +207,11 @@ export default function PendingProposals() {
 }
 
 function ProposalItem({ proposal }: { proposal: Proposal }) {
-  const { label, icon, decoded, market: proposalMarket, proposalType } = getProposal(proposal);
+  const {
+    t,
+    i18n: { language },
+  } = useTranslation();
+  const { label, icon, decoded, market: proposalMarket, proposalType } = getProposal(proposal, t);
   const { market } = useAsset(proposalMarket);
   const symbol = market ? (market.symbol.slice(3) === "WETH" ? "ETH" : market.symbol.slice(3)) : null;
   const usdValue = market ? (proposal.amount * market.usdPrice) / BigInt(10 ** market.decimals) : 0n;
@@ -194,14 +219,21 @@ function ProposalItem({ proposal }: { proposal: Proposal }) {
   const renderMaturity = () => {
     if (!decoded) return null;
     if ("maturity" in decoded) {
-      return format(new Date(Number(decoded.maturity) * 1000), "MMM dd");
+      return new Date(Number(decoded.maturity) * 1000).toLocaleDateString(language, {
+        month: "short",
+        day: "numeric",
+      });
     }
     if ("repayMaturity" in decoded && "borrowMaturity" in decoded) {
-      return `${format(new Date(Number(decoded.repayMaturity) * 1000), "MMM dd")} → ${format(new Date(Number(decoded.borrowMaturity) * 1000), "MMM dd")}`;
+      return `${new Date(Number(decoded.repayMaturity) * 1000).toLocaleDateString(language, {
+        month: "short",
+        day: "numeric",
+      })} → ${new Date(Number(decoded.borrowMaturity) * 1000).toLocaleDateString(language, {
+        month: "short",
+        day: "numeric",
+      })}`;
     }
-    if ("receiver" in decoded) {
-      return shortenHex(decoded.receiver, 5, 5);
-    }
+    if ("receiver" in decoded) return shortenHex(decoded.receiver, 5, 5);
     return null;
   };
 
@@ -237,7 +269,7 @@ function ProposalItem({ proposal }: { proposal: Proposal }) {
         </YStack>
         <YStack alignItems="flex-end">
           <Text primary emphasized subHeadline numberOfLines={1}>
-            {(Number(usdValue) / 1e18).toLocaleString(undefined, {
+            {(Number(usdValue) / 1e18).toLocaleString(language, {
               style: "currency",
               currency: "USD",
               currencyDisplay: "narrowSymbol",
@@ -245,7 +277,7 @@ function ProposalItem({ proposal }: { proposal: Proposal }) {
           </Text>
           {rendersAmount ? (
             <Text secondary footnote maxFontSizeMultiplier={1} numberOfLines={1}>
-              {`${(Number(proposal.amount) / 10 ** (market?.decimals ?? 18)).toLocaleString(undefined, {
+              {`${(Number(proposal.amount) / 10 ** (market?.decimals ?? 18)).toLocaleString(language, {
                 minimumFractionDigits: 0,
                 maximumFractionDigits: Math.min(
                   8,
@@ -264,6 +296,7 @@ function ProposalItem({ proposal }: { proposal: Proposal }) {
 }
 
 function MutationItem({ mutation }: { mutation: MutationState<unknown, Error, RouteFrom> & { id: number } }) {
+  const { t } = useTranslation();
   const { name: sourceChainName } = extractChain({
     chains: Object.values(chains) as unknown as readonly [Chain, ...Chain[]],
     id: mutation.variables?.chainId ?? 0,
@@ -284,7 +317,7 @@ function MutationItem({ mutation }: { mutation: MutationState<unknown, Error, Ro
       <XStack justifyContent="space-between" flex={1}>
         <YStack flex={1}>
           <Text subHeadline maxFontSizeMultiplier={1} color="$uiPrimary" numberOfLines={1}>
-            Bridge
+            {t("Bridge")}
           </Text>
           <Text footnote maxFontSizeMultiplier={1} color="$uiNeutralSecondary" numberOfLines={1}>
             {sourceChainName} → {chain.name}

@@ -3,6 +3,7 @@ import { ArrowDown, X } from "@tamagui/lucide-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { ScrollView, Square, styled, useTheme, XStack, YStack } from "tamagui";
 import { formatUnits } from "viem";
@@ -33,6 +34,10 @@ export default function Failure({
 }) {
   const theme = useTheme();
   const router = useRouter();
+  const {
+    t,
+    i18n: { language },
+  } = useTranslation();
   return (
     <View fullScreen backgroundColor="$backgroundSoft">
       <StyledGradient
@@ -50,11 +55,7 @@ export default function Failure({
           <ScrollView
             showsVerticalScrollIndicator={false}
             stickyHeaderIndices={[0]}
-            contentContainerStyle={{
-              flexGrow: 1,
-              flexDirection: "column",
-              justifyContent: "space-between",
-            }}
+            contentContainerStyle={{ flexGrow: 1, flexDirection: "column", justifyContent: "space-between" }}
             stickyHeaderHiddenOnScroll
           >
             <View flex={1}>
@@ -69,10 +70,10 @@ export default function Failure({
                 </XStack>
                 <YStack gap="$s4_5" justifyContent="center" alignItems="center">
                   <Text secondary body>
-                    Failed
+                    {t("Failed")}
                   </Text>
                   <Text title primary color="$uiNeutralPrimary">
-                    {fromUsdAmount.toLocaleString(undefined, {
+                    {fromUsdAmount.toLocaleString(language, {
                       style: "currency",
                       currency: "USD",
                       currencyDisplay: "narrowSymbol",
@@ -89,7 +90,7 @@ export default function Failure({
                   </XStack>
                   <ArrowDown size={24} color="$uiNeutralPrimary" />
                   <Text title primary color="$uiNeutralPrimary">
-                    {toUsdAmount.toLocaleString(undefined, {
+                    {toUsdAmount.toLocaleString(language, {
                       style: "currency",
                       currency: "USD",
                       currencyDisplay: "narrowSymbol",
@@ -116,7 +117,7 @@ export default function Failure({
                   }}
                 >
                   <Text emphasized footnote color="$uiBrandSecondary">
-                    Close
+                    {t("Close")}
                   </Text>
                 </Pressable>
               </YStack>

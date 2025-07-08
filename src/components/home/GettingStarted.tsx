@@ -3,6 +3,7 @@ import { ArrowRight, ChevronRight, IdCard } from "@tamagui/lucide-icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import React, { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { PixelRatio, Pressable } from "react-native";
 import { Spinner, XStack, YStack } from "tamagui";
 
@@ -16,7 +17,8 @@ import View from "../shared/View";
 
 export default function GettingStarted({ hasFunds, hasKYC }: { hasFunds: boolean; hasKYC: boolean }) {
   const router = useRouter();
-  const { steps, currentStep, completedSteps, setSteps } = useOnboardingSteps();
+  const { t } = useTranslation();
+  const { currentStep, completedSteps, setSteps } = useOnboardingSteps();
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const { mutateAsync: startKYC, isPending } = useMutation({
     mutationKey: ["kyc"],
@@ -67,11 +69,13 @@ export default function GettingStarted({ hasFunds, hasKYC }: { hasFunds: boolean
 
   if (hasFunds && hasKYC) return null;
 
+  const activeStepTitle = currentStep ? t(currentStep.title) : "";
+
   return (
     <YStack backgroundColor="$backgroundBrandSoft" borderWidth={1} borderColor="$borderBrandSoft" borderRadius="$r3">
       <XStack justifyContent="space-between" alignItems="center" padding="$s4">
         <Text emphasized headline color="$uiBrandSecondary" maxFontSizeMultiplier={1.3}>
-          Getting Started
+          {t("Getting Started")}
         </Text>
         <Pressable hitSlop={15}>
           <XStack gap={2} alignItems="center">
@@ -83,7 +87,7 @@ export default function GettingStarted({ hasFunds, hasKYC }: { hasFunds: boolean
               }}
             >
               <Text emphasized footnote color="$interactiveBaseBrandDefault">
-                View all steps
+                {t("View all steps")}
               </Text>
             </Pressable>
             <ChevronRight size={14 * PixelRatio.getFontScale()} color="$interactiveTextBrandDefault" />
@@ -95,7 +99,7 @@ export default function GettingStarted({ hasFunds, hasKYC }: { hasFunds: boolean
           <XStack gap="$s3" alignItems="center">
             <IdCard size={24 * PixelRatio.getFontScale()} color="$uiBrandSecondary" />
             <Text emphasized headline color="$uiBrandSecondary" maxFontSizeMultiplier={1.3}>
-              {steps.find(({ completed }) => !completed)?.title}
+              {activeStepTitle}
             </Text>
           </XStack>
           <XStack gap="$s3_5" alignItems="center">

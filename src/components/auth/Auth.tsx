@@ -4,6 +4,7 @@ import { Key, User } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import React, { type FC, useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { StyleProp, ViewStyle, ViewToken } from "react-native";
 import { Platform } from "react-native";
 import Animated, { useAnimatedScrollHandler, useSharedValue, withTiming, Easing } from "react-native-reanimated";
@@ -31,9 +32,9 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function Auth() {
-  const [activeIndex, setActiveIndex] = useState(0);
   const router = useRouter();
-
+  const { t } = useTranslation();
+  const [activeIndex, setActiveIndex] = useState(0);
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
   const [signUpModalOpen, setSignUpModalOpen] = useState(false);
   const [signInModalOpen, setSignInModalOpen] = useState(false);
@@ -142,7 +143,7 @@ export default function Auth() {
           </View>
           <View flexDirection="column" gap="$s5">
             <Text emphasized title brand centered>
-              {title}
+              {t(title)}
             </Text>
             <View height={20}>
               {disabled && (
@@ -154,7 +155,7 @@ export default function Auth() {
                   backgroundColor="$interactiveBaseBrandDefault"
                   color="$interactiveOnBaseBrandDefault"
                 >
-                  COMING SOON
+                  {t("COMING SOON")}
                 </Text>
               )}
             </View>
@@ -181,7 +182,7 @@ export default function Auth() {
                 }}
               >
                 <Button.Text>
-                  {loading ? "Please wait..." : embeddingContext ? "Sign in" : "Create new account"}
+                  {loading ? t("Please wait...") : embeddingContext ? t("Sign in") : t("Create new account")}
                 </Button.Text>
                 <Button.Icon>
                   <Key />
@@ -202,7 +203,7 @@ export default function Auth() {
                     else signIn({ method: "webauthn" });
                   }}
                 >
-                  <Button.Text>I already have an account</Button.Text>
+                  <Button.Text>{t("I already have an account")}</Button.Text>
                   <Button.Icon>
                     <User />
                   </Button.Icon>
@@ -214,8 +215,10 @@ export default function Auth() {
       </View>
       <ErrorDialog
         open={errorDialogOpen}
-        title="Verification failed"
-        description="Please check your internet connection and try again in a moment. If the problem persists, reinstalling the app may help."
+        title={t("Verification failed")}
+        description={t(
+          "Please check your internet connection and try again in a moment. If the problem persists, reinstalling the app may help.",
+        )}
         onClose={() => {
           setErrorDialogOpen(false);
         }}
@@ -229,10 +232,10 @@ export default function Auth() {
               if (!method) return;
               signIn({ method });
             }}
-            title="Log in"
-            description="Choose your preferred authentication method"
-            webAuthnText="Log in with Passkey"
-            siweText="Log in with browser wallet"
+            title={t("Log in")}
+            description={t("Choose your preferred authentication method")}
+            webAuthnText={t("Log in with Passkey")}
+            siweText={t("Log in with browser wallet")}
           />
           <ConnectSheet
             open={signUpModalOpen}
@@ -246,10 +249,10 @@ export default function Auth() {
               }
               signIn({ method });
             }}
-            title="Create account"
-            description="Choose your preferred authentication method"
-            webAuthnText="Sign up with Passkey"
-            siweText="Sign up with browser wallet"
+            title={t("Create account")}
+            description={t("Choose your preferred authentication method")}
+            webAuthnText={t("Sign up with Passkey")}
+            siweText={t("Sign up with browser wallet")}
           />
         </>
       ) : null}

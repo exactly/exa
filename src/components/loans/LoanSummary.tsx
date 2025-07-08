@@ -1,7 +1,8 @@
 import { previewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerPreviewBorrowAtMaturity } from "@exactly/common/generated/hooks";
 import { MATURITY_INTERVAL, WAD } from "@exactly/lib";
-import React from "react";
+import React, { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
 import { useBytecode } from "wagmi";
@@ -16,12 +17,16 @@ import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 
 export default function LoanSummary({ loan }: { loan: Loan }) {
+  const {
+    t,
+    i18n: { language },
+  } = useTranslation();
   const { address } = useAccount();
   const { data: bytecode } = useBytecode({ address: previewerAddress, query: { enabled: !!address } });
   const { market } = useAsset(loan.market);
   const symbol = market?.symbol.slice(3) === "WETH" ? "ETH" : market?.symbol.slice(3);
   const isBorrow = loan.installments === 1;
-  const timestamp = Math.floor(Date.now() / 1000);
+  const timestamp = useMemo(() => Math.floor(Date.now() / 1000), []);
   const defaultMaturity = timestamp - (timestamp % MATURITY_INTERVAL) + MATURITY_INTERVAL;
   const { data: installments, isFetching: isInstallmentsPending } = useInstallments({
     timestamp: loan.maturity ? Number(loan.maturity) : defaultMaturity,
@@ -37,11 +42,29 @@ export default function LoanSummary({ loan }: { loan: Loan }) {
     },
   });
   const pending = isInstallmentsPending || isBorrowPending;
+  const apr = useMemo(() => {
+    const value =
+      !isBorrow && installments
+        ? Number(installments.effectiveRate) / 1e18
+        : borrow && loan.amount && loan.amount > 0n && borrow.maturity > BigInt(timestamp)
+          ? Number(
+              ((borrow.assets - loan.amount) * WAD * 31_536_000n) /
+                (loan.amount * (borrow.maturity - BigInt(timestamp))),
+            ) / 1e18
+          : null;
+    return (
+      value?.toLocaleString(language, {
+        style: "percent",
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }) ?? "N/A"
+    );
+  }, [borrow, installments, isBorrow, language, loan.amount, timestamp]);
   return (
     <YStack gap="$s1">
       <XStack justifyContent="space-between" alignItems="center">
         <Text footnote color="$uiNeutralPlaceholder">
-          You repay in total
+          {t("You repay in total")}
         </Text>
         {pending ? (
           <Skeleton width={100} height={24} />
@@ -56,7 +79,7 @@ export default function LoanSummary({ loan }: { loan: Loan }) {
               {(
                 Number(!isBorrow && installments ? installments.amounts.reduce((a, b) => a + b, 0n) : borrow?.assets) /
                 1e6
-              ).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              ).toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </Text>
           </XStack>
         )}
@@ -67,21 +90,7 @@ export default function LoanSummary({ loan }: { loan: Loan }) {
         </XStack>
       ) : (
         <Text secondary caption alignSelf="flex-end">
-          {`${
-            (!isBorrow && installments
-              ? Number(installments.effectiveRate) / 1e18
-              : borrow
-                ? Number(
-                    ((borrow.assets - (loan.amount ?? 0n)) * WAD * 31_536_000n) /
-                      ((loan.amount ?? 0n) * (borrow.maturity - BigInt(timestamp))),
-                  ) / 1e18
-                : null
-            )?.toLocaleString(undefined, {
-              style: "percent",
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            }) ?? "N/A"
-          } FIXED APR`}
+          {t("{{rate}} FIXED APR", { rate: apr })}
         </Text>
       )}
     </YStack>

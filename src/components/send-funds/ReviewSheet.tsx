@@ -2,6 +2,7 @@ import shortenHex from "@exactly/common/shortenHex";
 import type { Address } from "@exactly/common/validation";
 import { ArrowRight } from "@tamagui/lucide-icons";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
@@ -40,6 +41,10 @@ export default function ReviewSheet({
   symbol?: string;
   usdValue: string;
 }) {
+  const {
+    t,
+    i18n: { language },
+  } = useTranslation();
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
       <ScrollView $platform-web={{ maxHeight: "100vh" }}>
@@ -54,13 +59,13 @@ export default function ReviewSheet({
           <YStack gap="$s7">
             <YStack gap="$s5">
               <Text emphasized primary headline textAlign="center">
-                Review transaction
+                {t("Review transaction")}
               </Text>
             </YStack>
             <YStack gap="$s3_5">
               <YStack gap="$s4">
                 <Text emphasized footnote color="$uiNeutralSecondary">
-                  Sending
+                  {t("Sending")}
                 </Text>
                 <XStack alignItems="center" gap="$s3">
                   <AssetLogo
@@ -75,7 +80,7 @@ export default function ReviewSheet({
                       {amount} {symbol}
                     </Text>
                     <Text subHeadline color="$uiNeutralSecondary">
-                      {Number(usdValue).toLocaleString(undefined, {
+                      {Number(usdValue).toLocaleString(language, {
                         style: "currency",
                         currency: "USD",
                         minimumFractionDigits: 2,
@@ -87,7 +92,7 @@ export default function ReviewSheet({
               </YStack>
               <YStack gap="$s4">
                 <Text emphasized footnote color="$uiNeutralSecondary">
-                  To
+                  {t("To")}
                 </Text>
                 <XStack alignItems="center" gap="$s3">
                   <View borderRadius="$r_0" overflow="hidden">
@@ -99,7 +104,7 @@ export default function ReviewSheet({
                     </Text>
                     {receiver && isFirstSend && (
                       <Text subHeadline color="$uiNeutralSecondary">
-                        First time send
+                        {t("First time send")}
                       </Text>
                     )}
                   </YStack>
@@ -108,14 +113,14 @@ export default function ReviewSheet({
             </YStack>
             <YStack gap="$s5">
               <Button primary disabled={!sendReady} onPress={onSend}>
-                <Button.Text>{sendReady ? "Send" : "Simulation failed"}</Button.Text>
+                <Button.Text>{sendReady ? t("Send") : t("Simulation failed")}</Button.Text>
                 <Button.Icon>
                   <ArrowRight size={24} />
                 </Button.Icon>
               </Button>
               <Pressable onPress={onClose}>
                 <Text emphasized footnote color="$interactiveBaseBrandDefault" alignSelf="center">
-                  Close
+                  {t("Close")}
                 </Text>
               </Pressable>
             </YStack>

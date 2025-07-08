@@ -11,6 +11,7 @@ import {
 import { useMutation } from "@tanstack/react-query";
 import { waitForCallsStatus } from "@wagmi/core/actions";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { encodeAbiParameters, getAbiItem, keccak256, zeroAddress } from "viem";
 import { useBytecode, useSendCalls } from "wagmi";
 
@@ -20,6 +21,7 @@ import useAccount from "../../utils/useAccount";
 import exa from "../../utils/wagmi/exa";
 
 export default function PluginUpgrade() {
+  const { t } = useTranslation();
   const { mutateAsync: mutateSendCalls } = useSendCalls();
   const { address } = useAccount();
   const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
@@ -82,8 +84,8 @@ export default function PluginUpgrade() {
 
   return (
     <InfoAlert
-      title="An account upgrade is required to access the latest features."
-      actionText="Upgrade account now"
+      title={t("An account upgrade is required to access the latest features.")}
+      actionText={t("Upgrade account now")}
       loading={isUpdating}
       onPress={() => {
         updatePlugin().catch(reportError);

@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { setStringAsync } from "expo-clipboard";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 
 import Blocky from "./Blocky";
@@ -17,6 +18,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function ProfileHeader() {
+  const { t } = useTranslation();
   const { address } = useAccount();
   const [copyAddressShown, setCopyAddressShown] = useState(false);
   const router = useRouter();
@@ -56,12 +58,12 @@ export default function ProfileHeader() {
           )}
         </View>
         <View display="flex" flexDirection="row" alignItems="center" gap={16}>
-          <Pressable aria-label={hidden ? "Show sensitive" : "Hide sensitive"} onPress={toggle} hitSlop={15}>
+          <Pressable aria-label={hidden ? t("Show sensitive") : t("Hide sensitive")} onPress={toggle} hitSlop={15}>
             {hidden ? <EyeOff color="$uiNeutralSecondary" /> : <Eye color="$uiNeutralSecondary" />}
           </Pressable>
           {count > 0 && (
             <Pressable
-              aria-label="Pending proposals"
+              aria-label={t("Pending proposals")}
               disabled={pendingProposalsFetching}
               onPress={() => {
                 router.push("/pending-proposals");
@@ -73,7 +75,7 @@ export default function ProfileHeader() {
             </Pressable>
           )}
           <Pressable
-            aria-label="Settings"
+            aria-label={t("Settings")}
             onPress={() => {
               router.push("/settings");
             }}

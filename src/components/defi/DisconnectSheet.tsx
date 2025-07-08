@@ -1,5 +1,6 @@
 import { PowerOff } from "@tamagui/lucide-icons";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { ScrollView, YStack } from "tamagui";
 
 import ModalSheet from "../shared/ModalSheet";
@@ -19,6 +20,7 @@ export default function DisconnectSheet({
   name: string;
   onActionPress: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
       <SafeView
@@ -33,15 +35,15 @@ export default function DisconnectSheet({
             <YStack flex={1} paddingHorizontal="$s5" paddingVertical="$s7" gap="$s7">
               <YStack gap="$s4">
                 <Text primary emphasized headline>
-                  Are you sure you want to disconnect from {name}?
+                  {t("Are you sure you want to disconnect from {{name}}?", { name })}
                 </Text>
                 <Text secondary subHeadline>
-                  You can reconnect at any time.
+                  {t("You can reconnect at any time.")}
                 </Text>
               </YStack>
               <YStack gap="$s5">
                 <Button onPress={onActionPress} dangerSecondary>
-                  <Button.Text>Disconnect from {name}</Button.Text>
+                  <Button.Text>{t("Disconnect from {{name}}", { name })}</Button.Text>
                   <Button.Icon>
                     <PowerOff />
                   </Button.Icon>
@@ -54,7 +56,7 @@ export default function DisconnectSheet({
                   color="$interactiveBaseBrandDefault"
                   textAlign="center"
                 >
-                  Stay connected
+                  {t("Stay connected")}
                 </Text>
               </YStack>
             </YStack>

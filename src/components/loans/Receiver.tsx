@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getStringAsync } from "expo-clipboard";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { ScrollView, Separator, XStack, YStack } from "tamagui";
 import { parse } from "valibot";
@@ -25,6 +26,7 @@ import View from "../shared/View";
 
 export default function Receiver() {
   const router = useRouter();
+  const { t } = useTranslation();
   const toast = useToastController();
   const { address } = useAccount();
   const { data: loan } = useQuery<Loan>({ queryKey: ["loan"], enabled: !!address });
@@ -41,7 +43,7 @@ export default function Receiver() {
         queryClient.setQueryData(["loan"], (old: Loan) => ({ ...old, receiver }));
         router.push("/loan/review");
       } catch {
-        toast.show("Invalid address", {
+        toast.show(t("Invalid address"), {
           native: true,
           duration: 1000,
           burntOptions: { haptic: "error", preset: "error" },
@@ -93,7 +95,7 @@ export default function Receiver() {
           <YStack gap="$s6">
             <YStack gap="$s4_5">
               <Text primary emphasized body>
-                Select where to receive the funding
+                {t("Select where to receive the funding")}
               </Text>
               <YStack gap="$s3">
                 <XStack
@@ -122,9 +124,9 @@ export default function Receiver() {
                     {receiverType === "internal" && <Check size={12} color="$interactiveOnBaseBrandDefault" />}
                   </XStack>
                   <YStack gap={2} flex={1}>
-                    <Text headline>Your Exa account</Text>
+                    <Text headline>{t("Your Exa account")}</Text>
                     <Text footnote color="$uiNeutralSecondary">
-                      Deposit {symbol} into your Exa App wallet
+                      {t("Deposit {{symbol}} into your Exa App wallet", { symbol })}
                     </Text>
                   </YStack>
                 </XStack>
@@ -153,9 +155,9 @@ export default function Receiver() {
                     {receiverType === "external" && <Check size={12} color="$interactiveOnBaseBrandDefault" />}
                   </XStack>
                   <YStack gap={2} flex={1}>
-                    <Text headline>External address on {chain.name}</Text>
+                    <Text headline>{t("External address on {{chain}}", { chain: chain.name })}</Text>
                     <Text footnote color="$uiNeutralSecondary">
-                      Deposit {symbol} directly to an external wallet
+                      {t("Deposit {{symbol}} directly to an external wallet", { symbol })}
                     </Text>
                   </YStack>
                 </XStack>
@@ -166,7 +168,7 @@ export default function Receiver() {
                         <XStack alignItems="center">
                           <Input
                             flex={1}
-                            placeholder="Enter receiver address"
+                            placeholder={t("Enter receiver address")}
                             borderColor="$uiNeutralTertiary"
                             borderRightColor="transparent"
                             borderTopRightRadius={0}
@@ -210,19 +212,23 @@ export default function Receiver() {
                 <XStack gap="$s3" alignItems="center">
                   <TriangleAlert size={16} color="$uiWarningSecondary" />
                   <Text caption2 color="$uiNeutralPlaceholder" flex={1}>
-                    Send funds only to {chain.name} addresses. Sending assets to any other network will cause
-                    irreversible loss of funds. Arrival time ≈ 5 min.
-                    <Text
-                      caption2
-                      emphasized
-                      color="$uiBrandSecondary"
-                      cursor="pointer"
-                      onPress={() => {
-                        presentArticle("9056481").catch(reportError);
+                    <Trans
+                      i18nKey="Send funds only to {{chain}} addresses. Sending assets to any other network will cause irreversible loss of funds. Arrival time ≈ 5 min.<learn> Learn more about sending funds.</learn>"
+                      values={{ chain: chain.name }}
+                      components={{
+                        learn: (
+                          <Text
+                            caption2
+                            emphasized
+                            color="$uiBrandSecondary"
+                            cursor="pointer"
+                            onPress={() => {
+                              presentArticle("9056481").catch(reportError);
+                            }}
+                          />
+                        ),
                       }}
-                    >
-                      &nbsp;Learn more about sending funds.
-                    </Text>
+                    />
                   </Text>
                 </XStack>
               </YStack>
@@ -238,7 +244,7 @@ export default function Receiver() {
                     }}
                     disabled={disabled}
                   >
-                    <Button.Text>Review loan terms</Button.Text>
+                    <Button.Text>{t("Review loan terms")}</Button.Text>
                     <Button.Icon>
                       <ArrowRight />
                     </Button.Icon>

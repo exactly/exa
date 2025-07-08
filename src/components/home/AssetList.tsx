@@ -2,6 +2,7 @@ import { previewerAddress, ratePreviewerAddress } from "@exactly/common/generate
 import { useReadPreviewerExactly, useReadRatePreviewerSnapshot } from "@exactly/common/generated/hooks";
 import { floatingDepositRates } from "@exactly/lib";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { vs } from "react-native-size-matters";
 import { XStack, YStack } from "tamagui";
 import { zeroAddress, parseUnits } from "viem";
@@ -26,6 +27,10 @@ interface AssetItem {
 }
 
 function AssetRow({ asset }: { asset: AssetItem }) {
+  const {
+    t,
+    i18n: { language },
+  } = useTranslation();
   const { symbol, logoURI, amount, decimals, usdPrice, usdValue, rate } = asset;
   return (
     <XStack alignItems="center" borderColor="$borderNeutralSoft" paddingVertical={vs(10)} gap="$s2" width="100%">
@@ -36,7 +41,7 @@ function AssetRow({ asset }: { asset: AssetItem }) {
             {symbol}
           </Text>
           <Text caption color="$uiNeutralSecondary" numberOfLines={1}>
-            {(Number(usdPrice) / 1e18).toLocaleString(undefined, {
+            {(Number(usdPrice) / 1e18).toLocaleString(language, {
               style: "currency",
               currency: "USD",
               currencyDisplay: "narrowSymbol",
@@ -59,28 +64,28 @@ function AssetRow({ asset }: { asset: AssetItem }) {
         ) : (
           <>
             <Text subHeadline emphasized textAlign="right" color="$interactiveTextSuccessDefault">
-              {(Number(rate) / 1e18).toLocaleString(undefined, {
+              {(Number(rate) / 1e18).toLocaleString(language, {
                 style: "percent",
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
               })}
             </Text>
             <Text caption color="$uiNeutralSecondary" textAlign="right">
-              Yield
+              {t("Yield")}
             </Text>
           </>
         )}
       </YStack>
       <YStack gap={5} flex={1} $platform-web={{ flexBasis: 1 / 3 }}>
         <Text sensitive emphasized subHeadline numberOfLines={1} adjustsFontSizeToFit textAlign="right">
-          {(Number(usdValue) / 1e18).toLocaleString(undefined, {
+          {(Number(usdValue) / 1e18).toLocaleString(language, {
             style: "currency",
             currency: "USD",
             currencyDisplay: "narrowSymbol",
           })}
         </Text>
         <Text caption color="$uiNeutralSecondary" textAlign="right">
-          {(Number(amount) / 10 ** decimals).toLocaleString(undefined, {
+          {(Number(amount) / 10 ** decimals).toLocaleString(language, {
             minimumFractionDigits: 1,
             maximumFractionDigits: Math.min(
               8,
@@ -108,12 +113,9 @@ function AssetSection({ title, assets }: { title: string; assets: AssetItem[] })
 }
 
 export default function AssetList() {
+  const { t } = useTranslation();
   const { address } = useAccount();
-  const { data: markets } = useReadPreviewerExactly({
-    address: previewerAddress,
-    args: [address ?? zeroAddress],
-  });
-
+  const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [address ?? zeroAddress] });
   const { externalAssets } = useAccountAssets();
   const { data: snapshots, dataUpdatedAt } = useReadRatePreviewerSnapshot({
     address: ratePreviewerAddress,
@@ -153,8 +155,8 @@ export default function AssetList() {
 
   return (
     <YStack gap="$s4">
-      <AssetSection title="Collateral Assets" assets={collateralAssets} />
-      <AssetSection title="Other Assets" assets={externalAssetItems} />
+      <AssetSection title={t("Collateral Assets")} assets={collateralAssets} />
+      <AssetSection title={t("Other Assets")} assets={externalAssetItems} />
     </YStack>
   );
 }

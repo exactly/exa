@@ -3,6 +3,7 @@ import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { ArrowLeft, CircleHelp } from "@tamagui/lucide-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import React, { useState, type RefObject } from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable, RefreshControl } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
@@ -19,6 +20,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function Loans() {
+  const { t } = useTranslation();
   const parameters = useLocalSearchParams();
   const { account } = useAsset(marketUSDCAddress);
   const [paySheetOpen, setPaySheetOpen] = useState(false);
@@ -58,7 +60,7 @@ export default function Loans() {
                     <ArrowLeft size={24} color="$uiNeutralPrimary" />
                   </Pressable>
                   <Text emphasized subHeadline textAlign="center">
-                    Exactly Protocol
+                    {t("Exactly Protocol")}
                   </Text>
                   <Pressable
                     onPress={() => {
@@ -69,8 +71,9 @@ export default function Loans() {
                   </Pressable>
                 </XStack>
                 <Text subHeadline secondary>
-                  Get fixed-interest funding using your assets as collateral, no credit check needed. Choose an amount
-                  and repayment plan to receive USDC.
+                  {t(
+                    "Get fixed-interest funding using your assets as collateral, no credit check needed. Choose an amount and repayment plan to receive USDC.",
+                  )}
                 </Text>
               </YStack>
             </View>
@@ -85,8 +88,9 @@ export default function Loans() {
             </View>
             <XStack gap="$s4" alignItems="flex-start" padding="$s4" flexWrap="wrap">
               <Text caption2 color="$interactiveOnDisabled" textAlign="justify">
-                You are accessing a decentralized protocol using your crypto as collateral. The Exa App does not issue
-                funding or provide credit. No credit checks or intermediaries are involved.
+                {t(
+                  "You are accessing a decentralized protocol using your crypto as collateral. The Exa App does not issue funding or provide credit. No credit checks or intermediaries are involved.",
+                )}
               </Text>
             </XStack>
             <PaymentSheet

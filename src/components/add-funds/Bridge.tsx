@@ -9,6 +9,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { switchChain, waitForTransactionReceipt } from "@wagmi/core";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { ScrollView, Spinner, Square, XStack, YStack } from "tamagui";
 import {
@@ -47,6 +48,10 @@ import TokenInput from "../swaps/TokenInput";
 export default function Bridge() {
   const router = useRouter();
   const toast = useToastController();
+  const {
+    t,
+    i18n: { language },
+  } = useTranslation();
 
   const [assetSheetOpen, setAssetSheetOpen] = useState(false);
   const [destinationModalOpen, setDestinationModalOpen] = useState(false);
@@ -301,7 +306,7 @@ export default function Bridge() {
       if (!senderAddress || !effectiveSource || !account) throw new Error("missing bridge context");
       if (isSameChain) throw new Error("invalid bridge context");
 
-      setBridgeStatus(`Switching to ${selectedGroup?.chain.name ?? `Chain ${from.chainId}`}...`);
+      setBridgeStatus(t("Switching to {{chain}}...", { chain: selectedGroup?.chain.name ?? `Chain ${from.chainId}` }));
       await switchChain(senderConfig, { chainId: from.chainId });
 
       const spender = from.estimate.approvalAddress;
@@ -315,7 +320,7 @@ export default function Bridge() {
       let approval: Hex | undefined;
       let currentAllowance = allowanceData;
       if (requiresApproval) {
-        setBridgeStatus("Checking allowance...");
+        setBridgeStatus(t("Checking allowance..."));
         try {
           const result = await refetchAllowance();
           if (result.data !== undefined) {
@@ -336,7 +341,7 @@ export default function Bridge() {
           });
         }
       }
-      setBridgeStatus("Submitting bridge transaction...");
+      setBridgeStatus(t("Submitting bridge transaction..."));
       try {
         await sendCallsTx({
           calls: [
@@ -344,7 +349,7 @@ export default function Bridge() {
             { to: from.to, data: from.data, value: from.value },
           ],
         });
-        setBridgeStatus("Bridge transaction submitted");
+        setBridgeStatus(t("Bridge transaction submitted"));
       } catch (error) {
         reportError(error);
         if (approval) {
@@ -353,11 +358,11 @@ export default function Bridge() {
         }
         const hash = await sendTx({ to: from.to, data: from.data, value: from.value });
         await waitForTransactionReceipt(senderConfig, { hash });
-        setBridgeStatus("Bridge transaction submitted");
+        setBridgeStatus(t("Bridge transaction submitted"));
       }
     },
     onSuccess: async () => {
-      toast.show("Bridge transaction submitted", {
+      toast.show(t("Bridge transaction submitted"), {
         native: true,
         duration: 1000,
         burntOptions: { haptic: "success", preset: "done" },
@@ -365,7 +370,7 @@ export default function Bridge() {
       await queryClient.invalidateQueries({ queryKey: ["bridge", "sources"] });
     },
     onError: (error: unknown) => {
-      handleError(error, toast);
+      handleError(error, toast, t);
     },
     onSettled: () => {
       setBridgeStatus(undefined);
@@ -390,7 +395,7 @@ export default function Bridge() {
       if (!isSameChain) throw new Error("transfer mutation invoked for different chains");
 
       await switchChain(senderConfig, { chainId: effectiveSource.chain });
-      setBridgeStatus("Submitting transfer transaction...");
+      setBridgeStatus(t("Submitting transfer transaction..."));
       const recipient = getAddress(account);
       let hash: Hex;
       if (isNativeSource) {
@@ -400,10 +405,10 @@ export default function Bridge() {
         hash = await transfer(transferSimulation.request);
       }
       await waitForTransactionReceipt(senderConfig, { hash });
-      setBridgeStatus("Transfer transaction submitted");
+      setBridgeStatus(t("Transfer transaction submitted"));
     },
     onSuccess: async () => {
-      toast.show("Transfer transaction submitted", {
+      toast.show(t("Transfer transaction submitted"), {
         native: true,
         duration: 1000,
         burntOptions: { haptic: "success", preset: "done" },
@@ -411,7 +416,7 @@ export default function Bridge() {
       await queryClient.invalidateQueries({ queryKey: ["bridge", "sources"] });
     },
     onError: (error: unknown) => {
-      handleError(error, toast, true);
+      handleError(error, toast, t, true);
     },
     onSettled: () => {
       setBridgeStatus(undefined);
@@ -444,11 +449,11 @@ export default function Bridge() {
 
   const statusMessage =
     isBridging || isTransferring
-      ? (bridgeStatus ?? (isTransferring ? "Transferring..." : "Bridging..."))
+      ? (bridgeStatus ?? (isTransferring ? t("Transferring...") : t("Bridging...")))
       : isTransferSimulationPending
-        ? "Simulating transfer..."
+        ? t("Simulating transfer...")
         : isBridgeQuoteLoading
-          ? "Fetching best route..."
+          ? t("Fetching best route...")
           : undefined;
 
   if (processing) {
@@ -456,7 +461,6 @@ export default function Bridge() {
     const isSuccess = isBridgeSuccess || isTransferSuccess;
     const isError = isBridgeError || isTransferError;
     const isTransfer = isTransferring || isTransferSuccess || isTransferError;
-    const label = isTransfer ? "Transfer" : "Bridge";
 
     const amount = Number(formatUnits(bridgePreview.sourceAmount, bridgePreview.sourceToken.decimals));
     const price = Number(bridgePreview.sourceToken.priceUSD);
@@ -497,10 +501,16 @@ export default function Bridge() {
               <YStack gap="$s3" justifyContent="center" alignItems="center">
                 <Text secondary body>
                   {isError
-                    ? `${label} failed`
+                    ? isTransfer
+                      ? t("Transfer failed")
+                      : t("Bridge failed")
                     : isSuccess
-                      ? `${label} transaction submitted`
-                      : `Processing ${label.toLowerCase()}`}
+                      ? isTransfer
+                        ? t("Transfer transaction submitted")
+                        : t("Bridge transaction submitted")
+                      : isTransfer
+                        ? t("Processing transfer")
+                        : t("Processing bridge")}
                 </Text>
               </YStack>
               <XStack gap="$s3" alignItems="center">
@@ -508,13 +518,13 @@ export default function Bridge() {
                 <Text title primary color="$uiNeutralPrimary">
                   {`${Number(
                     formatUnits(bridgePreview.sourceAmount, bridgePreview.sourceToken.decimals),
-                  ).toLocaleString(undefined, {
+                  ).toLocaleString(language, {
                     maximumFractionDigits: Math.min(6, bridgePreview.sourceToken.decimals),
                   })} ${bridgePreview.sourceToken.symbol}`}
                 </Text>
               </XStack>
               <Text emphasized secondary body textAlign="center">
-                {usdValue.toLocaleString(undefined, {
+                {usdValue.toLocaleString(language, {
                   style: "currency",
                   currency: "USD",
                   currencyDisplay: "narrowSymbol",
@@ -535,7 +545,7 @@ export default function Bridge() {
               }}
             >
               <Text emphasized footnote color="$uiBrandSecondary" textAlign="center">
-                Close
+                {t("Close")}
               </Text>
             </Pressable>
           </YStack>
@@ -567,7 +577,7 @@ export default function Bridge() {
             <ArrowLeft size={24} color="$uiNeutralPrimary" />
           </Pressable>
           <Text primary emphasized subHeadline>
-            Add funds
+            {t("Add funds")}
           </Text>
           <Pressable
             onPress={() => {
@@ -604,16 +614,18 @@ export default function Bridge() {
                   gap="$s3"
                 >
                   <Text emphasized callout color="$interactiveOnBaseWarningSoft">
-                    No external assets detected
+                    {t("No external assets detected")}
                   </Text>
                   <Text footnote color="$interactiveOnBaseWarningSoft">
-                    Top up an external wallet supported by LI.FI to unlock bridging into {chain.name}.
+                    {t("Top up an external wallet supported by LI.FI to unlock bridging into {{chain}}.", {
+                      chain: chain.name,
+                    })}
                   </Text>
                 </View>
               )}
               {assetGroups.length > 0 && (
                 <TokenInput
-                  label="Send from"
+                  label={t("Send from")}
                   subLabel={shortenHex(senderAddress ?? zeroAddress, 4, 6)}
                   token={sourceToken}
                   amount={sourceAmount}
@@ -634,7 +646,7 @@ export default function Bridge() {
               )}
               {insufficientBalance && (
                 <Text caption2 color="$interactiveOnBaseWarningSoft">
-                  Amount exceeds available balance.
+                  {t("Amount exceeds available balance.")}
                 </Text>
               )}
               {destinationToken && (
@@ -649,10 +661,10 @@ export default function Bridge() {
                   <XStack alignItems="center" justifyContent="space-between">
                     <YStack gap="$s1">
                       <Text emphasized subHeadline color="$uiNeutralPrimary">
-                        {isSameChain ? "Destination" : "Destination asset"}
+                        {isSameChain ? t("Destination") : t("Destination asset")}
                       </Text>
                       <Text footnote color="$uiNeutralSecondary">
-                        Exa Account | {shortenHex(account ?? zeroAddress, 4, 6)}
+                        {t("Exa Account")} | {shortenHex(account ?? zeroAddress, 4, 6)}
                       </Text>
                     </YStack>
                   </XStack>
@@ -700,7 +712,7 @@ export default function Bridge() {
                                   width="100%"
                                   color="$uiNeutralSecondary"
                                 >
-                                  {Number(formatUnits(toAmount, destinationToken.decimals)).toLocaleString(undefined, {
+                                  {Number(formatUnits(toAmount, destinationToken.decimals)).toLocaleString(language, {
                                     minimumFractionDigits: 0,
                                     maximumFractionDigits: destinationToken.decimals,
                                     useGrouping: false,
@@ -717,7 +729,7 @@ export default function Bridge() {
                                         (toAmount * parseUnits(destinationToken.priceUSD, 18)) / WAD,
                                         destinationToken.decimals,
                                       ),
-                                    ).toLocaleString(undefined, {
+                                    ).toLocaleString(language, {
                                       style: "currency",
                                       currency: "USD",
                                       currencyDisplay: "narrowSymbol",
@@ -730,7 +742,7 @@ export default function Bridge() {
                                       (destinationBalance * parseUnits(destinationToken.priceUSD, 18)) / WAD,
                                       destinationToken.decimals,
                                     ),
-                                  ).toLocaleString(undefined, {
+                                  ).toLocaleString(language, {
                                     style: "currency",
                                     currency: "USD",
                                     currencyDisplay: "narrowSymbol",
@@ -756,10 +768,10 @@ export default function Bridge() {
                   <YStack gap="$s3_5">
                     <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
                       <Text caption color="$uiNeutralSecondary">
-                        You send
+                        {t("You send")}
                       </Text>
                       <Text caption color="$uiNeutralPrimary" textAlign="right" flexShrink={1}>
-                        {`${Number(formatUnits(sourceAmount, sourceToken.decimals)).toLocaleString(undefined, {
+                        {`${Number(formatUnits(sourceAmount, sourceToken.decimals)).toLocaleString(language, {
                           minimumFractionDigits: 0,
                           maximumFractionDigits: sourceToken.decimals,
                           useGrouping: false,
@@ -768,21 +780,22 @@ export default function Bridge() {
                     </XStack>
                     <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
                       <Text caption color="$uiNeutralSecondary">
-                        Source network
+                        {t("Source network")}
                       </Text>
                       <Text caption color="$uiNeutralPrimary" textAlign="right" flexShrink={1}>
-                        {selectedGroup?.chain.name ?? (effectiveSource?.chain ? `Chain ${effectiveSource.chain}` : "—")}
+                        {selectedGroup?.chain.name ??
+                          (effectiveSource?.chain ? t("Chain {{id}}", { id: effectiveSource.chain }) : "—")}
                       </Text>
                     </XStack>
                     <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
                       <Text caption color="$uiNeutralSecondary">
-                        Estimated arrival
+                        {t("Estimated arrival")}
                       </Text>
                       <Text caption color="$uiNeutralPrimary" textAlign="right" flexShrink={1}>
                         {bridgeQuote.estimate.toAmount
                           ? `≈${Number(
                               formatUnits(BigInt(bridgeQuote.estimate.toAmount), destinationToken.decimals),
-                            ).toLocaleString(undefined, {
+                            ).toLocaleString(language, {
                               minimumFractionDigits: 0,
                               maximumFractionDigits: destinationToken.decimals,
                               useGrouping: false,
@@ -792,7 +805,7 @@ export default function Bridge() {
                     </XStack>
                     <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
                       <Text caption color="$uiNeutralSecondary">
-                        Destination network
+                        {t("Destination network")}
                       </Text>
                       <Text caption color="$uiNeutralPrimary" textAlign="right" flexShrink={1}>
                         {chain.name}
@@ -801,12 +814,12 @@ export default function Bridge() {
                     {bridgeQuote.estimate.toAmountMin && (
                       <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
                         <Text caption color="$uiNeutralSecondary">
-                          Minimum received
+                          {t("Minimum received")}
                         </Text>
                         <Text caption color="$uiNeutralPrimary" textAlign="right" flexShrink={1}>
                           {`${Number(
                             formatUnits(BigInt(bridgeQuote.estimate.toAmountMin), destinationToken.decimals),
-                          ).toLocaleString(undefined, {
+                          ).toLocaleString(language, {
                             minimumFractionDigits: 0,
                             maximumFractionDigits: destinationToken.decimals,
                             useGrouping: false,
@@ -816,7 +829,7 @@ export default function Bridge() {
                     )}
                     <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
                       <Text caption color="$uiNeutralSecondary">
-                        Fees
+                        {t("Fees")}
                       </Text>
                       <Text caption color="$uiNeutralPrimary" textAlign="right" flexShrink={1}>
                         0.25%
@@ -824,7 +837,7 @@ export default function Bridge() {
                     </XStack>
                     <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
                       <Text caption color="$uiNeutralSecondary">
-                        Slippage
+                        {t("Slippage")}
                       </Text>
                       <Text caption color="$uiNeutralPrimary" textAlign="right" flexShrink={1}>
                         2%
@@ -833,17 +846,19 @@ export default function Bridge() {
                     {bridgeQuote.estimate.executionDuration ? (
                       <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
                         <Text caption color="$uiNeutralSecondary">
-                          Estimated time
+                          {t("Estimated time")}
                         </Text>
                         <Text caption color="$uiNeutralPrimary" textAlign="right" flexShrink={1}>
-                          {`~${Math.max(1, Math.round(bridgeQuote.estimate.executionDuration / 60))} min`}
+                          {t("~{{minutes}} min", {
+                            minutes: Math.max(1, Math.round(bridgeQuote.estimate.executionDuration / 60)),
+                          })}
                         </Text>
                       </XStack>
                     ) : null}
                     {(bridgeQuote.tool ?? bridgeQuote.estimate.tool) && (
                       <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
                         <Text caption color="$uiNeutralSecondary">
-                          Exchange
+                          {t("Exchange")}
                         </Text>
                         <Text
                           caption
@@ -868,7 +883,7 @@ export default function Bridge() {
               )}
               {bridgeQuoteError && senderAddress && account && sourceAmount > 0n && !insufficientBalance && (
                 <Text caption2 color="$interactiveOnBaseWarningSoft">
-                  Unable to fetch a bridge quote right now. Please adjust the amount or try again later.
+                  {t("Unable to fetch a bridge quote right now. Please adjust the amount or try again later.")}
                 </Text>
               )}
               {transferSimulationError &&
@@ -877,7 +892,7 @@ export default function Bridge() {
                 sourceAmount > 0n &&
                 !insufficientBalance && (
                   <Text caption2 color="$interactiveOnBaseWarningSoft">
-                    Unable to simulate a transfer right now. Please adjust the amount or try again later.
+                    {t("Unable to simulate a transfer right now. Please adjust the amount or try again later.")}
                   </Text>
                 )}
             </YStack>
@@ -898,7 +913,7 @@ export default function Bridge() {
                   </View>
                   <XStack flex={1}>
                     <Text caption2 color="$uiNeutralPlaceholder">
-                      Bridging assets may take up to 10 minutes.
+                      {t("Bridging assets may take up to 10 minutes.")}
                     </Text>
                   </XStack>
                 </XStack>
@@ -920,7 +935,11 @@ export default function Bridge() {
               loading={isBridging || isTransferring}
             >
               <Button.Text>
-                {sourceToken ? `${isSameChain ? "Transfer" : "Bridge"} ${sourceToken.symbol}` : "Select source asset"}
+                {sourceToken
+                  ? isSameChain
+                    ? t("Transfer {{symbol}}", { symbol: sourceToken.symbol })
+                    : t("Bridge {{symbol}}", { symbol: sourceToken.symbol })
+                  : t("Select source asset")}
               </Button.Text>
               <Button.Icon>
                 <Repeat strokeWidth={2.5} />
@@ -929,7 +948,7 @@ export default function Bridge() {
           </YStack>
         </View>
         <AssetSelectSheet
-          label="Select asset to send"
+          label={t("Select asset to send")}
           open={assetSheetOpen}
           onClose={() => {
             setAssetSheetOpen(false);
@@ -943,7 +962,7 @@ export default function Bridge() {
         />
         <AssetSelectSheet
           hideBalances
-          label="Select asset to receive"
+          label={t("Select asset to receive")}
           open={destinationModalOpen}
           onClose={() => {
             setDestinationModalOpen(false);
@@ -960,10 +979,15 @@ export default function Bridge() {
   );
 }
 
-function handleError(error: unknown, toast: ReturnType<typeof useToastController>, isTransfer?: boolean) {
+function handleError(
+  error: unknown,
+  toast: ReturnType<typeof useToastController>,
+  t: (key: string) => string,
+  isTransfer?: boolean,
+) {
   if (error instanceof UserRejectedRequestError) return;
   if (error instanceof TransactionExecutionError && error.shortMessage === "User rejected the request.") return;
-  toast.show(`${isTransfer ? "Transfer" : "Bridge"} failed. Please try again.`, {
+  toast.show(isTransfer ? t("Transfer failed. Please try again.") : t("Bridge failed. Please try again."), {
     native: true,
     duration: 1000,
     burntOptions: { haptic: "error", preset: "error" },
