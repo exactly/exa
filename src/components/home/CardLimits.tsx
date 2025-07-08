@@ -43,8 +43,8 @@ export default function CardLimits({ onPress }: { onPress: () => void }) {
           </Text>
         </XStack>
         <XStack justifyContent="center" alignItems="center" gap="$s2" hitSlop={15} onPress={onPress} cursor="pointer">
-          <Text emphasized footnote secondary color="white">
-            SPENDING LIMIT
+          <Text emphasized footnote secondary color="white" textTransform="uppercase">
+            {t("Spending limit")}
           </Text>
           <Info size={12} color="white" />
         </XStack>

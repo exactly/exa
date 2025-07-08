@@ -2,6 +2,7 @@ import { exaPluginAddress, marketUSDCAddress } from "@exactly/common/generated/c
 import { ArrowDownToLine, ArrowUpRight, HandCoins, Repeat } from "@tamagui/lucide-icons";
 import { router } from "expo-router";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
 import { useAccount, useBytecode, useReadContract } from "wagmi";
@@ -16,6 +17,7 @@ import reportError from "../../utils/reportError";
 import Button from "../shared/StyledButton";
 
 export default function HomeActions() {
+  const { t } = useTranslation();
   const { address: account } = useAccount();
   const { data: bytecode } = useBytecode({ address: account ?? zeroAddress, query: { enabled: !!account } });
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
@@ -91,7 +93,7 @@ export default function HomeActions() {
               }}
               width="100%"
             >
-              <Button.Text adjustsFontSizeToFit>{title}</Button.Text>
+              <Button.Text adjustsFontSizeToFit>{t(title)}</Button.Text>
               <Button.Icon>
                 <Icon />
               </Button.Icon>
