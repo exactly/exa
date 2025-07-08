@@ -14,7 +14,6 @@ import type { Loan } from "../../utils/queryClient";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import Button from "../shared/StyledButton";
-import Text from "../shared/Text";
 
 export default function HomeActions() {
   const { address: account } = useAccount();
@@ -58,60 +57,54 @@ export default function HomeActions() {
   };
   return (
     <XStack gap="$s4" justifyContent="space-between" width="100%">
-      {actions.map(({ key, title, Icon }) => (
-        <YStack key={key} alignItems="center" flexBasis="25%" flex={1} flexShrink={1} gap="$s3_5">
-          <Button
-            primary={key === "deposit"}
-            secondary={key !== "deposit"}
-            disabled={key !== "deposit" && !bytecode}
-            loading={key === "send" && !isLatestPlugin && isPending && !!bytecode}
-            onPress={() => {
-              switch (key) {
-                case "deposit":
-                  router.push("/add-funds/add-crypto");
-                  break;
-                case "send":
-                  handleSend().catch(reportError);
-                  break;
-                case "swap":
-                  router.push("/swaps");
-                  break;
-                case "borrow":
-                  queryClient.setQueryData<Loan>(["loan"], () => ({
-                    market: marketUSDCAddress,
-                    amount: undefined,
-                    installments: undefined,
-                    maturity: undefined,
-                    receiver: undefined,
-                  }));
-                  router.push("/(app)/(home)/loans");
-              }
-            }}
-            minHeight={48}
-            paddingHorizontal="$s3_5"
-            justifyContent="center"
-            width="100%"
-          >
-            <Button.Icon>
-              <Icon size="$iconSize.lg" strokeWidth="$iconStroke.lg" />
-            </Button.Icon>
-          </Button>
-          <Text
-            footnote
-            adjustsFontSizeToFit
-            color={key !== "deposit" && !bytecode ? "$interactiveTextDisabled" : "$backgroundBrand"}
-            flex={1}
-          >
-            {title}
-          </Text>
-        </YStack>
-      ))}
+      {actions.map(({ key, title, Icon }) => {
+        if (key === "swap") return null;
+        if (key === "borrow") return null;
+        return (
+          <YStack key={key} alignItems="center" flex={1} gap="$s3_5" flexBasis={1 / 2}>
+            <Button
+              primary={key === "deposit"}
+              secondary={key !== "deposit"}
+              disabled={key !== "deposit" && !bytecode}
+              loading={key === "send" && !isLatestPlugin && isPending && !!bytecode}
+              onPress={() => {
+                switch (key) {
+                  case "deposit":
+                    router.push("/add-funds/add-crypto");
+                    break;
+                  case "send":
+                    handleSend().catch(reportError);
+                    break;
+                  case "swap":
+                    router.push("/swaps");
+                    break;
+                  case "borrow":
+                    queryClient.setQueryData<Loan>(["loan"], () => ({
+                      market: marketUSDCAddress,
+                      amount: undefined,
+                      installments: undefined,
+                      maturity: undefined,
+                      receiver: undefined,
+                    }));
+                    router.push("/(app)/(home)/loans");
+                }
+              }}
+              width="100%"
+            >
+              <Button.Text adjustsFontSizeToFit>{title}</Button.Text>
+              <Button.Icon>
+                <Icon />
+              </Button.Icon>
+            </Button>
+          </YStack>
+        );
+      })}
     </XStack>
   );
 }
 
 const actions = [
-  { key: "deposit", title: "Deposit", Icon: ArrowDownToLine },
+  { key: "deposit", title: "Add funds", Icon: ArrowDownToLine },
   { key: "send", title: "Send", Icon: ArrowUpRight },
   { key: "swap", title: "Swap", Icon: Repeat },
   { key: "borrow", title: "Borrow", Icon: HandCoins },

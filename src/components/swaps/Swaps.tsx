@@ -388,7 +388,7 @@ export default function Swaps() {
           </Text>
           <Pressable
             onPress={() => {
-              presentArticle("10985188").catch(reportError);
+              presentArticle("11757863").catch(reportError);
             }}
           >
             <CircleHelp color="$uiNeutralPrimary" />

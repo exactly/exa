@@ -1,5 +1,5 @@
 import { exaPreviewerAddress, marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
-import { Coins, CreditCard, HandCoins, Home, ReceiptText, Repeat } from "@tamagui/lucide-icons";
+import { Boxes, Coins, CreditCard, HandCoins, Home, ReceiptText, Repeat } from "@tamagui/lucide-icons";
 import { router } from "expo-router";
 import React from "react";
 import { RefreshControl } from "react-native";
@@ -50,7 +50,9 @@ export default function More() {
           <ProfileHeader />
           <View padded gap="$s4_5">
             {screens.map(({ name: path, title, Icon }, index) => {
-              const disabled = (path === "swaps" || path === "loans") && !bytecode;
+              const disabled = path === "defi" && !bytecode;
+              if (path === "swaps") return null;
+              if (path === "loans") return null;
               return (
                 <XStack
                   key={index}
@@ -59,8 +61,7 @@ export default function More() {
                   cursor={disabled ? "not-allowed" : "pointer"}
                   onPress={() => {
                     if (disabled) return;
-                    if (path === "swaps") router.push("/swaps");
-                    else router.replace(path === "index" ? "/(app)/(home)" : `/(app)/(home)/${path}`);
+                    router.replace(path === "index" ? "/(app)/(home)" : `/(app)/(home)/${path}`);
                   }}
                 >
                   <View>
@@ -86,6 +87,7 @@ const screens = [
   { name: "index", title: "Home", Icon: Home },
   { name: "card", title: "Card", Icon: CreditCard },
   { name: "pay-mode", title: "Pay Mode", Icon: Coins },
+  { name: "defi", title: "DeFi", Icon: Boxes },
   { name: "loans", title: "Loans", Icon: HandCoins },
   { name: "swaps", title: "Swaps", Icon: Repeat },
   { name: "activity", title: "Activity", Icon: ReceiptText },
