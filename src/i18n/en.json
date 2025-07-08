@@ -1,8 +1,12 @@
 {
+  "Installments selected_one": "{{count}} installment selected",
+  "Installments selected_other": "{{count}} installments selected",
   "{{count}} installments_one": "{{count}} installment",
   "{{count}} installments_other": "{{count}} installments",
   "Available for {{count}} installments or less_one": "Available for {{count}} installment",
   "Available for {{count}} installments or less_other": "Available for {{count}} installments or less",
   "You repay {{count}} installments of_one": "You repay {{count}} installment of",
-  "You repay {{count}} installments of_other": "You repay {{count}} installments of"
+  "You repay {{count}} installments of_other": "You repay {{count}} installments of",
+  "{{count}} step remaining_one": "{{count}} step remaining",
+  "{{count}} step remaining_other": "{{count}} steps remaining"
 }
