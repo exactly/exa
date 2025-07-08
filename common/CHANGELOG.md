@@ -1,5 +1,11 @@
 # @exactly/common
 
+## 0.0.6
+
+### Patch Changes
+
+- [`b13fe58`](https://github.com/exactly/exa/commit/b13fe58ccbfc36abbf9735b1de512a4b6f404040) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add decode borrow at maturity
+
 ## 0.0.5
 
 ### Patch Changes

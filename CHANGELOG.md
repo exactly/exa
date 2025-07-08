@@ -1,5 +1,59 @@
 # @exactly/mobile
 
+## 1.0.16
+
+### Patch Changes
+
+- [`4d9b545`](https://github.com/exactly/exa/commit/4d9b54549b335e9e77c4a324656d39f69169ad94) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 improve danger button variant
+
+- [`274a728`](https://github.com/exactly/exa/commit/274a728ca85121826cccd801c1697efbbbace203) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🎨 prefer market constant
+
+- [`f29ecce`](https://github.com/exactly/exa/commit/f29ecce0b392079af85692429cd1d5f788cf7726) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ update activity transaction details ui
+
+- [`7c74cfa`](https://github.com/exactly/exa/commit/7c74cfa85c27c3d784a437c86aec2d941ab47248) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚸 increase threshold for displaying discount
+
+- [`270e273`](https://github.com/exactly/exa/commit/270e273fbb34906907a6bfb8918fe6b1960a25a1) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🎨 format status indicator code
+
+- [`e2344f3`](https://github.com/exactly/exa/commit/e2344f3b20408be1c73a873c5702eb52f3eb8735) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ♻️ refactor skeleton theme
+
+- [`063d348`](https://github.com/exactly/exa/commit/063d34853e3b7e7d95c80a439ce9478505b52d98) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🔧 add icon tokens to tamagui config
+
+- [`77dab6e`](https://github.com/exactly/exa/commit/77dab6e49f30f79ade61ecaf4c8007ce5b620d73) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix operations display in activity details
+
+- [`2897040`](https://github.com/exactly/exa/commit/289704021eca7495dc52c704c2a17df2531ca551) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ♻️ refactor use installments hook
+
+- [`89e6025`](https://github.com/exactly/exa/commit/89e602585a8e250a4c94cabc405490a2cbe8b8b7) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix value change function on asset selector
+
+- [`7a4929f`](https://github.com/exactly/exa/commit/7a4929fc3f2d78d7544101c2655d2bc873576c3a) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix proposal banner cursor
+
+- [`9aaaee5`](https://github.com/exactly/exa/commit/9aaaee5d9c2bb655a725334b22b8dd23544db92f) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 improve empty requests component
+
+- [`bf319d0`](https://github.com/exactly/exa/commit/bf319d073ef45c1c6c3b8e2bc0488bc50b4d409b) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 update amount component styles
+
+- [`a54d669`](https://github.com/exactly/exa/commit/a54d6691088ca351682210abeeda17f0cada758a) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ♻️ refactor pending proposals
+
+- [`42163ca`](https://github.com/exactly/exa/commit/42163caa5521b7d51fc8a074b159f451fa797818) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 fix installment button check color
+
+- [`be281d2`](https://github.com/exactly/exa/commit/be281d290576fbbe28a076c593c517dfaf26317f) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix processing state colors for payments
+
+- [`51c061e`](https://github.com/exactly/exa/commit/51c061eaec6c5337e48bfa28a645545c598db5ab) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add log out button in settings
+
+- [`c1f1423`](https://github.com/exactly/exa/commit/c1f14234c353318a0694d90c58640dee38f354f2) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚸 prefer color scheme hook
+
+- [`0870d73`](https://github.com/exactly/exa/commit/0870d738b91e06da11d2ccbf17f9ccc755c7f1f1) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 unify screen header icon colors
+
+- [`000a952`](https://github.com/exactly/exa/commit/000a95222bbec7b005d5c4cd7fc0bcb9f45c0422) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ link intercom article
+
+- [`290b7b8`](https://github.com/exactly/exa/commit/290b7b8d24899370c69263d04cb75c454f48283c) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 update default button styles
+
+- [`17dfa0a`](https://github.com/exactly/exa/commit/17dfa0a786367383009f7916a29604d41286e78c) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚸 improve pending proposals back action
+
+- [`dd1570a`](https://github.com/exactly/exa/commit/dd1570a2d1869573cae4b9eadc5a5d60746e7592) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix panda activity details spacing
+
+- Updated dependencies [[`b13fe58`](https://github.com/exactly/exa/commit/b13fe58ccbfc36abbf9735b1de512a4b6f404040), [`a11907e`](https://github.com/exactly/exa/commit/a11907efd5ed874eacb4dc749b5fb006ac48fc25), [`e0a291f`](https://github.com/exactly/exa/commit/e0a291f5b013a669368295d75bc0ac3960877bd2)]:
+  - @exactly/common@0.0.6
+  - @exactly/server@0.2.6
+
 ## 1.0.15
 
 ### Patch Changes

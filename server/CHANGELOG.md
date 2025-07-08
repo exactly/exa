@@ -1,5 +1,13 @@
 # @exactly/server
 
+## 0.2.6
+
+### Patch Changes
+
+- [`a11907e`](https://github.com/exactly/exa/commit/a11907efd5ed874eacb4dc749b5fb006ac48fc25) Thanks [@mainqueg](https://github.com/mainqueg)! - 🩹 avoid persona hook retries
+
+- [`e0a291f`](https://github.com/exactly/exa/commit/e0a291f5b013a669368295d75bc0ac3960877bd2) Thanks [@mainqueg](https://github.com/mainqueg)! - 📈 track panda card issued
+
 ## 0.2.5
 
 ### Patch Changes
