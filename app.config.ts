@@ -85,6 +85,7 @@ export default {
       } satisfies FontProps,
     ],
     "expo-asset",
+    "expo-localization",
     "expo-router",
     [
       "@intercom/intercom-react-native",
