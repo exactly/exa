@@ -36,7 +36,8 @@ import AppIcon from "../assets/icon.png";
 import ThemeProvider from "../components/context/ThemeProvider";
 import Error from "../components/shared/Error";
 import release from "../generated/release";
-import translation from "../i18n/en.json";
+import en from "../i18n/en.json";
+import es from "../i18n/es.json";
 import e2e from "../utils/e2e";
 import publicClient from "../utils/publicClient";
 import queryClient, { persister } from "../utils/queryClient";
@@ -47,8 +48,14 @@ import ownerConfig from "../utils/wagmi/owner";
 SplashScreen.preventAutoHideAsync().catch(reportError);
 
 configI18n(initReactI18next)
-  .use({ type: "languageDetector", detect: () => getLocales()[0]?.languageCode })
-  .init({ fallbackLng: "en", resources: { en: { translation } } })
+  .use({
+    type: "languageDetector",
+    detect: () =>
+      getLocales()[0]?.languageCode ??
+      (typeof navigator === "undefined" ? undefined : navigator.language.split("-")[0]) ??
+      "en",
+  })
+  .init({ fallbackLng: "en", resources: { en: { translation: en }, es: { translation: es } } })
   .catch(reportError);
 
 export { ErrorBoundary } from "expo-router";
