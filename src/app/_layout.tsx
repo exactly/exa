@@ -18,6 +18,7 @@ import { reconnect } from "@wagmi/core";
 import { isRunningInExpoGo } from "expo";
 import { useAssets } from "expo-asset";
 import { type FontSource, useFonts } from "expo-font";
+import { getLocales } from "expo-localization";
 import { SplashScreen, Stack, useNavigationContainerRef } from "expo-router";
 import { channel, checkForUpdateAsync, fetchUpdateAsync, reloadAsync } from "expo-updates";
 import { use as configI18n } from "i18next";
@@ -46,6 +47,7 @@ import ownerConfig from "../utils/wagmi/owner";
 SplashScreen.preventAutoHideAsync().catch(reportError);
 
 configI18n(initReactI18next)
+  .use({ type: "languageDetector", detect: () => getLocales()[0]?.languageCode })
   .init({ fallbackLng: "en", resources: { en: { translation } } })
   .catch(reportError);
 
