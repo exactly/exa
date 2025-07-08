@@ -3,6 +3,7 @@ import { ArrowDown, X } from "@tamagui/lucide-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "expo-router";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable, Image } from "react-native";
 import { ScrollView, Square, styled, useTheme, XStack, YStack } from "tamagui";
 import { formatUnits } from "viem";
@@ -33,6 +34,7 @@ export default function Failure({
 }) {
   const theme = useTheme();
   const navigation = useNavigation<AppNavigationProperties>();
+  const { t } = useTranslation();
   return (
     <View fullScreen backgroundColor="$backgroundSoft">
       <StyledGradient
@@ -70,7 +72,7 @@ export default function Failure({
                 </XStack>
                 <YStack gap="$s4_5" justifyContent="center" alignItems="center">
                   <Text secondary body>
-                    Failed
+                    {t("Failed")}
                   </Text>
                   <Text title primary color="$uiNeutralPrimary">
                     {fromUsdAmount.toLocaleString(undefined, {
@@ -117,7 +119,7 @@ export default function Failure({
                   }}
                 >
                   <Text emphasized footnote color="$uiBrandSecondary">
-                    Close
+                    {t("Close")}
                   </Text>
                 </Pressable>
               </YStack>

@@ -14,6 +14,7 @@ import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useNavigation, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScrollView, Separator, XStack, YStack } from "tamagui";
@@ -60,6 +61,7 @@ export default function Pay() {
   const insets = useSafeAreaInsets();
   const { address: account } = useAccount();
   const navigation = useNavigation<AppNavigationProperties>();
+  const { t } = useTranslation();
   const { accountAssets } = useAccountAssets({ sortBy: "usdcFirst" });
   const { market: exaUSDC } = useAsset(marketUSDCAddress);
   const [enableSimulations, setEnableSimulations] = useState(true);
@@ -502,12 +504,14 @@ export default function Pay() {
 
   const symbol =
     repayMarket?.symbol.slice(3) === "WETH" ? "ETH" : (repayMarket?.symbol.slice(3) ?? externalAsset?.symbol);
+  const dueDateFormatted = maturity ? format(new Date(Number(maturity) * 1000), "MMM dd, yyyy") : "";
 
   const handleButtonText = () => {
-    if (positionAssets === 0n) return "Enter amount";
-    if (simulationError || positionAssets > maxPositionAssets) return "Cannot proceed";
-    if (loading) return "Please wait...";
-    return "Confirm payment";
+    if (positionAssets === 0n) return t("Enter amount", { defaultValue: "Enter amount" });
+    if (simulationError || positionAssets > maxPositionAssets)
+      return t("Cannot proceed", { defaultValue: "Cannot proceed" });
+    if (loading) return t("Please wait...", { defaultValue: "Please wait..." });
+    return t("Confirm payment", { defaultValue: "Confirm payment" });
   };
 
   if (!maturity) return;
@@ -529,10 +533,11 @@ export default function Pay() {
                 <ArrowLeft size={24} color="$uiNeutralPrimary" />
               </Pressable>
             </View>
-            <Text color="$uiNeutralPrimary" emphasized subHeadline>
-              <Text primary textAlign="center" emphasized subHeadline>
-                Pay due {format(new Date(Number(maturity) * 1000), "MMM dd, yyyy")}
-              </Text>
+            <Text color="$uiNeutralPrimary" emphasized subHeadline textAlign="center">
+              {t("Pay due {{date}}", {
+                date: dueDateFormatted,
+                defaultValue: "Pay due {{date}}",
+              })}
             </Text>
           </View>
           <ScrollView
@@ -543,7 +548,7 @@ export default function Pay() {
               <YStack gap="$s4" paddingTop="$s5">
                 <XStack justifyContent="space-between" gap="$s3" alignItems="center">
                   <Text secondary footnote textAlign="left">
-                    Debt
+                    {t("Debt", { defaultValue: "Debt" })}
                   </Text>
                   <XStack alignItems="center" gap="$s2">
                     <AssetLogo source={{ uri: assetLogos.USDC }} width={24} height={24} />
@@ -557,7 +562,7 @@ export default function Pay() {
                 </XStack>
                 <XStack justifyContent="space-between" gap="$s3" alignItems="center">
                   <Text secondary footnote textAlign="left">
-                    Enter amount:
+                    {t("Enter amount:", { defaultValue: "Enter amount:" })}
                   </Text>
                 </XStack>
 
@@ -571,7 +576,7 @@ export default function Pay() {
                 {positionAssets && (
                   <XStack justifyContent="space-between" gap="$s3" alignItems="center">
                     <Text secondary footnote textAlign="left">
-                      Subtotal
+                      {t("Subtotal", { defaultValue: "Subtotal" })}
                     </Text>
                     <XStack alignItems="center" gap="$s2_5">
                       <AssetLogo source={{ uri: assetLogos.USDC }} width={20} height={20} />
@@ -593,28 +598,34 @@ export default function Pay() {
                   <XStack justifyContent="space-between" gap="$s3" alignItems="center">
                     {discountOrPenaltyPercentage >= 0 ? (
                       <Text secondary footnote textAlign="left">
-                        Early repay discount&nbsp;
+                        {t("Early repay discount", { defaultValue: "Early repay discount" })}{" "}
                         <Text color="$uiSuccessSecondary" footnote textAlign="left">
-                          {`${discountOrPenaltyPercentage
-                            .toLocaleString(undefined, {
-                              style: "percent",
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2,
-                            })
-                            .replaceAll(/\s+/g, "")} OFF`}
+                          {t("{{discount}} off", {
+                            discount: Math.abs(discountOrPenaltyPercentage)
+                              .toLocaleString(undefined, {
+                                style: "percent",
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })
+                              .replaceAll(/\s+/g, ""),
+                            defaultValue: "{{discount}} off",
+                          })}
                         </Text>
                       </Text>
                     ) : (
                       <Text secondary footnote textAlign="left">
-                        Late repay&nbsp;
+                        {t("Late repay", { defaultValue: "Late repay" })}{" "}
                         <Text color="$uiErrorSecondary" footnote textAlign="left">
-                          {`${Math.abs(discountOrPenaltyPercentage)
-                            .toLocaleString(undefined, {
-                              style: "percent",
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2,
-                            })
-                            .replaceAll(/\s+/g, "")} PENALTY`}
+                          {t("Penalties {{percent}}", {
+                            percent: Math.abs(discountOrPenaltyPercentage)
+                              .toLocaleString(undefined, {
+                                style: "percent",
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })
+                              .replaceAll(/\s+/g, ""),
+                            defaultValue: "Penalties {{percent}}",
+                          })}
                         </Text>
                       </Text>
                     )}
@@ -643,7 +654,7 @@ export default function Pay() {
                     <Separator height={1} borderColor="$borderNeutralSoft" />
                     <XStack justifyContent="space-between" gap="$s3" alignItems="center">
                       <Text secondary footnote textAlign="left">
-                        You will pay
+                        {t("You will pay", { defaultValue: "You will pay" })}
                       </Text>
                       <YStack alignItems="flex-end">
                         <XStack alignItems="center" gap="$s2_5">
@@ -698,7 +709,7 @@ export default function Pay() {
             <YStack gap="$s4" paddingBottom={insets.bottom}>
               <XStack justifyContent="space-between" gap="$s3" alignItems="center">
                 <Text secondary callout textAlign="left">
-                  Pay with
+                  {t("Pay with", { defaultValue: "Pay with" })}
                 </Text>
                 <YStack>
                   <XStack
@@ -729,7 +740,7 @@ export default function Pay() {
               </XStack>
               <XStack justifyContent="space-between" gap="$s3">
                 <Text secondary callout textAlign="left">
-                  Portfolio balance
+                  {t("Portfolio balance", { defaultValue: "Portfolio balance" })}
                 </Text>
                 <YStack gap="$s2">
                   <XStack alignItems="center" gap="$s2">
@@ -767,7 +778,7 @@ export default function Pay() {
                 pointerEvents={selectedAsset.address === exaUSDC?.market ? "none" : "auto"}
               >
                 <Text secondary callout textAlign="left">
-                  Available for repayment
+                  {t("Available for repayment", { defaultValue: "Available for repayment" })}
                 </Text>
                 <YStack gap="$s2">
                   <XStack alignItems="center" gap="$s2">

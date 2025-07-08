@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { setStringAsync } from "expo-clipboard";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Separator, XStack, YStack } from "tamagui";
 
 import OptimismImage from "../../../assets/images/optimism.svg";
@@ -24,26 +25,27 @@ export default function TransactionDetails({
   const openBrowser = useOpenBrowser();
   const query = useQuery<ActivityItem>({ queryKey: ["activity", "details"] });
   const item = source ?? query.data;
+  const { t } = useTranslation();
   return (
     <YStack gap="$s4">
       <YStack gap="$s4">
         <Text emphasized headline>
-          Transaction details
+          {t("Transaction details")}
         </Text>
         <Separator height={1} borderColor="$borderNeutralSoft" />
       </YStack>
       <YStack gap="$s3_5">
         <XStack justifyContent="space-between">
           <Text emphasized footnote color="$uiNeutralSecondary">
-            Network fee
+            {t("Network fee")}
           </Text>
           <Text callout color="$uiSuccessSecondary">
-            FREE
+            {t("FREE")}
           </Text>
         </XStack>
         <XStack justifyContent="space-between">
           <Text emphasized footnote color="$uiNeutralSecondary">
-            Network
+            {t("Network")}
           </Text>
           <XStack gap="$s3" alignItems="center">
             <Text callout color="$uiNeutralPrimary" alignContent="center">
@@ -55,14 +57,14 @@ export default function TransactionDetails({
         {item && item.type === "sent" && (
           <XStack justifyContent="space-between">
             <Text emphasized footnote color="$uiNeutralSecondary">
-              To
+              {t("To")}
             </Text>
             <XStack
               alignItems="center"
               gap="$s3"
               onPress={() => {
                 setStringAsync(item.receiver).catch(reportError);
-                toast.show("Address copied!", {
+                toast.show(t("Address copied!"), {
                   native: true,
                   duration: 1000,
                   burntOptions: { haptic: "success" },
@@ -80,7 +82,7 @@ export default function TransactionDetails({
           <>
             <XStack justifyContent="space-between">
               <Text emphasized footnote color="$uiNeutralSecondary">
-                Date
+                {t("Date")}
               </Text>
               <Text callout color="$uiNeutralPrimary">
                 {format(item.timestamp, "yyyy-MM-dd")}
@@ -88,7 +90,7 @@ export default function TransactionDetails({
             </XStack>
             <XStack justifyContent="space-between">
               <Text emphasized footnote color="$uiNeutralSecondary">
-                Time
+                {t("Time")}
               </Text>
               <Text callout color="$uiNeutralPrimary">
                 {format(item.timestamp, "HH:mm:ss")}
@@ -99,7 +101,7 @@ export default function TransactionDetails({
         {item?.type !== "panda" && item?.transactionHash && (
           <XStack justifyContent="space-between">
             <Text emphasized footnote color="$uiNeutralSecondary">
-              Transaction hash
+              {t("Transaction hash")}
             </Text>
             <XStack alignItems="center" gap="$s3">
               <Text
@@ -117,7 +119,11 @@ export default function TransactionDetails({
                 cursor="pointer"
                 onPress={() => {
                   setStringAsync(`${chain.blockExplorers?.default.url}/tx/${item.transactionHash}`).catch(reportError);
-                  toast.show("Link copied!", { native: true, duration: 1000, burntOptions: { haptic: "success" } });
+                  toast.show(t("Link copied!"), {
+                    native: true,
+                    duration: 1000,
+                    burntOptions: { haptic: "success" },
+                  });
                 }}
               >
                 <Copy size="$iconSize.md" strokeWidth="$iconStroke.md" color="$interactiveBaseBrandDefault" />

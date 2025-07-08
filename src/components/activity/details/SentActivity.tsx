@@ -2,6 +2,7 @@ import shortenHex from "@exactly/common/shortenHex";
 import type { WithdrawActivity } from "@exactly/server/api/activity";
 import { ArrowUpFromLine } from "@tamagui/lucide-icons";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Square, XStack, YStack } from "tamagui";
 
 import TransactionDetails from "./TransactionDetails";
@@ -12,6 +13,7 @@ import Text from "../../shared/Text";
 // TODO review prop type
 export default function SentActivity({ item }: { item: Omit<WithdrawActivity, "blockNumber"> }) {
   const { amount, usdAmount, currency } = item;
+  const { t } = useTranslation();
   return (
     <>
       <YStack gap="$s7" paddingBottom="$s9">
@@ -22,7 +24,7 @@ export default function SentActivity({ item }: { item: Omit<WithdrawActivity, "b
         </XStack>
         <YStack gap="$s4_5" justifyContent="center" alignItems="center">
           <Text secondary body>
-            Sent to
+            {t("Sent to")}
             <Text emphasized primary body>
               &nbsp;
               {shortenHex(item.receiver)}

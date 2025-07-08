@@ -4,6 +4,7 @@ import { useToastController } from "@tamagui/toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigation } from "expo-router";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Spinner, YStack } from "tamagui";
 
 import Progression from "./Progression";
@@ -20,6 +21,7 @@ export default function VerifyIdentity() {
   const toast = useToastController();
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const navigation = useNavigation<AppNavigationProperties>();
+  const { t } = useTranslation();
   const { mutateAsync: startKYC, isPending } = useMutation({
     mutationKey: ["kyc"],
     mutationFn: async () => {
@@ -49,7 +51,7 @@ export default function VerifyIdentity() {
       await queryClient.invalidateQueries({ queryKey: ["kyc", "status"] });
     },
     onError: (error) => {
-      toast.show("Error verifying identity", {
+      toast.show(t("Error verifying identity"), {
         native: true,
         duration: 1000,
         burntOptions: { haptic: "error", preset: "error" },
@@ -62,13 +64,14 @@ export default function VerifyIdentity() {
       <YStack gap="$s4">
         <IdCard size={32} color="$uiBrandSecondary" />
         <Text emphasized title3 color="$uiBrandSecondary">
-          Verify your identity
+          {t("Verify your identity")}
         </Text>
       </YStack>
       <YStack>
         <Text color="$uiNeutralSecondary" subHeadline>
-          To upgrade your Exa Card, we first need to verify your identity so you can continue spending your onchain
-          assets seamlessly.
+          {t(
+            "To upgrade your Exa Card, we first need to verify your identity so you can continue spending your onchain assets seamlessly.",
+          )}
         </Text>
       </YStack>
       <Progression />
@@ -93,7 +96,7 @@ export default function VerifyIdentity() {
             )
           }
         >
-          Start verification
+          {t("Start verification")}
         </Button>
       </YStack>
     </View>

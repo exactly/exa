@@ -73,7 +73,7 @@ export default function Maturity() {
             <YStack gap="$s4_5">
               <YStack gap="$s4_5">
                 <Text primary emphasized body>
-                  Select first due date
+                  {t("Select first due date")}
                 </Text>
                 <YStack gap="$s3">
                   {Array.from({ length: MAX_INSTALLMENTS }).map((_, index) => {
@@ -141,7 +141,7 @@ export default function Maturity() {
           primary
           disabled={disabled}
         >
-          <Button.Text>Continue</Button.Text>
+          <Button.Text>{t("Continue")}</Button.Text>
           <Button.Icon>
             <ArrowRight />
           </Button.Icon>

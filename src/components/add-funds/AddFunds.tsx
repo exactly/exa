@@ -6,6 +6,7 @@ import { ArrowLeft, CircleHelp, Info, Wallet } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigation } from "expo-router";
 import React, { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Platform, Pressable } from "react-native";
 import { ScrollView, useTheme, XStack, YStack } from "tamagui";
 import { isAddress } from "viem";
@@ -28,6 +29,7 @@ export default function AddFunds() {
   const navigation = useNavigation<AppNavigationProperties>();
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const { data: method } = useQuery<AuthMethod>({ queryKey: ["method"] });
+  const { t } = useTranslation();
   const ownerAccount = credential && isAddress(credential.credentialId) ? credential.credentialId : undefined;
 
   const { isConnected, isOpen } = useAppKitState();
@@ -53,7 +55,7 @@ export default function AddFunds() {
               <ArrowLeft size={24} color="$uiNeutralPrimary" />
             </Pressable>
             <Text emphasized subHeadline primary>
-              Add Funds
+              {t("Add Funds")}
             </Text>
             <Pressable
               onPress={() => {
@@ -69,7 +71,7 @@ export default function AddFunds() {
             {method === "siwe" && ownerAccount && (
               <AddFundsOption
                 icon={<Wallet width={30} height={30} color="$iconBrandDefault" />}
-                title="From connected wallet"
+                title={t("From connected wallet")}
                 subtitle={shortenHex(ownerAccount, 4, 6)}
                 onPress={() => {
                   navigation.navigate("add-funds", { screen: "bridge" });
@@ -78,14 +80,14 @@ export default function AddFunds() {
             )}
             <AddFundsOption
               icon={<WalletConnectImage width={30} height={30} fill={theme.interactiveOnBaseBrandSoft.val} />}
-              title="Using WalletConnect"
-              subtitle={`From another wallet ${Platform.OS === "web" ? "" : "on your device"}`}
+              title={t("Using WalletConnect")}
+              subtitle={Platform.OS === "web" ? t("From another wallet") : t("From another wallet on your device")}
               onPress={open}
             />
             <AddFundsOption
               icon={<OptimismImage width={30} height={30} />}
-              title="From another wallet"
-              subtitle={`On ${chain.name}`}
+              title={t("From another wallet")}
+              subtitle={t("On {{chain}}", { chain: chain.name })}
               onPress={() => {
                 navigation.navigate("add-funds", { screen: "add-crypto" });
               }}
@@ -104,7 +106,7 @@ export default function AddFunds() {
           </View>
           <XStack flex={1}>
             <Text emphasized caption2 color="$uiNeutralPlaceholder">
-              Assets are added to your balance as collateral to increase your credit limit.
+              {t("Assets are added to your balance as collateral to increase your credit limit.")}
               <Text
                 cursor="pointer"
                 emphasized
@@ -114,7 +116,7 @@ export default function AddFunds() {
                   presentArticle("8950805").catch(reportError);
                 }}
               >
-                &nbsp;Learn more about collateral.
+                &nbsp;{t("Learn more about collateral.")}
               </Text>
             </Text>
           </XStack>

@@ -1,6 +1,7 @@
 import type { DepositActivity } from "@exactly/server/api/activity";
 import { ArrowDownToLine } from "@tamagui/lucide-icons";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Square, XStack, YStack } from "tamagui";
 
 import TransactionDetails from "./TransactionDetails";
@@ -11,6 +12,7 @@ import Text from "../../shared/Text";
 // TODO review prop type
 export default function ReceivedActivity({ item }: { item: Omit<DepositActivity, "blockNumber"> }) {
   const { amount, usdAmount, currency } = item;
+  const { t } = useTranslation();
   return (
     <>
       <YStack gap="$s7" paddingBottom="$s9">
@@ -21,7 +23,7 @@ export default function ReceivedActivity({ item }: { item: Omit<DepositActivity,
         </XStack>
         <YStack gap="$s4_5" justifyContent="center" alignItems="center">
           <Text secondary body>
-            Received
+            {t("Received")}
           </Text>
           <Text title primary color="$uiSuccessSecondary">
             {Number(usdAmount).toLocaleString(undefined, {

@@ -3,6 +3,7 @@ import { X } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import AssetLogo from "./AssetLogo";
@@ -28,6 +29,7 @@ export default function PaymentScheduleSheet({
   const { data: loan } = useQuery<Loan>({ queryKey: ["loan"], enabled: !!address });
   const { market } = useAsset(loan?.market);
   const symbol = market?.symbol.slice(3) === "WETH" ? "ETH" : market?.symbol.slice(3);
+  const { t } = useTranslation();
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
       <ScrollView $platform-web={{ maxHeight: "100vh" }}>
@@ -42,11 +44,12 @@ export default function PaymentScheduleSheet({
           <YStack gap="$s7">
             <YStack gap="$s5">
               <Text emphasized primary headline>
-                Payment schedule
+                {t("Payment schedule")}
               </Text>
               <Text subHeadline color="$uiNeutralSecondary">
-                Unlike monthly payments, our installments are due every 4 weeks, which means payments are aligned with a
-                28-day cycle rather than the calendar month.
+                {t(
+                  "Unlike monthly payments, our installments are due every 4 weeks, which means payments are aligned with a 28-day cycle rather than the calendar month.",
+                )}
               </Text>
               <YStack gap="$s5">
                 {Array.from({ length: loan?.installments ?? 0 }).map((_, index) => {
@@ -77,7 +80,7 @@ export default function PaymentScheduleSheet({
             </YStack>
             <YStack gap="$s5">
               <Button onPress={onClose} primary>
-                <Button.Text>Close</Button.Text>
+                <Button.Text>{t("Close")}</Button.Text>
                 <Button.Icon>
                   <X />
                 </Button.Icon>

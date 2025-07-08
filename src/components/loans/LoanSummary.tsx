@@ -1,6 +1,7 @@
 import { previewerAddress } from "@exactly/common/generated/chain";
 import { MATURITY_INTERVAL, WAD } from "@exactly/lib";
-import React from "react";
+import React, { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
 import { useBytecode } from "wagmi";
@@ -16,6 +17,7 @@ import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 
 export default function LoanSummary({ loan }: { loan: Loan }) {
+  const { t } = useTranslation();
   const { address } = useAccount();
   const { data: bytecode } = useBytecode({ address: previewerAddress, query: { enabled: !!address } });
   const { market } = useAsset(loan.market);
@@ -37,11 +39,29 @@ export default function LoanSummary({ loan }: { loan: Loan }) {
     },
   });
   const pending = isInstallmentsPending || isBorrowPending;
+  const apr = useMemo(() => {
+    const value =
+      !isBorrow && installments
+        ? Number(installments.effectiveRate) / 1e18
+        : borrow
+          ? Number(
+              ((borrow.assets - (loan.amount ?? 0n)) * WAD * 31_536_000n) /
+                ((loan.amount ?? 0n) * (borrow.maturity - BigInt(timestamp))),
+            ) / 1e18
+          : null;
+    return (
+      value?.toLocaleString(undefined, {
+        style: "percent",
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }) ?? "N/A"
+    );
+  }, [borrow, installments, isBorrow, loan.amount, timestamp]);
   return (
     <YStack gap="$s1">
       <XStack justifyContent="space-between" alignItems="center">
         <Text footnote color="$uiNeutralPlaceholder">
-          You repay in total
+          {t("You repay in total")}
         </Text>
         {pending ? (
           <Skeleton width={100} height={24} />
@@ -63,21 +83,7 @@ export default function LoanSummary({ loan }: { loan: Loan }) {
         </XStack>
       ) : (
         <Text secondary caption alignSelf="flex-end">
-          {`${
-            (!isBorrow && installments
-              ? Number(installments.effectiveRate) / 1e18
-              : borrow
-                ? Number(
-                    ((borrow.assets - (loan.amount ?? 0n)) * WAD * 31_536_000n) /
-                      ((loan.amount ?? 0n) * (borrow.maturity - BigInt(timestamp))),
-                  ) / 1e18
-                : null
-            )?.toLocaleString(undefined, {
-              style: "percent",
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            }) ?? "N/A"
-          } FIXED APR`}
+          {t("{{rate}} FIXED APR", { rate: apr })}
         </Text>
       )}
     </YStack>

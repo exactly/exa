@@ -1,6 +1,7 @@
 import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import { useNavigation, useLocalSearchParams } from "expo-router";
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
+import { Trans } from "react-i18next";
 import { RefreshControl } from "react-native";
 import { ScrollView, useTheme, XStack } from "tamagui";
 import { zeroAddress } from "viem";
@@ -29,6 +30,12 @@ export default function PayMode() {
   const [paySheetOpen, setPaySheetOpen] = useState(false);
   const navigation = useNavigation<AppNavigationProperties>();
   const { refetch, isPending } = useReadPreviewerExactly({ address: previewerAddress, args: [account ?? zeroAddress] });
+  const handleOpenProtocol = useCallback(() => {
+    openBrowser("https://exact.ly/").catch(reportError);
+  }, [openBrowser]);
+  const handleOpenTerms = useCallback(() => {
+    presentCollection("10544608").catch(reportError);
+  }, [presentCollection]);
   const style = { backgroundColor: theme.backgroundSoft.val, margin: -5 };
   return (
     <SafeView fullScreen tab backgroundColor="$backgroundSoft">
@@ -66,31 +73,29 @@ export default function PayMode() {
               />
               <XStack gap="$s4" alignItems="flex-start" paddingTop="$s3" flexWrap="wrap">
                 <Text caption2 color="$interactiveOnDisabled" textAlign="justify">
-                  Onchain credit is powered by&nbsp;
-                  <Text
-                    cursor="pointer"
-                    caption2
-                    color="$interactiveOnDisabled"
-                    textDecorationLine="underline"
-                    onPress={() => {
-                      openBrowser(`https://exact.ly/`).catch(reportError);
+                  <Trans
+                    i18nKey="Onchain credit is powered by <protocol>Exactly Protocol</protocol> and is subject to separate <terms>Terms and conditions</terms>. The Exa App does not issue or guarantee any funding."
+                    components={{
+                      protocol: (
+                        <Text
+                          cursor="pointer"
+                          caption2
+                          color="$interactiveOnDisabled"
+                          textDecorationLine="underline"
+                          onPress={handleOpenProtocol}
+                        />
+                      ),
+                      terms: (
+                        <Text
+                          cursor="pointer"
+                          caption2
+                          color="$interactiveOnDisabled"
+                          textDecorationLine="underline"
+                          onPress={handleOpenTerms}
+                        />
+                      ),
                     }}
-                  >
-                    Exactly Protocol
-                  </Text>
-                  &nbsp;and is subject to separate&nbsp;
-                  <Text
-                    cursor="pointer"
-                    caption2
-                    color="$interactiveOnDisabled"
-                    textDecorationLine="underline"
-                    onPress={() => {
-                      presentCollection("10544608").catch(reportError);
-                    }}
-                  >
-                    Terms and conditions
-                  </Text>
-                  . The Exa App does not issue or guarantee any funding.
+                  />
                 </Text>
               </XStack>
             </View>

@@ -3,6 +3,7 @@ import type { Hex } from "@exactly/common/validation";
 import { X } from "@tamagui/lucide-icons";
 import { format, isAfter } from "date-fns";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { Square, XStack, YStack } from "tamagui";
 
@@ -30,6 +31,7 @@ export default function Failure({
   onClose: () => void;
 }) {
   const { externalAsset } = useAsset(selectedAsset);
+  const { t } = useTranslation();
   return (
     <GradientScrollView variant="error">
       <SafeView flex={1} backgroundColor="transparent">
@@ -44,7 +46,7 @@ export default function Failure({
           </XStack>
           <YStack gap="$s4_5" justifyContent="center" alignItems="center">
             <Text secondary body>
-              Failed&nbsp;
+              {t("Failed")}&nbsp;
               <Text
                 emphasized
                 primary
@@ -53,7 +55,7 @@ export default function Failure({
                   isAfter(new Date(Number(maturity) * 1000), new Date()) ? "$uiNeutralPrimary" : "$uiErrorSecondary"
                 }
               >
-                {`Due ${format(new Date(Number(maturity) * 1000), "MMM dd, yyyy")}`}
+                {t("Due {{date}}", { date: format(new Date(Number(maturity) * 1000), "MMM dd, yyyy") })}
               </Text>
             </Text>
             <XStack gap="$s2" alignItems="center">
@@ -72,7 +74,7 @@ export default function Failure({
             {currency !== "USDC" && (
               <XStack gap="$s2" alignItems="center">
                 <Text headline primary color="$uiNeutralPrimary">
-                  with&nbsp;
+                  {t("with")}&nbsp;
                 </Text>
                 <Text title2 primary color="$uiNeutralPrimary">
                   {amount.toLocaleString(undefined, {
@@ -100,7 +102,7 @@ export default function Failure({
           <YStack alignItems="center" gap="$s4">
             <Pressable onPress={onClose}>
               <Text emphasized footnote color="$uiBrandSecondary">
-                Close
+                {t("Close")}
               </Text>
             </Pressable>
           </YStack>

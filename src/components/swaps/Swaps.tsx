@@ -7,6 +7,7 @@ import { ArrowLeft, Check, CircleHelp, Repeat, TriangleAlert } from "@tamagui/lu
 import { useQuery } from "@tanstack/react-query";
 import { useNavigation } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Checkbox, ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
@@ -70,6 +71,7 @@ export default function Swaps() {
   const insets = useSafeAreaInsets();
   const openBrowser = useOpenBrowser();
   const { presentArticle } = useIntercom();
+  const { t } = useTranslation();
   const { address: account } = useAccount();
   const { externalAssets, protocolAssets } = useAccountAssets();
   const [acknowledged, setAcknowledged] = useState(false);
@@ -133,8 +135,8 @@ export default function Swaps() {
 
   useEffect(() => {
     if (!fromToken && !toToken && tokens && markets) {
-      const usdc = tokens.find((t) => t.symbol === "USDC");
-      const exa = tokens.find((t) => t.symbol === "EXA");
+      const usdc = tokens.find(({ symbol }) => symbol === "USDC");
+      const exa = tokens.find(({ symbol }) => symbol === "EXA");
       if (usdc && exa) {
         updateSwap((old) => ({
           ...old,
@@ -372,6 +374,20 @@ export default function Swaps() {
 
   const showWarning = fromToken && !fromToken.external && fromAmount > 0n && (caution || danger);
   const disabled = isSimulating || !!simulationError || danger;
+  const swapActionLabel =
+    fromToken && toToken
+      ? t("Swap {{from}} for {{to}}", { from: fromToken.token.symbol, to: toToken.token.symbol })
+      : t("Swap");
+  const buttonLabel =
+    isSimulating && route
+      ? isInsufficientBalance
+        ? t("Insufficient balance")
+        : t("Please wait...")
+      : simulationError
+        ? t("Cannot proceed")
+        : danger
+          ? t("Enter a lower amount to swap")
+          : swapActionLabel;
 
   if (!isSwapping && !isSwapSuccess && !writeContractError)
     return (
@@ -396,7 +412,7 @@ export default function Swaps() {
             <ArrowLeft size={24} color="$uiNeutralPrimary" />
           </Pressable>
           <Text primary emphasized subHeadline>
-            Swaps
+            {t("Swaps")}
           </Text>
           <Pressable
             onPress={() => {
@@ -417,7 +433,7 @@ export default function Swaps() {
                   return (
                     <TokenInput
                       key={type}
-                      label={type === "from" ? "You pay" : "You receive"}
+                      label={t(type === "from" ? "You pay" : "You receive")}
                       token={tokenData?.token}
                       amount={amount}
                       balance={getBalance(tokenData?.token)}
@@ -486,8 +502,10 @@ export default function Swaps() {
                   )}
                   <Text caption color={danger ? "$uiErrorSecondary" : "$uiNeutralSecondary"} flex={1}>
                     {danger
-                      ? "Swapping this much of your collateral could instantly trigger liquidation. Try a smaller amount to stay protected."
-                      : "I acknowledge the risks of swapping this much of my collateral assets."}
+                      ? t(
+                          "Swapping this much of your collateral could instantly trigger liquidation. Try a smaller amount to stay protected.",
+                        )
+                      : t("I acknowledge the risks of swapping this much of my collateral assets.")}
                   </Text>
                 </XStack>
                 <Separator borderColor="$borderNeutralSoft" />
@@ -495,20 +513,22 @@ export default function Swaps() {
             )}
             <XStack alignItems="flex-start" flexWrap="wrap" paddingBottom="$s3">
               <Text caption2 color="$interactiveOnDisabled" textAlign="justify">
-                Swap functionality is provided via&nbsp;
-                <Text
-                  cursor="pointer"
-                  caption2
-                  color="$interactiveOnDisabled"
-                  textDecorationLine="underline"
-                  onPress={() => {
-                    openBrowser(`https://li.fi/`).catch(reportError);
+                <Trans
+                  i18nKey="Swap functionality is provided via <link>LI.FI</link> and executed on decentralized networks. Availability and pricing depend on network conditions and third-party protocols."
+                  components={{
+                    link: (
+                      <Text
+                        cursor="pointer"
+                        caption2
+                        color="$interactiveOnDisabled"
+                        textDecorationLine="underline"
+                        onPress={() => {
+                          openBrowser(`https://li.fi/`).catch(reportError);
+                        }}
+                      />
+                    ),
                   }}
-                >
-                  LI.FI
-                </Text>
-                &nbsp; and executed on decentralized networks. Availability and pricing depend on network conditions and
-                third-party protocols.
+                />
               </Text>
             </XStack>
           </YStack>
@@ -541,15 +561,7 @@ export default function Swaps() {
               )
             }
           >
-            {isSimulating && route
-              ? isInsufficientBalance
-                ? "Insufficient balance"
-                : "Please wait..."
-              : simulationError
-                ? "Cannot proceed"
-                : danger
-                  ? "Enter a lower amount to swap"
-                  : `Swap ${fromToken?.token.symbol} for ${toToken?.token.symbol}`}
+            {buttonLabel}
           </Button>
         </YStack>
         <TokenSelectModal
@@ -560,7 +572,7 @@ export default function Swaps() {
           onSelect={handleTokenSelect}
           onClose={handleCloseTokenModal}
           isLoading={isTokensLoading}
-          title={tokenSelectionType === "from" ? "Select token to pay" : "Select token to receive"}
+          title={tokenSelectionType === "from" ? t("Select token to pay") : t("Select token to receive")}
         />
       </SafeView>
     );

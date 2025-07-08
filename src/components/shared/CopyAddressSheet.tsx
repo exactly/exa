@@ -1,6 +1,7 @@
 import chain from "@exactly/common/generated/chain";
 import { CheckCircle, X } from "@tamagui/lucide-icons";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import AssetLogo from "./AssetLogo";
@@ -18,6 +19,7 @@ const supportedAssets = Object.entries(assetLogos)
 
 export default function CopyAddressSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { address } = useAccount();
+  const { t } = useTranslation();
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
       <ScrollView $platform-web={{ maxHeight: "100vh" }}>
@@ -34,11 +36,11 @@ export default function CopyAddressSheet({ open, onClose }: { open: boolean; onC
               <XStack gap="$s3" alignItems="center">
                 <CheckCircle size={24} color="$uiSuccessSecondary" />
                 <Text emphasized primary headline color="$uiSuccessSecondary">
-                  Address copied
+                  {t("Address copied")}
                 </Text>
               </XStack>
               <Text emphasized secondary subHeadline>
-                Double-check your address before sending funds to avoid losing them.
+                {t("Double-check your address before sending funds to avoid losing them.")}
               </Text>
             </YStack>
             <Text primary title fontFamily="$mono" textAlign="center">
@@ -53,10 +55,10 @@ export default function CopyAddressSheet({ open, onClose }: { open: boolean; onC
             >
               <XStack justifyContent="space-between" alignItems="center" width="100%">
                 <Text emphasized footnote color="$uiNeutralSecondary" textAlign="left">
-                  Network
+                  {t("Network")}
                 </Text>
                 <Text emphasized footnote color="$uiNeutralSecondary" textAlign="right">
-                  Supported Assets
+                  {t("Supported Assets")}
                 </Text>
               </XStack>
               <XStack gap="$s5" justifyContent="space-between" alignItems="center" width="100%">
@@ -92,7 +94,7 @@ export default function CopyAddressSheet({ open, onClose }: { open: boolean; onC
               fullwidth
               iconAfter={<X strokeWidth={2.5} color="$interactiveOnBaseBrandDefault" />}
             >
-              Close
+              {t("Close")}
             </Button>
           </YStack>
         </SafeView>

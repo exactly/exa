@@ -6,6 +6,7 @@ import { useToastController } from "@tamagui/toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import React, { useMemo, useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { Pressable, StyleSheet } from "react-native";
 import { XStack, YStack } from "tamagui";
 import { formatUnits, parseUnits, zeroAddress } from "viem";
@@ -29,6 +30,7 @@ import View from "../shared/View";
 export default function PaySelector() {
   const toast = useToastController();
   const { presentArticle } = useIntercom();
+  const { t } = useTranslation();
   const [input, setInput] = useState("100");
   const assets = useMemo(() => {
     return parseUnits(input.replaceAll(/\D/g, ".").replaceAll(/\.(?=.*\.)/g, ""), 6);
@@ -80,7 +82,13 @@ export default function PaySelector() {
   function setInstallments(value: number) {
     if (!card || card.mode === value) return;
     mutateMode(value).catch(reportError);
-    const message = value === 0 ? "Pay Now selected" : `${value} installment${value > 1 ? "s" : ""} selected`;
+    const message =
+      value === 0
+        ? t("Pay Now selected", { defaultValue: "Pay Now selected" })
+        : t("Installments selected", {
+            count: value,
+            defaultValue: value === 1 ? "{{count}} installment selected" : "{{count}} installments selected",
+          });
     toast.show(message, {
       native: true,
       duration: 1000,
@@ -116,7 +124,7 @@ export default function PaySelector() {
         <YStack paddingBottom="$s3" gap="$s4_5">
           <XStack gap={10} justifyContent="space-between" alignItems="center">
             <Text fontSize={20} fontWeight="bold">
-              Pay Mode
+              {t("Pay Mode", { defaultValue: "Pay Mode" })}
             </Text>
             <Pressable
               onPress={() => {
@@ -127,12 +135,15 @@ export default function PaySelector() {
             </Pressable>
           </XStack>
           <Text subHeadline secondary>
-            Choose <Text emphasized>Pay Now</Text> to pay from your USDC balance, or Pay Later to split your purchase
-            into up to {MAX_INSTALLMENTS} fixed-rate USDC installments, powered by Exactly Protocol.*
+            <Trans
+              i18nKey="Choose <strong>Pay Now</strong> to pay from your USDC balance, or Pay Later to split your purchase into up to {{max}} fixed-rate USDC installments, powered by Exactly Protocol.*"
+              values={{ max: MAX_INSTALLMENTS }}
+              components={{ strong: <Text emphasized /> }}
+            />
           </Text>
           <XStack alignItems="center" gap="$s4" flex={1} width="100%">
             <Text primary emphasized subHeadline>
-              Simulate a purchase of
+              {t("Simulate a purchase of", { defaultValue: "Simulate a purchase of" })}
             </Text>
             <TamaguiInput borderRadius="$r3" flex={1}>
               <TamaguiInput.Icon>
@@ -160,11 +171,11 @@ export default function PaySelector() {
       <View padded>
         <XStack justifyContent="space-between" paddingHorizontal="$s3" paddingBottom="$s4">
           <Text caption color="$uiNeutralPlaceholder">
-            INSTANT PAY (USDC)
+            {t("Instant pay label", { asset: "USDC", defaultValue: "INSTANT PAY ({{asset}})" })}
           </Text>
           <XStack gap="$s1">
             <Text caption color="$uiNeutralPlaceholder">
-              Available limit: USDC
+              {t("Available limit: {{asset}}", { asset: "USDC", defaultValue: "Available limit: {{asset}}" })}
             </Text>
             <Text sensitive caption color="$uiNeutralPlaceholder">
               {(markets ? Number(withdrawLimit(markets, marketUSDCAddress)) / 1e6 : 0).toLocaleString(undefined, {
@@ -185,11 +196,11 @@ export default function PaySelector() {
         </YStack>
         <XStack justifyContent="space-between" paddingHorizontal="$s3" paddingVertical="$s4">
           <Text caption color="$uiNeutralPlaceholder" numberOfLines={1}>
-            INSTALLMENT PLANS
+            {t("Installment plans label", { defaultValue: "INSTALLMENT PLANS" })}
           </Text>
           <XStack gap="$s1" flex={1} justifyContent="flex-end">
             <Text caption color="$uiNeutralPlaceholder" numberOfLines={1}>
-              Credit limit: USDC
+              {t("Credit limit: {{asset}}", { asset: "USDC", defaultValue: "Credit limit: {{asset}}" })}
             </Text>
             <Text sensitive caption color="$uiNeutralPlaceholder" numberOfLines={1}>
               {(markets ? Number(borrowLimit(markets, marketUSDCAddress)) / 1e6 : 0).toLocaleString(undefined, {
@@ -211,7 +222,10 @@ export default function PaySelector() {
           ))}
           <YStack paddingTop="$s4" paddingLeft="$s4">
             <Text caption color="$uiNeutralSecondary" numberOfLines={1} adjustsFontSizeToFit>
-              First due date: {format(new Date(firstMaturity * 1000), "MMM dd, yyyy")} - then every 28 days.
+              {t("First due date: {{date}} - then every 28 days.", {
+                date: format(new Date(firstMaturity * 1000), "MMM dd, yyyy"),
+                defaultValue: "First due date: {{date}} - then every 28 days.",
+              })}
             </Text>
           </YStack>
         </YStack>
@@ -238,6 +252,7 @@ function InstallmentButton({
   onSelect: (installment: number) => void;
   assets: bigint;
 }) {
+  const { t } = useTranslation();
   const { market, account } = useAsset(marketUSDCAddress);
   const calculationAssets = assets === 0n ? 100_000_000n : assets;
   const {
@@ -254,7 +269,20 @@ function InstallmentButton({
     args: [market?.market ?? zeroAddress, BigInt(firstMaturity), calculationAssets],
     query: { enabled: !!market && !!account && !!firstMaturity && calculationAssets > 0n },
   });
+
   const selected = cardDetails?.mode === installment;
+
+  const apr =
+    installment > 0
+      ? installment > 1 && installments
+        ? Number(installments.effectiveRate) / 1e18
+        : borrowPreview
+          ? Number(
+              ((borrowPreview.assets - calculationAssets) * WAD * 31_536_000n) /
+                (calculationAssets * (borrowPreview.maturity - BigInt(timestamp))),
+            ) / 1e18
+          : 0
+      : 0;
 
   return (
     <Pressable
@@ -287,7 +315,7 @@ function InstallmentButton({
         <YStack gap="$s1" flex={1}>
           <XStack gap="$s2" alignItems="center">
             <Text headline color={installment > 0 ? "$uiNeutralSecondary" : "$uiNeutralPrimary"}>
-              {installment > 0 ? `${installment}x` : "Pay Now"}
+              {installment > 0 ? `${installment}x` : t("Pay Now", { defaultValue: "Pay Now" })}
             </Text>
             {installment > 0 && <AssetLogo source={{ uri: assetLogos.USDC }} width={17} height={17} />}
 
@@ -314,21 +342,14 @@ function InstallmentButton({
               <Skeleton height={20} />
             ) : (
               <Text footnote color="$uiNeutralSecondary">
-                {`${
-                  (installment > 1 && installments
-                    ? Number(installments.effectiveRate) / 1e18
-                    : borrowPreview
-                      ? Number(
-                          ((borrowPreview.assets - calculationAssets) * WAD * 31_536_000n) /
-                            (calculationAssets * (borrowPreview.maturity - BigInt(timestamp))),
-                        ) / 1e18
-                      : null
-                  )?.toLocaleString(undefined, {
+                {t("{{apr}} APR", {
+                  apr: apr.toLocaleString(undefined, {
                     style: "percent",
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
-                  }) ?? "N/A"
-                } APR`}
+                  }),
+                  defaultValue: "{{apr}} APR",
+                })}
               </Text>
             ))}
         </YStack>

@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import React, { memo, useCallback, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import type { ListRenderItem } from "react-native";
 import { FlatList, RefreshControl } from "react-native";
 import { styled, useTheme } from "tamagui";
@@ -20,6 +21,7 @@ import View from "../shared/View";
 type ActivityEvent = Awaited<ReturnType<typeof getActivity>>[number];
 
 export default function Activity() {
+  const { t } = useTranslation();
   const theme = useTheme();
   const { data: activity, refetch, isPending } = useQuery({ queryKey: ["activity"], queryFn: () => getActivity() });
   const { queryKey } = useAsset();
@@ -83,7 +85,7 @@ export default function Activity() {
               <View padded gap="$s5" backgroundColor="$backgroundSoft">
                 <View flexDirection="row" gap={10} justifyContent="space-between" alignItems="center">
                   <Text fontSize={20} fontWeight="bold">
-                    All Activity
+                    {t("All Activity")}
                   </Text>
                 </View>
               </View>

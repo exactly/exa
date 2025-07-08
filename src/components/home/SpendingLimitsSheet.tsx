@@ -1,5 +1,6 @@
 import { X } from "@tamagui/lucide-icons";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 
@@ -13,6 +14,7 @@ import View from "../shared/View";
 
 export default function SpendingLimitsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { presentArticle } = useIntercom();
+  const { t } = useTranslation();
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
       <ScrollView $platform-web={{ maxHeight: "100vh" }}>
@@ -27,10 +29,10 @@ export default function SpendingLimitsSheet({ open, onClose }: { open: boolean; 
           <YStack gap="$s7">
             <YStack gap="$s5">
               <Text emphasized primary headline>
-                Spending limit
+                {t("Spending limit")}
               </Text>
               <Text primary subHeadline>
-                Your spending limit is the maximum amount you can spend on your Exa Card.
+                {t("Your spending limit is the maximum amount you can spend on your Exa Card.")}
               </Text>
             </YStack>
             <YStack gap="$s3_5">
@@ -43,7 +45,7 @@ export default function SpendingLimitsSheet({ open, onClose }: { open: boolean; 
               >
                 <XStack gap="$s3" alignItems="center" flexWrap="wrap">
                   <Text emphasized secondary footnote>
-                    WHEN
+                    {t("WHEN")}
                   </Text>
                   <View
                     alignSelf="center"
@@ -62,14 +64,14 @@ export default function SpendingLimitsSheet({ open, onClose }: { open: boolean; 
                       color="$cardDebitText"
                       maxFontSizeMultiplier={1}
                     >
-                      PAY NOW
+                      {t("PAY NOW")}
                     </Text>
                   </View>
                   <Text emphasized secondary footnote>
-                    IS ENABLED
+                    {t("IS ENABLED")}
                   </Text>
                 </XStack>
-                <Text subHeadline>Only your USDC balance counts toward your spending limit.</Text>
+                <Text subHeadline>{t("Only your USDC balance counts toward your spending limit.")}</Text>
               </YStack>
               <YStack
                 gap="$s3_5"
@@ -80,7 +82,7 @@ export default function SpendingLimitsSheet({ open, onClose }: { open: boolean; 
               >
                 <XStack gap="$s3" alignItems="center" flexWrap="wrap">
                   <Text emphasized secondary footnote>
-                    WHEN
+                    {t("WHEN")}
                   </Text>
                   <View
                     alignSelf="center"
@@ -99,14 +101,14 @@ export default function SpendingLimitsSheet({ open, onClose }: { open: boolean; 
                       color="$cardCreditText"
                       maxFontSizeMultiplier={1}
                     >
-                      INSTALLMENTS
+                      {t("INSTALLMENTS")}
                     </Text>
                   </View>
                   <Text emphasized secondary footnote>
-                    IS ENABLED
+                    {t("IS ENABLED")}
                   </Text>
                 </XStack>
-                <Text subHeadline>All supported assets count toward your spending limit.</Text>
+                <Text subHeadline>{t("All supported assets count toward your spending limit.")}</Text>
               </YStack>
             </YStack>
             <YStack gap="$s5">
@@ -119,7 +121,7 @@ export default function SpendingLimitsSheet({ open, onClose }: { open: boolean; 
                 fullwidth
                 iconAfter={<X strokeWidth={2.5} color="$interactiveOnBaseBrandDefault" />}
               >
-                Close
+                {t("Close")}
               </Button>
               <Pressable
                 onPress={() => {
@@ -127,7 +129,7 @@ export default function SpendingLimitsSheet({ open, onClose }: { open: boolean; 
                 }}
               >
                 <Text emphasized footnote color="$interactiveBaseBrandDefault" alignSelf="center">
-                  Learn more about your spending limit
+                  {t("Learn more about your spending limit")}
                 </Text>
               </Pressable>
             </YStack>

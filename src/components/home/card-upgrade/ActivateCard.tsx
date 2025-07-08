@@ -3,6 +3,7 @@ import { useToastController } from "@tamagui/toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigation } from "expo-router";
 import React from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { YStack } from "tamagui";
 
@@ -22,12 +23,13 @@ export default function ActivateCard() {
   const { data: step } = useQuery<number | undefined>({ queryKey: ["card-upgrade"] });
   const { presentArticle } = useIntercom();
   const navigation = useNavigation<AppNavigationProperties>();
+  const { t } = useTranslation();
   const { mutateAsync: activateCard, isPending: isActivating } = useMutation({
     retry: (_, error) => error instanceof APIError,
     retryDelay: (failureCount, error) => (error instanceof APIError ? failureCount * 5000 : 1000),
     mutationFn: createCard,
     onSuccess: async () => {
-      toast.show("Card activated!", {
+      toast.show(t("Card activated!"), {
         native: true,
         duration: 1000,
         burntOptions: { haptic: "success" },
@@ -41,7 +43,7 @@ export default function ActivateCard() {
     onError: async (error: Error) => {
       if (!(error instanceof APIError)) {
         reportError(error);
-        toast.show("Error activating card", {
+        toast.show(t("Error activating card"), {
           native: true,
           duration: 1000,
           burntOptions: { haptic: "error", preset: "error" },
@@ -57,7 +59,7 @@ export default function ActivateCard() {
         return;
       }
       reportError(error);
-      toast.show("Error activating card", {
+      toast.show(t("Error activating card"), {
         native: true,
         duration: 1000,
         burntOptions: { haptic: "error", preset: "error" },
@@ -72,14 +74,14 @@ export default function ActivateCard() {
             <Spinner color="$uiNeutralPrimary" backgroundColor="$backgroundMild" containerSize={52} size={32} />
             <YStack gap="$s2" justifyContent="center" alignItems="center">
               <Text emphasized title3 color="$uiNeutralSecondary">
-                Activating your new Exa Card
+                {t("Activating your new Exa Card")}
               </Text>
               <Text color="$uiNeutralSecondary" footnote>
-                STEP {(step ?? 0) + 1} OF 3
+                {t("STEP {{current}} OF {{total}}", { current: (step ?? 0) + 1, total: 3 })}
               </Text>
             </YStack>
             <Text color="$uiNeutralSecondary" subHeadline alignSelf="center" textAlign="center">
-              This may take a moment. Please wait.
+              {t("This may take a moment. Please wait.")}
             </Text>
           </YStack>
         </>
@@ -88,12 +90,12 @@ export default function ActivateCard() {
           <YStack gap="$s4">
             <CreditCard size={32} color="$uiBrandSecondary" />
             <Text emphasized title3 color="$uiBrandSecondary">
-              Activate your new Exa Card
+              {t("Activate your new Exa Card")}
             </Text>
           </YStack>
           <YStack>
             <Text color="$uiNeutralSecondary" subHeadline>
-              Almost there! Activate your Exa Card to start spending your onchain assets instantly.
+              {t("Almost there! Activate your Exa Card to start spending your onchain assets instantly.")}
             </Text>
           </YStack>
           <Progression />
@@ -108,10 +110,10 @@ export default function ActivateCard() {
               }}
             >
               <Text color="$uiNeutralPlaceholder" footnote textAlign="center">
-                By continuing, you agree to both, the disclaimer below and the Exa Card&nbsp;
-                <Text color="$interactiveTextBrandDefault" footnote>
-                  Terms & Conditions.
-                </Text>
+                <Trans
+                  i18nKey="By continuing, you accept both the notice below and the <link>Terms and Conditions</link> of the Exa Card."
+                  components={{ link: <Text color="$interactiveTextBrandDefault" footnote /> }}
+                />
               </Text>
             </Pressable>
           )}
@@ -133,15 +135,14 @@ export default function ActivateCard() {
               />
             }
           >
-            Accept and activate Exa Card
+            {t("Accept and activate Exa Card")}
           </Button>
         </YStack>
         {!isActivating && (
           <Text color="$interactiveOnDisabled" caption textAlign="justify">
-            *The Exa Card is issued by Third National pursuant to a license from Visa. Any credit issued by Exactly
-            Protocol subject to its separate terms and conditions. Third National is not a party to any agreement with
-            Exactly Protocol and is not responsible for any funding or credit arrangement between user and Exactly
-            Protocol.
+            {t(
+              "*The Exa Card is issued by Third National pursuant to a license from Visa. Any credit issued by Exactly Protocol subject to its separate terms and conditions. Third National is not a party to any agreement with Exactly Protocol and is not responsible for any funding or credit arrangement between user and Exactly Protocol.",
+            )}
           </Text>
         )}
       </YStack>

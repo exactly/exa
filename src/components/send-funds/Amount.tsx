@@ -8,6 +8,7 @@ import { useForm, useStore } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import { useLocalSearchParams, useNavigation } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { Avatar, ScrollView, Square, XStack, YStack } from "tamagui";
 import { bigint, check, parse, pipe } from "valibot";
@@ -39,6 +40,7 @@ import View from "../shared/View";
 export default function Amount() {
   const navigation = useNavigation<AppNavigationProperties>();
   const { address } = useAccount();
+  const { t } = useTranslation();
   const [reviewOpen, setReviewOpen] = useState(false);
 
   const { asset: assetAddress, receiver: receiverAddress, amount } = useLocalSearchParams();
@@ -175,7 +177,7 @@ export default function Amount() {
               </Pressable>
             </View>
             <Text color="$uiNeutralPrimary" fontSize={15} fontWeight="bold">
-              Enter amount
+              {t("Enter amount")}
             </Text>
           </View>
           <ScrollView
@@ -197,7 +199,7 @@ export default function Amount() {
                       <User size={20} color="$interactiveOnBaseBrandDefault" />
                     </Avatar>
                     <Text emphasized callout color="$uiNeutralSecondary">
-                      To:
+                      {t("To")}:
                     </Text>
                     <Text callout color="$uiNeutralPrimary" fontFamily="$mono">
                       {shortenHex(withdrawReceiver)}
@@ -219,7 +221,7 @@ export default function Amount() {
                         <Coins size={20} color="$interactiveOnBaseBrandDefault" />
                       </Avatar>
                       <Text callout color="$uiNeutralSecondary">
-                        Available:
+                        {t("Available")}:
                       </Text>
                       <Text callout color="$uiNeutralPrimary" numberOfLines={1}>
                         {market ? (
@@ -247,12 +249,15 @@ export default function Amount() {
                 validators={{
                   onChange: pipe(
                     bigint(),
-                    check((value) => {
-                      return value !== 0n;
-                    }, "amount cannot be 0"),
+                    check(
+                      (value) => {
+                        return value !== 0n;
+                      },
+                      t("Amount cannot be {{amount}}", { amount: 0 }),
+                    ),
                     check((value) => {
                       return value <= available;
-                    }, "amount cannot be greater than available"),
+                    }, t("Amount cannot be greater than available")),
                   ),
                 }}
               >
@@ -285,7 +290,7 @@ export default function Amount() {
                       setReviewOpen(true);
                     }}
                   >
-                    Review
+                    {t("Review")}
                   </Button>
                 );
               }}
@@ -344,7 +349,7 @@ export default function Amount() {
             <Text secondary body>
               {pending && (
                 <>
-                  Sending to&nbsp;
+                  {t("Sending to")}{" "}
                   <Text emphasized primary body color="$uiNeutralPrimary">
                     {shortenHex(withdrawReceiver, 5, 7)}
                   </Text>
@@ -352,15 +357,15 @@ export default function Amount() {
               )}
               {success && (
                 <>
-                  {isLatestPlugin ? "Processing" : "Paid"}&nbsp;
+                  {t(isLatestPlugin ? "Processing" : "Paid")}{" "}
                   <Text emphasized primary body color="$uiNeutralPrimary">
-                    Withdrawal
+                    {t("Withdrawal")}
                   </Text>
                 </>
               )}
               {error && (
                 <>
-                  Failed&nbsp;
+                  {t("Failed")}{" "}
                   <Text emphasized primary body color="$uiNeutralPrimary">
                     {shortenHex(withdrawReceiver, 3, 5)}
                   </Text>
@@ -419,7 +424,7 @@ export default function Amount() {
                   }
                 }}
               >
-                {!details.external && isLatestPlugin ? "View pending requests" : "Close"}
+                {!details.external && isLatestPlugin ? t("View pending requests") : t("Close")}
               </Text>
             </View>
           )}
@@ -431,7 +436,7 @@ export default function Amount() {
                 }}
               >
                 <Text emphasized footnote color="$uiBrandSecondary">
-                  Close
+                  {t("Close")}
                 </Text>
               </Pressable>
             </YStack>

@@ -1,5 +1,6 @@
 import { ArrowRight, X } from "@tamagui/lucide-icons";
 import React from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { Pressable, StyleSheet } from "react-native";
 import { ScrollView, YStack } from "tamagui";
 
@@ -23,6 +24,7 @@ export default function CardDisclaimer({
   onActionPress: () => void;
 }) {
   const { presentArticle } = useIntercom();
+  const { t } = useTranslation();
   return (
     <ModalSheet open={open} onClose={onClose}>
       <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
@@ -44,7 +46,7 @@ export default function CardDisclaimer({
                   </View>
                 </View>
                 <Text emphasized textAlign="center" color="$interactiveTextBrandDefault" title>
-                  Activate your new Exa Card*
+                  {t("Activate your new Exa Card*")}
                 </Text>
               </YStack>
               <YStack gap="$s4_5">
@@ -55,10 +57,12 @@ export default function CardDisclaimer({
                     }}
                   >
                     <Text color="$uiNeutralPlaceholder" footnote textAlign="center">
-                      By continuing, you agree to both, the disclaimer below and the Exa Card&nbsp;
-                      <Text color="$interactiveTextBrandDefault" footnote>
-                        Terms & Conditions.
-                      </Text>
+                      <Trans
+                        i18nKey="By continuing, you accept both the notice below and the <link>Terms and Conditions</link> of the Exa Card."
+                        components={{
+                          link: <Text color="$interactiveTextBrandDefault" footnote />,
+                        }}
+                      />
                     </Text>
                   </Pressable>
                   <Button
@@ -70,14 +74,13 @@ export default function CardDisclaimer({
                     fullwidth
                     iconAfter={<ArrowRight strokeWidth={2.5} color="$interactiveOnBaseBrandDefault" />}
                   >
-                    Accept and enable card
+                    {t("Accept and enable card")}
                   </Button>
                 </YStack>
                 <Text color="$interactiveOnDisabled" caption textAlign="justify">
-                  *The Exa Card is issued by Third National pursuant to a license from Visa. Any credit issued by
-                  Exactly Protocol subject to its separate terms and conditions. Third National is not a party to any
-                  agreement with Exactly Protocol and is not responsible for any funding or credit arrangement between
-                  user and Exactly Protocol.
+                  {t(
+                    "*The Exa Card is issued by Third National pursuant to a license from Visa. Any credit issued by Exactly Protocol subject to its separate terms and conditions. Third National is not a party to any agreement with Exactly Protocol and is not responsible for any funding or credit arrangement between user and Exactly Protocol.",
+                  )}
                 </Text>
               </YStack>
             </YStack>

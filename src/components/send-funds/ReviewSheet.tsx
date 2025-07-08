@@ -3,6 +3,7 @@ import { Address } from "@exactly/common/validation";
 import { ArrowRight, User } from "@tamagui/lucide-icons";
 import { useLocalSearchParams } from "expo-router";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 import { parse } from "valibot";
@@ -34,6 +35,7 @@ export default function ReviewSheet({
   const { asset, receiver } = useLocalSearchParams();
   const receiverAddress = parse(Address, receiver);
   const { market, externalAsset } = useAsset(parse(Address, asset));
+  const { t } = useTranslation();
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
       <ScrollView $platform-web={{ maxHeight: "100vh" }}>
@@ -48,13 +50,13 @@ export default function ReviewSheet({
           <YStack gap="$s7">
             <YStack gap="$s5">
               <Text emphasized primary headline textAlign="center">
-                Review transaction
+                {t("Review transaction")}
               </Text>
             </YStack>
             <YStack gap="$s3_5">
               <YStack gap="$s4">
                 <Text emphasized footnote color="$uiNeutralSecondary">
-                  Sending
+                  {t("Sending")}
                 </Text>
                 <XStack alignItems="center" gap="$s3">
                   <AssetLogo
@@ -88,7 +90,7 @@ export default function ReviewSheet({
               </YStack>
               <YStack gap="$s4">
                 <Text emphasized footnote color="$uiNeutralSecondary">
-                  To
+                  {t("To")}
                 </Text>
                 <XStack alignItems="center" gap="$s3">
                   <View
@@ -109,7 +111,7 @@ export default function ReviewSheet({
                     </Text>
                     {isFirstSend && (
                       <Text subHeadline color="$uiNeutralSecondary">
-                        First time send
+                        {t("First time send")}
                       </Text>
                     )}
                   </YStack>
@@ -127,11 +129,11 @@ export default function ReviewSheet({
                 disabled={!canSend}
                 iconAfter={<ArrowRight color={canSend ? "$interactiveOnBaseBrandDefault" : "$interactiveOnDisabled"} />}
               >
-                {canSend ? "Send" : "Enter valid address"}
+                {canSend ? t("Send") : t("Enter valid address")}
               </Button>
               <Pressable onPress={onClose}>
                 <Text emphasized footnote color="$interactiveBaseBrandDefault" alignSelf="center">
-                  Close
+                  {t("Close")}
                 </Text>
               </Pressable>
             </YStack>

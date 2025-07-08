@@ -11,7 +11,9 @@ import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useNavigation } from "expo-router";
 import { getName, registerLocale, type LocaleData } from "i18n-iso-countries/index";
+import type { TFunction } from "i18next";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { XStack, YStack } from "tamagui";
 import { titleCase } from "title-case";
 
@@ -28,6 +30,7 @@ export default function ActivityItem({ item, isLast }: { item: Item; isLast: boo
   const { data: country } = useQuery({ queryKey: ["user", "country"] });
   const processing = item.type === "panda" && country === "US" && isProcessing(item.timestamp);
   const refund = item.type === "panda" && item.usdAmount < 0;
+  const { t } = useTranslation();
   return (
     <XStack
       key={item.id}
@@ -58,7 +61,7 @@ export default function ActivityItem({ item, isLast }: { item: Item; isLast: boo
         <XStack justifyContent="space-between" alignItems="center" gap="$s4">
           <YStack gap="$s2" flexShrink={1}>
             <Text primary subHeadline numberOfLines={1}>
-              {getActivityTitle(item)}
+              {getActivityTitle(item, t)}
             </Text>
             <Text
               secondary
@@ -67,9 +70,9 @@ export default function ActivityItem({ item, isLast }: { item: Item; isLast: boo
               color={processing ? "$interactiveOnBaseWarningSoft" : "$uiNeutralSecondary"}
             >
               {refund
-                ? "Refund"
+                ? t("Refund")
                 : processing
-                  ? "Processing..."
+                  ? t("Processing...")
                   : (item.type === "card" || item.type === "panda") &&
                     titleCase(
                       [
@@ -133,7 +136,7 @@ function getActivityIcon(item: Item, processing: boolean, refund: boolean) {
   }
 }
 
-function getActivityTitle(item: Item) {
+function getActivityTitle(item: Item, t: TFunction) {
   let title;
   switch (item.type) {
     case "card":
@@ -141,17 +144,17 @@ function getActivityTitle(item: Item) {
       title = item.merchant.name;
       break;
     case "received":
-      title = "Received";
+      title = t("Received");
       break;
     case "sent":
-      title = "Sent";
+      title = t("Sent");
       break;
     case "repay":
-      title = "Debt payment";
+      title = t("Debt payment");
       break;
     default:
       title = undefined;
   }
-  title ??= "type" in item ? item.type.charAt(0).toUpperCase() + item.type.slice(1) : "Unknown";
+  title ??= "type" in item ? t(item.type.charAt(0).toUpperCase() + item.type.slice(1)) : t("Unknown");
   return title;
 }

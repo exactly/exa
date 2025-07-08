@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import React, { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable, StyleSheet } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 
@@ -16,6 +17,7 @@ import View from "../shared/View";
 export default function CardPIN({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [countdown, setCountdown] = useState(0);
   const [displayPIN, setDisplayPIN] = useState(false);
+  const { t } = useTranslation();
   const timerReference = React.useRef<NodeJS.Timeout>();
   const {
     data: card,
@@ -78,6 +80,8 @@ export default function CardPIN({ open, onClose }: { open: boolean; onClose: () 
       clearInterval(timerReference.current);
     };
   }, [open, card]);
+  const buttonLabel = error ? t("Retry") : displayPIN ? t("Hide PIN") : t("Show PIN");
+
   return (
     <ModalSheet open={open} onClose={onClose}>
       <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
@@ -87,10 +91,10 @@ export default function CardPIN({ open, onClose }: { open: boolean; onClose: () 
               <YStack gap="$s4_5">
                 <YStack gap="$s4">
                   <Text emphasized headline primary>
-                    View Exa Card PIN number
+                    {t("View Exa Card PIN number")}
                   </Text>
                   <Text color="$uiNeutralSecondary" subHeadline>
-                    Your card&apos;s PIN may be required to confirm transactions and ensure security.
+                    {t("Your card’s PIN may be required to confirm transactions and ensure security.")}
                   </Text>
                 </YStack>
                 {isPending || !card?.details.pin ? (
@@ -121,14 +125,14 @@ export default function CardPIN({ open, onClose }: { open: boolean; onClose: () 
                         handlePinToggle();
                       }}
                     >
-                      {error ? "Retry" : displayPIN ? "Hide PIN" : "Show PIN"}
-                      {`${!error && displayPIN && countdown > 0 ? countdown : " "}`}
+                      {buttonLabel}
+                      {!error && displayPIN && countdown > 0 ? `${countdown}` : " "}
                     </Button>
                   </YStack>
                 )}
                 <Pressable onPress={onClose} style={styles.close} hitSlop={20}>
                   <Text emphasized footnote color="$interactiveTextBrandDefault">
-                    Close
+                    {t("Close")}
                   </Text>
                 </Pressable>
               </YStack>

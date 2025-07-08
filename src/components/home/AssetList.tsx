@@ -1,6 +1,7 @@
 import { previewerAddress, ratePreviewerAddress } from "@exactly/common/generated/chain";
 import { floatingDepositRates } from "@exactly/lib";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { vs } from "react-native-size-matters";
 import { XStack, YStack } from "tamagui";
 import { zeroAddress, parseUnits } from "viem";
@@ -26,6 +27,7 @@ interface AssetItem {
 }
 
 function AssetRow({ asset }: { asset: AssetItem }) {
+  const { t } = useTranslation();
   const { symbol, logoURI, amount, decimals, usdPrice, usdValue, rate } = asset;
   return (
     <XStack alignItems="center" borderColor="$borderNeutralSoft" paddingVertical={vs(10)} gap="$s2" width="100%">
@@ -70,7 +72,7 @@ function AssetRow({ asset }: { asset: AssetItem }) {
               })}
             </Text>
             <Text caption color="$uiNeutralSecondary" textAlign="right">
-              Yield
+              {t("Yield")}
             </Text>
           </>
         )}
@@ -112,6 +114,7 @@ function AssetSection({ title, assets }: { title: string; assets: AssetItem[] })
 }
 
 export default function AssetList() {
+  const { t } = useTranslation();
   const { address } = useAccount();
   const { data: markets } = useReadPreviewerExactly({
     address: previewerAddress,
@@ -157,8 +160,8 @@ export default function AssetList() {
 
   return (
     <YStack gap="$s4">
-      <AssetSection title="Collateral Assets" assets={collateralAssets} />
-      <AssetSection title="Other Assets" assets={externalAssetItems} />
+      <AssetSection title={t("Collateral Assets")} assets={collateralAssets} />
+      <AssetSection title={t("Other Assets")} assets={externalAssetItems} />
     </YStack>
   );
 }

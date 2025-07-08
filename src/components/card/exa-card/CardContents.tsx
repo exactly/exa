@@ -2,6 +2,7 @@ import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/c
 import { borrowLimit, withdrawLimit } from "@exactly/lib";
 import { Loader, LockKeyhole, Snowflake } from "@tamagui/lucide-icons";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Platform } from "react-native";
 import { useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 import { AnimatePresence, XStack, YStack } from "tamagui";
@@ -27,6 +28,7 @@ export default function CardContents({
 }) {
   const { address } = useAccount();
   const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [address ?? zeroAddress] });
+  const { t } = useTranslation();
 
   const rotation = useSharedValue(0);
   const rStyle = useAnimatedStyle(() => {
@@ -70,8 +72,8 @@ export default function CardContents({
                   })}
                 </Text>
                 <View>
-                  <Text color="white" emphasized caption maxFontSizeMultiplier={1}>
-                    AVAILABLE BALANCE
+                  <Text color="white" emphasized caption maxFontSizeMultiplier={1} textTransform="uppercase">
+                    {t("Available balance")}
                   </Text>
                 </View>
               </View>
@@ -91,8 +93,8 @@ export default function CardContents({
                   })}
                 </Text>
                 <View>
-                  <Text color="white" emphasized caption maxFontSizeMultiplier={1}>
-                    AVAILABLE BALANCE
+                  <Text color="white" emphasized caption maxFontSizeMultiplier={1} textTransform="uppercase">
+                    {t("Available balance")}
                   </Text>
                 </View>
               </View>

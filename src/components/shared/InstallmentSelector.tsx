@@ -105,7 +105,7 @@ function Installment({
           {selected && <Check size={12} color="$interactiveOnBaseBrandDefault" />}
         </XStack>
         <Text headline color={hasInstallments ? "$uiNeutralSecondary" : "$uiNeutralPrimary"}>
-          {hasInstallments ? `${t("{{count}} installments", { count: installment })} of` : t("Pay Now")}
+          {hasInstallments ? t("{{count}} installments of", { count: installment }) : t("Pay Now")}
         </Text>
       </XStack>
       <XStack gap="$s2" alignItems="center" justifyContent="flex-end" flex={1}>

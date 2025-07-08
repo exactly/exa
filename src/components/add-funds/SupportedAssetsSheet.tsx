@@ -1,6 +1,7 @@
 import chain from "@exactly/common/generated/chain";
 import { AlertTriangle, X } from "@tamagui/lucide-icons";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import assetLogos from "../../utils/assetLogos";
@@ -19,6 +20,7 @@ const supportedAssets = Object.entries(assetLogos)
 
 export default function SupportedAssetsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { presentArticle } = useIntercom();
+  const { t } = useTranslation();
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
       <ScrollView $platform-web={{ maxHeight: "100vh" }}>
@@ -33,7 +35,7 @@ export default function SupportedAssetsSheet({ open, onClose }: { open: boolean;
           <YStack gap="$s7">
             <YStack>
               <Text emphasized primary headline>
-                Supported assets
+                {t("Supported assets")}
               </Text>
             </YStack>
             <XStack justifyContent="center" flexWrap="wrap">
@@ -70,7 +72,9 @@ export default function SupportedAssetsSheet({ open, onClose }: { open: boolean;
               </View>
               <XStack flex={1}>
                 <Text emphasized caption2 color="$uiNeutralPlaceholder" textAlign="justify">
-                  Only send assets on {chain.name}. Sending funds from other networks may cause permanent loss.
+                  {t("Only send assets on {{chain}}. Sending funds from other networks may cause permanent loss.", {
+                    chain: chain.name,
+                  })}
                   <Text
                     cursor="pointer"
                     emphasized
@@ -80,7 +84,7 @@ export default function SupportedAssetsSheet({ open, onClose }: { open: boolean;
                       presentArticle("8950801").catch(reportError);
                     }}
                   >
-                    &nbsp;Learn more about adding funds.
+                    &nbsp;{t("Learn more about adding funds.")}
                   </Text>
                 </Text>
               </XStack>
@@ -94,7 +98,7 @@ export default function SupportedAssetsSheet({ open, onClose }: { open: boolean;
               fullwidth
               iconAfter={<X strokeWidth={2.5} color="$interactiveOnBaseBrandDefault" />}
             >
-              Close
+              {t("Close")}
             </Button>
           </YStack>
         </SafeView>

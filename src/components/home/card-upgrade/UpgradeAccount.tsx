@@ -3,6 +3,7 @@ import { ArrowUpToLine } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { YStack } from "tamagui";
 import { encodeAbiParameters, encodeFunctionData, getAbiItem, keccak256, zeroAddress } from "viem";
 import { useBytecode } from "wagmi";
@@ -36,6 +37,7 @@ export default function UpgradeAccount() {
 
   const toast = useToastController();
   const { data: step } = useQuery<number | undefined>({ queryKey: ["card-upgrade"] });
+  const { t } = useTranslation();
   const { mutateAsync: upgradeAccount, isPending: isUpgrading } = useMutation({
     mutationFn: async () => {
       if (isLatestPlugin) {
@@ -87,7 +89,7 @@ export default function UpgradeAccount() {
       await accountClient.waitForUserOperationTransaction(hash);
     },
     onSuccess: async () => {
-      toast.show("Account upgraded!", {
+      toast.show(t("Account upgraded!"), {
         native: true,
         duration: 1000,
         burntOptions: { haptic: "success" },
@@ -96,7 +98,7 @@ export default function UpgradeAccount() {
       await refetchInstalledPlugins();
     },
     onError: () => {
-      toast.show("Error upgrading account", {
+      toast.show(t("Error upgrading account"), {
         native: true,
         duration: 1000,
         burntOptions: { haptic: "error", preset: "error" },
@@ -111,14 +113,14 @@ export default function UpgradeAccount() {
             <Spinner color="$uiNeutralPrimary" backgroundColor="$backgroundMild" containerSize={52} size={32} />
             <YStack gap="$s2" justifyContent="center" alignItems="center">
               <Text emphasized title3 color="$uiNeutralSecondary">
-                Updating your account
+                {t("Updating your account")}
               </Text>
               <Text color="$uiNeutralSecondary" footnote>
-                STEP {(step ?? 0) + 1} OF 3
+                {t("STEP {{current}} OF {{total}}", { current: (step ?? 0) + 1, total: 3 })}
               </Text>
             </YStack>
             <Text color="$uiNeutralSecondary" subHeadline alignSelf="center" textAlign="center">
-              This may take a moment. Please wait.
+              {t("This may take a moment. Please wait.")}
             </Text>
           </YStack>
         </>
@@ -127,13 +129,14 @@ export default function UpgradeAccount() {
           <YStack gap="$s4">
             <ArrowUpToLine size={32} color="$uiBrandSecondary" />
             <Text emphasized title3 color="$uiBrandSecondary">
-              Upgrade your account
+              {t("Upgrade your account")}
             </Text>
           </YStack>
           <YStack>
             <Text color="$uiNeutralSecondary" subHeadline>
-              Update your Exa account to support our new card provider. This quick step ensures a smooth transition to
-              your upgraded Exa Card.
+              {t(
+                "Update your Exa account to support our new card provider. This quick step ensures a smooth transition to your upgraded Exa Card.",
+              )}
             </Text>
           </YStack>
           <Progression />
@@ -159,7 +162,7 @@ export default function UpgradeAccount() {
             />
           }
         >
-          Upgrade account now
+          {t("Upgrade account now")}
         </Button>
       </YStack>
     </View>

@@ -4,6 +4,7 @@ import { ArrowRight } from "@tamagui/lucide-icons";
 import { format } from "date-fns";
 import { useNavigation } from "expo-router";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Separator, XStack, YStack } from "tamagui";
 import { formatUnits, zeroAddress } from "viem";
 import { useBytecode } from "wagmi";
@@ -21,6 +22,7 @@ import Text from "../shared/Text";
 export default function CreditLine() {
   const { address } = useAccount();
   const navigation = useNavigation<AppNavigationProperties>();
+  const { t } = useTranslation();
   const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
   const { data: markets } = useReadPreviewerExactly({
     address: previewerAddress,
@@ -32,7 +34,7 @@ export default function CreditLine() {
     <YStack backgroundColor="$backgroundSoft" borderRadius="$s3">
       <XStack padding="$s4">
         <Text emphasized body primary>
-          Available funding
+          {t("Available funding")}
         </Text>
       </XStack>
       <YStack padding="$s4" paddingTop={0}>
@@ -50,7 +52,7 @@ export default function CreditLine() {
           <YStack gap="$s2">
             <XStack alignItems="center" flexWrap="wrap">
               <Text secondary footnote>
-                Next due date:&nbsp;
+                {t("Next due date")}:{" "}
               </Text>
               <Text primary footnote>
                 {format(firstMaturity * 1000, "MMM d, yyyy")}
@@ -58,10 +60,10 @@ export default function CreditLine() {
             </XStack>
             <XStack alignItems="center" flexWrap="wrap">
               <Text secondary footnote>
-                Installments due:&nbsp;
+                {t("Installments due")}:{" "}
               </Text>
               <Text primary footnote>
-                Every 28 days
+                {t("Every 28 days")}
               </Text>
             </XStack>
           </YStack>
@@ -85,7 +87,7 @@ export default function CreditLine() {
             maxFontSizeMultiplier={1.1}
             borderRadius="$r3"
           >
-            Explore funding options
+            {t("Explore funding options")}
           </Button>
         </YStack>
       </YStack>

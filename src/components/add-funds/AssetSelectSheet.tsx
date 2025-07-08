@@ -1,6 +1,7 @@
 import type { Chain, Token } from "@lifi/sdk";
 import { ChevronDown, Search } from "@tamagui/lucide-icons";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable, type LayoutChangeEvent } from "react-native";
 import { ScrollView, XStack, YStack, styled } from "tamagui";
 import { formatUnits } from "viem";
@@ -21,7 +22,7 @@ export default function AssetSelectSheet({
   onClose,
   hideBalances = false,
   enableNetworkFilter = false,
-  label = "Select asset",
+  label,
 }: {
   open: boolean;
   groups: {
@@ -33,12 +34,14 @@ export default function AssetSelectSheet({
   onClose: () => void;
   hideBalances?: boolean;
   enableNetworkFilter?: boolean;
-  label?: string;
+  label: string;
 }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedNetworkId, setSelectedNetworkId] = useState<number | undefined>();
   const [networkDropdownOpen, setNetworkDropdownOpen] = useState(false);
   const [searchWidth, setSearchWidth] = useState<number | undefined>();
+
+  const { t } = useTranslation();
 
   const handleSearchLayout = useCallback((event: LayoutChangeEvent) => {
     const width = event.nativeEvent.layout.width;
@@ -123,7 +126,7 @@ export default function AssetSelectSheet({
                 <XStack alignItems="center" gap="$s2" flex={1} paddingHorizontal="$s3">
                   <Search size={18} color="$uiNeutralSecondary" />
                   <SearchInput
-                    placeholder="Search tokens"
+                    placeholder={t("Search tokens")}
                     value={searchQuery}
                     onChangeText={setSearchQuery}
                     placeholderTextColor="$uiNeutralPlaceholder"
@@ -207,7 +210,7 @@ export default function AssetSelectSheet({
                           ))}
                         </XStack>
                         <Text footnote color="$uiNeutralPrimary">
-                          All networks
+                          {t("All networks")}
                         </Text>
                       </XStack>
                     </View>
@@ -316,8 +319,8 @@ export default function AssetSelectSheet({
                 <View alignItems="center" paddingVertical="$s8">
                   <Text footnote color="$uiNeutralSecondary">
                     {searchQuery || (showNetworkFilter && selectedNetworkId)
-                      ? "No assets match your filters."
-                      : "No assets with balance available to bridge."}
+                      ? t("No assets match your filters.")
+                      : t("No assets with balance available to bridge.")}
                   </Text>
                 </View>
               )}
