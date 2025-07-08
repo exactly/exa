@@ -22,6 +22,7 @@
     "expo-insights",
     "expo-linear-gradient",
     "expo-linking",
+    "expo-localization",
     "expo-router",
     "expo-status-bar",
     "expo-system-ui",
