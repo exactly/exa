@@ -4,6 +4,7 @@ import { AlertTriangle, ArrowLeft, Files, Share as ShareIcon } from "@tamagui/lu
 import { setStringAsync } from "expo-clipboard";
 import { router } from "expo-router";
 import React, { useCallback, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { PixelRatio, Pressable, Share } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 import { useAccount } from "wagmi";
@@ -28,6 +29,7 @@ export default function AddCrypto() {
   const fontScale = PixelRatio.getFontScale();
   const { presentArticle } = useIntercom();
   const { address } = useAccount();
+  const { t } = useTranslation();
   const { canGoBack } = router;
 
   const [copyAddressShown, setCopyAddressShown] = useState(false);
@@ -63,10 +65,10 @@ export default function AddCrypto() {
             </View>
             <View flexDirection="row" alignItems="center" alignSelf="center">
               <Text color="$uiNeutralSecondary" fontSize={15} fontWeight="bold">
-                {`Add Funds / `}
+                {`${t("Add Funds")} / `}
               </Text>
               <Text fontSize={15} fontWeight="bold">
-                Cryptocurrency
+                {t("Cryptocurrency")}
               </Text>
             </View>
           </XStack>
@@ -75,7 +77,7 @@ export default function AddCrypto() {
           <YStack gap="$s5">
             <YStack flex={1} borderBottomWidth={1} borderBottomColor="$borderNeutralSoft" paddingBottom={20} gap="$s5">
               <Text fontSize={15} color="$uiNeutralSecondary" fontWeight="bold">
-                Your {chain.name} address
+                {t("Your {{chain}} address", { chain: chain.name })}
               </Text>
               <Pressable hitSlop={15} onPress={copy}>
                 {address && (
@@ -104,7 +106,7 @@ export default function AddCrypto() {
                     adjustsFontSizeToFit
                     color="$interactiveOnBaseBrandDefault"
                   >
-                    Copy
+                    {t("Copy")}
                   </Text>
                 </Button>
                 <Button
@@ -128,7 +130,7 @@ export default function AddCrypto() {
                     adjustsFontSizeToFit
                     color="$interactiveOnBaseBrandSoft"
                   >
-                    Share
+                    {t("Share")}
                   </Text>
                 </Button>
               </XStack>
@@ -147,10 +149,10 @@ export default function AddCrypto() {
             />
             <XStack justifyContent="space-between" alignItems="center">
               <Text emphasized footnote color="$uiNeutralSecondary" textAlign="left">
-                Network
+                {t("Network")}
               </Text>
               <Text emphasized footnote color="$uiNeutralSecondary" textAlign="right">
-                Supported Assets
+                {t("Supported Assets")}
               </Text>
             </XStack>
             <XStack gap="$s5" justifyContent="space-between" alignItems="center">
@@ -194,7 +196,9 @@ export default function AddCrypto() {
           </View>
           <XStack flex={1}>
             <Text emphasized caption2 color="$uiNeutralPlaceholder" textAlign="justify">
-              Only send assets on {chain.name}. Sending funds from other networks may cause permanent loss.
+              {t("Only send assets on {{chain}}. Sending funds from other networks may cause permanent loss.", {
+                chain: chain.name,
+              })}
               <Text
                 cursor="pointer"
                 emphasized
@@ -204,7 +208,7 @@ export default function AddCrypto() {
                   presentArticle("8950801").catch(reportError);
                 }}
               >
-                &nbsp;Learn more about adding funds.
+                &nbsp;{t("Learn more about adding funds.")}
               </Text>
             </Text>
           </XStack>

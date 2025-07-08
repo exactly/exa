@@ -2,6 +2,7 @@ import { ChevronRight } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { XStack, YStack } from "tamagui";
 
 import isProcessing from "../../utils/isProcessing";
@@ -9,6 +10,7 @@ import { getActivity } from "../../utils/server";
 import Text from "../shared/Text";
 
 export default function PortfolioSummary({ usdBalance }: { usdBalance: bigint }) {
+  const { t } = useTranslation();
   const { data: country } = useQuery({ queryKey: ["user", "country"] });
   const { data: processingBalance } = useQuery({
     queryKey: ["processing-balance"],
@@ -32,7 +34,7 @@ export default function PortfolioSummary({ usdBalance }: { usdBalance: bigint })
     >
       <XStack alignItems="center" gap="$s2">
         <Text secondary emphasized subHeadline>
-          Your portfolio
+          {t("Your portfolio")}
         </Text>
         <ChevronRight size={16} color="$uiNeutralSecondary" />
       </XStack>
