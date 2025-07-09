@@ -13,19 +13,42 @@ export function identify(
   analytics.identify(user);
 }
 
+interface MerchantProperties {
+  category?: string | null;
+  name: string;
+  city?: string | null;
+  country?: string | null;
+}
+
 export function track(
   action: Id<
     | { event: "CardIssued" }
     | { event: "CardFrozen" }
     | { event: "CardUnfrozen" }
-    | { event: "TransactionAuthorized"; properties: { type: "cryptomate" | "panda"; usdAmount: number } }
+    | {
+        event: "TransactionAuthorized";
+        properties: {
+          type: "cryptomate" | "panda";
+          usdAmount: number;
+          merchant: MerchantProperties;
+        };
+      }
     | {
         event: "TransactionRefund";
-        properties: { id: string; type: "reversal" | "refund" | "partial"; usdAmount: number };
+        properties: {
+          id: string;
+          type: "reversal" | "refund" | "partial";
+          usdAmount: number;
+          merchant: MerchantProperties;
+        };
       }
   >,
 ) {
-  analytics.track(action);
+  try {
+    analytics.track(action);
+  } catch (error) {
+    captureException(error, { level: "error" });
+  }
 }
 
 export function closeAndFlush() {

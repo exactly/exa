@@ -67,6 +67,7 @@ const BaseTransaction = v.object({
     localCurrency: v.pipe(v.string(), v.length(3)),
     merchantCity: v.nullish(v.string()),
     merchantCountry: v.nullish(v.string()),
+    merchantCategory: v.nullish(v.string()),
     merchantName: v.string(),
     authorizedAt: v.optional(v.pipe(v.string(), v.isoTimestamp())),
     authorizedAmount: v.nullish(v.number()),
@@ -225,15 +226,7 @@ export default new Hono().post(
         try {
           const { amount, call, transaction } = await prepareCollection(card, payload);
           const authorize = () => {
-            try {
-              track({
-                userId: account,
-                event: "TransactionAuthorized",
-                properties: { type: "panda", usdAmount: payload.body.spend.amount / 100 },
-              });
-            } catch (error: unknown) {
-              captureException(error, { level: "error" });
-            }
+            trackTransactionAuthorized(account, payload);
             return c.json({ code: "ok" });
           };
           if (!transaction) return authorize();
@@ -399,22 +392,7 @@ export default new Hono().post(
                 },
               },
             );
-            try {
-              track({
-                userId: account,
-                event: "TransactionRefund",
-                properties: {
-                  id: payload.body.id,
-                  type: (() => {
-                    if (payload.body.spend.status === "reversed") return "reversal";
-                    return payload.body.spend.amount < 0 ? "refund" : "partial";
-                  })(),
-                  usdAmount: refundAmountUsd,
-                },
-              });
-            } catch (error: unknown) {
-              captureException(error, { level: "error" });
-            }
+            trackTransactionRefund(account, refundAmountUsd, payload);
             return c.json({ code: "ok" });
           } catch (error: unknown) {
             captureException(error, { level: "fatal", tags: { unhandled: true } });
@@ -547,6 +525,50 @@ export default new Hono().post(
     }
   },
 );
+
+function trackTransactionAuthorized(account: Address, payload: v.InferOutput<typeof Transaction>): void {
+  track({
+    userId: account,
+    event: "TransactionAuthorized",
+    properties: {
+      type: "panda",
+      usdAmount: payload.body.spend.amount / 100,
+      merchant: {
+        name: payload.body.spend.merchantName,
+        category: payload.body.spend.merchantCategory,
+        city: payload.body.spend.merchantCity,
+        country: payload.body.spend.merchantCountry,
+      },
+    },
+  });
+}
+
+function trackTransactionRefund(
+  account: Address,
+  refundAmountUsd: number,
+  payload: v.InferOutput<typeof Transaction>,
+): void {
+  if (payload.action === "requested") {
+    captureException(new Error("unsupported transaction type"), { contexts: { payload } });
+    return;
+  }
+  track({
+    userId: account,
+    event: "TransactionRefund",
+    properties: {
+      id: payload.body.id,
+      type:
+        payload.body.spend.status === "reversed" ? "reversal" : payload.body.spend.amount < 0 ? "refund" : "partial",
+      usdAmount: refundAmountUsd,
+      merchant: {
+        name: payload.body.spend.merchantName,
+        category: payload.body.spend.merchantCategory,
+        city: payload.body.spend.merchantCity,
+        country: payload.body.spend.merchantCountry,
+      },
+    },
+  });
+}
 
 function getCreatedAt(payload: v.InferOutput<typeof Transaction>): string | undefined {
   switch (payload.action) {
