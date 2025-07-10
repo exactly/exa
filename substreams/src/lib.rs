@@ -1,11 +1,12 @@
 use contracts::{
-  auditor::events as auditor_events, chainlink::events as chainlink_events, is_auditor, is_market, market::events,
+  auditor::events as auditor_events, chainlink::events as chainlink_events, factory::events as factory_events,
+  is_auditor, is_factory, is_market, market::events,
 };
 use proto::exa::{
   events::{
     AccumulatorAccrual, AnswerUpdated, Borrow, BorrowAtMaturity, EarningsAccumulatorSmoothFactorSet,
-    FixedEarningsUpdate, FloatingDebtUpdate, InterestRateModelSet, MarketEntered, MarketExited, MarketUpdate,
-    MaxFuturePoolsSet, NewRound, NewTransmission, Repay, RepayAtMaturity, Transfer, TreasurySet,
+    ExaAccountInitialized, FixedEarningsUpdate, FloatingDebtUpdate, InterestRateModelSet, MarketEntered, MarketExited,
+    MarketUpdate, MaxFuturePoolsSet, NewRound, NewTransmission, Repay, RepayAtMaturity, Transfer, TreasurySet,
   },
   Events,
 };
@@ -82,6 +83,17 @@ pub fn map_blocks(block: Block) -> Result<Events, Error> {
             earnings_accumulator_smooth_factor: event.earnings_accumulator_smooth_factor.to_string(),
             log_ordinal: log.ordinal(),
           }),
+          _ => None,
+        }
+      })
+      .collect(),
+    exa_account_initialized: block
+      .logs()
+      .filter_map(|log| {
+        match (is_factory(log.address()), factory_events::ExaAccountInitialized::match_and_decode(log)) {
+          (true, Some(event)) => {
+            Some(ExaAccountInitialized { address: event.account.to_vec(), log_ordinal: log.ordinal() })
+          }
           _ => None,
         }
       })
@@ -393,6 +405,13 @@ pub fn db_out(
         "earnings_accumulator_smooth_factor",
         earnings_accumulator_smooth_factor_set.earnings_accumulator_smooth_factor.to_string(),
       );
+  }
+  for exa_account_initialized in events.exa_account_initialized {
+    tables
+      .create_row("exa_account_initialized", [("address", Hex(&exa_account_initialized.address).to_string())])
+      .set("address", Hex(&exa_account_initialized.address).to_string())
+      .set("block", clock.number.to_string())
+      .set("ordinal", exa_account_initialized.log_ordinal.to_string());
   }
   for fixed_earnings_update in events.fixed_earnings_updates {
     tables
