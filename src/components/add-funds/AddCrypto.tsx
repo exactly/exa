@@ -154,7 +154,7 @@ export default function AddCrypto() {
               </Text>
             </XStack>
             <XStack gap="$s5" justifyContent="space-between" alignItems="center">
-              <XStack alignItems="center" gap="$s3">
+              <XStack alignItems="center" gap="$s3" flex={1}>
                 <OptimismImage height={32} width={32} />
                 <Text emphasized primary headline>
                   {chain.name}
