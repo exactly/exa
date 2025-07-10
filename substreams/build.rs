@@ -85,6 +85,13 @@ fn main() -> Result<(), Error> {
             {}
           )
         }}
+
+        pub fn is_factory(address: &[u8]) -> bool {{
+          matches!(
+            address,
+            {}
+          )
+        }}
       "},
       contracts
         .iter()
@@ -136,7 +143,34 @@ fn main() -> Result<(), Error> {
         Ok(format!("hex!(\"{}\")", &from_str::<Deployment>(&read_to_string(&path)?)?.address[2..]))
       })
       .collect::<Result<Vec<_>, _>>()?
-      .join("\n      | ")
+      .join("\n      | "),
+      match option_env!("CHAIN_ID") {
+        Some("10") => vec![
+          "8D493AF799162Ac3f273e8918B2842447f702163",
+          "3427a595eD6E05Cc2D8115e28BAd151cB879616e",
+          "cbeaAF42Cc39c17e84cBeFe85160995B515A9668",
+          "961EbA47650e2198A959Ef5f337E542df5E4F61b",
+        ],
+        _ => vec![
+          "9cCab24277a9E6be126Df3A563c90B4eBf6D5e26",
+          "98b3E5C7a039A329a4446A3FACB860C506B28901",
+          "8cA9Bb05f6a9CDf3412d64C25907358686277E5c",
+          "086E2e36a98d266c81E453f0129ec01A34e64cF9",
+          "8D493AF799162Ac3f273e8918B2842447f702163",
+          "b312816855ca94d8fb4Cbea9E63BD6b12353AfBe",
+          "cE820eea73585E62347db9E1DA3aa804Ba7c3863",
+          "5B710958D215F7951ec67e1bb13077F5fBB3a3F1",
+          "Fe619D955F5bfbf810b93315A340eE32d288BB63",
+          "861337355FE34cF70bcC586F276a0151E7F5Beba",
+          "3F62562c6f2aD9A623cb5fceD48053c691F95228",
+          "FC86cc5aE0FbE173fe385114F5F0a9C4Afe60B6F",
+          "98d3E8B291d9E89C25D8371b7e8fFa8BC32E0aEC",
+        ],
+      }
+      .iter()
+      .map(|a| format!("hex!(\"{a}\")"))
+      .collect::<Vec<_>>()
+      .join("\n      | "),
     )
     .as_bytes(),
   )?;

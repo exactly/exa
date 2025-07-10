@@ -310,3 +310,15 @@ export const fixedBorrows = substreams.table(
     index("fixed_borrows_market").on(market),
   ],
 );
+
+export const exaAccountInitialized = substreams.table(
+  "exa_account_initialized",
+  {
+    address: text("address").notNull(),
+    block: numeric("block")
+      .references(() => blocks.number)
+      .notNull(),
+    ordinal: numeric("ordinal").notNull(),
+  },
+  ({ address }) => [primaryKey({ columns: [address] })],
+);
