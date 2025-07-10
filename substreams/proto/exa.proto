@@ -7,22 +7,23 @@ message Events {
   repeated Borrow borrows = 2;
   repeated BorrowAtMaturity borrow_at_maturities = 3;
   repeated EarningsAccumulatorSmoothFactorSet earnings_accumulator_smooth_factor_sets = 4;
-  repeated FixedEarningsUpdate fixed_earnings_updates = 5;
-  repeated FloatingDebtUpdate floating_debt_updates = 6;
-  repeated InterestRateModelSet interest_rate_model_sets = 7;
-  repeated MarketEntered market_enters = 8;
-  repeated MarketExited market_exits = 9;
-  repeated MarketUpdate market_updates = 10;
-  repeated MaxFuturePoolsSet max_future_pools_sets = 11;
-  repeated Repay repays = 12;
-  repeated RepayAtMaturity repay_at_maturities = 13;
-  repeated Transfer transfers = 14;
-  repeated TreasurySet treasury_sets = 15;
+  repeated ExaAccountInitialized exa_account_initialized = 5;
+  repeated FixedEarningsUpdate fixed_earnings_updates = 6;
+  repeated FloatingDebtUpdate floating_debt_updates = 7;
+  repeated InterestRateModelSet interest_rate_model_sets = 8;
+  repeated MarketEntered market_enters = 9;
+  repeated MarketExited market_exits = 10;
+  repeated MarketUpdate market_updates = 11;
+  repeated MaxFuturePoolsSet max_future_pools_sets = 12;
+  repeated Repay repays = 13;
+  repeated RepayAtMaturity repay_at_maturities = 14;
+  repeated Transfer transfers = 15;
+  repeated TreasurySet treasury_sets = 16;
 
   // price tracking
-  repeated AnswerUpdated answer_updates = 16;
-  repeated NewRound new_rounds = 17;
-  repeated NewTransmission new_transmissions = 18;
+  repeated AnswerUpdated answer_updates = 17;
+  repeated NewRound new_rounds = 18;
+  repeated NewTransmission new_transmissions = 19;
 
   message AccumulatorAccrual {
     bytes market = 1;
@@ -51,6 +52,12 @@ message Events {
   message EarningsAccumulatorSmoothFactorSet {
     bytes market = 1;
     string earnings_accumulator_smooth_factor = 2;
+    // internals
+    uint64 log_ordinal = 30;
+  }
+
+  message ExaAccountInitialized {
+    bytes address = 1;
     // internals
     uint64 log_ordinal = 30;
   }
