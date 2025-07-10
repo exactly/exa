@@ -74,7 +74,7 @@ export default function ActivityItem({ item, isLast }: { item: Item; isLast: boo
               {type === "received" && "Received"}
               {type === "sent" && "Sent"}
               {type === "repay" && "Debt payment"}
-              {type === "borrow" && "Loan taken"}
+              {type === "borrow" && "Funding request"}
             </Text>
             <Text
               secondary
@@ -101,23 +101,29 @@ export default function ActivityItem({ item, isLast }: { item: Item; isLast: boo
               {type !== "card" && type !== "panda" && type !== "borrow" && format(timestamp, "yyyy-MM-dd")}
             </Text>
           </YStack>
-          <YStack gap="$s2">
-            <XStack alignItems="center" justifyContent="flex-end">
-              <Text sensitive emphasized subHeadline textAlign="right">
-                {Math.abs(usdAmount).toLocaleString(undefined, {
-                  style: "currency",
-                  currency: "USD",
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-              </Text>
-            </XStack>
-            {amount ? (
-              <Text sensitive secondary caption textAlign="right">
-                {`${currency && currency} ${Math.abs(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: currency === "USDC" ? 2 : 8 })}`}
-              </Text>
-            ) : null}
-          </YStack>
+          {type === "borrow" ? (
+            <Text sensitive emphasized subHeadline textAlign="right" alignSelf="flex-start">
+              {`${currency && currency} ${Math.abs(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: currency === "USDC" ? 2 : 8 })}`}
+            </Text>
+          ) : (
+            <YStack gap="$s2">
+              <XStack alignItems="center" justifyContent="flex-end">
+                <Text sensitive emphasized subHeadline textAlign="right">
+                  {Math.abs(usdAmount).toLocaleString(undefined, {
+                    style: "currency",
+                    currency: "USD",
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </Text>
+              </XStack>
+              {amount ? (
+                <Text sensitive secondary caption textAlign="right">
+                  {`${currency && currency} ${Math.abs(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: currency === "USDC" ? 2 : 8 })}`}
+                </Text>
+              ) : null}
+            </YStack>
+          )}
         </XStack>
       </YStack>
     </XStack>
