@@ -427,7 +427,7 @@ export default function Card() {
                       Exactly Protocol
                     </Text>
                     , a decentralized service not affiliated with Third National. Third National Bank is not responsible
-                    for any loan or credit services provided by&nbsp;
+                    for any funding or credit services provided by&nbsp;
                     <Text
                       cursor="pointer"
                       caption2

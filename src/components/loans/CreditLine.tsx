@@ -5,12 +5,14 @@ import { format } from "date-fns";
 import { router } from "expo-router";
 import React from "react";
 import { Separator, XStack, YStack } from "tamagui";
-import { zeroAddress } from "viem";
+import { formatUnits, zeroAddress } from "viem";
 import { useAccount, useBytecode } from "wagmi";
 
 import { useReadPreviewerExactly } from "../../generated/contracts";
+import assetLogos from "../../utils/assetLogos";
 import queryClient, { type Loan } from "../../utils/queryClient";
 import useInstallments from "../../utils/useInstallments";
+import AssetLogo from "../shared/AssetLogo";
 import Button from "../shared/Button";
 import Text from "../shared/Text";
 
@@ -27,18 +29,19 @@ export default function CreditLine() {
     <YStack backgroundColor="$backgroundSoft" borderRadius="$s3">
       <XStack padding="$s4">
         <Text emphasized body primary>
-          Your credit line
+          Available funding
         </Text>
       </XStack>
       <YStack padding="$s4" paddingTop={0}>
-        <Text emphasized title2 sensitive>
-          {`≈${(markets ? Number(borrowLimit(markets, marketUSDCAddress)) / 1e6 : 0).toLocaleString(undefined, {
-            style: "currency",
-            currency: "USD",
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })}`}
-        </Text>
+        <XStack alignItems="center" gap="$s2">
+          <AssetLogo uri={assetLogos.USDC} width={20} height={20} />
+          <Text emphasized title2 sensitive>
+            {(markets ? Number(formatUnits(borrowLimit(markets, marketUSDCAddress), 6)) : 0).toLocaleString(undefined, {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}
+          </Text>
+        </XStack>
         <Separator height={1} borderColor="$borderNeutralSoft" marginVertical="$s4" />
         <YStack gap="$s5">
           <YStack gap="$s2">
@@ -79,7 +82,7 @@ export default function CreditLine() {
             maxFontSizeMultiplier={1.1}
             borderRadius="$r3"
           >
-            Explore loan options
+            Explore funding options
           </Button>
         </YStack>
       </YStack>

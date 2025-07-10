@@ -2,7 +2,6 @@ import type { BatchUserOperationCallData } from "@alchemy/aa-core";
 import ProposalType from "@exactly/common/ProposalType";
 import { exaPluginAddress, marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import shortenHex from "@exactly/common/shortenHex";
-import { Address } from "@exactly/common/validation";
 import { MATURITY_INTERVAL, WAD } from "@exactly/lib";
 import { ArrowLeft, ArrowRight, Check, ChevronRight, CircleHelp, X } from "@tamagui/lucide-icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -10,9 +9,8 @@ import { format } from "date-fns";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable, Image } from "react-native";
+import { Pressable } from "react-native";
 import { ScrollView, Separator, Square, XStack, YStack } from "tamagui";
-import { parse } from "valibot";
 import { encodeAbiParameters, encodeFunctionData, maxUint256, zeroAddress } from "viem";
 import { useAccount, useBytecode } from "wagmi";
 
@@ -58,11 +56,9 @@ export default function Review() {
     market: zeroAddress,
     receiver: "",
   };
-  const { market: assetMarket, isFetching: isAssetPending, externalAsset } = useAsset(market);
+  const { market: assetMarket, isFetching: isAssetPending } = useAsset(market);
 
   const symbol = assetMarket?.symbol.slice(3) === "WETH" ? "ETH" : assetMarket?.symbol.slice(3);
-  const usdPrice = assetMarket?.usdPrice ?? 0n;
-  const decimals = assetMarket?.decimals ?? 6;
   const singleInstallment = count === 1;
 
   const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
@@ -80,18 +76,23 @@ export default function Review() {
     timestamp: Number(maturity),
   });
 
-  const totalAmountUSD = borrow
-    ? (borrow.assets * usdPrice) / 10n ** BigInt(decimals)
+  const installmentsAmount = singleInstallment
+    ? (borrow?.assets ?? 0n)
     : split
-      ? (split.installments.reduce((accumulator, current) => accumulator + current, 0n) * usdPrice) /
-        10n ** BigInt(decimals)
+      ? split.installments.reduce((accumulator, current) => accumulator + current, 0n) /
+        BigInt(split.installments.length)
       : 0n;
-  const installmentsAmountUSD = split ? ((split.installments[0] ?? 0n) * usdPrice) / 10n ** BigInt(decimals) : 0n;
-  const feeUSD = borrow
-    ? ((borrow.assets - (amount ?? 0n)) * usdPrice) / 10n ** BigInt(decimals)
+
+  const totalAmount = borrow
+    ? borrow.assets
     : split
-      ? ((split.installments.reduce((accumulator, current) => accumulator + current, 0n) - (amount ?? 0n)) * usdPrice) /
-        10n ** BigInt(decimals)
+      ? split.installments.reduce((accumulator, current) => accumulator + current, 0n)
+      : 0n;
+
+  const feeAmount = borrow
+    ? borrow.assets - (amount ?? 0n)
+    : split
+      ? split.installments.reduce((accumulator, current) => accumulator + current, 0n) - (amount ?? 0n)
       : 0n;
 
   const {
@@ -104,11 +105,11 @@ export default function Review() {
       if (!address) throw new Error("no account");
       if (!market) throw new Error("no market");
       if (!receiver) throw new Error("no receiver");
-      if (!split) throw new Error("no installment data");
+      if (!singleInstallment && !split) throw new Error("no installment data");
       if (!accountClient) throw new Error("no account client");
       const uo: BatchUserOperationCallData = [];
       for (let index = 0; index < (count ?? 0); index++) {
-        const borrowAmount = split.amounts[index];
+        const borrowAmount = singleInstallment ? amount : split?.amounts[index];
         const borrowMaturity = BigInt(Number(loan?.maturity) + index * MATURITY_INTERVAL);
         if (!borrowAmount) return;
         const data = encodeFunctionData({
@@ -180,9 +181,6 @@ export default function Review() {
           >
             <ArrowLeft size={24} color="$uiNeutralPrimary" />
           </Pressable>
-          <Text primary emphasized subHeadline>
-            Review loan terms
-          </Text>
           <Pressable
             onPress={() => {
               presentArticle("11541409").catch(reportError);
@@ -200,7 +198,7 @@ export default function Review() {
           <YStack padding="$s4" gap="$s4" flex={1} justifyContent="space-between">
             <YStack gap="$s4">
               <Text primary emphasized body>
-                Review your loan details
+                Review terms
               </Text>
               <XStack gap="$s4" alignItems="center" justifyContent="space-between">
                 <Text footnote color="$uiNeutralSecondary">
@@ -209,10 +207,10 @@ export default function Review() {
                 <XStack alignItems="center" gap="$s2">
                   <AssetLogo uri={assetLogos[symbol as keyof typeof assetLogos]} width={16} height={16} />
                   <Text title3 color="$uiNeutralPrimary">
-                    {Number(Number(((amount ?? 0n) * usdPrice) / 10n ** BigInt(decimals)) / 1e18).toLocaleString(
-                      undefined,
-                      { style: "currency", currency: "USD" },
-                    )}
+                    {Number(Number(amount ?? 0n) / 1e6).toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
                   </Text>
                 </XStack>
               </XStack>
@@ -227,10 +225,7 @@ export default function Review() {
                 <XStack alignItems="center" gap="$s2">
                   <AssetLogo uri={assetLogos[symbol as keyof typeof assetLogos]} width={16} height={16} />
                   <Text title3 color="$uiNeutralPrimary">
-                    {(Number(feeUSD) / 1e18).toLocaleString(undefined, {
-                      style: "currency",
-                      currency: "USD",
-                      currencyDisplay: "narrowSymbol",
+                    {(Number(feeAmount) / 1e6).toLocaleString(undefined, {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
                     })}
@@ -238,7 +233,6 @@ export default function Review() {
                 </XStack>
               </XStack>
               <Separator height={1} borderColor="$borderNeutralSoft" />
-
               <YStack>
                 <XStack gap="$s4" alignItems="center" justifyContent="space-between">
                   <Text footnote color="$uiNeutralSecondary">
@@ -248,9 +242,9 @@ export default function Review() {
                     <XStack alignItems="center" gap="$s2">
                       <AssetLogo uri={assetLogos[symbol as keyof typeof assetLogos]} width={16} height={16} />
                       <Text title3 color="$uiNeutralPrimary">
-                        {(Number(singleInstallment ? totalAmountUSD : installmentsAmountUSD) / 1e18).toLocaleString(
+                        {(Number(singleInstallment ? totalAmount : installmentsAmount) / 1e6).toLocaleString(
                           undefined,
-                          { style: "currency", currency: "USD" },
+                          { minimumFractionDigits: 2, maximumFractionDigits: 2 },
                         )}
                       </Text>
                     </XStack>
@@ -272,9 +266,9 @@ export default function Review() {
                   <XStack alignItems="center" gap="$s2">
                     <AssetLogo uri={assetLogos[symbol as keyof typeof assetLogos]} width={16} height={16} />
                     <Text title3 color="$uiNeutralPrimary">
-                      {(Number(totalAmountUSD) / 1e18).toLocaleString(undefined, {
-                        style: "currency",
-                        currency: "USD",
+                      {(Number(totalAmount) / 1e6).toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
                       })}
                     </Text>
                   </XStack>
@@ -343,17 +337,18 @@ export default function Review() {
             </YStack>
           </YStack>
         </ScrollView>
-        <PaymentScheduleSheet
-          usdAmount={installmentsAmountUSD}
-          open={paymentScheduleShown}
-          onClose={() => {
-            setPaymentScheduleShown(false);
-          }}
-        />
+        {singleInstallment ? null : (
+          <PaymentScheduleSheet
+            installmentsAmount={installmentsAmount}
+            open={paymentScheduleShown}
+            onClose={() => {
+              setPaymentScheduleShown(false);
+            }}
+          />
+        )}
       </SafeView>
     );
   }
-  const properties = { maturity, currency: symbol, selectedAsset: parse(Address, market), isLatestPlugin };
   return (
     <GradientScrollView variant={error ? "error" : success ? (isLatestPlugin ? "info" : "success") : "neutral"}>
       <View flex={1}>
@@ -373,45 +368,45 @@ export default function Review() {
               }
             >
               {processing && <ExaSpinner backgroundColor="transparent" color="$uiNeutralPrimary" />}
-              {success && isLatestPlugin && <ExaSpinner backgroundColor="transparent" color="$uiInfoSecondary" />}
+              {success && isLatestPlugin && <Check size={48} color="$uiInfoSecondary" strokeWidth={2} />}
               {success && !isLatestPlugin && <Check size={48} color="$uiSuccessSecondary" strokeWidth={2} />}
               {error && <X size={48} color="$uiErrorSecondary" strokeWidth={2} />}
             </Square>
           </XStack>
           <YStack gap="$s4_5" justifyContent="center" alignItems="center">
             <Text secondary body>
-              {error ? "Failed requesting" : success ? "Processed" : "Processing"}&nbsp;
+              {!error && !success && "Processing"}&nbsp;
               <Text emphasized primary body>
-                Loan
+                Funding {error ? "failed" : success ? "request sent" : null}
               </Text>
             </Text>
-            <Text title primary color="$uiNeutralPrimary">
-              {(Number(totalAmountUSD) / 1e18).toLocaleString(undefined, {
-                style: "currency",
-                currency: "USD",
-                currencyDisplay: "narrowSymbol",
-              })}
-            </Text>
-            <XStack gap="$s2" alignItems="center">
-              <Text emphasized secondary subHeadline>
-                {(Number(amount) / 1e18).toLocaleString(undefined, {
-                  maximumFractionDigits: market === marketUSDCAddress ? 2 : 8,
+            <XStack gap="$s2" alignItems="center" justifyContent="center">
+              <AssetLogo uri={assetLogos[symbol as keyof typeof assetLogos]} width={32} height={32} />
+              <Text primary fontSize={34}>
+                {(Number(totalAmount) / 1e6).toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
                 })}
               </Text>
-              <Text emphasized secondary subHeadline>
-                &nbsp;{properties.currency}&nbsp;
-              </Text>
-              {externalAsset ? (
-                <Image source={{ uri: externalAsset.logoURI }} width={16} height={16} borderRadius={20} />
-              ) : (
-                <AssetLogo uri={assetLogos[properties.currency as keyof typeof assetLogos]} width={16} height={16} />
-              )}
             </XStack>
           </YStack>
         </YStack>
       </View>
       {!processing && (
-        <View flex={2} justifyContent="flex-end">
+        <YStack flex={2} justifyContent="flex-end" gap="$s5">
+          {success && (
+            <Button
+              primary
+              onPress={() => {
+                router.replace("/(app)/pending-proposals");
+              }}
+            >
+              <Button.Text>Go to Requests</Button.Text>
+              <Button.Icon>
+                <ArrowRight />
+              </Button.Icon>
+            </Button>
+          )}
           <Text
             hitSlop={20}
             cursor="pointer"
@@ -420,24 +415,15 @@ export default function Review() {
             footnote
             color="$uiBrandSecondary"
             onPress={() => {
-              if (success && isLatestPlugin) {
-                router.replace("/pending-proposals");
-                return;
-              }
-              if (success && !isLatestPlugin) {
-                router.replace("/loans");
-                return;
-              }
-              if (canGoBack()) {
+              if (error) {
                 router.back();
-                return;
               }
-              router.replace("/loans");
+              router.replace("/(app)/(home)/loans");
             }}
           >
-            {error ? "Go back" : success ? (isLatestPlugin ? "View request" : "Close") : "Close"}
+            {error ? "Go back" : "Close"}
           </Text>
-        </View>
+        </YStack>
       )}
     </GradientScrollView>
   );
