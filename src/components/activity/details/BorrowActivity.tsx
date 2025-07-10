@@ -10,7 +10,7 @@ import AssetLogo from "../../shared/AssetLogo";
 import Text from "../../shared/Text";
 
 export default function BorrowActivity({ item }: { item: Omit<BorrowActivityType, "blockNumber"> }) {
-  const { amount, usdAmount, currency } = item;
+  const { amount, currency } = item;
   return (
     <>
       <YStack gap="$s7" paddingBottom="$s9">
@@ -21,18 +21,11 @@ export default function BorrowActivity({ item }: { item: Omit<BorrowActivityType
         </XStack>
         <YStack gap="$s4_5" justifyContent="center" alignItems="center">
           <Text primary body emphasized textAlign="center">
-            Loan taken
-          </Text>
-          <Text title primary>
-            {Number(usdAmount).toLocaleString(undefined, {
-              style: "currency",
-              currency: "USD",
-              currencyDisplay: "narrowSymbol",
-            })}
+            Funding request
           </Text>
           <XStack gap="$s3" alignItems="center">
-            <AssetLogo uri={assetLogos[currency as keyof typeof assetLogos]} width={16} height={16} />
-            <Text emphasized subHeadline color="$uiNeutralSecondary">
+            <AssetLogo uri={assetLogos[currency as keyof typeof assetLogos]} width={24} height={24} />
+            <Text primary title>
               {Number(amount).toLocaleString(undefined, {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: currency === "USDC" ? 2 : 8,
