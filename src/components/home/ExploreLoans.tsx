@@ -26,11 +26,11 @@ export default function ExploreLoans() {
     >
       <YStack height="100%" justifyContent="space-between" alignItems="flex-start" zIndex={2} maxWidth="50%">
         <Text textAlign="left" maxFontSizeMultiplier={1} emphasized body color="$backgroundBrandSoft">
-          Get a fixed-rate loan without selling your crypto
+          Get USDC funding without selling your crypto
         </Text>
         <XStack alignSelf="flex-start" alignItems="center" gap="$s2">
           <Text emphasized footnote color="$interactiveBaseBrandSoftDefault" maxFontSizeMultiplier={1}>
-            Explore loan options
+            Explore funding options
           </Text>
           <ArrowRight size={16} color="$interactiveBaseBrandSoftDefault" />
         </XStack>

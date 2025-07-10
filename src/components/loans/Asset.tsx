@@ -38,9 +38,6 @@ export default function Asset() {
         >
           <ArrowLeft size={24} color="$uiNeutralPrimary" />
         </Pressable>
-        <Text primary emphasized subHeadline>
-          Estimate loan terms
-        </Text>
         <Pressable
           onPress={() => {
             presentArticle("11541409").catch(reportError);
@@ -59,7 +56,7 @@ export default function Asset() {
           <YStack gap="$s4">
             <YStack>
               <Text primary emphasized body>
-                Select the asset to borrow
+                Select the asset to fund
               </Text>
             </YStack>
             <YStack gap="$s3">

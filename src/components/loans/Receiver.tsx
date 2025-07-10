@@ -77,9 +77,6 @@ export default function Receiver() {
         >
           <ArrowLeft size={24} color="$uiNeutralPrimary" />
         </Pressable>
-        <Text primary emphasized subHeadline>
-          Estimate loan terms
-        </Text>
         <Pressable
           onPress={() => {
             presentArticle("11541409").catch(reportError);
@@ -98,7 +95,7 @@ export default function Receiver() {
           <YStack gap="$s6">
             <YStack gap="$s4_5">
               <Text primary emphasized body>
-                Select where to receive the loan
+                Select where to receive the funding
               </Text>
               <YStack gap="$s3">
                 <XStack

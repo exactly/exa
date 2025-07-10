@@ -1,7 +1,6 @@
 import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import { CircleHelp } from "@tamagui/lucide-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import { openBrowserAsync } from "expo-web-browser";
 import React, { useState } from "react";
 import { Pressable, RefreshControl } from "react-native";
 import { ScrollView, useTheme, XStack, YStack } from "tamagui";
@@ -51,7 +50,7 @@ export default function Loans() {
               <YStack paddingBottom="$s3" gap="$s4_5">
                 <XStack gap={10} justifyContent="space-between" alignItems="center">
                   <Text fontSize={20} fontWeight="bold">
-                    Exa Loans
+                    USDC Funding
                   </Text>
                   <Pressable
                     onPress={() => {
@@ -62,8 +61,8 @@ export default function Loans() {
                   </Pressable>
                 </XStack>
                 <Text subHeadline secondary>
-                  Use assets from your Portfolio as collateral to access fixed-rate USDC onchain loans, powered by
-                  Exactly Protocol.
+                  Use your crypto to access USDC funding through a smart contract. Choose an amount and a repayment
+                  plan.
                 </Text>
               </YStack>
             </View>
@@ -78,19 +77,8 @@ export default function Loans() {
             </View>
             <XStack gap="$s4" alignItems="flex-start" padding="$s4" flexWrap="wrap">
               <Text caption2 color="$interactiveOnDisabled" textAlign="justify">
-                Loan services are decentralized and powered by&nbsp;
-                <Text
-                  cursor="pointer"
-                  caption2
-                  color="$interactiveOnDisabled"
-                  textDecorationLine="underline"
-                  onPress={() => {
-                    openBrowserAsync(`https://exact.ly/`).catch(reportError);
-                  }}
-                >
-                  Exactly Protocol
-                </Text>
-                . The Exa App does not underwrite or originate any credit products.
+                You are accessing a decentralized protocol using your crypto as collateral. The Exa App does not issue
+                fundings or provide credit. No credit checks or intermediaries are involved.
               </Text>
             </XStack>
             <PaymentSheet

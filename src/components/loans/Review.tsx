@@ -61,8 +61,8 @@ export default function Review() {
   const { market: assetMarket, isFetching: isAssetPending, externalAsset } = useAsset(market);
 
   const symbol = assetMarket?.symbol.slice(3) === "WETH" ? "ETH" : assetMarket?.symbol.slice(3);
-  const usdPrice = assetMarket?.usdPrice ?? 0n;
   const decimals = assetMarket?.decimals ?? 6;
+  const usdPrice = assetMarket?.usdPrice ?? 0n;
   const singleInstallment = count === 1;
 
   const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
@@ -180,9 +180,6 @@ export default function Review() {
           >
             <ArrowLeft size={24} color="$uiNeutralPrimary" />
           </Pressable>
-          <Text primary emphasized subHeadline>
-            Review loan terms
-          </Text>
           <Pressable
             onPress={() => {
               presentArticle("11541409").catch(reportError);
@@ -200,7 +197,7 @@ export default function Review() {
           <YStack padding="$s4" gap="$s4" flex={1} justifyContent="space-between">
             <YStack gap="$s4">
               <Text primary emphasized body>
-                Review your loan details
+                Review terms
               </Text>
               <XStack gap="$s4" alignItems="center" justifyContent="space-between">
                 <Text footnote color="$uiNeutralSecondary">
@@ -238,7 +235,6 @@ export default function Review() {
                 </XStack>
               </XStack>
               <Separator height={1} borderColor="$borderNeutralSoft" />
-
               <YStack>
                 <XStack gap="$s4" alignItems="center" justifyContent="space-between">
                   <Text footnote color="$uiNeutralSecondary">

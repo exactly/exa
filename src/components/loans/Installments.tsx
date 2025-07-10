@@ -45,9 +45,6 @@ export default function Installments() {
         >
           <ArrowLeft size={24} color="$uiNeutralPrimary" />
         </Pressable>
-        <Text primary emphasized subHeadline>
-          Estimate loan terms
-        </Text>
         <Pressable
           onPress={() => {
             presentArticle("11541409").catch(reportError);
@@ -67,7 +64,7 @@ export default function Installments() {
             <YStack gap="$s6">
               <YStack gap="$s4_5">
                 <Text primary emphasized body>
-                  Select your loan installment plan
+                  Select your funding installment plan
                 </Text>
                 {loan?.market && loan.amount && (
                   <InstallmentSelector

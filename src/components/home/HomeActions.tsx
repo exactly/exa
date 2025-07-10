@@ -107,5 +107,5 @@ const actions = [
   { key: "deposit", title: "Add funds", Icon: ArrowDownToLine },
   { key: "send", title: "Send", Icon: ArrowUpRight },
   { key: "swap", title: "Swap", Icon: Repeat },
-  { key: "borrow", title: "Borrow", Icon: HandCoins },
+  { key: "borrow", title: "Get Funds", Icon: HandCoins },
 ];
