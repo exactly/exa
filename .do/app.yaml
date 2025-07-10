@@ -49,14 +49,6 @@ services:
       - key: AUTH_SECRET
         scope: RUN_TIME
         type: SECRET
-      - key: CRYPTOMATE_API_KEY
-        scope: RUN_TIME
-        type: SECRET
-      - key: CRYPTOMATE_URL
-        scope: RUN_TIME
-      - key: CRYPTOMATE_WEBHOOK_KEY
-        scope: RUN_TIME
-        type: SECRET
       - key: KEEPER_PRIVATE_KEY
         scope: RUN_TIME
         type: SECRET

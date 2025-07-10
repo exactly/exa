@@ -12,7 +12,6 @@ import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 
 import app from "../../api/card";
 import database, { cards, credentials } from "../../database";
-import * as cryptomate from "../../utils/cryptomate";
 import * as panda from "../../utils/panda";
 import * as persona from "../../utils/persona";
 
@@ -171,48 +170,6 @@ describe("authenticated", () => {
       expect(created?.status).toBe("ACTIVE");
       expect(deleted?.status).toBe("DELETED");
     });
-
-    it("creates a cm card if the user doesn't update plugin", async () => {
-      vi.spyOn(persona, "getInquiry").mockResolvedValueOnce(personaTemplate);
-      vi.spyOn(cryptomate, "createCard").mockResolvedValueOnce({ ...cryptomateTemplate, id: account });
-      vi.spyOn(cryptomate, "getPAN").mockResolvedValueOnce("https://cm.com");
-      vi.spyOn(panda, "isPanda").mockResolvedValueOnce(false);
-
-      const response = await appClient.index.$post({ header: { "test-credential-id": account } });
-      await response.json();
-
-      const created = await database.query.cards.findFirst({ where: eq(cards.id, account) });
-
-      expect(response.status).toBe(200);
-      expect(created?.status).toBe("ACTIVE");
-    });
-
-    it("creates a cm card for a non deployed cm account", async () => {
-      const foo = deriveAddress(inject("ExaAccountFactory"), {
-        x: padHex(privateKeyToAddress(padHex("0xf01"))),
-        y: zeroHash,
-      });
-      await database.insert(credentials).values([
-        {
-          id: foo,
-          publicKey: new Uint8Array(),
-          account: foo,
-          factory: padHex("0xfff"),
-        },
-      ]);
-
-      vi.spyOn(persona, "getInquiry").mockResolvedValueOnce(personaTemplate);
-      vi.spyOn(cryptomate, "createCard").mockResolvedValueOnce({ ...cryptomateTemplate, id: foo });
-      vi.spyOn(cryptomate, "getPAN").mockResolvedValueOnce("https://cm.com");
-
-      const response = await appClient.index.$post({ header: { "test-credential-id": foo } });
-      await response.json();
-
-      const created = await database.query.cards.findFirst({ where: eq(cards.id, foo) });
-
-      expect(response.status).toBe(200);
-      expect(created?.status).toBe("ACTIVE");
-    });
   });
 });
 
@@ -225,17 +182,6 @@ const cardTemplate = {
   status: "active",
   type: "virtual",
   userId: "2cf0c886-f7c0-40f3-a8cd-3c4ab3997b66",
-} as const;
-
-const cryptomateTemplate = {
-  card_holder_name: "First Last",
-  daily_limit: 5000,
-  id: "cm",
-  last4: "1234",
-  monthly_limit: 5000,
-  status: "ACTIVE",
-  type: "Virtual",
-  weekly_limit: 5000,
 } as const;
 
 const panTemplate = {

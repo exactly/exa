@@ -8,7 +8,6 @@ import type { UnofficialStatusCode } from "hono/utils/http-status";
 import api from "./api";
 import activityHook from "./hooks/activity";
 import block from "./hooks/block";
-import cryptomate from "./hooks/cryptomate";
 import panda from "./hooks/panda";
 import persona from "./hooks/persona";
 import androidFingerprints from "./utils/android/fingerprints";
@@ -21,7 +20,6 @@ app.route("/api", api);
 
 app.route("/hooks/activity", activityHook);
 app.route("/hooks/block", block);
-app.route("/hooks/cryptomate", cryptomate);
 app.route("/hooks/panda", panda);
 app.route("/hooks/persona", persona);
 

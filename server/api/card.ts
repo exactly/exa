@@ -5,7 +5,6 @@ import { Mutex } from "async-mutex";
 import { eq, inArray, ne } from "drizzle-orm";
 import { Hono } from "hono";
 import { validator as vValidator } from "hono-openapi/valibot";
-import { parsePhoneNumberWithError } from "libphonenumber-js";
 import {
   flatten,
   integer,
@@ -25,9 +24,8 @@ import {
 
 import database, { cards, credentials } from "../database";
 import auth from "../middleware/auth";
-import { createCard as createCryptomateCard, getPAN } from "../utils/cryptomate";
-import { createCard, getCard, getPIN, getSecrets, getUser, isPanda, setPIN } from "../utils/panda";
-import { CRYPTOMATE_TEMPLATE, getInquiry, PANDA_TEMPLATE } from "../utils/persona";
+import { createCard, getCard, getPIN, getSecrets, getUser, setPIN } from "../utils/panda";
+import { getInquiry, PANDA_TEMPLATE } from "../utils/persona";
 import { track } from "../utils/segment";
 
 const mutexes = new Map<string, Mutex>();
@@ -66,35 +64,32 @@ export default new Hono()
       setUser({ id: account });
       if (credential.cards.length > 0 && credential.cards[0]) {
         const { id, lastFour, status, mode } = credential.cards[0];
-        if (await isPanda(account)) {
-          const inquiry = await getInquiry(credentialId, PANDA_TEMPLATE);
-          if (!inquiry) return c.json({ code: "no kyc", legacy: "kyc required" }, 403);
-          if (inquiry.attributes.status !== "approved") {
-            return c.json({ code: "bad kyc", legacy: "kyc not approved" }, 403);
-          }
-          if (!credential.pandaId) return c.json({ code: "no panda", legacy: "no panda" }, 403);
-          const [{ expirationMonth, expirationYear }, pan, { firstName, lastName }, pin] = await Promise.all([
-            getCard(id),
-            getSecrets(id, c.req.valid("header").sessionid),
-            getUser(credential.pandaId),
-            getPIN(id, c.req.valid("header").sessionid),
-          ]);
-          return c.json(
-            {
-              ...pan,
-              ...pin,
-              displayName: `${firstName} ${lastName}`,
-              expirationMonth,
-              expirationYear,
-              lastFour,
-              mode,
-              provider: "panda" as const,
-              status,
-            },
-            200,
-          );
+        const inquiry = await getInquiry(credentialId, PANDA_TEMPLATE);
+        if (!inquiry) return c.json({ code: "no kyc", legacy: "kyc required" }, 403);
+        if (inquiry.attributes.status !== "approved") {
+          return c.json({ code: "bad kyc", legacy: "kyc not approved" }, 403);
         }
-        return c.json({ code: "no cryptomate", legacy: "no cryptomate" }, 404);
+        if (!credential.pandaId) return c.json({ code: "no panda", legacy: "no panda" }, 403);
+        const [{ expirationMonth, expirationYear }, pan, { firstName, lastName }, pin] = await Promise.all([
+          getCard(id),
+          getSecrets(id, c.req.valid("header").sessionid),
+          getUser(credential.pandaId),
+          getPIN(id, c.req.valid("header").sessionid),
+        ]);
+        return c.json(
+          {
+            ...pan,
+            ...pin,
+            displayName: `${firstName} ${lastName}`,
+            expirationMonth,
+            expirationYear,
+            lastFour,
+            mode,
+            provider: "panda" as const,
+            status,
+          },
+          200,
+        );
       } else {
         return c.json({ code: "no card", legacy: "card not found" }, 404);
       }
@@ -116,69 +111,34 @@ export default new Hono()
         const account = parse(Address, credential.account);
         setUser({ id: account });
 
-        if (await isPanda(account)) {
-          const inquiry = await getInquiry(credentialId, PANDA_TEMPLATE);
-          if (!inquiry) return c.json({ code: "no kyc", legacy: "kyc not found" }, 403);
-          if (inquiry.attributes.status !== "approved") {
-            return c.json({ code: "bad kyc", legacy: "kyc not approved" }, 403);
-          }
-          if (!credential.pandaId) return c.json({ code: "no panda", legacy: "panda id not found" }, 403);
-          let cardCount = credential.cards.length;
-          for (const card of credential.cards) {
-            try {
-              await getCard(parse(CardUUID, card.id));
-            } catch (error) {
-              if (
-                error instanceof Error &&
-                (error.message.startsWith("Invalid UUID") || error.message.startsWith("404"))
-              ) {
-                await database.update(cards).set({ status: "DELETED" }).where(eq(cards.id, card.id));
-                cardCount--;
-                setContext("cryptomate card deleted", { id: card.id });
-              } else {
-                throw error;
-              }
-            }
-          }
-          if (cardCount > 0) return c.json({ code: "already created", legacy: "card already exists" }, 400);
-          const card = await createCard(credential.pandaId);
-          track({ event: "CardIssued", userId: account });
-          await database.insert(cards).values([{ id: card.id, credentialId, lastFour: card.last4 }]);
-          return c.json({ lastFour: card.last4, status: card.status }, 200);
-        }
-        const inquiry = await getInquiry(credentialId, CRYPTOMATE_TEMPLATE);
+        const inquiry = await getInquiry(credentialId, PANDA_TEMPLATE);
         if (!inquiry) return c.json({ code: "no kyc", legacy: "kyc not found" }, 403);
         if (inquiry.attributes.status !== "approved") {
           return c.json({ code: "bad kyc", legacy: "kyc not approved" }, 403);
         }
-        if (credential.cards.length > 0) return c.json({ code: "already created", legacy: "card already exists" }, 400);
-
-        setContext("phone", { inquiry: inquiry.id, phone: inquiry.attributes["phone-number"] });
-        const phone = parsePhoneNumberWithError(
-          inquiry.attributes["phone-number"].startsWith("+")
-            ? inquiry.attributes["phone-number"]
-            : `+${inquiry.attributes["phone-number"]}`,
-        );
-        setContext("phone", {
-          inquiry: inquiry.id,
-          phone: inquiry.attributes["phone-number"],
-          countryCode: phone.countryCallingCode,
-          number: phone.nationalNumber,
-        });
-
-        const card = await createCryptomateCard({
-          account,
-          email: inquiry.attributes["email-address"],
-          name: {
-            first: inquiry.attributes["name-first"],
-            middle: inquiry.attributes["name-middle"],
-            last: inquiry.attributes["name-last"],
-          },
-          phone: { countryCode: phone.countryCallingCode, number: phone.nationalNumber },
-          limits: { daily: 3000, weekly: 10_000, monthly: 30_000 },
-        });
+        if (!credential.pandaId) return c.json({ code: "no panda", legacy: "panda id not found" }, 403);
+        let cardCount = credential.cards.length;
+        for (const card of credential.cards) {
+          try {
+            await getCard(parse(CardUUID, card.id));
+          } catch (error) {
+            if (
+              error instanceof Error &&
+              (error.message.startsWith("Invalid UUID") || error.message.startsWith("404"))
+            ) {
+              await database.update(cards).set({ status: "DELETED" }).where(eq(cards.id, card.id));
+              cardCount--;
+              setContext("cryptomate card deleted", { id: card.id });
+            } else {
+              throw error;
+            }
+          }
+        }
+        if (cardCount > 0) return c.json({ code: "already created", legacy: "card already exists" }, 400);
+        const card = await createCard(credential.pandaId);
+        track({ event: "CardIssued", userId: account });
         await database.insert(cards).values([{ id: card.id, credentialId, lastFour: card.last4 }]);
-        return c.json({ url: await getPAN(card.id), lastFour: card.last4, status: card.status }, 200); // TODO review if necessary
+        return c.json({ lastFour: card.last4, status: card.status }, 200);
       })
       .finally(() => {
         if (!mutex.isLocked()) mutexes.delete(credentialId);

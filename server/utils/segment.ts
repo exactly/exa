@@ -28,7 +28,7 @@ export function track(
     | {
         event: "TransactionAuthorized";
         properties: {
-          type: "cryptomate" | "panda";
+          type: "panda";
           usdAmount: number;
           merchant: MerchantProperties;
         };
