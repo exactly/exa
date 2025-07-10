@@ -1,8 +1,7 @@
 import type { Hex } from "@exactly/common/validation";
-import { WAD } from "@exactly/lib";
 import { useForm } from "@tanstack/react-form";
-import React, { useCallback } from "react";
-import { styled, XStack, YStack } from "tamagui";
+import React, { useCallback, useState } from "react";
+import { Separator, styled, XStack, YStack } from "tamagui";
 import { nonEmpty, pipe, string } from "valibot";
 import { formatUnits, parseUnits } from "viem";
 
@@ -11,7 +10,6 @@ import useAsset from "../../utils/useAsset";
 import AssetLogo from "../shared/AssetLogo";
 import Input from "../shared/Input";
 import Text from "../shared/Text";
-import View from "../shared/View";
 
 export default function AmountSelector({
   onChange,
@@ -21,29 +19,27 @@ export default function AmountSelector({
   market: Hex;
 }) {
   const { market: selectedMarket, borrowAvailable } = useAsset(market);
-  const { Field, setFieldValue, getFieldValue } = useForm({ defaultValues: { assetInput: "", usdInput: "" } });
+  const { Field, setFieldValue, getFieldValue } = useForm({ defaultValues: { assetInput: "" } });
+  const [focused, setFocused] = useState(false);
 
   const highAmount =
     Number(getFieldValue("assetInput")) >=
     Number(formatUnits((borrowAvailable * 75n) / 100n, selectedMarket?.decimals ?? 0));
 
-  const handleUsdChange = useCallback(
-    (text: string) => {
-      if (selectedMarket) {
-        setFieldValue("usdInput", text);
-        const assets =
-          (((parseUnits(text.replaceAll(/\D/g, ".").replaceAll(/\.(?=.*\.)/g, ""), 18) * WAD) /
-            selectedMarket.usdPrice) *
-            BigInt(10 ** selectedMarket.decimals)) /
-          WAD;
-        setFieldValue("assetInput", assets > 0n ? formatUnits(assets, selectedMarket.decimals) : "");
-        const newHighAmount =
-          Number(formatUnits(assets, selectedMarket.decimals)) >=
-          Number(formatUnits((borrowAvailable * 75n) / 100n, selectedMarket.decimals));
-        onChange(assets, newHighAmount);
-      }
+  const handleAmountChange = useCallback(
+    (value: string) => {
+      setFieldValue("assetInput", value);
+      if (!selectedMarket) return;
+      const inputAmount = parseUnits(
+        value.replaceAll(/\D/g, ".").replaceAll(/\.(?=.*\.)/g, ""),
+        selectedMarket.decimals,
+      );
+      const newHighAmount =
+        Number(formatUnits(inputAmount, selectedMarket.decimals)) >=
+        Number(formatUnits((borrowAvailable * 75n) / 100n, selectedMarket.decimals));
+      onChange(inputAmount, newHighAmount);
     },
-    [selectedMarket, setFieldValue, onChange, borrowAvailable],
+    [selectedMarket, borrowAvailable, setFieldValue, onChange],
   );
 
   const handlePercentage = useCallback(
@@ -51,8 +47,6 @@ export default function AmountSelector({
       if (selectedMarket) {
         const amount = (borrowAvailable * BigInt(percentage)) / 100n;
         setFieldValue("assetInput", formatUnits(amount, selectedMarket.decimals));
-        const assetsUSD = Number(formatUnits((amount * selectedMarket.usdPrice) / WAD, selectedMarket.decimals));
-        setFieldValue("usdInput", assetsUSD.toString());
         const newHighAmount =
           Number(formatUnits(amount, selectedMarket.decimals)) >=
           Number(formatUnits((borrowAvailable * 75n) / 100n, selectedMarket.decimals));
@@ -71,59 +65,64 @@ export default function AmountSelector({
       paddingHorizontal="$s4"
     >
       <YStack gap="$s6">
-        <Field name="usdInput" validators={{ onChange: pipe(string(), nonEmpty("empty amount")) }}>
-          {({ state: { value } }) => {
-            return (
-              <View alignSelf="center" width="80%">
-                <AmountInput
-                  inputMode="decimal"
-                  onChangeText={handleUsdChange}
-                  placeholder={(0).toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                    style: "currency",
-                    currency: "USD",
-                  })}
-                  value={value}
-                  color={highAmount ? "$interactiveBaseErrorDefault" : "$uiNeutralPrimary"}
-                />
-              </View>
-            );
-          }}
-        </Field>
-        <XStack justifyContent="center" alignItems="center" hitSlop={15} gap="$s2">
-          <AssetLogo
-            uri={
-              assetLogos[
-                selectedMarket?.symbol.slice(3) === "WETH"
-                  ? "ETH"
-                  : (selectedMarket?.symbol.slice(3) as keyof typeof assetLogos)
-              ]
-            }
-            width={16}
-            height={16}
-          />
+        <YStack maxWidth="80%" minWidth="60%" alignSelf="center">
           <Field name="assetInput" validators={{ onChange: pipe(string(), nonEmpty("empty amount")) }}>
             {({ state: { value } }) => {
-              if (!selectedMarket) return null;
               return (
-                <Text fontSize={16} color="$uiNeutralPrimary">
-                  {Number(value).toLocaleString(undefined, {
-                    minimumFractionDigits: 0,
-                    maximumFractionDigits: 8,
-                    useGrouping: false,
-                  })}
-                </Text>
+                <XStack
+                  justifyContent="center"
+                  alignSelf="center"
+                  alignItems="center"
+                  hitSlop={15}
+                  flexShrink={1}
+                  gap="$s2"
+                  maxWidth="80%"
+                  height={60}
+                >
+                  <AssetLogo
+                    uri={
+                      assetLogos[
+                        selectedMarket?.symbol.slice(3) === "WETH"
+                          ? "ETH"
+                          : (selectedMarket?.symbol.slice(3) as keyof typeof assetLogos)
+                      ]
+                    }
+                    width={32}
+                    height={32}
+                  />
+                  <AmountInput
+                    inputMode="decimal"
+                    onChangeText={handleAmountChange}
+                    placeholder="0"
+                    onFocus={() => {
+                      setFocused(true);
+                    }}
+                    onBlur={() => {
+                      setFocused(false);
+                    }}
+                    value={value}
+                    color={highAmount ? "$interactiveBaseErrorDefault" : "$uiNeutralPrimary"}
+                  />
+                </XStack>
               );
             }}
           </Field>
-        </XStack>
+          <Separator
+            height={1}
+            borderColor={highAmount ? "$borderErrorStrong" : focused ? "$borderBrandStrong" : "$borderNeutralSoft"}
+          />
+        </YStack>
         <XStack gap="$s4" justifyContent="center" flexWrap="wrap" alignItems="center">
           {Array.from({ length: 4 }).map((_, index) => {
             const percentage = index === 0 ? 5 : index * 25;
             const selected =
               selectedMarket && getFieldValue("assetInput")
-                ? parseUnits(getFieldValue("assetInput"), selectedMarket.decimals) ===
+                ? parseUnits(
+                    getFieldValue("assetInput")
+                      .replaceAll(/\D/g, ".")
+                      .replaceAll(/\.(?=.*\.)/g, ""),
+                    selectedMarket.decimals,
+                  ) ===
                   (borrowAvailable * BigInt(percentage)) / 100n
                 : false;
             const danger = selected && index === 3;
@@ -169,21 +168,14 @@ export default function AmountSelector({
   );
 }
 const AmountInput = styled(Input, {
-  flex: 1,
-  width: "100%",
   alignSelf: "center",
-  height: 60,
   borderWidth: 0,
   fontSize: 34,
   fontWeight: 400,
-  lineHeight: 41,
   letterSpacing: -0.2,
   cursor: "pointer",
   textAlign: "center",
   backgroundColor: "$backgroundSoft",
-  borderBottomColor: "$borderNeutralSoft",
-  borderBottomWidth: 1,
   borderBottomLeftRadius: 0,
   borderBottomRightRadius: 0,
-  focusStyle: { borderBottomColor: "$borderBrandStrong" },
 });

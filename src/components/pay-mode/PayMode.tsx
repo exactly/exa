@@ -87,7 +87,7 @@ export default function PayMode() {
                   >
                     Terms and conditions
                   </Text>
-                  . The Exa App does not issue or guarantee any loans.
+                  . The Exa App does not issue or guarantee any funding.
                 </Text>
               </XStack>
             </View>

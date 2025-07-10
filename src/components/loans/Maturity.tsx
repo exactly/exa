@@ -53,9 +53,6 @@ export default function Maturity() {
         >
           <ArrowLeft size={24} color="$uiNeutralPrimary" />
         </Pressable>
-        <Text primary emphasized subHeadline>
-          Estimate loan terms
-        </Text>
         <Pressable
           onPress={() => {
             presentArticle("11541409").catch(reportError);

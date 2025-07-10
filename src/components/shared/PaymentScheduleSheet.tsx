@@ -19,11 +19,11 @@ import Text from "../shared/Text";
 export default function PaymentScheduleSheet({
   open,
   onClose,
-  usdAmount,
+  installmentsAmount,
 }: {
   open: boolean;
   onClose: () => void;
-  usdAmount: bigint;
+  installmentsAmount: bigint;
 }) {
   const aspectRatio = useAspectRatio();
   const { address } = useAccount();
@@ -81,9 +81,9 @@ export default function PaymentScheduleSheet({
                           </Text>
                           <AssetLogo uri={assetLogos[symbol as keyof typeof assetLogos]} width={16} height={16} />
                           <Text title3 color="$uiNeutralPrimary">
-                            {(Number(usdAmount) / 1e18).toLocaleString(undefined, {
-                              style: "currency",
-                              currency: "USD",
+                            {(Number(installmentsAmount) / 1e6).toLocaleString(undefined, {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
                             })}
                           </Text>
                         </XStack>

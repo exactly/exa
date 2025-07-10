@@ -14,6 +14,8 @@ import { zeroAddress } from "viem";
 import { useAccount, useBytecode } from "wagmi";
 
 import { useReadExaPreviewerPendingProposals, useReadPreviewerExactly } from "../../generated/contracts";
+import assetLogos from "../../utils/assetLogos";
+import AssetLogo from "../shared/AssetLogo";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
@@ -30,18 +32,17 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
     args: [address ?? zeroAddress],
     query: { enabled: !!address && !!bytecode, refetchInterval: 30_000 },
   });
-  const duePayments = new Map<bigint, { positionAmountUSD: bigint; amount: bigint; discount: number }>();
+  const duePayments = new Map<bigint, { positionAmount: bigint; amount: bigint; discount: number }>();
   if (markets) {
-    for (const { fixedBorrowPositions, usdPrice, decimals } of markets) {
+    for (const { fixedBorrowPositions } of markets) {
       for (const { maturity, previewValue, position } of fixedBorrowPositions) {
         if (!previewValue) continue;
-        const previewAmountUSD = (previewValue * usdPrice) / 10n ** BigInt(decimals);
-        const positionAmountUSD = ((position.principal + position.fee) * usdPrice) / 10n ** BigInt(decimals);
+
         if (isBefore(new Date(Number(maturity) * 1000), new Date())) continue;
         duePayments.set(maturity, {
-          positionAmountUSD,
-          amount: (duePayments.get(maturity)?.amount ?? 0n) + previewAmountUSD,
-          discount: Number(WAD - (previewAmountUSD * WAD) / positionAmountUSD) / 1e18,
+          positionAmount: position.principal + position.fee,
+          amount: (duePayments.get(maturity)?.amount ?? 0n) + previewValue,
+          discount: Number(WAD - (previewValue * WAD) / (position.principal + position.fee)) / 1e18,
         });
       }
     }
@@ -56,7 +57,7 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
       </XStack>
       <YStack gap="$s6">
         {payments.length > 0 ? (
-          payments.map(([maturity, { positionAmountUSD: positionAmount, amount, discount }], index) => {
+          payments.map(([maturity, { positionAmount, amount, discount }], index) => {
             const isRepaying = pendingProposals?.some(({ proposal }) => {
               const { proposalType: type, data } = proposal;
               const isRepayProposal =
@@ -88,6 +89,7 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
                   <XStack alignItems="center" gap="$s3">
                     <YStack gap="$s2">
                       <XStack alignItems="center" gap="$s3">
+                        <AssetLogo uri={assetLogos.USDC} width={12} height={12} />
                         <Text
                           sensitive
                           subHeadline
@@ -99,26 +101,11 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
                                 : "$uiNeutralPrimary"
                           }
                         >
-                          {(Number(amount) / 1e18).toLocaleString(undefined, {
-                            style: "currency",
-                            currency: "USD",
-                            currencyDisplay: "narrowSymbol",
+                          {(Number(amount) / 1e6).toLocaleString(undefined, {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
                           })}
                         </Text>
-                        {discount >= 0 && (
-                          <Text
-                            sensitive
-                            caption
-                            strikeThrough
-                            color={processing ? "$interactiveTextDisabled" : "$uiNeutralPrimary"}
-                          >
-                            {(Number(positionAmount) / 1e18).toLocaleString(undefined, {
-                              style: "currency",
-                              currency: "USD",
-                              currencyDisplay: "narrowSymbol",
-                            })}
-                          </Text>
-                        )}
                       </XStack>
                       <Text caption color={processing ? "$interactiveTextDisabled" : "$uiNeutralPrimary"}>
                         {format(new Date(Number(maturity) * 1000), "MMM dd, yyyy")}
@@ -182,7 +169,7 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
               You&apos;re all set!
             </Text>
             <Text textAlign="center" color="$uiNeutralSecondary" subHeadline>
-              Any loans or purchases will show up here.
+              Any funding or purchases will show up here.
             </Text>
           </YStack>
         )}

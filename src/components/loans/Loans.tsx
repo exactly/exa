@@ -1,7 +1,6 @@
 import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
-import { CircleHelp } from "@tamagui/lucide-icons";
+import { ArrowLeft, CircleHelp } from "@tamagui/lucide-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import { openBrowserAsync } from "expo-web-browser";
 import React, { useState } from "react";
 import { Pressable, RefreshControl } from "react-native";
 import { ScrollView, useTheme, XStack, YStack } from "tamagui";
@@ -49,9 +48,16 @@ export default function Loans() {
           <>
             <View backgroundColor="$backgroundSoft" padded>
               <YStack paddingBottom="$s3" gap="$s4_5">
-                <XStack gap={10} justifyContent="space-between" alignItems="center">
-                  <Text fontSize={20} fontWeight="bold">
-                    Exa Loans
+                <XStack alignItems="center" justifyContent="space-between">
+                  <Pressable
+                    onPress={() => {
+                      router.replace("/defi");
+                    }}
+                  >
+                    <ArrowLeft size={24} color="$uiNeutralPrimary" />
+                  </Pressable>
+                  <Text emphasized subHeadline textAlign="center">
+                    Exactly Protocol
                   </Text>
                   <Pressable
                     onPress={() => {
@@ -62,8 +68,8 @@ export default function Loans() {
                   </Pressable>
                 </XStack>
                 <Text subHeadline secondary>
-                  Use assets from your Portfolio as collateral to access fixed-rate USDC onchain loans, powered by
-                  Exactly Protocol.
+                  Get fixed-interest funding using your assets as collateral, no credit check needed. Choose an amount
+                  and repayment plan to receive USDC.
                 </Text>
               </YStack>
             </View>
@@ -78,19 +84,8 @@ export default function Loans() {
             </View>
             <XStack gap="$s4" alignItems="flex-start" padding="$s4" flexWrap="wrap">
               <Text caption2 color="$interactiveOnDisabled" textAlign="justify">
-                Loan services are decentralized and powered by&nbsp;
-                <Text
-                  cursor="pointer"
-                  caption2
-                  color="$interactiveOnDisabled"
-                  textDecorationLine="underline"
-                  onPress={() => {
-                    openBrowserAsync(`https://exact.ly/`).catch(reportError);
-                  }}
-                >
-                  Exactly Protocol
-                </Text>
-                . The Exa App does not underwrite or originate any credit products.
+                You are accessing a decentralized protocol using your crypto as collateral. The Exa App does not issue
+                funding or provide credit. No credit checks or intermediaries are involved.
               </Text>
             </XStack>
             <PaymentSheet

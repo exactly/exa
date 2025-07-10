@@ -71,6 +71,7 @@ export default function IntroSheet({ open, onClose }: { open: boolean; onClose: 
                       <Info size="$iconSize.md" strokeWidth="$iconStroke.md" color="$uiInfoSecondary" />
                     </XStack>
                     <Text color="$uiNeutralPlaceholder" caption2 textAlign="justify" flex={1}>
+                      {/* cspell:ignoreRegExp \bdoesn&apos;t\b */}
                       The Exa App doesn&apos;t control your assets nor offer financial services. All integrations are
                       powered by independent third-party DeFi protocols.&nbsp;
                       <Text

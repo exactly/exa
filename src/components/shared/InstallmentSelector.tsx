@@ -76,10 +76,7 @@ function Installment({
     query: { enabled: isBorrow && totalAmount > 0n && !!market && !!account && !!firstMaturity },
   });
 
-  const usdPrice = market?.usdPrice ?? 0n;
-  const decimals = market?.decimals ?? 0;
   const installmentAmount = !isBorrow && installments ? (installments.installments[0] ?? 0n) : (borrow?.assets ?? 0n);
-  const installmentAmountUsd = (installmentAmount * usdPrice) / 10n ** BigInt(decimals);
   return (
     <XStack
       key={installment}
@@ -119,9 +116,9 @@ function Installment({
               <Skeleton height={18} />
             ) : (
               <Text headline numberOfLines={1} adjustsFontSizeToFit>
-                {(Number(installmentAmountUsd) / 1e18).toLocaleString(undefined, {
-                  style: "currency",
-                  currency: "USD",
+                {(Number(installmentAmount) / 1e6).toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
                 })}
               </Text>
             ))}

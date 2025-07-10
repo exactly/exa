@@ -1,5 +1,4 @@
 import { previewerAddress } from "@exactly/common/generated/chain";
-import { WAD } from "@exactly/lib";
 import { ArrowLeft, ArrowRight, Check, CircleHelp, TriangleAlert } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
@@ -65,9 +64,6 @@ export default function Amount() {
         >
           <ArrowLeft size={24} color="$uiNeutralPrimary" />
         </Pressable>
-        <Text primary emphasized subHeadline>
-          Estimate loan terms
-        </Text>
         <Pressable
           onPress={() => {
             presentArticle("11541409").catch(reportError);
@@ -87,21 +83,16 @@ export default function Amount() {
             <YStack gap="$s6">
               <YStack gap="$s3_5">
                 <Text primary emphasized body>
-                  Select amount to borrow
+                  Select amount
                 </Text>
                 {markets && market && loan?.market && (
                   <XStack alignItems="center" gap="$s2">
                     <Text footnote color="$uiNeutralPlaceholder">
-                      Available credit limit:{" "}
-                      {Number(formatUnits((borrowAvailable * market.usdPrice) / WAD, market.decimals)).toLocaleString(
-                        undefined,
-                        {
-                          style: "currency",
-                          currency: "USD",
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        },
-                      )}
+                      Available funding:&nbsp;
+                      {Number(formatUnits(borrowAvailable, market.decimals)).toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
                     </Text>
                     <Pressable
                       onPress={() => {

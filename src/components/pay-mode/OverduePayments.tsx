@@ -31,16 +31,15 @@ export default function OverduePayments({ onSelect }: { onSelect: (maturity: big
   });
   const overduePayments = new Map<bigint, { amount: bigint; discount: number }>();
   if (markets) {
-    for (const { fixedBorrowPositions, usdPrice, decimals } of markets) {
+    for (const { fixedBorrowPositions } of markets) {
       for (const { maturity, previewValue, position } of fixedBorrowPositions) {
         if (!previewValue) continue;
-        const previewValueUSD = (previewValue * usdPrice) / 10n ** BigInt(decimals);
-        const positionAmountUSD = ((position.principal + position.fee) * usdPrice) / 10n ** BigInt(decimals);
-        if (previewValueUSD === 0n) continue;
+        const positionAmount = position.principal + position.fee;
+        if (previewValue === 0n) continue;
         if (isBefore(new Date(Number(maturity) * 1000), new Date())) {
           overduePayments.set(maturity, {
-            amount: (overduePayments.get(maturity)?.amount ?? 0n) + previewValueUSD,
-            discount: Number(WAD - (previewValueUSD * WAD) / positionAmountUSD) / 1e18,
+            amount: (overduePayments.get(maturity)?.amount ?? 0n) + previewValue,
+            discount: Number(WAD - (previewValue * WAD) / positionAmount) / 1e18,
           });
         }
       }
@@ -88,10 +87,9 @@ export default function OverduePayments({ onSelect }: { onSelect: (maturity: big
             >
               <YStack gap="$s2">
                 <Text subHeadline color={processing ? "$interactiveTextDisabled" : "$uiErrorSecondary"}>
-                  {(Number(amount) / 1e18).toLocaleString(undefined, {
-                    style: "currency",
-                    currency: "USD",
-                    currencyDisplay: "narrowSymbol",
+                  {(Number(amount) / 1e6).toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
                   })}
                 </Text>
                 <Text caption color={processing ? "$interactiveTextDisabled" : "$uiErrorSecondary"}>
