@@ -24,7 +24,7 @@ export default function BorrowDetails({ item }: { item: Omit<BorrowActivity, "bl
       <YStack gap="$s4">
         <YStack gap="$s4">
           <Text emphasized headline>
-            Loan details
+            Funding details
           </Text>
           <Separator height={1} borderColor="$borderNeutralSoft" />
         </YStack>
