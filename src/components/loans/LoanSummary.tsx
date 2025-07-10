@@ -51,7 +51,7 @@ export default function LoanSummary({ loan }: { loan: Loan }) {
               {Number(
                 Number(!isBorrow && installments ? installments.amounts.reduce((a, b) => a + b, 0n) : borrow?.assets) /
                   1e6,
-              ).toLocaleString(undefined, { style: "currency", currency: "USD" })}
+              ).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </Text>
           </XStack>
         )}
@@ -76,7 +76,7 @@ export default function LoanSummary({ loan }: { loan: Loan }) {
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,
             }) ?? "N/A"
-          } APR`}
+          } FIXED APR`}
         </Text>
       )}
     </YStack>
