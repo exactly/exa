@@ -319,3 +319,15 @@ export const exaAccountInitialized = substreams.table(
   },
   ({ address }) => [primaryKey({ columns: [address] })],
 );
+
+export const collectorSets = substreams.table(
+  "collector_sets",
+  {
+    collector: text("collector").notNull(),
+    block: numeric("block")
+      .references(() => blocks.number)
+      .notNull(),
+    ordinal: numeric("ordinal").notNull(),
+  },
+  ({ collector }) => [primaryKey({ columns: [collector] })],
+);
