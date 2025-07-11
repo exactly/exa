@@ -333,7 +333,7 @@ export const PandaActivity = pipe(
       { created: undefined, updates: [], completed: undefined },
     );
 
-    const details = flow.completed ?? flow.created;
+    const details = flow.created ?? flow.completed;
     if (!details) throw new Error("invalid flow");
 
     const {
