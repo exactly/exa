@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.7
+
+### Patch Changes
+
+- [`1b698a7`](https://github.com/exactly/exa/commit/1b698a7552969b613a68eb805450c41c9ac4791f) Thanks [@mainqueg](https://github.com/mainqueg)! - 🐛 use created details for activity
+
 ## 0.2.6
 
 ### Patch Changes
