@@ -25,6 +25,7 @@ export function track(
     | { event: "CardIssued" }
     | { event: "CardFrozen" }
     | { event: "CardUnfrozen" }
+    | { event: "AccountFunded" }
     | {
         event: "TransactionAuthorized";
         properties: {
@@ -38,6 +39,14 @@ export function track(
         properties: {
           id: string;
           type: "reversal" | "refund" | "partial";
+          usdAmount: number;
+          merchant: MerchantProperties;
+        };
+      }
+    | {
+        event: "TransactionRejected";
+        properties: {
+          id: string;
           usdAmount: number;
           merchant: MerchantProperties;
         };

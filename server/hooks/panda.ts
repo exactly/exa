@@ -415,6 +415,7 @@ export default new Hono().post(
           const mutex = getMutex(account);
           mutex?.release();
           setContext("mutex", { locked: mutex?.isLocked() });
+          trackTransactionRejected(account, payload);
           return c.json({ code: "ok" });
         }
         if (payload.body.spend.status !== "pending" && payload.action !== "completed") return c.json({ code: "ok" });
@@ -532,6 +533,27 @@ function trackTransactionAuthorized(account: Address, payload: v.InferOutput<typ
     event: "TransactionAuthorized",
     properties: {
       type: "panda",
+      usdAmount: payload.body.spend.amount / 100,
+      merchant: {
+        name: payload.body.spend.merchantName,
+        category: payload.body.spend.merchantCategory,
+        city: payload.body.spend.merchantCity,
+        country: payload.body.spend.merchantCountry,
+      },
+    },
+  });
+}
+
+function trackTransactionRejected(account: Address, payload: v.InferOutput<typeof Transaction>): void {
+  if (payload.action !== "created") {
+    captureException(new Error("unsupported transaction type"), { contexts: { payload } });
+    return;
+  }
+  track({
+    userId: account,
+    event: "TransactionRejected",
+    properties: {
+      id: payload.body.id,
       usdAmount: payload.body.spend.amount / 100,
       merchant: {
         name: payload.body.spend.merchantName,
