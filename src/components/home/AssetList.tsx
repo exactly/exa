@@ -3,7 +3,7 @@ import { floatingDepositRates } from "@exactly/lib";
 import React from "react";
 import { Image } from "react-native";
 import { vs } from "react-native-size-matters";
-import { YStack } from "tamagui";
+import { XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
 import { useAccount } from "wagmi";
 
@@ -13,7 +13,6 @@ import useAccountAssets from "../../utils/useAccountAssets";
 import AssetLogo from "../shared/AssetLogo";
 import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
-import View from "../shared/View";
 
 interface AssetItem {
   symbol: string;
@@ -30,92 +29,88 @@ interface AssetItem {
 function AssetRow({ asset }: { asset: AssetItem }) {
   const { symbol, logoURI, amount, decimals, usdPrice, usdValue, rate } = asset;
   const logoSource = logoURI ?? assetLogos[symbol as keyof typeof assetLogos];
-
   return (
-    <View flexDirection="row" alignItems="center" borderColor="$borderNeutralSoft">
-      <View flexDirection="row" alignItems="center" paddingVertical={vs(10)} gap="$s2" width="100%">
-        <View flexDirection="row" gap={10} alignItems="center" flex={1}>
-          {logoURI ? (
-            <Image source={{ uri: logoSource }} width={32} height={32} borderRadius={16} />
-          ) : (
-            <AssetLogo uri={logoSource} width={32} height={32} />
-          )}
-          <View gap="$s2" alignItems="flex-start">
-            <Text subHeadline color="$uiNeutralPrimary" numberOfLines={1}>
-              {symbol}
-            </Text>
-            <Text caption color="$uiNeutralSecondary" numberOfLines={1}>
-              {(Number(usdPrice) / 1e18).toLocaleString(undefined, {
-                style: "currency",
-                currency: "USD",
-                currencyDisplay: "narrowSymbol",
-              })}
-            </Text>
-          </View>
-        </View>
-        <View gap={5} flex={1} alignItems="flex-end">
-          {rate === undefined ? (
-            asset.market ? (
-              <>
-                <Skeleton height={15} width={50} />
-                <Skeleton height={12} width={50} />
-              </>
-            ) : (
-              <Text caption textAlign="right" color="transparent">
-                -
-              </Text>
-            )
-          ) : (
-            <>
-              <Text subHeadline emphasized textAlign="right" color="$interactiveTextSuccessDefault">
-                {(Number(rate) / 1e18).toLocaleString(undefined, {
-                  style: "percent",
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-              </Text>
-              <Text caption color="$uiNeutralSecondary" textAlign="right">
-                Yield
-              </Text>
-            </>
-          )}
-        </View>
-        <View gap={5} flex={1}>
-          <Text sensitive emphasized subHeadline numberOfLines={1} adjustsFontSizeToFit textAlign="right">
-            {(Number(usdValue) / 1e18).toLocaleString(undefined, {
+    <XStack alignItems="center" borderColor="$borderNeutralSoft" paddingVertical={vs(10)} gap="$s2" width="100%">
+      <XStack gap={10} alignItems="center" flex={1} $platform-web={{ flexBasis: 1 / 3 }}>
+        {logoURI ? (
+          <Image source={{ uri: logoSource }} width={32} height={32} borderRadius={16} />
+        ) : (
+          <AssetLogo uri={logoSource} width={32} height={32} />
+        )}
+        <YStack gap="$s2" alignItems="flex-start">
+          <Text subHeadline color="$uiNeutralPrimary" numberOfLines={1}>
+            {symbol}
+          </Text>
+          <Text caption color="$uiNeutralSecondary" numberOfLines={1}>
+            {(Number(usdPrice) / 1e18).toLocaleString(undefined, {
               style: "currency",
               currency: "USD",
               currencyDisplay: "narrowSymbol",
             })}
           </Text>
-          <Text caption color="$uiNeutralSecondary" textAlign="right">
-            {(Number(amount) / 10 ** decimals).toLocaleString(undefined, {
-              minimumFractionDigits: 1,
-              maximumFractionDigits: Math.min(
-                8,
-                Math.max(0, decimals - Math.ceil(Math.log10(Math.max(1, Number(usdValue) / 1e18)))),
-              ),
-              useGrouping: false,
-            })}
-          </Text>
-        </View>
-      </View>
-    </View>
+        </YStack>
+      </XStack>
+      <YStack gap={5} flex={1} alignItems="flex-end" $platform-web={{ flexBasis: 1 / 3 }}>
+        {rate === undefined ? (
+          asset.market ? (
+            <>
+              <Skeleton height={15} width={50} />
+              <Skeleton height={12} width={50} />
+            </>
+          ) : (
+            <Text caption textAlign="right" color="transparent">
+              -
+            </Text>
+          )
+        ) : (
+          <>
+            <Text subHeadline emphasized textAlign="right" color="$interactiveTextSuccessDefault">
+              {(Number(rate) / 1e18).toLocaleString(undefined, {
+                style: "percent",
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </Text>
+            <Text caption color="$uiNeutralSecondary" textAlign="right">
+              Yield
+            </Text>
+          </>
+        )}
+      </YStack>
+      <YStack gap={5} flex={1} $platform-web={{ flexBasis: 1 / 3 }}>
+        <Text sensitive emphasized subHeadline numberOfLines={1} adjustsFontSizeToFit textAlign="right">
+          {(Number(usdValue) / 1e18).toLocaleString(undefined, {
+            style: "currency",
+            currency: "USD",
+            currencyDisplay: "narrowSymbol",
+          })}
+        </Text>
+        <Text caption color="$uiNeutralSecondary" textAlign="right">
+          {(Number(amount) / 10 ** decimals).toLocaleString(undefined, {
+            minimumFractionDigits: 1,
+            maximumFractionDigits: Math.min(
+              8,
+              Math.max(0, decimals - Math.ceil(Math.log10(Math.max(1, Number(usdValue) / 1e18)))),
+            ),
+            useGrouping: false,
+          })}
+        </Text>
+      </YStack>
+    </XStack>
   );
 }
 
 function AssetSection({ title, assets }: { title: string; assets: AssetItem[] }) {
   if (assets.length === 0) return null;
-
   return (
-    <View backgroundColor="$backgroundSoft" borderRadius="$r3" padded gap="$s2_5">
+    <YStack backgroundColor="$backgroundSoft" borderRadius="$r3" padding="$s4" gap="$s2_5">
       <Text emphasized headline color="$uiNeutralPrimary">
         {title}
       </Text>
       {assets.map((asset, index) => (
         <AssetRow key={index} asset={asset} />
       ))}
-    </View>
+    </YStack>
   );
 }
 
