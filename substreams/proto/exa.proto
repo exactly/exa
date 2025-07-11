@@ -6,24 +6,25 @@ message Events {
   repeated AccumulatorAccrual accumulator_accruals = 1;
   repeated Borrow borrows = 2;
   repeated BorrowAtMaturity borrow_at_maturities = 3;
-  repeated EarningsAccumulatorSmoothFactorSet earnings_accumulator_smooth_factor_sets = 4;
-  repeated ExaAccountInitialized exa_account_initialized = 5;
-  repeated FixedEarningsUpdate fixed_earnings_updates = 6;
-  repeated FloatingDebtUpdate floating_debt_updates = 7;
-  repeated InterestRateModelSet interest_rate_model_sets = 8;
-  repeated MarketEntered market_enters = 9;
-  repeated MarketExited market_exits = 10;
-  repeated MarketUpdate market_updates = 11;
-  repeated MaxFuturePoolsSet max_future_pools_sets = 12;
-  repeated Repay repays = 13;
-  repeated RepayAtMaturity repay_at_maturities = 14;
-  repeated Transfer transfers = 15;
-  repeated TreasurySet treasury_sets = 16;
+  repeated CollectorSet collector_sets = 4;
+  repeated EarningsAccumulatorSmoothFactorSet earnings_accumulator_smooth_factor_sets = 5;
+  repeated ExaAccountInitialized exa_account_initialized = 6;
+  repeated FixedEarningsUpdate fixed_earnings_updates = 7;
+  repeated FloatingDebtUpdate floating_debt_updates = 8;
+  repeated InterestRateModelSet interest_rate_model_sets = 9;
+  repeated MarketEntered market_enters = 10;
+  repeated MarketExited market_exits = 11;
+  repeated MarketUpdate market_updates = 12;
+  repeated MaxFuturePoolsSet max_future_pools_sets = 13;
+  repeated Repay repays = 14;
+  repeated RepayAtMaturity repay_at_maturities = 15;
+  repeated Transfer transfers = 16;
+  repeated TreasurySet treasury_sets = 17;
 
   // price tracking
-  repeated AnswerUpdated answer_updates = 17;
-  repeated NewRound new_rounds = 18;
-  repeated NewTransmission new_transmissions = 19;
+  repeated AnswerUpdated answer_updates = 18;
+  repeated NewRound new_rounds = 19;
+  repeated NewTransmission new_transmissions = 20;
 
   message AccumulatorAccrual {
     bytes market = 1;
@@ -45,6 +46,13 @@ message Events {
     bytes borrower = 3;
     string assets = 4;
     string fee = 5;
+    // internals
+    uint64 log_ordinal = 30;
+  }
+
+  message CollectorSet {
+    bytes collector = 1;
+    bytes account = 2;
     // internals
     uint64 log_ordinal = 30;
   }

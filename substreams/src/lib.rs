@@ -1,10 +1,10 @@
 use contracts::{
   auditor::events as auditor_events, chainlink::events as chainlink_events, factory::events as factory_events,
-  is_auditor, is_factory, is_market, market::events,
+  is_auditor, is_factory, is_market, is_plugin, market::events, plugin::events as plugin_events,
 };
 use proto::exa::{
   events::{
-    AccumulatorAccrual, AnswerUpdated, Borrow, BorrowAtMaturity, EarningsAccumulatorSmoothFactorSet,
+    AccumulatorAccrual, AnswerUpdated, Borrow, BorrowAtMaturity, CollectorSet, EarningsAccumulatorSmoothFactorSet,
     ExaAccountInitialized, FixedEarningsUpdate, FloatingDebtUpdate, InterestRateModelSet, MarketEntered, MarketExited,
     MarketUpdate, MaxFuturePoolsSet, NewRound, NewTransmission, Repay, RepayAtMaturity, Transfer, TreasurySet,
   },
@@ -69,6 +69,17 @@ pub fn map_blocks(block: Block) -> Result<Events, Error> {
           market: log.address().to_vec(),
           borrower: event.borrower.to_vec(),
           shares: event.shares.to_string(),
+          log_ordinal: log.ordinal(),
+        }),
+        _ => None,
+      })
+      .collect(),
+    collector_sets: block
+      .logs()
+      .filter_map(|log| match (is_plugin(log.address()), plugin_events::CollectorSet::match_and_decode(log)) {
+        (true, Some(event)) => Some(CollectorSet {
+          collector: event.collector.to_vec(),
+          account: event.account.to_vec(),
           log_ordinal: log.ordinal(),
         }),
         _ => None,
@@ -388,6 +399,17 @@ pub fn db_out(
         ("market", Hex(&accumulator_accrual.market).to_string()),
         ("block", clock.number.to_string()),
         ("ordinal", accumulator_accrual.log_ordinal.to_string()),
+      ],
+    );
+  }
+  for collector_set in events.collector_sets {
+    tables.create_row(
+      "collector_sets",
+      [
+        ("collector", Hex(&collector_set.collector).to_string()),
+        ("account", Hex(&collector_set.account).to_string()),
+        ("block", clock.number.to_string()),
+        ("ordinal", collector_set.log_ordinal.to_string()),
       ],
     );
   }

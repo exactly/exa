@@ -21,6 +21,7 @@ fn main() -> Result<(), Error> {
   println!("cargo::rerun-if-changed=substreams.yaml");
   println!("cargo::rerun-if-changed=node_modules/@exactly/protocol/deployments");
   println!("cargo::rerun-if-changed=../contracts/script/ExaAccountFactory.s.sol");
+  println!("cargo::rerun-if-changed=../contracts/script/ExaPlugin.s.sol");
   println!("cargo::rerun-if-changed=../contracts/test/mocks/MockSwapper.sol");
   println!("cargo::rerun-if-changed=../contracts/test/mocks/MockPriceFeed.sol");
   println!("cargo::rerun-if-changed=../contracts/node_modules/@exactly/contracts/contracts/Auditor.sol");
@@ -30,6 +31,7 @@ fn main() -> Result<(), Error> {
   let contracts = [
     ("auditor", "Auditor"),
     ("factory", "ExaAccountFactory"),
+    ("plugin", "ExaPlugin"),
     ("lifi", "MockSwapper"),
     ("market", "Market"),
     ("chainlink", "MockPriceFeed"),
@@ -92,6 +94,14 @@ fn main() -> Result<(), Error> {
             {}
           )
         }}
+
+        pub fn is_plugin(address: &[u8]) -> bool {{
+          matches!(
+            address,
+            {}
+          )
+        }}
+        
       "},
       contracts
         .iter()
@@ -166,6 +176,14 @@ fn main() -> Result<(), Error> {
           "FC86cc5aE0FbE173fe385114F5F0a9C4Afe60B6F",
           "98d3E8B291d9E89C25D8371b7e8fFa8BC32E0aEC",
         ],
+      }
+      .iter()
+      .map(|a| format!("hex!(\"{a}\")"))
+      .collect::<Vec<_>>()
+      .join("\n      | "),
+      match option_env!("CHAIN_ID") {
+        Some("10") => vec![""], // FIXME: get op-mainnet plugin addresses
+        _ => vec!["5B1e61a7802Dc02Bf55435077aC5FF057d06e4AE"],
       }
       .iter()
       .map(|a| format!("hex!(\"{a}\")"))
