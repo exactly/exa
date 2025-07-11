@@ -31,6 +31,7 @@ import decodePublicKey from "../utils/decodePublicKey";
 import keeper from "../utils/keeper";
 import { sendPushNotification } from "../utils/onesignal";
 import publicClient from "../utils/publicClient";
+import { track } from "../utils/segment";
 
 if (!process.env.ALCHEMY_ACTIVITY_KEY) throw new Error("missing alchemy activity key");
 const signingKey = process.env.ALCHEMY_ACTIVITY_KEY;
@@ -137,6 +138,7 @@ export default new Hono().post(
                         abi: exaAccountFactoryAbi,
                       },
                     );
+                    track({ event: "AccountFunded", userId: account });
                   } catch (error: unknown) {
                     span.setStatus({ code: SPAN_STATUS_ERROR, message: "account_failed" });
                     throw error;
