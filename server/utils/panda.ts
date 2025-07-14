@@ -5,7 +5,6 @@ import { proposalManager } from "@exactly/plugin/deploy.json";
 import { vValidator } from "@hono/valibot-validator";
 import { Mutex, withTimeout, type MutexInterface } from "async-mutex";
 import { eq } from "drizzle-orm";
-import { createHmac } from "node:crypto";
 import {
   type BaseIssue,
   type BaseSchema,
@@ -28,6 +27,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { optimism } from "viem/chains";
 
 import database, { credentials } from "../database";
+import verifySignature from "./verifySignature";
 import { issuerCheckerAddress, upgradeableModularAccountAbi } from "../generated/contracts";
 import publicClient from "../utils/publicClient";
 
@@ -224,12 +224,9 @@ export async function isPanda(account: Address) {
 export function headerValidator() {
   return vValidator("header", object({ signature: string() }), async (r, c) => {
     if (!r.success) return c.text("bad request", 400);
-    return r.output.signature ===
-      createHmac("sha256", key)
-        .update(Buffer.from(await c.req.arrayBuffer()))
-        .digest("hex")
-      ? undefined
-      : c.text("unauthorized", 401);
+    const payload = await c.req.arrayBuffer();
+    if (verifySignature({ signature: r.output.signature, signingKey: key, payload })) return;
+    return c.text("unauthorized", 401);
   });
 }
 
