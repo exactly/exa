@@ -1,6 +1,6 @@
 import chain, { mockSwapperAbi, swapperAddress } from "@exactly/common/generated/chain";
 import { Hex } from "@exactly/common/validation";
-import { config, getQuote, getTokenBalancesByChain, getTokens } from "@lifi/sdk";
+import { config, getQuote, getToken, getTokenBalancesByChain, getTokens, type Token } from "@lifi/sdk";
 import { parse } from "valibot";
 import { encodeFunctionData } from "viem";
 import type { Address } from "viem";
@@ -57,13 +57,19 @@ export async function getRoute(
   return { exchange: tool, fromAmount: BigInt(estimate.fromAmount), data: parse(Hex, transactionRequest?.data) };
 }
 
-export async function getAsset(account: Address) {
+async function getAllTokens(): Promise<Token[]> {
   const response = await getTokens({ chains: [optimism.id] });
-  return response.tokens[optimism.id]?.find((token) => token.address === account);
+  const exa = await getToken(optimism.id, "0x1e925De1c68ef83bD98eE3E130eF14a50309C01B");
+  return [exa, ...(response.tokens[optimism.id] ?? [])];
+}
+
+export async function getAsset(account: Address) {
+  const tokens = await getAllTokens();
+  return tokens.find((token) => token.address === account);
 }
 
 export async function getTokenBalances(account: Address) {
-  const response = await getTokens({ chains: [optimism.id] });
-  const balances = await getTokenBalancesByChain(account, { [optimism.id]: response.tokens[optimism.id] ?? [] });
+  const tokens = await getAllTokens();
+  const balances = await getTokenBalancesByChain(account, { [optimism.id]: tokens });
   return balances[optimism.id]?.filter((balance) => balance.amount && balance.amount > 0n) ?? [];
 }
