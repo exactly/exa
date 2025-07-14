@@ -226,7 +226,7 @@ export default new Hono().post(
         try {
           const { amount, call, transaction } = await prepareCollection(card, payload);
           const authorize = () => {
-            trackTransactionAuthorized(account, payload);
+            trackTransactionAuthorized(account, payload, card.mode);
             return c.json({ code: "ok" });
           };
           if (!transaction) return authorize();
@@ -415,7 +415,7 @@ export default new Hono().post(
           const mutex = getMutex(account);
           mutex?.release();
           setContext("mutex", { locked: mutex?.isLocked() });
-          trackTransactionRejected(account, payload);
+          trackTransactionRejected(account, payload, card.mode);
           return c.json({ code: "ok" });
         }
         if (payload.body.spend.status !== "pending" && payload.action !== "completed") return c.json({ code: "ok" });
@@ -527,12 +527,17 @@ export default new Hono().post(
   },
 );
 
-function trackTransactionAuthorized(account: Address, payload: v.InferOutput<typeof Transaction>): void {
+function trackTransactionAuthorized(
+  account: Address,
+  payload: v.InferOutput<typeof Transaction>,
+  cardMode: number,
+): void {
   track({
     userId: account,
     event: "TransactionAuthorized",
     properties: {
       type: "panda",
+      cardMode,
       usdAmount: payload.body.spend.amount / 100,
       merchant: {
         name: payload.body.spend.merchantName,
@@ -544,7 +549,11 @@ function trackTransactionAuthorized(account: Address, payload: v.InferOutput<typ
   });
 }
 
-function trackTransactionRejected(account: Address, payload: v.InferOutput<typeof Transaction>): void {
+function trackTransactionRejected(
+  account: Address,
+  payload: v.InferOutput<typeof Transaction>,
+  cardMode: number,
+): void {
   if (payload.action !== "created") {
     captureException(new Error("unsupported transaction type"), { contexts: { payload } });
     return;
@@ -554,6 +563,7 @@ function trackTransactionRejected(account: Address, payload: v.InferOutput<typeo
     event: "TransactionRejected",
     properties: {
       id: payload.body.id,
+      cardMode,
       usdAmount: payload.body.spend.amount / 100,
       merchant: {
         name: payload.body.spend.merchantName,

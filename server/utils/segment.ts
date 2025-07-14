@@ -30,6 +30,7 @@ export function track(
         event: "TransactionAuthorized";
         properties: {
           type: "panda";
+          cardMode: number;
           usdAmount: number;
           merchant: MerchantProperties;
         };
@@ -47,6 +48,7 @@ export function track(
         event: "TransactionRejected";
         properties: {
           id: string;
+          cardMode: number;
           usdAmount: number;
           merchant: MerchantProperties;
         };
