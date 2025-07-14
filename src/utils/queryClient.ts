@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import { persistQueryClientRestore, persistQueryClientSubscribe } from "@tanstack/query-persist-client-core";
 import { QueryCache, QueryClient } from "@tanstack/react-query";
+import type { Register } from "@tanstack/react-query"; // eslint-disable-line @typescript-eslint/no-unused-vars
 import type { Address } from "viem";
 import { deserialize, serialize } from "wagmi";
 import { hashFn, structuralSharing } from "wagmi/query";
@@ -14,6 +15,7 @@ const queryClient = new QueryClient({
   queryCache: new QueryCache({
     onError: (error, query) => {
       if (error instanceof Error && error.message === "don't refetch") return;
+      if (query.meta?.supressError?.(error)) return;
       if (error instanceof APIError) {
         if (query.queryKey[0] === "card" && query.queryKey[1] === "details") {
           if (error.text === "card not found") return;
@@ -157,5 +159,11 @@ export class APIError extends Error {
     this.code = code;
     this.text = text;
     this.name = "APIError";
+  }
+}
+
+declare module "@tanstack/react-query" {
+  interface Register {
+    queryMeta: { suppressError?: (error: unknown) => boolean | undefined };
   }
 }
