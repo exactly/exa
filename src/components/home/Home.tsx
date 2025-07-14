@@ -24,7 +24,7 @@ import {
 import { KYC_TEMPLATE_ID, LEGACY_KYC_TEMPLATE_ID } from "../../utils/persona";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
-import { getActivity, getKYCStatus } from "../../utils/server";
+import { APIError, getActivity, getKYCStatus } from "../../utils/server";
 import OverduePayments from "../pay-mode/OverduePayments";
 import PaymentSheet from "../pay-mode/PaymentSheet";
 import UpcomingPayments from "../pay-mode/UpcomingPayments";
@@ -79,10 +79,20 @@ export default function Home() {
   const { data: KYCStatus, refetch: refetchKYCStatus } = useQuery({
     queryKey: ["kyc", "status"],
     queryFn: async () => getKYCStatus(KYC_TEMPLATE_ID),
+    meta: {
+      suppressError: (error) =>
+        error instanceof APIError &&
+        (error.text === "kyc not found" || error.text === "kyc not started" || error.text === "kyc not approved"),
+    },
   });
   const { data: legacyKYCStatus, refetch: refetchLegacyKYCStatus } = useQuery({
     queryKey: ["legacy", "kyc", "status"],
     queryFn: async () => getKYCStatus(LEGACY_KYC_TEMPLATE_ID),
+    meta: {
+      suppressError: (error) =>
+        error instanceof APIError &&
+        (error.text === "kyc not found" || error.text === "kyc not started" || error.text === "kyc not approved"),
+    },
   });
   let usdBalance = 0n;
   if (markets) {

@@ -14,26 +14,14 @@ export const persister = createAsyncStoragePersister({ serialize, deserialize, s
 const queryClient = new QueryClient({
   queryCache: new QueryCache({
     onError: (error, query) => {
+      if (query.meta?.suppressError?.(error)) return;
       if (error instanceof Error && error.message === "don't refetch") return;
-      if (query.meta?.supressError?.(error)) return;
       if (error instanceof APIError) {
+        if (error.code === 401 && error.text === "unauthorized") return;
         if (query.queryKey[0] === "card" && query.queryKey[1] === "details") {
           if (error.text === "card not found") return;
           if (error.text === "kyc required") return;
           if (error.text === "kyc not approved") return;
-        }
-        if (query.queryKey[0] === "kyc" && query.queryKey[1] === "status") {
-          if (error.text === "kyc not found") return;
-          if (error.text === "kyc not started") return;
-          if (error.text === "kyc not approved") return;
-        }
-        if (
-          query.queryKey[0] === "legacy" &&
-          query.queryKey[1] === "kyc" &&
-          query.queryKey[2] === "status" &&
-          error.text === "kyc not found"
-        ) {
-          return;
         }
       }
       reportError(error);

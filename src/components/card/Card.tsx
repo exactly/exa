@@ -61,6 +61,11 @@ export default function Card() {
   const { data: KYCStatus, refetch: refetchKYCStatus } = useQuery({
     queryKey: ["kyc", "status"],
     queryFn: async () => getKYCStatus(KYC_TEMPLATE_ID),
+    meta: {
+      suppressError: (error) =>
+        error instanceof APIError &&
+        (error.text === "kyc not found" || error.text === "kyc not started" || error.text === "kyc not approved"),
+    },
   });
   const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
   const { refetch: refetchInstalledPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({

@@ -135,9 +135,9 @@ function CurrentStep() {
           reportError(error);
           return;
         }
-        const { text } = error;
-        if (text === "kyc required" || text === "kyc not found" || text === "kyc not started") {
-          createInquiry(passkey).catch(reportError);
+        if (error.text === "kyc required" || error.text === "kyc not found" || error.text === "kyc not started") {
+          await createInquiry(passkey);
+          return;
         }
         reportError(error);
       }
