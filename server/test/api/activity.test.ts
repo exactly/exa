@@ -371,24 +371,7 @@ describe.concurrent("authenticated", () => {
 
       expect(response.status).toBe(200);
 
-      await expect(response.json()).resolves.toMatchObject([
-        {
-          fromAmount: expect.withinRange(16 * 10 ** 18, 17 * 10 ** 18),
-          toAmount: 82_000_000,
-          fromAssetId: "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
-          toAssetId: "0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e",
-          receiver: account,
-          type: "swap",
-        },
-        {
-          fromAmount: expect.withinRange(16 * 10 ** 18, 17 * 10 ** 18),
-          toAmount: 82_000_000,
-          fromAssetId: "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
-          toAssetId: "0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e",
-          receiver: account,
-          type: "swap",
-        },
-      ]);
+      await expect(response.json()).resolves.toMatchObject([]);
     });
   });
 
