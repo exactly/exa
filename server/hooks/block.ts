@@ -240,35 +240,38 @@ function scheduleMessage(message: string) {
                   },
                 },
                 async () => {
-                  await keeper.exaSend(
-                    { name: "exa.execute", op: "exa.execute", attributes: { account } },
-                    {
-                      address: account,
-                      functionName: "executeProposal",
-                      args: [nonce],
-                      abi: [
-                        ...exaPluginAbi,
-                        ...upgradeableModularAccountAbi,
-                        ...proposalManagerAbi,
-                        ...auditorAbi,
-                        ...marketAbi,
-                      ],
-                    },
-                  );
+                  const skipNonce = () =>
+                    keeper.exaSend(
+                      { name: "exa.nonce", op: "exa.nonce", attributes: { account } },
+                      {
+                        address: account,
+                        functionName: "setProposalNonce",
+                        args: [nonce + 1n],
+                        abi: [...exaPluginAbi, ...upgradeableModularAccountAbi, ...proposalManagerAbi],
+                      },
+                    );
+
+                  await (proposalType === ProposalType.None
+                    ? skipNonce()
+                    : keeper.exaSend(
+                        { name: "exa.execute", op: "exa.execute", attributes: { account } },
+                        {
+                          address: account,
+                          functionName: "executeProposal",
+                          args: [nonce],
+                          abi: [
+                            ...exaPluginAbi,
+                            ...upgradeableModularAccountAbi,
+                            ...proposalManagerAbi,
+                            ...auditorAbi,
+                            ...marketAbi,
+                          ],
+                        },
+                      ));
 
                   parent.setStatus({ code: SPAN_STATUS_OK });
                   if (proposalType === ProposalType.Withdraw) {
-                    if (market.toLowerCase() === marketWETHAddress.toLowerCase()) {
-                      await keeper.exaSend(
-                        { name: "exa.nonce", op: "exa.nonce", attributes: { account } },
-                        {
-                          address: account,
-                          functionName: "setProposalNonce",
-                          args: [nonce + 1n],
-                          abi: [...exaPluginAbi, ...upgradeableModularAccountAbi, ...proposalManagerAbi],
-                        },
-                      );
-                    }
+                    if (market.toLowerCase() === marketWETHAddress.toLowerCase()) await skipNonce();
                     const receiver = v.parse(
                       Address,
                       decodeAbiParameters([{ name: "receiver", type: "address" }], data)[0],

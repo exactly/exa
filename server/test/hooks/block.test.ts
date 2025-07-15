@@ -240,6 +240,55 @@ describe("proposal", () => {
     });
   });
 
+  describe("with none proposal", () => {
+    beforeEach(async () => {
+      const hash = await execute(
+        encodeFunctionData({
+          abi: exaPluginAbi,
+          functionName: "propose",
+          args: [inject("MarketUSDC"), 1n, ProposalType.None, "0x"],
+        }),
+      );
+      await anvilClient.mine({ blocks: 1, interval: 10 * 60 });
+      proposals = await getLogs([hash]);
+      const unlock = proposals[0]?.args.unlock ?? 0n;
+      vi.setSystemTime(new Date(Number(unlock + 10n) * 1000));
+    });
+
+    it("increments nonce", async () => {
+      const none = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
+      const waitForTransactionReceipt = vi.spyOn(publicClient, "waitForTransactionReceipt");
+      await Promise.all([
+        appClient.index.$post({
+          ...withdrawProposal,
+          json: {
+            ...withdrawProposal.json,
+            event: {
+              ...withdrawProposal.json.event,
+              data: {
+                ...withdrawProposal.json.event.data,
+                block: {
+                  ...withdrawProposal.json.event.data.block,
+                  logs: [{ topics: none.topics, data: none.data, account: { address: none.address } }],
+                },
+              },
+            },
+          },
+        }),
+        vi.waitUntil(() => waitForTransactionReceipt.mock.settledResults.length > 0, 6666),
+      ]);
+
+      await expect(
+        publicClient.readContract({
+          address: inject("ProposalManager"),
+          abi: proposalManagerAbi,
+          functionName: "nonces",
+          args: [bobAccount],
+        }),
+      ).resolves.toBe(none.args.nonce + 1n);
+    });
+  });
+
   describe("with idle proposals", () => {
     beforeEach(async () => {
       const hashes = await Promise.all(
@@ -253,7 +302,7 @@ describe("proposal", () => {
 
     afterEach(() => vi.useRealTimers());
 
-    it("execute proposal", async () => {
+    it("executes proposal", async () => {
       const idle = proposals[1]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
       const withdraw = proposals[3]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
       const another = proposals[4]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
