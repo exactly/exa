@@ -189,14 +189,14 @@ contract BobScript is BaseScript {
         IExaAccount.propose,
         (
           exaEXA,
-          100e18,
+          99e18,
           ProposalType.SWAP,
           abi.encode(
             SwapData({
               assetOut: IERC20(address(usdc)),
               minAmountOut: 1,
               route: abi.encodeCall(
-                MockSwapper.swapExactAmountOut, (address(exa), 100e18, address(usdc), 82e6, address(bobAccount))
+                MockSwapper.swapExactAmountOut, (address(exa), 99e18, address(usdc), 77e6, address(bobAccount))
               )
             })
           )

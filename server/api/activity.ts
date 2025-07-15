@@ -8,6 +8,7 @@ import chain, {
   proposalManagerAddress,
   swapperAddress,
 } from "@exactly/common/generated/chain";
+import lifiTokens from "@exactly/common/lifiTokens";
 import { Address, Hash, type Hex } from "@exactly/common/validation";
 import { effectiveRate, WAD } from "@exactly/lib";
 import { captureException, setUser } from "@sentry/node";
@@ -114,6 +115,9 @@ export default new Hono().get(
       if (!found) throw new Error("market not found");
       return found;
     };
+
+    const marketAsset = (address: Hex) =>
+      [...markets.values()].find(({ asset }) => asset.toLowerCase() === address.toLowerCase())?.market;
 
     const repayPromise =
       !ignore("repay") || !ignore("received")
@@ -303,22 +307,7 @@ export default new Hono().get(
               fromBlock: 0n,
               strict: true,
             })
-            .then((logs) =>
-              logs
-                .filter((log) => log.args.receiver.toLowerCase() === account.toLowerCase())
-                .map((log) =>
-                  parse(SwapActivity, {
-                    ...log,
-                    args: {
-                      receiver: log.args.receiver,
-                      fromAssetId: log.args.fromAssetId,
-                      toAssetId: log.args.toAssetId,
-                      fromAmount: log.args.fromAmount,
-                      toAmount: log.args.toAmount,
-                    },
-                  } satisfies InferInput<typeof SwapActivity>),
-                ),
-            ),
+            .then((logs) => logs.filter((log) => log.args.receiver.toLowerCase() === account.toLowerCase())),
     ]);
     const blocks = await Promise.all(
       [
@@ -330,6 +319,13 @@ export default new Hono().get(
       ].map((blockNumber) => publicClient.getBlock({ blockNumber })),
     );
     const timestamps = new Map(blocks.map(({ number: block, timestamp }) => [block, timestamp]));
+
+    const tokens = await lifiTokens(chain.id, [
+      ...new Set(swaps.flatMap(({ args: { fromAssetId, toAssetId } }) => [fromAssetId, toAssetId])),
+    ]).catch((error: unknown) => {
+      captureException(error);
+      return [];
+    });
 
     return c.json(
       [
@@ -391,7 +387,62 @@ export default new Hono().get(
             contexts: { event: { ...event, timestamp } },
           });
         }),
-        ...[...deposits, ...repays, ...withdraws, ...swaps].map(({ blockNumber, ...event }) => {
+        ...swaps.map(({ blockNumber, ...event }) => {
+          const timestamp = timestamps.get(blockNumber);
+          if (!timestamp) {
+            captureException(new Error("block not found"), {
+              level: "error",
+              contexts: { event: { ...event, timestamp } },
+            });
+            return;
+          }
+          const { toAssetId, fromAssetId } = event.args;
+          const fromToken = tokens.find(({ address }) => address === fromAssetId);
+          if (!fromToken) {
+            captureException(new Error("from token not found"), {
+              level: "error",
+              contexts: { event: { ...event, timestamp, fromAssetId } },
+            });
+            return;
+          }
+          const toMarket = marketAsset(toAssetId);
+          if (toMarket) {
+            const { decimals, symbol, usdPrice } = market(toMarket);
+            return {
+              ...parse(SwapActivity, {
+                ...event,
+                fromDecimals: fromToken.decimals,
+                fromSymbol: fromToken.symbol,
+                decimals,
+                symbol,
+                usdPrice,
+                blockNumber,
+              } satisfies InferInput<typeof SwapActivity>),
+              timestamp: new Date(Number(timestamp) * 1000).toISOString(),
+            };
+          }
+
+          const toToken = tokens.find(({ address }) => address === toAssetId);
+          if (!toToken) {
+            captureException(new Error("to token not found"), {
+              level: "error",
+              contexts: { event: { ...event, timestamp, toAssetId } },
+            });
+            return;
+          }
+          return {
+            ...parse(SwapActivity, {
+              ...event,
+              fromDecimals: fromToken.decimals,
+              fromSymbol: fromToken.symbol,
+              decimals: toToken.decimals,
+              symbol: toToken.symbol,
+              blockNumber,
+            } satisfies InferInput<typeof SwapActivity>),
+            timestamp: new Date(Number(timestamp) * 1000).toISOString(),
+          };
+        }),
+        ...[...deposits, ...repays, ...withdraws].map(({ blockNumber, ...event }) => {
           const timestamp = timestamps.get(blockNumber);
           if (timestamp) return { ...event, timestamp: new Date(Number(timestamp) * 1000).toISOString() };
           captureException(new Error("block not found"), {
@@ -734,18 +785,27 @@ export const SwapActivity = pipe(
     transactionHash: Hash,
     transactionIndex: number(),
     logIndex: number(),
+    usdPrice: optional(bigint()),
+    decimals: number(),
+    symbol: string(),
+    fromDecimals: number(),
+    fromSymbol: string(),
   }),
   transform((activity) => ({
     id: `${chain.id}:${String(activity.blockNumber)}:${activity.transactionIndex}:${activity.logIndex}`,
-    blockNumber: activity.blockNumber,
     transactionHash: activity.transactionHash,
     transactionIndex: activity.transactionIndex,
     logIndex: activity.logIndex,
-    fromAmount: Number(activity.args.fromAmount),
-    toAmount: Number(activity.args.toAmount),
+    fromAmount: Number(activity.args.fromAmount) / 10 ** activity.fromDecimals,
+    amount: Number(activity.args.toAmount) / 10 ** activity.decimals,
     fromAssetId: activity.args.fromAssetId,
     toAssetId: activity.args.toAssetId,
     receiver: activity.args.receiver,
+    currency: activity.symbol,
+    fromCurrency: activity.fromSymbol,
+    usdAmount: activity.usdPrice
+      ? Number((activity.args.toAmount * activity.usdPrice) / WAD) / 10 ** activity.decimals
+      : undefined,
     type: "swap" as const,
   })),
 );
