@@ -1,5 +1,25 @@
 # @exactly/server
 
+## 0.2.7
+
+### Patch Changes
+
+- [`1b698a7`](https://github.com/exactly/exa/commit/1b698a7552969b613a68eb805450c41c9ac4791f) Thanks [@mainqueg](https://github.com/mainqueg)! - 🐛 use created details for activity
+
+- [`c2bc43e`](https://github.com/exactly/exa/commit/c2bc43e6343ac097427d31e9c940f01068496ff4) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚑 skip none proposals
+
+- [`ba598f8`](https://github.com/exactly/exa/commit/ba598f8dfe3f8b75ee4e19ff2d6b7572078b8bcb) Thanks [@mainqueg](https://github.com/mainqueg)! - 📈 track card mode
+
+- [`050e582`](https://github.com/exactly/exa/commit/050e582f2dfbe9930f9ef6b7e8f21f57f55183c6) Thanks [@mainqueg](https://github.com/mainqueg)! - 🔒️ constant-time signature verification
+
+- [`961aaa4`](https://github.com/exactly/exa/commit/961aaa4b1eb18f5b941e7ae88fc6239b899dfd57) Thanks [@mainqueg](https://github.com/mainqueg)! - 📈 track merchant data
+
+- [`325b798`](https://github.com/exactly/exa/commit/325b798133e62681fa544f4c763433bd8ae3dcd9) Thanks [@mainqueg](https://github.com/mainqueg)! - 📈 track funded account and rejected tx
+
+- [`45f6064`](https://github.com/exactly/exa/commit/45f6064a33dc2d3acca266e8559e7ff150aaea68) Thanks [@mainqueg](https://github.com/mainqueg)! - ⚰️ remove cryptomate
+
+- [`2af7bdf`](https://github.com/exactly/exa/commit/2af7bdfe31963544f56694d489a655f8dc5e2cba) Thanks [@mainqueg](https://github.com/mainqueg)! - ♻️ extract validator hook
+
 ## 0.2.6
 
 ### Patch Changes

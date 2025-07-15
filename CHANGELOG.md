@@ -1,5 +1,26 @@
 # @exactly/mobile
 
+## 1.0.17
+
+### Patch Changes
+
+- [`7f81f9d`](https://github.com/exactly/exa/commit/7f81f9dba5b82dc18e36310ab2d3b0aaff5c32b2) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ allow error suppression by query
+
+- [`f8d0e0d`](https://github.com/exactly/exa/commit/f8d0e0db6f16966adf7200762b1ad954dfce8ffe) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix flex layout
+
+- [`b96fe7c`](https://github.com/exactly/exa/commit/b96fe7c2c5835cf6ba5d03cd7511cab5dd925eb3) Thanks [@franm91](https://github.com/franm91)! - 💬 update meta description
+
+- [`6e4164c`](https://github.com/exactly/exa/commit/6e4164cdef48c18bdb16262aa8ead2d10a5563f0) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🥅 filter out reports of expected errors
+
+- [`ad0b9d3`](https://github.com/exactly/exa/commit/ad0b9d327d6ce52d231b01a33277d5e4c4b69bde) Thanks [@franm91](https://github.com/franm91)! - ✨ add exa token to lifi response
+
+- [`d89a296`](https://github.com/exactly/exa/commit/d89a2963183985a65459b43b431a3182957c8493) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🥅 handle optional activity fields
+
+- [`3361b8d`](https://github.com/exactly/exa/commit/3361b8dfa094a483d5f71d39bf80f0728c94a071) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 improve portfolio asset columns on web
+
+- Updated dependencies [[`1b698a7`](https://github.com/exactly/exa/commit/1b698a7552969b613a68eb805450c41c9ac4791f), [`c2bc43e`](https://github.com/exactly/exa/commit/c2bc43e6343ac097427d31e9c940f01068496ff4), [`ba598f8`](https://github.com/exactly/exa/commit/ba598f8dfe3f8b75ee4e19ff2d6b7572078b8bcb), [`050e582`](https://github.com/exactly/exa/commit/050e582f2dfbe9930f9ef6b7e8f21f57f55183c6), [`961aaa4`](https://github.com/exactly/exa/commit/961aaa4b1eb18f5b941e7ae88fc6239b899dfd57), [`325b798`](https://github.com/exactly/exa/commit/325b798133e62681fa544f4c763433bd8ae3dcd9), [`45f6064`](https://github.com/exactly/exa/commit/45f6064a33dc2d3acca266e8559e7ff150aaea68), [`2af7bdf`](https://github.com/exactly/exa/commit/2af7bdfe31963544f56694d489a655f8dc5e2cba)]:
+  - @exactly/server@0.2.7
+
 ## 1.0.16
 
 ### Patch Changes
