@@ -12,7 +12,7 @@ export default function OnboardingLayout() {
       {Platform.OS === "web" && (
         <Head>
           <title>Exa App</title>
-          <meta name="description" content="Onchain banking, today" />
+          <meta name="description" content="Exactly what finance should be today" />
         </Head>
       )}
       <Stack initialRouteName="index" screenOptions={{ headerShown: false }}>

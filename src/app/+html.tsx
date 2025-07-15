@@ -8,10 +8,10 @@ export default function HTML({ children }: { children: ReactNode }) {
         <meta charSet="utf-8" />
         <title>Exa App</title>
         <meta name="title" content="Exa App" />
-        <meta name="description" content="Onchain banking, today" />
+        <meta name="description" content="Exactly what finance should be today" />
         <meta property="og:type" content="website" />
         <meta property="og:title" content="Exa App" />
-        <meta property="og:description" content="Onchain banking, today" />
+        <meta property="og:description" content="Exactly what finance should be today" />
         <meta property="og:image" content="https://exactly.app/og-image.webp" />
         <meta property="og:image:width" content="1200" />
         <meta property="og:image:height" content="630" />

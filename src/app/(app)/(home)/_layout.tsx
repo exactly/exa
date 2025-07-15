@@ -29,7 +29,7 @@ export default function HomeLayout() {
       {Platform.OS === "web" && (
         <Head>
           <title>Exa App</title>
-          <meta name="description" content="Onchain banking, today" />
+          <meta name="description" content="Exactly what finance should be today" />
         </Head>
       )}
       <Tabs screenOptions={{ headerShown: false }} tabBar={(properties) => <TabBar {...properties} />}>
