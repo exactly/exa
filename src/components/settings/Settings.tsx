@@ -55,33 +55,29 @@ export default function Settings() {
                   </XStack>
                 </XStack>
               </Pressable>
-              {__DEV__ && (
-                <>
-                  <Separator borderColor="$borderNeutralSoft" />
-                  <Pressable
-                    onPress={() => {
-                      if (!connector) return;
-                      Promise.all([queryClient.cancelQueries(), connector.disconnect(), logout()])
-                        .then(() => {
-                          logoutOneSignal();
-                          queryClient.clear();
-                          queryClient.unmount();
-                          router.replace("/onboarding");
-                        })
-                        .catch(reportError);
-                    }}
-                  >
-                    <XStack justifyContent="space-between" alignItems="center" padding="$s4">
-                      <XStack gap="$s3" justifyContent="flex-start" alignItems="center">
-                        <LogOut color="$interactiveBaseErrorDefault" />
-                        <Text subHeadline color="$uiNeutralPrimary">
-                          Logout
-                        </Text>
-                      </XStack>
-                    </XStack>
-                  </Pressable>
-                </>
-              )}
+              <Separator borderColor="$borderNeutralSoft" />
+              <Pressable
+                onPress={() => {
+                  if (!connector) return;
+                  Promise.all([queryClient.cancelQueries(), connector.disconnect(), logout()])
+                    .then(() => {
+                      logoutOneSignal();
+                      queryClient.clear();
+                      queryClient.unmount();
+                      router.replace("/onboarding");
+                    })
+                    .catch(reportError);
+                }}
+              >
+                <XStack justifyContent="space-between" alignItems="center" padding="$s4">
+                  <XStack gap="$s3" justifyContent="flex-start" alignItems="center">
+                    <LogOut color="$interactiveBaseErrorDefault" />
+                    <Text subHeadline color="$uiNeutralPrimary">
+                      Logout
+                    </Text>
+                  </XStack>
+                </XStack>
+              </Pressable>
             </View>
             <Pressable
               hitSlop={20}
