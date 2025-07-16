@@ -81,7 +81,11 @@ const Transaction = v.variant("action", [
     action: v.literal("created"),
     body: v.object({
       ...BaseTransaction.entries,
-      spend: v.object({ ...BaseTransaction.entries.spend.entries, status: v.picklist(["pending", "declined"]) }),
+      spend: v.object({
+        ...BaseTransaction.entries.spend.entries,
+        status: v.picklist(["pending", "declined"]),
+        declinedReason: v.nullish(v.string()),
+      }),
     }),
   }),
   v.object({
@@ -95,6 +99,7 @@ const Transaction = v.variant("action", [
         authorizationUpdateAmount: v.number(),
         authorizedAt: v.pipe(v.string(), v.isoTimestamp()),
         status: v.picklist(["declined", "pending", "reversed"]),
+        declinedReason: v.nullish(v.string()),
       }),
     }),
   }),
@@ -542,7 +547,7 @@ function trackTransactionRejected(
   payload: v.InferOutput<typeof Transaction>,
   cardMode: number,
 ): void {
-  if (payload.action !== "created") {
+  if (payload.action !== "created" && payload.action !== "updated") {
     captureException(new Error("unsupported transaction type"), { contexts: { payload } });
     return;
   }
@@ -559,6 +564,8 @@ function trackTransactionRejected(
         city: payload.body.spend.merchantCity,
         country: payload.body.spend.merchantCountry,
       },
+      updated: payload.action === "updated",
+      declinedReason: payload.body.spend.declinedReason,
     },
   });
 }

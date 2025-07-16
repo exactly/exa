@@ -51,6 +51,8 @@ export function track(
           cardMode: number;
           usdAmount: number;
           merchant: MerchantProperties;
+          updated: boolean;
+          declinedReason?: string | null;
         };
       }
   >,
