@@ -2,6 +2,7 @@ name: mobile/production
 on:
   push:
     tags: ["@exactly/mobile@*"]
+    branches: ["dan"]
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 jobs:
   expo:

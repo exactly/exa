@@ -3,9 +3,6 @@
   "version": "0.1.1",
   "private": true,
   "scripts": {
-    "prepare": "pnpm run --aggregate-output --reporter-hide-prefix /prepare:/",
-    "prepare:astro": "astro sync",
-    "prepare:server": "pnpm run --filter server openapi",
     "dev": "astro dev",
     "start": "astro dev",
     "build": "astro build",
