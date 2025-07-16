@@ -13,12 +13,19 @@ export let keeperClient: ReturnType<
 >;
 
 vi.mock("../../utils/keeper", async (importOriginal) => {
+  if (!chain.rpcUrls.alchemy?.http[0]) throw new Error("missing alchemy rpc url");
   const original = await importOriginal<typeof keeper>();
   return {
     ...original,
     default: createWalletClient({
       chain,
-      transport: http(`${chain.rpcUrls.alchemy?.http[0]}/${alchemyAPIKey}`),
+      transport: http(chain.rpcUrls.alchemy.http[0], {
+        fetchOptions: {
+          headers: {
+            Authorization: `Bearer ${alchemyAPIKey}`,
+          },
+        },
+      }),
       account: privateKeyToAccount(
         keccak256(toBytes(path.relative(path.resolve(__dirname, ".."), expect.getState().testPath ?? ""))), // eslint-disable-line unicorn/prefer-module
         { nonceManager },

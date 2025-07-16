@@ -9,8 +9,13 @@ if (!chain.rpcUrls.alchemy?.http[0]) throw new Error("missing alchemy rpc url");
 
 export default createPublicClient({
   chain,
-  transport: http(`${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`, {
+  transport: http(chain.rpcUrls.alchemy.http[0], {
     batch: true,
+    fetchOptions: {
+      headers: {
+        Authorization: `Bearer ${alchemyAPIKey}`,
+      },
+    },
     async onFetchRequest(request) {
       captureRequests(parse(Requests, await request.json()));
     },
