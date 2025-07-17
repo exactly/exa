@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.8
+
+### Patch Changes
+
+- [`3043134`](https://github.com/exactly/exa/commit/3043134bb9fd1f443a6f6a63d8b75fcd2715614f) Thanks [@mainqueg](https://github.com/mainqueg)! - 🚑 reject on bad panda
+
 ## 0.2.7
 
 ### Patch Changes
