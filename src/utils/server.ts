@@ -6,7 +6,7 @@ import { hc } from "hono/client";
 import { Platform } from "react-native";
 import { get as assert, create } from "react-native-passkeys";
 import type { RegistrationResponseJSON } from "react-native-passkeys/build/ReactNativePasskeys.types";
-import { check, number, parse, pipe, safeParse } from "valibot";
+import { check, number, parse, pipe, safeParse, ValiError } from "valibot";
 
 import { encryptPIN, session } from "./panda";
 import queryClient, { APIError } from "./queryClient";
@@ -30,17 +30,20 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
       return parse(Auth, expires);
     } catch (error: unknown) {
       if (
-        error instanceof Error &&
-        (error.message ===
-          "The operation couldn’t be completed. (com.apple.AuthenticationServices.AuthorizationError error 1001.)" ||
-          error.message === "The operation couldn’t be completed. Device must be unlocked to perform request." ||
-          error.message === "UserCancelled")
+        error instanceof ValiError ||
+        (error instanceof Error &&
+          (error.message ===
+            "The operation couldn’t be completed. (com.apple.AuthenticationServices.AuthorizationError error 1001.)" ||
+            error.message === "The operation couldn’t be completed. Device must be unlocked to perform request." ||
+            error.message === "UserCancelled" ||
+            error.name === "NotAllowedError"))
       ) {
         return parse(Auth, queryClient.getQueryData(["auth"]));
       }
       throw error;
     }
   },
+  meta: { suppressError: (error) => error instanceof ValiError },
 });
 
 const api = hc<ExaAPI>(domain === "localhost" ? "http://localhost:3000/api" : `https://${domain}/api`, {
