@@ -32,6 +32,7 @@ import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { APIError, getPasskey } from "../../utils/server";
 import ActionButton from "../shared/ActionButton";
+import ErrorDialog from "../shared/ErrorDialog";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
@@ -72,9 +73,10 @@ const pages: [Page, ...Page[]] = [
 ];
 
 export default function Carousel() {
+  const toast = useToastController();
   const [activeIndex, setActiveIndex] = useState(0);
   const { connect, isPending: isConnecting } = useConnect();
-  const toast = useToastController();
+  const [errorDialogOpen, setErrorDialogOpen] = useState(false);
 
   const flatListReference = useRef<Animated.FlatList<Page>>(null);
   const offsetX = useSharedValue(0);
@@ -131,6 +133,12 @@ export default function Carousel() {
           burntOptions: { haptic: "error", preset: "error" },
         });
         return;
+      }
+      if (
+        error instanceof Error &&
+        error.message.startsWith("The operation couldn’t be completed. Application with identifier")
+      ) {
+        setErrorDialogOpen(true);
       }
       reportError(error);
     },
@@ -241,6 +249,14 @@ export default function Carousel() {
           </View>
         </View>
       </View>
+      <ErrorDialog
+        open={errorDialogOpen}
+        title="Verification failed"
+        description="Please check your internet connection and try again in a moment. If the problem persists, reinstalling the app may help."
+        onClose={() => {
+          setErrorDialogOpen(false);
+        }}
+      />
     </View>
   );
 }

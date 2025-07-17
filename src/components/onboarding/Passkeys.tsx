@@ -3,7 +3,7 @@ import { Key, X } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Pressable, StyleSheet } from "react-native";
 import { useConnect } from "wagmi";
 
@@ -13,6 +13,7 @@ import alchemyConnector from "../../utils/alchemyConnector";
 import reportError from "../../utils/reportError";
 import { APIError, createPasskey } from "../../utils/server";
 import ActionButton from "../shared/ActionButton";
+import ErrorDialog from "../shared/ErrorDialog";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
@@ -26,6 +27,7 @@ function learnMore() {
 }
 
 export default function Passkeys() {
+  const [errorDialogOpen, setErrorDialogOpen] = useState(false);
   const queryClient = useQueryClient();
   const toast = useToastController();
 
@@ -58,6 +60,12 @@ export default function Passkeys() {
           burntOptions: { haptic: "error", preset: "error" },
         });
         return;
+      }
+      if (
+        error instanceof Error &&
+        error.message.startsWith("The operation couldn’t be completed. Application with identifier")
+      ) {
+        setErrorDialogOpen(true);
       }
       reportError(error);
     },
@@ -146,6 +154,14 @@ export default function Passkeys() {
           </View>
         </View>
       </View>
+      <ErrorDialog
+        open={errorDialogOpen}
+        title="Verification failed"
+        description="Please check your internet connection and try again in a moment. If the problem persists, reinstalling the app may help."
+        onClose={() => {
+          setErrorDialogOpen(false);
+        }}
+      />
     </SafeView>
   );
 }
