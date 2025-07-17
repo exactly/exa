@@ -112,6 +112,16 @@ describe("card operations", () => {
         pandaUtils.getMutex(account)?.release();
       });
 
+      it("fails with bad panda", async () => {
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {} as unknown as typeof authorization.json,
+        });
+
+        expect(response.status).not.toBe(200);
+        expect(captureException).toHaveBeenCalledWith(new Error("bad panda"), expect.anything());
+      });
+
       it("authorizes credit", async () => {
         const response = await appClient.index.$post({
           ...authorization,

@@ -173,7 +173,7 @@ const Payload = v.variant("resource", [
 export default new Hono().post(
   "/",
   headerValidator(),
-  vValidator("json", Payload, validatorHook({ code: "bad panda", status: 200, debug })),
+  vValidator("json", Payload, validatorHook({ code: "bad panda", status: 400, debug })),
   async (c) => {
     const payload = c.req.valid("json");
     setTag("panda.resource", payload.resource);
