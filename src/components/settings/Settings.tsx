@@ -4,7 +4,7 @@ import { router, useRouter } from "expo-router";
 import React from "react";
 import { Alert, Pressable } from "react-native";
 import { ScrollView, Separator, XStack } from "tamagui";
-import { useAccount } from "wagmi";
+import { useAccount, useDisconnect } from "wagmi";
 
 import release from "../../generated/release";
 import { logout as logoutOneSignal } from "../../utils/onesignal";
@@ -18,6 +18,7 @@ import View from "../shared/View";
 export default function Settings() {
   const { canGoBack } = useRouter();
   const { connector } = useAccount();
+  const { disconnect } = useDisconnect();
   const { present, logout } = useIntercom();
   function handleSupport() {
     present().catch(reportError);
@@ -64,6 +65,7 @@ export default function Settings() {
                       logoutOneSignal();
                       queryClient.clear();
                       queryClient.unmount();
+                      disconnect();
                       router.replace("/onboarding");
                     })
                     .catch(reportError);
