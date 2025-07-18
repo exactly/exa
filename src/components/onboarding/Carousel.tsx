@@ -32,51 +32,17 @@ import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { APIError, getPasskey } from "../../utils/server";
 import ActionButton from "../shared/ActionButton";
+import ConnectSheet from "../shared/ConnectSheet";
 import ErrorDialog from "../shared/ErrorDialog";
 import Text from "../shared/Text";
 import View from "../shared/View";
-
-export interface Page {
-  title: string;
-  image: FC<SvgProps>;
-  backgroundImage: FC<SvgProps>;
-  disabled?: boolean;
-}
-
-const containerStyle: StyleProp<ViewStyle> = {
-  justifyContent: Platform.OS === "web" ? undefined : "center",
-  alignItems: Platform.OS === "web" ? "stretch" : "center",
-};
-
-const pages: [Page, ...Page[]] = [
-  {
-    backgroundImage: exaCardBlob,
-    image: exaCard,
-    title: "Introducing the first onchain card",
-  },
-  {
-    backgroundImage: calendarBlob,
-    image: calendar,
-    title: "Pay later in installments and hold your crypto",
-  },
-  {
-    backgroundImage: earningsBlob,
-    image: earnings,
-    title: "Maximize earnings, effortlessly",
-  },
-  {
-    backgroundImage: qrCodeBlob,
-    disabled: true,
-    image: qrCode,
-    title: "In-store QR payments, with crypto",
-  },
-];
 
 export default function Carousel() {
   const toast = useToastController();
   const [activeIndex, setActiveIndex] = useState(0);
   const { connect, isPending: isConnecting } = useConnect();
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
+  const [connectModalOpen, setConnectModalOpen] = useState(false);
 
   const flatListReference = useRef<Animated.FlatList<Page>>(null);
   const offsetX = useSharedValue(0);
@@ -236,7 +202,7 @@ export default function Carousel() {
                 hitSlop={15}
                 onPress={() => {
                   if (isPending) return;
-                  recoverAccount();
+                  setConnectModalOpen(true);
                 }}
               >
                 <Text fontSize={13} textAlign="center" color="$uiNeutralSecondary">
@@ -258,6 +224,53 @@ export default function Carousel() {
           setErrorDialogOpen(false);
         }}
       />
+      <ConnectSheet
+        open={connectModalOpen}
+        onClose={(method) => {
+          setConnectModalOpen(false);
+          if (method) recoverAccount(method);
+        }}
+        title="Log in"
+        description="Choose your preferred authentication method"
+        webAuthnText="Log in with Passkey"
+        siweText="Log in with browser wallet"
+      />
     </View>
   );
 }
+
+export interface Page {
+  title: string;
+  image: FC<SvgProps>;
+  backgroundImage: FC<SvgProps>;
+  disabled?: boolean;
+}
+
+const containerStyle: StyleProp<ViewStyle> = {
+  justifyContent: Platform.OS === "web" ? undefined : "center",
+  alignItems: Platform.OS === "web" ? "stretch" : "center",
+};
+
+const pages: [Page, ...Page[]] = [
+  {
+    backgroundImage: exaCardBlob,
+    image: exaCard,
+    title: "Introducing the first onchain card",
+  },
+  {
+    backgroundImage: calendarBlob,
+    image: calendar,
+    title: "Pay later in installments and hold your crypto",
+  },
+  {
+    backgroundImage: earningsBlob,
+    image: earnings,
+    title: "Maximize earnings, effortlessly",
+  },
+  {
+    backgroundImage: qrCodeBlob,
+    disabled: true,
+    image: qrCode,
+    title: "In-store QR payments, with crypto",
+  },
+];
