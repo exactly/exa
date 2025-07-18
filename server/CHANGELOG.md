@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.9
+
+### Patch Changes
+
+- [`59d3129`](https://github.com/exactly/exa/commit/59d3129b59eaea66702c7e195f5848e96984b7dd) Thanks [@mainqueg](https://github.com/mainqueg)! - 📈 track updated declined tx
+
 ## 0.2.8
 
 ### Patch Changes

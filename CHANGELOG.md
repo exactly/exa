@@ -1,5 +1,14 @@
 # @exactly/mobile
 
+## 1.0.18
+
+### Patch Changes
+
+- [`45433c9`](https://github.com/exactly/exa/commit/45433c94eba7308f31ce003244f4565d0825a57d) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ enable logout button in production
+
+- Updated dependencies [[`59d3129`](https://github.com/exactly/exa/commit/59d3129b59eaea66702c7e195f5848e96984b7dd)]:
+  - @exactly/server@0.2.9
+
 ## 1.0.17
 
 ### Patch Changes
