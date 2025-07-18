@@ -14,7 +14,7 @@
     "test:sizes": "forge build --sizes --skip test --skip script"
   },
   "dependencies": {
-    "@openzeppelin/contracts": "^5.3.0",
+    "@openzeppelin/contracts": "^5.4.0",
     "modular-account": "alchemyplatform/modular-account#c81e712",
     "modular-account-libs": "erc6900/modular-account-libs#v0.7.1",
     "solady": "^0.1.15",
@@ -24,7 +24,7 @@
   "devDependencies": {
     "@exactly/protocol": "^0.2.20",
     "@openzeppelin/contracts-upgradeable-v4": "npm:@openzeppelin/contracts-upgradeable@^4.9.6",
-    "@openzeppelin/contracts-upgradeable": "^5.3.0",
+    "@openzeppelin/contracts-upgradeable": "^5.4.0",
     "@openzeppelin/contracts-v4": "npm:@openzeppelin/contracts@^4.9.6",
     "account-abstraction": "eth-infinitism/account-abstraction#v0.6.0",
     "forge-std": "foundry-rs/forge-std#v1.9.6",
