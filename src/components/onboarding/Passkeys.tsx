@@ -1,4 +1,4 @@
-import type { Passkey } from "@exactly/common/validation";
+import type { Credential } from "@exactly/common/validation";
 import { Key, X } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -61,9 +61,9 @@ export default function Passkeys() {
       }
       reportError(error);
     },
-    onSuccess(passkey) {
+    onSuccess(credential) {
       connect({ connector: alchemyConnector });
-      queryClient.setQueryData<Passkey>(["passkey"], passkey);
+      queryClient.setQueryData<Credential>(["credential"], credential);
       router.replace("../success");
     },
   });
@@ -159,7 +159,7 @@ export default function Passkeys() {
         open={connectModalOpen}
         onClose={(method) => {
           setConnectModalOpen(false);
-          if (method) createAccount(method);
+          if (method === "webauthn") createAccount();
         }}
         title="Create account"
         description="Choose your preferred authentication method"
