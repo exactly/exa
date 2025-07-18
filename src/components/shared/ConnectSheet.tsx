@@ -1,4 +1,3 @@
-import chain from "@exactly/common/generated/chain";
 import { Fingerprint, Wallet } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import React from "react";
@@ -8,7 +7,7 @@ import { ScrollView, Sheet, YStack } from "tamagui";
 import Button from "./Button";
 import SafeView from "./SafeView";
 import Text from "./Text";
-import { connector } from "../../utils/injectedConnector";
+import { hasProvider } from "../../utils/injectedConnector";
 import useAspectRatio from "../../utils/useAspectRatio";
 
 export default function ConnectSheet({
@@ -27,13 +26,7 @@ export default function ConnectSheet({
   siweText: string;
 }) {
   const aspectRatio = useAspectRatio();
-  const { data: hasInjectedProvider } = useQuery({
-    queryKey: ["hasInjectedProvider"],
-    queryFn: async () =>
-      await connector.isAuthorized().then(async () => {
-        return (await connector.getProvider({ chainId: chain.id })) !== undefined;
-      }),
-  });
+  const { data: hasInjectedProvider } = useQuery({ queryKey: ["hasInjectedProvider"], queryFn: hasProvider });
   return (
     <Sheet
       open={open}

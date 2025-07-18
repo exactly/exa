@@ -39,11 +39,13 @@ import {
 } from "./injectedConnector";
 import { login } from "./onesignal";
 import publicClient from "./publicClient";
+import queryClient from "./queryClient";
 
 export default async function createAccountClient({ credentialId, factory, x, y }: Credential) {
   const transport = custom(publicClient);
   const entryPoint = getEntryPoint(chain);
-  const injectedAccount = await getInjectedAccount();
+  const method = queryClient.getQueryData<"siwe" | "webauthn" | undefined>(["method"]);
+  const injectedAccount = method === "siwe" ? await getInjectedAccount() : undefined;
   const account = await toSmartContractAccount({
     chain,
     transport,
@@ -51,52 +53,54 @@ export default async function createAccountClient({ credentialId, factory, x, y 
     source: "WebauthnAccount" as const,
     getAccountInitCode: () => Promise.resolve(accountInitCode({ factory, x, y })),
     getDummySignature: () => "0x",
-    signUserOperationHash: injectedAccount
-      ? (uoHash) =>
-          connectInjectedAccount(injectedAccount).then(async () =>
-            wrapSignature(
-              0,
-              await signMessage(injectedConfig, {
-                connector: injectedConnector,
-                account: injectedAccount,
-                message: { raw: uoHash },
-              }),
-            ),
-          )
-      : async (uoHash) => {
-          try {
-            const credential = await get({
-              rpId: domain,
-              challenge: bufferToBase64URLString(
-                hexToBytes(hashMessage({ raw: uoHash }), { size: 32 }).buffer as ArrayBuffer,
+    signUserOperationHash:
+      method === "siwe" && injectedAccount
+        ? (uoHash) =>
+            connectInjectedAccount(injectedAccount).then(async () =>
+              wrapSignature(
+                0,
+                await signMessage(injectedConfig, {
+                  connector: injectedConnector,
+                  account: injectedAccount,
+                  message: { raw: uoHash },
+                }),
               ),
-              allowCredentials: Platform.OS === "android" ? [] : [{ id: credentialId, type: "public-key" }], // HACK fix android credential filtering
-              userVerification: "preferred",
-            });
-            if (!credential) throw new Error("no credential");
-            const response = credential.response;
-            const clientDataJSON = new TextDecoder().decode(base64URLStringToBuffer(response.clientDataJSON));
-            const typeIndex = BigInt(clientDataJSON.indexOf('"type":"'));
-            const challengeIndex = BigInt(clientDataJSON.indexOf('"challenge":"'));
-            const authenticatorData = bytesToHex(new Uint8Array(base64URLStringToBuffer(response.authenticatorData)));
-            const signature = AsnParser.parse(base64URLStringToBuffer(response.signature), ECDSASigValue);
-            const r = bytesToBigInt(new Uint8Array(signature.r));
-            let s = bytesToBigInt(new Uint8Array(signature.s));
-            if (s > P256_N / 2n) s = P256_N - s; // pass malleability guard
-            return wrapSignature(0, webauthn({ authenticatorData, clientDataJSON, challengeIndex, typeIndex, r, s }));
-          } catch (error: unknown) {
-            if (
-              error instanceof Error &&
-              (error.message ===
-                "The operation couldn’t be completed. (com.apple.AuthenticationServices.AuthorizationError error 1001.)" ||
-                error.message === "The operation couldn’t be completed. Device must be unlocked to perform request." ||
-                error.message === "UserCancelled")
-            ) {
-              return "0x";
+            )
+        : async (uoHash) => {
+            try {
+              const credential = await get({
+                rpId: domain,
+                challenge: bufferToBase64URLString(
+                  hexToBytes(hashMessage({ raw: uoHash }), { size: 32 }).buffer as ArrayBuffer,
+                ),
+                allowCredentials: Platform.OS === "android" ? [] : [{ id: credentialId, type: "public-key" }], // HACK fix android credential filtering
+                userVerification: "preferred",
+              });
+              if (!credential) throw new Error("no credential");
+              const response = credential.response;
+              const clientDataJSON = new TextDecoder().decode(base64URLStringToBuffer(response.clientDataJSON));
+              const typeIndex = BigInt(clientDataJSON.indexOf('"type":"'));
+              const challengeIndex = BigInt(clientDataJSON.indexOf('"challenge":"'));
+              const authenticatorData = bytesToHex(new Uint8Array(base64URLStringToBuffer(response.authenticatorData)));
+              const signature = AsnParser.parse(base64URLStringToBuffer(response.signature), ECDSASigValue);
+              const r = bytesToBigInt(new Uint8Array(signature.r));
+              let s = bytesToBigInt(new Uint8Array(signature.s));
+              if (s > P256_N / 2n) s = P256_N - s; // pass malleability guard
+              return webauthn({ authenticatorData, clientDataJSON, challengeIndex, typeIndex, r, s });
+            } catch (error: unknown) {
+              if (
+                error instanceof Error &&
+                (error.message ===
+                  "The operation couldn’t be completed. (com.apple.AuthenticationServices.AuthorizationError error 1001.)" ||
+                  error.message ===
+                    "The operation couldn’t be completed. Device must be unlocked to perform request." ||
+                  error.message === "UserCancelled")
+              ) {
+                return "0x";
+              }
+              throw error;
             }
-            throw error;
-          }
-        },
+          },
     signMessage: () => Promise.reject(new Error("not implemented")),
     signTypedData: () => Promise.reject(new Error("not implemented")),
     ...standardExecutor,
@@ -149,20 +153,23 @@ function webauthn({
   r: bigint;
   s: bigint;
 }) {
-  return encodeAbiParameters(
-    [
-      {
-        type: "tuple",
-        components: [
-          { type: "bytes", name: "authenticatorData" },
-          { type: "string", name: "clientDataJSON" },
-          { type: "uint256", name: "challengeIndex" },
-          { type: "uint256", name: "typeIndex" },
-          { type: "uint256", name: "r" },
-          { type: "uint256", name: "s" },
-        ],
-      },
-    ],
-    [{ authenticatorData, clientDataJSON, challengeIndex, typeIndex, r, s }],
+  return wrapSignature(
+    0,
+    encodeAbiParameters(
+      [
+        {
+          type: "tuple",
+          components: [
+            { type: "bytes", name: "authenticatorData" },
+            { type: "string", name: "clientDataJSON" },
+            { type: "uint256", name: "challengeIndex" },
+            { type: "uint256", name: "typeIndex" },
+            { type: "uint256", name: "r" },
+            { type: "uint256", name: "s" },
+          ],
+        },
+      ],
+      [{ authenticatorData, clientDataJSON, challengeIndex, typeIndex, r, s }],
+    ),
   );
 }
