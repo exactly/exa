@@ -166,6 +166,16 @@ queryClient.setQueryDefaults(["defi", "lifi-connected"], {
   queryFn: () => queryClient.getQueryData(["defi", "lifi-connected"]),
 });
 
+queryClient.setQueryDefaults<"siwe" | "webauthn" | undefined>(["method"], {
+  initialData: undefined,
+  retry: false,
+  staleTime: Infinity,
+  gcTime: Infinity,
+  queryFn: () => {
+    throw new Error("don't refetch");
+  },
+});
+
 export type ActivityItem = Awaited<ReturnType<typeof getActivity>>[number];
 export interface Withdraw {
   market?: Address;
