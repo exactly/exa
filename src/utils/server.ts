@@ -1,6 +1,6 @@
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 import domain from "@exactly/common/domain";
-import { Passkey } from "@exactly/common/validation";
+import { Credential } from "@exactly/common/validation";
 import type { ExaAPI } from "@exactly/server/api";
 import { signMessage } from "@wagmi/core/actions";
 import { hc } from "hono/client";
@@ -24,7 +24,8 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
   queryFn: async () => {
     const get = await api.auth.authentication.$get({
       query: {
-        credentialId: (await getInjectedAccount()) ?? queryClient.getQueryData<Passkey>(["passkey"])?.credentialId,
+        credentialId:
+          (await getInjectedAccount()) ?? queryClient.getQueryData<Credential>(["credential"])?.credentialId,
       },
     });
     const options = await get.json();
@@ -125,7 +126,7 @@ export async function getKYCStatus(templateId: string) {
     : result;
 }
 
-export async function getPasskey() {
+export async function getCredential() {
   await auth();
   const response = await api.passkey.$get();
   if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
@@ -158,7 +159,7 @@ export async function createCredential() {
   if (!post.ok) throw new APIError(post.status, stringOrLegacy(await post.json()));
   const { auth: expires, ...passkey } = await post.json();
   await queryClient.setQueryData(["auth"], parse(Auth, expires));
-  return parse(Passkey, passkey);
+  return parse(Credential, passkey);
 }
 
 export async function getActivity(parameters?: NonNullable<Parameters<typeof api.activity.$get>[0]>["query"]) {
