@@ -1,10 +1,11 @@
 import type { Passkey } from "@exactly/common/validation";
 import { Key, X } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { Pressable, StyleSheet } from "react-native";
+import { XStack } from "tamagui";
 import { useConnect } from "wagmi";
 
 import PasskeysBlob from "../../assets/images/passkeys-blob.svg";
@@ -13,29 +14,20 @@ import alchemyConnector from "../../utils/alchemyConnector";
 import reportError from "../../utils/reportError";
 import { APIError, createCredential } from "../../utils/server";
 import ActionButton from "../shared/ActionButton";
+import ConnectSheet from "../shared/ConnectSheet";
 import ErrorDialog from "../shared/ErrorDialog";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-function close() {
-  router.back();
-}
-
-function learnMore() {
-  router.push("../(passkeys)/about");
-}
-
 export default function Passkeys() {
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
   const queryClient = useQueryClient();
+  const { connect } = useConnect();
   const toast = useToastController();
+  const [connectModalOpen, setConnectModalOpen] = useState(false);
 
-  const {
-    mutate: createAccount,
-    isSuccess,
-    isPending,
-  } = useMutation<Passkey>({
+  const { mutate: createAccount, isPending } = useMutation({
     mutationFn: createCredential,
     onError(error: unknown) {
       if (
@@ -71,26 +63,20 @@ export default function Passkeys() {
       reportError(error);
     },
     onSuccess(passkey) {
+      connect({ connector: alchemyConnector });
       queryClient.setQueryData<Passkey>(["passkey"], passkey);
+      router.replace("../success");
     },
   });
-
-  const { connect, isPending: isConnecting } = useConnect();
-
-  const { data } = useQuery<Passkey>({ queryKey: ["passkey"] });
-
-  useEffect(() => {
-    if (isSuccess && data?.credentialId) {
-      connect({ connector: alchemyConnector });
-      router.replace("../success");
-    }
-  }, [connect, data, isSuccess]);
-
   return (
     <SafeView fullScreen backgroundColor="$backgroundSoft">
       <View fullScreen padded>
         <View position="absolute" right="$s5" zIndex={1}>
-          <Pressable onPress={close}>
+          <Pressable
+            onPress={() => {
+              router.back();
+            }}
+          >
             <X size={25} color="$uiNeutralSecondary" />
           </Pressable>
         </View>
@@ -116,7 +102,7 @@ export default function Passkeys() {
         <View alignItems="stretch" alignSelf="stretch">
           <View flexDirection="row" alignSelf="stretch" justifyContent="center">
             <Text fontSize={11} color="$uiNeutralPlaceholder">
-              {`By continuing, I accept the `}
+              By continuing, I accept the&nbsp;
             </Text>
             <Text fontSize={11} color="$interactiveBaseBrandDefault">
               Terms & Conditions
@@ -128,7 +114,7 @@ export default function Passkeys() {
                 flex={1}
                 marginTop="$s4"
                 marginBottom="$s5"
-                isLoading={isPending || isConnecting}
+                isLoading={isPending}
                 loadingContent="Creating account..."
                 iconAfter={
                   <Key
@@ -139,19 +125,26 @@ export default function Passkeys() {
                 }
                 disabled={isPending}
                 onPress={() => {
-                  createAccount();
+                  setConnectModalOpen(true);
                 }}
               >
                 Set passkey and create account
               </ActionButton>
             </View>
-            <View flexDirection="row" justifyContent="center">
-              <Pressable onPress={learnMore}>
-                <Text textAlign="center" fontSize={13} fontWeight="bold" color="$interactiveBaseBrandDefault">
-                  Learn more about passkeys
-                </Text>
-              </Pressable>
-            </View>
+            <XStack justifyContent="center">
+              <Text
+                cursor="pointer"
+                onPress={() => {
+                  router.push("../(passkeys)/about");
+                }}
+                textAlign="center"
+                fontSize={13}
+                fontWeight="bold"
+                color="$interactiveBaseBrandDefault"
+              >
+                Learn more about passkeys
+              </Text>
+            </XStack>
           </View>
         </View>
       </View>
@@ -162,6 +155,17 @@ export default function Passkeys() {
         onClose={() => {
           setErrorDialogOpen(false);
         }}
+      />
+      <ConnectSheet
+        open={connectModalOpen}
+        onClose={(method) => {
+          setConnectModalOpen(false);
+          if (method) createAccount(method);
+        }}
+        title="Create account"
+        description="Choose your preferred authentication method"
+        webAuthnText="Sign up with Passkey"
+        siweText="Sign up with browser wallet"
       />
     </SafeView>
   );
