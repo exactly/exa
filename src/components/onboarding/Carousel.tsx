@@ -30,7 +30,7 @@ import qrCode from "../../assets/images/qr-code.svg";
 import alchemyConnector from "../../utils/alchemyConnector";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
-import { APIError, getPasskey } from "../../utils/server";
+import { APIError, getCredential } from "../../utils/server";
 import ActionButton from "../shared/ActionButton";
 import ConnectSheet from "../shared/ConnectSheet";
 import ErrorDialog from "../shared/ErrorDialog";
@@ -81,8 +81,8 @@ export default function Carousel() {
     });
   }, [activeIndex]);
 
-  const { mutate: recoverAccount, isPending } = useMutation({
-    mutationFn: getPasskey,
+  const { mutate: logIn, isPending } = useMutation({
+    mutationFn: getCredential,
     onError(error: unknown) {
       if (
         (error instanceof Error &&
@@ -227,7 +227,7 @@ export default function Carousel() {
         open={connectModalOpen}
         onClose={(method) => {
           setConnectModalOpen(false);
-          if (method) recoverAccount(method);
+          if (method) logIn();
         }}
         title="Log in"
         description="Choose your preferred authentication method"

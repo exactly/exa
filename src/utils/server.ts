@@ -1,4 +1,3 @@
-import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 import domain from "@exactly/common/domain";
 import { Passkey } from "@exactly/common/validation";
 import type { ExaAPI } from "@exactly/server/api";
@@ -16,60 +15,7 @@ import {
   connector as injectedConnector,
 } from "./injectedConnector";
 import { encryptPIN, session } from "./panda";
-import queryClient, { APIError } from "./queryClient";
-
-queryClient.setQueryDefaults<number | undefined>(["auth"], {
-  staleTime: AUTH_EXPIRY,
-  gcTime: AUTH_EXPIRY,
-  retry: false,
-  queryFn: async () => {
-    const get = await api.auth.authentication.$get({
-      query: {
-        credentialId: (await getInjectedAccount()) ?? queryClient.getQueryData<Passkey>(["passkey"])?.credentialId,
-      },
-    });
-    try {
-      const options = await get.json();
-      if (options.method === "webauthn" && Platform.OS === "android") delete options.allowCredentials; // HACK fix android credential filtering
-      const post = await api.auth.authentication.$post({
-        json:
-          options.method === "siwe"
-            ? await connectInjectedAccount(options.address).then(async () => ({
-                method: "siwe" as const,
-                id: options.address,
-                signature: await signMessage(injectedConfig, {
-                  connector: injectedConnector,
-                  account: options.address,
-                  message: options.message,
-                }),
-              }))
-            : await assert({
-                ...options,
-                allowCredentials: Platform.OS === "android" ? undefined : options.allowCredentials, // HACK fix android credential filtering
-                extensions: options.extensions as Record<string, unknown> | undefined,
-              }).then((assertion) => {
-                if (!assertion) throw new Error("bad assertion");
-                return { method: "webauthn" as const, ...assertion };
-              }),
-      });
-      if (!post.ok) throw new APIError(post.status, stringOrLegacy(await post.json()));
-      const { expires } = await post.json();
-      return parse(Auth, expires);
-    } catch (error: unknown) {
-      if (
-        error instanceof UserRejectedRequestError ||
-        (error instanceof Error &&
-          (error.message ===
-            "The operation couldn’t be completed. (com.apple.AuthenticationServices.AuthorizationError error 1001.)" ||
-            error.message === "The operation couldn’t be completed. Device must be unlocked to perform request." ||
-            error.message === "UserCancelled"))
-      ) {
-        return queryClient.getQueryData<number>(["auth"]) ?? 0;
-      }
-      throw error;
-    }
-  },
-});
+import queryClient, { APIError, type Auth } from "./queryClient";
 
 const api = hc<ExaAPI>(domain === "localhost" ? "http://localhost:3000/api" : `https://${domain}/api`, {
   init: { credentials: "include" },
@@ -130,15 +76,17 @@ export async function getKYCStatus(templateId: string) {
     : result;
 }
 
-export async function getPasskey() {
+export async function getCredential() {
   await auth();
   const response = await api.passkey.$get();
   if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
   return response.json();
 }
 
-export async function createCredential() {
-  const get = await api.auth.registration.$get({ query: { credentialId: await getInjectedAccount() } });
+export async function createCredential(method: "webauthn" | "siwe") {
+  const credentialId = method === "siwe" ? await getInjectedAccount() : undefined;
+  if (method === "siwe" && !credentialId) return;
+  const get = await api.auth.registration.$get({ query: { credentialId } });
   const options = await get.json();
   const post = await api.auth.registration.$post({
     json:
@@ -162,8 +110,58 @@ export async function createCredential() {
   });
   if (!post.ok) throw new APIError(post.status, stringOrLegacy(await post.json()));
   const { auth: expires, ...passkey } = await post.json();
-  await queryClient.setQueryData(["auth"], parse(Auth, expires));
+  await queryClient.setQueryData(["auth"], parse(AuthSchema, expires));
   return parse(Passkey, passkey);
+}
+
+async function authenticateCredential(method: "webauthn" | "siwe") {
+  const get = await api.auth.authentication.$get({
+    query: {
+      credentialId:
+        method === "siwe" ? await getInjectedAccount() : queryClient.getQueryData<Passkey>(["passkey"])?.credentialId,
+    },
+  });
+  try {
+    const options = await get.json();
+    if (options.method === "webauthn" && Platform.OS === "android") delete options.allowCredentials; // HACK fix android credential filtering
+    const post = await api.auth.authentication.$post({
+      json:
+        options.method === "siwe"
+          ? await connectInjectedAccount(options.address).then(async () => ({
+              method: "siwe" as const,
+              id: options.address,
+              signature: await signMessage(injectedConfig, {
+                connector: injectedConnector,
+                account: options.address,
+                message: options.message,
+              }),
+            }))
+          : await assert({
+              ...options,
+              allowCredentials: Platform.OS === "android" ? undefined : options.allowCredentials, // HACK fix android credential filtering
+              extensions: options.extensions as Record<string, unknown> | undefined,
+            }).then((assertion) => {
+              if (!assertion) throw new Error("bad assertion");
+              return { method: "webauthn" as const, ...assertion };
+            }),
+    });
+    if (!post.ok) throw new APIError(post.status, stringOrLegacy(await post.json()));
+    const { expires } = await post.json();
+    queryClient.setQueryData<Auth>(["auth"], { expires, method });
+    return { expires, method };
+  } catch (error: unknown) {
+    if (
+      error instanceof UserRejectedRequestError ||
+      (error instanceof Error &&
+        (error.message ===
+          "The operation couldn’t be completed. (com.apple.AuthenticationServices.AuthorizationError error 1001.)" ||
+          error.message === "The operation couldn’t be completed. Device must be unlocked to perform request." ||
+          error.message === "UserCancelled"))
+    ) {
+      return queryClient.getQueryData<Auth>(["auth"]);
+    }
+    throw error;
+  }
 }
 
 export async function getActivity(parameters?: NonNullable<Parameters<typeof api.activity.$get>[0]>["query"]) {
@@ -176,16 +174,14 @@ export async function getActivity(parameters?: NonNullable<Parameters<typeof api
 }
 
 export async function auth() {
-  if (queryClient.isFetching({ queryKey: ["auth"] })) return;
-  const { success, output } = safeParse(Auth, queryClient.getQueryData<number | undefined>(["auth"]));
-  if (!success) {
-    await (typeof output === "number"
-      ? queryClient.refetchQueries({ queryKey: ["auth"] })
-      : queryClient.fetchQuery({ queryKey: ["auth"] }));
+  const expires = queryClient.getQueryData<Auth>(["auth"])?.expires;
+  if (!expires || !safeParse(AuthSchema, expires).success) {
+    const response = await authenticateCredential(queryClient.getQueryData<Auth>(["auth"])?.method ?? "webauthn");
+    queryClient.setQueryData<Auth>(["auth"], response);
   }
 }
 
-const Auth = pipe(
+const AuthSchema = pipe(
   number("no auth"),
   check((expires) => Date.now() < expires, "auth expired"),
 );

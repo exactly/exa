@@ -19,8 +19,8 @@ if (config.connectors[0]?.id !== "injected") throw new Error("no injected connec
 export const [connector] = config.connectors;
 
 export async function connectAccount(account: Address) {
-  const accounts = await connector.isAuthorized().then(async (isAuthorized) => {
-    if (isAuthorized) return connector.getAccounts();
+  const accounts = await connector.isAuthorized().then(async (authorized) => {
+    if (authorized) return connector.getAccounts();
     if (!(await connector.getProvider({ chainId: chain.id }))) throw new Error("no injected provider");
     const { accounts: connectedAccounts } = await connector.connect({ chainId: chain.id });
     return connectedAccounts;
@@ -31,8 +31,8 @@ export async function connectAccount(account: Address) {
 
 export async function getAccount() {
   try {
-    const passkey = queryClient.getQueryData<Passkey>(["passkey"]);
-    if (passkey) return isAddress(passkey.credentialId) ? passkey.credentialId : undefined;
+    const credential = queryClient.getQueryData<Passkey>(["passkey"]);
+    if (credential) return isAddress(credential.credentialId) ? credential.credentialId : undefined;
     if (await connector.isAuthorized()) {
       const accounts = await connector.getAccounts();
       return accounts[0];

@@ -1,3 +1,4 @@
+import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import { persistQueryClientRestore, persistQueryClientSubscribe } from "@tanstack/query-persist-client-core";
@@ -128,6 +129,21 @@ queryClient.setQueryDefaults(["settings", "rollover-intro-shown"], {
   staleTime: Infinity,
   gcTime: Infinity,
   queryFn: () => queryClient.getQueryData(["settings", "rollover-intro-shown"]),
+});
+
+export interface Auth {
+  expires: number;
+  method?: "webauthn" | "siwe";
+}
+
+const initialAuth: Auth = { expires: 0, method: undefined };
+
+queryClient.setQueryDefaults<Auth>(["auth"], {
+  initialData: initialAuth,
+  staleTime: AUTH_EXPIRY,
+  gcTime: AUTH_EXPIRY,
+  retry: false,
+  queryFn: () => queryClient.getQueryData<Auth>(["auth"]) ?? initialAuth,
 });
 
 export type ActivityItem = Awaited<ReturnType<typeof getActivity>>[number];
