@@ -7,6 +7,7 @@ import type { Address } from "viem";
 import { deserialize, serialize } from "wagmi";
 import { hashFn, structuralSharing } from "wagmi/query";
 
+import { hasProvider } from "./injectedConnector";
 import reportError from "./reportError";
 import type { getActivity } from "./server";
 
@@ -165,13 +166,26 @@ queryClient.setQueryDefaults(["defi", "lifi-connected"], {
   gcTime: Infinity,
   queryFn: () => queryClient.getQueryData(["defi", "lifi-connected"]),
 });
-
 queryClient.setQueryDefaults(["manual-repayment-acknowledged"], {
   initialData: false,
   retry: false,
   staleTime: Infinity,
   gcTime: Infinity,
   queryFn: () => queryClient.getQueryData(["manual-repayment-acknowledged"]),
+});
+queryClient.setQueryDefaults<"siwe" | "webauthn" | undefined>(["method"], {
+  initialData: undefined,
+  retry: false,
+  staleTime: Infinity,
+  gcTime: Infinity,
+  queryFn: () => {
+    throw new Error("don't refetch");
+  },
+});
+queryClient.setQueryDefaults(["has-injected-provider"], {
+  staleTime: Infinity,
+  gcTime: Infinity,
+  queryFn: hasProvider,
 });
 
 export type ActivityItem = Awaited<ReturnType<typeof getActivity>>[number];

@@ -39,11 +39,13 @@ import {
 } from "./injectedConnector";
 import { login } from "./onesignal";
 import publicClient from "./publicClient";
+import queryClient from "./queryClient";
 
 export default async function createAccountClient({ credentialId, factory, x, y }: Credential) {
   const transport = custom(publicClient);
   const entryPoint = getEntryPoint(chain);
-  const injectedAccount = await getInjectedAccount();
+  const method = queryClient.getQueryData<"siwe" | "webauthn" | undefined>(["method"]);
+  const injectedAccount = method === "siwe" ? await getInjectedAccount() : undefined;
   const account = await toSmartContractAccount({
     chain,
     transport,
@@ -83,7 +85,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
             const r = bytesToBigInt(new Uint8Array(signature.r));
             let s = bytesToBigInt(new Uint8Array(signature.s));
             if (s > P256_N / 2n) s = P256_N - s; // pass malleability guard
-            return wrapSignature(0, webauthn({ authenticatorData, clientDataJSON, challengeIndex, typeIndex, r, s }));
+            return webauthn({ authenticatorData, clientDataJSON, challengeIndex, typeIndex, r, s });
           } catch (error: unknown) {
             if (
               error instanceof Error &&
@@ -149,20 +151,23 @@ function webauthn({
   r: bigint;
   s: bigint;
 }) {
-  return encodeAbiParameters(
-    [
-      {
-        type: "tuple",
-        components: [
-          { type: "bytes", name: "authenticatorData" },
-          { type: "string", name: "clientDataJSON" },
-          { type: "uint256", name: "challengeIndex" },
-          { type: "uint256", name: "typeIndex" },
-          { type: "uint256", name: "r" },
-          { type: "uint256", name: "s" },
-        ],
-      },
-    ],
-    [{ authenticatorData, clientDataJSON, challengeIndex, typeIndex, r, s }],
+  return wrapSignature(
+    0,
+    encodeAbiParameters(
+      [
+        {
+          type: "tuple",
+          components: [
+            { type: "bytes", name: "authenticatorData" },
+            { type: "string", name: "clientDataJSON" },
+            { type: "uint256", name: "challengeIndex" },
+            { type: "uint256", name: "typeIndex" },
+            { type: "uint256", name: "r" },
+            { type: "uint256", name: "s" },
+          ],
+        },
+      ],
+      [{ authenticatorData, clientDataJSON, challengeIndex, typeIndex, r, s }],
+    ),
   );
 }

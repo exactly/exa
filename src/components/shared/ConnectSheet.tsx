@@ -1,4 +1,5 @@
 import { Fingerprint, Wallet } from "@tamagui/lucide-icons";
+import { useQuery } from "@tanstack/react-query";
 import React from "react";
 import { Platform } from "react-native";
 import { ScrollView, Sheet, YStack } from "tamagui";
@@ -24,6 +25,7 @@ export default function ConnectSheet({
   siweText: string;
 }) {
   const aspectRatio = useAspectRatio();
+  const { data: hasInjectedProvider } = useQuery({ queryKey: ["has-injected-provider"] });
   return (
     <Sheet
       open={open}
@@ -79,20 +81,22 @@ export default function ConnectSheet({
                 >
                   {webAuthnText}
                 </Button>
-                <Button
-                  onPress={() => {
-                    onClose("siwe");
-                  }}
-                  main
-                  spaced
-                  halfWidth
-                  outlined
-                  backgroundColor="$interactiveBaseBrandSoftDefault"
-                  color="$interactiveOnBaseBrandSoft"
-                  iconAfter={<Wallet size={20} color="$interactiveOnBaseBrandSoft" />}
-                >
-                  {siweText}
-                </Button>
+                {hasInjectedProvider && (
+                  <Button
+                    onPress={() => {
+                      onClose("siwe");
+                    }}
+                    main
+                    spaced
+                    halfWidth
+                    outlined
+                    backgroundColor="$interactiveBaseBrandSoftDefault"
+                    color="$interactiveOnBaseBrandSoft"
+                    iconAfter={<Wallet size={20} color="$interactiveOnBaseBrandSoft" />}
+                  >
+                    {siweText}
+                  </Button>
+                )}
               </YStack>
             </YStack>
           </SafeView>

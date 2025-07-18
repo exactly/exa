@@ -1,7 +1,6 @@
 import type { Credential } from "@exactly/common/validation";
 import { Key, X } from "@tamagui/lucide-icons";
-import { useToastController } from "@tamagui/toast";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import { Pressable, StyleSheet } from "react-native";
@@ -11,8 +10,7 @@ import { useConnect } from "wagmi";
 import PasskeysBlob from "../../assets/images/passkeys-blob.svg";
 import PasskeysImage from "../../assets/images/passkeys.svg";
 import alchemyConnector from "../../utils/alchemyConnector";
-import reportError from "../../utils/reportError";
-import { APIError, createCredential } from "../../utils/server";
+import useAuth from "../../utils/useAuth";
 import ActionButton from "../shared/ActionButton";
 import ConnectSheet from "../shared/ConnectSheet";
 import ErrorDialog from "../shared/ErrorDialog";
@@ -24,50 +22,20 @@ export default function Passkeys() {
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
   const queryClient = useQueryClient();
   const { connect } = useConnect();
-  const toast = useToastController();
   const [connectModalOpen, setConnectModalOpen] = useState(false);
+  const { data: hasInjectedProvider } = useQuery({ queryKey: ["has-injected-provider"] });
 
-  const { mutate: createAccount, isPending } = useMutation({
-    mutationFn: createCredential,
-    onError(error: unknown) {
-      if (
-        error instanceof Error &&
-        (error.message ===
-          "The operation couldn’t be completed. (com.apple.AuthenticationServices.AuthorizationError error 1001.)" ||
-          error.message === "The operation couldn’t be completed. Device must be unlocked to perform request." ||
-          error.message === "UserCancelled" ||
-          error.name === "NotAllowedError" ||
-          error.message.startsWith("androidx.credentials.exceptions.domerrors.NotAllowedError"))
-      ) {
-        toast.show("Operation cancelled", {
-          native: true,
-          duration: 1000,
-          burntOptions: { haptic: "error", preset: "error" },
-        });
-        return;
-      }
-      if (error instanceof APIError && error.text === "backup eligibility required") {
-        toast.show("Your password manager does not support passkey backups. Please try a different one", {
-          native: true,
-          duration: 1000,
-          burntOptions: { haptic: "error", preset: "error" },
-        });
-        return;
-      }
-      if (
-        error instanceof Error &&
-        error.message.startsWith("The operation couldn’t be completed. Application with identifier")
-      ) {
-        setErrorDialogOpen(true);
-      }
-      reportError(error);
-    },
-    onSuccess(credential) {
+  const { createAccount, isCreateAccountPending } = useAuth(
+    (credential: Credential) => {
       connect({ connector: alchemyConnector });
       queryClient.setQueryData<Credential>(["credential"], credential);
-      router.replace("../success");
+      router.replace("/(app)/(home)");
     },
-  });
+    () => {
+      setErrorDialogOpen(true);
+    },
+  );
+
   return (
     <SafeView fullScreen backgroundColor="$backgroundSoft">
       <View fullScreen padded>
@@ -114,18 +82,23 @@ export default function Passkeys() {
                 flex={1}
                 marginTop="$s4"
                 marginBottom="$s5"
-                isLoading={isPending}
+                isLoading={isCreateAccountPending}
                 loadingContent="Creating account..."
                 iconAfter={
                   <Key
                     size={20}
-                    color={isPending ? "$interactiveOnDisabled" : "$interactiveOnBaseBrandDefault"}
+                    color={isCreateAccountPending ? "$interactiveOnDisabled" : "$interactiveOnBaseBrandDefault"}
                     fontWeight="bold"
                   />
                 }
-                disabled={isPending}
+                disabled={isCreateAccountPending}
                 onPress={() => {
-                  setConnectModalOpen(true);
+                  if (hasInjectedProvider) {
+                    setConnectModalOpen(true);
+                  } else {
+                    queryClient.setQueryData(["method"], "webauthn");
+                    createAccount();
+                  }
                 }}
               >
                 Set passkey and create account
@@ -156,17 +129,21 @@ export default function Passkeys() {
           setErrorDialogOpen(false);
         }}
       />
-      <ConnectSheet
-        open={connectModalOpen}
-        onClose={(method) => {
-          setConnectModalOpen(false);
-          if (method === "webauthn") createAccount();
-        }}
-        title="Create account"
-        description="Choose your preferred authentication method"
-        webAuthnText="Sign up with Passkey"
-        siweText="Sign up with browser wallet"
-      />
+      {hasInjectedProvider && (
+        <ConnectSheet
+          open={connectModalOpen}
+          onClose={(method) => {
+            setConnectModalOpen(false);
+            if (!method) return;
+            queryClient.setQueryData(["method"], method);
+            createAccount();
+          }}
+          title="Create account"
+          description="Choose your preferred authentication method"
+          webAuthnText="Sign up with Passkey"
+          siweText="Sign up with browser wallet"
+        />
+      )}
     </SafeView>
   );
 }

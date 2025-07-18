@@ -1,7 +1,6 @@
-import { Credential } from "@exactly/common/validation";
+import type { Credential } from "@exactly/common/validation";
 import { Key } from "@tamagui/lucide-icons";
-import { useToastController } from "@tamagui/toast";
-import { useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import React, { type FC, useCallback, useEffect, useRef, useState } from "react";
 import type { StyleProp, ViewStyle, ViewToken } from "react-native";
@@ -14,7 +13,6 @@ import Animated, {
   Easing,
 } from "react-native-reanimated";
 import type { SvgProps } from "react-native-svg";
-import { parse } from "valibot";
 import { useConnect } from "wagmi";
 
 import ListItem from "./ListItem";
@@ -29,8 +27,7 @@ import qrCodeBlob from "../../assets/images/qr-code-blob.svg";
 import qrCode from "../../assets/images/qr-code.svg";
 import alchemyConnector from "../../utils/alchemyConnector";
 import queryClient from "../../utils/queryClient";
-import reportError from "../../utils/reportError";
-import { APIError, getCredential } from "../../utils/server";
+import useAuth from "../../utils/useAuth";
 import ActionButton from "../shared/ActionButton";
 import ConnectSheet from "../shared/ConnectSheet";
 import ErrorDialog from "../shared/ErrorDialog";
@@ -38,11 +35,12 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function Carousel() {
-  const toast = useToastController();
   const [activeIndex, setActiveIndex] = useState(0);
   const { connect, isPending: isConnecting } = useConnect();
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
-  const [connectModalOpen, setConnectModalOpen] = useState(false);
+
+  const [signUpModalOpen, setSignUpModalOpen] = useState(false);
+  const [signInModalOpen, setSignInModalOpen] = useState(false);
 
   const flatListReference = useRef<Animated.FlatList<Page>>(null);
   const offsetX = useSharedValue(0);
@@ -50,6 +48,8 @@ export default function Carousel() {
 
   const currentItem = pages[activeIndex] ?? pages[0];
   const { title, disabled } = currentItem;
+
+  const { data: hasInjectedProvider } = useQuery({ queryKey: ["has-injected-provider"] });
 
   const onViewableItemsChanged = useCallback(
     ({ viewableItems }: { viewableItems: ViewToken[] }) => {
@@ -81,40 +81,18 @@ export default function Carousel() {
     });
   }, [activeIndex]);
 
-  const { mutate: recoverAccount, isPending } = useMutation({
-    mutationFn: getCredential,
-    onError(error: unknown) {
-      if (
-        (error instanceof Error &&
-          (error.message ===
-            "The operation couldn’t be completed. (com.apple.AuthenticationServices.AuthorizationError error 1001.)" ||
-            error.message === "The operation couldn’t be completed. Device must be unlocked to perform request." ||
-            error.message === "UserCancelled" ||
-            error.name === "NotAllowedError" ||
-            error.message.startsWith("androidx.credentials.exceptions.domerrors.NotAllowedError"))) ||
-        (error instanceof APIError && error.text === "unauthorized")
-      ) {
-        toast.show("Authentication cancelled", {
-          native: true,
-          duration: 1000,
-          burntOptions: { haptic: "error", preset: "error" },
-        });
-        return;
-      }
-      if (
-        error instanceof Error &&
-        error.message.startsWith("The operation couldn’t be completed. Application with identifier")
-      ) {
-        setErrorDialogOpen(true);
-      }
-      reportError(error);
-    },
-    onSuccess(credential) {
-      queryClient.setQueryData<Credential>(["credential"], parse(Credential, credential));
+  const { recoverAccount, isRecoverAccountPending, createAccount, isCreateAccountPending } = useAuth(
+    (credential: Credential) => {
       connect({ connector: alchemyConnector });
+      queryClient.setQueryData<Credential>(["credential"], credential);
       router.replace("/(app)/(home)");
     },
-  });
+    () => {
+      setErrorDialogOpen(true);
+    },
+  );
+
+  const loading = isRecoverAccountPending || isConnecting || isCreateAccountPending;
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -185,12 +163,16 @@ export default function Carousel() {
             <View flexDirection="row" alignSelf="stretch">
               <ActionButton
                 flex={1}
-                disabled={isPending || isConnecting}
-                isLoading={isPending || isConnecting}
+                disabled={loading}
+                isLoading={loading}
                 loadingContent="Logging in..."
                 onPress={() => {
-                  if (isPending || isConnecting) return;
-                  router.push("../onboarding/(passkeys)/passkeys");
+                  if (loading) return;
+                  if (hasInjectedProvider) {
+                    setSignUpModalOpen(true);
+                  } else {
+                    router.push("../onboarding/(passkeys)/passkeys");
+                  }
                 }}
                 iconAfter={<Key color="$interactiveOnBaseBrandDefault" fontWeight="bold" />}
               >
@@ -201,8 +183,13 @@ export default function Carousel() {
               <Pressable
                 hitSlop={15}
                 onPress={() => {
-                  if (isPending) return;
-                  setConnectModalOpen(true);
+                  if (loading) return;
+                  if (hasInjectedProvider) {
+                    setSignInModalOpen(true);
+                  } else {
+                    queryClient.setQueryData(["method"], "webauthn");
+                    recoverAccount();
+                  }
                 }}
               >
                 <Text fontSize={13} textAlign="center" color="$uiNeutralSecondary">
@@ -224,17 +211,36 @@ export default function Carousel() {
           setErrorDialogOpen(false);
         }}
       />
-      <ConnectSheet
-        open={connectModalOpen}
-        onClose={(method) => {
-          setConnectModalOpen(false);
-          if (method === "webauthn") recoverAccount();
-        }}
-        title="Log in"
-        description="Choose your preferred authentication method"
-        webAuthnText="Log in with Passkey"
-        siweText="Log in with browser wallet"
-      />
+      {hasInjectedProvider && (
+        <>
+          <ConnectSheet
+            open={signInModalOpen}
+            onClose={(method) => {
+              setSignInModalOpen(false);
+              if (!method) return;
+              queryClient.setQueryData(["method"], method);
+              recoverAccount();
+            }}
+            title="Log in"
+            description="Choose your preferred authentication method"
+            webAuthnText="Log in with Passkey"
+            siweText="Log in with browser wallet"
+          />
+          <ConnectSheet
+            open={signUpModalOpen}
+            onClose={(method) => {
+              setSignUpModalOpen(false);
+              if (!method) return;
+              queryClient.setQueryData(["method"], method);
+              createAccount();
+            }}
+            title="Create account"
+            description="Choose your preferred authentication method"
+            webAuthnText="Sign up with Passkey"
+            siweText="Sign up with browser wallet"
+          />
+        </>
+      )}
     </View>
   );
 }

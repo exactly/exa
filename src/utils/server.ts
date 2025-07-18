@@ -22,35 +22,35 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
   gcTime: AUTH_EXPIRY,
   retry: false,
   queryFn: async () => {
-    const get = await api.auth.authentication.$get({
-      query: {
-        credentialId:
-          (await getInjectedAccount()) ?? queryClient.getQueryData<Credential>(["credential"])?.credentialId,
-      },
-    });
+    const method = queryClient.getQueryData<"siwe" | "webauthn" | undefined>(["method"]);
+    const credentialId =
+      method === "siwe"
+        ? await getInjectedAccount()
+        : queryClient.getQueryData<Credential>(["credential"])?.credentialId;
+    if (method === "siwe" && !credentialId) return queryClient.getQueryData<number>(["auth"]) ?? 0;
+    const get = await api.auth.authentication.$get({ query: { credentialId } });
     const options = await get.json();
     if (options.method === "webauthn" && Platform.OS === "android") delete options.allowCredentials; // HACK fix android credential filtering
-    const post = await api.auth.authentication.$post({
-      json:
-        options.method === "siwe"
-          ? await connectInjectedAccount(options.address).then(async () => ({
-              method: "siwe" as const,
-              id: options.address,
-              signature: await signMessage(injectedConfig, {
-                connector: injectedConnector,
-                account: options.address,
-                message: options.message,
-              }),
-            }))
-          : await assert({
-              ...options,
-              allowCredentials: Platform.OS === "android" ? undefined : options.allowCredentials, // HACK fix android credential filtering
-              extensions: options.extensions as Record<string, unknown> | undefined,
-            }).then((assertion) => {
-              if (!assertion) throw new Error("bad assertion");
-              return { method: "webauthn" as const, ...assertion };
+    const json =
+      options.method === "siwe"
+        ? await connectInjectedAccount(options.address).then(async () => ({
+            method: "siwe" as const,
+            id: options.address,
+            signature: await signMessage(injectedConfig, {
+              connector: injectedConnector,
+              account: options.address,
+              message: options.message,
             }),
-    });
+          }))
+        : await assert({
+            ...options,
+            allowCredentials: Platform.OS === "android" ? undefined : options.allowCredentials, // HACK fix android credential filtering
+            extensions: options.extensions as Record<string, unknown> | undefined,
+          }).then((assertion) => {
+            if (!assertion) throw new Error("bad assertion");
+            return { method: "webauthn" as const, ...assertion };
+          });
+    const post = await api.auth.authentication.$post({ json });
     if (!post.ok) throw new APIError(post.status, stringOrLegacy(await post.json()));
     const { expires } = await post.json();
     return parse(Auth, expires);
@@ -134,13 +134,16 @@ export async function getCredential() {
 }
 
 export async function createCredential() {
-  const get = await api.auth.registration.$get({ query: { credentialId: await getInjectedAccount() } });
+  const method = queryClient.getQueryData<"siwe" | "webauthn" | undefined>(["method"]);
+  const credentialId = method === "siwe" ? await getInjectedAccount() : undefined;
+  if (method === "siwe" && !credentialId) throw new Error("invalid operation");
+  const get = await api.auth.registration.$get({ query: { credentialId } });
   const options = await get.json();
   const post = await api.auth.registration.$post({
     json:
       options.method === "siwe"
         ? await connectInjectedAccount(options.address).then(async () => ({
-            method: "siwe" as const,
+            method: options.method,
             id: options.address,
             signature: await signMessage(injectedConfig, {
               connector: injectedConnector,

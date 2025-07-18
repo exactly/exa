@@ -1,7 +1,7 @@
 import chain from "@exactly/common/generated/chain";
 import type { Credential } from "@exactly/common/validation";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { isAddress, type Address } from "viem";
+import { isAddress, UserRejectedRequestError, type Address } from "viem";
 import { createConfig, createStorage, custom, injected } from "wagmi";
 
 import publicClient from "./publicClient";
@@ -41,6 +41,13 @@ export async function getAccount() {
     const { accounts } = await connector.connect({ chainId: chain.id });
     return accounts[0];
   } catch (error: unknown) {
+    if (error instanceof UserRejectedRequestError) return;
     reportError(error);
   }
+}
+
+export async function hasProvider() {
+  return await connector.isAuthorized().then(async () => {
+    return (await connector.getProvider({ chainId: chain.id })) !== undefined;
+  });
 }
