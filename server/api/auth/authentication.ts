@@ -1,7 +1,7 @@
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
-import { Address, Base64URL, Hex, Passkey } from "@exactly/common/validation";
+import { Address, Base64URL, Hex, Credential } from "@exactly/common/validation";
 import { captureException, setContext, setUser } from "@sentry/node";
 import {
   type AuthenticatorTransportFuture,
@@ -106,7 +106,7 @@ const AuthenticationOptions = variant("method", [
 ]);
 
 export const Authentication = object({
-  ...Passkey.entries,
+  ...Credential.entries,
   auth: pipe(number(), title("Session expiry"), description("When the authenticated session will expire.")),
 });
 

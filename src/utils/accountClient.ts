@@ -11,7 +11,7 @@ import accountInitCode from "@exactly/common/accountInitCode";
 import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
-import type { Passkey } from "@exactly/common/validation";
+import type { Credential } from "@exactly/common/validation";
 import { ECDSASigValue } from "@peculiar/asn1-ecc";
 import { AsnParser } from "@peculiar/asn1-schema";
 import { setUser } from "@sentry/react-native";
@@ -40,7 +40,7 @@ import {
 import { login } from "./onesignal";
 import publicClient from "./publicClient";
 
-export default async function createAccountClient({ credentialId, factory, x, y }: Passkey) {
+export default async function createAccountClient({ credentialId, factory, x, y }: Credential) {
   const transport = custom(publicClient);
   const entryPoint = getEntryPoint(chain);
   const injectedAccount = await getInjectedAccount();

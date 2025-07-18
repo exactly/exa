@@ -1,5 +1,5 @@
 import deriveAddress from "@exactly/common/deriveAddress";
-import type { Passkey } from "@exactly/common/validation";
+import type { Credential } from "@exactly/common/validation";
 import type * as IntercomNative from "@intercom/intercom-react-native";
 import type * as IntercomWeb from "@intercom/messenger-js-sdk";
 import { useQuery } from "@tanstack/react-query";
@@ -72,12 +72,12 @@ const { login, logout, newMessage, present, presentArticle, presentCollection } 
 
 export default function useIntercom() {
   const [loggedIn, setLoggedIn] = useState(false);
-  const { data: passkey } = useQuery<Passkey>({ queryKey: ["passkey"] });
+  const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   useEffect(() => {
-    if (!passkey || loggedIn) return;
-    login(deriveAddress(passkey.factory, { x: passkey.x, y: passkey.y }), passkey.credentialId)
+    if (!credential || loggedIn) return;
+    login(deriveAddress(credential.factory, { x: credential.x, y: credential.y }), credential.credentialId)
       .then(setLoggedIn)
       .catch(reportError);
-  }, [passkey, loggedIn]);
+  }, [credential, loggedIn]);
   return { loggedIn, present, presentArticle, presentCollection, logout, newMessage };
 }

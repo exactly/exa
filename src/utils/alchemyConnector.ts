@@ -1,7 +1,7 @@
 import type { ClientWithAlchemyMethods } from "@alchemy/aa-alchemy";
 import type { SmartAccountClient, SmartContractAccount } from "@alchemy/aa-core";
 import chain from "@exactly/common/generated/chain";
-import type { Passkey } from "@exactly/common/validation";
+import type { Credential } from "@exactly/common/validation";
 import { type Chain, SwitchChainError, type Transport, getAddress } from "viem";
 import { ChainNotConfiguredError, createConnector } from "wagmi";
 
@@ -19,9 +19,9 @@ export default createConnector<SmartAccountClient | ClientWithAlchemyMethods>(({
   name: "Alchemy" as const,
   type: "alchemy" as const,
   async getAccounts() {
-    const passkey = queryClient.getQueryData<Passkey>(["passkey"]);
-    if (!passkey) return [];
-    accountClient ??= await createAccountClient(passkey);
+    const credential = queryClient.getQueryData<Credential>(["credential"]);
+    if (!credential) return [];
+    accountClient ??= await createAccountClient(credential);
     return [accountClient.account.address];
   },
   async isAuthorized() {
@@ -31,9 +31,9 @@ export default createConnector<SmartAccountClient | ClientWithAlchemyMethods>(({
   async connect({ chainId } = {}) {
     if (chainId && chainId !== chain.id) throw new SwitchChainError(new ChainNotConfiguredError());
     try {
-      const passkey = queryClient.getQueryData<Passkey>(["passkey"]);
-      if (!passkey) throw new Error("missing passkey");
-      accountClient ??= await createAccountClient(passkey);
+      const credential = queryClient.getQueryData<Credential>(["credential"]);
+      if (!credential) throw new Error("missing credential");
+      accountClient ??= await createAccountClient(credential);
     } catch (error: unknown) {
       reportError(error);
       throw error;

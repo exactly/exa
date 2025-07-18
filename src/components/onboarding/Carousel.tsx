@@ -1,4 +1,4 @@
-import { Passkey } from "@exactly/common/validation";
+import { Credential } from "@exactly/common/validation";
 import { Key } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { useMutation } from "@tanstack/react-query";
@@ -30,7 +30,7 @@ import qrCode from "../../assets/images/qr-code.svg";
 import alchemyConnector from "../../utils/alchemyConnector";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
-import { APIError, getPasskey } from "../../utils/server";
+import { APIError, getCredential } from "../../utils/server";
 import ActionButton from "../shared/ActionButton";
 import ConnectSheet from "../shared/ConnectSheet";
 import ErrorDialog from "../shared/ErrorDialog";
@@ -82,7 +82,7 @@ export default function Carousel() {
   }, [activeIndex]);
 
   const { mutate: recoverAccount, isPending } = useMutation({
-    mutationFn: getPasskey,
+    mutationFn: getCredential,
     onError(error: unknown) {
       if (
         (error instanceof Error &&
@@ -109,8 +109,8 @@ export default function Carousel() {
       }
       reportError(error);
     },
-    onSuccess(passkey) {
-      queryClient.setQueryData<Passkey>(["passkey"], parse(Passkey, passkey));
+    onSuccess(credential) {
+      queryClient.setQueryData<Credential>(["credential"], parse(Credential, credential));
       connect({ connector: alchemyConnector });
       router.replace("/(app)/(home)");
     },
@@ -228,7 +228,7 @@ export default function Carousel() {
         open={connectModalOpen}
         onClose={(method) => {
           setConnectModalOpen(false);
-          if (method) recoverAccount(method);
+          if (method === "webauthn") recoverAccount();
         }}
         title="Log in"
         description="Choose your preferred authentication method"

@@ -1,5 +1,5 @@
 import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
-import type { Passkey } from "@exactly/common/validation";
+import type { Credential } from "@exactly/common/validation";
 import { ChevronRight, CircleHelp, CreditCard, DollarSign, Eye, EyeOff, Hash, Snowflake } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -47,7 +47,7 @@ export default function Card() {
   function toggle() {
     queryClient.setQueryData(["settings", "sensitive"], !hidden);
   }
-  const { data: passkey } = useQuery<Passkey>({ queryKey: ["passkey"] });
+  const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const {
     data: purchases,
     refetch: refetchPurchases,
@@ -123,7 +123,7 @@ export default function Card() {
         return;
       }
       if (isRevealing) return;
-      if (!passkey) return;
+      if (!credential) return;
       try {
         const { isSuccess, error } = await refetchCard();
         if (error && error instanceof APIError && error.code === 500) throw error;
@@ -150,7 +150,7 @@ export default function Card() {
           return;
         }
         if (text === "kyc required" || text === "kyc not found" || text === "kyc not started") {
-          createInquiry(passkey).catch(reportError);
+          createInquiry(credential).catch(reportError);
         }
         reportError(error);
         toast.show("An error occurred. Please try again later.", {
@@ -179,7 +179,7 @@ export default function Card() {
     retry: (_, error) => error instanceof APIError,
     retryDelay: (failureCount, error) => (error instanceof APIError ? failureCount * 5000 : 1000),
     mutationFn: async () => {
-      if (!passkey) return;
+      if (!credential) return;
       await createCard();
     },
     onSuccess: async () => {

@@ -35,7 +35,7 @@ if (typeof window !== "undefined") {
   persistQueryClientSubscribe({ queryClient, persister });
 }
 
-queryClient.setQueryDefaults(["passkey"], {
+queryClient.setQueryDefaults(["credential"], {
   retry: false,
   staleTime: Infinity,
   gcTime: Infinity,
