@@ -1,5 +1,5 @@
 import chain from "@exactly/common/generated/chain";
-import type { Passkey } from "@exactly/common/validation";
+import type { Credential } from "@exactly/common/validation";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { isAddress, type Address } from "viem";
 import { createConfig, createStorage, custom, injected } from "wagmi";
@@ -31,8 +31,8 @@ export async function connectAccount(account: Address) {
 
 export async function getAccount() {
   try {
-    const passkey = queryClient.getQueryData<Passkey>(["passkey"]);
-    if (passkey) return isAddress(passkey.credentialId) ? passkey.credentialId : undefined;
+    const credential = queryClient.getQueryData<Credential>(["credential"]);
+    if (credential) return isAddress(credential.credentialId) ? credential.credentialId : undefined;
     if (await connector.isAuthorized()) {
       const accounts = await connector.getAccounts();
       return accounts[0];
