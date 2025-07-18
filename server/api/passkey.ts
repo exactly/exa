@@ -1,4 +1,4 @@
-import { Address, Passkey } from "@exactly/common/validation";
+import { Address, Credential } from "@exactly/common/validation";
 import { setUser } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
@@ -17,7 +17,7 @@ export default new Hono().get(
     responses: {
       200: {
         description: "Passkey metadata",
-        content: { "application/json": { schema: resolver(Passkey, { errorMode: "ignore" }) } },
+        content: { "application/json": { schema: resolver(Credential, { errorMode: "ignore" }) } },
       },
     },
     validateResponse: true,
@@ -36,7 +36,7 @@ export default new Hono().get(
         credentialId,
         factory: parse(Address, credential.factory),
         ...decodePublicKey(credential.publicKey),
-      } satisfies InferOutput<typeof Passkey>,
+      } satisfies InferOutput<typeof Credential>,
       200,
     );
   },

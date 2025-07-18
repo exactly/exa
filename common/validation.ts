@@ -22,7 +22,7 @@ export const Hash = custom<ViemHash>(isHash as (hash: unknown) => hash is ViemHa
 
 export const Hex = custom<ViemHex>(isHex, "bad hex");
 
-export const Passkey = pipe(
+export const Credential = pipe(
   object({
     credentialId: pipe(Base64URL, title("Base64URL encoded credential identifier")),
     factory: pipe(Address, title("Account factory address")),
@@ -37,5 +37,5 @@ export type Address = InferOutput<typeof Address>;
 export type Base64URL = InferOutput<typeof Base64URL>;
 export type Hash = InferOutput<typeof Hash>;
 export type Hex = InferOutput<typeof Hex>;
-export type Passkey = InferOutput<typeof Passkey>;
+export type Credential = InferOutput<typeof Credential>;
 /* eslint-enable @typescript-eslint/no-redeclare */

@@ -1,4 +1,4 @@
-import type { Passkey } from "@exactly/common/validation";
+import type { Credential } from "@exactly/common/validation";
 import { ArrowDownToLine, ArrowLeft, Check, IdCard } from "@tamagui/lucide-icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
@@ -119,11 +119,11 @@ export default function GettingStarted() {
 
 function CurrentStep() {
   const { currentStep, completedSteps } = useContext(OnboardingContext);
-  const { data: passkey } = useQuery<Passkey>({ queryKey: ["passkey"] });
+  const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const { mutateAsync: startKYC } = useMutation({
     mutationKey: ["kyc"],
     mutationFn: async () => {
-      if (!passkey) throw new Error("missing passkey");
+      if (!credential) throw new Error("missing credential");
       try {
         const result = await getKYCStatus(KYC_TEMPLATE_ID);
         if (result === "ok") return;
@@ -136,7 +136,7 @@ function CurrentStep() {
           return;
         }
         if (error.text === "kyc required" || error.text === "kyc not found" || error.text === "kyc not started") {
-          await createInquiry(passkey);
+          await createInquiry(credential);
           return;
         }
         reportError(error);
