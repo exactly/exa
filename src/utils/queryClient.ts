@@ -166,12 +166,14 @@ queryClient.setQueryDefaults(["defi", "lifi-connected"], {
   queryFn: () => queryClient.getQueryData(["defi", "lifi-connected"]),
 });
 
-queryClient.setQueryDefaults(["manual-repayment-acknowledged"], {
-  initialData: false,
+queryClient.setQueryDefaults<"siwe" | "webauthn" | undefined>(["method"], {
+  initialData: undefined,
   retry: false,
   staleTime: Infinity,
   gcTime: Infinity,
-  queryFn: () => queryClient.getQueryData(["manual-repayment-acknowledged"]),
+  queryFn: () => {
+    throw new Error("don't refetch");
+  },
 });
 
 export type ActivityItem = Awaited<ReturnType<typeof getActivity>>[number];

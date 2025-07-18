@@ -1,7 +1,7 @@
 import { Credential } from "@exactly/common/validation";
 import { Key } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import React, { type FC, useCallback, useEffect, useRef, useState } from "react";
 import type { StyleProp, ViewStyle, ViewToken } from "react-native";
@@ -15,6 +15,7 @@ import Animated, {
 } from "react-native-reanimated";
 import type { SvgProps } from "react-native-svg";
 import { parse } from "valibot";
+import { UserRejectedRequestError } from "viem";
 import { useConnect } from "wagmi";
 
 import ListItem from "./ListItem";
@@ -28,9 +29,10 @@ import exaCard from "../../assets/images/exa-card.svg";
 import qrCodeBlob from "../../assets/images/qr-code-blob.svg";
 import qrCode from "../../assets/images/qr-code.svg";
 import alchemyConnector from "../../utils/alchemyConnector";
+import { hasProvider } from "../../utils/injectedConnector";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
-import { APIError, getCredential } from "../../utils/server";
+import { getCredential } from "../../utils/server";
 import ActionButton from "../shared/ActionButton";
 import ConnectSheet from "../shared/ConnectSheet";
 import ErrorDialog from "../shared/ErrorDialog";
@@ -50,6 +52,8 @@ export default function Carousel() {
 
   const currentItem = pages[activeIndex] ?? pages[0];
   const { title, disabled } = currentItem;
+
+  const { data: hasInjectedProvider } = useQuery({ queryKey: ["hasInjectedProvider"], queryFn: hasProvider });
 
   const onViewableItemsChanged = useCallback(
     ({ viewableItems }: { viewableItems: ViewToken[] }) => {
@@ -90,10 +94,11 @@ export default function Carousel() {
             "The operation couldn’t be completed. (com.apple.AuthenticationServices.AuthorizationError error 1001.)" ||
             error.message === "The operation couldn’t be completed. Device must be unlocked to perform request." ||
             error.message === "UserCancelled" ||
-            error.name === "NotAllowedError" ||
-            error.message.startsWith("androidx.credentials.exceptions.domerrors.NotAllowedError"))) ||
-        (error instanceof APIError && error.text === "unauthorized")
+            error.message.startsWith("androidx.credentials.exceptions.domerrors.NotAllowedError") ||
+            error.name === "NotAllowedError")) ||
+        error instanceof UserRejectedRequestError
       ) {
+        queryClient.setQueryData(["method"], undefined);
         toast.show("Authentication cancelled", {
           native: true,
           duration: 1000,
@@ -202,7 +207,12 @@ export default function Carousel() {
                 hitSlop={15}
                 onPress={() => {
                   if (isPending) return;
-                  setConnectModalOpen(true);
+                  if (hasInjectedProvider) {
+                    setConnectModalOpen(true);
+                  } else {
+                    queryClient.setQueryData(["method"], "webauthn");
+                    recoverAccount();
+                  }
                 }}
               >
                 <Text fontSize={13} textAlign="center" color="$uiNeutralSecondary">
@@ -224,17 +234,21 @@ export default function Carousel() {
           setErrorDialogOpen(false);
         }}
       />
-      <ConnectSheet
-        open={connectModalOpen}
-        onClose={(method) => {
-          setConnectModalOpen(false);
-          if (method === "webauthn") recoverAccount();
-        }}
-        title="Log in"
-        description="Choose your preferred authentication method"
-        webAuthnText="Log in with Passkey"
-        siweText="Log in with browser wallet"
-      />
+      {hasInjectedProvider && (
+        <ConnectSheet
+          open={connectModalOpen}
+          onClose={(method) => {
+            setConnectModalOpen(false);
+            if (!method) return;
+            queryClient.setQueryData(["method"], method);
+            recoverAccount();
+          }}
+          title="Log in"
+          description="Choose your preferred authentication method"
+          webAuthnText="Log in with Passkey"
+          siweText="Log in with browser wallet"
+        />
+      )}
     </View>
   );
 }
