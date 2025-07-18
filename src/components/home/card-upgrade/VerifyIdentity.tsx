@@ -1,4 +1,4 @@
-import type { Passkey } from "@exactly/common/validation";
+import type { Credential } from "@exactly/common/validation";
 import { IdCard } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -16,11 +16,11 @@ import View from "../../shared/View";
 
 export default function VerifyIdentity() {
   const toast = useToastController();
-  const { data: passkey } = useQuery<Passkey>({ queryKey: ["passkey"] });
+  const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const { mutateAsync: startKYC, isPending } = useMutation({
     mutationKey: ["kyc"],
     mutationFn: async () => {
-      if (!passkey) throw new Error("missing passkey");
+      if (!credential) throw new Error("missing credential");
       try {
         const result = await getKYCStatus(KYC_TEMPLATE_ID);
         if (result === "ok") {
@@ -36,7 +36,7 @@ export default function VerifyIdentity() {
           return;
         }
         if (error.text === "kyc required" || error.text === "kyc not found" || error.text === "kyc not started") {
-          await createInquiry(passkey);
+          await createInquiry(credential);
           return;
         }
         reportError(error);
