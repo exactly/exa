@@ -1,16 +1,18 @@
 import type { Credential } from "@exactly/common/validation";
 import { Key, X } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import { Pressable, StyleSheet } from "react-native";
 import { XStack } from "tamagui";
+import { UserRejectedRequestError } from "viem";
 import { useConnect } from "wagmi";
 
 import PasskeysBlob from "../../assets/images/passkeys-blob.svg";
 import PasskeysImage from "../../assets/images/passkeys.svg";
 import alchemyConnector from "../../utils/alchemyConnector";
+import { hasProvider } from "../../utils/injectedConnector";
 import reportError from "../../utils/reportError";
 import { APIError, createCredential } from "../../utils/server";
 import ActionButton from "../shared/ActionButton";
@@ -27,18 +29,23 @@ export default function Passkeys() {
   const toast = useToastController();
   const [connectModalOpen, setConnectModalOpen] = useState(false);
 
+  const { data: hasInjectedProvider } = useQuery({ queryKey: ["hasInjectedProvider"], queryFn: hasProvider });
+
   const { mutate: createAccount, isPending } = useMutation({
     mutationFn: createCredential,
     onError(error: unknown) {
       if (
-        error instanceof Error &&
-        (error.message ===
-          "The operation couldn’t be completed. (com.apple.AuthenticationServices.AuthorizationError error 1001.)" ||
-          error.message === "The operation couldn’t be completed. Device must be unlocked to perform request." ||
-          error.message === "UserCancelled" ||
-          error.message.startsWith("androidx.credentials.exceptions.domerrors.NotAllowedError"))
+        (error instanceof Error &&
+          (error.message ===
+            "The operation couldn’t be completed. (com.apple.AuthenticationServices.AuthorizationError error 1001.)" ||
+            error.message === "The operation couldn’t be completed. Device must be unlocked to perform request." ||
+            error.message === "UserCancelled" ||
+            error.message.startsWith("androidx.credentials.exceptions.domerrors.NotAllowedError") ||
+            error.message === "invalid operation")) ||
+        error instanceof UserRejectedRequestError
       ) {
-        toast.show("Operation cancelled", {
+        queryClient.setQueryData(["method"], undefined);
+        toast.show("Authentication cancelled", {
           native: true,
           duration: 1000,
           burntOptions: { haptic: "error", preset: "error" },
@@ -124,7 +131,12 @@ export default function Passkeys() {
                 }
                 disabled={isPending}
                 onPress={() => {
-                  setConnectModalOpen(true);
+                  if (hasInjectedProvider) {
+                    setConnectModalOpen(true);
+                  } else {
+                    queryClient.setQueryData(["method"], "webauthn");
+                    createAccount();
+                  }
                 }}
               >
                 Set passkey and create account
@@ -155,17 +167,21 @@ export default function Passkeys() {
           setErrorDialogOpen(false);
         }}
       />
-      <ConnectSheet
-        open={connectModalOpen}
-        onClose={(method) => {
-          setConnectModalOpen(false);
-          if (method === "webauthn") createAccount();
-        }}
-        title="Create account"
-        description="Choose your preferred authentication method"
-        webAuthnText="Sign up with Passkey"
-        siweText="Sign up with browser wallet"
-      />
+      {hasInjectedProvider && (
+        <ConnectSheet
+          open={connectModalOpen}
+          onClose={(method) => {
+            setConnectModalOpen(false);
+            if (!method) return;
+            queryClient.setQueryData(["method"], method);
+            createAccount();
+          }}
+          title="Create account"
+          description="Choose your preferred authentication method"
+          webAuthnText="Sign up with Passkey"
+          siweText="Sign up with browser wallet"
+        />
+      )}
     </SafeView>
   );
 }
