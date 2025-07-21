@@ -370,6 +370,7 @@ describe.concurrent("authenticated", () => {
       );
 
       expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toHaveLength(1);
       await expect(response.json()).resolves.toMatchObject(
         // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
         expect.arrayContaining([

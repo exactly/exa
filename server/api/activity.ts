@@ -120,7 +120,7 @@ export default new Hono().get(
       [...markets.values()].find(({ asset }) => asset.toLowerCase() === address.toLowerCase())?.market;
 
     const repayPromise =
-      !ignore("repay") || !ignore("received")
+      !ignore("repay") || !ignore("received") || !ignore("swap")
         ? publicClient.getContractEvents({
             abi: marketAbi,
             eventName: "RepayAtMaturity",
@@ -298,16 +298,23 @@ export default new Hono().get(
           ),
       ignore("swap")
         ? []
-        : publicClient
-            .getContractEvents({
+        : Promise.all([
+            publicClient.getContractEvents({
               abi: mockSwapperAbi,
               eventName: "LiFiGenericSwapCompleted",
               address: swapperAddress,
               toBlock: "latest",
               fromBlock: 0n,
               strict: true,
-            })
-            .then((logs) => logs.filter((log) => log.args.receiver.toLowerCase() === account.toLowerCase())),
+            }),
+            repayPromise,
+          ]).then(([swap, repay]) =>
+            swap.filter(
+              (log) =>
+                log.args.receiver.toLowerCase() === account.toLowerCase() &&
+                !repay.some(({ transactionHash: repayHash }) => repayHash === log.transactionHash),
+            ),
+          ),
     ]);
     const blocks = await Promise.all(
       [
