@@ -77,6 +77,7 @@ const BaseTransaction = v.object({
 
 const Transaction = v.variant("action", [
   v.object({
+    id: v.string(),
     resource: v.literal("transaction"),
     action: v.literal("created"),
     body: v.object({
@@ -104,6 +105,7 @@ const Transaction = v.variant("action", [
     }),
   }),
   v.object({
+    id: v.string(),
     resource: v.literal("transaction"),
     action: v.literal("requested"),
     body: v.object({
@@ -135,6 +137,7 @@ const Transaction = v.variant("action", [
 const Payload = v.variant("resource", [
   Transaction,
   v.object({
+    id: v.string(),
     resource: v.literal("card"),
     action: v.literal("updated"),
     body: v.object({
@@ -181,6 +184,7 @@ export default new Hono().post(
   vValidator("json", Payload, validatorHook({ code: "bad panda", status: 400, debug })),
   async (c) => {
     const payload = c.req.valid("json");
+    getActiveSpan()?.setAttributes({ "panda.event": payload.id, "panda.transaction": payload.body.id });
     setTag("panda.resource", payload.resource);
     setTag("panda.action", payload.action);
     const jsonBody = await c.req.json(); // eslint-disable-line @typescript-eslint/no-unsafe-assignment
