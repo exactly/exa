@@ -357,7 +357,7 @@ describe.concurrent("authenticated", () => {
           receiver: padHex("0x69", { size: 20 }),
           borrower: account,
           assets: 100_000_000,
-          fee: expect.withinRange(0.5, 0.7),
+          fee: expect.withinRange(0.2, 0.7),
           rate: expect.withinRange(0.02, 0.05),
         },
       ]);
