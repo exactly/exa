@@ -508,12 +508,12 @@ export default new Hono().post(
             ) {
               sendPushNotification({
                 userId: account,
-                headings: { en: "Exa Card Purchase" },
+                headings: { en: "Card purchase" },
                 contents: {
                   en: `${(payload.body.spend.localAmount / 100).toLocaleString(undefined, {
                     style: "currency",
                     currency: payload.body.spend.localCurrency,
-                  })} at ${payload.body.spend.merchantName.trim()}, paid in ${{ 0: "debit", 1: "credit" }[card.mode] ?? `${card.mode} installments`} with USDC`,
+                  })} at ${payload.body.spend.merchantName.trim()}. Paid ${{ 0: "with USDC", 1: "with credit" }[card.mode] ?? `in ${card.mode} installments`}`,
                 },
               }).catch((error: unknown) => captureException(error, { level: "error" }));
             }
