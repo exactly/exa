@@ -392,6 +392,13 @@ export default new Hono().post(
                 },
               },
             );
+            sendPushNotification({
+              userId: account,
+              headings: { en: "Refund processed" },
+              contents: {
+                en: `${refundAmountUsd} USDC from ${payload.body.spend.merchantName.trim()} have been refunded to your account`,
+              },
+            }).catch((error: unknown) => captureException(error));
             trackTransactionRefund(account, refundAmountUsd, payload);
             return c.json({ code: "ok" });
           } catch (error: unknown) {
