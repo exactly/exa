@@ -6,7 +6,8 @@ use proto::exa::{
   events::{
     AccumulatorAccrual, AnswerUpdated, Borrow, BorrowAtMaturity, CollectorSet, EarningsAccumulatorSmoothFactorSet,
     ExaAccountInitialized, FixedEarningsUpdate, FloatingDebtUpdate, InterestRateModelSet, MarketEntered, MarketExited,
-    MarketUpdate, MaxFuturePoolsSet, NewRound, NewTransmission, Repay, RepayAtMaturity, Transfer, TreasurySet,
+    MarketUpdate, MaxFuturePoolsSet, NewRound, NewTransmission, ProposalManagerSet, Repay, RepayAtMaturity, Transfer,
+    TreasurySet,
   },
   Events,
 };
@@ -186,6 +187,17 @@ pub fn map_blocks(block: Block) -> Result<Events, Error> {
         (true, Some(event)) => Some(MaxFuturePoolsSet {
           market: log.address().to_vec(),
           max_future_pools: event.max_future_pools.to_u64(),
+          log_ordinal: log.ordinal(),
+        }),
+        _ => None,
+      })
+      .collect(),
+    proposal_manager_sets: block
+      .logs()
+      .filter_map(|log| match (is_plugin(log.address()), plugin_events::ProposalManagerSet::match_and_decode(log)) {
+        (true, Some(event)) => Some(ProposalManagerSet {
+          proposal_manager: event.proposal_manager.to_vec(),
+          account: event.account.to_vec(),
           log_ordinal: log.ordinal(),
         }),
         _ => None,
@@ -499,6 +511,22 @@ pub fn db_out(
         ],
       )
       .set("max_future_pools", max_future_pool_set.max_future_pools.to_string());
+  }
+  for proposal_manager_set in events.proposal_manager_sets {
+    tables
+      .create_row(
+        "proposal_manager_sets",
+        [
+          ("proposal_manager", Hex(&proposal_manager_set.proposal_manager).to_string()),
+          ("account", Hex(&proposal_manager_set.account).to_string()),
+          ("block", clock.number.to_string()),
+          ("ordinal", proposal_manager_set.log_ordinal.to_string()),
+        ],
+      )
+      .set("proposal_manager", Hex(&proposal_manager_set.proposal_manager).to_string())
+      .set("account", Hex(&proposal_manager_set.account).to_string())
+      .set("block", clock.number.to_string())
+      .set("ordinal", proposal_manager_set.log_ordinal.to_string());
   }
   for treasury_set in events.treasury_sets {
     tables

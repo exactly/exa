@@ -16,15 +16,16 @@ message Events {
   repeated MarketExited market_exits = 11;
   repeated MarketUpdate market_updates = 12;
   repeated MaxFuturePoolsSet max_future_pools_sets = 13;
-  repeated Repay repays = 14;
-  repeated RepayAtMaturity repay_at_maturities = 15;
-  repeated Transfer transfers = 16;
-  repeated TreasurySet treasury_sets = 17;
+  repeated ProposalManagerSet proposal_manager_sets = 14;
+  repeated Repay repays = 15;
+  repeated RepayAtMaturity repay_at_maturities = 16;
+  repeated Transfer transfers = 17;
+  repeated TreasurySet treasury_sets = 18;
 
   // price tracking
-  repeated AnswerUpdated answer_updates = 18;
-  repeated NewRound new_rounds = 19;
-  repeated NewTransmission new_transmissions = 20;
+  repeated AnswerUpdated answer_updates = 19;
+  repeated NewRound new_rounds = 20;
+  repeated NewTransmission new_transmissions = 21;
 
   message AccumulatorAccrual {
     bytes market = 1;
@@ -120,6 +121,13 @@ message Events {
   message MaxFuturePoolsSet {
     bytes market = 1;
     uint64 max_future_pools = 2;
+    // internals
+    uint64 log_ordinal = 30;
+  }
+
+  message ProposalManagerSet {
+    bytes proposal_manager = 1;
+    bytes account = 2;
     // internals
     uint64 log_ordinal = 30;
   }

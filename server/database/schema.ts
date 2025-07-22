@@ -89,6 +89,7 @@ export const blocks = substreams.table("blocks", {
   timestamp: numeric("timestamp").notNull(),
 });
 
+// markets
 export const accumulatorAccruals = substreams.table(
   "accumulator_accruals",
   {
@@ -231,6 +232,7 @@ export const treasuries = substreams.table(
   ],
 );
 
+// accounts
 export const borrowShares = substreams.table(
   "borrow_shares",
   {
@@ -308,6 +310,7 @@ export const fixedBorrows = substreams.table(
   ],
 );
 
+// plugin
 export const exaAccountInitialized = substreams.table(
   "exa_account_initialized",
   {
@@ -334,5 +337,22 @@ export const collectorSets = substreams.table(
     primaryKey({ columns: [collector, account, block, ordinal] }),
     index("collector_sets_account").on(account),
     index("collector_sets_collector").on(collector),
+  ],
+);
+
+export const proposalManagerSets = substreams.table(
+  "proposal_manager_sets",
+  {
+    proposalManager: text("proposal_manager").notNull(),
+    account: text("account").notNull(),
+    block: numeric("block")
+      .references(() => blocks.number)
+      .notNull(),
+    ordinal: numeric("ordinal").notNull(),
+  },
+  ({ proposalManager, account, block, ordinal }) => [
+    primaryKey({ columns: [proposalManager, account, block, ordinal] }),
+    index("proposal_manager_sets_account").on(account),
+    index("proposal_manager_sets_proposal_manager").on(proposalManager),
   ],
 );
