@@ -1,5 +1,6 @@
 import chain from "@exactly/common/generated/chain";
 import type { Credential } from "@exactly/common/validation";
+import { farcasterMiniApp as miniAppConnector } from "@farcaster/miniapp-wagmi-connector";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { isAddress, UserRejectedRequestError, type Address } from "viem";
 import { createConfig, createStorage, custom, injected } from "wagmi";
@@ -10,7 +11,7 @@ import reportError from "./reportError";
 
 export const config = createConfig({
   chains: [chain],
-  connectors: [injected()],
+  connectors: [injected(), miniAppConnector()],
   transports: { [chain.id]: custom(publicClient) },
   storage: createStorage({ storage: AsyncStorage }),
 });
