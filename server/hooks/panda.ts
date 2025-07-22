@@ -211,8 +211,10 @@ export default new Hono().post(
         } catch (error: unknown) {
           if (error === E_TIMEOUT) {
             captureException(error, { level: "fatal", tags: { unhandled: true } });
+            trackAuthorizationRejected(account, payload, card.mode, "mutex-timeout");
             return c.json({ code: "mutex timeout" }, 554 as UnofficialStatusCode);
           }
+          trackAuthorizationRejected(account, payload, card.mode, "unknown-error");
           throw error;
         }
         setContext("mutex", { locked: mutex.isLocked() });
@@ -257,20 +259,19 @@ export default new Hono().post(
             );
             setContext("tx", { call, trace });
             if (trace.output) {
-              captureException(
-                getContractError(new RawContractError({ data: trace.output }), {
-                  abi: [
-                    ...exaPluginAbi,
-                    ...issuerCheckerAbi,
-                    ...proposalManagerAbi,
-                    ...upgradeableModularAccountAbi,
-                    ...auditorAbi,
-                    ...marketAbi,
-                  ],
-                  ...call,
-                }),
-                { contexts: { tx: { call, trace } } },
-              );
+              const contractError = getContractError(new RawContractError({ data: trace.output }), {
+                abi: [
+                  ...exaPluginAbi,
+                  ...issuerCheckerAbi,
+                  ...proposalManagerAbi,
+                  ...upgradeableModularAccountAbi,
+                  ...auditorAbi,
+                  ...marketAbi,
+                ],
+                ...call,
+              });
+              trackAuthorizationRejected(account, payload, card.mode, contractError.message);
+              captureException(contractError, { contexts: { tx: { call, trace } } });
               throw new PandaError("tx reverted", 550);
             }
             if (
@@ -294,9 +295,11 @@ export default new Hono().post(
           mutex.release();
           setContext("mutex", { locked: mutex.isLocked() });
           if (error instanceof PandaError) {
+            error.message !== "tx reverted" && trackAuthorizationRejected(account, payload, card.mode, "panda-error");
             captureException(error, { level: "error", tags: { unhandled: true } });
             return c.json({ code: error.message }, error.statusCode as UnofficialStatusCode);
           }
+          trackAuthorizationRejected(account, payload, card.mode, "unexpected-error");
           captureException(error, { level: "error", tags: { unhandled: true } });
           return c.json({ code: "ouch" }, 569 as UnofficialStatusCode);
         }
@@ -532,6 +535,29 @@ function trackTransactionAuthorized(
       type: "panda",
       cardMode,
       usdAmount: payload.body.spend.amount / 100,
+      merchant: {
+        name: payload.body.spend.merchantName,
+        category: payload.body.spend.merchantCategory,
+        city: payload.body.spend.merchantCity,
+        country: payload.body.spend.merchantCountry,
+      },
+    },
+  });
+}
+
+function trackAuthorizationRejected(
+  account: Address,
+  payload: v.InferOutput<typeof Transaction>,
+  cardMode: number,
+  declinedReason: string,
+): void {
+  track({
+    userId: account,
+    event: "AuthorizationRejected",
+    properties: {
+      cardMode,
+      usdAmount: payload.body.spend.amount / 100,
+      declinedReason,
       merchant: {
         name: payload.body.spend.merchantName,
         category: payload.body.spend.merchantCategory,

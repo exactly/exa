@@ -55,6 +55,15 @@ export function track(
           declinedReason?: string | null;
         };
       }
+    | {
+        event: "AuthorizationRejected";
+        properties: {
+          cardMode: number;
+          usdAmount: number;
+          merchant: MerchantProperties;
+          declinedReason: string;
+        };
+      }
   >,
 ) {
   try {
