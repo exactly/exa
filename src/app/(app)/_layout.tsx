@@ -1,4 +1,5 @@
 import type { Credential } from "@exactly/common/validation";
+import { sdk } from "@farcaster/miniapp-sdk";
 import { useQuery } from "@tanstack/react-query";
 import { Redirect, SplashScreen, Stack } from "expo-router";
 import React, { useEffect } from "react";
@@ -14,6 +15,7 @@ export default function AppLayout() {
   useBackgroundColor();
   useEffect(() => {
     if (isLoading || !isFetched) return;
+    sdk.actions.ready().catch(reportError);
     SplashScreen.hideAsync().catch(reportError);
   }, [isFetched, isLoading]);
   if (noCredential) return <Redirect href="/onboarding" />;
