@@ -23,8 +23,8 @@ import {
 
 import database, { cards, credentials } from "../database";
 import auth from "../middleware/auth";
+import { getApplicationStatus } from "../utils/kyc";
 import { createCard, getCard, getPIN, getSecrets, getUser, setPIN } from "../utils/panda";
-import { getInquiry, PANDA_TEMPLATE } from "../utils/persona";
 import { track } from "../utils/segment";
 import validatorHook from "../utils/validatorHook";
 
@@ -55,14 +55,10 @@ export default new Hono()
       if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
       const account = parse(Address, credential.account);
       setUser({ id: account });
+      if (!credential.pandaId) return c.json({ code: "no panda", legacy: "no panda" }, 403);
+
       if (credential.cards.length > 0 && credential.cards[0]) {
         const { id, lastFour, status, mode } = credential.cards[0];
-        const inquiry = await getInquiry(credentialId, PANDA_TEMPLATE);
-        if (!inquiry) return c.json({ code: "no kyc", legacy: "kyc required" }, 403);
-        if (inquiry.attributes.status !== "approved") {
-          return c.json({ code: "bad kyc", legacy: "kyc not approved" }, 403);
-        }
-        if (!credential.pandaId) return c.json({ code: "no panda", legacy: "no panda" }, 403);
         const [{ expirationMonth, expirationYear, limit }, pan, { firstName, lastName }, pin] = await Promise.all([
           getCard(id),
           getSecrets(id, c.req.valid("header").sessionid),
@@ -105,12 +101,11 @@ export default new Hono()
         const account = parse(Address, credential.account);
         setUser({ id: account });
 
-        const inquiry = await getInquiry(credentialId, PANDA_TEMPLATE);
-        if (!inquiry) return c.json({ code: "no kyc", legacy: "kyc not found" }, 403);
-        if (inquiry.attributes.status !== "approved") {
-          return c.json({ code: "bad kyc", legacy: "kyc not approved" }, 403);
-        }
         if (!credential.pandaId) return c.json({ code: "no panda", legacy: "panda id not found" }, 403);
+        const kyc = await getApplicationStatus(credential.pandaId);
+        if (kyc.applicationStatus !== "approved") {
+          return c.json({ code: "kyc not approved", legacy: "kyc not approved" }, 403);
+        }
         let cardCount = credential.cards.length;
         for (const card of credential.cards) {
           try {
