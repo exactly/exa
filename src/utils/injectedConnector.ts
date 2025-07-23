@@ -3,7 +3,7 @@ import type { Credential } from "@exactly/common/validation";
 import { farcasterMiniApp as miniAppConnector } from "@farcaster/miniapp-wagmi-connector";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { isAddress, UserRejectedRequestError, type Address } from "viem";
-import { createConfig, createStorage, custom, injected } from "wagmi";
+import { createConfig, createStorage, custom } from "wagmi";
 
 import publicClient from "./publicClient";
 import queryClient from "./queryClient";
@@ -11,18 +11,17 @@ import reportError from "./reportError";
 
 export const config = createConfig({
   chains: [chain],
-  connectors: [injected(), miniAppConnector()],
+  connectors: [miniAppConnector()],
   transports: { [chain.id]: custom(publicClient) },
   storage: createStorage({ storage: AsyncStorage }),
 });
 
-if (config.connectors[0]?.id !== "injected") throw new Error("no injected connector");
+if (config.connectors[0]?.id !== "farcaster") throw new Error("no farcaster connector");
 export const [connector] = config.connectors;
 
 export async function connectAccount(account: Address) {
   const accounts = await connector.isAuthorized().then(async (isAuthorized) => {
     if (isAuthorized) return connector.getAccounts();
-    if (!(await connector.getProvider({ chainId: chain.id }))) throw new Error("no injected provider");
     const { accounts: connectedAccounts } = await connector.connect({ chainId: chain.id });
     return connectedAccounts;
   });
@@ -38,7 +37,6 @@ export async function getAccount() {
       const accounts = await connector.getAccounts();
       return accounts[0];
     }
-    if (!(await connector.getProvider({ chainId: chain.id }))) return;
     const { accounts } = await connector.connect({ chainId: chain.id });
     return accounts[0];
   } catch (error: unknown) {
@@ -49,6 +47,8 @@ export async function getAccount() {
 
 export async function hasProvider() {
   return await connector.isAuthorized().then(async () => {
-    return (await connector.getProvider({ chainId: chain.id })) !== undefined;
+    const provider = await connector.getProvider({ chainId: chain.id });
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    return provider !== undefined;
   });
 }
