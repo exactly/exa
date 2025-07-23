@@ -8,8 +8,11 @@ module.exports = function config(api) {
         "module-resolver",
         {
           alias: {
+            "@farcaster/quick-auth/decodeJwt": "@farcaster/quick-auth/dist/decodeJwt",
+            "@farcaster/quick-auth/light": "@farcaster/quick-auth/dist/lightClient",
             "@wagmi/core/codegen": "@wagmi/core/dist/esm/exports/codegen",
             "hono/client": "hono/dist/client",
+            "jose/jwt/decode": "jose/dist/browser/util/decode_jwt",
           },
         },
       ],
