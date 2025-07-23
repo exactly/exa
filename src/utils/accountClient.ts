@@ -35,7 +35,7 @@ import {
   connectAccount as connectInjectedAccount,
   getAccount as getInjectedAccount,
   config as injectedConfig,
-  connector as injectedConnector,
+  getActiveConnector,
 } from "./injectedConnector";
 import { login } from "./onesignal";
 import publicClient from "./publicClient";
@@ -56,16 +56,18 @@ export default async function createAccountClient({ credentialId, factory, x, y 
     signUserOperationHash:
       method === "siwe" && injectedAccount
         ? (uoHash) =>
-            connectInjectedAccount(injectedAccount).then(async () =>
-              wrapSignature(
+            connectInjectedAccount(injectedAccount).then(async () => {
+              const activeConnector = await getActiveConnector();
+              if (!activeConnector) throw new Error("no active connector available");
+              return wrapSignature(
                 0,
                 await signMessage(injectedConfig, {
-                  connector: injectedConnector,
+                  connector: activeConnector,
                   account: injectedAccount,
                   message: { raw: uoHash },
                 }),
-              ),
-            )
+              );
+            })
         : async (uoHash) => {
             try {
               const credential = await get({

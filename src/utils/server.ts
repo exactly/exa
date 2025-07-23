@@ -12,7 +12,7 @@ import {
   connectAccount as connectInjectedAccount,
   getAccount as getInjectedAccount,
   config as injectedConfig,
-  connector as injectedConnector,
+  getActiveConnector,
 } from "./injectedConnector";
 import { encryptPIN, session } from "./panda";
 import queryClient, { APIError } from "./queryClient";
@@ -33,15 +33,19 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
     if (options.method === "webauthn" && Platform.OS === "android") delete options.allowCredentials; // HACK fix android credential filtering
     const json =
       options.method === "siwe"
-        ? await connectInjectedAccount(options.address).then(async () => ({
-            method: "siwe" as const,
-            id: options.address,
-            signature: await signMessage(injectedConfig, {
-              connector: injectedConnector,
-              account: options.address,
-              message: options.message,
-            }),
-          }))
+        ? await connectInjectedAccount(options.address).then(async () => {
+            const activeConnector = await getActiveConnector();
+            if (!activeConnector) throw new Error("no active connector available");
+            return {
+              method: "siwe" as const,
+              id: options.address,
+              signature: await signMessage(injectedConfig, {
+                connector: activeConnector,
+                account: options.address,
+                message: options.message,
+              }),
+            };
+          })
         : await assert({
             ...options,
             allowCredentials: Platform.OS === "android" ? undefined : options.allowCredentials, // HACK fix android credential filtering
@@ -133,15 +137,19 @@ export async function createCredential() {
   const post = await api.auth.registration.$post({
     json:
       options.method === "siwe"
-        ? await connectInjectedAccount(options.address).then(async () => ({
-            method: options.method,
-            id: options.address,
-            signature: await signMessage(injectedConfig, {
-              connector: injectedConnector,
-              account: options.address,
-              message: options.message,
-            }),
-          }))
+        ? await connectInjectedAccount(options.address).then(async () => {
+            const activeConnector = await getActiveConnector();
+            if (!activeConnector) throw new Error("no active connector available");
+            return {
+              method: options.method,
+              id: options.address,
+              signature: await signMessage(injectedConfig, {
+                connector: activeConnector,
+                account: options.address,
+                message: options.message,
+              }),
+            };
+          })
         : await create({
             ...options,
             extensions: options.extensions as Record<string, unknown> | undefined,
