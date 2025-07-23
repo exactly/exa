@@ -13,7 +13,7 @@ network: {{#if (eq CHAIN_ID "10")}}optimism{{else}}opsepolia{{/if}}
 modules:
   - name: map_blocks
     kind: map
-    initialBlock: {{#if (eq CHAIN_ID "10")}}78_311_238{{else}}26_170_850{{/if}}
+    initialBlock: {{#if (eq CHAIN_ID "10")}}78_311_238{{else}}30_700_789{{/if}}
     {{!-- 7_420_743 --}}
     inputs:
       - source: sf.ethereum.type.v2.Block
