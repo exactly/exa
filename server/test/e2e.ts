@@ -109,6 +109,7 @@ vi.mock("../utils/panda", async (importOriginal: () => Promise<typeof panda>) =>
       });
     }),
     getUser: vi.fn().mockImplementation((userId: string) => Promise.resolve(users.get(userId))),
+    getApplicationStatus: vi.fn().mockResolvedValue({ id: "pandaId", applicationStatus: "approved" }),
     isPanda: vi.fn().mockResolvedValue(true),
     setPIN: vi.fn().mockResolvedValue({}),
     signIssuerOp: vi.fn().mockResolvedValue("0x" + "ab".repeat(65)),
