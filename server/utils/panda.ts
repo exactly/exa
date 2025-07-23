@@ -3,20 +3,31 @@ import { Mutex, withTimeout, type MutexInterface } from "async-mutex";
 import { eq } from "drizzle-orm";
 import {
   boolean,
+  check,
+  email,
+  ipv4,
+  ipv6,
   length,
   literal,
   maxLength,
+  metadata,
   minLength,
   nullable,
   number,
   object,
+  omit,
+  optional,
   parse,
+  partial,
   picklist,
   pipe,
+  regex,
   string,
   transform,
+  union,
   type BaseIssue,
   type BaseSchema,
+  type InferInput,
 } from "valibot";
 import { BaseError, ContractFunctionZeroDataError } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -47,7 +58,6 @@ const baseURL = process.env.PANDA_API_URL;
 
 if (!process.env.PANDA_API_KEY) throw new Error("missing panda api key");
 const key = process.env.PANDA_API_KEY;
-export default key;
 
 export async function createCard(userId: string, productId: typeof PLATINUM_PRODUCT_ID | typeof SIGNATURE_PRODUCT_ID) {
   return await request(
@@ -366,3 +376,108 @@ export function createMutex(address: Address) {
 export function getMutex(address: Address) {
   return mutexes.get(address);
 }
+
+export async function submitApplication(payload: InferInput<typeof SubmitApplicationRequest>) {
+  return request(ApplicationResponse, "/issuing/applications/user", {}, payload, "POST");
+}
+
+export async function getApplicationStatus(applicationId: string) {
+  return request(ApplicationStatusResponse, `/issuing/applications/user/${applicationId}`, {}, undefined, "GET");
+}
+
+export async function updateApplication(applicationId: string, payload: InferInput<typeof UpdateApplicationRequest>) {
+  return request(object({}), `/issuing/applications/user/${applicationId}`, {}, payload, "PATCH");
+}
+
+const AddressSchema = object({
+  line1: pipe(string(), minLength(1), maxLength(100)),
+  line2: optional(pipe(string(), minLength(1), maxLength(100))),
+  city: pipe(string(), minLength(1), maxLength(50)),
+  region: pipe(string(), minLength(1), maxLength(50)),
+  country: optional(pipe(string(), minLength(1), maxLength(50))),
+  postalCode: pipe(string(), minLength(1), maxLength(15), regex(/^[a-z0-9]{1,15}$/i)),
+  countryCode: pipe(string(), length(2), regex(/^[A-Z]{2}$/i)),
+});
+
+export const SubmitApplicationRequest = object({
+  email: pipe(
+    string(),
+    email("Invalid email address"),
+    metadata({ description: "Email address", examples: ["user@domain.com"] }),
+  ),
+  lastName: pipe(string(), maxLength(50), metadata({ description: "The person's last name" })),
+  firstName: pipe(string(), maxLength(50), metadata({ description: "The person's first name" })),
+  nationalId: pipe(string(), maxLength(50), metadata({ description: "The person's national ID" })),
+  birthDate: pipe(
+    string(),
+    regex(/^\d{4}-\d{2}-\d{2}$/, "must be YYYY-MM-DD format"),
+    check((value) => {
+      const date = new Date(value);
+      return !Number.isNaN(date.getTime());
+    }, "must be a valid date"),
+    metadata({ description: "Birth date (YYYY-MM-DD)", examples: ["1970-01-01"] }),
+  ),
+  countryOfIssue: pipe(
+    string(),
+    length(2),
+    regex(/^[A-Z]{2}$/i, "Must be exactly 2 letters"),
+    metadata({ description: "The person's country of issue of their national id, as a 2-digit country code" }),
+  ),
+  phoneCountryCode: pipe(
+    string(),
+    minLength(1),
+    maxLength(3),
+    regex(/^\d{1,3}$/, "Must be a valid country code"),
+    metadata({ description: "The user's phone country code" }),
+  ),
+  phoneNumber: pipe(
+    string(),
+    minLength(1),
+    maxLength(15),
+    regex(/^\d{1,15}$/, "Must be a valid phone number"),
+    metadata({ description: "The user's phone number" }),
+  ),
+  address: pipe(AddressSchema, metadata({ description: "The person's address" })),
+  ipAddress: pipe(
+    union([pipe(string(), maxLength(50), ipv4()), pipe(string(), maxLength(50), ipv6())]),
+    metadata({ description: "The user's IP address (IPv4 or IPv6)" }),
+  ),
+  occupation: pipe(string(), maxLength(50), metadata({ description: "The user's occupation" })),
+  annualSalary: pipe(string(), maxLength(50), metadata({ description: "The user's annual salary" })),
+  accountPurpose: pipe(string(), maxLength(50), metadata({ description: "The user's account purpose" })),
+  expectedMonthlyVolume: pipe(string(), maxLength(50), metadata({ description: "The user's expected monthly volume" })),
+  isTermsOfServiceAccepted: pipe(
+    boolean(),
+    literal(true),
+    metadata({ description: "Whether the user has accepted the terms of service" }),
+  ),
+});
+
+export const UpdateApplicationRequest = object({
+  ...partial(omit(SubmitApplicationRequest, ["email", "phoneCountryCode", "phoneNumber", "address"])).entries,
+  address: optional(AddressSchema),
+});
+
+const ApplicationResponse = object({
+  id: pipe(string(), maxLength(50)),
+  applicationStatus: pipe(string(), maxLength(50)),
+});
+
+export const kycStatus = [
+  "needsVerification",
+  "needsInformation",
+  "manualReview",
+  "notStarted",
+  "approved",
+  "canceled",
+  "pending",
+  "denied",
+  "locked",
+] as const;
+
+const ApplicationStatusResponse = object({
+  id: string(),
+  applicationStatus: picklist(kycStatus),
+  applicationReason: optional(string()),
+});
+// #endregion schemas
