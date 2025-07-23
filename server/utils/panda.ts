@@ -39,10 +39,10 @@ import publicClient from "../utils/publicClient";
 const plugin = exaPluginAddress.toLowerCase();
 
 if (!process.env.PANDA_API_URL) throw new Error("missing panda api url");
-const baseURL = process.env.PANDA_API_URL;
+export const baseURL = process.env.PANDA_API_URL;
 
 if (!process.env.PANDA_API_KEY) throw new Error("missing panda api key");
-const key = process.env.PANDA_API_KEY;
+export const key = process.env.PANDA_API_KEY;
 export default key;
 
 export async function createCard(userId: string) {
