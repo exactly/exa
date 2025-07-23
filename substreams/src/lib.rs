@@ -7,8 +7,8 @@ use proto::exa::{
   events::{
     AccumulatorAccrual, AnswerUpdated, Borrow, BorrowAtMaturity, CollectorSet, EarningsAccumulatorSmoothFactorSet,
     ExaAccountInitialized, FixedEarningsUpdate, FloatingDebtUpdate, InterestRateModelSet, MarketEntered, MarketExited,
-    MarketUpdate, MaxFuturePoolsSet, NewRound, NewTransmission, ProposalManagerSet, Proposed, Repay, RepayAtMaturity,
-    Transfer, TreasurySet,
+    MarketUpdate, MaxFuturePoolsSet, NewRound, NewTransmission, ProposalManagerSet, ProposalNonceSet, Proposed, Repay,
+    RepayAtMaturity, Transfer, TreasurySet,
   },
   Events,
 };
@@ -202,6 +202,20 @@ pub fn map_blocks(block: Block) -> Result<Events, Error> {
           log_ordinal: log.ordinal(),
         }),
         _ => None,
+      })
+      .collect(),
+    proposal_nonce_sets: block
+      .logs()
+      .filter_map(|log| {
+        match (is_proposal_manager(log.address()), proposal_manager_events::ProposalNonceSet::match_and_decode(log)) {
+          (true, Some(event)) => Some(ProposalNonceSet {
+            account: event.account.to_vec(),
+            nonce: event.nonce.to_u64(),
+            executed: event.executed,
+            log_ordinal: log.ordinal(),
+          }),
+          _ => None,
+        }
       })
       .collect(),
     proposed: block
@@ -546,6 +560,18 @@ pub fn db_out(
       .set("account", Hex(&proposal_manager_set.account).to_string())
       .set("block", clock.number.to_string())
       .set("ordinal", proposal_manager_set.log_ordinal.to_string());
+  }
+  for proposal_nonce_set in events.proposal_nonce_sets {
+    tables
+      .create_row(
+        "proposal_nonce_sets",
+        [("account", Hex(&proposal_nonce_set.account).to_string()), ("nonce", proposal_nonce_set.nonce.to_string())],
+      )
+      .set("account", Hex(&proposal_nonce_set.account).to_string())
+      .set("nonce", proposal_nonce_set.nonce.to_string())
+      .set("executed", proposal_nonce_set.executed.to_string())
+      .set("block", clock.number.to_string())
+      .set("ordinal", proposal_nonce_set.log_ordinal.to_string());
   }
   for proposed in events.proposed {
     tables
