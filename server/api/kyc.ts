@@ -3,11 +3,19 @@ import { setContext, setUser } from "@sentry/node";
 import createDebug from "debug";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
-import { validator as vValidator } from "hono-openapi/valibot";
-import { object, parse, optional, string, pipe, partial, check } from "valibot";
+import { describeRoute } from "hono-openapi";
+import { resolver, validator as vValidator } from "hono-openapi/valibot";
+import { object, parse, optional, string, pipe, metadata, union, array, partial, check } from "valibot";
 
 import database, { credentials } from "../database/index";
 import auth from "../middleware/auth";
+import {
+  SubmitApplicationRequest as Application,
+  UpdateApplicationRequest as ApplicationUpdate,
+  getApplicationStatus,
+  submitApplication,
+  updateApplication,
+} from "../utils/kyc";
 import {
   createInquiry,
   CRYPTOMATE_TEMPLATE,
@@ -32,6 +40,18 @@ const KYCUpdateRequest = pipe(
   ),
   check((input) => Object.keys(input).length > 0, "at least one field is required"),
 );
+const KYCStatusResponse = object({
+  code: pipe(string(), metadata({ examples: ["ok"] })),
+  legacy: pipe(string(), metadata({ examples: ["ok"] })),
+  status: pipe(string(), metadata({ examples: ["approved", "rejected"] })),
+  reason: pipe(string(), metadata({ examples: ["", "BAD_SELFIE"] })),
+});
+
+const BadRequestCodes = {
+  ALREADY_STARTED: "already started",
+  NOT_STARTED: "not started",
+  BAD_REQUEST: "bad request",
+} as const;
 
 export default new Hono()
   .get("/", auth(), async (c) => {
@@ -121,4 +141,176 @@ export default new Hono()
     const updates = c.req.valid("json");
     await updateAccountFields(accountId, updates);
     return c.json({ code: "ok", legacy: "ok" }, 200);
+  })
+  .post(
+    "/application",
+    auth(),
+    describeRoute({
+      summary: "Submit KYC application",
+      description: "Submit information for KYC application",
+      tags: ["KYC"],
+      responses: {
+        200: {
+          description: "KYC application submitted successfully",
+          content: {
+            "application/json": {
+              schema: resolver(buildBaseResponse("ok"), { errorMode: "ignore" }),
+            },
+          },
+        },
+        400: {
+          description: "Bad request",
+          content: {
+            "application/json": {
+              schema: resolver(
+                union([
+                  buildBaseResponse(BadRequestCodes.ALREADY_STARTED),
+                  object({
+                    ...buildBaseResponse(BadRequestCodes.BAD_REQUEST).entries,
+                    message: optional(array(string())),
+                  }),
+                ]),
+                { errorMode: "ignore" },
+              ),
+            },
+          },
+        },
+      },
+      validateResponse: true,
+    }),
+    vValidator("json", Application, validatorHook({ debug })),
+    async (c) => {
+      const { credentialId } = c.req.valid("cookie");
+      const payload = c.req.valid("json");
+      const credential = await database.query.credentials.findFirst({
+        columns: { id: true, account: true, pandaId: true },
+        where: eq(credentials.id, credentialId),
+      });
+      if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
+      setUser({ id: parse(Address, credential.account) });
+      setContext("exa", { credential });
+
+      if (credential.pandaId) {
+        return c.json({ code: BadRequestCodes.ALREADY_STARTED, legacy: BadRequestCodes.ALREADY_STARTED }, 400);
+      }
+
+      const application = await submitApplication(payload);
+      await database.update(credentials).set({ pandaId: application.id }).where(eq(credentials.id, credentialId));
+      return c.json({ code: "ok", legacy: "ok" }, 200);
+    },
+  )
+  .patch(
+    "/application",
+    auth(),
+    describeRoute({
+      summary: "Update KYC application",
+      description: "Update the KYC application",
+      tags: ["KYC"],
+      responses: {
+        200: {
+          description: "KYC application updated successfully",
+          content: {
+            "application/json": {
+              schema: resolver(buildBaseResponse("ok"), { errorMode: "ignore" }),
+            },
+          },
+        },
+        400: {
+          description: "Bad request",
+          content: {
+            "application/json": {
+              schema: resolver(
+                union([
+                  buildBaseResponse(BadRequestCodes.NOT_STARTED),
+                  object({
+                    ...buildBaseResponse(BadRequestCodes.BAD_REQUEST).entries,
+                    message: optional(array(string())),
+                  }),
+                ]),
+                { errorMode: "ignore" },
+              ),
+            },
+          },
+        },
+      },
+      validateResponse: true,
+    }),
+    vValidator("json", ApplicationUpdate, validatorHook({ debug })),
+    async (c) => {
+      const { credentialId } = c.req.valid("cookie");
+      const payload = c.req.valid("json");
+      const credential = await database.query.credentials.findFirst({
+        columns: { id: true, account: true, pandaId: true },
+        where: eq(credentials.id, credentialId),
+      });
+      if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
+      setUser({ id: parse(Address, credential.account) });
+      setContext("exa", { credential });
+      if (!credential.pandaId) {
+        return c.json({ code: BadRequestCodes.NOT_STARTED, legacy: BadRequestCodes.NOT_STARTED }, 400);
+      }
+      await updateApplication(credential.pandaId, payload);
+      return c.json({ code: "ok", legacy: "ok" }, 200);
+    },
+  )
+  .get(
+    "/application",
+    auth(),
+    describeRoute({
+      summary: "Get KYC application status",
+      description: "Get the status of the KYC application",
+      tags: ["KYC"],
+      responses: {
+        200: {
+          description: "KYC application status",
+          content: {
+            "application/json": {
+              schema: resolver(KYCStatusResponse, { errorMode: "ignore" }),
+            },
+          },
+        },
+        400: {
+          description: "Bad request",
+          content: {
+            "application/json": {
+              schema: resolver(
+                union([
+                  buildBaseResponse(BadRequestCodes.NOT_STARTED),
+                  object({
+                    ...buildBaseResponse(BadRequestCodes.BAD_REQUEST).entries,
+                    message: optional(array(string())),
+                  }),
+                ]),
+                { errorMode: "ignore" },
+              ),
+            },
+          },
+        },
+      },
+    }),
+    async (c) => {
+      const { credentialId } = c.req.valid("cookie");
+      const credential = await database.query.credentials.findFirst({
+        columns: { id: true, account: true, pandaId: true },
+        where: eq(credentials.id, credentialId),
+      });
+      if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
+      setUser({ id: parse(Address, credential.account) });
+      setContext("exa", { credential });
+      if (!credential.pandaId) {
+        return c.json({ code: BadRequestCodes.NOT_STARTED, legacy: BadRequestCodes.NOT_STARTED }, 400);
+      }
+      const status = await getApplicationStatus(credential.pandaId);
+      return c.json(
+        { code: "ok", legacy: "ok", status: status.applicationStatus, reason: status.applicationReason },
+        200,
+      );
+    },
+  );
+
+function buildBaseResponse(example = "string") {
+  return object({
+    code: pipe(string(), metadata({ examples: [example] })),
+    legacy: pipe(string(), metadata({ examples: [example] })),
   });
+}
