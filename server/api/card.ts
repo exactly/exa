@@ -31,7 +31,17 @@ import { Address } from "@exactly/common/validation";
 import database, { cards, credentials } from "../database";
 import auth from "../middleware/auth";
 import { sendPushNotification } from "../utils/onesignal";
-import { autoCredit, createCard, getCard, getPIN, getSecrets, getUser, setPIN, updateCard } from "../utils/panda";
+import {
+  autoCredit,
+  createCard,
+  getApplicationStatus,
+  getCard,
+  getPIN,
+  getSecrets,
+  getUser,
+  setPIN,
+  updateCard,
+} from "../utils/panda";
 import { addCapita, deriveAssociateId } from "../utils/pax";
 import { getAccount } from "../utils/persona";
 import { customer } from "../utils/sardine";
@@ -342,6 +352,10 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
           setUser({ id: account });
 
           if (!credential.pandaId) return c.json({ code: "no panda", legacy: "panda id not found" }, 403);
+          const kyc = await getApplicationStatus(credential.pandaId);
+          if (kyc.applicationStatus !== "approved") {
+            return c.json({ code: "kyc not approved", legacy: "kyc not approved" }, 403);
+          }
 
           let isUpgradeFromPlatinum = credential.cards.some(
             ({ status, productId }) => status === "DELETED" && productId === PLATINUM_PRODUCT_ID,
