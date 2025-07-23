@@ -12,8 +12,8 @@ import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 
 import app from "../../api/card";
 import database, { cards, credentials } from "../../database";
+import * as kyc from "../../utils/kyc";
 import * as panda from "../../utils/panda";
-import * as persona from "../../utils/persona";
 
 const appClient = testClient(app);
 
@@ -38,19 +38,11 @@ describe("authenticated", () => {
     vi.restoreAllMocks();
   });
 
-  it("returns 403 kyc not done", async () => {
-    await database.insert(cards).values([{ id: "kyc", credentialId: account, lastFour: "7890" }]);
-    vi.spyOn(persona, "getInquiry").mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
-    const response = await appClient.index.$get(
-      { header: { sessionid: "fakeSession" } },
-      { headers: { "test-credential-id": account } },
-    );
-
-    expect(response.status).toBe(403);
-  });
-
   it("returns 404 card not found", async () => {
-    vi.spyOn(persona, "getInquiry").mockResolvedValueOnce(personaTemplate);
+    vi.spyOn(kyc, "getApplicationStatus").mockResolvedValueOnce({
+      id: "pandaId",
+      applicationStatus: "approved",
+    });
     const response = await appClient.index.$get(
       { header: { sessionid: "fakeSession" } },
       { headers: { "test-credential-id": account } },
@@ -63,14 +55,15 @@ describe("authenticated", () => {
     await database
       .insert(cards)
       .values([{ id: "543c1771-beae-4f26-b662-44ea48b40dc6", credentialId: account, lastFour: "1234" }]);
-    vi.spyOn(persona, "getInquiry").mockResolvedValueOnce(personaTemplate);
+    vi.spyOn(kyc, "getApplicationStatus").mockResolvedValueOnce({
+      id: "pandaId",
+      applicationStatus: "approved",
+    });
     vi.spyOn(panda, "getSecrets").mockResolvedValueOnce(panTemplate);
     vi.spyOn(panda, "getPIN").mockResolvedValueOnce(pinTemplate);
 
     vi.spyOn(panda, "getCard").mockResolvedValueOnce(cardTemplate);
     vi.spyOn(panda, "getUser").mockResolvedValueOnce(userTemplate);
-
-    vi.spyOn(panda, "isPanda").mockResolvedValueOnce(true);
 
     const response = await appClient.index.$get(
       { header: { sessionid: "fakeSession" } },
@@ -107,12 +100,6 @@ describe("authenticated", () => {
         factory: zeroAddress,
       },
     ]);
-    await database.insert(cards).values([{ id: `card-${foo}`, credentialId: foo, lastFour: "4567" }]);
-
-    vi.spyOn(persona, "getInquiry").mockResolvedValueOnce(personaTemplate);
-    vi.spyOn(panda, "getSecrets").mockResolvedValueOnce(panTemplate);
-    vi.spyOn(panda, "getCard").mockResolvedValueOnce(cardTemplate);
-    vi.spyOn(panda, "isPanda").mockResolvedValueOnce(true);
 
     const response = await appClient.index.$get(
       { header: { sessionid: "fakeSession" } },
@@ -120,11 +107,18 @@ describe("authenticated", () => {
     );
 
     expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toStrictEqual({
+      code: "no panda",
+      legacy: "no panda",
+    });
   });
 
   it("creates a panda card", async () => {
     vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: "createCard" });
-    vi.spyOn(persona, "getInquiry").mockResolvedValueOnce(personaTemplate);
+    vi.spyOn(kyc, "getApplicationStatus").mockResolvedValueOnce({
+      id: "pandaId",
+      applicationStatus: "approved",
+    });
 
     const response = await appClient.index.$post({ header: { "test-credential-id": account } });
     const json = await response.json();
@@ -140,7 +134,10 @@ describe("authenticated", () => {
     it("creates a panda card having a cm card with upgraded plugin", async () => {
       await database.insert(cards).values([{ id: "cm", credentialId: account, lastFour: "1234" }]);
 
-      vi.spyOn(persona, "getInquiry").mockResolvedValueOnce(personaTemplate);
+      vi.spyOn(kyc, "getApplicationStatus").mockResolvedValueOnce({
+        id: "pandaId",
+        applicationStatus: "approved",
+      });
       vi.spyOn(panda, "getCard").mockRejectedValueOnce(new Error("404 card not found"));
       vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: "migration:cm" });
       vi.spyOn(panda, "isPanda").mockResolvedValueOnce(true);
@@ -158,7 +155,10 @@ describe("authenticated", () => {
     it("creates a panda card having a cm card with invalid uuid", async () => {
       await database.insert(cards).values([{ id: "not-uuid", credentialId: account, lastFour: "1234" }]);
 
-      vi.spyOn(persona, "getInquiry").mockResolvedValueOnce(personaTemplate);
+      vi.spyOn(kyc, "getApplicationStatus").mockResolvedValueOnce({
+        id: "pandaId",
+        applicationStatus: "approved",
+      });
       vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: "migration:not-uuid" });
       vi.spyOn(panda, "isPanda").mockResolvedValueOnce(true);
 
@@ -192,20 +192,6 @@ const panTemplate = {
 
 const pinTemplate = {
   pin: { iv: "xfQikHU/pxVSniCKKKyv8w==", data: "VUPy5u3xdg6fnvT/ZmrE1Lev28SVRjLTTTJEaO9X7is=" },
-} as const;
-
-const personaTemplate = {
-  attributes: {
-    "email-address": "email@example.com",
-    "name-first": "First",
-    "name-last": "Last",
-    "name-middle": null,
-    "phone-number": "1234567890",
-    "reference-id": "ref-id",
-    status: "approved",
-  },
-  id: "inquiry-id",
-  type: "inquiry",
 } as const;
 
 const userTemplate = {
