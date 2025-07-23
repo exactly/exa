@@ -358,6 +358,26 @@ export const proposalManagerSets = substreams.table(
 );
 
 // proposal manager
+
+export const proposalNonceSets = substreams.table(
+  "proposal_nonce_sets",
+  {
+    account: text("account").notNull(),
+    nonce: numeric("nonce").notNull(),
+    executed: boolean("executed").notNull(),
+    block: numeric("block")
+      .references(() => blocks.number)
+      .notNull(),
+    ordinal: numeric("ordinal").notNull(),
+  },
+  ({ account, nonce, executed }) => [
+    primaryKey({ columns: [account, nonce] }),
+    index("proposal_nonce_sets_account").on(account),
+    index("proposal_nonce_sets_nonce").on(nonce),
+    index("proposal_nonce_sets_executed").on(executed),
+  ],
+);
+
 export const proposed = substreams.table(
   "proposed",
   {
