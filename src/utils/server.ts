@@ -9,18 +9,19 @@ import { get as assert, create } from "react-native-passkeys";
 import { check, number, parse, pipe, safeParse, ValiError } from "valibot";
 
 import {
-  connectAccount as connectInjectedAccount,
+  connectAccount,
   getAccount as getInjectedAccount,
   config as injectedConfig,
-  connector as injectedConnector,
+  getConnector,
 } from "./injectedConnector";
 import { encryptPIN, session } from "./panda";
 import queryClient, { APIError } from "./queryClient";
 
 queryClient.setQueryDefaults<number | undefined>(["auth"], {
+  retry: false,
+  enabled: false,
   staleTime: AUTH_EXPIRY,
   gcTime: AUTH_EXPIRY,
-  retry: false,
   queryFn: async () => {
     const method = queryClient.getQueryData<"siwe" | "webauthn" | undefined>(["method"]);
     const credentialId =
@@ -33,15 +34,17 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
     if (options.method === "webauthn" && Platform.OS === "android") delete options.allowCredentials; // HACK fix android credential filtering
     const json =
       options.method === "siwe"
-        ? await connectInjectedAccount(options.address).then(async () => ({
-            method: "siwe" as const,
-            id: options.address,
-            signature: await signMessage(injectedConfig, {
-              connector: injectedConnector,
-              account: options.address,
-              message: options.message,
-            }),
-          }))
+        ? await connectAccount(options.address).then(async () => {
+            return {
+              method: "siwe" as const,
+              id: options.address,
+              signature: await signMessage(injectedConfig, {
+                connector: await getConnector(),
+                account: options.address,
+                message: options.message,
+              }),
+            };
+          })
         : await assert({
             ...options,
             allowCredentials: Platform.OS === "android" ? undefined : options.allowCredentials, // HACK fix android credential filtering
@@ -142,15 +145,17 @@ export async function createCredential() {
   const post = await api.auth.registration.$post({
     json:
       options.method === "siwe"
-        ? await connectInjectedAccount(options.address).then(async () => ({
-            method: options.method,
-            id: options.address,
-            signature: await signMessage(injectedConfig, {
-              connector: injectedConnector,
-              account: options.address,
-              message: options.message,
-            }),
-          }))
+        ? await connectAccount(options.address).then(async () => {
+            return {
+              method: options.method,
+              id: options.address,
+              signature: await signMessage(injectedConfig, {
+                connector: await getConnector(),
+                account: options.address,
+                message: options.message,
+              }),
+            };
+          })
         : await create({
             ...options,
             extensions: options.extensions as Record<string, unknown> | undefined,
