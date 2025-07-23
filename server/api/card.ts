@@ -44,6 +44,7 @@ import { sendPushNotification } from "../utils/onesignal";
 import {
   autoCredit,
   createCard,
+  getApplicationStatus,
   getCard,
   getNonce,
   getPIN,
@@ -413,7 +414,12 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
         403: {
           description: "Forbidden",
           content: {
-            "application/json": { schema: resolver(object({ code: literal("no panda") }), { errorMode: "ignore" }) },
+            "application/json": {
+              schema: resolver(
+                union([object({ code: literal("no panda") }), object({ code: literal("kyc not approved") })]),
+                { errorMode: "ignore" },
+              ),
+            },
           },
         },
       },
@@ -465,6 +471,10 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
           }
           if (cardCount > 0) return c.json({ code: "already created" }, 400);
           try {
+            const kyc = await getApplicationStatus(credential.pandaId);
+            if (kyc.applicationStatus !== "approved") {
+              return c.json({ code: "kyc not approved" }, 403);
+            }
             const card = await createCard(
               credential.pandaId,
               SIGNATURE_PRODUCT_ID,
