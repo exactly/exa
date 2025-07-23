@@ -32,10 +32,10 @@ import {
 } from "viem";
 
 import {
-  connectAccount as connectInjectedAccount,
+  connectAccount,
   getAccount as getInjectedAccount,
   config as injectedConfig,
-  connector as injectedConnector,
+  getConnector,
 } from "./injectedConnector";
 import { login } from "./onesignal";
 import publicClient from "./publicClient";
@@ -56,16 +56,16 @@ export default async function createAccountClient({ credentialId, factory, x, y 
     signUserOperationHash:
       method === "siwe" && injectedAccount
         ? (uoHash) =>
-            connectInjectedAccount(injectedAccount).then(async () =>
-              wrapSignature(
+            connectAccount(injectedAccount).then(async () => {
+              return wrapSignature(
                 0,
                 await signMessage(injectedConfig, {
-                  connector: injectedConnector,
+                  connector: await getConnector(),
                   account: injectedAccount,
                   message: { raw: uoHash },
                 }),
-              ),
-            )
+              );
+            })
         : async (uoHash) => {
             try {
               const credential = await get({
