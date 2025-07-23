@@ -5,10 +5,10 @@ use contracts::{
 };
 use proto::exa::{
   events::{
-    AccumulatorAccrual, AnswerUpdated, Borrow, BorrowAtMaturity, CollectorSet, EarningsAccumulatorSmoothFactorSet,
-    ExaAccountInitialized, FixedEarningsUpdate, FloatingDebtUpdate, InterestRateModelSet, MarketEntered, MarketExited,
-    MarketUpdate, MaxFuturePoolsSet, NewRound, NewTransmission, ProposalManagerSet, ProposalNonceSet, Proposed, Repay,
-    RepayAtMaturity, Transfer, TreasurySet,
+    AccumulatorAccrual, AnswerUpdated, Borrow, BorrowAtMaturity, CollectorSet, DelaySet,
+    EarningsAccumulatorSmoothFactorSet, ExaAccountInitialized, FixedEarningsUpdate, FloatingDebtUpdate,
+    InterestRateModelSet, MarketEntered, MarketExited, MarketUpdate, MaxFuturePoolsSet, NewRound, NewTransmission,
+    ProposalManagerSet, ProposalNonceSet, Proposed, Repay, RepayAtMaturity, TargetAllowed, Transfer, TreasurySet,
   },
   Events,
 };
@@ -85,6 +85,15 @@ pub fn map_blocks(block: Block) -> Result<Events, Error> {
           log_ordinal: log.ordinal(),
         }),
         _ => None,
+      })
+      .collect(),
+    delay_sets: block
+      .logs()
+      .filter_map(|log| {
+        match (is_proposal_manager(log.address()), proposal_manager_events::DelaySet::match_and_decode(log)) {
+          (true, Some(event)) => Some(DelaySet { delay: event.delay.to_u64(), log_ordinal: log.ordinal() }),
+          _ => None,
+        }
       })
       .collect(),
     earnings_accumulator_smooth_factor_sets: block
@@ -260,6 +269,20 @@ pub fn map_blocks(block: Block) -> Result<Events, Error> {
           log_ordinal: log.ordinal(),
         }),
         _ => None,
+      })
+      .collect(),
+    target_allowed: block
+      .logs()
+      .filter_map(|log| {
+        match (is_proposal_manager(log.address()), proposal_manager_events::TargetAllowed::match_and_decode(log)) {
+          (true, Some(event)) => Some(TargetAllowed {
+            target: event.target.to_vec(),
+            sender: event.sender.to_vec(),
+            allowed: event.allowed,
+            log_ordinal: log.ordinal(),
+          }),
+          _ => None,
+        }
       })
       .collect(),
     transfers: block
@@ -458,6 +481,16 @@ pub fn db_out(
       ],
     );
   }
+  for delay_set in events.delay_sets {
+    tables.create_row(
+      "delay_sets",
+      [
+        ("delay", delay_set.delay.to_string()),
+        ("block", clock.number.to_string()),
+        ("ordinal", delay_set.log_ordinal.to_string()),
+      ],
+    );
+  }
   for earnings_accumulator_smooth_factor_set in events.earnings_accumulator_smooth_factor_sets {
     tables
       .create_row(
@@ -585,6 +618,19 @@ pub fn db_out(
       .set("unlock", proposed.unlock.to_string())
       .set("block", clock.number.to_string())
       .set("ordinal", proposed.log_ordinal.to_string());
+  }
+  for target_allowed in events.target_allowed {
+    tables
+      .create_row(
+        "target_allowed",
+        [
+          ("target", Hex(&target_allowed.target).to_string()),
+          ("sender", Hex(&target_allowed.sender).to_string()),
+          ("block", clock.number.to_string()),
+          ("ordinal", target_allowed.log_ordinal.to_string()),
+        ],
+      )
+      .set("allowed", target_allowed.allowed.to_string());
   }
   for treasury_set in events.treasury_sets {
     tables

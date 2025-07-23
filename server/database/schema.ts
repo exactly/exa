@@ -358,6 +358,17 @@ export const proposalManagerSets = substreams.table(
 );
 
 // proposal manager
+export const delaySets = substreams.table(
+  "delay_sets",
+  {
+    delay: numeric("delay").notNull(),
+    block: numeric("block")
+      .references(() => blocks.number)
+      .notNull(),
+    ordinal: numeric("ordinal").notNull(),
+  },
+  ({ delay, block, ordinal }) => [primaryKey({ columns: [delay, block, ordinal] })],
+);
 
 export const proposalNonceSets = substreams.table(
   "proposal_nonce_sets",
@@ -398,5 +409,24 @@ export const proposed = substreams.table(
     index("proposed_account").on(account),
     index("proposed_market").on(market),
     index("proposed_proposal_type").on(proposalType),
+  ],
+);
+
+export const targetAllowed = substreams.table(
+  "target_allowed",
+  {
+    target: text("target").notNull(),
+    sender: text("sender").notNull(),
+    allowed: boolean("allowed").notNull(),
+    block: numeric("block")
+      .references(() => blocks.number)
+      .notNull(),
+    ordinal: numeric("ordinal").notNull(),
+  },
+  ({ target, sender, allowed, block, ordinal }) => [
+    primaryKey({ columns: [target, sender, block, ordinal] }),
+    index("target_allowed_target").on(target),
+    index("target_allowed_sender").on(sender),
+    index("target_allowed_allowed").on(allowed),
   ],
 );

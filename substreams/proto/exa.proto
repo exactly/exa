@@ -7,27 +7,29 @@ message Events {
   repeated Borrow borrows = 2;
   repeated BorrowAtMaturity borrow_at_maturities = 3;
   repeated CollectorSet collector_sets = 4;
-  repeated EarningsAccumulatorSmoothFactorSet earnings_accumulator_smooth_factor_sets = 5;
-  repeated ExaAccountInitialized exa_account_initialized = 6;
-  repeated FixedEarningsUpdate fixed_earnings_updates = 7;
-  repeated FloatingDebtUpdate floating_debt_updates = 8;
-  repeated InterestRateModelSet interest_rate_model_sets = 9;
-  repeated MarketEntered market_enters = 10;
-  repeated MarketExited market_exits = 11;
-  repeated MarketUpdate market_updates = 12;
-  repeated MaxFuturePoolsSet max_future_pools_sets = 13;
-  repeated ProposalManagerSet proposal_manager_sets = 14;
-  repeated ProposalNonceSet proposal_nonce_sets = 15;
-  repeated Proposed proposed = 16;
-  repeated Repay repays = 17;
-  repeated RepayAtMaturity repay_at_maturities = 18;
-  repeated Transfer transfers = 19;
-  repeated TreasurySet treasury_sets = 20;
+  repeated DelaySet delay_sets = 5;
+  repeated EarningsAccumulatorSmoothFactorSet earnings_accumulator_smooth_factor_sets = 6;
+  repeated ExaAccountInitialized exa_account_initialized = 7;
+  repeated FixedEarningsUpdate fixed_earnings_updates = 8;
+  repeated FloatingDebtUpdate floating_debt_updates = 9;
+  repeated InterestRateModelSet interest_rate_model_sets = 10;
+  repeated MarketEntered market_enters = 11;
+  repeated MarketExited market_exits = 12;
+  repeated MarketUpdate market_updates = 13;
+  repeated MaxFuturePoolsSet max_future_pools_sets = 14;
+  repeated ProposalManagerSet proposal_manager_sets = 15;
+  repeated ProposalNonceSet proposal_nonce_sets = 16;
+  repeated Proposed proposed = 17;
+  repeated Repay repays = 18;
+  repeated RepayAtMaturity repay_at_maturities = 19;
+  repeated TargetAllowed target_allowed = 20;
+  repeated Transfer transfers = 21;
+  repeated TreasurySet treasury_sets = 22;
 
   // price tracking
-  repeated AnswerUpdated answer_updates = 21;
-  repeated NewRound new_rounds = 22;
-  repeated NewTransmission new_transmissions = 23;
+  repeated AnswerUpdated answer_updates = 23;
+  repeated NewRound new_rounds = 24;
+  repeated NewTransmission new_transmissions = 25;
 
   message AccumulatorAccrual {
     bytes market = 1;
@@ -56,6 +58,12 @@ message Events {
   message CollectorSet {
     bytes collector = 1;
     bytes account = 2;
+    // internals
+    uint64 log_ordinal = 30;
+  }
+
+  message DelaySet {
+    uint64 delay = 1;
     // internals
     uint64 log_ordinal = 30;
   }
@@ -168,6 +176,14 @@ message Events {
     bytes borrower = 3;
     string assets = 4;
     string position_assets = 5;
+    // internals
+    uint64 log_ordinal = 30;
+  }
+
+  message TargetAllowed {
+    bytes target = 1;
+    bytes sender = 2;
+    bool allowed = 3;
     // internals
     uint64 log_ordinal = 30;
   }
