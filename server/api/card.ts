@@ -23,6 +23,7 @@ import {
 
 import database, { cards, credentials } from "../database";
 import auth from "../middleware/auth";
+import { getApplicationStatus } from "../utils/kyc";
 import { sendPushNotification } from "../utils/onesignal";
 import { autoCredit, createCard, getCard, getPIN, getSecrets, getUser, setPIN } from "../utils/panda";
 import { track } from "../utils/segment";
@@ -100,6 +101,10 @@ export default new Hono()
         const account = parse(Address, credential.account);
         setUser({ id: account });
         if (!credential.pandaId) return c.json({ code: "no panda", legacy: "panda id not found" }, 403);
+        const kyc = await getApplicationStatus(credential.pandaId);
+        if (kyc.applicationStatus !== "approved") {
+          return c.json({ code: "kyc not approved", legacy: "kyc not approved" }, 403);
+        }
         let cardCount = credential.cards.length;
         for (const card of credential.cards) {
           try {
