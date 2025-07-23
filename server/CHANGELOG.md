@@ -1,5 +1,17 @@
 # @exactly/server
 
+## 0.2.10
+
+### Patch Changes
+
+- [`1157b48`](https://github.com/exactly/exa/commit/1157b482bde963f82037aa37334ae3cb160dee8a) Thanks [@nfmelendez](https://github.com/nfmelendez)! - ✨ add refund notification
+
+- [`585be14`](https://github.com/exactly/exa/commit/585be1416469d0b20372a8737452390db237d147) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 📈 instrument event and transaction ids
+
+- [`fc07a58`](https://github.com/exactly/exa/commit/fc07a580ad2ef4dab5d52174d41d1748c6c0c423) Thanks [@mainqueg](https://github.com/mainqueg)! - 📈 track tx authorization rejected
+
+- [`b6ccafd`](https://github.com/exactly/exa/commit/b6ccafdd61e6fa921ab6d20f3fe0c4cd869b9ac4) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 💬 update receive funds and purchase notification text
+
 ## 0.2.9
 
 ### Patch Changes

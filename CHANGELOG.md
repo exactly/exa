@@ -1,5 +1,76 @@
 # @exactly/mobile
 
+## 1.0.19
+
+### Patch Changes
+
+- [`a023541`](https://github.com/exactly/exa/commit/a023541b04f3fa4b7b55899174fb61335e42a815) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🔥 drop unused progress components
+
+- [`5eddbfb`](https://github.com/exactly/exa/commit/5eddbfbcc665eb5d187943f710f330cef76dce22) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ♻️ unify asset logo
+
+- [`3f1d10a`](https://github.com/exactly/exa/commit/3f1d10ae041823e0c8e3866be94c5d3cd236ba80) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ create styled button
+
+- [`87b1f83`](https://github.com/exactly/exa/commit/87b1f8379e9d734a348352bbf5f2fb85d676e260) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🍱 add connect svg
+
+- [`6f530b6`](https://github.com/exactly/exa/commit/6f530b65ccdc05b5cd78a519d54b44dbf4879ff9) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🍱 add services svg files
+
+- [`81ee3c9`](https://github.com/exactly/exa/commit/81ee3c94b8deae91852942b2bbb2e3544e5a259b) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🍱 add defi svg
+
+- [`5634daf`](https://github.com/exactly/exa/commit/5634dafc4996569399c01a94638b2a2a6c655557) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix swap screen layout
+
+- [`e5fd39a`](https://github.com/exactly/exa/commit/e5fd39ac92c68ee639f23740a13f177cb97efc51) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ update loans ui
+
+- [`ed8b0b0`](https://github.com/exactly/exa/commit/ed8b0b0a8708b8c33a2acfaef5ecda20bdbdb00e) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ♻️ refactor loan review screen
+
+- [`0f1be26`](https://github.com/exactly/exa/commit/0f1be26140ff9aa1bdc44bdfa9ad61a21a547c60) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add defi banner
+
+- [`f97adc3`](https://github.com/exactly/exa/commit/f97adc33d86ae0ac6ce22d8b36f329a5daf07455) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🍱 add loans svg
+
+- [`3c294e8`](https://github.com/exactly/exa/commit/3c294e85f075728d1e95c8298b37eba403f7f97b) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 disable menu actions for undeployed accounts
+
+- [`2bd3095`](https://github.com/exactly/exa/commit/2bd30958a51d4f609ecd6e832b87ba54365284e6) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🍱 add defi banner
+
+- [`7d7b507`](https://github.com/exactly/exa/commit/7d7b507bbe7f13b8b0c752866ff908f12395681e) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add upcoming payments to loans screen
+
+- [`707eafa`](https://github.com/exactly/exa/commit/707eafa41d68349f56cee57fb4324ae5a1a67ec7) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🎨 create gradient scroll view component
+
+- [`9ee283b`](https://github.com/exactly/exa/commit/9ee283b85ca15d77e33280eae61d1e0f212e98c8) Thanks [@franm91](https://github.com/franm91)! - ✨ implement swaps
+
+- [`09025e2`](https://github.com/exactly/exa/commit/09025e2af2f948916bf32b709efc65e9d22a6339) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ update loans ui
+
+- [`05d949f`](https://github.com/exactly/exa/commit/05d949fc1d3da9bca0b2b414afbb91f28306b877) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ update send funds ui
+
+- [`951920b`](https://github.com/exactly/exa/commit/951920b6b2feac4fec9359022895a8cf692e151c) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ implement loans
+
+- [`76f4331`](https://github.com/exactly/exa/commit/76f4331351180a8b16d3d857bfe507d6b6b5fd14) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix progress screens scroll on web
+
+- [`ec7c834`](https://github.com/exactly/exa/commit/ec7c834d44250f5ee6abed4304f12e2a333de621) Thanks [@franm91](https://github.com/franm91)! - 💬 update disclaimers
+
+- [`2cfee17`](https://github.com/exactly/exa/commit/2cfee1759b234a95c6cb1311e2c5ac2a37d44870) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🎨 update home call to action buttons
+
+- [`8d07eb2`](https://github.com/exactly/exa/commit/8d07eb29591df7234b7cb943b27fc67408ad5113) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ implement new home design
+
+- [`e1fa70f`](https://github.com/exactly/exa/commit/e1fa70fef25d86d946c5ddf2c28c3aae0bae2e63) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🎨 prefer gradient scroll view on activity details
+
+- [`da367d0`](https://github.com/exactly/exa/commit/da367d07d08c45e5cbec2c2a6c72a0c4ca23c9a4) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix swap asset logo border radius
+
+- [`72c9472`](https://github.com/exactly/exa/commit/72c947277587320914a81187cd559ee6600fbcd4) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix loans button color
+
+- [`fa594de`](https://github.com/exactly/exa/commit/fa594dece5eb4cd938d44f348a6b5774feba1469) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ improve repay screen
+
+- [`540f20b`](https://github.com/exactly/exa/commit/540f20b7a5471956d9c3473d3c0512587d2d211e) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 remove modal presentation on loan flow
+
+- [`9606770`](https://github.com/exactly/exa/commit/9606770252009ba51e6d7eb97e91fbd36ea80877) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ♻️ extract shared progress screens
+
+- [`a7e75b9`](https://github.com/exactly/exa/commit/a7e75b925ce37b2e23ec1cfb6f6df7859a618882) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ♻️ prefer shared progress components
+
+- [`d94ea57`](https://github.com/exactly/exa/commit/d94ea57f68845eb993a26ad66420fbe2409cff0a) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🥅 avoid reporting expected auth error
+
+- [`64d9b69`](https://github.com/exactly/exa/commit/64d9b6938865b172a8afcdbe272938460af46fd4) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ implement defi screen
+
+- Updated dependencies [[`1157b48`](https://github.com/exactly/exa/commit/1157b482bde963f82037aa37334ae3cb160dee8a), [`585be14`](https://github.com/exactly/exa/commit/585be1416469d0b20372a8737452390db237d147), [`fc07a58`](https://github.com/exactly/exa/commit/fc07a580ad2ef4dab5d52174d41d1748c6c0c423), [`b6ccafd`](https://github.com/exactly/exa/commit/b6ccafdd61e6fa921ab6d20f3fe0c4cd869b9ac4)]:
+  - @exactly/server@0.2.10
+
 ## 1.0.18
 
 ### Patch Changes
