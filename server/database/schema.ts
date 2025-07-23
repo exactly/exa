@@ -356,3 +356,27 @@ export const proposalManagerSets = substreams.table(
     index("proposal_manager_sets_proposal_manager").on(proposalManager),
   ],
 );
+
+// proposal manager
+export const proposed = substreams.table(
+  "proposed",
+  {
+    account: text("account").notNull(),
+    nonce: numeric("nonce").notNull(),
+    market: text("market").notNull(),
+    proposalType: numeric("proposal_type").notNull(),
+    amount: numeric("amount", { mode: "string" }).notNull(),
+    data: bytea("data").notNull(),
+    unlock: numeric("unlock").notNull(),
+    block: numeric("block")
+      .references(() => blocks.number)
+      .notNull(),
+    ordinal: numeric("ordinal").notNull(),
+  },
+  ({ account, nonce, market, proposalType }) => [
+    primaryKey({ columns: [account, nonce] }),
+    index("proposed_account").on(account),
+    index("proposed_market").on(market),
+    index("proposed_proposal_type").on(proposalType),
+  ],
+);

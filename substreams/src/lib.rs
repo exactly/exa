@@ -1,13 +1,14 @@
 use contracts::{
   auditor::events as auditor_events, chainlink::events as chainlink_events, factory::events as factory_events,
-  is_auditor, is_factory, is_market, is_plugin, market::events, plugin::events as plugin_events,
+  is_auditor, is_factory, is_market, is_plugin, is_proposal_manager, market::events, plugin::events as plugin_events,
+  proposal_manager::events as proposal_manager_events,
 };
 use proto::exa::{
   events::{
     AccumulatorAccrual, AnswerUpdated, Borrow, BorrowAtMaturity, CollectorSet, EarningsAccumulatorSmoothFactorSet,
     ExaAccountInitialized, FixedEarningsUpdate, FloatingDebtUpdate, InterestRateModelSet, MarketEntered, MarketExited,
-    MarketUpdate, MaxFuturePoolsSet, NewRound, NewTransmission, ProposalManagerSet, Repay, RepayAtMaturity, Transfer,
-    TreasurySet,
+    MarketUpdate, MaxFuturePoolsSet, NewRound, NewTransmission, ProposalManagerSet, Proposed, Repay, RepayAtMaturity,
+    Transfer, TreasurySet,
   },
   Events,
 };
@@ -201,6 +202,24 @@ pub fn map_blocks(block: Block) -> Result<Events, Error> {
           log_ordinal: log.ordinal(),
         }),
         _ => None,
+      })
+      .collect(),
+    proposed: block
+      .logs()
+      .filter_map(|log| {
+        match (is_proposal_manager(log.address()), proposal_manager_events::Proposed::match_and_decode(log)) {
+          (true, Some(event)) => Some(Proposed {
+            account: event.account.to_vec(),
+            nonce: event.nonce.to_u64(),
+            market: event.market.to_vec(),
+            proposal_type: event.proposal_type.to_u64(),
+            amount: event.amount.to_u64(),
+            data: event.data.to_vec(),
+            unlock: event.unlock.to_u64(),
+            log_ordinal: log.ordinal(),
+          }),
+          _ => None,
+        }
       })
       .collect(),
     repay_at_maturities: block
@@ -527,6 +546,19 @@ pub fn db_out(
       .set("account", Hex(&proposal_manager_set.account).to_string())
       .set("block", clock.number.to_string())
       .set("ordinal", proposal_manager_set.log_ordinal.to_string());
+  }
+  for proposed in events.proposed {
+    tables
+      .create_row("proposed", [("account", Hex(&proposed.account).to_string()), ("nonce", proposed.nonce.to_string())])
+      .set("account", Hex(&proposed.account).to_string())
+      .set("nonce", proposed.nonce.to_string())
+      .set("market", Hex(&proposed.market).to_string())
+      .set("proposal_type", proposed.proposal_type.to_string())
+      .set("amount", proposed.amount.to_string())
+      .set("data", Hex(&proposed.data).to_string())
+      .set("unlock", proposed.unlock.to_string())
+      .set("block", clock.number.to_string())
+      .set("ordinal", proposed.log_ordinal.to_string());
   }
   for treasury_set in events.treasury_sets {
     tables
