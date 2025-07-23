@@ -89,6 +89,9 @@ importers:
       '@expo/metro-runtime':
         specifier: ~4.0.1
         version: 4.0.1(react-native@0.76.9(@babel/core@7.26.10)(@babel/preset-env@7.26.9(@babel/core@7.26.10))(@types/react@18.3.20)(bufferutil@4.0.9)(react@18.3.1)(utf-8-validate@5.0.10))
+      '@farcaster/frame-sdk':
+        specifier: ^0.1.7
+        version: 0.1.7(typescript@5.8.3)(zod@3.25.76)
       '@farcaster/miniapp-sdk':
         specifier: ^0.1.7
         version: 0.1.7(typescript@5.8.3)(zod@3.25.76)
@@ -2186,6 +2189,10 @@ packages:
 
   '@expressive-code/plugin-text-markers@0.41.2':
     resolution: {integrity: sha512-JFWBz2qYxxJOJkkWf96LpeolbnOqJY95TvwYc0hXIHf9oSWV0h0SY268w/5N3EtQaD9KktzDE+VIVwb9jdb3nw==}
+
+  '@farcaster/frame-sdk@0.1.7':
+    resolution: {integrity: sha512-NcHBOn8mERDRDyHfHT8IMwKNOOMI+n/5WpOAYEZGteEDcYp8zRKmZEunmMXVvmHXd9Q7/8aQvwxngQMkSZ7/ww==}
+    engines: {node: '>=22.11.0'}
 
   '@farcaster/miniapp-core@0.3.6':
     resolution: {integrity: sha512-PKQmDKVf/ljoscYHUgUiRgsQCrJ+etgdyFOLUlhDKWI5Rw9AyG43PKrSmee0RduvV4S9w4LAPoUcx3YwWmAsrw==}
@@ -13499,6 +13506,17 @@ snapshots:
   '@expressive-code/plugin-text-markers@0.41.2':
     dependencies:
       '@expressive-code/core': 0.41.2
+
+  '@farcaster/frame-sdk@0.1.7(typescript@5.8.3)(zod@3.25.76)':
+    dependencies:
+      '@farcaster/miniapp-sdk': 0.1.7(typescript@5.8.3)(zod@3.25.76)
+      '@farcaster/quick-auth': 0.0.6(typescript@5.8.3)
+      comlink: 4.4.2
+      eventemitter3: 5.0.1
+      ox: 0.4.4(typescript@5.8.3)(zod@3.25.76)
+    transitivePeerDependencies:
+      - typescript
+      - zod
 
   '@farcaster/miniapp-core@0.3.6(typescript@5.8.3)':
     dependencies:
