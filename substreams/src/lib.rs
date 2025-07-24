@@ -6,9 +6,10 @@ use contracts::{
 use proto::exa::{
   events::{
     AccumulatorAccrual, AnswerUpdated, Borrow, BorrowAtMaturity, CollectorSet, DelaySet,
-    EarningsAccumulatorSmoothFactorSet, ExaAccountInitialized, FixedEarningsUpdate, FloatingDebtUpdate,
+    EarningsAccumulatorSmoothFactorSet, ExaAccountInitialized, FixedEarningsUpdate, FlashLoanerSet, FloatingDebtUpdate,
     InterestRateModelSet, MarketEntered, MarketExited, MarketUpdate, MaxFuturePoolsSet, NewRound, NewTransmission,
-    ProposalManagerSet, ProposalNonceSet, Proposed, Repay, RepayAtMaturity, TargetAllowed, Transfer, TreasurySet,
+    PluginAllowed, ProposalManagerSet, ProposalNonceSet, Proposed, Repay, RepayAtMaturity, SwapperSet, TargetAllowed,
+    Transfer, TreasurySet,
   },
   Events,
 };
@@ -132,6 +133,17 @@ pub fn map_blocks(block: Block) -> Result<Events, Error> {
         _ => None,
       })
       .collect(),
+    flash_loaner_sets: block
+      .logs()
+      .filter_map(|log| match (is_plugin(log.address()), plugin_events::FlashLoanerSet::match_and_decode(log)) {
+        (true, Some(event)) => Some(FlashLoanerSet {
+          flash_loaner: event.flash_loaner.to_vec(),
+          account: event.account.to_vec(),
+          log_ordinal: log.ordinal(),
+        }),
+        _ => None,
+      })
+      .collect(),
     floating_debt_updates: block
       .logs()
       .filter_map(|log| match (is_market(log.address()), events::FloatingDebtUpdate::match_and_decode(log)) {
@@ -202,6 +214,18 @@ pub fn map_blocks(block: Block) -> Result<Events, Error> {
         _ => None,
       })
       .collect(),
+    plugin_allowed: block
+      .logs()
+      .filter_map(|log| match (is_plugin(log.address()), plugin_events::PluginAllowed::match_and_decode(log)) {
+        (true, Some(event)) => Some(PluginAllowed {
+          plugin: event.plugin.to_vec(),
+          sender: event.sender.to_vec(),
+          allowed: event.allowed,
+          log_ordinal: log.ordinal(),
+        }),
+        _ => None,
+      })
+      .collect(),
     proposal_manager_sets: block
       .logs()
       .filter_map(|log| match (is_plugin(log.address()), plugin_events::ProposalManagerSet::match_and_decode(log)) {
@@ -266,6 +290,17 @@ pub fn map_blocks(block: Block) -> Result<Events, Error> {
           market: log.address().to_vec(),
           borrower: event.borrower.to_vec(),
           shares: event.shares.to_string(),
+          log_ordinal: log.ordinal(),
+        }),
+        _ => None,
+      })
+      .collect(),
+    swapper_sets: block
+      .logs()
+      .filter_map(|log| match (is_plugin(log.address()), plugin_events::SwapperSet::match_and_decode(log)) {
+        (true, Some(event)) => Some(SwapperSet {
+          swapper: event.swapper.to_vec(),
+          sender: event.sender.to_vec(),
           log_ordinal: log.ordinal(),
         }),
         _ => None,
@@ -526,6 +561,17 @@ pub fn db_out(
       )
       .set("unassigned_earnings", fixed_earnings_update.unassigned_earnings.to_string());
   }
+  for flash_loaner_set in events.flash_loaner_sets {
+    tables.create_row(
+      "flash_loaner_sets",
+      [
+        ("flash_loaner", Hex(&flash_loaner_set.flash_loaner).to_string()),
+        ("account", Hex(&flash_loaner_set.account).to_string()),
+        ("block", clock.number.to_string()),
+        ("ordinal", flash_loaner_set.log_ordinal.to_string()),
+      ],
+    );
+  }
   for floating_debt_update in events.floating_debt_updates {
     tables
       .create_row(
@@ -578,6 +624,17 @@ pub fn db_out(
       )
       .set("max_future_pools", max_future_pool_set.max_future_pools.to_string());
   }
+  for plugin_allowed in events.plugin_allowed {
+    tables.create_row(
+      "plugin_allowed",
+      [
+        ("plugin", Hex(&plugin_allowed.plugin).to_string()),
+        ("sender", Hex(&plugin_allowed.sender).to_string()),
+        ("block", clock.number.to_string()),
+        ("ordinal", plugin_allowed.log_ordinal.to_string()),
+      ],
+    );
+  }
   for proposal_manager_set in events.proposal_manager_sets {
     tables
       .create_row(
@@ -618,6 +675,17 @@ pub fn db_out(
       .set("unlock", proposed.unlock.to_string())
       .set("block", clock.number.to_string())
       .set("ordinal", proposed.log_ordinal.to_string());
+  }
+  for swapper_set in events.swapper_sets {
+    tables.create_row(
+      "swapper_sets",
+      [
+        ("swapper", Hex(&swapper_set.swapper).to_string()),
+        ("sender", Hex(&swapper_set.sender).to_string()),
+        ("block", clock.number.to_string()),
+        ("ordinal", swapper_set.log_ordinal.to_string()),
+      ],
+    );
   }
   for target_allowed in events.target_allowed {
     tables
