@@ -62,7 +62,7 @@ export default function DeFi() {
           />
           <DeFiServiceButton
             title="Swap tokens"
-            description="Connect your wallet to Li.Fi"
+            description="Connect your wallet to LI.FI"
             connected={lifiConnected ?? false}
             onPress={() => {
               if (lifiConnected) {
@@ -139,8 +139,8 @@ export default function DeFi() {
         onClose={() => {
           setLifiSheetOpen(false);
         }}
-        title="Connect to Li.Fi to swap tokens"
-        actionText="Connect wallet to Li.Fi"
+        title="Connect to LI.FI to swap tokens"
+        actionText="Connect wallet to LI.FI"
         disclaimer={
           <Text color="$uiNeutralPlaceholder" caption2 flex={1}>
             Swap service provided by&nbsp;
@@ -161,7 +161,7 @@ export default function DeFi() {
         terms={
           <XStack alignItems="center" cursor="pointer">
             <Text caption secondary>
-              Accept Li.Fi&apos;s&nbsp;
+              Accept LI.FI&apos;s&nbsp;
               <Text
                 color="$interactiveTextBrandDefault"
                 onPress={() => {
@@ -192,7 +192,7 @@ export default function DeFi() {
       />
       <DisconnectSheet
         open={disconnectLifi}
-        name="Li.Fi"
+        name="LI.FI"
         onClose={() => {
           setDisconnectLifi(false);
         }}
