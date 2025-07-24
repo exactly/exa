@@ -11,25 +11,28 @@ message Events {
   repeated EarningsAccumulatorSmoothFactorSet earnings_accumulator_smooth_factor_sets = 6;
   repeated ExaAccountInitialized exa_account_initialized = 7;
   repeated FixedEarningsUpdate fixed_earnings_updates = 8;
-  repeated FloatingDebtUpdate floating_debt_updates = 9;
-  repeated InterestRateModelSet interest_rate_model_sets = 10;
-  repeated MarketEntered market_enters = 11;
-  repeated MarketExited market_exits = 12;
-  repeated MarketUpdate market_updates = 13;
-  repeated MaxFuturePoolsSet max_future_pools_sets = 14;
-  repeated ProposalManagerSet proposal_manager_sets = 15;
-  repeated ProposalNonceSet proposal_nonce_sets = 16;
-  repeated Proposed proposed = 17;
-  repeated Repay repays = 18;
-  repeated RepayAtMaturity repay_at_maturities = 19;
-  repeated TargetAllowed target_allowed = 20;
-  repeated Transfer transfers = 21;
-  repeated TreasurySet treasury_sets = 22;
+  repeated FlashLoanerSet flash_loaner_sets = 9;
+  repeated FloatingDebtUpdate floating_debt_updates = 10;
+  repeated InterestRateModelSet interest_rate_model_sets = 11;
+  repeated MarketEntered market_enters = 12;
+  repeated MarketExited market_exits = 13;
+  repeated MarketUpdate market_updates = 14;
+  repeated MaxFuturePoolsSet max_future_pools_sets = 15;
+  repeated PluginAllowed plugin_allowed = 16;
+  repeated ProposalManagerSet proposal_manager_sets = 17;
+  repeated ProposalNonceSet proposal_nonce_sets = 18;
+  repeated Proposed proposed = 19;
+  repeated Repay repays = 20;
+  repeated RepayAtMaturity repay_at_maturities = 21;
+  repeated SwapperSet swapper_sets = 22;
+  repeated TargetAllowed target_allowed = 23;
+  repeated Transfer transfers = 24;
+  repeated TreasurySet treasury_sets = 25;
 
   // price tracking
-  repeated AnswerUpdated answer_updates = 23;
-  repeated NewRound new_rounds = 24;
-  repeated NewTransmission new_transmissions = 25;
+  repeated AnswerUpdated answer_updates = 26;
+  repeated NewRound new_rounds = 27;
+  repeated NewTransmission new_transmissions = 28;
 
   message AccumulatorAccrual {
     bytes market = 1;
@@ -89,6 +92,13 @@ message Events {
     uint64 log_ordinal = 30;
   }
 
+  message FlashLoanerSet {
+    bytes flash_loaner = 1;
+    bytes account = 2;
+    // internals
+    uint64 log_ordinal = 30;
+  }
+
   message FloatingDebtUpdate {
     bytes market = 1;
     string utilization = 2;
@@ -135,6 +145,14 @@ message Events {
     uint64 log_ordinal = 30;
   }
 
+  message PluginAllowed {
+    bytes plugin = 1;
+    bytes sender = 2;
+    bool allowed = 3;
+    // internals
+    uint64 log_ordinal = 30;
+  }
+
   message ProposalManagerSet {
     bytes proposal_manager = 1;
     bytes account = 2;
@@ -176,6 +194,13 @@ message Events {
     bytes borrower = 3;
     string assets = 4;
     string position_assets = 5;
+    // internals
+    uint64 log_ordinal = 30;
+  }
+
+  message SwapperSet {
+    bytes swapper = 1;
+    bytes sender = 2;
     // internals
     uint64 log_ordinal = 30;
   }

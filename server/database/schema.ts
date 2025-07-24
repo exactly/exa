@@ -310,7 +310,7 @@ export const fixedBorrows = substreams.table(
   ],
 );
 
-// plugin
+// ExaAccountFactory
 export const exaAccountInitialized = substreams.table(
   "exa_account_initialized",
   {
@@ -323,6 +323,7 @@ export const exaAccountInitialized = substreams.table(
   ({ address }) => [primaryKey({ columns: [address] })],
 );
 
+// ExaPlugin
 export const collectorSets = substreams.table(
   "collector_sets",
   {
@@ -337,6 +338,42 @@ export const collectorSets = substreams.table(
     primaryKey({ columns: [collector, account, block, ordinal] }),
     index("collector_sets_account").on(account),
     index("collector_sets_collector").on(collector),
+  ],
+);
+
+export const flashLoanerSets = substreams.table(
+  "flash_loaner_sets",
+  {
+    flashLoaner: text("flash_loaner").notNull(),
+    account: text("account").notNull(),
+    block: numeric("block")
+      .references(() => blocks.number)
+      .notNull(),
+    ordinal: numeric("ordinal").notNull(),
+  },
+  ({ flashLoaner, account, block, ordinal }) => [
+    primaryKey({ columns: [flashLoaner, account, block, ordinal] }),
+    index("flash_loaner_sets_account").on(account),
+    index("flash_loaner_sets_flash_loaner").on(flashLoaner),
+  ],
+);
+
+export const pluginAllowed = substreams.table(
+  "plugin_allowed",
+  {
+    plugin: text("plugin").notNull(),
+    sender: text("sender").notNull(),
+    allowed: boolean("allowed").notNull(),
+    block: numeric("block")
+      .references(() => blocks.number)
+      .notNull(),
+    ordinal: numeric("ordinal").notNull(),
+  },
+  ({ plugin, sender, allowed, block, ordinal }) => [
+    primaryKey({ columns: [plugin, sender, block, ordinal] }),
+    index("plugin_allowed_plugin").on(plugin),
+    index("plugin_allowed_sender").on(sender),
+    index("plugin_allowed_allowed").on(allowed),
   ],
 );
 
@@ -357,7 +394,24 @@ export const proposalManagerSets = substreams.table(
   ],
 );
 
-// proposal manager
+export const swapperSets = substreams.table(
+  "swapper_sets",
+  {
+    swapper: text("swapper").notNull(),
+    sender: text("sender").notNull(),
+    block: numeric("block")
+      .references(() => blocks.number)
+      .notNull(),
+    ordinal: numeric("ordinal").notNull(),
+  },
+  ({ swapper, sender, block, ordinal }) => [
+    primaryKey({ columns: [swapper, sender, block, ordinal] }),
+    index("swapper_sets_swapper").on(swapper),
+    index("swapper_sets_sender").on(sender),
+  ],
+);
+
+// ProposalManager
 export const delaySets = substreams.table(
   "delay_sets",
   {
