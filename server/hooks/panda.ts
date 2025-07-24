@@ -274,7 +274,7 @@ export default new Hono().post(
                 ],
                 ...call,
               });
-              trackAuthorizationRejected(account, payload, card.mode, contractError.message);
+              trackAuthorizationRejected(account, payload, card.mode, contractError.shortMessage);
               captureException(contractError, { contexts: { tx: { call, trace } } });
               throw new PandaError("tx reverted", 550);
             }
