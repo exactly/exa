@@ -1,7 +1,7 @@
 import type { Credential } from "@exactly/common/validation";
 import { Key, X } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import { Pressable, StyleSheet } from "react-native";
@@ -14,7 +14,8 @@ import PasskeysImage from "../../assets/images/passkeys.svg";
 import alchemyConnector from "../../utils/alchemyConnector";
 import { hasProvider } from "../../utils/injectedConnector";
 import reportError from "../../utils/reportError";
-import { APIError, createCredential } from "../../utils/server";
+import { APIError } from "../../utils/server";
+import useAuthentication from "../../utils/useAuthentication";
 import ActionButton from "../shared/ActionButton";
 import ConnectSheet from "../shared/ConnectSheet";
 import ErrorDialog from "../shared/ErrorDialog";
@@ -31,9 +32,13 @@ export default function Passkeys() {
 
   const { data: hasInjectedProvider } = useQuery({ queryKey: ["hasInjectedProvider"], queryFn: hasProvider });
 
-  const { mutate: createAccount, isPending } = useMutation({
-    mutationFn: createCredential,
-    onError(error: unknown) {
+  const { createAccount, isCreateAccountPending } = useAuthentication(
+    (credential: Credential) => {
+      connect({ connector: alchemyConnector });
+      queryClient.setQueryData<Credential>(["credential"], credential);
+      router.replace("../success");
+    },
+    (error: unknown) => {
       if (
         (error instanceof Error &&
           (error.message ===
@@ -68,12 +73,8 @@ export default function Passkeys() {
       }
       reportError(error);
     },
-    onSuccess(credential) {
-      connect({ connector: alchemyConnector });
-      queryClient.setQueryData<Credential>(["credential"], credential);
-      router.replace("../success");
-    },
-  });
+  );
+
   return (
     <SafeView fullScreen backgroundColor="$backgroundSoft">
       <View fullScreen padded>
@@ -120,16 +121,16 @@ export default function Passkeys() {
                 flex={1}
                 marginTop="$s4"
                 marginBottom="$s5"
-                isLoading={isPending}
+                isLoading={isCreateAccountPending}
                 loadingContent="Creating account..."
                 iconAfter={
                   <Key
                     size={20}
-                    color={isPending ? "$interactiveOnDisabled" : "$interactiveOnBaseBrandDefault"}
+                    color={isCreateAccountPending ? "$interactiveOnDisabled" : "$interactiveOnBaseBrandDefault"}
                     fontWeight="bold"
                   />
                 }
-                disabled={isPending}
+                disabled={isCreateAccountPending}
                 onPress={() => {
                   if (hasInjectedProvider) {
                     setConnectModalOpen(true);
