@@ -36,7 +36,7 @@ export default function Passkeys() {
     (credential: Credential) => {
       connect({ connector: alchemyConnector });
       queryClient.setQueryData<Credential>(["credential"], credential);
-      router.replace("../success");
+      router.replace("/(app)/(home)");
     },
     (error: unknown) => {
       if (
@@ -46,7 +46,8 @@ export default function Passkeys() {
             error.message === "The operation couldn’t be completed. Device must be unlocked to perform request." ||
             error.message === "UserCancelled" ||
             error.message.startsWith("androidx.credentials.exceptions.domerrors.NotAllowedError") ||
-            error.message === "invalid operation")) ||
+            error.message === "invalid operation" ||
+            error.name === "NotAllowedError")) ||
         error instanceof UserRejectedRequestError
       ) {
         queryClient.setQueryData(["method"], undefined);
