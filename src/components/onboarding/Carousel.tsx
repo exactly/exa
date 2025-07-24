@@ -1,7 +1,7 @@
 import { Credential } from "@exactly/common/validation";
 import { Key } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import React, { type FC, useCallback, useEffect, useRef, useState } from "react";
 import type { StyleProp, ViewStyle, ViewToken } from "react-native";
@@ -32,7 +32,7 @@ import alchemyConnector from "../../utils/alchemyConnector";
 import { hasProvider } from "../../utils/injectedConnector";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
-import { getCredential } from "../../utils/server";
+import useAuthentication from "../../utils/useAuthentication";
 import ActionButton from "../shared/ActionButton";
 import ConnectSheet from "../shared/ConnectSheet";
 import ErrorDialog from "../shared/ErrorDialog";
@@ -44,7 +44,9 @@ export default function Carousel() {
   const [activeIndex, setActiveIndex] = useState(0);
   const { connect, isPending: isConnecting } = useConnect();
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
-  const [connectModalOpen, setConnectModalOpen] = useState(false);
+
+  const [signUpModalOpen, setSignUpModalOpen] = useState(false);
+  const [signInModalOpen, setSignInModalOpen] = useState(false);
 
   const flatListReference = useRef<Animated.FlatList<Page>>(null);
   const offsetX = useSharedValue(0);
@@ -85,9 +87,13 @@ export default function Carousel() {
     });
   }, [activeIndex]);
 
-  const { mutate: recoverAccount, isPending } = useMutation({
-    mutationFn: getCredential,
-    onError(error: unknown) {
+  const { recoverAccount, isRecoverAccountPending } = useAuthentication(
+    (credential: Credential) => {
+      queryClient.setQueryData<Credential>(["credential"], parse(Credential, credential));
+      connect({ connector: alchemyConnector });
+      router.replace("/(app)/(home)");
+    },
+    (error: unknown) => {
       if (
         (error instanceof Error &&
           (error.message ===
@@ -114,12 +120,7 @@ export default function Carousel() {
       }
       reportError(error);
     },
-    onSuccess(credential) {
-      queryClient.setQueryData<Credential>(["credential"], parse(Credential, credential));
-      connect({ connector: alchemyConnector });
-      router.replace("/(app)/(home)");
-    },
-  });
+  );
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -190,12 +191,16 @@ export default function Carousel() {
             <View flexDirection="row" alignSelf="stretch">
               <ActionButton
                 flex={1}
-                disabled={isPending || isConnecting}
-                isLoading={isPending || isConnecting}
+                disabled={isRecoverAccountPending || isConnecting}
+                isLoading={isRecoverAccountPending || isConnecting}
                 loadingContent="Logging in..."
                 onPress={() => {
-                  if (isPending || isConnecting) return;
-                  router.push("../onboarding/(passkeys)/passkeys");
+                  if (isRecoverAccountPending || isConnecting) return;
+                  if (hasInjectedProvider) {
+                    setSignUpModalOpen(true);
+                  } else {
+                    router.push("../onboarding/(passkeys)/passkeys");
+                  }
                 }}
                 iconAfter={<Key color="$interactiveOnBaseBrandDefault" fontWeight="bold" />}
               >
@@ -206,9 +211,9 @@ export default function Carousel() {
               <Pressable
                 hitSlop={15}
                 onPress={() => {
-                  if (isPending) return;
+                  if (isRecoverAccountPending) return;
                   if (hasInjectedProvider) {
-                    setConnectModalOpen(true);
+                    setSignInModalOpen(true);
                   } else {
                     queryClient.setQueryData(["method"], "webauthn");
                     recoverAccount();
@@ -235,19 +240,34 @@ export default function Carousel() {
         }}
       />
       {hasInjectedProvider && (
-        <ConnectSheet
-          open={connectModalOpen}
-          onClose={(method) => {
-            setConnectModalOpen(false);
-            if (!method) return;
-            queryClient.setQueryData(["method"], method);
-            recoverAccount();
-          }}
-          title="Log in"
-          description="Choose your preferred authentication method"
-          webAuthnText="Log in with Passkey"
-          siweText="Log in with browser wallet"
-        />
+        <>
+          <ConnectSheet
+            open={signInModalOpen}
+            onClose={(method) => {
+              setSignInModalOpen(false);
+              if (!method) return;
+              queryClient.setQueryData(["method"], method);
+              recoverAccount();
+            }}
+            title="Log in"
+            description="Choose your preferred authentication method"
+            webAuthnText="Log in with Passkey"
+            siweText="Log in with browser wallet"
+          />
+          <ConnectSheet
+            open={signUpModalOpen}
+            onClose={(method) => {
+              setSignUpModalOpen(false);
+              if (!method) return;
+              queryClient.setQueryData(["method"], method);
+              createAccount();
+            }}
+            title="Create an account"
+            description="Choose your preferred authentication method"
+            webAuthnText="Create an account with Passkey"
+            siweText="Create an account with browser wallet"
+          />
+        </>
       )}
     </View>
   );
