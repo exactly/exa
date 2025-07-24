@@ -1,4 +1,4 @@
-import { Credential } from "@exactly/common/validation";
+import type { Credential } from "@exactly/common/validation";
 import { Key } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { useQuery } from "@tanstack/react-query";
@@ -14,7 +14,6 @@ import Animated, {
   Easing,
 } from "react-native-reanimated";
 import type { SvgProps } from "react-native-svg";
-import { parse } from "valibot";
 import { UserRejectedRequestError } from "viem";
 import { useConnect } from "wagmi";
 
@@ -30,7 +29,7 @@ import qrCodeBlob from "../../assets/images/qr-code-blob.svg";
 import qrCode from "../../assets/images/qr-code.svg";
 import alchemyConnector from "../../utils/alchemyConnector";
 import { hasProvider } from "../../utils/injectedConnector";
-import queryClient from "../../utils/queryClient";
+import queryClient, { APIError } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAuthentication from "../../utils/useAuthentication";
 import ActionButton from "../shared/ActionButton";
@@ -87,10 +86,10 @@ export default function Carousel() {
     });
   }, [activeIndex]);
 
-  const { recoverAccount, isRecoverAccountPending } = useAuthentication(
+  const { recoverAccount, isRecoverAccountPending, createAccount, isCreateAccountPending } = useAuthentication(
     (credential: Credential) => {
-      queryClient.setQueryData<Credential>(["credential"], parse(Credential, credential));
       connect({ connector: alchemyConnector });
+      queryClient.setQueryData<Credential>(["credential"], credential);
       router.replace("/(app)/(home)");
     },
     (error: unknown) => {
@@ -101,11 +100,20 @@ export default function Carousel() {
             error.message === "The operation couldn’t be completed. Device must be unlocked to perform request." ||
             error.message === "UserCancelled" ||
             error.message.startsWith("androidx.credentials.exceptions.domerrors.NotAllowedError") ||
+            error.message === "invalid operation" ||
             error.name === "NotAllowedError")) ||
         error instanceof UserRejectedRequestError
       ) {
         queryClient.setQueryData(["method"], undefined);
         toast.show("Authentication cancelled", {
+          native: true,
+          duration: 1000,
+          burntOptions: { haptic: "error", preset: "error" },
+        });
+        return;
+      }
+      if (error instanceof APIError && error.text === "backup eligibility required") {
+        toast.show("Your password manager does not support passkey backups. Please try a different one", {
           native: true,
           duration: 1000,
           burntOptions: { haptic: "error", preset: "error" },
@@ -121,6 +129,8 @@ export default function Carousel() {
       reportError(error);
     },
   );
+
+  const loading = isRecoverAccountPending || isConnecting || isCreateAccountPending;
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -191,11 +201,11 @@ export default function Carousel() {
             <View flexDirection="row" alignSelf="stretch">
               <ActionButton
                 flex={1}
-                disabled={isRecoverAccountPending || isConnecting}
-                isLoading={isRecoverAccountPending || isConnecting}
+                disabled={loading}
+                isLoading={loading}
                 loadingContent="Logging in..."
                 onPress={() => {
-                  if (isRecoverAccountPending || isConnecting) return;
+                  if (loading) return;
                   if (hasInjectedProvider) {
                     setSignUpModalOpen(true);
                   } else {
@@ -211,7 +221,7 @@ export default function Carousel() {
               <Pressable
                 hitSlop={15}
                 onPress={() => {
-                  if (isRecoverAccountPending) return;
+                  if (loading) return;
                   if (hasInjectedProvider) {
                     setSignInModalOpen(true);
                   } else {
@@ -260,12 +270,12 @@ export default function Carousel() {
               setSignUpModalOpen(false);
               if (!method) return;
               queryClient.setQueryData(["method"], method);
-              // createAccount(); // TODO implement
+              createAccount();
             }}
-            title="Create an account"
+            title="Create account"
             description="Choose your preferred authentication method"
-            webAuthnText="Create an account with Passkey"
-            siweText="Create an account with browser wallet"
+            webAuthnText="Sign up with Passkey"
+            siweText="Sign up with browser wallet"
           />
         </>
       )}
