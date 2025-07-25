@@ -11,10 +11,11 @@ import reportError from "./reportError";
 
 const appId = process.env.EXPO_PUBLIC_INTERCOM_APP_ID;
 
-const { login, logout, present, presentArticle, presentCollection } = (
+const { login, logout, newMessage, present, presentArticle, presentCollection } = (
   Platform.OS === "web"
     ? () => {
-        const { Intercom, showArticle, showSpace } = require("@intercom/messenger-js-sdk") as typeof IntercomWeb; // eslint-disable-line @typescript-eslint/no-require-imports, unicorn/prefer-module
+        const { Intercom, showArticle, showSpace, showNewMessage } =
+          require("@intercom/messenger-js-sdk") as typeof IntercomWeb; // eslint-disable-line @typescript-eslint/no-require-imports, unicorn/prefer-module
         return {
           login: (userId: string, credentialId: string) => {
             if (!appId) return Promise.resolve(false);
@@ -34,6 +35,10 @@ const { login, logout, present, presentArticle, presentCollection } = (
           },
           presentCollection: (collectionId: string) => {
             openBrowserAsync(`https://intercom.help/exa-app/en/collections/${collectionId}`).catch(reportError); //HACK unable to show collections id
+            return Promise.resolve(true);
+          },
+          newMessage: (message: string) => {
+            showNewMessage(message);
             return Promise.resolve(true);
           },
         };
@@ -60,6 +65,7 @@ const { login, logout, present, presentArticle, presentCollection } = (
             Intercom.presentContent(IntercomContent.articleWithArticleId(articleId)),
           presentCollection: (collectionId: string) =>
             Intercom.presentContent(IntercomContent.helpCenterCollectionsWithIds([collectionId])),
+          newMessage: (message: string) => Intercom.presentMessageComposer(message),
         };
       }
 )();
@@ -73,5 +79,5 @@ export default function useIntercom() {
       .then(setLoggedIn)
       .catch(reportError);
   }, [passkey, loggedIn]);
-  return { loggedIn, present, presentArticle, presentCollection, logout };
+  return { loggedIn, present, presentArticle, presentCollection, logout, newMessage };
 }
