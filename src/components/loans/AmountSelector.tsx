@@ -91,6 +91,7 @@ export default function AmountSelector({
                     height={32}
                   />
                   <AmountInput
+                    height="auto"
                     inputMode="decimal"
                     onChangeText={handleAmountChange}
                     placeholder="0"
