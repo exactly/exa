@@ -615,7 +615,7 @@ contract ExaPluginTest is ForkTest {
 
     skip(proposalManager.delay());
     account.executeProposal(proposalManager.nonces(address(account)));
-    
+
     uint256 newNonce = proposalManager.nonces(address(account));
     assertEq(newNonce, nonce + 1, "nonce not increased as expected");
     assertEq(queueNonce, newNonce);
@@ -639,7 +639,7 @@ contract ExaPluginTest is ForkTest {
     skip(proposalManager.delay());
 
     account.executeProposal(proposalManager.nonces(address(account)));
-    
+
     uint256 newNonce = proposalManager.nonces(address(account));
     assertEq(newNonce, nonce + 1, "nonce not increased as expected");
     assertEq(queueNonce, newNonce);
@@ -1441,6 +1441,25 @@ contract ExaPluginTest is ForkTest {
       0,
       abi.encodeCall(IMarket.borrowAtMaturity, (FixedLib.INTERVAL, 100e18, 100e18, address(0x420), address(account)))
     );
+  }
+
+  function test_withdrawAtMaturity_withdraws() external {
+    usdc.mint(address(this), 100e6);
+    usdc.approve(address(exaUSDC), 100e6);
+    uint256 positionAssets = exaUSDC.depositAtMaturity(FixedLib.INTERVAL, 100e6, 100e6, address(account));
+    uint256 prevBalance = usdc.balanceOf(address(account));
+    uint256 minAssets = 99e6;
+
+    vm.startPrank(owner);
+    account.execute(
+      address(exaUSDC),
+      0,
+      abi.encodeCall(
+        IMarket.withdrawAtMaturity, (FixedLib.INTERVAL, positionAssets, minAssets, address(account), address(account))
+      )
+    );
+
+    assertGt(usdc.balanceOf(address(account)), prevBalance + minAssets);
   }
 
   // keeper runtime validation
@@ -3071,7 +3090,7 @@ contract ExaPluginTest is ForkTest {
     proposalManager.setDelay(1 hours);
   }
 
-  // 
+  //
 
   function test_userOpValidationFunction_reverts_withBadPlugin() external {
     vm.startPrank(owner);
