@@ -1443,6 +1443,25 @@ contract ExaPluginTest is ForkTest {
     );
   }
 
+  function test_withdrawAtMaturity_withdraws() external {
+    usdc.mint(address(this), 100e6);
+    usdc.approve(address(exaUSDC), 100e6);
+    uint256 positionAssets = exaUSDC.depositAtMaturity(FixedLib.INTERVAL, 100e6, 100e6, address(account));
+    uint256 prevBalance = usdc.balanceOf(address(account));
+    uint256 minAssets = 99e6;
+
+    vm.startPrank(owner);
+    account.execute(
+      address(exaUSDC),
+      0,
+      abi.encodeCall(
+        IMarket.withdrawAtMaturity, (FixedLib.INTERVAL, positionAssets, minAssets, address(account), address(account))
+      )
+    );
+
+    assertGt(usdc.balanceOf(address(account)), prevBalance + minAssets);
+  }
+
   // keeper runtime validation
   function test_collectCredit_collects() external {
     vm.startPrank(keeper);
