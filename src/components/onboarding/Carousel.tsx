@@ -124,6 +124,7 @@ export default function Carousel() {
             "The operation couldn’t be completed. (com.apple.AuthenticationServices.AuthorizationError error 1001.)" ||
             error.message === "The operation couldn’t be completed. Device must be unlocked to perform request." ||
             error.message === "UserCancelled" ||
+            error.name === "NotAllowedError" ||
             error.message.startsWith("androidx.credentials.exceptions.domerrors.NotAllowedError"))) ||
         (error instanceof APIError && error.text === "unauthorized")
       ) {
