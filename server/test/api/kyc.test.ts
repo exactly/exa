@@ -169,11 +169,15 @@ describe("authenticated", () => {
         const mockFetch = vi.spyOn(global, "fetch").mockResolvedValueOnce({
           ok: true,
           status: 200,
-          json: () =>
-            Promise.resolve({
-              id: "pandaId",
-              applicationStatus: "approved",
-            }),
+          arrayBuffer: () =>
+            Promise.resolve(
+              new TextEncoder().encode(
+                JSON.stringify({
+                  id: "pandaId",
+                  applicationStatus: "approved",
+                }),
+              ).buffer,
+            ),
         } as Response);
 
         const response = await appClient.application.$post(
@@ -249,7 +253,7 @@ describe("authenticated", () => {
         const mockFetch = vi.spyOn(global, "fetch").mockResolvedValueOnce({
           ok: true,
           status: 200,
-          json: () => Promise.resolve({}),
+          arrayBuffer: () => Promise.resolve(new TextEncoder().encode("{}").buffer),
         } as Response);
 
         const response = await appClient.application.$patch(

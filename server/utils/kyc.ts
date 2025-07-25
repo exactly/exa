@@ -1,4 +1,3 @@
-import { setContext } from "@sentry/core";
 import * as v from "valibot";
 
 // TODO review
@@ -9,22 +8,15 @@ if (!process.env.KYC_API_KEY) throw new Error("missing kyc api key");
 const api_key = process.env.KYC_API_KEY;
 
 export async function submitApplication(payload: v.InferInput<typeof SubmitApplicationRequest>) {
-  return request("POST", `/issuing/applications/user`, {
-    body: payload,
-    responseSchema: ApplicationResponse,
-  });
+  return request(ApplicationResponse, "/issuing/applications/user", {}, payload, "POST");
 }
 
 export async function getApplicationStatus(applicationId: string) {
-  return request("GET", `/issuing/applications/user/${applicationId}`, {
-    responseSchema: ApplicationStatusResponse,
-  });
+  return request(ApplicationStatusResponse, `/issuing/applications/user/${applicationId}`, {}, undefined, "GET");
 }
 
 export async function updateApplication(applicationId: string, payload: v.InferInput<typeof UpdateApplicationRequest>) {
-  return request("PATCH", `/issuing/applications/user/${applicationId}`, {
-    body: payload,
-  });
+  return request(v.object({}), `/issuing/applications/user/${applicationId}`, {}, payload, "PATCH");
 }
 
 // #region schemas
@@ -125,59 +117,28 @@ const ApplicationStatusResponse = v.object({
 });
 // #endregion schemas
 
-interface RequestOptions<
-  TInput = unknown,
-  TOutput = unknown,
-  TIssue extends v.BaseIssue<unknown> = v.BaseIssue<unknown>,
-> {
-  responseSchema?: v.BaseSchema<TInput, TOutput, TIssue>;
-  timeout?: number;
-  headers?: Record<string, string>;
-  body?: unknown;
-}
 async function request<TInput, TOutput, TIssue extends v.BaseIssue<unknown>>(
-  method: "GET" | "POST" | "PUT" | "PATCH",
+  schema: v.BaseSchema<TInput, TOutput, TIssue>,
   url: `/${string}`,
-  options?: RequestOptions<TInput, TOutput, TIssue>,
-): Promise<TOutput>;
-async function request(
-  method: "GET" | "POST" | "PUT" | "PATCH",
-  url: `/${string}`,
-  options?: Omit<RequestOptions, "responseSchema">,
-): Promise<unknown>;
-async function request<TInput, TOutput, TIssue extends v.BaseIssue<unknown>>(
-  method: "GET" | "POST" | "PUT" | "PATCH",
-  url: `/${string}`,
-  options?: RequestOptions<TInput, TOutput, TIssue>,
+  headers = {},
+  body?: unknown,
+  method: "GET" | "POST" | "PUT" | "PATCH" = body === undefined ? "GET" : "POST",
+  timeout = 10_000,
 ) {
-  const contentType = options?.body instanceof FormData ? undefined : "application/json";
-  const headers: Record<string, string> = {
-    "Api-Key": api_key,
-    accept: "application/json",
-    ...(contentType && { "content-type": contentType }),
-    ...options?.headers,
-  };
-
-  const body = options?.body
-    ? options.body instanceof FormData
-      ? options.body
-      : JSON.stringify(options.body)
-    : undefined;
-
   const response = await fetch(`${baseURL}${url}`, {
     method,
-    headers,
-    body,
-    signal: AbortSignal.timeout(options?.timeout ?? 10_000),
+    headers: {
+      ...headers,
+      "Api-Key": api_key,
+      accept: "application/json",
+      "content-type": "application/json",
+    },
+    body: body ? JSON.stringify(body) : undefined,
+    signal: AbortSignal.timeout(timeout),
   });
+
   if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);
-  if (response.status === 204) return;
-  const rawResponse = await response.json();
-  if (!options?.responseSchema) return rawResponse;
-  const result = v.safeParse(options.responseSchema, rawResponse);
-  if (!result.success) {
-    setContext("validation", { ...result, flatten: v.flatten(result.issues) });
-    throw new v.ValiError(result.issues);
-  }
-  return result.output;
+  const rawBody = await response.arrayBuffer();
+  if (rawBody.byteLength === 0) return v.parse(schema, {});
+  return v.parse(schema, JSON.parse(new TextDecoder().decode(rawBody)));
 }
