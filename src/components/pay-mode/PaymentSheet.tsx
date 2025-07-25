@@ -1,11 +1,21 @@
 import { exaPluginAddress, marketUSDCAddress } from "@exactly/common/generated/chain";
 import { WAD } from "@exactly/lib";
-import { ArrowRight, Calendar, CirclePercent, Coins, Info, RefreshCw, Siren } from "@tamagui/lucide-icons";
+import {
+  ArrowRight,
+  Calendar,
+  CirclePercent,
+  ChevronRight,
+  Coins,
+  Info,
+  RefreshCw,
+  Siren,
+} from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { useQuery } from "@tanstack/react-query";
 import { format, formatDistance, isAfter } from "date-fns";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useState } from "react";
+import { openBrowserAsync } from "expo-web-browser";
+import React, { useCallback, useState } from "react";
 import { Pressable, StyleSheet, Platform } from "react-native";
 import { Separator, Sheet, XStack, YStack } from "tamagui";
 import { titleCase } from "title-case";
@@ -20,8 +30,8 @@ import reportError from "../../utils/reportError";
 import useAspectRatio from "../../utils/useAspectRatio";
 import useAsset from "../../utils/useAsset";
 import useIntercom from "../../utils/useIntercom";
-import Button from "../shared/Button";
 import SafeView from "../shared/SafeView";
+import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
@@ -41,6 +51,11 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
     address,
     query: { refetchOnMount: true, enabled: !!address && !!bytecode },
   });
+
+  const handleStatement = useCallback(() => {
+    openBrowserAsync(`https://app.exact.ly/dashboard?account=${address}&tab=b`).catch(reportError);
+  }, [address]);
+
   const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
   if (!success || !USDCMarket) return;
   const { fixedBorrowPositions, usdPrice, decimals } = USDCMarket;
@@ -49,6 +64,7 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
   const previewValue = (borrow.previewValue * usdPrice) / 10n ** BigInt(decimals);
   const positionValue = ((borrow.position.principal + borrow.position.fee) * usdPrice) / 10n ** BigInt(decimals);
   const discount = Number(WAD - (previewValue * WAD) / positionValue) / 1e18;
+
   return (
     <Sheet
       open={open}
@@ -120,11 +136,7 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
                     </XStack>
                   </YStack>
                   <Button
-                    contained
-                    main
-                    spaced
-                    halfWidth
-                    iconAfter={<ArrowRight color="$interactiveOnBaseBrandDefault" strokeWidth={2.5} />}
+                    primary
                     onPress={() => {
                       if (!isLatestPlugin) {
                         toast.show("Upgrade account to rollover", {
@@ -142,7 +154,10 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
                       });
                     }}
                   >
-                    Review refinance details
+                    <Button.Text>Review refinance details</Button.Text>
+                    <Button.Icon>
+                      <ArrowRight color="$interactiveOnBaseBrandDefault" strokeWidth={2.5} />
+                    </Button.Icon>
                   </Button>
                 </YStack>
               </View>
@@ -229,58 +244,67 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
                         </Text>
                       )}
                     </View>
-                    <View
-                      flexDirection="row"
-                      display="flex"
-                      gap={10}
-                      justifyContent="center"
-                      alignItems="center"
-                      paddingVertical={10}
-                    >
-                      <Button
-                        onPress={() => {
-                          onClose();
-                          router.push({ pathname: "/pay", params: { maturity: maturity.toString() } });
-                        }}
-                        contained
-                        main
-                        spaced
-                        halfWidth
-                        iconAfter={<Coins color="$interactiveOnBaseBrandDefault" strokeWidth={2.5} />}
-                      >
-                        Repay
-                      </Button>
-                      <Button
-                        main
-                        spaced
-                        halfWidth
-                        outlined
-                        backgroundColor="$interactiveBaseBrandSoftDefault"
-                        color="$interactiveOnBaseBrandSoft"
-                        iconAfter={<RefreshCw color="$interactiveOnBaseBrandSoft" strokeWidth={2.5} />}
-                        onPress={() => {
-                          if (!rolloverIntroShown) {
-                            setRolloverIntroOpen(true);
-                            return;
-                          }
-                          if (!isLatestPlugin) {
-                            toast.show("Upgrade account to rollover", {
-                              native: true,
-                              duration: 1000,
-                              burntOptions: { haptic: "error", preset: "error" },
+                    <YStack gap={10} alignItems="center" paddingVertical={10} flex={1}>
+                      <XStack justifyContent="space-between" width="100%" gap={10}>
+                        <Button
+                          primary
+                          flex={1}
+                          onPress={() => {
+                            onClose();
+                            router.push({ pathname: "/pay", params: { maturity: maturity.toString() } });
+                          }}
+                        >
+                          <Button.Text>Repay</Button.Text>
+                          <Button.Icon>
+                            <Coins color="$interactiveOnBaseBrandDefault" strokeWidth={2.5} />
+                          </Button.Icon>
+                        </Button>
+                        <Button
+                          secondary
+                          flex={1}
+                          onPress={() => {
+                            if (!rolloverIntroShown) {
+                              setRolloverIntroOpen(true);
+                              return;
+                            }
+                            if (!isLatestPlugin) {
+                              toast.show("Upgrade account to rollover", {
+                                native: true,
+                                duration: 1000,
+                                burntOptions: { haptic: "error", preset: "error" },
+                              });
+                              return;
+                            }
+                            onClose();
+                            router.push({
+                              pathname: "/roll-debt",
+                              params: { maturity: maturity.toString() },
                             });
-                            return;
-                          }
-                          onClose();
-                          router.push({
-                            pathname: "/roll-debt",
-                            params: { maturity: maturity.toString() },
-                          });
-                        }}
-                      >
-                        Rollover
-                      </Button>
-                    </View>
+                          }}
+                        >
+                          <Button.Text>Rollover</Button.Text>
+                          <Button.Icon>
+                            <RefreshCw color="$interactiveOnBaseBrandSoft" strokeWidth={2.5} />
+                          </Button.Icon>
+                        </Button>
+                      </XStack>
+                      <XStack flex={1} width="100%">
+                        <Button
+                          onPress={handleStatement}
+                          outlined
+                          minHeight={46}
+                          borderColor="$borderNeutralSoft"
+                          flex={1}
+                        >
+                          <Button.Text emphasized footnote textTransform="uppercase">
+                            View Statement
+                          </Button.Text>
+                          <Button.Icon>
+                            <ChevronRight color="$interactiveOnBaseBrandSoft" strokeWidth={2.5} />
+                          </Button.Icon>
+                        </Button>
+                      </XStack>
+                    </YStack>
                   </View>
                 </>
               </View>
