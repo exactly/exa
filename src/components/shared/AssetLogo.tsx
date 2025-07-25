@@ -13,7 +13,9 @@ type AssetLogoProperties = ({ external: true } & Parameters<typeof StyledImage>[
 export default function AssetLogo(properties: AssetLogoProperties) {
   if (properties.external) {
     const { external, ...imageProperties } = properties;
-    return <StyledImage {...imageProperties} />;
+    return (
+      <StyledImage minWidth={Number(properties.width)} minHeight={Number(properties.height)} {...imageProperties} />
+    );
   } else {
     const { external, ...uriProperties } = properties;
     return <ProtocolAssetLogo {...uriProperties} />;
