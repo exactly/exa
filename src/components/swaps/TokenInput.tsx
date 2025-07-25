@@ -94,20 +94,26 @@ export default function TokenInput({
             ) : (
               <Field name="amountInput" validators={{ onChange: pipe(string(), nonEmpty("empty")) }}>
                 {({ state }) => (
-                  <AmountInput
-                    value={state.value}
-                    onChangeText={handleAmountChange}
-                    onFocus={onFocus}
-                    placeholder={amount.toString()}
-                    color={isDanger ? "$uiErrorSecondary" : isActive ? "$uiNeutralPrimary" : "$uiNeutralPlaceholder"}
-                  />
+                  <XStack alignItems="center" justifyContent="space-between" gap="$s2" flex={1}>
+                    <View flex={2}>
+                      <AmountInput
+                        value={state.value}
+                        onChangeText={handleAmountChange}
+                        onFocus={onFocus}
+                        placeholder={amount.toString()}
+                        color={
+                          isDanger ? "$uiErrorSecondary" : isActive ? "$uiNeutralPrimary" : "$uiNeutralPlaceholder"
+                        }
+                      />
+                    </View>
+                    <View flex={1}>
+                      <Text subHeadline color="$uiNeutralPlaceholder" textAlign="right">
+                        {`/ ${token ? Number(formatUnits(balance, token.decimals)).toFixed(4) : 0} ${token?.symbol}`}
+                      </Text>
+                    </View>
+                  </XStack>
                 )}
               </Field>
-            )}
-            {token && (
-              <Text subHeadline color="$uiNeutralPlaceholder">
-                {`/ ${Number(formatUnits(balance, token.decimals)).toFixed(4)} ${token.symbol}`}
-              </Text>
             )}
           </XStack>
           <XStack paddingHorizontal="$s3">
@@ -132,7 +138,6 @@ export default function TokenInput({
 }
 
 const AmountInput = styled(Input, {
-  flex: 1,
   padding: 0,
   unstyled: true,
   fontSize: 28,
