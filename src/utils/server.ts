@@ -16,34 +16,28 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
   gcTime: AUTH_EXPIRY,
   retry: false,
   queryFn: async () => {
-    try {
-      const credentialId = queryClient.getQueryData<Passkey>(["passkey"])?.credentialId;
-      const get = await api.auth.authentication.$get({ query: { credentialId } });
-      const options = await get.json();
-      if (options.method === "siwe") throw new Error("siwe not implemented");
-      if (Platform.OS === "android") delete options.allowCredentials; // HACK fix android credential filtering
-      const assertion = await assert(options);
-      if (!assertion) throw new Error("bad assertion");
-      const post = await api.auth.authentication.$post({ json: assertion });
-      if (!post.ok) throw new APIError(post.status, stringOrLegacy(await post.json()));
-      const { expires } = await post.json();
-      return parse(Auth, expires);
-    } catch (error: unknown) {
-      if (
-        error instanceof ValiError ||
-        (error instanceof Error &&
-          (error.message ===
-            "The operation couldn’t be completed. (com.apple.AuthenticationServices.AuthorizationError error 1001.)" ||
-            error.message === "The operation couldn’t be completed. Device must be unlocked to perform request." ||
-            error.message === "UserCancelled" ||
-            error.name === "NotAllowedError"))
-      ) {
-        return parse(Auth, queryClient.getQueryData(["auth"]));
-      }
-      throw error;
-    }
+    const credentialId = queryClient.getQueryData<Passkey>(["passkey"])?.credentialId;
+    const get = await api.auth.authentication.$get({ query: { credentialId } });
+    const options = await get.json();
+    if (options.method === "siwe") throw new Error("siwe not implemented");
+    if (Platform.OS === "android") delete options.allowCredentials; // HACK fix android credential filtering
+    const assertion = await assert(options);
+    if (!assertion) throw new Error("bad assertion");
+    const post = await api.auth.authentication.$post({ json: assertion });
+    if (!post.ok) throw new APIError(post.status, stringOrLegacy(await post.json()));
+    const { expires } = await post.json();
+    return parse(Auth, expires);
   },
-  meta: { suppressError: (error) => error instanceof ValiError },
+  meta: {
+    suppressError: (error) =>
+      error instanceof ValiError ||
+      (error instanceof Error &&
+        (error.name === "NotAllowedError" ||
+          error.message ===
+            "The operation couldn’t be completed. (com.apple.AuthenticationServices.AuthorizationError error 1001.)" ||
+          error.message === "The operation couldn’t be completed. Device must be unlocked to perform request." ||
+          error.message === "UserCancelled")),
+  },
 });
 
 const api = hc<ExaAPI>(domain === "localhost" ? "http://localhost:3000/api" : `https://${domain}/api`, {
