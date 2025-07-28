@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { describeRoute } from "hono-openapi";
 import { resolver, validator as vValidator } from "hono-openapi/valibot";
+import crypto from "node:crypto";
 import { object, parse, optional, string, pipe, metadata, union, array } from "valibot";
 
 import database, { credentials } from "../database/index";
@@ -278,4 +279,21 @@ export default new Hono()
       { code: "ok", legacy: "ok", status: status.applicationStatus, reason: status.applicationReason },
       200,
     );
-  });
+  })
+  .post(
+    "/test-decrypt",
+    vValidator(
+      "json",
+      object({ encryptedKey: string(), iv: string(), data: string(), tag: string() }),
+      validatorHook(),
+    ),
+    (c) => {
+      if (!process.env.PRIVATE_KEY_RSA) throw new Error("PRIVATE_KEY_RSA is not set");
+      const { encryptedKey, iv, data, tag } = c.req.valid("json");
+      const decryptedKey = crypto.privateDecrypt(process.env.PRIVATE_KEY_RSA, Buffer.from(encryptedKey, "base64"));
+      const decipher = crypto.createDecipheriv("aes-256-gcm", decryptedKey, Buffer.from(iv, "base64"));
+      decipher.setAuthTag(Buffer.from(tag, "base64"));
+      const decryptedData = Buffer.concat([decipher.update(Buffer.from(data, "base64")), decipher.final()]);
+      return c.json({ decrypted: decryptedData.toString("utf8") }, 200);
+    },
+  );
