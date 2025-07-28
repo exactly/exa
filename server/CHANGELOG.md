@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.11
+
+### Patch Changes
+
+- [`ce892f8`](https://github.com/exactly/exa/commit/ce892f8ad24a9448a7418a49791feea741b81e1f) Thanks [@mainqueg](https://github.com/mainqueg)! - 📈 use short error message for analytics
+
 ## 0.2.10
 
 ### Patch Changes

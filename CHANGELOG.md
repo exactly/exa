@@ -1,5 +1,24 @@
 # @exactly/mobile
 
+## 1.0.20
+
+### Patch Changes
+
+- [`06592c2`](https://github.com/exactly/exa/commit/06592c26ef33c93841d21c2e901473a2c223b3b9) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix token input layout
+
+- [`1cc24c1`](https://github.com/exactly/exa/commit/1cc24c14c3316dc9620688162e0fa256cf7321a6) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix amount input height
+
+- [`6facbed`](https://github.com/exactly/exa/commit/6facbedb4ddf12d63926b4515ffbac32058db897) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💬 convert lifi name to uppercase
+
+- [`87c1ca1`](https://github.com/exactly/exa/commit/87c1ca11d52609acd60c3972d46721515090cd5f) Thanks [@franm91](https://github.com/franm91)! - 🐛 fix token logos in swap screen
+
+- [`43a9e84`](https://github.com/exactly/exa/commit/43a9e84242cc0fe5c27366a82c22be203ffdf8c4) Thanks [@franm91](https://github.com/franm91)! - 🚸 add spending limit support
+
+- [`7bcac08`](https://github.com/exactly/exa/commit/7bcac0801cdadfc9ceb756707e25a67e73dca450) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 👔 increment max installments
+
+- Updated dependencies [[`ce892f8`](https://github.com/exactly/exa/commit/ce892f8ad24a9448a7418a49791feea741b81e1f)]:
+  - @exactly/server@0.2.11
+
 ## 1.0.19
 
 ### Patch Changes
