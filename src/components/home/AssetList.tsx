@@ -3,7 +3,7 @@ import { floatingDepositRates } from "@exactly/lib";
 import React from "react";
 import { vs } from "react-native-size-matters";
 import { XStack, YStack } from "tamagui";
-import { zeroAddress } from "viem";
+import { zeroAddress, parseUnits } from "viem";
 import { useAccount } from "wagmi";
 
 import { useReadPreviewerExactly, useReadRatePreviewerSnapshot } from "../../generated/contracts";
@@ -131,7 +131,6 @@ export default function AssetList() {
       ?.map((market) => {
         const symbol = market.symbol.slice(3) === "WETH" ? "ETH" : market.symbol.slice(3);
         const rate = rates.find((r: { market: string; rate: bigint }) => r.market === market.market)?.rate;
-
         return {
           symbol,
           name: symbol,
@@ -147,14 +146,14 @@ export default function AssetList() {
       .filter(({ amount, symbol }) => (symbol === "USDC.e" ? amount > 0n : true))
       .sort((a, b) => Number(b.usdValue) - Number(a.usdValue)) ?? [];
 
-  const externalAssetItems = externalAssets.map((asset) => ({
-    symbol: asset.symbol,
-    name: asset.name,
-    logoURI: asset.logoURI,
-    amount: asset.amount ?? 0n,
-    decimals: asset.decimals,
-    usdValue: BigInt(Number(asset.usdValue) * 1e18),
-    usdPrice: BigInt(Number(asset.priceUSD) * 1e18),
+  const externalAssetItems = externalAssets.map(({ symbol, name, logoURI, amount, decimals, usdValue, priceUSD }) => ({
+    symbol,
+    name,
+    logoURI,
+    amount: amount ?? 0n,
+    decimals,
+    usdValue: parseUnits(usdValue.toString(), 18),
+    usdPrice: parseUnits(priceUSD, 18),
   }));
 
   return (
