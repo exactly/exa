@@ -1,7 +1,7 @@
 name: server/sandbox
 on:
   push:
-    branches: [web]
+    branches: [sandbox]
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 jobs:
   deploy:
