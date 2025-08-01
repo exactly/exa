@@ -35,20 +35,6 @@ export default function ExploreDeFi() {
           <ArrowRight size={16} color="$interactiveBaseBrandSoftDefault" />
         </XStack>
       </YStack>
-      <XStack
-        position="absolute"
-        right="$s4"
-        top="$s4"
-        justifyContent="flex-end"
-        cursor="pointer"
-        zIndex={3}
-        onPress={(event) => {
-          event.stopPropagation();
-          queryClient.setQueryData(["settings", "explore-loans-shown"], false);
-        }}
-      >
-        <XCircle size={20} color="$backgroundBrandSoft" />
-      </XStack>
       <XStack position="absolute" right={0} left={0} top={0} bottom={0} justifyContent="flex-end">
         <DeFiBanner
           width="50%"
@@ -56,6 +42,19 @@ export default function ExploreDeFi() {
           preserveAspectRatio="xMaxYMid"
           {...(Platform.OS === "web" ? undefined : { shouldRasterizeIOS: true })}
         />
+      </XStack>
+      <XStack
+        position="absolute"
+        right="$s4"
+        top="$s4"
+        justifyContent="flex-end"
+        cursor="pointer"
+        zIndex={3}
+        onPress={() => {
+          queryClient.setQueryData(["settings", "explore-defi-shown"], false);
+        }}
+      >
+        <XCircle size={20} color="$backgroundBrandSoft" />
       </XStack>
     </XStack>
   );
