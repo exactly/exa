@@ -68,7 +68,15 @@ export const transactions = pgTable(
   ({ cardId }) => [index("transactions_card_id_index").on(cardId)],
 );
 
-export const credentialsRelations = relations(credentials, ({ many }) => ({ cards: many(cards) }));
+export const sources = pgTable("sources", {
+  id: text("id").primaryKey(),
+  config: jsonb("config").notNull(),
+});
+
+export const credentialsRelations = relations(credentials, ({ many, one }) => ({
+  cards: many(cards),
+  source: one(sources, { fields: [credentials.source], references: [sources.id] }),
+}));
 
 export const cardsRelations = relations(cards, ({ many, one }) => ({
   credential: one(credentials, { fields: [cards.credentialId], references: [credentials.id] }),
