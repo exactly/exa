@@ -13,8 +13,7 @@ export const LEGACY_KYC_TEMPLATE_ID = "itmpl_8uim4FvD5P3kFpKHX37CW817";
 
 export async function createInquiry(credential: Credential) {
   if (Platform.OS === "web") {
-    const otl = await getKYCLink(KYC_TEMPLATE_ID);
-    window.open(otl, "_self");
+    window.open(await getKYCLink(KYC_TEMPLATE_ID));
     return;
   }
 
@@ -37,8 +36,7 @@ export async function createInquiry(credential: Credential) {
 
 export async function resumeInquiry(inquiryId: string, sessionToken: string) {
   if (Platform.OS === "web") {
-    const otl = await getKYCLink(KYC_TEMPLATE_ID);
-    window.open(otl, "_self");
+    window.open(await getKYCLink(KYC_TEMPLATE_ID));
     return;
   }
 
