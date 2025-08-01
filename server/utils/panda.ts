@@ -185,11 +185,13 @@ const CreateCardRequest = object({
   configuration: object({ productId: string(), virtualCardArt: string() }),
 });
 
+export const CardStatus = picklist(["active", "canceled", "locked", "notActivated"]);
+
 const CardResponse = object({
   id: string(),
   userId: string(),
   type: literal("virtual"),
-  status: picklist(["active", "canceled", "locked", "notActivated"]),
+  status: CardStatus,
   limit: object({
     amount: number(),
     frequency: picklist([
