@@ -91,6 +91,29 @@ describe("authenticated", () => {
     );
 
     expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toStrictEqual({
+      code: "no card",
+      legacy: "card not found",
+    });
+  });
+
+  it("returns 404 card not found when card is deleted", async () => {
+    await database
+      .insert(cards)
+      .values([
+        { id: "543c1771-beae-4f26-b662-44ea48b40dc6", credentialId: account, lastFour: "1234", status: "DELETED" },
+      ]);
+
+    const response = await appClient.index.$get(
+      { header: { sessionid: "fakeSession" } },
+      { headers: { "test-credential-id": account } },
+    );
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toStrictEqual({
+      code: "no card",
+      legacy: "card not found",
+    });
   });
 
   it("returns panda card as default platinum product", async () => {
@@ -248,6 +271,10 @@ describe("authenticated", () => {
 
   it("cancels a card", async () => {
     const cardResponse = { ...cardTemplate, id: "cardForCancel", last4: "1224", status: "active" as const };
+    vi.spyOn(kyc, "getApplicationStatus").mockResolvedValueOnce({
+      id: "pandaId",
+      applicationStatus: "approved",
+    });
     vi.spyOn(panda, "createCard").mockResolvedValueOnce(cardResponse);
     vi.spyOn(panda, "updateCard").mockResolvedValueOnce({ ...cardResponse, status: "canceled" });
 
