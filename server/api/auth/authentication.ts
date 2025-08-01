@@ -166,7 +166,7 @@ When called with an Ethereum address as \`credentialId\`, this endpoint creates 
       const sessionId = generateSiweNonce();
       const issuedAt = new Date();
       const expires = new Date(issuedAt.getTime() + timeout);
-      setCookie(c, "session_id", sessionId, { domain, expires, httpOnly: true });
+      setCookie(c, "session_id", sessionId, { domain, expires, httpOnly: true, sameSite: "none", secure: true });
       const { credentialId } = c.req.valid("query");
       if (credentialId && (isAddress as (address: string) => address is Address)(credentialId)) {
         const message = createSiweMessage({
@@ -357,7 +357,13 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
 
       const expires = new Date(Date.now() + AUTH_EXPIRY);
       await Promise.all([
-        setSignedCookie(c, "credential_id", assertion.id, authSecret, { domain, expires, httpOnly: true }),
+        setSignedCookie(c, "credential_id", assertion.id, authSecret, {
+          domain,
+          expires,
+          httpOnly: true,
+          sameSite: "none",
+          secure: true,
+        }),
         newCounter && database.update(credentials).set({ counter: newCounter }).where(eq(credentials.id, assertion.id)),
       ]);
 
