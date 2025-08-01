@@ -16,6 +16,7 @@ export const credentials = pgTable(
     counter: integer("counter").notNull().default(0),
     kycId: text("kyc_id"),
     pandaId: text("panda_id"),
+    source: text("source").references(() => sources.id),
   },
   (table) => [uniqueIndex("account_index").on(table.account)],
 );
@@ -39,7 +40,15 @@ export const transactions = pgTable("transactions", {
   payload: jsonb("payload").notNull(),
 });
 
-export const credentialsRelations = relations(credentials, ({ many }) => ({ cards: many(cards) }));
+export const sources = pgTable("sources", {
+  id: text("id").primaryKey(),
+  config: jsonb("config").notNull(),
+});
+
+export const credentialsRelations = relations(credentials, ({ many, one }) => ({
+  cards: many(cards),
+  source: one(sources, { fields: [credentials.source], references: [sources.id] }),
+}));
 
 export const cardsRelations = relations(cards, ({ many, one }) => ({
   credential: one(credentials, { fields: [cards.credentialId], references: [credentials.id] }),
@@ -49,3 +58,5 @@ export const cardsRelations = relations(cards, ({ many, one }) => ({
 export const transactionsRelations = relations(transactions, ({ one }) => ({
   card: one(cards, { fields: [transactions.cardId], references: [cards.id] }),
 }));
+
+export const sourcesRelations = relations(sources, ({ many }) => ({ credential: many(credentials) }));
