@@ -14,16 +14,15 @@ import chain, {
   exaPluginAbi,
   issuerCheckerAbi,
   marketAbi,
-  marketUSDCAddress,
   upgradeableModularAccountAbi,
-  usdcAddress,
 } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 import { proposalManager } from "@exactly/plugin/deploy.json";
 import { captureException } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
-import { parse } from "valibot";
+import { createHmac } from "node:crypto";
+import { object, parse, string } from "valibot";
 import {
   BaseError,
   createWalletClient,
@@ -44,7 +43,7 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { anvil } from "viem/chains";
 import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
-import database, { cards, credentials, transactions } from "../../database";
+import database, { cards, credentials, sources, transactions } from "../../database";
 import app from "../../hooks/panda";
 import keeper from "../../utils/keeper";
 import * as pandaUtils from "../../utils/panda";
@@ -876,7 +875,7 @@ describe("card operations", () => {
         });
       });
 
-      it("over capture debit", async () => {
+      it("over-captures debit", async () => {
         const hold = 25;
         const capture = 30;
 
@@ -929,7 +928,7 @@ describe("card operations", () => {
         });
       });
 
-      it("partial capture debit", async () => {
+      it("partial-captures debit", async () => {
         const hold = 80;
         const capture = 40;
         const cardId = "partial-capture-debit";
@@ -982,7 +981,7 @@ describe("card operations", () => {
         });
       });
 
-      it("force capture debit", async () => {
+      it("force-captures debit", async () => {
         const capture = 42;
 
         const cardId = "force-capture-debit";
@@ -1020,7 +1019,7 @@ describe("card operations", () => {
         });
       });
 
-      it("force capture fraud", async () => {
+      it("force-captures fraud", async () => {
         const updateUser = vi.spyOn(pandaUtils, "updateUser").mockResolvedValue(userResponseTemplate);
         const currentFunds = await publicClient
           .readContract({
@@ -1095,7 +1094,7 @@ describe("concurrency", () => {
         keeper.exaSend(
           { name: "mint", op: "tx.mint" },
           {
-            address: usdcAddress,
+            address: inject("USDC"),
             abi: mockERC20Abi,
             functionName: "mint",
             args: [account2, 70_000_000n],
@@ -1116,7 +1115,7 @@ describe("concurrency", () => {
             address: account2,
             abi: exaPluginAbi,
             functionName: "poke",
-            args: [marketUSDCAddress],
+            args: [inject("MarketUSDC")],
           }),
         )
         .then(async (hash) => {
@@ -1219,7 +1218,7 @@ describe("concurrency", () => {
 
     afterEach(() => vi.useRealTimers());
 
-    it("mutex timeout", async () => {
+    it("times out when mutex is locked", async () => {
       const getMutex = vi.spyOn(pandaUtils, "getMutex");
       const cardId = `${account2}-card`;
       const promises = Promise.all([
@@ -1273,6 +1272,227 @@ describe("concurrency", () => {
   });
 });
 
+describe("webhooks", () => {
+  let webhookOwner: WalletClient<ReturnType<typeof http>, typeof chain, ReturnType<typeof privateKeyToAccount>>;
+  let webhookAccount: Address;
+
+  beforeAll(async () => {
+    webhookOwner = createWalletClient({
+      chain,
+      transport: http(),
+      account: privateKeyToAccount(generatePrivateKey()),
+    });
+    webhookAccount = deriveAddress(inject("ExaAccountFactory"), {
+      x: padHex(webhookOwner.account.address),
+      y: zeroHash,
+    });
+    await Promise.all([
+      database.insert(sources).values([
+        {
+          id: "test",
+          config: {
+            type: "uphold",
+            secrets: { test: { key: "secret", type: "HMAC-SHA256" } },
+            webhooks: { sandbox: { url: "https://exa.test", secretId: "test" } },
+          },
+        },
+      ]),
+      database.insert(credentials).values([
+        {
+          id: webhookAccount,
+          publicKey: new Uint8Array(),
+          account: webhookAccount,
+          factory: zeroAddress,
+          source: "test",
+          pandaId: webhookAccount,
+        },
+      ]),
+      database
+        .insert(cards)
+        .values([{ id: `${webhookAccount}-card`, credentialId: webhookAccount, lastFour: "1234", mode: 0 }]),
+      anvilClient.setBalance({ address: webhookOwner.account.address, value: 10n ** 24n }),
+      Promise.all([
+        keeper.exaSend(
+          { name: "mint", op: "tx.mint" },
+          {
+            address: inject("USDC"),
+            abi: mockERC20Abi,
+            functionName: "mint",
+            args: [webhookAccount, 50_000_000n],
+          },
+        ),
+        keeper.exaSend(
+          { name: "create account", op: "exa.account" },
+          {
+            address: inject("ExaAccountFactory"),
+            abi: exaAccountFactoryAbi,
+            functionName: "createAccount",
+            args: [0n, [{ x: hexToBigInt(webhookOwner.account.address), y: 0n }]],
+          },
+        ),
+      ])
+        .then(() =>
+          keeper.writeContract({
+            address: webhookAccount,
+            abi: exaPluginAbi,
+            functionName: "poke",
+            args: [inject("MarketUSDC")],
+          }),
+        )
+        .then(async (hash) => {
+          const { status } = await publicClient.waitForTransactionReceipt({ hash, confirmations: 0 });
+          if (status !== "success") {
+            const trace = await traceClient.traceTransaction(hash);
+            const error = new Error(trace.output);
+            captureException(error, { contexts: { tx: { trace } } });
+            Object.assign(error, { trace });
+            throw error;
+          }
+        }),
+    ]);
+  });
+
+  afterEach(() => vi.resetAllMocks());
+
+  it("forwards transaction created", async () => {
+    const cardId = `${webhookAccount}-card`;
+
+    const mockFetch = vi.spyOn(global, "fetch").mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+    } as Response);
+
+    await appClient.index.$post({
+      ...transactionCreated,
+      json: {
+        ...transactionCreated.json,
+        body: {
+          ...transactionCreated.json.body,
+          id: cardId,
+          spend: { ...transactionCreated.json.body.spend, cardId, userId: webhookAccount },
+        },
+      },
+    });
+
+    await vi.waitUntil(() => mockFetch.mock.calls.length > 0, 10_000);
+    const options = mockFetch.mock.calls.find(([url]) => url === "https://exa.test")?.[1];
+    const headers = parse(object({ Signature: string() }), options?.headers);
+
+    expect(createHmac("sha256", "secret").update(parse(string(), options?.body)).digest("hex")).toBe(headers.Signature);
+  });
+
+  it("forwards transaction updated", async () => {
+    vi.spyOn(pandaUtils, "getUser").mockResolvedValue(userResponseTemplate);
+    const cardId = `${webhookAccount}-card`;
+
+    const mockFetch = vi.spyOn(global, "fetch").mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+    } as Response);
+
+    await appClient.index.$post({
+      ...transactionUpdated,
+      json: {
+        ...transactionUpdated.json,
+        body: {
+          ...transactionUpdated.json.body,
+          id: cardId,
+          spend: { ...transactionUpdated.json.body.spend, cardId, userId: webhookAccount },
+        },
+      },
+    });
+
+    await vi.waitUntil(() => mockFetch.mock.calls.length > 0, 10_000);
+    const options = mockFetch.mock.calls.find(([url]) => url === "https://exa.test")?.[1];
+    const headers = parse(object({ Signature: string() }), options?.headers);
+
+    expect(createHmac("sha256", "secret").update(parse(string(), options?.body)).digest("hex")).toBe(headers.Signature);
+  });
+
+  it("forwards transaction completed", async () => {
+    vi.spyOn(pandaUtils, "getUser").mockResolvedValue(userResponseTemplate);
+    const cardId = `${webhookAccount}-card`;
+
+    const mockFetch = vi.spyOn(global, "fetch").mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+    } as Response);
+
+    await appClient.index.$post({
+      ...transactionCompleted,
+      json: {
+        ...transactionCompleted.json,
+        body: {
+          ...transactionCompleted.json.body,
+          id: cardId,
+          spend: { ...transactionCompleted.json.body.spend, cardId, userId: webhookAccount },
+        },
+      },
+    });
+
+    await vi.waitUntil(() => mockFetch.mock.calls.length > 1, 10_000);
+    const options = mockFetch.mock.calls.find(([url]) => url === "https://exa.test")?.[1];
+    const headers = parse(object({ Signature: string() }), options?.headers);
+
+    expect(createHmac("sha256", "secret").update(parse(string(), options?.body)).digest("hex")).toBe(headers.Signature);
+  });
+
+  it("forwards card updated", async () => {
+    const mockFetch = vi.spyOn(global, "fetch").mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json() {
+        return Promise.resolve({});
+      },
+    } as Response);
+
+    await appClient.index.$post({
+      ...cardUpdated,
+      json: {
+        ...cardUpdated.json,
+        body: {
+          ...cardUpdated.json.body,
+          userId: webhookAccount,
+          tokenWallets: ["Apple"],
+        },
+      },
+    });
+
+    await vi.waitUntil(() => mockFetch.mock.calls.length > 0, 10_000);
+    const options = mockFetch.mock.calls.find(([url]) => url === "https://exa.test")?.[1];
+    const headers = parse(object({ Signature: string() }), options?.headers);
+
+    expect(createHmac("sha256", "secret").update(parse(string(), options?.body)).digest("hex")).toBe(headers.Signature);
+  });
+
+  it("forwards user updated", async () => {
+    const mockFetch = vi.spyOn(global, "fetch").mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json() {
+        return Promise.resolve({});
+      },
+    } as Response);
+
+    await appClient.index.$post({
+      ...userUpdated,
+      json: {
+        ...userUpdated.json,
+        body: {
+          ...userUpdated.json.body,
+          id: webhookAccount,
+        },
+      },
+    });
+
+    await vi.waitUntil(() => mockFetch.mock.calls.length > 0, 10_000);
+    const options = mockFetch.mock.calls.find(([url]) => url === "https://exa.test")?.[1];
+    const headers = parse(object({ Signature: string() }), options?.headers);
+
+    expect(createHmac("sha256", "secret").update(parse(string(), options?.body)).digest("hex")).toBe(headers.Signature);
+  });
+});
+
 const authorization = {
   header: { signature: "panda-signature" },
   json: {
@@ -1295,6 +1515,7 @@ const authorization = {
         merchantCity: "buenos aires",
         merchantCountry: "argentina",
         merchantName: "99999",
+        merchantId: "550e8400-e29b-41d4-a716-446655440000",
         status: "pending",
         userEmail: "mail@mail.com",
         userFirstName: "David",
@@ -1302,6 +1523,170 @@ const authorization = {
         userLastName: "Mayer",
       },
     },
+  },
+} as const;
+
+const cardUpdated = {
+  header: { signature: "panda-signature" },
+  json: {
+    id: "31740000-bd68-40c8-a400-5a0131f58800",
+    resource: "card",
+    action: "updated",
+    body: {
+      id: "f3d8a9c2-4e7b-4a1c-9f2e-8d5c6b3a7e9f",
+      userId: "a1b2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
+      type: "virtual",
+      status: "active",
+      limit: { amount: 1_000_000, frequency: "per7DayPeriod" },
+      last4: "7392",
+      expirationMonth: "11",
+      expirationYear: "2029",
+      tokenWallets: ["Apple"],
+    },
+  },
+} as const;
+
+const userUpdated = {
+  header: { signature: "panda-signature" },
+  json: {
+    id: "bdc87700-bf6d-4d7d-ac29-3effb06e3000",
+    resource: "user",
+    action: "updated",
+    body: {
+      id: "0e3c467c-01e3-4fe8-8778-1c88e02fd000",
+      firstName: "David",
+      lastName: "Mayer",
+      email: "mail@mail.com",
+      isActive: true,
+      isTermsOfServiceAccepted: true,
+      applicationStatus: "pending",
+      applicationExternalVerificationLink: {
+        url: "https://cardmemberportal.com/kyc",
+        params: {
+          userId: "0e3c467",
+          signature: "CiQAmdPUf",
+        },
+      },
+      applicationCompletionLink: {
+        url: "https://cardmemberportal.com/kyc",
+        params: {
+          userId: "0e3c467",
+          signature: "CiQAmdPUf",
+        },
+      },
+      applicationReason: "COMPROMISED_PERSONS, PEP",
+    },
+  },
+} as const;
+
+const transactionCreated = {
+  header: { signature: "panda-signature" },
+  json: {
+    id: "a2684ac7-13bc-4b0e-ab4d-5a2ac036218a",
+    body: {
+      id: "4e19a38e-3161-4db1-ac91-e12630950e2c",
+      type: "spend",
+      spend: {
+        amount: -10_000,
+        cardId: "827c3893-d7c8-46d4-a518-744b016555bc",
+        status: "pending",
+        userId: "8e03decf-26b9-41fb-bb73-4fe1f847042a",
+        cardType: "virtual",
+        currency: "usd",
+        userEmail: "rain@gmail.com",
+        merchantId: "297f8888-55b4-57df-a55b-800c61a3207b",
+        localAmount: -10_000,
+        authorizedAt: "2025-07-03T19:52:59.806Z",
+        merchantCity: "New York     ",
+        merchantName: "Test Refund              ",
+        userLastName: "approved",
+        localCurrency: "usd",
+        userFirstName: "Rain",
+        merchantCountry: "US",
+        authorizedAmount: -10_000,
+        merchantCategory: "5641 - Children's and Infant's Wear Store",
+        authorizationMethod: "Normal presentment",
+        merchantCategoryCode: "5641",
+      },
+    },
+    action: "created",
+    resource: "transaction",
+  },
+} as const;
+
+const transactionUpdated = {
+  header: { signature: "panda-signature" },
+  json: {
+    id: "e7b2853e-4bb7-4428-8dc2-27e604766dfa",
+    body: {
+      id: "30dcf8c6-a1e5-48f1-9c40-ecffe8253d25",
+      type: "spend",
+      spend: {
+        amount: 8000,
+        cardId: "827c3893-d7c8-46d4-a518-744b016555bc",
+        status: "reversed",
+        userId: "8e03decf-26b9-41fb-bb73-4fe1f847042a",
+        cardType: "virtual",
+        currency: "usd",
+        userEmail: "zjdnflol@gamil.com",
+        merchantId: "d0a30859-096d-57f4-bffd-fd745f44e048",
+        localAmount: 8000,
+        authorizedAt: "2025-06-25T15:24:11.337Z",
+        merchantCity: "             ",
+        merchantName: "Test                     ",
+        userLastName: "approved",
+        localCurrency: "usd",
+        userFirstName: "jason",
+        merchantCountry: "  ",
+        authorizedAmount: 8000,
+        merchantCategory: " - ",
+        authorizationMethod: "Normal presentment",
+        enrichedMerchantName: "Test",
+        merchantCategoryCode: "",
+        enrichedMerchantCategory: "Education",
+        authorizationUpdateAmount: -2000,
+      },
+    },
+    action: "updated",
+    resource: "transaction",
+  },
+} as const;
+
+const transactionCompleted = {
+  header: { signature: "panda-signature" },
+  json: {
+    id: "77474a56-51eb-4918-b09e-73cf20077b1b",
+    body: {
+      id: "4e19a38e-3161-4db1-ac91-e12630950e2c",
+      type: "spend",
+      spend: {
+        amount: -10_000,
+        cardId: "827c3893-d7c8-46d4-a518-744b016555bc",
+        status: "completed",
+        userId: "8e03decf-26b9-41fb-bb73-4fe1f847042a",
+        cardType: "virtual",
+        currency: "usd",
+        postedAt: "2025-07-03T19:57:04.332Z",
+        userEmail: "rain@gmail.com",
+        localAmount: -10_000,
+        authorizedAt: "2025-07-03T19:52:59.806Z",
+        merchantCity: "New York     ",
+        merchantName: "Test Refund              ",
+        userLastName: "approved",
+        localCurrency: "usd",
+        userFirstName: "Rain",
+        merchantCountry: "US",
+        authorizedAmount: -10_000,
+        merchantCategory: "Children's and Infant's Wear Store",
+        authorizationMethod: "Normal presentment",
+        enrichedMerchantName: "Test Refund",
+        merchantCategoryCode: "5641",
+        enrichedMerchantCategory: "Refunds - Insufficient Funds",
+        merchantId: "297f8888-55b4-57df-a55b-800c61a3207b",
+      },
+    },
+    action: "completed",
+    resource: "transaction",
   },
 } as const;
 
