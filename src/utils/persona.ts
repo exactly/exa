@@ -1,4 +1,5 @@
 import type { Credential } from "@exactly/common/validation";
+import { sdk } from "@farcaster/miniapp-sdk";
 import { router } from "expo-router";
 import { Platform } from "react-native";
 import { Environment, Inquiry } from "react-native-persona";
@@ -13,8 +14,12 @@ export const LEGACY_KYC_TEMPLATE_ID = "itmpl_8uim4FvD5P3kFpKHX37CW817";
 
 export async function createInquiry(credential: Credential) {
   if (Platform.OS === "web") {
-    const otl = await getKYCLink(KYC_TEMPLATE_ID);
-    window.open(otl, "_self");
+    const url = await getKYCLink(KYC_TEMPLATE_ID);
+    if (await sdk.isInMiniApp()) {
+      await sdk.actions.openUrl(url);
+      return;
+    }
+    window.open(url);
     return;
   }
 
@@ -37,8 +42,12 @@ export async function createInquiry(credential: Credential) {
 
 export async function resumeInquiry(inquiryId: string, sessionToken: string) {
   if (Platform.OS === "web") {
-    const otl = await getKYCLink(KYC_TEMPLATE_ID);
-    window.open(otl, "_self");
+    const url = await getKYCLink(KYC_TEMPLATE_ID);
+    if (await sdk.isInMiniApp()) {
+      await sdk.actions.openUrl(url);
+      return;
+    }
+    window.open(url);
     return;
   }
 
