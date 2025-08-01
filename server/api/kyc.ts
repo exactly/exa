@@ -157,7 +157,10 @@ export default new Hono()
       }
 
       const application = await submitApplication(payload);
-      await database.update(credentials).set({ pandaId: application.id }).where(eq(credentials.id, credentialId));
+      await database
+        .update(credentials)
+        .set({ pandaId: application.id, source: "uphold" })
+        .where(eq(credentials.id, credentialId));
       return c.json({ code: "ok", legacy: "ok" }, 200);
     },
   )

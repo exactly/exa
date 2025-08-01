@@ -14,7 +14,8 @@ import { proposalManager } from "@exactly/plugin/deploy.json";
 import { captureException } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
-import { parse } from "valibot";
+import { createHmac } from "node:crypto";
+import { object, parse, string } from "valibot";
 import {
   BaseError,
   createWalletClient,
@@ -34,7 +35,7 @@ import {
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
-import database, { cards, credentials, transactions } from "../../database";
+import database, { cards, credentials, sources, transactions } from "../../database";
 import {
   auditorAbi,
   exaPluginAbi,
@@ -1177,6 +1178,166 @@ describe("concurrency", () => {
   });
 });
 
+describe("webhooks", () => {
+  let webhookOwner: WalletClient<ReturnType<typeof http>, typeof chain, ReturnType<typeof privateKeyToAccount>>;
+  let webhookAccount: Address;
+
+  beforeAll(async () => {
+    webhookOwner = createWalletClient({
+      chain,
+      transport: http(),
+      account: privateKeyToAccount(generatePrivateKey()),
+    });
+    webhookAccount = deriveAddress(inject("ExaAccountFactory"), {
+      x: padHex(webhookOwner.account.address),
+      y: zeroHash,
+    });
+    await Promise.all([
+      database.insert(sources).values([
+        {
+          id: "test",
+          config: {
+            type: "uphold",
+            secrets: { test: { key: "secret", type: "HMAC-SHA256" } },
+            webhooks: { sandbox: { url: "https://exa.test", secretId: "test" } },
+          },
+        },
+      ]),
+      database.insert(credentials).values([
+        {
+          id: webhookAccount,
+          publicKey: new Uint8Array(),
+          account: webhookAccount,
+          factory: zeroAddress,
+          source: "test",
+          pandaId: webhookAccount,
+        },
+      ]),
+      database
+        .insert(cards)
+        .values([{ id: `${webhookAccount}-card`, credentialId: webhookAccount, lastFour: "1234", mode: 0 }]),
+      anvilClient.setBalance({ address: webhookOwner.account.address, value: 10n ** 24n }),
+      Promise.all([
+        keeper.writeContract({
+          address: usdcAddress,
+          abi: fakeTokenAbi,
+          functionName: "mint",
+          args: [webhookAccount, 50_000_000n],
+        }),
+        keeper.writeContract({
+          address: inject("ExaAccountFactory"),
+          abi: exaAccountFactoryAbi,
+          functionName: "createAccount",
+          args: [0n, [{ x: hexToBigInt(webhookOwner.account.address), y: 0n }]],
+        }),
+      ])
+        .then(() =>
+          keeper.writeContract({
+            address: webhookAccount,
+            abi: exaPluginAbi,
+            functionName: "poke",
+            args: [marketUSDCAddress],
+          }),
+        )
+        .then(async (hash) => {
+          const { status } = await publicClient.waitForTransactionReceipt({ hash, confirmations: 0 });
+          if (status !== "success") {
+            const trace = await traceClient.traceTransaction(hash);
+            const error = new Error(trace.output);
+            captureException(error, { contexts: { tx: { trace } } });
+            Object.assign(error, { trace });
+            throw error;
+          }
+        }),
+    ]);
+  });
+
+  afterEach(() => vi.resetAllMocks());
+
+  it("transaction created", async () => {
+    const cardId = `${webhookAccount}-card`;
+
+    const mockFetch = vi.spyOn(global, "fetch").mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+    } as Response);
+
+    await appClient.index.$post({
+      ...authorization,
+      json: {
+        ...authorization.json,
+        action: "created",
+        body: {
+          ...authorization.json.body,
+          id: cardId,
+          spend: { ...authorization.json.body.spend, amount: 5000, cardId, userId: webhookAccount },
+        },
+      },
+    });
+
+    await vi.waitUntil(() => mockFetch.mock.calls.length > 1, 10_000);
+    const options = mockFetch.mock.calls.find(([url]) => url === "https://exa.test")?.[1];
+    const headers = parse(object({ Signature: string() }), options?.headers);
+
+    expect(createHmac("sha256", "secret").update(parse(string(), options?.body)).digest("hex")).toBe(headers.Signature);
+  });
+
+  it("card updated", async () => {
+    const mockFetch = vi.spyOn(global, "fetch").mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json() {
+        return Promise.resolve({});
+      },
+    } as Response);
+
+    await appClient.index.$post({
+      ...cardUpdated,
+      json: {
+        ...cardUpdated.json,
+        body: {
+          ...cardUpdated.json.body,
+          userId: webhookAccount,
+          tokenWallets: ["Apple"],
+        },
+      },
+    });
+
+    await vi.waitUntil(() => mockFetch.mock.calls.length > 0, 10_000);
+    const options = mockFetch.mock.calls.find(([url]) => url === "https://exa.test")?.[1];
+    const headers = parse(object({ Signature: string() }), options?.headers);
+
+    expect(createHmac("sha256", "secret").update(parse(string(), options?.body)).digest("hex")).toBe(headers.Signature);
+  });
+
+  it("user updated", async () => {
+    const mockFetch = vi.spyOn(global, "fetch").mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json() {
+        return Promise.resolve({});
+      },
+    } as Response);
+
+    await appClient.index.$post({
+      ...userUpdated,
+      json: {
+        ...userUpdated.json,
+        body: {
+          ...userUpdated.json.body,
+          id: webhookAccount,
+        },
+      },
+    });
+
+    await vi.waitUntil(() => mockFetch.mock.calls.length > 0, 10_000);
+    const options = mockFetch.mock.calls.find(([url]) => url === "https://exa.test")?.[1];
+    const headers = parse(object({ Signature: string() }), options?.headers);
+
+    expect(createHmac("sha256", "secret").update(parse(string(), options?.body)).digest("hex")).toBe(headers.Signature);
+  });
+});
+
 const authorization = {
   header: { signature: "panda-signature" },
   json: {
@@ -1205,6 +1366,59 @@ const authorization = {
         userId: "2cf0c886-f7c0-40f3-a8cd-3c4ab3997b66",
         userLastName: "Mayer",
       },
+    },
+  },
+} as const;
+
+const cardUpdated = {
+  header: { signature: "panda-signature" },
+  json: {
+    id: "31740000-bd68-40c8-a400-5a0131f58800",
+    resource: "card",
+    action: "updated",
+    body: {
+      id: "7a542080-587f-40a6-b085-8834c3e18000",
+      userId: "b6512f6f-73bb-4d81-aa07-eec2dc023000",
+      type: "virtual",
+      status: "active",
+      limit: { amount: 1_000_000, frequency: "per7DayPeriod" },
+      last4: "1818",
+      expirationMonth: "4",
+      expirationYear: "2028",
+      tokenWallets: ["Apple"],
+    },
+  },
+} as const;
+
+const userUpdated = {
+  header: { signature: "panda-signature" },
+  json: {
+    id: "bdc87700-bf6d-4d7d-ac29-3effb06e3000",
+    resource: "user",
+    action: "updated",
+    body: {
+      id: "0e3c467c-01e3-4fe8-8778-1c88e02fd000",
+      firstName: "David",
+      lastName: "Mayer",
+      email: "mail@mail.com",
+      isActive: true,
+      isTermsOfServiceAccepted: true,
+      applicationStatus: "pending",
+      applicationExternalVerificationLink: {
+        url: "https://cardmemberportal.com/kyc",
+        params: {
+          userId: "0e3c467",
+          signature: "CiQAmdPUf",
+        },
+      },
+      applicationCompletionLink: {
+        url: "https://cardmemberportal.com/kyc",
+        params: {
+          userId: "0e3c467",
+          signature: "CiQAmdPUf",
+        },
+      },
+      applicationReason: "COMPROMISED_PERSONS, PEP",
     },
   },
 } as const;
