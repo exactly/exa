@@ -4,7 +4,16 @@ import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
 import pem from "@exactly/common/pandaCertificate";
 import crypto from "node:crypto";
 import * as v from "valibot";
-import { checksumAddress, createWalletClient, http, type Address as ViemAddress, isAddress } from "viem";
+import {
+  type Address as ViemAddress,
+  type Hash as ViemHash,
+  createPublicClient,
+  createWalletClient,
+  checksumAddress,
+  isAddress,
+  isHash,
+  http,
+} from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { optimismSepolia } from "viem/chains";
 
@@ -16,6 +25,8 @@ if (!API_BASE_URL) throw new Error("API_BASE_URL environment variable is require
 
 // #region schemas
 const BadRequest = v.object({ code: v.string(), legacy: v.string() });
+const Hash = v.custom<ViemHash>(isHash as (hash: unknown) => hash is ViemHash, "bad hash");
+const Base64URL = v.pipe(v.string("bad base64url"), v.regex(/^[\w-]+$/, "bad base64url"));
 
 const Address = v.pipe(
   v.string("bad address"),
@@ -28,6 +39,13 @@ const AuthenticationOptions = v.object({
   method: v.literal("siwe"),
   address: Address,
   message: v.string(),
+});
+
+const AuthenticationResponse = v.object({
+  credentialId: Base64URL,
+  factory: Address,
+  x: Hash,
+  y: Hash,
 });
 
 const KYCStatus = v.object({
@@ -90,7 +108,6 @@ const UpdatedCardResponse = v.union([
 // #endregion schemas
 
 // #region utilities
-
 function session(): { id: string; secret: string } {
   const secret = crypto.randomUUID().replaceAll("-", "");
   const secretKeyBase64 = Buffer.from(secret, "hex").toString("base64");
@@ -146,12 +163,18 @@ const wallet = createWalletClient({
   transport: http(),
 });
 
+const client = createPublicClient({
+  chain: optimismSepolia,
+  transport: http(),
+});
+
 console.log(`🔑 Using wallet address: ${account.address}`);
 
 const AUTH_HEADERS = {
   Cookie: "",
   sessionid: "",
 };
+// #endregion utilities
 
 // #region actions
 async function getAuthOptions(address: string): Promise<v.InferOutput<typeof AuthenticationOptions>> {
@@ -179,7 +202,7 @@ async function signSiwe(message: string): Promise<`0x${string}`> {
   return signature;
 }
 
-async function authenticate(address: string, signature: string) {
+async function authenticate(address: string, signature: string): Promise<ViemAddress> {
   const response = await fetch(`${API_BASE_URL}/api/auth/authentication`, {
     method: "POST",
     headers: {
@@ -200,7 +223,25 @@ async function authenticate(address: string, signature: string) {
   const setCookieHeader = response.headers.get("set-cookie");
   if (!setCookieHeader) throw new Error("No set-cookie header received");
   AUTH_HEADERS.Cookie = setCookieHeader;
-  console.log("✅ Authentication successful!");
+
+  const data = await response.json();
+  const authResponse = v.parse(AuthenticationResponse, data);
+
+  const accountAddress = await client.readContract({
+    address: authResponse.factory,
+    abi: exaAccountFactoryAbi,
+    functionName: "getAddress",
+    args: [
+      0n,
+      [
+        {
+          x: BigInt(authResponse.x),
+          y: BigInt(authResponse.y),
+        },
+      ],
+    ],
+  });
+  return accountAddress;
 }
 
 async function getKyc(): Promise<v.InferOutput<typeof KYCStatus> | v.InferOutput<typeof BadRequest>> {
@@ -320,8 +361,10 @@ async function onboarding() {
   console.log("🚀 Starting onboarding flow...\n");
   const authOptions = await getAuthOptions(account.address);
   const signature = await signSiwe(authOptions.message);
-  await authenticate(account.address, signature);
-  console.log("🎉 Authentication flow completed successfully!\n");
+  const accountAddress = await authenticate(account.address, signature);
+  console.log(
+    `\n⚠️ Ensure that USDC faucet funds are sent to the Exa account ${accountAddress} in order to start using the card.\n`,
+  );
 
   const kyc = await getKyc();
   if (kyc.code === "not started") {
@@ -433,3 +476,24 @@ const kycPayload = {
   },
 };
 // #endregion mock data
+
+const exaAccountFactoryAbi = [
+  {
+    type: "function",
+    inputs: [
+      { name: "salt", internalType: "uint256", type: "uint256" },
+      {
+        name: "owners",
+        internalType: "struct PublicKey[]",
+        type: "tuple[]",
+        components: [
+          { name: "x", internalType: "uint256", type: "uint256" },
+          { name: "y", internalType: "uint256", type: "uint256" },
+        ],
+      },
+    ],
+    name: "getAddress",
+    outputs: [{ name: "", internalType: "address", type: "address" }],
+    stateMutability: "view",
+  },
+] as const;
