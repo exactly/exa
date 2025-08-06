@@ -45,6 +45,24 @@ export default function HTML({ children }: { children: ReactNode }) {
           }
       `}
         </style>
+        <script src="https://cdn.jsdelivr.net/npm/eruda" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if (window.location.hostname === "localhost" || window.location.hostname.includes("ngrok")) {
+                if (typeof eruda !== "undefined") {
+                  eruda.init();
+                } else {
+                  window.addEventListener("load", () => {
+                    if (typeof eruda !== "undefined") {
+                      eruda.init();
+                    }
+                  });
+                }
+              }
+            `,
+          }}
+        />
       </head>
       <body>{children}</body>
     </html>
