@@ -460,7 +460,7 @@ const kycPayload = {
   phoneCountryCode: "1",
   phoneNumber: "5551234567",
   ipAddress: "192.168.1.1",
-  occupation: "software engineer",
+  occupation: "Software Developers, Applications",
   annualSalary: "7000",
   accountPurpose: "personal use",
   expectedMonthlyVolume: "5000",
