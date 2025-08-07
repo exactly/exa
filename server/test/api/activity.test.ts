@@ -234,7 +234,9 @@ describe.concurrent("authenticated", () => {
     });
 
     it("reports bad transaction", async () => {
-      await database.insert(transactions).values([{ id: "69", cardId: "activity", hashes: ["0x1"], payload: {} }]);
+      await database
+        .insert(transactions)
+        .values([{ id: "bad-transaction", cardId: "activity", hashes: ["0x1"], payload: {} }]);
       const response = await appClient.index.$get(
         { query: { include: "card" } },
         { headers: { "test-credential-id": account } },
