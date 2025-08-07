@@ -1,6 +1,8 @@
+import { MATURITY_INTERVAL } from "@exactly/lib";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { captureException, close } from "@sentry/node";
+import { Queue, Worker } from "bullmq";
 import { Hono } from "hono";
 import { trimTrailingSlash } from "hono/trailing-slash";
 import type { UnofficialStatusCode } from "hono/utils/http-status";
@@ -11,6 +13,7 @@ import block from "./hooks/block";
 import panda from "./hooks/panda";
 import persona from "./hooks/persona";
 import androidFingerprints from "./utils/android/fingerprints";
+import redis from "./utils/redis";
 import { closeAndFlush } from "./utils/segment";
 
 const app = new Hono();
@@ -83,3 +86,17 @@ const server = serve(app);
     }),
   ),
 );
+
+const every = MATURITY_INTERVAL * 1000;
+const offset = -24 * 60 * 60 * 1000;
+const firstRunAt = Math.ceil(Date.now() / every) * every + offset;
+const queue = new Queue("accounts", { connection: redis });
+queue.upsertJobScheduler("maturity", { every, offset, startDate: firstRunAt - every }).catch(captureException);
+// // eslint-disable-next-line no-new
+// new Worker(
+//   "maturity",
+//   async (job) => {
+//     console.log(job.data);
+//   },
+//   { connection: redis },
+// );
