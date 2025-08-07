@@ -17,6 +17,7 @@
     "bigmi",
     "bitcoinjs",
     "buildpack",
+    "bullmq",
     "byscore",
     "bytea",
     "chainid",

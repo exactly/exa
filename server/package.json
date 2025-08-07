@@ -40,6 +40,7 @@
     "@types/debug": "^4.1.12",
     "@valibot/to-json-schema": "^1.1.0",
     "async-mutex": "^0.5.0",
+    "bullmq": "^5.56.9",
     "debug": "^4.4.0",
     "drizzle-orm": "^0.42.0",
     "graphql": "^16.10.0",
