@@ -70,13 +70,13 @@ importers:
     dependencies:
       '@alchemy/aa-accounts':
         specifier: ^3.19.0
-        version: 3.19.0(typescript@5.8.3)(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3))
+        version: 3.19.0(typescript@5.8.3)(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76))
       '@alchemy/aa-alchemy':
         specifier: ^3.19.0
-        version: 3.19.0(@tanstack/query-core@5.74.4)(@tanstack/react-query@5.74.4(react@18.3.1))(@types/react@18.3.20)(bufferutil@4.0.9)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.8.3)(use-sync-external-store@1.5.0(react@18.3.1))(utf-8-validate@5.0.10)(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3))
+        version: 3.19.0(@tanstack/query-core@5.74.4)(@tanstack/react-query@5.74.4(react@18.3.1))(@types/react@18.3.20)(bufferutil@4.0.9)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.8.3)(use-sync-external-store@1.5.0(react@18.3.1))(utf-8-validate@5.0.10)(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76))
       '@alchemy/aa-core':
         specifier: ^3.19.0
-        version: 3.19.0(typescript@5.8.3)(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3))
+        version: 3.19.0(typescript@5.8.3)(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76))
       '@exactly/common':
         specifier: workspace:^0.0.6
         version: link:common
@@ -97,7 +97,7 @@ importers:
         version: 0.0.14
       '@lifi/sdk':
         specifier: ^3.7.7
-        version: 3.7.7(patch_hash=m5do4kxlpy2y7pxhavxz7piy5m)(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3))(zod@3.24.3)
+        version: 3.7.7(patch_hash=m5do4kxlpy2y7pxhavxz7piy5m)(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76))(zod@3.25.76)
       '@peculiar/asn1-ecc':
         specifier: ^2.3.15
         version: 2.3.15
@@ -154,10 +154,10 @@ importers:
         version: 5.74.4(@tanstack/react-query@5.74.4(react@18.3.1))(react@18.3.1)
       '@wagmi/core':
         specifier: ^2.16.7
-        version: 2.16.7(@tanstack/query-core@5.74.4)(@types/react@18.3.20)(react@18.3.1)(typescript@5.8.3)(use-sync-external-store@1.5.0(react@18.3.1))(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3))
+        version: 2.16.7(@tanstack/query-core@5.74.4)(@types/react@18.3.20)(react@18.3.1)(typescript@5.8.3)(use-sync-external-store@1.5.0(react@18.3.1))(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76))
       abitype:
         specifier: ^1.0.8
-        version: 1.0.8(typescript@5.8.3)(zod@3.24.3)
+        version: 1.0.8(typescript@5.8.3)(zod@3.25.76)
       buffer:
         specifier: ^6.0.3
         version: 6.0.3
@@ -277,10 +277,10 @@ importers:
         version: 1.0.0(typescript@5.8.3)
       viem:
         specifier: ^2.29.2
-        version: 2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)
+        version: 2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
       wagmi:
         specifier: ^2.14.16
-        version: 2.14.16(@tanstack/query-core@5.74.4)(@tanstack/react-query@5.74.4(react@18.3.1))(@types/react@18.3.20)(react@18.3.1)(typescript@5.8.3)(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3))
+        version: 2.14.16(@tanstack/query-core@5.74.4)(@tanstack/react-query@5.74.4(react@18.3.1))(@types/react@18.3.20)(react@18.3.1)(typescript@5.8.3)(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76))
       zustand:
         specifier: ^5.0.3
         version: 5.0.3(@types/react@18.3.20)(react@18.3.1)(use-sync-external-store@1.5.0(react@18.3.1))
@@ -455,13 +455,13 @@ importers:
     dependencies:
       '@alchemy/aa-core':
         specifier: ^3.19.0
-        version: 3.19.0(typescript@5.8.3)(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3))
+        version: 3.19.0(typescript@5.8.3)(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76))
       valibot:
         specifier: ^1.0.0
         version: 1.0.0(typescript@5.8.3)
       viem:
         specifier: ^2.29.2
-        version: 2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)
+        version: 2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
     devDependencies:
       '@exactly/plugin':
         specifier: workspace:^1.0.0
@@ -526,7 +526,7 @@ importers:
     devDependencies:
       '@astrojs/starlight':
         specifier: ^0.34.3
-        version: 0.34.3(astro@5.7.12(@types/node@22.14.1)(ioredis@5.6.1)(jiti@1.21.7)(lightningcss@1.27.0)(rollup@4.40.0)(terser@5.39.0)(tsx@4.19.3)(typescript@5.8.3)(yaml@2.7.1))
+        version: 0.34.3(astro@5.12.8(@types/node@22.14.1)(ioredis@5.6.1)(jiti@1.21.7)(lightningcss@1.27.0)(rollup@4.40.0)(terser@5.39.0)(tsx@4.19.3)(typescript@5.8.3)(yaml@2.7.1))
       '@exactly/mobile':
         specifier: workspace:^1.0.12
         version: link:..
@@ -534,8 +534,8 @@ importers:
         specifier: workspace:^0.2.0
         version: link:../server
       astro:
-        specifier: ^5.7.12
-        version: 5.7.12(@types/node@22.14.1)(ioredis@5.6.1)(jiti@1.21.7)(lightningcss@1.27.0)(rollup@4.40.0)(terser@5.39.0)(tsx@4.19.3)(typescript@5.8.3)(yaml@2.7.1)
+        specifier: ^5.12.8
+        version: 5.12.8(@types/node@22.14.1)(ioredis@5.6.1)(jiti@1.21.7)(lightningcss@1.27.0)(rollup@4.40.0)(terser@5.39.0)(tsx@4.19.3)(typescript@5.8.3)(yaml@2.7.1)
       openapi-types:
         specifier: ^12.1.3
         version: 12.1.3
@@ -544,13 +544,13 @@ importers:
         version: 0.34.1
       starlight-openapi:
         specifier: ^0.16.0
-        version: 0.16.0(@astrojs/markdown-remark@6.3.1)(@astrojs/starlight@0.34.3(astro@5.7.12(@types/node@22.14.1)(ioredis@5.6.1)(jiti@1.21.7)(lightningcss@1.27.0)(rollup@4.40.0)(terser@5.39.0)(tsx@4.19.3)(typescript@5.8.3)(yaml@2.7.1)))(astro@5.7.12(@types/node@22.14.1)(ioredis@5.6.1)(jiti@1.21.7)(lightningcss@1.27.0)(rollup@4.40.0)(terser@5.39.0)(tsx@4.19.3)(typescript@5.8.3)(yaml@2.7.1))(openapi-types@12.1.3)
+        version: 0.16.0(@astrojs/markdown-remark@6.3.5)(@astrojs/starlight@0.34.3(astro@5.12.8(@types/node@22.14.1)(ioredis@5.6.1)(jiti@1.21.7)(lightningcss@1.27.0)(rollup@4.40.0)(terser@5.39.0)(tsx@4.19.3)(typescript@5.8.3)(yaml@2.7.1)))(astro@5.12.8(@types/node@22.14.1)(ioredis@5.6.1)(jiti@1.21.7)(lightningcss@1.27.0)(rollup@4.40.0)(terser@5.39.0)(tsx@4.19.3)(typescript@5.8.3)(yaml@2.7.1))(openapi-types@12.1.3)
 
   server:
     dependencies:
       '@alchemy/aa-core':
         specifier: ^3.19.0
-        version: 3.19.0(typescript@5.8.3)(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3))
+        version: 3.19.0(typescript@5.8.3)(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76))
       '@exactly/lib':
         specifier: exactly/lib#a8895cd
         version: https://codeload.github.com/exactly/lib/tar.gz/a8895cd
@@ -607,7 +607,7 @@ importers:
         version: 4.7.7
       hono-openapi:
         specifier: ^0.4.8
-        version: 0.4.8(@hono/valibot-validator@0.5.2(hono@4.7.7)(valibot@1.0.0(typescript@5.8.3)))(@valibot/to-json-schema@1.1.0(valibot@1.0.0(typescript@5.8.3)))(hono@4.7.7)(openapi-types@12.1.3)(valibot@1.0.0(typescript@5.8.3))(zod@3.24.3)
+        version: 0.4.8(@hono/valibot-validator@0.5.2(hono@4.7.7)(valibot@1.0.0(typescript@5.8.3)))(@valibot/to-json-schema@1.1.0(valibot@1.0.0(typescript@5.8.3)))(hono@4.7.7)(openapi-types@12.1.3)(valibot@1.0.0(typescript@5.8.3))(zod@3.25.76)
       ioredis:
         specifier: ^5.6.1
         version: 5.6.1
@@ -622,7 +622,7 @@ importers:
         version: 1.0.0(typescript@5.8.3)
       viem:
         specifier: ^2.29.2
-        version: 2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)
+        version: 2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
     devDependencies:
       '@electric-sql/pglite':
         specifier: ^0.2.17
@@ -653,7 +653,7 @@ importers:
         version: 3.1.2(vitest@3.1.2)
       '@wagmi/core':
         specifier: ^2.16.7
-        version: 2.16.7(@tanstack/query-core@5.74.4)(@types/react@18.3.20)(react@18.3.1)(typescript@5.8.3)(use-sync-external-store@1.5.0(react@18.3.1))(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3))
+        version: 2.16.7(@tanstack/query-core@5.74.4)(@types/react@18.3.20)(react@18.3.1)(typescript@5.8.3)(use-sync-external-store@1.5.0(react@18.3.1))(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76))
       drizzle-kit:
         specifier: ^0.31.0
         version: 0.31.0
@@ -741,11 +741,20 @@ packages:
   '@astrojs/compiler@2.12.0':
     resolution: {integrity: sha512-7bCjW6tVDpUurQLeKBUN9tZ5kSv5qYrGmcn0sG0IwacL7isR2ZbyyA3AdZ4uxsuUFOS2SlgReTH7wkxO6zpqWA==}
 
+  '@astrojs/compiler@2.12.2':
+    resolution: {integrity: sha512-w2zfvhjNCkNMmMMOn5b0J8+OmUaBL1o40ipMvqcG6NRpdC+lKxmTi48DT8Xw0SzJ3AfmeFLB45zXZXtmbsjcgw==}
+
   '@astrojs/internal-helpers@0.6.1':
     resolution: {integrity: sha512-l5Pqf6uZu31aG+3Lv8nl/3s4DbUzdlxTWDof4pEpto6GUJNhhCbelVi9dEyurOVyqaelwmS9oSyOWOENSfgo9A==}
 
+  '@astrojs/internal-helpers@0.7.1':
+    resolution: {integrity: sha512-7dwEVigz9vUWDw3nRwLQ/yH/xYovlUA0ZD86xoeKEBmkz9O6iELG1yri67PgAPW6VLL/xInA4t7H0CK6VmtkKQ==}
+
   '@astrojs/markdown-remark@6.3.1':
     resolution: {integrity: sha512-c5F5gGrkczUaTVgmMW9g1YMJGzOtRvjjhw6IfGuxarM6ct09MpwysP10US729dy07gg8y+ofVifezvP3BNsWZg==}
+
+  '@astrojs/markdown-remark@6.3.5':
+    resolution: {integrity: sha512-MiR92CkE2BcyWf3b86cBBw/1dKiOH0qhLgXH2OXA6cScrrmmks1Rr4Tl0p/lFpvmgQQrP54Pd1uidJfmxGrpWQ==}
 
   '@astrojs/mdx@4.2.6':
     resolution: {integrity: sha512-0i/GmOm6d0qq1/SCfcUgY/IjDc/bS0i42u7h85TkPFBmlFOcBZfkYhR5iyz6hZLwidvJOEq5yGfzt9B1Azku4w==}
@@ -757,6 +766,10 @@ packages:
     resolution: {integrity: sha512-GilTHKGCW6HMq7y3BUv9Ac7GMe/MO9gi9GW62GzKtth0SwukCu/qp2wLiGpEujhY+VVhaG9v7kv/5vFzvf4NYw==}
     engines: {node: ^18.17.1 || ^20.3.0 || >=22.0.0}
 
+  '@astrojs/prism@3.3.0':
+    resolution: {integrity: sha512-q8VwfU/fDZNoDOf+r7jUnMC2//H2l0TuQ6FkGJL8vD8nw/q5KiL3DS1KKBI3QhI9UQhpJ5dc7AtqfbXWuOgLCQ==}
+    engines: {node: 18.20.8 || ^20.3.0 || >=22.0.0}
+
   '@astrojs/sitemap@3.3.1':
     resolution: {integrity: sha512-GRnDUCTviBSNfXJ0Jmur+1/C+z3g36jy79VyYggfe1uNyEYSTcmAfTTCmbytrRvJRNyJJnSfB/77Gnm9PiXRRg==}
 
@@ -765,9 +778,9 @@ packages:
     peerDependencies:
       astro: ^5.5.0
 
-  '@astrojs/telemetry@3.2.1':
-    resolution: {integrity: sha512-SSVM820Jqc6wjsn7qYfV9qfeQvePtVc1nSofhyap7l0/iakUKywj3hfy3UJAOV4sGV4Q/u450RD4AaCaFvNPlg==}
-    engines: {node: ^18.17.1 || ^20.3.0 || >=22.0.0}
+  '@astrojs/telemetry@3.3.0':
+    resolution: {integrity: sha512-UFBgfeldP06qu6khs/yY+q1cDAaArM2/7AEIqQ9Cuvf7B1hNLq0xDrZkct+QoIGyjq56y8IaE2I3CTvG99mlhQ==}
+    engines: {node: 18.20.8 || ^20.3.0 || >=22.0.0}
 
   '@babel/code-frame@7.10.4':
     resolution: {integrity: sha512-vG6SvB6oYEhvgisZNFRmRCUkLz11c7rp+tbNTynGqc6mS1d5ATd/sGyV6W0KZZnXRKMTzZDRgQT3Ou9jhpAfUg==}
@@ -5074,9 +5087,9 @@ packages:
     peerDependencies:
       astro: ^4.0.0-beta || ^5.0.0-beta || ^3.3.0
 
-  astro@5.7.12:
-    resolution: {integrity: sha512-UQOItiZz2hcv9PlHTQ6dNqFDIVNPnmwk6eyAjJqPE9O8EDHZK2JKtTRD0CBFN2Uqr0RE0TWP2gqDpLfsa5dJEA==}
-    engines: {node: ^18.17.1 || ^20.3.0 || >=22.0.0, npm: '>=9.6.5', pnpm: '>=7.1.0'}
+  astro@5.12.8:
+    resolution: {integrity: sha512-KkJ7FR+c2SyZYlpakm48XBiuQcRsrVtdjG5LN5an0givI/tLik+ePJ4/g3qrAVhYMjJOxBA2YgFQxANPiWB+Mw==}
+    engines: {node: 18.20.8 || ^20.3.0 || >=22.0.0, npm: '>=9.6.5', pnpm: '>=7.1.0'}
     hasBin: true
 
   astrojs-compiler-sync@1.1.1:
@@ -11273,6 +11286,9 @@ packages:
   zod@3.24.3:
     resolution: {integrity: sha512-HhY1oqzWCQWuUqvBFnsyrtZRhyPeR7SUGv+C4+MsisMuVfSPx8HpwWqH8tRahSlt6M3PiFAcoeFhZAqIXTxoSg==}
 
+  zod@3.25.76:
+    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
+
   zustand@5.0.3:
     resolution: {integrity: sha512-14fwWQtU3pH4dE0dOpdMiWjddcH+QzKIgk1cl8epwSE7yag43k/AD/m4L6+K7DytAOr9gGBe3/EXj9g7cdostg==}
     engines: {node: '>=12.20.0'}
@@ -11302,16 +11318,16 @@ snapshots:
 
   '@adraffy/ens-normalize@1.11.0': {}
 
-  '@alchemy/aa-accounts@3.19.0(typescript@5.8.3)(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3))':
+  '@alchemy/aa-accounts@3.19.0(typescript@5.8.3)(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76))':
     dependencies:
-      '@alchemy/aa-core': 3.19.0(typescript@5.8.3)(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3))
-      viem: 2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)
+      '@alchemy/aa-core': 3.19.0(typescript@5.8.3)(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76))
+      viem: 2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
     transitivePeerDependencies:
       - typescript
 
-  '@alchemy/aa-alchemy@3.19.0(@tanstack/query-core@5.74.4)(@tanstack/react-query@5.74.4(react@18.3.1))(@types/react@18.3.20)(bufferutil@4.0.9)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.8.3)(use-sync-external-store@1.5.0(react@18.3.1))(utf-8-validate@5.0.10)(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3))':
+  '@alchemy/aa-alchemy@3.19.0(@tanstack/query-core@5.74.4)(@tanstack/react-query@5.74.4(react@18.3.1))(@types/react@18.3.20)(bufferutil@4.0.9)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.8.3)(use-sync-external-store@1.5.0(react@18.3.1))(utf-8-validate@5.0.10)(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76))':
     dependencies:
-      '@alchemy/aa-core': 3.19.0(typescript@5.8.3)(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3))
+      '@alchemy/aa-core': 3.19.0(typescript@5.8.3)(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76))
       '@tanstack/react-form': 0.42.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.8.3)
       '@tanstack/zod-form-adapter': '@favware/skip-dependency@1.2.2'
       '@turnkey/http': '@favware/skip-dependency@1.2.2'
@@ -11319,16 +11335,16 @@ snapshots:
       '@turnkey/viem': '@favware/skip-dependency@1.2.2'
       '@turnkey/webauthn-stamper': '@favware/skip-dependency@1.2.2'
       '@wagmi/connectors': '@favware/skip-dependency@1.2.2'
-      '@wagmi/core': 2.16.7(@tanstack/query-core@5.74.4)(@types/react@18.3.20)(react@18.3.1)(typescript@5.8.3)(use-sync-external-store@1.5.0(react@18.3.1))(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3))
+      '@wagmi/core': 2.16.7(@tanstack/query-core@5.74.4)(@types/react@18.3.20)(react@18.3.1)(typescript@5.8.3)(use-sync-external-store@1.5.0(react@18.3.1))(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76))
       eventemitter3: 5.0.1
       js-cookie: 3.0.5
       tailwindcss: 3.4.17
-      viem: 2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)
-      wagmi: 2.14.16(@tanstack/query-core@5.74.4)(@tanstack/react-query@5.74.4(react@18.3.1))(@types/react@18.3.20)(react@18.3.1)(typescript@5.8.3)(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3))
+      viem: 2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
+      wagmi: 2.14.16(@tanstack/query-core@5.74.4)(@tanstack/react-query@5.74.4(react@18.3.1))(@types/react@18.3.20)(react@18.3.1)(typescript@5.8.3)(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76))
       zod: 3.24.3
       zustand: 5.0.3(@types/react@18.3.20)(react@18.3.1)(use-sync-external-store@1.5.0(react@18.3.1))
     optionalDependencies:
-      '@alchemy/aa-accounts': 3.19.0(typescript@5.8.3)(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3))
+      '@alchemy/aa-accounts': 3.19.0(typescript@5.8.3)(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76))
       '@tanstack/react-query': 5.74.4(react@18.3.1)
       alchemy-sdk: 3.5.6(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       react: 18.3.1
@@ -11346,11 +11362,11 @@ snapshots:
       - use-sync-external-store
       - utf-8-validate
 
-  '@alchemy/aa-core@3.19.0(typescript@5.8.3)(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3))':
+  '@alchemy/aa-core@3.19.0(typescript@5.8.3)(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76))':
     dependencies:
       abitype: 1.0.8(typescript@5.8.3)(zod@3.24.3)
       eventemitter3: 5.0.1
-      viem: 2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)
+      viem: 2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
       zod: 3.24.3
     transitivePeerDependencies:
       - typescript
@@ -11372,7 +11388,11 @@ snapshots:
 
   '@astrojs/compiler@2.12.0': {}
 
+  '@astrojs/compiler@2.12.2': {}
+
   '@astrojs/internal-helpers@0.6.1': {}
+
+  '@astrojs/internal-helpers@0.7.1': {}
 
   '@astrojs/markdown-remark@6.3.1':
     dependencies:
@@ -11400,12 +11420,38 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@astrojs/mdx@4.2.6(astro@5.7.12(@types/node@22.14.1)(ioredis@5.6.1)(jiti@1.21.7)(lightningcss@1.27.0)(rollup@4.40.0)(terser@5.39.0)(tsx@4.19.3)(typescript@5.8.3)(yaml@2.7.1))':
+  '@astrojs/markdown-remark@6.3.5':
+    dependencies:
+      '@astrojs/internal-helpers': 0.7.1
+      '@astrojs/prism': 3.3.0
+      github-slugger: 2.0.0
+      hast-util-from-html: 2.0.3
+      hast-util-to-text: 4.0.2
+      import-meta-resolve: 4.1.0
+      js-yaml: 4.1.0
+      mdast-util-definitions: 6.0.0
+      rehype-raw: 7.0.0
+      rehype-stringify: 10.0.1
+      remark-gfm: 4.0.1
+      remark-parse: 11.0.0
+      remark-rehype: 11.1.2
+      remark-smartypants: 3.0.2
+      shiki: 3.4.0
+      smol-toml: 1.3.4
+      unified: 11.0.5
+      unist-util-remove-position: 5.0.0
+      unist-util-visit: 5.0.0
+      unist-util-visit-parents: 6.0.1
+      vfile: 6.0.3
+    transitivePeerDependencies:
+      - supports-color
+
+  '@astrojs/mdx@4.2.6(astro@5.12.8(@types/node@22.14.1)(ioredis@5.6.1)(jiti@1.21.7)(lightningcss@1.27.0)(rollup@4.40.0)(terser@5.39.0)(tsx@4.19.3)(typescript@5.8.3)(yaml@2.7.1))':
     dependencies:
       '@astrojs/markdown-remark': 6.3.1
       '@mdx-js/mdx': 3.1.0(acorn@8.14.1)
       acorn: 8.14.1
-      astro: 5.7.12(@types/node@22.14.1)(ioredis@5.6.1)(jiti@1.21.7)(lightningcss@1.27.0)(rollup@4.40.0)(terser@5.39.0)(tsx@4.19.3)(typescript@5.8.3)(yaml@2.7.1)
+      astro: 5.12.8(@types/node@22.14.1)(ioredis@5.6.1)(jiti@1.21.7)(lightningcss@1.27.0)(rollup@4.40.0)(terser@5.39.0)(tsx@4.19.3)(typescript@5.8.3)(yaml@2.7.1)
       es-module-lexer: 1.6.0
       estree-util-visit: 2.0.0
       hast-util-to-html: 9.0.5
@@ -11423,23 +11469,27 @@ snapshots:
     dependencies:
       prismjs: 1.30.0
 
+  '@astrojs/prism@3.3.0':
+    dependencies:
+      prismjs: 1.30.0
+
   '@astrojs/sitemap@3.3.1':
     dependencies:
       sitemap: 8.0.0
       stream-replace-string: 2.0.0
       zod: 3.24.3
 
-  '@astrojs/starlight@0.34.3(astro@5.7.12(@types/node@22.14.1)(ioredis@5.6.1)(jiti@1.21.7)(lightningcss@1.27.0)(rollup@4.40.0)(terser@5.39.0)(tsx@4.19.3)(typescript@5.8.3)(yaml@2.7.1))':
+  '@astrojs/starlight@0.34.3(astro@5.12.8(@types/node@22.14.1)(ioredis@5.6.1)(jiti@1.21.7)(lightningcss@1.27.0)(rollup@4.40.0)(terser@5.39.0)(tsx@4.19.3)(typescript@5.8.3)(yaml@2.7.1))':
     dependencies:
       '@astrojs/markdown-remark': 6.3.1
-      '@astrojs/mdx': 4.2.6(astro@5.7.12(@types/node@22.14.1)(ioredis@5.6.1)(jiti@1.21.7)(lightningcss@1.27.0)(rollup@4.40.0)(terser@5.39.0)(tsx@4.19.3)(typescript@5.8.3)(yaml@2.7.1))
+      '@astrojs/mdx': 4.2.6(astro@5.12.8(@types/node@22.14.1)(ioredis@5.6.1)(jiti@1.21.7)(lightningcss@1.27.0)(rollup@4.40.0)(terser@5.39.0)(tsx@4.19.3)(typescript@5.8.3)(yaml@2.7.1))
       '@astrojs/sitemap': 3.3.1
       '@pagefind/default-ui': 1.3.0
       '@types/hast': 3.0.4
       '@types/js-yaml': 4.0.9
       '@types/mdast': 4.0.4
-      astro: 5.7.12(@types/node@22.14.1)(ioredis@5.6.1)(jiti@1.21.7)(lightningcss@1.27.0)(rollup@4.40.0)(terser@5.39.0)(tsx@4.19.3)(typescript@5.8.3)(yaml@2.7.1)
-      astro-expressive-code: 0.41.2(astro@5.7.12(@types/node@22.14.1)(ioredis@5.6.1)(jiti@1.21.7)(lightningcss@1.27.0)(rollup@4.40.0)(terser@5.39.0)(tsx@4.19.3)(typescript@5.8.3)(yaml@2.7.1))
+      astro: 5.12.8(@types/node@22.14.1)(ioredis@5.6.1)(jiti@1.21.7)(lightningcss@1.27.0)(rollup@4.40.0)(terser@5.39.0)(tsx@4.19.3)(typescript@5.8.3)(yaml@2.7.1)
+      astro-expressive-code: 0.41.2(astro@5.12.8(@types/node@22.14.1)(ioredis@5.6.1)(jiti@1.21.7)(lightningcss@1.27.0)(rollup@4.40.0)(terser@5.39.0)(tsx@4.19.3)(typescript@5.8.3)(yaml@2.7.1))
       bcp-47: 2.1.0
       hast-util-from-html: 2.0.3
       hast-util-select: 6.0.4
@@ -11462,7 +11512,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@astrojs/telemetry@3.2.1':
+  '@astrojs/telemetry@3.3.0':
     dependencies:
       ci-info: 4.2.0
       debug: 4.4.0
@@ -13783,10 +13833,10 @@ snapshots:
 
   '@levischuck/tiny-cbor@0.2.11': {}
 
-  '@lifi/sdk@3.7.7(patch_hash=m5do4kxlpy2y7pxhavxz7piy5m)(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3))(zod@3.24.3)':
+  '@lifi/sdk@3.7.7(patch_hash=m5do4kxlpy2y7pxhavxz7piy5m)(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76))(zod@3.25.76)':
     dependencies:
       '@bigmi/core': '@favware/skip-dependency@1.2.2'
-      '@lifi/types': 17.16.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)
+      '@lifi/types': 17.16.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
       '@mysten/sui': '@favware/skip-dependency@1.2.2'
       '@mysten/wallet-standard': '@favware/skip-dependency@1.2.2'
       '@noble/curves': 1.9.1
@@ -13795,16 +13845,16 @@ snapshots:
       bech32: '@favware/skip-dependency@1.2.2'
       bitcoinjs-lib: '@favware/skip-dependency@1.2.2'
       bs58: '@favware/skip-dependency@1.2.2'
-      viem: 2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)
+      viem: 2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
     transitivePeerDependencies:
       - bufferutil
       - typescript
       - utf-8-validate
       - zod
 
-  '@lifi/types@17.16.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)':
+  '@lifi/types@17.16.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)':
     dependencies:
-      viem: 2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)
+      viem: 2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
     transitivePeerDependencies:
       - bufferutil
       - typescript
@@ -17215,11 +17265,11 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  '@wagmi/core@2.16.7(@tanstack/query-core@5.74.4)(@types/react@18.3.20)(react@18.3.1)(typescript@5.8.3)(use-sync-external-store@1.4.0(react@18.3.1))(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3))':
+  '@wagmi/core@2.16.7(@tanstack/query-core@5.74.4)(@types/react@18.3.20)(react@18.3.1)(typescript@5.8.3)(use-sync-external-store@1.4.0(react@18.3.1))(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76))':
     dependencies:
       eventemitter3: 5.0.1
       mipd: 0.0.7(typescript@5.8.3)
-      viem: 2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)
+      viem: 2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
       zustand: 5.0.3(@types/react@18.3.20)(react@18.3.1)(use-sync-external-store@1.4.0(react@18.3.1))
     optionalDependencies:
       '@tanstack/query-core': 5.74.4
@@ -17230,11 +17280,11 @@ snapshots:
       - react
       - use-sync-external-store
 
-  '@wagmi/core@2.16.7(@tanstack/query-core@5.74.4)(@types/react@18.3.20)(react@18.3.1)(typescript@5.8.3)(use-sync-external-store@1.5.0(react@18.3.1))(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3))':
+  '@wagmi/core@2.16.7(@tanstack/query-core@5.74.4)(@types/react@18.3.20)(react@18.3.1)(typescript@5.8.3)(use-sync-external-store@1.5.0(react@18.3.1))(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76))':
     dependencies:
       eventemitter3: 5.0.1
       mipd: 0.0.7(typescript@5.8.3)
-      viem: 2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)
+      viem: 2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
       zustand: 5.0.3(@types/react@18.3.20)(react@18.3.1)(use-sync-external-store@1.5.0(react@18.3.1))
     optionalDependencies:
       '@tanstack/query-core': 5.74.4
@@ -17260,6 +17310,11 @@ snapshots:
     optionalDependencies:
       typescript: 5.8.3
       zod: 3.24.3
+
+  abitype@1.0.8(typescript@5.8.3)(zod@3.25.76):
+    optionalDependencies:
+      typescript: 5.8.3
+      zod: 3.25.76
 
   abort-controller@3.0.0:
     dependencies:
@@ -17540,17 +17595,17 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  astro-expressive-code@0.41.2(astro@5.7.12(@types/node@22.14.1)(ioredis@5.6.1)(jiti@1.21.7)(lightningcss@1.27.0)(rollup@4.40.0)(terser@5.39.0)(tsx@4.19.3)(typescript@5.8.3)(yaml@2.7.1)):
+  astro-expressive-code@0.41.2(astro@5.12.8(@types/node@22.14.1)(ioredis@5.6.1)(jiti@1.21.7)(lightningcss@1.27.0)(rollup@4.40.0)(terser@5.39.0)(tsx@4.19.3)(typescript@5.8.3)(yaml@2.7.1)):
     dependencies:
-      astro: 5.7.12(@types/node@22.14.1)(ioredis@5.6.1)(jiti@1.21.7)(lightningcss@1.27.0)(rollup@4.40.0)(terser@5.39.0)(tsx@4.19.3)(typescript@5.8.3)(yaml@2.7.1)
+      astro: 5.12.8(@types/node@22.14.1)(ioredis@5.6.1)(jiti@1.21.7)(lightningcss@1.27.0)(rollup@4.40.0)(terser@5.39.0)(tsx@4.19.3)(typescript@5.8.3)(yaml@2.7.1)
       rehype-expressive-code: 0.41.2
 
-  astro@5.7.12(@types/node@22.14.1)(ioredis@5.6.1)(jiti@1.21.7)(lightningcss@1.27.0)(rollup@4.40.0)(terser@5.39.0)(tsx@4.19.3)(typescript@5.8.3)(yaml@2.7.1):
+  astro@5.12.8(@types/node@22.14.1)(ioredis@5.6.1)(jiti@1.21.7)(lightningcss@1.27.0)(rollup@4.40.0)(terser@5.39.0)(tsx@4.19.3)(typescript@5.8.3)(yaml@2.7.1):
     dependencies:
-      '@astrojs/compiler': 2.12.0
-      '@astrojs/internal-helpers': 0.6.1
-      '@astrojs/markdown-remark': 6.3.1
-      '@astrojs/telemetry': 3.2.1
+      '@astrojs/compiler': 2.12.2
+      '@astrojs/internal-helpers': 0.7.1
+      '@astrojs/markdown-remark': 6.3.5
+      '@astrojs/telemetry': 3.3.0
       '@capsizecss/unpack': 2.4.0
       '@oslojs/encoding': 1.1.0
       '@rollup/pluginutils': 5.1.4(rollup@4.40.0)
@@ -17577,6 +17632,7 @@ snapshots:
       github-slugger: 2.0.0
       html-escaper: 3.0.3
       http-cache-semantics: 4.1.1
+      import-meta-resolve: 4.1.0
       js-yaml: 4.1.0
       kleur: 4.1.5
       magic-string: 0.30.17
@@ -17591,6 +17647,7 @@ snapshots:
       rehype: 13.0.2
       semver: 7.7.1
       shiki: 3.4.0
+      smol-toml: 1.3.4
       tinyexec: 0.3.2
       tinyglobby: 0.2.13
       tsconfck: 3.1.5(typescript@5.8.3)
@@ -17604,9 +17661,9 @@ snapshots:
       xxhash-wasm: 1.1.0
       yargs-parser: 21.1.1
       yocto-spinner: 0.2.2
-      zod: 3.24.3
-      zod-to-json-schema: 3.24.5(zod@3.24.3)
-      zod-to-ts: 1.2.0(typescript@5.8.3)(zod@3.24.3)
+      zod: 3.25.76
+      zod-to-json-schema: 3.24.5(zod@3.25.76)
+      zod-to-ts: 1.2.0(typescript@5.8.3)(zod@3.25.76)
     optionalDependencies:
       sharp: 0.34.1
     transitivePeerDependencies:
@@ -20419,7 +20476,7 @@ snapshots:
     dependencies:
       react-is: 16.13.1
 
-  hono-openapi@0.4.8(@hono/valibot-validator@0.5.2(hono@4.7.7)(valibot@1.0.0(typescript@5.8.3)))(@valibot/to-json-schema@1.1.0(valibot@1.0.0(typescript@5.8.3)))(hono@4.7.7)(openapi-types@12.1.3)(valibot@1.0.0(typescript@5.8.3))(zod@3.24.3):
+  hono-openapi@0.4.8(@hono/valibot-validator@0.5.2(hono@4.7.7)(valibot@1.0.0(typescript@5.8.3)))(@valibot/to-json-schema@1.1.0(valibot@1.0.0(typescript@5.8.3)))(hono@4.7.7)(openapi-types@12.1.3)(valibot@1.0.0(typescript@5.8.3))(zod@3.25.76):
     dependencies:
       json-schema-walker: 2.0.0
       openapi-types: 12.1.3
@@ -20428,7 +20485,7 @@ snapshots:
       '@valibot/to-json-schema': 1.1.0(valibot@1.0.0(typescript@5.8.3))
       hono: 4.7.7
       valibot: 1.0.0(typescript@5.8.3)
-      zod: 3.24.3
+      zod: 3.25.76
 
   hono@4.7.7: {}
 
@@ -22400,6 +22457,20 @@ snapshots:
     transitivePeerDependencies:
       - zod
 
+  ox@0.6.9(typescript@5.8.3)(zod@3.25.76):
+    dependencies:
+      '@adraffy/ens-normalize': 1.11.0
+      '@noble/curves': 1.8.2
+      '@noble/hashes': 1.7.2
+      '@scure/bip32': 1.6.2
+      '@scure/bip39': 1.5.4
+      abitype: 1.0.8(typescript@5.8.3)(zod@3.25.76)
+      eventemitter3: 5.0.1
+    optionalDependencies:
+      typescript: 5.8.3
+    transitivePeerDependencies:
+      - zod
+
   oxc-transform@0.47.1:
     optionalDependencies:
       '@oxc-transform/binding-darwin-arm64': 0.47.1
@@ -23933,12 +24004,12 @@ snapshots:
 
   standard-as-callback@2.1.0: {}
 
-  starlight-openapi@0.16.0(@astrojs/markdown-remark@6.3.1)(@astrojs/starlight@0.34.3(astro@5.7.12(@types/node@22.14.1)(ioredis@5.6.1)(jiti@1.21.7)(lightningcss@1.27.0)(rollup@4.40.0)(terser@5.39.0)(tsx@4.19.3)(typescript@5.8.3)(yaml@2.7.1)))(astro@5.7.12(@types/node@22.14.1)(ioredis@5.6.1)(jiti@1.21.7)(lightningcss@1.27.0)(rollup@4.40.0)(terser@5.39.0)(tsx@4.19.3)(typescript@5.8.3)(yaml@2.7.1))(openapi-types@12.1.3):
+  starlight-openapi@0.16.0(@astrojs/markdown-remark@6.3.5)(@astrojs/starlight@0.34.3(astro@5.12.8(@types/node@22.14.1)(ioredis@5.6.1)(jiti@1.21.7)(lightningcss@1.27.0)(rollup@4.40.0)(terser@5.39.0)(tsx@4.19.3)(typescript@5.8.3)(yaml@2.7.1)))(astro@5.12.8(@types/node@22.14.1)(ioredis@5.6.1)(jiti@1.21.7)(lightningcss@1.27.0)(rollup@4.40.0)(terser@5.39.0)(tsx@4.19.3)(typescript@5.8.3)(yaml@2.7.1))(openapi-types@12.1.3):
     dependencies:
-      '@astrojs/markdown-remark': 6.3.1
-      '@astrojs/starlight': 0.34.3(astro@5.7.12(@types/node@22.14.1)(ioredis@5.6.1)(jiti@1.21.7)(lightningcss@1.27.0)(rollup@4.40.0)(terser@5.39.0)(tsx@4.19.3)(typescript@5.8.3)(yaml@2.7.1))
+      '@astrojs/markdown-remark': 6.3.5
+      '@astrojs/starlight': 0.34.3(astro@5.12.8(@types/node@22.14.1)(ioredis@5.6.1)(jiti@1.21.7)(lightningcss@1.27.0)(rollup@4.40.0)(terser@5.39.0)(tsx@4.19.3)(typescript@5.8.3)(yaml@2.7.1))
       '@readme/openapi-parser': 2.7.0(openapi-types@12.1.3)
-      astro: 5.7.12(@types/node@22.14.1)(ioredis@5.6.1)(jiti@1.21.7)(lightningcss@1.27.0)(rollup@4.40.0)(terser@5.39.0)(tsx@4.19.3)(typescript@5.8.3)(yaml@2.7.1)
+      astro: 5.12.8(@types/node@22.14.1)(ioredis@5.6.1)(jiti@1.21.7)(lightningcss@1.27.0)(rollup@4.40.0)(terser@5.39.0)(tsx@4.19.3)(typescript@5.8.3)(yaml@2.7.1)
       github-slugger: 2.0.0
       url-template: 3.1.1
     transitivePeerDependencies:
@@ -24732,6 +24803,23 @@ snapshots:
       - utf-8-validate
       - zod
 
+  viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76):
+    dependencies:
+      '@noble/curves': 1.8.2
+      '@noble/hashes': 1.7.2
+      '@scure/bip32': 1.6.2
+      '@scure/bip39': 1.5.4
+      abitype: 1.0.8(typescript@5.8.3)(zod@3.25.76)
+      isows: 1.0.6(ws@8.18.1(bufferutil@4.0.9)(utf-8-validate@5.0.10))
+      ox: 0.6.9(typescript@5.8.3)(zod@3.25.76)
+      ws: 8.18.1(bufferutil@4.0.9)(utf-8-validate@5.0.10)
+    optionalDependencies:
+      typescript: 5.8.3
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+      - zod
+
   vite-node@3.1.2(@types/node@22.14.1)(jiti@1.21.7)(lightningcss@1.27.0)(terser@5.39.0)(tsx@4.19.3)(yaml@2.7.1):
     dependencies:
       cac: 6.7.14
@@ -24827,14 +24915,14 @@ snapshots:
 
   w-json@1.3.11: {}
 
-  wagmi@2.14.16(@tanstack/query-core@5.74.4)(@tanstack/react-query@5.74.4(react@18.3.1))(@types/react@18.3.20)(react@18.3.1)(typescript@5.8.3)(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)):
+  wagmi@2.14.16(@tanstack/query-core@5.74.4)(@tanstack/react-query@5.74.4(react@18.3.1))(@types/react@18.3.20)(react@18.3.1)(typescript@5.8.3)(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)):
     dependencies:
       '@tanstack/react-query': 5.74.4(react@18.3.1)
       '@wagmi/connectors': '@favware/skip-dependency@1.2.2'
-      '@wagmi/core': 2.16.7(@tanstack/query-core@5.74.4)(@types/react@18.3.20)(react@18.3.1)(typescript@5.8.3)(use-sync-external-store@1.4.0(react@18.3.1))(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3))
+      '@wagmi/core': 2.16.7(@tanstack/query-core@5.74.4)(@types/react@18.3.20)(react@18.3.1)(typescript@5.8.3)(use-sync-external-store@1.4.0(react@18.3.1))(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76))
       react: 18.3.1
       use-sync-external-store: 1.4.0(react@18.3.1)
-      viem: 2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)
+      viem: 2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
     optionalDependencies:
       typescript: 5.8.3
     transitivePeerDependencies:
@@ -25088,16 +25176,18 @@ snapshots:
 
   yoctocolors@2.1.1: {}
 
-  zod-to-json-schema@3.24.5(zod@3.24.3):
+  zod-to-json-schema@3.24.5(zod@3.25.76):
     dependencies:
-      zod: 3.24.3
+      zod: 3.25.76
 
-  zod-to-ts@1.2.0(typescript@5.8.3)(zod@3.24.3):
+  zod-to-ts@1.2.0(typescript@5.8.3)(zod@3.25.76):
     dependencies:
       typescript: 5.8.3
-      zod: 3.24.3
+      zod: 3.25.76
 
   zod@3.24.3: {}
+
+  zod@3.25.76: {}
 
   zustand@5.0.3(@types/react@18.3.20)(react@18.3.1)(use-sync-external-store@1.4.0(react@18.3.1)):
     optionalDependencies:
