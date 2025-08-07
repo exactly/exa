@@ -1,0 +1,20 @@
+{
+  "miniapp": {
+    "name": "Exa App",
+    "version": "1",
+    "iconUrl": "https://7d6d1f4ebe31.ngrok-free.app/icon.png",
+    "homeUrl": "https://7d6d1f4ebe31.ngrok-free.app",
+    "imageUrl": "https://7d6d1f4ebe31.ngrok-free.app/image.png",
+    "splashImageUrl": "https://7d6d1f4ebe31.ngrok-free.app/splash.png",
+    "splashBackgroundColor": "#FFFFFF",
+    "webhookUrl": "https://7d6d1f4ebe31.ngrok-free.app/api/webhook",
+    "subtitle": "What finance should be.",
+    "description": "Exactly what finance should be today.",
+    "primaryCategory": "finance"
+  },
+  "accountAssociation": {
+    "header": "eyJmaWQiOjg4MjY4MywidHlwZSI6ImF1dGgiLCJrZXkiOiIweEVEZmEyOUY2ZjZBRDRiRWU2MTQxOGJkNjgyNUI2RjU1NjgzMDAxNzUifQ",
+    "payload": "eyJkb21haW4iOiI3ZDZkMWY0ZWJlMzEubmdyb2stZnJlZS5hcHAifQ",
+    "signature": "R4ZGvY/W4FAjsMI28Ik904a98kh33b6BIt3W1AAkhX9M9eqFnCfFlOyn0wSwwd8kt25+e4rIkw43EOgukmRHAxs="
+  }
+}
