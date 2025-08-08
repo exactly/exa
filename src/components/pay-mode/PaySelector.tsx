@@ -214,7 +214,7 @@ export default function PaySelector() {
           ))}
           <YStack paddingTop="$s4" paddingLeft="$s4">
             <Text caption color="$uiNeutralSecondary" numberOfLines={1} adjustsFontSizeToFit>
-              First due date: {format(new Date(Number(firstMaturity) * 1000), "MMM dd, yyyy")} - then every 28 days.
+              First due date: {format(new Date(firstMaturity * 1000), "MMM dd, yyyy")} - then every 28 days.
             </Text>
           </YStack>
         </YStack>

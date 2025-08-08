@@ -61,17 +61,18 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
             const isRepaying = pendingProposals?.some(({ proposal }) => {
               const { proposalType: type, data } = proposal;
               const isRepayProposal =
-                type === Number(ProposalType.RepayAtMaturity) || type === Number(ProposalType.CrossRepayAtMaturity);
+                type === (ProposalType.RepayAtMaturity as number) ||
+                type === (ProposalType.CrossRepayAtMaturity as number);
               if (!isRepayProposal) return false;
               const decoded =
-                type === Number(ProposalType.RepayAtMaturity)
+                type === (ProposalType.RepayAtMaturity as number)
                   ? decodeRepayAtMaturity(data)
                   : decodeCrossRepayAtMaturity(data);
               return decoded.maturity === maturity;
             });
             const isRollingDebt = pendingProposals?.some(({ proposal }) => {
               const { proposalType: type, data } = proposal;
-              if (type !== Number(ProposalType.RollDebt)) return false;
+              if (type !== (ProposalType.RollDebt as number)) return false;
               const decoded = decodeRollDebt(data);
               return decoded.repayMaturity === maturity;
             });

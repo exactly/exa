@@ -20,7 +20,7 @@ export default function GradientScrollView({
     const [mainColor, secondaryColor] = config.gradientColors;
     const main = theme[mainColor as keyof typeof theme];
     const secondary = theme[secondaryColor as keyof typeof theme];
-    if (!main || !secondary) return [String(theme.backgroundStrong.val), String(theme.backgroundSoft.val)];
+    if (!main || !secondary) return [theme.backgroundStrong.val, theme.backgroundSoft.val];
     return [String(main.val), String(secondary.val)];
   }, [theme, config.gradientColors]);
   return (
