@@ -1,13 +1,13 @@
 import type { Token } from "@lifi/sdk";
 import { Search } from "@tamagui/lucide-icons";
 import React, { useState, useMemo } from "react";
-import { FlatList, Image, Platform, Pressable } from "react-native";
-import { XStack, YStack, Sheet, ButtonIcon } from "tamagui";
+import { FlatList, Image, Pressable } from "react-native";
+import { XStack, YStack, ButtonIcon } from "tamagui";
 
 import useAccountAssets from "../../utils/useAccountAssets";
-import useAspectRatio from "../../utils/useAspectRatio";
 import Button from "../shared/Button";
 import Input from "../shared/Input";
+import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
@@ -119,7 +119,6 @@ export default function TokenSelectModal({
 }: TokenSelectModalProperties) {
   const [searchQuery, setSearchQuery] = useState("");
   const { accountAssets } = useAccountAssets();
-  const aspectRatio = useAspectRatio();
 
   const filteredTokens = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
@@ -169,83 +168,61 @@ export default function TokenSelectModal({
     [],
   );
   return (
-    <Sheet
-      open={open}
-      dismissOnSnapToBottom
-      unmountChildrenWhenHidden
-      forceRemoveScrollEnabled={open}
-      animation="moderate"
-      dismissOnOverlayPress
-      onOpenChange={onClose}
-      snapPoints={[85]}
-      snapPointsMode="percent"
-      disableDrag
-      zIndex={100_000}
-      modal
-      portalProps={Platform.OS === "web" ? { style: { aspectRatio, justifySelf: "center" } } : undefined}
-    >
-      <Sheet.Overlay
-        backgroundColor="#00000090"
-        animation="quicker"
-        enterStyle={{ opacity: 0 }} // eslint-disable-line react-native/no-inline-styles
-        exitStyle={{ opacity: 0 }} // eslint-disable-line react-native/no-inline-styles
-      />
-      <Sheet.Frame>
-        <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
-          <View padded paddingTop="$s6" fullScreen flex={1}>
-            <View paddingBottom="$s4">
-              <Text fontSize={20} fontWeight="bold" textAlign="center">
-                {title}
-              </Text>
-            </View>
-            <View paddingBottom="$s4" flexDirection="row">
-              <Input
-                neutral
-                flex={1}
-                placeholder="Search by token name or address"
-                placeholderTextColor="$interactiveTextDisabled"
-                borderColor="$uiNeutralTertiary"
-                borderRightColor="transparent"
-                borderTopRightRadius={0}
-                borderBottomRightRadius={0}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-              />
-              <Button
-                outlined
-                borderColor="$uiNeutralTertiary"
-                borderTopLeftRadius={0}
-                borderBottomLeftRadius={0}
-                borderLeftWidth={0}
-              >
-                <ButtonIcon>
-                  <Search size={24} color="$interactiveOnBaseBrandSoft" />
-                </ButtonIcon>
-              </Button>
-            </View>
-            <View flex={1}>
-              {isLoading ? (
-                skeletonItems
-              ) : (
-                <FlatList
-                  data={filteredTokens}
-                  renderItem={renderTokenItem}
-                  keyExtractor={(item) => item.address}
-                  showsVerticalScrollIndicator={false}
-                  ItemSeparatorComponent={() => <View height={1} />}
-                  ListEmptyComponent={() => (
-                    <View padding="$s6" alignItems="center">
-                      <Text subHeadline color="$uiNeutralSecondary">
-                        {searchQuery ? "No tokens found" : "No tokens available"}
-                      </Text>
-                    </View>
-                  )}
-                />
-              )}
-            </View>
+    <ModalSheet open={open} onClose={onClose} disableDrag heightPercent={85}>
+      <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
+        <View padded paddingTop="$s6" fullScreen flex={1}>
+          <View paddingBottom="$s4">
+            <Text fontSize={20} fontWeight="bold" textAlign="center">
+              {title}
+            </Text>
           </View>
-        </SafeView>
-      </Sheet.Frame>
-    </Sheet>
+          <View paddingBottom="$s4" flexDirection="row">
+            <Input
+              neutral
+              flex={1}
+              placeholder="Search by token name or address"
+              placeholderTextColor="$interactiveTextDisabled"
+              borderColor="$uiNeutralTertiary"
+              borderRightColor="transparent"
+              borderTopRightRadius={0}
+              borderBottomRightRadius={0}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+            <Button
+              outlined
+              borderColor="$uiNeutralTertiary"
+              borderTopLeftRadius={0}
+              borderBottomLeftRadius={0}
+              borderLeftWidth={0}
+            >
+              <ButtonIcon>
+                <Search size={24} color="$interactiveOnBaseBrandSoft" />
+              </ButtonIcon>
+            </Button>
+          </View>
+          <View flex={1}>
+            {isLoading ? (
+              skeletonItems
+            ) : (
+              <FlatList
+                data={filteredTokens}
+                renderItem={renderTokenItem}
+                keyExtractor={(item) => item.address}
+                showsVerticalScrollIndicator={false}
+                ItemSeparatorComponent={() => <View height={1} />}
+                ListEmptyComponent={() => (
+                  <View padding="$s6" alignItems="center">
+                    <Text subHeadline color="$uiNeutralSecondary">
+                      {searchQuery ? "No tokens found" : "No tokens available"}
+                    </Text>
+                  </View>
+                )}
+              />
+            )}
+          </View>
+        </View>
+      </SafeView>
+    </ModalSheet>
   );
 }
