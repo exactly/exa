@@ -12,7 +12,17 @@ import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-export default function SpendingLimits({ open, onClose }: { open: boolean; onClose: () => void }) {
+export default function SpendingLimits({
+  open,
+  onClose,
+  remaining,
+  totalSpent,
+}: {
+  open: boolean;
+  onClose: () => void;
+  remaining: number;
+  totalSpent: number;
+}) {
   const aspectRatio = useAspectRatio();
   const { newMessage } = useIntercom();
 
@@ -55,7 +65,7 @@ export default function SpendingLimits({ open, onClose }: { open: boolean; onClo
                     </Text>
                   </YStack>
                   <YStack paddingBottom="$s4">
-                    <SpendingLimit title="Weekly" limit={10_000} />
+                    <SpendingLimit title="Weekly" limit={10_000} remaining={remaining} totalSpent={totalSpent} />
                   </YStack>
                   <Button onPress={handleSupport} primary>
                     <Button.Text>Increase spending limit</Button.Text>

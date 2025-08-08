@@ -1,26 +1,20 @@
-import { useQuery } from "@tanstack/react-query";
 import React from "react";
 import { View, XStack, YStack } from "tamagui";
 
-import { getActivity } from "../../utils/server";
 import Text from "../shared/Text";
 
-export default function SpendingLimit({ title, limit }: { amount?: number; title: string; limit: number }) {
-  const { data: activity, isPending } = useQuery({
-    queryKey: ["activity"],
-    queryFn: () => getActivity(),
-    select: (a) =>
-      a.filter((item) => {
-        if (item.type !== "panda") return false;
-        const elapsedTime = (Date.now() - new Date(item.timestamp).getTime()) / 1000;
-        return elapsedTime <= 604_800;
-      }),
-  });
-
-  const totalSpent =
-    isPending || !activity ? 0 : activity.reduce((accumulator, item) => accumulator + item.usdAmount, 0);
-  const remaining = limit - totalSpent;
-
+export default function SpendingLimit({
+  title,
+  limit,
+  remaining,
+  totalSpent,
+}: {
+  amount?: number;
+  title: string;
+  limit: number;
+  remaining: number;
+  totalSpent: number;
+}) {
   return (
     <YStack justifyContent="flex-start" paddingHorizontal="$s3">
       <XStack flexDirection="row" flex={1} height={46} alignItems="center" justifyContent="space-between">
