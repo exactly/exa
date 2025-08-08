@@ -2,7 +2,9 @@ import type { Credential } from "@exactly/common/validation";
 import { useQuery } from "@tanstack/react-query";
 import { Redirect, SplashScreen, Stack } from "expo-router";
 import React, { useEffect } from "react";
+import { Spinner } from "tamagui";
 
+import View from "../../components/shared/View";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useBackgroundColor from "../../utils/useBackgroundColor";
@@ -15,6 +17,14 @@ export default function AppLayout() {
     SplashScreen.hideAsync().catch(reportError);
   }, [isFetched, isLoading]);
   if (noCredential) return <Redirect href="/onboarding" />;
-  if (isLoading || !isFetched) return;
+  if (isLoading || !isFetched) return <Loading />;
   return <Stack initialRouteName="(home)" screenOptions={{ headerShown: false }} />;
+}
+
+function Loading() {
+  return (
+    <View fullScreen padded justifyContent="center" alignItems="center">
+      <Spinner width={48} height={48} color="$uiBrandSecondary" />
+    </View>
+  );
 }
