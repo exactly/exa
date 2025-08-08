@@ -50,7 +50,7 @@ export default function Pending({
               </Text>
             </Text>
             <Text title primary color="$uiNeutralPrimary">
-              {Number(usdAmount).toLocaleString(undefined, {
+              {usdAmount.toLocaleString(undefined, {
                 style: "currency",
                 currency: "USD",
                 currencyDisplay: "narrowSymbol",
@@ -58,7 +58,7 @@ export default function Pending({
             </Text>
             <XStack gap="$s2" alignItems="center">
               <Text emphasized secondary subHeadline>
-                {Number(amount).toLocaleString(undefined, {
+                {amount.toLocaleString(undefined, {
                   maximumFractionDigits: selectedAsset && selectedAsset === marketUSDCAddress ? 2 : 8,
                 })}
               </Text>

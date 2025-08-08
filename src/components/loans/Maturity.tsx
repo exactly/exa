@@ -114,7 +114,7 @@ export default function Maturity() {
                         </XStack>
                         <YStack>
                           <Text headline color={invalid ? "$interactiveOnDisabled" : "$uiNeutralPrimary"}>
-                            {format(new Date(Number(maturity) * 1000), "MMM dd, yyyy")}
+                            {format(new Date(maturity * 1000), "MMM dd, yyyy")}
                           </Text>
                           {invalid ? (
                             <Text footnote color="$uiNeutralPlaceholder">

@@ -122,7 +122,7 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
                     queryClient.setQueryData<boolean>(["settings", "rollover-intro-shown"], true);
                     router.push({
                       pathname: "/roll-debt",
-                      params: { maturity: maturity.toString() },
+                      params: { maturity },
                     });
                   }}
                 >
@@ -224,7 +224,7 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
                     <Button
                       onPress={() => {
                         onClose();
-                        router.push({ pathname: "/pay", params: { maturity: maturity.toString() } });
+                        router.push({ pathname: "/pay", params: { maturity } });
                       }}
                       contained
                       main
@@ -256,10 +256,7 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
                           return;
                         }
                         onClose();
-                        router.push({
-                          pathname: "/roll-debt",
-                          params: { maturity: maturity.toString() },
-                        });
+                        router.push({ pathname: "/roll-debt", params: { maturity } });
                       }}
                     >
                       Rollover

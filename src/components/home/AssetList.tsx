@@ -153,7 +153,7 @@ export default function AssetList() {
     logoURI: asset.logoURI,
     amount: asset.amount ?? 0n,
     decimals: asset.decimals,
-    usdValue: BigInt(Number(asset.usdValue) * 1e18),
+    usdValue: BigInt(asset.usdValue * 1e18),
     usdPrice: BigInt(Number(asset.priceUSD) * 1e18),
   }));
 
