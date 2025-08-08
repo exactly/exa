@@ -124,7 +124,7 @@ function getActivityIcon(item: Item, processing: boolean, refund: boolean) {
       if (refund) return <Import color="$uiSuccessSecondary" />;
       if (processing) return <ClockAlert color="$interactiveOnBaseWarningSoft" />;
       if (item.merchant.icon)
-        return <Image source={{ uri: item.merchant.icon }} width={40} height={40} borderRadius="$r3" />;
+        return <Image source={{ uri: item.merchant.icon }} minWidth={40} minHeight={40} borderRadius="$r3" />;
       return <ShoppingCart color="$uiNeutralPrimary" />;
     default:
       return <SquareDashed color="$uiNeutralPrimary" />;
