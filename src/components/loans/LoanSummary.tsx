@@ -48,9 +48,9 @@ export default function LoanSummary({ loan }: { loan: Loan }) {
           <XStack alignItems="center" gap="$s2">
             <AssetLogo uri={assetLogos[symbol as keyof typeof assetLogos]} width={16} height={16} />
             <Text title3>
-              {Number(
+              {(
                 Number(!isBorrow && installments ? installments.amounts.reduce((a, b) => a + b, 0n) : borrow?.assets) /
-                  1e6,
+                1e6
               ).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </Text>
           </XStack>

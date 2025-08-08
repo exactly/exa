@@ -65,7 +65,7 @@ export default function PaymentScheduleSheet({
                           })}
                         </Text>
                       </XStack>
-                      <Text title3>{format(new Date(Number(maturity) * 1000), "MMM d, yyyy")}</Text>
+                      <Text title3>{format(new Date(maturity * 1000), "MMM d, yyyy")}</Text>
                     </XStack>
                   );
                 })}

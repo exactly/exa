@@ -207,7 +207,7 @@ export default function Review() {
                 <XStack alignItems="center" gap="$s2">
                   <AssetLogo uri={assetLogos[symbol as keyof typeof assetLogos]} width={16} height={16} />
                   <Text title3 color="$uiNeutralPrimary">
-                    {Number(Number(amount ?? 0n) / 1e6).toLocaleString(undefined, {
+                    {(Number(amount ?? 0n) / 1e6).toLocaleString(undefined, {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
                     })}

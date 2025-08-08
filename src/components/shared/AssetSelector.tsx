@@ -157,7 +157,7 @@ export default function AssetSelector({
                           minimumFractionDigits: 0,
                           maximumFractionDigits: Math.min(
                             8,
-                            Math.max(0, decimals - Math.ceil(Math.log10(Math.max(1, Number(usdValue) / 1e18)))),
+                            Math.max(0, decimals - Math.ceil(Math.log10(Math.max(1, usdValue / 1e18)))),
                           ),
                           useGrouping: false,
                         },

@@ -79,7 +79,7 @@ export default function DeFi() {
         </YStack>
       </ScrollView>
       <IntroSheet
-        open={Boolean(!shown)}
+        open={!shown}
         onClose={() => {
           queryClient.setQueryData(["settings", "defi-intro-shown"], true);
         }}
