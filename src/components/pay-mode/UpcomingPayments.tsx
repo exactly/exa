@@ -173,6 +173,14 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
             </Text>
           </YStack>
         )}
+        {payments.length > 0 && (
+          <Text caption color="$uiNeutralSecondary">
+            <Text color="$uiInfoSecondary" emphasized>
+              You must repay each installment manually before its due date.&nbsp;
+            </Text>
+            If not, a 0.45% penalty is added every day the payment is late.
+          </Text>
+        )}
       </YStack>
     </View>
   );

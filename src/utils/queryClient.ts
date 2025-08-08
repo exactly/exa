@@ -166,6 +166,14 @@ queryClient.setQueryDefaults(["defi", "lifi-connected"], {
   queryFn: () => queryClient.getQueryData(["defi", "lifi-connected"]),
 });
 
+queryClient.setQueryDefaults(["manual-repayment-acknowledged"], {
+  initialData: false,
+  retry: false,
+  staleTime: Infinity,
+  gcTime: Infinity,
+  queryFn: () => queryClient.getQueryData(["manual-repayment-acknowledged"]),
+});
+
 export type ActivityItem = Awaited<ReturnType<typeof getActivity>>[number];
 export interface Withdraw {
   market?: Address;

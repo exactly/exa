@@ -11,6 +11,7 @@ import { XStack, YStack } from "tamagui";
 import { formatUnits, parseUnits, zeroAddress } from "viem";
 import { useAccount } from "wagmi";
 
+import ManualRepaymentSheet from "./ManualRepaymentSheet";
 import { useReadPreviewerExactly, useReadPreviewerPreviewBorrowAtMaturity } from "../../generated/contracts";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
@@ -36,6 +37,10 @@ export default function PaySelector() {
     totalAmount: assets,
     installments: 1,
   });
+
+  const { data: manualRepaymentAcknowledged } = useQuery<boolean>({ queryKey: ["manual-repayment-acknowledged"] });
+  const [manualRepaymentSheetOpen, setManualRepaymentSheetOpen] = useState(false);
+  const [pendingInstallment, setPendingInstallment] = useState<number | null>(null);
 
   const { data: card } = useQuery({
     queryKey: ["card", "details"],
@@ -81,6 +86,29 @@ export default function PaySelector() {
       burntOptions: { haptic: "success" },
     });
   }
+
+  function handleInstallmentSelection(installments: number) {
+    if (installments === 0) {
+      setInstallments(installments);
+      return;
+    }
+    if (!manualRepaymentAcknowledged) {
+      setPendingInstallment(installments);
+      setManualRepaymentSheetOpen(true);
+      return;
+    }
+    setInstallments(installments);
+  }
+
+  function handleConfirm() {
+    queryClient.setQueryData(["manual-repayment-acknowledged"], true);
+    if (pendingInstallment !== null) {
+      setInstallments(pendingInstallment);
+    }
+    setPendingInstallment(null);
+    setManualRepaymentSheetOpen(false);
+  }
+
   return (
     <>
       <View backgroundColor="$backgroundSoft" padded>
@@ -150,7 +178,13 @@ export default function PaySelector() {
           </XStack>
         </XStack>
         <YStack gap="$s1_5">
-          <InstallmentButton key={0} installment={0} cardDetails={card} onSelect={setInstallments} assets={assets} />
+          <InstallmentButton
+            key={0}
+            installment={0}
+            cardDetails={card}
+            onSelect={handleInstallmentSelection}
+            assets={assets}
+          />
         </YStack>
         <XStack justifyContent="space-between" paddingHorizontal="$s3" paddingVertical="$s4">
           <Text caption color="$uiNeutralPlaceholder" numberOfLines={1}>
@@ -174,7 +208,7 @@ export default function PaySelector() {
               key={installment}
               installment={installment}
               cardDetails={card}
-              onSelect={setInstallments}
+              onSelect={handleInstallmentSelection}
               assets={assets}
             />
           ))}
@@ -184,6 +218,13 @@ export default function PaySelector() {
             </Text>
           </YStack>
         </YStack>
+        <ManualRepaymentSheet
+          open={manualRepaymentSheetOpen}
+          onClose={() => {
+            setManualRepaymentSheetOpen(false);
+          }}
+          onActionPress={handleConfirm}
+        />
       </View>
     </>
   );
