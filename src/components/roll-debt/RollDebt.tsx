@@ -135,7 +135,7 @@ export default function Pay() {
                     Current debt
                   </Text>
                   <Text secondary footnote textAlign="left">
-                    due {format(new Date(Number(borrowMaturity) * 1000), "MMM dd, yyyy")}
+                    due {format(new Date(borrowMaturity * 1000), "MMM dd, yyyy")}
                   </Text>
                 </YStack>
                 <Text primary title3 textAlign="right">
@@ -153,7 +153,7 @@ export default function Pay() {
                     Total after rollover
                   </Text>
                   <Text secondary footnote textAlign="left">
-                    {format(new Date(Number(borrowMaturity) * 1000), "MMM dd, yyyy")}
+                    {format(new Date(borrowMaturity * 1000), "MMM dd, yyyy")}
                   </Text>
                 </YStack>
                 <Text title color="$uiBrandSecondary" textAlign="right">
@@ -269,7 +269,7 @@ function RolloverButton({
   const hasProposed = pendingProposals?.some(
     ({ proposal }) =>
       proposal.market === marketUSDCAddress &&
-      proposal.proposalType === Number(ProposalType.RollDebt) &&
+      proposal.proposalType === (ProposalType.RollDebt as number) &&
       proposal.amount === maxRepayAssets,
   );
   const disabled =

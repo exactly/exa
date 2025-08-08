@@ -317,7 +317,7 @@ export default function Pay() {
             data: encodeFunctionData({
               functionName: "repayAtMaturity",
               abi: marketAbi,
-              args: [BigInt(maturity), positionAssets, maxRepay, account],
+              args: [maturity, positionAssets, maxRepay, account],
             }),
           },
         ],
@@ -572,9 +572,9 @@ export default function Pay() {
                       {selectedAsset.external && externalAsset && (
                         <>
                           <Text emphasized headline primary textAlign="right">
-                            {Number(
+                            {(
                               (Number(externalAsset.priceUSD) * Number(externalAssetAvailable)) /
-                                10 ** externalAsset.decimals,
+                              10 ** externalAsset.decimals
                             ).toLocaleString(undefined, {
                               style: "currency",
                               currency: "USD",
