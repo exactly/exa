@@ -19,6 +19,8 @@ import { optimismSepolia } from "viem/chains";
 
 const API_BASE_URL = process.env.API_BASE_URL;
 const PRIVATE_KEY = process.env.PRIVATE_KEY_WALLET;
+const FIRST_NAME_ID =
+  process.env.FIRST_NAME_ID ?? Array.from({ length: 8 }, () => Math.random().toString(36).charAt(2)).join("");
 
 if (!PRIVATE_KEY) throw new Error("PRIVATE_KEY environment variable is required");
 if (!API_BASE_URL) throw new Error("API_BASE_URL environment variable is required");
@@ -451,7 +453,7 @@ switch (flow) {
 // #region mock data
 // TODO encrypt
 const kycPayload = {
-  firstName: "John",
+  firstName: FIRST_NAME_ID,
   lastName: "TestApproved",
   birthDate: "1990-01-15",
   nationalId: "123456789",
