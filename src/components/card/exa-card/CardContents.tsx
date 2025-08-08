@@ -71,7 +71,7 @@ export default function CardContents({
                 </Text>
                 <View>
                   <Text color="white" emphasized caption maxFontSizeMultiplier={1}>
-                    SPENDING LIMIT
+                    AVAILABLE BALANCE
                   </Text>
                 </View>
               </View>
@@ -92,7 +92,7 @@ export default function CardContents({
                 </Text>
                 <View>
                   <Text color="white" emphasized caption maxFontSizeMultiplier={1}>
-                    SPENDING LIMIT
+                    AVAILABLE BALANCE
                   </Text>
                 </View>
               </View>

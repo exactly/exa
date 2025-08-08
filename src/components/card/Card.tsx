@@ -57,6 +57,17 @@ export default function Card() {
     queryFn: () => getActivity({ include: "card" }),
   });
 
+  const limit = 10_000;
+  const weeklyPurchases = purchases
+    ? purchases.filter((item) => {
+        if (item.type !== "panda") return false;
+        const elapsedTime = (Date.now() - new Date(item.timestamp).getTime()) / 1000;
+        return elapsedTime <= 604_800;
+      })
+    : [];
+  const totalSpent = weeklyPurchases.reduce((accumulator, item) => accumulator + item.usdAmount, 0);
+  const remaining = limit - totalSpent;
+
   const { queryKey } = useAsset(marketUSDCAddress);
   const { address } = useAccount();
   const { data: KYCStatus, refetch: refetchKYCStatus } = useQuery({
@@ -341,7 +352,7 @@ export default function Card() {
                         Card details
                       </Text>
                     </XStack>
-                    <ChevronRight color="$iconSecondary" size={24} />
+                    <ChevronRight color="$uiBrandSecondary" size={24} />
                   </XStack>
 
                   <Separator borderColor="$borderNeutralSoft" />
@@ -363,7 +374,7 @@ export default function Card() {
                             View PIN number
                           </Text>
                         </XStack>
-                        <ChevronRight color="$iconSecondary" size={24} />
+                        <ChevronRight color="$uiBrandSecondary" size={24} />
                       </XStack>
                       <Separator borderColor="$borderNeutralSoft" />
                     </>
@@ -381,10 +392,20 @@ export default function Card() {
                     <XStack gap="$s3" justifyContent="flex-start" alignItems="center">
                       <DollarSign size={24} color="$backgroundBrand" />
                       <Text subHeadline color="$uiNeutralPrimary">
-                        Spending limit
+                        Weekly spending limit
                       </Text>
                     </XStack>
-                    <ChevronRight color="$iconSecondary" size={24} />
+                    <XStack alignItems="center">
+                      <Text caption emphasized color="$uiBrandSecondary" lineHeight={24}>
+                        {remaining.toLocaleString(undefined, {
+                          style: "currency",
+                          currency: "USD",
+                          currencyDisplay: "narrowSymbol",
+                          maximumFractionDigits: 0,
+                        })}
+                      </Text>
+                      <ChevronRight color="$uiBrandSecondary" size={24} />
+                    </XStack>
                   </XStack>
                 </YStack>
                 {revealError && (
@@ -454,6 +475,8 @@ export default function Card() {
         />
         <SpendingLimits
           open={spendingLimitsOpen}
+          remaining={remaining}
+          totalSpent={totalSpent}
           onClose={() => {
             setSpendingLimitsOpen(false);
           }}
