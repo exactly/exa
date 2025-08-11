@@ -16,7 +16,6 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function AssetSelection() {
-  const { canGoBack } = router;
   const { data: withdraw } = useQuery<Withdraw>({ queryKey: ["withdrawal"] });
   const { data: savedContacts } = useQuery<{ address: Address; ens: string }[] | undefined>({
     queryKey: ["contacts", "saved"],
@@ -33,15 +32,13 @@ export default function AssetSelection() {
       <View gap={20} fullScreen padded>
         <View flexDirection="row" gap={10} justifyContent="space-around" alignItems="center">
           <View position="absolute" left={0}>
-            {canGoBack() && (
-              <Pressable
-                onPress={() => {
-                  router.back();
-                }}
-              >
-                <ArrowLeft size={24} color="$uiNeutralPrimary" />
-              </Pressable>
-            )}
+            <Pressable
+              onPress={() => {
+                // router.back();
+              }}
+            >
+              <ArrowLeft size={24} color="$uiNeutralPrimary" />
+            </Pressable>
           </View>
           <Text emphasized color="$uiNeutralPrimary" fontSize={15}>
             Choose asset

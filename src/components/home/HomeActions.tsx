@@ -1,11 +1,13 @@
 import { exaPluginAddress, marketUSDCAddress } from "@exactly/common/generated/chain";
 import { ArrowDownToLine, ArrowUpRight, HandCoins, Repeat } from "@tamagui/lucide-icons";
-import { router } from "expo-router";
+import { useNavigation } from "expo-router";
 import React from "react";
 import { XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
 import { useAccount, useBytecode, useReadContract } from "wagmi";
 
+import type { HomeNavigationProperties } from "../../app/(app)/(home)/_layout";
+import type { AppNavigationProperties } from "../../app/(app)/_layout";
 import {
   upgradeableModularAccountAbi,
   useReadUpgradeableModularAccountGetInstalledPlugins,
@@ -16,6 +18,8 @@ import reportError from "../../utils/reportError";
 import Button from "../shared/StyledButton";
 
 export default function HomeActions() {
+  const homeNavigator = useNavigation<HomeNavigationProperties>("(home)");
+  const appNavigator = useNavigation<AppNavigationProperties>("/(app)");
   const { address: account } = useAccount();
   const { data: bytecode } = useBytecode({ address: account ?? zeroAddress, query: { enabled: !!account } });
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
@@ -47,12 +51,11 @@ export default function HomeActions() {
 
   const handleSend = async () => {
     if (isLatestPlugin) {
-      router.push("/send-funds");
+      homeNavigator.navigate("send-funds", { screen: "index" });
     } else {
       if (isPending) return;
       const { data: proposals } = await fetchProposals();
-      const route = proposals && proposals[0] > 0n ? "/send-funds/processing" : "/send-funds";
-      router.push(route);
+      homeNavigator.navigate("send-funds", { screen: proposals && proposals[0] > 0n ? "processing" : "index" });
     }
   };
   return (
@@ -70,13 +73,13 @@ export default function HomeActions() {
               onPress={() => {
                 switch (key) {
                   case "deposit":
-                    router.push("/add-funds/add-crypto");
+                    homeNavigator.navigate("add-funds", { screen: "add-crypto" });
                     break;
                   case "send":
                     handleSend().catch(reportError);
                     break;
                   case "swap":
-                    router.push("/swaps");
+                    appNavigator.navigate("swaps/index");
                     break;
                   case "borrow":
                     queryClient.setQueryData<Loan>(["loan"], () => ({
@@ -86,7 +89,7 @@ export default function HomeActions() {
                       maturity: undefined,
                       receiver: undefined,
                     }));
-                    router.push("/(app)/(home)/loans");
+                    homeNavigator.navigate("loan", { screen: "index" });
                 }
               }}
               width="100%"

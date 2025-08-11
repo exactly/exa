@@ -3,6 +3,8 @@ import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
 import { createConfig, EVM } from "@lifi/sdk";
+import type { ParamListBase } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import {
   ErrorBoundary,
   feedbackIntegration,
@@ -177,3 +179,9 @@ export default wrap(function RootLayout() {
     </WagmiProvider>
   );
 });
+
+export type RootNavigationProperties = NativeStackNavigationProp<RootNavigationParameterList>;
+export interface RootNavigationParameterList extends ParamListBase {
+  "(app)": undefined;
+  onboarding: undefined;
+}

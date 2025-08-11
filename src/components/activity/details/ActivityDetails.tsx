@@ -1,6 +1,5 @@
 import { ArrowLeft, Headphones } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
-import { router } from "expo-router";
 import React from "react";
 import { Pressable } from "react-native";
 import { XStack } from "tamagui";
@@ -18,18 +17,18 @@ import GradientScrollView from "../../shared/GradientScrollView";
 export default function ActivityDetails() {
   const { data: item } = useQuery<ActivityItem>({ queryKey: ["activity", "details"] });
   const { present } = useIntercom();
-  const { canGoBack } = router;
+
   if (!item) return null;
   return (
     <GradientScrollView variant="neutral" stickyHeader>
       <XStack gap={10} justifyContent="space-between" alignItems="center">
         <Pressable
           onPress={() => {
-            if (canGoBack()) {
-              router.back();
-            } else {
-              router.replace("/activity");
-            }
+            // if (canGoBack()) {
+            //   router.back();
+            // } else {
+            //   router.replace("/activity");
+            // }
           }}
         >
           <ArrowLeft size={24} color="$uiNeutralPrimary" />

@@ -1,6 +1,6 @@
 import { previewerAddress } from "@exactly/common/generated/chain";
 import { ArrowLeft, CircleHelp } from "@tamagui/lucide-icons";
-import { router } from "expo-router";
+// import { router } from "expo-router";
 import { openBrowserAsync } from "expo-web-browser";
 import React from "react";
 import { Pressable, RefreshControl } from "react-native";
@@ -19,7 +19,7 @@ import View from "../shared/View";
 export default function Portfolio() {
   const theme = useTheme();
   const { presentArticle } = useIntercom();
-  const { canGoBack } = router;
+  // const { canGoBack } = router;
   const { address } = useAccount();
 
   const style = { backgroundColor: theme.backgroundSoft.val, margin: -5 };
@@ -44,11 +44,11 @@ export default function Portfolio() {
       <View padded flexDirection="row" gap={10} paddingBottom="$s4" justifyContent="space-between" alignItems="center">
         <Pressable
           onPress={() => {
-            if (canGoBack()) {
-              router.back();
-              return;
-            }
-            router.replace("/");
+            // if (canGoBack()) {
+            //   router.back();
+            //   return;
+            // }
+            // router.replace("/");
           }}
         >
           <ArrowLeft size={24} color="$uiNeutralPrimary" />

@@ -1,3 +1,5 @@
+import type { ParamListBase } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Stack } from "expo-router";
 import Head from "expo-router/head";
 import React from "react";
@@ -22,4 +24,10 @@ export default function OnboardingLayout() {
       </Stack>
     </>
   );
+}
+
+export type OnboardingNavigationProperties = NativeStackNavigationProp<OnboardingParameterList>;
+export interface OnboardingParameterList extends ParamListBase {
+  index: undefined;
+  passkeys: { screen: "passkeys" | "about" };
 }

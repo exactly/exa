@@ -17,7 +17,6 @@ import {
   SearchSlash,
 } from "@tamagui/lucide-icons";
 import { format } from "date-fns";
-import { router } from "expo-router";
 import React from "react";
 import { Pressable, RefreshControl, ScrollView } from "react-native";
 import { XStack, YStack } from "tamagui";
@@ -108,7 +107,6 @@ function getProposal(proposal: Proposal): ProposalWithMetadata {
 }
 
 export default function PendingProposals() {
-  const { canGoBack } = router;
   const { address } = useAccount();
   const { presentArticle } = useIntercom();
   const {
@@ -126,11 +124,11 @@ export default function PendingProposals() {
         <View flexDirection="row" gap={10} paddingBottom="$s4" justifyContent="space-between" alignItems="center">
           <Pressable
             onPress={() => {
-              if (canGoBack()) {
-                router.back();
-              } else {
-                router.replace("/");
-              }
+              // if (canGoBack()) {
+              //   router.back();
+              // } else {
+              //   router.replace("/");
+              // }
             }}
           >
             <ArrowLeft size={24} color="$uiNeutralPrimary" />

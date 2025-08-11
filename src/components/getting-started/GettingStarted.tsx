@@ -21,22 +21,20 @@ import View from "../shared/View";
 export default function GettingStarted() {
   const { steps } = useContext(OnboardingContext);
   const { presentArticle } = useIntercom();
-  const { canGoBack } = router;
+
   return (
     <SafeView fullScreen backgroundColor="$backgroundBrandSoft" paddingBottom={0}>
       <View gap={20} fullScreen>
         <View gap={20} padded paddingBottom={0}>
           <View flexDirection="row" gap={10} justifyContent="space-around" alignItems="center">
             <View position="absolute" left={0}>
-              {canGoBack() && (
-                <Pressable
-                  onPress={() => {
-                    router.back();
-                  }}
-                >
-                  <ArrowLeft size={24} color="$uiNeutralPrimary" />
-                </Pressable>
-              )}
+              <Pressable
+                onPress={() => {
+                  // router.back();
+                }}
+              >
+                <ArrowLeft size={24} color="$uiNeutralPrimary" />
+              </Pressable>
             </View>
             <Text color="$uiNeutralPrimary" fontSize={15} fontWeight="bold">
               Getting started
