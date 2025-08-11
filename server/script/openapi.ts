@@ -30,6 +30,15 @@ import("../api")
           { url: "https://web.exactly.app/api", description: "Production" },
           { url: "https://sandbox.exactly.app/api", description: "Sandbox" },
         ],
+        components: {
+          securitySchemes: {
+            credentialAuth: {
+              type: "apiKey",
+              in: "cookie",
+              name: "credential_id",
+            },
+          },
+        },
       },
     });
     await writeFile("openapi.json", JSON.stringify(spec, null, 2));
