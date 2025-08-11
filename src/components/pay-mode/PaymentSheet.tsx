@@ -13,17 +13,18 @@ import {
 import { useToastController } from "@tamagui/toast";
 import { useQuery } from "@tanstack/react-query";
 import { format, formatDistance, isAfter } from "date-fns";
-import { router, useLocalSearchParams } from "expo-router";
+import { useNavigation, useLocalSearchParams } from "expo-router";
 import { openBrowserAsync } from "expo-web-browser";
 import React, { useCallback, useState } from "react";
 import { Pressable, StyleSheet } from "react-native";
 import { Separator, XStack, YStack } from "tamagui";
 import { titleCase } from "title-case";
-import { nonEmpty, pipe, safeParse, string } from "valibot";
+import { digits, nonEmpty, pipe, safeParse, string } from "valibot";
 import { zeroAddress } from "viem";
 import { optimismSepolia } from "viem/chains";
 import { useAccount, useBytecode } from "wagmi";
 
+import type { AppNavigationProperties } from "../../app/(app)/_layout";
 import CalendarImage from "../../assets/images/calendar-rollover.svg";
 import { useReadUpgradeableModularAccountGetInstalledPlugins } from "../../generated/contracts";
 import queryClient from "../../utils/queryClient";
@@ -41,8 +42,12 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
   const { presentArticle } = useIntercom();
   const { market: USDCMarket } = useAsset(marketUSDCAddress);
   const { maturity: currentMaturity } = useLocalSearchParams();
+  const appNavigator = useNavigation<AppNavigationProperties>();
   const [rolloverIntroOpen, setRolloverIntroOpen] = useState(false);
-  const { success, output: maturity } = safeParse(pipe(string(), nonEmpty("no maturity")), currentMaturity);
+  const { success, output: maturity } = safeParse(
+    pipe(string(), nonEmpty("no maturity"), digits("bad maturity")),
+    currentMaturity,
+  );
   const toast = useToastController();
   const { data: hidden } = useQuery<boolean>({ queryKey: ["settings", "sensitive"] });
   const { data: rolloverIntroShown } = useQuery<boolean>({ queryKey: ["settings", "rollover-intro-shown"] });
@@ -131,10 +136,7 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
                     }
                     onClose();
                     queryClient.setQueryData<boolean>(["settings", "rollover-intro-shown"], true);
-                    router.push({
-                      pathname: "/roll-debt",
-                      params: { maturity: maturity.toString() },
-                    });
+                    appNavigator.navigate("roll-debt", { screen: "index", params: { maturity: maturity.toString() } });
                   }}
                 >
                   <Button.Text>Review refinance details</Button.Text>
@@ -234,7 +236,7 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
                         flex={1}
                         onPress={() => {
                           onClose();
-                          router.push({ pathname: "/pay", params: { maturity: maturity.toString() } });
+                          appNavigator.navigate("pay", { screen: "index", params: { maturity: maturity.toString() } });
                         }}
                       >
                         <Button.Text>Repay</Button.Text>
@@ -259,8 +261,8 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
                             return;
                           }
                           onClose();
-                          router.push({
-                            pathname: "/roll-debt",
+                          appNavigator.navigate("roll-debt", {
+                            screen: "index",
                             params: { maturity: maturity.toString() },
                           });
                         }}

@@ -75,11 +75,10 @@ export default function PaySelector() {
     },
   });
 
-  function setInstallments(installments: number) {
-    if (!card || card.mode === installments) return;
-    mutateMode(installments).catch(reportError);
-    const message =
-      installments === 0 ? "Pay Now selected" : `${installments} installment${installments > 1 ? "s" : ""} selected`;
+  function setInstallments(value: number) {
+    if (!card || card.mode === value) return;
+    mutateMode(value).catch(reportError);
+    const message = value === 0 ? "Pay Now selected" : `${value} installment${value > 1 ? "s" : ""} selected`;
     toast.show(message, {
       native: true,
       duration: 1000,
@@ -87,17 +86,17 @@ export default function PaySelector() {
     });
   }
 
-  function handleInstallmentSelection(installments: number) {
-    if (installments === 0) {
-      setInstallments(installments);
+  function handleInstallmentSelection(value: number) {
+    if (value === 0) {
+      setInstallments(value);
       return;
     }
     if (!manualRepaymentAcknowledged) {
-      setPendingInstallment(installments);
+      setPendingInstallment(value);
       setManualRepaymentSheetOpen(true);
       return;
     }
-    setInstallments(installments);
+    setInstallments(value);
   }
 
   function handleConfirm() {
@@ -129,12 +128,11 @@ export default function PaySelector() {
             Choose <Text emphasized>Pay Now</Text> to instantly pay your purchases, or select a plan to split them into
             up to {MAX_INSTALLMENTS} fixed-rate installments in USDC, powered by Exactly Protocol.*
           </Text>
-
-          <XStack alignItems="center" gap="$s4">
+          <XStack alignItems="center" gap="$s4" flex={1} width="100%">
             <Text primary emphasized subHeadline>
               Simulate purchase
             </Text>
-            <TamaguiInput borderRadius="$r3" backgroundColor="$backgroundMild" flex={1}>
+            <TamaguiInput borderRadius="$r3" flex={1}>
               <TamaguiInput.Icon>
                 <Text subHeadline color="$uiNeutralPlaceholder">
                   {(0)
@@ -144,14 +142,14 @@ export default function PaySelector() {
                 </Text>
               </TamaguiInput.Icon>
               <TamaguiInput.Input
-                maxLength={10}
+                maxLength={6}
                 numberOfLines={1}
                 inputMode="decimal"
                 textAlign="right"
                 fontSize={20}
                 lineHeight={25}
-                letterSpacing={-0.2}
                 value={input}
+                width="100%"
                 onChangeText={(text) => {
                   setInput(text);
                 }}

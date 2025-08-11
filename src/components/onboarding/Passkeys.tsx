@@ -2,13 +2,14 @@ import type { Credential } from "@exactly/common/validation";
 import { Key, X } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { router } from "expo-router";
+import { useNavigation } from "expo-router";
 import React, { useState } from "react";
 import { Pressable, StyleSheet } from "react-native";
 import { XStack } from "tamagui";
 import { UserRejectedRequestError } from "viem";
 import { useConnect } from "wagmi";
 
+import type { AppNavigationProperties } from "../../app/(app)/_layout";
 import PasskeysBlob from "../../assets/images/passkeys-blob.svg";
 import PasskeysImage from "../../assets/images/passkeys.svg";
 import alchemyConnector from "../../utils/alchemyConnector";
@@ -24,10 +25,11 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function Passkeys() {
-  const [errorDialogOpen, setErrorDialogOpen] = useState(false);
-  const queryClient = useQueryClient();
   const { connect } = useConnect();
   const toast = useToastController();
+  const queryClient = useQueryClient();
+  const appNavigator = useNavigation<AppNavigationProperties>();
+  const [errorDialogOpen, setErrorDialogOpen] = useState(false);
   const [connectModalOpen, setConnectModalOpen] = useState(false);
 
   const { data: hasInjectedProvider } = useQuery({ queryKey: ["hasInjectedProvider"], queryFn: hasProvider });
@@ -36,7 +38,7 @@ export default function Passkeys() {
     (credential: Credential) => {
       connect({ connector: alchemyConnector });
       queryClient.setQueryData<Credential>(["credential"], credential);
-      router.replace("/(app)/(home)");
+      appNavigator.replace("(home)", { screen: "index" });
     },
     (error: unknown) => {
       if (
@@ -82,7 +84,11 @@ export default function Passkeys() {
         <View position="absolute" right="$s5" zIndex={1}>
           <Pressable
             onPress={() => {
-              router.back();
+              if (appNavigator.canGoBack()) {
+                appNavigator.goBack();
+              } else {
+                appNavigator.replace("onboarding");
+              }
             }}
           >
             <X size={25} color="$uiNeutralSecondary" />
@@ -148,7 +154,7 @@ export default function Passkeys() {
               <Text
                 cursor="pointer"
                 onPress={() => {
-                  router.push("../(passkeys)/about");
+                  appNavigator.navigate("(passkeys)", { screen: "about" });
                 }}
                 textAlign="center"
                 fontSize={13}

@@ -37,7 +37,6 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
     for (const { fixedBorrowPositions } of markets) {
       for (const { maturity, previewValue, position } of fixedBorrowPositions) {
         if (!previewValue) continue;
-
         if (isBefore(new Date(Number(maturity) * 1000), new Date())) continue;
         duePayments.set(maturity, {
           positionAmount: position.principal + position.fee,

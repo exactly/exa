@@ -175,6 +175,15 @@ queryClient.setQueryDefaults<"siwe" | "webauthn" | undefined>(["method"], {
     throw new Error("don't refetch");
   },
 });
+queryClient.setQueryDefaults(["manual-repayment-acknowledged"], {
+  initialData: false,
+  retry: false,
+  staleTime: Infinity,
+  gcTime: Infinity,
+  queryFn: () => {
+    return queryClient.getQueryData(["manual-repayment-acknowledged"]);
+  },
+});
 
 export type ActivityItem = Awaited<ReturnType<typeof getActivity>>[number];
 export interface Withdraw {

@@ -1,27 +1,26 @@
 import { Address } from "@exactly/common/validation";
 import { ArrowLeft, BoxSelect, SwitchCamera } from "@tamagui/lucide-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
-import { router } from "expo-router";
+import { useNavigation } from "expo-router";
 import React, { useRef, useState } from "react";
 import { Linking, Pressable, StyleSheet } from "react-native";
 import { useWindowDimensions, XStack, YStack } from "tamagui";
 import { safeParse } from "valibot";
 
+import type { AppNavigationProperties } from "../../app/(app)/_layout";
 import reportError from "../../utils/reportError";
 import Button from "../shared/Button";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function Qr() {
+  const appNavigator = useNavigation<AppNavigationProperties>("/(app)");
   const cameraReference = useRef<CameraView>(null);
   const { height, width } = useWindowDimensions();
   const [cameraFacing, setCameraFacing] = useState<"front" | "back">("back");
   const [permission, requestPermission] = useCameraPermissions();
 
-  if (!permission) {
-    return <View fullScreen backgroundColor="$backgroundSoft" />;
-  }
-
+  if (!permission) return <View fullScreen backgroundColor="$backgroundSoft" />;
   if (!permission.granted) {
     if (!permission.canAskAgain) {
       return (
@@ -35,7 +34,11 @@ export default function Qr() {
             left="$s4"
             padding="$s3"
             onPress={() => {
-              router.back();
+              if (appNavigator.canGoBack()) {
+                appNavigator.goBack();
+              } else {
+                appNavigator.replace("send-funds", { screen: "index" });
+              }
             }}
             gap="$s2"
           >
@@ -72,7 +75,11 @@ export default function Qr() {
           left="$s4"
           padding="$s3"
           onPress={() => {
-            router.back();
+            if (appNavigator.canGoBack()) {
+              appNavigator.goBack();
+            } else {
+              appNavigator.replace("send-funds", { screen: "index" });
+            }
           }}
           gap="$s2"
         >
@@ -93,7 +100,7 @@ export default function Qr() {
               onPress={() => {
                 requestPermission().catch((error: unknown) => {
                   reportError(error);
-                  router.back();
+                  appNavigator.replace("send-funds", { screen: "index" });
                 });
               }}
               outlined
@@ -105,7 +112,6 @@ export default function Qr() {
       </View>
     );
   }
-
   return (
     <View fullScreen backgroundColor="$backgroundSoft">
       <CameraView
@@ -114,7 +120,7 @@ export default function Qr() {
         onBarcodeScanned={({ data: receiver }) => {
           const result = safeParse(Address, receiver);
           if (result.success) {
-            router.navigate({ pathname: "/send-funds", params: { receiver: result.output } });
+            appNavigator.navigate("send-funds", { screen: "asset", params: { receiver: result.output } });
           }
         }}
         facing={cameraFacing}
@@ -141,7 +147,11 @@ export default function Qr() {
         <Pressable
           hitSlop={15}
           onPress={() => {
-            router.back();
+            if (appNavigator.canGoBack()) {
+              appNavigator.goBack();
+            } else {
+              appNavigator.replace("send-funds", { screen: "index" });
+            }
           }}
         >
           <ArrowLeft size={24} color="white" />

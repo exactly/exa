@@ -1,9 +1,11 @@
+import type { ParamListBase } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Stack } from "expo-router";
 import React from "react";
 
 import useBackgroundColor from "../../../utils/useBackgroundColor";
 
-export default function AddFundsLayout() {
+export default function SendFundsLayout() {
   useBackgroundColor();
   return (
     <Stack screenOptions={{ headerShown: false }}>
@@ -13,4 +15,12 @@ export default function AddFundsLayout() {
       <Stack.Screen name="amount" />
     </Stack>
   );
+}
+
+export type SendFundsNavigationProperties = NativeStackNavigationProp<SendFundsParameterList>;
+export interface SendFundsParameterList extends ParamListBase {
+  index: undefined;
+  qr: undefined;
+  asset: undefined;
+  amount: undefined;
 }

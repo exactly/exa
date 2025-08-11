@@ -5,12 +5,12 @@ import { WAD, withdrawLimit } from "@exactly/lib";
 import { ArrowLeft, ChevronRight, Coins } from "@tamagui/lucide-icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { router, useLocalSearchParams } from "expo-router";
+import { useNavigation, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScrollView, Separator, XStack, YStack } from "tamagui";
-import { digits, parse, pipe, safeParse, string, transform } from "valibot";
+import { digits, parse, pipe, safeParse, string, transform, nonEmpty } from "valibot";
 import {
   ContractFunctionExecutionError,
   ContractFunctionRevertedError,
@@ -22,6 +22,7 @@ import {
 import { useAccount, useBytecode, useSimulateContract, useWriteContract } from "wagmi";
 
 import AssetSelectionSheet from "./AssetSelectionSheet";
+import type { AppNavigationProperties } from "../../app/(app)/_layout";
 import SafeView from "../../components/shared/SafeView";
 import Button from "../../components/shared/StyledButton";
 import Text from "../../components/shared/Text";
@@ -49,6 +50,7 @@ import Success from "../shared/Success";
 export default function Pay() {
   const insets = useSafeAreaInsets();
   const { address: account } = useAccount();
+  const appNavigator = useNavigation<AppNavigationProperties>();
   const { accountAssets } = useAccountAssets({ sortBy: "usdcFirst" });
   const { market: exaUSDC } = useAsset(marketUSDCAddress);
   const [enableSimulations, setEnableSimulations] = useState(true);
@@ -86,9 +88,10 @@ export default function Pay() {
       : "none";
 
   const { maturity: maturityQuery } = useLocalSearchParams();
+
   const maturity = useMemo(() => {
     const { success, output } = safeParse(
-      pipe(string("no maturity"), digits("bad maturity"), transform(BigInt as (input: string) => bigint)),
+      pipe(string(), nonEmpty("no maturity"), digits("bad maturity"), transform(BigInt as (input: string) => bigint)),
       maturityQuery,
     );
     if (success) return output;
@@ -389,7 +392,11 @@ export default function Pay() {
             <View padded position="absolute" left={0}>
               <Pressable
                 onPress={() => {
-                  router.back();
+                  if (appNavigator.canGoBack()) {
+                    appNavigator.goBack();
+                  } else {
+                    appNavigator.replace("(app)");
+                  }
                 }}
               >
                 <ArrowLeft size={24} color="$uiNeutralPrimary" />
@@ -651,7 +658,7 @@ export default function Pay() {
         currency={repayMarket?.assetSymbol ?? externalAsset?.symbol}
         selectedAsset={selectedAsset.address}
         onClose={() => {
-          router.replace(isLatestPlugin ? "/(app)/pending-proposals" : "/pay-mode");
+          appNavigator.replace(isLatestPlugin ? "pending-proposals/index" : "pay-mode");
         }}
       />
     );
@@ -664,10 +671,10 @@ export default function Pay() {
         currency={repayMarket?.assetSymbol ?? externalAsset?.symbol}
         selectedAsset={selectedAsset.address}
         onClose={() => {
-          if (router.canGoBack()) {
-            router.back();
+          if (appNavigator.canGoBack()) {
+            appNavigator.goBack();
           } else {
-            router.replace("/(app)/(home)");
+            appNavigator.replace("(app)");
           }
         }}
       />
