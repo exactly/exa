@@ -91,6 +91,14 @@ export async function updateUser(user: {
   return await request(UserResponse, `/issuing/users/${user.id}`, {}, user, "PATCH");
 }
 
+export async function getUserBalances(userId: string) {
+  return await request(BalancesResponse, `/issuing/users/${userId}/balances`);
+}
+
+export async function getTenantBalances() {
+  return await request(BalancesResponse, `/issuing/balances`);
+}
+
 export async function getUser(userId: string) {
   return await request(UserResponse, `/issuing/users/${userId}`);
 }
@@ -219,6 +227,14 @@ const UserResponse = object({
     "canceled",
   ]),
   applicationReason: string(),
+});
+
+const BalancesResponse = object({
+  creditLimit: number(),
+  pendingCharges: number(),
+  postedCharges: number(),
+  balanceDue: number(),
+  spendingPower: number(),
 });
 
 export async function isPanda(account: Address) {

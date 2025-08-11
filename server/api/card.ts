@@ -63,7 +63,7 @@ export default new Hono()
           return c.json({ code: "bad kyc", legacy: "kyc not approved" }, 403);
         }
         if (!credential.pandaId) return c.json({ code: "no panda", legacy: "no panda" }, 403);
-        const [{ expirationMonth, expirationYear }, pan, { firstName, lastName }, pin] = await Promise.all([
+        const [{ expirationMonth, expirationYear, limit }, pan, { firstName, lastName }, pin] = await Promise.all([
           getCard(id),
           getSecrets(id, c.req.valid("header").sessionid),
           getUser(credential.pandaId),
@@ -80,6 +80,7 @@ export default new Hono()
             mode,
             provider: "panda" as const,
             status,
+            limit,
           },
           200,
         );
