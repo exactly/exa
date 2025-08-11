@@ -89,6 +89,7 @@ describe("authenticated", () => {
       mode: 0,
       provider: "panda",
       status: "ACTIVE",
+      limit: { amount: 5000, frequency: "per24HourPeriod" },
     });
   });
 
