@@ -68,7 +68,11 @@ export const SubmitApplicationRequest = v.object({
     v.union([v.pipe(v.string(), v.maxLength(50), v.ipv4()), v.pipe(v.string(), v.maxLength(50), v.ipv6())]),
     v.metadata({ description: "The user's IP address (IPv4 or IPv6)" }),
   ),
-  occupation: v.pipe(v.string(), v.maxLength(50), v.metadata({ description: "The user's occupation" })),
+  occupation: v.pipe(
+    v.string(),
+    v.maxLength(50),
+    v.metadata({ description: "The user's occupation. Must be a valid SOC code." }),
+  ),
   annualSalary: v.pipe(v.string(), v.maxLength(50), v.metadata({ description: "The user's annual salary" })),
   accountPurpose: v.pipe(v.string(), v.maxLength(50), v.metadata({ description: "The user's account purpose" })),
   expectedMonthlyVolume: v.pipe(

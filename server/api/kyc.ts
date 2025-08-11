@@ -118,6 +118,7 @@ export default new Hono()
       summary: "Submit KYC application",
       description: "Submit information for KYC application",
       tags: ["KYC"],
+      security: [{ cookieAuth: [] }],
       responses: {
         200: {
           description: "KYC application submitted successfully",
@@ -175,6 +176,7 @@ export default new Hono()
       summary: "Update KYC application",
       description: "Update the KYC application",
       tags: ["KYC"],
+      security: [{ cookieAuth: [] }],
       responses: {
         200: {
           description: "KYC application updated successfully",
@@ -229,6 +231,7 @@ export default new Hono()
       summary: "Get KYC application status",
       description: "Get the status of the KYC application",
       tags: ["KYC"],
+      security: [{ cookieAuth: [] }],
       responses: {
         200: {
           description: "KYC application status",
