@@ -124,8 +124,13 @@ export default new Hono()
     "/",
     describeRoute({
       summary: "Get authentication options",
-      description:
-        "Initiates WebAuthn authentication by generating authentication options for a user. Sets a session HTTP-only cookie. This endpoint provides the necessary challenge, relying party info, and credential parameters required for client-side WebAuthn authentication.",
+      description: `
+Initiates WebAuthn authentication by generating authentication options for a user. Sets a session HTTP-only cookie. This endpoint provides the necessary challenge, relying party info, and credential parameters required for client-side WebAuthn authentication.
+
+**SIWE Flow**
+
+When called with an Ethereum address as \`credentialId\`, this endpoint creates a SIWE challenge message that proves ownership of the address. The server generates a cryptographic nonce, sets it as a short-lived HTTP-only \`session_id\` cookie, and returns a formatted SIWE message containing the challenge, domain, and expiration time.
+`,
       responses: {
         200: {
           description: "WebAuthn authentication options",
@@ -213,8 +218,14 @@ export default new Hono()
     "/",
     describeRoute({
       summary: "Authenticate",
-      description:
-        "Authenticates a user using a WebAuthn credential. This endpoint verifies the authentication response from the client, updates the credential counter, and sets a signed cookie for the authenticated session.",
+      description: `
+Authenticates a user using a WebAuthn credential. This endpoint verifies the authentication response from the client, updates the credential counter, and sets a signed cookie for the authenticated session.
+
+**SIWE Authentication**
+
+Submit the signed SIWE message to prove ownership of an Ethereum address. The server validates the signature against the original challenge message, verifies the domain and nonce match the session, and checks the message hasn't expired. On successful verification, a signed HTTP-only \`credential_id\` cookie is set for authenticated API access.
+
+`,
       responses: {
         200: {
           description: "Authentication response with session expiry",
