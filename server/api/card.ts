@@ -54,6 +54,10 @@ const CardResponse = object({
     data: string(),
     iv: string(),
   }),
+  encryptedCvc: object({
+    data: string(),
+    iv: string(),
+  }),
   expirationMonth: pipe(string(), metadata({ examples: ["12"] })),
   expirationYear: pipe(string(), metadata({ examples: ["2025"] })),
   lastFour: pipe(string(), metadata({ examples: ["1234"] })),
@@ -110,7 +114,7 @@ const UpdatedCardResponse = union([
     mode: pipe(number(), metadata({ examples: [0] })),
   }),
   object({
-    status: pipe(picklist(["ACTIVE", "FROZEN", "DELETED"]), metadata({ examples: ["ACTIVE", "FROZEN", "DELETED"] })),
+    status: pipe(picklist(["ACTIVE", "DELETED", "FROZEN"]), metadata({ examples: ["ACTIVE", "DELETED", "FROZEN"] })),
   }),
 ]);
 
@@ -121,7 +125,61 @@ export default new Hono()
     auth(),
     describeRoute({
       summary: "Get card information",
+      description: `
+Retrieve the card profile and encrypted card data for an authenticated user.
+
+**Retrieving encrypted card details**
+1. **Generate a session ID**: Encrypt a 32‑character hexadecimal secret (no spaces/dashes) with the provided public RSA key using RSA‑OAEP.
+2. **Send the request**: Include the encrypted secret in the header \`sessionid\` when calling this endpoint.
+3. **Decrypt the response**: Use the original secret to decrypt \`encryptedPan\`, \`encryptedCvc\`, and \`pin\` (each returned as \`{ data, iv }\`).
+
+**Step 1: Generate a sessionid and secret**
+
+\`\`\`typescript
+import crypto from "node:crypto";
+
+function session(): { sessionid: string; secret: string } {
+  const secret = crypto.randomUUID().replaceAll("-", "");
+  const secretKeyBase64 = Buffer.from(secret, "hex").toString("base64");
+  const secretKeyBase64Buffer = Buffer.from(secretKeyBase64, "utf8");
+  const secretKeyBase64BufferEncrypted = crypto.publicEncrypt(
+    { key: pem, padding: crypto.constants.RSA_PKCS1_OAEP_PADDING },
+    secretKeyBase64Buffer,
+  );
+  return {
+    sessionid: secretKeyBase64BufferEncrypted.toString("base64"),
+    secret,
+  };
+}
+\`\`\`
+
+The \`sessionid\` is required to make an API request.
+The \`secret\` will be needed for decryption later.
+
+**Step 2: Send the request**
+
+Use the \`sessionid\` in the header when calling this endpoint.
+
+**Step 3: Decrypt the response**
+
+Use the \`secret\` from Step 1 to decrypt the data.
+
+\`\`\`typescript
+import crypto from "node:crypto";
+
+function decrypt(base64Secret: string, base64Iv: string, secretKey: string): string {
+  const secret = Buffer.from(base64Secret, "base64");
+  const iv = Buffer.from(base64Iv, "base64");
+  const decipher = crypto.createDecipheriv("aes-128-gcm", Buffer.from(secretKey, "hex"), iv);
+  decipher.setAutoPadding(false);
+  decipher.setAuthTag(secret.subarray(-16));
+  return Buffer.concat([decipher.update(secret.subarray(0, -16)), decipher.final()]).toString("utf8");
+}
+\`\`\`
+
+`,
       tags: ["Card"],
+      security: [{ credentialAuth: [] }],
       validateResponse: true,
       responses: {
         200: {
@@ -217,6 +275,7 @@ export default new Hono()
       summary: "Create card",
       tags: ["Card"],
       validateResponse: true,
+      security: [{ credentialAuth: [] }],
       responses: {
         200: {
           description: "Card created",
@@ -331,6 +390,50 @@ export default new Hono()
       summary: "Update card",
       tags: ["Card"],
       validateResponse: true,
+      security: [{ credentialAuth: [] }],
+      description: `
+Update the card status, PIN, or installments mode.
+
+**Updating the card PIN**
+
+1. **Encrypt the PIN**: Format and encrypt the PIN using the session secret.
+2. **Submit the update**: Send the encrypted PIN with the \`sessionId\` to update the card.
+
+**PIN Requirements**
+- Length must be between 4–12 digits.
+- No simple sequences (e.g., 1234, 0000)
+- No repeated numbers (e.g., 1111, 2222)
+
+**PIN Encryption Format**
+
+\`\`\`typescript
+async function encryptPIN(pin: string) {
+  if (pin.length < 4 || pin.length > 12) throw new Error("PIN must be between 4–12 digits");
+  const data = \`2\${pin.length.toString(16)}\${pin}\${"F".repeat(14 - pin.length)}\`;
+
+  const secret = crypto.randomUUID().replaceAll("-", "");
+  const secretKeyBase64 = Buffer.from(secret, "hex").toString("base64");
+  const secretKeyBase64Buffer = Buffer.from(secretKeyBase64, "utf8");
+  const secretKeyBase64BufferEncrypted = crypto.publicEncrypt(
+    { key: pem, padding: crypto.constants.RSA_PKCS1_OAEP_PADDING },
+    secretKeyBase64Buffer,
+  );
+  const sessionId = secretKeyBase64BufferEncrypted.toString("base64");
+  
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-128-gcm", Buffer.from(secret, "hex"), iv);
+  const encrypted = Buffer.concat([cipher.update(data, "utf8"), cipher.final()]);
+  const authTag = cipher.getAuthTag();
+  
+  return {
+    data: Buffer.concat([encrypted, authTag]).toString("base64"),
+    iv: iv.toString("base64"),
+    sessionId,
+  };
+}
+\`\`\`
+
+`,
       responses: {
         200: {
           description: "Card updated",
