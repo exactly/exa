@@ -47,7 +47,7 @@ import {
 } from "../generated/contracts";
 import keeper from "../utils/keeper";
 import { sendPushNotification } from "../utils/onesignal";
-import { collectors, createMutex, getMutex, headerValidator, signIssuerOp } from "../utils/panda";
+import { collectors, createMutex, getMutex, getUser, headerValidator, signIssuerOp, updateUser } from "../utils/panda";
 import publicClient from "../utils/publicClient";
 import { track } from "../utils/segment";
 import traceClient, { type CallFrame } from "../utils/traceClient";
@@ -72,6 +72,7 @@ const BaseTransaction = v.object({
     merchantName: v.string(),
     authorizedAt: v.optional(v.pipe(v.string(), v.isoTimestamp())),
     authorizedAmount: v.nullish(v.number()),
+    userId: v.string(),
   }),
 });
 
@@ -327,11 +328,15 @@ export default new Hono().post(
               return payload.body.spend.authorizedAmount - payload.body.spend.amount;
             })() / 100;
           const refundAmount = BigInt(Math.round(refundAmountUsd * 1e6));
-          const card = await database.query.cards.findFirst({
-            columns: {},
-            where: eq(cards.id, payload.body.spend.cardId),
-            with: { credential: { columns: { account: true } } },
-          });
+          const [card, user] = await Promise.all([
+            database.query.cards.findFirst({
+              columns: {},
+              where: eq(cards.id, payload.body.spend.cardId),
+              with: { credential: { columns: { account: true } } },
+            }),
+            getUser(payload.body.spend.userId),
+          ]);
+          if (!user.isActive) throw new Error("user is not active");
           if (!card) throw new Error("card not found");
           const account = v.parse(Address, card.credential.account);
           setUser({ id: account });
@@ -520,6 +525,16 @@ export default new Hono().post(
             return c.json({ code: "ok" });
           } catch (error: unknown) {
             captureException(error, { level: "fatal", contexts: { tx: { call } } });
+            if (payload.action === "completed") {
+              const tx = await database.query.transactions.findFirst({
+                where: and(eq(transactions.id, payload.body.id), eq(transactions.cardId, payload.body.spend.cardId)),
+              });
+              if (!tx || !v.parse(TransactionPayload, tx.payload).bodies.some((t) => t.action === "created")) {
+                await updateUser({ id: payload.body.spend.userId, isActive: false });
+                getActiveSpan()?.setAttributes({ "panda.suspicious": true, "panda.amount": payload.body.spend.amount });
+                return c.text(error instanceof Error ? error.message : String(error), 556 as UnofficialStatusCode);
+              }
+            }
             return c.text(error instanceof Error ? error.message : String(error), 569 as UnofficialStatusCode);
           }
         } finally {

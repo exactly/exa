@@ -573,6 +573,12 @@ describe("card operations", () => {
         });
       });
 
+      beforeEach(() => {
+        vi.spyOn(pandaUtils, "getUser").mockResolvedValue(userResponseTemplate);
+      });
+
+      afterEach(() => vi.restoreAllMocks());
+
       it("handles reversal", async () => {
         const amount = 2073;
         const cardId = "card";
@@ -779,6 +785,8 @@ describe("card operations", () => {
         });
       });
 
+      afterEach(() => vi.restoreAllMocks());
+
       it("settles debit", async () => {
         const hold = 7;
         const capture = 7;
@@ -890,8 +898,8 @@ describe("card operations", () => {
       it("partial capture debit", async () => {
         const hold = 80;
         const capture = 40;
-
         const cardId = "partial-capture-debit";
+        vi.spyOn(pandaUtils, "getUser").mockResolvedValue(userResponseTemplate);
         await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
         const createResponse = await appClient.index.$post({
           ...authorization,
@@ -976,6 +984,54 @@ describe("card operations", () => {
             bodies: [{ action: "completed", body: { spend: { amount: capture } } }],
           },
         });
+      });
+
+      it("force capture fraud", async () => {
+        const updateUser = vi.spyOn(pandaUtils, "updateUser").mockResolvedValue(userResponseTemplate);
+        const currentFunds = await publicClient
+          .readContract({
+            address: inject("MarketUSDC"),
+            abi: marketAbi,
+            functionName: "balanceOf",
+            args: [account],
+          })
+          .then((shares) => {
+            return publicClient.readContract({
+              address: inject("MarketUSDC"),
+              abi: marketAbi,
+              functionName: "convertToAssets",
+              args: [shares],
+            });
+          });
+
+        const capture = Number(currentFunds) / 1e4 + 10_000;
+
+        const cardId = "force-capture-fraud";
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        const { authorizedAmount, ...spend } = authorization.json.body.spend;
+        const completeResponse = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "completed",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: {
+                ...spend,
+                amount: capture,
+                authorizedAt: new Date().toISOString(),
+                postedAt: new Date().toISOString(),
+                cardId,
+                status: "completed",
+                userId: account,
+              },
+            },
+          },
+        });
+
+        expect(completeResponse.status).toBe(556);
+        expect(updateUser).toHaveBeenCalledWith({ id: account, isActive: false });
       });
     });
   });
@@ -1265,6 +1321,18 @@ const fakeTokenAbi = [
     stateMutability: "nonpayable",
   },
 ];
+
+const userResponseTemplate = {
+  id: "some-id",
+  isActive: true,
+  firstName: "John",
+  lastName: "Doe",
+  email: "john.doe@example.com",
+  phoneCountryCode: "+1",
+  phoneNumber: "1234567890",
+  applicationStatus: "approved",
+  applicationReason: "",
+} as const;
 
 vi.mock("@sentry/node", { spy: true });
 

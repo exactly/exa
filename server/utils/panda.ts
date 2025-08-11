@@ -70,6 +70,27 @@ export async function createUser(user: {
   return await request(object({ id: string() }), "/issuing/applications/user", {}, user, "POST");
 }
 
+export async function updateUser(user: {
+  id: string;
+  email?: string;
+  firstName?: string;
+  isActive?: boolean;
+  lastName?: string;
+  phoneCountryCode?: string;
+  phoneNumber?: string;
+  address?: {
+    line1: string;
+    line2?: string;
+    city: string;
+    region: string;
+    postalCode: string;
+    countryCode: string;
+    country?: string;
+  };
+}) {
+  return await request(UserResponse, `/issuing/users/${user.id}`, {}, user, "PATCH");
+}
+
 export async function getUser(userId: string) {
   return await request(UserResponse, `/issuing/users/${userId}`);
 }
@@ -108,7 +129,7 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
   url: `/${string}`,
   headers = {},
   body?: unknown,
-  method: "GET" | "POST" | "PUT" = body === undefined ? "GET" : "POST",
+  method: "GET" | "POST" | "PUT" | "PATCH" = body === undefined ? "GET" : "POST",
   timeout = 10_000,
 ) {
   const response = await fetch(`${baseURL}${url}`, {
