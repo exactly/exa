@@ -4,7 +4,7 @@ import { MATURITY_INTERVAL, WAD } from "@exactly/lib";
 import { ArrowLeft, ArrowRight } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { format } from "date-fns";
-import { router, useLocalSearchParams } from "expo-router";
+import { useNavigation, useLocalSearchParams } from "expo-router";
 import React, { useCallback } from "react";
 import { Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -13,6 +13,7 @@ import { nonEmpty, pipe, safeParse, string } from "valibot";
 import { encodeAbiParameters, zeroAddress } from "viem";
 import { useAccount, useBytecode, useWriteContract } from "wagmi";
 
+import type { AppNavigationProperties } from "../../app/(app)/_layout";
 import SafeView from "../../components/shared/SafeView";
 import Text from "../../components/shared/Text";
 import View from "../../components/shared/View";
@@ -29,6 +30,7 @@ import Skeleton from "../shared/Skeleton";
 export default function Pay() {
   const { address } = useAccount();
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<AppNavigationProperties>();
   const { market: exaUSDC } = useAsset(marketUSDCAddress);
   const { success, output: repayMaturity } = safeParse(
     pipe(string(), nonEmpty("no maturity")),
@@ -64,7 +66,11 @@ export default function Pay() {
           <View padded position="absolute" left={0}>
             <Pressable
               onPress={() => {
-                router.back();
+                if (navigation.canGoBack()) {
+                  navigation.goBack();
+                } else {
+                  navigation.replace("(app)");
+                }
               }}
             >
               <ArrowLeft size={24} color="$uiNeutralPrimary" />
@@ -193,6 +199,7 @@ function RolloverButton({
   };
 }) {
   const { address } = useAccount();
+  const navigation = useNavigation<AppNavigationProperties>();
   const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
   const toast = useToastController();
 
@@ -247,7 +254,7 @@ function RolloverButton({
           burntOptions: { haptic: "success", preset: "done" },
         });
         await refetchPendingProposals();
-        router.replace("/(app)/pending-proposals");
+        navigation.replace("pending-proposals/index");
       },
       onError: (error) => {
         toast.show("Rollover failed", {

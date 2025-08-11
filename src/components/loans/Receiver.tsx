@@ -5,13 +5,14 @@ import { useToastController } from "@tamagui/toast";
 import { useForm, useStore } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import { getStringAsync } from "expo-clipboard";
-import { router } from "expo-router";
+import { useNavigation } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { Pressable } from "react-native";
 import { ScrollView, Separator, XStack, YStack } from "tamagui";
 import { parse } from "valibot";
 import { useAccount } from "wagmi";
 
+import type { AppNavigationProperties } from "../../app/(app)/_layout";
 import type { Loan } from "../../utils/queryClient";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
@@ -24,7 +25,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function Receiver() {
-  const { canGoBack } = router;
+  const navigation = useNavigation<AppNavigationProperties>();
   const toast = useToastController();
   const { presentArticle } = useIntercom();
   const { address } = useAccount();
@@ -40,7 +41,7 @@ export default function Receiver() {
       try {
         const receiver = parse(Address, value.receiver);
         queryClient.setQueryData(["loan"], (old: Loan) => ({ ...old, receiver }));
-        router.push("/loan/review");
+        navigation.navigate("loan", { screen: "review" });
       } catch {
         toast.show("Invalid address", {
           native: true,
@@ -68,11 +69,11 @@ export default function Receiver() {
         <Pressable
           onPress={() => {
             queryClient.setQueryData(["loan"], (old: Loan) => ({ ...old, receiver: undefined }));
-            if (canGoBack()) {
-              router.back();
+            if (navigation.canGoBack()) {
+              navigation.goBack();
               return;
             }
-            router.replace("/loan/installments");
+            navigation.replace("loan", { screen: "installments" });
           }}
         >
           <ArrowLeft size={24} color="$uiNeutralPrimary" />

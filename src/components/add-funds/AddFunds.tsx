@@ -1,30 +1,33 @@
 import { ArrowLeft, Info } from "@tamagui/lucide-icons";
-import { router } from "expo-router";
+import { useNavigation } from "expo-router";
 import React from "react";
 import { Pressable } from "react-native";
 import { ScrollView } from "tamagui";
 
 import AddCryptoButton from "./AddCryptoButton";
+import type { AppNavigationProperties } from "../../app/(app)/_layout";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-function back() {
-  router.back();
-}
-
 export default function AddFunds() {
-  const { canGoBack } = router;
+  const navigation = useNavigation<AppNavigationProperties>();
   return (
     <SafeView fullScreen>
       <View gap={20} fullScreen padded>
         <View gap={20}>
           <View flexDirection="row" gap={10} justifyContent="space-between" alignItems="center">
-            {canGoBack() && (
-              <Pressable onPress={back}>
-                <ArrowLeft size={24} color="$uiNeutralPrimary" />
-              </Pressable>
-            )}
+            <Pressable
+              onPress={() => {
+                if (navigation.canGoBack()) {
+                  navigation.goBack();
+                } else {
+                  navigation.replace("(home)", { screen: "index" });
+                }
+              }}
+            >
+              <ArrowLeft size={24} color="$uiNeutralPrimary" />
+            </Pressable>
             <Text fontSize={15} fontWeight="bold">
               Add Funds
             </Text>

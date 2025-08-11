@@ -1,21 +1,21 @@
-import { exaPluginAddress, marketUSDCAddress } from "@exactly/common/generated/chain";
-import { ArrowDownToLine, ArrowUpRight, HandCoins, Repeat } from "@tamagui/lucide-icons";
-import { router } from "expo-router";
+import { exaPluginAddress } from "@exactly/common/generated/chain";
+import { ArrowDownToLine, ArrowUpRight } from "@tamagui/lucide-icons";
+import { useNavigation } from "expo-router";
 import React from "react";
 import { XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
 import { useAccount, useBytecode, useReadContract } from "wagmi";
 
+import type { AppNavigationProperties } from "../../app/(app)/_layout";
 import {
   upgradeableModularAccountAbi,
   useReadUpgradeableModularAccountGetInstalledPlugins,
 } from "../../generated/contracts";
-import type { Loan } from "../../utils/queryClient";
-import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import Button from "../shared/StyledButton";
 
 export default function HomeActions() {
+  const navigation = useNavigation<AppNavigationProperties>("/(app)");
   const { address: account } = useAccount();
   const { data: bytecode } = useBytecode({ address: account ?? zeroAddress, query: { enabled: !!account } });
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
@@ -47,19 +47,20 @@ export default function HomeActions() {
 
   const handleSend = async () => {
     if (isLatestPlugin) {
-      router.push("/send-funds");
+      navigation.navigate("send-funds", { screen: "index" });
     } else {
       if (isPending) return;
       const { data: proposals } = await fetchProposals();
-      const route = proposals && proposals[0] > 0n ? "/send-funds/processing" : "/send-funds";
-      router.push(route);
+      if (proposals && proposals[0] > 0n) {
+        navigation.navigate("pending-proposals/index");
+      } else {
+        navigation.navigate("send-funds", { screen: "index" });
+      }
     }
   };
   return (
     <XStack gap="$s4" justifyContent="space-between" width="100%">
       {actions.map(({ key, title, Icon }) => {
-        if (key === "swap") return null;
-        if (key === "borrow") return null;
         return (
           <YStack key={key} alignItems="center" flex={1} gap="$s3_5" flexBasis={1 / 2}>
             <Button
@@ -70,23 +71,11 @@ export default function HomeActions() {
               onPress={() => {
                 switch (key) {
                   case "deposit":
-                    router.push("/add-funds/add-crypto");
+                    navigation.navigate("add-funds", { screen: "add-crypto" });
                     break;
                   case "send":
                     handleSend().catch(reportError);
                     break;
-                  case "swap":
-                    router.push("/swaps");
-                    break;
-                  case "borrow":
-                    queryClient.setQueryData<Loan>(["loan"], () => ({
-                      market: marketUSDCAddress,
-                      amount: undefined,
-                      installments: undefined,
-                      maturity: undefined,
-                      receiver: undefined,
-                    }));
-                    router.push("/(app)/(home)/loans");
                 }
               }}
               width="100%"
@@ -106,6 +95,4 @@ export default function HomeActions() {
 const actions = [
   { key: "deposit", title: "Add funds", Icon: ArrowDownToLine },
   { key: "send", title: "Send", Icon: ArrowUpRight },
-  { key: "swap", title: "Swap", Icon: Repeat },
-  { key: "borrow", title: "Get Funds", Icon: HandCoins },
 ];

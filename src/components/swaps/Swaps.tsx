@@ -5,7 +5,7 @@ import { WAD } from "@exactly/lib";
 import type { Token } from "@lifi/sdk";
 import { ArrowLeft, Check, CircleHelp, Repeat, TriangleAlert } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
-import { router } from "expo-router";
+import { useNavigation } from "expo-router";
 import { openBrowserAsync } from "expo-web-browser";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Pressable } from "react-native";
@@ -21,6 +21,7 @@ import TokenSelectModal from "./SelectorModal";
 import Success from "./Success";
 import SwapDetails from "./SwapDetails";
 import TokenInput from "./TokenInput";
+import type { AppNavigationProperties } from "../../app/(app)/_layout";
 import {
   auditorAbi,
   marketAbi,
@@ -64,7 +65,7 @@ const defaultSwap: Swap = {
 const SLIPPAGE_PERCENT = 5n;
 
 export default function Swaps() {
-  const { canGoBack } = router;
+  const navigation = useNavigation<AppNavigationProperties>();
   const insets = useSafeAreaInsets();
   const { presentArticle } = useIntercom();
   const { address: account } = useAccount();
@@ -374,10 +375,10 @@ export default function Swaps() {
         >
           <Pressable
             onPress={() => {
-              if (canGoBack()) {
-                router.back();
+              if (navigation.canGoBack()) {
+                navigation.goBack();
               } else {
-                router.replace("/");
+                navigation.replace("(home)", { screen: "defi" });
               }
             }}
           >

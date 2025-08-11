@@ -2,7 +2,7 @@ import { exaPluginAddress, exaPreviewerAddress, previewerAddress } from "@exactl
 import { healthFactor, WAD } from "@exactly/lib";
 import { TimeToFullDisplay } from "@sentry/react-native";
 import { useQuery } from "@tanstack/react-query";
-import { router, useLocalSearchParams } from "expo-router";
+import { useNavigation, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
 import { RefreshControl } from "react-native";
 import { ScrollView, useTheme, YStack } from "tamagui";
@@ -17,6 +17,7 @@ import HomeDisclaimer from "./HomeDisclaimer";
 import PortfolioSummary from "./PortfolioSummary";
 import SpendingLimitsSheet from "./SpendingLimitsSheet";
 import CardUpgradeSheet from "./card-upgrade/CardUpgradeSheet";
+import type { AppNavigationProperties } from "../../app/(app)/_layout";
 import {
   useReadExaPreviewerPendingProposals,
   useReadPreviewerExactly,
@@ -42,6 +43,7 @@ export default function Home() {
   const theme = useTheme();
   const { address } = useAccount();
   const parameters = useLocalSearchParams();
+  const navigation = useNavigation<AppNavigationProperties>();
   const [paySheetOpen, setPaySheetOpen] = useState(false);
   const [spendingLimitsInfoSheetOpen, setSpendingLimitsInfoSheetOpen] = useState(false);
   const { address: account } = useAccount();
@@ -153,13 +155,13 @@ export default function Home() {
               {bytecode && exploreDeFiShown && <ExploreDeFi />}
               <OverduePayments
                 onSelect={(maturity) => {
-                  router.setParams({ ...parameters, maturity: maturity.toString() });
+                  navigation.setParams({ ...parameters, maturity: maturity.toString() });
                   setPaySheetOpen(true);
                 }}
               />
               <UpcomingPayments
                 onSelect={(maturity) => {
-                  router.setParams({ ...parameters, maturity: maturity.toString() });
+                  navigation.setParams({ ...parameters, maturity: maturity.toString() });
                   setPaySheetOpen(true);
                 }}
               />
@@ -171,7 +173,7 @@ export default function Home() {
             open={paySheetOpen}
             onClose={() => {
               setPaySheetOpen(false);
-              router.replace({ pathname: "/", params: { ...parameters, maturity: null } });
+              navigation.setParams({ ...parameters, maturity: undefined });
             }}
           />
           <CardUpgradeSheet

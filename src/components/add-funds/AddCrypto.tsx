@@ -2,13 +2,14 @@ import chain from "@exactly/common/generated/chain";
 import shortenHex from "@exactly/common/shortenHex";
 import { AlertTriangle, ArrowLeft, Files, Share as ShareIcon } from "@tamagui/lucide-icons";
 import { setStringAsync } from "expo-clipboard";
-import { router } from "expo-router";
+import { useNavigation } from "expo-router";
 import React, { useCallback, useState } from "react";
 import { PixelRatio, Pressable, Share } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 import { useAccount } from "wagmi";
 
 import SupportedAssetsSheet from "./SupportedAssetsSheet";
+import type { AppNavigationProperties } from "../../app/(app)/_layout";
 import OptimismImage from "../../assets/images/optimism.svg";
 import assetLogos from "../../utils/assetLogos";
 import reportError from "../../utils/reportError";
@@ -25,10 +26,10 @@ const supportedAssets = Object.entries(assetLogos)
   .map(([symbol, image]) => ({ symbol, image }));
 
 export default function AddCrypto() {
+  const navigation = useNavigation<AppNavigationProperties>();
   const fontScale = PixelRatio.getFontScale();
   const { presentArticle } = useIntercom();
   const { address } = useAccount();
-  const { canGoBack } = router;
 
   const [copyAddressShown, setCopyAddressShown] = useState(false);
   const [supportedAssetsShown, setSupportedAssetsShown] = useState(false);
@@ -51,10 +52,10 @@ export default function AddCrypto() {
             <View position="absolute" left={0}>
               <Pressable
                 onPress={() => {
-                  if (canGoBack()) {
-                    router.back();
+                  if (navigation.canGoBack()) {
+                    navigation.goBack();
                   } else {
-                    router.replace("/");
+                    navigation.replace("(home)", { screen: "index" });
                   }
                 }}
               >

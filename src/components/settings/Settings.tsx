@@ -1,11 +1,12 @@
 import { ArrowLeft, HelpCircle, LogOut } from "@tamagui/lucide-icons";
 import { setStringAsync } from "expo-clipboard";
-import { router, useRouter } from "expo-router";
+import { useNavigation } from "expo-router";
 import React from "react";
 import { Alert, Pressable } from "react-native";
 import { ScrollView, Separator, XStack } from "tamagui";
 import { useAccount, useDisconnect } from "wagmi";
 
+import type { AppNavigationProperties } from "../../app/(app)/_layout";
 import release from "../../generated/release";
 import { logout as logoutOneSignal } from "../../utils/onesignal";
 import queryClient from "../../utils/queryClient";
@@ -16,7 +17,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function Settings() {
-  const { canGoBack } = useRouter();
+  const navigation = useNavigation<AppNavigationProperties>();
   const { connector } = useAccount();
   const { disconnect } = useDisconnect();
   const { present, logout } = useIntercom();
@@ -28,15 +29,17 @@ export default function Settings() {
       <View fullScreen padded gap="$s5">
         <View flexDirection="row" gap="$s3" justifyContent="space-around" alignItems="center">
           <View position="absolute" left={0}>
-            {canGoBack() && (
-              <Pressable
-                onPress={() => {
-                  router.back();
-                }}
-              >
-                <ArrowLeft size={24} color="$uiNeutralPrimary" />
-              </Pressable>
-            )}
+            <Pressable
+              onPress={() => {
+                if (navigation.canGoBack()) {
+                  navigation.goBack();
+                } else {
+                  navigation.replace("(home)", { screen: "index" });
+                }
+              }}
+            >
+              <ArrowLeft size={24} color="$uiNeutralPrimary" />
+            </Pressable>
           </View>
           <Text emphasized subHeadline color="$uiNeutralPrimary">
             Settings
@@ -66,7 +69,7 @@ export default function Settings() {
                       queryClient.clear();
                       queryClient.unmount();
                       disconnect();
-                      router.replace("/onboarding");
+                      navigation.replace("onboarding");
                     })
                     .catch(reportError);
                 }}

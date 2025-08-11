@@ -2,12 +2,13 @@ import shortenHex from "@exactly/common/shortenHex";
 import { Address } from "@exactly/common/validation";
 import { ArrowLeft, User, UserMinus, UserPlus } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
-import { router } from "expo-router";
+import { useNavigation } from "expo-router";
 import React from "react";
 import { Alert, Pressable } from "react-native";
 import { Avatar, ScrollView, XStack } from "tamagui";
 import { parse } from "valibot";
 
+import type { AppNavigationProperties } from "../../app/(app)/_layout";
 import queryClient, { type Withdraw } from "../../utils/queryClient";
 import AssetSelector from "../shared/AssetSelector";
 import Button from "../shared/Button";
@@ -16,7 +17,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function AssetSelection() {
-  const { canGoBack } = router;
+  const navigation = useNavigation<AppNavigationProperties>();
   const { data: withdraw } = useQuery<Withdraw>({ queryKey: ["withdrawal"] });
   const { data: savedContacts } = useQuery<{ address: Address; ens: string }[] | undefined>({
     queryKey: ["contacts", "saved"],
@@ -25,7 +26,7 @@ export default function AssetSelection() {
     queryClient.setQueryData<Withdraw>(["withdrawal"], (old) => {
       return old ? { ...old, market, isExternalAsset } : { market, isExternalAsset, amount: 0n };
     });
-    router.push("/send-funds/amount");
+    navigation.navigate("send-funds", { screen: "amount" });
   };
   const hasContact = savedContacts?.find((contact) => contact.address === withdraw?.receiver);
   return (
@@ -33,15 +34,17 @@ export default function AssetSelection() {
       <View gap={20} fullScreen padded>
         <View flexDirection="row" gap={10} justifyContent="space-around" alignItems="center">
           <View position="absolute" left={0}>
-            {canGoBack() && (
-              <Pressable
-                onPress={() => {
-                  router.back();
-                }}
-              >
-                <ArrowLeft size={24} color="$uiNeutralPrimary" />
-              </Pressable>
-            )}
+            <Pressable
+              onPress={() => {
+                if (navigation.canGoBack()) {
+                  navigation.goBack();
+                } else {
+                  navigation.replace("send-funds", { screen: "index" });
+                }
+              }}
+            >
+              <ArrowLeft size={24} color="$uiNeutralPrimary" />
+            </Pressable>
           </View>
           <Text emphasized color="$uiNeutralPrimary" fontSize={15}>
             Choose asset

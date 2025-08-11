@@ -3,33 +3,36 @@ import { exaPluginAddress } from "@exactly/common/generated/chain";
 import shortenHex from "@exactly/common/shortenHex";
 import { Address } from "@exactly/common/validation";
 import { WAD } from "@exactly/lib";
-import { ArrowLeft, Coins, User, FilePen } from "@tamagui/lucide-icons";
+import { ArrowLeft, Coins, User, FilePen, Check, X } from "@tamagui/lucide-icons";
 import { useForm, useStore } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
-import { router } from "expo-router";
+import { useNavigation } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable } from "react-native";
-import { Avatar, ScrollView, XStack } from "tamagui";
+import { Avatar, ScrollView, Square, XStack, YStack } from "tamagui";
 import { bigint, check, parse, pipe } from "valibot";
 import { encodeAbiParameters, erc20Abi, formatUnits, parseUnits, zeroAddress } from "viem";
 import { useAccount, useBytecode, useSimulateContract, useWriteContract } from "wagmi";
 
-import Failure from "./Failure";
-import Pending from "./Pending";
 import ReviewSheet from "./ReviewSheet";
-import Success from "./Success";
+import type { AppNavigationProperties } from "../../app/(app)/_layout";
 import {
   exaPluginAbi,
   upgradeableModularAccountAbi,
   useReadUpgradeableModularAccountGetInstalledPlugins,
 } from "../../generated/contracts";
+import assetLogos from "../../utils/assetLogos";
 import queryClient, { type Withdraw } from "../../utils/queryClient";
 import useAsset from "../../utils/useAsset";
 import AmountSelector from "../shared/AmountSelector";
+import AssetLogo from "../shared/AssetLogo";
 import Button from "../shared/Button";
+import GradientScrollView from "../shared/GradientScrollView";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
+import ExaSpinner from "../shared/Spinner";
 import Text from "../shared/Text";
+import TransactionDetails from "../shared/TransactionDetails";
 import View from "../shared/View";
 
 export interface WithdrawDetails {
@@ -40,7 +43,7 @@ export interface WithdrawDetails {
 }
 
 export default function Amount() {
-  const { canGoBack } = router;
+  const navigation = useNavigation<AppNavigationProperties>();
   const { address } = useAccount();
   const [reviewOpen, setReviewOpen] = useState(false);
   const { data: withdraw } = useQuery<Withdraw>({ queryKey: ["withdrawal"] });
@@ -50,7 +53,6 @@ export default function Amount() {
     defaultValues: { amount: withdraw?.amount ?? 0n },
     onSubmit: ({ value: { amount } }) => {
       queryClient.setQueryData<Withdraw>(["withdrawal"], (old) => (old ? { ...old, amount } : { amount }));
-      router.push("/send-funds/withdraw");
     },
   });
 
@@ -109,7 +111,7 @@ export default function Amount() {
     },
   });
 
-  const { writeContract, data: hash, isPending: pending, isSuccess: success, isIdle: idle } = useWriteContract();
+  const { writeContract, data: hash, isPending: pending, isSuccess: success, isError: error } = useWriteContract();
 
   const handleSubmit = useCallback(() => {
     if (market) {
@@ -151,13 +153,14 @@ export default function Amount() {
   const isFirstSend = !recentContacts?.some((contact) => contact.address === withdraw?.receiver);
 
   useEffect(() => {
-    if (success) {
+    if (success && !recentContacts?.some((contact) => contact.address === withdraw?.receiver)) {
       queryClient.setQueryData<{ address: Address; ens: string }[] | undefined>(["contacts", "recent"], (old) =>
         [{ address: parse(Address, withdraw?.receiver), ens: "" }, ...(old ?? [])].slice(0, 3),
       );
     }
-  }, [success, withdraw?.receiver]);
-  if (idle)
+  }, [success, withdraw?.receiver, recentContacts]);
+
+  if (!pending && !error && !success) {
     return (
       <SafeView fullScreen>
         <View gap={20} fullScreen padded>
@@ -165,11 +168,11 @@ export default function Amount() {
             <View position="absolute" left={0}>
               <Pressable
                 onPress={() => {
-                  if (canGoBack()) {
-                    router.back();
-                    return;
+                  if (navigation.canGoBack()) {
+                    navigation.goBack();
+                  } else {
+                    navigation.replace("send-funds", { screen: "asset" });
                   }
-                  router.replace("/send-funds");
                 }}
               >
                 <ArrowLeft size={24} color="$uiNeutralPrimary" />
@@ -310,19 +313,127 @@ export default function Amount() {
         />
       </SafeView>
     );
-  if (pending) return <Pending details={details} />;
-  if (success) return <Success details={details} hash={hash} />;
+  }
+
   return (
-    <Failure
-      details={details}
-      hash={hash}
-      onClose={() => {
-        if (isLatestPlugin) {
-          router.replace("/pending-proposals");
-        } else {
-          router.back();
-        }
-      }}
-    />
+    <GradientScrollView variant={error ? "error" : success ? (isLatestPlugin ? "info" : "success") : "neutral"}>
+      <View flex={1}>
+        <YStack gap="$s7" paddingBottom="$s9">
+          <XStack justifyContent="center" alignItems="center">
+            <Square
+              size={80}
+              borderRadius="$r4"
+              backgroundColor={
+                error
+                  ? "$interactiveBaseErrorSoftDefault"
+                  : success
+                    ? isLatestPlugin
+                      ? "$interactiveBaseInformationSoftDefault"
+                      : "$interactiveBaseSuccessSoftDefault"
+                    : "$backgroundStrong"
+              }
+            >
+              {pending && <ExaSpinner backgroundColor="transparent" color="$uiNeutralPrimary" />}
+              {success && isLatestPlugin && <ExaSpinner backgroundColor="transparent" color="$uiInfoSecondary" />}
+              {success && !isLatestPlugin && <Check size={48} color="$uiSuccessSecondary" strokeWidth={2} />}
+              {error && <X size={48} color="$uiErrorSecondary" strokeWidth={2} />}
+            </Square>
+          </XStack>
+          <YStack gap="$s4_5" justifyContent="center" alignItems="center">
+            <Text secondary body>
+              {pending && (
+                <>
+                  Sending to&nbsp;
+                  <Text emphasized primary body color="$uiNeutralPrimary">
+                    {shortenHex(withdraw?.receiver ?? "", 5, 7)}
+                  </Text>
+                </>
+              )}
+              {success && (
+                <>
+                  {isLatestPlugin ? "Processing" : "Paid"}&nbsp;
+                  <Text emphasized primary body color="$uiNeutralPrimary">
+                    Withdrawal
+                  </Text>
+                </>
+              )}
+              {error && (
+                <>
+                  Failed&nbsp;
+                  <Text emphasized primary body color="$uiNeutralPrimary">
+                    {shortenHex(withdraw?.receiver ?? "", 3, 5)}
+                  </Text>
+                </>
+              )}
+            </Text>
+            <Text title primary color="$uiNeutralPrimary">
+              {Number(details.usdValue).toLocaleString(undefined, {
+                style: "currency",
+                currency: "USD",
+                currencyDisplay: "narrowSymbol",
+              })}
+            </Text>
+            <XStack gap="$s2" alignItems="center">
+              <Text emphasized secondary subHeadline>
+                {Number(details.amount).toLocaleString(undefined, { maximumFractionDigits: 8 })}
+              </Text>
+              <Text emphasized secondary subHeadline>
+                &nbsp;{details.name}&nbsp;
+              </Text>
+              <AssetLogo
+                {...(details.external
+                  ? {
+                      external: true,
+                      source: { uri: external?.logoURI },
+                      width: 16,
+                      height: 16,
+                      borderRadius: 20,
+                    }
+                  : { uri: assetLogos[details.name as keyof typeof assetLogos], width: 16, height: 16 })}
+              />
+            </XStack>
+          </YStack>
+        </YStack>
+        {(success || error) && <TransactionDetails hash={hash} />}
+      </View>
+      {!pending && (
+        <YStack flex={2} justifyContent="flex-end" gap="$s5">
+          {success && (
+            <View padded alignItems="center">
+              <Text
+                emphasized
+                footnote
+                color="$interactiveBaseBrandDefault"
+                alignSelf="center"
+                hitSlop={20}
+                cursor="pointer"
+                onPress={() => {
+                  if (!details.external && isLatestPlugin) {
+                    navigation.replace("pending-proposals/index");
+                  } else {
+                    navigation.replace("send-funds", { screen: "index" });
+                  }
+                }}
+              >
+                {!details.external && isLatestPlugin ? "View pending requests" : "Close"}
+              </Text>
+            </View>
+          )}
+          {error && (
+            <YStack alignItems="center" gap="$s4">
+              <Pressable
+                onPress={() => {
+                  navigation.replace("send-funds", { screen: "index" });
+                }}
+              >
+                <Text emphasized footnote color="$uiBrandSecondary">
+                  Close
+                </Text>
+              </Pressable>
+            </YStack>
+          )}
+        </YStack>
+      )}
+    </GradientScrollView>
   );
 }

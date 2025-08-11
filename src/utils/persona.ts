@@ -1,18 +1,18 @@
 import type { Credential } from "@exactly/common/validation";
 import { sdk } from "@farcaster/miniapp-sdk";
-import { router } from "expo-router";
 import { Platform } from "react-native";
 import { Environment, Inquiry } from "react-native-persona";
 
 import queryClient from "./queryClient";
 import reportError from "./reportError";
 import { getKYCLink } from "./server";
+import type { AppNavigationProperties } from "../app/(app)/_layout";
 
 export const environment = __DEV__ ? Environment.SANDBOX : Environment.PRODUCTION;
 export const KYC_TEMPLATE_ID = "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2";
 export const LEGACY_KYC_TEMPLATE_ID = "itmpl_8uim4FvD5P3kFpKHX37CW817";
 
-export async function createInquiry(credential: Credential) {
+export async function createInquiry(credential: Credential, navigation: AppNavigationProperties) {
   if (Platform.OS === "web") {
     const url = await getKYCLink(KYC_TEMPLATE_ID);
     if (await sdk.isInMiniApp()) {
@@ -28,19 +28,19 @@ export async function createInquiry(credential: Credential) {
     .referenceId(credential.credentialId)
     .onCanceled(() => {
       queryClient.invalidateQueries({ queryKey: ["kyc", "status"] }).catch(reportError);
-      router.replace("/(app)/(home)");
+      navigation.replace("(home)", { screen: "index" });
     })
     .onComplete(() => {
       queryClient.invalidateQueries({ queryKey: ["kyc", "status"] }).catch(reportError);
       queryClient.setQueryData(["card-upgrade"], 1);
-      router.replace("/(app)/(home)");
+      navigation.replace("(home)", { screen: "index" });
     })
     .onError((error) => reportError(error))
     .build()
     .start();
 }
 
-export async function resumeInquiry(inquiryId: string, sessionToken: string) {
+export async function resumeInquiry(inquiryId: string, sessionToken: string, navigation: AppNavigationProperties) {
   if (Platform.OS === "web") {
     const url = await getKYCLink(KYC_TEMPLATE_ID);
     if (await sdk.isInMiniApp()) {
@@ -55,12 +55,12 @@ export async function resumeInquiry(inquiryId: string, sessionToken: string) {
     .sessionToken(sessionToken)
     .onCanceled(() => {
       queryClient.invalidateQueries({ queryKey: ["kyc", "status"] }).catch(reportError);
-      router.replace("/(app)/(home)");
+      navigation.replace("(home)", { screen: "index" });
     })
     .onComplete(() => {
       queryClient.invalidateQueries({ queryKey: ["kyc", "status"] }).catch(reportError);
       queryClient.setQueryData(["card-upgrade"], 1);
-      router.replace("/(app)/(home)");
+      navigation.replace("(home)", { screen: "index" });
     })
     .build()
     .start();

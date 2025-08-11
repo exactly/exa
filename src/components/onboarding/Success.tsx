@@ -1,8 +1,9 @@
 import { ArrowRight } from "@tamagui/lucide-icons";
-import { router } from "expo-router";
+import { useNavigation } from "expo-router";
 import React from "react";
 import { StyleSheet } from "react-native";
 
+import type { AppNavigationProperties } from "../../app/(app)/_layout";
 import AccountCreatedBlob from "../../assets/images/account-created-blob.svg";
 import AccountCreatedImage from "../../assets/images/account-created.svg";
 import ActionButton from "../shared/ActionButton";
@@ -11,6 +12,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function Success() {
+  const navigation = useNavigation<AppNavigationProperties>();
   return (
     <SafeView fullScreen backgroundColor="$backgroundSoft">
       <View fullScreen padded>
@@ -36,7 +38,7 @@ export default function Success() {
               marginTop="$s4"
               marginBottom="$s5"
               onPress={() => {
-                router.replace("/(app)/(home)");
+                navigation.replace("(home)", { screen: "index" });
               }}
               iconAfter={<ArrowRight color="$interactiveOnBaseBrandDefault" />}
             >

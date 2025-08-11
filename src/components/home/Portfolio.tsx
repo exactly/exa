@@ -1,6 +1,6 @@
 import { previewerAddress } from "@exactly/common/generated/chain";
 import { ArrowLeft, CircleHelp } from "@tamagui/lucide-icons";
-import { router } from "expo-router";
+import { useNavigation } from "expo-router";
 import { openBrowserAsync } from "expo-web-browser";
 import React from "react";
 import { Pressable, RefreshControl } from "react-native";
@@ -9,6 +9,7 @@ import { zeroAddress } from "viem";
 import { useAccount } from "wagmi";
 
 import AssetList from "./AssetList";
+import type { AppNavigationProperties } from "../../app/(app)/_layout";
 import { useReadPreviewerExactly } from "../../generated/contracts";
 import reportError from "../../utils/reportError";
 import useIntercom from "../../utils/useIntercom";
@@ -18,10 +19,9 @@ import View from "../shared/View";
 
 export default function Portfolio() {
   const theme = useTheme();
-  const { presentArticle } = useIntercom();
-  const { canGoBack } = router;
   const { address } = useAccount();
-
+  const { presentArticle } = useIntercom();
+  const navigation = useNavigation<AppNavigationProperties>();
   const style = { backgroundColor: theme.backgroundSoft.val, margin: -5 };
 
   const {
@@ -44,11 +44,11 @@ export default function Portfolio() {
       <View padded flexDirection="row" gap={10} paddingBottom="$s4" justifyContent="space-between" alignItems="center">
         <Pressable
           onPress={() => {
-            if (canGoBack()) {
-              router.back();
-              return;
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.replace("(home)", { screen: "index" });
             }
-            router.replace("/");
           }}
         >
           <ArrowLeft size={24} color="$uiNeutralPrimary" />
@@ -114,6 +114,7 @@ export default function Portfolio() {
               color="$interactiveOnDisabled"
               textDecorationLine="underline"
               onPress={() => {
+                // TODO call sdk.actions.openUrl if in miniapp
                 openBrowserAsync(`https://exact.ly/`).catch(reportError);
               }}
             >

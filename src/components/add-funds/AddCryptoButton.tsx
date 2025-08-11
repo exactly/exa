@@ -1,8 +1,9 @@
-import { router } from "expo-router";
+import { useNavigation } from "expo-router";
 import React from "react";
 import { Pressable } from "react-native";
 import { View, XStack } from "tamagui";
 
+import type { AppNavigationProperties } from "../../app/(app)/_layout";
 import CubeWithCircles from "../../assets/images/cube-with-circles.svg";
 import Optimism from "../../assets/images/optimism.svg";
 import assetLogos from "../../utils/assetLogos";
@@ -14,13 +15,14 @@ const supportedAssets = Object.entries(assetLogos)
   .filter(([symbol]) => symbol !== "USDC.e" && symbol !== "DAI")
   .map(([symbol, image]) => ({ symbol, image }));
 
-function navigate() {
-  router.push("../add-funds/add-crypto");
-}
-
 export default function AddCryptoButton() {
+  const navigation = useNavigation<AppNavigationProperties>();
   return (
-    <Pressable onPress={navigate}>
+    <Pressable
+      onPress={() => {
+        navigation.navigate("add-funds", { screen: "add-crypto" });
+      }}
+    >
       <View borderWidth={1} borderRadius="$r5" borderColor="$borderNeutralSoft" padding={16} gap={20}>
         <View gap={10} flexDirection="row" alignItems="center">
           <View

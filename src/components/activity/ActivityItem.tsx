@@ -9,12 +9,13 @@ import {
 } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { router } from "expo-router";
+import { useNavigation } from "expo-router";
 import { getName, registerLocale, type LocaleData } from "i18n-iso-countries/index";
 import React from "react";
 import { XStack, YStack } from "tamagui";
 import { titleCase } from "title-case";
 
+import type { AppNavigationProperties } from "../../app/(app)/_layout";
 import isProcessing from "../../utils/isProcessing";
 import queryClient, { type ActivityItem as Item } from "../../utils/queryClient";
 import Image from "../shared/Image";
@@ -23,6 +24,7 @@ import Text from "../shared/Text";
 registerLocale(require("i18n-iso-countries/langs/en.json") as LocaleData); // eslint-disable-line @typescript-eslint/no-require-imports, unicorn/prefer-module
 
 export default function ActivityItem({ item, isLast }: { item: Item; isLast: boolean }) {
+  const navigation = useNavigation<AppNavigationProperties>();
   const { data: country } = useQuery({ queryKey: ["user", "country"] });
   const processing = item.type === "panda" && country === "US" && isProcessing(item.timestamp);
   const refund = item.type === "panda" && item.usdAmount < 0;
@@ -38,7 +40,7 @@ export default function ActivityItem({ item, isLast }: { item: Item; isLast: boo
       onPress={() => {
         if (["card", "received", "sent", "repay", "panda"].includes(item.type)) {
           queryClient.setQueryData(["activity", "details"], item);
-          router.push({ pathname: "/activity-details" });
+          navigation.navigate("activity-details");
         }
       }}
     >

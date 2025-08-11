@@ -17,13 +17,14 @@ import {
   SearchSlash,
 } from "@tamagui/lucide-icons";
 import { format } from "date-fns";
-import { router } from "expo-router";
+import { useNavigation } from "expo-router";
 import React from "react";
 import { Pressable, RefreshControl, ScrollView } from "react-native";
 import { XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
 import { useAccount } from "wagmi";
 
+import type { AppNavigationProperties } from "../../app/(app)/_layout";
 import { useReadExaPreviewerPendingProposals } from "../../generated/contracts";
 import reportError from "../../utils/reportError";
 import useAsset from "../../utils/useAsset";
@@ -108,7 +109,7 @@ function getProposal(proposal: Proposal): ProposalWithMetadata {
 }
 
 export default function PendingProposals() {
-  const { canGoBack } = router;
+  const navigation = useNavigation<AppNavigationProperties>();
   const { address } = useAccount();
   const { presentArticle } = useIntercom();
   const {
@@ -126,10 +127,10 @@ export default function PendingProposals() {
         <View flexDirection="row" gap={10} paddingBottom="$s4" justifyContent="space-between" alignItems="center">
           <Pressable
             onPress={() => {
-              if (canGoBack()) {
-                router.back();
+              if (navigation.canGoBack()) {
+                navigation.goBack();
               } else {
-                router.replace("/");
+                navigation.replace("(home)", { screen: "index" });
               }
             }}
           >

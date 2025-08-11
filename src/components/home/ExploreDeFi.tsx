@@ -1,14 +1,16 @@
 import { ArrowRight, XCircle } from "@tamagui/lucide-icons";
-import { router } from "expo-router";
+import { useNavigation } from "expo-router";
 import React from "react";
 import { Platform } from "react-native";
 import { XStack, YStack } from "tamagui";
 
+import type { AppNavigationProperties } from "../../app/(app)/_layout";
 import DeFiBanner from "../../assets/images/defi-banner.svg";
 import queryClient from "../../utils/queryClient";
 import Text from "../shared/Text";
 
 export default function ExploreDeFi() {
+  const navigation = useNavigation<AppNavigationProperties>();
   return (
     <XStack
       backgroundColor="$interactiveBaseBrandDefault"
@@ -21,7 +23,7 @@ export default function ExploreDeFi() {
       cursor="pointer"
       gap="$s2"
       onPress={() => {
-        router.push("/defi");
+        navigation.navigate("(home)", { screen: "defi" });
       }}
     >
       <YStack height="100%" justifyContent="space-between" alignItems="flex-start" zIndex={2} maxWidth="50%">

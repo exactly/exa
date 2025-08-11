@@ -1,9 +1,10 @@
 import { ChevronRight } from "@tamagui/lucide-icons";
-import { router } from "expo-router";
+import { useNavigation } from "expo-router";
 import React from "react";
 import { Pressable } from "react-native";
 import { XStack, YStack } from "tamagui";
 
+import type { AppNavigationProperties } from "../../app/(app)/_layout";
 import type { getActivity } from "../../utils/server";
 import ActivityItem from "../activity/ActivityItem";
 import Text from "../shared/Text";
@@ -18,6 +19,7 @@ export default function LatestActivity({
   title?: string;
   emptyComponent?: React.ReactNode;
 }) {
+  const navigation = useNavigation<AppNavigationProperties>();
   return (
     <View backgroundColor="$backgroundSoft" borderRadius="$r3" gap="$s4">
       <XStack alignItems="center" justifyContent="space-between" paddingHorizontal="$s4" paddingTop="$s4">
@@ -28,7 +30,7 @@ export default function LatestActivity({
           <Pressable
             hitSlop={15}
             onPress={() => {
-              router.push("/activity");
+              navigation.navigate("activity");
             }}
           >
             <XStack gap="$s1" alignItems="center">

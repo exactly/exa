@@ -1,12 +1,13 @@
 import type { Credential } from "@exactly/common/validation";
 import { ArrowDownToLine, ArrowLeft, Check, IdCard } from "@tamagui/lucide-icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { router } from "expo-router";
+import { useNavigation } from "expo-router";
 import React, { useContext } from "react";
 import { Pressable } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import Step from "./Step";
+import type { AppNavigationProperties } from "../../app/(app)/_layout";
 import { createInquiry, KYC_TEMPLATE_ID, resumeInquiry } from "../../utils/persona";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
@@ -19,24 +20,26 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function GettingStarted() {
+  const navigation = useNavigation<AppNavigationProperties>();
   const { steps } = useContext(OnboardingContext);
   const { presentArticle } = useIntercom();
-  const { canGoBack } = router;
   return (
     <SafeView fullScreen backgroundColor="$backgroundBrandSoft" paddingBottom={0}>
       <View gap={20} fullScreen>
         <View gap={20} padded paddingBottom={0}>
           <View flexDirection="row" gap={10} justifyContent="space-around" alignItems="center">
             <View position="absolute" left={0}>
-              {canGoBack() && (
-                <Pressable
-                  onPress={() => {
-                    router.back();
-                  }}
-                >
-                  <ArrowLeft size={24} color="$uiNeutralPrimary" />
-                </Pressable>
-              )}
+              <Pressable
+                onPress={() => {
+                  if (navigation.canGoBack()) {
+                    navigation.goBack();
+                  } else {
+                    navigation.replace("(home)", { screen: "index" });
+                  }
+                }}
+              >
+                <ArrowLeft size={24} color="$uiNeutralPrimary" />
+              </Pressable>
             </View>
             <Text color="$uiNeutralPrimary" fontSize={15} fontWeight="bold">
               Getting started
@@ -118,6 +121,7 @@ export default function GettingStarted() {
 }
 
 function CurrentStep() {
+  const navigation = useNavigation<AppNavigationProperties>();
   const { currentStep, completedSteps } = useContext(OnboardingContext);
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const { mutateAsync: startKYC } = useMutation({
@@ -128,7 +132,7 @@ function CurrentStep() {
         const result = await getKYCStatus(KYC_TEMPLATE_ID);
         if (result === "ok") return;
         if (typeof result !== "string") {
-          resumeInquiry(result.inquiryId, result.sessionToken).catch(reportError);
+          await resumeInquiry(result.inquiryId, result.sessionToken, navigation);
         }
       } catch (error) {
         if (!(error instanceof APIError)) {
@@ -136,7 +140,7 @@ function CurrentStep() {
           return;
         }
         if (error.text === "kyc required" || error.text === "kyc not found" || error.text === "kyc not started") {
-          await createInquiry(credential);
+          await createInquiry(credential, navigation);
           return;
         }
         reportError(error);
@@ -149,7 +153,7 @@ function CurrentStep() {
   function handleAction() {
     switch (currentStep?.id) {
       case "add-funds":
-        router.push("/add-funds/add-crypto");
+        navigation.navigate("add-funds", { screen: "add-crypto" });
         break;
       case "verify-identity":
         startKYC().catch(reportError);

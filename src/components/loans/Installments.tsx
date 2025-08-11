@@ -1,12 +1,13 @@
 import { ArrowLeft, ArrowRight, CircleHelp } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
-import { router } from "expo-router";
+import { useNavigation } from "expo-router";
 import React, { useEffect } from "react";
 import { Pressable } from "react-native";
 import { ScrollView, YStack } from "tamagui";
 import { useAccount } from "wagmi";
 
 import LoanSummary from "./LoanSummary";
+import type { AppNavigationProperties } from "../../app/(app)/_layout";
 import type { Loan } from "../../utils/queryClient";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
@@ -18,7 +19,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function Installments() {
-  const { canGoBack } = router;
+  const navigation = useNavigation<AppNavigationProperties>();
   const { presentArticle } = useIntercom();
   const { address } = useAccount();
   const { data: loan } = useQuery<Loan>({ queryKey: ["loan"], enabled: !!address });
@@ -36,11 +37,11 @@ export default function Installments() {
       <View padded flexDirection="row" gap={10} paddingBottom="$s4" justifyContent="space-between" alignItems="center">
         <Pressable
           onPress={() => {
-            if (canGoBack()) {
-              router.back();
+            if (navigation.canGoBack()) {
+              navigation.goBack();
               return;
             }
-            router.replace("/loan/amount");
+            navigation.replace("loan", { screen: "amount" });
           }}
         >
           <ArrowLeft size={24} color="$uiNeutralPrimary" />
@@ -85,7 +86,7 @@ export default function Installments() {
         {loan?.installments && <LoanSummary loan={loan} />}
         <Button
           onPress={() => {
-            router.push("/(app)/loan/maturity");
+            navigation.navigate("loan", { screen: "maturity" });
           }}
           primary
           disabled={disabled}

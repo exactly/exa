@@ -2,10 +2,12 @@ import type { Credential } from "@exactly/common/validation";
 import { IdCard } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useNavigation } from "expo-router";
 import React from "react";
 import { Spinner, YStack } from "tamagui";
 
 import Progression from "./Progression";
+import type { AppNavigationProperties } from "../../../app/(app)/_layout";
 import { createInquiry, KYC_TEMPLATE_ID, resumeInquiry } from "../../../utils/persona";
 import queryClient from "../../../utils/queryClient";
 import reportError from "../../../utils/reportError";
@@ -17,6 +19,7 @@ import View from "../../shared/View";
 export default function VerifyIdentity() {
   const toast = useToastController();
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
+  const navigation = useNavigation<AppNavigationProperties>();
   const { mutateAsync: startKYC, isPending } = useMutation({
     mutationKey: ["kyc"],
     mutationFn: async () => {
@@ -28,7 +31,7 @@ export default function VerifyIdentity() {
           return;
         }
         if (typeof result !== "string") {
-          await resumeInquiry(result.inquiryId, result.sessionToken);
+          await resumeInquiry(result.inquiryId, result.sessionToken, navigation);
         }
       } catch (error) {
         if (!(error instanceof APIError)) {
@@ -36,7 +39,7 @@ export default function VerifyIdentity() {
           return;
         }
         if (error.text === "kyc required" || error.text === "kyc not found" || error.text === "kyc not started") {
-          await createInquiry(credential);
+          await createInquiry(credential, navigation);
           return;
         }
         reportError(error);

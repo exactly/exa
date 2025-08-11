@@ -1,5 +1,5 @@
 import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
-import { router, useLocalSearchParams } from "expo-router";
+import { useNavigation, useLocalSearchParams } from "expo-router";
 import { openBrowserAsync } from "expo-web-browser";
 import React, { useState } from "react";
 import { RefreshControl } from "react-native";
@@ -10,6 +10,7 @@ import OverduePayments from "./OverduePayments";
 import PaySelector from "./PaySelector";
 import PaymentSheet from "./PaymentSheet";
 import UpcomingPayments from "./UpcomingPayments";
+import type { AppNavigationProperties } from "../../app/(app)/_layout";
 import { useReadPreviewerExactly } from "../../generated/contracts";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
@@ -23,8 +24,9 @@ export default function PayMode() {
   const theme = useTheme();
   const parameters = useLocalSearchParams();
   const { presentCollection } = useIntercom();
-  const [paySheetOpen, setPaySheetOpen] = useState(false);
   const { account } = useAsset(marketUSDCAddress);
+  const [paySheetOpen, setPaySheetOpen] = useState(false);
+  const navigation = useNavigation<AppNavigationProperties>();
   const { refetch, isPending } = useReadPreviewerExactly({ address: previewerAddress, args: [account ?? zeroAddress] });
   const style = { backgroundColor: theme.backgroundSoft.val, margin: -5 };
   return (
@@ -51,13 +53,13 @@ export default function PayMode() {
             <View padded gap="$s6">
               <OverduePayments
                 onSelect={(maturity) => {
-                  router.setParams({ ...parameters, maturity: maturity.toString() });
+                  navigation.setParams({ ...parameters, maturity: maturity.toString() });
                   setPaySheetOpen(true);
                 }}
               />
               <UpcomingPayments
                 onSelect={(maturity) => {
-                  router.setParams({ ...parameters, maturity: maturity.toString() });
+                  navigation.setParams({ ...parameters, maturity: maturity.toString() });
                   setPaySheetOpen(true);
                 }}
               />
@@ -95,7 +97,7 @@ export default function PayMode() {
               open={paySheetOpen}
               onClose={() => {
                 setPaySheetOpen(false);
-                router.replace({ pathname: "/pay-mode", params: { ...parameters, maturity: null } });
+                navigation.setParams({ ...parameters, maturity: undefined });
               }}
             />
           </>

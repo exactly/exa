@@ -1,12 +1,13 @@
 import { previewerAddress } from "@exactly/common/generated/chain";
 import { ArrowLeft, ArrowRight, Check, CircleHelp } from "@tamagui/lucide-icons";
-import { router } from "expo-router";
+import { useNavigation } from "expo-router";
 import React, { useState } from "react";
 import { Pressable } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
 import { useAccount } from "wagmi";
 
+import type { AppNavigationProperties } from "../../app/(app)/_layout";
 import { useReadPreviewerExactly } from "../../generated/contracts";
 import assetLogos from "../../utils/assetLogos";
 import queryClient, { type Loan } from "../../utils/queryClient";
@@ -19,7 +20,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function Asset() {
-  const { canGoBack } = router;
+  const navigation = useNavigation<AppNavigationProperties>();
   const { address } = useAccount();
   const { presentArticle } = useIntercom();
   const [selectedMarket, setSelectedMarket] = useState<string>();
@@ -29,11 +30,11 @@ export default function Asset() {
       <View padded flexDirection="row" gap={10} paddingBottom="$s4" justifyContent="space-between" alignItems="center">
         <Pressable
           onPress={() => {
-            if (canGoBack()) {
-              router.back();
+            if (navigation.canGoBack()) {
+              navigation.goBack();
               return;
             }
-            router.replace("/");
+            navigation.replace("(home)", { screen: "loans" });
           }}
         >
           <ArrowLeft size={24} color="$uiNeutralPrimary" />
@@ -107,7 +108,7 @@ export default function Asset() {
             <Button
               onPress={() => {
                 queryClient.setQueryData(["loan"], (old: Loan) => ({ ...old, market: selectedMarket }));
-                router.push("/(app)/loan/amount");
+                navigation.navigate("loan", { screen: "amount" });
               }}
               main
               spaced

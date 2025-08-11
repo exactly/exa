@@ -1,18 +1,16 @@
 import { X } from "@tamagui/lucide-icons";
-import { router } from "expo-router";
+import { useNavigation } from "expo-router";
 import React from "react";
 import { ScrollView } from "tamagui";
 
+import type { AppNavigationProperties } from "../../app/(app)/_layout";
 import Button from "../shared/Button";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-function close() {
-  router.back();
-}
-
 export default function PasskeysAbout() {
+  const navigation = useNavigation<AppNavigationProperties>();
   return (
     <SafeView fullScreen paddingTop={0} backgroundColor="$backgroundSoft">
       <View
@@ -74,7 +72,13 @@ export default function PasskeysAbout() {
               outlined
               main
               spaced
-              onPress={close}
+              onPress={() => {
+                if (navigation.canGoBack()) {
+                  navigation.goBack();
+                } else {
+                  navigation.replace("(passkeys)", { screen: "passkeys" });
+                }
+              }}
               fontWeight="bold"
               iconAfter={<X color="$interactiveOnBaseBrandSoft" />}
             >

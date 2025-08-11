@@ -3,7 +3,7 @@ import type { Credential } from "@exactly/common/validation";
 import { ChevronRight, CircleHelp, CreditCard, DollarSign, Eye, EyeOff, Hash, Snowflake } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { router } from "expo-router";
+import { useNavigation } from "expo-router";
 import { openBrowserAsync } from "expo-web-browser";
 import React, { useState } from "react";
 import { Pressable, RefreshControl } from "react-native";
@@ -17,6 +17,7 @@ import CardPIN from "./CardPIN";
 import SpendingLimits from "./SpendingLimits";
 import VerificationFailure from "./VerificationFailure";
 import ExaCard from "./exa-card/ExaCard";
+import type { AppNavigationProperties } from "../../app/(app)/_layout";
 import {
   useReadPreviewerExactly,
   useReadUpgradeableModularAccountGetInstalledPlugins,
@@ -39,14 +40,13 @@ export default function Card() {
   const toast = useToastController();
   const { presentArticle } = useIntercom();
   const [displayPIN, setDisplayPIN] = useState(false);
+  const navigation = useNavigation<AppNavigationProperties>();
   const [disclaimerShown, setDisclaimerShown] = useState(false);
   const [verificationFailureShown, setVerificationFailureShown] = useState(false);
   const { data: cardDetailsOpen } = useQuery<boolean>({ queryKey: ["card-details-open"] });
   const [spendingLimitsOpen, setSpendingLimitsOpen] = useState(false);
   const { data: hidden } = useQuery<boolean>({ queryKey: ["settings", "sensitive"] });
-  function toggle() {
-    queryClient.setQueryData(["settings", "sensitive"], !hidden);
-  }
+
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const {
     data: purchases,
@@ -119,7 +119,7 @@ export default function Card() {
     mutationKey: ["card", "reveal"],
     mutationFn: async function handleReveal() {
       if (usdBalance === 0n) {
-        router.push("/getting-started");
+        navigation.navigate("getting-started");
         return;
       }
       if (isRevealing) return;
@@ -136,9 +136,7 @@ export default function Card() {
           setDisclaimerShown(true);
           return;
         }
-        if (typeof result !== "string") {
-          resumeInquiry(result.inquiryId, result.sessionToken).catch(reportError);
-        }
+        if (typeof result !== "string") await resumeInquiry(result.inquiryId, result.sessionToken, navigation);
       } catch (error) {
         if (!(error instanceof APIError)) {
           reportError(error);
@@ -150,7 +148,7 @@ export default function Card() {
           return;
         }
         if (text === "kyc required" || text === "kyc not found" || text === "kyc not started") {
-          createInquiry(credential).catch(reportError);
+          await createInquiry(credential, navigation);
         }
         reportError(error);
         toast.show("An error occurred. Please try again later.", {
@@ -248,7 +246,12 @@ export default function Card() {
                     My Exa Card*
                   </Text>
                   <View display="flex" flexDirection="row" alignItems="center" gap={16}>
-                    <Pressable onPress={toggle} hitSlop={15}>
+                    <Pressable
+                      onPress={() => {
+                        queryClient.setQueryData(["settings", "sensitive"], !hidden);
+                      }}
+                      hitSlop={15}
+                    >
                       {hidden ? (
                         <EyeOff size={24} color="$uiNeutralSecondary" />
                       ) : (
@@ -270,7 +273,7 @@ export default function Card() {
                     title="Your card is awaiting activation. Follow the steps to enable it."
                     actionText="Get started"
                     onPress={() => {
-                      router.push("/getting-started");
+                      navigation.navigate("getting-started");
                     }}
                   />
                 )}

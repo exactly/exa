@@ -1,12 +1,13 @@
 import { ArrowRight, CreditCard } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { router } from "expo-router";
+import { useNavigation } from "expo-router";
 import React from "react";
 import { Pressable } from "react-native";
 import { YStack } from "tamagui";
 
 import Progression from "./Progression";
+import type { AppNavigationProperties } from "../../../app/(app)/_layout";
 import queryClient from "../../../utils/queryClient";
 import reportError from "../../../utils/reportError";
 import { APIError, createCard } from "../../../utils/server";
@@ -20,12 +21,11 @@ export default function ActivateCard() {
   const toast = useToastController();
   const { data: step } = useQuery<number | undefined>({ queryKey: ["card-upgrade"] });
   const { presentArticle } = useIntercom();
+  const navigation = useNavigation<AppNavigationProperties>();
   const { mutateAsync: activateCard, isPending: isActivating } = useMutation({
     retry: (_, error) => error instanceof APIError,
     retryDelay: (failureCount, error) => (error instanceof APIError ? failureCount * 5000 : 1000),
-    mutationFn: async () => {
-      await createCard();
-    },
+    mutationFn: createCard,
     onSuccess: async () => {
       toast.show("Card activated!", {
         native: true,
@@ -35,7 +35,7 @@ export default function ActivateCard() {
       await queryClient.refetchQueries({ queryKey: ["card", "details"] });
       await queryClient.setQueryData(["card-upgrade-open"], false);
       await queryClient.resetQueries({ queryKey: ["card-upgrade"] });
-      router.replace("/(app)/(home)/card");
+      navigation.replace("(home)", { screen: "card" });
       queryClient.setQueryData(["card-details-open"], true);
     },
     onError: async (error: Error) => {
@@ -52,7 +52,7 @@ export default function ActivateCard() {
         await queryClient.refetchQueries({ queryKey: ["card", "details"] });
         await queryClient.setQueryData(["card-upgrade-open"], false);
         await queryClient.resetQueries({ queryKey: ["card-upgrade"] });
-        router.replace("/(app)/(home)/card");
+        navigation.replace("(home)", { screen: "card" });
         queryClient.setQueryData(["card-details-open"], true);
         return;
       }

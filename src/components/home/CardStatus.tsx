@@ -1,14 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
-import { router } from "expo-router";
+import { useNavigation } from "expo-router";
 import React from "react";
 import { Platform } from "react-native";
 import { XStack, YStack } from "tamagui";
 
 import CardLimits from "./CardLimits";
+import type { AppNavigationProperties } from "../../app/(app)/_layout";
 import Card from "../../assets/images/card.svg";
 import { getCard } from "../../utils/server";
 
 export default function CardStatus({ onInfoPress }: { onInfoPress: () => void }) {
+  const navigation = useNavigation<AppNavigationProperties>();
   const { data: card } = useQuery({ queryKey: ["card", "details"], queryFn: getCard });
   if (!card) return null;
   return (
@@ -33,7 +35,7 @@ export default function CardStatus({ onInfoPress }: { onInfoPress: () => void })
         justifyContent="flex-end"
         cursor="pointer"
         onPress={() => {
-          router.push("/card");
+          navigation.navigate("(home)", { screen: "card" });
         }}
       >
         <Card

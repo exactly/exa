@@ -1,6 +1,6 @@
+import { useNavigation } from "@react-navigation/native";
 import { ArrowLeft, Headphones } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
-import { router } from "expo-router";
 import React from "react";
 import { Pressable } from "react-native";
 import { XStack } from "tamagui";
@@ -9,6 +9,7 @@ import CardActivity from "./CardActivity";
 import ReceivedActivity from "./ReceivedActivity";
 import RepayActivity from "./RepayActivity";
 import SentActivity from "./SentActivity";
+import type { AppNavigationProperties } from "../../../app/(app)/_layout";
 import type { ActivityItem } from "../../../utils/queryClient";
 import reportError from "../../../utils/reportError";
 import useIntercom from "../../../utils/useIntercom";
@@ -16,19 +17,19 @@ import ActionButton from "../../shared/ActionButton";
 import GradientScrollView from "../../shared/GradientScrollView";
 
 export default function ActivityDetails() {
+  const navigation = useNavigation<AppNavigationProperties>();
   const { data: item } = useQuery<ActivityItem>({ queryKey: ["activity", "details"] });
   const { present } = useIntercom();
-  const { canGoBack } = router;
   if (!item) return null;
   return (
     <GradientScrollView variant="neutral" stickyHeader>
       <XStack gap={10} justifyContent="space-between" alignItems="center">
         <Pressable
           onPress={() => {
-            if (canGoBack()) {
-              router.back();
+            if (navigation.canGoBack()) {
+              navigation.goBack();
             } else {
-              router.replace("/activity");
+              navigation.replace("(home)", { screen: "activity" });
             }
           }}
         >

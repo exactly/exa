@@ -3,7 +3,7 @@ import shortenHex from "@exactly/common/shortenHex";
 import { Eye, EyeOff, Settings, ClockArrowUp } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import { setStringAsync } from "expo-clipboard";
-import { router } from "expo-router";
+import { useNavigation } from "expo-router";
 import React, { useState } from "react";
 import { Pressable } from "react-native";
 import { Image } from "tamagui";
@@ -12,6 +12,7 @@ import { useAccount } from "wagmi";
 
 import CopyAddressSheet from "./CopyAddressSheet";
 import StatusIndicator from "./StatusIndicator";
+import type { AppNavigationProperties } from "../../app/(app)/_layout";
 import { useReadExaPreviewerPendingProposals } from "../../generated/contracts";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
@@ -21,6 +22,7 @@ import View from "../shared/View";
 export default function ProfileHeader() {
   const { address, isConnected } = useAccount();
   const [copyAddressShown, setCopyAddressShown] = useState(false);
+  const navigation = useNavigation<AppNavigationProperties>("/(app)");
   const { data: pendingProposals, isFetching: pendingProposalsFetching } = useReadExaPreviewerPendingProposals({
     address: exaPreviewerAddress,
     args: [address ?? zeroAddress],
@@ -73,7 +75,7 @@ export default function ProfileHeader() {
             <Pressable
               disabled={pendingProposalsFetching}
               onPress={() => {
-                router.push("/pending-proposals");
+                navigation.push("pending-proposals/index");
               }}
               hitSlop={15}
             >
@@ -83,7 +85,7 @@ export default function ProfileHeader() {
           )}
           <Pressable
             onPress={() => {
-              router.push("/settings");
+              navigation.push("settings/index");
             }}
             hitSlop={15}
           >

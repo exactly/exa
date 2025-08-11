@@ -1,12 +1,13 @@
 import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import { ArrowLeft, CircleHelp } from "@tamagui/lucide-icons";
-import { router, useLocalSearchParams } from "expo-router";
+import { useNavigation, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
 import { Pressable, RefreshControl } from "react-native";
 import { ScrollView, useTheme, XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
 
 import CreditLine from "./CreditLine";
+import type { AppNavigationProperties } from "../../app/(app)/_layout";
 import { useReadPreviewerExactly } from "../../generated/contracts";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
@@ -24,6 +25,7 @@ export default function Loans() {
   const parameters = useLocalSearchParams();
   const { account } = useAsset(marketUSDCAddress);
   const [paySheetOpen, setPaySheetOpen] = useState(false);
+  const navigation = useNavigation<AppNavigationProperties>();
   const { refetch, isPending } = useReadPreviewerExactly({ address: previewerAddress, args: [account ?? zeroAddress] });
   const style = { backgroundColor: theme.backgroundSoft.val, margin: -5 };
   return (
@@ -51,7 +53,11 @@ export default function Loans() {
                 <XStack alignItems="center" justifyContent="space-between">
                   <Pressable
                     onPress={() => {
-                      router.replace("/defi");
+                      if (navigation.canGoBack()) {
+                        navigation.goBack();
+                      } else {
+                        navigation.replace("(home)", { screen: "defi" });
+                      }
                     }}
                   >
                     <ArrowLeft size={24} color="$uiNeutralPrimary" />
@@ -77,7 +83,7 @@ export default function Loans() {
               <CreditLine />
               <UpcomingPayments
                 onSelect={(maturity) => {
-                  router.setParams({ ...parameters, maturity: maturity.toString() });
+                  navigation.setParams({ ...parameters, maturity: maturity.toString() });
                   setPaySheetOpen(true);
                 }}
               />
@@ -92,7 +98,7 @@ export default function Loans() {
               open={paySheetOpen}
               onClose={() => {
                 setPaySheetOpen(false);
-                router.replace({ pathname: "/loans", params: { ...parameters, maturity: null } });
+                navigation.setParams({ ...parameters, maturity: undefined });
               }}
             />
           </>

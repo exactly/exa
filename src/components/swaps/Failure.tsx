@@ -1,12 +1,13 @@
 import type { Token } from "@lifi/sdk";
 import { ArrowDown, X } from "@tamagui/lucide-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
+import { useNavigation } from "expo-router";
 import React from "react";
 import { Pressable, Image } from "react-native";
 import { ScrollView, Square, styled, useTheme, XStack, YStack } from "tamagui";
 import { formatUnits } from "viem";
 
+import type { AppNavigationProperties } from "../../app/(app)/_layout";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import SafeView from "../shared/SafeView";
@@ -29,6 +30,7 @@ export default function Failure({
   toToken: Token;
 }) {
   const theme = useTheme();
+  const navigation = useNavigation<AppNavigationProperties>();
   return (
     <View fullScreen backgroundColor="$backgroundSoft">
       <StyledGradient
@@ -106,7 +108,7 @@ export default function Failure({
                 <Pressable
                   onPress={() => {
                     queryClient.invalidateQueries({ queryKey: ["swap"] }).catch(reportError);
-                    router.replace("/pay-mode");
+                    navigation.replace("(home)", { screen: "pay-mode" });
                   }}
                 >
                   <Text emphasized footnote color="$uiBrandSecondary">

@@ -6,7 +6,7 @@ import { MATURITY_INTERVAL, WAD } from "@exactly/lib";
 import { ArrowLeft, ArrowRight, Check, ChevronRight, CircleHelp, X } from "@tamagui/lucide-icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { router } from "expo-router";
+import { useNavigation } from "expo-router";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
@@ -14,6 +14,7 @@ import { ScrollView, Separator, Square, XStack, YStack } from "tamagui";
 import { encodeAbiParameters, encodeFunctionData, maxUint256, zeroAddress } from "viem";
 import { useAccount, useBytecode } from "wagmi";
 
+import type { AppNavigationProperties } from "../../app/(app)/_layout";
 import {
   exaPluginAbi,
   upgradeableModularAccountAbi,
@@ -37,7 +38,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function Review() {
-  const { canGoBack } = router;
+  const navigation = useNavigation<AppNavigationProperties>();
   const { t } = useTranslation();
   const { address } = useAccount();
   const { presentArticle } = useIntercom();
@@ -172,11 +173,11 @@ export default function Review() {
         >
           <Pressable
             onPress={() => {
-              if (canGoBack()) {
-                router.back();
+              if (navigation.canGoBack()) {
+                navigation.goBack();
                 return;
               }
-              router.replace("/loan/receiver");
+              navigation.replace("loan", { screen: "receiver" });
             }}
           >
             <ArrowLeft size={24} color="$uiNeutralPrimary" />
@@ -398,7 +399,7 @@ export default function Review() {
             <Button
               primary
               onPress={() => {
-                router.replace("/(app)/pending-proposals");
+                navigation.replace("pending-proposals/index");
               }}
             >
               <Button.Text>Go to Requests</Button.Text>
@@ -415,10 +416,11 @@ export default function Review() {
             footnote
             color="$uiBrandSecondary"
             onPress={() => {
-              if (error) {
-                router.back();
+              if (error && navigation.canGoBack()) {
+                navigation.goBack();
+                return;
               }
-              router.replace("/(app)/(home)/loans");
+              navigation.replace("(home)", { screen: "loans" });
             }}
           >
             {error ? "Go back" : "Close"}

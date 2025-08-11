@@ -1,7 +1,7 @@
 import { previewerAddress } from "@exactly/common/generated/chain";
 import { ArrowLeft, ArrowRight, Check, CircleHelp, TriangleAlert } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
-import { router } from "expo-router";
+import { useNavigation } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { Pressable } from "react-native";
 import { Checkbox, ScrollView, XStack, YStack } from "tamagui";
@@ -9,6 +9,7 @@ import { formatUnits, zeroAddress } from "viem";
 import { useAccount, useBytecode } from "wagmi";
 
 import AmountSelector from "./AmountSelector";
+import type { AppNavigationProperties } from "../../app/(app)/_layout";
 import { useReadPreviewerExactly } from "../../generated/contracts";
 import type { Loan } from "../../utils/queryClient";
 import queryClient from "../../utils/queryClient";
@@ -21,7 +22,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function Amount() {
-  const { canGoBack } = router;
+  const navigation = useNavigation<AppNavigationProperties>();
   const { presentArticle } = useIntercom();
   const { address } = useAccount();
   const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
@@ -54,12 +55,12 @@ export default function Amount() {
         <Pressable
           onPress={() => {
             queryClient.setQueryData(["loan"], (old: Loan) => ({ ...old, amount: null }));
-            if (canGoBack()) {
-              router.back();
+            if (navigation.canGoBack()) {
+              navigation.goBack();
               return;
             }
             queryClient.resetQueries({ queryKey: ["loan"] }).catch(reportError);
-            router.replace("/loans");
+            navigation.replace("(home)", { screen: "loans" });
           }}
         >
           <ArrowLeft size={24} color="$uiNeutralPrimary" />
@@ -152,7 +153,7 @@ export default function Amount() {
             <Button
               onPress={() => {
                 queryClient.setQueryData(["loan"], (old: Loan) => ({ ...old, amount: state.amount }));
-                router.push("/(app)/loan/installments");
+                navigation.navigate("loan", { screen: "installments" });
               }}
               primary={!state.warning || !acknowledged}
               dangerSecondary={state.warning && acknowledged}

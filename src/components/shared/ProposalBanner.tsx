@@ -1,15 +1,17 @@
 import { exaPreviewerAddress } from "@exactly/common/generated/chain";
 import { ChevronRight } from "@tamagui/lucide-icons";
-import { router } from "expo-router";
+import { useNavigation } from "expo-router";
 import React from "react";
 import { zeroAddress } from "viem";
 import { useAccount } from "wagmi";
 
+import type { AppNavigationProperties } from "../../app/(app)/_layout";
 import { useReadExaPreviewerPendingProposals } from "../../generated/contracts";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-const ProposalBanner = () => {
+function ProposalBanner() {
+  const navigation = useNavigation<AppNavigationProperties>();
   const { address } = useAccount();
   const {
     data: pendingProposals,
@@ -35,7 +37,7 @@ const ProposalBanner = () => {
         disabled={isFetching}
         cursor="pointer"
         onPress={() => {
-          router.push("/pending-proposals");
+          navigation.navigate("pending-proposals/index");
         }}
       >
         <Text
@@ -47,6 +49,6 @@ const ProposalBanner = () => {
       </View>
     )
   );
-};
+}
 
 export default ProposalBanner;

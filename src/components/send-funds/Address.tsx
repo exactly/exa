@@ -3,7 +3,7 @@ import { Address } from "@exactly/common/validation";
 import { ArrowLeft, ArrowRight, QrCode } from "@tamagui/lucide-icons";
 import { useForm } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
-import { router, useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useNavigation } from "expo-router";
 import React from "react";
 import { Pressable } from "react-native";
 import { ButtonIcon, ScrollView, Separator, XStack, YStack } from "tamagui";
@@ -11,6 +11,7 @@ import { parse, safeParse } from "valibot";
 
 import Contacts from "./Contacts";
 import RecentContacts from "./RecentContacts";
+import type { AppNavigationProperties } from "../../app/(app)/_layout";
 import queryClient, { type Withdraw } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useIntercom from "../../utils/useIntercom";
@@ -21,9 +22,9 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function AddressSelection() {
+  const navigation = useNavigation<AppNavigationProperties>("/(app)");
   const parameters = useLocalSearchParams();
   const { presentArticle } = useIntercom();
-  const { canGoBack } = router;
 
   const { data: recentContacts } = useQuery<{ address: Address; ens: string }[] | undefined>({
     queryKey: ["contacts", "recent"],
@@ -42,7 +43,7 @@ export default function AddressSelection() {
       queryClient.setQueryData<Withdraw>(["withdrawal"], (old) =>
         old ? { ...old, receiver } : { receiver, market: undefined, amount: 0n },
       );
-      router.push("/send-funds/asset");
+      navigation.navigate("send-funds", { screen: "asset" });
     },
   });
 
@@ -58,16 +59,18 @@ export default function AddressSelection() {
       <View gap={20} fullScreen padded>
         <View flexDirection="row" gap={10} justifyContent="space-around" alignItems="center">
           <View position="absolute" left={0}>
-            {canGoBack() && (
-              <Pressable
-                onPress={() => {
-                  queryClient.setQueryData(["withdrawal"], { receiver: undefined, market: undefined, amount: 0n });
-                  router.back();
-                }}
-              >
-                <ArrowLeft size={24} color="$uiNeutralPrimary" />
-              </Pressable>
-            )}
+            <Pressable
+              onPress={() => {
+                queryClient.setQueryData(["withdrawal"], { receiver: undefined, market: undefined, amount: 0n });
+                if (navigation.canGoBack()) {
+                  navigation.goBack();
+                } else {
+                  navigation.replace("(home)", { screen: "index" });
+                }
+              }}
+            >
+              <ArrowLeft size={24} color="$uiNeutralPrimary" />
+            </Pressable>
           </View>
           <Text color="$uiNeutralPrimary" fontSize={15} fontWeight="bold">
             Send to
@@ -101,7 +104,7 @@ export default function AddressSelection() {
                         borderBottomLeftRadius={0}
                         borderLeftWidth={0}
                         onPress={() => {
-                          router.push("/send-funds/qr");
+                          navigation.navigate("send-funds", { screen: "qr" });
                         }}
                       >
                         <ButtonIcon>
