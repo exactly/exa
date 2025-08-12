@@ -432,7 +432,10 @@ export default new Hono().post(
         setUser({ id: account });
 
         if (payload.body.spend.status === "declined") {
-          getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "panda.tx.declined");
+          getActiveSpan()?.setAttributes({
+            SEMANTIC_ATTRIBUTE_SENTRY_OP: "panda.tx.declined",
+            ...(payload.body.spend.declinedReason && { "panda.reason": payload.body.spend.declinedReason }),
+          });
           const mutex = getMutex(account);
           mutex?.release();
           setContext("mutex", { locked: mutex?.isLocked() });
