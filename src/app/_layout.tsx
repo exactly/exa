@@ -163,7 +163,7 @@ export default wrap(function RootLayout() {
                     />
                   )}
                 >
-                  <Stack initialRouteName="(app)" screenOptions={{ headerShown: false }}>
+                  <Stack screenOptions={{ headerShown: false }}>
                     <Stack.Screen name="(app)" />
                     <Stack.Screen name="onboarding" />
                   </Stack>

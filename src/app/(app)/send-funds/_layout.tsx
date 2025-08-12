@@ -6,7 +6,7 @@ import useBackgroundColor from "../../../utils/useBackgroundColor";
 export default function AddFundsLayout() {
   useBackgroundColor();
   return (
-    <Stack initialRouteName="index" screenOptions={{ headerShown: false }}>
+    <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="qr" />
       <Stack.Screen name="asset" />

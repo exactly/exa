@@ -20,7 +20,7 @@ export default function AppLayout() {
   }, [isFetched, isLoading]);
   if (noCredential) return <Redirect href="/onboarding" />;
   if (isLoading || !isFetched) return <Loading />;
-  return <Stack initialRouteName="(home)" screenOptions={{ headerShown: false }} />;
+  return <Stack screenOptions={{ headerShown: false }} />;
 }
 
 function Loading() {

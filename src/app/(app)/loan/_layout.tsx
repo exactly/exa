@@ -3,7 +3,7 @@ import React from "react";
 
 import useBackgroundColor from "../../../utils/useBackgroundColor";
 
-export default function LoansLayout() {
+export default function LoanLayout() {
   useBackgroundColor();
-  return <Stack initialRouteName="index" screenOptions={{ headerShown: false }} />;
+  return <Stack screenOptions={{ headerShown: false }} />;
 }
