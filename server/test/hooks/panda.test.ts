@@ -112,6 +112,37 @@ describe("card operations", () => {
         pandaUtils.getMutex(account)?.release();
       });
 
+      it("fails with InsufficientAccountLiquidity", async () => {
+        const currentFunds = await publicClient
+          .readContract({
+            address: inject("MarketUSDC"),
+            abi: marketAbi,
+            functionName: "balanceOf",
+            args: [account],
+          })
+          .then((shares) => {
+            return publicClient.readContract({
+              address: inject("MarketUSDC"),
+              abi: marketAbi,
+              functionName: "convertToAssets",
+              args: [shares],
+            });
+          });
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: {
+              ...authorization.json.body,
+              spend: { ...authorization.json.body.spend, cardId: "card", amount: Number(currentFunds) / 1e4 + 100 },
+            },
+          },
+        });
+
+        expect(response.status).toBe(557);
+      });
+
       it("fails with bad panda", async () => {
         const response = await appClient.index.$post({
           ...authorization,
@@ -1134,7 +1165,7 @@ describe("concurrency", () => {
     const [spend, spend2, collect] = await promises;
 
     expect(spend.status).toBe(200);
-    expect(spend2.status).toBe(550);
+    expect(spend2.status).toBe(557);
     expect(collect.status).toBe(200);
   });
 

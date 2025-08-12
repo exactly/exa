@@ -19,6 +19,8 @@ import { Hono } from "hono";
 import type { UnofficialStatusCode } from "hono/utils/http-status";
 import * as v from "valibot";
 import {
+  BaseError,
+  ContractFunctionRevertedError,
   decodeEventLog,
   encodeAbiParameters,
   encodeEventTopics,
@@ -277,7 +279,14 @@ export default new Hono().post(
               });
               trackAuthorizationRejected(account, payload, card.mode, contractError.shortMessage);
               captureException(contractError, { contexts: { tx: { call, trace } } });
-              throw new PandaError("tx reverted", 550);
+              if (
+                contractError instanceof BaseError &&
+                contractError.cause instanceof ContractFunctionRevertedError &&
+                contractError.cause.data?.errorName === "InsufficientAccountLiquidity"
+              ) {
+                throw new PandaError("InsufficientAccountLiquidity", 557 as UnofficialStatusCode);
+              }
+              throw new PandaError("tx reverted", 550 as UnofficialStatusCode);
             }
             if (
               usdcTransfersToCollectors(trace).reduce(
@@ -288,13 +297,13 @@ export default new Hono().post(
             ) {
               debug(`${payload.action}:${payload.body.spend.status}`, payload.body.id, "bad collection");
               captureException(new Error("bad collection"), { level: "warning", contexts: { tx: { call, trace } } });
-              throw new PandaError("bad collection", 551);
+              throw new PandaError("bad collection", 551 as UnofficialStatusCode);
             }
             return authorize();
           } catch (error: unknown) {
             if (error instanceof PandaError) throw error;
             captureException(error, { contexts: { tx: { call } } });
-            throw new PandaError("unexpected error", 569);
+            throw new PandaError("unexpected error", 569 as UnofficialStatusCode);
           }
         } catch (error: unknown) {
           mutex.release();
