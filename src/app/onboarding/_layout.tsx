@@ -15,7 +15,7 @@ export default function OnboardingLayout() {
           <meta name="description" content="Exactly what finance should be today" />
         </Head>
       )}
-      <Stack initialRouteName="index" screenOptions={{ headerShown: false }}>
+      <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="(passkeys)/passkeys" />
         <Stack.Screen name="(passkeys)/about" options={{ presentation: "modal" }} />
