@@ -1,5 +1,15 @@
 # @exactly/server
 
+## 0.2.12
+
+### Patch Changes
+
+- [`e1d2935`](https://github.com/exactly/exa/commit/e1d29355b7ca640c02b4eb2c7cf25d36d726a0d7) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 📈 add http code for insufficient account liquidity
+
+- [`6a584f7`](https://github.com/exactly/exa/commit/6a584f7810dc4ae5b8cd226128706c0e482802d5) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 📈 instrument declined reason
+
+- [`af2c4a2`](https://github.com/exactly/exa/commit/af2c4a2fe20852bf91858a28f8a909d3eeedee77) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🚑️ disable user on failed force capture
+
 ## 0.2.11
 
 ### Patch Changes

@@ -1,5 +1,26 @@
 # @exactly/mobile
 
+## 1.0.21
+
+### Patch Changes
+
+- [`4881947`](https://github.com/exactly/exa/commit/48819479427d7111115a28b33f391f7085be2cf7) Thanks [@franm91](https://github.com/franm91)! - 🐛 fix merchant icon
+
+- [`4606d67`](https://github.com/exactly/exa/commit/4606d6755e179958ededb1c65263863b900e22c0) Thanks [@franm91](https://github.com/franm91)! - ✨ display repayment acknowledgment modal
+
+- [`1ca9a0a`](https://github.com/exactly/exa/commit/1ca9a0a237c1dd06b3ea7b7a70d06d95b3ec9075) Thanks [@franm91](https://github.com/franm91)! - ✨ link to protocol app for card statement
+
+- [`4ddafda`](https://github.com/exactly/exa/commit/4ddafda8855cad411fa3a3d35cf7ac5cc82c2e2f) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix portfolio number conversion
+
+- [`5339864`](https://github.com/exactly/exa/commit/5339864a78ed688fd1922347e87202b2a73ec23d) Thanks [@franm91](https://github.com/franm91)! - ✨ display remaining weekly limit
+
+- [`750177a`](https://github.com/exactly/exa/commit/750177a9f664f16250a4c444032ddeea75dd1d71) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix unresponsive defi banner button
+
+- [`72c0c70`](https://github.com/exactly/exa/commit/72c0c7035e321abe6b6dd9cee6a3354ec9a18de3) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🥅 improve auth error reporting
+
+- Updated dependencies [[`e1d2935`](https://github.com/exactly/exa/commit/e1d29355b7ca640c02b4eb2c7cf25d36d726a0d7), [`6a584f7`](https://github.com/exactly/exa/commit/6a584f7810dc4ae5b8cd226128706c0e482802d5), [`af2c4a2`](https://github.com/exactly/exa/commit/af2c4a2fe20852bf91858a28f8a909d3eeedee77)]:
+  - @exactly/server@0.2.12
+
 ## 1.0.20
 
 ### Patch Changes
