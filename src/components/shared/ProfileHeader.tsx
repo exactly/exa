@@ -8,30 +8,23 @@ import React, { useState } from "react";
 import { Pressable } from "react-native";
 import { Image } from "tamagui";
 import { zeroAddress } from "viem";
-import { useAccount, useConnect } from "wagmi";
+import { useAccount } from "wagmi";
 
 import CopyAddressSheet from "./CopyAddressSheet";
 import StatusIndicator from "./StatusIndicator";
 import { useReadExaPreviewerPendingProposals } from "../../generated/contracts";
-import alchemyConnector from "../../utils/alchemyConnector";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function ProfileHeader() {
-  const { address } = useAccount();
-  const { connect } = useConnect();
-  const { isConnected } = useAccount();
+  const { address, isConnected } = useAccount();
   const [copyAddressShown, setCopyAddressShown] = useState(false);
   const { data: pendingProposals, isFetching: pendingProposalsFetching } = useReadExaPreviewerPendingProposals({
     address: exaPreviewerAddress,
     args: [address ?? zeroAddress],
-    query: {
-      enabled: !!address,
-      gcTime: 0,
-      refetchInterval: 30_000,
-    },
+    query: { enabled: !!address, gcTime: 0, refetchInterval: 30_000 },
   });
   const { data: hidden } = useQuery<boolean>({ queryKey: ["settings", "sensitive"] });
   function toggle() {
@@ -46,12 +39,7 @@ export default function ProfileHeader() {
     <View padded backgroundColor="$backgroundSoft">
       <View display="flex" flexDirection="row" justifyContent="space-between">
         <View display="flex" flexDirection="row" alignItems="center" gap={8}>
-          <View
-            position="relative"
-            onPress={() => {
-              connect({ connector: alchemyConnector });
-            }}
-          >
+          <View position="relative">
             {isConnected && <StatusIndicator type="online" />}
             <Image
               source={{ uri: "https://avatars.githubusercontent.com/u/83888950?s=200&v=4" }}
