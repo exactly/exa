@@ -15,7 +15,10 @@ export default defineConfig({
           { base: "api", schema: "node_modules/@exactly/server/generated/openapi.json", sidebar: { collapsed: false } },
         ]),
       ],
-      sidebar: [{ label: "Docs", items: ["index", "organization-authentication"] }, ...openAPISidebarGroups],
+      sidebar: [
+        { label: "Docs", items: ["index", "organization-authentication", "webhooks"] },
+        ...openAPISidebarGroups,
+      ],
     }),
     mermaid(),
   ],
