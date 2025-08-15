@@ -2,6 +2,7 @@
 title: Webhooks
 sidebar:
   label: Webhooks
+  order: 10
 ---
 
 Webhooks enable real-time event notifications, allowing you to integrate external systems with Exa.
