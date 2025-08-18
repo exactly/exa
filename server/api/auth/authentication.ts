@@ -33,7 +33,7 @@ import {
   variant,
   type InferOutput,
 } from "valibot";
-import { isAddress, verifyMessage } from "viem";
+import { isAddress } from "viem";
 import { createSiweMessage, generateSiweNonce, parseSiweMessage, validateSiweMessage } from "viem/siwe";
 
 import database, { credentials } from "../../database";
@@ -42,6 +42,7 @@ import appOrigin from "../../utils/appOrigin";
 import authSecret from "../../utils/authSecret";
 import createCredential from "../../utils/createCredential";
 import decodePublicKey from "../../utils/decodePublicKey";
+import publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
 import validatorHook from "../../utils/validatorHook";
 
@@ -305,7 +306,11 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
         const message = parseSiweMessage(challenge);
         if (
           !validateSiweMessage({ message, address: assertion.id, nonce: sessionId, domain, scheme }) ||
-          !(await verifyMessage({ message: challenge, address: assertion.id, signature: assertion.signature }))
+          !(await publicClient.verifySiweMessage({
+            message: challenge,
+            address: assertion.id,
+            signature: assertion.signature,
+          }))
         ) {
           return c.json({ code: "bad authentication", legacy: "bad authentication" }, 400);
         }
@@ -321,7 +326,11 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
             const message = parseSiweMessage(challenge);
             if (
               !validateSiweMessage({ message, address: assertion.id, nonce: sessionId, domain, scheme }) ||
-              !(await verifyMessage({ message: challenge, address: assertion.id, signature: assertion.signature }))
+              !(await publicClient.verifySiweMessage({
+                message: challenge,
+                address: assertion.id,
+                signature: assertion.signature,
+              }))
             ) {
               return c.json({ code: "bad authentication", legacy: "bad authentication" }, 400);
             }

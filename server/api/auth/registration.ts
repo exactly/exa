@@ -31,13 +31,13 @@ import {
   variant,
   type InferOutput,
 } from "valibot";
-import { verifyMessage } from "viem";
 import { createSiweMessage, generateSiweNonce, parseSiweMessage, validateSiweMessage } from "viem/siwe";
 
 import { Authentication } from "./authentication";
 import androidOrigins from "../../utils/android/origins";
 import appOrigin from "../../utils/appOrigin";
 import createCredential from "../../utils/createCredential";
+import publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
 import validatorHook from "../../utils/validatorHook";
 
@@ -304,7 +304,11 @@ export default new Hono()
             const message = parseSiweMessage(challenge);
             if (
               !validateSiweMessage({ message, address: attestation.id, nonce: sessionId, domain, scheme }) ||
-              !(await verifyMessage({ message: challenge, address: attestation.id, signature: attestation.signature }))
+              !(await publicClient.verifySiweMessage({
+                message: challenge,
+                address: attestation.id,
+                signature: attestation.signature,
+              }))
             ) {
               return c.json({ code: "bad authentication", legacy: "bad authentication" }, 400);
             }
