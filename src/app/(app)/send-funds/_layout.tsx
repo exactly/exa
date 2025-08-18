@@ -11,7 +11,6 @@ export default function AddFundsLayout() {
       <Stack.Screen name="qr" />
       <Stack.Screen name="asset" />
       <Stack.Screen name="amount" />
-      <Stack.Screen name="withdraw" />
     </Stack>
   );
 }
