@@ -22,9 +22,11 @@ export default function RecentContacts({ onContactPress }: { onContactPress: (ad
       </XStack>
       {recentContacts ? (
         <View gap="$s3_5">
-          {recentContacts.map((contact, index) => (
-            <Contact key={index} contact={contact} onContactPress={onContactPress} />
-          ))}
+          {recentContacts
+            .filter((contact, index, array) => array.findIndex((c) => c.address === contact.address) === index)
+            .map((contact, index) => (
+              <Contact key={index} contact={contact} onContactPress={onContactPress} />
+            ))}
         </View>
       ) : (
         <View margin="$s2" borderRadius="$r3" backgroundColor="$uiNeutralTertiary" padding="$s3_5" alignSelf="center">
