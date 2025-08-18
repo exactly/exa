@@ -3,7 +3,6 @@ import React, { useMemo } from "react";
 import { ScrollView, styled, useTheme } from "tamagui";
 
 import SafeView from "./SafeView";
-import View from "./View";
 
 export default function GradientScrollView({
   children,
@@ -24,7 +23,7 @@ export default function GradientScrollView({
     return [String(main.val), String(secondary.val)];
   }, [theme, config.gradientColors]);
   return (
-    <View fullScreen backgroundColor={config.backgroundColor}>
+    <SafeView fullScreen backgroundColor={config.backgroundColor}>
       <StyledGradient
         locations={[0.5, 1]}
         position="absolute"
@@ -35,28 +34,23 @@ export default function GradientScrollView({
         opacity={config.gradientOpacity}
         colors={gradientColors}
       />
-      <SafeView backgroundColor="transparent" $platform-web={{ height: "-webkit-fill-available" }}>
-        <View fullScreen padded>
-          <View fullScreen>
-            <ScrollView
-              fullscreen
-              showsVerticalScrollIndicator={false}
-              stickyHeaderIndices={stickyHeader ? [0] : undefined}
-              stickyHeaderHiddenOnScroll={stickyHeader}
-              // eslint-disable-next-line react-native/no-inline-styles
-              contentContainerStyle={{
-                flexGrow: 1,
-                flexDirection: "column",
-                justifyContent: "space-between",
-                gap: "$s4_5",
-              }}
-            >
-              {children}
-            </ScrollView>
-          </View>
-        </View>
-      </SafeView>
-    </View>
+      <ScrollView
+        padding="$s4"
+        fullscreen
+        showsVerticalScrollIndicator={false}
+        stickyHeaderIndices={stickyHeader ? [0] : undefined}
+        stickyHeaderHiddenOnScroll={stickyHeader}
+        // eslint-disable-next-line react-native/no-inline-styles
+        contentContainerStyle={{
+          flexGrow: 1,
+          flexDirection: "column",
+          justifyContent: "space-between",
+          gap: "$s4_5",
+        }}
+      >
+        {children}
+      </ScrollView>
+    </SafeView>
   );
 }
 
