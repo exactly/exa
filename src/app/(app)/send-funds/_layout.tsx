@@ -11,7 +11,6 @@ export default function AddFundsLayout() {
       <Stack.Screen name="qr" options={{ presentation: "modal" }} />
       <Stack.Screen name="asset" />
       <Stack.Screen name="amount" />
-      <Stack.Screen name="withdraw" options={{ presentation: "modal" }} />
     </Stack>
   );
 }

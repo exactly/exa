@@ -9,8 +9,6 @@ export default function AddFundsLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="add-crypto" />
-      <Stack.Screen name="add-crypto-about" options={{ presentation: "formSheet", contentStyle: { height: "100%" } }} />
-      <Stack.Screen name="add-fiat" />
     </Stack>
   );
 }
