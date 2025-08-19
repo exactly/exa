@@ -65,7 +65,7 @@ export default function ProfileHeader() {
             <Pressable onPress={copy} hitSlop={15}>
               <View display="flex" flexDirection="row" alignItems="flex-start">
                 <Text fontSize={17} lineHeight={23} fontFamily="$mono">
-                  {hidden ? "0x..." : shortenHex(address).toLowerCase()}
+                  {hidden ? "0x..." : shortenHex(address)}
                 </Text>
               </View>
             </Pressable>
