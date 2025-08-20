@@ -59,10 +59,14 @@ abstract contract ForkTest is Test {
   }
 
   function protocol(string memory name) internal returns (address addr) {
+    return protocol(name, true);
+  }
+
+  function protocol(string memory name, bool required) internal returns (address addr) {
     addr = address(uint160(uint256(vm.load(msg.sender, keccak256(abi.encode(name))))));
     if (addr == address(0)) addr = vm.envOr(string.concat("PROTOCOL_", name.upper(), "_ADDRESS"), address(0));
     if (addr == address(0)) {
-      addr = vm.readFile(
+      try vm.readFile(
         string.concat(
           "../node_modules/@exactly/protocol/deployments/",
           block.chainid == 11_155_420 ? "op-sepolia" : getChain(block.chainid).chainAlias.replace("_", "-"),
@@ -70,9 +74,12 @@ abstract contract ForkTest is Test {
           name,
           ".json"
         )
-      ).readAddress(".address");
+      ) returns (string memory json) {
+        addr = json.readAddress(".address");
+      } catch { } // solhint-disable-line no-empty-blocks
     }
-    _label(addr, name);
+    if (addr != address(0)) _label(addr, name);
+    else if (required) revert(string.concat(name, " not found"));
   }
 
   function broadcast(string memory name) internal returns (address) {
