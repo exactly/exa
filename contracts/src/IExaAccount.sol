@@ -188,6 +188,7 @@ error Timelocked();
 error Unauthorized();
 error ZeroAddress();
 error InvalidDelay();
+error InvalidProposal();
 error ZeroAmount();
 
 interface IAuditor {
