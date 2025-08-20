@@ -588,7 +588,7 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
   function _borrowAtMaturity(Proposal memory proposal) internal {
     BorrowAtMaturityData memory borrowData = abi.decode(proposal.data, (BorrowAtMaturityData));
     _executeFromSender(
-      address(EXA_USDC),
+      address(proposal.market),
       0,
       abi.encodeCall(
         IMarket.borrowAtMaturity,

@@ -667,6 +667,28 @@ contract ExaPluginTest is ForkTest {
     assertLe(exaUSDC.fixedBorrowPositions(maturity, address(account)).fee, 10e6);
   }
 
+  function test_borrowAtMaturity_borrowsEXA() external {
+    vm.startPrank(keeper);
+    account.poke(exaEXA);
+
+    uint256 maturity = FixedLib.INTERVAL;
+    vm.startPrank(address(account));
+    account.propose(
+      exaEXA,
+      100e18,
+      ProposalType.BORROW_AT_MATURITY,
+      abi.encode(BorrowAtMaturityData({ maturity: maturity, maxAssets: 110e18, receiver: address(account) }))
+    );
+
+    uint256 exaBalance = exa.balanceOf(address(account));
+    skip(proposalManager.delay());
+    account.executeProposal(proposalManager.nonces(address(account)));
+
+    assertEq(exa.balanceOf(address(account)), exaBalance + 100e18, "borrowed amount not received");
+    assertEq(exaEXA.fixedBorrowPositions(maturity, address(account)).principal, 100e18, "principal doesn't match");
+    assertLe(exaEXA.fixedBorrowPositions(maturity, address(account)).fee, 10e18, "fee is higher than limit");
+  }
+
   function test_crossRepay_repays() external {
     vm.startPrank(keeper);
     account.poke(exaEXA);
