@@ -490,8 +490,8 @@ importers:
         specifier: erc6900/modular-account-libs#v0.7.1
         version: https://codeload.github.com/erc6900/modular-account-libs/tar.gz/5d9d0e403332251045eee2954c2a8b7ea0bae953
       solady:
-        specifier: ^0.1.15
-        version: 0.1.15
+        specifier: ^0.1.26
+        version: 0.1.26
       webauthn-owner-plugin:
         specifier: exactly/webauthn-owner-plugin#42b67f8
         version: https://codeload.github.com/exactly/webauthn-owner-plugin/tar.gz/42b67f8
@@ -515,8 +515,8 @@ importers:
         specifier: eth-infinitism/account-abstraction#v0.6.0
         version: accountabstraction@https://codeload.github.com/eth-infinitism/account-abstraction/tar.gz/7174d6d845618dbd11cee68eefa715f5263690b6
       forge-std:
-        specifier: foundry-rs/forge-std#v1.9.6
-        version: https://codeload.github.com/foundry-rs/forge-std/tar.gz/3b20d60d14b343ee4f908cb8079495c07f5e8981
+        specifier: foundry-rs/forge-std#v1.10.0
+        version: https://codeload.github.com/foundry-rs/forge-std/tar.gz/8bbcf6e3f8f62f419e5429a0bd89331c85c37824
       fresh-crypto-lib:
         specifier: rdubois-crypto/FreshCryptoLib#fd2a0e6
         version: FreshCryptoLib#fd2a0e6@https://codeload.github.com/rdubois-crypto/FreshCryptoLib/tar.gz/fd2a0e6
@@ -2132,7 +2132,7 @@ packages:
 
   '@expo/bunyan@4.0.1':
     resolution: {integrity: sha512-+Lla7nYSiHZirgK+U/uYzsLv/X+HaJienbD5AKX1UQZHYfWaP+9uuQluRB4GrEVWF0GZ7vEVp/jzaOT9k/SQlg==}
-    engines: {node: '>=0.10.0'}
+    engines: {'0': node >=0.10.0}
 
   '@expo/cli@0.22.26':
     resolution: {integrity: sha512-I689wc8Fn/AX7aUGiwrh3HnssiORMJtR2fpksX+JIe8Cj/EDleblYMSwRPd0025wrwOV9UN1KM/RuEt/QjCS3Q==}
@@ -7356,9 +7356,9 @@ packages:
     resolution: {integrity: sha512-gIXjKqtFuWEgzFRJA9WCQeSJLZDjgJUOMCMzxtvFq/37KojM1BFGufqsCy0r4qSQmYLsZYMeyRqzIWOMup03sw==}
     engines: {node: '>=14'}
 
-  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/3b20d60d14b343ee4f908cb8079495c07f5e8981:
-    resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/3b20d60d14b343ee4f908cb8079495c07f5e8981}
-    version: 1.9.6
+  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/8bbcf6e3f8f62f419e5429a0bd89331c85c37824:
+    resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/8bbcf6e3f8f62f419e5429a0bd89331c85c37824}
+    version: 1.10.0
 
   form-data-encoder@2.1.4:
     resolution: {integrity: sha512-yDYSgNMraqvnxiEXO4hi88+YZxaHC6QKzb5N84iRCTDeRO7ZALpir/lVmf/uXUhnwUr2O4HU8s/n6x+yNjQkHw==}
@@ -10574,8 +10574,8 @@ packages:
   snake-case@3.0.4:
     resolution: {integrity: sha512-LAOh4z89bGQvl9pFfNF8V146i7o7/CqFPbqzYgP+yYzDIDeS9HaNFtXABamRW+AQzEVODcvE79ljJ+8a9YSdMg==}
 
-  solady@0.1.15:
-    resolution: {integrity: sha512-z2Lt7nlDej1ZdSDodkh5Fvf+VhCiOh5Z+u79vCkcEeHSHKRAK/o/bg5TxKqmE0L2S37SU0V4BSEzegaUgRfzOw==}
+  solady@0.1.26:
+    resolution: {integrity: sha512-dhGr/ptJFdea/1KE6xgqgwEdbMhUiSfRc6A+jLeltPe16zyt9qtED3PElIBVRnzEmUO5aZTjKVAr6SlqXBBcIw==}
 
   solhint@5.0.5:
     resolution: {integrity: sha512-WrnG6T+/UduuzSWsSOAbfq1ywLUDwNea3Gd5hg6PS+pLUm8lz2ECNr0beX609clBxmDeZ3676AiA9nPDljmbJQ==}
@@ -20866,7 +20866,7 @@ snapshots:
       cross-spawn: 7.0.6
       signal-exit: 4.1.0
 
-  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/3b20d60d14b343ee4f908cb8079495c07f5e8981: {}
+  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/8bbcf6e3f8f62f419e5429a0bd89331c85c37824: {}
 
   form-data-encoder@2.1.4: {}
 
@@ -24944,7 +24944,7 @@ snapshots:
       dot-case: 3.0.4
       tslib: 2.8.1
 
-  solady@0.1.15: {}
+  solady@0.1.26: {}
 
   solhint@5.0.5(typescript@5.8.3):
     dependencies:
