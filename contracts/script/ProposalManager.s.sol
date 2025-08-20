@@ -35,8 +35,10 @@ contract DeployProposalManager is BaseScript {
       vm.label(asset, symbol.slice(3));
     }
     allowlist.push(acct("swapper"));
-    allowlist.push(protocol("esEXA"));
-    allowlist.push(protocol("RewardsController"));
+    address esEXA = protocol("esEXA", false);
+    if (esEXA != address(0)) allowlist.push(esEXA);
+    address rewardsController = protocol("RewardsController", false);
+    if (rewardsController != address(0)) allowlist.push(rewardsController);
 
     string memory chainAllowlist = string.concat(".proposalManager.allowlist.", block.chainid.toString());
     if (vm.keyExistsJson(deploy, chainAllowlist)) {
