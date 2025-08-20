@@ -27,9 +27,13 @@ runs = 66_666
 bytecode_hash = "none"
 
 [rpc_endpoints]
+base = "${BASE_RPC_URL}"
+base_sepolia = "${BASE_SEPOLIA_RPC_URL}"
 optimism = "${OPTIMISM_RPC_URL}"
 optimism_sepolia = "${OPTIMISM_SEPOLIA_RPC_URL}"
 
 [etherscan]
-optimism = { key = "${OPTIMISM_ETHERSCAN_KEY}" }
-optimism_sepolia = { key = "${OPTIMISM_ETHERSCAN_KEY}" }
+base = { key = "${ETHERSCAN_KEY}" }
+base_sepolia = { key = "${ETHERSCAN_KEY}" }
+optimism = { key = "${ETHERSCAN_KEY}" }
+optimism_sepolia = { key = "${ETHERSCAN_KEY}" }
