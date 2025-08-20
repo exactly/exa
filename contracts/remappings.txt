@@ -2,7 +2,9 @@ FreshCryptoLib/=node_modules/fresh-crypto-lib/solidity/src/
 modular-account-libs/=node_modules/modular-account-libs/src/
 modular-account/=node_modules/modular-account/
 openzeppelin-contracts/contracts/=node_modules/@openzeppelin/contracts/
-solady/=node_modules/solady/src/
+solady/src/utils/=node_modules/solady/src/utils/
+solady/tokens/=node_modules/solady/src/tokens/
+solady/utils/=node_modules/solady/src/utils/
 webauthn-owner-plugin/=node_modules/webauthn-owner-plugin/src
 webauthn-sol/=node_modules/webauthn-sol/src
 
