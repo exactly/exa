@@ -308,8 +308,8 @@ importers:
         specifier: workspace:^1.0.0
         version: link:contracts
       '@exactly/protocol':
-        specifier: ^0.2.20
-        version: 0.2.20
+        specifier: exactly/protocol#d9658cf
+        version: https://codeload.github.com/exactly/protocol/tar.gz/d9658cf
       '@expo/fingerprint':
         specifier: ^0.11.11
         version: 0.11.11
@@ -490,8 +490,8 @@ importers:
         version: webauthn-sol#v1.0.0@https://codeload.github.com/base/webauthn-sol/tar.gz/619f20ab0f074fef41066ee4ab24849a913263b2
     devDependencies:
       '@exactly/protocol':
-        specifier: ^0.2.20
-        version: 0.2.20
+        specifier: exactly/protocol#d9658cf
+        version: https://codeload.github.com/exactly/protocol/tar.gz/d9658cf
       '@openzeppelin/contracts-upgradeable':
         specifier: ^5.4.0
         version: 5.4.0(@openzeppelin/contracts@5.4.0)
@@ -2087,8 +2087,9 @@ packages:
     version: 0.0.1
     engines: {node: '>=20'}
 
-  '@exactly/protocol@0.2.20':
-    resolution: {integrity: sha512-YD7XhbDbQUmhPV0RqnxhYBIMKDTEJVfy+GleJUYXFcYVN+9WG41QVfJauw9dn8+cavVUoMIO5rUmQfkvkHpeIw==}
+  '@exactly/protocol@https://codeload.github.com/exactly/protocol/tar.gz/d9658cf':
+    resolution: {tarball: https://codeload.github.com/exactly/protocol/tar.gz/d9658cf}
+    version: 0.2.20
     engines: {node: '>=18'}
 
   '@expo/bunyan@4.0.1':
@@ -13228,7 +13229,7 @@ snapshots:
 
   '@exactly/lib@https://codeload.github.com/exactly/lib/tar.gz/a8895cd': {}
 
-  '@exactly/protocol@0.2.20':
+  '@exactly/protocol@https://codeload.github.com/exactly/protocol/tar.gz/d9658cf':
     dependencies:
       '@openzeppelin/contracts': 5.4.0
       '@openzeppelin/contracts-upgradeable': 5.4.0(@openzeppelin/contracts@5.4.0)
