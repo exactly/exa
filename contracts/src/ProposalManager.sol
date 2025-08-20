@@ -17,6 +17,7 @@ import {
   IProposalManager,
   InsufficientLiquidity,
   InvalidDelay,
+  InvalidProposal,
   MarketData,
   NoProposal,
   NonceTooLow,
@@ -223,6 +224,7 @@ contract ProposalManager is IProposalManager, AccessControl {
     onlyRole(PROPOSER_ROLE)
   {
     if (amount == 0) revert ZeroAmount();
+    if (proposalType == ProposalType.NONE) revert InvalidProposal();
     _checkMarket(market);
     uint256 nonce = queueNonces[account];
     proposals[account][nonce] =
