@@ -58,6 +58,7 @@ import {
   IMarket,
   IProposalManager,
   InvalidDelay,
+  InvalidProposal,
   NoBalance,
   NoProposal,
   NonceTooLow,
@@ -3231,6 +3232,12 @@ contract ExaPluginTest is ForkTest {
 
     assertEq(exaEXA.balanceOf(receiver), amount);
     assertEq(exaEXA.balanceOf(address(account)), balance - amount);
+  }
+
+  function test_propose_reverts_whenNoneType() external {
+    vm.startPrank(address(account));
+    vm.expectRevert(InvalidProposal.selector);
+    account.propose(exaEXA, 1, ProposalType.NONE, abi.encode(address(account)));
   }
 
   // solhint-enable func-name-mixedcase

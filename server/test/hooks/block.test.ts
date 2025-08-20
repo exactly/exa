@@ -240,7 +240,7 @@ describe("proposal", () => {
     });
   });
 
-  describe("with none proposal", () => {
+  describe.todo("with none proposal", () => {
     beforeEach(async () => {
       const hash = await execute(
         encodeFunctionData({
