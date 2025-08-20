@@ -89,7 +89,7 @@ import { DeployIssuerChecker } from "../script/IssuerChecker.s.sol";
 import { DeployProposalManager } from "../script/ProposalManager.s.sol";
 import { DeployRefunder } from "../script/Refunder.s.sol";
 
-import { DeployAccount, ENTRYPOINT } from "./mocks/Account.s.sol";
+import { DeployAccount } from "./mocks/Account.s.sol";
 
 import { MockSwapper } from "./mocks/MockSwapper.sol";
 import { DeployMocks } from "./mocks/Mocks.s.sol";
