@@ -114,7 +114,7 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
     _setCollector(p.collector);
     _setProposalManager(p.proposalManager);
 
-    IERC20(USDC).forceApprove(address(EXA_USDC), type(uint256).max);
+    USDC.forceApprove(address(EXA_USDC), type(uint256).max);
   }
 
   function swap(IERC20 assetIn, IERC20 assetOut, uint256 maxAmountIn, uint256 minAmountOut, bytes memory route)
