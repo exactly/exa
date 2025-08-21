@@ -433,8 +433,8 @@ export default new Hono().post(
 
         if (payload.body.spend.status === "declined") {
           getActiveSpan()?.setAttributes({
-            SEMANTIC_ATTRIBUTE_SENTRY_OP: "panda.tx.declined",
-            ...(payload.body.spend.declinedReason && { "panda.reason": payload.body.spend.declinedReason }),
+            [SEMANTIC_ATTRIBUTE_SENTRY_OP]: "panda.tx.declined",
+            ...(payload.body.spend.declinedReason && { "span.description": payload.body.spend.declinedReason }),
           });
           const mutex = getMutex(account);
           mutex?.release();
