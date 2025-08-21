@@ -153,6 +153,7 @@ struct BorrowAtMaturityData {
 struct CrossRepayData {
   uint256 maturity;
   uint256 positionAssets;
+  IMarket marketOut;
   uint256 maxRepay;
   bytes route;
 }

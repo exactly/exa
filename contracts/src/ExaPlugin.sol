@@ -263,11 +263,10 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
     assert(msg.sender == _flashLoaner && flashLoaning == keccak256(data));
     delete flashLoaning;
 
-    uint256 actualRepay = 0;
     if (data[0] == 0x01) {
       RepayCallbackData memory r = abi.decode(data[1:], (RepayCallbackData));
       // slither-disable-next-line reentrancy-no-eth -- markets are safe
-      actualRepay = EXA_USDC.repayAtMaturity(r.maturity, r.positionAssets, r.maxRepay, r.borrower);
+      uint256 actualRepay = EXA_USDC.repayAtMaturity(r.maturity, r.positionAssets, r.maxRepay, r.borrower);
 
       // slither-disable-next-line reentrancy-benign -- markets are safe
       callHash = keccak256(abi.encode(EXA_USDC, IERC4626.withdraw.selector, actualRepay, address(this), r.borrower))
@@ -280,25 +279,31 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
       USDC.safeTransfer(_flashLoaner, r.maxRepay);
       return;
     }
-    CrossRepayCallbackData memory c = abi.decode(data[1:], (CrossRepayCallbackData));
-    actualRepay = EXA_USDC.repayAtMaturity(c.maturity, c.positionAssets, c.maxRepay, c.borrower);
+    _handleCrossRepay(abi.decode(data[1:], (CrossRepayCallbackData)), _flashLoaner);
+  }
+
+  function _handleCrossRepay(CrossRepayCallbackData memory c, address _flashLoaner) internal {
+    IERC20 assetOut = IERC20(c.marketOut.asset());
+    if (assetOut != USDC) assetOut.forceApprove(address(c.marketOut), c.maxRepay);
+
+    uint256 actualRepay = c.marketOut.repayAtMaturity(c.maturity, c.positionAssets, c.maxRepay, c.borrower);
     _execute(
       c.borrower, address(c.marketIn), 0, abi.encodeCall(IMarket.withdraw, (c.maxAmountIn, c.borrower, c.borrower))
     );
-    (uint256 amountIn, uint256 amountOut) =
-      _swap(c.borrower, IERC20(c.marketIn.asset()), USDC, c.maxAmountIn, c.maxRepay, c.route);
+    IERC20 assetIn = IERC20(c.marketIn.asset());
+    (uint256 amountIn, uint256 amountOut) = _swap(c.borrower, assetIn, assetOut, c.maxAmountIn, c.maxRepay, c.route);
 
-    _transferFromAccount(c.borrower, USDC, address(this), actualRepay);
-    USDC.safeTransfer(_flashLoaner, c.maxRepay);
+    _transferFromAccount(c.borrower, assetOut, address(this), actualRepay);
+    assetOut.safeTransfer(_flashLoaner, c.maxRepay);
 
     uint256 unspent = amountOut - actualRepay;
     if (unspent != 0) {
-      _approve(c.borrower, address(USDC), address(EXA_USDC), unspent);
-      _execute(c.borrower, address(EXA_USDC), 0, abi.encodeCall(IERC4626.deposit, (unspent, c.borrower)));
+      _approve(c.borrower, address(assetOut), address(c.marketOut), unspent);
+      _execute(c.borrower, address(c.marketOut), 0, abi.encodeCall(IERC4626.deposit, (unspent, c.borrower)));
     }
     uint256 unspentCollateral = c.maxAmountIn - amountIn;
     if (unspentCollateral != 0) {
-      _transferFromAccount(c.borrower, IERC20(c.marketIn.asset()), address(this), unspentCollateral);
+      _transferFromAccount(c.borrower, assetIn, address(this), unspentCollateral);
       _depositUnspent(c.marketIn, unspentCollateral, c.borrower);
     }
   }
@@ -617,13 +622,14 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
             positionAssets: crossData.positionAssets,
             maxRepay: crossData.maxRepay,
             marketIn: proposal.market,
+            marketOut: crossData.marketOut,
             maxAmountIn: proposal.amount,
             route: crossData.route
           })
         )
       )
     );
-    _flashLoan(crossData.maxRepay, data);
+    _flashLoan(crossData.maxRepay, IERC20(crossData.marketOut.asset()), data);
   }
 
   function _execute(address account, address target, uint256 value, bytes memory data) internal {
@@ -634,9 +640,9 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
     _execute(msg.sender, target, value, data);
   }
 
-  function _flashLoan(uint256 amount, bytes memory data) internal {
+  function _flashLoan(uint256 amount, IERC20 token, bytes memory data) internal {
     IERC20[] memory tokens = new IERC20[](1);
-    tokens[0] = IERC20(USDC);
+    tokens[0] = token;
     uint256[] memory amounts = new uint256[](1);
     amounts[0] = amount;
 
@@ -693,7 +699,7 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
         )
       )
     );
-    _flashLoan(proposal.amount, data);
+    _flashLoan(proposal.amount, USDC, data);
   }
 
   function _rollDebt(Proposal memory proposal) internal {
@@ -858,6 +864,7 @@ struct CrossRepayCallbackData {
   uint256 positionAssets;
   uint256 maxRepay;
   IMarket marketIn;
+  IMarket marketOut;
   uint256 maxAmountIn;
   bytes route;
 }
