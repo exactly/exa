@@ -4,7 +4,9 @@ import { foundry, react } from "@wagmi/cli/plugins";
 import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { type Abi, getAddress } from "viem";
-import { optimism, optimismSepolia } from "viem/chains";
+import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
+
+import deploy from "./contracts/deploy.json";
 
 const easBuild = process.env.EAS_BUILD_RUNNER === "eas-build";
 
@@ -31,11 +33,8 @@ const [issuerChecker] = loadBroadcast("IssuerChecker").transactions;
 const [proposalManager] = loadBroadcast("ProposalManager").transactions;
 const [refunder] = loadBroadcast("Refunder").transactions;
 const [exaPreviewer] = loadBroadcast("ExaPreviewer").transactions;
-const [, swapper] =
-  chainId === optimismSepolia.id
-    ? loadBroadcast("Mocks").transactions
-    : [null, { contractAddress: "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE", contractName: "LifiGateway" }];
-if (!exaPlugin || !issuerChecker || !proposalManager || !exaPreviewer || !refunder) {
+const swapper = (deploy.accounts.swapper as Record<string, string>)[chainId] ?? deploy.accounts.swapper.default;
+if (!exaPlugin || !issuerChecker || !proposalManager || !exaPreviewer || !refunder || !swapper) {
   throw new Error("missing contracts");
 }
 
@@ -80,7 +79,7 @@ export default defineConfig([
           previewer: previewer.address,
           proposalManager: proposalManager.contractAddress,
           ratePreviewer: ratePreviewer.address,
-          swapper: swapper.contractAddress,
+          swapper,
           usdc: usdc.address,
           weth: weth.address,
         },
@@ -128,10 +127,10 @@ function addresses(contracts: Record<string, string>, scripts?: Record<string, s
     run() {
       if (scripts) {
         for (const [key, script] of Object.entries(scripts)) {
-          const output = execSync(
-            `forge script -s 'getAddress()' script/${script}.s.sol --chain ${chainId} --etherscan-api-key x`,
-            { cwd: "contracts", encoding: "utf8" },
-          );
+          const output = execSync(`forge script -s 'getAddress()' script/${script}.s.sol --chain ${chainId}`, {
+            cwd: "contracts",
+            encoding: "utf8",
+          });
           const address = new RegExp(/== return ==\n0: address (0x[\da-f]{40})/i).exec(output)?.[1];
           if (!address) throw new Error(output);
           contracts[key] = address;
@@ -147,18 +146,28 @@ function addresses(contracts: Record<string, string>, scripts?: Record<string, s
 }
 
 function chain(): Plugin {
-  const importName = { [optimism.id]: "optimism", [optimismSepolia.id]: "optimismSepolia" }[chainId];
+  const importName = {
+    [base.id]: "base",
+    [baseSepolia.id]: "baseSepolia",
+    [optimism.id]: "optimism",
+    [optimismSepolia.id]: "optimismSepolia",
+  }[chainId];
   if (!importName) throw new Error("unknown chain");
   return { name: "Chain", run: () => ({ content: `export { ${importName} as default } from "@alchemy/aa-core"` }) };
 }
 
 function loadDeployment(contract: string) {
-  return JSON.parse(
-    readFileSync(
-      `node_modules/@exactly/protocol/deployments/${chainId === optimism.id ? "optimism" : "op-sepolia"}/${contract}.json`,
-      "utf8",
-    ),
-  ) as { address: string; abi: Abi };
+  const network = {
+    [base.id]: "base",
+    [baseSepolia.id]: "base-sepolia",
+    [optimism.id]: "optimism",
+    [optimismSepolia.id]: "op-sepolia",
+  }[chainId];
+  if (!network) throw new Error("unknown chain");
+  return JSON.parse(readFileSync(`node_modules/@exactly/protocol/deployments/${network}/${contract}.json`, "utf8")) as {
+    address: string;
+    abi: Abi;
+  };
 }
 
 function loadBroadcast(script: string) {
