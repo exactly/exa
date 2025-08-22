@@ -36,7 +36,6 @@ export default function GradientScrollView({
       />
       <ScrollView
         padding="$s4"
-        fullscreen
         showsVerticalScrollIndicator={false}
         stickyHeaderIndices={stickyHeader ? [0] : undefined}
         stickyHeaderHiddenOnScroll={stickyHeader}
