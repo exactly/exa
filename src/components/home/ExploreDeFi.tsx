@@ -50,7 +50,8 @@ export default function ExploreDeFi() {
         justifyContent="flex-end"
         cursor="pointer"
         zIndex={3}
-        onPress={() => {
+        onPress={(event) => {
+          event.stopPropagation();
           queryClient.setQueryData(["settings", "explore-defi-shown"], false);
         }}
       >
