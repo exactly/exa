@@ -12,16 +12,15 @@ import View from "../../components/shared/View";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useBackgroundColor from "../../utils/useBackgroundColor";
-import type { RootNavigationProperties } from "../_layout";
 
 export default function AppLayout() {
   useBackgroundColor();
-  const rootNavigator = useNavigation<RootNavigationProperties>();
+  const appNavigator = useNavigation<AppNavigationProperties>();
   const { error: noCredential, isLoading, isFetched } = useQuery<Credential>({ queryKey: ["credential"] }, queryClient);
 
   useEffect(() => {
     if (isLoading || !isFetched) return;
-    if (noCredential) rootNavigator.replace("onboarding");
+    if (noCredential) appNavigator.replace("onboarding");
     sdk
       .isInMiniApp()
       .then(async (isInMiniApp) => {
@@ -29,7 +28,7 @@ export default function AppLayout() {
       })
       .catch(reportError);
     SplashScreen.hideAsync().catch(reportError);
-  }, [isFetched, isLoading, rootNavigator, noCredential]);
+  }, [isFetched, isLoading, appNavigator, noCredential]);
 
   if (isLoading || !isFetched) return <Loading />;
   return <Stack screenOptions={{ headerShown: false }} />;

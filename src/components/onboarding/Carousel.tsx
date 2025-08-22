@@ -19,8 +19,10 @@ import { useConnect } from "wagmi";
 
 import ListItem from "./ListItem";
 import Pagination from "./Pagination";
-import type { RootNavigationProperties } from "../../app/_layout";
-import type { OnboardingNavigationProperties } from "../../app/onboarding/_layout";
+// import type { RootNavigationProperties } from "../../app/_layout";
+// import type { AppNavigationProperties } from "../../app/(app)/_layout";
+// import type { OnboardingNavigationProperties } from "../../app/onboarding/_layout";
+import type { AppNavigationProperties } from "../../app/(app)/_layout";
 import calendarBlob from "../../assets/images/calendar-blob.svg";
 import calendar from "../../assets/images/calendar.svg";
 import earningsBlob from "../../assets/images/earnings-blob.svg";
@@ -44,8 +46,8 @@ export default function Carousel() {
   const toast = useToastController();
   const [activeIndex, setActiveIndex] = useState(0);
   const { connect, isPending: isConnecting } = useConnect();
-  const rootNavigator = useNavigation<RootNavigationProperties>("/");
-  const onboardingNavigator = useNavigation<OnboardingNavigationProperties>("/onboarding");
+  const appNavigator = useNavigation<AppNavigationProperties>();
+  // const onboardingNavigator = useNavigation<OnboardingNavigationProperties>("/onboarding");
 
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
 
@@ -95,7 +97,7 @@ export default function Carousel() {
     (credential: Credential) => {
       connect({ connector: alchemyConnector });
       queryClient.setQueryData<Credential>(["credential"], credential);
-      rootNavigator.replace("(app)");
+      appNavigator.replace("(home)", { screen: "index" });
     },
     (error: unknown) => {
       if (
@@ -214,7 +216,7 @@ export default function Carousel() {
                   if (hasInjectedProvider) {
                     setSignUpModalOpen(true);
                   } else {
-                    onboardingNavigator.push("(passkeys)/passkeys");
+                    appNavigator.navigate("(passkeys)/passkeys");
                   }
                 }}
                 iconAfter={<Key color="$interactiveOnBaseBrandDefault" fontWeight="bold" />}
