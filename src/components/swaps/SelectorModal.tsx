@@ -70,18 +70,18 @@ function TokenListItem({ token, isSelected, onPress }: TokenListItemProperties) 
         />
         <XStack gap="$s2" flex={1} justifyContent="space-between">
           <YStack flex={1}>
-            <Text emphasized subHeadline>
+            <Text emphasized subHeadline textAlign="left">
               {token.symbol}
             </Text>
-            <Text footnote color="$uiNeutralSecondary" numberOfLines={1}>
+            <Text footnote color="$uiNeutralSecondary" numberOfLines={1} textAlign="left">
               {token.name}
             </Text>
           </YStack>
           <YStack alignItems="flex-end" justifyContent="flex-end" gap="$s2">
-            <Text emphasized callout color="$uiNeutralPrimary">
+            <Text emphasized callout color="$uiNeutralPrimary" textAlign="right">
               {formatUSDValue(matchingAsset?.usdValue ?? 0)}
             </Text>
-            <Text footnote color="$uiNeutralSecondary">
+            <Text footnote color="$uiNeutralSecondary" textAlign="right">
               {matchingAsset
                 ? matchingAsset.type === "protocol"
                   ? formatTokenAmount(matchingAsset.floatingDepositAssets, matchingAsset.decimals)
