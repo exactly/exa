@@ -1,6 +1,5 @@
 import * as Sentry from "@sentry/react-native";
 import { File } from "@tamagui/lucide-icons";
-import { openBrowserAsync } from "expo-web-browser";
 import React from "react";
 import { Pressable, StyleSheet } from "react-native";
 import { YStack } from "tamagui";
@@ -11,8 +10,10 @@ import Text from "./Text";
 import View from "./View";
 import ErrorImage from "../../assets/images/error.svg";
 import reportError from "../../utils/reportError";
+import useOpenBrowser from "../../utils/useOpenBrowser";
 
 export default function Error({ resetError }: { resetError: () => void }) {
+  const openBrowser = useOpenBrowser();
   return (
     <SafeView fullScreen gap="$s4" padded backgroundColor="$backgroundSoft">
       <YStack flex={1} paddingHorizontal="$s6" gap="$s7">
@@ -32,7 +33,7 @@ export default function Error({ resetError }: { resetError: () => void }) {
                 textDecorationLine="underline"
                 color="$interactiveBaseBrandDefault"
                 onPress={() => {
-                  openBrowserAsync("https://x.com/Exa_App").catch(reportError);
+                  openBrowser("https://x.com/Exa_App").catch(reportError);
                 }}
               >
                 X
@@ -42,7 +43,7 @@ export default function Error({ resetError }: { resetError: () => void }) {
                 textDecorationLine="underline"
                 color="$interactiveBaseBrandDefault"
                 onPress={() => {
-                  openBrowserAsync("https://discord.gg/fBdVmbH38Y").catch(reportError);
+                  openBrowser("https://discord.gg/fBdVmbH38Y").catch(reportError);
                 }}
               >
                 Discord

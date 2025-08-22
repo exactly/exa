@@ -6,13 +6,13 @@ import { useToastController } from "@tamagui/toast";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { setStringAsync } from "expo-clipboard";
-import { openBrowserAsync } from "expo-web-browser";
 import React from "react";
 import { Separator, XStack, YStack } from "tamagui";
 
 import OptimismImage from "../../../assets/images/optimism.svg";
 import type { ActivityItem } from "../../../utils/queryClient";
 import reportError from "../../../utils/reportError";
+import useOpenBrowser from "../../../utils/useOpenBrowser";
 import Text from "../../shared/Text";
 
 export default function TransactionDetails({
@@ -21,6 +21,7 @@ export default function TransactionDetails({
   source?: CreditActivity | DebitActivity | InstallmentsActivity;
 }) {
   const toast = useToastController();
+  const openBrowser = useOpenBrowser();
   const query = useQuery<ActivityItem>({ queryKey: ["activity", "details"] });
   const item = source ?? query.data;
   return (
@@ -107,9 +108,7 @@ export default function TransactionDetails({
                 color="$uiNeutralPrimary"
                 cursor="pointer"
                 onPress={() => {
-                  openBrowserAsync(`${chain.blockExplorers?.default.url}/tx/${item.transactionHash}`).catch(
-                    reportError,
-                  );
+                  openBrowser(`${chain.blockExplorers?.default.url}/tx/${item.transactionHash}`).catch(reportError);
                 }}
               >
                 {shortenHex(item.transactionHash)}

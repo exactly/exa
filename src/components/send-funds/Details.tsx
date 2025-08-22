@@ -4,13 +4,13 @@ import { User, Calendar, Hash, ExternalLink } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { setStringAsync } from "expo-clipboard";
-import { openBrowserAsync } from "expo-web-browser";
 import React from "react";
 import { Alert, Pressable } from "react-native";
 import { XStack, Avatar } from "tamagui";
 
 import type { Withdraw } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
+import useOpenBrowser from "../../utils/useOpenBrowser";
 import Button from "../shared/Button";
 import Text from "../shared/Text";
 import View from "../shared/View";
@@ -24,6 +24,7 @@ export default function Details({
   onClose: () => void;
   isExternalAsset: boolean;
 }) {
+  const openBrowser = useOpenBrowser();
   const { data } = useQuery<Withdraw>({ queryKey: ["withdrawal"] });
   return (
     <View padded gap="$s4">
@@ -74,7 +75,7 @@ export default function Details({
           </XStack>
           <Button
             onPress={() => {
-              openBrowserAsync(`${chain.blockExplorers?.default.url}/tx/${hash}`).catch(reportError);
+              openBrowser(`${chain.blockExplorers?.default.url}/tx/${hash}`).catch(reportError);
             }}
             contained
             main

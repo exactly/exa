@@ -1,12 +1,13 @@
-import { openBrowserAsync } from "expo-web-browser";
 import React from "react";
 import { XStack } from "tamagui";
 
 import reportError from "../../utils/reportError";
 import useIntercom from "../../utils/useIntercom";
+import useOpenBrowser from "../../utils/useOpenBrowser";
 import Text from "../shared/Text";
 
 export default function HomeDisclaimer() {
+  const openBrowser = useOpenBrowser();
   const { presentCollection } = useIntercom();
   return (
     <XStack gap="$s4" alignItems="flex-start" paddingTop="$s3" flexWrap="wrap">
@@ -18,7 +19,7 @@ export default function HomeDisclaimer() {
           color="$interactiveOnDisabled"
           textDecorationLine="underline"
           onPress={() => {
-            openBrowserAsync(`https://docs.exact.ly/exa-app/how-the-exa-app-works`).catch(reportError);
+            openBrowser(`https://docs.exact.ly/exa-app/how-the-exa-app-works`).catch(reportError);
           }}
         >
           Exa App
@@ -31,7 +32,7 @@ export default function HomeDisclaimer() {
           color="$interactiveOnDisabled"
           textDecorationLine="underline"
           onPress={() => {
-            openBrowserAsync(`https://exact.ly/`).catch(reportError);
+            openBrowser(`https://exact.ly/`).catch(reportError);
           }}
         >
           Exactly Protocol
