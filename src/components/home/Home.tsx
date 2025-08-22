@@ -149,7 +149,7 @@ export default function Home() {
                   setSpendingLimitsInfoSheetOpen(true);
                 }}
               />
-              <GettingStarted hasFunds={usdBalance > 0n} hasKYC={KYCStatus === "ok"} />
+              <GettingStarted hasFunds={usdBalance > 0n} hasKYC={KYCStatus === "ok" || legacyKYCStatus === "ok"} />
               {bytecode && exploreDeFiShown && <ExploreDeFi />}
               <OverduePayments
                 onSelect={(maturity) => {
