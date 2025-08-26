@@ -3,16 +3,17 @@ import shortenHex from "@exactly/common/shortenHex";
 import { ExternalLink } from "@tamagui/lucide-icons";
 import { format } from "date-fns";
 import { setStringAsync } from "expo-clipboard";
-import { openBrowserAsync } from "expo-web-browser";
 import React from "react";
 import { Alert } from "react-native";
 import { Separator, XStack, YStack } from "tamagui";
 
 import OptimismImage from "../../assets/images/optimism.svg";
 import reportError from "../../utils/reportError";
+import useOpenBrowser from "../../utils/useOpenBrowser";
 import Text from "../shared/Text";
 
 export default function TransactionDetails({ hash }: { hash?: string }) {
+  const openBrowser = useOpenBrowser();
   return (
     <YStack gap="$s4">
       <YStack gap="$s4">
@@ -61,7 +62,7 @@ export default function TransactionDetails({ hash }: { hash?: string }) {
                   fontFamily="$mono"
                   textDecorationLine="underline"
                   onPress={() => {
-                    openBrowserAsync(`${chain.blockExplorers?.default.url}/tx/${hash}`).catch(reportError);
+                    openBrowser(`${chain.blockExplorers?.default.url}/tx/${hash}`).catch(reportError);
                   }}
                 >
                   {shortenHex(hash)}

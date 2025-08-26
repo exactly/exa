@@ -1,5 +1,6 @@
 import deriveAddress from "@exactly/common/deriveAddress";
 import type { Credential } from "@exactly/common/validation";
+import { sdk } from "@farcaster/miniapp-sdk";
 import type * as IntercomNative from "@intercom/intercom-react-native";
 import type * as IntercomWeb from "@intercom/messenger-js-sdk";
 import { useQuery } from "@tanstack/react-query";
@@ -33,9 +34,11 @@ const { login, logout, newMessage, present, presentArticle, presentCollection } 
             showArticle(articleId);
             return Promise.resolve(true);
           },
-          presentCollection: (collectionId: string) => {
-            openBrowserAsync(`https://intercom.help/exa-app/en/collections/${collectionId}`).catch(reportError); //HACK unable to show collections id
-            return Promise.resolve(true);
+          presentCollection: async (collectionId: string) => {
+            await ((await sdk.isInMiniApp())
+              ? sdk.actions.openUrl(`https://intercom.help/exa-app/en/collections/${collectionId}`)
+              : openBrowserAsync(`https://intercom.help/exa-app/en/collections/${collectionId}`));
+            return true;
           },
           newMessage: (message: string) => {
             showNewMessage(message);

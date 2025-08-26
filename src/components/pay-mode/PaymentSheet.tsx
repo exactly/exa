@@ -14,7 +14,6 @@ import { useToastController } from "@tamagui/toast";
 import { useQuery } from "@tanstack/react-query";
 import { format, formatDistance, isAfter } from "date-fns";
 import { useNavigation, useLocalSearchParams } from "expo-router";
-import { openBrowserAsync } from "expo-web-browser";
 import React, { useCallback, useState } from "react";
 import { Pressable, StyleSheet } from "react-native";
 import { Separator, XStack, YStack } from "tamagui";
@@ -31,6 +30,7 @@ import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAsset from "../../utils/useAsset";
 import useIntercom from "../../utils/useIntercom";
+import useOpenBrowser from "../../utils/useOpenBrowser";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
@@ -39,6 +39,7 @@ import View from "../shared/View";
 
 export default function PaymentSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { address } = useAccount();
+  const openBrowser = useOpenBrowser();
   const { presentArticle } = useIntercom();
   const { market: USDCMarket } = useAsset(marketUSDCAddress);
   const { maturity: currentMaturity } = useLocalSearchParams();
@@ -58,14 +59,14 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
   });
 
   const handleStatement = useCallback(() => {
-    openBrowserAsync(
+    openBrowser(
       `https://${
         {
           [optimismSepolia.id]: "testnet",
         }[chain.id] ?? "app"
       }.exact.ly/dashboard?account=${address}&tab=b`,
     ).catch(reportError);
-  }, [address]);
+  }, [address, openBrowser]);
 
   const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
   if (!success || !USDCMarket) return;

@@ -6,7 +6,6 @@ import type { Token } from "@lifi/sdk";
 import { ArrowLeft, Check, CircleHelp, Repeat, TriangleAlert } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigation } from "expo-router";
-import { openBrowserAsync } from "expo-web-browser";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -34,6 +33,7 @@ import reportError from "../../utils/reportError";
 import useAccountAssets from "../../utils/useAccountAssets";
 import useAsset from "../../utils/useAsset";
 import useIntercom from "../../utils/useIntercom";
+import useOpenBrowser from "../../utils/useOpenBrowser";
 import useSimulateProposal from "../../utils/useSimulateProposal";
 import Button from "../shared/Button";
 import SafeView from "../shared/SafeView";
@@ -67,6 +67,7 @@ const SLIPPAGE_PERCENT = 5n;
 export default function Swaps() {
   const navigation = useNavigation<AppNavigationProperties>();
   const insets = useSafeAreaInsets();
+  const openBrowser = useOpenBrowser();
   const { presentArticle } = useIntercom();
   const { address: account } = useAccount();
   const { externalAssets, protocolAssets } = useAccountAssets();
@@ -486,7 +487,7 @@ export default function Swaps() {
                   color="$interactiveOnDisabled"
                   textDecorationLine="underline"
                   onPress={() => {
-                    openBrowserAsync(`https://li.fi/`).catch(reportError);
+                    openBrowser(`https://li.fi/`).catch(reportError);
                   }}
                 >
                   LI.FI

@@ -4,15 +4,16 @@ import type { CreditActivity, DebitActivity, InstallmentsActivity } from "@exact
 import { CalendarClock, CreditCard, SquareArrowOutUpRight } from "@tamagui/lucide-icons";
 import { format } from "date-fns";
 import { setStringAsync } from "expo-clipboard";
-import { openBrowserAsync } from "expo-web-browser";
 import React from "react";
 import { Alert } from "react-native";
 import { Separator, XStack, YStack } from "tamagui";
 
 import reportError from "../../../utils/reportError";
+import useOpenBrowser from "../../../utils/useOpenBrowser";
 import Text from "../../shared/Text";
 
 export default function OperationDetails({ item }: { item: CreditActivity | DebitActivity | InstallmentsActivity }) {
+  const openBrowser = useOpenBrowser();
   return (
     <YStack gap="$s4">
       <YStack gap="$s4">
@@ -123,7 +124,7 @@ export default function OperationDetails({ item }: { item: CreditActivity | Debi
             alignItems="center"
             gap="$s3"
             onPress={() => {
-              openBrowserAsync(`${chain.blockExplorers?.default.url}/tx/${item.transactionHash}`).catch(reportError);
+              openBrowser(`${chain.blockExplorers?.default.url}/tx/${item.transactionHash}`).catch(reportError);
             }}
           >
             <Text textDecorationLine="underline" callout color="$uiNeutralPrimary">

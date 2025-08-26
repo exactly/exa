@@ -1,7 +1,6 @@
 import { CircleHelp, Link } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigation } from "expo-router";
-import { openBrowserAsync } from "expo-web-browser";
 import React, { useState } from "react";
 import type { RefreshControl } from "react-native";
 import { Pressable } from "react-native";
@@ -16,11 +15,13 @@ import ExactlyLogo from "../../assets/images/exactly.svg";
 import LiFiLogo from "../../assets/images/lifi.svg";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
+import useOpenBrowser from "../../utils/useOpenBrowser";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 
 export default function DeFi() {
   const theme = useTheme();
+  const openBrowser = useOpenBrowser();
   const navigation = useNavigation<AppNavigationProperties>();
   const { data: shown } = useQuery<boolean>({ queryKey: ["settings", "defi-intro-shown"] });
   const { data: fundingConnected } = useQuery<boolean>({ queryKey: ["defi", "usdc-funding-connected"] });
@@ -106,7 +107,7 @@ export default function DeFi() {
               caption2
               cursor="pointer"
               onPress={() => {
-                openBrowserAsync("https://exact.ly/").catch(reportError);
+                openBrowser("https://exact.ly/").catch(reportError);
               }}
             >
               Exactly Protocol
@@ -121,7 +122,7 @@ export default function DeFi() {
               <Text
                 color="$interactiveTextBrandDefault"
                 onPress={() => {
-                  openBrowserAsync("https://docs.exact.ly/legal/terms-and-conditions-of-use").catch(reportError);
+                  openBrowser("https://docs.exact.ly/legal/terms-and-conditions-of-use").catch(reportError);
                 }}
               >
                 terms & conditions
@@ -151,7 +152,7 @@ export default function DeFi() {
               caption2
               cursor="pointer"
               onPress={() => {
-                openBrowserAsync("https://li.fi/").catch(reportError);
+                openBrowser("https://li.fi/").catch(reportError);
               }}
             >
               LI.FI
@@ -167,7 +168,7 @@ export default function DeFi() {
               <Text
                 color="$interactiveTextBrandDefault"
                 onPress={() => {
-                  openBrowserAsync("https://li.fi/legal/terms-and-conditions/").catch(reportError);
+                  openBrowser("https://li.fi/legal/terms-and-conditions/").catch(reportError);
                 }}
               >
                 terms & conditions

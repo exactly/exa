@@ -1,9 +1,9 @@
 import { X } from "@tamagui/lucide-icons";
-import { openBrowserAsync } from "expo-web-browser";
 import React from "react";
 import { ScrollView, YStack } from "tamagui";
 
 import reportError from "../../utils/reportError";
+import useOpenBrowser from "../../utils/useOpenBrowser";
 import Button from "../shared/Button";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
@@ -11,6 +11,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function AboutDefiSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const openBrowser = useOpenBrowser();
   return (
     <ModalSheet open={open} onClose={onClose}>
       <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
@@ -46,7 +47,7 @@ export default function AboutDefiSheet({ open, onClose }: { open: boolean; onClo
                     cursor="pointer"
                     textAlign="center"
                     onPress={() => {
-                      openBrowserAsync(
+                      openBrowser(
                         `https://intercom.help/exa-app/en/articles/9942510-exa-app-terms-and-conditions`,
                       ).catch(reportError);
                     }}

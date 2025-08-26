@@ -4,7 +4,6 @@ import { ChevronRight, CircleHelp, CreditCard, DollarSign, Eye, EyeOff, Hash, Sn
 import { useToastController } from "@tamagui/toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigation } from "expo-router";
-import { openBrowserAsync } from "expo-web-browser";
 import React, { useState } from "react";
 import { Pressable, RefreshControl } from "react-native";
 import { ScrollView, Separator, Spinner, Square, Switch, useTheme, XStack, YStack } from "tamagui";
@@ -28,6 +27,7 @@ import reportError from "../../utils/reportError";
 import { APIError, getActivity, getCard, createCard, getKYCStatus, setCardStatus } from "../../utils/server";
 import useAsset from "../../utils/useAsset";
 import useIntercom from "../../utils/useIntercom";
+import useOpenBrowser from "../../utils/useOpenBrowser";
 import InfoAlert from "../shared/InfoAlert";
 import LatestActivity from "../shared/LatestActivity";
 import PluginUpgrade from "../shared/PluginUpgrade";
@@ -38,6 +38,7 @@ import View from "../shared/View";
 export default function Card() {
   const theme = useTheme();
   const toast = useToastController();
+  const openBrowser = useOpenBrowser();
   const { presentArticle } = useIntercom();
   const [displayPIN, setDisplayPIN] = useState(false);
   const navigation = useNavigation<AppNavigationProperties>();
@@ -445,7 +446,7 @@ export default function Card() {
                       color="$interactiveOnDisabled"
                       textDecorationLine="underline"
                       onPress={() => {
-                        openBrowserAsync(`https://exact.ly/`).catch(reportError);
+                        openBrowser(`https://exact.ly/`).catch(reportError);
                       }}
                     >
                       Exactly Protocol
@@ -458,7 +459,7 @@ export default function Card() {
                       color="$interactiveOnDisabled"
                       textDecorationLine="underline"
                       onPress={() => {
-                        openBrowserAsync(`https://exact.ly/`).catch(reportError);
+                        openBrowser(`https://exact.ly/`).catch(reportError);
                       }}
                     >
                       Exactly Protocol

@@ -1,7 +1,6 @@
 import { previewerAddress } from "@exactly/common/generated/chain";
 import { ArrowLeft, CircleHelp } from "@tamagui/lucide-icons";
 import { useNavigation } from "expo-router";
-import { openBrowserAsync } from "expo-web-browser";
 import React from "react";
 import { Pressable, RefreshControl } from "react-native";
 import { ScrollView, useTheme, XStack } from "tamagui";
@@ -13,6 +12,7 @@ import type { AppNavigationProperties } from "../../app/(app)/_layout";
 import { useReadPreviewerExactly } from "../../generated/contracts";
 import reportError from "../../utils/reportError";
 import useIntercom from "../../utils/useIntercom";
+import useOpenBrowser from "../../utils/useOpenBrowser";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
@@ -20,6 +20,7 @@ import View from "../shared/View";
 export default function Portfolio() {
   const theme = useTheme();
   const { address } = useAccount();
+  const openBrowser = useOpenBrowser();
   const { presentArticle } = useIntercom();
   const navigation = useNavigation<AppNavigationProperties>();
   const style = { backgroundColor: theme.backgroundSoft.val, margin: -5 };
@@ -114,8 +115,7 @@ export default function Portfolio() {
               color="$interactiveOnDisabled"
               textDecorationLine="underline"
               onPress={() => {
-                // TODO call sdk.actions.openUrl if in miniapp
-                openBrowserAsync(`https://exact.ly/`).catch(reportError);
+                openBrowser(`https://exact.ly/`).catch(reportError);
               }}
             >
               Exactly Protocol
