@@ -1,14 +1,41 @@
+import type { Credential } from "@exactly/common/validation";
+import { sdk } from "@farcaster/miniapp-sdk";
 import type { ParamListBase } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { Stack } from "expo-router";
+import { useQuery } from "@tanstack/react-query";
+import { SplashScreen, Stack, useFocusEffect, useNavigation } from "expo-router";
 import Head from "expo-router/head";
-import React from "react";
+import React, { useCallback, useEffect } from "react";
 import { Platform } from "react-native";
 
+import type { AppNavigationProperties } from "../(main)/_layout";
+import reportError from "../../utils/reportError";
 import useBackgroundColor from "../../utils/useBackgroundColor";
 
 export default function OnboardingLayout() {
   useBackgroundColor();
+
+  const { data: credential, isLoading, isFetched } = useQuery<Credential>({ queryKey: ["credential"] });
+  const navigation = useNavigation<AppNavigationProperties>();
+
+  useEffect(() => {
+    if (isLoading || !isFetched) return;
+    sdk
+      .isInMiniApp()
+      .then(async (isInMiniApp) => {
+        if (isInMiniApp) await sdk.actions.ready();
+      })
+      .catch(reportError);
+    SplashScreen.hideAsync().catch(reportError);
+  }, [isFetched, isLoading, credential, navigation]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (isLoading || !isFetched) return;
+      if (credential) navigation.replace("(main)");
+    }, [isFetched, isLoading, credential, navigation]),
+  );
+
   return (
     <>
       {Platform.OS === "web" && (

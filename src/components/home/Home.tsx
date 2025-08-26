@@ -17,7 +17,7 @@ import HomeDisclaimer from "./HomeDisclaimer";
 import PortfolioSummary from "./PortfolioSummary";
 import SpendingLimitsSheet from "./SpendingLimitsSheet";
 import CardUpgradeSheet from "./card-upgrade/CardUpgradeSheet";
-import type { AppNavigationProperties } from "../../app/(app)/_layout";
+import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import {
   useReadExaPreviewerPendingProposals,
   useReadPreviewerExactly,

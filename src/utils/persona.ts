@@ -6,7 +6,7 @@ import { Environment, Inquiry } from "react-native-persona";
 import queryClient from "./queryClient";
 import reportError from "./reportError";
 import { getKYCLink } from "./server";
-import type { AppNavigationProperties } from "../app/(app)/_layout";
+import type { AppNavigationProperties } from "../app/(main)/_layout";
 
 export const environment = __DEV__ ? Environment.SANDBOX : Environment.PRODUCTION;
 export const KYC_TEMPLATE_ID = "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2";

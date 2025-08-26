@@ -17,7 +17,7 @@ import { useConnect } from "wagmi";
 
 import ListItem from "./ListItem";
 import Pagination from "./Pagination";
-import type { AppNavigationProperties } from "../../app/(app)/_layout";
+import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import calendarBlob from "../../assets/images/calendar-blob.svg";
 import calendar from "../../assets/images/calendar.svg";
 import earningsBlob from "../../assets/images/earnings-blob.svg";
@@ -88,7 +88,7 @@ export default function Carousel() {
     (credential: Credential) => {
       connect({ connector: alchemyConnector });
       queryClient.setQueryData<Credential>(["credential"], credential);
-      navigation.replace("(app)");
+      navigation.replace("(main)");
     },
     () => {
       setErrorDialogOpen(true);

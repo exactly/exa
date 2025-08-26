@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useWindowDimensions, XStack, YStack } from "tamagui";
 import { safeParse } from "valibot";
 
-import type { AppNavigationProperties } from "../../app/(app)/_layout";
+import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import reportError from "../../utils/reportError";
 import Button from "../shared/Button";
 import Text from "../shared/Text";
@@ -16,7 +16,7 @@ import View from "../shared/View";
 
 export default function Qr() {
   const { top, bottom } = useSafeAreaInsets();
-  const navigation = useNavigation<AppNavigationProperties>("/(app)");
+  const navigation = useNavigation<AppNavigationProperties>("/(main)");
   const cameraReference = useRef<CameraView>(null);
   const { height, width } = useWindowDimensions();
   const [cameraFacing, setCameraFacing] = useState<"front" | "back">("back");

@@ -6,7 +6,7 @@ import { XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
 import { useAccount, useBytecode, useReadContract } from "wagmi";
 
-import type { AppNavigationProperties } from "../../app/(app)/_layout";
+import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import {
   upgradeableModularAccountAbi,
   useReadUpgradeableModularAccountGetInstalledPlugins,
@@ -15,7 +15,7 @@ import reportError from "../../utils/reportError";
 import Button from "../shared/StyledButton";
 
 export default function HomeActions() {
-  const navigation = useNavigation<AppNavigationProperties>("/(app)");
+  const navigation = useNavigation<AppNavigationProperties>("/(main)");
   const { address: account } = useAccount();
   const { data: bytecode } = useBytecode({ address: account ?? zeroAddress, query: { enabled: !!account } });
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({

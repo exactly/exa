@@ -9,7 +9,7 @@ import OverduePayments from "./OverduePayments";
 import PaySelector from "./PaySelector";
 import PaymentSheet from "./PaymentSheet";
 import UpcomingPayments from "./UpcomingPayments";
-import type { AppNavigationProperties } from "../../app/(app)/_layout";
+import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import { useReadPreviewerExactly } from "../../generated/contracts";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";

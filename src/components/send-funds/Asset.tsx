@@ -8,7 +8,7 @@ import { Alert, Pressable } from "react-native";
 import { Avatar, ScrollView, XStack } from "tamagui";
 import { parse } from "valibot";
 
-import type { AppNavigationProperties } from "../../app/(app)/_layout";
+import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import queryClient, { type Withdraw } from "../../utils/queryClient";
 import AssetSelector from "../shared/AssetSelector";
 import Button from "../shared/Button";

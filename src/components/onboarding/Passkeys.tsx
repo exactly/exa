@@ -7,7 +7,7 @@ import { Pressable, StyleSheet } from "react-native";
 import { XStack } from "tamagui";
 import { useConnect } from "wagmi";
 
-import type { AppNavigationProperties } from "../../app/(app)/_layout";
+import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import PasskeysBlob from "../../assets/images/passkeys-blob.svg";
 import PasskeysImage from "../../assets/images/passkeys.svg";
 import alchemyConnector from "../../utils/alchemyConnector";
@@ -47,7 +47,7 @@ export default function Passkeys() {
               if (navigation.canGoBack()) {
                 navigation.goBack();
               } else {
-                navigation.replace("onboarding");
+                navigation.replace("(auth)");
               }
             }}
           >

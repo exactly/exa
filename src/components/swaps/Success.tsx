@@ -7,7 +7,7 @@ import { Pressable, Image } from "react-native";
 import { ScrollView, Square, styled, useTheme, XStack, YStack } from "tamagui";
 import { formatUnits } from "viem";
 
-import type { AppNavigationProperties } from "../../app/(app)/_layout";
+import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import Button from "../shared/Button";

@@ -8,7 +8,7 @@ import { zeroAddress } from "viem";
 import { useAccount } from "wagmi";
 
 import AssetList from "./AssetList";
-import type { AppNavigationProperties } from "../../app/(app)/_layout";
+import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import { useReadPreviewerExactly } from "../../generated/contracts";
 import reportError from "../../utils/reportError";
 import useIntercom from "../../utils/useIntercom";

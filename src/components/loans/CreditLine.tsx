@@ -8,7 +8,7 @@ import { Separator, XStack, YStack } from "tamagui";
 import { formatUnits, zeroAddress } from "viem";
 import { useAccount, useBytecode } from "wagmi";
 
-import type { AppNavigationProperties } from "../../app/(app)/_layout";
+import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import { useReadPreviewerExactly } from "../../generated/contracts";
 import assetLogos from "../../utils/assetLogos";
 import queryClient, { type Loan } from "../../utils/queryClient";

@@ -15,7 +15,7 @@ import React from "react";
 import { XStack, YStack } from "tamagui";
 import { titleCase } from "title-case";
 
-import type { AppNavigationProperties } from "../../app/(app)/_layout";
+import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import isProcessing from "../../utils/isProcessing";
 import queryClient, { type ActivityItem as Item } from "../../utils/queryClient";
 import Image from "../shared/Image";

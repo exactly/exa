@@ -4,7 +4,7 @@ import React from "react";
 import { Platform } from "react-native";
 import { XStack, YStack } from "tamagui";
 
-import type { AppNavigationProperties } from "../../app/(app)/_layout";
+import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import DeFiBanner from "../../assets/images/defi-banner.svg";
 import queryClient from "../../utils/queryClient";
 import Text from "../shared/Text";

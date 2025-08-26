@@ -4,7 +4,7 @@ import React from "react";
 import { Pressable } from "react-native";
 import { XStack, YStack } from "tamagui";
 
-import type { AppNavigationProperties } from "../../app/(app)/_layout";
+import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import type { getActivity } from "../../utils/server";
 import ActivityItem from "../activity/ActivityItem";
 import Text from "../shared/Text";

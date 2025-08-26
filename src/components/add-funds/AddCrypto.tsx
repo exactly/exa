@@ -9,7 +9,7 @@ import { ScrollView, XStack, YStack } from "tamagui";
 import { useAccount } from "wagmi";
 
 import SupportedAssetsSheet from "./SupportedAssetsSheet";
-import type { AppNavigationProperties } from "../../app/(app)/_layout";
+import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import OptimismImage from "../../assets/images/optimism.svg";
 import assetLogos from "../../utils/assetLogos";
 import reportError from "../../utils/reportError";

@@ -7,7 +7,7 @@ import { Pressable } from "react-native";
 import { YStack } from "tamagui";
 
 import Progression from "./Progression";
-import type { AppNavigationProperties } from "../../../app/(app)/_layout";
+import type { AppNavigationProperties } from "../../../app/(main)/_layout";
 import queryClient from "../../../utils/queryClient";
 import reportError from "../../../utils/reportError";
 import { APIError, createCard } from "../../../utils/server";

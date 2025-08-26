@@ -13,7 +13,7 @@ import { nonEmpty, pipe, safeParse, string } from "valibot";
 import { ContractFunctionExecutionError, encodeAbiParameters, zeroAddress } from "viem";
 import { useAccount, useBytecode, useWriteContract } from "wagmi";
 
-import type { AppNavigationProperties } from "../../app/(app)/_layout";
+import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import SafeView from "../../components/shared/SafeView";
 import Text from "../../components/shared/Text";
 import View from "../../components/shared/View";
@@ -69,7 +69,7 @@ export default function Pay() {
                 if (navigation.canGoBack()) {
                   navigation.goBack();
                 } else {
-                  navigation.replace("(app)");
+                  navigation.replace("(main)");
                 }
               }}
             >

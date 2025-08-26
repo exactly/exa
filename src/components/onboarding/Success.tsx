@@ -3,7 +3,7 @@ import { useNavigation } from "expo-router";
 import React from "react";
 import { StyleSheet } from "react-native";
 
-import type { AppNavigationProperties } from "../../app/(app)/_layout";
+import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import AccountCreatedBlob from "../../assets/images/account-created-blob.svg";
 import AccountCreatedImage from "../../assets/images/account-created.svg";
 import ActionButton from "../shared/ActionButton";

@@ -6,7 +6,7 @@ import { Alert, Pressable } from "react-native";
 import { ScrollView, Separator, XStack } from "tamagui";
 import { useAccount, useDisconnect } from "wagmi";
 
-import type { AppNavigationProperties } from "../../app/(app)/_layout";
+import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import release from "../../generated/release";
 import { logout as logoutOneSignal } from "../../utils/onesignal";
 import queryClient from "../../utils/queryClient";
@@ -69,7 +69,7 @@ export default function Settings() {
                       queryClient.clear();
                       queryClient.unmount();
                       disconnect();
-                      navigation.replace("onboarding");
+                      navigation.replace("(auth)");
                     })
                     .catch(reportError);
                 }}

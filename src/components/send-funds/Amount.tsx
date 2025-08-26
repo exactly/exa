@@ -15,7 +15,7 @@ import { encodeAbiParameters, erc20Abi, formatUnits, parseUnits, zeroAddress } f
 import { useAccount, useBytecode, useSimulateContract, useWriteContract } from "wagmi";
 
 import ReviewSheet from "./ReviewSheet";
-import type { AppNavigationProperties } from "../../app/(app)/_layout";
+import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import {
   exaPluginAbi,
   upgradeableModularAccountAbi,

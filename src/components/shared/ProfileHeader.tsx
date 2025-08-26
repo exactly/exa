@@ -12,7 +12,7 @@ import { useAccount } from "wagmi";
 
 import CopyAddressSheet from "./CopyAddressSheet";
 import StatusIndicator from "./StatusIndicator";
-import type { AppNavigationProperties } from "../../app/(app)/_layout";
+import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import { useReadExaPreviewerPendingProposals } from "../../generated/contracts";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
@@ -22,7 +22,7 @@ import View from "../shared/View";
 export default function ProfileHeader() {
   const { address, isConnected } = useAccount();
   const [copyAddressShown, setCopyAddressShown] = useState(false);
-  const navigation = useNavigation<AppNavigationProperties>("/(app)");
+  const navigation = useNavigation<AppNavigationProperties>("/(main)");
   const { data: pendingProposals, isFetching: pendingProposalsFetching } = useReadExaPreviewerPendingProposals({
     address: exaPreviewerAddress,
     args: [address ?? zeroAddress],

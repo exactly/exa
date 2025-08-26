@@ -16,7 +16,7 @@ import CardPIN from "./CardPIN";
 import SpendingLimits from "./SpendingLimits";
 import VerificationFailure from "./VerificationFailure";
 import ExaCard from "./exa-card/ExaCard";
-import type { AppNavigationProperties } from "../../app/(app)/_layout";
+import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import {
   useReadPreviewerExactly,
   useReadUpgradeableModularAccountGetInstalledPlugins,

@@ -7,7 +7,7 @@ import { Pressable } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import Step from "./Step";
-import type { AppNavigationProperties } from "../../app/(app)/_layout";
+import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import { createInquiry, KYC_TEMPLATE_ID, resumeInquiry } from "../../utils/persona";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";

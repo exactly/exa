@@ -3,7 +3,7 @@ import React from "react";
 import { Pressable } from "react-native";
 import { View, XStack } from "tamagui";
 
-import type { AppNavigationProperties } from "../../app/(app)/_layout";
+import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import CubeWithCircles from "../../assets/images/cube-with-circles.svg";
 import Optimism from "../../assets/images/optimism.svg";
 import assetLogos from "../../utils/assetLogos";

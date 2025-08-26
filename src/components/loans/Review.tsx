@@ -14,7 +14,7 @@ import { ScrollView, Separator, Square, XStack, YStack } from "tamagui";
 import { encodeAbiParameters, encodeFunctionData, maxUint256, zeroAddress } from "viem";
 import { useAccount, useBytecode } from "wagmi";
 
-import type { AppNavigationProperties } from "../../app/(app)/_layout";
+import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import {
   exaPluginAbi,
   upgradeableModularAccountAbi,

@@ -3,7 +3,7 @@ import { useNavigation } from "expo-router";
 import React from "react";
 import { ScrollView } from "tamagui";
 
-import type { AppNavigationProperties } from "../../app/(app)/_layout";
+import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import Button from "../shared/Button";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";

@@ -9,7 +9,7 @@ import { formatUnits, zeroAddress } from "viem";
 import { useAccount, useBytecode } from "wagmi";
 
 import AmountSelector from "./AmountSelector";
-import type { AppNavigationProperties } from "../../app/(app)/_layout";
+import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import { useReadPreviewerExactly } from "../../generated/contracts";
 import type { Loan } from "../../utils/queryClient";
 import queryClient from "../../utils/queryClient";

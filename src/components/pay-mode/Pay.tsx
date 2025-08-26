@@ -22,7 +22,7 @@ import {
 import { useAccount, useBytecode, useSimulateContract, useWriteContract } from "wagmi";
 
 import AssetSelectionSheet from "./AssetSelectionSheet";
-import type { AppNavigationProperties } from "../../app/(app)/_layout";
+import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import SafeView from "../../components/shared/SafeView";
 import Button from "../../components/shared/StyledButton";
 import Text from "../../components/shared/Text";
@@ -394,7 +394,7 @@ export default function Pay() {
                   if (navigation.canGoBack()) {
                     navigation.goBack();
                   } else {
-                    navigation.replace("(app)");
+                    navigation.replace("(main)");
                   }
                 }}
               >
@@ -673,7 +673,7 @@ export default function Pay() {
           if (navigation.canGoBack()) {
             navigation.goBack();
           } else {
-            navigation.replace("(app)");
+            navigation.replace("(main)");
           }
         }}
       />

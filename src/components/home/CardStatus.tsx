@@ -5,7 +5,7 @@ import { Platform } from "react-native";
 import { XStack, YStack } from "tamagui";
 
 import CardLimits from "./CardLimits";
-import type { AppNavigationProperties } from "../../app/(app)/_layout";
+import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import Card from "../../assets/images/card.svg";
 import { getCard } from "../../utils/server";
 

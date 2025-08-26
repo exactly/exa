@@ -4,7 +4,7 @@ import { useNavigation } from "expo-router";
 import React from "react";
 import { XStack, YStack } from "tamagui";
 
-import type { AppNavigationProperties } from "../../app/(app)/_layout";
+import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import isProcessing from "../../utils/isProcessing";
 import { getActivity } from "../../utils/server";
 import Text from "../shared/Text";

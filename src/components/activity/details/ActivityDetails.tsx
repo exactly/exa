@@ -9,7 +9,7 @@ import CardActivity from "./CardActivity";
 import ReceivedActivity from "./ReceivedActivity";
 import RepayActivity from "./RepayActivity";
 import SentActivity from "./SentActivity";
-import type { AppNavigationProperties } from "../../../app/(app)/_layout";
+import type { AppNavigationProperties } from "../../../app/(main)/_layout";
 import type { ActivityItem } from "../../../utils/queryClient";
 import reportError from "../../../utils/reportError";
 import useIntercom from "../../../utils/useIntercom";

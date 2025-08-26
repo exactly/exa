@@ -5,7 +5,7 @@ import { Pressable } from "react-native";
 import { ScrollView } from "tamagui";
 
 import AddCryptoButton from "./AddCryptoButton";
-import type { AppNavigationProperties } from "../../app/(app)/_layout";
+import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";

@@ -11,7 +11,7 @@ import { parse, safeParse } from "valibot";
 
 import Contacts from "./Contacts";
 import RecentContacts from "./RecentContacts";
-import type { AppNavigationProperties } from "../../app/(app)/_layout";
+import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import queryClient, { type Withdraw } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useIntercom from "../../utils/useIntercom";
@@ -22,7 +22,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function AddressSelection() {
-  const navigation = useNavigation<AppNavigationProperties>("/(app)");
+  const navigation = useNavigation<AppNavigationProperties>("/(main)");
   const parameters = useLocalSearchParams();
   const { presentArticle } = useIntercom();
 

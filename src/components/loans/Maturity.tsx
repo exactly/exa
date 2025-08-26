@@ -11,7 +11,7 @@ import { ScrollView, XStack, YStack } from "tamagui";
 import { useAccount } from "wagmi";
 
 import LoanSummary from "./LoanSummary";
-import type { AppNavigationProperties } from "../../app/(app)/_layout";
+import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import type { Loan } from "../../utils/queryClient";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";

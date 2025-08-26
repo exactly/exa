@@ -23,7 +23,7 @@ import { zeroAddress } from "viem";
 import { optimismSepolia } from "viem/chains";
 import { useAccount, useBytecode } from "wagmi";
 
-import type { AppNavigationProperties } from "../../app/(app)/_layout";
+import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import CalendarImage from "../../assets/images/calendar-rollover.svg";
 import { useReadUpgradeableModularAccountGetInstalledPlugins } from "../../generated/contracts";
 import queryClient from "../../utils/queryClient";

@@ -20,7 +20,7 @@ import TokenSelectModal from "./SelectorModal";
 import Success from "./Success";
 import SwapDetails from "./SwapDetails";
 import TokenInput from "./TokenInput";
-import type { AppNavigationProperties } from "../../app/(app)/_layout";
+import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import {
   auditorAbi,
   marketAbi,

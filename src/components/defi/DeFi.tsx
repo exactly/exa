@@ -10,7 +10,7 @@ import AboutDefiSheet from "./AboutDefiSheet";
 import ConnectionSheet from "./ConnectionSheet";
 import DisconnectSheet from "./DisconnectSheet";
 import IntroSheet from "./IntroSheet";
-import type { AppNavigationProperties } from "../../app/(app)/_layout";
+import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import ExactlyLogo from "../../assets/images/exactly.svg";
 import LiFiLogo from "../../assets/images/lifi.svg";
 import queryClient from "../../utils/queryClient";
