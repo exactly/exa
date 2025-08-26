@@ -7,7 +7,6 @@ import { ScrollView, Sheet, YStack } from "tamagui";
 import Button from "./Button";
 import SafeView from "./SafeView";
 import Text from "./Text";
-import useAspectRatio from "../../utils/useAspectRatio";
 
 export default function ConnectSheet({
   open,
@@ -24,7 +23,6 @@ export default function ConnectSheet({
   webAuthnText: string;
   siweText: string;
 }) {
-  const aspectRatio = useAspectRatio();
   const { data: hasInjectedProvider } = useQuery({ queryKey: ["has-injected-provider"] });
   return (
     <Sheet
@@ -41,16 +39,17 @@ export default function ConnectSheet({
       zIndex={100_000}
       disableDrag
       modal
-      portalProps={Platform.OS === "web" ? { style: { aspectRatio, justifySelf: "center" } } : undefined}
+      portalProps={Platform.OS === "web" ? { className: "sheet-portal" } : undefined}
     >
       <Sheet.Overlay
         backgroundColor="#00000090"
         animation="quicker"
         enterStyle={{ opacity: 0 }} // eslint-disable-line react-native/no-inline-styles
         exitStyle={{ opacity: 0 }} // eslint-disable-line react-native/no-inline-styles
+        zIndex={1}
       />
-      <Sheet.Frame>
-        <ScrollView $platform-web={{ maxHeight: "100vh" }}>
+      <Sheet.Frame zIndex={2}>
+        <ScrollView>
           <SafeView
             borderTopLeftRadius="$r4"
             borderTopRightRadius="$r4"
