@@ -1,9 +1,16 @@
 import ProposalType from "@exactly/common/ProposalType";
-import { exaPluginAddress, marketUSDCAddress, swapperAddress, usdcAddress } from "@exactly/common/generated/chain";
+import {
+  balancerVaultAddress,
+  exaPluginAddress,
+  marketUSDCAddress,
+  swapperAddress,
+  usdcAddress,
+  integrationPreviewerAddress,
+} from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
-import { WAD, withdrawLimit } from "@exactly/lib";
+import { divWad, fixedRepayAssets, fixedRepayPosition, min, mulWad, WAD } from "@exactly/lib";
 import { ArrowLeft, ChevronRight, Coins } from "@tamagui/lucide-icons";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useNavigation, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -16,12 +23,12 @@ import {
   ContractFunctionRevertedError,
   encodeFunctionData,
   erc20Abi,
-  parseUnits,
   zeroAddress,
 } from "viem";
-import { useBytecode, useSimulateContract, useWriteContract } from "wagmi";
+import { useBytecode, useReadContract, useSimulateContract, useWriteContract } from "wagmi";
 
 import AssetSelectionSheet from "./AssetSelectionSheet";
+import RepayAmountSelector from "./RepayAmountSelector";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import SafeView from "../../components/shared/SafeView";
 import Button from "../../components/shared/StyledButton";
@@ -29,13 +36,14 @@ import Text from "../../components/shared/Text";
 import View from "../../components/shared/View";
 import {
   auditorAbi,
+  integrationPreviewerAbi,
   marketAbi,
   upgradeableModularAccountAbi,
   useReadUpgradeableModularAccountGetInstalledPlugins,
 } from "../../generated/contracts";
 import { accountClient } from "../../utils/alchemyConnector";
 import assetLogos from "../../utils/assetLogos";
-import { getRoute } from "../../utils/lifi";
+import { getRoute, getRouteFrom } from "../../utils/lifi";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
@@ -58,6 +66,7 @@ export default function Pay() {
   const [assetSelectionOpen, setAssetSelectionOpen] = useState(false);
   const [denyExchanges, setDenyExchanges] = useState<Record<string, boolean>>({});
   const [selectedAsset, setSelectedAsset] = useState<{ address?: Address; external: boolean }>({ external: true });
+  const [positionAssets, setPositionAssets] = useState(0n);
   const {
     markets,
     externalAsset,
@@ -97,14 +106,29 @@ export default function Pay() {
     if (success) return output;
   }, [maturityQuery]);
 
+  const { data: fixedRepaySnapshot } = useReadContract({
+    address: integrationPreviewerAddress,
+    abi: integrationPreviewerAbi,
+    functionName: "fixedRepaySnapshot",
+    args: [account ?? zeroAddress, marketUSDCAddress, maturity ?? 0n],
+    query: { enabled: !!account && !!bytecode && !!maturity },
+  });
+
+  const repayAssets = fixedRepaySnapshot
+    ? fixedRepayAssets(fixedRepaySnapshot, Number(maturity ?? 0n), positionAssets)
+    : undefined;
+
   const borrow = exaUSDC?.fixedBorrowPositions.find((b) => b.maturity === maturity);
-  const previewValue =
+  const previewValueUSD =
     borrow && exaUSDC ? (borrow.previewValue * exaUSDC.usdPrice) / 10n ** BigInt(exaUSDC.decimals) : 0n;
-  const positionValue =
-    borrow && exaUSDC
-      ? ((borrow.position.principal + borrow.position.fee) * exaUSDC.usdPrice) / 10n ** BigInt(exaUSDC.decimals)
-      : 0n;
-  const discount = positionValue === 0n ? 0 : Number(WAD - (previewValue * WAD) / positionValue) / 1e18;
+
+  const positionValue = borrow ? borrow.position.principal + borrow.position.fee : 0n;
+
+  const discountOrPenalty = repayAssets ? divWad(repayAssets, positionAssets) : 0n;
+  const discountRatio = WAD - discountOrPenalty;
+  const scaledRatioAsBigInt = (discountRatio * 10n ** 8n) / WAD;
+  const discountOrPenaltyPercentage = Number(scaledRatioAsBigInt) / Number(10n ** 8n);
+
   const positions = markets
     ?.map((market) => ({
       ...market,
@@ -114,17 +138,102 @@ export default function Pay() {
 
   const repayMarket = positions?.find((p) => p.market === selectedAsset.address);
   const repayMarketAvailable =
-    markets && selectedAsset.address && !selectedAsset.external ? withdrawLimit(markets, selectedAsset.address) : 0n;
+    repayMarket && selectedAsset.address && !selectedAsset.external ? repayMarket.floatingDepositAssets : 0n;
 
-  const maxRepay = borrow ? (borrow.previewValue * slippage) / WAD : 0n;
+  const { data: balancerUSDCBalance } = useReadContract({
+    address: usdcAddress,
+    abi: erc20Abi,
+    functionName: "balanceOf",
+    args: [balancerVaultAddress],
+    query: {
+      enabled: !!account && !!bytecode,
+      select: (data) => (data * (WAD * 990n)) / 1000n / WAD,
+      refetchInterval: 20_000,
+    },
+  });
 
+  const { data: routeFrom, isFetching: isRouteFromFetching } = useQuery({
+    queryKey: [
+      "lifi",
+      "routeFrom",
+      mode,
+      account,
+      selectedAsset.address,
+      repayMarket?.asset,
+      externalAsset ? !!externalAssetAvailable : !!repayMarketAvailable,
+    ],
+    queryFn: () => {
+      switch (mode) {
+        case "crossRepay":
+        case "legacyCrossRepay":
+          if (!account || !repayMarket || !repayMarketAvailable) throw new Error("implementation error");
+          return getRouteFrom(
+            repayMarket.asset,
+            usdcAddress,
+            repayMarketAvailable,
+            account,
+            mode === "crossRepay" ? account : exaPluginAddress,
+            denyExchanges,
+          );
+        case "external":
+          if (!externalAssetAvailable) throw new Error("no external asset available");
+          if (!account || !selectedAsset.address) throw new Error("implementation error");
+          if (!externalAsset) throw new Error("not external asset");
+          return getRouteFrom(
+            selectedAsset.address,
+            usdcAddress,
+            externalAssetAvailable,
+            account,
+            account,
+            denyExchanges,
+          );
+        default:
+          throw new Error("implementation error");
+      }
+    },
+    enabled:
+      enableSimulations &&
+      (externalAsset ? !!externalAssetAvailable : !!repayMarketAvailable) &&
+      (mode === "crossRepay" || mode === "legacyCrossRepay" || mode === "external"),
+    refetchInterval: 20_000,
+    placeholderData: keepPreviousData,
+  });
+
+  const availableForRepayment = useMemo(() => ((routeFrom?.toAmount ?? 0n) * 97n) / 100n, [routeFrom?.toAmount]);
+  const maxPositionAssets = useMemo(() => {
+    const availableUSDC = repayMarket?.market === exaUSDC?.market ? repayMarketAvailable : availableForRepayment;
+
+    return balancerUSDCBalance && fixedRepaySnapshot && maturity && availableUSDC
+      ? min(
+          fixedRepayPosition(
+            fixedRepaySnapshot,
+            Number(maturity),
+            divWad(min(balancerUSDCBalance, availableUSDC), slippage),
+          ),
+          positionValue,
+        )
+      : 0n;
+  }, [
+    repayMarket?.market,
+    exaUSDC?.market,
+    repayMarketAvailable,
+    availableForRepayment,
+    balancerUSDCBalance,
+    fixedRepaySnapshot,
+    maturity,
+    positionValue,
+  ]);
+
+  const maxRepay = borrow ? (repayAssets ? mulWad(repayAssets, slippage) : undefined) : 0n;
   const {
     data: route,
     error: routeError,
     isPending: isRoutePending,
+    isFetching: isRouteFetching,
   } = useQuery({
     queryKey: ["lifi", "route", mode, account, selectedAsset.address, repayMarket?.asset, maxRepay],
     queryFn: () => {
+      if (!maxRepay) throw new Error("no max repay");
       switch (mode) {
         case "crossRepay":
         case "legacyCrossRepay":
@@ -145,11 +254,13 @@ export default function Pay() {
       }
     },
     enabled:
-      enableSimulations && !!maxRepay && (mode === "crossRepay" || mode === "legacyCrossRepay" || mode === "external"),
+      enableSimulations &&
+      !!maxRepay &&
+      (mode === "crossRepay" || mode === "legacyCrossRepay" || mode === "external") &&
+      positionAssets > 0n,
     refetchInterval: 20_000,
   });
 
-  const positionAssets = borrow ? borrow.position.principal + borrow.position.fee : 0n;
   const maxAmountIn = route ? (route.fromAmount * slippage) / WAD + 69n : undefined; // HACK try to avoid ZERO_SHARES on dust deposit
 
   const {
@@ -159,7 +270,7 @@ export default function Pay() {
     account,
     amount: maxRepay,
     market: selectedAsset.address,
-    enabled: enableSimulations && mode === "repay",
+    enabled: enableSimulations && mode === "repay" && positionAssets > 0n,
     proposalType: ProposalType.RepayAtMaturity,
     maturity,
     positionAssets,
@@ -172,7 +283,7 @@ export default function Pay() {
     account,
     amount: maxAmountIn,
     market: selectedAsset.address,
-    enabled: enableSimulations && mode === "crossRepay",
+    enabled: enableSimulations && mode === "crossRepay" && positionAssets > 0n,
     proposalType: ProposalType.CrossRepayAtMaturity,
     maturity,
     positionAssets,
@@ -243,8 +354,8 @@ export default function Pay() {
   const handlePayment = useCallback(() => {
     if (!repayMarket) return;
     setDisplayValues({
-      amount: Number(withUSDC ? positionAssets : route?.fromAmount) / 10 ** repayMarket.decimals,
-      usdAmount: Number(previewValue) / 1e18,
+      amount: Number(withUSDC ? repayAssets : route?.fromAmount) / 10 ** repayMarket.decimals,
+      usdAmount: Number(previewValueUSD) / 1e18,
     });
     switch (mode) {
       case "repay":
@@ -270,8 +381,8 @@ export default function Pay() {
     legacyCrossRepaySimulation,
     legacyRepaySimulation,
     mode,
-    positionAssets,
-    previewValue,
+    previewValueUSD,
+    repayAssets,
     repayMarket,
     repayPropose,
     route?.fromAmount,
@@ -292,6 +403,8 @@ export default function Pay() {
       if (!externalAsset) throw new Error("no external asset");
       if (!selectedAsset.external) throw new Error("not external asset");
       if (!route) throw new Error("no route");
+      if (!positionAssets) throw new Error("no position assets");
+      if (!maxRepay) throw new Error("no max repay");
       setDisplayValues({
         amount: Number(route.fromAmount) / 10 ** externalAsset.decimals,
         usdAmount: (Number(externalAsset.priceUSD) * Number(route.fromAmount)) / 10 ** externalAsset.decimals,
@@ -381,8 +494,20 @@ export default function Pay() {
   }, []);
 
   const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
-  const disabled = isSimulating || !!simulationError || (selectedAsset.external && !route);
+  const disabled =
+    isSimulating || !!simulationError || (selectedAsset.external && !route) || positionAssets > maxPositionAssets;
   const loading = isSimulating || isPending || (selectedAsset.external && isRoutePending);
+
+  const symbol =
+    repayMarket?.symbol.slice(3) === "WETH" ? "ETH" : (repayMarket?.symbol.slice(3) ?? externalAsset?.symbol);
+
+  const handleButtonText = () => {
+    if (positionAssets === 0n) return "Enter amount";
+    if (simulationError || positionAssets > maxPositionAssets) return "Cannot proceed";
+    if (loading) return "Please wait...";
+    return "Confirm payment";
+  };
+
   if (!maturity) return;
   if (!isPending && !isSuccess && !writeError)
     return (
@@ -416,79 +541,147 @@ export default function Pay() {
               <YStack gap="$s4" paddingTop="$s5">
                 <XStack justifyContent="space-between" gap="$s3" alignItems="center">
                   <Text secondary footnote textAlign="left">
-                    Purchases
+                    Debt
                   </Text>
-                  <Text primary title3 textAlign="right">
-                    {(Number(positionValue) / 1e18).toLocaleString(undefined, {
-                      style: "currency",
-                      currency: "USD",
-                      currencyDisplay: "narrowSymbol",
-                    })}
-                  </Text>
-                </XStack>
-                <XStack justifyContent="space-between" gap="$s3" alignItems="center">
-                  {discount >= 0 ? (
-                    <Text secondary footnote textAlign="left">
-                      Early repay&nbsp;
-                      <Text color="$uiSuccessSecondary" footnote textAlign="left">
-                        {discount
-                          .toLocaleString(undefined, {
-                            style: "percent",
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })
-                          .replaceAll(/\s+/g, "")}
-                        &nbsp;OFF
-                      </Text>
+                  <XStack alignItems="center" gap="$s2">
+                    <AssetLogo uri={assetLogos.USDC} width={24} height={24} />
+                    <Text primary title3 textAlign="right">
+                      {(Number(positionValue) / 1e6).toLocaleString(undefined, {
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 6,
+                      })}
                     </Text>
-                  ) : (
-                    <Text secondary footnote textAlign="left">
-                      Late repay&nbsp;
-                      <Text color="$uiErrorSecondary" footnote textAlign="left">
-                        {(-discount)
-                          .toLocaleString(undefined, {
-                            style: "percent",
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })
-                          .replaceAll(/\s+/g, "")}
-                        &nbsp;penalty
-                      </Text>
-                    </Text>
-                  )}
-                  <Text
-                    primary
-                    title3
-                    textAlign="right"
-                    color={discount >= 0 ? "$interactiveOnBaseSuccessSoft" : "$interactiveOnBaseErrorSoft"}
-                  >
-                    {Number(previewValue - positionValue) / 1e18 > 0.01
-                      ? Math.abs(Number(previewValue - positionValue) / 1e18).toLocaleString(undefined, {
-                          style: "currency",
-                          currency: "USD",
-                          currencyDisplay: "narrowSymbol",
-                        })
-                      : `< ${(0.01).toLocaleString(undefined, {
-                          style: "currency",
-                          currency: "USD",
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}`}
-                  </Text>
+                  </XStack>
                 </XStack>
-                <Separator height={1} borderColor="$borderNeutralSoft" paddingVertical="$s2" />
                 <XStack justifyContent="space-between" gap="$s3" alignItems="center">
                   <Text secondary footnote textAlign="left">
-                    You&apos;ll pay
-                  </Text>
-                  <Text title textAlign="right" color={discount >= 0 ? "$uiSuccessSecondary" : "$uiErrorSecondary"}>
-                    {(Number(previewValue) / 1e18).toLocaleString(undefined, {
-                      style: "currency",
-                      currency: "USD",
-                      currencyDisplay: "narrowSymbol",
-                    })}
+                    Enter amount:
                   </Text>
                 </XStack>
+
+                <RepayAmountSelector
+                  onChange={setPositionAssets}
+                  maxPositionAssets={maxPositionAssets}
+                  balancerBalance={balancerUSDCBalance}
+                  positionValue={positionValue}
+                  repayMarket={repayMarket?.market}
+                />
+                {positionAssets && (
+                  <XStack justifyContent="space-between" gap="$s3" alignItems="center">
+                    <Text secondary footnote textAlign="left">
+                      Subtotal
+                    </Text>
+                    <XStack alignItems="center" gap="$s2_5">
+                      <AssetLogo uri={assetLogos.USDC} width={20} height={20} />
+                      {isRouteFetching ? (
+                        <Skeleton height={25} width={40} />
+                      ) : (
+                        <Text title3 maxFontSizeMultiplier={1} numberOfLines={1} textAlign="right">
+                          {(Number(positionAssets) / 1e6).toLocaleString(undefined, {
+                            minimumFractionDigits: 0,
+                            maximumFractionDigits: 2,
+                            useGrouping: false,
+                          })}
+                        </Text>
+                      )}
+                    </XStack>
+                  </XStack>
+                )}
+                {repayAssets && (
+                  <XStack justifyContent="space-between" gap="$s3" alignItems="center">
+                    {discountOrPenaltyPercentage >= 0 ? (
+                      <Text secondary footnote textAlign="left">
+                        Early repay discount&nbsp;
+                        <Text color="$uiSuccessSecondary" footnote textAlign="left">
+                          {`${discountOrPenaltyPercentage
+                            .toLocaleString(undefined, {
+                              style: "percent",
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })
+                            .replaceAll(/\s+/g, "")} OFF`}
+                        </Text>
+                      </Text>
+                    ) : (
+                      <Text secondary footnote textAlign="left">
+                        Late repay&nbsp;
+                        <Text color="$uiErrorSecondary" footnote textAlign="left">
+                          {`${Math.abs(discountOrPenaltyPercentage)
+                            .toLocaleString(undefined, {
+                              style: "percent",
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })
+                            .replaceAll(/\s+/g, "")} PENALTY`}
+                        </Text>
+                      </Text>
+                    )}
+                    <XStack alignItems="center" gap="$s2">
+                      <AssetLogo uri={assetLogos.USDC} width={20} height={20} />
+                      <Text
+                        primary
+                        title3
+                        textAlign="right"
+                        color={
+                          discountOrPenaltyPercentage >= 0
+                            ? "$interactiveOnBaseSuccessSoft"
+                            : "$interactiveOnBaseErrorSoft"
+                        }
+                      >
+                        {Math.abs(Number(positionAssets - repayAssets) / 1e6).toLocaleString(undefined, {
+                          minimumFractionDigits: 0,
+                          maximumFractionDigits: 2,
+                        })}
+                      </Text>
+                    </XStack>
+                  </XStack>
+                )}
+                {repayAssets && (
+                  <>
+                    <Separator height={1} borderColor="$borderNeutralSoft" />
+                    <XStack justifyContent="space-between" gap="$s3" alignItems="center">
+                      <Text secondary footnote textAlign="left">
+                        You will pay
+                      </Text>
+                      <YStack alignItems="flex-end">
+                        <XStack alignItems="center" gap="$s2_5">
+                          <AssetLogo uri={assetLogos.USDC} width={20} height={20} />
+                          {isRouteFetching ? (
+                            <Skeleton height={25} width={40} />
+                          ) : (
+                            <Text
+                              title3
+                              maxFontSizeMultiplier={1}
+                              numberOfLines={1}
+                              textAlign="right"
+                              color={discountOrPenaltyPercentage >= 0 ? "$uiSuccessSecondary" : "$uiErrorSecondary"}
+                            >
+                              {(Number(repayAssets) / 1e6).toLocaleString(undefined, {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                                useGrouping: false,
+                              })}
+                            </Text>
+                          )}
+                        </XStack>
+                        {route && (
+                          <XStack gap="$s3" alignItems="center" justifyContent="flex-end">
+                            <Text secondary footnote maxFontSizeMultiplier={1} numberOfLines={1} textAlign="right">
+                              {`${(
+                                Number(route.fromAmount) /
+                                10 ** (externalAsset ? externalAsset.decimals : (repayMarket?.decimals ?? 18))
+                              ).toLocaleString(undefined, {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 8,
+                                useGrouping: false,
+                              })} ${symbol}`}
+                            </Text>
+                          </XStack>
+                        )}
+                      </YStack>
+                    </XStack>
+                  </>
+                )}
               </YStack>
             </View>
           </ScrollView>
@@ -516,25 +709,13 @@ export default function Pay() {
                     }}
                   >
                     {repayMarket && (
-                      <AssetLogo
-                        uri={
-                          assetLogos[
-                            repayMarket.symbol.slice(3) === "WETH"
-                              ? "ETH"
-                              : (repayMarket.symbol.slice(3) as keyof typeof assetLogos)
-                          ]
-                        }
-                        width={16}
-                        height={16}
-                      />
+                      <AssetLogo uri={assetLogos[symbol as keyof typeof assetLogos]} width={16} height={16} />
                     )}
                     {selectedAsset.external && externalAsset && (
                       <Image source={{ uri: externalAsset.logoURI }} width={16} height={16} borderRadius={50} />
                     )}
                     <Text primary emphasized headline textAlign="right">
-                      {repayMarket?.symbol.slice(3) === "WETH"
-                        ? "ETH"
-                        : (repayMarket?.symbol.slice(3) ?? externalAsset?.symbol)}
+                      {symbol}
                     </Text>
                     <ChevronRight size={24} color="$interactiveBaseBrandDefault" />
                   </XStack>
@@ -542,85 +723,66 @@ export default function Pay() {
               </XStack>
               <XStack justifyContent="space-between" gap="$s3">
                 <Text secondary callout textAlign="left">
-                  Available
+                  Portfolio balance
                 </Text>
                 <YStack gap="$s2">
-                  {isFetchingAsset ? (
-                    <>
-                      <Skeleton height={20} width={100} />
-                      <Skeleton height={20} width={100} />
-                    </>
-                  ) : (
-                    <>
-                      {repayMarket && (
-                        <>
-                          <Text emphasized headline primary textAlign="right">
-                            {(Number(repayMarket.usdValue) / 1e18).toLocaleString(undefined, {
-                              style: "currency",
-                              currency: "USD",
-                              currencyDisplay: "narrowSymbol",
-                            })}
-                          </Text>
-                          <Text secondary footnote textAlign="right">
-                            {`${(Number(repayMarketAvailable) / 10 ** repayMarket.decimals).toLocaleString(undefined, {
-                              minimumFractionDigits: 0,
-                              maximumFractionDigits: Math.min(
-                                8,
-                                Math.max(
-                                  0,
-                                  repayMarket.decimals -
-                                    Math.ceil(Math.log10(Math.max(1, Number(repayMarket.usdValue) / 1e18))),
-                                ),
-                              ),
-                            })} ${repayMarket.symbol.slice(3) === "WETH" ? "ETH" : repayMarket.symbol.slice(3)}`}
-                          </Text>
-                        </>
-                      )}
-                      {selectedAsset.external && externalAsset && (
-                        <>
-                          <Text emphasized headline primary textAlign="right">
-                            {(
-                              (Number(externalAsset.priceUSD) * Number(externalAssetAvailable)) /
-                              10 ** externalAsset.decimals
-                            ).toLocaleString(undefined, {
-                              style: "currency",
-                              currency: "USD",
-                              currencyDisplay: "narrowSymbol",
-                            })}
-                          </Text>
-                          <Text secondary footnote textAlign="right">
-                            {`${(Number(externalAssetAvailable) / 10 ** externalAsset.decimals).toLocaleString(
-                              undefined,
-                              {
-                                minimumFractionDigits: 0,
-                                maximumFractionDigits: Math.min(
-                                  8,
-                                  Math.max(
-                                    0,
-                                    externalAsset.decimals -
-                                      Math.ceil(
-                                        Math.log10(Math.max(1, Number(parseUnits(externalAsset.priceUSD, 18)) / 1e18)),
-                                      ),
-                                  ),
-                                ),
-                              },
-                            )} ${externalAsset.symbol}`}
-                          </Text>
-                        </>
-                      )}
-                    </>
-                  )}
+                  <XStack alignItems="center" gap="$s2">
+                    {repayMarket && (
+                      <AssetLogo uri={assetLogos[symbol as keyof typeof assetLogos]} width={16} height={16} />
+                    )}
+                    {selectedAsset.external && externalAsset && (
+                      <Image source={{ uri: externalAsset.logoURI }} width={16} height={16} borderRadius={50} />
+                    )}
+                    {isFetchingAsset ? (
+                      <Skeleton height={23} width={100} />
+                    ) : (
+                      <Text primary emphasized headline textAlign="right">
+                        {(repayMarket
+                          ? Number(repayMarketAvailable) / 10 ** repayMarket.decimals
+                          : Number(externalAssetAvailable) / 10 ** (externalAsset?.decimals ?? 18)
+                        ).toLocaleString(undefined, {
+                          minimumFractionDigits: 0,
+                          maximumFractionDigits: 8,
+                          useGrouping: false,
+                        })}
+                      </Text>
+                    )}
+                  </XStack>
                 </YStack>
               </XStack>
+              <XStack
+                justifyContent="space-between"
+                gap="$s3"
+                opacity={selectedAsset.address === exaUSDC?.market ? 0 : 1}
+                pointerEvents={selectedAsset.address === exaUSDC?.market ? "none" : "auto"}
+              >
+                <Text secondary callout textAlign="left">
+                  Available for repayment
+                </Text>
+                <YStack gap="$s2">
+                  <XStack alignItems="center" gap="$s2">
+                    <AssetLogo uri={assetLogos.USDC} width={16} height={16} />
+                    {isRouteFromFetching ? (
+                      <Skeleton height={23} width={50} />
+                    ) : (
+                      <Text emphasized headline primary textAlign="right">
+                        {(Number(availableForRepayment) / 1e6).toLocaleString(undefined, {
+                          minimumFractionDigits: 0,
+                          maximumFractionDigits: 2,
+                        })}
+                      </Text>
+                    )}
+                  </XStack>
+                </YStack>
+              </XStack>
+
               <Button
                 primary
-                loading={loading}
+                loading={loading && positionAssets > 0n}
                 disabled={disabled}
                 onPress={selectedAsset.external ? () => repayWithExternalAsset() : handlePayment}
               >
-                <Button.Text>
-                  {simulationError ? "Cannot proceed" : loading ? "Please wait..." : "Confirm payment"}
-                </Button.Text>
+                <Button.Text>{handleButtonText()}</Button.Text>
                 <Button.Icon>
                   <Coins />
                 </Button.Icon>
@@ -638,13 +800,13 @@ export default function Pay() {
         </View>
       </SafeView>
     );
-  if (isPending)
+  if (isPending && repayAssets)
     return (
       <Pending
         maturity={maturity}
         amount={displayValues.amount}
-        usdAmount={displayValues.usdAmount}
-        currency={repayMarket?.assetSymbol ?? externalAsset?.symbol}
+        repayAssets={repayAssets}
+        currency={symbol}
         selectedAsset={selectedAsset.address}
         onClose={() => {
           if (navigation.canGoBack()) {
@@ -655,26 +817,26 @@ export default function Pay() {
         }}
       />
     );
-  if (isSuccess)
+  if (isSuccess && repayAssets)
     return (
       <Success
         maturity={maturity}
         amount={displayValues.amount}
-        usdAmount={displayValues.usdAmount}
-        currency={repayMarket?.assetSymbol ?? externalAsset?.symbol}
+        repayAssets={repayAssets}
+        currency={symbol}
         selectedAsset={selectedAsset.address}
         onClose={() => {
           navigation.replace(isLatestPlugin ? "pending-proposals/index" : "(main)");
         }}
       />
     );
-  if (writeError)
+  if (writeError && repayAssets)
     return (
       <Failure
         maturity={maturity}
         amount={displayValues.amount}
-        usdAmount={displayValues.usdAmount}
-        currency={repayMarket?.assetSymbol ?? externalAsset?.symbol}
+        repayAssets={repayAssets}
+        currency={symbol}
         selectedAsset={selectedAsset.address}
         onClose={() => {
           if (navigation.canGoBack()) {
