@@ -15,15 +15,15 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function Pending({
-  usdAmount,
   amount,
+  repayAssets,
   currency,
   maturity,
   selectedAsset,
   onClose,
 }: {
-  usdAmount: number;
   amount: number;
+  repayAssets: bigint;
   currency?: string;
   maturity: bigint;
   selectedAsset?: Hex;
@@ -56,28 +56,45 @@ export default function Pending({
                 {`Due ${format(new Date(Number(maturity) * 1000), "MMM dd, yyyy")}`}
               </Text>
             </Text>
-            <Text title primary color="$uiNeutralPrimary">
-              {usdAmount.toLocaleString(undefined, {
-                style: "currency",
-                currency: "USD",
-                currencyDisplay: "narrowSymbol",
-              })}
-            </Text>
             <XStack gap="$s2" alignItems="center">
-              <Text emphasized secondary subHeadline>
-                {amount.toLocaleString(undefined, {
-                  maximumFractionDigits: selectedAsset && selectedAsset === marketUSDCAddress ? 2 : 8,
+              <Text title primary color="$uiNeutralPrimary">
+                {(Number(repayAssets) / 1e6).toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                  useGrouping: false,
                 })}
               </Text>
-              <Text emphasized secondary subHeadline>
-                &nbsp;{currency}&nbsp;
+              <Text title primary color="$uiNeutralPrimary">
+                &nbsp;USDC&nbsp;
               </Text>
-              <AssetLogo
-                {...(externalAsset
-                  ? { external: true, source: { uri: externalAsset.logoURI }, width: 16, height: 16, borderRadius: 20 }
-                  : { uri: assetLogos[currency as keyof typeof assetLogos], width: 16, height: 16 })}
-              />
+              <AssetLogo uri={assetLogos.USDC} width={28} height={28} />
             </XStack>
+            {currency !== "USDC" && (
+              <XStack gap="$s2" alignItems="center">
+                <Text headline primary color="$uiNeutralPrimary">
+                  with&nbsp;
+                </Text>
+                <Text title2 primary color="$uiNeutralPrimary">
+                  {amount.toLocaleString(undefined, {
+                    maximumFractionDigits: selectedAsset && selectedAsset === marketUSDCAddress ? 2 : 8,
+                  })}
+                </Text>
+                <Text title2 primary color="$uiNeutralPrimary">
+                  &nbsp;{currency}&nbsp;
+                </Text>
+                <AssetLogo
+                  {...(externalAsset
+                    ? {
+                        external: true,
+                        source: { uri: externalAsset.logoURI },
+                        width: 22,
+                        height: 22,
+                        borderRadius: 20,
+                      }
+                    : { uri: assetLogos[currency as keyof typeof assetLogos], width: 22, height: 22 })}
+                />
+              </XStack>
+            )}
           </YStack>
         </YStack>
       </View>
