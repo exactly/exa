@@ -1,5 +1,11 @@
 import ProposalType from "@exactly/common/ProposalType";
-import { exaPluginAddress, marketUSDCAddress, swapperAddress, usdcAddress } from "@exactly/common/generated/chain";
+import {
+  balancerVaultAddress,
+  exaPluginAddress,
+  marketUSDCAddress,
+  swapperAddress,
+  usdcAddress,
+} from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 import { WAD, withdrawLimit } from "@exactly/lib";
 import { ArrowLeft, ChevronRight, Coins } from "@tamagui/lucide-icons";
@@ -9,7 +15,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ScrollView, Separator, XStack, YStack } from "tamagui";
+import { ScrollView, XStack, YStack } from "tamagui";
 import { digits, parse, pipe, safeParse, string, transform } from "valibot";
 import {
   ContractFunctionExecutionError,
@@ -19,7 +25,7 @@ import {
   parseUnits,
   zeroAddress,
 } from "viem";
-import { useAccount, useBytecode, useSimulateContract, useWriteContract } from "wagmi";
+import { useAccount, useBytecode, useReadContract, useSimulateContract, useWriteContract } from "wagmi";
 
 import AssetSelectionSheet from "./AssetSelectionSheet";
 import SafeView from "../../components/shared/SafeView";
@@ -45,6 +51,7 @@ import Failure from "../shared/Failure";
 import Pending from "../shared/Pending";
 import Skeleton from "../shared/Skeleton";
 import Success from "../shared/Success";
+import RepayAmountSelector from "./RepayAmountSelector";
 
 export default function Pay() {
   const insets = useSafeAreaInsets();
@@ -55,6 +62,7 @@ export default function Pay() {
   const [assetSelectionOpen, setAssetSelectionOpen] = useState(false);
   const [denyExchanges, setDenyExchanges] = useState<Record<string, boolean>>({});
   const [selectedAsset, setSelectedAsset] = useState<{ address?: Address; external: boolean }>({ external: true });
+  const [inputValue, setInputValue] = useState(0n);
   const {
     markets,
     externalAsset,
@@ -95,13 +103,12 @@ export default function Pay() {
   }, [maturityQuery]);
 
   const borrow = exaUSDC?.fixedBorrowPositions.find((b) => b.maturity === maturity);
-  const previewValue =
-    borrow && exaUSDC ? (borrow.previewValue * exaUSDC.usdPrice) / 10n ** BigInt(exaUSDC.decimals) : 0n;
+  const previewValue = borrow && exaUSDC ? (inputValue * exaUSDC.usdPrice) / 10n ** BigInt(exaUSDC.decimals) : 0n;
   const positionValue =
     borrow && exaUSDC
       ? ((borrow.position.principal + borrow.position.fee) * exaUSDC.usdPrice) / 10n ** BigInt(exaUSDC.decimals)
       : 0n;
-  const discount = positionValue === 0n ? 0 : Number(WAD - (previewValue * WAD) / positionValue) / 1e18;
+  const discountUSD = positionValue === 0n ? 0 : Number(WAD - (previewValue * WAD) / positionValue) / 1e18;
   const positions = markets
     ?.map((market) => ({
       ...market,
@@ -113,7 +120,29 @@ export default function Pay() {
   const repayMarketAvailable =
     markets && selectedAsset.address && !selectedAsset.external ? withdrawLimit(markets, selectedAsset.address) : 0n;
 
-  const maxRepay = borrow ? (borrow.previewValue * slippage) / WAD : 0n;
+  const { data: balancerUSDCBalance } = useReadContract({
+    address: usdcAddress,
+    abi: erc20Abi,
+    functionName: "balanceOf",
+    args: [balancerVaultAddress],
+    query: {
+      enabled: !!account && !!bytecode,
+      select: (data) => (data * (WAD * 990n)) / 1000n / WAD,
+      refetchInterval: 20_000,
+    },
+  });
+
+  const balancerUSDValue =
+    balancerUSDCBalance && exaUSDC ? (balancerUSDCBalance * exaUSDC.usdPrice) / 10n ** BigInt(exaUSDC.decimals) : 0n;
+
+  const maxRepayAmount =
+    borrow && balancerUSDCBalance
+      ? borrow.previewValue > balancerUSDCBalance
+        ? balancerUSDCBalance
+        : borrow.previewValue
+      : 0n;
+
+  const maxRepay = borrow ? (maxRepayAmount * slippage) / WAD : 0n;
 
   const {
     data: route,
@@ -378,7 +407,8 @@ export default function Pay() {
   }, []);
 
   const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
-  const disabled = isSimulating || !!simulationError || (selectedAsset.external && !route);
+  const disabled =
+    isSimulating || !!simulationError || (selectedAsset.external && !route) || inputValue > maxRepayAmount;
   const loading = isSimulating || isPending || (selectedAsset.external && isRoutePending);
   if (!maturity) return;
   if (!isPending && !isSuccess && !writeError)
@@ -420,61 +450,75 @@ export default function Pay() {
                   </Text>
                 </XStack>
                 <XStack justifyContent="space-between" gap="$s3" alignItems="center">
-                  {discount >= 0 ? (
-                    <Text secondary footnote textAlign="left">
-                      Early repay&nbsp;
-                      <Text color="$uiSuccessSecondary" footnote textAlign="left">
-                        {discount
-                          .toLocaleString(undefined, {
-                            style: "percent",
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })
-                          .replaceAll(/\s+/g, "")}
-                        &nbsp;OFF
-                      </Text>
-                    </Text>
-                  ) : (
-                    <Text secondary footnote textAlign="left">
-                      Late repay&nbsp;
-                      <Text color="$uiErrorSecondary" footnote textAlign="left">
-                        {(-discount)
-                          .toLocaleString(undefined, {
-                            style: "percent",
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })
-                          .replaceAll(/\s+/g, "")}
-                        &nbsp;penalty
-                      </Text>
-                    </Text>
-                  )}
-                  <Text
-                    primary
-                    title3
-                    textAlign="right"
-                    color={discount >= 0 ? "$interactiveOnBaseSuccessSoft" : "$interactiveOnBaseErrorSoft"}
-                  >
-                    {Number(previewValue - positionValue) / 1e18 > 0.01
-                      ? Math.abs(Number(previewValue - positionValue) / 1e18).toLocaleString(undefined, {
-                          style: "currency",
-                          currency: "USD",
-                          currencyDisplay: "narrowSymbol",
-                        })
-                      : `< ${(0.01).toLocaleString(undefined, {
-                          style: "currency",
-                          currency: "USD",
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}`}
+                  <Text secondary footnote textAlign="left">
+                    Enter amount:
                   </Text>
                 </XStack>
-                <Separator height={1} borderColor="$borderNeutralSoft" paddingVertical="$s2" />
+
+                <RepayAmountSelector
+                  onChange={setInputValue}
+                  maxRepayAmount={maxRepayAmount}
+                  vaultAssetsUSD={balancerUSDValue}
+                />
+
+                {inputValue === borrow?.previewValue && (
+                  <XStack justifyContent="space-between" gap="$s3" alignItems="center">
+                    {discountUSD >= 0 ? (
+                      <Text secondary footnote textAlign="left">
+                        Early repay&nbsp;
+                        <Text color="$uiSuccessSecondary" footnote textAlign="left">
+                          {discountUSD
+                            .toLocaleString(undefined, {
+                              style: "percent",
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })
+                            .replaceAll(/\s+/g, "")}
+                          &nbsp;OFF
+                        </Text>
+                      </Text>
+                    ) : (
+                      <Text secondary footnote textAlign="left">
+                        Late repay&nbsp;
+                        <Text color="$uiErrorSecondary" footnote textAlign="left">
+                          {(-discountUSD)
+                            .toLocaleString(undefined, {
+                              style: "percent",
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })
+                            .replaceAll(/\s+/g, "")}
+                          &nbsp;penalty
+                        </Text>
+                      </Text>
+                    )}
+                    <Text
+                      primary
+                      title3
+                      textAlign="right"
+                      color={discountUSD >= 0 ? "$interactiveOnBaseSuccessSoft" : "$interactiveOnBaseErrorSoft"}
+                    >
+                      {discountUSD > 0.01
+                        ? Math.abs(Number(previewValue - positionValue) / 1e18).toLocaleString(undefined, {
+                            style: "currency",
+                            currency: "USD",
+                            currencyDisplay: "narrowSymbol",
+                          })
+                        : `< ${(0.01).toLocaleString(undefined, {
+                            style: "currency",
+                            currency: "USD",
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}`}
+                    </Text>
+                  </XStack>
+                )}
+
                 <XStack justifyContent="space-between" gap="$s3" alignItems="center">
                   <Text secondary footnote textAlign="left">
                     You&apos;ll pay
                   </Text>
-                  <Text title textAlign="right" color={discount >= 0 ? "$uiSuccessSecondary" : "$uiErrorSecondary"}>
+                  <Text title textAlign="right" color={discountUSD >= 0 ? "$uiSuccessSecondary" : "$uiErrorSecondary"}>
                     {(Number(previewValue) / 1e18).toLocaleString(undefined, {
                       style: "currency",
                       currency: "USD",
@@ -613,7 +657,11 @@ export default function Pay() {
                 onPress={selectedAsset.external ? () => repayWithExternalAsset() : handlePayment}
               >
                 <Button.Text>
-                  {simulationError ? "Cannot proceed" : loading ? "Please wait..." : "Confirm payment"}
+                  {simulationError || inputValue > maxRepayAmount
+                    ? "Cannot proceed"
+                    : loading
+                      ? "Please wait..."
+                      : "Confirm payment"}
                 </Button.Text>
                 <Button.Icon>
                   <Coins />
