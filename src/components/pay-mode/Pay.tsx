@@ -103,12 +103,20 @@ export default function Pay() {
   }, [maturityQuery]);
 
   const borrow = exaUSDC?.fixedBorrowPositions.find((b) => b.maturity === maturity);
-  const previewValue = borrow && exaUSDC ? (inputValue * exaUSDC.usdPrice) / 10n ** BigInt(exaUSDC.decimals) : 0n;
-  const positionValue =
+
+  const previewValue = borrow ? borrow.previewValue : 0n; // this includes discount or penalty
+  const previewValueUSD = borrow && exaUSDC ? (previewValue * exaUSDC.usdPrice) / 10n ** BigInt(exaUSDC.decimals) : 0n; // this is previewValue in USD
+
+  const positionValue = borrow ? borrow.position.principal + borrow.position.fee : 0n; // this is the total amount of the borrow
+  const positionValueUSD =
     borrow && exaUSDC
       ? ((borrow.position.principal + borrow.position.fee) * exaUSDC.usdPrice) / 10n ** BigInt(exaUSDC.decimals)
-      : 0n;
-  const discountUSD = positionValue === 0n ? 0 : Number(WAD - (previewValue * WAD) / positionValue) / 1e18;
+      : 0n; // this is the total amount of the borrow in USD
+
+  const discountOrPenalty = previewValue - positionValue; // this is the discount or penalty in the borrow - if position value is higher than preview value, it's a discount, if it's lower, it's a penalty
+  const discountOrPenaltyUSD =
+    positionValueUSD === 0n ? 0 : Number(WAD - (previewValueUSD * WAD) / positionValueUSD) / 1e18; // discount or penalty in USD
+
   const positions = markets
     ?.map((market) => ({
       ...market,
@@ -132,7 +140,7 @@ export default function Pay() {
     },
   });
 
-  const balancerUSDValue =
+  const balancerBalanceUSD =
     balancerUSDCBalance && exaUSDC ? (balancerUSDCBalance * exaUSDC.usdPrice) / 10n ** BigInt(exaUSDC.decimals) : 0n;
 
   const maxRepayAmount =
@@ -140,9 +148,11 @@ export default function Pay() {
       ? borrow.previewValue > balancerUSDCBalance
         ? balancerUSDCBalance
         : borrow.previewValue
-      : 0n;
+      : 0n; // FIX - previewValue is wrong in the calculation
 
-  const maxRepay = borrow ? (maxRepayAmount * slippage) / WAD : 0n;
+  const maxRepay = borrow ? (inputValue * slippage) / WAD : 0n; // FIX - inputValue is wrong in the calculation
+
+  // TODO - calculate position assets for partial repayments - amount and maxRepay
 
   const {
     data: route,
@@ -270,7 +280,7 @@ export default function Pay() {
     if (!repayMarket) return;
     setDisplayValues({
       amount: Number(withUSDC ? positionAssets : route?.fromAmount) / 10 ** repayMarket.decimals,
-      usdAmount: Number(previewValue) / 1e18,
+      usdAmount: Number(previewValueUSD) / 1e18,
     });
     switch (mode) {
       case "repay":
@@ -297,7 +307,7 @@ export default function Pay() {
     legacyRepaySimulation,
     mode,
     positionAssets,
-    previewValue,
+    previewValueUSD,
     repayMarket,
     repayPropose,
     route?.fromAmount,
@@ -442,7 +452,7 @@ export default function Pay() {
                     Purchases
                   </Text>
                   <Text primary title3 textAlign="right">
-                    {(Number(positionValue) / 1e18).toLocaleString(undefined, {
+                    {(Number(positionValueUSD) / 1e18).toLocaleString(undefined, {
                       style: "currency",
                       currency: "USD",
                       currencyDisplay: "narrowSymbol",
@@ -458,16 +468,16 @@ export default function Pay() {
                 <RepayAmountSelector
                   onChange={setInputValue}
                   maxRepayAmount={maxRepayAmount}
-                  vaultAssetsUSD={balancerUSDValue}
+                  vaultAssetsUSD={balancerBalanceUSD}
                 />
 
                 {inputValue === borrow?.previewValue && (
                   <XStack justifyContent="space-between" gap="$s3" alignItems="center">
-                    {discountUSD >= 0 ? (
+                    {discountOrPenaltyUSD <= 0 ? (
                       <Text secondary footnote textAlign="left">
                         Early repay&nbsp;
                         <Text color="$uiSuccessSecondary" footnote textAlign="left">
-                          {discountUSD
+                          {discountOrPenaltyUSD
                             .toLocaleString(undefined, {
                               style: "percent",
                               minimumFractionDigits: 2,
@@ -481,7 +491,7 @@ export default function Pay() {
                       <Text secondary footnote textAlign="left">
                         Late repay&nbsp;
                         <Text color="$uiErrorSecondary" footnote textAlign="left">
-                          {(-discountUSD)
+                          {discountOrPenaltyUSD
                             .toLocaleString(undefined, {
                               style: "percent",
                               minimumFractionDigits: 2,
@@ -496,10 +506,12 @@ export default function Pay() {
                       primary
                       title3
                       textAlign="right"
-                      color={discountUSD >= 0 ? "$interactiveOnBaseSuccessSoft" : "$interactiveOnBaseErrorSoft"}
+                      color={
+                        discountOrPenaltyUSD <= 0 ? "$interactiveOnBaseSuccessSoft" : "$interactiveOnBaseErrorSoft"
+                      }
                     >
-                      {discountUSD > 0.01
-                        ? Math.abs(Number(previewValue - positionValue) / 1e18).toLocaleString(undefined, {
+                      {discountOrPenaltyUSD <= 0.01
+                        ? Math.abs(Number(previewValueUSD - positionValueUSD) / 1e18).toLocaleString(undefined, {
                             style: "currency",
                             currency: "USD",
                             currencyDisplay: "narrowSymbol",
@@ -518,8 +530,12 @@ export default function Pay() {
                   <Text secondary footnote textAlign="left">
                     You&apos;ll pay
                   </Text>
-                  <Text title textAlign="right" color={discountUSD >= 0 ? "$uiSuccessSecondary" : "$uiErrorSecondary"}>
-                    {(Number(previewValue) / 1e18).toLocaleString(undefined, {
+                  <Text
+                    title
+                    textAlign="right"
+                    color={discountOrPenaltyUSD >= 0 ? "$uiSuccessSecondary" : "$uiErrorSecondary"}
+                  >
+                    {(Number(previewValueUSD) / 1e18).toLocaleString(undefined, {
                       style: "currency",
                       currency: "USD",
                       currencyDisplay: "narrowSymbol",
