@@ -69,6 +69,7 @@ export default defineConfig([
       addresses(
         {
           auditor: auditor.address,
+          balancerVault: balancerVault.address,
           exaPlugin: exaPlugin.contractAddress,
           exaPreviewer: exaPreviewer.contractAddress,
           marketUSDC: marketUSDC.address,
@@ -99,7 +100,6 @@ export default defineConfig([
     ],
     plugins: [
       addresses({
-        balancerVault: balancerVault.address,
         issuerChecker: issuerChecker.contractAddress,
         refunder: refunder.contractAddress,
       }),
