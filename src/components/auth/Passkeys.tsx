@@ -99,12 +99,8 @@ export default function Passkeys() {
                 }
                 disabled={isCreateAccountPending}
                 onPress={() => {
-                  if (hasInjectedProvider) {
-                    setConnectModalOpen(true);
-                  } else {
-                    queryClient.setQueryData(["method"], "webauthn");
-                    createAccount();
-                  }
+                  queryClient.setQueryData(["method"], "webauthn");
+                  createAccount();
                 }}
               >
                 Set passkey and create account

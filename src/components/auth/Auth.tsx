@@ -28,7 +28,7 @@ import exaCard from "../../assets/images/exa-card.svg";
 import qrCodeBlob from "../../assets/images/qr-code-blob.svg";
 import qrCode from "../../assets/images/qr-code.svg";
 import alchemyConnector from "../../utils/alchemyConnector";
-import queryClient from "../../utils/queryClient";
+import queryClient, { type EmbeddingContext } from "../../utils/queryClient";
 import useAuth from "../../utils/useAuth";
 import ActionButton from "../shared/ActionButton";
 import ConnectSheet from "../shared/ConnectSheet";
@@ -43,7 +43,6 @@ export default function Auth() {
   const navigation = useNavigation<AppNavigationProperties>();
 
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
-
   const [signUpModalOpen, setSignUpModalOpen] = useState(false);
   const [signInModalOpen, setSignInModalOpen] = useState(false);
 
@@ -55,6 +54,7 @@ export default function Auth() {
   const { title, disabled } = currentItem;
 
   const { data: hasInjectedProvider } = useQuery({ queryKey: ["has-injected-provider"] });
+  const { data: embeddingContext } = useQuery<EmbeddingContext>({ queryKey: ["detect-embedding-context"] });
 
   const onViewableItemsChanged = useCallback(
     ({ viewableItems }: { viewableItems: ViewToken[] }) => {
@@ -173,6 +173,11 @@ export default function Auth() {
                 loadingContent="Logging in..."
                 onPress={() => {
                   if (loading) return;
+                  if (embeddingContext) {
+                    queryClient.setQueryData(["method"], "siwe");
+                    createAccount();
+                    return;
+                  }
                   if (hasInjectedProvider) {
                     setSignUpModalOpen(true);
                   } else {
@@ -189,6 +194,11 @@ export default function Auth() {
                 hitSlop={15}
                 onPress={() => {
                   if (loading) return;
+                  if (embeddingContext) {
+                    queryClient.setQueryData(["method"], "siwe");
+                    recoverAccount();
+                    return;
+                  }
                   if (hasInjectedProvider) {
                     setSignInModalOpen(true);
                   } else {
@@ -236,6 +246,12 @@ export default function Auth() {
             onClose={(method) => {
               setSignUpModalOpen(false);
               if (!method) return;
+              if (method === "webauthn") {
+                queryClient.setQueryData(["method"], "webauthn");
+                setSignUpModalOpen(false);
+                navigation.navigate("(passkeys)/passkeys");
+                return;
+              }
               queryClient.setQueryData(["method"], method);
               createAccount();
             }}
