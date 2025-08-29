@@ -71,7 +71,13 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
   const positionValue = ((borrow.position.principal + borrow.position.fee) * usdPrice) / 10n ** BigInt(decimals);
   const discount = Number(WAD - (previewValue * WAD) / positionValue) / 1e18;
   return (
-    <ModalSheet open={open} onClose={onClose}>
+    <ModalSheet
+      open={open}
+      onClose={() => {
+        setRolloverIntroOpen(false);
+        onClose();
+      }}
+    >
       <SafeView
         paddingTop={0}
         fullScreen
