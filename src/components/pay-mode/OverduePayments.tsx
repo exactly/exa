@@ -13,6 +13,8 @@ import { zeroAddress } from "viem";
 import { useAccount, useBytecode } from "wagmi";
 
 import { useReadExaPreviewerPendingProposals, useReadPreviewerExactly } from "../../generated/contracts";
+import assetLogos from "../../utils/assetLogos";
+import AssetLogo from "../shared/AssetLogo";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
@@ -77,8 +79,8 @@ export default function OverduePayments({ onSelect }: { onSelect: (maturity: big
           const processing = isRepaying || isRollingDebt; //eslint-disable-line @typescript-eslint/prefer-nullish-coalescing
           return (
             <XStack
-              cursor="pointer"
               key={index}
+              cursor="pointer"
               justifyContent="space-between"
               alignItems="center"
               onPress={() => {
@@ -86,18 +88,21 @@ export default function OverduePayments({ onSelect }: { onSelect: (maturity: big
                 onSelect(maturity, amount);
               }}
             >
-              <YStack gap="$s2">
-                <Text subHeadline color={processing ? "$interactiveTextDisabled" : "$uiErrorSecondary"}>
-                  {(Number(amount) / 1e6).toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </Text>
-                <Text caption color={processing ? "$interactiveTextDisabled" : "$uiErrorSecondary"}>
-                  {format(new Date(Number(maturity) * 1000), "MMM dd, yyyy")}
-                </Text>
-              </YStack>
               <XStack alignItems="center" gap="$s3">
+                <YStack gap="$s2">
+                  <XStack alignItems="center" gap="$s3">
+                    <AssetLogo uri={assetLogos.USDC} width={12} height={12} />
+                    <Text sensitive subHeadline color={processing ? "$interactiveTextDisabled" : "$uiErrorSecondary"}>
+                      {(Number(amount) / 1e6).toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </Text>
+                  </XStack>
+                  <Text caption color={processing ? "$interactiveTextDisabled" : "$uiErrorSecondary"}>
+                    {format(new Date(Number(maturity) * 1000), "MMM dd, yyyy")}
+                  </Text>
+                </YStack>
                 {processing ? (
                   <View
                     alignSelf="center"
@@ -112,7 +117,10 @@ export default function OverduePayments({ onSelect }: { onSelect: (maturity: big
                       PROCESSING
                     </Text>
                   </View>
-                ) : (
+                ) : null}
+              </XStack>
+              <XStack alignItems="center" gap="$s3">
+                {processing ? null : (
                   <View
                     alignSelf="center"
                     justifyContent="center"

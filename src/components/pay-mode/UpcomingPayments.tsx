@@ -8,7 +8,6 @@ import { WAD } from "@exactly/lib";
 import { ChevronRight } from "@tamagui/lucide-icons";
 import { format, isBefore } from "date-fns";
 import React from "react";
-import { Pressable } from "react-native";
 import { XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
 import { useAccount, useBytecode } from "wagmi";
@@ -78,87 +77,87 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
             });
             const processing = isRepaying || isRollingDebt; //eslint-disable-line @typescript-eslint/prefer-nullish-coalescing
             return (
-              <Pressable
+              <XStack
                 key={index}
-                disabled={processing}
+                cursor="pointer"
+                justifyContent="space-between"
+                alignItems="center"
                 onPress={() => {
                   if (processing) return;
                   onSelect(maturity, amount);
                 }}
               >
-                <XStack justifyContent="space-between" alignItems="center">
-                  <XStack alignItems="center" gap="$s3">
-                    <YStack gap="$s2">
-                      <XStack alignItems="center" gap="$s3">
-                        <AssetLogo uri={assetLogos.USDC} width={12} height={12} />
-                        <Text
-                          sensitive
-                          subHeadline
-                          color={
-                            isRepaying
-                              ? "$interactiveTextDisabled"
-                              : discount >= 0
-                                ? "$interactiveBaseSuccessDefault"
-                                : "$uiNeutralPrimary"
-                          }
-                        >
-                          {(Number(amount) / 1e6).toLocaleString(undefined, {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}
-                        </Text>
-                      </XStack>
-                      <Text caption color={processing ? "$interactiveTextDisabled" : "$uiNeutralPrimary"}>
-                        {format(new Date(Number(maturity) * 1000), "MMM dd, yyyy")}
+                <XStack alignItems="center" gap="$s3">
+                  <YStack gap="$s2">
+                    <XStack alignItems="center" gap="$s3">
+                      <AssetLogo uri={assetLogos.USDC} width={12} height={12} />
+                      <Text
+                        sensitive
+                        subHeadline
+                        color={
+                          processing
+                            ? "$interactiveTextDisabled"
+                            : discount >= 0
+                              ? "$interactiveBaseSuccessDefault"
+                              : "$uiNeutralPrimary"
+                        }
+                      >
+                        {(Number(amount) / 1e6).toLocaleString(undefined, {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
                       </Text>
-                    </YStack>
-                    {processing ? (
-                      <View
-                        alignSelf="center"
-                        justifyContent="center"
-                        alignItems="center"
-                        backgroundColor="$interactiveDisabled"
-                        borderRadius="$r2"
-                        paddingVertical="$s1"
-                        paddingHorizontal="$s2"
-                      >
-                        <Text emphasized color="$interactiveOnDisabled" maxFontSizeMultiplier={1} caption2>
-                          PROCESSING
-                        </Text>
-                      </View>
-                    ) : null}
-                  </XStack>
-                  <XStack alignItems="center" gap="$s3">
-                    {processing || discount < 0.001 ? null : (
-                      <View
-                        alignSelf="center"
-                        justifyContent="center"
-                        alignItems="center"
-                        backgroundColor="$interactiveBaseSuccessDefault"
-                        borderRadius="$r2"
-                        paddingVertical="$s1"
-                        paddingHorizontal="$s2"
-                      >
-                        <Text emphasized color="$interactiveOnBaseSuccessDefault" maxFontSizeMultiplier={1} caption2>
-                          {`${discount.toLocaleString(undefined, {
-                            style: "percent",
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })} OFF`}
-                        </Text>
-                      </View>
-                    )}
-                    <Text
-                      emphasized
-                      subHeadline
-                      color={processing ? "$interactiveOnDisabled" : "$interactiveBaseBrandDefault"}
-                    >
-                      Repay
+                    </XStack>
+                    <Text caption color={processing ? "$interactiveTextDisabled" : "$uiNeutralPrimary"}>
+                      {format(new Date(Number(maturity) * 1000), "MMM dd, yyyy")}
                     </Text>
-                    <ChevronRight size={16} color={isRepaying ? "$iconDisabled" : "$iconBrandDefault"} />
-                  </XStack>
+                  </YStack>
+                  {processing ? (
+                    <View
+                      alignSelf="center"
+                      justifyContent="center"
+                      alignItems="center"
+                      backgroundColor="$interactiveDisabled"
+                      borderRadius="$r2"
+                      paddingVertical="$s1"
+                      paddingHorizontal="$s2"
+                    >
+                      <Text emphasized color="$interactiveOnDisabled" maxFontSizeMultiplier={1} caption2>
+                        PROCESSING
+                      </Text>
+                    </View>
+                  ) : null}
                 </XStack>
-              </Pressable>
+                <XStack alignItems="center" gap="$s3">
+                  {processing || discount < 0.001 ? null : (
+                    <View
+                      alignSelf="center"
+                      justifyContent="center"
+                      alignItems="center"
+                      backgroundColor="$interactiveBaseSuccessDefault"
+                      borderRadius="$r2"
+                      paddingVertical="$s1"
+                      paddingHorizontal="$s2"
+                    >
+                      <Text emphasized color="$interactiveOnBaseSuccessDefault" maxFontSizeMultiplier={1} caption2>
+                        {`${discount.toLocaleString(undefined, {
+                          style: "percent",
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })} OFF`}
+                      </Text>
+                    </View>
+                  )}
+                  <Text
+                    emphasized
+                    subHeadline
+                    color={processing ? "$interactiveOnDisabled" : "$interactiveBaseBrandDefault"}
+                  >
+                    Repay
+                  </Text>
+                  <ChevronRight size={16} color={processing ? "$iconDisabled" : "$iconBrandDefault"} />
+                </XStack>
+              </XStack>
             );
           })
         ) : (
