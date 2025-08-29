@@ -1,3 +1,4 @@
+import { sdk } from "@farcaster/miniapp-sdk";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import { persistQueryClientRestore, persistQueryClientSubscribe } from "@tanstack/query-persist-client-core";
@@ -186,6 +187,13 @@ queryClient.setQueryDefaults(["has-injected-provider"], {
   staleTime: Infinity,
   gcTime: Infinity,
   queryFn: hasProvider,
+});
+queryClient.setQueryDefaults(["is-miniapp"], {
+  staleTime: Infinity,
+  gcTime: Infinity,
+  queryFn: async () => {
+    return await sdk.isInMiniApp();
+  },
 });
 
 export type ActivityItem = Awaited<ReturnType<typeof getActivity>>[number];
