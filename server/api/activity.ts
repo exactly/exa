@@ -13,8 +13,9 @@ import chain, {
 } from "@exactly/common/generated/chain";
 import { Address, Hash, type Hex } from "@exactly/common/validation";
 import { effectiveRate, WAD } from "@exactly/lib";
+import { renderToBuffer } from "@react-pdf/renderer";
 import { captureException, setUser } from "@sentry/node";
-import { eq } from "drizzle-orm";
+import { and, arrayOverlaps, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { validator as vValidator } from "hono-openapi/valibot";
 import {
@@ -46,8 +47,9 @@ import {
 } from "valibot";
 import { decodeFunctionData, zeroHash, type Log } from "viem";
 
-import database, { credentials } from "../database";
+import database, { credentials, cards, transactions as transactionsSchema } from "../database";
 import auth from "../middleware/auth";
+import Statement from "../utils/Statement";
 import { collectors as cryptomateCollectors } from "../utils/cryptomate";
 import { collectors as pandaCollectors } from "../utils/panda";
 import publicClient from "../utils/publicClient";
@@ -62,11 +64,14 @@ export default new Hono().get(
   auth(),
   vValidator(
     "query",
-    optional(object({ include: optional(union([ActivityTypes, array(ActivityTypes)])) }), {}),
+    optional(
+      object({ include: optional(union([ActivityTypes, array(ActivityTypes)])), maturity: optional(string()) }),
+      {},
+    ),
     validatorHook(),
   ),
   async (c) => {
-    const { include } = c.req.valid("query");
+    const { include, maturity } = c.req.valid("query");
     function ignore(type: InferInput<typeof ActivityTypes>) {
       return include && (Array.isArray(include) ? !include.includes(type) : include !== type);
     }
@@ -79,7 +84,7 @@ export default new Hono().get(
         cards: {
           columns: {},
           with: { transactions: { columns: { hashes: true, payload: true } } },
-          limit: ignore("card") ? 0 : undefined,
+          limit: ignore("card") || maturity ? 0 : undefined,
         },
       },
     });
@@ -117,7 +122,7 @@ export default new Hono().get(
             abi: marketAbi,
             eventName: "RepayAtMaturity",
             address: [...markets.keys()],
-            args: { caller: [...plugins], borrower: account },
+            args: { caller: [...plugins], borrower: account, ...(maturity && { maturity: BigInt(maturity) }) },
             toBlock: "latest",
             fromBlock: 0n,
             strict: true,
@@ -244,54 +249,128 @@ export default new Hono().get(
       ].map((blockNumber) => publicClient.getBlock({ blockNumber })),
     );
     const timestamps = new Map(blocks.map(({ number: block, timestamp }) => [block, timestamp]));
+    const cardPurchases =
+      !ignore("card") && maturity
+        ? await (async function () {
+            const hashes = borrows
+              ? borrows
+                  .entries()
+                  .filter(([_, { events }]) => events.some(({ maturity: m }) => m === BigInt(maturity)))
+                  .map(([hash]) => hash)
+              : [];
 
-    return c.json(
-      [
-        ...credential.cards.flatMap(({ transactions }) =>
-          transactions.map(({ hashes, payload }) => {
-            const panda = safeParse(PandaActivity, {
-              ...(payload as object),
-              hashes,
-              borrows: hashes.map((h) => {
-                const b = borrows?.get(h as Hash);
-                if (!b) return null;
-                return {
-                  events: b.events,
-                  timestamps: b.blockNumber && timestamps.get(b.blockNumber),
-                };
-              }),
+            const transactions = await database.query.transactions.findMany({
+              where: arrayOverlaps(transactionsSchema.hashes, [...hashes]),
+              columns: { hashes: true, payload: true },
             });
-            if (panda.success) return panda.output;
+            return [{ transactions }];
+          })()
+        : credential.cards;
 
-            if (hashes.length !== 1) throw new Error("cryptomate transactions need to have only one hash");
-            const hash = hashes[0];
-            const borrow = borrows?.get(hash as Hash);
-            const cryptomate = safeParse(
-              { 0: DebitActivity, 1: CreditActivity }[borrow?.events.length ?? 0] ?? InstallmentsActivity,
-              {
-                ...(payload as object),
-                hash,
-                events: borrow?.events,
-                blockTimestamp: borrow?.blockNumber && timestamps.get(borrow.blockNumber),
-              },
-            );
-            if (cryptomate.success) return cryptomate.output;
-            captureException(new Error("bad transaction"), { level: "error", contexts: { cryptomate, panda } });
-          }),
-        ),
-        ...[...deposits, ...repays, ...withdraws].map(({ blockNumber, ...event }) => {
-          const timestamp = timestamps.get(blockNumber);
-          if (timestamp) return { ...event, timestamp: new Date(Number(timestamp) * 1000).toISOString() };
-          captureException(new Error("block not found"), {
-            level: "error",
-            contexts: { event: { ...event, timestamp } },
+    const response = [
+      ...cardPurchases.flatMap(({ transactions }) =>
+        transactions.map(({ hashes, payload }) => {
+          const panda = safeParse(PandaActivity, {
+            ...(payload as object),
+            hashes,
+            borrows: hashes.map((h) => {
+              const b = borrows?.get(h as Hash);
+              if (!b) return null;
+              return {
+                events: b.events,
+                timestamps: b.blockNumber && timestamps.get(b.blockNumber),
+              };
+            }),
           });
+          if (panda.success) return panda.output;
+
+          if (hashes.length !== 1) throw new Error("cryptomate transactions need to have only one hash");
+          const hash = hashes[0];
+          const borrow = borrows?.get(hash as Hash);
+          const cryptomate = safeParse(
+            { 0: DebitActivity, 1: CreditActivity }[borrow?.events.length ?? 0] ?? InstallmentsActivity,
+            {
+              ...(payload as object),
+              hash,
+              events: borrow?.events,
+              blockTimestamp: borrow?.blockNumber && timestamps.get(borrow.blockNumber),
+            },
+          );
+          if (cryptomate.success) return cryptomate.output;
+          captureException(new Error("bad transaction"), { level: "error", contexts: { cryptomate, panda } });
         }),
-      ]
-        .filter(<T>(value: T | undefined): value is T => value !== undefined)
-        .sort((a, b) => b.timestamp.localeCompare(a.timestamp) || b.id.localeCompare(a.id)),
-      200,
-    );
+      ),
+      ...[...deposits, ...repays, ...withdraws].map(({ blockNumber, ...event }) => {
+        const timestamp = timestamps.get(blockNumber);
+        if (timestamp) return { ...event, timestamp: new Date(Number(timestamp) * 1000).toISOString() };
+        captureException(new Error("block not found"), {
+          level: "error",
+          contexts: { event: { ...event, timestamp } },
+        });
+      }),
+    ]
+      .filter(<T>(value: T | undefined): value is T => value !== undefined)
+      .sort((a, b) => b.timestamp.localeCompare(a.timestamp) || b.id.localeCompare(a.id));
+
+    if (maturity && c.req.header("accept") === "application/pdf") {
+      const card = await database.query.cards.findFirst({
+        columns: { lastFour: true },
+        where: and(eq(cards.credentialId, credentialId), eq(cards.status, "ACTIVE")),
+      });
+      const statement = {
+        maturity: Number(maturity),
+        lastFour: card?.lastFour ?? "",
+        data: response
+          .map((item) => {
+            if (item.type === "panda") {
+              return {
+                timestamp: item.timestamp,
+                description: `${item.merchant.name}${item.merchant.city ? `,${item.merchant.city}` : ""}`,
+                installments: item.operations
+                  .reduce((accumulator, operation) => {
+                    if ("borrow" in operation) {
+                      if ("installments" in operation.borrow) {
+                        const installments = operation.borrow.installments;
+                        const n = installments.findIndex((installment) => installment.maturity === Number(maturity));
+                        const progress = `${n + 1}/${installments.length}`;
+                        const status = accumulator.get(progress) ?? {
+                          current: n + 1,
+                          total: installments.length,
+                          amount: 0,
+                        };
+                        status.amount += (installments[n]?.assets ?? 0) + (installments[n]?.fee ?? 0);
+                        accumulator.set(progress, status);
+                      } else {
+                        const status = accumulator.get("1/1") ?? {
+                          current: 1,
+                          total: 1,
+                          amount: 0,
+                        };
+                        status.amount += operation.borrow.assets + operation.borrow.fee;
+                        accumulator.set("1/1", status);
+                      }
+                    }
+                    return accumulator;
+                  }, new Map<string, { current: number; total: number; amount: number }>())
+                  .values()
+                  .toArray(),
+              };
+            }
+            if (item.type === "repay") {
+              return {
+                timestamp: item.timestamp,
+                positionAmount: item.positionAmount,
+                amount: item.amount,
+                discount: ((item.positionAmount - item.amount) / item.positionAmount) * 100,
+              };
+            }
+          })
+          .filter((item) => item !== undefined),
+      };
+      const pdf = await renderToBuffer(Statement(statement));
+      return c.body(toArrayBuffer(pdf.buffer), 200, { "content-type": "application/pdf" });
+    }
+    return c.json(response, 200);
   },
 );
 
@@ -417,7 +496,9 @@ const CardActivity = pipe(
 
 function transformBorrow(borrow: InferOutput<typeof Borrow>, timestamp: bigint) {
   return {
+    assets: Number(borrow.assets) / 1e6,
     fee: Number(borrow.fee) / 1e6,
+    maturity: Number(borrow.maturity),
     rate: Number(fixedRate(borrow.maturity, borrow.assets, borrow.fee, timestamp)) / 1e18,
   };
 }
@@ -578,6 +659,18 @@ function forbid<T extends object>(value: T) {
     },
     /* v8 ignore end */
   });
+}
+
+function toArrayBuffer(buffer: ArrayBufferLike) {
+  if (buffer instanceof ArrayBuffer) {
+    return buffer;
+  } else if (buffer instanceof SharedArrayBuffer) {
+    const arrayBuffer = new ArrayBuffer(buffer.byteLength);
+    const view = new Uint8Array(arrayBuffer);
+    view.set(new Uint8Array(buffer));
+    return arrayBuffer;
+  }
+  throw new Error("unsupported buffer type");
 }
 
 /* eslint-disable @typescript-eslint/no-redeclare */
