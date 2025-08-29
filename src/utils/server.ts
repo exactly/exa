@@ -3,7 +3,7 @@ import domain from "@exactly/common/domain";
 import { Credential } from "@exactly/common/validation";
 import type { ExaAPI } from "@exactly/server/api";
 import { signMessage } from "@wagmi/core/actions";
-import { hc } from "hono/client";
+import { hc, parseResponse } from "hono/client";
 import { Platform } from "react-native";
 import { get as assert, create } from "react-native-passkeys";
 import { check, number, parse, pipe, safeParse, ValiError } from "valibot";
@@ -172,7 +172,8 @@ export async function getActivity(parameters?: NonNullable<Parameters<typeof api
     parameters?.include === undefined ? undefined : { query: { include: parameters.include } },
   );
   if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
-  return response.json();
+  const parsed = await parseResponse(response);
+  return Array.isArray(parsed) ? parsed : [];
 }
 
 export async function auth() {
