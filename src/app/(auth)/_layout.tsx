@@ -15,19 +15,15 @@ import useBackgroundColor from "../../utils/useBackgroundColor";
 export default function OnboardingLayout() {
   useBackgroundColor();
 
+  const { data: isMiniApp } = useQuery({ queryKey: ["is-miniapp"] });
   const { data: credential, isLoading, isFetched } = useQuery<Credential>({ queryKey: ["credential"] });
   const navigation = useNavigation<AppNavigationProperties>();
 
   useEffect(() => {
     if (isLoading || !isFetched) return;
-    sdk
-      .isInMiniApp()
-      .then(async (isInMiniApp) => {
-        if (isInMiniApp) await sdk.actions.ready();
-      })
-      .catch(reportError);
+    if (isMiniApp) sdk.actions.ready().catch(reportError);
     SplashScreen.hideAsync().catch(reportError);
-  }, [isFetched, isLoading, credential, navigation]);
+  }, [isFetched, isLoading, credential, navigation, isMiniApp]);
 
   useFocusEffect(
     useCallback(() => {
