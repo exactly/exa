@@ -1,9 +1,10 @@
+import domain from "@exactly/common/domain";
 import type { Credential } from "@exactly/common/validation";
 import { sdk } from "@farcaster/miniapp-sdk";
 import { Platform } from "react-native";
 import { Environment, Inquiry } from "react-native-persona";
 
-import queryClient from "./queryClient";
+import queryClient, { type EmbeddingContext } from "./queryClient";
 import reportError from "./reportError";
 import { getKYCLink } from "./server";
 import type { AppNavigationProperties } from "../app/(main)/_layout";
@@ -14,9 +15,10 @@ export const LEGACY_KYC_TEMPLATE_ID = "itmpl_8uim4FvD5P3kFpKHX37CW817";
 
 export async function createInquiry(credential: Credential, navigation: AppNavigationProperties) {
   if (Platform.OS === "web") {
-    const url = await getKYCLink(KYC_TEMPLATE_ID);
-    if (await sdk.isInMiniApp()) {
-      await sdk.actions.openUrl(url);
+    const url = await getKYCLink(KYC_TEMPLATE_ID, getRedirectURI());
+    const embeddingContext = queryClient.getQueryData<EmbeddingContext>(["embedding-context"]);
+    if (embeddingContext && !embeddingContext.endsWith("-web")) {
+      window.location.replace(url);
       return;
     }
     window.open(url);
@@ -47,6 +49,11 @@ export async function resumeInquiry(inquiryId: string, sessionToken: string, nav
       await sdk.actions.openUrl(url);
       return;
     }
+    const embeddingContext = queryClient.getQueryData<EmbeddingContext>(["embedding-context"]);
+    if (embeddingContext && !embeddingContext.endsWith("-web")) {
+      window.location.replace(url);
+      return;
+    }
     window.open(url);
     return;
   }
@@ -64,4 +71,11 @@ export async function resumeInquiry(inquiryId: string, sessionToken: string, nav
     })
     .build()
     .start();
+}
+
+function getRedirectURI() {
+  switch (queryClient.getQueryData<EmbeddingContext>(["embedding-context"])) {
+    case "farcaster-web":
+      return `https://farcaster.xyz/~/mini-apps/launch?domain=${domain}`;
+  }
 }

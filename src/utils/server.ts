@@ -109,9 +109,9 @@ export async function setCardPIN(pin: string) {
   if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
 }
 
-export async function getKYCLink(templateId: string) {
+export async function getKYCLink(templateId: string, redirectURI?: string) {
   await auth();
-  const response = await api.kyc.$post({ json: { templateId } });
+  const response = await api.kyc.$post({ json: { templateId, redirectURI } });
   if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
   return stringOrLegacy(await response.json());
 }
