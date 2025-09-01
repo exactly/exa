@@ -93,13 +93,13 @@ describe("authenticated", () => {
     );
 
     expect(getInquiry).toHaveBeenCalledWith(account, persona.CRYPTOMATE_TEMPLATE);
-    expect(createInquiry).toHaveBeenCalledWith(account);
+    expect(createInquiry).toHaveBeenCalledWith(account, undefined);
     expect(generateOTL).toHaveBeenCalledWith(resumeTemplate.data.id);
     await expect(response.json()).resolves.toStrictEqual({ otl, legacy: otl });
     expect(response.status).toBe(200);
   });
 
-  it("returns OTL link when resume inquiry", async () => {
+  it("returns OTL link when resuming inquiry", async () => {
     const templateId = "template";
     const otl = "https://resume-url.com";
     const generateOTL = vi.spyOn(persona, "generateOTL").mockResolvedValueOnce({

@@ -55,9 +55,9 @@ export function resumeInquiry(inquiryId: string) {
   return request(ResumeInquiryResponse, `/inquiries/${inquiryId}/resume`, undefined, "POST");
 }
 
-export function createInquiry(referenceId: string) {
+export function createInquiry(referenceId: string, redirectURI?: string) {
   return request(CreateInquiryResponse, "/inquiries", {
-    data: { attributes: { "inquiry-template-id": PANDA_TEMPLATE, "redirect-uri": `${appOrigin}/card` } },
+    data: { attributes: { "inquiry-template-id": PANDA_TEMPLATE, "redirect-uri": `${redirectURI ?? appOrigin}/card` } },
     meta: { "auto-create-account": true, "auto-create-account-reference-id": referenceId },
   });
 }

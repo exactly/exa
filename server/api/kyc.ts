@@ -55,11 +55,16 @@ export default new Hono()
   .post(
     "/",
     auth(),
-    vValidator("json", object({ templateId: optional(string()) }), validatorHook({ debug })),
+    vValidator(
+      "json",
+      object({ templateId: optional(string()), redirectURI: optional(string()) }),
+      validatorHook({ debug }),
+    ),
     async (c) => {
       const payload = c.req.valid("json");
       const { credentialId } = c.req.valid("cookie");
       const templateId = payload.templateId ?? CRYPTOMATE_TEMPLATE;
+      const redirectURI = payload.redirectURI;
       const credential = await database.query.credentials.findFirst({
         columns: { id: true, account: true },
         where: eq(credentials.id, credentialId),
@@ -78,7 +83,7 @@ export default new Hono()
         }
         return c.json({ code: "failed", legacy: "kyc failed" }, 400);
       }
-      const { data } = await createInquiry(credentialId);
+      const { data } = await createInquiry(credentialId, redirectURI);
       const { meta } = await generateOTL(data.id);
       return c.json({ otl: meta["one-time-link"], legacy: meta["one-time-link"] }, 200);
     },
