@@ -60,12 +60,6 @@ export default function ProfileHeader() {
               </View>
             </Pressable>
           )}
-          <CopyAddressSheet
-            open={copyAddressShown}
-            onClose={() => {
-              setCopyAddressShown(false);
-            }}
-          />
         </View>
         <View display="flex" flexDirection="row" alignItems="center" gap={16}>
           <Pressable onPress={toggle} hitSlop={15}>
@@ -93,6 +87,12 @@ export default function ProfileHeader() {
           </Pressable>
         </View>
       </View>
+      <CopyAddressSheet
+        open={copyAddressShown}
+        onClose={() => {
+          setCopyAddressShown(false);
+        }}
+      />
     </View>
   );
 }
