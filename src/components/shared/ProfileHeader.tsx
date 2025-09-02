@@ -6,9 +6,10 @@ import { setStringAsync } from "expo-clipboard";
 import { useNavigation } from "expo-router";
 import React, { useState } from "react";
 import { Pressable } from "react-native";
-import { Image } from "tamagui";
+import { Image, XStack } from "tamagui";
 import { zeroAddress } from "viem";
 
+import Blockie from "./Blockie";
 import CopyAddressSheet from "./CopyAddressSheet";
 import StatusIndicator from "./StatusIndicator";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
@@ -43,22 +44,24 @@ export default function ProfileHeader() {
         <View display="flex" flexDirection="row" alignItems="center" gap={8}>
           <View position="relative">
             {isConnected && <StatusIndicator type="online" />}
-            <Image
-              source={{ uri: "https://avatars.githubusercontent.com/u/83888950?s=200&v=4" }}
-              alt="Profile picture"
-              width={32}
-              height={32}
-              borderRadius="$r_0"
-            />
+            {address ? (
+              <Blockie seed={address} size={32} />
+            ) : (
+              <Image
+                source={{ uri: "https://avatars.githubusercontent.com/u/83888950?s=200&v=4" }}
+                alt="Profile picture"
+                width={32}
+                height={32}
+                borderRadius="$r_0"
+              />
+            )}
           </View>
           {address && (
-            <Pressable onPress={copy} hitSlop={15}>
-              <View display="flex" flexDirection="row" alignItems="flex-start">
-                <Text fontSize={17} lineHeight={23} fontFamily="$mono">
-                  {hidden ? "0x..." : shortenHex(address)}
-                </Text>
-              </View>
-            </Pressable>
+            <XStack alignItems="flex-start" cursor="pointer" onPress={copy}>
+              <Text fontSize={17} lineHeight={23} fontFamily="$mono">
+                {hidden ? "0x..." : shortenHex(address)}
+              </Text>
+            </XStack>
           )}
         </View>
         <View display="flex" flexDirection="row" alignItems="center" gap={16}>
