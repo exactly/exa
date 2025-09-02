@@ -10,6 +10,7 @@ import { Image } from "tamagui";
 import { zeroAddress } from "viem";
 import { useAccount, useConnect } from "wagmi";
 
+import Blockie from "./Blockie";
 import CopyAddressSheet from "./CopyAddressSheet";
 import StatusIndicator from "./StatusIndicator";
 import { useReadExaPreviewerPendingProposals } from "../../generated/contracts";
@@ -45,7 +46,7 @@ export default function ProfileHeader() {
   return (
     <View padded backgroundColor="$backgroundSoft">
       <View display="flex" flexDirection="row" justifyContent="space-between">
-        <View display="flex" flexDirection="row" alignItems="center" gap={8}>
+        <View display="flex" flexDirection="row" alignItems="center" gap={8} cursor="pointer" onPress={copy}>
           <View
             position="relative"
             onPress={() => {
@@ -53,22 +54,24 @@ export default function ProfileHeader() {
             }}
           >
             {isConnected && <StatusIndicator type="online" />}
-            <Image
-              source={{ uri: "https://avatars.githubusercontent.com/u/83888950?s=200&v=4" }}
-              alt="Profile picture"
-              width={32}
-              height={32}
-              borderRadius="$r_0"
-            />
+            {address ? (
+              <Blockie seed={address} size={32} />
+            ) : (
+              <Image
+                source={{ uri: "https://avatars.githubusercontent.com/u/83888950?s=200&v=4" }}
+                alt="Profile picture"
+                width={32}
+                height={32}
+                borderRadius="$r_0"
+              />
+            )}
           </View>
           {address && (
-            <Pressable onPress={copy} hitSlop={15}>
-              <View display="flex" flexDirection="row" alignItems="flex-start">
-                <Text fontSize={17} lineHeight={23} fontFamily="$mono">
-                  {hidden ? "0x..." : shortenHex(address)}
-                </Text>
-              </View>
-            </Pressable>
+            <View display="flex" flexDirection="row" alignItems="flex-start">
+              <Text fontSize={17} lineHeight={23} fontFamily="$mono">
+                {hidden ? "0x..." : shortenHex(address)}
+              </Text>
+            </View>
           )}
           <CopyAddressSheet
             open={copyAddressShown}
