@@ -1,22 +1,23 @@
 import chain from "@exactly/common/generated/chain";
 import shortenHex from "@exactly/common/shortenHex";
-import { AlertTriangle, ArrowLeft, Files, Share as ShareIcon } from "@tamagui/lucide-icons";
+import { AlertTriangle, ArrowLeft, Files, QrCode, Share as ShareIcon } from "@tamagui/lucide-icons";
 import { setStringAsync } from "expo-clipboard";
 import { router } from "expo-router";
 import React, { useCallback, useState } from "react";
-import { PixelRatio, Pressable, Share } from "react-native";
+import { Pressable, Share } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 import { useAccount } from "wagmi";
 
+import QrCodeSheet from "./QrCodeSheet";
 import SupportedAssetsSheet from "./SupportedAssetsSheet";
 import OptimismImage from "../../assets/images/optimism.svg";
 import assetLogos from "../../utils/assetLogos";
 import reportError from "../../utils/reportError";
 import useIntercom from "../../utils/useIntercom";
 import AssetLogo from "../shared/AssetLogo";
-import Button from "../shared/Button";
 import CopyAddressSheet from "../shared/CopyAddressSheet";
 import SafeView from "../shared/SafeView";
+import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
@@ -25,17 +26,17 @@ const supportedAssets = Object.entries(assetLogos)
   .map(([symbol, image]) => ({ symbol, image }));
 
 export default function AddCrypto() {
-  const fontScale = PixelRatio.getFontScale();
   const { presentArticle } = useIntercom();
   const { address } = useAccount();
   const { canGoBack } = router;
 
   const [copyAddressShown, setCopyAddressShown] = useState(false);
   const [supportedAssetsShown, setSupportedAssetsShown] = useState(false);
+  const [qrCodeShown, setQrCodeShown] = useState(false);
 
-  const copy = useCallback(() => {
+  const copy = useCallback(async () => {
     if (!address) return;
-    setStringAsync(address).catch(reportError);
+    await setStringAsync(address);
     setCopyAddressShown(true);
   }, [address]);
 
@@ -43,6 +44,12 @@ export default function AddCrypto() {
     if (!address) return;
     await Share.share({ message: address, title: `Share ${chain.name} address` });
   }, [address]);
+
+  const displayQrCode = useCallback(() => {
+    if (!address) return;
+    setQrCodeShown(true);
+  }, [address]);
+
   return (
     <SafeView fullScreen>
       <View gap="$s5" fullScreen padded>
@@ -77,7 +84,12 @@ export default function AddCrypto() {
               <Text fontSize={15} color="$uiNeutralSecondary" fontWeight="bold">
                 Your {chain.name} address
               </Text>
-              <Pressable hitSlop={15} onPress={copy}>
+              <Pressable
+                hitSlop={15}
+                onPress={() => {
+                  copy().catch(reportError);
+                }}
+              >
                 {address && (
                   <Text fontFamily="$mono" fontSize={18} color="$uiNeutralPrimary">
                     {shortenHex(address, 10, 12)}
@@ -85,52 +97,52 @@ export default function AddCrypto() {
                 )}
               </Pressable>
               <XStack alignItems="center" gap="$s4">
-                <Button
-                  main
-                  spaced
-                  onPress={copy}
-                  hitSlop={15}
-                  iconAfter={<Files size={18 * fontScale} color="$interactiveOnBaseBrandDefault" />}
-                  backgroundColor="$interactiveBaseBrandDefault"
-                  color="$interactiveOnBaseBrandDefault"
-                  contained
-                  fullwidth
-                  flex={1}
-                >
-                  <Text
-                    fontSize={15}
-                    emphasized
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                    color="$interactiveOnBaseBrandDefault"
+                <YStack flex={1} alignItems="center" gap="$s3_5">
+                  <Button
+                    primary
+                    flex={1}
+                    width="100%"
+                    justifyContent="center"
+                    onPress={() => {
+                      copy().catch(reportError);
+                    }}
                   >
+                    <Button.Icon>
+                      <Files />
+                    </Button.Icon>
+                  </Button>
+                  <Text emphasized footnote color="$backgroundBrand">
                     Copy
                   </Text>
-                </Button>
-                <Button
-                  main
-                  spaced
-                  onPress={() => {
-                    share().catch(reportError);
-                  }}
-                  hitSlop={15}
-                  iconAfter={<ShareIcon size={18 * fontScale} color="$interactiveOnBaseBrandSoft" />}
-                  backgroundColor="$interactiveBaseBrandSoftDefault"
-                  color="$interactiveOnBaseBrandSoft"
-                  outlined
-                  fullwidth
-                  flex={1}
-                >
-                  <Text
-                    fontSize={15}
-                    emphasized
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                    color="$interactiveOnBaseBrandSoft"
+                </YStack>
+                <YStack flex={1} alignItems="center" gap="$s3_5">
+                  <Button
+                    secondary
+                    flex={1}
+                    width="100%"
+                    justifyContent="center"
+                    onPress={() => {
+                      share().catch(reportError);
+                    }}
                   >
+                    <Button.Icon>
+                      <ShareIcon />
+                    </Button.Icon>
+                  </Button>
+                  <Text emphasized footnote color="$backgroundBrand">
                     Share
                   </Text>
-                </Button>
+                </YStack>
+                <YStack flex={1} alignItems="center" gap="$s3_5">
+                  <Button secondary flex={1} width="100%" justifyContent="center" onPress={displayQrCode}>
+                    <Button.Icon>
+                      <QrCode />
+                    </Button.Icon>
+                  </Button>
+                  <Text emphasized footnote color="$backgroundBrand">
+                    QR Code
+                  </Text>
+                </YStack>
               </XStack>
             </YStack>
             <CopyAddressSheet
@@ -143,6 +155,12 @@ export default function AddCrypto() {
               open={supportedAssetsShown}
               onClose={() => {
                 setSupportedAssetsShown(false);
+              }}
+            />
+            <QrCodeSheet
+              open={qrCodeShown}
+              onClose={() => {
+                setQrCodeShown(false);
               }}
             />
             <XStack justifyContent="space-between" alignItems="center">
