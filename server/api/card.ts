@@ -30,7 +30,17 @@ import database, { cards, credentials } from "../database";
 import auth from "../middleware/auth";
 import { getApplicationStatus } from "../utils/kyc";
 import { sendPushNotification } from "../utils/onesignal";
-import { autoCredit, CardStatus, createCard, getCard, getPIN, getSecrets, getUser, setPIN } from "../utils/panda";
+import {
+  autoCredit,
+  CardStatus,
+  createCard,
+  getCard,
+  getPIN,
+  getSecrets,
+  getUser,
+  setPIN,
+  updateCard,
+} from "../utils/panda";
 import { track } from "../utils/segment";
 import validatorHook from "../utils/validatorHook";
 
@@ -95,7 +105,7 @@ const UpdateCard = union([
     transform((patch) => ({ ...patch, type: "mode" as const })),
   ),
   pipe(
-    strictObject({ status: picklist(["ACTIVE", "FROZEN"]) }),
+    strictObject({ status: picklist(["ACTIVE", "FROZEN", "DELETED"]) }),
     transform((patch) => ({ ...patch, type: "status" as const })),
   ),
   pipe(
@@ -113,7 +123,7 @@ const UpdatedCardResponse = union([
     mode: pipe(number(), metadata({ examples: [0] })),
   }),
   object({
-    status: pipe(picklist(["ACTIVE", "FROZEN"]), metadata({ examples: ["ACTIVE", "FROZEN"] })),
+    status: pipe(picklist(["ACTIVE", "FROZEN", "DELETED"]), metadata({ examples: ["ACTIVE", "FROZEN", "DELETED"] })),
   }),
 ]);
 
@@ -395,6 +405,12 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
       description: `
 Update the card status, PIN, or installments mode.
 
+**Updating the card status**
+
+- ACTIVE: The card is active and can be used.
+- FROZEN: The card is frozen and cannot be used but may be active in the future.
+- DELETED: The card is deleted and cannot be used permanently.
+
 **Updating the card PIN**
 
 1. **Encrypt the PIN**: Format and encrypt the PIN using the session secret.
@@ -504,8 +520,19 @@ async function encryptPIN(pin: string) {
               const { status } = patch;
               if (card.status === status)
                 return c.json({ code: BadRequestCodes.ALREADY_SET, status, legacy: BadRequestCodes.ALREADY_SET }, 400);
+              switch (status) {
+                case "FROZEN":
+                  track({ userId: account, event: "CardFrozen" });
+                  break;
+                case "ACTIVE":
+                  track({ userId: account, event: "CardUnfrozen" });
+                  break;
+                case "DELETED":
+                  await updateCard({ id: card.id, status: "canceled" });
+                  track({ userId: account, event: "CardDeleted" });
+                  break;
+              }
               await database.update(cards).set({ status }).where(eq(cards.id, card.id));
-              track({ userId: account, event: status === "FROZEN" ? "CardFrozen" : "CardUnfrozen" });
               return c.json({ status } satisfies InferOutput<typeof UpdatedCardResponse>, 200);
             }
             case "pin": {
