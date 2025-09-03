@@ -126,7 +126,7 @@ const UpdatedCardResponse = union([
     mode: pipe(number(), metadata({ examples: [0] })),
   }),
   object({
-    status: pipe(picklist(["ACTIVE", "FROZEN"]), metadata({ examples: ["ACTIVE", "FROZEN"] })),
+    status: pipe(picklist(["ACTIVE", "FROZEN", "DELETED"]), metadata({ examples: ["ACTIVE", "FROZEN", "DELETED"] })),
   }),
 ]);
 
@@ -412,6 +412,12 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
       security: [{ credentialAuth: [] }],
       description: `
 Update the card status, PIN, or installments mode.
+
+**Updating the card status**
+
+- ACTIVE: The card is active and can be used.
+- FROZEN: The card is frozen and cannot be used but may be active in the future.
+- DELETED: The card is deleted and cannot be used permanently.
 
 **Updating the card PIN**
 
