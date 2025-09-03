@@ -94,6 +94,28 @@ export async function updateUser(user: {
 export async function getUser(userId: string) {
   return await request(UserResponse, `/issuing/users/${userId}`);
 }
+export async function updateCard(card: {
+  id: string;
+  status?: "notActivated" | "active" | "locked" | "canceled";
+  limit?: {
+    amount: number;
+    frequency: "per24HourPeriod" | "per7DayPeriod" | "per30DayPeriod" | "perYearPeriod";
+  };
+  billing?: {
+    line1: string;
+    line2?: string;
+    city: string;
+    region: string;
+    postalCode: string;
+    countryCode: string;
+    country?: string;
+  };
+  configuration?: {
+    virtualCardArt: string;
+  };
+}) {
+  return await request(CardResponse, `/issuing/cards/${card.id}`, {}, card, "PATCH");
+}
 
 export async function getCard(cardId: string) {
   return await request(CardResponse, `/issuing/cards/${cardId}`);
