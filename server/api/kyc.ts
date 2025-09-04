@@ -4,7 +4,7 @@ import createDebug from "debug";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { validator as vValidator } from "hono-openapi/valibot";
-import { object, optional, parse, string } from "valibot";
+import { object, parse, optional, string, pipe, partial, check } from "valibot";
 
 import database, { credentials } from "../database/index";
 import auth from "../middleware/auth";
@@ -16,11 +16,22 @@ import {
   getInquiry,
   PANDA_TEMPLATE,
   resumeInquiry,
+  updateAccountFields,
 } from "../utils/persona";
+import { MantecaOnboarding } from "../utils/ramps/manteca";
 import validatorHook from "../utils/validatorHook";
 
 const debug = createDebug("exa:kyc");
 Object.assign(debug, { inspectOpts: { depth: undefined } });
+
+const KYCUpdateRequest = pipe(
+  partial(
+    object({
+      ...MantecaOnboarding.entries,
+    }),
+  ),
+  check((input) => Object.keys(input).length > 0, "at least one field is required"),
+);
 
 export default new Hono()
   .get("/", auth(), async (c) => {
@@ -87,4 +98,27 @@ export default new Hono()
       const { meta } = await generateOTL(data.id);
       return c.json({ otl: meta["one-time-link"], legacy: meta["one-time-link"] }, 200);
     },
-  );
+  )
+  .patch("/", auth(), vValidator("json", KYCUpdateRequest, validatorHook({ debug })), async (c) => {
+    const templateId = c.req.query("templateId") ?? CRYPTOMATE_TEMPLATE;
+    if (templateId !== CRYPTOMATE_TEMPLATE && templateId !== PANDA_TEMPLATE) {
+      return c.json({ code: "bad template", legacy: "invalid persona template" }, 400);
+    }
+    const { credentialId } = c.req.valid("cookie");
+    const credential = await database.query.credentials.findFirst({
+      columns: { id: true, account: true },
+      where: eq(credentials.id, credentialId),
+    });
+    if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
+    const inquiry = await getInquiry(credentialId, templateId);
+    if (!inquiry) return c.json({ code: "no kyc", legacy: "kyc not found" }, 404);
+    if (inquiry.attributes.status !== "approved") {
+      return c.json({ code: "bad kyc", legacy: "kyc not approved" }, 400);
+    }
+    const accountId = inquiry.relationships.account?.data?.id;
+    if (!accountId) throw new Error("no account id");
+
+    const updates = c.req.valid("json");
+    await updateAccountFields(accountId, updates);
+    return c.json({ code: "ok", legacy: "ok" }, 200);
+  });

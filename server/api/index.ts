@@ -7,6 +7,7 @@ import authentication from "./auth/authentication";
 import registration from "./auth/registration";
 import card from "./card";
 import kyc from "./kyc";
+import onramp from "./onramp";
 import passkey from "./passkey";
 import appOrigin from "../utils/appOrigin";
 
@@ -22,6 +23,7 @@ const api = new Hono()
   .route("/activity", activity)
   .route("/card", card)
   .route("/kyc", kyc)
+  .route("/onramp", onramp)
   .route("/passkey", passkey);
 
 export default api;

@@ -11,6 +11,8 @@ export default defineConfig({
       AUTH_SECRET: "auth",
       EXPO_PUBLIC_ALCHEMY_API_KEY: " ",
       ISSUER_PRIVATE_KEY: padHex("0x420"),
+      MANTECA_API_URL: "https://manteca.test",
+      MANTECA_API_KEY: "manteca",
       KEEPER_PRIVATE_KEY: padHex("0x69"),
       PANDA_API_KEY: "panda",
       PANDA_API_URL: "https://panda.test",
