@@ -5,6 +5,7 @@ import "../mocks/deployments";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import { testClient } from "hono/testing";
+import type * as v from "valibot";
 import { zeroHash, padHex, zeroAddress } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
@@ -40,7 +41,17 @@ describe("authenticated", () => {
     const getAccount = vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
       ...personaTemplate,
       type: "account",
-      attributes: { "country-code": "AR" },
+      attributes: {
+        "country-code": "AR",
+        "identification-numbers": {},
+        "social-security-number": null,
+        "address-street-1": "123 Main St",
+        "address-street-2": null,
+        "address-city": "New York",
+        "address-subdivision": null,
+        "address-postal-code": "10001",
+        fields: {},
+      },
     });
 
     const response = await appClient.index.$get(
@@ -123,7 +134,7 @@ describe("authenticated", () => {
   });
 });
 
-const personaTemplate = {
+const personaTemplate: v.InferOutput<typeof persona.Inquiry> = {
   id: "test-id",
   type: "inquiry" as const,
   attributes: {
@@ -134,6 +145,18 @@ const personaTemplate = {
     "name-last": "Doe",
     "email-address": "john@example.com",
     "phone-number": "+1234567890",
+    birthdate: "1990-01-01",
+    fields: {
+      "input-select": { type: "choices", value: "John" },
+    },
+  },
+  relationships: {
+    documents: {
+      data: [{ type: "document", id: "1234567890" }],
+    },
+    account: {
+      data: { id: "1234567890", type: "account" },
+    },
   },
 } as const;
 
@@ -149,6 +172,7 @@ const resumeTemplate = {
         "name-last": { type: "string", value: "Doe" },
         "email-address": { type: "string", value: "john@example.com" },
         "phone-number": { type: "string", value: "+1234567890" },
+        birthdate: { type: "string", value: "1990-01-01" },
       },
       "reference-id": "ref-123",
     },

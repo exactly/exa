@@ -77,6 +77,14 @@ services:
         scope: RUN_TIME
       - key: PANDA_ISSUING
         scope: RUN_TIME
+      - key: MANTECA_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: MANTECA_API_URL
+        scope: RUN_TIME
+      - key: MANTECA_WEBHOOKS_KEY
+        scope: RUN_TIME
+        type: SECRET
 databases:
   - name: postgres
     cluster_name: ${POSTGRES_NAME}

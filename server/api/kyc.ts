@@ -4,7 +4,7 @@ import createDebug from "debug";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { validator as vValidator } from "hono-openapi/valibot";
-import { object, optional, parse, string } from "valibot";
+import { object, parse, optional, string } from "valibot";
 
 import database, { credentials } from "../database/index";
 import auth from "../middleware/auth";
