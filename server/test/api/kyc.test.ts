@@ -42,7 +42,17 @@ describe("authenticated", () => {
     const getAccount = vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
       ...personaTemplate,
       type: "account",
-      attributes: { "country-code": "AR" },
+      attributes: {
+        "country-code": "AR",
+        "identification-numbers": {},
+        "social-security-number": null,
+        "address-street-1": "123 Main St",
+        "address-street-2": null,
+        "address-city": "New York",
+        "address-subdivision": null,
+        "address-postal-code": "10001",
+        fields: {},
+      },
     });
 
     const response = await appClient.index.$get(
@@ -136,8 +146,14 @@ const personaTemplate = {
     "name-last": "Doe",
     "email-address": "john@example.com",
     "phone-number": "+1234567890",
+    birthdate: "1990-01-01",
+    fields: { "input-select": { type: "choices", value: "John" } },
+  } as const,
+  relationships: {
+    documents: { data: [{ type: "document", id: "1234567890" }] },
+    account: { data: { id: "1234567890", type: "account" } } as const,
   },
-} as const;
+};
 
 const resumeTemplate = {
   data: {
@@ -151,6 +167,7 @@ const resumeTemplate = {
         "name-last": { type: "string", value: "Doe" },
         "email-address": { type: "string", value: "john@example.com" },
         "phone-number": { type: "string", value: "+1234567890" },
+        birthdate: { type: "string", value: "1990-01-01" },
       },
       "reference-id": "ref-123",
     },

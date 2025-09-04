@@ -41,7 +41,17 @@ services:
         scope: RUN_TIME
       - key: AUTH_SECRET
         scope: RUN_TIME
+      - key: BRIDGE_API_KEY
+        scope: RUN_TIME
+      - key: BRIDGE_API_URL
+        scope: RUN_TIME
       - key: KEEPER_PRIVATE_KEY
+        scope: RUN_TIME
+      - key: MANTECA_API_KEY
+        scope: RUN_TIME
+      - key: MANTECA_API_URL
+        scope: RUN_TIME
+      - key: MANTECA_WEBHOOKS_KEY
         scope: RUN_TIME
       - key: ONESIGNAL_API_KEY
         scope: RUN_TIME

@@ -3,13 +3,17 @@ import { setContext } from "@sentry/core";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import {
   array,
+  nullish,
   type BaseIssue,
   type BaseSchema,
   flatten,
   literal,
   nullable,
+  boolean,
+  number,
   object,
   picklist,
+  record,
   safeParse,
   string,
   ValiError,
@@ -25,6 +29,7 @@ if (!process.env.PERSONA_WEBHOOK_SECRET) throw new Error("missing persona webhoo
 
 export const CRYPTOMATE_TEMPLATE = "itmpl_8uim4FvD5P3kFpKHX37CW817";
 export const PANDA_TEMPLATE = "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2";
+export const MANTECA_TEMPLATE = "itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo";
 
 const authorization = `Bearer ${process.env.PERSONA_API_KEY}`;
 const baseURL = process.env.PERSONA_URL;
@@ -66,11 +71,38 @@ export function generateOTL(inquiryId: string) {
   return request(GenerateOTLResponse, `/inquiries/${inquiryId}/generate-one-time-link`, undefined, "POST");
 }
 
+export async function getDocument(documentId: string) {
+  const { data } = await request(GetDocumentResponse, `/document/government-ids/${documentId}`);
+  return data;
+}
+
+export async function resumeOrCreateMantecaInquiryOTL(referenceId: string, redirectURL?: string): Promise<string> {
+  const { data: inquiries } = await request(
+    GetMantecaInquiryResponse,
+    `/inquiries?page[size]=1&filter[reference-id]=${referenceId}&filter[inquiry-template-id]=${MANTECA_TEMPLATE}&filter[status]=created,pending`,
+  );
+
+  if (inquiries[0]) {
+    const { meta } = await generateOTL(inquiries[0].id);
+    return meta["one-time-link"];
+  }
+
+  // TODO prefill inquiry with known fields
+  const { data } = await request(ResumeMantecaInquiryResponse, `/inquiries`, {
+    data: {
+      attributes: { "inquiry-template-id": MANTECA_TEMPLATE, "redirect-uri": `${redirectURL ?? appOrigin}/` },
+    },
+    meta: { "auto-create-account-reference-id": referenceId },
+  });
+  const { meta } = await generateOTL(data.id);
+  return meta["one-time-link"];
+}
+
 async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
   schema: BaseSchema<TInput, TOutput, TIssue>,
   url: `/${string}`,
   body?: unknown,
-  method: "GET" | "POST" = body === undefined ? "GET" : "POST",
+  method: "GET" | "POST" | "PUT" | "PATCH" = body === undefined ? "GET" : "POST",
   timeout = 10_000,
 ) {
   const response = await fetch(`${baseURL}${url}`, {
@@ -88,43 +120,114 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
   return result.output;
 }
 
+export const IdentificationClasses = ["pp", "dl", "id", "wp", "rp"] as const;
+
+const Document = object({
+  filename: nullable(string()),
+  url: nullable(string()),
+  "byte-size": nullable(number()),
+});
+
+export const Documents = object({
+  id: string(),
+  attributes: object({
+    "back-photo": nullable(Document),
+    "front-photo": nullable(Document),
+    "selfie-photo": nullable(Document),
+    "id-class": string(),
+  }),
+});
+
+export const GetDocumentResponse = object({ data: Documents });
+
+const IdentificationDocument = object({
+  "issuing-country": string(),
+  "identification-class": string(),
+  "identification-number": string(),
+});
+
+interface AccountCustomFields {
+  isnotfacta?: boolean; // cspell:ignore isnotfacta
+  tin?: string;
+  sex_1?: "Male" | "Female" | "Prefer not to say";
+  manteca_t_c?: boolean;
+}
+
+const AccountFields = object({
+  // these are custom fields, if we change the name in the inquiry template we need to update it here
+  isnotfacta: nullish(object({ type: literal("boolean"), value: nullish(boolean()) })),
+  tin: nullish(object({ type: literal("string"), value: nullish(string()) })),
+  sex_1: nullish(object({ type: string(), value: nullish(picklist(["Male", "Female", "Prefer not to say"])) })),
+  manteca_t_c: nullish(object({ type: literal("boolean"), value: nullish(boolean()) })),
+} satisfies Record<keyof AccountCustomFields, unknown>);
+
+export const Account = object({
+  id: string(),
+  type: literal("account"),
+  attributes: object({
+    "country-code": nullable(string(), "unknown"),
+    "identification-numbers": nullable(record(string(), array(IdentificationDocument))),
+    "address-street-1": nullable(string()),
+    "address-street-2": nullable(string()),
+    "address-city": nullable(string()),
+    "address-subdivision": nullable(string()),
+    "address-postal-code": nullable(string()),
+    "social-security-number": nullable(string()),
+    fields: AccountFields,
+  }),
+});
+
 const GetAccountsResponse = object({
-  data: array(
+  data: array(Account),
+});
+
+const InquiryFields = object({
+  // these are custom fields, if we change the name in the inquiry template we need to update it here
+  "input-select": nullish(object({ type: literal("choices"), value: nullish(string()) })),
+  address_street_1: nullish(object({ type: literal("string"), value: nullish(string()) })),
+  address_street_2: nullish(object({ type: literal("string"), value: nullish(string()) })),
+  address_city: nullish(object({ type: literal("string"), value: nullish(string()) })),
+  address_subdivision: nullish(object({ type: literal("string"), value: nullish(string()) })),
+  address_postal_code: nullish(object({ type: literal("string"), value: nullish(string()) })),
+  address_country_code: nullish(object({ type: literal("string"), value: nullish(string()) })),
+  social_security_number: nullish(object({ type: literal("string"), value: nullish(string()) })),
+});
+
+export const Inquiry = object({
+  id: string(),
+  type: literal("inquiry"),
+  attributes: variant("status", [
     object({
-      id: string(),
-      type: literal("account"),
-      attributes: object({ "country-code": nullable(string(), "unknown") }),
+      status: picklist(["completed", "approved"]),
+      "reference-id": string(),
+      "name-first": string(),
+      "name-middle": nullable(string()),
+      "name-last": string(),
+      "email-address": string(),
+      "phone-number": string(),
+      birthdate: string(),
+      fields: InquiryFields,
     }),
-  ),
+    object({
+      status: picklist(["created", "pending", "expired", "failed", "needs_review", "declined"]),
+      "reference-id": string(),
+      "name-first": nullable(string()),
+      "name-middle": nullable(string()),
+      "name-last": nullable(string()),
+      "email-address": nullable(string()),
+      "phone-number": nullable(string()),
+    }),
+  ]),
+  relationships: object({
+    documents: nullable(
+      object({ data: nullable(array(object({ id: nullable(string()), type: nullable(string()) }))) }),
+    ),
+    account: nullable(object({ data: nullable(object({ id: nullable(string()), type: nullable(string()) })) })),
+  }),
 });
 
 const GetInquiriesResponse = object({
-  data: array(
-    object({
-      id: string(),
-      type: literal("inquiry"),
-      attributes: variant("status", [
-        object({
-          status: picklist(["completed", "approved"]),
-          "reference-id": string(),
-          "name-first": string(),
-          "name-middle": nullable(string()),
-          "name-last": string(),
-          "email-address": string(),
-          "phone-number": string(),
-        }),
-        object({
-          status: picklist(["created", "pending", "expired", "failed", "needs_review", "declined"]),
-          "reference-id": string(),
-          "name-first": nullable(string()),
-          "name-middle": nullable(string()),
-          "name-last": nullable(string()),
-          "email-address": nullable(string()),
-          "phone-number": nullable(string()),
-        }),
-      ]),
-    }),
-  ),
+  data: array(Inquiry),
 });
 const ResumeInquiryResponse = object({
   data: object({
@@ -168,6 +271,16 @@ const GenerateOTLResponse = object({
   }),
   meta: object({ "one-time-link": string(), "one-time-link-short": string() }),
 });
+
+const MantecaInquiry = object({
+  id: string(),
+  type: literal("inquiry"),
+  attributes: object({ status: picklist(["completed", "pending", "created", "expired"]), "reference-id": string() }),
+});
+
+const GetMantecaInquiryResponse = object({ data: array(MantecaInquiry) });
+
+const ResumeMantecaInquiryResponse = object({ data: MantecaInquiry, meta: object({ "session-token": string() }) });
 
 export function headerValidator() {
   return vValidator("header", object({ "persona-signature": string() }), async (r, c) => {

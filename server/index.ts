@@ -12,6 +12,7 @@ import appMetadata from "../package.json";
 import api from "./api";
 import activityHook from "./hooks/activity";
 import block from "./hooks/block";
+import manteca from "./hooks/manteca";
 import panda from "./hooks/panda";
 import persona from "./hooks/persona";
 import androidFingerprints from "./utils/android/fingerprints";
@@ -27,6 +28,7 @@ app.route("/hooks/activity", activityHook);
 app.route("/hooks/block", block);
 app.route("/hooks/panda", panda);
 app.route("/hooks/persona", persona);
+app.route("/hooks/manteca", manteca);
 
 app.get("/.well-known/apple-app-site-association", (c) =>
   c.json({ webcredentials: { apps: ["665NDX7LBZ.app.exactly"] } }),

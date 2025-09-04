@@ -4,19 +4,24 @@ import { padHex } from "viem";
 
 import { version } from "../package.json";
 
-process.env.POSTGRES_URL = "postgres";
 process.env.ALCHEMY_ACTIVITY_ID = "activity";
 process.env.ALCHEMY_WEBHOOKS_KEY = "webhooks";
 process.env.AUTH_SECRET = "auth";
+process.env.BRIDGE_API_KEY = "bridge";
+process.env.BRIDGE_API_URL = "https://bridge.test";
 process.env.EXPO_PUBLIC_ALCHEMY_API_KEY = " ";
 process.env.ISSUER_PRIVATE_KEY = padHex("0x420");
 process.env.KEEPER_PRIVATE_KEY = padHex("0x420");
+process.env.MANTECA_API_KEY = "manteca";
+process.env.MANTECA_API_URL = "https://manteca.test";
+process.env.MANTECA_WEBHOOKS_KEY = "manteca";
 process.env.PANDA_API_KEY = "panda";
 process.env.PANDA_API_URL = "https://panda.test";
 process.env.PERSONA_API_KEY = "persona";
 process.env.PERSONA_TEMPLATE_ID = "template";
 process.env.PERSONA_URL = "https://persona.test";
 process.env.PERSONA_WEBHOOK_SECRET = "persona";
+process.env.POSTGRES_URL = "postgres";
 process.env.REDIS_URL = "redis";
 process.env.SEGMENT_WRITE_KEY = "segment";
 
