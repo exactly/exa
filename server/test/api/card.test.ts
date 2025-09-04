@@ -7,6 +7,7 @@ import deriveAddress from "@exactly/common/deriveAddress";
 import { exaAccountFactoryAbi } from "@exactly/common/generated/chain";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
+import type * as v from "valibot";
 import { zeroHash, padHex, zeroAddress, hexToBigInt, parseEther } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
@@ -264,18 +265,30 @@ const pinTemplate = {
   pin: { iv: "xfQikHU/pxVSniCKKKyv8w==", data: "VUPy5u3xdg6fnvT/ZmrE1Lev28SVRjLTTTJEaO9X7is=" },
 } as const;
 
-const personaTemplate = {
+const personaTemplate: v.InferOutput<typeof persona.Inquiry> = {
+  id: "test-id",
+  type: "inquiry" as const,
   attributes: {
-    "email-address": "email@example.com",
-    "name-first": "First",
-    "name-last": "Last",
+    status: "approved" as const,
+    "reference-id": "ref-123",
+    "name-first": "John",
     "name-middle": null,
-    "phone-number": "1234567890",
-    "reference-id": "ref-id",
-    status: "approved",
+    "name-last": "Doe",
+    "email-address": "john@example.com",
+    "phone-number": "+1234567890",
+    birthdate: "1990-01-01",
+    fields: {
+      "input-select": { type: "choices", value: "John" },
+    },
   },
-  id: "inquiry-id",
-  type: "inquiry",
+  relationships: {
+    documents: {
+      data: [{ type: "document", id: "1234567890" }],
+    },
+    account: {
+      data: { id: "1234567890", type: "account" },
+    },
+  },
 } as const;
 
 const userTemplate = {
