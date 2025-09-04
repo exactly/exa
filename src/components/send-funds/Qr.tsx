@@ -4,6 +4,7 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import { router } from "expo-router";
 import React, { useRef, useState } from "react";
 import { Linking, Pressable, StyleSheet } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useWindowDimensions, XStack, YStack } from "tamagui";
 import { safeParse } from "valibot";
 
@@ -13,15 +14,13 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function Qr() {
+  const { top, bottom } = useSafeAreaInsets();
   const cameraReference = useRef<CameraView>(null);
   const { height, width } = useWindowDimensions();
   const [cameraFacing, setCameraFacing] = useState<"front" | "back">("back");
   const [permission, requestPermission] = useCameraPermissions();
 
-  if (!permission) {
-    return <View fullScreen backgroundColor="$backgroundSoft" />;
-  }
-
+  if (!permission) return <View fullScreen backgroundColor="$backgroundSoft" />;
   if (!permission.granted) {
     if (!permission.canAskAgain) {
       return (
@@ -31,7 +30,7 @@ export default function Qr() {
             borderRadius="$r_0"
             backgroundColor="transparent"
             alignItems="center"
-            top="$s4"
+            top={top}
             left="$s4"
             padding="$s3"
             onPress={() => {
@@ -68,7 +67,7 @@ export default function Qr() {
           borderRadius="$r_0"
           backgroundColor="transparent"
           alignItems="center"
-          top="$s4"
+          top={top}
           left="$s4"
           padding="$s3"
           onPress={() => {
@@ -114,7 +113,7 @@ export default function Qr() {
         onBarcodeScanned={({ data: receiver }) => {
           const result = safeParse(Address, receiver);
           if (result.success) {
-            router.navigate({ pathname: "/send-funds", params: { receiver: result.output } });
+            router.dismissTo({ pathname: "/send-funds", params: { receiver: result.output } });
           }
         }}
         facing={cameraFacing}
@@ -127,7 +126,7 @@ export default function Qr() {
         position="absolute"
         borderRadius="$r_0"
         backgroundColor="$interactiveBaseBrandDefault"
-        bottom="$s4"
+        bottom={bottom}
         right="$s4"
         padding="$s3"
         hitSlop={15}
@@ -137,7 +136,7 @@ export default function Qr() {
       >
         <SwitchCamera size={24} color="$interactiveOnBaseBrandDefault" />
       </Button>
-      <View position="absolute" borderRadius="$r_0" backgroundColor="transparent" top="$s4" left="$s4" padding="$s3">
+      <View position="absolute" borderRadius="$r_0" backgroundColor="transparent" top={top} left="$s4" padding="$s3">
         <Pressable
           hitSlop={15}
           onPress={() => {
