@@ -65,6 +65,19 @@ services:
         scope: RUN_TIME
       - key: PANDA_API_URL
         scope: RUN_TIME
+      - key: MANTECA_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: MANTECA_API_URL
+        scope: RUN_TIME
+      - key: MANTECA_WEBHOOKS_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: BRIDGE_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: BRIDGE_API_URL
+        scope: RUN_TIME
 databases:
   - name: postgres
     cluster_name: ${{ env.POSTGRES_NAME }}
