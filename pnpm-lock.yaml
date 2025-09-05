@@ -82,8 +82,8 @@ importers:
         specifier: workspace:^0.0.6
         version: link:common
       '@exactly/lib':
-        specifier: exactly/lib#a8895cd
-        version: https://codeload.github.com/exactly/lib/tar.gz/a8895cd
+        specifier: ^0.1.0
+        version: 0.1.0
       '@exactly/server':
         specifier: workspace:^0.2.12
         version: link:server
@@ -308,8 +308,8 @@ importers:
         specifier: workspace:^1.0.0
         version: link:contracts
       '@exactly/protocol':
-        specifier: ^0.2.20
-        version: 0.2.20
+        specifier: ^0.2.21
+        version: 0.2.21
       '@expo/fingerprint':
         specifier: ^0.11.11
         version: 0.11.11
@@ -490,8 +490,8 @@ importers:
         version: webauthn-sol#v1.0.0@https://codeload.github.com/base/webauthn-sol/tar.gz/619f20ab0f074fef41066ee4ab24849a913263b2
     devDependencies:
       '@exactly/protocol':
-        specifier: ^0.2.20
-        version: 0.2.20
+        specifier: ^0.2.21
+        version: 0.2.21
       '@openzeppelin/contracts-upgradeable':
         specifier: ^5.4.0
         version: 5.4.0(@openzeppelin/contracts@5.4.0)
@@ -559,8 +559,8 @@ importers:
         specifier: ^3.19.0
         version: 3.19.0(typescript@5.8.3)(viem@2.29.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76))
       '@exactly/lib':
-        specifier: exactly/lib#a8895cd
-        version: https://codeload.github.com/exactly/lib/tar.gz/a8895cd
+        specifier: ^0.1.0
+        version: 0.1.0
       '@hono/node-server':
         specifier: ^1.14.1
         version: 1.14.1(hono@4.7.7)
@@ -2112,13 +2112,12 @@ packages:
   '@ethersproject/wordlists@5.8.0':
     resolution: {integrity: sha512-2df9bbXicZws2Sb5S6ET493uJ0Z84Fjr3pC4tu/qlnZERibZCeUVuqdtt+7Tv9xxhUxHoIekIA7avrKUWHrezg==}
 
-  '@exactly/lib@https://codeload.github.com/exactly/lib/tar.gz/a8895cd':
-    resolution: {tarball: https://codeload.github.com/exactly/lib/tar.gz/a8895cd}
-    version: 0.0.1
+  '@exactly/lib@0.1.0':
+    resolution: {integrity: sha512-nfG/SPwGyO5VFgPQHJml8HAPwU2rrpnlRWzWuiEK0dslKLB3vKmab9GvCyWDiSbNsxsuB273dKcBLL5o45ZJsg==}
     engines: {node: '>=20'}
 
-  '@exactly/protocol@0.2.20':
-    resolution: {integrity: sha512-YD7XhbDbQUmhPV0RqnxhYBIMKDTEJVfy+GleJUYXFcYVN+9WG41QVfJauw9dn8+cavVUoMIO5rUmQfkvkHpeIw==}
+  '@exactly/protocol@0.2.21':
+    resolution: {integrity: sha512-kQY9NOI1JqRGc45f9v3EwEGxtT7hZ3rIMHhmbgM4fYenG757sWBpR5rkSJm5+HkV0MpQ0gkXKN87/k4erydKfg==}
     engines: {node: '>=18'}
 
   '@expo/bunyan@4.0.1':
@@ -13691,9 +13690,9 @@ snapshots:
       '@ethersproject/strings': 5.8.0
     optional: true
 
-  '@exactly/lib@https://codeload.github.com/exactly/lib/tar.gz/a8895cd': {}
+  '@exactly/lib@0.1.0': {}
 
-  '@exactly/protocol@0.2.20':
+  '@exactly/protocol@0.2.21':
     dependencies:
       '@openzeppelin/contracts': 5.4.0
       '@openzeppelin/contracts-upgradeable': 5.4.0(@openzeppelin/contracts@5.4.0)
