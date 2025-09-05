@@ -20,6 +20,7 @@ if (easBuild) {
 const auditor = loadDeployment("Auditor");
 const marketUSDC = loadDeployment("MarketUSDC");
 const marketWETH = loadDeployment("MarketWETH");
+const integrationPreviewer = loadDeployment("IntegrationPreviewer");
 const previewer = loadDeployment("Previewer");
 const ratePreviewer = loadDeployment("RatePreviewer");
 const usdc = loadDeployment("USDC");
@@ -45,6 +46,7 @@ export default defineConfig([
     out: "src/generated/contracts.ts",
     contracts: [
       { name: "Auditor", abi: auditor.abi },
+      { name: "IntegrationPreviewer", abi: integrationPreviewer.abi },
       { name: "Market", abi: marketWETH.abi },
       { name: "Previewer", abi: previewer.abi },
       { name: "RatePreviewer", abi: ratePreviewer.abi },
@@ -72,6 +74,7 @@ export default defineConfig([
           balancerVault: balancerVault.address,
           exaPlugin: exaPlugin.contractAddress,
           exaPreviewer: exaPreviewer.contractAddress,
+          integrationPreviewer: integrationPreviewer.address,
           marketUSDC: marketUSDC.address,
           marketWETH: marketWETH.address,
           previewer: previewer.address,
