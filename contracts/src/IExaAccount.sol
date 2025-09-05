@@ -214,10 +214,13 @@ interface IMarket is IERC4626 {
     returns (uint256 positionAssets);
   function fixedBorrowPositions(uint256 maturity, address borrower) external view returns (FixedPosition memory);
   function fixedPools(uint256 maturity) external view returns (FixedPool memory);
+  function isFrozen() external view returns (bool);
   function penaltyRate() external view returns (uint256);
+  function repay(uint256 assets, address borrower) external;
   function repayAtMaturity(uint256 maturity, uint256 positionAssets, uint256 maxAssets, address borrower)
     external
     returns (uint256 actualRepayAssets);
+  function setFrozen(bool frozen) external;
   function withdraw(uint256 assets, address receiver, address owner) external returns (uint256 shares);
   function withdrawAtMaturity(
     uint256 maturity,

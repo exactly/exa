@@ -195,9 +195,19 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
     (amountIn, amountOut) = _swap(IERC20(collateral.asset()), IERC20(USDC), maxAmountIn, amount, route);
     IERC20(USDC).safeTransfer(collector, amount);
 
-    _depositUnspent(collateral, maxAmountIn - amountIn, msg.sender);
-    _depositApprovedUnspent(amountOut - amount, msg.sender);
-    _executeFromSender(address(AUDITOR), 0, abi.encodeCall(IAuditor.enterMarket, (EXA_USDC)));
+    uint256 unspentCollateral = maxAmountIn - amountIn;
+    if (unspentCollateral != 0) {
+      if (_checkDeposit(collateral, unspentCollateral)) {
+        _depositUnspent(collateral, unspentCollateral, msg.sender);
+      } else {
+        IERC20(collateral.asset()).safeTransfer(msg.sender, unspentCollateral);
+      }
+    }
+    uint256 unspent = amountOut - amount;
+    if (_checkDeposit(EXA_USDC, unspent)) {
+      EXA_USDC.deposit(unspent, msg.sender);
+      _executeFromSender(address(AUDITOR), 0, abi.encodeCall(IAuditor.enterMarket, (EXA_USDC)));
+    }
   }
 
   function collectCredit(uint256 maturity, uint256 amount, uint256 timestamp, bytes calldata signature) external {
@@ -297,12 +307,12 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
     assetOut.safeTransfer(_flashLoaner, c.maxRepay);
 
     uint256 unspent = amountOut - actualRepay;
-    if (unspent != 0) {
+    if (_checkDeposit(c.marketOut, unspent)) {
       _approve(c.borrower, address(assetOut), address(c.marketOut), unspent);
       _execute(c.borrower, address(c.marketOut), 0, abi.encodeCall(IERC4626.deposit, (unspent, c.borrower)));
     }
     uint256 unspentCollateral = c.maxAmountIn - amountIn;
-    if (unspentCollateral != 0) {
+    if (_checkDeposit(c.marketIn, unspentCollateral)) {
       _transferFromAccount(c.borrower, assetIn, address(this), unspentCollateral);
       _depositUnspent(c.marketIn, unspentCollateral, c.borrower);
     }
@@ -544,6 +554,10 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
     }
   }
 
+  function _checkDeposit(IMarket market, uint256 amount) internal view returns (bool) {
+    return market.previewDeposit(amount) != 0 && !market.isFrozen();
+  }
+
   function hasPendingProposals(address account) external view returns (bool) {
     IProposalManager _proposalManager = proposalManager;
     return _proposalManager.nonces(account) != _proposalManager.queueNonces(account);
@@ -649,15 +663,9 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
     flashLoaner.flashLoan(address(this), tokens, amounts, data);
   }
 
-  function _depositApprovedUnspent(uint256 unspent, address receiver) internal {
-    if (unspent != 0) EXA_USDC.deposit(unspent, receiver);
-  }
-
   function _depositUnspent(IMarket market, uint256 unspent, address receiver) internal {
-    if (unspent != 0) {
-      IERC20(market.asset()).forceApprove(address(market), unspent);
-      market.deposit(unspent, receiver);
-    }
+    if (market != EXA_USDC) IERC20(market.asset()).forceApprove(address(market), unspent);
+    market.deposit(unspent, receiver);
   }
 
   function _hash(bytes memory data) internal returns (bytes memory) {

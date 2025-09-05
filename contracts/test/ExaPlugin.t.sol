@@ -1557,6 +1557,68 @@ contract ExaPluginTest is ForkTest {
     assertGt(usdc.balanceOf(address(account)), prevBalance + minAssets);
   }
 
+  function test_crossRepay_avoidsFrozenDeposit() external {
+    vm.prank(keeper);
+    account.poke(exaEXA);
+
+    vm.startPrank(acct("admin"));
+    exaEXA.setFrozen(true);
+
+    vm.startPrank(keeper);
+
+    uint256 prevCollateral = exaEXA.balanceOf(address(account));
+    uint256 maxAmountIn = 111e18;
+    uint256 minAmountOut = 110e6;
+    bytes memory route = abi.encodeCall(
+      MockSwapper.swapExactAmountOut, (exaEXA.asset(), maxAmountIn, address(usdc), minAmountOut, address(exaPlugin))
+    );
+    uint256 balance = usdc.balanceOf(exaPlugin.collector());
+    (uint256 amountIn, uint256 amountOut) = account.collectCollateral(
+      minAmountOut, exaEXA, maxAmountIn, block.timestamp, route, _issuerOp(minAmountOut, block.timestamp)
+    );
+
+    assertEq(usdc.balanceOf(exaPlugin.collector()), balance + minAmountOut, "collector's usdc != expected");
+    assertEq(exaUSDC.balanceOf(address(account)), amountOut - minAmountOut, "account's usdc != expected");
+    assertEq(exaEXA.balanceOf(address(account)), prevCollateral - maxAmountIn, "account's collateral != expected");
+
+    assertEq(
+      IERC20(exaEXA.asset()).balanceOf(address(account)),
+      maxAmountIn - amountIn,
+      "collateral asset didn't go to account"
+    );
+    assertEq(IERC20(exaEXA.asset()).balanceOf(address(exaPlugin)), 0, "collateral asset in plugin");
+  }
+
+  function test_crossRepay_avoidsZeroSharesDeposit() external {
+    vm.startPrank(keeper);
+    account.poke(exaEXA);
+
+    vm.startPrank(address(account));
+    exaEXA.borrow(5000e18, address(account), address(account));
+    skip(365 days);
+    exa.mint(address(account), 6000e18);
+    exa.approve(address(exaEXA), type(uint256).max);
+    exaEXA.repay(5000e18, address(account));
+
+    vm.startPrank(keeper);
+
+    uint256 maxAmountIn = 22_068_626_144_663_275_048;
+    uint256 minAmountOut = 110e6;
+    bytes memory route = abi.encodeCall(
+      MockSwapper.swapExactAmountOut, (exaEXA.asset(), maxAmountIn, address(usdc), minAmountOut, address(exaPlugin))
+    );
+
+    uint256 prevEXA = exa.balanceOf(address(account));
+    (uint256 amountIn,) = account.collectCollateral(
+      minAmountOut, exaEXA, maxAmountIn, block.timestamp, route, _issuerOp(minAmountOut, block.timestamp)
+    );
+
+    uint256 unspent = maxAmountIn - amountIn;
+    assertGt(unspent, 0, "unspent == 0");
+    assertEq(exaEXA.previewDeposit(unspent), 0, "previewDeposit of unspent != 0");
+    assertEq(prevEXA + unspent, exa.balanceOf(address(account)), "unspent not transferred to account");
+  }
+
   // keeper runtime validation
   function test_collectCredit_collects() external {
     vm.startPrank(keeper);
