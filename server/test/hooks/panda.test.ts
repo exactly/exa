@@ -82,7 +82,7 @@ describe("card operations", () => {
     });
     await keeper.writeContract({
       address: inject("USDC"),
-      abi: fakeTokenAbi,
+      abi: mockERC20Abi,
       functionName: "mint",
       args: [inject("Refunder"), 100_000_000n],
     });
@@ -93,7 +93,7 @@ describe("card operations", () => {
       beforeAll(async () => {
         await keeper.writeContract({
           address: inject("USDC"),
-          abi: fakeTokenAbi,
+          abi: mockERC20Abi,
           functionName: "mint",
           args: [account, 420_000_000n],
         });
@@ -282,9 +282,9 @@ describe("card operations", () => {
       beforeAll(async () => {
         await keeper.writeContract({
           address: inject("USDC"),
-          abi: fakeTokenAbi,
+          abi: mockERC20Abi,
           functionName: "mint",
-          args: [account, 420e6],
+          args: [account, 420_000_000n],
         });
         await publicClient.waitForTransactionReceipt({
           hash: await keeper.writeContract({
@@ -589,9 +589,9 @@ describe("card operations", () => {
       beforeAll(async () => {
         await keeper.writeContract({
           address: inject("USDC"),
-          abi: fakeTokenAbi,
+          abi: mockERC20Abi,
           functionName: "mint",
-          args: [account, 420e6],
+          args: [account, 420_000_000n],
         });
         await publicClient.waitForTransactionReceipt({
           hash: await keeper.writeContract({
@@ -801,7 +801,7 @@ describe("card operations", () => {
       beforeAll(async () => {
         await keeper.writeContract({
           address: inject("USDC"),
-          abi: fakeTokenAbi,
+          abi: mockERC20Abi,
           functionName: "mint",
           args: [account, 100_000_000n],
         });
@@ -1089,18 +1089,24 @@ describe("concurrency", () => {
       database.insert(cards).values([{ id: `${account2}-card`, credentialId: account2, lastFour: "1234", mode: 0 }]),
       anvilClient.setBalance({ address: owner2.account.address, value: 10n ** 24n }),
       Promise.all([
-        keeper.writeContract({
-          address: usdcAddress,
-          abi: fakeTokenAbi,
-          functionName: "mint",
-          args: [account2, 70_000_000n],
-        }),
-        keeper.writeContract({
-          address: inject("ExaAccountFactory"),
-          abi: exaAccountFactoryAbi,
-          functionName: "createAccount",
-          args: [0n, [{ x: hexToBigInt(owner2.account.address), y: 0n }]],
-        }),
+        keeper.exaSend(
+          { name: "mint", op: "tx.mint" },
+          {
+            address: usdcAddress,
+            abi: mockERC20Abi,
+            functionName: "mint",
+            args: [account2, 70_000_000n],
+          },
+        ),
+        keeper.exaSend(
+          { name: "create account", op: "exa.account" },
+          {
+            address: inject("ExaAccountFactory"),
+            abi: exaAccountFactoryAbi,
+            functionName: "createAccount",
+            args: [0n, [{ x: hexToBigInt(owner2.account.address), y: 0n }]],
+          },
+        ),
       ])
         .then(() =>
           keeper.writeContract({
@@ -1343,7 +1349,7 @@ function execute(calldata: Hex) {
   });
 }
 
-const fakeTokenAbi = [
+const mockERC20Abi = [
   {
     type: "function",
     name: "mint",
@@ -1351,7 +1357,7 @@ const fakeTokenAbi = [
     outputs: [],
     stateMutability: "nonpayable",
   },
-];
+] as const;
 
 const userResponseTemplate = {
   id: "some-id",

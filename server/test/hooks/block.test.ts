@@ -402,6 +402,7 @@ function execute(calldata: Hex) {
     functionName: "execute",
     args: [bobAccount, 0n, calldata],
     abi: [...exaPluginAbi, ...issuerCheckerAbi, ...upgradeableModularAccountAbi, ...auditorAbi, ...marketAbi],
+    gas: 6_666_666n,
   });
 }
 
