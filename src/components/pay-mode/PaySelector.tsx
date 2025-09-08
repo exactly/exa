@@ -75,11 +75,10 @@ export default function PaySelector() {
     },
   });
 
-  function setInstallments(installments: number) {
-    if (!card || card.mode === installments) return;
-    mutateMode(installments).catch(reportError);
-    const message =
-      installments === 0 ? "Pay Now selected" : `${installments} installment${installments > 1 ? "s" : ""} selected`;
+  function setInstallments(value: number) {
+    if (!card || card.mode === value) return;
+    mutateMode(value).catch(reportError);
+    const message = value === 0 ? "Pay Now selected" : `${value} installment${value > 1 ? "s" : ""} selected`;
     toast.show(message, {
       native: true,
       duration: 1000,
@@ -87,17 +86,17 @@ export default function PaySelector() {
     });
   }
 
-  function handleInstallmentSelection(installments: number) {
-    if (installments === 0) {
-      setInstallments(installments);
+  function handleInstallmentSelection(value: number) {
+    if (value === 0) {
+      setInstallments(value);
       return;
     }
     if (!manualRepaymentAcknowledged) {
-      setPendingInstallment(installments);
+      setPendingInstallment(value);
       setManualRepaymentSheetOpen(true);
       return;
     }
-    setInstallments(installments);
+    setInstallments(value);
   }
 
   function handleConfirm() {
