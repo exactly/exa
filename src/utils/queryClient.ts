@@ -3,7 +3,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import { persistQueryClientRestore, persistQueryClientSubscribe } from "@tanstack/query-persist-client-core";
 import { QueryCache, QueryClient } from "@tanstack/react-query";
-import type { Register } from "@tanstack/react-query"; // eslint-disable-line @typescript-eslint/no-unused-vars
 import type { Address } from "viem";
 import { deserialize, serialize } from "wagmi";
 import { hashFn, structuralSharing } from "wagmi/query";
