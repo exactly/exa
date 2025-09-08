@@ -129,12 +129,11 @@ export default function PaySelector() {
             Choose <Text emphasized>Pay Now</Text> to instantly pay your purchases, or select a plan to split them into
             up to {MAX_INSTALLMENTS} fixed-rate installments in USDC, powered by Exactly Protocol.*
           </Text>
-
-          <XStack alignItems="center" gap="$s4">
+          <XStack alignItems="center" gap="$s4" flex={1} width="100%">
             <Text primary emphasized subHeadline>
               Simulate purchase
             </Text>
-            <TamaguiInput borderRadius="$r3" backgroundColor="$backgroundMild" flex={1}>
+            <TamaguiInput borderRadius="$r3" flex={1}>
               <TamaguiInput.Icon>
                 <Text subHeadline color="$uiNeutralPlaceholder">
                   {(0)
@@ -144,14 +143,14 @@ export default function PaySelector() {
                 </Text>
               </TamaguiInput.Icon>
               <TamaguiInput.Input
-                maxLength={10}
+                maxLength={6}
                 numberOfLines={1}
                 inputMode="decimal"
                 textAlign="right"
                 fontSize={20}
                 lineHeight={25}
-                letterSpacing={-0.2}
                 value={input}
+                width="100%"
                 onChangeText={(text) => {
                   setInput(text);
                 }}
