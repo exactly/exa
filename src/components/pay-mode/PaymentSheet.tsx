@@ -19,7 +19,7 @@ import React, { useCallback, useState } from "react";
 import { Pressable, StyleSheet } from "react-native";
 import { Separator, XStack, YStack } from "tamagui";
 import { titleCase } from "title-case";
-import { nonEmpty, pipe, safeParse, string } from "valibot";
+import { digits, nonEmpty, pipe, safeParse, string } from "valibot";
 import { zeroAddress } from "viem";
 import { optimismSepolia } from "viem/chains";
 import { useAccount, useBytecode } from "wagmi";
@@ -44,7 +44,10 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
   const { maturity: currentMaturity } = useLocalSearchParams();
   const navigation = useNavigation<AppNavigationProperties>();
   const [rolloverIntroOpen, setRolloverIntroOpen] = useState(false);
-  const { success, output: maturity } = safeParse(pipe(string(), nonEmpty("no maturity")), currentMaturity);
+  const { success, output: maturity } = safeParse(
+    pipe(string(), nonEmpty("no maturity"), digits("bad maturity")),
+    currentMaturity,
+  );
   const toast = useToastController();
   const { data: hidden } = useQuery<boolean>({ queryKey: ["settings", "sensitive"] });
   const { data: rolloverIntroShown } = useQuery<boolean>({ queryKey: ["settings", "rollover-intro-shown"] });
