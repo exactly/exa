@@ -7,6 +7,7 @@ import { Pressable } from "react-native";
 import { Square, XStack, YStack } from "tamagui";
 
 import GradientScrollView from "./GradientScrollView";
+import SafeView from "./SafeView";
 import assetLogos from "../../utils/assetLogos";
 import useAsset from "../../utils/useAsset";
 import AssetLogo from "../shared/AssetLogo";
@@ -31,7 +32,7 @@ export default function Failure({
   const { externalAsset } = useAsset(selectedAsset);
   return (
     <GradientScrollView variant="error">
-      <View flex={1}>
+      <SafeView flex={1} backgroundColor="transparent">
         <YStack gap="$s7" paddingBottom="$s9">
           <XStack justifyContent="center" alignItems="center">
             <Square borderRadius="$r4" backgroundColor="$interactiveBaseErrorSoftDefault" size={80}>
@@ -76,16 +77,16 @@ export default function Failure({
             </XStack>
           </YStack>
         </YStack>
-      </View>
-      <View flex={2} justifyContent="flex-end">
-        <YStack alignItems="center" gap="$s4">
-          <Pressable onPress={onClose}>
-            <Text emphasized footnote color="$uiBrandSecondary">
-              Close
-            </Text>
-          </Pressable>
-        </YStack>
-      </View>
+        <View flex={2} justifyContent="flex-end">
+          <YStack alignItems="center" gap="$s4">
+            <Pressable onPress={onClose}>
+              <Text emphasized footnote color="$uiBrandSecondary">
+                Close
+              </Text>
+            </Pressable>
+          </YStack>
+        </View>
+      </SafeView>
     </GradientScrollView>
   );
 }
