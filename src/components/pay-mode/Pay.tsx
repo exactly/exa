@@ -5,9 +5,10 @@ import {
   marketUSDCAddress,
   swapperAddress,
   usdcAddress,
+  integrationPreviewerAddress,
 } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
-import { WAD, withdrawLimit } from "@exactly/lib";
+import { fixedRepayPosition, WAD, withdrawLimit } from "@exactly/lib";
 import { ArrowLeft, ChevronRight, Coins } from "@tamagui/lucide-icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -34,6 +35,7 @@ import Text from "../../components/shared/Text";
 import View from "../../components/shared/View";
 import {
   auditorAbi,
+  integrationPreviewerAbi,
   marketAbi,
   upgradeableModularAccountAbi,
   useReadUpgradeableModularAccountGetInstalledPlugins,
@@ -140,6 +142,20 @@ export default function Pay() {
     },
   });
 
+  const { data: fixedRepaySnapshot } = useReadContract({
+    address: integrationPreviewerAddress,
+    abi: integrationPreviewerAbi,
+    functionName: "fixedRepaySnapshot",
+    args: [account ?? zeroAddress, marketUSDCAddress, maturity ?? 0n],
+    query: {
+      enabled: !!account && !!bytecode && !!maturity,
+    },
+  });
+
+  const positionAssets = fixedRepaySnapshot
+    ? fixedRepayPosition(fixedRepaySnapshot, Number(maturity ?? 0n), inputValue ?? 0n)
+    : undefined;
+
   const balancerBalanceUSD =
     balancerUSDCBalance && exaUSDC ? (balancerUSDCBalance * exaUSDC.usdPrice) / 10n ** BigInt(exaUSDC.decimals) : 0n;
 
@@ -185,7 +201,6 @@ export default function Pay() {
     refetchInterval: 20_000,
   });
 
-  const positionAssets = borrow ? borrow.position.principal + borrow.position.fee : 0n;
   const maxAmountIn = route ? (route.fromAmount * slippage) / WAD + 69n : undefined; // HACK try to avoid ZERO_SHARES on dust deposit
 
   const {
@@ -328,6 +343,7 @@ export default function Pay() {
       if (!externalAsset) throw new Error("no external asset");
       if (!selectedAsset.external) throw new Error("not external asset");
       if (!route) throw new Error("no route");
+      if (!positionAssets) throw new Error("no position assets");
       setDisplayValues({
         amount: Number(route.fromAmount) / 10 ** externalAsset.decimals,
         usdAmount: (Number(externalAsset.priceUSD) * Number(route.fromAmount)) / 10 ** externalAsset.decimals,
