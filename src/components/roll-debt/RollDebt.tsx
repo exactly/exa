@@ -10,7 +10,7 @@ import { Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
 import { nonEmpty, pipe, safeParse, string } from "valibot";
-import { encodeAbiParameters, zeroAddress } from "viem";
+import { ContractFunctionExecutionError, encodeAbiParameters, zeroAddress } from "viem";
 import { useAccount, useBytecode, useWriteContract } from "wagmi";
 
 import type { AppNavigationProperties } from "../../app/(app)/_layout";
@@ -279,12 +279,16 @@ function RolloverButton({
       proposal.proposalType === (ProposalType.RollDebt as number) &&
       proposal.amount === maxRepayAssets,
   );
+
+  const isError =
+    proposeRollDebtError &&
+    !(
+      proposeRollDebtError instanceof ContractFunctionExecutionError &&
+      proposeRollDebtError.shortMessage === "User rejected the request."
+    );
+
   const disabled =
-    Boolean(proposeRollDebtError) ||
-    isProposeRollDebtPending ||
-    isPendingProposalsPending ||
-    !proposeSimulation ||
-    hasProposed;
+    !!isError || isProposeRollDebtPending || isPendingProposalsPending || !proposeSimulation || hasProposed;
   return (
     <Button
       onPress={proposeRollDebt}
