@@ -11,6 +11,8 @@ catalog:
   "@tamagui/toast": *tamagui
   "@wagmi/core": ^3.2.2
   ioredis: ^5.9.2
+  react: &react "19.1.0"
+  react-dom: *react
   typescript: ^5.9.3
   valibot: ^1.2.0
   viem: ^2.44.4
