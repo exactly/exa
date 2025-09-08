@@ -364,7 +364,7 @@ export default function Swaps() {
 
   if (!isSwapping && !isSwapSuccess && !writeContractError)
     return (
-      <SafeView fullScreen tab backgroundColor="$backgroundSoft" paddingBottom={0}>
+      <SafeView fullScreen backgroundColor="$backgroundSoft">
         <View
           padded
           flexDirection="row"
