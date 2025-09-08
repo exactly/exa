@@ -92,7 +92,7 @@ export default function GettingStarted() {
               </XStack>
 
               <Step
-                title=" Verify your identity"
+                title="Verify your identity"
                 description="To enable the Exa Card we need to verify that you are you."
                 action="Learn more about the KYC process"
                 icon={<IdCard size={20} strokeWidth={2} color="$uiBrandSecondary" />}
