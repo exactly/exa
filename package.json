@@ -186,7 +186,7 @@
       "typescript": "$typescript",
       "valibot": "$valibot",
       "viem": "$viem",
-      "vite": "^6.3.4",
+      "vite": "^6.3.6",
       "wagmi": "$wagmi",
       "ws": "$ws",
       "yargs@12.0.5": "^13.3.0",
