@@ -194,7 +194,22 @@ queryClient.setQueryDefaults(["is-miniapp"], {
     return await sdk.isInMiniApp();
   },
 });
+queryClient.setQueryDefaults<EmbeddingContext>(["detect-embedding-context"], {
+  staleTime: Infinity,
+  gcTime: Infinity,
+  queryFn: async () => {
+    if (await sdk.isInMiniApp()) {
+      const context = await sdk.context;
+      if (context.client.clientFid === 9152) return "farcaster" as const;
+      if (context.client.clientFid === 309_857) return "base" as const;
+    }
+    if (navigator.userAgent.includes("MetaMaskMobile")) return "metamask" as const;
+    if (navigator.userAgent.includes("Phantom")) return "phantom" as const;
+    return null;
+  },
+});
 
+export type EmbeddingContext = "base" | "farcaster" | "metamask" | "phantom" | null;
 export type ActivityItem = Awaited<ReturnType<typeof getActivity>>[number];
 export interface Withdraw {
   market?: Address;
