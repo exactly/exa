@@ -87,7 +87,7 @@ const CardResponse = object({
 
 const CreatedCardResponse = object({
   lastFour: pipe(string(), metadata({ examples: ["1234"] })),
-  status: pipe(picklist(["ACTIVE", "FROZEN"]), metadata({ examples: ["ACTIVE", "FROZEN"] })),
+  status: pipe(picklist(["ACTIVE", "DELETED", "FROZEN"]), metadata({ examples: ["ACTIVE", "DELETED", "FROZEN"] })),
   productId: pipe(string(), metadata({ examples: ["402"] })),
 });
 
