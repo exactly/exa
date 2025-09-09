@@ -196,7 +196,7 @@ describe("authenticated", () => {
 
     expect(created?.mode).toBe(0);
     expect(json).toStrictEqual({
-      status: "active",
+      status: "ACTIVE",
       lastFour: "7394",
     });
   });
@@ -221,7 +221,7 @@ describe("authenticated", () => {
     expect(created?.mode).toBe(1);
 
     expect(json).toStrictEqual({
-      status: "active",
+      status: "ACTIVE",
       lastFour: "1224",
     });
   });
