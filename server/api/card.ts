@@ -31,17 +31,7 @@ import database, { cards, credentials } from "../database";
 import auth from "../middleware/auth";
 import { getApplicationStatus } from "../utils/kyc";
 import { sendPushNotification } from "../utils/onesignal";
-import {
-  autoCredit,
-  CardStatus,
-  createCard,
-  getCard,
-  getPIN,
-  getSecrets,
-  getUser,
-  setPIN,
-  updateCard,
-} from "../utils/panda";
+import { autoCredit, createCard, getCard, getPIN, getSecrets, getUser, setPIN, updateCard } from "../utils/panda";
 import { track } from "../utils/segment";
 import validatorHook from "../utils/validatorHook";
 
@@ -98,7 +88,7 @@ const CardResponse = object({
 
 const CreatedCardResponse = object({
   lastFour: pipe(string(), metadata({ examples: ["1234"] })),
-  status: pipe(CardStatus, metadata({ examples: CardStatus })),
+  status: pipe(picklist(["ACTIVE", "DELETED", "FROZEN"]), metadata({ examples: ["ACTIVE", "DELETED", "FROZEN"] })),
   productId: pipe(string(), metadata({ examples: ["402"] })),
 });
 
@@ -391,7 +381,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
             }).catch((error: unknown) => captureException(error));
           }
           return c.json(
-            { lastFour: card.last4, status: card.status, productId: SIGNATURE_PRODUCT_ID } satisfies InferOutput<
+            { lastFour: card.last4, status: "ACTIVE", productId: SIGNATURE_PRODUCT_ID } satisfies InferOutput<
               typeof CreatedCardResponse
             >,
             200,
