@@ -1,4 +1,5 @@
 import type { Credential } from "@exactly/common/validation";
+import { TimeToFullDisplay } from "@sentry/react-native";
 import { Key } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigation } from "expo-router";
@@ -32,10 +33,11 @@ import useAuth from "../../utils/useAuth";
 import ActionButton from "../shared/ActionButton";
 import ConnectSheet from "../shared/ConnectSheet";
 import ErrorDialog from "../shared/ErrorDialog";
+import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-export default function Carousel() {
+export default function Auth() {
   const [activeIndex, setActiveIndex] = useState(0);
   const { connect, isPending: isConnecting } = useConnect();
   const navigation = useNavigation<AppNavigationProperties>();
@@ -112,7 +114,7 @@ export default function Carousel() {
   }, [activeIndex, progress, scrollToNextPage]);
 
   return (
-    <View fullScreen>
+    <SafeView fullScreen backgroundColor="$backgroundSoft">
       <View flexGrow={1} justifyContent="center" flexShrink={1}>
         <Animated.FlatList
           ref={flatListReference}
@@ -244,7 +246,8 @@ export default function Carousel() {
           />
         </>
       )}
-    </View>
+      <TimeToFullDisplay record />
+    </SafeView>
   );
 }
 

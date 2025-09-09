@@ -1,1 +1,1 @@
-export { default } from "../../../components/onboarding/PasskeysAbout";
+export { default } from "../../../components/auth/PasskeysAbout";

@@ -4,7 +4,7 @@ import type { SharedValue } from "react-native-reanimated";
 import { Extrapolation, interpolate, useAnimatedStyle } from "react-native-reanimated";
 import { View, useWindowDimensions } from "tamagui";
 
-import type { Page } from "./Carousel";
+import type { Page } from "./Auth";
 import useAspectRatio from "../../utils/useAspectRatio";
 import AnimatedView from "../shared/AnimatedView";
 
