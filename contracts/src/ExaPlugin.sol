@@ -29,11 +29,13 @@ import { ReentrancyGuard } from "solady/utils/ReentrancyGuard.sol";
 import { SafeCastLib } from "solady/utils/SafeCastLib.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
+import { CrossRepayCallbackData, ExaPluginExtension, RepayCallbackData } from "./ExaPluginExtension.sol";
 import {
   BorrowAtMaturityData,
   CollectorSet,
   CrossRepayData,
   Disagreement,
+  ExtensionFailed,
   FlashLoanerSet,
   IAuditor,
   IDebtManager,
@@ -83,6 +85,7 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
   IDebtManager public immutable DEBT_MANAGER;
   IInstallmentsRouter public immutable INSTALLMENTS_ROUTER;
   IssuerChecker public immutable ISSUER_CHECKER;
+  ExaPluginExtension public immutable EXTENSION;
 
   IERC20 private immutable USDC;
   IWETH private immutable WETH;
@@ -106,6 +109,7 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
     DEBT_MANAGER = p.debtManager;
     INSTALLMENTS_ROUTER = p.installmentsRouter;
     ISSUER_CHECKER = p.issuerChecker;
+    EXTENSION = new ExaPluginExtension(EXA_USDC, EXA_WETH);
 
     _grantRole(KEEPER_ROLE, p.firstKeeper);
     _grantRole(DEFAULT_ADMIN_ROLE, p.owner);
@@ -267,54 +271,19 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
     _poke(EXA_WETH);
   }
 
-  function receiveFlashLoan(IERC20[] calldata, uint256[] calldata, uint256[] calldata, bytes calldata data) external {
-    address _flashLoaner = address(flashLoaner);
-    // slither-disable-next-line incorrect-equality -- hash comparison
-    assert(msg.sender == _flashLoaner && flashLoaning == keccak256(data));
-    delete flashLoaning;
-
-    if (data[0] == 0x01) {
-      RepayCallbackData memory r = abi.decode(data[1:], (RepayCallbackData));
-      // slither-disable-next-line reentrancy-no-eth -- markets are safe
-      uint256 actualRepay = EXA_USDC.repayAtMaturity(r.maturity, r.positionAssets, r.maxRepay, r.borrower);
-
-      // slither-disable-next-line reentrancy-benign -- markets are safe
-      callHash = keccak256(abi.encode(EXA_USDC, IERC4626.withdraw.selector, actualRepay, address(this), r.borrower))
-        | bytes32(uint256(1));
-      _execute(
-        r.borrower, address(EXA_USDC), 0, abi.encodeCall(IMarket.withdraw, (actualRepay, address(this), r.borrower))
-      );
-      // slither-disable-next-line reentrancy-benign -- markets are safe
-      delete callHash;
-      USDC.safeTransfer(_flashLoaner, r.maxRepay);
-      return;
-    }
-    _handleCrossRepay(abi.decode(data[1:], (CrossRepayCallbackData)), _flashLoaner);
-  }
-
-  function _handleCrossRepay(CrossRepayCallbackData memory c, address _flashLoaner) internal {
-    IERC20 assetOut = IERC20(c.marketOut.asset());
-    if (assetOut != USDC) assetOut.forceApprove(address(c.marketOut), c.maxRepay);
-
-    uint256 actualRepay = c.marketOut.repayAtMaturity(c.maturity, c.positionAssets, c.maxRepay, c.borrower);
-    _execute(
-      c.borrower, address(c.marketIn), 0, abi.encodeCall(IMarket.withdraw, (c.maxAmountIn, c.borrower, c.borrower))
-    );
-    IERC20 assetIn = IERC20(c.marketIn.asset());
-    (uint256 amountIn, uint256 amountOut) = _swap(c.borrower, assetIn, assetOut, c.maxAmountIn, c.maxRepay, c.route);
-
-    _transferFromAccount(c.borrower, assetOut, address(this), actualRepay);
-    assetOut.safeTransfer(_flashLoaner, c.maxRepay);
-
-    uint256 unspent = amountOut - actualRepay;
-    if (_checkDeposit(c.marketOut, unspent)) {
-      _approve(c.borrower, address(assetOut), address(c.marketOut), unspent);
-      _execute(c.borrower, address(c.marketOut), 0, abi.encodeCall(IERC4626.deposit, (unspent, c.borrower)));
-    }
-    uint256 unspentCollateral = c.maxAmountIn - amountIn;
-    if (_checkDeposit(c.marketIn, unspentCollateral)) {
-      _transferFromAccount(c.borrower, assetIn, address(this), unspentCollateral);
-      _depositUnspent(c.marketIn, unspentCollateral, c.borrower);
+  function receiveFlashLoan(IERC20[] calldata, uint256[] calldata, uint256[] calldata, bytes calldata) external {
+    // solhint-disable avoid-low-level-calls
+    // slither-disable-next-line controlled-delegatecall,low-level-calls -- extension is safe
+    (bool success, bytes memory returnData) = address(EXTENSION).delegatecall(msg.data);
+    // solhint-enable avoid-low-level-calls
+    if (!success) {
+      if (returnData.length == 0) revert ExtensionFailed();
+      // solhint-disable no-inline-assembly
+      // slither-disable-next-line assembly
+      assembly ("memory-safe") {
+        // solhint-enable no-inline-assembly
+        revert(add(32, returnData), mload(returnData))
+      }
     }
   }
 
@@ -593,15 +562,9 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
     _approve(msg.sender, asset, spender, amount);
   }
 
-  function _approveAndExecute(address account, address target, address asset, uint256 amount, bytes memory data)
-    internal
-  {
-    _approve(account, asset, target, amount);
-    _execute(account, target, 0, data);
-  }
-
   function _approveAndExecuteFromSender(address target, address asset, uint256 amount, bytes memory data) internal {
-    _approveAndExecute(msg.sender, target, asset, amount, data);
+    _approve(msg.sender, asset, target, amount);
+    _execute(msg.sender, target, 0, data);
   }
 
   function _borrowAtMaturity(Proposal memory proposal) internal {
@@ -780,31 +743,6 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
     amountIn = balanceIn - assetIn.balanceOf(address(this));
   }
 
-  function _swap(
-    address account,
-    IERC20 assetIn,
-    IERC20 assetOut,
-    uint256 maxAmountIn,
-    uint256 minAmountOut,
-    bytes memory route
-  ) internal nonReentrant returns (uint256 amountIn, uint256 amountOut) {
-    uint256 balanceIn = assetIn.balanceOf(account);
-    uint256 balanceOut = assetOut.balanceOf(account);
-    address _swapper = swapper;
-
-    _approveAndExecute(account, _swapper, address(assetIn), maxAmountIn, route);
-
-    amountOut = assetOut.balanceOf(account) - balanceOut;
-    if (minAmountOut > amountOut) revert Disagreement();
-
-    _approve(account, address(assetIn), _swapper, 0);
-    amountIn = balanceIn - assetIn.balanceOf(account);
-  }
-
-  function _transferFromAccount(address account, IERC20 asset, address receiver, uint256 amount) internal {
-    _execute(account, address(asset), 0, abi.encodeCall(IERC20.transfer, (receiver, amount)));
-  }
-
   function _willUninstallThis(bytes memory data) internal view returns (bool) {
     (address plugin,,) = abi.decode(data, (address, bytes, bytes));
     return plugin == address(this);
@@ -864,24 +802,6 @@ enum FunctionId {
   RUNTIME_VALIDATION_SELF,
   RUNTIME_VALIDATION_KEEPER,
   RUNTIME_VALIDATION_KEEPER_OR_SELF
-}
-
-struct CrossRepayCallbackData {
-  uint256 maturity;
-  address borrower;
-  uint256 positionAssets;
-  uint256 maxRepay;
-  IMarket marketIn;
-  IMarket marketOut;
-  uint256 maxAmountIn;
-  bytes route;
-}
-
-struct RepayCallbackData {
-  uint256 maturity;
-  address borrower;
-  uint256 positionAssets;
-  uint256 maxRepay;
 }
 
 struct Parameters {

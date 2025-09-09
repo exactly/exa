@@ -177,6 +177,7 @@ enum ProposalType {
 error BorrowLimitExceeded();
 error Disagreement();
 error Expired();
+error ExtensionFailed();
 error InsufficientLiquidity();
 error NotNext();
 error NoBalance();
