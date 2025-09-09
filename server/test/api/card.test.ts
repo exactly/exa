@@ -148,7 +148,7 @@ describe("authenticated", () => {
 
     expect(response.status).toBe(200);
     expect(json).toStrictEqual({
-      status: "active",
+      status: "ACTIVE",
       lastFour: "7394",
     });
   });
