@@ -212,8 +212,8 @@ queryClient.setQueryDefaults<EmbeddingContext>(["embedding-context"], {
           return "base" as const;
       }
     }
-    if (navigator.userAgent.includes("MetaMask")) return "metamask" as const;
-    if (navigator.userAgent.includes("Phantom")) return "phantom" as const;
+    if (navigator.userAgent?.includes("MetaMask")) return "metamask" as const; // eslint-disable-line @typescript-eslint/no-unnecessary-condition
+    if (navigator.userAgent?.includes("Phantom")) return "phantom" as const; // eslint-disable-line @typescript-eslint/no-unnecessary-condition
     return null;
   },
 });
