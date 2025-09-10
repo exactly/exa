@@ -361,6 +361,7 @@ export default new Hono()
           httpOnly: true,
           sameSite: "none",
           secure: true,
+          partitioned: true,
         }),
         newCounter && database.update(credentials).set({ counter: newCounter }).where(eq(credentials.id, assertion.id)),
       ]);

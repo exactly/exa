@@ -49,6 +49,7 @@ export default async function createCredential<C extends string>(
       httpOnly: true,
       sameSite: "none",
       secure: true,
+      partitioned: true,
     }),
     fetch("https://dashboard.alchemy.com/api/update-webhook-addresses", {
       method: "PATCH",
