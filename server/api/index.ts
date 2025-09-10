@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { csrf } from "hono/csrf";
 
+import appOrigin from "../utils/appOrigin";
 import activity from "./activity";
 import authentication from "./auth/authentication";
 import registration from "./auth/registration";
@@ -10,7 +11,7 @@ import kyc from "./kyc";
 import passkey from "./passkey";
 import pax from "./pax";
 import ramp from "./ramp";
-import appOrigin from "../utils/appOrigin";
+import webhook from "./webhook";
 
 const api = new Hono()
   .use(cors({ origin: [appOrigin, "http://localhost:8081"], credentials: true }))
@@ -25,6 +26,7 @@ const api = new Hono()
   .route("/card", card)
   .route("/kyc", kyc)
   .route("/passkey", passkey)
+  .route("/webhook", webhook)
   .route("/pax", pax)
   .route("/ramp", ramp);
 
