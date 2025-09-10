@@ -258,7 +258,7 @@ export default new Hono()
       const application = await submitApplication(payload);
       await database
         .update(credentials)
-        .set({ pandaId: application.id, source: "uphold" }) // TODO get source from signer
+        .set({ pandaId: application.id, source: "oo7rxPhUbL4e8mtWGWInMGEXOe3eHX5H" }) // TODO get source from signer cspell:ignore oo7rxPhUbL4e8mtWGWInMGEXOe3eHX5H
         .where(eq(credentials.id, credentialId));
       return c.json({ code: "ok", legacy: "ok" }, 200);
     },
