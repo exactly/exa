@@ -202,7 +202,12 @@ queryClient.setQueryDefaults<EmbeddingContext>(["embedding-context"], {
       const { client } = await sdk.context;
       switch (client.clientFid) {
         case 9152:
-          return "farcaster" as const;
+          switch (client.platformType) {
+            case "web":
+              return "farcaster-web" as const;
+            default:
+              return "farcaster" as const;
+          }
         case 309_857:
           return "base" as const;
       }
@@ -213,7 +218,7 @@ queryClient.setQueryDefaults<EmbeddingContext>(["embedding-context"], {
   },
 });
 
-export type EmbeddingContext = "base" | "farcaster" | "metamask" | "phantom" | null;
+export type EmbeddingContext = "base" | "farcaster" | "farcaster-web" | "metamask" | "phantom" | null;
 export type ActivityItem = Awaited<ReturnType<typeof getActivity>>[number];
 export interface Withdraw {
   market?: Address;
