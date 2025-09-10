@@ -73,6 +73,7 @@ export default {
       "expo-build-properties",
       {
         android: {
+          targetSdkVersion: 35,
           packagingOptions: { pickFirst: ["**/libcrypto.so"] },
           extraMavenRepos: ["https://sdk.withpersona.com/android/releases"],
         },
