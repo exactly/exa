@@ -40,6 +40,11 @@ import("../api")
               in: "cookie",
               name: "credential_id",
             },
+            siweAuth: {
+              type: "apiKey",
+              in: "cookie",
+              name: "__Secure-better-auth.session_token",
+            },
           },
         },
       },
