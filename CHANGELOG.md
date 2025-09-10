@@ -1,5 +1,11 @@
 # @exactly/mobile
 
+## 1.0.23
+
+### Patch Changes
+
+- [`36d97c7`](https://github.com/exactly/exa/commit/36d97c7c407f53548d735920922ca2f99d601763) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚑 handle undefined user agent
+
 ## 1.0.22
 
 ### Patch Changes
