@@ -10,6 +10,7 @@ import kyc from "./kyc";
 import onramp from "./onramp";
 import passkey from "./passkey";
 import pax from "./pax";
+import webhook from "./webhook";
 import appOrigin from "../utils/appOrigin";
 
 const api = new Hono()
@@ -26,6 +27,8 @@ const api = new Hono()
   .route("/kyc", kyc)
   .route("/onramp", onramp)
   .route("/passkey", passkey)
+  .route("/passkey", passkey)
+  .route("/webhook", webhook)
   .route("/pax", pax);
 
 export default api;
