@@ -5,6 +5,7 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { captureException, close } from "@sentry/node";
 import { isoBase64URL } from "@simplewebauthn/server/helpers";
 import { Hono } from "hono";
+import { secureHeaders } from "hono/secure-headers";
 import { trimTrailingSlash } from "hono/trailing-slash";
 import type { UnofficialStatusCode } from "hono/utils/http-status";
 
@@ -78,7 +79,28 @@ app.get("/.well-known/farcaster.json", (c) =>
     },
   }),
 );
-app.use(
+
+const frontend = new Hono();
+frontend.use(
+  secureHeaders({
+    xFrameOptions: false,
+    referrerPolicy: "strict-origin-when-cross-origin",
+    reportingEndpoints: [{ name: "csp", url: "/csp-report" }],
+    contentSecurityPolicyReportOnly: {
+      defaultSrc: ["'self'"],
+      fontSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https://avatars.githubusercontent.com"],
+      scriptSrc: ["'self'", "https://cdn.onesignal.com", "https://api.onesignal.com", "https://widget.intercom.io"],
+      connectSrc: ["'self'", "https://*.g.alchemy.com", "https://*.ingest.us.sentry.io", "https://li.quest"],
+      frameAncestors: ["https://farcaster.xyz"],
+      objectSrc: ["'none'"],
+      baseUri: ["'none'"],
+      reportTo: "csp",
+    },
+  }),
+);
+frontend.use(
   serveStatic({
     root: "app",
     rewriteRequestPath: (path) => {
@@ -91,7 +113,7 @@ app.use(
     },
   }),
 );
-app.use(
+frontend.use(
   serveStatic({
     root: "app",
     rewriteRequestPath: (path) => {
@@ -104,6 +126,16 @@ app.use(
     },
   }),
 );
+app.route("/", frontend);
+
+app.post("/csp-report", async (c) => {
+  try {
+    console.log("CSP report:", JSON.stringify(await c.req.json())); // eslint-disable-line no-console
+  } catch (error) {
+    captureException(error);
+  }
+  return c.body(null, 204);
+});
 
 app.onError((error, c) => {
   captureException(error, { level: "error", tags: { unhandled: true } });
