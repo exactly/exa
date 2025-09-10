@@ -21,7 +21,7 @@ import { proposalManager } from "@exactly/plugin/deploy.json";
 import { captureException } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
-import { createHmac } from "node:crypto";
+import { createHmac, randomBytes } from "node:crypto";
 import { object, parse, string } from "valibot";
 import {
   BaseError,
@@ -1373,6 +1373,7 @@ describe("concurrency", () => {
 describe("webhooks", () => {
   let webhookOwner: WalletClient<ReturnType<typeof http>, typeof chain, ReturnType<typeof privateKeyToAccount>>;
   let webhookAccount: Address;
+  const secret = randomBytes(16).toString("hex");
 
   beforeAll(async () => {
     webhookOwner = createWalletClient({
@@ -1390,8 +1391,7 @@ describe("webhooks", () => {
           id: "test",
           config: {
             type: "uphold",
-            secrets: { test: { key: "secret", type: "HMAC-SHA256" } },
-            webhooks: { sandbox: { url: "https://exa.test", secretId: "test" } },
+            webhooks: { sandbox: { url: "https://exa.test", secret } },
           },
         },
       ]),
@@ -1476,7 +1476,7 @@ describe("webhooks", () => {
     const options = mockFetch.mock.calls.find(([url]) => url === "https://exa.test")?.[1];
     const headers = parse(object({ Signature: string() }), options?.headers);
 
-    expect(createHmac("sha256", "secret").update(parse(string(), options?.body)).digest("hex")).toBe(headers.Signature);
+    expect(createHmac("sha256", secret).update(parse(string(), options?.body)).digest("hex")).toBe(headers.Signature);
   });
 
   it("forwards transaction updated", async () => {
@@ -1504,7 +1504,7 @@ describe("webhooks", () => {
     const options = mockFetch.mock.calls.find(([url]) => url === "https://exa.test")?.[1];
     const headers = parse(object({ Signature: string() }), options?.headers);
 
-    expect(createHmac("sha256", "secret").update(parse(string(), options?.body)).digest("hex")).toBe(headers.Signature);
+    expect(createHmac("sha256", secret).update(parse(string(), options?.body)).digest("hex")).toBe(headers.Signature);
   });
 
   it("forwards transaction completed", async () => {
@@ -1532,7 +1532,7 @@ describe("webhooks", () => {
     const options = mockFetch.mock.calls.find(([url]) => url === "https://exa.test")?.[1];
     const headers = parse(object({ Signature: string() }), options?.headers);
 
-    expect(createHmac("sha256", "secret").update(parse(string(), options?.body)).digest("hex")).toBe(headers.Signature);
+    expect(createHmac("sha256", secret).update(parse(string(), options?.body)).digest("hex")).toBe(headers.Signature);
   });
 
   it("forwards card updated", async () => {
@@ -1560,7 +1560,7 @@ describe("webhooks", () => {
     const options = mockFetch.mock.calls.find(([url]) => url === "https://exa.test")?.[1];
     const headers = parse(object({ Signature: string() }), options?.headers);
 
-    expect(createHmac("sha256", "secret").update(parse(string(), options?.body)).digest("hex")).toBe(headers.Signature);
+    expect(createHmac("sha256", secret).update(parse(string(), options?.body)).digest("hex")).toBe(headers.Signature);
   });
 
   it("forwards user updated", async () => {
@@ -1587,7 +1587,7 @@ describe("webhooks", () => {
     const options = mockFetch.mock.calls.find(([url]) => url === "https://exa.test")?.[1];
     const headers = parse(object({ Signature: string() }), options?.headers);
 
-    expect(createHmac("sha256", "secret").update(parse(string(), options?.body)).digest("hex")).toBe(headers.Signature);
+    expect(createHmac("sha256", secret).update(parse(string(), options?.body)).digest("hex")).toBe(headers.Signature);
   });
 });
 
