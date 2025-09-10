@@ -28,6 +28,7 @@ export async function connectAccount(account: Address) {
   });
   if (!accounts.includes(account)) {
     setContext("injected", { account, accounts, connector: connector.id });
+    console.log("injected account mismatch", { account, accounts, connector }); // eslint-disable-line no-console
     throw new Error("injected account mismatch");
   }
   return account;

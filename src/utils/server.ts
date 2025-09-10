@@ -31,6 +31,7 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
     if (method === "siwe" && !credentialId) return queryClient.getQueryData<number>(["auth"]) ?? 0;
     const get = await api.auth.authentication.$get({ query: { credentialId } });
     const options = await get.json();
+    console.log("options", { options }); // eslint-disable-line no-console
     if (options.method === "webauthn" && Platform.OS === "android") delete options.allowCredentials; // HACK fix android credential filtering
     const json =
       options.method === "siwe"
