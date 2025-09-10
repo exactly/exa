@@ -1,5 +1,104 @@
 # @exactly/mobile
 
+## 1.0.22
+
+### Patch Changes
+
+- [`20ca3f4`](https://github.com/exactly/exa/commit/20ca3f4f9fd11272985c02640cfdfd995554547d) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix opening of external links in mini app
+
+- [`7694d4b`](https://github.com/exactly/exa/commit/7694d4b6ed6fdc8ab640b8ad06a6f9a3a3550a3c) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix roll debt screen error state
+
+- [`ffd94da`](https://github.com/exactly/exa/commit/ffd94da6173fccd79fc6b2784849b6981933cda5) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 open persona kyc in a new tab
+
+- [`c523013`](https://github.com/exactly/exa/commit/c523013ad1234f2ce79d2359ebbc73736a18dc33) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 filter out duplicated contacts
+
+- [`45b4006`](https://github.com/exactly/exa/commit/45b40065d54ccdc23cc92c03b73d94f455465588) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ♻️ replace navigator
+
+- [`5c1f874`](https://github.com/exactly/exa/commit/5c1f874b6152c2fcaa288d0026fef32802933d39) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🎨 prefer mini app query on auth layout
+
+- [`8109f77`](https://github.com/exactly/exa/commit/8109f772cb6759f661242b1b3283dc3d23d7a329) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix gradient scroll view padding
+
+- [`20ad712`](https://github.com/exactly/exa/commit/20ad712b6dc8ad53c8762bc994e3f5b9ea5284d9) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚚 rename passkey to credential
+
+- [`9fa5e59`](https://github.com/exactly/exa/commit/9fa5e596d5f327ad2b227853880f4dbbe5ee0436) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add safe area insets in mini app
+
+- [`31b54f2`](https://github.com/exactly/exa/commit/31b54f29d3eb68fc2501b9a7ce4d1a4eec0e2a86) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 disconnect wagmi on logout
+
+- [`6e2a8d4`](https://github.com/exactly/exa/commit/6e2a8d47b27896ef4f5d9d82bb625c661bfb93e7) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✏️ remove extra space
+
+- [`fcf7eaa`](https://github.com/exactly/exa/commit/fcf7eaaa5ac99aced6d2f0e725185f617956c84a) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 📱 improve web media queries
+
+- [`f22111e`](https://github.com/exactly/exa/commit/f22111e37c667d976bf03f6c96bcea13e18d4cb2) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚸 improve auth flow when embedded
+
+- [`2969c05`](https://github.com/exactly/exa/commit/2969c058b7d90f6212a085b9621d350735eeba2b) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ set defaults for mini app query
+
+- [`8bee2cf`](https://github.com/exactly/exa/commit/8bee2cf835f35432863b323c813e994f3a4efc05) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add farcaster sdk callback
+
+- [`8e45038`](https://github.com/exactly/exa/commit/8e4503811a881e7cba14a87ee8be5c1f479acdbc) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ create auth selection component
+
+- [`3c40f97`](https://github.com/exactly/exa/commit/3c40f97f9b6f587158289d6fda259a11981e7e8e) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 fix pay selector input style
+
+- [`69c59b6`](https://github.com/exactly/exa/commit/69c59b6b2b8b79d657e6957b60f7bffa947ca5e2) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix copy address modal close
+
+- [`8e46d63`](https://github.com/exactly/exa/commit/8e46d631abbcc347919154c79471c48691ef3930) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ set kyc redirect based on embedding context
+
+- [`ab5bca3`](https://github.com/exactly/exa/commit/ab5bca315a8ca12f03cd5e0d3ba04fb657a41025) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 prevent click event propagation on defi banner
+
+- [`d12efc0`](https://github.com/exactly/exa/commit/d12efc0007778c1d7c66d20d9de54c24f626c2ad) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 fix swaps screen styles
+
+- [`4221aca`](https://github.com/exactly/exa/commit/4221aca4d11f42a342adff7c4ef1c3bfce2bd9f4) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚚 rename root routes
+
+- [`671a5f5`](https://github.com/exactly/exa/commit/671a5f5be1c2d149fce1ee2b8f021cafb47b0c8b) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ handle multiple connectors
+
+- [`abb425f`](https://github.com/exactly/exa/commit/abb425f0e4223d208342fa63f4c2eafeb75bc971) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚸 add app loading state component
+
+- [`596fd78`](https://github.com/exactly/exa/commit/596fd78085c9559e1de30f8f79bbc6ab75ba77a6) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add mini app connector
+
+- [`0aa10ad`](https://github.com/exactly/exa/commit/0aa10adb518afd7b669f5db186b962a7ce4d9776) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🔥 remove manual connection
+
+- [`28b5417`](https://github.com/exactly/exa/commit/28b54179a036a676f4efca32bb9f1e71ffe0ef6d) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix web sheets not rendering
+
+- [`7c6dd3d`](https://github.com/exactly/exa/commit/7c6dd3d07272f7bfda779bf3c6ac5b8f68cabdb2) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add close button to proposal screens
+
+- [`1fb4e8f`](https://github.com/exactly/exa/commit/1fb4e8fe7a2746e15f1107c4e41d547c3cbec0fd) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix maturity validation on payment sheet
+
+- [`42d63c5`](https://github.com/exactly/exa/commit/42d63c522c78d587cef7166e870a84d54b56de9d) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix gradient scroll view on web
+
+- [`a0fcbd8`](https://github.com/exactly/exa/commit/a0fcbd8fadfd3e8a0995d9dc1f543b5716c1da0d) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 💄 display checksummed shortened address
+
+- [`36ac077`](https://github.com/exactly/exa/commit/36ac077a907bb73946a483eca66619ef34133389) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 update manual repayment sheet
+
+- [`9793476`](https://github.com/exactly/exa/commit/9793476ded1b8b3e4c23a6b4c526d1732bf710d1) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 fix shared progress screen styles
+
+- [`1732ca7`](https://github.com/exactly/exa/commit/1732ca75fda67137aadfbedbac9bea24f547e888) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🎨 abstract sheet component
+
+- [`3db42e3`](https://github.com/exactly/exa/commit/3db42e38cb7911625b89175ce6e2f962942477af) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 align overdue and upcoming payments styles
+
+- [`21d8831`](https://github.com/exactly/exa/commit/21d88317bc4c4999356ea1f19a416d7cd049b03c) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🎨 remove redundant conversions
+
+- [`2bc19ed`](https://github.com/exactly/exa/commit/2bc19ed1fd6a0f554c221f061bc116df9051b769) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🔥 drop unused routes
+
+- [`4b777bc`](https://github.com/exactly/exa/commit/4b777bc9a2fd6b7c456d83254a1a0ba1a4c23552) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix send funds qr screen
+
+- [`0541f06`](https://github.com/exactly/exa/commit/0541f061c12d663c584c2bb6e4f46230d99d86cf) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix text alignment on token selection modal
+
+- [`0b98a22`](https://github.com/exactly/exa/commit/0b98a225ff33c7780b24046b02c47d3e38e8d862) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add use open browser hook
+
+- [`58def4d`](https://github.com/exactly/exa/commit/58def4dc357c623a2ca48c7eccefe9340d2cb180) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ implement sign-in with ethereum
+
+- [`4074ab9`](https://github.com/exactly/exa/commit/4074ab9bf1eee588b841320e76c6ecefa290da04) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ handle selected auth method
+
+- [`13292b0`](https://github.com/exactly/exa/commit/13292b0550331d3fcee5c0bd0c6cc2181b403b2d) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ detect embedding context
+
+- [`9fa5e59`](https://github.com/exactly/exa/commit/9fa5e596d5f327ad2b227853880f4dbbe5ee0436) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🏷️ fix safe view prop type
+
+- [`1aa1bcc`](https://github.com/exactly/exa/commit/1aa1bcc7ebd24badaccd0c3b46c06a6a640dfc86) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add auth ui to onboarding
+
+- [`aff3c31`](https://github.com/exactly/exa/commit/aff3c31222b90573c27d3bb848d023348e11d8e7) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix rollover intro state
+
+- Updated dependencies [[`a5662c0`](https://github.com/exactly/exa/commit/a5662c02daa31ba3298c828bbc4072459af54a3b), [`d94d0fd`](https://github.com/exactly/exa/commit/d94d0fd832750bba273658dfc186c59f0a924fa2), [`bbee5bc`](https://github.com/exactly/exa/commit/bbee5bca92fcae94ec20265d8bcb737acc595f46), [`24d4555`](https://github.com/exactly/exa/commit/24d4555926b973dd196ae69d4ede11582a1761f6), [`addf7a0`](https://github.com/exactly/exa/commit/addf7a0ad1fecfdcc61595dce0ecd90eb282ed5f), [`ce33e1d`](https://github.com/exactly/exa/commit/ce33e1d6ac2f8912e7ea12c522372ee449434765), [`015517f`](https://github.com/exactly/exa/commit/015517f14945ace6e667e543a8bed42290069885), [`b590d01`](https://github.com/exactly/exa/commit/b590d013961b51d7f47230e88e06c6d28f3d618c)]:
+  - @exactly/server@0.2.13
+
 ## 1.0.21
 
 ### Patch Changes

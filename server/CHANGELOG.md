@@ -1,5 +1,25 @@
 # @exactly/server
 
+## 0.2.13
+
+### Patch Changes
+
+- [`a5662c0`](https://github.com/exactly/exa/commit/a5662c02daa31ba3298c828bbc4072459af54a3b) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🛂 partition auth cookie
+
+- [`d94d0fd`](https://github.com/exactly/exa/commit/d94d0fd832750bba273658dfc186c59f0a924fa2) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 📈 fix sentry operation and set declined description
+
+- [`bbee5bc`](https://github.com/exactly/exa/commit/bbee5bca92fcae94ec20265d8bcb737acc595f46) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🛂 setup csrf protection
+
+- [`24d4555`](https://github.com/exactly/exa/commit/24d4555926b973dd196ae69d4ede11582a1761f6) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ verify siwe message onchain
+
+- [`addf7a0`](https://github.com/exactly/exa/commit/addf7a0ad1fecfdcc61595dce0ecd90eb282ed5f) Thanks [@mainqueg](https://github.com/mainqueg)! - ✨ return card limit
+
+- [`ce33e1d`](https://github.com/exactly/exa/commit/ce33e1d6ac2f8912e7ea12c522372ee449434765) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🛂 setup frontend secure headers
+
+- [`015517f`](https://github.com/exactly/exa/commit/015517f14945ace6e667e543a8bed42290069885) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ allow client redirect uri
+
+- [`b590d01`](https://github.com/exactly/exa/commit/b590d013961b51d7f47230e88e06c6d28f3d618c) Thanks [@mainqueg](https://github.com/mainqueg)! - 🛂 allow auth cookie for other sites
+
 ## 0.2.12
 
 ### Patch Changes

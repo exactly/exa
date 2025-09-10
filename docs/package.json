@@ -1,6 +1,6 @@
 {
   "name": "@exactly/docs",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "scripts": {
     "prepare": "pnpm run --aggregate-output --reporter-hide-prefix /prepare:/",
@@ -13,8 +13,8 @@
   },
   "devDependencies": {
     "@astrojs/starlight": "^0.34.3",
-    "@exactly/mobile": "workspace:^1.0.12",
-    "@exactly/server": "workspace:^0.2.0",
+    "@exactly/mobile": "workspace:^1.0.22",
+    "@exactly/server": "workspace:^0.2.13",
     "astro": "^5.13.2",
     "astro-mermaid": "^1.0.4",
     "mermaid": "^11.10.1",

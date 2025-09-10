@@ -1,5 +1,11 @@
 # @exactly/docs
 
+## 0.1.2
+
+### Patch Changes
+
+- [`d69a7df`](https://github.com/exactly/exa/commit/d69a7dff7c36aed3f46bacee91931272ec18191a) Thanks [@mainqueg](https://github.com/mainqueg)! - 🔧 support mermaid diagrams
+
 ## 0.1.1
 
 ### Patch Changes
