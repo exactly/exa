@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.14
+
+### Patch Changes
+
+- [`bc5db25`](https://github.com/exactly/exa/commit/bc5db2508ba6bb5488733559791b4ccb9b62a36d) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🛂 allow frontend connection to onesignal cdn
+
 ## 0.2.13
 
 ### Patch Changes
