@@ -1,12 +1,12 @@
 import { generateSpecs } from "hono-openapi";
 import { writeFile } from "node:fs/promises";
-import { padHex } from "viem";
+import { padHex, zeroHash } from "viem";
 
 import { version } from "../package.json";
 
 process.env.ALCHEMY_ACTIVITY_ID = "activity";
 process.env.ALCHEMY_WEBHOOKS_KEY = "webhooks";
-process.env.AUTH_SECRET = "auth";
+process.env.AUTH_SECRET = zeroHash;
 process.env.BRIDGE_API_KEY = "bridge";
 process.env.BRIDGE_API_URL = "https://bridge.test";
 process.env.EXPO_PUBLIC_ALCHEMY_API_KEY = " ";
@@ -44,6 +44,7 @@ import("../api")
               in: "cookie",
               name: "credential_id",
             },
+            siweAuth: { type: "apiKey", in: "cookie", name: "__Secure-better-auth.session_token" },
           },
         },
       },
