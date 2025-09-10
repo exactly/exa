@@ -35,6 +35,15 @@ const signature = createHmac("sha256", <YOUR_API_KEY>)
 
 Ensure that the computed signature matches the Signature header received in the webhook request before processing the payload.
 
+## Exa server IPs
+
+IP allow listing prevents spoofing, reduces attack surface, and adds network-level security to webhooks.
+
+### Sandbox
+
+- 209.38.69.78
+- 143.198.79.59
+
 ## Retry policy and timeout
 
 An exponential backoff with 20 retries and 60 second timeout is used. Retries occur if the request returns an http status code other than 200 or times out.
