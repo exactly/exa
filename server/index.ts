@@ -5,6 +5,7 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { captureException, close } from "@sentry/node";
 import { isoBase64URL } from "@simplewebauthn/server/helpers";
 import { Hono } from "hono";
+import { secureHeaders } from "hono/secure-headers";
 import { trimTrailingSlash } from "hono/trailing-slash";
 import type { UnofficialStatusCode } from "hono/utils/http-status";
 
@@ -78,7 +79,52 @@ app.get("/.well-known/farcaster.json", (c) =>
     },
   }),
 );
-app.use(
+
+const frontend = new Hono();
+frontend.use(
+  secureHeaders({
+    xFrameOptions: false,
+    referrerPolicy: "strict-origin-when-cross-origin",
+    reportingEndpoints: [
+      {
+        name: "sentry",
+        url: `https://o1351734.ingest.us.sentry.io/api/4506186349674496/security/?sentry_key=ac8875331e4cecd67dd0a7519a36dfeb&sentry_environment=${
+          { "web.exactly.app": "production", "sandbox.exactly.app": "sandbox" }[domain] ?? domain
+        }`,
+      },
+    ],
+    contentSecurityPolicy: {
+      defaultSrc: ["'self'"],
+      fontSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https://avatars.githubusercontent.com"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: [
+        "'self'",
+        "'unsafe-inline'",
+        "https://cdn.onesignal.com",
+        "https://api.onesignal.com",
+        "https://widget.intercom.io",
+        "https://js.intercomcdn.com",
+      ],
+      connectSrc: [
+        "'self'",
+        "https://li.quest",
+        "https://*.g.alchemy.com",
+        "https://assets.smold.app",
+        "https://api.onesignal.com",
+        "https://api-iam.intercom.io",
+        "https://*.ingest.us.sentry.io",
+        "https://raw.githubusercontent.com",
+        "wss://nexus-websocket-a.intercom.io/",
+      ],
+      frameAncestors: ["https://farcaster.xyz"],
+      objectSrc: ["'none'"],
+      baseUri: ["'none'"],
+      reportTo: "sentry",
+    },
+  }),
+);
+frontend.use(
   serveStatic({
     root: "app",
     rewriteRequestPath: (path) => {
@@ -91,7 +137,7 @@ app.use(
     },
   }),
 );
-app.use(
+frontend.use(
   serveStatic({
     root: "app",
     rewriteRequestPath: (path) => {
@@ -104,6 +150,7 @@ app.use(
     },
   }),
 );
+app.route("/", frontend);
 
 app.onError((error, c) => {
   captureException(error, { level: "error", tags: { unhandled: true } });
