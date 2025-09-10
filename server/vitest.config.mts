@@ -1,5 +1,5 @@
 import { env } from "node:process";
-import { padHex } from "viem";
+import { padHex, zeroHash } from "viem";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
@@ -10,7 +10,7 @@ export default defineConfig({
       ALCHEMY_ACTIVITY_KEY: "activity",
       ALCHEMY_BLOCK_KEY: "block",
       ALCHEMY_WEBHOOKS_KEY: "webhooks",
-      AUTH_SECRET: "auth",
+      AUTH_SECRET: zeroHash,
       BRIDGE_API_KEY: "bridge",
       BRIDGE_API_URL: "https://bridge.test",
       EXPO_PUBLIC_ALCHEMY_API_KEY: " ",

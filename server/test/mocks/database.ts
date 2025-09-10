@@ -1,4 +1,5 @@
 import { PGlite } from "@electric-sql/pglite";
+import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import type * as DrizzleKit from "drizzle-kit/api";
 import { drizzle, type PgliteDatabase } from "drizzle-orm/pglite";
 import { afterAll, vi } from "vitest";
@@ -16,7 +17,20 @@ vi.doMock("../../database", async (importOriginal) => {
   const { apply } = await pushSchema(schema, instance as unknown as PgliteDatabase);
   await apply();
   process.stdout.write = stdoutWrite;
-  return { ...(await importOriginal<typeof database>()), default: instance };
+  const authAdapter = drizzleAdapter(instance, {
+    provider: "sqlite",
+    schema: {
+      user: schema.users,
+      session: schema.sessions,
+      account: schema.authenticators,
+      verification: schema.verifications,
+      walletAddress: schema.walletAddresses,
+      organization: schema.organizations,
+      member: schema.members,
+      invitation: schema.invitations,
+    },
+  });
+  return { ...(await importOriginal<typeof database>()), default: instance, authAdapter };
 });
 
 afterAll(() => pglite.close());
