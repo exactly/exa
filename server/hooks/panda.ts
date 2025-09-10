@@ -926,9 +926,6 @@ async function publish(payload: v.InferOutput<typeof Payload>) {
   const config = v.parse(webhookConfig, user.source.config);
   await Promise.allSettled(
     Object.values(config.webhooks).map(async (webhook) => {
-      const secret = config.secrets[webhook.secretId]?.key;
-      if (!secret) throw new Error("secret not found");
-
       switch (payload.resource) {
         case "user":
           return sendWebhook(
@@ -938,7 +935,7 @@ async function publish(payload: v.InferOutput<typeof Payload>) {
               body: { ...payload.body, account: user.account },
             }),
             webhook.card?.[payload.action] ?? webhook.url,
-            secret,
+            webhook.secret,
           );
         case "card":
         // falls through
@@ -949,7 +946,7 @@ async function publish(payload: v.InferOutput<typeof Payload>) {
               timestamp,
             }),
             webhook.transaction?.[payload.action] ?? webhook.url,
-            secret,
+            webhook.secret,
           );
       }
     }),
@@ -1073,12 +1070,11 @@ const Webhook = v.variant("resource", [
 
 const webhookConfig = v.object({
   type: v.picklist(["uphold"]),
-  secrets: v.record(v.string(), v.object({ key: v.string(), type: v.picklist(["HMAC-SHA256"]) })),
   webhooks: v.record(
     v.string(),
     v.object({
       url: v.string(),
-      secretId: v.string(),
+      secret: v.string(),
       transaction: v.optional(
         v.object({
           created: v.optional(v.string()),

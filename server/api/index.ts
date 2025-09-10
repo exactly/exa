@@ -8,6 +8,7 @@ import registration from "./auth/registration";
 import card from "./card";
 import kyc from "./kyc";
 import passkey from "./passkey";
+import webhook from "./webhook";
 import appOrigin from "../utils/appOrigin";
 
 const api = new Hono()
@@ -18,7 +19,8 @@ const api = new Hono()
   .route("/activity", activity)
   .route("/card", card)
   .route("/kyc", kyc)
-  .route("/passkey", passkey);
+  .route("/passkey", passkey)
+  .route("/webhook", webhook);
 
 export default api;
 export type ExaAPI = typeof api;
