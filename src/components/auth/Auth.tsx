@@ -54,7 +54,7 @@ export default function Auth() {
   const { title, disabled } = currentItem;
 
   const { data: hasInjectedProvider } = useQuery({ queryKey: ["has-injected-provider"] });
-  const { data: embeddingContext } = useQuery<EmbeddingContext>({ queryKey: ["detect-embedding-context"] });
+  const { data: embeddingContext } = useQuery<EmbeddingContext>({ queryKey: ["embedding-context"] });
 
   const onViewableItemsChanged = useCallback(
     ({ viewableItems }: { viewableItems: ViewToken[] }) => {
