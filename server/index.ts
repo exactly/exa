@@ -101,8 +101,8 @@ frontend.use(
       scriptSrc: [
         "'self'",
         "'unsafe-inline'",
-        "https://cdn.onesignal.com",
         "https://api.onesignal.com",
+        "https://cdn.onesignal.com",
         "https://widget.intercom.io",
         "https://js.intercomcdn.com",
       ],
@@ -112,6 +112,7 @@ frontend.use(
         "https://*.g.alchemy.com",
         "https://assets.smold.app",
         "https://api.onesignal.com",
+        "https://cdn.onesignal.com",
         "https://api-iam.intercom.io",
         "https://*.ingest.us.sentry.io",
         "https://raw.githubusercontent.com",
