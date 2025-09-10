@@ -1053,7 +1053,7 @@ describe("authenticated", () => {
       beforeAll(async () => {
         await database.insert(sources).values([
           {
-            id: "uphold",
+            id: "oo7rxPhUbL4e8mtWGWInMGEXOe3eHX5H", // cspell:ignore oo7rxPhUbL4e8mtWGWInMGEXOe3eHX5H
             config: {
               type: "uphold",
               secrets: { test: { key: "secret", type: "HMAC-SHA256" } },
