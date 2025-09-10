@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { csrf } from "hono/csrf";
 
 import activity from "./activity";
 import authentication from "./auth/authentication";
@@ -11,6 +12,7 @@ import appOrigin from "../utils/appOrigin";
 
 const api = new Hono()
   .use(cors({ origin: appOrigin, credentials: true }))
+  .use(csrf({ origin: appOrigin }))
   .route("/auth/registration", registration)
   .route("/auth/authentication", authentication)
   .route("/activity", activity)
