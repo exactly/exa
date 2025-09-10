@@ -6,6 +6,7 @@ settings:
 
 overrides:
   '@tanstack/react-form@0.19.5': ^0.42.1
+  '@valibot/to-json-schema': ^1.3.0
   '@wagmi/core': ^2.16.7
   abitype: ^1.0.8
   brace-expansion@1.1.11: ^1.1.12
@@ -601,8 +602,8 @@ importers:
         specifier: ^4.1.12
         version: 4.1.12
       '@valibot/to-json-schema':
-        specifier: ^1.1.0
-        version: 1.1.0(valibot@1.0.0(typescript@5.8.3))
+        specifier: ^1.3.0
+        version: 1.3.0(valibot@1.0.0(typescript@5.8.3))
       async-mutex:
         specifier: ^0.5.0
         version: 0.5.0
@@ -623,7 +624,7 @@ importers:
         version: 4.9.6
       hono-openapi:
         specifier: ^0.4.8
-        version: 0.4.8(@hono/valibot-validator@0.5.2(hono@4.9.6)(valibot@1.0.0(typescript@5.8.3)))(@valibot/to-json-schema@1.1.0(valibot@1.0.0(typescript@5.8.3)))(hono@4.9.6)(openapi-types@12.1.3)(valibot@1.0.0(typescript@5.8.3))(zod@3.25.76)
+        version: 0.4.8(@hono/valibot-validator@0.5.2(hono@4.9.6)(valibot@1.0.0(typescript@5.8.3)))(@valibot/to-json-schema@1.3.0(valibot@1.0.0(typescript@5.8.3)))(hono@4.9.6)(openapi-types@12.1.3)(valibot@1.0.0(typescript@5.8.3))(zod@3.25.76)
       ioredis:
         specifier: ^5.6.1
         version: 5.6.1
@@ -4922,8 +4923,8 @@ packages:
   '@urql/exchange-retry@1.3.1':
     resolution: {integrity: sha512-EEmtFu8JTuwsInqMakhLq+U3qN8ZMd5V3pX44q0EqD2imqTDsa8ikZqJ1schVrN8HljOdN+C08cwZ1/r5uIgLw==}
 
-  '@valibot/to-json-schema@1.1.0':
-    resolution: {integrity: sha512-vpF5NKL5MmqbVVFzp3Z6CuoaYXJB75QxmW+tJNnng9UVUx9Yx+FVCyEm1kIWr05EzkuPI0b/EbVWIs25UL9mNQ==}
+  '@valibot/to-json-schema@1.3.0':
+    resolution: {integrity: sha512-82Vv6x7sOYhv5YmTRgSppSqj1nn2pMCk5BqCMGWYp0V/fq+qirrbGncqZAtZ09/lrO40ne/7z8ejwE728aVreg==}
     peerDependencies:
       valibot: ^1.0.0
 
@@ -7720,7 +7721,7 @@ packages:
       '@hono/valibot-validator': ^0.5.1
       '@hono/zod-validator': ^0.4.1
       '@sinclair/typebox': ^0.34.9
-      '@valibot/to-json-schema': ^1.0.0-beta.3
+      '@valibot/to-json-schema': ^1.3.0
       arktype: ^2.0.0
       effect: ^3.11.3
       hono: ^4.6.13
@@ -17848,7 +17849,7 @@ snapshots:
     transitivePeerDependencies:
       - graphql
 
-  '@valibot/to-json-schema@1.1.0(valibot@1.0.0(typescript@5.8.3))':
+  '@valibot/to-json-schema@1.3.0(valibot@1.0.0(typescript@5.8.3))':
     dependencies:
       valibot: 1.0.0(typescript@5.8.3)
 
@@ -21401,13 +21402,13 @@ snapshots:
     dependencies:
       react-is: 16.13.1
 
-  hono-openapi@0.4.8(@hono/valibot-validator@0.5.2(hono@4.9.6)(valibot@1.0.0(typescript@5.8.3)))(@valibot/to-json-schema@1.1.0(valibot@1.0.0(typescript@5.8.3)))(hono@4.9.6)(openapi-types@12.1.3)(valibot@1.0.0(typescript@5.8.3))(zod@3.25.76):
+  hono-openapi@0.4.8(@hono/valibot-validator@0.5.2(hono@4.9.6)(valibot@1.0.0(typescript@5.8.3)))(@valibot/to-json-schema@1.3.0(valibot@1.0.0(typescript@5.8.3)))(hono@4.9.6)(openapi-types@12.1.3)(valibot@1.0.0(typescript@5.8.3))(zod@3.25.76):
     dependencies:
       json-schema-walker: 2.0.0
       openapi-types: 12.1.3
     optionalDependencies:
       '@hono/valibot-validator': 0.5.2(hono@4.9.6)(valibot@1.0.0(typescript@5.8.3))
-      '@valibot/to-json-schema': 1.1.0(valibot@1.0.0(typescript@5.8.3))
+      '@valibot/to-json-schema': 1.3.0(valibot@1.0.0(typescript@5.8.3))
       hono: 4.9.6
       valibot: 1.0.0(typescript@5.8.3)
       zod: 3.25.76
