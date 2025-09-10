@@ -3,6 +3,7 @@ import type { Credential } from "@exactly/common/validation";
 import { sdk } from "@farcaster/miniapp-sdk";
 import { farcasterMiniApp as miniAppConnector } from "@farcaster/miniapp-wagmi-connector";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { setContext } from "@sentry/react-native";
 import { injected } from "@wagmi/core";
 import { isAddress, UserRejectedRequestError, type Address } from "viem";
 import { createConfig, createStorage, custom } from "wagmi";
@@ -25,7 +26,10 @@ export async function connectAccount(account: Address) {
     const { accounts: connectedAccounts } = await connector.connect({ chainId: chain.id });
     return connectedAccounts;
   });
-  if (!accounts.includes(account)) throw new Error("injected account mismatch");
+  if (!accounts.includes(account)) {
+    setContext("injected", { account, accounts, connector: connector.id });
+    throw new Error("injected account mismatch");
+  }
   return account;
 }
 
