@@ -10,6 +10,7 @@ import kyc from "./kyc";
 import passkey from "./passkey";
 import pax from "./pax";
 import ramp from "./ramp";
+import webhook from "./webhook";
 import appOrigin from "../utils/appOrigin";
 
 const api = new Hono()
@@ -26,7 +27,8 @@ const api = new Hono()
   .route("/kyc", kyc)
   .route("/passkey", passkey) // eslint-disable-line @typescript-eslint/no-deprecated -- // TODO remove
   .route("/pax", pax)
-  .route("/ramp", ramp);
+  .route("/ramp", ramp)
+  .route("/webhook", webhook);
 
 export default api;
 export type ExaAPI = typeof api;
