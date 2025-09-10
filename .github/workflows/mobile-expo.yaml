@@ -37,7 +37,7 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
       - run: pnpm install --frozen-lockfile
-      - run: eas build --profile ${{ inputs.profile }} ${{ inputs.profile == 'production' && '--auto-submit' || '' }} --platform all --non-interactive --no-wait
+      - run: eas build --profile ${{ inputs.profile }} --platform all --non-interactive --no-wait
       - run: eas update --auto --channel ${{ inputs.profile }} --platform all --non-interactive
       - run: echo "release=$(node -e 'console.log(require(`./src/generated/release`))')" >> $GITHUB_OUTPUT
         id: release
