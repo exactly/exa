@@ -1291,8 +1291,7 @@ describe("webhooks", () => {
           id: "test",
           config: {
             type: "uphold",
-            secrets: { test: { key: "secret", type: "HMAC-SHA256" } },
-            webhooks: { sandbox: { url: "https://exa.test", secretId: "test" } },
+            webhooks: { sandbox: { url: "https://exa.test", secret: "secret" } },
           },
         },
       ]),
