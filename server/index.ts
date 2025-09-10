@@ -18,6 +18,7 @@ import panda from "./hooks/panda";
 import persona from "./hooks/persona";
 import androidFingerprints from "./utils/android/fingerprints";
 import appOrigin from "./utils/appOrigin";
+import auth from "./utils/auth";
 import { closeAndFlush as closeSegment } from "./utils/segment";
 
 import type { UnofficialStatusCode } from "hono/utils/http-status";
@@ -305,6 +306,8 @@ app.onError((error, c) => {
   captureException(error, { level: "error", tags: { unhandled: true }, fingerprint });
   return c.json({ code: "unexpected error", legacy: "unexpected error" }, 555 as UnofficialStatusCode);
 });
+
+app.on(["POST", "GET"], "/api/auth/*", (c) => auth.handler(c.req.raw));
 
 export default app;
 
