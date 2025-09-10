@@ -646,6 +646,13 @@ export default function Pay() {
         usdAmount={displayValues.usdAmount}
         currency={repayMarket?.assetSymbol ?? externalAsset?.symbol}
         selectedAsset={selectedAsset.address}
+        onClose={() => {
+          if (navigation.canGoBack()) {
+            navigation.goBack();
+          } else {
+            navigation.replace("(main)");
+          }
+        }}
       />
     );
   if (isSuccess)
@@ -657,7 +664,7 @@ export default function Pay() {
         currency={repayMarket?.assetSymbol ?? externalAsset?.symbol}
         selectedAsset={selectedAsset.address}
         onClose={() => {
-          navigation.replace(isLatestPlugin ? "pending-proposals/index" : "pay-mode");
+          navigation.replace(isLatestPlugin ? "pending-proposals/index" : "(main)");
         }}
       />
     );

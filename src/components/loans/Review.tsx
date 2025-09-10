@@ -354,6 +354,17 @@ export default function Review() {
     <GradientScrollView variant={error ? "error" : success ? (isLatestPlugin ? "info" : "success") : "neutral"}>
       <View flex={1}>
         <YStack gap="$s7" paddingBottom="$s9">
+          <Pressable
+            onPress={() => {
+              if (error && navigation.canGoBack()) {
+                navigation.goBack();
+                return;
+              }
+              navigation.replace("(home)", { screen: "loans" });
+            }}
+          >
+            <X size={24} color="$uiNeutralPrimary" />
+          </Pressable>
           <XStack justifyContent="center" alignItems="center">
             <Square
               size={80}

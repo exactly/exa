@@ -1,8 +1,8 @@
 import type { Token } from "@lifi/sdk";
-import { ArrowDown } from "@tamagui/lucide-icons";
+import { ArrowDown, X } from "@tamagui/lucide-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
-import { Image } from "react-native";
+import { Image, Pressable } from "react-native";
 import { ScrollView, Square, styled, useTheme, XStack, YStack } from "tamagui";
 import { formatUnits } from "viem";
 
@@ -18,6 +18,7 @@ export default function Pending({
   toUsdAmount,
   toAmount,
   toToken,
+  onClose,
 }: {
   fromUsdAmount: number;
   fromAmount: bigint;
@@ -25,6 +26,7 @@ export default function Pending({
   toUsdAmount: number;
   toAmount: bigint;
   toToken: Token;
+  onClose: () => void;
 }) {
   const theme = useTheme();
 
@@ -51,6 +53,9 @@ export default function Pending({
           >
             <View flex={1}>
               <YStack gap="$s7" paddingBottom="$s9">
+                <Pressable onPress={onClose}>
+                  <X size={24} color="$uiNeutralPrimary" />
+                </Pressable>
                 <XStack justifyContent="center" alignItems="center">
                   <Square borderRadius="$r4" backgroundColor="$backgroundStrong" size={80}>
                     <ExaSpinner backgroundColor="transparent" color="$uiNeutralPrimary" />

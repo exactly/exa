@@ -1,5 +1,5 @@
 import type { Token } from "@lifi/sdk";
-import { ArrowDown, ArrowRight } from "@tamagui/lucide-icons";
+import { ArrowDown, ArrowRight, X } from "@tamagui/lucide-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "expo-router";
 import React from "react";
@@ -24,6 +24,7 @@ export default function Success({
   toUsdAmount,
   toAmount,
   toToken,
+  onClose,
 }: {
   fromUsdAmount: number;
   fromAmount: bigint;
@@ -31,6 +32,7 @@ export default function Success({
   toUsdAmount: number;
   toAmount: bigint;
   toToken: Token;
+  onClose: () => void;
 }) {
   const theme = useTheme();
   const navigation = useNavigation<AppNavigationProperties>();
@@ -61,6 +63,9 @@ export default function Success({
           >
             <View flex={1}>
               <YStack gap="$s7" paddingBottom="$s9">
+                <Pressable onPress={onClose}>
+                  <X size={24} color="$uiNeutralPrimary" />
+                </Pressable>
                 <XStack justifyContent="center" alignItems="center">
                   <Square borderRadius="$r4" backgroundColor="$interactiveBaseInformationSoftDefault" size={80}>
                     <ExaSpinner backgroundColor="transparent" color="$uiInfoSecondary" />

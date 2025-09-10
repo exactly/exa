@@ -1,6 +1,6 @@
 import { exaPluginAddress, marketUSDCAddress } from "@exactly/common/generated/chain";
 import type { Hex } from "@exactly/common/validation";
-import { Check } from "@tamagui/lucide-icons";
+import { Check, X } from "@tamagui/lucide-icons";
 import { format, isAfter } from "date-fns";
 import React from "react";
 import { Pressable } from "react-native";
@@ -47,6 +47,9 @@ export default function Success({
       <SafeView flex={1} backgroundColor="transparent">
         <YStack gap="$s5" justifyContent="space-between">
           <YStack>
+            <Pressable onPress={onClose}>
+              <X size={24} color="$uiNeutralPrimary" />
+            </Pressable>
             <YStack gap="$s7" paddingBottom="$s9">
               <XStack justifyContent="center" alignItems="center">
                 <Square

@@ -319,6 +319,13 @@ export default function Amount() {
     <GradientScrollView variant={error ? "error" : success ? (isLatestPlugin ? "info" : "success") : "neutral"}>
       <View flex={1}>
         <YStack gap="$s7" paddingBottom="$s9">
+          <Pressable
+            onPress={() => {
+              navigation.replace("send-funds", { screen: "index" });
+            }}
+          >
+            <X size={24} color="$uiNeutralPrimary" />
+          </Pressable>
           <XStack justifyContent="center" alignItems="center">
             <Square
               size={80}

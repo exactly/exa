@@ -563,9 +563,40 @@ export default function Swaps() {
       toAmount,
       toToken: toToken.token,
     };
-    if (isSwapping) return <Pending {...properties} />;
-    if (isSwapSuccess) return <Success {...properties} />;
-    return <Failure {...properties} />;
+    if (isSwapping)
+      return (
+        <Pending
+          {...properties}
+          onClose={() => {
+            onClose(navigation);
+          }}
+        />
+      );
+    if (isSwapSuccess)
+      return (
+        <Success
+          {...properties}
+          onClose={() => {
+            onClose(navigation);
+          }}
+        />
+      );
+    return (
+      <Failure
+        {...properties}
+        onClose={() => {
+          onClose(navigation);
+        }}
+      />
+    );
+  }
+}
+
+function onClose(navigation: AppNavigationProperties) {
+  if (navigation.canGoBack()) {
+    navigation.goBack();
+  } else {
+    navigation.replace("(main)");
   }
 }
 

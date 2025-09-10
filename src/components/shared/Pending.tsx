@@ -1,7 +1,9 @@
 import { marketUSDCAddress } from "@exactly/common/generated/chain";
 import type { Hex } from "@exactly/common/validation";
+import { X } from "@tamagui/lucide-icons";
 import { format, isAfter } from "date-fns";
 import React from "react";
+import { Pressable } from "react-native";
 import { Square, XStack, YStack } from "tamagui";
 
 import GradientScrollView from "./GradientScrollView";
@@ -18,18 +20,23 @@ export default function Pending({
   currency,
   maturity,
   selectedAsset,
+  onClose,
 }: {
   usdAmount: number;
   amount: number;
   currency?: string;
   maturity: bigint;
   selectedAsset?: Hex;
+  onClose: () => void;
 }) {
   const { externalAsset } = useAsset(selectedAsset);
   return (
     <GradientScrollView variant="neutral">
       <View flex={1}>
         <YStack gap="$s7" paddingBottom="$s9">
+          <Pressable onPress={onClose}>
+            <X size={24} color="$uiNeutralPrimary" />
+          </Pressable>
           <XStack justifyContent="center" alignItems="center">
             <Square borderRadius="$r4" backgroundColor="$backgroundStrong" size={80}>
               <ExaSpinner backgroundColor="transparent" color="$uiNeutralPrimary" />

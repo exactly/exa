@@ -21,6 +21,7 @@ export default function Failure({
   toUsdAmount,
   toAmount,
   toToken,
+  onClose,
 }: {
   fromUsdAmount: number;
   fromAmount: bigint;
@@ -28,6 +29,7 @@ export default function Failure({
   toUsdAmount: number;
   toAmount: bigint;
   toToken: Token;
+  onClose: () => void;
 }) {
   const theme = useTheme();
   const navigation = useNavigation<AppNavigationProperties>();
@@ -58,6 +60,9 @@ export default function Failure({
           >
             <View flex={1}>
               <YStack gap="$s7" paddingBottom="$s9">
+                <Pressable onPress={onClose}>
+                  <X size={24} color="$uiNeutralPrimary" />
+                </Pressable>
                 <XStack justifyContent="center" alignItems="center">
                   <Square borderRadius="$r4" backgroundColor="$interactiveBaseErrorSoftDefault" size={80}>
                     <X size={48} color="$uiErrorSecondary" strokeWidth={2} />

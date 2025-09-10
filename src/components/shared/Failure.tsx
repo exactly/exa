@@ -34,6 +34,9 @@ export default function Failure({
     <GradientScrollView variant="error">
       <SafeView flex={1} backgroundColor="transparent">
         <YStack gap="$s7" paddingBottom="$s9">
+          <Pressable onPress={onClose}>
+            <X size={24} color="$uiNeutralPrimary" />
+          </Pressable>
           <XStack justifyContent="center" alignItems="center">
             <Square borderRadius="$r4" backgroundColor="$interactiveBaseErrorSoftDefault" size={80}>
               <X size={48} color="$uiErrorSecondary" strokeWidth={2} />
