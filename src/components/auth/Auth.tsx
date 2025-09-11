@@ -30,10 +30,10 @@ import qrCode from "../../assets/images/qr-code.svg";
 import alchemyConnector from "../../utils/alchemyConnector";
 import queryClient, { type EmbeddingContext } from "../../utils/queryClient";
 import useAuth from "../../utils/useAuth";
-import ActionButton from "../shared/ActionButton";
 import ConnectSheet from "../shared/ConnectSheet";
 import ErrorDialog from "../shared/ErrorDialog";
 import SafeView from "../shared/SafeView";
+import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
@@ -164,11 +164,12 @@ export default function Auth() {
           </View>
           <View alignItems="stretch" alignSelf="stretch" gap="$s5">
             <View flexDirection="row" alignSelf="stretch">
-              <ActionButton
-                flex={1}
+              <Button
+                primary
+                loading={loading}
                 disabled={loading}
-                isLoading={loading}
-                loadingContent="Logging in..."
+                flex={1}
+                alignItems="center"
                 onPress={() => {
                   if (loading) return;
                   if (embeddingContext) {
@@ -182,36 +183,37 @@ export default function Auth() {
                     navigation.navigate("(passkeys)/passkeys");
                   }
                 }}
-                iconAfter={<Key color="$interactiveOnBaseBrandDefault" fontWeight="bold" />}
               >
-                Create an account
-              </ActionButton>
+                <Button.Text>
+                  {loading ? "Please wait..." : embeddingContext ? "Sign in" : "Create an account"}
+                </Button.Text>
+                <Button.Icon>
+                  <Key />
+                </Button.Icon>
+              </Button>
             </View>
             <View flexDirection="row" justifyContent="center">
-              <Pressable
-                hitSlop={15}
-                onPress={() => {
-                  if (loading) return;
-                  if (embeddingContext) {
-                    queryClient.setQueryData(["method"], "siwe");
-                    handleAuth();
-                    return;
-                  }
-                  if (hasInjectedProvider) {
-                    setSignInModalOpen(true);
-                  } else {
-                    queryClient.setQueryData(["method"], "webauthn");
-                    handleAuth();
-                  }
-                }}
-              >
-                <Text fontSize={13} textAlign="center" color="$uiNeutralSecondary">
-                  Already have an account?&nbsp;
-                  <Text emphasized color="$interactiveBaseBrandDefault">
-                    Log in
+              {!embeddingContext && (
+                <Pressable
+                  hitSlop={15}
+                  onPress={() => {
+                    if (loading) return;
+                    if (hasInjectedProvider) {
+                      setSignInModalOpen(true);
+                    } else {
+                      queryClient.setQueryData(["method"], "webauthn");
+                      handleAuth();
+                    }
+                  }}
+                >
+                  <Text fontSize={13} textAlign="center" color="$uiNeutralSecondary">
+                    Already have an account?&nbsp;
+                    <Text emphasized color="$interactiveBaseBrandDefault">
+                      Log in
+                    </Text>
                   </Text>
-                </Text>
-              </Pressable>
+                </Pressable>
+              )}
             </View>
           </View>
         </View>
