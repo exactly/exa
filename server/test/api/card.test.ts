@@ -4,22 +4,28 @@ import "../mocks/database";
 import "../mocks/deployments";
 
 import deriveAddress from "@exactly/common/deriveAddress";
+import { exaAccountFactoryAbi } from "@exactly/common/generated/chain";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
-import { zeroHash, padHex, zeroAddress } from "viem";
+import { zeroHash, padHex, zeroAddress, parseEther, hexToBigInt } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 
 import app from "../../api/card";
 import database, { cards, credentials } from "../../database";
+import { exaPluginAbi } from "../../generated/contracts";
+import keeper from "../../utils/keeper";
 import * as kyc from "../../utils/kyc";
 import * as panda from "../../utils/panda";
+import publicClient from "../../utils/publicClient";
 
 const appClient = testClient(app);
 
 describe("authenticated", () => {
   const bob = privateKeyToAddress(padHex("0xb0b"));
   const account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(bob), y: zeroHash });
+  const ownerETH = privateKeyToAddress(padHex("0xbeef"));
+  const ethAccount = deriveAddress(inject("ExaAccountFactory"), { x: padHex(ownerETH), y: zeroHash });
 
   beforeAll(async () => {
     await database.insert(credentials).values([
@@ -30,7 +36,43 @@ describe("authenticated", () => {
         factory: zeroAddress,
         pandaId: "2cf0c886-f7c0-40f3-a8cd-3c4ab3997b66",
       },
+      {
+        id: ethAccount,
+        publicKey: new Uint8Array(),
+        account: ethAccount,
+        factory: zeroAddress,
+        pandaId: "2cf0c886-f7c0-40f3-a8cd-3c4ab3997b77",
+      },
     ]);
+
+    await publicClient.waitForTransactionReceipt({
+      hash: await keeper.writeContract({
+        address: inject("ExaAccountFactory"),
+        abi: exaAccountFactoryAbi,
+        functionName: "createAccount",
+        args: [0n, [{ x: hexToBigInt(ownerETH), y: 0n }]],
+      }),
+      confirmations: 0,
+    });
+
+    await publicClient.waitForTransactionReceipt({
+      hash: await keeper.writeContract({
+        address: inject("WETH"),
+        abi: [{ type: "function", name: "mint", inputs: [{ type: "address" }, { type: "uint256" }] }],
+        functionName: "mint",
+        args: [ethAccount, parseEther("1")],
+      }),
+      confirmations: 0,
+    });
+    await publicClient.waitForTransactionReceipt({
+      hash: await keeper.writeContract({
+        address: ethAccount,
+        abi: exaPluginAbi,
+        functionName: "poke",
+        args: [inject("MarketWETH")],
+      }),
+      confirmations: 0,
+    });
   });
 
   afterEach(async () => {
@@ -136,7 +178,7 @@ describe("authenticated", () => {
     });
   });
 
-  it("creates a panda card", async () => {
+  it("creates a panda debit card", async () => {
     vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: "createCard" });
     vi.spyOn(kyc, "getApplicationStatus").mockResolvedValueOnce({
       id: "pandaId",
@@ -147,9 +189,42 @@ describe("authenticated", () => {
     const json = await response.json();
 
     expect(response.status).toBe(200);
+
+    const created = await database.query.cards.findFirst({
+      columns: { mode: true },
+      where: eq(cards.credentialId, account),
+    });
+
+    expect(created?.mode).toBe(0);
+
     expect(json).toStrictEqual({
       status: "ACTIVE",
       lastFour: "7394",
+    });
+  });
+
+  it("creates a panda credit card", async () => {
+    vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: "createCreditCard", last4: "1224" });
+    vi.spyOn(kyc, "getApplicationStatus").mockResolvedValueOnce({
+      id: "pandaId",
+      applicationStatus: "approved",
+    });
+
+    const response = await appClient.index.$post({ header: { "test-credential-id": ethAccount } });
+    const json = await response.json();
+
+    expect(response.status).toBe(200);
+
+    const created = await database.query.cards.findFirst({
+      columns: { mode: true },
+      where: eq(cards.credentialId, ethAccount),
+    });
+
+    expect(created?.mode).toBe(1);
+
+    expect(json).toStrictEqual({
+      status: "ACTIVE",
+      lastFour: "1224",
     });
   });
 

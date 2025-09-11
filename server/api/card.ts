@@ -1,6 +1,6 @@
 import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
 import { Address } from "@exactly/common/validation";
-import { setContext, setUser } from "@sentry/node";
+import { captureException, setContext, setUser } from "@sentry/node";
 import { Mutex } from "async-mutex";
 import { eq, inArray, ne } from "drizzle-orm";
 import { Hono } from "hono";
@@ -29,7 +29,8 @@ import {
 import database, { cards, credentials } from "../database";
 import auth from "../middleware/auth";
 import { getApplicationStatus } from "../utils/kyc";
-import { createCard, getCard, getPIN, getSecrets, getUser, setPIN, updateCard } from "../utils/panda";
+import { sendPushNotification } from "../utils/onesignal";
+import { autoCredit, createCard, getCard, getPIN, getSecrets, getUser, setPIN, updateCard } from "../utils/panda";
 import { track } from "../utils/segment";
 import validatorHook from "../utils/validatorHook";
 
@@ -358,8 +359,22 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
           }
           if (cardCount > 0) return c.json({ code: "already created", legacy: "card already exists" }, 400);
           const card = await createCard(credential.pandaId);
+          let mode = 0;
+          try {
+            const creditMode = await autoCredit(account);
+            if (creditMode) mode = 1;
+          } catch (error) {
+            captureException(error);
+          }
+          await database.insert(cards).values([{ id: card.id, credentialId, lastFour: card.last4, mode }]);
           track({ event: "CardIssued", userId: account });
-          await database.insert(cards).values([{ id: card.id, credentialId, lastFour: card.last4 }]);
+          if (mode) {
+            sendPushNotification({
+              userId: account,
+              headings: { en: "Card mode" },
+              contents: { en: "Credit mode is active" },
+            }).catch((error: unknown) => captureException(error));
+          }
           return c.json(
             { lastFour: card.last4, status: "ACTIVE" } satisfies InferOutput<typeof CreatedCardResponse>,
             200,

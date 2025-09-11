@@ -13,13 +13,13 @@ import {
   withScope,
 } from "@sentry/node";
 import createDebug from "debug";
-import { inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import * as v from "valibot";
 import { bytesToBigInt, withRetry } from "viem";
 import { optimism } from "viem/chains";
 
-import database, { credentials } from "../database";
+import database, { cards, credentials } from "../database";
 import {
   auditorAbi,
   exaPluginAbi,
@@ -31,6 +31,7 @@ import { headerValidator } from "../utils/alchemy";
 import decodePublicKey from "../utils/decodePublicKey";
 import keeper from "../utils/keeper";
 import { sendPushNotification } from "../utils/onesignal";
+import { autoCredit } from "../utils/panda";
 import publicClient from "../utils/publicClient";
 import { track } from "../utils/segment";
 import validatorHook from "../utils/validatorHook";
@@ -181,6 +182,33 @@ export default new Hono().post(
                   span.setStatus({ code: SPAN_STATUS_ERROR, message: "poke_failed" });
                   throw result.reason;
                 }
+                autoCredit(account)
+                  .then(async (auto) => {
+                    span.setAttribute("exa.autoCredit", auto);
+                    if (!auto) return;
+                    const credential = await database.query.credentials.findFirst({
+                      where: eq(credentials.account, account),
+                      columns: {},
+                      with: {
+                        cards: {
+                          columns: { id: true, mode: true },
+                          where: inArray(cards.status, ["ACTIVE", "FROZEN"]),
+                        },
+                      },
+                    });
+                    if (!credential || credential.cards.length === 0) return;
+                    const card = credential.cards[0];
+                    span.setAttribute("exa.card", card?.id);
+                    if (card?.mode !== 0) return;
+                    await database.update(cards).set({ mode: 1 }).where(eq(cards.id, card.id));
+                    span.setAttribute("exa.mode", 1);
+                    sendPushNotification({
+                      userId: account,
+                      headings: { en: "Card mode changed" },
+                      contents: { en: "Credit mode activated" },
+                    }).catch((error: unknown) => captureException(error));
+                  })
+                  .catch((error: unknown) => captureException(error));
                 span.setStatus({ code: SPAN_STATUS_OK });
               },
             ),
