@@ -50,7 +50,7 @@ export default {
     },
   },
   ios: {
-    icon: "src/assets/icon-ios.png",
+    icon: "src/assets/icon.png",
     bundleIdentifier: "app.exactly",
     associatedDomains: [`webcredentials:${process.env.EXPO_PUBLIC_DOMAIN ?? "sandbox.exactly.app"}`],
     supportsTablet: false,
