@@ -1,5 +1,26 @@
 # @exactly/mobile
 
+## 1.0.24
+
+### Patch Changes
+
+- [`2058783`](https://github.com/exactly/exa/commit/2058783aae05759ba441d467ee69d154d96b5141) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix auth button loading state
+
+- [`52f344d`](https://github.com/exactly/exa/commit/52f344dca196a8abf40f57d189292d07f9047678) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ redirect to farcaster universal links
+
+- [`d2cbc9c`](https://github.com/exactly/exa/commit/d2cbc9cbcea5e7eb21030a69f235407731cf2b5b) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ set farcaster sharing meta tag
+
+- [`3bebee8`](https://github.com/exactly/exa/commit/3bebee8c22599fe19cc500f956561f072d9d538b) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 replace auth button with styled button
+
+- [`70aba2b`](https://github.com/exactly/exa/commit/70aba2bc1717cc5c6aa2754ceced2a7e4874585e) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 fix styled button color variants
+
+- [`d34bf6a`](https://github.com/exactly/exa/commit/d34bf6a2664dd6117241ce8c0aa77969e1f61451) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ trigger add mini app upon sign in
+
+- [`a2b3653`](https://github.com/exactly/exa/commit/a2b3653b37f0e10fe0fa9abe6dc7963946d25a5b) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ call authentication for siwe
+
+- Updated dependencies [[`5b08c14`](https://github.com/exactly/exa/commit/5b08c14c6fe5a665aba8d3806e79dbc36d40da38)]:
+  - @exactly/server@0.2.18
+
 ## 1.0.23
 
 ### Patch Changes

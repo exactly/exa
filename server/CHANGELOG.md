@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.18
+
+### Patch Changes
+
+- [`5b08c14`](https://github.com/exactly/exa/commit/5b08c14c6fe5a665aba8d3806e79dbc36d40da38) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🔧 server: setup farcaster base builder
+
 ## 0.2.17
 
 ### Patch Changes
