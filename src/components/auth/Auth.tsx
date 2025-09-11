@@ -54,7 +54,9 @@ export default function Auth() {
   const { title, disabled } = currentItem;
 
   const { data: hasInjectedProvider } = useQuery({ queryKey: ["has-injected-provider"] });
-  const { data: embeddingContext } = useQuery<EmbeddingContext>({ queryKey: ["embedding-context"] });
+  const { data: embeddingContext, isPending: loadingContext } = useQuery<EmbeddingContext>({
+    queryKey: ["embedding-context"],
+  });
 
   const onViewableItemsChanged = useCallback(
     ({ viewableItems }: { viewableItems: ViewToken[] }) => {
@@ -86,7 +88,7 @@ export default function Auth() {
     });
   }, [activeIndex]);
 
-  const { handleAuth, loading } = useAuth(
+  const { handleAuth, loading: loadingAuth } = useAuth(
     (credential: Credential) => {
       connect({ connector: alchemyConnector });
       queryClient.setQueryData<Credential>(["credential"], credential);
@@ -110,6 +112,8 @@ export default function Auth() {
       clearInterval(timer);
     };
   }, [activeIndex, progress, scrollToNextPage]);
+
+  const loading = loadingAuth || loadingContext;
 
   return (
     <SafeView fullScreen backgroundColor="$backgroundSoft">
