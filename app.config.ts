@@ -26,7 +26,7 @@ export default {
   newArchEnabled: false,
   android: {
     package: "app.exactly",
-    adaptiveIcon: { foregroundImage: "src/assets/icon.png", backgroundColor: "#1D1D1D" },
+    adaptiveIcon: { foregroundImage: "src/assets/icon-adaptive.png", backgroundColor: "#1D1D1D" },
     permissions: ["android.permission.CAMERA"],
     userInterfaceStyle: "automatic",
     versionCode,
