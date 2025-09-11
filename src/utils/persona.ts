@@ -76,6 +76,11 @@ export async function resumeInquiry(inquiryId: string, sessionToken: string, nav
 function getRedirectURI() {
   switch (queryClient.getQueryData<EmbeddingContext>(["embedding-context"])) {
     case "farcaster-web":
-      return `https://farcaster.xyz/~/mini-apps/launch?domain=${domain}`;
+      return `https://farcaster.xyz/miniapps/${
+        {
+          "web.exactly.app": "410vYppvUo1p", // cspell:ignore 410vYppvUo1p
+          "sandbox.exactly.app": "nsbPHUIBynR4", // cspell:ignore nsbPHUIBynR4
+        }[domain]
+      }/exa-app`;
   }
 }
