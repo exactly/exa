@@ -114,7 +114,6 @@ export async function getKYCStatus(templateId: string) {
   await auth();
   const response = await api.kyc.$get({ query: { templateId } });
   queryClient.setQueryData(["user", "country"], response.headers.get("User-Country"));
-  if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
   const result = await response.json();
   return typeof result === "string" || "legacy" in result
     ? stringOrLegacy(result as string | { legacy: string })
