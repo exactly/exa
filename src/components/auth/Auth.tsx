@@ -1,4 +1,5 @@
 import type { Credential } from "@exactly/common/validation";
+import { sdk } from "@farcaster/miniapp-sdk";
 import { TimeToFullDisplay } from "@sentry/react-native";
 import { Key } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
@@ -29,6 +30,7 @@ import qrCodeBlob from "../../assets/images/qr-code-blob.svg";
 import qrCode from "../../assets/images/qr-code.svg";
 import alchemyConnector from "../../utils/alchemyConnector";
 import queryClient, { type EmbeddingContext } from "../../utils/queryClient";
+import reportError from "../../utils/reportError";
 import useAuth from "../../utils/useAuth";
 import ConnectSheet from "../shared/ConnectSheet";
 import ErrorDialog from "../shared/ErrorDialog";
@@ -53,6 +55,7 @@ export default function Auth() {
   const currentItem = pages[activeIndex] ?? pages[0];
   const { title, disabled } = currentItem;
 
+  const { data: isMiniApp } = useQuery({ queryKey: ["is-miniapp"] });
   const { data: hasInjectedProvider } = useQuery({ queryKey: ["has-injected-provider"] });
   const { data: embeddingContext, isPending: loadingContext } = useQuery<EmbeddingContext>({
     queryKey: ["embedding-context"],
@@ -93,6 +96,7 @@ export default function Auth() {
       connect({ connector: alchemyConnector });
       queryClient.setQueryData<Credential>(["credential"], credential);
       navigation.replace("(main)");
+      if (isMiniApp) sdk.actions.addMiniApp().catch(reportError);
     },
     () => {
       setErrorDialogOpen(true);
