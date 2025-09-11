@@ -88,24 +88,31 @@ const ButtonFrame = styled(XStack, {
   } as const,
 });
 
-export const ButtonText = styled(Text, {
-  name: "ButtonText",
-  context: ButtonContext,
-  userSelect: "none",
-  numberOfLines: 1,
-  emphasized: true,
-  subHeadline: true,
-  adjustsFontSizeToFit: true,
-  flex: 1,
-  variants: {
-    primary: { true: { color: "$interactiveOnBaseBrandDefault" } },
-    secondary: { true: { color: "$interactiveOnBaseBrandSoft" } },
-    danger: { true: { color: "$interactiveOnBaseErrorDefault" } },
-    dangerSecondary: { true: { color: "$interactiveOnBaseErrorSoft" } },
-    outlined: { true: { color: "$interactiveBaseBrandDefault" } },
-    disabled: { true: { color: "$interactiveOnDisabled" } },
-  } as const,
-});
+const ButtonText = (properties: ComponentPropsWithoutRef<typeof Text>) => {
+  const { primary, secondary, disabled, danger, dangerSecondary, outlined } = useContext(ButtonContext.context);
+  const color = useMemo(() => {
+    if (disabled) return "$interactiveOnDisabled";
+    if (primary) return "$interactiveOnBaseBrandDefault";
+    if (secondary) return "$interactiveOnBaseBrandSoft";
+    if (danger) return "$interactiveOnBaseErrorDefault";
+    if (dangerSecondary) return "$interactiveOnBaseErrorSoft";
+    if (outlined) return "$interactiveBaseBrandDefault";
+  }, [primary, secondary, disabled, danger, dangerSecondary, outlined]);
+  return (
+    <Text
+      userSelect="none"
+      numberOfLines={1}
+      emphasized
+      subHeadline
+      adjustsFontSizeToFit
+      flex={1}
+      color={color}
+      {...properties}
+    >
+      {properties.children}
+    </Text>
+  );
+};
 
 const ButtonIcon = (properties: { children: React.ReactElement<ComponentPropsWithoutRef<typeof ArrowRight>> }) => {
   const element = properties.children;
