@@ -1,3 +1,4 @@
+import domain from "@exactly/common/domain";
 import { ScrollViewStyleReset } from "expo-router/html";
 import React, { type ReactNode } from "react";
 
@@ -18,6 +19,10 @@ export default function HTML({ children }: { children: ReactNode }) {
         <meta property="og:image:width" content="1200" />
         <meta property="og:image:height" content="630" />
         <meta name="twitter:card" content="summary_large_image" />
+        <meta
+          name="fc:miniapp"
+          content={`{"version":"1","imageUrl":"https://exactly.app/og-image.webp","button":{"title":"Get your card","action":{"type":"launch_miniapp","url":"https://${domain}"}}}`}
+        />
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
         <link rel="manifest" href="/manifest.json" />
