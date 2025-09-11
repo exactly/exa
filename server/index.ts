@@ -95,9 +95,17 @@ frontend.use(
     ],
     contentSecurityPolicy: {
       defaultSrc: ["'self'"],
-      fontSrc: ["'self'"],
-      imgSrc: ["'self'", "data:", "https://storage.googleapis.com", "https://avatars.githubusercontent.com"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://onesignal.com"],
+      fontSrc: ["'self'", "https://fonts.intercomcdn.com"],
+      frameSrc: ["'self'", "https://intercom-sheets.com"],
+      imgSrc: [
+        "'self'",
+        "data:",
+        "https://js.intercomcdn.com",
+        "https://storage.googleapis.com",
+        "https://static.intercomassets.com",
+        "https://avatars.githubusercontent.com",
+      ],
       scriptSrc: [
         "'self'",
         "'unsafe-inline'",
@@ -116,7 +124,7 @@ frontend.use(
         "https://api-iam.intercom.io",
         "https://*.ingest.us.sentry.io",
         "https://raw.githubusercontent.com",
-        "wss://nexus-websocket-a.intercom.io/",
+        "wss://nexus-websocket-a.intercom.io",
       ],
       frameAncestors: ["https://farcaster.xyz"],
       objectSrc: ["'none'"],
