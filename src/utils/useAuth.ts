@@ -1,6 +1,7 @@
 import type { Credential } from "@exactly/common/validation";
 import { useToastController } from "@tamagui/toast";
 import { useMutation } from "@tanstack/react-query";
+import { useCallback, useMemo } from "react";
 import { UserRejectedRequestError } from "viem";
 
 import queryClient from "./queryClient";
@@ -9,27 +10,42 @@ import { APIError, createCredential, getCredential } from "./server";
 
 export default function useAuth(onSuccess: (credential: Credential) => void, onDomainError: () => void) {
   const toast = useToastController();
-
-  const { mutate: createAccount, isPending: isCreateAccountPending } = useMutation({
+  const { mutate: register, isPending: isRegisterPending } = useMutation({
     mutationFn: createCredential,
     onSuccess,
     onError: (error: unknown) => {
-      handleAuthError(error, toast, onDomainError);
+      handleError(error, toast, onDomainError);
     },
   });
-
-  const { mutate: recoverAccount, isPending: isRecoverAccountPending } = useMutation({
+  const { mutate: authenticate, isPending: isAuthenticatePending } = useMutation({
     mutationFn: getCredential,
     onSuccess,
     onError: (error: unknown) => {
-      handleAuthError(error, toast, onDomainError);
+      handleError(error, toast, onDomainError);
     },
   });
-
-  return { createAccount, isCreateAccountPending, recoverAccount, isRecoverAccountPending };
+  const handleAuth = useCallback(
+    (registration?: boolean) => {
+      const method = queryClient.getQueryData(["method"]);
+      switch (method) {
+        case "siwe":
+          authenticate();
+          break;
+        case "webauthn":
+          if (registration) register();
+          else authenticate();
+          break;
+        default:
+          throw new Error("bad method");
+      }
+    },
+    [authenticate, register],
+  );
+  const loading = useMemo(() => isRegisterPending || isAuthenticatePending, [isRegisterPending, isAuthenticatePending]);
+  return { handleAuth, loading };
 }
 
-function handleAuthError(error: unknown, toast: ReturnType<typeof useToastController>, onDomainError: () => void) {
+function handleError(error: unknown, toast: ReturnType<typeof useToastController>, onDomainError: () => void) {
   if (
     (error instanceof Error &&
       (error.message ===

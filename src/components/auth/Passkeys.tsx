@@ -27,7 +27,7 @@ export default function Passkeys() {
   const [connectModalOpen, setConnectModalOpen] = useState(false);
   const { data: hasInjectedProvider } = useQuery({ queryKey: ["has-injected-provider"] });
 
-  const { createAccount, isCreateAccountPending } = useAuth(
+  const { handleAuth, loading } = useAuth(
     (credential: Credential) => {
       connect({ connector: alchemyConnector });
       queryClient.setQueryData<Credential>(["credential"], credential);
@@ -88,19 +88,20 @@ export default function Passkeys() {
                 flex={1}
                 marginTop="$s4"
                 marginBottom="$s5"
-                isLoading={isCreateAccountPending}
+                isLoading={loading}
                 loadingContent="Creating account..."
                 iconAfter={
                   <Key
                     size={20}
-                    color={isCreateAccountPending ? "$interactiveOnDisabled" : "$interactiveOnBaseBrandDefault"}
+                    color={loading ? "$interactiveOnDisabled" : "$interactiveOnBaseBrandDefault"}
                     fontWeight="bold"
                   />
                 }
-                disabled={isCreateAccountPending}
+                disabled={loading}
                 onPress={() => {
+                  if (loading) return;
                   queryClient.setQueryData(["method"], "webauthn");
-                  createAccount();
+                  handleAuth(true);
                 }}
               >
                 Set passkey and create account
@@ -138,7 +139,7 @@ export default function Passkeys() {
             setConnectModalOpen(false);
             if (!method) return;
             queryClient.setQueryData(["method"], method);
-            createAccount();
+            handleAuth();
           }}
           title="Create account"
           description="Choose your preferred authentication method"

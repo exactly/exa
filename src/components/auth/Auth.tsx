@@ -38,8 +38,8 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function Auth() {
+  const { connect } = useConnect();
   const [activeIndex, setActiveIndex] = useState(0);
-  const { connect, isPending: isConnecting } = useConnect();
   const navigation = useNavigation<AppNavigationProperties>();
 
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
@@ -86,7 +86,7 @@ export default function Auth() {
     });
   }, [activeIndex]);
 
-  const { recoverAccount, isRecoverAccountPending, createAccount, isCreateAccountPending } = useAuth(
+  const { handleAuth, loading } = useAuth(
     (credential: Credential) => {
       connect({ connector: alchemyConnector });
       queryClient.setQueryData<Credential>(["credential"], credential);
@@ -96,8 +96,6 @@ export default function Auth() {
       setErrorDialogOpen(true);
     },
   );
-
-  const loading = isRecoverAccountPending || isConnecting || isCreateAccountPending;
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -175,7 +173,7 @@ export default function Auth() {
                   if (loading) return;
                   if (embeddingContext) {
                     queryClient.setQueryData(["method"], "siwe");
-                    createAccount();
+                    handleAuth();
                     return;
                   }
                   if (hasInjectedProvider) {
@@ -196,14 +194,14 @@ export default function Auth() {
                   if (loading) return;
                   if (embeddingContext) {
                     queryClient.setQueryData(["method"], "siwe");
-                    recoverAccount();
+                    handleAuth();
                     return;
                   }
                   if (hasInjectedProvider) {
                     setSignInModalOpen(true);
                   } else {
                     queryClient.setQueryData(["method"], "webauthn");
-                    recoverAccount();
+                    handleAuth();
                   }
                 }}
               >
@@ -234,7 +232,7 @@ export default function Auth() {
               setSignInModalOpen(false);
               if (!method) return;
               queryClient.setQueryData(["method"], method);
-              recoverAccount();
+              handleAuth();
             }}
             title="Log in"
             description="Choose your preferred authentication method"
@@ -253,7 +251,7 @@ export default function Auth() {
                 return;
               }
               queryClient.setQueryData(["method"], method);
-              createAccount();
+              handleAuth();
             }}
             title="Create account"
             description="Choose your preferred authentication method"
