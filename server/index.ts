@@ -96,7 +96,7 @@ frontend.use(
     contentSecurityPolicy: {
       defaultSrc: ["'self'"],
       fontSrc: ["'self'"],
-      imgSrc: ["'self'", "data:", "https://avatars.githubusercontent.com"],
+      imgSrc: ["'self'", "data:", "https://storage.googleapis.com", "https://avatars.githubusercontent.com"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       scriptSrc: [
         "'self'",
