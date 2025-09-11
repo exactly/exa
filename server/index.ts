@@ -100,10 +100,13 @@ frontend.use(
       imgSrc: [
         "'self'",
         "data:",
+        "https://static.debank.com",
         "https://js.intercomcdn.com",
         "https://storage.googleapis.com",
         "https://static.intercomassets.com",
+        "https://raw.githubusercontent.com",
         "https://avatars.githubusercontent.com",
+        "https://*.etherscan.io/token/images",
       ],
       scriptSrc: [
         "'self'",
