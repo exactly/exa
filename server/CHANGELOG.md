@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.17
+
+### Patch Changes
+
+- [`546063a`](https://github.com/exactly/exa/commit/546063a456fff547c237b4be86dfb35031ad6cee) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🛂 fix etherscan frontend image source
+
 ## 0.2.16
 
 ### Patch Changes
