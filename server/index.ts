@@ -97,7 +97,7 @@ frontend.use(
       defaultSrc: ["'self'"],
       fontSrc: ["'self'"],
       imgSrc: ["'self'", "data:", "https://storage.googleapis.com", "https://avatars.githubusercontent.com"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://onesignal.com"],
       scriptSrc: [
         "'self'",
         "'unsafe-inline'",
