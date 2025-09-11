@@ -1,5 +1,13 @@
 # @exactly/server
 
+## 0.2.16
+
+### Patch Changes
+
+- [`7bf2096`](https://github.com/exactly/exa/commit/7bf2096ad4e4701e343e9f4210386ff0fc1b56bf) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🔧 update manifest icons
+
+- [`ce3a7fb`](https://github.com/exactly/exa/commit/ce3a7fbdd970b2ed84732f85f9357de569404aaa) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🛂 allow frontend token images
+
 ## 0.2.15
 
 ### Patch Changes
