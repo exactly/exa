@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.19
+
+### Patch Changes
+
+- [`ee1b312`](https://github.com/exactly/exa/commit/ee1b3129fdbe9342899509d0f93096b9f0bcac87) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🛂 allow cross-origin for frontend assets
+
 ## 0.2.18
 
 ### Patch Changes
