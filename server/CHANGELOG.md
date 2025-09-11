@@ -1,5 +1,15 @@
 # @exactly/server
 
+## 0.2.15
+
+### Patch Changes
+
+- [`832ab83`](https://github.com/exactly/exa/commit/832ab839a0f2c1ed2ca238cc3195650530c9427e) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🛂 allow frontend styles from onesignal
+
+- [`f22cd5c`](https://github.com/exactly/exa/commit/f22cd5cf3689fcb2ac6af62b6b96e8582e1f4ca1) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🛂 allow frontend images from google storage
+
+- [`563c1ec`](https://github.com/exactly/exa/commit/563c1ecc6bb128ec4a4208222431a77fe56c01fe) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🛂 allow frontend assets from intercom
+
 ## 0.2.14
 
 ### Patch Changes
