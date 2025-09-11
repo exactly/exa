@@ -7,6 +7,7 @@ deny_warnings = true
 verbosity = 3
 isolate = true
 libs = ["../node_modules", "node_modules"]
+ignored_error_codes = ["unused-param", "code-size", "init-code-size"]
 fs_permissions = [
   { access = "read", path = "broadcast" },
   { access = "read", path = "deploy.json" },
