@@ -82,6 +82,14 @@ app.get("/.well-known/farcaster.json", (c) =>
 
 const frontend = new Hono();
 frontend.use(
+  "/assets/*",
+  secureHeaders({
+    xFrameOptions: false,
+    referrerPolicy: "strict-origin-when-cross-origin",
+    crossOriginResourcePolicy: "cross-origin",
+  }),
+);
+frontend.use(
   secureHeaders({
     xFrameOptions: false,
     referrerPolicy: "strict-origin-when-cross-origin",
