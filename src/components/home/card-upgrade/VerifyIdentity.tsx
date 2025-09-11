@@ -8,7 +8,7 @@ import { Spinner, YStack } from "tamagui";
 
 import Progression from "./Progression";
 import type { AppNavigationProperties } from "../../../app/(main)/_layout";
-import { createInquiry, KYC_TEMPLATE_ID, resumeInquiry } from "../../../utils/persona";
+import { createInquiry, KYC_TEMPLATE_ID } from "../../../utils/persona";
 import queryClient from "../../../utils/queryClient";
 import reportError from "../../../utils/reportError";
 import { APIError, getKYCStatus } from "../../../utils/server";
@@ -28,10 +28,6 @@ export default function VerifyIdentity() {
         const result = await getKYCStatus(KYC_TEMPLATE_ID);
         if (result === "ok") {
           queryClient.setQueryData(["card-upgrade"], 1);
-          return;
-        }
-        if (typeof result !== "string") {
-          await resumeInquiry(result.inquiryId, result.sessionToken, navigation);
         }
       } catch (error) {
         if (!(error instanceof APIError)) {

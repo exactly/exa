@@ -7,7 +7,7 @@ import { PixelRatio, Pressable } from "react-native";
 import { Spinner, XStack, YStack } from "tamagui";
 
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
-import { createInquiry, KYC_TEMPLATE_ID, resumeInquiry } from "../../utils/persona";
+import { createInquiry, KYC_TEMPLATE_ID } from "../../utils/persona";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { APIError, getKYCStatus } from "../../utils/server";
@@ -24,11 +24,7 @@ export default function GettingStarted({ hasFunds, hasKYC }: { hasFunds: boolean
     mutationFn: async () => {
       if (!credential) throw new Error("missing credential");
       try {
-        const result = await getKYCStatus(KYC_TEMPLATE_ID);
-        if (result === "ok") return;
-        if (typeof result !== "string") {
-          resumeInquiry(result.inquiryId, result.sessionToken, navigation).catch(reportError);
-        }
+        await getKYCStatus(KYC_TEMPLATE_ID);
       } catch (error) {
         if (!(error instanceof APIError)) {
           reportError(error);

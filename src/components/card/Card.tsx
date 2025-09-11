@@ -21,7 +21,7 @@ import {
   useReadPreviewerExactly,
   useReadUpgradeableModularAccountGetInstalledPlugins,
 } from "../../generated/contracts";
-import { createInquiry, KYC_TEMPLATE_ID, resumeInquiry } from "../../utils/persona";
+import { createInquiry, KYC_TEMPLATE_ID } from "../../utils/persona";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { APIError, getActivity, getCard, createCard, getKYCStatus, setCardStatus } from "../../utils/server";
@@ -135,9 +135,7 @@ export default function Card() {
         const result = await getKYCStatus(KYC_TEMPLATE_ID);
         if (result === "ok") {
           setDisclaimerShown(true);
-          return;
         }
-        if (typeof result !== "string") await resumeInquiry(result.inquiryId, result.sessionToken, navigation);
       } catch (error) {
         if (!(error instanceof APIError)) {
           reportError(error);
