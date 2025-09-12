@@ -223,6 +223,7 @@ frontend.use(
         // #endregion
       ],
       frameAncestors: ["https://farcaster.xyz"],
+      scriptSrcAttr: ["'none'"],
       objectSrc: ["'none'"],
       baseUri: ["'none'"],
       reportTo: "sentry",
