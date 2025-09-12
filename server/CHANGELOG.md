@@ -1,5 +1,15 @@
 # @exactly/server
 
+## 0.2.20
+
+### Patch Changes
+
+- [`148f808`](https://github.com/exactly/exa/commit/148f808ea0add8580d4ef49053a181ae2c45be43) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🔧 update farcaster manifest images
+
+- [`39f4af5`](https://github.com/exactly/exa/commit/39f4af5c73c5664eb157ecad78edd391ce053faf) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🛂 setup intercom frontend content security policy
+
+- [`776bf23`](https://github.com/exactly/exa/commit/776bf23b935e48421bca48bc4936f132ecc61d6c) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🛂 forbid frontend inline script attributes
+
 ## 0.2.19
 
 ### Patch Changes
