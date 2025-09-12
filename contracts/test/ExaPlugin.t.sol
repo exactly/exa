@@ -2103,6 +2103,76 @@ contract ExaPluginTest is ForkTest {
     account.executeProposal(1);
   }
 
+  function test_executeProposals_executes_whenAccount() external {
+    vm.prank(keeper);
+    account.poke(exaEXA);
+
+    vm.startPrank(address(account));
+    account.propose(exaEXA, 1, ProposalType.WITHDRAW, abi.encode(address(account)));
+    account.propose(exaEXA, 1, ProposalType.WITHDRAW, abi.encode(address(account)));
+
+    skip(proposalManager.delay());
+    account.executeProposals(0, 2);
+    assertEq(exa.balanceOf(address(account)), 2);
+  }
+
+  function test_executeProposals_executes_whenKeeper() external {
+    vm.prank(keeper);
+    account.poke(exaEXA);
+
+    vm.startPrank(address(account));
+    account.propose(exaEXA, 1, ProposalType.WITHDRAW, abi.encode(address(account)));
+    account.propose(exaEXA, 1, ProposalType.WITHDRAW, abi.encode(address(account)));
+
+    skip(proposalManager.delay());
+
+    vm.startPrank(keeper);
+    account.executeProposals(0, 2);
+    assertEq(exa.balanceOf(address(account)), 2);
+  }
+
+  function test_executeProposals_reverts_whenNotNext() external {
+    vm.startPrank(address(account));
+    account.propose(exaEXA, 1, ProposalType.WITHDRAW, abi.encode(address(account)));
+    account.propose(exaEXA, 1, ProposalType.WITHDRAW, abi.encode(address(account)));
+
+    vm.expectRevert(abi.encodeWithSelector(NotNext.selector));
+    account.executeProposals(1, 2);
+  }
+
+  function test_executeProposals_reverts_whenNoProposal() external {
+    vm.prank(keeper);
+    account.poke(exaEXA);
+
+    vm.startPrank(address(account));
+    account.propose(exaEXA, 1, ProposalType.WITHDRAW, abi.encode(address(account)));
+    account.propose(exaEXA, 1, ProposalType.WITHDRAW, abi.encode(address(account)));
+
+    skip(proposalManager.delay());
+
+    vm.expectRevert(abi.encodeWithSelector(NoProposal.selector));
+    account.executeProposals(0, 3);
+  }
+
+  function test_executeProposals_reverts_whenNotKeeperOrAccount() external {
+    vm.startPrank(address(account));
+    account.propose(exaEXA, 1, ProposalType.WITHDRAW, abi.encode(address(account)));
+    account.propose(exaEXA, 1, ProposalType.WITHDRAW, abi.encode(address(account)));
+
+    skip(proposalManager.delay());
+
+    vm.startPrank(address(0x1));
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        UpgradeableModularAccount.RuntimeValidationFunctionReverted.selector,
+        exaPlugin,
+        FunctionId.RUNTIME_VALIDATION_KEEPER_OR_SELF,
+        abi.encodeWithSelector(Unauthorized.selector)
+      )
+    );
+    account.executeProposals(0, 2);
+  }
+
   function test_poke_reverts_withNotMarket() external {
     vm.startPrank(keeper);
     vm.expectRevert(abi.encodeWithSelector(NotMarket.selector));
