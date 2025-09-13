@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.21
+
+### Patch Changes
+
+- [`dca40d5`](https://github.com/exactly/exa/commit/dca40d543dd447d41e1499276b7fd9320fa1a87e) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🛂 allow frontend base frame ancestors
+
 ## 0.2.20
 
 ### Patch Changes
