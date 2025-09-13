@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.22
+
+### Patch Changes
+
+- [`b7b9262`](https://github.com/exactly/exa/commit/b7b92626bf779de5a1c416d4b2211cf8b0abf283) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🛂 disable frontend content security policy
+
 ## 0.2.21
 
 ### Patch Changes
