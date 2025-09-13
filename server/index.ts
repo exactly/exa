@@ -225,7 +225,15 @@ frontend.use(
         "https://static.au.intercomassets.com",
         // #endregion
       ],
-      frameAncestors: ["https://farcaster.xyz"],
+      frameAncestors: [
+        "https://farcaster.xyz",
+        "https://base.app",
+        "https://base.org",
+        "https://base.dev",
+        "https://*.base.app",
+        "https://*.base.org",
+        "https://*.base.dev",
+      ],
       scriptSrcAttr: ["'none'"],
       objectSrc: ["'none'"],
       baseUri: ["'none'"],
