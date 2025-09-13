@@ -28,7 +28,7 @@
   "dependencies": {
     "@alchemy/aa-core": "^3.19.0",
     "@exactly/lib": "^0.1.0",
-    "@hono/node-server": "^1.19.1",
+    "@hono/node-server": "^1.19.2",
     "@hono/sentry": "^1.2.2",
     "@hono/valibot-validator": "^0.5.2",
     "@onesignal/node-onesignal": "^5.0.0-alpha-02",
@@ -44,7 +44,7 @@
     "debug": "^4.4.0",
     "drizzle-orm": "^0.42.0",
     "graphql": "^16.10.0",
-    "hono": "^4.9.6",
+    "hono": "^4.9.7",
     "hono-openapi": "^0.4.8",
     "ioredis": "^5.6.1",
     "pg": "^8.14.1",
