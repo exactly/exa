@@ -5,7 +5,6 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { captureException, close } from "@sentry/node";
 import { isoBase64URL } from "@simplewebauthn/server/helpers";
 import { Hono } from "hono";
-import { secureHeaders } from "hono/secure-headers";
 import { trimTrailingSlash } from "hono/trailing-slash";
 import type { UnofficialStatusCode } from "hono/utils/http-status";
 
@@ -84,6 +83,7 @@ app.get("/.well-known/farcaster.json", (c) =>
 );
 
 const frontend = new Hono();
+/*
 frontend.use(
   "/assets/*",
   secureHeaders({
@@ -241,6 +241,7 @@ frontend.use(
     },
   }),
 );
+*/
 frontend.use(
   serveStatic({
     root: "app",
