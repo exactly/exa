@@ -12,7 +12,11 @@ import appOrigin from "../utils/appOrigin";
 
 const api = new Hono()
   .use(cors({ origin: appOrigin, credentials: true }))
-  .use(csrf({ origin: appOrigin }))
+  .use((c, next) => {
+    if (c.req.method.toUpperCase() === "OPTIONS") return next();
+    if (!c.req.header("origin") && !c.req.header("sec-fetch-site")) return next();
+    return csrf({ origin: appOrigin })(c, next);
+  })
   .route("/auth/registration", registration)
   .route("/auth/authentication", authentication)
   .route("/activity", activity)
