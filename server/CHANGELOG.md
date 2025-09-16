@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.23
+
+### Patch Changes
+
+- [`0b75aeb`](https://github.com/exactly/exa/commit/0b75aeb4d0d977674299c79723bf344d0f695328) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚑 skip csrf protection for native app
+
 ## 0.2.22
 
 ### Patch Changes
