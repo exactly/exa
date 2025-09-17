@@ -147,6 +147,21 @@ export default wrap(function RootLayout() {
     };
   }, []);
 
+  useEffect(() => {
+    if (Platform.OS === "web") {
+      const loader = document.querySelector("#app-loader");
+      const root = document.querySelector("#root");
+      if (loader && loader instanceof HTMLElement && root && root instanceof HTMLElement) {
+        loader.style.transition = "opacity 0.5s";
+        loader.style.opacity = "0";
+        setTimeout(() => {
+          loader.remove();
+          root.style.visibility = "visible";
+        }, 500);
+      }
+    }
+  }, []);
+
   return (
     <WagmiProvider config={wagmiConfig}>
       <PersistQueryClientProvider client={queryClient} persistOptions={{ persister }}>
