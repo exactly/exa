@@ -15,9 +15,9 @@ import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useIntercom from "../../utils/useIntercom";
 import AssetLogo from "../shared/AssetLogo";
-import Button from "../shared/Button";
 import CopyAddressSheet from "../shared/CopyAddressSheet";
 import SafeView from "../shared/SafeView";
+import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
@@ -63,19 +63,16 @@ export default function AddCrypto() {
               </Pressable>
             </View>
             <View flexDirection="row" alignItems="center" alignSelf="center">
-              <Text color="$uiNeutralSecondary" fontSize={15} fontWeight="bold">
-                {`Add Funds / `}
-              </Text>
-              <Text fontSize={15} fontWeight="bold">
-                Cryptocurrency
+              <Text emphasized subHeadline primary>
+                Add Funds
               </Text>
             </View>
           </XStack>
         </View>
-        <ScrollView flex={1}>
+        <ScrollView showsVerticalScrollIndicator={false} flex={1}>
           <YStack gap="$s5">
             <YStack flex={1} borderBottomWidth={1} borderBottomColor="$borderNeutralSoft" paddingBottom={20} gap="$s5">
-              <Text fontSize={15} color="$uiNeutralSecondary" fontWeight="bold">
+              <Text emphasized subHeadline secondary>
                 Your {chain.name} address
               </Text>
               <Pressable hitSlop={15} onPress={copy}>
@@ -86,51 +83,23 @@ export default function AddCrypto() {
                 )}
               </Pressable>
               <XStack alignItems="center" gap="$s4">
-                <Button
-                  main
-                  spaced
-                  onPress={copy}
-                  hitSlop={15}
-                  iconAfter={<Files size={18 * fontScale} color="$interactiveOnBaseBrandDefault" />}
-                  backgroundColor="$interactiveBaseBrandDefault"
-                  color="$interactiveOnBaseBrandDefault"
-                  contained
-                  fullwidth
-                  flex={1}
-                >
-                  <Text
-                    fontSize={15}
-                    emphasized
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                    color="$interactiveOnBaseBrandDefault"
-                  >
-                    Copy
-                  </Text>
+                <Button primary flex={1} onPress={copy}>
+                  <Button.Text>Copy</Button.Text>
+                  <Button.Icon>
+                    <Files size={18 * fontScale} />
+                  </Button.Icon>
                 </Button>
                 <Button
-                  main
-                  spaced
+                  secondary
+                  flex={1}
                   onPress={() => {
                     share().catch(reportError);
                   }}
-                  hitSlop={15}
-                  iconAfter={<ShareIcon size={18 * fontScale} color="$interactiveOnBaseBrandSoft" />}
-                  backgroundColor="$interactiveBaseBrandSoftDefault"
-                  color="$interactiveOnBaseBrandSoft"
-                  outlined
-                  fullwidth
-                  flex={1}
                 >
-                  <Text
-                    fontSize={15}
-                    emphasized
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                    color="$interactiveOnBaseBrandSoft"
-                  >
-                    Share
-                  </Text>
+                  <Button.Text>Share</Button.Text>
+                  <Button.Icon>
+                    <ShareIcon size={18 * fontScale} />
+                  </Button.Icon>
                 </Button>
               </XStack>
             </YStack>
