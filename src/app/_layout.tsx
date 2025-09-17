@@ -21,7 +21,7 @@ import { type FontSource, useFonts } from "expo-font";
 import { SplashScreen, Stack, useNavigationContainerRef } from "expo-router";
 import { channel, checkForUpdateAsync, fetchUpdateAsync, reloadAsync } from "expo-updates";
 import { use as configI18n } from "i18next";
-import React, { useEffect } from "react";
+import React, { useEffect, useLayoutEffect } from "react";
 import { initReactI18next } from "react-i18next";
 import { AppState, Platform } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -144,6 +144,26 @@ export default wrap(function RootLayout() {
     });
     return () => {
       subscription.remove();
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    if (Platform.OS !== "web") return;
+    const loader = document.querySelector("#app-loader");
+    const root = document.querySelector("#root");
+    if (!(loader instanceof HTMLElement) || !(root instanceof HTMLElement)) return;
+    const finish = () => {
+      loader.remove();
+    };
+    loader.addEventListener("transitionend", finish, { once: true });
+    loader.addEventListener("transitioncancel", finish, { once: true });
+    globalThis.requestAnimationFrame(() => {
+      root.style.visibility = "visible";
+      loader.style.opacity = "0";
+    });
+    return () => {
+      loader.removeEventListener("transitionend", finish);
+      loader.removeEventListener("transitioncancel", finish);
     };
   }, []);
 
