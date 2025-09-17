@@ -22,7 +22,7 @@ import { type FontSource, useFonts } from "expo-font";
 import { SplashScreen, Stack, useNavigationContainerRef } from "expo-router";
 import { channel, checkForUpdateAsync, fetchUpdateAsync, reloadAsync } from "expo-updates";
 import { use as configI18n } from "i18next";
-import React, { useEffect } from "react";
+import React, { useEffect, useLayoutEffect as useClientLayoutEffect } from "react";
 import { initReactI18next } from "react-i18next";
 import { AppState, Platform } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -102,6 +102,7 @@ init({
 });
 const useServerFonts = typeof window === "undefined" ? useFonts : () => undefined;
 const useServerAssets = typeof window === "undefined" ? useAssets : () => undefined;
+const useLayoutEffect = typeof window === "undefined" ? () => undefined : useClientLayoutEffect;
 const devtools = !!JSON.parse(process.env.EXPO_PUBLIC_DEVTOOLS ?? String(Platform.OS === "web" && __DEV__));
 createConfig({
   integrator: "exa_app",
@@ -152,6 +153,15 @@ export default wrap(function RootLayout() {
     return () => {
       subscription.remove();
     };
+  }, []);
+
+  useLayoutEffect(() => {
+    if (Platform.OS !== "web") return;
+    const loader = document.querySelector("#app-loader");
+    const root = document.querySelector("#root");
+    if (!(loader instanceof HTMLElement) || !(root instanceof HTMLElement)) return;
+    root.style.visibility = "visible";
+    loader.remove();
   }, []);
 
   return (
