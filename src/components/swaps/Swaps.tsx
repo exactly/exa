@@ -426,6 +426,10 @@ export default function Swaps() {
                         handleAmountChange(value, type);
                         setAcknowledged(false);
                       }}
+                      onUseMax={(value: bigint) => {
+                        handleAmountChange(value, type);
+                        setAcknowledged(false);
+                      }}
                     />
                   );
                 })}

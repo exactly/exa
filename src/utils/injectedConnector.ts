@@ -6,6 +6,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { setContext } from "@sentry/react-native";
 import { injected } from "@wagmi/core";
 import { isAddress, UserRejectedRequestError, type Address } from "viem";
+import { base, optimism } from "viem/chains";
 import { createConfig, createStorage, custom } from "wagmi";
 
 import publicClient from "./publicClient";
@@ -13,9 +14,14 @@ import queryClient from "./queryClient";
 import reportError from "./reportError";
 
 export const config = createConfig({
-  chains: [chain],
+  chains: [optimism, base], // TODO add "chain" and other supported chains
   connectors: [miniAppConnector(), injected()],
-  transports: { [chain.id]: custom(publicClient) },
+  transports: {
+    [chain.id]: custom(publicClient),
+    [optimism.id]: custom(publicClient), // TODO remove before release
+    [base.id]: custom(publicClient),
+    // TODO add other chains
+  },
   storage: createStorage({ storage: AsyncStorage }),
 });
 

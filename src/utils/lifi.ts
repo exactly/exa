@@ -1,8 +1,20 @@
 import chain, { mockSwapperAbi, swapperAddress } from "@exactly/common/generated/chain";
-import { Hex } from "@exactly/common/validation";
-import { config, getQuote, getToken, getTokenBalancesByChain, getTokens, type Token } from "@lifi/sdk";
+import { Address as AddressSchema, Hex } from "@exactly/common/validation";
+import {
+  ChainType,
+  config,
+  getChains,
+  getQuote,
+  getToken,
+  getTokenBalancesByChain,
+  getTokens,
+  type Estimate,
+  type ExtendedChain,
+  type Token,
+  type TokenAmount,
+} from "@lifi/sdk";
 import { parse } from "valibot";
-import { encodeFunctionData } from "viem";
+import { encodeFunctionData, formatUnits } from "viem";
 import type { Address } from "viem";
 import { optimism, optimismSepolia } from "viem/chains";
 
@@ -150,4 +162,163 @@ export async function getAllowTokens() {
   const { tokens } = await getTokens({ chains: [optimism.id] });
   const allowTokens = tokens[optimism.id]?.filter((token) => allowList.has(token.address)) ?? [];
   return [exa, ...allowTokens];
+}
+
+export interface BridgeQuote {
+  chainId: number;
+  to: Address;
+  data: Hex;
+  value: bigint;
+  gas?: bigint;
+  gasPrice?: bigint;
+  maxFeePerGas?: bigint;
+  maxPriorityFeePerGas?: bigint;
+  tool?: string;
+  estimate: Estimate;
+}
+
+export async function getBridgeQuote({
+  fromChainId,
+  toChainId,
+  fromTokenAddress,
+  toTokenAddress,
+  fromAmount,
+  fromAddress,
+  toAddress,
+}: {
+  fromChainId: number;
+  toChainId: number;
+  fromTokenAddress: string;
+  toTokenAddress: string;
+  fromAmount: bigint;
+  fromAddress: Address;
+  toAddress: Address;
+}): Promise<BridgeQuote> {
+  config.set({ integrator: "exa_app", userId: fromAddress });
+  const { estimate, transactionRequest, tool } = await getQuote({
+    fee: 0.0025,
+    slippage: 0.02,
+    integrator: "exa_app",
+    fromChain: fromChainId,
+    toChain: toChainId,
+    fromToken: fromTokenAddress,
+    toToken: toTokenAddress,
+    fromAmount: fromAmount.toString(),
+    fromAddress,
+    toAddress,
+  });
+  if (!transactionRequest?.to || !transactionRequest.data) throw new Error("missing bridge transaction data");
+  const chainId = Number(transactionRequest.chainId ?? fromChainId);
+  const gasLimit = transactionRequest.gasLimit;
+  return {
+    chainId,
+    to: parse(AddressSchema, transactionRequest.to),
+    data: parse(Hex, transactionRequest.data),
+    value: transactionRequest.value ? BigInt(transactionRequest.value) : 0n,
+    gas: gasLimit ? BigInt(gasLimit) : undefined,
+    gasPrice: transactionRequest.gasPrice ? BigInt(transactionRequest.gasPrice) : undefined,
+    maxFeePerGas: transactionRequest.maxFeePerGas ? BigInt(transactionRequest.maxFeePerGas) : undefined,
+    maxPriorityFeePerGas: transactionRequest.maxPriorityFeePerGas
+      ? BigInt(transactionRequest.maxPriorityFeePerGas)
+      : undefined,
+    tool,
+    estimate,
+  };
+}
+
+export interface BridgeSourcesData {
+  chains: ExtendedChain[];
+  tokensByChain: Record<number, Token[]>;
+  balancesByChain: Record<number, TokenAmount[]>;
+  usdByChain: Record<number, number>;
+  usdByToken: Record<string, number>;
+  ownerAssetsByChain: Record<number, { token: Token; balance: bigint; usdValue: number }[]>;
+  defaultChainId?: number;
+  defaultTokenAddress?: string;
+}
+
+const bridgeTokenSymbols = new Set(["ETH", "WETH", "USDC", "WBTC"]);
+
+export async function getBridgeSources(account?: string): Promise<BridgeSourcesData> {
+  if (!account) throw new Error("account is required");
+  const supportedChains = await getChains({ chainTypes: [ChainType.EVM] });
+  const sourceChains = supportedChains.filter((item) => item.id !== optimism.id);
+  const chainIds = [...new Set(sourceChains.map((item) => item.id))];
+  const { tokens } = await getTokens({ chainTypes: [ChainType.EVM] });
+
+  const usdByChain: Record<number, number> = {};
+  const usdByToken: Record<string, number> = {};
+  const tokensByChain: Record<number, Token[]> = {};
+  const ownerAssetsByChain: Record<number, { token: Token; balance: bigint; usdValue: number }[]> = {};
+
+  const opTokens = tokens[optimism.id]?.filter((token) => bridgeTokenSymbols.has(token.symbol) && token.logoURI) ?? [];
+
+  for (const id of chainIds) {
+    const chainTokens = (tokens[id] ?? []).filter((token) => bridgeTokenSymbols.has(token.symbol));
+    if (chainTokens.length > 0) tokensByChain[id] = chainTokens;
+  }
+
+  tokensByChain[optimism.id] = opTokens;
+
+  const balancesByChain = await getTokenBalancesByChain(
+    account,
+    Object.fromEntries(Object.entries(tokensByChain).map(([id, chainTokens]) => [Number(id), chainTokens])),
+  );
+
+  for (const [chainId, chainTokens] of Object.entries(tokensByChain)) {
+    const id = Number(chainId);
+    const tokenAmounts = balancesByChain[id] ?? [];
+    const assets = chainTokens.map((token) => {
+      const balance = tokenAmounts.find((t) => t.address === token.address)?.amount ?? 0n;
+      const key = `${id}:${token.address}`;
+      const usdValue = Number(formatUnits(balance, token.decimals)) * Number(token.priceUSD);
+      usdByToken[key] = usdValue;
+      return { token, balance, usdValue };
+    });
+
+    const relevantAssets =
+      id === optimism.id
+        ? assets
+        : assets
+            .filter(({ usdValue }) => usdValue > 0)
+            .sort((a, b) => {
+              if (b.usdValue !== a.usdValue) return b.usdValue - a.usdValue;
+              return a.token.symbol.localeCompare(b.token.symbol);
+            });
+
+    if (id !== optimism.id && relevantAssets.length > 0) {
+      ownerAssetsByChain[id] = relevantAssets;
+    }
+
+    const total = relevantAssets.reduce((sum, { usdValue }) => sum + usdValue, 0);
+    if (total > 0) usdByChain[id] = total;
+  }
+
+  const chains = [...sourceChains]
+    .filter((c) => (usdByChain[c.id] ?? 0) > 0)
+    .sort((a, b) => {
+      const bValue = usdByChain[b.id] ?? 0;
+      const aValue = usdByChain[a.id] ?? 0;
+      if (bValue !== aValue) return bValue - aValue;
+      return a.name.localeCompare(b.name);
+    });
+
+  const defaultChainId = chains[0]?.id;
+
+  let defaultTokenAddress: string | undefined;
+  if (defaultChainId !== undefined) {
+    const assetsForChain = ownerAssetsByChain[defaultChainId] ?? [];
+    defaultTokenAddress = assetsForChain[0]?.token.address;
+  }
+
+  return {
+    chains,
+    tokensByChain,
+    balancesByChain,
+    usdByChain,
+    usdByToken,
+    ownerAssetsByChain,
+    defaultChainId,
+    defaultTokenAddress,
+  };
 }
