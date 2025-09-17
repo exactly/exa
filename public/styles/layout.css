@@ -1,0 +1,24 @@
+html,
+body {
+  width: 100vw;
+  height: 100dvh;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: black !important;
+}
+
+#root {
+  background: black !important;
+}
+
+.sheet-portal {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: end center;
+  pointer-events: none;
+  justify-self: center;
+}
