@@ -49,7 +49,7 @@ export interface Swap {
   tokenSelectionType: "from" | "to";
   enableSimulations: boolean;
   tokenModalOpen: boolean;
-  exchange: string;
+  tool: string;
 }
 
 const defaultSwap: Swap = {
@@ -60,7 +60,7 @@ const defaultSwap: Swap = {
   tokenSelectionType: "to",
   enableSimulations: true,
   tokenModalOpen: false,
-  exchange: "",
+  tool: "",
 };
 
 const SLIPPAGE_PERCENT = 5n;
@@ -85,7 +85,7 @@ export default function Swaps() {
       tokenSelectionType,
       enableSimulations,
       tokenModalOpen,
-      exchange,
+      tool,
     } = defaultSwap,
   } = useQuery<Swap>({
     queryKey: ["swap"],
@@ -211,14 +211,20 @@ export default function Swaps() {
     ],
     queryFn: async () => {
       if (!account || !fromToken || !toToken) throw new Error("implementation error");
-      const from = parse(Address, fromToken.token.address);
-      const to = parse(Address, toToken.token.address);
+      const fromTokenAddress = parse(Address, fromToken.token.address);
+      const toTokenAddress = parse(Address, toToken.token.address);
       if (activeInput === "from") {
-        const result = await getRouteFrom(from, to, fromAmount, account, account);
-        return { ...result, toAmount: result.toAmount, fromAmount: undefined };
+        const result = await getRouteFrom({
+          fromTokenAddress,
+          toTokenAddress,
+          fromAmount,
+          fromAddress: account,
+          toAddress: account,
+        });
+        return { ...result, toAmount: result.toAmount, fromAmount: undefined, tool: result.tool };
       } else {
-        const result = await getRoute(from, to, toAmount, account, account);
-        return { ...result, fromAmount: result.fromAmount, toAmount: undefined };
+        const result = await getRoute(fromTokenAddress, toTokenAddress, toAmount, account, account);
+        return { ...result, fromAmount: result.fromAmount, toAmount: undefined, tool: result.tool };
       }
     },
     enabled:
@@ -234,9 +240,9 @@ export default function Swaps() {
   useEffect(() => {
     if (route) {
       if (activeInput === "from") {
-        updateSwap((old) => ({ ...old, toAmount: route.toAmount ?? 0n, exchange: route.exchange }));
+        updateSwap((old) => ({ ...old, toAmount: route.toAmount ?? 0n, tool: route.tool ?? "" }));
       } else {
-        updateSwap((old) => ({ ...old, fromAmount: route.fromAmount ?? 0n, exchange: route.exchange }));
+        updateSwap((old) => ({ ...old, fromAmount: route.fromAmount ?? 0n, tool: route.tool ?? "" }));
       }
     }
   }, [activeInput, route, updateSwap]);
@@ -245,8 +251,8 @@ export default function Swaps() {
     if (route) {
       updateSwap((old) => {
         return activeInput === "from"
-          ? { ...old, toAmount: route.toAmount ?? 0n, exchange: route.exchange }
-          : { ...old, fromAmount: route.fromAmount ?? 0n, exchange: route.exchange };
+          ? { ...old, toAmount: route.toAmount ?? 0n, tool: route.tool ?? "" }
+          : { ...old, fromAmount: route.fromAmount ?? 0n, tool: route.tool ?? "" };
       });
     }
   }, [activeInput, route, updateSwap]);
@@ -431,13 +437,17 @@ export default function Swaps() {
                         handleAmountChange(value, type);
                         setAcknowledged(false);
                       }}
+                      onUseMax={(value: bigint) => {
+                        handleAmountChange(value, type);
+                        setAcknowledged(false);
+                      }}
                     />
                   );
                 })}
               </YStack>
               {fromToken && toToken && route && (
                 <SwapDetails
-                  exchange={exchange}
+                  exchange={tool}
                   slippage={SLIPPAGE_PERCENT}
                   exchangeRate={getExchangeRate(fromToken.token, toToken.token, fromAmount, toAmount)}
                   fromToken={fromToken.token}

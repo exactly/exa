@@ -11,6 +11,7 @@ export default function AddFundsLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="add-crypto" />
+      <Stack.Screen name="bridge" />
     </Stack>
   );
 }
@@ -19,4 +20,5 @@ export type AddFundsNavigationProperties = NativeStackNavigationProp<AddFundsPar
 export interface AddFundsParameterList extends ParamListBase {
   index: undefined;
   "add-crypto": undefined;
+  bridge: undefined;
 }

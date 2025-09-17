@@ -2,7 +2,8 @@ import { WAD } from "@exactly/lib";
 import type { Token } from "@lifi/sdk";
 import { useForm } from "@tanstack/react-form";
 import React, { useCallback, useEffect } from "react";
-import { styled, XStack, YStack } from "tamagui";
+import { Image } from "react-native";
+import { XStack, YStack } from "tamagui";
 import { pipe, string, nonEmpty } from "valibot";
 import { formatUnits, parseUnits } from "viem";
 
@@ -15,6 +16,7 @@ import View from "../shared/View";
 
 export default function TokenInput({
   label,
+  subLabel,
   token,
   amount,
   balance,
@@ -25,8 +27,11 @@ export default function TokenInput({
   onTokenSelect,
   onFocus,
   onChange,
+  onUseMax,
+  chainLogoUri,
 }: {
   label: string;
+  subLabel?: string;
   token?: Token;
   amount: bigint;
   balance: bigint;
@@ -37,8 +42,16 @@ export default function TokenInput({
   onTokenSelect: () => void;
   onFocus?: () => void;
   onChange?: (amount: bigint) => void;
+  onUseMax?: (amount: bigint) => void;
+  chainLogoUri?: string;
 }) {
   const { Field, setFieldValue, getFieldValue } = useForm({ defaultValues: { amountInput: "" } });
+
+  const valueUSD =
+    amount && token ? Number(formatUnits((amount * parseUnits(token.priceUSD, 18)) / WAD, token.decimals)) : 0;
+  const balanceUSD =
+    token && balance ? Number(formatUnits((balance * parseUnits(token.priceUSD, 18)) / WAD, token.decimals)) : 0;
+  const canUseMax = Boolean(token && !disabled);
 
   const handleAmountChange = useCallback(
     (value: string) => {
@@ -50,8 +63,12 @@ export default function TokenInput({
     [setFieldValue, token, onChange],
   );
 
-  const valueUSD =
-    amount && token ? Number(formatUnits((amount * parseUnits(token.priceUSD, 18)) / WAD, token.decimals)) : 0;
+  const useMax = useCallback(() => {
+    if (!token) return;
+    setFieldValue("amountInput", formatUnits(balance, token.decimals));
+    onChange?.(balance);
+    onUseMax?.(balance);
+  }, [balance, onChange, onUseMax, setFieldValue, token]);
 
   useEffect(() => {
     if (!isActive && token) {
@@ -69,106 +86,129 @@ export default function TokenInput({
       borderColor={isDanger ? "$borderErrorStrong" : isActive ? "$borderBrandStrong" : "$borderNeutralSoft"}
       borderRadius="$r3"
       padding="$s4_5"
-      gap="$s4_5"
+      gap="$s3"
+      backgroundColor="$backgroundSoft"
     >
-      <Text emphasized footnote color="$uiNeutralSecondary">
-        {label}
-      </Text>
-      <XStack gap="$s3_5" alignItems="center">
-        <TokenImageContainer onPress={onTokenSelect}>
-          {token ? (
-            <>
-              <AssetLogo external source={{ uri: token.logoURI }} width={40} height={40} borderRadius="$r_0" />
-              <ChainLogoWrapper borderRadius="$r_0">
-                <OptimismImage width="100%" height="100%" />
-              </ChainLogoWrapper>
-            </>
-          ) : (
-            <Skeleton radius="round" height={40} width={40} />
-          )}
-        </TokenImageContainer>
-        <YStack flex={1} gap="$s2">
-          <XStack alignItems="center" gap="$s2" justifyContent="space-between">
-            {isLoading && !isActive ? (
-              <View flex={1}>
-                <Skeleton height={28} width="100%" />
-              </View>
+      <XStack alignItems="center" justifyContent="space-between">
+        <YStack gap="$s1">
+          <Text emphasized subHeadline color="$uiNeutralPrimary">
+            {label}
+          </Text>
+          {subLabel ? (
+            <Text footnote color="$uiNeutralSecondary">
+              {subLabel}
+            </Text>
+          ) : null}
+        </YStack>
+        <View
+          padding="$s3"
+          borderRadius="$r2"
+          backgroundColor="$interactiveBaseBrandSoftDefault"
+          onPress={canUseMax ? useMax : undefined}
+          pointerEvents={canUseMax ? "auto" : "none"}
+          opacity={canUseMax ? 1 : 0.4}
+          cursor="pointer"
+          pressStyle={{ opacity: 0.85 }} // eslint-disable-line react-native/no-inline-styles
+        >
+          <Text emphasized footnote color="$interactiveOnBaseBrandSoft">
+            MAX
+          </Text>
+        </View>
+      </XStack>
+      <YStack gap="$s3_5">
+        <XStack gap="$s3_5" alignItems="center">
+          <View onPress={onTokenSelect} cursor="pointer" hitSlop={20} position="relative" width={40} height={40}>
+            {token ? (
+              <>
+                <AssetLogo external source={{ uri: token.logoURI }} width={40} height={40} borderRadius="$r_0" />
+                <View
+                  borderRadius="$r_0"
+                  position="absolute"
+                  bottom={0}
+                  right={0}
+                  width={20}
+                  height={20}
+                  borderWidth={1}
+                  borderColor="white"
+                  overflow="hidden"
+                >
+                  {chainLogoUri ? (
+                    <Image
+                      source={{ uri: chainLogoUri }}
+                      style={{ height: "100%", resizeMode: "cover", width: "100%" }} // eslint-disable-line react-native/no-inline-styles
+                    />
+                  ) : (
+                    <OptimismImage width="100%" height="100%" />
+                  )}
+                </View>
+              </>
             ) : (
-              <Field name="amountInput" validators={{ onChange: pipe(string(), nonEmpty("empty")) }}>
-                {({ state }) => (
-                  <XStack alignItems="center" justifyContent="space-between" gap="$s2" flex={1}>
-                    <View flex={2}>
-                      <AmountInput
-                        value={state.value}
+              <Skeleton radius="round" height={40} width={40} />
+            )}
+          </View>
+          <YStack flex={1}>
+            {isLoading && !isActive ? (
+              <Skeleton height={28} width="100%" />
+            ) : (
+              <>
+                <Field name="amountInput" validators={{ onChange: pipe(string(), nonEmpty("empty")) }}>
+                  {({ state: { value } }) => (
+                    <View width="100%">
+                      <Input
+                        value={value}
                         onChangeText={handleAmountChange}
                         onFocus={onFocus}
                         disabled={disabled}
                         cursor={disabled ? undefined : "pointer"}
-                        placeholder={amount.toString()}
+                        placeholder={token ? formatUnits(amount, token.decimals) : amount.toString()}
                         color={
                           isDanger ? "$uiErrorSecondary" : isActive ? "$uiNeutralPrimary" : "$uiNeutralPlaceholder"
                         }
+                        fontFamily="BDOGrotesk-Regular"
+                        padding={0}
+                        unstyled
+                        fontSize={28}
+                        fontWeight="bold"
+                        lineHeight={34}
+                        letterSpacing={-0.2}
+                        textAlign="left"
+                        inputMode="decimal"
+                        numberOfLines={1}
+                        flex={1}
+                        width="100%"
                       />
                     </View>
+                  )}
+                </Field>
+                <XStack justifyContent="space-between" alignItems="center">
+                  {isLoading && !isActive ? (
                     <View flex={1}>
-                      <Text subHeadline color="$uiNeutralPlaceholder" textAlign="right">
-                        {`/ ${token ? Number(formatUnits(balance, token.decimals)).toFixed(4) : 0} ${token?.symbol}`}
-                      </Text>
+                      <Skeleton height={16} width={120} />
                     </View>
-                  </XStack>
-                )}
-              </Field>
+                  ) : (
+                    <Text callout color="$uiNeutralPlaceholder">
+                      {`${valueUSD > 0 ? "≈" : ""}${valueUSD.toLocaleString(undefined, {
+                        style: "currency",
+                        currency: "USD",
+                        currencyDisplay: "narrowSymbol",
+                      })}`}
+                    </Text>
+                  )}
+                  {token ? (
+                    <Text footnote color="$uiNeutralSecondary">
+                      {`Balance: ${balanceUSD.toLocaleString(undefined, {
+                        style: "currency",
+                        currency: "USD",
+                        currencyDisplay: "narrowSymbol",
+                      })}`}
+                    </Text>
+                  ) : null}
+                </XStack>
+              </>
             )}
-          </XStack>
-          <XStack paddingHorizontal="$s3">
-            {isLoading && !isActive ? (
-              <View flex={1}>
-                <Skeleton height={28} width={100} />
-              </View>
-            ) : (
-              <Text callout color="$uiNeutralPlaceholder">
-                {`${valueUSD > 0 ? "≈" : ""}${valueUSD.toLocaleString(undefined, {
-                  style: "currency",
-                  currency: "USD",
-                  currencyDisplay: "narrowSymbol",
-                })}`}
-              </Text>
-            )}
-          </XStack>
-        </YStack>
-      </XStack>
+          </YStack>
+        </XStack>
+      </YStack>
     </YStack>
   );
 }
-
-const AmountInput = styled(Input, {
-  padding: 0,
-  unstyled: true,
-  fontSize: 28,
-  letterSpacing: -0.2,
-  textAlign: "left",
-  inputMode: "decimal",
-  paddingVertical: "$s2",
-  paddingHorizontal: "$s3",
-  placeholder: "0.00",
-  numberOfLines: 1,
-});
-
-const TokenImageContainer = styled(View, {
-  cursor: "pointer",
-  hitSlop: 20,
-  position: "relative",
-  width: 40,
-  height: 40,
-});
-
-const ChainLogoWrapper = styled(View, {
-  position: "absolute",
-  bottom: 0,
-  right: 0,
-  width: 20,
-  height: 20,
-  borderWidth: 2,
-  borderColor: "white",
-  overflow: "hidden",
-});

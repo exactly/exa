@@ -167,26 +167,26 @@ export default function Pay() {
         case "crossRepay":
         case "legacyCrossRepay":
           if (!account || !repayMarket || !repayMarketAvailable) throw new Error("implementation error");
-          return getRouteFrom(
-            repayMarket.asset,
-            usdcAddress,
-            repayMarketAvailable,
-            account,
-            mode === "crossRepay" ? account : exaPluginAddress,
+          return getRouteFrom({
+            fromTokenAddress: repayMarket.asset,
+            toTokenAddress: usdcAddress,
+            fromAmount: repayMarketAvailable,
+            fromAddress: account,
+            toAddress: mode === "crossRepay" ? account : exaPluginAddress,
             denyExchanges,
-          );
+          });
         case "external":
           if (!externalAssetAvailable) throw new Error("no external asset available");
           if (!account || !selectedAsset.address) throw new Error("implementation error");
           if (!externalAsset) throw new Error("not external asset");
-          return getRouteFrom(
-            selectedAsset.address,
-            usdcAddress,
-            externalAssetAvailable,
-            account,
-            account,
+          return getRouteFrom({
+            fromTokenAddress: selectedAsset.address,
+            toTokenAddress: usdcAddress,
+            fromAmount: externalAssetAvailable,
+            fromAddress: account,
+            toAddress: account,
             denyExchanges,
-          );
+          });
         default:
           throw new Error("implementation error");
       }
@@ -261,7 +261,7 @@ export default function Pay() {
     refetchInterval: 20_000,
   });
 
-  const maxAmountIn = route ? (route.fromAmount * slippage) / WAD + 69n : undefined; // HACK try to avoid ZERO_SHARES on dust deposit
+  const maxAmountIn = route?.fromAmount ? (route.fromAmount * slippage) / WAD + 69n : undefined; // HACK try to avoid ZERO_SHARES on dust deposit
 
   const {
     propose: { data: repayPropose },
@@ -403,6 +403,7 @@ export default function Pay() {
       if (!externalAsset) throw new Error("no external asset");
       if (!selectedAsset.external) throw new Error("not external asset");
       if (!route) throw new Error("no route");
+      if (!route.fromAmount) throw new Error("no route from amount");
       if (!positionAssets) throw new Error("no position assets");
       if (!maxRepay) throw new Error("no max repay");
       setDisplayValues({
@@ -452,7 +453,8 @@ export default function Pay() {
     legacyRepay: legacyRepaySimulationError,
     legacyCrossRepay: legacyCrossRepaySimulationError ?? routeError,
     external:
-      routeError ?? (route && route.fromAmount > externalAssetAvailable ? new Error("insufficient funds") : undefined), // TODO simulate with [eth_simulateV1](https://viem.sh/docs/actions/public/simulateCalls)
+      routeError ??
+      (route?.fromAmount && route.fromAmount > externalAssetAvailable ? new Error("insufficient funds") : undefined), // TODO simulate with [eth_simulateV1](https://viem.sh/docs/actions/public/simulateCalls)
     none: null,
   }[mode];
   const isSimulating = {
@@ -467,15 +469,15 @@ export default function Pay() {
   useEffect(() => {
     if (
       !simulationError ||
-      !route?.exchange ||
+      !route?.tool ||
       !(simulationError instanceof ContractFunctionExecutionError) ||
       !(simulationError.cause instanceof ContractFunctionRevertedError) ||
       simulationError.cause.data?.errorName === "MarketFrozen"
     ) {
       return;
     }
-    setDenyExchanges((state) => ({ ...state, [route.exchange]: true }));
-  }, [route?.exchange, simulationError]);
+    setDenyExchanges((state) => ({ ...state, [route.tool]: true }));
+  }, [route?.tool, simulationError]);
 
   const isPending = mode === "external" ? isExternalRepaying : isRepaying;
   const isSuccess = mode === "external" ? isExternalRepaySuccess : isRepaySuccess;
