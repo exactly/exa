@@ -21,7 +21,7 @@ export interface AppLayoutParameterList extends ParamListBase {
   "pending-proposals": undefined;
   portfolio: undefined;
   "roll-debt": { screen?: "index"; params?: { maturity?: string | null } };
-  "add-funds": { screen?: "index" | "add-crypto" | "add-fiat" };
+  "add-funds": { screen?: "index" | "add-crypto" | "add-fiat" | "bridge"; params?: { sender?: "external" } };
   "send-funds": {
     screen?: "index" | "qr" | "asset" | "amount";
     params?: UnknownOutputParams & { receiver?: string };
