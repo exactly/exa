@@ -63,7 +63,7 @@ export default function AssetSelector({
           if (item.type === "external") {
             const { name, symbol, logoURI, address, amount, priceUSD, decimals, usdValue } = item;
             return (
-              <ToggleGroup.Item unstyled key={address} value={address} borderWidth={0}>
+              <ToggleGroup.Item unstyled key={address} value={address} borderWidth={0} cursor="pointer">
                 <View
                   flexDirection="row"
                   alignItems="center"
@@ -112,7 +112,14 @@ export default function AssetSelector({
           } else {
             const { symbol, assetName, decimals, usdValue, market } = item;
             return (
-              <ToggleGroup.Item unstyled key={market} value={market} borderWidth={0} backgroundColor="transparent">
+              <ToggleGroup.Item
+                unstyled
+                key={market}
+                value={market}
+                borderWidth={0}
+                backgroundColor="transparent"
+                cursor="pointer"
+              >
                 <View
                   flexDirection="row"
                   alignItems="center"

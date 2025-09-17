@@ -509,6 +509,7 @@ export default function Pay() {
                     gap="$s3"
                     alignItems="center"
                     justifyContent="flex-end"
+                    cursor="pointer"
                     onPress={() => {
                       setAssetSelectionOpen(true);
                     }}
