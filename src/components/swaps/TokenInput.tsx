@@ -2,6 +2,7 @@ import { WAD } from "@exactly/lib";
 import type { Token } from "@lifi/sdk";
 import { useForm } from "@tanstack/react-form";
 import React, { useCallback, useEffect } from "react";
+import { Image, StyleSheet, type ImageSourcePropType } from "react-native";
 import { styled, XStack, YStack } from "tamagui";
 import { pipe, string, nonEmpty } from "valibot";
 import { formatUnits, parseUnits } from "viem";
@@ -25,6 +26,8 @@ export default function TokenInput({
   onTokenSelect,
   onFocus,
   onChange,
+  onUseMax,
+  chainLogoUri,
 }: {
   label: string;
   token?: Token;
@@ -37,8 +40,13 @@ export default function TokenInput({
   onTokenSelect: () => void;
   onFocus?: () => void;
   onChange?: (amount: bigint) => void;
+  onUseMax?: (amount: bigint) => void;
+  chainLogoUri?: string;
 }) {
   const { Field, setFieldValue, getFieldValue } = useForm({ defaultValues: { amountInput: "" } });
+
+  const valueUSD =
+    amount && token ? Number(formatUnits((amount * parseUnits(token.priceUSD, 18)) / WAD, token.decimals)) : 0;
 
   const handleAmountChange = useCallback(
     (value: string) => {
@@ -50,8 +58,12 @@ export default function TokenInput({
     [setFieldValue, token, onChange],
   );
 
-  const valueUSD =
-    amount && token ? Number(formatUnits((amount * parseUnits(token.priceUSD, 18)) / WAD, token.decimals)) : 0;
+  const useMax = useCallback(() => {
+    if (!token) return;
+    setFieldValue("amountInput", formatUnits(balance, token.decimals));
+    onChange?.(balance);
+    onUseMax?.(balance);
+  }, [balance, onChange, onUseMax, setFieldValue, token]);
 
   useEffect(() => {
     if (!isActive && token) {
@@ -80,7 +92,11 @@ export default function TokenInput({
             <>
               <AssetLogo external source={{ uri: token.logoURI }} width={40} height={40} borderRadius="$r_0" />
               <ChainLogoWrapper borderRadius="$r_0">
-                <OptimismImage width="100%" height="100%" />
+                {chainLogoUri ? (
+                  <ChainLogo source={{ uri: chainLogoUri }} />
+                ) : (
+                  <OptimismImage width="100%" height="100%" />
+                )}
               </ChainLogoWrapper>
             </>
           ) : (
@@ -95,26 +111,40 @@ export default function TokenInput({
               </View>
             ) : (
               <Field name="amountInput" validators={{ onChange: pipe(string(), nonEmpty("empty")) }}>
-                {({ state }) => (
+                {({ state: { value } }) => (
                   <XStack alignItems="center" justifyContent="space-between" gap="$s2" flex={1}>
                     <View flex={2}>
                       <AmountInput
-                        value={state.value}
+                        value={value}
                         onChangeText={handleAmountChange}
                         onFocus={onFocus}
                         disabled={disabled}
                         cursor={disabled ? undefined : "pointer"}
-                        placeholder={amount.toString()}
+                        placeholder={token ? formatUnits(amount, token.decimals) : amount.toString()}
                         color={
                           isDanger ? "$uiErrorSecondary" : isActive ? "$uiNeutralPrimary" : "$uiNeutralPlaceholder"
                         }
                       />
                     </View>
-                    <View flex={1}>
+                    <UseMaxButton flex={1} onPress={useMax}>
                       <Text subHeadline color="$uiNeutralPlaceholder" textAlign="right">
-                        {`/ ${token ? Number(formatUnits(balance, token.decimals)).toFixed(4) : 0} ${token?.symbol}`}
+                        {`/ ${
+                          token
+                            ? Number(formatUnits(balance, token.decimals)).toLocaleString(undefined, {
+                                minimumFractionDigits: 0,
+                                maximumFractionDigits: Math.min(
+                                  8,
+                                  Math.max(
+                                    0,
+                                    token.decimals - Math.ceil(Math.log10(Math.max(1, Number(balance) / 1e18))),
+                                  ),
+                                ),
+                                useGrouping: false,
+                              })
+                            : 0
+                        } ${token?.symbol}`}
                       </Text>
-                    </View>
+                    </UseMaxButton>
                   </XStack>
                 )}
               </Field>
@@ -168,7 +198,22 @@ const ChainLogoWrapper = styled(View, {
   right: 0,
   width: 20,
   height: 20,
-  borderWidth: 2,
+  borderWidth: 1,
   borderColor: "white",
   overflow: "hidden",
+});
+
+const ChainLogo = ({ source }: { source: ImageSourcePropType }) => <Image source={source} style={styles.chainLogo} />;
+
+const styles = StyleSheet.create({
+  chainLogo: {
+    height: "100%",
+    resizeMode: "cover",
+    width: "100%",
+  },
+});
+
+const UseMaxButton = styled(View, {
+  cursor: "pointer",
+  pressStyle: { opacity: 0.75 },
 });

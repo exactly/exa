@@ -1,11 +1,14 @@
 import chain from "@exactly/common/generated/chain";
 import shortenHex from "@exactly/common/shortenHex";
-import { AlertTriangle, ArrowLeft, Files, Share as ShareIcon } from "@tamagui/lucide-icons";
+import type { Credential } from "@exactly/common/validation";
+import { AlertTriangle, ArrowLeft, ArrowLeftRight, Files, Share as ShareIcon } from "@tamagui/lucide-icons";
+import { useQuery } from "@tanstack/react-query";
 import { setStringAsync } from "expo-clipboard";
 import { useNavigation } from "expo-router";
 import React, { useCallback, useState } from "react";
 import { PixelRatio, Pressable, Share } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
+import { isAddress, zeroAddress } from "viem";
 
 import SupportedAssetsSheet from "./SupportedAssetsSheet";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
@@ -15,9 +18,9 @@ import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useIntercom from "../../utils/useIntercom";
 import AssetLogo from "../shared/AssetLogo";
-import Button from "../shared/Button";
 import CopyAddressSheet from "../shared/CopyAddressSheet";
 import SafeView from "../shared/SafeView";
+import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
@@ -26,6 +29,8 @@ const supportedAssets = Object.entries(assetLogos)
   .map(([symbol, image]) => ({ symbol, image }));
 
 export default function AddCrypto() {
+  const { data: method } = useQuery<"siwe" | "webauthn" | undefined>({ queryKey: ["method"] });
+  const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const navigation = useNavigation<AppNavigationProperties>();
   const fontScale = PixelRatio.getFontScale();
   const { presentArticle } = useIntercom();
@@ -44,6 +49,8 @@ export default function AddCrypto() {
     if (!address) return;
     await Share.share({ message: address, title: `Share ${chain.name} address` });
   }, [address]);
+
+  const ownerAccount = credential && isAddress(credential.credentialId) ? credential.credentialId : undefined;
   return (
     <SafeView fullScreen>
       <View gap="$s5" fullScreen padded>
@@ -74,6 +81,35 @@ export default function AddCrypto() {
         </View>
         <ScrollView flex={1}>
           <YStack gap="$s5">
+            {method === "siwe" && (
+              <YStack
+                flex={1}
+                borderBottomWidth={1}
+                borderBottomColor="$borderNeutralSoft"
+                paddingBottom={20}
+                gap="$s5"
+              >
+                <Text emphasized callout>
+                  Exa account owner:&nbsp;
+                  <Text emphasized callout secondary>
+                    {shortenHex(ownerAccount ?? zeroAddress, 8, 6)}
+                  </Text>
+                </Text>
+                <Button
+                  primary
+                  flex={1}
+                  alignItems="center"
+                  onPress={() => {
+                    navigation.navigate("add-funds", { screen: "bridge" });
+                  }}
+                >
+                  <Button.Text>Bridge assets with LI.FI</Button.Text>
+                  <Button.Icon>
+                    <ArrowLeftRight />
+                  </Button.Icon>
+                </Button>
+              </YStack>
+            )}
             <YStack flex={1} borderBottomWidth={1} borderBottomColor="$borderNeutralSoft" paddingBottom={20} gap="$s5">
               <Text fontSize={15} color="$uiNeutralSecondary" fontWeight="bold">
                 Your {chain.name} address
@@ -86,51 +122,23 @@ export default function AddCrypto() {
                 )}
               </Pressable>
               <XStack alignItems="center" gap="$s4">
-                <Button
-                  main
-                  spaced
-                  onPress={copy}
-                  hitSlop={15}
-                  iconAfter={<Files size={18 * fontScale} color="$interactiveOnBaseBrandDefault" />}
-                  backgroundColor="$interactiveBaseBrandDefault"
-                  color="$interactiveOnBaseBrandDefault"
-                  contained
-                  fullwidth
-                  flex={1}
-                >
-                  <Text
-                    fontSize={15}
-                    emphasized
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                    color="$interactiveOnBaseBrandDefault"
-                  >
-                    Copy
-                  </Text>
+                <Button primary flex={1} onPress={copy}>
+                  <Button.Text>Copy</Button.Text>
+                  <Button.Icon>
+                    <Files size={18 * fontScale} />
+                  </Button.Icon>
                 </Button>
                 <Button
-                  main
-                  spaced
+                  secondary
+                  flex={1}
                   onPress={() => {
                     share().catch(reportError);
                   }}
-                  hitSlop={15}
-                  iconAfter={<ShareIcon size={18 * fontScale} color="$interactiveOnBaseBrandSoft" />}
-                  backgroundColor="$interactiveBaseBrandSoftDefault"
-                  color="$interactiveOnBaseBrandSoft"
-                  outlined
-                  fullwidth
-                  flex={1}
                 >
-                  <Text
-                    fontSize={15}
-                    emphasized
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                    color="$interactiveOnBaseBrandSoft"
-                  >
-                    Share
-                  </Text>
+                  <Button.Text>Share</Button.Text>
+                  <Button.Icon>
+                    <ShareIcon size={18 * fontScale} />
+                  </Button.Icon>
                 </Button>
               </XStack>
             </YStack>

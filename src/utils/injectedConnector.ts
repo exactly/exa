@@ -5,16 +5,20 @@ import { farcasterMiniApp as miniAppConnector } from "@farcaster/miniapp-wagmi-c
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { setContext } from "@sentry/react-native";
 import { injected } from "@wagmi/core";
-import { isAddress, UserRejectedRequestError, type Address } from "viem";
+import { http, isAddress, UserRejectedRequestError, type Address, type Chain } from "viem";
+import * as chains from "viem/chains";
 import { createConfig, createStorage, custom } from "wagmi";
 
 import publicClient from "./publicClient";
 import reportError from "./reportError";
 
 export const config = createConfig({
-  chains: [chain],
+  chains: Object.values(chains) as unknown as readonly [Chain, ...Chain[]],
   connectors: [miniAppConnector(), injected()],
-  transports: { [chain.id]: custom(publicClient) },
+  transports: {
+    ...Object.fromEntries(Object.values(chains).map((c) => [c.id, http()])),
+    [chain.id]: custom(publicClient),
+  },
   storage: createStorage({ storage: AsyncStorage }),
 });
 
