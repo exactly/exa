@@ -1,14 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import { AccessControl } from "openzeppelin-contracts/contracts/access/AccessControl.sol";
 import { IERC20 } from "openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 
 import { IFlashLoaner } from "./IExaAccount.sol";
 
-contract FlashLoanAdapter is IFlashLoaner {
+contract FlashLoanAdapter is AccessControl, IFlashLoaner {
   IBalancerVaultV3 public immutable VAULT;
 
-  constructor(IBalancerVaultV3 _vault) {
+  mapping(IERC20 asset => IAavePool pool) public pools;
+
+  constructor(IBalancerVaultV3 _vault, address owner) {
+    _grantRole(DEFAULT_ADMIN_ROLE, owner);
     VAULT = _vault;
   }
 
@@ -36,6 +40,11 @@ contract FlashLoanAdapter is IFlashLoaner {
       VAULT.settle(tokens[i], amounts[i]);
     }
   }
+
+  function setPool(IERC20 asset, IAavePool pool) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    pools[asset] = pool;
+    emit PoolSet(asset, pool, msg.sender);
+  }
 }
 
 interface IBalancerVaultV3 {
@@ -53,4 +62,12 @@ interface IFlashLoanRecipientV2 {
   ) external;
 }
 
+interface IAavePool {
+  // TODO check supply on behalf of the vault
+  function supply(address asset, uint256 amount, address onBehalfOf, uint16 referralCode) external;
+  function withdraw(address asset, uint256 amount, address to) external;
+}
+
 error UnauthorizedVault();
+
+event PoolSet(IERC20 indexed asset, IAavePool indexed pool, address indexed account);
