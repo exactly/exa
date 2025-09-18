@@ -9,7 +9,7 @@ import { IFlashLoaner } from "./IExaAccount.sol";
 contract FlashLoanAdapter is AccessControl, IFlashLoaner {
   IBalancerVaultV3 public immutable VAULT;
 
-  mapping(IERC20 asset => IAavePool pool) public pools;
+  mapping(IERC20 asset => IAToken aToken) public aTokens;
 
   constructor(IBalancerVaultV3 _vault, address owner) {
     _grantRole(DEFAULT_ADMIN_ROLE, owner);
@@ -20,6 +20,15 @@ contract FlashLoanAdapter is AccessControl, IFlashLoaner {
     external
     override
   {
+    for (uint256 i; i < tokens.length; ++i) {
+      if (tokens[i].balanceOf(address(VAULT)) < amounts[i]) {
+        if (aTokens[tokens[i]].balanceOf(address(VAULT)) < amounts[i]) {
+          revert InsufficientLiquidity();
+        }
+        tokens[i] = IERC20(aTokens[tokens[i]]);
+      }
+    }
+
     VAULT.unlock(abi.encodeWithSelector(this.receiveFlashLoan.selector, abi.encode(recipient, tokens, amounts, data)));
   }
 
@@ -30,20 +39,22 @@ contract FlashLoanAdapter is AccessControl, IFlashLoaner {
       abi.decode(payload, (address, IERC20[], uint256[], bytes));
 
     for (uint256 i; i < tokens.length; ++i) {
+      // TODO if it's an aToken, sendTo address(this), withdraw and send to recipient
       VAULT.sendTo(tokens[i], recipient, amounts[i]);
     }
 
     IFlashLoanRecipientV2(recipient).receiveFlashLoan(tokens, amounts, new uint256[](tokens.length), userData);
 
     for (uint256 i; i < tokens.length; ++i) {
+      // TODO if it's an aToken, supply to the pool and transfer to the vault
       tokens[i].transfer(address(VAULT), amounts[i]);
       VAULT.settle(tokens[i], amounts[i]);
     }
   }
 
-  function setPool(IERC20 asset, IAavePool pool) external onlyRole(DEFAULT_ADMIN_ROLE) {
-    pools[asset] = pool;
-    emit PoolSet(asset, pool, msg.sender);
+  function setAToken(IERC20 asset, IAToken token) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    aTokens[asset] = token;
+    emit ATokenSet(asset, token, msg.sender);
   }
 }
 
@@ -62,12 +73,14 @@ interface IFlashLoanRecipientV2 {
   ) external;
 }
 
-interface IAavePool {
-  // TODO check supply on behalf of the vault
-  function supply(address asset, uint256 amount, address onBehalfOf, uint16 referralCode) external;
-  function withdraw(address asset, uint256 amount, address to) external;
+interface IAToken is IERC20 {
+  function burn(address from, address receiverOfUnderlying, uint256 amount, uint256 index) external;
+  function mint(address caller, address onBehalfOf, uint256 amount, uint256 index) external returns (bool);
+  // solhint-disable-next-line func-name-mixedcase
+  function UNDERLYING_ASSET_ADDRESS() external view returns (address);
 }
 
+error InsufficientLiquidity();
 error UnauthorizedVault();
 
-event PoolSet(IERC20 indexed asset, IAavePool indexed pool, address indexed account);
+event ATokenSet(IERC20 indexed asset, IAToken indexed aToken, address indexed account);

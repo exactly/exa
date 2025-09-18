@@ -6,7 +6,9 @@ import { IERC20 } from "openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 
 import { ForkTest } from "./Fork.t.sol";
 
-import { FlashLoanAdapter, IAavePool, IBalancerVaultV3, IFlashLoanRecipientV2 } from "../src/FlashloanAdapter.sol";
+import {
+  ATokenSet, FlashLoanAdapter, IAToken, IBalancerVaultV3, IFlashLoanRecipientV2
+} from "../src/FlashloanAdapter.sol";
 
 contract FlashloanAdapterTest is ForkTest {
   FlashLoanAdapter internal adapter;
@@ -14,21 +16,32 @@ contract FlashloanAdapterTest is ForkTest {
   address internal vaultV2;
 
   function setUp() external {
+    vm.createSelectFork("optimism", 141_227_400);
+
     vaultV3 = IBalancerVaultV3(0xbA1333333333a1BA1108E8412f11850A5C319bA9);
+    vaultV2 = protocol("BalancerVault");
     adapter = new FlashLoanAdapter(vaultV3, address(this));
   }
 
   // solhint-disable func-name-mixedcase
 
-  function test_setPool_sets_whenAdmin() external {
+  function test_setAToken_sets_whenAdmin() external {
     IERC20 asset = IERC20(address(0x1));
-    IAavePool pool = IAavePool(address(0x2));
+    IAToken aToken = IAToken(address(0x2));
 
-    adapter.setPool(asset, pool);
-    assertEq(address(adapter.pools(asset)), address(pool), "pool not set");
+    adapter.setAToken(asset, aToken);
+    assertEq(address(adapter.aTokens(asset)), address(aToken), "aToken not set");
   }
 
-  function test_setPool_reverts_whenNotAdmin() external {
+  function test_setAToken_emitsATokenSet() external {
+    IERC20 asset = IERC20(address(0x1));
+    IAToken aToken = IAToken(address(0x2));
+    vm.expectEmit(true, true, true, true, address(adapter));
+    emit ATokenSet(asset, aToken, address(this));
+    adapter.setAToken(asset, aToken);
+  }
+
+  function test_setAToken_reverts_whenNotAdmin() external {
     address nonAdmin = address(0x1);
     vm.startPrank(nonAdmin);
     vm.expectRevert(
@@ -36,17 +49,11 @@ contract FlashloanAdapterTest is ForkTest {
         IAccessControl.AccessControlUnauthorizedAccount.selector, nonAdmin, adapter.DEFAULT_ADMIN_ROLE()
       )
     );
-    adapter.setPool(IERC20(address(0x1)), IAavePool(address(0x2)));
-    assertEq(address(adapter.pools(IERC20(address(0x1)))), address(0), "pool set");
+    adapter.setAToken(IERC20(address(0x1)), IAToken(address(0x2)));
+    assertEq(address(adapter.aTokens(IERC20(address(0x1)))), address(0), "aToken set");
   }
 
   function test_consumeAdapter() external {
-    vm.createSelectFork("optimism", 141_227_400);
-
-    vaultV3 = IBalancerVaultV3(0xbA1333333333a1BA1108E8412f11850A5C319bA9);
-    vaultV2 = protocol("BalancerVault");
-    adapter = new FlashLoanAdapter(vaultV3, address(this));
-
     IERC20 rETH = IERC20(0x9Bcef72be871e61ED4fBbc7630889beE758eb81D);
     FlashLoanConsumer consumer = new FlashLoanConsumer(adapter, rETH);
     consumer.callFlashLoan();
