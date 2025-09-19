@@ -1,5 +1,15 @@
 # @exactly/server
 
+## 0.2.24
+
+### Patch Changes
+
+- [`7e197c2`](https://github.com/exactly/exa/commit/7e197c238a0f8d4611287c07612d6c38a2f25686) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🛂 allow frontend requests from localhost
+
+- [`f703a52`](https://github.com/exactly/exa/commit/f703a527940591efe5511897854dc694c0bb28d2) Thanks [@nfmelendez](https://github.com/nfmelendez)! - ✨ auto-enable credit mode
+
+- [`60ff520`](https://github.com/exactly/exa/commit/60ff5203f58e50ee6e31aa4f53a1993a91fce29e) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 👔 increment max installments
+
 ## 0.2.23
 
 ### Patch Changes

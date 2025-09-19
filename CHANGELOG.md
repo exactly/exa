@@ -1,5 +1,17 @@
 # @exactly/mobile
 
+## 1.0.25
+
+### Patch Changes
+
+- [`6021001`](https://github.com/exactly/exa/commit/602100103fc58631046d5b5caa05ab86311efbe8) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 add missing cursor properties on web
+
+- [`60ff520`](https://github.com/exactly/exa/commit/60ff5203f58e50ee6e31aa4f53a1993a91fce29e) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 👔 increment max installments
+
+- Updated dependencies [[`7e197c2`](https://github.com/exactly/exa/commit/7e197c238a0f8d4611287c07612d6c38a2f25686), [`f703a52`](https://github.com/exactly/exa/commit/f703a527940591efe5511897854dc694c0bb28d2), [`60ff520`](https://github.com/exactly/exa/commit/60ff5203f58e50ee6e31aa4f53a1993a91fce29e)]:
+  - @exactly/server@0.2.24
+  - @exactly/common@0.0.7
+
 ## 1.0.24
 
 ### Patch Changes

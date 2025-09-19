@@ -1,5 +1,11 @@
 # @exactly/common
 
+## 0.0.7
+
+### Patch Changes
+
+- [`60ff520`](https://github.com/exactly/exa/commit/60ff5203f58e50ee6e31aa4f53a1993a91fce29e) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 👔 increment max installments
+
 ## 0.0.6
 
 ### Patch Changes
