@@ -1,5 +1,10 @@
 import domain from "@exactly/common/domain";
-import chain, { exaAccountFactoryAddress, exaPluginAddress } from "@exactly/common/generated/chain";
+import chain, {
+  exaAccountFactoryAddress,
+  exaPluginAddress,
+  marketUSDCAddress,
+  previewerAddress,
+} from "@exactly/common/generated/chain";
 import { Address, Hash } from "@exactly/common/validation";
 import { proposalManager } from "@exactly/plugin/deploy.json";
 import { vValidator } from "@hono/valibot-validator";
@@ -28,7 +33,7 @@ import { optimism } from "viem/chains";
 
 import database, { credentials } from "../database";
 import verifySignature from "./verifySignature";
-import { issuerCheckerAddress, upgradeableModularAccountAbi } from "../generated/contracts";
+import { issuerCheckerAddress, previewerAbi, upgradeableModularAccountAbi } from "../generated/contracts";
 import publicClient from "../utils/publicClient";
 
 const plugin = exaPluginAddress.toLowerCase();
@@ -240,6 +245,23 @@ export async function isPanda(account: Address) {
     }
     throw error;
   }
+}
+
+export async function autoCredit(account: Address) {
+  const markets = await publicClient.readContract({
+    address: previewerAddress,
+    functionName: "exactly",
+    abi: previewerAbi,
+    args: [account],
+  });
+  let hasCollateral = false;
+  for (const { floatingDepositAssets, market } of markets) {
+    if (floatingDepositAssets > 0n) {
+      if (market === marketUSDCAddress) return false;
+      hasCollateral = true;
+    }
+  }
+  return hasCollateral;
 }
 
 export function headerValidator() {
