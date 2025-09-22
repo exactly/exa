@@ -31,12 +31,7 @@ import {
   maxUint256,
 } from "viem";
 
-import {
-  connectAccount,
-  getAccount as getInjectedAccount,
-  config as injectedConfig,
-  getConnector,
-} from "./injectedConnector";
+import { connectAccount, getAccount, config as injectedConfig, getConnector } from "./injectedConnector";
 import { login } from "./onesignal";
 import publicClient from "./publicClient";
 import queryClient from "./queryClient";
@@ -45,7 +40,8 @@ export default async function createAccountClient({ credentialId, factory, x, y 
   const transport = custom(publicClient);
   const entryPoint = getEntryPoint(chain);
   const method = queryClient.getQueryData<"siwe" | "webauthn" | undefined>(["method"]);
-  const injectedAccount = method === "siwe" ? await getInjectedAccount() : undefined;
+  const injectedAccount =
+    method === "siwe" ? await getAccount(queryClient.getQueryData<Credential>(["credential"])) : undefined;
   const account = await toSmartContractAccount({
     chain,
     transport,

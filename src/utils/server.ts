@@ -8,12 +8,7 @@ import { Platform } from "react-native";
 import { get as assert, create } from "react-native-passkeys";
 import { check, number, parse, pipe, safeParse, ValiError } from "valibot";
 
-import {
-  connectAccount,
-  getAccount as getInjectedAccount,
-  config as injectedConfig,
-  getConnector,
-} from "./injectedConnector";
+import { connectAccount, getAccount, config as injectedConfig, getConnector } from "./injectedConnector";
 import { encryptPIN, session } from "./panda";
 import queryClient, { APIError } from "./queryClient";
 
@@ -24,10 +19,8 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
   gcTime: AUTH_EXPIRY,
   queryFn: async () => {
     const method = queryClient.getQueryData<"siwe" | "webauthn" | undefined>(["method"]);
-    const credentialId =
-      method === "siwe"
-        ? await getInjectedAccount()
-        : queryClient.getQueryData<Credential>(["credential"])?.credentialId;
+    const credential = queryClient.getQueryData<Credential>(["credential"]);
+    const credentialId = method === "siwe" ? await getAccount(credential) : credential?.credentialId;
     if (method === "siwe" && !credentialId) return queryClient.getQueryData<number>(["auth"]) ?? 0;
     const get = await api.auth.authentication.$get({ query: { credentialId } });
     const options = await get.json();
@@ -136,7 +129,8 @@ export async function getCredential() {
 
 export async function createCredential() {
   const method = queryClient.getQueryData<"siwe" | "webauthn" | undefined>(["method"]);
-  const credentialId = method === "siwe" ? await getInjectedAccount() : undefined;
+  const credentialId =
+    method === "siwe" ? await getAccount(queryClient.getQueryData<Credential>(["credential"])) : undefined;
   if (method === "siwe" && !credentialId) throw new Error("invalid operation");
   const get = await api.auth.registration.$get({ query: { credentialId } });
   const options = await get.json();

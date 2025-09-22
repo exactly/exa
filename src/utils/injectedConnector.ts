@@ -9,7 +9,6 @@ import { isAddress, UserRejectedRequestError, type Address } from "viem";
 import { createConfig, createStorage, custom } from "wagmi";
 
 import publicClient from "./publicClient";
-import queryClient from "./queryClient";
 import reportError from "./reportError";
 
 export const config = createConfig({
@@ -33,9 +32,8 @@ export async function connectAccount(account: Address) {
   return account;
 }
 
-export async function getAccount() {
+export async function getAccount(credential?: Credential) {
   try {
-    const credential = queryClient.getQueryData<Credential>(["credential"]);
     if (credential) return isAddress(credential.credentialId) ? credential.credentialId : undefined;
     const connector = await getConnector();
     if (await connector.isAuthorized()) {
