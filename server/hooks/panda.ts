@@ -1031,6 +1031,8 @@ const TransactionPayload = v.object(
 
 async function publish(payload: v.InferOutput<typeof Payload>) {
   if (payload.resource === "transaction" && payload.action === "requested") return;
+  if (payload.resource === "dispute") return;
+  if (payload.resource === "card" && payload.action === "notification") return;
 
   async function sendWebhook(webhookPayload: v.InferOutput<typeof Webhook>, url: string, secret: string) {
     try {
