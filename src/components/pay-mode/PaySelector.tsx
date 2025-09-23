@@ -13,12 +13,14 @@ import { useAccount } from "wagmi";
 
 import ManualRepaymentSheet from "./ManualRepaymentSheet";
 import { useReadPreviewerExactly, useReadPreviewerPreviewBorrowAtMaturity } from "../../generated/contracts";
+import assetLogos from "../../utils/assetLogos";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { getCard, setCardMode } from "../../utils/server";
 import useAsset from "../../utils/useAsset";
 import useInstallments from "../../utils/useInstallments";
 import useIntercom from "../../utils/useIntercom";
+import AssetLogo from "../shared/AssetLogo";
 import Skeleton from "../shared/Skeleton";
 import TamaguiInput from "../shared/TamaguiInput";
 import Text from "../shared/Text";
@@ -125,20 +127,17 @@ export default function PaySelector() {
             </Pressable>
           </XStack>
           <Text subHeadline secondary>
-            Choose <Text emphasized>Pay Now</Text> to instantly pay your purchases, or select a plan to split them into
-            up to {MAX_INSTALLMENTS} fixed-rate installments in USDC, powered by Exactly Protocol.*
+            Choose <Text emphasized>Pay Now</Text> to pay from your USDC balance, or Pay Later to split your purchase
+            into up to {MAX_INSTALLMENTS} fixed-rate USDC installments, powered by Exactly Protocol.*
           </Text>
           <XStack alignItems="center" gap="$s4" flex={1} width="100%">
             <Text primary emphasized subHeadline>
-              Simulate purchase
+              Simulate a purchase of
             </Text>
             <TamaguiInput borderRadius="$r3" flex={1}>
               <TamaguiInput.Icon>
                 <Text subHeadline color="$uiNeutralPlaceholder">
-                  {(0)
-                    .toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 })
-                    .replaceAll(/\d/g, "")
-                    .trim()}
+                  USDC
                 </Text>
               </TamaguiInput.Icon>
               <TamaguiInput.Input
@@ -161,16 +160,16 @@ export default function PaySelector() {
       <View padded>
         <XStack justifyContent="space-between" paddingHorizontal="$s3" paddingBottom="$s4">
           <Text caption color="$uiNeutralPlaceholder">
-            INSTANT PAY
+            INSTANT PAY (USDC)
           </Text>
           <XStack gap="$s1">
             <Text caption color="$uiNeutralPlaceholder">
-              Available limit:
+              Available limit: USDC
             </Text>
             <Text sensitive caption color="$uiNeutralPlaceholder">
               {(markets ? Number(withdrawLimit(markets, marketUSDCAddress)) / 1e6 : 0).toLocaleString(undefined, {
-                style: "currency",
-                currency: "USD",
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
               })}
             </Text>
           </XStack>
@@ -190,12 +189,12 @@ export default function PaySelector() {
           </Text>
           <XStack gap="$s1" flex={1} justifyContent="flex-end">
             <Text caption color="$uiNeutralPlaceholder" numberOfLines={1}>
-              Credit limit:
+              Credit limit: USDC
             </Text>
             <Text sensitive caption color="$uiNeutralPlaceholder" numberOfLines={1}>
               {(markets ? Number(borrowLimit(markets, marketUSDCAddress)) / 1e6 : 0).toLocaleString(undefined, {
-                style: "currency",
-                currency: "USD",
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
               })}
             </Text>
           </XStack>
@@ -286,10 +285,12 @@ function InstallmentButton({
           {selected && <Check size={12} color="$interactiveOnBaseBrandDefault" />}
         </XStack>
         <YStack gap="$s1" flex={1}>
-          <XStack gap="$s1">
+          <XStack gap="$s2" alignItems="center">
             <Text headline color={installment > 0 ? "$uiNeutralSecondary" : "$uiNeutralPrimary"}>
               {installment > 0 ? `${installment}x` : "Pay Now"}
             </Text>
+            {installment > 0 && <AssetLogo uri={assetLogos.USDC} width={17} height={17} />}
+
             {installment > 0 &&
               (isInstallmentsFetching || (installment === 1 && isBorrowPreviewLoading) ? (
                 <Skeleton height={20} width="100%" />
@@ -304,7 +305,7 @@ function InstallmentButton({
                         : 0n,
                       6,
                     ),
-                  ).toLocaleString(undefined, { style: "currency", currency: "USD" })}
+                  ).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
                 </Text>
               ))}
           </XStack>
@@ -331,7 +332,10 @@ function InstallmentButton({
               </Text>
             ))}
         </YStack>
-        <XStack>
+        <XStack alignItems="center" gap="$s2">
+          <Text caption color="$uiNeutralPlaceholder">
+            USDC
+          </Text>
           <Text
             color={assets === 0n ? "$uiNeutralSecondary" : "$uiNeutralPrimary"}
             title3
@@ -355,7 +359,7 @@ function InstallmentButton({
                       6,
                     ),
                   )
-              ).toLocaleString(undefined, { style: "currency", currency: "USD" })
+              ).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
             )}
           </Text>
         </XStack>
