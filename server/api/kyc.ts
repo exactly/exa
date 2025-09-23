@@ -5,16 +5,20 @@ import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { describeRoute } from "hono-openapi";
 import { resolver, validator as vValidator } from "hono-openapi/valibot";
-import { object, optional, parse, string, pipe, metadata, union, array } from "valibot";
+import { object, optional, parse, string, pipe, metadata, union, array, literal } from "valibot";
+import { sha256 } from "viem";
+import { parseSiweMessage } from "viem/siwe";
 
 import database, { credentials } from "../database/index";
 import auth from "../middleware/auth";
+import betterAuth from "../utils/auth";
 import {
   SubmitApplicationRequest as Application,
   UpdateApplicationRequest as ApplicationUpdate,
   getApplicationStatus,
   submitApplication,
   updateApplication,
+  KycError,
 } from "../utils/kyc";
 import {
   createInquiry,
@@ -116,7 +120,98 @@ export default new Hono()
     auth(),
     describeRoute({
       summary: "Submit KYC application",
-      description: "Submit information for KYC application",
+      description: `
+Submit information for KYC application.
+
+**Encrypted kyc payload**
+
+When the header has encrypted=true, the payload should be encrypted.
+
+The steps to encrypt are:
+
+1. Generate AES Key: Create a random 256-bit AES key
+2. Encrypt Payload: Use AES-256-GCM to encrypt your KYC JSON data
+3. Encrypt AES Key: Use Rain-provided RSA public key with OAEP padding
+4. Encode Components: Base64-encode all encrypted components
+5. Set Header: Include encrypted: "true" header in your request
+6. Submit Request
+
+KYC Encryption Public Key for sandbox is:
+
+\`\`\`
+-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyZixoAuo015iMt+JND0y
+usAvU2iJhtKRM+7uAxd8iXq7Z/3kXlGmoOJAiSNfpLnBAG0SCWslNCBzxf9+2p5t
+HGbQUkZGkfrYvpAzmXKsoCrhWkk1HKk9f7hMHsyRlOmXbFmIgQHggEzEArjhkoXD
+pl2iMP1ykCY0YAS+ni747DqcDOuFqLrNA138AxLNZdFsySHbxn8fzcfd3X0J/m/T
+2dZuy6ChfDZhGZxSJMjJcintFyXKv7RkwrYdtXuqD3IQYakY3u6R1vfcKVZl0yGY
+S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
+2wIDAQAB
+-----END PUBLIC KEY-----
+\`\`\`
+
+KYC Encryption Public Key for production needs to be provided.
+
+A working and tested [example is available in here](../../../organization-authentication/#how-to-create-the-encrypted-kyc-payload-with-siwe-statement)
+
+**Payload structure before encryption**
+
+1. Personal information (name, date of birth, address)
+2. Identity verification documents
+3. Compliance information (occupation, income, etc.)
+4. Terms of service acceptance
+
+Here's the markdown table with object notation for nested fields:
+
+| fieldName | type | example | notes |
+|-----------|------|---------|-------|
+| email | string | user@domain.com | |
+| lastName | string | Doe | |
+| firstName | string | John | |
+| nationalId | string | 123456789 | |
+| birthDate | string | 1970-01-01 | |
+| countryOfIssue | string | US | |
+| phoneCountryCode | string | 1 | |
+| phoneNumber | string | 5551234567 | |
+| address.line1 | string | 123 Main Street | |
+| address.line2 | string | Apt 4B | |
+| address.city | string | New York | |
+| address.region | string | NY | |
+| address.postalCode | string | 10001 | |
+| address.countryCode | string | US | |
+| ipAddress | string | 192.168.1.100 | |
+| occupation | string | 11-1011 | Ask for the mandatory occupation codes |
+| annualSalary | string | 75000 | |
+| accountPurpose | string | Personal Banking | |
+| expectedMonthlyVolume | string | 5000 | |
+| isTermsOfServiceAccepted | boolean | true | |
+
+**Authentication and organization verification**
+
+The exa account needs to be authenticated but also a member of the organization that submit the KYC application needs to probe that
+belong to the organization and needs to have *kyc* permission, every owner and admin of an organization has this permission.
+
+To probe the member of the organization needs to generate a SIWE message with the following statement and viem library is recommended:
+
+"I apply for KYC approval on behalf of [lowercase exa account address]"
+
+The siwe message will be:
+
+| fieldName | type | example | notes |
+|-----------|------|---------|-------|
+| verify.message | string | SIWE message that includes the statement | |
+| verify.signature | string | signature of the message | |
+| verify.walletAddress | string | address of the member of the organization that signed the message | |
+| verify.chainId | number | 11155420 | |
+
+A working and tested [example is available in here](../../../organization-authentication/#how-to-create-the-encrypted-kyc-payload-with-siwe-statement)
+
+Note that the member of the organization must be created, the organization must exist and the member must be added as admin by another admin or owner.
+
+Working example about how to login is [here](../../../organization-authentication/#siwe-authentication)
+
+The admin should add a member using [addMember method](https://www.better-auth.com/docs/plugins/organization#add-member).
+`,
       tags: ["KYC"],
       security: [{ cookieAuth: [] }],
       responses: {
@@ -124,7 +219,7 @@ export default new Hono()
           description: "KYC application submitted successfully",
           content: {
             "application/json": {
-              schema: resolver(buildBaseResponse("ok"), { errorMode: "ignore" }),
+              schema: resolver(object({ id: string(), status: string() }), { errorMode: "ignore" }),
             },
           },
         },
@@ -134,12 +229,48 @@ export default new Hono()
             "application/json": {
               schema: resolver(
                 union([
-                  buildBaseResponse(BadRequestCodes.ALREADY_STARTED),
+                  object({ code: literal("invalid encryption"), message: string() }),
                   object({
                     ...buildBaseResponse(BadRequestCodes.BAD_REQUEST).entries,
                     message: optional(array(string())),
                   }),
                 ]),
+                {
+                  errorMode: "ignore",
+                },
+              ),
+            },
+          },
+        },
+        401: {
+          description: "Bad request",
+          content: {
+            "application/json": {
+              schema: resolver(
+                union([
+                  object({ code: literal(BadRequestCodes.ALREADY_STARTED) }),
+                  object({
+                    code: literal("invalid payload"),
+                    message: string(),
+                  }),
+                  object({
+                    code: string(),
+                  }),
+                ]),
+                { errorMode: "ignore" },
+              ),
+            },
+          },
+        },
+        403: {
+          description: "Forbidden",
+          content: {
+            "application/json": {
+              schema: resolver(
+                object({
+                  code: literal("no permission"),
+                  message: optional(string()),
+                }),
                 { errorMode: "ignore" },
               ),
             },
@@ -149,27 +280,80 @@ export default new Hono()
       validateResponse: true,
     }),
     vValidator("json", Application, validatorHook({ debug })),
+    vValidator("header", optional(object({ encrypted: optional(string()) })), validatorHook({ debug })),
     async (c) => {
-      const { credentialId } = c.req.valid("cookie");
       const payload = c.req.valid("json");
+      const verifyResponse = await betterAuth.api.verifySiweMessage({
+        body: payload.verify,
+        request: c.req.raw,
+        asResponse: true,
+      });
+      if (!verifyResponse.ok) {
+        const errorBody = parse(object({ code: string(), message: string() }), await verifyResponse.json());
+        return c.json({ code: "no permission", message: errorBody.message }, 403);
+      }
+      const headers = new Headers();
+      headers.set("cookie", verifyResponse.headers.get("set-cookie") ?? "");
+      const organizations = await betterAuth.api.listOrganizations({ headers });
+      const source = organizations[0]?.id;
+      if (!source) return c.json({ code: "no organization" }, 403);
+
+      const { success: canCreate } = await betterAuth.api.hasPermission({
+        headers,
+        body: {
+          organizationId: source,
+          permissions: {
+            kyc: ["create"],
+          },
+        },
+      });
+      if (!canCreate) return c.json({ code: "no permission" }, 403);
+
+      const { credentialId } = c.req.valid("cookie");
       const credential = await database.query.credentials.findFirst({
         columns: { id: true, account: true, pandaId: true },
         where: eq(credentials.id, credentialId),
       });
-      if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
+      if (!credential) return c.json({ code: "no credential" }, 500);
       setUser({ id: parse(Address, credential.account) });
       setContext("exa", { credential });
 
-      if (credential.pandaId) {
-        return c.json({ code: BadRequestCodes.ALREADY_STARTED, legacy: BadRequestCodes.ALREADY_STARTED }, 400);
+      const siweMessage = parseSiweMessage(payload.verify.message);
+      const { verify, ...body } = payload;
+      const hash =
+        "ciphertext" in body
+          ? sha256(Buffer.from(body.ciphertext, "base64"))
+          : sha256(Buffer.from(JSON.stringify(canonicalize(body)), "utf8"));
+      if (
+        siweMessage.statement !==
+        `I apply for KYC approval on behalf of address ${parse(Address, credential.account)} with payload hash ${hash}`
+      ) {
+        return c.json({ code: "no permission", message: "invalid statement" }, 403);
       }
 
-      const application = await submitApplication(payload);
-      await database
-        .update(credentials)
-        .set({ pandaId: application.id, source: "oo7rxPhUbL4e8mtWGWInMGEXOe3eHX5H" }) // TODO get source from signer cspell:ignore oo7rxPhUbL4e8mtWGWInMGEXOe3eHX5H
-        .where(eq(credentials.id, credentialId));
-      return c.json({ code: "ok", legacy: "ok" }, 200);
+      if (credential.pandaId) {
+        return c.json({ code: BadRequestCodes.ALREADY_STARTED }, 401);
+      }
+      try {
+        const application = await submitApplication(payload, c.req.header("encrypted") === "true");
+        await database
+          .update(credentials)
+          .set({ pandaId: application.id, source })
+          .where(eq(credentials.id, credentialId));
+        return c.json({ id: application.id, status: application.applicationStatus }, 200);
+      } catch (error) {
+        if (error instanceof KycError) {
+          switch (error.statusCode) {
+            case 400:
+              return c.json({ code: "invalid encryption", message: error.message }, 400);
+            case 401:
+              return c.json({ code: "invalid payload", message: error.message }, 401);
+            default:
+              return c.json({ code: error.message }, 401);
+          }
+        }
+        throw error;
+      }
     },
   )
   .patch(
@@ -288,4 +472,15 @@ function buildBaseResponse(example = "string") {
     code: pipe(string(), metadata({ examples: [example] })),
     legacy: pipe(string(), metadata({ examples: [example] })),
   });
+}
+
+function canonicalize(json: unknown) {
+  if (json === null || typeof json !== "object") return json;
+  if (Array.isArray(json)) return null;
+  const sortedKeys = Object.keys(json).sort();
+  const result: Record<string, unknown> = {};
+  for (const key of sortedKeys) {
+    result[key] = canonicalize((json as Record<string, unknown>)[key]);
+  }
+  return result;
 }
