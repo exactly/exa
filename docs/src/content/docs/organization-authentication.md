@@ -220,3 +220,121 @@ authClient.siwe
   });
 
   ```
+
+## How to create the encrypted KYC payload with SIWE statement
+
+<!-- cspell:ignore oaep pkcs cipheriv -->
+```typescript
+import { createAuthClient } from "better-auth/client";
+import { siweClient, organizationClient } from "better-auth/client/plugins";
+import crypto from "node:crypto";
+import { getAddress, sha256 } from "viem";
+import { mnemonicToAccount } from "viem/accounts";
+import { optimismSepolia } from "viem/chains";
+import { createSiweMessage } from "viem/siwe";
+
+const chainId = optimismSepolia.id;
+
+const authClient = createAuthClient({
+  baseURL: "https://sandbox.exactly.app",
+  plugins: [siweClient(), organizationClient()],
+});
+
+const owner = mnemonicToAccount("test test test test test test test test test test test siwe");
+
+function encrypt(payload: string) {
+  const aesKey = crypto.randomBytes(32);
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", aesKey, iv);
+
+  const ciphertext = Buffer.concat([cipher.update(payload, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+
+  const publicKey = `-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyZixoAuo015iMt+JND0y
+usAvU2iJhtKRM+7uAxd8iXq7Z/3kXlGmoOJAiSNfpLnBAG0SCWslNCBzxf9+2p5t
+HGbQUkZGkfrYvpAzmXKsoCrhWkk1HKk9f7hMHsyRlOmXbFmIgQHggEzEArjhkoXD
+pl2iMP1ykCY0YAS+ni747DqcDOuFqLrNA138AxLNZdFsySHbxn8fzcfd3X0J/m/T
+2dZuy6ChfDZhGZxSJMjJcintFyXKv7RkwrYdtXuqD3IQYakY3u6R1vfcKVZl0yGY
+S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
+2wIDAQAB
+-----END PUBLIC KEY-----`;
+
+  const key = crypto.publicEncrypt(
+    {
+      key: publicKey,
+      padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
+      oaepHash: "sha256",
+    },
+    aesKey,
+  );
+
+  return {
+    key: key.toString("base64"),
+    iv: iv.toString("base64"),
+    ciphertext: ciphertext.toString("base64"),
+    tag: tag.toString("base64"),
+    hash: sha256(ciphertext),
+  };
+}
+
+authClient.siwe
+  .nonce({
+    walletAddress: owner.address,
+    chainId,
+  })
+  .then(async ({ data: nonceResult }) => {
+    if (!nonceResult) throw new Error("No nonce");
+    const data = {
+      email: "john.doe@example.com",
+      lastName: "Doe",
+      firstName: "John",
+      nationalId: "123456789",
+      birthDate: "1990-05-15",
+      countryOfIssue: "US",
+      phoneCountryCode: "1",
+      phoneNumber: "5551234567",
+      address: {
+        line1: "123 Main Street",
+        line2: "Apt 4B",
+        city: "New York",
+        region: "NY",
+        postalCode: "10001",
+        countryCode: "US",
+      },
+      ipAddress: "192.168.1.100",
+      occupation: "11-1011",
+      annualSalary: "75000",
+      accountPurpose: "Personal Banking",
+      expectedMonthlyVolume: "5000",
+      isTermsOfServiceAccepted: true,
+    };
+    const encryptedPayload = encrypt(JSON.stringify(data));
+    const exaAccountUserAddress = "0xa7d5e73027844145A538F4bfD7b8d9b41d8B89d3";
+    const statement = `I apply for KYC approval on behalf of address ${getAddress(exaAccountUserAddress)} with payload hash ${encryptedPayload.hash}`;
+    const message = createSiweMessage({
+      statement,
+      resources: ["https://exactly.github.io/exa"],
+      nonce: nonceResult.nonce,
+      uri: `https://sandbox.exactly.app`,
+      address: owner.address,
+      chainId,
+      scheme: "https",
+      version: "1",
+      domain: "sandbox.exactly.app",
+    });
+    const signature = await owner.signMessage({ message });
+
+    const verify = {
+      message,
+      signature,
+      walletAddress: owner.address,
+      chainId,
+    };
+    const { hash, ...payload } = encryptedPayload;
+    console.log("application payload", { ...payload, verify });
+  })
+  .catch((error: unknown) => {
+    console.error("nonce error", error);
+  });
+  ```
