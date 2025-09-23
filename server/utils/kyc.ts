@@ -2,8 +2,14 @@ import * as v from "valibot";
 
 import { baseURL, key as api_key } from "./panda";
 
-export async function submitApplication(payload: v.InferInput<typeof SubmitApplicationRequest>) {
-  return request(ApplicationResponse, "/issuing/applications/user", {}, payload, "POST");
+export async function submitApplication(payload: v.InferInput<typeof SubmitApplicationRequest>, encrypted = false) {
+  return request(
+    ApplicationResponse,
+    "/issuing/applications/user",
+    { ...(encrypted && { encrypted: "true" }) },
+    payload,
+    "POST",
+  );
 }
 
 export async function getApplicationStatus(applicationId: string) {
@@ -25,7 +31,7 @@ const AddressSchema = v.object({
   countryCode: v.pipe(v.string(), v.length(2), v.regex(/^[A-Z]{2}$/i)),
 });
 
-export const SubmitApplicationRequest = v.object({
+const Application = v.object({
   email: v.pipe(
     v.string(),
     v.email("Invalid email address"),
@@ -85,10 +91,22 @@ export const SubmitApplicationRequest = v.object({
     v.literal(true),
     v.metadata({ description: "Whether the user has accepted the terms of service" }),
   ),
+  verify: v.object({ message: v.string(), signature: v.string(), walletAddress: v.string(), chainId: v.number() }),
 });
 
+export const SubmitApplicationRequest = v.union([
+  Application,
+  v.object({
+    key: v.string(),
+    iv: v.string(),
+    ciphertext: v.string(),
+    tag: v.string(),
+    verify: v.object({ message: v.string(), signature: v.string(), walletAddress: v.string(), chainId: v.number() }),
+  }),
+]);
+
 export const UpdateApplicationRequest = v.object({
-  ...v.partial(v.omit(SubmitApplicationRequest, ["email", "phoneCountryCode", "phoneNumber", "address"])).entries,
+  ...v.partial(v.omit(Application, ["email", "phoneCountryCode", "phoneNumber", "address", "verify"])).entries,
   address: v.optional(AddressSchema),
 });
 
@@ -136,8 +154,25 @@ async function request<TInput, TOutput, TIssue extends v.BaseIssue<unknown>>(
     signal: AbortSignal.timeout(timeout),
   });
 
-  if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);
+  if (!response.ok) {
+    try {
+      const error = v.parse(v.object({ message: v.string() }), JSON.parse(await response.text()));
+      throw new KycError(error.message, response.status);
+    } catch (error) {
+      if (error instanceof KycError) throw error;
+      throw new Error(`${response.status} ${await response.text()}`);
+    }
+  }
   const rawBody = await response.arrayBuffer();
   if (rawBody.byteLength === 0) return v.parse(schema, {});
   return v.parse(schema, JSON.parse(new TextDecoder().decode(rawBody)));
+}
+export class KycError extends Error {
+  constructor(
+    message: string,
+    public statusCode: number,
+  ) {
+    super(message);
+    this.name = "KycError";
+  }
 }
