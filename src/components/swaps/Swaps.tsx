@@ -355,10 +355,15 @@ export default function Swaps() {
     updateSwap((old) => ({ ...old, enableSimulations: false }));
   }, [route, fromToken?.external, externalSwap, swapPropose, writeContract, updateSwap]);
 
+  const toTokenIsUSDC = toToken?.token.symbol === "USDC";
   const caution =
-    !fromToken?.external && aboveThreshold(fromAmount, selectedTokenAvailable, 75, selectedTokenMarket?.decimals ?? 0);
+    !fromToken?.external &&
+    !toTokenIsUSDC &&
+    aboveThreshold(fromAmount, selectedTokenAvailable, 75, selectedTokenMarket?.decimals ?? 0);
   const danger =
-    !fromToken?.external && aboveThreshold(fromAmount, selectedTokenAvailable, 90, selectedTokenMarket?.decimals ?? 0);
+    !fromToken?.external &&
+    !toTokenIsUSDC &&
+    aboveThreshold(fromAmount, selectedTokenAvailable, 90, selectedTokenMarket?.decimals ?? 0);
 
   const showWarning = fromToken && !fromToken.external && fromAmount > 0n && (caution || danger);
   const disabled = isSimulating || !!simulationError || danger;
