@@ -17,6 +17,7 @@ import { authAdapter } from "../database/index";
 const ac = createAccessControl({
   ...defaultStatements,
   webhook: ["create", "delete", "read"],
+  kyc: ["create", "delete", "read"],
 });
 
 export default betterAuth({
@@ -54,10 +55,12 @@ export default betterAuth({
       roles: {
         admin: ac.newRole({
           webhook: ["create", "delete", "read"],
+          kyc: ["create"],
           ...adminAc.statements,
         }),
         owner: ac.newRole({
           webhook: ["create", "delete", "read"],
+          kyc: ["create"],
           ...ownerAc.statements,
         }),
         member: ac.newRole({
