@@ -23,6 +23,7 @@
     "bytea",
     "chainid",
     "checksummed",
+    "ciphertext",
     "codegen",
     "cosealg",
     "cosekeys",
