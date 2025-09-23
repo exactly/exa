@@ -72,7 +72,7 @@ export default function Swaps() {
   const { address: account } = useAccount();
   const { externalAssets, protocolAssets } = useAccountAssets();
   const [acknowledged, setAcknowledged] = useState(false);
-  const [activeInput, setActiveInput] = useState<"from" | "to">("to");
+  const [activeInput, setActiveInput] = useState<"from" | "to">("from");
   const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [account ?? zeroAddress] });
   const { data: tokens, isLoading: isTokensLoading } = useQuery({ queryKey: ["allowTokens"], queryFn: getAllowTokens });
   const {
@@ -411,6 +411,7 @@ export default function Swaps() {
                       token={tokenData?.token}
                       amount={amount}
                       balance={getBalance(tokenData?.token)}
+                      disabled={type === "to"}
                       isLoading={isTokensLoading || isRouteLoading}
                       isActive={isActive}
                       isDanger={type === "from" && showWarning}

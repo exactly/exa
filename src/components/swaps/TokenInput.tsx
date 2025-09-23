@@ -18,6 +18,7 @@ export default function TokenInput({
   token,
   amount,
   balance,
+  disabled,
   isLoading = false,
   isActive,
   isDanger,
@@ -29,6 +30,7 @@ export default function TokenInput({
   token?: Token;
   amount: bigint;
   balance: bigint;
+  disabled?: boolean;
   isLoading?: boolean;
   isActive: boolean;
   isDanger?: boolean;
@@ -100,6 +102,8 @@ export default function TokenInput({
                         value={state.value}
                         onChangeText={handleAmountChange}
                         onFocus={onFocus}
+                        disabled={disabled}
+                        cursor={disabled ? undefined : "pointer"}
                         placeholder={amount.toString()}
                         color={
                           isDanger ? "$uiErrorSecondary" : isActive ? "$uiNeutralPrimary" : "$uiNeutralPlaceholder"
@@ -147,7 +151,6 @@ const AmountInput = styled(Input, {
   paddingVertical: "$s2",
   paddingHorizontal: "$s3",
   placeholder: "0.00",
-  cursor: "pointer",
   numberOfLines: 1,
 });
 
