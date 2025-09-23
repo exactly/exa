@@ -28,7 +28,7 @@ export default createConnector<SmartAccountClient | ClientWithAlchemyMethods>(({
     const accounts = await this.getAccounts();
     return accounts.length > 0;
   },
-  async connect({ chainId } = {}) {
+  async connect({ chainId, withCapabilities } = {}) {
     if (chainId && chainId !== chain.id) throw new SwitchChainError(new ChainNotConfiguredError());
     try {
       const credential = queryClient.getQueryData<Credential>(["credential"]);
@@ -38,7 +38,12 @@ export default createConnector<SmartAccountClient | ClientWithAlchemyMethods>(({
       reportError(error);
       throw error;
     }
-    return { accounts: [accountClient.account.address], chainId: chain.id };
+    return {
+      accounts: (withCapabilities
+        ? [{ address: accountClient.account.address, capabilities: {} }]
+        : [accountClient.account.address]) as never,
+      chainId: chain.id,
+    };
   },
   disconnect() {
     accountClient = undefined;

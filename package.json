@@ -64,7 +64,7 @@
     "@tanstack/react-query": "^5.74.4",
     "@tanstack/react-query-devtools": "^5.74.4",
     "@tanstack/react-query-persist-client": "^5.74.4",
-    "@wagmi/core": "^2.16.7",
+    "@wagmi/core": "^2.21.1",
     "abitype": "^1.0.8",
     "buffer": "^6.0.3",
     "burnt": "^0.13.0",
@@ -105,8 +105,8 @@
     "tamagui": "1.125.26",
     "title-case": "^4.3.2",
     "valibot": "^1.0.0",
-    "viem": "^2.29.2",
-    "wagmi": "^2.14.16",
+    "viem": "^2.37.8",
+    "wagmi": "^2.17.2",
     "zustand": "^5.0.3"
   },
   "devDependencies": {
@@ -131,7 +131,7 @@
     "@typescript-eslint/eslint-plugin": "^8.30.1",
     "@typescript-eslint/parser": "^8.30.1",
     "@vitest/eslint-plugin": "1.1.43",
-    "@wagmi/cli": "^2.2.1",
+    "@wagmi/cli": "^2.5.1",
     "babel-plugin-module-resolver": "^5.0.2",
     "babel-preset-expo": "^12.0.11",
     "cspell": "^8.19.2",
