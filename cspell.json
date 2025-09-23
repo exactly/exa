@@ -37,6 +37,7 @@
     "checkpointing",
     "checksummed",
     "clippy",
+    "ciphertext",
     "codegen",
     "colocating",
     "cosealg",

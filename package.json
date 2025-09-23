@@ -66,6 +66,7 @@
     "abitype": "^1.2.3",
     "buffer": "^6.0.3",
     "burnt": "^0.13.0",
+    "canonicalize": "^2.1.0",
     "date-fns": "^4.1.0",
     "expo": "^54.0.31",
     "expo-application": "~7.0.8",

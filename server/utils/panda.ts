@@ -29,7 +29,7 @@ import {
   type BaseSchema,
   type InferInput,
 } from "valibot";
-import { BaseError, ContractFunctionZeroDataError } from "viem";
+import { BaseError, ContractFunctionZeroDataError, type MaybePromise } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { base, optimism } from "viem/chains";
 
@@ -173,6 +173,7 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
   body?: unknown,
   method: "GET" | "PATCH" | "POST" | "PUT" = body === undefined ? "GET" : "POST",
   timeout = 10_000,
+  onError?: (response: Response) => MaybePromise<TOutput>,
 ) {
   const response = await fetch(`${baseURL}${url}`, {
     method,
@@ -186,7 +187,10 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
     signal: AbortSignal.timeout(timeout),
   });
 
-  if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);
+  if (!response.ok) {
+    if (onError) return await onError(response);
+    throw new Error(`${response.status} ${await response.text()}`);
+  }
   const rawBody = await response.arrayBuffer();
   if (rawBody.byteLength === 0) return parse(schema, {});
   return parse(schema, JSON.parse(new TextDecoder().decode(rawBody)));
@@ -352,16 +356,67 @@ export function getMutex(address: Address) {
   return mutexes.get(address);
 }
 
-export async function submitApplication(payload: InferInput<typeof SubmitApplicationRequest>) {
-  return request(ApplicationResponse, "/issuing/applications/user", {}, payload, "POST");
+export async function submitApplication(payload: InferInput<typeof SubmitApplicationRequest>, encrypted = false) {
+  return request(
+    ApplicationResponse,
+    "/issuing/applications/user",
+    { ...(encrypted && { encrypted: "true" }) },
+    payload,
+    "POST",
+    10_000,
+    async (response) => {
+      const text = await response.text();
+      try {
+        const error = parse(object({ message: string() }), JSON.parse(text));
+        throw new KycError(error.message, response.status);
+      } catch (error) {
+        if (error instanceof KycError) throw error;
+        throw new Error(`${response.status} ${text}`);
+      }
+    },
+  );
 }
 
 export async function getApplicationStatus(applicationId: string) {
-  return request(ApplicationStatusResponse, `/issuing/applications/user/${applicationId}`, {}, undefined, "GET");
+  return request(
+    ApplicationStatusResponse,
+    `/issuing/applications/user/${applicationId}`,
+    {},
+    undefined,
+    "GET",
+    10_000,
+    async (response) => {
+      const text = await response.text();
+      try {
+        const error = parse(object({ message: string() }), JSON.parse(text));
+        throw new KycError(error.message, response.status);
+      } catch (error) {
+        if (error instanceof KycError) throw error;
+        throw new Error(`${response.status} ${text}`);
+      }
+    },
+  );
 }
 
 export async function updateApplication(applicationId: string, payload: InferInput<typeof UpdateApplicationRequest>) {
-  return request(object({}), `/issuing/applications/user/${applicationId}`, {}, payload, "PATCH");
+  return request(
+    object({}),
+    `/issuing/applications/user/${applicationId}`,
+    {},
+    payload,
+    "PATCH",
+    10_000,
+    async (response) => {
+      const text = await response.text();
+      try {
+        const error = parse(object({ message: string() }), JSON.parse(text));
+        throw new KycError(error.message, response.status);
+      } catch (error) {
+        if (error instanceof KycError) throw error;
+        throw new Error(`${response.status} ${text}`);
+      }
+    },
+  );
 }
 
 const AddressSchema = object({
@@ -374,7 +429,7 @@ const AddressSchema = object({
   countryCode: pipe(string(), length(2), regex(/^[A-Z]{2}$/i)),
 });
 
-export const SubmitApplicationRequest = object({
+export const Application = object({
   email: pipe(
     string(),
     email("Invalid email address"),
@@ -426,10 +481,22 @@ export const SubmitApplicationRequest = object({
     literal(true),
     metadata({ description: "Whether the user has accepted the terms of service" }),
   ),
+  verify: object({ message: string(), signature: string(), walletAddress: string(), chainId: number() }),
 });
 
+export const SubmitApplicationRequest = union([
+  Application,
+  object({
+    key: string(),
+    iv: string(),
+    ciphertext: string(),
+    tag: string(),
+    verify: object({ message: string(), signature: string(), walletAddress: string(), chainId: number() }),
+  }),
+]);
+
 export const UpdateApplicationRequest = object({
-  ...partial(omit(SubmitApplicationRequest, ["email", "phoneCountryCode", "phoneNumber", "address"])).entries,
+  ...partial(omit(Application, ["email", "phoneCountryCode", "phoneNumber", "address"])).entries,
   address: optional(AddressSchema),
 });
 
@@ -455,4 +522,15 @@ const ApplicationStatusResponse = object({
   applicationStatus: picklist(kycStatus),
   applicationReason: optional(string()),
 });
+
+export class KycError extends Error {
+  constructor(
+    message: string,
+    public statusCode: number,
+  ) {
+    super(message);
+    this.name = "KycError";
+  }
+}
+
 // #endregion schemas
