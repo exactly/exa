@@ -11,7 +11,13 @@ import { Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Checkbox, ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
 import { parse } from "valibot";
-import { formatUnits, parseUnits, zeroAddress } from "viem";
+import {
+  ContractFunctionExecutionError,
+  ContractFunctionRevertedError,
+  formatUnits,
+  parseUnits,
+  zeroAddress,
+} from "viem";
 import { useAccount, useSimulateContract, useWriteContract } from "wagmi";
 
 import Failure from "./Failure";
@@ -73,6 +79,7 @@ export default function Swaps() {
   const { externalAssets, protocolAssets } = useAccountAssets();
   const [acknowledged, setAcknowledged] = useState(false);
   const [activeInput, setActiveInput] = useState<"from" | "to">("from");
+  const [denyExchanges, setDenyExchanges] = useState<Record<string, boolean>>({});
   const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [account ?? zeroAddress] });
   const { data: tokens, isLoading: isTokensLoading } = useQuery({ queryKey: ["allowTokens"], queryFn: getAllowTokens });
   const {
@@ -209,16 +216,17 @@ export default function Swaps() {
       toToken,
       activeInput,
       activeInput === "from" ? fromAmount : toAmount,
+      denyExchanges,
     ],
     queryFn: async () => {
       if (!account || !fromToken || !toToken) throw new Error("implementation error");
       const from = parse(Address, fromToken.token.address);
       const to = parse(Address, toToken.token.address);
       if (activeInput === "from") {
-        const result = await getRouteFrom(from, to, fromAmount, account, account);
+        const result = await getRouteFrom(from, to, fromAmount, account, account, denyExchanges);
         return { ...result, toAmount: result.toAmount, fromAmount: undefined };
       } else {
-        const result = await getRoute(from, to, toAmount, account, account);
+        const result = await getRoute(from, to, toAmount, account, account, denyExchanges);
         return { ...result, fromAmount: result.fromAmount, toAmount: undefined };
       }
     },
@@ -229,18 +237,7 @@ export default function Swaps() {
       !!toToken &&
       (activeInput === "from" ? !!fromAmount : !!toAmount),
     refetchInterval: 20_000,
-    staleTime: 10_000,
   });
-
-  useEffect(() => {
-    if (route) {
-      if (activeInput === "from") {
-        updateSwap((old) => ({ ...old, toAmount: route.toAmount ?? 0n, exchange: route.exchange }));
-      } else {
-        updateSwap((old) => ({ ...old, fromAmount: route.fromAmount ?? 0n, exchange: route.exchange }));
-      }
-    }
-  }, [activeInput, route, updateSwap]);
 
   useEffect(() => {
     if (route) {
@@ -254,7 +251,11 @@ export default function Swaps() {
 
   const {
     propose: { data: swapPropose },
-    executeProposal: { error: swapExecuteProposalError, isPending: isSimulatingSwap },
+    executeProposal: {
+      error: swapExecuteProposalError,
+      isPending: isSimulatingSwap,
+      failureReason: swapExecuteProposalFailureReason,
+    },
   } = useSimulateProposal({
     account,
     amount: activeInput === "from" ? fromAmount : (fromAmount * (WAD * (1000n + SLIPPAGE_PERCENT))) / 1000n / WAD,
@@ -330,13 +331,26 @@ export default function Swaps() {
 
   const simulationError = {
     external: externalSwapError ?? routeError,
-    protocol: swapExecuteProposalError,
+    protocol: !!swapExecuteProposalError || !!swapExecuteProposalFailureReason,
   }[fromToken?.external ? "external" : "protocol"];
 
   const isSimulating = {
     external: isSimulatingExternalSwap,
     protocol: isSimulatingSwap,
   }[fromToken?.external ? "external" : "protocol"];
+
+  useEffect(() => {
+    const shouldDenyExchange =
+      simulationError &&
+      route?.exchange &&
+      simulationError instanceof ContractFunctionExecutionError &&
+      simulationError.cause instanceof ContractFunctionRevertedError &&
+      simulationError.cause.data?.errorName !== "MarketFrozen";
+
+    if (shouldDenyExchange) {
+      setDenyExchanges((state) => ({ ...state, [route.exchange]: true }));
+    }
+  }, [route?.exchange, simulationError]);
 
   const {
     writeContract,
