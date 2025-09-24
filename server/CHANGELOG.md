@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.25
+
+### Patch Changes
+
+- [`8b96531`](https://github.com/exactly/exa/commit/8b965313434a4bbed4c790bc7fdcd7e1658fa869) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ⬆️ upgrade viem and wagmi
+
 ## 0.2.24
 
 ### Patch Changes

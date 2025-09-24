@@ -1,5 +1,23 @@
 # @exactly/mobile
 
+## 1.0.26
+
+### Patch Changes
+
+- [`b7216a4`](https://github.com/exactly/exa/commit/b7216a43330dbadaca9cd21b504dc16cf0b29321) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 💄 allow number grouping separators
+
+- [`8b96531`](https://github.com/exactly/exa/commit/8b965313434a4bbed4c790bc7fdcd7e1658fa869) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ⬆️ upgrade viem and wagmi
+
+- [`ca29740`](https://github.com/exactly/exa/commit/ca29740cba7e08574496f1b8b5bbf7d31382f00c) Thanks [@franm91](https://github.com/franm91)! - 💄 denominate calculator amounts in usdc
+
+- [`d5ecbf7`](https://github.com/exactly/exa/commit/d5ecbf73f94914d352c611b9dfba8e3f9f4819ce) Thanks [@franm91](https://github.com/franm91)! - 👔 disable to-amount swap input
+
+- [`8aa5ba3`](https://github.com/exactly/exa/commit/8aa5ba385e416f396ec648349b0a8c287feab7d1) Thanks [@franm91](https://github.com/franm91)! - 🚑 ignore health warnings for usdc swaps
+
+- Updated dependencies [[`8b96531`](https://github.com/exactly/exa/commit/8b965313434a4bbed4c790bc7fdcd7e1658fa869)]:
+  - @exactly/common@0.0.8
+  - @exactly/server@0.2.25
+
 ## 1.0.25
 
 ### Patch Changes
