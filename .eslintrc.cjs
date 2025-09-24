@@ -27,7 +27,6 @@ module.exports = {
     "import/prefer-default-export": "error",
     "no-console": "warn",
     "no-restricted-globals": ["error", "reportError"],
-    "no-restricted-imports": ["error", { patterns: ["./server/"] }],
     "no-shadow": "off", // @typescript-eslint/no-shadow
     "prefer-template": "error",
     "unicorn/filename-case": "off", // use default export name
@@ -50,6 +49,13 @@ module.exports = {
         "plugin:react-native/all",
       ],
       rules: {
+        "no-restricted-imports": [
+          "error",
+          {
+            paths: [{ name: "wagmi", importNames: ["useAccount"], message: "Use `useAccount` from utils." }],
+            patterns: ["./server/"],
+          },
+        ],
         "react-native/no-raw-text": [
           "error",
           {
