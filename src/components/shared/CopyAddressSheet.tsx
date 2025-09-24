@@ -2,10 +2,10 @@ import chain from "@exactly/common/generated/chain";
 import { AlertTriangle, CheckCircle, X } from "@tamagui/lucide-icons";
 import React from "react";
 import { ScrollView, XStack, YStack } from "tamagui";
-import { useAccount } from "wagmi";
 
 import ModalSheet from "./ModalSheet";
 import reportError from "../../utils/reportError";
+import useAccount from "../../utils/useAccount";
 import useIntercom from "../../utils/useIntercom";
 import Button from "../shared/Button";
 import SafeView from "../shared/SafeView";

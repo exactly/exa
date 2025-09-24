@@ -3,10 +3,10 @@ import { ChevronRight } from "@tamagui/lucide-icons";
 import { useNavigation } from "expo-router";
 import React from "react";
 import { zeroAddress } from "viem";
-import { useAccount } from "wagmi";
 
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import { useReadExaPreviewerPendingProposals } from "../../generated/contracts";
+import useAccount from "../../utils/useAccount";
 import Text from "../shared/Text";
 import View from "../shared/View";
 

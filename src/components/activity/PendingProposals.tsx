@@ -22,11 +22,11 @@ import React from "react";
 import { Pressable, RefreshControl, ScrollView } from "react-native";
 import { XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
-import { useAccount } from "wagmi";
 
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import { useReadExaPreviewerPendingProposals } from "../../generated/contracts";
 import reportError from "../../utils/reportError";
+import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useIntercom from "../../utils/useIntercom";
 import SafeView from "../shared/SafeView";

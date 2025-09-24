@@ -19,7 +19,7 @@ import {
   parseUnits,
   zeroAddress,
 } from "viem";
-import { useAccount, useBytecode, useSimulateContract, useWriteContract } from "wagmi";
+import { useBytecode, useSimulateContract, useWriteContract } from "wagmi";
 
 import AssetSelectionSheet from "./AssetSelectionSheet";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
@@ -38,6 +38,7 @@ import assetLogos from "../../utils/assetLogos";
 import { getRoute } from "../../utils/lifi";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
+import useAccount from "../../utils/useAccount";
 import useAccountAssets from "../../utils/useAccountAssets";
 import useAsset from "../../utils/useAsset";
 import useSimulateProposal from "../../utils/useSimulateProposal";

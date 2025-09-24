@@ -6,13 +6,14 @@ import React from "react";
 import { Pressable } from "react-native";
 import { Square, XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
-import { useAccount, useBytecode } from "wagmi";
+import { useBytecode } from "wagmi";
 
 import GradientScrollView from "./GradientScrollView";
 import SafeView from "./SafeView";
 import View from "./View";
 import { useReadUpgradeableModularAccountGetInstalledPlugins } from "../../generated/contracts";
 import assetLogos from "../../utils/assetLogos";
+import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import AssetLogo from "../shared/AssetLogo";
 import ExaSpinner from "../shared/Spinner";

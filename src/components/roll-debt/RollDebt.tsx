@@ -11,7 +11,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
 import { nonEmpty, pipe, safeParse, string } from "valibot";
 import { ContractFunctionExecutionError, encodeAbiParameters, zeroAddress } from "viem";
-import { useAccount, useBytecode, useWriteContract } from "wagmi";
+import { useBytecode, useWriteContract } from "wagmi";
 
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import SafeView from "../../components/shared/SafeView";
@@ -23,6 +23,7 @@ import {
   useSimulateExaPluginPropose,
 } from "../../generated/contracts";
 import reportError from "../../utils/reportError";
+import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import Button from "../shared/Button";
 import Skeleton from "../shared/Skeleton";

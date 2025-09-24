@@ -3,9 +3,9 @@ import { borrowLimit, withdrawLimit } from "@exactly/lib";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { zeroAddress, type Address } from "viem";
-import { useAccount } from "wagmi";
 
 import { getAsset, getTokenBalances } from "./lifi";
+import useAccount from "./useAccount";
 import { useReadPreviewerExactly } from "../generated/contracts";
 
 export default function useAsset(address?: Address) {

@@ -4,13 +4,14 @@ import type { NavigationRoute } from "@sentry/react-native/dist/js/tracing/react
 import React, { useCallback } from "react";
 import { ToggleGroup } from "tamagui";
 import { zeroAddress } from "viem";
-import { useAccount, useBytecode } from "wagmi";
+import { useBytecode } from "wagmi";
 
 import SafeView from "./SafeView";
 import StatusIndicator from "./StatusIndicator";
 import Text from "./Text";
 import View from "./View";
 import { useReadExaPreviewerPendingProposals } from "../../generated/contracts";
+import useAccount from "../../utils/useAccount";
 
 export default function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const { address } = useAccount();

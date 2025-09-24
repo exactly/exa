@@ -12,7 +12,7 @@ import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { ScrollView, Separator, Square, XStack, YStack } from "tamagui";
 import { encodeAbiParameters, encodeFunctionData, maxUint256, zeroAddress } from "viem";
-import { useAccount, useBytecode } from "wagmi";
+import { useBytecode } from "wagmi";
 
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import {
@@ -25,6 +25,7 @@ import { accountClient } from "../../utils/alchemyConnector";
 import assetLogos from "../../utils/assetLogos";
 import type { Loan } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
+import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useInstallments from "../../utils/useInstallments";
 import useIntercom from "../../utils/useIntercom";

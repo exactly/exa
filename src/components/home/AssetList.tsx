@@ -4,10 +4,10 @@ import React from "react";
 import { vs } from "react-native-size-matters";
 import { XStack, YStack } from "tamagui";
 import { zeroAddress, parseUnits } from "viem";
-import { useAccount } from "wagmi";
 
 import { useReadPreviewerExactly, useReadRatePreviewerSnapshot } from "../../generated/contracts";
 import assetLogos from "../../utils/assetLogos";
+import useAccount from "../../utils/useAccount";
 import useAccountAssets from "../../utils/useAccountAssets";
 import AssetLogo from "../shared/AssetLogo";
 import Skeleton from "../shared/Skeleton";

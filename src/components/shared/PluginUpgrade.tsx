@@ -2,7 +2,7 @@ import { exaPluginAddress } from "@exactly/common/generated/chain";
 import { useMutation } from "@tanstack/react-query";
 import React from "react";
 import { encodeAbiParameters, encodeFunctionData, getAbiItem, keccak256, zeroAddress } from "viem";
-import { useAccount, useBytecode } from "wagmi";
+import { useBytecode } from "wagmi";
 
 import InfoAlert from "./InfoAlert";
 import {
@@ -14,6 +14,7 @@ import {
 } from "../../generated/contracts";
 import { accountClient } from "../../utils/alchemyConnector";
 import reportError from "../../utils/reportError";
+import useAccount from "../../utils/useAccount";
 
 export default function PluginUpgrade() {
   const { address } = useAccount();

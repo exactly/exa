@@ -7,7 +7,7 @@ import React, { useState } from "react";
 import { RefreshControl } from "react-native";
 import { ScrollView, useTheme, YStack } from "tamagui";
 import { zeroAddress } from "viem";
-import { useAccount, useBytecode } from "wagmi";
+import { useBytecode } from "wagmi";
 
 import CardStatus from "./CardStatus";
 import ExploreDeFi from "./ExploreDeFi";
@@ -27,6 +27,7 @@ import { KYC_TEMPLATE_ID, LEGACY_KYC_TEMPLATE_ID } from "../../utils/persona";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { APIError, getActivity, getKYCStatus } from "../../utils/server";
+import useAccount from "../../utils/useAccount";
 import OverduePayments from "../pay-mode/OverduePayments";
 import PaymentSheet from "../pay-mode/PaymentSheet";
 import UpcomingPayments from "../pay-mode/UpcomingPayments";
@@ -41,7 +42,6 @@ const HEALTH_FACTOR_THRESHOLD = (WAD * 11n) / 10n;
 
 export default function Home() {
   const theme = useTheme();
-  const { address } = useAccount();
   const parameters = useLocalSearchParams();
   const navigation = useNavigation<AppNavigationProperties>();
   const [paySheetOpen, setPaySheetOpen] = useState(false);
@@ -63,8 +63,8 @@ export default function Home() {
   const { data: exploreDeFiShown } = useQuery<boolean>({ queryKey: ["settings", "explore-defi-shown"] });
   const { refetch: refetchPendingProposals } = useReadExaPreviewerPendingProposals({
     address: exaPreviewerAddress,
-    args: [address ?? zeroAddress],
-    query: { enabled: !!address, gcTime: 0, refetchInterval: 30_000 },
+    args: [account ?? zeroAddress],
+    query: { enabled: !!account, gcTime: 0, refetchInterval: 30_000 },
   });
   const {
     data: activity,
@@ -75,7 +75,7 @@ export default function Home() {
     data: markets,
     refetch: refetchMarkets,
     isPending: isPendingPreviewer,
-  } = useReadPreviewerExactly({ address: previewerAddress, args: [address ?? zeroAddress] });
+  } = useReadPreviewerExactly({ address: previewerAddress, args: [account ?? zeroAddress] });
   const { data: KYCStatus, refetch: refetchKYCStatus } = useQuery({
     queryKey: ["kyc", "status"],
     queryFn: async () => getKYCStatus(KYC_TEMPLATE_ID),

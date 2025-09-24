@@ -4,13 +4,14 @@ import { useNavigation } from "expo-router";
 import React from "react";
 import { Alert, Pressable } from "react-native";
 import { ScrollView, Separator, XStack } from "tamagui";
-import { useAccount, useDisconnect } from "wagmi";
+import { useDisconnect } from "wagmi";
 
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import release from "../../generated/release";
 import { logout as logoutOneSignal } from "../../utils/onesignal";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
+import useAccount from "../../utils/useAccount";
 import useIntercom from "../../utils/useIntercom";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";

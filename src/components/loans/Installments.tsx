@@ -4,13 +4,13 @@ import { useNavigation } from "expo-router";
 import React, { useEffect } from "react";
 import { Pressable } from "react-native";
 import { ScrollView, YStack } from "tamagui";
-import { useAccount } from "wagmi";
 
 import LoanSummary from "./LoanSummary";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import type { Loan } from "../../utils/queryClient";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
+import useAccount from "../../utils/useAccount";
 import useIntercom from "../../utils/useIntercom";
 import InstallmentSelector from "../shared/InstallmentSelector";
 import SafeView from "../shared/SafeView";

@@ -8,7 +8,7 @@ import React, { useState } from "react";
 import { Pressable, RefreshControl } from "react-native";
 import { ScrollView, Separator, Spinner, Square, Switch, useTheme, XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
-import { useAccount, useBytecode } from "wagmi";
+import { useBytecode } from "wagmi";
 
 import CardDetails from "./CardDetails";
 import CardDisclaimer from "./CardDisclaimer";
@@ -25,6 +25,7 @@ import { createInquiry, KYC_TEMPLATE_ID, resumeInquiry } from "../../utils/perso
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { APIError, getActivity, getCard, createCard, getKYCStatus, setCardStatus } from "../../utils/server";
+import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useIntercom from "../../utils/useIntercom";
 import useOpenBrowser from "../../utils/useOpenBrowser";

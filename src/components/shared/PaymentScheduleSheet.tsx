@@ -4,12 +4,12 @@ import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import React from "react";
 import { ScrollView, XStack, YStack } from "tamagui";
-import { useAccount } from "wagmi";
 
 import AssetLogo from "./AssetLogo";
 import ModalSheet from "./ModalSheet";
 import assetLogos from "../../utils/assetLogos";
 import type { Loan } from "../../utils/queryClient";
+import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";

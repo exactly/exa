@@ -3,9 +3,9 @@ import { withdrawLimit } from "@exactly/lib";
 import { useQuery } from "@tanstack/react-query";
 import { zeroAddress } from "viem";
 import { optimism } from "viem/chains";
-import { useAccount } from "wagmi";
 
 import { getTokenBalances } from "./lifi";
+import useAccount from "./useAccount";
 import { useReadPreviewerExactly } from "../generated/contracts";
 
 export interface ProtocolAsset {

@@ -6,12 +6,13 @@ import { useNavigation } from "expo-router";
 import React from "react";
 import { Separator, XStack, YStack } from "tamagui";
 import { formatUnits, zeroAddress } from "viem";
-import { useAccount, useBytecode } from "wagmi";
+import { useBytecode } from "wagmi";
 
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import { useReadPreviewerExactly } from "../../generated/contracts";
 import assetLogos from "../../utils/assetLogos";
 import queryClient, { type Loan } from "../../utils/queryClient";
+import useAccount from "../../utils/useAccount";
 import useInstallments from "../../utils/useInstallments";
 import AssetLogo from "../shared/AssetLogo";
 import Button from "../shared/Button";

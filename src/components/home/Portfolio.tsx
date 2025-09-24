@@ -5,12 +5,12 @@ import React from "react";
 import { Pressable, RefreshControl } from "react-native";
 import { ScrollView, useTheme, XStack } from "tamagui";
 import { zeroAddress } from "viem";
-import { useAccount } from "wagmi";
 
 import AssetList from "./AssetList";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import { useReadPreviewerExactly } from "../../generated/contracts";
 import reportError from "../../utils/reportError";
+import useAccount from "../../utils/useAccount";
 import useIntercom from "../../utils/useIntercom";
 import useOpenBrowser from "../../utils/useOpenBrowser";
 import SafeView from "../shared/SafeView";

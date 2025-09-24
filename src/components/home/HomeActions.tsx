@@ -4,7 +4,7 @@ import { useNavigation } from "expo-router";
 import React from "react";
 import { XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
-import { useAccount, useBytecode, useReadContract } from "wagmi";
+import { useBytecode, useReadContract } from "wagmi";
 
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import {
@@ -12,6 +12,7 @@ import {
   useReadUpgradeableModularAccountGetInstalledPlugins,
 } from "../../generated/contracts";
 import reportError from "../../utils/reportError";
+import useAccount from "../../utils/useAccount";
 import Button from "../shared/StyledButton";
 
 export default function HomeActions() {

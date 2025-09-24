@@ -10,10 +10,11 @@ import { format, isBefore } from "date-fns";
 import React from "react";
 import { XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
-import { useAccount, useBytecode } from "wagmi";
+import { useBytecode } from "wagmi";
 
 import { useReadExaPreviewerPendingProposals, useReadPreviewerExactly } from "../../generated/contracts";
 import assetLogos from "../../utils/assetLogos";
+import useAccount from "../../utils/useAccount";
 import AssetLogo from "../shared/AssetLogo";
 import Text from "../shared/Text";
 import View from "../shared/View";

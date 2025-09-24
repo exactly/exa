@@ -3,11 +3,12 @@ import { MATURITY_INTERVAL, WAD } from "@exactly/lib";
 import React from "react";
 import { XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
-import { useAccount, useBytecode } from "wagmi";
+import { useBytecode } from "wagmi";
 
 import { useReadPreviewerPreviewBorrowAtMaturity } from "../../generated/contracts";
 import assetLogos from "../../utils/assetLogos";
 import type { Loan } from "../../utils/queryClient";
+import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useInstallments from "../../utils/useInstallments";
 import AssetLogo from "../shared/AssetLogo";

@@ -8,7 +8,6 @@ import React, { useState } from "react";
 import { Pressable } from "react-native";
 import { Image } from "tamagui";
 import { zeroAddress } from "viem";
-import { useAccount } from "wagmi";
 
 import CopyAddressSheet from "./CopyAddressSheet";
 import StatusIndicator from "./StatusIndicator";
@@ -16,6 +15,7 @@ import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import { useReadExaPreviewerPendingProposals } from "../../generated/contracts";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
+import useAccount from "../../utils/useAccount";
 import Text from "../shared/Text";
 import View from "../shared/View";
 

@@ -9,7 +9,6 @@ import React, { useMemo, useState } from "react";
 import { Pressable, StyleSheet } from "react-native";
 import { XStack, YStack } from "tamagui";
 import { formatUnits, parseUnits, zeroAddress } from "viem";
-import { useAccount } from "wagmi";
 
 import ManualRepaymentSheet from "./ManualRepaymentSheet";
 import { useReadPreviewerExactly, useReadPreviewerPreviewBorrowAtMaturity } from "../../generated/contracts";
@@ -17,6 +16,7 @@ import assetLogos from "../../utils/assetLogos";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { getCard, setCardMode } from "../../utils/server";
+import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useInstallments from "../../utils/useInstallments";
 import useIntercom from "../../utils/useIntercom";

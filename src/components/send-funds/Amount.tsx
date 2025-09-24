@@ -12,7 +12,7 @@ import { Pressable } from "react-native";
 import { Avatar, ScrollView, Square, XStack, YStack } from "tamagui";
 import { bigint, check, parse, pipe } from "valibot";
 import { encodeAbiParameters, erc20Abi, formatUnits, parseUnits, zeroAddress } from "viem";
-import { useAccount, useBytecode, useSimulateContract, useWriteContract } from "wagmi";
+import { useBytecode, useSimulateContract, useWriteContract } from "wagmi";
 
 import ReviewSheet from "./ReviewSheet";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
@@ -23,6 +23,7 @@ import {
 } from "../../generated/contracts";
 import assetLogos from "../../utils/assetLogos";
 import queryClient, { type Withdraw } from "../../utils/queryClient";
+import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import AmountSelector from "../shared/AmountSelector";
 import AssetLogo from "../shared/AssetLogo";

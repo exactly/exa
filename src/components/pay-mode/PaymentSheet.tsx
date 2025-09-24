@@ -21,13 +21,14 @@ import { titleCase } from "title-case";
 import { digits, nonEmpty, pipe, safeParse, string } from "valibot";
 import { zeroAddress } from "viem";
 import { optimismSepolia } from "viem/chains";
-import { useAccount, useBytecode } from "wagmi";
+import { useBytecode } from "wagmi";
 
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import CalendarImage from "../../assets/images/calendar-rollover.svg";
 import { useReadUpgradeableModularAccountGetInstalledPlugins } from "../../generated/contracts";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
+import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useIntercom from "../../utils/useIntercom";
 import useOpenBrowser from "../../utils/useOpenBrowser";

@@ -6,13 +6,13 @@ import { useNavigation } from "expo-router";
 import React, { useCallback, useState } from "react";
 import { PixelRatio, Pressable, Share } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
-import { useAccount } from "wagmi";
 
 import SupportedAssetsSheet from "./SupportedAssetsSheet";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import OptimismImage from "../../assets/images/optimism.svg";
 import assetLogos from "../../utils/assetLogos";
 import reportError from "../../utils/reportError";
+import useAccount from "../../utils/useAccount";
 import useIntercom from "../../utils/useIntercom";
 import AssetLogo from "../shared/AssetLogo";
 import Button from "../shared/Button";

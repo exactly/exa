@@ -7,12 +7,12 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
-import { useAccount } from "wagmi";
 
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import { useReadPreviewerExactly } from "../../generated/contracts";
 import assetLogos from "../../utils/assetLogos";
 import { getCard } from "../../utils/server";
+import useAccount from "../../utils/useAccount";
 import AssetLogo from "../shared/AssetLogo";
 import Text from "../shared/Text";
 

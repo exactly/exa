@@ -6,7 +6,7 @@ import React, { useEffect, useState } from "react";
 import { Pressable } from "react-native";
 import { Checkbox, ScrollView, XStack, YStack } from "tamagui";
 import { formatUnits, zeroAddress } from "viem";
-import { useAccount, useBytecode } from "wagmi";
+import { useBytecode } from "wagmi";
 
 import AmountSelector from "./AmountSelector";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
@@ -14,6 +14,7 @@ import { useReadPreviewerExactly } from "../../generated/contracts";
 import type { Loan } from "../../utils/queryClient";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
+import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useIntercom from "../../utils/useIntercom";
 import SafeView from "../shared/SafeView";

@@ -6,10 +6,10 @@ import { Platform } from "react-native";
 import { useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 import { AnimatePresence, XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
-import { useAccount } from "wagmi";
 
 import Card from "../../../assets/images/card.svg";
 import { useReadPreviewerExactly } from "../../../generated/contracts";
+import useAccount from "../../../utils/useAccount";
 import AnimatedView from "../../shared/AnimatedView";
 import Text from "../../shared/Text";
 import View from "../../shared/View";

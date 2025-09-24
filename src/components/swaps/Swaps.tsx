@@ -12,7 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Checkbox, ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
 import { parse } from "valibot";
 import { formatUnits, parseUnits, zeroAddress } from "viem";
-import { useAccount, useSimulateContract, useWriteContract } from "wagmi";
+import { useSimulateContract, useWriteContract } from "wagmi";
 
 import Failure from "./Failure";
 import Pending from "./Pending";
@@ -30,6 +30,7 @@ import {
 import { getAllowTokens, getRoute, getRouteFrom } from "../../utils/lifi";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
+import useAccount from "../../utils/useAccount";
 import useAccountAssets from "../../utils/useAccountAssets";
 import useAsset from "../../utils/useAsset";
 import useIntercom from "../../utils/useIntercom";

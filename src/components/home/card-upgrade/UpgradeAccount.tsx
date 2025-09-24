@@ -5,7 +5,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import React from "react";
 import { YStack } from "tamagui";
 import { encodeAbiParameters, encodeFunctionData, getAbiItem, keccak256, zeroAddress } from "viem";
-import { useAccount, useBytecode } from "wagmi";
+import { useBytecode } from "wagmi";
 
 import Progression from "./Progression";
 import {
@@ -17,6 +17,7 @@ import {
 import { accountClient } from "../../../utils/alchemyConnector";
 import queryClient from "../../../utils/queryClient";
 import reportError from "../../../utils/reportError";
+import useAccount from "../../../utils/useAccount";
 import Button from "../../shared/Button";
 import Spinner from "../../shared/Spinner";
 import Text from "../../shared/Text";

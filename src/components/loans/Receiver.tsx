@@ -10,12 +10,12 @@ import React, { useEffect, useState } from "react";
 import { Pressable } from "react-native";
 import { ScrollView, Separator, XStack, YStack } from "tamagui";
 import { parse } from "valibot";
-import { useAccount } from "wagmi";
 
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import type { Loan } from "../../utils/queryClient";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
+import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useIntercom from "../../utils/useIntercom";
 import Input from "../shared/Input";

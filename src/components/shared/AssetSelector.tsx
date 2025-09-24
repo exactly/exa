@@ -7,12 +7,12 @@ import { vs } from "react-native-size-matters";
 import { ToggleGroup, YStack } from "tamagui";
 import { safeParse } from "valibot";
 import { zeroAddress } from "viem";
-import { useAccount } from "wagmi";
 
 import AssetLogo from "./AssetLogo";
 import Skeleton from "./Skeleton";
 import { useReadPreviewerExactly } from "../../generated/contracts";
 import assetLogos from "../../utils/assetLogos";
+import useAccount from "../../utils/useAccount";
 import useAccountAssets from "../../utils/useAccountAssets";
 import Text from "../shared/Text";
 import View from "../shared/View";

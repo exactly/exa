@@ -5,13 +5,13 @@ import React, { useState } from "react";
 import { Pressable } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
-import { useAccount } from "wagmi";
 
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import { useReadPreviewerExactly } from "../../generated/contracts";
 import assetLogos from "../../utils/assetLogos";
 import queryClient, { type Loan } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
+import useAccount from "../../utils/useAccount";
 import useIntercom from "../../utils/useIntercom";
 import AssetLogo from "../shared/AssetLogo";
 import Button from "../shared/Button";
