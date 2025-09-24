@@ -571,7 +571,6 @@ export default function Pay() {
                                     Math.ceil(Math.log10(Math.max(1, Number(repayMarket.usdValue) / 1e18))),
                                 ),
                               ),
-                              useGrouping: false,
                             })} ${repayMarket.symbol.slice(3) === "WETH" ? "ETH" : repayMarket.symbol.slice(3)}`}
                           </Text>
                         </>
@@ -603,7 +602,6 @@ export default function Pay() {
                                       ),
                                   ),
                                 ),
-                                useGrouping: false,
                               },
                             )} ${externalAsset.symbol}`}
                           </Text>

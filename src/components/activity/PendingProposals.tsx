@@ -255,7 +255,6 @@ function ProposalItem({ proposal }: { proposal: Proposal }) {
                     (market?.decimals ?? 18) - Math.ceil(Math.log10(Math.max(1, Number(proposal.amount) / 1e18))),
                   ),
                 ),
-                useGrouping: false,
               })} ${symbol}`}
             </Text>
           ) : null}

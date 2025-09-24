@@ -43,7 +43,6 @@ const formatTokenAmount = (amount: bigint, decimals: number) => {
   return tokenAmount.toLocaleString(undefined, {
     minimumFractionDigits: 0,
     maximumFractionDigits: Math.min(8, Math.max(0, decimals - Math.ceil(Math.log10(Math.max(1, tokenAmount))))),
-    useGrouping: false,
   });
 };
 

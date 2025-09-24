@@ -102,7 +102,6 @@ export default function AssetSelector({
                           8,
                           Math.max(0, decimals - Math.ceil(Math.log10(Math.max(1, Number(priceUSD) / 1e18)))),
                         ),
-                        useGrouping: false,
                       })} ${symbol}`}
                     </Text>
                   </View>
@@ -166,7 +165,6 @@ export default function AssetSelector({
                             8,
                             Math.max(0, decimals - Math.ceil(Math.log10(Math.max(1, usdValue / 1e18)))),
                           ),
-                          useGrouping: false,
                         },
                       )} ${symbol.slice(3) === "WETH" ? "ETH" : symbol.slice(3)}`}
                     </Text>

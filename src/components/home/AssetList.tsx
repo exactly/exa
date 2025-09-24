@@ -90,7 +90,6 @@ function AssetRow({ asset }: { asset: AssetItem }) {
               8,
               Math.max(0, decimals - Math.ceil(Math.log10(Math.max(1, Number(usdValue) / 1e18)))),
             ),
-            useGrouping: false,
           })}
         </Text>
       </YStack>

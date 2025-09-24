@@ -231,7 +231,6 @@ export default function Amount() {
                             {`${(Number(available) / 10 ** market.decimals).toLocaleString(undefined, {
                               minimumFractionDigits: 0,
                               maximumFractionDigits: market.decimals,
-                              useGrouping: false,
                             })} ${market.symbol.slice(3)}`}
                           </>
                         ) : external ? (
@@ -239,7 +238,6 @@ export default function Amount() {
                             {`${(Number(available) / 10 ** external.decimals).toLocaleString(undefined, {
                               minimumFractionDigits: 0,
                               maximumFractionDigits: external.decimals,
-                              useGrouping: false,
                             })} ${external.symbol}`}
                           </>
                         ) : null}
