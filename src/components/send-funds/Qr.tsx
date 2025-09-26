@@ -9,6 +9,8 @@ import { useWindowDimensions, XStack, YStack } from "tamagui";
 import { safeParse } from "valibot";
 
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
+import type { Withdraw } from "../../utils/queryClient";
+import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import Button from "../shared/Button";
 import Text from "../shared/Text";
@@ -121,7 +123,12 @@ export default function Qr() {
         barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
         onBarcodeScanned={({ data: receiver }) => {
           const result = safeParse(Address, receiver);
-          if (result.success) navigation.popTo("send-funds", { screen: "asset", params: { receiver: result.output } });
+          if (result.success) {
+            queryClient.setQueryData<Withdraw>(["withdrawal"], (old) =>
+              old ? { ...old, receiver: result.output } : { receiver: result.output, market: undefined, amount: 0n },
+            );
+            navigation.popTo("send-funds", { screen: "asset" });
+          }
         }}
         facing={cameraFacing}
         style={styles.cameraView}
