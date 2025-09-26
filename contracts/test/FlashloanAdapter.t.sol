@@ -7,10 +7,8 @@ import { IERC20 } from "openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 import { ForkTest } from "./Fork.t.sol";
 
 import {
-  FlashLoanAdapter, IBalancerVaultV3, IFlashLoanRecipientV2, IWAToken, WATokenSet
+  FlashLoanAdapter, IBalancerVaultV3, IFlashLoanRecipient, IWAToken, WATokenSet
 } from "../src/FlashloanAdapter.sol";
-
-import { console } from "forge-std/console.sol";
 
 contract FlashloanAdapterTest is ForkTest {
   FlashLoanAdapter internal adapter;
@@ -66,15 +64,18 @@ contract FlashloanAdapterTest is ForkTest {
     IWAToken waOptUSDCn = IWAToken(address(0x41B334E9F2C0ED1f30fD7c351874a6071C53a78E));
     adapter.setWAToken(usdc, waOptUSDCn);
     FlashLoanConsumer consumer = new FlashLoanConsumer(adapter, usdc);
+
+    deal(address(usdc), address(consumer), 1);
     consumer.callFlashLoan();
   }
 
   // solhint-enable func-name-mixedcase
 }
 
-contract FlashLoanConsumer is IFlashLoanRecipientV2 {
+contract FlashLoanConsumer is IFlashLoanRecipient {
   FlashLoanAdapter internal adapter;
   IERC20 internal token;
+  uint256 internal prevAmount;
 
   constructor(FlashLoanAdapter adapter_, IERC20 token_) {
     adapter = adapter_;
@@ -82,22 +83,13 @@ contract FlashLoanConsumer is IFlashLoanRecipientV2 {
   }
 
   function callFlashLoan() external {
-    IERC20[] memory tokens = new IERC20[](1);
-    tokens[0] = token;
-    uint256[] memory amounts = new uint256[](1);
-    amounts[0] = 1e6;
-
-    adapter.flashLoan(address(this), tokens, amounts, "");
+    prevAmount = token.balanceOf(address(this));
+    adapter.flashLoan(address(this), token, 1e6, "");
   }
 
-  function receiveFlashLoan(IERC20[] calldata tokens, uint256[] calldata amounts, uint256[] calldata, bytes calldata)
-    external
-  {
-    console.log("consumer.receiveFlashLoan");
-    console.log("tokens", address(tokens[0]));
-    console.log("amounts", amounts[0]);
-    console.log("balances", tokens[0].balanceOf(address(this)));
-    tokens[0].transfer(address(adapter), amounts[0]);
-    console.log("consumer transferred");
+  function receiveFlashLoan(IERC20 token_, uint256 amount, uint256 debt, bytes calldata) external {
+    assert(token.balanceOf(address(this)) == prevAmount + amount);
+    assert(address(token_) == address(token));
+    token_.transfer(address(adapter), debt);
   }
 }

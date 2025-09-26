@@ -5,14 +5,10 @@ import { AccessControl } from "openzeppelin-contracts/contracts/access/AccessCon
 import { IERC20 } from "openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 import { IERC4626 } from "openzeppelin-contracts/contracts/interfaces/IERC4626.sol";
 
-import { IFlashLoaner } from "./IExaAccount.sol";
-
-import { console } from "forge-std/console.sol";
-
-contract FlashLoanAdapter is AccessControl, IFlashLoaner {
+contract FlashLoanAdapter is AccessControl {
   IBalancerVaultV3 public immutable VAULT;
 
-  mapping(IERC20 asset => bool isWAToken) public isWAToken;
+  mapping(IERC20 wAToken => bool isWAToken) public isWAToken;
   mapping(IERC20 asset => IWAToken wAToken) public wATokens;
 
   constructor(IBalancerVaultV3 _vault, address owner) {
@@ -20,73 +16,47 @@ contract FlashLoanAdapter is AccessControl, IFlashLoaner {
     VAULT = _vault;
   }
 
-  function flashLoan(address recipient, IERC20[] memory tokens, uint256[] memory amounts, bytes memory data)
-    external
-    override
-  {
-    for (uint256 i; i < tokens.length; ++i) {
-      uint256 amount = amounts[i];
-      if (tokens[i].balanceOf(address(VAULT)) < amount) {
-        IWAToken wAToken = wATokens[tokens[i]];
-        if (wAToken == IWAToken(address(0)) || wAToken.convertToAssets(wAToken.balanceOf(address(VAULT))) < amount) {
-          revert InsufficientLiquidity();
-        }
-        tokens[i] = IERC20(wAToken);
-        amounts[i] = wAToken.convertToShares(amount);
+  function flashLoan(address recipient, IERC20 token, uint256 amount, bytes memory data) external {
+    uint256 debt = 0;
+    if (token.balanceOf(address(VAULT)) < amount) {
+      IWAToken wAToken = wATokens[token];
+      if (wAToken == IWAToken(address(0)) || wAToken.convertToAssets(wAToken.balanceOf(address(VAULT))) < amount) {
+        revert InsufficientLiquidity();
       }
+      token = IERC20(address(wAToken));
+      amount = wAToken.convertToShares(amount);
+      debt = wAToken.previewMint(amount);
+    } else {
+      debt = amount;
     }
-
-    VAULT.unlock(abi.encodeWithSelector(this.receiveFlashLoan.selector, abi.encode(recipient, tokens, amounts, data)));
+    VAULT.unlock(
+      abi.encodeWithSelector(this.receiveFlashLoan.selector, abi.encode(recipient, token, amount, debt, data))
+    );
   }
 
   function receiveFlashLoan(bytes calldata payload) external {
     if (msg.sender != address(VAULT)) revert UnauthorizedVault();
+    (address recipient, IERC20 token, uint256 amount, uint256 debt, bytes memory data) =
+      abi.decode(payload, (address, IERC20, uint256, uint256, bytes));
 
-    (address recipient, IERC20[] memory tokens, uint256[] memory amounts, bytes memory userData) =
-      abi.decode(payload, (address, IERC20[], uint256[], bytes));
-
-    IERC20[] memory consumerTokens = new IERC20[](tokens.length);
-    uint256[] memory consumerAmounts = new uint256[](tokens.length);
-
-    for (uint256 i; i < tokens.length; ++i) {
-      uint256 amount = amounts[i];
-      IERC20 token = tokens[i];
-      if (isWAToken[token]) {
-        IWAToken wAToken = IWAToken(address(token));
-        VAULT.sendTo(token, address(this), amount);
-        wAToken.redeem(amount, recipient, address(this));
-        consumerTokens[i] = IERC20(wAToken.asset());
-        consumerAmounts[i] = wAToken.convertToAssets(amount);
-      } else {
-        consumerTokens[i] = token;
-        consumerAmounts[i] = amount;
-        VAULT.sendTo(token, recipient, amount);
-      }
+    if (isWAToken[token]) {
+      IWAToken wAToken = IWAToken(address(token));
+      VAULT.sendTo(token, address(this), amount);
+      uint256 assets = wAToken.redeem(amount, recipient, address(this));
+      IFlashLoanRecipient(recipient).receiveFlashLoan(IERC20(wAToken.asset()), assets, debt, data);
+    } else {
+      VAULT.sendTo(token, recipient, amount);
+      IFlashLoanRecipient(recipient).receiveFlashLoan(token, amount, debt, data);
     }
 
-    IFlashLoanRecipientV2(recipient).receiveFlashLoan(
-      consumerTokens, consumerAmounts, new uint256[](tokens.length), userData
-    );
-    console.log("received flash loan");
-
-    for (uint256 i; i < tokens.length; ++i) {
-      IERC20 token = tokens[i];
-      uint256 amount = amounts[i];
-
-      if (isWAToken[token]) {
-        IWAToken wAToken = IWAToken(address(token));
-        console.log("depositing");
-        console.log("token", address(token));
-        console.log("amount", amount);
-        IERC20(wAToken.asset()).approve(address(wAToken), type(uint256).max);
-        // IERC20(wAToken.asset()).approve(address(VAULT), wAToken.convertToAssets(amount));
-        wAToken.deposit(wAToken.convertToAssets(amount), address(VAULT));
-        VAULT.settle(token, amount);
-      } else {
-        token.transfer(address(VAULT), amount);
-        VAULT.settle(token, amount);
-      }
+    if (isWAToken[token]) {
+      IWAToken wAToken = IWAToken(address(token));
+      IERC20(wAToken.asset()).approve(address(wAToken), debt);
+      wAToken.deposit(debt, address(VAULT));
+    } else {
+      token.transfer(address(VAULT), amount);
     }
+    VAULT.settle(token, amount);
   }
 
   function setWAToken(IERC20 asset, IWAToken token) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -102,24 +72,12 @@ interface IBalancerVaultV3 {
   function unlock(bytes calldata data) external returns (bytes memory);
 }
 
-interface IFlashLoanRecipientV2 {
-  function receiveFlashLoan(
-    IERC20[] calldata tokens,
-    uint256[] calldata amounts,
-    uint256[] calldata feeAmounts,
-    bytes calldata userData
-  ) external;
+interface IFlashLoanRecipient {
+  function receiveFlashLoan(IERC20 token, uint256 amount, uint256 debt, bytes calldata data) external;
 }
 
 interface IWAToken is IERC4626 {
-  function aToken() external view returns (IAToken);
-}
-
-interface IAToken is IERC20 {
-  function burn(address from, address receiverOfUnderlying, uint256 amount, uint256 index) external;
-  function mint(address caller, address onBehalfOf, uint256 amount, uint256 index) external returns (bool);
-  // solhint-disable-next-line func-name-mixedcase
-  function UNDERLYING_ASSET_ADDRESS() external view returns (address);
+  function aToken() external view returns (IERC20);
 }
 
 error InsufficientLiquidity();
