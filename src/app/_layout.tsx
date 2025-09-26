@@ -2,7 +2,9 @@ import { optimism } from "@alchemy/aa-core";
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
+import { sdk } from "@farcaster/miniapp-sdk";
 import { createConfig, EVM } from "@lifi/sdk";
+import type { NavigationContainerRefWithCurrent } from "@react-navigation/native";
 import {
   ErrorBoundary,
   feedbackIntegration,
@@ -22,7 +24,7 @@ import { type FontSource, useFonts } from "expo-font";
 import { SplashScreen, Stack, useNavigationContainerRef } from "expo-router";
 import { channel, checkForUpdateAsync, fetchUpdateAsync, reloadAsync } from "expo-updates";
 import { use as configI18n } from "i18next";
-import React, { useEffect, useLayoutEffect as useClientLayoutEffect } from "react";
+import React, { useCallback, useEffect, useLayoutEffect as useClientLayoutEffect } from "react";
 import { initReactI18next } from "react-i18next";
 import { AppState, Platform } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -115,22 +117,25 @@ createConfig({
 });
 
 export default wrap(function RootLayout() {
-  const navigationContainer = useNavigationContainerRef();
-
   useServerFonts({
     "BDOGrotesk-DemiBold": BDOGroteskDemiBold as FontSource,
     "BDOGrotesk-Regular": BDOGroteskRegular as FontSource,
     "IBMPlexMono-Medm": IBMPlexMonoMedium as FontSource,
   });
   useServerAssets([AppIcon]);
-  useEffect(() => {
-    routingInstrumentation.registerNavigationContainer(navigationContainer);
-  }, [navigationContainer]);
 
   useEffect(() => {
-    reconnect(exaConfig).catch(reportError);
-    getOwnerConnector()
-      .then((connector) => reconnect(ownerConfig, { connectors: [connector] }))
+    Promise.all([
+      queryClient.fetchQuery<boolean>({ queryKey: ["is-miniapp"] }).catch(reportError),
+      reconnect(exaConfig).catch(reportError),
+      getOwnerConnector()
+        .then((connector) => reconnect(ownerConfig, { connectors: [connector] }))
+        .catch(reportError),
+    ])
+      .then(([isMiniApp]) => {
+        if (isMiniApp) sdk.actions.ready().catch(reportError);
+        SplashScreen.hideAsync().catch(reportError);
+      })
       .catch(reportError);
 
     if (__DEV__) return;
@@ -154,6 +159,29 @@ export default wrap(function RootLayout() {
       subscription.remove();
     };
   }, []);
+
+  const navigationContainer = (
+    useNavigationContainerRef as () => NavigationContainerRefWithCurrent<{ "(auth)": undefined; "(main)": undefined }>
+  )();
+  useEffect(() => {
+    routingInstrumentation.registerNavigationContainer(navigationContainer);
+  }, [navigationContainer]);
+
+  const checkAuth = useCallback(() => {
+    if (!navigationContainer.current) return;
+    const credential = queryClient.getQueryData<Credential>(["credential"]);
+    if (credential) navigationContainer.current.navigate("(main)");
+  }, [navigationContainer]);
+
+  useEffect(() => {
+    const navigation = navigationContainer.current;
+    if (!navigation) return;
+    if (navigation.isReady()) checkAuth();
+    else navigation.addListener("ready", checkAuth);
+    return () => {
+      navigation.removeListener("ready", checkAuth);
+    };
+  }, [navigationContainer, checkAuth]);
 
   useLayoutEffect(() => {
     if (Platform.OS !== "web") return;
