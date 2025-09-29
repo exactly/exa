@@ -681,6 +681,7 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
         bytes1(0x01),
         abi.encode(
           RepayCallbackData({
+            market: proposal.market,
             maturity: repayData.maturity,
             borrower: msg.sender,
             positionAssets: repayData.positionAssets,
@@ -689,7 +690,8 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
         )
       )
     );
-    _flashLoan(proposal.amount, USDC, data);
+    // slither-disable-next-line calls-loop
+    _flashLoan(proposal.amount, IERC20(proposal.market.asset()), data);
   }
 
   function _rollDebt(Proposal memory proposal) internal {

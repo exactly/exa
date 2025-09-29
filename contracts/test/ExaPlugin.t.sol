@@ -568,6 +568,42 @@ contract ExaPluginTest is ForkTest {
     assertEq(proposalManager.queueNonces(address(account)), queueNonce, "queue nonce didn't stay the same");
   }
 
+  function test_repay_repays_anyMarket() external {
+    vm.startPrank(keeper);
+    account.poke(exaEXA);
+
+    uint256 maturity = FixedLib.INTERVAL;
+    uint256 positionAssets = 100e18;
+    uint256 maxAssets = 110e18;
+    vm.startPrank(address(account));
+    account.propose(
+      exaEXA,
+      positionAssets,
+      ProposalType.BORROW_AT_MATURITY,
+      abi.encode(BorrowAtMaturityData({ maturity: maturity, maxAssets: 110e18, receiver: address(account) }))
+    );
+
+    skip(proposalManager.delay());
+    account.executeProposal(proposalManager.nonces(address(account)));
+
+    assertEq(
+      exaEXA.fixedBorrowPositions(maturity, address(account)).principal, positionAssets, "principal doesn't match"
+    );
+    assertLe(exaEXA.fixedBorrowPositions(maturity, address(account)).fee, 10e18, "fee is higher than limit");
+
+    account.propose(
+      exaEXA,
+      positionAssets + 10e18, // maxRepay
+      ProposalType.REPAY_AT_MATURITY,
+      abi.encode(RepayData({ maturity: maturity, positionAssets: maxAssets }))
+    );
+    skip(proposalManager.delay());
+    account.executeProposal(proposalManager.nonces(address(account)));
+
+    assertEq(exaEXA.fixedBorrowPositions(maturity, address(account)).principal, 0, "principal not fully repaid");
+    assertEq(exaEXA.fixedBorrowPositions(maturity, address(account)).fee, 0, "fee not fully repaid");
+  }
+
   function test_crossRepay_consumesProposal() external {
     vm.startPrank(keeper);
     account.poke(exaEXA);

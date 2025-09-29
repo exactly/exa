@@ -47,18 +47,19 @@ contract ExaPluginExtension {
 
     if (data[0] == 0x01) {
       RepayCallbackData memory r = abi.decode(data[1:], (RepayCallbackData));
+      if (r.market != EXA_USDC) IERC20(r.market.asset()).forceApprove(address(r.market), r.maxRepay);
       // slither-disable-next-line reentrancy-no-eth -- markets are safe
-      uint256 actualRepay = EXA_USDC.repayAtMaturity(r.maturity, r.positionAssets, r.maxRepay, r.borrower);
+      uint256 actualRepay = r.market.repayAtMaturity(r.maturity, r.positionAssets, r.maxRepay, r.borrower);
 
       // slither-disable-next-line reentrancy-benign -- markets are safe
-      callHash = keccak256(abi.encode(EXA_USDC, IERC4626.withdraw.selector, actualRepay, address(this), r.borrower))
+      callHash = keccak256(abi.encode(r.market, IERC4626.withdraw.selector, actualRepay, address(this), r.borrower))
         | bytes32(uint256(1));
       _execute(
-        r.borrower, address(EXA_USDC), 0, abi.encodeCall(IMarket.withdraw, (actualRepay, address(this), r.borrower))
+        r.borrower, address(r.market), 0, abi.encodeCall(IMarket.withdraw, (actualRepay, address(this), r.borrower))
       );
       // slither-disable-next-line reentrancy-benign -- markets are safe
       delete callHash;
-      USDC.safeTransfer(_flashLoaner, r.maxRepay);
+      IERC20(r.market.asset()).safeTransfer(_flashLoaner, r.maxRepay);
       return;
     }
     _handleCrossRepay(abi.decode(data[1:], (CrossRepayCallbackData)));
@@ -148,4 +149,5 @@ struct RepayCallbackData {
   address borrower;
   uint256 positionAssets;
   uint256 maxRepay;
+  IMarket market;
 }
