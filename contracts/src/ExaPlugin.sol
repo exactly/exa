@@ -698,12 +698,12 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
     RollDebtData memory rollData = abi.decode(proposal.data, (RollDebtData));
     _approveAndExecuteFromSender(
       address(DEBT_MANAGER),
-      address(EXA_USDC),
+      address(proposal.market),
       rollData.maxRepayAssets,
       abi.encodeCall(
         IDebtManager.rollFixed,
         (
-          EXA_USDC,
+          proposal.market,
           rollData.repayMaturity,
           rollData.borrowMaturity,
           rollData.maxRepayAssets,
@@ -712,7 +712,7 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
         )
       )
     );
-    _approveFromSender(address(EXA_USDC), address(DEBT_MANAGER), 0);
+    _approveFromSender(address(proposal.market), address(DEBT_MANAGER), 0);
   }
 
   function _setFlashLoaner(IFlashLoaner flashLoaner_) internal {

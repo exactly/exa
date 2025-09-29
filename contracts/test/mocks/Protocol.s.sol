@@ -83,6 +83,8 @@ contract DeployProtocol is BaseScript {
     balancer = IFlashLoaner(address(new MockBalancerVault()));
     debtManager = new DebtManager(auditor, IPermit2(address(0)), BalancerVault(address(balancer)));
     debtManager.approve(exaUSDC);
+    debtManager.approve(exaEXA);
+    debtManager.approve(exaWETH);
     previewer = new Previewer(auditor, IPriceFeed(address(0)));
 
     installmentsRouter = new InstallmentsRouter(auditor, exaWETH);
