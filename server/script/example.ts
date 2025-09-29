@@ -1,5 +1,7 @@
 import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
 import pem from "@exactly/common/pandaCertificate";
+import { createAuthClient } from "better-auth/client";
+import { siweClient, organizationClient } from "better-auth/client/plugins";
 import crypto from "node:crypto";
 import * as v from "valibot";
 import {
@@ -11,9 +13,12 @@ import {
   isAddress,
   isHash,
   http,
+  sha256,
+  getAddress,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { optimismSepolia } from "viem/chains";
+import { createSiweMessage } from "viem/siwe";
 
 /* eslint-disable no-console */
 
@@ -24,6 +29,11 @@ const FIRST_NAME_ID =
 
 if (!PRIVATE_KEY) throw new Error("PRIVATE_KEY environment variable is required");
 if (!API_BASE_URL) throw new Error("API_BASE_URL environment variable is required");
+
+const authClient = createAuthClient({
+  baseURL: API_BASE_URL,
+  plugins: [siweClient(), organizationClient()],
+});
 
 // #region schemas
 const BadRequest = v.object({ code: v.string(), legacy: v.string() });
@@ -81,10 +91,9 @@ const CardResponse = v.object({
   status: v.picklist(["ACTIVE", "FROZEN"]),
 });
 
-const CardStatus = v.picklist(["active", "canceled", "locked", "notActivated"]);
 const CreatedCardResponse = v.object({
   lastFour: v.string(),
-  status: CardStatus,
+  status: v.picklist(["ACTIVE", "FROZEN"]),
 });
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -264,16 +273,88 @@ async function getKyc(): Promise<v.InferOutput<typeof KYCStatus> | v.InferOutput
   return v.parse(KYCStatus, data);
 }
 
-async function submitKyc() {
+function encryptKyc(payload: string) {
+  const sandboxPublicKey = `-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyZixoAuo015iMt+JND0y
+usAvU2iJhtKRM+7uAxd8iXq7Z/3kXlGmoOJAiSNfpLnBAG0SCWslNCBzxf9+2p5t
+HGbQUkZGkfrYvpAzmXKsoCrhWkk1HKk9f7hMHsyRlOmXbFmIgQHggEzEArjhkoXD
+pl2iMP1ykCY0YAS+ni747DqcDOuFqLrNA138AxLNZdFsySHbxn8fzcfd3X0J/m/T
+2dZuy6ChfDZhGZxSJMjJcintFyXKv7RkwrYdtXuqD3IQYakY3u6R1vfcKVZl0yGY
+S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
+2wIDAQAB
+-----END PUBLIC KEY-----`;
+  const aesKey = crypto.randomBytes(32);
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", aesKey, iv);
+
+  const ciphertext = Buffer.concat([cipher.update(payload, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+
+  const key = crypto.publicEncrypt(
+    {
+      key: sandboxPublicKey,
+      padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
+      oaepHash: "sha256",
+    },
+    aesKey,
+  );
+
+  return {
+    key: key.toString("base64"),
+    iv: iv.toString("base64"),
+    ciphertext: ciphertext.toString("base64"),
+    tag: tag.toString("base64"),
+    hash: sha256(ciphertext),
+  };
+}
+
+async function submitKyc(exaAccount: `0x${string}`) {
   console.log("Submitting KYC application...");
 
+  if (!process.env.INTEGRATOR_ADMIN_PRIVATE_KEY) throw new Error("INTEGRATOR_ADMIN_PRIVATE_KEY is not set");
+
+  const integratorAdmin = privateKeyToAccount(process.env.INTEGRATOR_ADMIN_PRIVATE_KEY as `0x${string}`);
+
+  const { data, error: nonceError } = await authClient.siwe.nonce({
+    walletAddress: integratorAdmin.address,
+    chainId: optimismSepolia.id,
+  });
+  if (!data) throw new Error(`Failed to get nonce: ${nonceError.message}`);
+
+  const encryptedPayload = encryptKyc(JSON.stringify(kycPayload));
+  const statement = `I apply for KYC approval on behalf of address ${getAddress(exaAccount)} with payload hash ${encryptedPayload.hash}`;
+  if (!API_BASE_URL) throw new Error("API_BASE_URL is not set");
+  const message = createSiweMessage({
+    statement,
+    resources: ["https://exactly.github.io/exa"],
+    nonce: data.nonce,
+    uri: API_BASE_URL,
+    address: integratorAdmin.address,
+    chainId: optimismSepolia.id,
+    scheme: "https",
+    version: "1",
+    domain: new URL(API_BASE_URL).hostname,
+  });
+  const signature = await integratorAdmin.signMessage({ message });
+
+  const { hash, ...payload } = encryptedPayload;
+  console.log("application payload");
   const response = await fetch(`${API_BASE_URL}/api/kyc/application`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       ...AUTH_HEADERS,
+      encrypted: "true",
     },
-    body: JSON.stringify(kycPayload),
+    body: JSON.stringify({
+      ...payload,
+      verify: {
+        message,
+        signature,
+        walletAddress: integratorAdmin.address,
+        chainId: optimismSepolia.id,
+      },
+    }),
   });
 
   if (!response.ok) {
@@ -369,7 +450,7 @@ async function onboarding() {
   const kyc = await getKyc();
   if (kyc.code === "not started") {
     console.log("KYC application not started, submitting...");
-    await submitKyc();
+    await submitKyc(accountAddress);
     console.log("✅ KYC application submitted successfully");
   } else {
     console.log("KYC application already submitted");
