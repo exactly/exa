@@ -6,6 +6,12 @@ import { ForkTest, stdError } from "./Fork.t.sol";
 import { Auditor } from "@exactly/protocol/Auditor.sol";
 import { FixedLib, Market } from "@exactly/protocol/Market.sol";
 
+import { MockBalancerVault } from "@exactly/protocol/mocks/MockBalancerVault.sol";
+import { FlashLoanAdapter, IBalancerVaultV3 } from "@exactly/protocol/periphery/FlashLoanAdapter.sol";
+
+import { IERC20 as IERC20v4 } from "@openzeppelin/contracts-v4/interfaces/IERC20.sol";
+import { IERC4626 as IERC4626v4 } from "@openzeppelin/contracts-v4/interfaces/IERC4626.sol";
+
 import { PluginManagerInternals } from "modular-account/src/account/PluginManagerInternals.sol";
 import { Call, UpgradeableModularAccount } from "modular-account/src/account/UpgradeableModularAccount.sol";
 import { IEntryPoint } from "modular-account/src/interfaces/erc4337/IEntryPoint.sol";
@@ -3549,6 +3555,130 @@ contract ExaPluginTest is ForkTest {
     vm.startPrank(address(account));
     vm.expectRevert(InvalidProposal.selector);
     account.propose(exaEXA, 1, ProposalType.NONE, abi.encode(address(account)));
+  }
+
+  function testFork_repay_whenFlashLoanerHasFees() external {
+    vm.createSelectFork("optimism", 141_227_400);
+    account = ExaAccount(payable(0x6120Fb2A9d47f7955298b80363F00C620dB9f6E6));
+    issuerChecker = new IssuerChecker(address(this), issuer, 1 minutes, 1 minutes);
+    issuerChecker.setIssuer(issuer);
+    domainSeparator = issuerChecker.DOMAIN_SEPARATOR();
+
+    address[] memory targets = new address[](3);
+    targets[0] = IMarket(protocol("MarketUSDC")).asset();
+    targets[1] = IMarket(protocol("MarketWETH")).asset();
+    targets[2] = IMarket(protocol("MarketWBTC")).asset();
+    proposalManager = new ProposalManager(
+      address(this),
+      IAuditor(protocol("Auditor")),
+      IDebtManager(protocol("DebtManager")),
+      IInstallmentsRouter(protocol("InstallmentsRouter")),
+      acct("collector"),
+      targets,
+      1 minutes
+    );
+    FlashLoanAdapter adapter =
+      new FlashLoanAdapter(IBalancerVaultV3(0xbA1333333333a1BA1108E8412f11850A5C319bA9), address(this));
+
+    usdc = MockERC20(protocol("USDC"));
+    exaUSDC = IMarket(protocol("MarketUSDC"));
+    adapter.setWToken(IERC20v4(address(usdc)), IERC4626v4(address(0x41B334E9F2C0ED1f30fD7c351874a6071C53a78E)));
+
+    exaPlugin = ExaPlugin(payable(0x3d73D0fb9e63c49ba8e9cd738964D5E08C047f3e));
+
+    ExaPlugin newExaPlugin = new ExaPlugin(
+      Parameters({
+        owner: address(this),
+        auditor: IAuditor(protocol("Auditor")),
+        exaUSDC: exaUSDC,
+        exaWETH: IMarket(protocol("MarketWETH")),
+        flashLoaner: IFlashLoaner(address(adapter)),
+        debtManager: IDebtManager(protocol("DebtManager")),
+        installmentsRouter: IInstallmentsRouter(protocol("InstallmentsRouter")),
+        issuerChecker: issuerChecker,
+        proposalManager: proposalManager,
+        collector: acct("collector"),
+        swapper: 0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE,
+        firstKeeper: keeper
+      })
+    );
+    proposalManager.grantRole(proposalManager.PROPOSER_ROLE(), address(newExaPlugin));
+
+    vm.prank(acct("admin"));
+    exaPlugin.allowPlugin(address(newExaPlugin), true);
+
+    Call[] memory calls = new Call[](2);
+    calls[0] =
+      Call(address(account), 0, abi.encodeCall(UpgradeableModularAccount.uninstallPlugin, (address(exaPlugin), "", "")));
+    calls[1] = Call(
+      address(account),
+      0,
+      abi.encodeCall(
+        UpgradeableModularAccount.installPlugin,
+        (address(newExaPlugin), keccak256(abi.encode(newExaPlugin.pluginManifest())), "", new FunctionReference[](0))
+      )
+    );
+
+    vm.startPrank(address(account));
+    account.executeBatch(calls);
+
+    uint256 nextMaturity = block.timestamp + FixedLib.INTERVAL - block.timestamp % FixedLib.INTERVAL;
+
+    FixedPosition memory position = exaUSDC.fixedBorrowPositions(nextMaturity, address(account));
+    uint256 positionAssets = position.principal + position.fee;
+    assertGt(positionAssets, 0);
+
+    account.propose(
+      exaUSDC,
+      positionAssets + 1,
+      ProposalType.REPAY_AT_MATURITY,
+      abi.encode(RepayData({ maturity: nextMaturity, positionAssets: positionAssets }))
+    );
+
+    skip(proposalManager.delay());
+    account.executeProposal(proposalManager.nonces(address(account)));
+
+    position = exaUSDC.fixedBorrowPositions(nextMaturity, address(account));
+    assertEq(position.principal + position.fee, 0);
+  }
+
+  function test_crossRepay_whenFlashLoanerHasFees() external {
+    MockBalancerVault flashLoaner = new MockBalancerVault();
+    flashLoaner.setFee(1e6);
+    usdc.mint(address(flashLoaner), 1_000_000e6);
+
+    exaPlugin.setFlashLoaner(IFlashLoaner(address(flashLoaner)));
+
+    vm.startPrank(keeper);
+    account.poke(exaEXA);
+    uint256 maturity = FixedLib.INTERVAL;
+    account.collectCredit(maturity, 100e6, block.timestamp, _issuerOp(100e6, block.timestamp));
+
+    uint256 amountIn = 111e18;
+    bytes memory route = abi.encodeCall(
+      MockSwapper.swapExactAmountOut, (address(exaEXA.asset()), amountIn, address(usdc), 110e6, address(account))
+    );
+
+    vm.startPrank(address(account));
+    account.propose(
+      exaEXA,
+      amountIn,
+      ProposalType.CROSS_REPAY_AT_MATURITY,
+      abi.encode(
+        CrossRepayData({ maturity: maturity, positionAssets: 110e6, marketOut: exaUSDC, maxRepay: 110e6, route: route })
+      )
+    );
+
+    skip(proposalManager.delay());
+
+    uint256 nonce = proposalManager.nonces(address(account));
+    uint256 queueNonce = proposalManager.queueNonces(address(account));
+    assertEq(queueNonce, nonce + 1);
+
+    account.executeProposal(proposalManager.nonces(address(account)));
+
+    assertEq(proposalManager.nonces(address(account)), nonce + 1, "nonce didn't increase");
+    assertEq(proposalManager.queueNonces(address(account)), queueNonce, "queue nonce didn't stay the same");
   }
 
   // solhint-enable func-name-mixedcase

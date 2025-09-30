@@ -39,7 +39,9 @@ contract ExaPluginExtension {
     EXA_WETH = exaWETH;
   }
 
-  function receiveFlashLoan(IERC20[] calldata, uint256[] calldata, uint256[] calldata, bytes calldata data) external {
+  function receiveFlashLoan(IERC20[] calldata, uint256[] calldata, uint256[] calldata fees, bytes calldata data)
+    external
+  {
     address _flashLoaner = address(flashLoaner);
     // slither-disable-next-line incorrect-equality -- hash comparison
     assert(msg.sender == _flashLoaner && flashLoaning == keccak256(data));
@@ -51,21 +53,20 @@ contract ExaPluginExtension {
       // slither-disable-next-line reentrancy-no-eth -- markets are safe
       uint256 actualRepay = r.market.repayAtMaturity(r.maturity, r.positionAssets, r.maxRepay, r.borrower);
 
+      uint256 spent = actualRepay + fees[0];
       // slither-disable-next-line reentrancy-benign -- markets are safe
-      callHash = keccak256(abi.encode(r.market, IERC4626.withdraw.selector, actualRepay, address(this), r.borrower))
+      callHash = keccak256(abi.encode(r.market, IERC4626.withdraw.selector, spent, address(this), r.borrower))
         | bytes32(uint256(1));
-      _execute(
-        r.borrower, address(r.market), 0, abi.encodeCall(IMarket.withdraw, (actualRepay, address(this), r.borrower))
-      );
+      _execute(r.borrower, address(r.market), 0, abi.encodeCall(IMarket.withdraw, (spent, address(this), r.borrower)));
       // slither-disable-next-line reentrancy-benign -- markets are safe
       delete callHash;
-      IERC20(r.market.asset()).safeTransfer(_flashLoaner, r.maxRepay);
+      IERC20(r.market.asset()).safeTransfer(_flashLoaner, r.maxRepay + fees[0]);
       return;
     }
-    _handleCrossRepay(abi.decode(data[1:], (CrossRepayCallbackData)));
+    _handleCrossRepay(abi.decode(data[1:], (CrossRepayCallbackData)), fees[0]);
   }
 
-  function _handleCrossRepay(CrossRepayCallbackData memory c) internal {
+  function _handleCrossRepay(CrossRepayCallbackData memory c, uint256 fee) internal {
     IERC20 assetOut = IERC20(c.marketOut.asset());
     if (assetOut != USDC) assetOut.forceApprove(address(c.marketOut), c.maxRepay);
 
@@ -76,10 +77,11 @@ contract ExaPluginExtension {
     IERC20 assetIn = IERC20(c.marketIn.asset());
     (uint256 amountIn, uint256 amountOut) = _swap(c.borrower, assetIn, assetOut, c.maxAmountIn, c.maxRepay, c.route);
 
-    _transferFromAccount(c.borrower, assetOut, address(this), actualRepay);
-    assetOut.safeTransfer(flashLoaner, c.maxRepay);
+    uint256 spent = actualRepay + fee;
+    _transferFromAccount(c.borrower, assetOut, address(this), spent);
+    assetOut.safeTransfer(flashLoaner, c.maxRepay + fee);
 
-    uint256 unspent = amountOut - actualRepay;
+    uint256 unspent = amountOut - spent;
     if (_checkDeposit(c.marketOut, unspent)) {
       _execute(c.borrower, address(assetOut), 0, abi.encodeCall(IERC20.approve, (address(c.marketOut), unspent)));
       _execute(c.borrower, address(c.marketOut), 0, abi.encodeCall(IERC4626.deposit, (unspent, c.borrower)));
