@@ -9,6 +9,7 @@ import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 import { ExaPlugin } from "./ExaPlugin.sol";
 import {
   BorrowAtMaturityData,
+  CrossRepayData,
   DelaySet,
   IAuditor,
   IDebtManager,
@@ -226,6 +227,9 @@ contract ProposalManager is IProposalManager, AccessControl {
     if (amount == 0) revert ZeroAmount();
     if (proposalType == ProposalType.NONE) revert InvalidProposal();
     _checkMarket(market);
+    if (proposalType == ProposalType.CROSS_REPAY_AT_MATURITY) {
+      _checkMarket(abi.decode(data, (CrossRepayData)).marketOut);
+    }
     uint256 nonce = queueNonces[account];
     proposals[account][nonce] =
       Proposal({ amount: amount, market: market, timestamp: block.timestamp, proposalType: proposalType, data: data });

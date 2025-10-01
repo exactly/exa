@@ -1707,6 +1707,25 @@ contract ExaPluginTest is ForkTest {
     assertEq(prevEXA + unspent, exa.balanceOf(address(account)), "unspent not transferred to account");
   }
 
+  function test_propose_reverts_whenCrossRepayMarketOutIsInvalid() external {
+    vm.startPrank(address(account));
+    vm.expectRevert(abi.encodeWithSelector(NotMarket.selector));
+    account.propose(
+      exaUSDC,
+      1,
+      ProposalType.CROSS_REPAY_AT_MATURITY,
+      abi.encode(
+        CrossRepayData({
+          maturity: FixedLib.INTERVAL,
+          positionAssets: 1,
+          marketOut: IMarket(address(0x1)),
+          maxRepay: 1,
+          route: bytes("")
+        })
+      )
+    );
+  }
+
   // keeper runtime validation
   function test_collectCredit_collects() external {
     vm.startPrank(keeper);
