@@ -12,24 +12,25 @@ Better auth client and viem are the recommended libraries to use for authenticat
 
 ## SIWE Authentication
 
-Example code to authenticate using SIWE, it will create the user if doesn't exist.
-Note: Check viem account to use a private key instead of a mnemonic.
+Example code to authenticate using SIWE, it will create the user if doesn't exist with an auto generated email that will be needed
+when an admin generates invites. It is possible also to change the auto generated email to a custom one using `authClient.changeEmail`
 
 ```typescript
 import { createAuthClient } from "better-auth/client";
 import { siweClient, organizationClient } from "better-auth/client/plugins";
-import { mnemonicToAccount } from "viem/accounts";
+import { privateKeyToAccount } from "viem/accounts";
 import { optimismSepolia } from "viem/chains";
 import { createSiweMessage } from "viem/siwe";
 
 const chainId = optimismSepolia.id;
 
+const domain = "sandbox.exactly.app";
+
 const authClient = createAuthClient({
-  baseURL: "http://localhost:3000",
+  baseURL: `https://${domain}`,
   plugins: [siweClient(), organizationClient()],
 });
-
-const owner = mnemonicToAccount("test test test test test test test test test test test test");
+const owner = privateKeyToAccount(process.env.INTEGRATOR_ADMIN_PRIVATE_KEY as `0x${string}`);
 
 authClient.siwe
   .nonce({
@@ -37,19 +38,19 @@ authClient.siwe
     chainId,
   })
   .then(async ({ data: nonceResult }) => {
+    if (!nonceResult) throw new Error("No nonce");
     //can be any statement
     const statement = "i accept exa terms and conditions";
-    const nonce = nonceResult?.nonce ?? "";
     const message = createSiweMessage({
       statement,
       resources: ["https://exactly.github.io/exa"],
-      nonce,
-      uri: "https://localhost",
+      nonce: nonceResult.nonce,
+      uri: `https://${domain}`,
       address: owner.address,
       chainId,
       scheme: "https",
       version: "1",
-      domain: "localhost",
+      domain,
     });
     const signature = await owner.signMessage({ message });
 
@@ -62,17 +63,52 @@ authClient.siwe
       },
       {
         onSuccess: async (context) => {
+          console.log("j", JSON.stringify(context.data, null, 2));
           const headers = new Headers();
-          headers.set("cookie", context.response.headers.get("set-cookie") ?? "");
+          const cookie = context.response.headers.get("set-cookie");
+          if (!cookie) throw new Error("No cookie");
+          headers.set("cookie", cookie);
+          console.log("default email for invites", `${owner.address.toLowerCase()}@https://${domain}`);
+          console.log("auth cookie", cookie);
+          const changeEmail = false;
+          if (changeEmail) {
+            const { data: changeEmailResult, error: changeEmailError } = await authClient.changeEmail({
+              fetchOptions: {
+                headers,
+              },
+              newEmail: "foo@example.com",
+            });
+            if (changeEmailResult?.status) {
+              console.log("new email for invites: foo@example.com", changeEmailResult);
+            } else {
+              console.error("error changing email", changeEmailError);
+            }
+          }
         },
         onError: (context) => {
           console.log("authorization error", context);
         },
       },
     );
-  }).catch((error: unknown) => {
+  })
+  .catch((error: unknown) => {
     console.error("nonce error", error);
   });
+```
+
+*Output changeEmail=false:*
+<!-- cspell:ignore FIMNWRCs -->
+```log
+default email for invites 0xd2e4862f5b12888750c3de8bd355a8bea72563db@https://sandbox.exactly.app
+auth cookie __Secure-better-auth.session_token=************************.hdFMxm%2B3lfFT1r0PzlAJV1rBu1158FIMNWRCsPyKc20%3D; Max-Age=604800; Path=/; HttpOnly; Secure; SameSite=Lax, __cf_bm=xnlWakZTNl.7UbT9hFNiwBoVaynqh_JAAIdKpKD0VxM-1759413526-1.0.1.1-cFxObTiGDHlFoAfPHuU0ha4W_ha9_zwmFWTKcrTC0Zr6MCmtUVGpMLMxH5GX2HiekLpnXFNMJ415sVPuJRO8H2EfywCSEqbulhMxzbYMezw; path=/; expires=Thu, 02-Oct-25 14:28:46 GMT; domain=.sandbox.exactly.app; HttpOnly; Secure; SameSite=None
+```
+
+*Output changeEmail=true:*
+<!-- cspell:ignore Hecj Njsn Jgpe SWVD Olyc -->
+```log
+default email for invites 0xd2e4862f5b12888750c3de8bd355a8bea72563db@https://sandbox.exactly.app
+auth cookie __Secure-better-auth.session_token=******************.dHecjPNjsnJ5CyRtsZ%2FovQbtMsDJgpeSWVD2OlycBW4%3D; Max-Age=604800; Path=/; HttpOnly; Secure; SameSite=Lax, __cf_bm=dplXTM4T0iJfoIzqnFGZagTOYedVS6a9tIZGoZeomYU-1759413785-1.0.1.1-0fZC9AG_Y9FDvGSmOJKq5r81Vrvw8c_GwHf6Afh_gNMibNFWLbeX6_YFv2F7VDj9FiuavPdCL.yS7h0MSF92asErgnhDUZu4262YzTacY3s; path=/; expires=Thu, 02-Oct-25 14:33:05 GMT; domain=.sandbox.exactly.app; HttpOnly; Secure; SameSite=None
+new email for invites: foo@example.com { status: true }
 ```
 
 ## Creating an organization
