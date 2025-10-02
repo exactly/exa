@@ -7,12 +7,11 @@ import canonicalize from "canonicalize";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import crypto from "node:crypto";
-import { getAddress, padHex, sha256, zeroAddress, zeroHash } from "viem";
-import { mnemonicToAccount, privateKeyToAddress } from "viem/accounts";
-import { createSiweMessage } from "viem/siwe";
+import { getAddress, sha256 } from "viem";
+import { mnemonicToAccount } from "viem/accounts";
+import { createSiweMessage, generateSiweNonce } from "viem/siwe";
 import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
-import deriveAddress from "@exactly/common/deriveAddress";
 import chain from "@exactly/common/generated/chain";
 
 import app from "../../api/kyc";
@@ -30,21 +29,6 @@ const appClient = testClient(app);
 vi.mock("@sentry/node", { spy: true });
 
 describe("authenticated", () => {
-  const bob = privateKeyToAddress(padHex("0xb0b2"));
-  const account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(bob), y: zeroHash });
-
-  beforeAll(async () => {
-    await database.insert(credentials).values([
-      {
-        id: account,
-        publicKey: new Uint8Array(),
-        account,
-        factory: zeroAddress,
-        pandaId: "pandaId",
-      },
-    ]);
-  });
-
   beforeEach(async () => {
     await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "bob"));
   });
@@ -1019,6 +1003,35 @@ describe("authenticated", () => {
     describe("with organization", () => {
       const owner = mnemonicToAccount("test test test test test test test test test test test kyc");
       const ownerHeaders: Headers = new Headers();
+      const outsider = mnemonicToAccount("test test test test test test test test test test test bob");
+      const outsiderHeaders: Headers = new Headers();
+      const account = "bob";
+
+      const applicationPayload = {
+        email: "test@example.com",
+        lastName: "Doe",
+        firstName: "John",
+        nationalId: "12345678",
+        birthDate: "1990-01-01",
+        countryOfIssue: "US",
+        phoneCountryCode: "1",
+        phoneNumber: "5551234567",
+        address: {
+          line1: "123 Main St",
+          city: "New York",
+          region: "NY",
+          country: "US",
+          postalCode: "10001",
+          countryCode: "US",
+        },
+        ipAddress: "127.0.0.1",
+        occupation: "Engineer",
+        annualSalary: "100000",
+        accountPurpose: "Personal",
+        expectedMonthlyVolume: "5000",
+        isTermsOfServiceAccepted: true as const,
+      };
+
       let organizationId: string;
 
       beforeAll(async () => {
@@ -1039,7 +1052,7 @@ describe("authenticated", () => {
           domain: "localhost",
         });
 
-        const adminResponse = await auth.api.verifySiweMessage({
+        const ownerLogin = await auth.api.verifySiweMessage({
           body: {
             message: ownerMessage,
             signature: await owner.signMessage({ message: ownerMessage }),
@@ -1049,7 +1062,7 @@ describe("authenticated", () => {
           request: new Request("https://localhost"),
           asResponse: true,
         });
-        ownerHeaders.set("cookie", `${adminResponse.headers.get("set-cookie")}`);
+        ownerHeaders.set("cookie", ownerLogin.headers.get("set-cookie") ?? "");
 
         const externalOrganization = await auth.api.createOrganization({
           headers: ownerHeaders,
@@ -1060,6 +1073,35 @@ describe("authenticated", () => {
           },
         });
         organizationId = externalOrganization?.id ?? "";
+
+        await auth.api
+          .getSiweNonce({
+            body: { walletAddress: outsider.address, chainId: chain.id },
+          })
+          .then((result) => {
+            const message = createSiweMessage({
+              statement,
+              resources: ["https://exactly.github.io/exa"],
+              nonce: result.nonce,
+              uri: `https://localhost`,
+              address: outsider.address,
+              chainId: chain.id,
+              scheme: "https",
+              version: "1",
+              domain: "localhost",
+            });
+            return outsider.signMessage({ message }).then((signature) => {
+              return auth.api
+                .verifySiweMessage({
+                  body: { message, signature, walletAddress: outsider.address, chainId: chain.id },
+                  request: new Request("https://localhost"),
+                  asResponse: true,
+                })
+                .then((response) => {
+                  outsiderHeaders.set("cookie", response.headers.get("set-cookie") ?? "");
+                });
+            });
+          });
       });
 
       describe("status", () => {
@@ -1115,14 +1157,14 @@ describe("authenticated", () => {
         });
 
         it("returns ok when payload is valid and kyc is not started", async () => {
-          const statement = `I apply for KYC approval on behalf of address ${getAddress(account)} with payload hash ${sha256(Buffer.from(JSON.stringify(canonicalize(applicationPayload)), "utf8"))}`;
-          const { nonce } = await auth.api.getSiweNonce({
-            body: { walletAddress: owner.address, chainId: chain.id },
+          const credential = await database.query.credentials.findFirst({
+            where: eq(credentials.id, account),
           });
+          const statement = `I apply for KYC approval on behalf of address ${getAddress(credential?.account ?? "")} with payload hash ${sha256(Buffer.from(JSON.stringify(canonicalize(applicationPayload)), "utf8"))}`;
           const message = createSiweMessage({
             statement,
             resources: ["https://exactly.github.io/exa"],
-            nonce,
+            nonce: generateSiweNonce(),
             uri: `https://sandbox.exactly.app`,
             address: owner.address,
             chainId: chain.id,
@@ -1178,14 +1220,15 @@ describe("authenticated", () => {
         });
 
         it("returns 409 when kyc is already started", async () => {
-          const statement = `I apply for KYC approval on behalf of address ${getAddress(account)} with payload hash ${sha256(Buffer.from(JSON.stringify(canonicalize(applicationPayload)), "utf8"))}`;
-          const { nonce } = await auth.api.getSiweNonce({
-            body: { walletAddress: owner.address, chainId: chain.id },
+          await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, account));
+          const credential = await database.query.credentials.findFirst({
+            where: eq(credentials.id, account),
           });
+          const statement = `I apply for KYC approval on behalf of address ${getAddress(credential?.account ?? "")} with payload hash ${sha256(Buffer.from(JSON.stringify(canonicalize(applicationPayload)), "utf8"))}`;
           const message = createSiweMessage({
             statement,
             resources: ["https://exactly.github.io/exa"],
-            nonce,
+            nonce: generateSiweNonce(),
             uri: `https://sandbox.exactly.app`,
             address: owner.address,
             chainId: chain.id,
@@ -1231,14 +1274,14 @@ describe("authenticated", () => {
         });
 
         it("returns 400 if terms of service are not accepted", async () => {
-          const statement = `I apply for KYC approval on behalf of address ${getAddress(account)} with payload hash ${sha256(Buffer.from(JSON.stringify(canonicalize(applicationPayload)), "utf8"))}`;
-          const { nonce } = await auth.api.getSiweNonce({
-            body: { walletAddress: owner.address, chainId: chain.id },
+          const credential = await database.query.credentials.findFirst({
+            where: eq(credentials.id, account),
           });
+          const statement = `I apply for KYC approval on behalf of address ${getAddress(credential?.account ?? "")} with payload hash ${sha256(Buffer.from(JSON.stringify(canonicalize(applicationPayload)), "utf8"))}`;
           const message = createSiweMessage({
             statement,
             resources: ["https://exactly.github.io/exa"],
-            nonce,
+            nonce: generateSiweNonce(),
             uri: `https://sandbox.exactly.app`,
             address: owner.address,
             chainId: chain.id,
@@ -1292,15 +1335,15 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
           }
 
           it("returns ok when payload is valid", async () => {
-            const encryptedPayload = encrypt(JSON.stringify(applicationPayload));
-            const statement = `I apply for KYC approval on behalf of address ${getAddress(account)} with payload hash ${sha256(encryptedPayload.ciphertext)}`;
-            const { nonce } = await auth.api.getSiweNonce({
-              body: { walletAddress: owner.address, chainId: chain.id },
+            const credential = await database.query.credentials.findFirst({
+              where: eq(credentials.id, account),
             });
+            const encryptedPayload = encrypt(JSON.stringify(applicationPayload));
+            const statement = `I apply for KYC approval on behalf of address ${getAddress(credential?.account ?? "")} with payload hash ${sha256(encryptedPayload.ciphertext)}`;
             const message = createSiweMessage({
               statement,
               resources: ["https://exactly.github.io/exa"],
-              nonce,
+              nonce: generateSiweNonce(),
               uri: `https://sandbox.exactly.app`,
               address: owner.address,
               chainId: chain.id,
@@ -1368,11 +1411,51 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
             });
             await expect(response.json()).resolves.toStrictEqual({ status: "approved" });
           });
+
+          it("returns 403 no organization", async () => {
+            const credential = await database.query.credentials.findFirst({
+              where: eq(credentials.id, account),
+            });
+            const encryptedPayload = encrypt(JSON.stringify(applicationPayload));
+            const statement = `I apply for KYC approval on behalf of address ${getAddress(credential?.account ?? "")} with payload hash ${sha256(encryptedPayload.ciphertext)}`;
+            const message = createSiweMessage({
+              statement,
+              resources: ["https://exactly.github.io/exa"],
+              nonce: generateSiweNonce(),
+              uri: `https://sandbox.exactly.app`,
+              address: outsider.address,
+              chainId: chain.id,
+              scheme: "https",
+              version: "1",
+              domain: "sandbox.exactly.app",
+            });
+
+            const response = await appClient.application.$post(
+              {
+                json: {
+                  key: encryptedPayload.key.toString("base64"),
+                  iv: encryptedPayload.iv.toString("base64"),
+                  ciphertext: encryptedPayload.ciphertext.toString("base64"),
+                  tag: encryptedPayload.tag.toString("base64"),
+                  verify: {
+                    message,
+                    signature: await outsider.signMessage({ message }),
+                    walletAddress: outsider.address,
+                    chainId: chain.id,
+                  },
+                },
+              },
+              { headers: { "test-credential-id": account, SessionID: "fakeSession", encrypted: "true" } },
+            );
+
+            expect(response.status).toBe(403);
+          });
         });
       });
 
       describe("update", () => {
         it("returns ok when kyc is started", async () => {
+          await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, account));
           const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
             ok: true,
             status: 200,
@@ -1711,31 +1794,5 @@ const inquiry = {
       status: "created",
       "reference-id": "ref-123",
     },
-  },
-} as const;
-
-const applicationPayload = {
-  firstName: "john",
-  lastName: "doe",
-  birthDate: "1990-01-15",
-  nationalId: "123456789",
-  countryOfIssue: "AA",
-  email: "john.doe@example.com",
-  phoneCountryCode: "1",
-  phoneNumber: "5551234567",
-  ipAddress: "192.168.1.1",
-  occupation: "occupation",
-  annualSalary: "1234",
-  accountPurpose: "purpose",
-  expectedMonthlyVolume: "1234",
-  isTermsOfServiceAccepted: true,
-  address: {
-    line1: "123 main street",
-    line2: "apt 1",
-    city: "city",
-    region: "region",
-    postalCode: "1234",
-    countryCode: "AA",
-    country: "country",
   },
 } as const;
