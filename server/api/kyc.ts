@@ -6,20 +6,19 @@ import { Hono } from "hono";
 import * as honoOpenapi from "hono-openapi";
 import { resolver, validator as vValidator } from "hono-openapi/valibot";
 import { array, literal, metadata, object, optional, parse, picklist, pipe, string, union } from "valibot";
-import { getAddress, sha256 } from "viem";
+import { getAddress, sha256, verifyMessage } from "viem";
 import { parseSiweMessage } from "viem/siwe";
 
 import accountInit from "@exactly/common/accountInit";
-import {
+import chain, {
   exaAccountFactoryAddress,
   exaPluginAddress,
   upgradeableModularAccountAbi,
 } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
-import database, { credentials } from "../database/index";
+import database, { credentials, walletAddresses } from "../database/index";
 import auth from "../middleware/auth";
-import betterAuth from "../utils/auth";
 import decodePublicKey from "../utils/decodePublicKey";
 import {
   SubmitApplicationRequest as Application,
@@ -295,15 +294,17 @@ belong to the organization and needs to have *kyc* permission, every owner and a
 
 To probe the member of the organization needs to generate a SIWE message with the following statement and viem library is recommended:
 
-"I apply for KYC approval on behalf of [lowercase exa account address]"
+"I apply for KYC approval on behalf of address [checksum address] with payload hash [hash]";
+
+The hash is sha256(encryptedPayload.ciphertext)
 
 The siwe message will be:
 
 | fieldName | type | example | notes |
 |-----------|------|---------|-------|
 | verify.message | string | SIWE message that includes the statement | |
-| verify.signature | string | signature of the message | |
-| verify.walletAddress | string | address of the member of the organization that signed the message | |
+| verify.signature | Hex | signature of the message | |
+| verify.walletAddress | Address | address of the member of the organization that signed the message | |
 | verify.chainId | number | 11155420 | |
 
 A working and tested [example is available in here](../../../organization-authentication/#how-to-create-the-encrypted-kyc-payload-with-siwe-statement)
@@ -330,7 +331,7 @@ The admin should add a member using [addMember method](https://www.better-auth.c
             "application/json": {
               schema: resolver(
                 union([
-                  object({ code: literal("invalid encryption"), message: string() }),
+                  object({ code: picklist(["invalid encryption", "no account", "bad chain"]), message: string() }),
                   object({
                     ...buildBaseResponse(BadRequestCodes.BAD_REQUEST).entries,
                     message: optional(array(string())),
@@ -391,31 +392,23 @@ The admin should add a member using [addMember method](https://www.better-auth.c
     vValidator("header", optional(object({ encrypted: optional(string()) })), validatorHook({ debug })),
     async (c) => {
       const payload = c.req.valid("json");
-      const verifyResponse = await betterAuth.api.verifySiweMessage({
-        body: payload.verify,
-        request: c.req.raw,
-        asResponse: true,
-      });
-      if (!verifyResponse.ok) {
-        const errorBody = parse(object({ code: string(), message: string() }), await verifyResponse.json());
-        return c.json({ code: "no permission", message: errorBody.message }, 403);
-      }
-      const headers = new Headers();
-      headers.set("cookie", verifyResponse.headers.get("set-cookie") ?? "");
-      const organizations = await betterAuth.api.listOrganizations({ headers });
-      const source = organizations[0]?.id;
-      if (!source) return c.json({ code: "no organization" }, 403);
+      const { message, signature, walletAddress: address } = payload.verify;
 
-      const { success: canCreate } = await betterAuth.api.hasPermission({
-        headers,
-        body: {
-          organizationId: source,
-          permissions: {
-            kyc: ["create"],
-          },
+      if (!(await verifyMessage({ address, message, signature }))) {
+        return c.json({ code: "no permission", message: "invalid signature" }, 403);
+      }
+
+      const account = await database.query.walletAddresses.findFirst({
+        where: eq(walletAddresses.address, address),
+        with: {
+          user: { columns: { id: true }, with: { members: { columns: { organizationId: true, role: true } } } },
         },
       });
-      if (!canCreate) return c.json({ code: "no permission" }, 403);
+
+      if (!account) return c.json({ code: "no account", message: `no account found for address ${address}` }, 400);
+      const member = account.user.members[0];
+      if (!member) return c.json({ code: "no organization" }, 403);
+      if (member.role !== "admin" && member.role !== "owner") return c.json({ code: "no permission" }, 403);
 
       const { credentialId } = c.req.valid("cookie");
       const credential = await database.query.credentials.findFirst({
@@ -427,6 +420,10 @@ The admin should add a member using [addMember method](https://www.better-auth.c
       setContext("exa", { credential });
 
       const siweMessage = parseSiweMessage(payload.verify.message);
+
+      if (siweMessage.chainId !== chain.id)
+        return c.json({ code: "bad chain", message: `expected ${chain.id} but got ${siweMessage.chainId}` }, 400);
+
       const { verify, ...body } = payload;
       const hash =
         "ciphertext" in body
@@ -439,14 +436,13 @@ The admin should add a member using [addMember method](https://www.better-auth.c
         return c.json({ code: "no permission", message: "invalid statement" }, 403);
       }
 
-      if (credential.pandaId) {
-        return c.json({ code: BadRequestCodes.ALREADY_STARTED }, 409);
-      }
+      if (credential.pandaId) return c.json({ code: BadRequestCodes.ALREADY_STARTED }, 409);
+
       try {
         const application = await submitApplication(payload, c.req.header("encrypted") === "true");
         await database
           .update(credentials)
-          .set({ pandaId: application.id, source })
+          .set({ pandaId: application.id, source: member.organizationId })
           .where(eq(credentials.id, credentialId));
         return c.json({ status: application.applicationStatus }, 200);
       } catch (error) {
