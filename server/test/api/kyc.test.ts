@@ -11,7 +11,7 @@ import crypto from "node:crypto";
 import type * as v from "valibot";
 import { zeroHash, padHex, zeroAddress, getAddress, sha256 } from "viem";
 import { mnemonicToAccount, privateKeyToAddress } from "viem/accounts";
-import { createSiweMessage } from "viem/siwe";
+import { createSiweMessage, generateSiweNonce } from "viem/siwe";
 import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 
 import app from "../../api/kyc";
@@ -190,6 +190,9 @@ describe("authenticated", () => {
     describe("with organization", () => {
       const owner = mnemonicToAccount("test test test test test test test test test test test kyc");
       const ownerHeaders: Headers = new Headers();
+      const outsider = mnemonicToAccount("test test test test test test test test test test test bob");
+      const outsiderHeaders: Headers = new Headers();
+
       let organizationId: string;
 
       beforeAll(async () => {
@@ -210,7 +213,7 @@ describe("authenticated", () => {
           domain: "localhost",
         });
 
-        const adminResponse = await auth.api.verifySiweMessage({
+        const ownerLogin = await auth.api.verifySiweMessage({
           body: {
             message: ownerMessage,
             signature: await owner.signMessage({ message: ownerMessage }),
@@ -220,7 +223,7 @@ describe("authenticated", () => {
           request: new Request("https://localhost"),
           asResponse: true,
         });
-        ownerHeaders.set("cookie", `${adminResponse.headers.get("set-cookie")}`);
+        ownerHeaders.set("cookie", `${ownerLogin.headers.get("set-cookie")}`);
 
         const externalOrganization = await auth.api.createOrganization({
           headers: ownerHeaders,
@@ -231,6 +234,35 @@ describe("authenticated", () => {
           },
         });
         organizationId = externalOrganization?.id ?? "";
+
+        await auth.api
+          .getSiweNonce({
+            body: { walletAddress: outsider.address, chainId: chain.id },
+          })
+          .then((result) => {
+            const message = createSiweMessage({
+              statement,
+              resources: ["https://exactly.github.io/exa"],
+              nonce: result.nonce,
+              uri: `https://localhost`,
+              address: outsider.address,
+              chainId: chain.id,
+              scheme: "https",
+              version: "1",
+              domain: "localhost",
+            });
+            return outsider.signMessage({ message }).then((signature) => {
+              return auth.api
+                .verifySiweMessage({
+                  body: { message, signature, walletAddress: outsider.address, chainId: chain.id },
+                  request: new Request("https://localhost"),
+                  asResponse: true,
+                })
+                .then((response) => {
+                  outsiderHeaders.set("cookie", response.headers.get("set-cookie") ?? "");
+                });
+            });
+          });
       });
 
       describe("status", () => {
@@ -287,13 +319,10 @@ describe("authenticated", () => {
 
         it("returns ok when payload is valid and kyc is not started", async () => {
           const statement = `I apply for KYC approval on behalf of address ${getAddress(account)} with payload hash ${sha256(Buffer.from(JSON.stringify(canonicalize(applicationPayload)), "utf8"))}`;
-          const { nonce } = await auth.api.getSiweNonce({
-            body: { walletAddress: owner.address, chainId: chain.id },
-          });
           const message = createSiweMessage({
             statement,
             resources: ["https://exactly.github.io/exa"],
-            nonce,
+            nonce: generateSiweNonce(),
             uri: `https://sandbox.exactly.app`,
             address: owner.address,
             chainId: chain.id,
@@ -350,13 +379,10 @@ describe("authenticated", () => {
 
         it("returns 409 when kyc is already started", async () => {
           const statement = `I apply for KYC approval on behalf of address ${getAddress(account)} with payload hash ${sha256(Buffer.from(JSON.stringify(canonicalize(applicationPayload)), "utf8"))}`;
-          const { nonce } = await auth.api.getSiweNonce({
-            body: { walletAddress: owner.address, chainId: chain.id },
-          });
           const message = createSiweMessage({
             statement,
             resources: ["https://exactly.github.io/exa"],
-            nonce,
+            nonce: generateSiweNonce(),
             uri: `https://sandbox.exactly.app`,
             address: owner.address,
             chainId: chain.id,
@@ -403,13 +429,10 @@ describe("authenticated", () => {
 
         it("returns 400 if terms of service are not accepted", async () => {
           const statement = `I apply for KYC approval on behalf of address ${getAddress(account)} with payload hash ${sha256(Buffer.from(JSON.stringify(canonicalize(applicationPayload)), "utf8"))}`;
-          const { nonce } = await auth.api.getSiweNonce({
-            body: { walletAddress: owner.address, chainId: chain.id },
-          });
           const message = createSiweMessage({
             statement,
             resources: ["https://exactly.github.io/exa"],
-            nonce,
+            nonce: generateSiweNonce(),
             uri: `https://sandbox.exactly.app`,
             address: owner.address,
             chainId: chain.id,
@@ -465,13 +488,10 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
           it("returns ok when  payload is valid", async () => {
             const encryptedPayload = encrypt(JSON.stringify(applicationPayload));
             const statement = `I apply for KYC approval on behalf of address ${getAddress(account)} with payload hash ${sha256(encryptedPayload.ciphertext)}`;
-            const { nonce } = await auth.api.getSiweNonce({
-              body: { walletAddress: owner.address, chainId: chain.id },
-            });
             const message = createSiweMessage({
               statement,
               resources: ["https://exactly.github.io/exa"],
-              nonce,
+              nonce: generateSiweNonce(),
               uri: `https://sandbox.exactly.app`,
               address: owner.address,
               chainId: chain.id,
@@ -538,6 +558,42 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
               verify,
             });
             await expect(response.json()).resolves.toStrictEqual({ status: "approved" });
+          });
+
+          it("returns 403 no organization", async () => {
+            const encryptedPayload = encrypt(JSON.stringify(applicationPayload));
+            const statement = `I apply for KYC approval on behalf of address ${getAddress(account)} with payload hash ${sha256(encryptedPayload.ciphertext)}`;
+            const message = createSiweMessage({
+              statement,
+              resources: ["https://exactly.github.io/exa"],
+              nonce: generateSiweNonce(),
+              uri: `https://sandbox.exactly.app`,
+              address: outsider.address,
+              chainId: chain.id,
+              scheme: "https",
+              version: "1",
+              domain: "sandbox.exactly.app",
+            });
+
+            const response = await appClient.application.$post(
+              {
+                json: {
+                  key: encryptedPayload.key.toString("base64"),
+                  iv: encryptedPayload.iv.toString("base64"),
+                  ciphertext: encryptedPayload.ciphertext.toString("base64"),
+                  tag: encryptedPayload.tag.toString("base64"),
+                  verify: {
+                    message,
+                    signature: await outsider.signMessage({ message }),
+                    walletAddress: outsider.address,
+                    chainId: chain.id,
+                  },
+                },
+              },
+              { headers: { "test-credential-id": account, SessionID: "fakeSession", encrypted: "true" } },
+            );
+
+            expect(response.status).toBe(403);
           });
         });
       });
