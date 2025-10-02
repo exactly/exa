@@ -89,7 +89,7 @@ const Application = v.object({
     v.literal(true),
     v.metadata({ description: "Whether the user has accepted the terms of service" }),
   ),
-  verify: v.object({ message: v.string(), signature: v.string(), walletAddress: v.string(), chainId: v.number() }),
+  verify: v.object({ message: v.string(), signature: Hex, walletAddress: Address, chainId: v.number() }),
 });
 
 export const SubmitApplicationRequest = v.union([
@@ -99,7 +99,7 @@ export const SubmitApplicationRequest = v.union([
     iv: v.string(),
     ciphertext: v.string(),
     tag: v.string(),
-    verify: v.object({ message: v.string(), signature: v.string(), walletAddress: v.string(), chainId: v.number() }),
+    verify: v.object({ message: v.string(), signature: Hex, walletAddress: Address, chainId: v.number() }),
   }),
 ]);
 

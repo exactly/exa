@@ -270,20 +270,13 @@ authClient.siwe
 
 <!-- cspell:ignore oaep pkcs cipheriv -->
 ```typescript
-import { createAuthClient } from "better-auth/client";
-import { siweClient, organizationClient } from "better-auth/client/plugins";
 import crypto from "node:crypto";
 import { getAddress, sha256 } from "viem";
 import { mnemonicToAccount } from "viem/accounts";
 import { optimismSepolia } from "viem/chains";
-import { createSiweMessage } from "viem/siwe";
+import { createSiweMessage, generateSiweNonce } from "viem/siwe";
 
 const chainId = optimismSepolia.id;
-
-const authClient = createAuthClient({
-  baseURL: "https://sandbox.exactly.app",
-  plugins: [siweClient(), organizationClient()],
-});
 
 const owner = mnemonicToAccount("test test test test test test test test test test test siwe");
 
@@ -323,53 +316,46 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
   };
 }
 
-authClient.siwe
-  .nonce({
-    walletAddress: owner.address,
-    chainId,
-  })
-  .then(async ({ data: nonceResult }) => {
-    if (!nonceResult) throw new Error("No nonce");
-    const data = {
-      email: "john.doe@example.com",
-      lastName: "Doe",
-      firstName: "John",
-      nationalId: "123456789",
-      birthDate: "1990-05-15",
-      countryOfIssue: "US",
-      phoneCountryCode: "1",
-      phoneNumber: "5551234567",
-      address: {
-        line1: "123 Main Street",
-        line2: "Apt 4B",
-        city: "New York",
-        region: "NY",
-        postalCode: "10001",
-        countryCode: "US",
-      },
-      ipAddress: "192.168.1.100",
-      occupation: "11-1011",
-      annualSalary: "75000",
-      accountPurpose: "Personal Banking",
-      expectedMonthlyVolume: "5000",
-      isTermsOfServiceAccepted: true,
-    };
-    const encryptedPayload = encrypt(JSON.stringify(data));
-    const exaAccountUserAddress = "0xa7d5e73027844145A538F4bfD7b8d9b41d8B89d3";
-    const statement = `I apply for KYC approval on behalf of address ${getAddress(exaAccountUserAddress)} with payload hash ${encryptedPayload.hash}`;
-    const message = createSiweMessage({
-      statement,
-      resources: ["https://exactly.github.io/exa"],
-      nonce: nonceResult.nonce,
-      uri: `https://sandbox.exactly.app`,
-      address: owner.address,
-      chainId,
-      scheme: "https",
-      version: "1",
-      domain: "sandbox.exactly.app",
-    });
-    const signature = await owner.signMessage({ message });
-
+const data = {
+  email: "john.doe@example.com",
+  lastName: "Doe",
+  firstName: "John",
+  nationalId: "123456789",
+  birthDate: "1990-05-15",
+  countryOfIssue: "US",
+  phoneCountryCode: "1",
+  phoneNumber: "5551234567",
+  address: {
+    line1: "123 Main Street",
+    line2: "Apt 4B",
+    city: "New York",
+    region: "NY",
+    postalCode: "10001",
+    countryCode: "US",
+  },
+  ipAddress: "192.168.1.100",
+  occupation: "11-1011",
+  annualSalary: "75000",
+  accountPurpose: "Personal Banking",
+  expectedMonthlyVolume: "5000",
+  isTermsOfServiceAccepted: true,
+};
+const encryptedPayload = encrypt(JSON.stringify(data));
+const exaAccountUserAddress = "0xa7d5e73027844145A538F4bfD7b8d9b41d8B89d3";
+const statement = `I apply for KYC approval on behalf of address ${getAddress(exaAccountUserAddress)} with payload hash ${encryptedPayload.hash}`;
+const message = createSiweMessage({
+  statement,
+  resources: ["https://exactly.github.io/exa"],
+  nonce: generateSiweNonce(),
+  uri: `https://sandbox.exactly.app`,
+  address: owner.address,
+  chainId,
+  scheme: "https",
+  version: "1",
+  domain: "sandbox.exactly.app",
+});
+owner.signMessage({ message })
+  .then((signature) => {
     const verify = {
       message,
       signature,
@@ -380,7 +366,7 @@ authClient.siwe
     console.log("application payload", { ...payload, verify });
   })
   .catch((error: unknown) => {
-    console.error("nonce error", error);
+    console.error("error", error);
   });
   ```
 
