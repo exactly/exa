@@ -3,10 +3,13 @@ import { betterAuth } from "better-auth";
 import { organization, siwe } from "better-auth/plugins";
 import { createAccessControl } from "better-auth/plugins/access";
 import { adminAc, defaultStatements, memberAc, ownerAc } from "better-auth/plugins/organization/access";
+import { parse } from "valibot";
 import { verifyMessage } from "viem";
 import { generateSiweNonce } from "viem/siwe";
 
 import domain from "@exactly/common/domain";
+import chain from "@exactly/common/generated/chain";
+import { Address, Hex } from "@exactly/common/validation";
 
 import authSecret from "./authSecret";
 import { authAdapter } from "../database/index";
@@ -20,6 +23,7 @@ export default betterAuth({
   database: authAdapter,
   baseURL: `https://${domain}`,
   secret: authSecret,
+  user: { changeEmail: { enabled: true } },
   plugins: [
     siwe({
       domain,
@@ -28,12 +32,13 @@ export default betterAuth({
       getNonce: async () => {
         return await Promise.resolve(generateSiweNonce());
       },
-      verifyMessage: async ({ message, signature, address }) => {
+      verifyMessage: async ({ message, signature, address, chainId }) => {
+        if (chainId !== chain.id) return false;
         try {
           const isValid = await verifyMessage({
-            address: address as `0x${string}`,
+            address: parse(Address, address),
             message,
-            signature: signature as `0x${string}`,
+            signature: parse(Hex, signature),
           });
           return isValid;
         } catch (error) {
