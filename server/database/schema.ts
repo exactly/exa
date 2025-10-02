@@ -178,3 +178,15 @@ export const invitations = pgTable("invitations", {
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
 });
+
+export const walletRelations = relations(walletAddresses, ({ one }) => ({
+  user: one(users, { fields: [walletAddresses.userId], references: [users.id] }),
+}));
+
+export const usersRelations = relations(users, ({ many, one }) => ({
+  members: many(members),
+}));
+
+export const membersRelations = relations(members, ({ one }) => ({
+  member: one(users, { fields: [members.userId], references: [users.id] }),
+}));
