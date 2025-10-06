@@ -12,6 +12,7 @@ const ButtonContext = createStyledContext<{
   danger?: boolean;
   dangerSecondary?: boolean;
   outlined?: boolean;
+  transparent?: boolean;
   loading?: boolean;
 }>({
   primary: false,
@@ -20,6 +21,7 @@ const ButtonContext = createStyledContext<{
   danger: false,
   dangerSecondary: false,
   outlined: false,
+  transparent: false,
   loading: false,
 });
 
@@ -75,6 +77,20 @@ const ButtonFrame = styled(XStack, {
         pressStyle: { backgroundColor: "$interactiveBaseBrandSoftHover", color: "$interactiveOnBaseBrandDefault" },
       },
     },
+    transparent: {
+      true: {
+        backgroundColor: "transparent",
+        borderColor: "transparent",
+        color: "$interactiveBaseBrandDefault",
+        hoverStyle: { backgroundColor: "$interactiveBaseBrandSoftDefault", color: "$interactiveOnBaseBrandDefault" },
+        pressStyle: { backgroundColor: "$interactiveBaseBrandSoftHover", color: "$interactiveOnBaseBrandDefault" },
+        disabledStyle: {
+          backgroundColor: "transparent",
+          borderColor: "transparent",
+          color: "$interactiveOnDisabled",
+        },
+      },
+    },
     loading: { true: {} }, // HACK satisfy prop type
     disabled: {
       true: {
@@ -89,7 +105,9 @@ const ButtonFrame = styled(XStack, {
 });
 
 const ButtonText = (properties: ComponentPropsWithoutRef<typeof Text>) => {
-  const { primary, secondary, disabled, danger, dangerSecondary, outlined } = useContext(ButtonContext.context);
+  const { primary, secondary, disabled, danger, dangerSecondary, outlined, transparent } = useContext(
+    ButtonContext.context,
+  );
   const color = useMemo(() => {
     if (disabled) return "$interactiveOnDisabled";
     if (primary) return "$interactiveOnBaseBrandDefault";
@@ -97,7 +115,8 @@ const ButtonText = (properties: ComponentPropsWithoutRef<typeof Text>) => {
     if (danger) return "$interactiveOnBaseErrorDefault";
     if (dangerSecondary) return "$interactiveOnBaseErrorSoft";
     if (outlined) return "$interactiveBaseBrandDefault";
-  }, [primary, secondary, disabled, danger, dangerSecondary, outlined]);
+    if (transparent) return "$interactiveBaseBrandDefault";
+  }, [disabled, primary, secondary, danger, dangerSecondary, outlined, transparent]);
   return (
     <Text
       userSelect="none"
@@ -118,7 +137,7 @@ const ButtonIcon = (properties: { children: React.ReactElement<ComponentPropsWit
   const element = properties.children;
   const size = element.props.size ?? "$iconSize.md";
   const strokeWidth = element.props.strokeWidth ?? "$iconStroke.md";
-  const { primary, secondary, disabled, danger, dangerSecondary, outlined, loading } = useContext(
+  const { primary, secondary, disabled, danger, dangerSecondary, outlined, transparent, loading } = useContext(
     ButtonContext.context,
   );
   const color = useMemo(() => {
@@ -128,7 +147,8 @@ const ButtonIcon = (properties: { children: React.ReactElement<ComponentPropsWit
     if (danger) return "$interactiveOnBaseErrorDefault";
     if (dangerSecondary) return "$interactiveOnBaseErrorSoft";
     if (outlined) return "$interactiveBaseBrandDefault";
-  }, [primary, secondary, disabled, danger, dangerSecondary, outlined]);
+    if (transparent) return "$interactiveBaseBrandDefault";
+  }, [primary, secondary, disabled, danger, dangerSecondary, outlined, transparent]);
   if (loading) return <Spinner width={size} height={size} color={color} />;
   return isValidElement(element) ? cloneElement(element, { size, strokeWidth, color }) : null;
 };
