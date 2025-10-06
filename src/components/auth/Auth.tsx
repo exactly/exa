@@ -1,12 +1,12 @@
 import type { Credential } from "@exactly/common/validation";
 import { sdk } from "@farcaster/miniapp-sdk";
 import { TimeToFullDisplay } from "@sentry/react-native";
-import { Key } from "@tamagui/lucide-icons";
+import { Key, User } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigation } from "expo-router";
 import React, { type FC, useCallback, useEffect, useRef, useState } from "react";
 import type { StyleProp, ViewStyle, ViewToken } from "react-native";
-import { Platform, Pressable } from "react-native";
+import { Platform } from "react-native";
 import Animated, {
   runOnJS,
   useAnimatedScrollHandler,
@@ -170,7 +170,7 @@ export default function Auth() {
               )}
             </View>
           </View>
-          <View alignItems="stretch" alignSelf="stretch" gap="$s5">
+          <View alignItems="stretch" alignSelf="stretch" gap="$s3">
             <View flexDirection="row" alignSelf="stretch">
               <Button
                 primary
@@ -193,7 +193,7 @@ export default function Auth() {
                 }}
               >
                 <Button.Text>
-                  {loading ? "Please wait..." : embeddingContext ? "Sign in" : "Create an account"}
+                  {loading ? "Please wait..." : embeddingContext ? "Sign in" : "Create new account"}
                 </Button.Text>
                 <Button.Icon>
                   <Key />
@@ -202,7 +202,11 @@ export default function Auth() {
             </View>
             <View flexDirection="row" justifyContent="center">
               {!embeddingContext && (
-                <Pressable
+                <Button
+                  transparent
+                  disabled={loading}
+                  flex={1}
+                  alignItems="center"
                   hitSlop={15}
                   onPress={() => {
                     if (loading) return;
@@ -214,13 +218,11 @@ export default function Auth() {
                     }
                   }}
                 >
-                  <Text fontSize={13} textAlign="center" color="$uiNeutralSecondary">
-                    Already have an account?&nbsp;
-                    <Text emphasized color="$interactiveBaseBrandDefault">
-                      Log in
-                    </Text>
-                  </Text>
-                </Pressable>
+                  <Button.Text>I already have an account</Button.Text>
+                  <Button.Icon>
+                    <User />
+                  </Button.Icon>
+                </Button>
               )}
             </View>
           </View>
