@@ -21,6 +21,7 @@ export function captureRequests(requests: InferOutput<typeof Requests>) {
   const span = getActiveSpan();
   if (span) {
     for (const [index, { method, params }] of requests.entries()) {
+      console.log(method, params);
       span.setAttribute(
         `eth[${Date.now()}]${requests.length > 1 ? `[${index}]` : ""}`,
         `${method}(${

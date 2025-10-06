@@ -46,6 +46,37 @@ describe("fault tolerance", () => {
     expect(onHash).toHaveBeenCalledOnce();
     expect(sendRawTransaction).toHaveBeenCalledTimes(3);
   });
+
+  it("resets nonce when skipped", async () => {
+    const sendRawTransaction = vi.spyOn(publicClient, "sendRawTransaction");
+    sendRawTransaction.mockRejectedValueOnce(new Error("send"));
+    const onHash = vi.fn<() => void>();
+    await keeper.exaSend(
+      { name: "test transfer", op: "test.transfer" },
+      { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+      { onHash },
+    );
+    await keeper.exaSend(
+      { name: "test transfer", op: "test.transfer" },
+      { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+      { onHash },
+    );
+    await keeper.exaSend(
+      { name: "test transfer", op: "test.transfer" },
+      { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+      { onHash },
+    );
+    await keeper.exaSend(
+      { name: "test transfer", op: "test.transfer" },
+      { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+      { onHash },
+    );
+    await keeper.exaSend(
+      { name: "test transfer", op: "test.transfer" },
+      { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+      { onHash },
+    );
+  });
 });
 
 vi.mock("@sentry/node", { spy: true });
