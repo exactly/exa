@@ -13,7 +13,7 @@ import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-export default function CardDisclaimer({
+export default function Disclaimer({
   open,
   onClose,
   onActionPress,

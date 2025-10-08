@@ -7,11 +7,10 @@ import { XStack, YStack } from "tamagui";
 import CardLimits from "./CardLimits";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import Card from "../../assets/images/card.svg";
-import { getCard } from "../../utils/server";
 
 export default function CardStatus({ onInfoPress }: { onInfoPress: () => void }) {
   const navigation = useNavigation<AppNavigationProperties>();
-  const { data: card } = useQuery({ queryKey: ["card", "details"], queryFn: getCard });
+  const { data: card } = useQuery({ queryKey: ["card", "details"] });
   if (!card) return null;
   return (
     <XStack

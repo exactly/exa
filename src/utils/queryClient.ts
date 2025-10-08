@@ -12,6 +12,7 @@ import reportError from "./reportError";
 import type { getActivity } from "./server";
 
 export const persister = createAsyncStoragePersister({ serialize, deserialize, storage: AsyncStorage });
+
 const queryClient = new QueryClient({
   queryCache: new QueryCache({
     onError: (error, query) => {

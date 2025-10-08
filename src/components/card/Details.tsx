@@ -11,21 +11,21 @@ import ExaLogoDark from "../../assets/images/exa-logo-dark.svg";
 import ExaLogoLight from "../../assets/images/exa-logo-light.svg";
 import VisaLogoDark from "../../assets/images/visa-logo-dark.svg";
 import VisaLogoLight from "../../assets/images/visa-logo-light.svg";
+import type { CardDetails } from "../../utils/card";
 import { decrypt } from "../../utils/panda";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
-import { getCard } from "../../utils/server";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-export default function CardDetails({ open, onClose }: { open: boolean; onClose: () => void }) {
+export default function Details({ open, onClose }: { open: boolean; onClose: () => void }) {
   const theme = useColorScheme();
   const toast = useToastController();
   const { data: alertShown } = useQuery({ queryKey: ["settings", "alertShown"] });
-  const { data: card, isPending } = useQuery({ queryKey: ["card", "details"], queryFn: getCard });
+  const { data: card, isPending } = useQuery<CardDetails>({ queryKey: ["card", "details"] });
   const [details, setDetails] = useState({ pan: "", cvc: "" });
   useEffect(() => {
     if (card) {

@@ -5,18 +5,21 @@ import Animated from "react-native-reanimated";
 import { YStack } from "tamagui";
 
 import CardContents from "./CardContents";
-import { getCard } from "../../../utils/server";
+import type { CardDetails } from "../../../utils/card";
 import View from "../../shared/View";
 
-interface ExaCardProperties {
+export default function ExaCard({
+  disabled = false,
+  revealing,
+  frozen,
+  onPress,
+}: {
   disabled?: boolean;
   revealing: boolean;
   frozen: boolean;
   onPress?: () => void;
-}
-
-export default function ExaCard({ disabled = false, revealing, frozen, onPress }: ExaCardProperties) {
-  const { data: card } = useQuery({ queryKey: ["card", "details"], queryFn: getCard });
+}) {
+  const { data: card } = useQuery<CardDetails>({ queryKey: ["card", "details"] });
   return (
     <AnimatedYStack width="100%" borderRadius="$r4" borderWidth={0}>
       <Pressable onPress={onPress}>

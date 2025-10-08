@@ -9,7 +9,6 @@ import { get as assert, create } from "react-native-passkeys";
 import { check, number, parse, pipe, safeParse, ValiError } from "valibot";
 
 import { connectAccount, getAccount, config as injectedConfig, getConnector } from "./injectedConnector";
-import { encryptPIN, session } from "./panda";
 import queryClient, { APIError } from "./queryClient";
 
 queryClient.setQueryDefaults<number | undefined>(["auth"], {
@@ -61,46 +60,9 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
   },
 });
 
-const api = hc<ExaAPI>(domain === "localhost" ? "http://localhost:3000/api" : `https://${domain}/api`, {
+export const api = hc<ExaAPI>(domain === "localhost" ? "http://localhost:3000/api" : `https://${domain}/api`, {
   init: { credentials: "include" },
 });
-
-export async function getCard() {
-  await auth();
-  const { id, secret } = await session();
-  const response = await api.card.$get({ header: { sessionid: id } });
-  if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
-  const card = await response.json();
-  return { ...card, secret };
-}
-
-export async function createCard() {
-  await auth();
-  const response = await api.card.$post();
-  if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
-  return response.json();
-}
-
-export async function setCardStatus(status: "ACTIVE" | "FROZEN") {
-  await auth();
-  const response = await api.card.$patch({ json: { status } });
-  if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
-  return response.json();
-}
-
-export async function setCardMode(mode: number) {
-  await auth();
-  const response = await api.card.$patch({ json: { mode } });
-  if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
-  return response.json();
-}
-
-export async function setCardPIN(pin: string) {
-  await auth();
-  const json = await encryptPIN(pin);
-  const response = await api.card.$patch({ json });
-  if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
-}
 
 export async function getKYCLink(templateId: string, redirectURI?: string) {
   await auth();
@@ -184,10 +146,10 @@ const Auth = pipe(
   check((expires) => Date.now() < expires, "auth expired"),
 );
 
-export { APIError } from "./queryClient";
-
-function stringOrLegacy(response: string | { legacy: string }) {
+export function stringOrLegacy(response: string | { legacy: string }) {
   if (typeof response === "string") return response;
   if ("legacy" in response && typeof response.legacy === "string") return response.legacy;
   throw new Error("invalid api response");
 }
+
+export { APIError } from "./queryClient";

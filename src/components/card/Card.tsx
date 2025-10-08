@@ -10,9 +10,9 @@ import { ScrollView, Separator, Spinner, Square, Switch, useTheme, XStack, YStac
 import { zeroAddress } from "viem";
 import { useBytecode } from "wagmi";
 
-import CardDetails from "./CardDetails";
-import CardDisclaimer from "./CardDisclaimer";
 import CardPIN from "./CardPIN";
+import Details from "./Details";
+import Disclaimer from "./Disclaimer";
 import SpendingLimits from "./SpendingLimits";
 import VerificationFailure from "./VerificationFailure";
 import ExaCard from "./exa-card/ExaCard";
@@ -21,10 +21,12 @@ import {
   useReadPreviewerExactly,
   useReadUpgradeableModularAccountGetInstalledPlugins,
 } from "../../generated/contracts";
+import { createCard, setCardStatus } from "../../utils/card";
+import type { CardDetails } from "../../utils/card";
 import { createInquiry, KYC_TEMPLATE_ID, resumeInquiry } from "../../utils/persona";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
-import { APIError, getActivity, getCard, createCard, getKYCStatus, setCardStatus } from "../../utils/server";
+import { APIError, getActivity, getKYCStatus } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useIntercom from "../../utils/useIntercom";
@@ -105,13 +107,7 @@ export default function Card() {
     data: cardDetails,
     refetch: refetchCard,
     isFetching: isFetchingCard,
-  } = useQuery({
-    queryKey: ["card", "details"],
-    queryFn: getCard,
-    retry: false,
-    gcTime: 0,
-    staleTime: 0,
-  });
+  } = useQuery<CardDetails>({ queryKey: ["card", "details"] });
 
   const {
     mutateAsync: revealCard,
@@ -472,7 +468,7 @@ export default function Card() {
             </View>
           </View>
         </ScrollView>
-        <CardDetails
+        <Details
           open={cardDetailsOpen ?? false}
           onClose={() => {
             queryClient.setQueryData(["card-details-open"], false);
@@ -492,7 +488,7 @@ export default function Card() {
             setDisplayPIN(false);
           }}
         />
-        <CardDisclaimer
+        <Disclaimer
           open={disclaimerShown}
           onActionPress={() => {
             setDisclaimerShown(false);

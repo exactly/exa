@@ -3,9 +3,9 @@ import React, { useState, useEffect } from "react";
 import { Pressable, StyleSheet } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 
+import { getCard, setCardPIN } from "../../utils/card";
 import { decrypt, decryptPIN } from "../../utils/panda";
 import reportError from "../../utils/reportError";
-import { getCard, setCardPIN } from "../../utils/server";
 import Button from "../shared/Button";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";

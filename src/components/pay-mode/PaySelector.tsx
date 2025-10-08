@@ -13,9 +13,10 @@ import { formatUnits, parseUnits, zeroAddress } from "viem";
 import ManualRepaymentSheet from "./ManualRepaymentSheet";
 import { useReadPreviewerExactly, useReadPreviewerPreviewBorrowAtMaturity } from "../../generated/contracts";
 import assetLogos from "../../utils/assetLogos";
+import { setCardMode } from "../../utils/card";
+import type { CardDetails, getCard } from "../../utils/card";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
-import { getCard, setCardMode } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useInstallments from "../../utils/useInstallments";
@@ -35,22 +36,12 @@ export default function PaySelector() {
   }, [input]);
   const { address } = useAccount();
   const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [address ?? zeroAddress] });
-  const { firstMaturity } = useInstallments({
-    totalAmount: assets,
-    installments: 1,
-  });
-
+  const { firstMaturity } = useInstallments({ totalAmount: assets, installments: 1 });
   const { data: manualRepaymentAcknowledged } = useQuery<boolean>({ queryKey: ["manual-repayment-acknowledged"] });
+  const { data: card } = useQuery<CardDetails>({ queryKey: ["card", "details"] });
   const [manualRepaymentSheetOpen, setManualRepaymentSheetOpen] = useState(false);
   const [pendingInstallment, setPendingInstallment] = useState<number | null>(null);
 
-  const { data: card } = useQuery({
-    queryKey: ["card", "details"],
-    queryFn: getCard,
-    retry: false,
-    gcTime: 0,
-    staleTime: 0,
-  });
   const { mutateAsync: mutateMode } = useMutation({
     mutationKey: ["card", "mode"],
     mutationFn: setCardMode,

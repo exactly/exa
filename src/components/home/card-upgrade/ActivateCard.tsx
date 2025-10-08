@@ -8,9 +8,10 @@ import { YStack } from "tamagui";
 
 import Progression from "./Progression";
 import type { AppNavigationProperties } from "../../../app/(main)/_layout";
+import { createCard } from "../../../utils/card";
 import queryClient from "../../../utils/queryClient";
 import reportError from "../../../utils/reportError";
-import { APIError, createCard } from "../../../utils/server";
+import { APIError } from "../../../utils/server";
 import useIntercom from "../../../utils/useIntercom";
 import Button from "../../shared/Button";
 import Spinner from "../../shared/Spinner";
