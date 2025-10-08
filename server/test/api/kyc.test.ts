@@ -288,10 +288,10 @@ describe("authenticated", () => {
             }),
           );
           expect(JSON.parse(body as string)).toStrictEqual({ ...applicationPayload, verify });
-          await expect(response.json()).resolves.toStrictEqual({ id: "pandaId", status: "approved" });
+          await expect(response.json()).resolves.toStrictEqual({ status: "approved" });
         });
 
-        it("returns 401 when kyc is already started", async () => {
+        it("returns 409 when kyc is already started", async () => {
           const statement = `I apply for KYC approval on behalf of address ${getAddress(account)} with payload hash ${sha256(Buffer.from(JSON.stringify(canonicalize(applicationPayload)), "utf8"))}`;
           const { nonce } = await auth.api.getSiweNonce({
             body: { walletAddress: owner.address, chainId: chain.id },
@@ -323,7 +323,7 @@ describe("authenticated", () => {
             { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
           );
 
-          expect(response.status).toBe(401);
+          expect(response.status).toBe(409);
           await expect(response.json()).resolves.toStrictEqual({
             code: "already started",
           });
@@ -480,7 +480,7 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
               tag: encryptedPayload.tag.toString("base64"),
               verify,
             });
-            await expect(response.json()).resolves.toStrictEqual({ id: "pandaId", status: "approved" });
+            await expect(response.json()).resolves.toStrictEqual({ status: "approved" });
           });
         });
       });
