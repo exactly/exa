@@ -7,12 +7,13 @@ import { XStack, YStack } from "tamagui";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import isProcessing from "../../utils/isProcessing";
 import { getActivity } from "../../utils/server";
+import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 
-export default function PortfolioSummary({ usdBalance }: { usdBalance: bigint }) {
+export default function PortfolioSummary({ usdBalance, loading = false }: { usdBalance: bigint; loading?: boolean }) {
   const navigation = useNavigation<AppNavigationProperties>();
   const { data: country } = useQuery({ queryKey: ["user", "country"] });
-  const { data: processingBalance } = useQuery({
+  const { data: processingBalance, isPending: isPendingProcessingBalance } = useQuery({
     queryKey: ["processing-balance"],
     queryFn: () => getActivity(),
     select: (activity) =>
@@ -22,6 +23,9 @@ export default function PortfolioSummary({ usdBalance }: { usdBalance: bigint })
       ),
     enabled: country === "US",
   });
+  if (loading) {
+    return <PortfolioSummarySkeleton showProcessing={country === "US" || country === undefined} />;
+  }
   return (
     <YStack
       gap="$s5"
@@ -56,7 +60,9 @@ export default function PortfolioSummary({ usdBalance }: { usdBalance: bigint })
           currencyDisplay: "narrowSymbol",
         })}
       </Text>
-      {processingBalance ? (
+      {country === "US" && isPendingProcessingBalance ? (
+        <ProcessingSkeleton />
+      ) : processingBalance ? (
         <XStack
           borderWidth={1}
           borderColor="$borderNeutralSoft"
@@ -79,5 +85,35 @@ export default function PortfolioSummary({ usdBalance }: { usdBalance: bigint })
         </XStack>
       ) : null}
     </YStack>
+  );
+}
+
+function PortfolioSummarySkeleton({ showProcessing }: { showProcessing: boolean }) {
+  return (
+    <YStack gap="$s5" alignItems="center" width="100%">
+      <XStack alignItems="center" gap="$s2" alignSelf="flex-start">
+        <Skeleton height={16} width={120} />
+      </XStack>
+      <Skeleton height={40} width="80%" />
+      {showProcessing ? <ProcessingSkeleton /> : null}
+    </YStack>
+  );
+}
+
+function ProcessingSkeleton() {
+  return (
+    <XStack
+      borderWidth={1}
+      borderColor="$borderNeutralSoft"
+      borderRadius="$r_0"
+      padding="$s3"
+      gap="$s3"
+      alignItems="center"
+      width="100%"
+      justifyContent="space-between"
+    >
+      <Skeleton height={16} width="60%" />
+      <Skeleton height={16} width={24} />
+    </XStack>
   );
 }

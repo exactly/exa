@@ -7,6 +7,7 @@ import { XStack, YStack } from "tamagui";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import type { getActivity } from "../../utils/server";
 import ActivityItem from "../activity/ActivityItem";
+import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
@@ -14,10 +15,12 @@ export default function LatestActivity({
   activity,
   title = "Latest activity",
   emptyComponent,
+  loading = false,
 }: {
   activity?: Awaited<ReturnType<typeof getActivity>>;
   title?: string;
   emptyComponent?: React.ReactNode;
+  loading?: boolean;
 }) {
   const navigation = useNavigation<AppNavigationProperties>();
   return (
@@ -26,7 +29,7 @@ export default function LatestActivity({
         <Text emphasized headline flex={1}>
           {title}
         </Text>
-        {activity?.length ? (
+        {!loading && activity?.length ? (
           <Pressable
             hitSlop={15}
             onPress={() => {
@@ -43,7 +46,11 @@ export default function LatestActivity({
         ) : null}
       </XStack>
       <YStack>
-        {!activity?.length &&
+        {loading ? (
+          Array.from({ length: 4 }).map((_, index, { length }) => (
+            <ActivitySkeleton key={index} isLast={index === length - 1} />
+          ))
+        ) : !activity?.length &&
           (emptyComponent ?? (
             <YStack alignItems="center" justifyContent="center" gap="$s4_5" padding="$s4" paddingTop={0}>
               <Text textAlign="center" color="$uiNeutralSecondary" emphasized title>
@@ -57,10 +64,40 @@ export default function LatestActivity({
               </Text>
             </YStack>
           ))}
-        {activity
-          ?.slice(0, 4)
-          .map((item, index, items) => <ActivityItem key={item.id} item={item} isLast={index === items.length - 1} />)}
+        {!loading
+          ? activity
+              ?.slice(0, 4)
+              .map((item, index, items) => (
+                <ActivityItem key={item.id} item={item} isLast={index === items.length - 1} />
+              ))
+          : null}
       </YStack>
     </View>
+  );
+}
+
+function ActivitySkeleton({ isLast }: { isLast: boolean }) {
+  return (
+    <XStack
+      gap="$s4"
+      alignItems="center"
+      paddingHorizontal="$s4"
+      paddingTop="$s3"
+      paddingBottom={isLast ? "$s4" : "$s3"}
+    >
+      <Skeleton height={40} width={40} />
+      <YStack flex={1} gap="$s2">
+        <XStack justifyContent="space-between" alignItems="center" gap="$s4">
+          <YStack gap="$s2" flexShrink={1}>
+            <Skeleton height={16} width="70%" />
+            <Skeleton height={12} width="40%" />
+          </YStack>
+          <YStack gap="$s2" alignItems="flex-end">
+            <Skeleton height={16} width={80} />
+            <Skeleton height={12} width={60} />
+          </YStack>
+        </XStack>
+      </YStack>
+    </XStack>
   );
 }

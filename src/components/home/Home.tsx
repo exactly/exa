@@ -103,6 +103,8 @@ export default function Home() {
     }
   }
   const isPending = isPendingActivity || isPendingPreviewer;
+  const isLoadingMarkets = isPendingPreviewer;
+  const isLoadingActivity = isPendingActivity;
   const style = { backgroundColor: theme.backgroundSoft.val, margin: -5 };
   return (
     <SafeView fullScreen tab backgroundColor="$backgroundSoft">
@@ -141,7 +143,7 @@ export default function Home() {
                   />
                 ))}
               <YStack gap="$s8">
-                <PortfolioSummary usdBalance={usdBalance} />
+                <PortfolioSummary usdBalance={usdBalance} loading={isLoadingMarkets} />
                 <HomeActions />
               </YStack>
             </YStack>
@@ -165,7 +167,7 @@ export default function Home() {
                   setPaySheetOpen(true);
                 }}
               />
-              <LatestActivity activity={activity} />
+              <LatestActivity activity={activity} loading={isLoadingActivity} />
               <HomeDisclaimer />
             </View>
           </View>

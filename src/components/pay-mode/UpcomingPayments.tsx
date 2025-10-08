@@ -16,35 +16,78 @@ import { useReadExaPreviewerPendingProposals, useReadPreviewerExactly } from "..
 import assetLogos from "../../utils/assetLogos";
 import useAccount from "../../utils/useAccount";
 import AssetLogo from "../shared/AssetLogo";
+import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bigint, amount: bigint) => void }) {
   const { address } = useAccount();
-  const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
-  const { data: pendingProposals } = useReadExaPreviewerPendingProposals({
+  const {
+    data: bytecode,
+    isPending: isPendingBytecode,
+  } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
+  const {
+    data: pendingProposals,
+    isPending: isPendingPendingProposals,
+    isFetching: isFetchingPendingProposals,
+  } = useReadExaPreviewerPendingProposals({
     address: exaPreviewerAddress,
     args: [address ?? zeroAddress],
     query: { enabled: !!address && !!bytecode, gcTime: 0, refetchInterval: 30_000 },
   });
-  const { data: markets } = useReadPreviewerExactly({
+  const {
+    data: markets,
+    isPending: isPendingMarkets,
+    isFetching: isFetchingMarkets,
+  } = useReadPreviewerExactly({
     address: previewerAddress,
     args: [address ?? zeroAddress],
     query: { enabled: !!address && !!bytecode, refetchInterval: 30_000 },
   });
+  if (!address) return null;
+  if (isPendingBytecode) return <PaymentsSkeleton title="Upcoming payments" showFooter />;
+  if (!bytecode) return null;
+  const loading =
+    isPendingMarkets ||
+    isPendingPendingProposals ||
+    (isFetchingMarkets && !markets) ||
+    (isFetchingPendingProposals && !pendingProposals);
+  if (loading) {
+    return <PaymentsSkeleton title="Upcoming payments" showFooter />;
+  }
+  if (!markets) {
+    return (
+      <View backgroundColor="$backgroundSoft" borderRadius="$r3" padding="$s4" gap="$s6">
+        <XStack alignItems="center" justifyContent="space-between">
+          <Text emphasized headline flex={1}>
+            Upcoming payments
+          </Text>
+        </XStack>
+        <YStack alignItems="center" justifyContent="center" gap="$s4_5">
+          <Text textAlign="center" color="$uiNeutralSecondary" emphasized title>
+            🎉
+          </Text>
+          <Text textAlign="center" color="$uiBrandSecondary" emphasized headline>
+            You&apos;re all set!
+          </Text>
+          <Text textAlign="center" color="$uiNeutralSecondary" subHeadline>
+            Any funding or purchases will show up here.
+          </Text>
+        </YStack>
+      </View>
+    );
+  }
   const duePayments = new Map<bigint, { positionAmount: bigint; amount: bigint; discount: number }>();
-  if (markets) {
-    for (const { fixedBorrowPositions } of markets) {
-      for (const { maturity, previewValue, position } of fixedBorrowPositions) {
-        if (!previewValue) continue;
+  for (const { fixedBorrowPositions } of markets) {
+    for (const { maturity, previewValue, position } of fixedBorrowPositions) {
+      if (!previewValue) continue;
 
-        if (isBefore(new Date(Number(maturity) * 1000), new Date())) continue;
-        duePayments.set(maturity, {
-          positionAmount: position.principal + position.fee,
-          amount: (duePayments.get(maturity)?.amount ?? 0n) + previewValue,
-          discount: Number(WAD - (previewValue * WAD) / (position.principal + position.fee)) / 1e18,
-        });
-      }
+      if (isBefore(new Date(Number(maturity) * 1000), new Date())) continue;
+      duePayments.set(maturity, {
+        positionAmount: position.principal + position.fee,
+        amount: (duePayments.get(maturity)?.amount ?? 0n) + previewValue,
+        discount: Number(WAD - (previewValue * WAD) / (position.principal + position.fee)) / 1e18,
+      });
     }
   }
   const payments = [...duePayments];
@@ -182,6 +225,36 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
             If not, a 0.45% penalty is added every day the payment is late.
           </Text>
         )}
+      </YStack>
+    </View>
+  );
+}
+
+function PaymentsSkeleton({ title, count = 2, showFooter = false }: { title: string; count?: number; showFooter?: boolean }) {
+  return (
+    <View backgroundColor="$backgroundSoft" borderRadius="$r3" padding="$s4" gap="$s6">
+      <XStack alignItems="center" justifyContent="space-between">
+        <Text emphasized headline flex={1}>
+          {title}
+        </Text>
+      </XStack>
+      <YStack gap="$s6">
+        {Array.from({ length: count }).map((_, index) => (
+          <XStack key={index} justifyContent="space-between" alignItems="center">
+            <XStack alignItems="center" gap="$s3">
+              <YStack gap="$s2">
+                <Skeleton height={18} width={120} />
+                <Skeleton height={12} width={80} />
+              </YStack>
+              <Skeleton height={20} width={100} />
+            </XStack>
+            <XStack alignItems="center" gap="$s3">
+              <Skeleton height={20} width={100} />
+              <Skeleton height={16} width={16} />
+            </XStack>
+          </XStack>
+        ))}
+        {showFooter ? <Skeleton height={12} width="80%" /> : null}
       </YStack>
     </View>
   );

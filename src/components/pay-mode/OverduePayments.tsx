@@ -16,35 +16,57 @@ import { useReadExaPreviewerPendingProposals, useReadPreviewerExactly } from "..
 import assetLogos from "../../utils/assetLogos";
 import useAccount from "../../utils/useAccount";
 import AssetLogo from "../shared/AssetLogo";
+import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function OverduePayments({ onSelect }: { onSelect: (maturity: bigint, amount: bigint) => void }) {
   const { address } = useAccount();
-  const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
-  const { data: pendingProposals } = useReadExaPreviewerPendingProposals({
+  const {
+    data: bytecode,
+    isPending: isPendingBytecode,
+  } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
+  const {
+    data: pendingProposals,
+    isPending: isPendingPendingProposals,
+    isFetching: isFetchingPendingProposals,
+  } = useReadExaPreviewerPendingProposals({
     address: exaPreviewerAddress,
     args: [address ?? zeroAddress],
     query: { enabled: !!address && !!bytecode, gcTime: 0, refetchInterval: 30_000 },
   });
-  const { data: markets } = useReadPreviewerExactly({
+  const {
+    data: markets,
+    isPending: isPendingMarkets,
+    isFetching: isFetchingMarkets,
+  } = useReadPreviewerExactly({
     address: previewerAddress,
     args: [address ?? zeroAddress],
     query: { enabled: !!address && !!bytecode, refetchInterval: 30_000 },
   });
+  if (!address) return null;
+  if (isPendingBytecode) return <PaymentsSkeleton title="Overdue payments" />;
+  if (!bytecode) return null;
+  const loading =
+    isPendingMarkets ||
+    isPendingPendingProposals ||
+    (isFetchingMarkets && !markets) ||
+    (isFetchingPendingProposals && !pendingProposals);
+  if (loading) {
+    return <PaymentsSkeleton title="Overdue payments" />;
+  }
+  if (!markets) return null;
   const overduePayments = new Map<bigint, { amount: bigint; discount: number }>();
-  if (markets) {
-    for (const { fixedBorrowPositions } of markets) {
-      for (const { maturity, previewValue, position } of fixedBorrowPositions) {
-        if (!previewValue) continue;
-        const positionAmount = position.principal + position.fee;
-        if (previewValue === 0n) continue;
-        if (isBefore(new Date(Number(maturity) * 1000), new Date())) {
-          overduePayments.set(maturity, {
-            amount: (overduePayments.get(maturity)?.amount ?? 0n) + previewValue,
-            discount: Number(WAD - (previewValue * WAD) / positionAmount) / 1e18,
-          });
-        }
+  for (const { fixedBorrowPositions } of markets) {
+    for (const { maturity, previewValue, position } of fixedBorrowPositions) {
+      if (!previewValue) continue;
+      const positionAmount = position.principal + position.fee;
+      if (previewValue === 0n) continue;
+      if (isBefore(new Date(Number(maturity) * 1000), new Date())) {
+        overduePayments.set(maturity, {
+          amount: (overduePayments.get(maturity)?.amount ?? 0n) + previewValue,
+          discount: Number(WAD - (previewValue * WAD) / positionAmount) / 1e18,
+        });
       }
     }
   }
@@ -152,6 +174,35 @@ export default function OverduePayments({ onSelect }: { onSelect: (maturity: big
             </XStack>
           );
         })}
+      </YStack>
+    </View>
+  );
+}
+
+function PaymentsSkeleton({ title, count = 2 }: { title: string; count?: number }) {
+  return (
+    <View backgroundColor="$backgroundSoft" borderRadius="$r3" padding="$s4" gap="$s6">
+      <XStack alignItems="center" justifyContent="space-between">
+        <Text emphasized headline flex={1}>
+          {title}
+        </Text>
+      </XStack>
+      <YStack gap="$s6">
+        {Array.from({ length: count }).map((_, index) => (
+          <XStack key={index} justifyContent="space-between" alignItems="center">
+            <XStack alignItems="center" gap="$s3">
+              <YStack gap="$s2">
+                <Skeleton height={18} width={80} />
+                <Skeleton height={12} width={100} />
+              </YStack>
+              <Skeleton height={20} width={100} />
+            </XStack>
+            <XStack alignItems="center" gap="$s3">
+              <Skeleton height={20} width={100} />
+              <Skeleton height={16} width={16} />
+            </XStack>
+          </XStack>
+        ))}
       </YStack>
     </View>
   );
