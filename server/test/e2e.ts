@@ -55,7 +55,7 @@ vi.mock("../utils/panda", async (importOriginal: () => Promise<typeof panda>) =>
     ...original,
     autoCredit: vi.fn().mockResolvedValue(false),
     createCard: vi.fn().mockImplementation((userId: string) => {
-      const id = `crd_${Math.random().toString(36).slice(2)}`;
+      const id = crypto.randomUUID();
       const card: Card = {
         expirationMonth: "12",
         expirationYear: "2030",
