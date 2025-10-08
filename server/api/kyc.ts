@@ -318,7 +318,7 @@ The admin should add a member using [addMember method](https://www.better-auth.c
           description: "KYC application submitted successfully",
           content: {
             "application/json": {
-              schema: resolver(object({ id: string(), status: string() }), { errorMode: "ignore" }),
+              schema: resolver(object({ status: string() }), { errorMode: "ignore" }),
             },
           },
         },
@@ -347,7 +347,6 @@ The admin should add a member using [addMember method](https://www.better-auth.c
             "application/json": {
               schema: resolver(
                 union([
-                  object({ code: literal(BadRequestCodes.ALREADY_STARTED) }),
                   object({
                     code: literal("invalid payload"),
                     message: string(),
@@ -361,17 +360,21 @@ The admin should add a member using [addMember method](https://www.better-auth.c
             },
           },
         },
+        409: {
+          description: "Conflict",
+          content: {
+            "application/json": {
+              schema: resolver(object({ code: literal(BadRequestCodes.ALREADY_STARTED) }), { errorMode: "ignore" }),
+            },
+          },
+        },
         403: {
           description: "Forbidden",
           content: {
             "application/json": {
-              schema: resolver(
-                object({
-                  code: literal("no permission"),
-                  message: optional(string()),
-                }),
-                { errorMode: "ignore" },
-              ),
+              schema: resolver(object({ code: literal("no permission"), message: optional(string()) }), {
+                errorMode: "ignore",
+              }),
             },
           },
         },
@@ -431,7 +434,7 @@ The admin should add a member using [addMember method](https://www.better-auth.c
       }
 
       if (credential.pandaId) {
-        return c.json({ code: BadRequestCodes.ALREADY_STARTED }, 401);
+        return c.json({ code: BadRequestCodes.ALREADY_STARTED }, 409);
       }
       try {
         const application = await submitApplication(payload, c.req.header("encrypted") === "true");
@@ -439,7 +442,7 @@ The admin should add a member using [addMember method](https://www.better-auth.c
           .update(credentials)
           .set({ pandaId: application.id, source })
           .where(eq(credentials.id, credentialId));
-        return c.json({ id: application.id, status: application.applicationStatus }, 200);
+        return c.json({ status: application.applicationStatus }, 200);
       } catch (error) {
         if (error instanceof KycError) {
           switch (error.statusCode) {
