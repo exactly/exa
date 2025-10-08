@@ -57,6 +57,7 @@ function createMutex(credentialId: string) {
 }
 
 const CardResponse = object({
+  cardId: pipe(string(), uuid(), metadata({ examples: ["123e4567-e89b-12d3-a456-426655440000"] })),
   displayName: pipe(string(), metadata({ examples: ["John Doe"] })),
   encryptedPan: object({ data: string(), iv: string() }),
   encryptedCvc: object({ data: string(), iv: string() }),
@@ -83,6 +84,7 @@ const CardResponse = object({
 
 const CreatedCardResponse = object({
   lastFour: pipe(string(), metadata({ examples: ["1234"] })),
+  cardId: pipe(string(), uuid(), metadata({ examples: ["123e4567-e89b-12d3-a456-426655440000"] })),
   status: pipe(picklist(["ACTIVE", "FROZEN"]), metadata({ examples: ["ACTIVE", "FROZEN"] })),
   productId: pipe(string(), metadata({ examples: ["402"] })),
 });
@@ -260,6 +262,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
           {
             ...pan,
             ...pin,
+            cardId: id,
             displayName: `${user.firstName} ${user.lastName}`,
             expirationMonth,
             expirationYear,
@@ -402,9 +405,12 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
               }).catch((error: unknown) => captureException(error));
             }
             return c.json(
-              { lastFour: card.last4, status: "ACTIVE", productId: SIGNATURE_PRODUCT_ID } satisfies InferOutput<
-                typeof CreatedCardResponse
-              >,
+              {
+                lastFour: card.last4,
+                status: "ACTIVE",
+                cardId: card.id,
+                productId: SIGNATURE_PRODUCT_ID,
+              } satisfies InferOutput<typeof CreatedCardResponse>,
               200,
             );
           } catch (error) {
