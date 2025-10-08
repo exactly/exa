@@ -93,6 +93,7 @@ import { DeployRefunder } from "../script/Refunder.s.sol";
 
 import { DeployAccount } from "./mocks/Account.s.sol";
 
+import { MockFlashLoaner } from "./mocks/MockFlashLoaner.sol";
 import { MockSwapper } from "./mocks/MockSwapper.sol";
 import { DeployMocks } from "./mocks/Mocks.s.sol";
 import { DeployProtocol } from "./mocks/Protocol.s.sol";
@@ -3629,12 +3630,50 @@ contract ExaPluginTest is ForkTest {
       ProposalType.REPAY_AT_MATURITY,
       abi.encode(RepayData({ maturity: nextMaturity, positionAssets: positionAssets }))
     );
-    
+
     skip(proposalManager.delay());
     account.executeProposal(proposalManager.nonces(address(account)));
-    
+
     position = exaUSDC.fixedBorrowPositions(nextMaturity, address(account));
     assertEq(position.principal + position.fee, 0);
+  }
+
+  function test_crossRepay_whenFlashLoanerHasFees() external {
+    MockFlashLoaner flashLoaner = new MockFlashLoaner(1e6);
+    usdc.mint(address(flashLoaner), 1_000_000e6);
+
+    exaPlugin.setFlashLoaner(IFlashLoaner(address(flashLoaner)));
+
+    vm.startPrank(keeper);
+    account.poke(exaEXA);
+    uint256 maturity = FixedLib.INTERVAL;
+    account.collectCredit(maturity, 100e6, block.timestamp, _issuerOp(100e6, block.timestamp));
+
+    uint256 amountIn = 111e18;
+    bytes memory route = abi.encodeCall(
+      MockSwapper.swapExactAmountOut, (address(exaEXA.asset()), amountIn, address(usdc), 110e6, address(account))
+    );
+
+    vm.startPrank(address(account));
+    account.propose(
+      exaEXA,
+      amountIn,
+      ProposalType.CROSS_REPAY_AT_MATURITY,
+      abi.encode(
+        CrossRepayData({ maturity: maturity, positionAssets: 110e6, marketOut: exaUSDC, maxRepay: 110e6, route: route })
+      )
+    );
+
+    skip(proposalManager.delay());
+
+    uint256 nonce = proposalManager.nonces(address(account));
+    uint256 queueNonce = proposalManager.queueNonces(address(account));
+    assertEq(queueNonce, nonce + 1);
+
+    account.executeProposal(proposalManager.nonces(address(account)));
+
+    assertEq(proposalManager.nonces(address(account)), nonce + 1, "nonce didn't increase");
+    assertEq(proposalManager.queueNonces(address(account)), queueNonce, "queue nonce didn't stay the same");
   }
 
   // solhint-enable func-name-mixedcase
