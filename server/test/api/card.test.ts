@@ -139,6 +139,7 @@ describe("authenticated", () => {
     expect(json).toStrictEqual({
       ...panTemplate,
       ...pinTemplate,
+      cardId: "543c1771-beae-4f26-b662-44ea48b40dc6",
       displayName: "First Last",
       expirationMonth: "9",
       expirationYear: "2029",
@@ -178,7 +179,10 @@ describe("authenticated", () => {
   });
 
   it("creates a panda debit card", async () => {
-    vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: "createCard" });
+    vi.spyOn(panda, "createCard").mockResolvedValueOnce({
+      ...cardTemplate,
+      id: "123e4567-e89b-12d3-a456-426655440000",
+    });
     vi.spyOn(kyc, "getApplicationStatus").mockResolvedValueOnce({
       id: "pandaId",
       applicationStatus: "approved",
@@ -198,11 +202,16 @@ describe("authenticated", () => {
     expect(json).toStrictEqual({
       status: "ACTIVE",
       lastFour: "7394",
+      cardId: "123e4567-e89b-12d3-a456-426655440000",
     });
   });
 
   it("creates a panda credit card", async () => {
-    vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: "createCreditCard", last4: "1224" });
+    vi.spyOn(panda, "createCard").mockResolvedValueOnce({
+      ...cardTemplate,
+      id: "123e4567-e89b-12d3-a456-426655440000",
+      last4: "1224",
+    });
     vi.spyOn(kyc, "getApplicationStatus").mockResolvedValueOnce({
       id: "pandaId",
       applicationStatus: "approved",
@@ -223,25 +232,28 @@ describe("authenticated", () => {
     expect(json).toStrictEqual({
       status: "ACTIVE",
       lastFour: "1224",
+      cardId: "123e4567-e89b-12d3-a456-426655440000",
     });
   });
 
   describe("migration", () => {
     it("creates a panda card having a cm card with upgraded plugin", async () => {
-      await database.insert(cards).values([{ id: "cm", credentialId: account, lastFour: "1234" }]);
+      const cardId = "cm-not-uuid";
+      const migratedCardId = "123e4567-e89b-12d3-a456-426655440001";
+      await database.insert(cards).values([{ id: cardId, credentialId: account, lastFour: "1234" }]);
 
       vi.spyOn(kyc, "getApplicationStatus").mockResolvedValueOnce({
         id: "pandaId",
         applicationStatus: "approved",
       });
       vi.spyOn(panda, "getCard").mockRejectedValueOnce(new Error("404 card not found"));
-      vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: "migration:cm" });
+      vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: migratedCardId });
       vi.spyOn(panda, "isPanda").mockResolvedValueOnce(true);
 
       const response = await appClient.index.$post({ header: { "test-credential-id": account } });
 
-      const created = await database.query.cards.findFirst({ where: eq(cards.id, "migration:cm") });
-      const deleted = await database.query.cards.findFirst({ where: eq(cards.id, "cm") });
+      const created = await database.query.cards.findFirst({ where: eq(cards.id, migratedCardId) });
+      const deleted = await database.query.cards.findFirst({ where: eq(cards.id, cardId) });
 
       expect(response.status).toBe(200);
       expect(created?.status).toBe("ACTIVE");
@@ -249,18 +261,19 @@ describe("authenticated", () => {
     });
 
     it("creates a panda card having a cm card with invalid uuid", async () => {
+      const migratedCardId = "123e4567-e89b-12d3-a456-426655440001";
       await database.insert(cards).values([{ id: "not-uuid", credentialId: account, lastFour: "1234" }]);
 
       vi.spyOn(kyc, "getApplicationStatus").mockResolvedValueOnce({
         id: "pandaId",
         applicationStatus: "approved",
       });
-      vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: "migration:not-uuid" });
+      vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: migratedCardId });
       vi.spyOn(panda, "isPanda").mockResolvedValueOnce(true);
 
       const response = await appClient.index.$post({ header: { "test-credential-id": account } });
 
-      const created = await database.query.cards.findFirst({ where: eq(cards.id, "migration:not-uuid") });
+      const created = await database.query.cards.findFirst({ where: eq(cards.id, migratedCardId) });
       const deleted = await database.query.cards.findFirst({ where: eq(cards.id, "not-uuid") });
 
       expect(response.status).toBe(200);
