@@ -14,8 +14,8 @@ import {
   http,
   InvalidInputRpcError,
   keccak256,
-  nonceManager,
   RawContractError,
+  WaitForTransactionReceiptTimeoutError,
   withRetry,
   type HttpTransport,
   type MaybePromise,
@@ -27,6 +27,7 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
+import nonceManager from "./nonceManager";
 import publicClient, { captureRequests, Requests } from "./publicClient";
 import traceClient from "./traceClient";
 
@@ -114,10 +115,23 @@ export function extender(keeper: WalletClient<HttpTransport, typeof chain, Priva
                   ]);
                 }
               })(),
-              startSpan({ name: "wait for receipt", op: "tx.wait" }, () =>
-                publicClient.waitForTransactionReceipt({ hash, confirmations: 0 }),
-              ).finally(() => {
-                abortController.abort();
+              startSpan({ name: "wait for receipt", op: "tx.wait" }, async () => {
+                try {
+                  return await publicClient.waitForTransactionReceipt({ hash, confirmations: 0 });
+                } catch (error: unknown) {
+                  if (error instanceof WaitForTransactionReceiptTimeoutError) {
+                    startSpan({ name: "nonce reset", op: `tx.nonceReset.${prepared.nonce}` }, (resetSpan) => {
+                      const info = nonceManager.info({ address: keeper.account.address, chainId: chain.id });
+                      nonceManager.hardReset({ address: keeper.account.address, chainId: chain.id });
+                      resetSpan.setAttribute("exa.reset", true);
+                      resetSpan.setAttribute("exa.delta", info.delta);
+                      resetSpan.setAttribute("exa.nonce", info.nonce);
+                    });
+                  }
+                  throw error;
+                } finally {
+                  abortController.abort();
+                }
               }),
               Promise.resolve(options?.onHash?.(hash)).catch((error: unknown) =>
                 captureException(error, { level: "error" }),
