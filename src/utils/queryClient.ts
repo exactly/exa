@@ -210,6 +210,8 @@ queryClient.setQueryDefaults<EmbeddingContext>(["embedding-context"], {
           }
         case 309_857:
           return "base" as const;
+        default:
+          return "unknown" as const;
       }
     }
     if (navigator.userAgent?.includes("MetaMask")) return "metamask" as const; // eslint-disable-line @typescript-eslint/no-unnecessary-condition
@@ -218,7 +220,7 @@ queryClient.setQueryDefaults<EmbeddingContext>(["embedding-context"], {
   },
 });
 
-export type EmbeddingContext = "base" | "farcaster" | "farcaster-web" | "metamask" | "phantom" | null;
+export type EmbeddingContext = "base" | "farcaster" | "farcaster-web" | "metamask" | "phantom" | "unknown" | null;
 export type ActivityItem = Awaited<ReturnType<typeof getActivity>>[number];
 export interface Withdraw {
   market?: Address;
