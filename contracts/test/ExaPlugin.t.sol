@@ -87,6 +87,8 @@ import { Collected, IssuerChecker, Refunded } from "../src/IssuerChecker.sol";
 import { ProposalManager } from "../src/ProposalManager.sol";
 import { Refunder } from "../src/Refunder.sol";
 
+import { DebtRoller } from "../src/DebtRoller.sol";
+
 import { DeployIssuerChecker } from "../script/IssuerChecker.s.sol";
 import { DeployProposalManager } from "../script/ProposalManager.s.sol";
 import { DeployRefunder } from "../script/Refunder.s.sol";
@@ -1099,6 +1101,78 @@ contract ExaPluginTest is ForkTest {
     assertLe(
       exaEXA.fixedBorrowPositions(maturity + FixedLib.INTERVAL, address(account)).fee, 10e18, "fee is higher than limit"
     );
+  }
+
+  function test_rollDebt_rolls_usingDebtRoller() external {
+    vm.startPrank(keeper);
+    account.poke(exaUSDC);
+    uint256 assets = 100e6;
+    uint256 maxAssets = 110e6;
+    account.collectCredit(FixedLib.INTERVAL, assets, block.timestamp, _issuerOp(assets, block.timestamp));
+
+    IFlashLoaner flashLoanerFees = IFlashLoaner(address(new MockFlashLoaner(1)));
+    usdc.mint(address(flashLoanerFees), 1_000_000e6);
+    IDebtManager debtRoller = IDebtManager(address(new DebtRoller(IAuditor(address(auditor)), flashLoanerFees)));
+    address[] memory targets = new address[](2);
+    targets[0] = address(exaUSDC);
+    targets[1] = address(usdc);
+
+    vm.startPrank(address(this));
+    proposalManager = new ProposalManager(
+      address(this),
+      IAuditor(address(auditor)),
+      debtRoller,
+      IInstallmentsRouter(address(this)),
+      acct("collector"),
+      targets,
+      1 minutes
+    );
+
+    exaPlugin = new ExaPlugin(
+      Parameters({
+        owner: address(this),
+        auditor: IAuditor(address(this)),
+        exaUSDC: exaUSDC,
+        exaWETH: exaWETH,
+        flashLoaner: flashLoanerFees,
+        debtManager: debtRoller,
+        installmentsRouter: IInstallmentsRouter(address(this)),
+        issuerChecker: issuerChecker,
+        proposalManager: proposalManager,
+        collector: collector,
+        swapper: exaPlugin.swapper(),
+        firstKeeper: keeper
+      })
+    );
+    proposalManager.grantRole(proposalManager.PROPOSER_ROLE(), address(exaPlugin));
+
+    vm.startPrank(address(account));
+    account.propose(
+      exaUSDC,
+      maxAssets,
+      ProposalType.ROLL_DEBT,
+      abi.encode(
+        RollDebtData({
+          repayMaturity: FixedLib.INTERVAL,
+          borrowMaturity: FixedLib.INTERVAL * 2,
+          maxRepayAssets: maxAssets,
+          percentage: 1e18
+        })
+      )
+    );
+
+    skip(proposalManager.delay());
+
+    vm.startPrank(keeper);
+    account.executeProposal(proposalManager.nonces(address(account)));
+
+    FixedPosition memory position = exaUSDC.fixedBorrowPositions(FixedLib.INTERVAL, address(account));
+    assertEq(position.principal, 0);
+    assertEq(position.fee, 0);
+    position = exaUSDC.fixedBorrowPositions(FixedLib.INTERVAL * 2, address(account));
+    assertGt(position.principal, assets);
+    assertGt(position.fee, 0);
+    assertLe(position.principal, maxAssets);
   }
 
   function test_marketWithdraw_transfersAsset_asOwner() external {
