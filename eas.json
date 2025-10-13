@@ -10,14 +10,16 @@
     },
     "development": { "extends": "base", "developmentClient": true, "distribution": "internal" },
     "preview": { "extends": "base", "channel": "preview", "distribution": "internal" },
+    "staging": { "extends": "base", "channel": "staging" },
     "production": { "extends": "base", "channel": "production" }
   },
   "submit": {
     "base": {
-      "android": { "track": "internal" },
-      "ios": { "appleTeamId": "665NDX7LBZ", "ascAppId": "6572315454", "sku": "exa" }
+      "android": { "track": "internal", "releaseStatus": "draft", "changesNotSentForReview": true },
+      "ios": { "appleTeamId": "665NDX7LBZ", "ascAppId": "6572315454", "sku": "exa", "groups": ["inner"] }
     },
     "preview": { "extends": "base" },
-    "production": { "extends": "base" }
+    "staging": { "extends": "base" },
+    "production": { "extends": "base", "android": { "track": "production" } }
   }
 }
