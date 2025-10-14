@@ -5,6 +5,9 @@ on:
       profile:
         required: true
         type: string
+      build:
+        type: boolean
+        default: false
     secrets:
       EXPO_TOKEN:
       SENTRY_AUTH_TOKEN:
@@ -38,6 +41,7 @@ jobs:
           token: ${{ secrets.EXPO_TOKEN }}
       - run: pnpm install --frozen-lockfile
       - run: eas build --profile ${{ inputs.profile }} --platform all --non-interactive --no-wait
+        if: inputs.build
       - run: eas update --auto --channel ${{ inputs.profile }} --platform all --non-interactive
       - run: echo "release=$(node -e 'console.log(require(`./src/generated/release`))')" >> $GITHUB_OUTPUT
         id: release
