@@ -15,7 +15,7 @@ export const LEGACY_KYC_TEMPLATE_ID = "itmpl_8uim4FvD5P3kFpKHX37CW817";
 
 export async function createInquiry(credential: Credential, navigation: AppNavigationProperties) {
   if (Platform.OS === "web") {
-    const url = await getKYCLink(KYC_TEMPLATE_ID, getRedirectURI());
+    const url = await getKYCLink(KYC_TEMPLATE_ID, await getRedirectURI());
     const embeddingContext = queryClient.getQueryData<EmbeddingContext>(["embedding-context"]);
     if (embeddingContext && !embeddingContext.endsWith("-web")) {
       window.location.replace(url);
@@ -73,7 +73,9 @@ export async function resumeInquiry(inquiryId: string, sessionToken: string, nav
     .start();
 }
 
-function getRedirectURI() {
+async function getRedirectURI() {
+  const { client } = (await sdk.context) as unknown as { client: { appUrl?: string } };
+  if (client.appUrl) return client.appUrl;
   switch (queryClient.getQueryData<EmbeddingContext>(["embedding-context"])) {
     case "farcaster-web":
       return `https://farcaster.xyz/miniapps/${
