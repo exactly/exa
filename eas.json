@@ -10,7 +10,7 @@
     },
     "development": { "extends": "base", "developmentClient": true, "distribution": "internal" },
     "preview": { "extends": "base", "channel": "preview", "distribution": "internal" },
-    "staging": { "extends": "base", "channel": "staging" },
+    "beta": { "extends": "base", "channel": "beta" },
     "production": { "extends": "base", "channel": "production" }
   },
   "submit": {
@@ -19,7 +19,7 @@
       "ios": { "appleTeamId": "665NDX7LBZ", "ascAppId": "6572315454", "sku": "exa", "groups": ["inner"] }
     },
     "preview": { "extends": "base" },
-    "staging": { "extends": "base" },
+    "beta": { "extends": "base", "android": { "track": "beta" } },
     "production": { "extends": "base", "android": { "track": "production" } }
   }
 }
