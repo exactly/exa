@@ -1,7 +1,7 @@
-name: mobile/preview
+name: mobile/beta
 on:
   push:
-    branches: [main]
+    branches: [beta]
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 jobs:
   condition:
@@ -19,11 +19,10 @@ jobs:
       - run: npx @changesets/cli status --since ${{ github.event.before }} --output changesets.json
       - run: echo "mobile=$(jq 'any(.releases[].name; . == "@exactly/mobile")' changesets.json)" >> $GITHUB_OUTPUT
         id: release
-  expo:
+  beta:
     needs: condition
     if: needs.condition.outputs.mobile == 'true'
     uses: ./.github/workflows/mobile-expo.yaml
     secrets: inherit
     with:
-      profile: preview
-      build: true
+      profile: beta
