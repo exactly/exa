@@ -8,15 +8,16 @@ import { injected } from "@wagmi/core";
 import { isAddress, UserRejectedRequestError, type Address } from "viem";
 import { createConfig, createStorage, custom } from "wagmi";
 
-import publicClient from "./publicClient";
-import reportError from "./reportError";
+import publicClient from "../publicClient";
+import reportError from "../reportError";
 
-export const config = createConfig({
+const config = createConfig({
   chains: [chain],
   connectors: [miniAppConnector(), injected()],
   transports: { [chain.id]: custom(publicClient) },
   storage: createStorage({ storage: AsyncStorage }),
 });
+export default config;
 
 export async function connectAccount(account: Address) {
   const connector = await getConnector();
@@ -26,8 +27,8 @@ export async function connectAccount(account: Address) {
     return connectedAccounts;
   });
   if (!accounts.includes(account)) {
-    setContext("injected", { account, accounts, connector: connector.id });
-    throw new Error("injected account mismatch");
+    setContext("owner", { account, accounts, connector: connector.id });
+    throw new Error("owner account mismatch");
   }
   return account;
 }

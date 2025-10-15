@@ -39,7 +39,7 @@ import translation from "../i18n/en.json";
 import publicClient from "../utils/publicClient";
 import queryClient, { persister } from "../utils/queryClient";
 import reportError from "../utils/reportError";
-import wagmiConfig from "../utils/wagmi";
+import exaConfig from "../utils/wagmi/exa";
 
 SplashScreen.preventAutoHideAsync().catch(reportError);
 
@@ -148,7 +148,7 @@ export default wrap(function RootLayout() {
   }, []);
 
   return (
-    <WagmiProvider config={wagmiConfig}>
+    <WagmiProvider config={exaConfig}>
       <PersistQueryClientProvider client={queryClient} persistOptions={{ persister }}>
         <ToastProvider>
           <SafeAreaProvider>

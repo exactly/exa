@@ -56,7 +56,7 @@ export default function Auth() {
   const { title, disabled } = currentItem;
 
   const { data: isMiniApp } = useQuery({ queryKey: ["is-miniapp"] });
-  const { data: hasInjectedProvider } = useQuery({ queryKey: ["has-injected-provider"] });
+  const { data: isOwnerAvailable } = useQuery({ queryKey: ["is-owner-available"] });
   const { data: embeddingContext, isPending: loadingContext } = useQuery<EmbeddingContext>({
     queryKey: ["embedding-context"],
   });
@@ -185,7 +185,7 @@ export default function Auth() {
                     handleAuth();
                     return;
                   }
-                  if (hasInjectedProvider) {
+                  if (isOwnerAvailable) {
                     setSignUpModalOpen(true);
                   } else {
                     navigation.navigate("(passkeys)/passkeys");
@@ -210,7 +210,7 @@ export default function Auth() {
                   hitSlop={15}
                   onPress={() => {
                     if (loading) return;
-                    if (hasInjectedProvider) {
+                    if (isOwnerAvailable) {
                       setSignInModalOpen(true);
                     } else {
                       queryClient.setQueryData(["method"], "webauthn");
@@ -236,7 +236,7 @@ export default function Auth() {
           setErrorDialogOpen(false);
         }}
       />
-      {hasInjectedProvider && (
+      {isOwnerAvailable && (
         <>
           <ConnectSheet
             open={signInModalOpen}

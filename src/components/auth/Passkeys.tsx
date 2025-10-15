@@ -25,7 +25,7 @@ export default function Passkeys() {
   const navigation = useNavigation<AppNavigationProperties>();
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
   const [connectModalOpen, setConnectModalOpen] = useState(false);
-  const { data: hasInjectedProvider } = useQuery({ queryKey: ["has-injected-provider"] });
+  const { data: isOwnerAvailable } = useQuery({ queryKey: ["is-owner-available"] });
 
   const { handleAuth, loading } = useAuth(
     (credential: Credential) => {
@@ -132,7 +132,7 @@ export default function Passkeys() {
           setErrorDialogOpen(false);
         }}
       />
-      {hasInjectedProvider && (
+      {isOwnerAvailable && (
         <ConnectSheet
           open={connectModalOpen}
           onClose={(method) => {

@@ -23,7 +23,7 @@ export default function ConnectSheet({
   webAuthnText: string;
   siweText: string;
 }) {
-  const { data: hasInjectedProvider } = useQuery({ queryKey: ["has-injected-provider"] });
+  const { data: isOwnerAvailable } = useQuery({ queryKey: ["is-owner-available"] });
   return (
     <ModalSheet
       open={open}
@@ -63,7 +63,7 @@ export default function ConnectSheet({
               >
                 {webAuthnText}
               </Button>
-              {hasInjectedProvider && (
+              {isOwnerAvailable && (
                 <Button
                   onPress={() => {
                     onClose("siwe");

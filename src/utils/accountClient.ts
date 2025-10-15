@@ -31,17 +31,16 @@ import {
   maxUint256,
 } from "viem";
 
-import { connectAccount, getAccount, config as injectedConfig, getConnector } from "./injectedConnector";
 import { login } from "./onesignal";
 import publicClient from "./publicClient";
 import queryClient from "./queryClient";
+import ownerConfig, { connectAccount, getAccount, getConnector } from "./wagmi/owner";
 
 export default async function createAccountClient({ credentialId, factory, x, y }: Credential) {
   const transport = custom(publicClient);
   const entryPoint = getEntryPoint(chain);
   const method = queryClient.getQueryData<"siwe" | "webauthn" | undefined>(["method"]);
-  const injectedAccount =
-    method === "siwe" ? await getAccount(queryClient.getQueryData<Credential>(["credential"])) : undefined;
+  const owner = method === "siwe" ? await getAccount(queryClient.getQueryData<Credential>(["credential"])) : undefined;
   const account = await toSmartContractAccount({
     chain,
     transport,
@@ -49,14 +48,14 @@ export default async function createAccountClient({ credentialId, factory, x, y 
     source: "WebauthnAccount" as const,
     getAccountInitCode: () => Promise.resolve(accountInitCode({ factory, x, y })),
     getDummySignature: () => "0x",
-    signUserOperationHash: injectedAccount
+    signUserOperationHash: owner
       ? (uoHash) =>
-          connectAccount(injectedAccount).then(async () =>
+          connectAccount(owner).then(async () =>
             wrapSignature(
               0,
-              await signMessage(injectedConfig, {
+              await signMessage(ownerConfig, {
                 connector: await getConnector(),
-                account: injectedAccount,
+                account: owner,
                 message: { raw: uoHash },
               }),
             ),

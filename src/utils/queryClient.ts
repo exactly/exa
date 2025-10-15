@@ -7,9 +7,9 @@ import type { Address } from "viem";
 import { deserialize, serialize } from "wagmi";
 import { hashFn, structuralSharing } from "wagmi/query";
 
-import { hasProvider } from "./injectedConnector";
 import reportError from "./reportError";
 import type { getActivity } from "./server";
+import { hasProvider } from "./wagmi/owner";
 
 export const persister = createAsyncStoragePersister({ serialize, deserialize, storage: AsyncStorage });
 const queryClient = new QueryClient({
@@ -182,7 +182,7 @@ queryClient.setQueryDefaults<"siwe" | "webauthn" | undefined>(["method"], {
     throw new Error("don't refetch");
   },
 });
-queryClient.setQueryDefaults(["has-injected-provider"], {
+queryClient.setQueryDefaults(["is-owner-available"], {
   staleTime: Infinity,
   gcTime: Infinity,
   queryFn: hasProvider,

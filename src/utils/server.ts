@@ -9,9 +9,9 @@ import { Platform } from "react-native";
 import { get as assert, create } from "react-native-passkeys";
 import { check, number, parse, pipe, safeParse, ValiError } from "valibot";
 
-import { connectAccount, getAccount, config as injectedConfig, getConnector } from "./injectedConnector";
 import { encryptPIN, session } from "./panda";
 import queryClient, { APIError } from "./queryClient";
+import ownerConfig, { connectAccount, getAccount, getConnector } from "./wagmi/owner";
 
 queryClient.setQueryDefaults<number | undefined>(["auth"], {
   retry: false,
@@ -31,7 +31,7 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
         ? await connectAccount(options.address).then(async () => ({
             method: "siwe" as const,
             id: options.address,
-            signature: await signMessage(injectedConfig, {
+            signature: await signMessage(ownerConfig, {
               connector: await getConnector(),
               account: options.address,
               message: options.message,
@@ -148,7 +148,7 @@ export async function createCredential() {
         ? await connectAccount(options.address).then(async () => ({
             method: options.method,
             id: options.address,
-            signature: await signMessage(injectedConfig, {
+            signature: await signMessage(ownerConfig, {
               connector: await getConnector(),
               account: options.address,
               message: options.message,
