@@ -124,9 +124,7 @@ export default function Swaps() {
     [externalAssets, isExternal, protocolAssets],
   );
 
-  const { market: selectedTokenMarket, available: selectedTokenAvailable } = useAsset(
-    getSwapAddress(fromToken) as Address,
-  );
+  const { market: selectedTokenMarket, available: selectedTokenAvailable } = useAsset(getSwapAddress(fromToken));
 
   const isInsufficientBalance = useMemo(() => {
     if (!fromToken || !toToken) return false;
