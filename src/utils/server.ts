@@ -2,6 +2,7 @@ import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 import domain from "@exactly/common/domain";
 import { Credential } from "@exactly/common/validation";
 import type { ExaAPI } from "@exactly/server/api";
+import { sdk } from "@farcaster/miniapp-sdk";
 import { signMessage } from "@wagmi/core/actions";
 import { hc } from "hono/client";
 import { Platform } from "react-native";
@@ -63,6 +64,13 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
 
 const api = hc<ExaAPI>(domain === "localhost" ? "http://localhost:3000/api" : `https://${domain}/api`, {
   init: { credentials: "include" },
+  fetch: async (input: string | Request | URL, init?: RequestInit) => {
+    if (!(await sdk.isInMiniApp())) return fetch(input, init);
+    const { client } = await sdk.context;
+    const headers = new Headers(init?.headers);
+    headers.set("Client-Fid", String(client.clientFid));
+    return fetch(input, { ...init, headers });
+  },
 });
 
 export async function getCard() {
