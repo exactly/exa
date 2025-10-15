@@ -20,6 +20,8 @@ jobs:
           node-version: ">=22.14.0"
           cache: pnpm
       - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.3.6
       - run: pnpm install --frozen-lockfile
       - uses: crazy-max/ghaction-import-gpg@v5 # cspell:ignore ghaction
         with:
