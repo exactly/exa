@@ -73,6 +73,8 @@ jobs:
           node-version: ">=22.14.0"
           cache: pnpm
       - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.3.6
       - run: pnpm install --frozen-lockfile
       - run: pnpm run --filter server build
       - run: echo "release=$(node -e 'console.log(require(`./server/generated/release`))')" >> $GITHUB_OUTPUT
