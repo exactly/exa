@@ -36,13 +36,24 @@ export default function validatorHook<
         {
           code,
           legacy: code,
-          message:
-            result.issues.length > 0
-              ? result.issues.map((issue) => `${issue.path?.map((p) => p.key).join("/")} ${issue.message}`)
-              : undefined,
+          message: result.issues.length > 0 ? buildIssueMessages(result.issues) : undefined,
         },
         status,
       );
     }
   };
+}
+
+/** recursively builds human-readable error messages from valibot validation issues */
+function buildIssueMessages(issues: BaseIssue<unknown>[], depth = 0, maxDepth = 5): string[] {
+  const messages: string[] = [];
+  for (const issue of issues) {
+    const pathString = issue.path?.map((pathItem) => pathItem.key).join("/") ?? "";
+    const message = pathString ? `${pathString} ${issue.message}` : issue.message;
+    messages.push(message);
+    if (issue.issues && Array.isArray(issue.issues) && depth < maxDepth) {
+      messages.push(...buildIssueMessages(issue.issues, depth + 1, maxDepth));
+    }
+  }
+  return messages;
 }
