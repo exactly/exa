@@ -5,6 +5,8 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { BaseSchema, BaseIssue, SafeParseResult } from "valibot";
 import { flatten } from "valibot";
 
+const MAX_ISSUES_DEPTH = 5;
+
 export default function validatorHook<
   TInput = unknown,
   TOutput = unknown,
@@ -36,13 +38,26 @@ export default function validatorHook<
         {
           code,
           legacy: code,
-          message:
-            result.issues.length > 0
-              ? result.issues.map((issue) => `${issue.path?.map((p) => p.key).join("/")} ${issue.message}`)
-              : undefined,
+          message: result.issues.length > 0 ? buildIssueMessages(result.issues) : undefined,
         },
         status,
       );
     }
   };
+}
+
+/**
+ * recursively builds human-readable error messages from valibot validation issues
+ */
+function buildIssueMessages(issues: BaseIssue<unknown>[], depth = 0): string[] {
+  const messages: string[] = [];
+  for (const issue of issues) {
+    const pathString = issue.path?.map((pathItem) => pathItem.key).join("/") ?? "";
+    const message = pathString ? `${pathString} ${issue.message}` : issue.message;
+    messages.push(message);
+    if (issue.issues && Array.isArray(issue.issues) && depth < MAX_ISSUES_DEPTH) {
+      messages.push(...buildIssueMessages(issue.issues, depth + 1));
+    }
+  }
+  return messages;
 }
