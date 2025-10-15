@@ -25,6 +25,8 @@ jobs:
           node-version: ">=22.14.0"
           cache: pnpm
       - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.3.6
       - run: pnpm install --frozen-lockfile
       - run: pnpm run --filter docs build
       - uses: actions/upload-pages-artifact@v3

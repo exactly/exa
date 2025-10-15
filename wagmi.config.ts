@@ -14,7 +14,7 @@ const chainId = Number(process.env.CHAIN_ID ?? String(easBuild ? optimism.id : o
 
 if (easBuild) {
   execSync(
-    "export FOUNDRY_DIR=${FOUNDRY_DIR-$HOME/workingdir} && curl -L https://foundry.paradigm.xyz | bash || true && foundryup",
+    "export FOUNDRY_DIR=${FOUNDRY_DIR-$HOME/workingdir} && curl -L https://foundry.paradigm.xyz | bash || true && foundryup -i v1.3.6",
     { stdio: "inherit" },
   );
 }

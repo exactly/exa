@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y ca-certificates curl git rsync unzip --
   curl -fsSL https://get.pnpm.io/install.sh | env PNPM_VERSION=9.15.9 bash && \
   curl -fsSL https://foundry.paradigm.xyz | bash
 ENV PATH="$PATH:/root/.local/share/pnpm:/root/.foundry/bin"
-RUN foundryup
+RUN foundryup -i v1.3.6
 WORKDIR /usr/src/app
 COPY . .
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store pnpm install --frozen-lockfile

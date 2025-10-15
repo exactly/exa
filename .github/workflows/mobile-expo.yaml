@@ -34,6 +34,8 @@ jobs:
           node-version: ">=22.15.0"
           cache: pnpm
       - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.3.6
       - uses: expo/expo-github-action@v8
         with:
           packager: pnpm
