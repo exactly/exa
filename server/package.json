@@ -51,7 +51,7 @@
     "pg": "^8.16.3",
     "redis-semaphore": "^5.6.2",
     "valibot": "^1.0.0",
-    "viem": "^2.38.3"
+    "viem": "^2.39.3"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.3.11",
@@ -63,7 +63,7 @@
     "@types/pg": "^8.15.5",
     "@vitest/coverage-v8": "^3.2.4",
     "@vitest/ui": "^3.2.4",
-    "@wagmi/core": "^2.22.1",
+    "@wagmi/core": "^3.0.0",
     "drizzle-kit": "^0.31.5",
     "execa": "^9.6.0",
     "ioredis-mock": "^8.13.0",
