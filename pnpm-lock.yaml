@@ -319,8 +319,8 @@ importers:
         specifier: workspace:^1.0.0
         version: link:contracts
       '@exactly/protocol':
-        specifier: ^0.2.21
-        version: 0.2.21
+        specifier: exactly/protocol#6d35ddf
+        version: https://codeload.github.com/exactly/protocol/tar.gz/6d35ddf
       '@expo/fingerprint':
         specifier: ^0.11.11
         version: 0.11.11
@@ -501,8 +501,8 @@ importers:
         version: webauthn-sol#v1.0.0@https://codeload.github.com/base/webauthn-sol/tar.gz/619f20ab0f074fef41066ee4ab24849a913263b2
     devDependencies:
       '@exactly/protocol':
-        specifier: ^0.2.21
-        version: 0.2.21
+        specifier: exactly/protocol#6d35ddf
+        version: https://codeload.github.com/exactly/protocol/tar.gz/6d35ddf
       '@openzeppelin/contracts-upgradeable':
         specifier: ^5.4.0
         version: 5.4.0(@openzeppelin/contracts@5.4.0)
@@ -2127,8 +2127,9 @@ packages:
     resolution: {integrity: sha512-nfG/SPwGyO5VFgPQHJml8HAPwU2rrpnlRWzWuiEK0dslKLB3vKmab9GvCyWDiSbNsxsuB273dKcBLL5o45ZJsg==}
     engines: {node: '>=20'}
 
-  '@exactly/protocol@0.2.21':
-    resolution: {integrity: sha512-kQY9NOI1JqRGc45f9v3EwEGxtT7hZ3rIMHhmbgM4fYenG757sWBpR5rkSJm5+HkV0MpQ0gkXKN87/k4erydKfg==}
+  '@exactly/protocol@https://codeload.github.com/exactly/protocol/tar.gz/6d35ddf':
+    resolution: {tarball: https://codeload.github.com/exactly/protocol/tar.gz/6d35ddf}
+    version: 0.2.21
     engines: {node: '>=18'}
 
   '@expo/bunyan@4.0.1':
@@ -13740,12 +13741,13 @@ snapshots:
 
   '@exactly/lib@0.1.0': {}
 
-  '@exactly/protocol@0.2.21':
+  '@exactly/protocol@https://codeload.github.com/exactly/protocol/tar.gz/6d35ddf':
     dependencies:
       '@openzeppelin/contracts': 5.4.0
       '@openzeppelin/contracts-upgradeable': 5.4.0(@openzeppelin/contracts@5.4.0)
       '@openzeppelin/contracts-upgradeable-v4': '@openzeppelin/contracts-upgradeable@4.9.6'
       '@openzeppelin/contracts-v4': '@openzeppelin/contracts@4.9.6'
+      solady: 0.1.26
       solmate: '@rari-capital/solmate@https://codeload.github.com/transmissions11/solmate/tar.gz/eaa7041378f9a6c12f943de08a6c41b31a9870fc'
 
   '@expo/bunyan@4.0.1':
