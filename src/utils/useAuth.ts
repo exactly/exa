@@ -1,48 +1,37 @@
 import type { Credential } from "@exactly/common/validation";
 import { useToastController } from "@tamagui/toast";
 import { useMutation } from "@tanstack/react-query";
-import { useCallback, useMemo } from "react";
+import { getAccount } from "@wagmi/core";
 import { UserRejectedRequestError } from "viem";
+import { useConnect } from "wagmi";
 
-import queryClient from "./queryClient";
+import alchemyConnector from "./alchemyConnector";
+import queryClient, { type AuthMethod } from "./queryClient";
 import reportError from "./reportError";
 import { APIError, createCredential, getCredential } from "./server";
+import ownerConfig, { getConnector as getOwnerConnector } from "./wagmi/owner";
 
-export default function useAuth(onSuccess: (credential: Credential) => void, onDomainError: () => void) {
+export default function useAuth(onSuccess: (credential: Credential) => unknown, onDomainError: () => void) {
   const toast = useToastController();
-  const { mutate: register, isPending: isRegisterPending } = useMutation({
-    mutationFn: createCredential,
-    onSuccess,
-    onError: (error: unknown) => {
-      handleError(error, toast, onDomainError);
-    },
-  });
-  const { mutate: authenticate, isPending: isAuthenticatePending } = useMutation({
-    mutationFn: getCredential,
-    onSuccess,
-    onError: (error: unknown) => {
-      handleError(error, toast, onDomainError);
-    },
-  });
-  const handleAuth = useCallback(
-    (registration?: boolean) => {
-      const method = queryClient.getQueryData(["method"]);
-      switch (method) {
-        case "siwe":
-          authenticate();
-          break;
-        case "webauthn":
-          if (registration) register();
-          else authenticate();
-          break;
-        default:
-          throw new Error("bad method");
+  const { connectAsync: connectExa } = useConnect();
+  const { connectAsync: connectOwner } = useConnect({ config: ownerConfig });
+  const { mutate: signIn, ...mutation } = useMutation({
+    mutationFn: async ({ method, register }: { method: AuthMethod; register?: boolean }) => {
+      queryClient.setQueryData(["method"], method);
+      if (method === "siwe" && getAccount(ownerConfig).isDisconnected) {
+        await connectOwner({ connector: await getOwnerConnector() });
       }
+      const credential = method === "siwe" || !register ? await getCredential() : await createCredential();
+      queryClient.setQueryData<Credential>(["credential"], credential);
+      await connectExa({ connector: alchemyConnector });
+      return credential;
     },
-    [authenticate, register],
-  );
-  const loading = useMemo(() => isRegisterPending || isAuthenticatePending, [isRegisterPending, isAuthenticatePending]);
-  return { handleAuth, loading };
+    onSuccess,
+    onError: (error: unknown) => {
+      handleError(error, toast, onDomainError);
+    },
+  });
+  return { signIn, ...mutation };
 }
 
 function handleError(error: unknown, toast: ReturnType<typeof useToastController>, onDomainError: () => void) {

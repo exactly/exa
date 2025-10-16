@@ -15,6 +15,7 @@ import { ToastProvider } from "@tamagui/toast";
 // @ts-expect-error hack before metro supports exports
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools/build/modern/production"; // HACK improve after expo 53
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
+import { reconnect } from "@wagmi/core";
 import { isRunningInExpoGo } from "expo";
 import { useAssets } from "expo-asset";
 import { type FontSource, useFonts } from "expo-font";
@@ -40,6 +41,7 @@ import publicClient from "../utils/publicClient";
 import queryClient, { persister } from "../utils/queryClient";
 import reportError from "../utils/reportError";
 import exaConfig from "../utils/wagmi/exa";
+import ownerConfig, { getConnector as getOwnerConnector } from "../utils/wagmi/owner";
 
 SplashScreen.preventAutoHideAsync().catch(reportError);
 
@@ -125,6 +127,11 @@ export default wrap(function RootLayout() {
   }, [navigationContainer]);
 
   useEffect(() => {
+    reconnect(exaConfig).catch(reportError);
+    getOwnerConnector()
+      .then((connector) => reconnect(ownerConfig, { connectors: [connector] }))
+      .catch(reportError);
+
     if (__DEV__) return;
     let shouldReload = false;
     const subscription = AppState.addEventListener("change", (state) => {

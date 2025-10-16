@@ -16,7 +16,7 @@ import { ECDSASigValue } from "@peculiar/asn1-ecc";
 import { AsnParser } from "@peculiar/asn1-schema";
 import { setUser } from "@sentry/react-native";
 import { base64URLStringToBuffer, bufferToBase64URLString } from "@simplewebauthn/browser";
-import { signMessage } from "@wagmi/core/actions";
+import { getAccount, signMessage } from "@wagmi/core/actions";
 import { Platform } from "react-native";
 import { get } from "react-native-passkeys";
 import {
@@ -33,14 +33,12 @@ import {
 
 import { login } from "./onesignal";
 import publicClient from "./publicClient";
-import queryClient from "./queryClient";
-import ownerConfig, { connectAccount, getAccount, getConnector } from "./wagmi/owner";
+import queryClient, { type AuthMethod } from "./queryClient";
+import ownerConfig from "./wagmi/owner";
 
 export default async function createAccountClient({ credentialId, factory, x, y }: Credential) {
   const transport = custom(publicClient);
   const entryPoint = getEntryPoint(chain);
-  const method = queryClient.getQueryData<"siwe" | "webauthn" | undefined>(["method"]);
-  const owner = method === "siwe" ? await getAccount(queryClient.getQueryData<Credential>(["credential"])) : undefined;
   const account = await toSmartContractAccount({
     chain,
     transport,
@@ -48,52 +46,43 @@ export default async function createAccountClient({ credentialId, factory, x, y 
     source: "WebauthnAccount" as const,
     getAccountInitCode: () => Promise.resolve(accountInitCode({ factory, x, y })),
     getDummySignature: () => "0x",
-    signUserOperationHash: owner
-      ? (uoHash) =>
-          connectAccount(owner).then(async () =>
-            wrapSignature(
-              0,
-              await signMessage(ownerConfig, {
-                connector: await getConnector(),
-                account: owner,
-                message: { raw: uoHash },
-              }),
-            ),
-          )
-      : async (uoHash) => {
-          try {
-            const credential = await get({
-              rpId: domain,
-              challenge: bufferToBase64URLString(
-                hexToBytes(hashMessage({ raw: uoHash }), { size: 32 }).buffer as ArrayBuffer,
-              ),
-              allowCredentials: Platform.OS === "android" ? [] : [{ id: credentialId, type: "public-key" }], // HACK fix android credential filtering
-              userVerification: "preferred",
-            });
-            if (!credential) throw new Error("no credential");
-            const response = credential.response;
-            const clientDataJSON = new TextDecoder().decode(base64URLStringToBuffer(response.clientDataJSON));
-            const typeIndex = BigInt(clientDataJSON.indexOf('"type":"'));
-            const challengeIndex = BigInt(clientDataJSON.indexOf('"challenge":"'));
-            const authenticatorData = bytesToHex(new Uint8Array(base64URLStringToBuffer(response.authenticatorData)));
-            const signature = AsnParser.parse(base64URLStringToBuffer(response.signature), ECDSASigValue);
-            const r = bytesToBigInt(new Uint8Array(signature.r));
-            let s = bytesToBigInt(new Uint8Array(signature.s));
-            if (s > P256_N / 2n) s = P256_N - s; // pass malleability guard
-            return webauthn({ authenticatorData, clientDataJSON, challengeIndex, typeIndex, r, s });
-          } catch (error: unknown) {
-            if (
-              error instanceof Error &&
-              (error.message ===
-                "The operation couldn’t be completed. (com.apple.AuthenticationServices.AuthorizationError error 1001.)" ||
-                error.message === "The operation couldn’t be completed. Device must be unlocked to perform request." ||
-                error.message === "UserCancelled")
-            ) {
-              return "0x";
-            }
-            throw error;
-          }
-        },
+    signUserOperationHash: async (uoHash) => {
+      try {
+        if (queryClient.getQueryData<AuthMethod>(["method"]) === "siwe" && getAccount(ownerConfig).address) {
+          return wrapSignature(0, await signMessage(ownerConfig, { message: { raw: uoHash } }));
+        }
+        const credential = await get({
+          rpId: domain,
+          challenge: bufferToBase64URLString(
+            hexToBytes(hashMessage({ raw: uoHash }), { size: 32 }).buffer as ArrayBuffer,
+          ),
+          allowCredentials: Platform.OS === "android" ? [] : [{ id: credentialId, type: "public-key" }], // HACK fix android credential filtering
+          userVerification: "preferred",
+        });
+        if (!credential) throw new Error("no credential");
+        const response = credential.response;
+        const clientDataJSON = new TextDecoder().decode(base64URLStringToBuffer(response.clientDataJSON));
+        const typeIndex = BigInt(clientDataJSON.indexOf('"type":"'));
+        const challengeIndex = BigInt(clientDataJSON.indexOf('"challenge":"'));
+        const authenticatorData = bytesToHex(new Uint8Array(base64URLStringToBuffer(response.authenticatorData)));
+        const signature = AsnParser.parse(base64URLStringToBuffer(response.signature), ECDSASigValue);
+        const r = bytesToBigInt(new Uint8Array(signature.r));
+        let s = bytesToBigInt(new Uint8Array(signature.s));
+        if (s > P256_N / 2n) s = P256_N - s; // pass malleability guard
+        return webauthn({ authenticatorData, clientDataJSON, challengeIndex, typeIndex, r, s });
+      } catch (error: unknown) {
+        if (
+          error instanceof Error &&
+          (error.message ===
+            "The operation couldn’t be completed. (com.apple.AuthenticationServices.AuthorizationError error 1001.)" ||
+            error.message === "The operation couldn’t be completed. Device must be unlocked to perform request." ||
+            error.message === "UserCancelled")
+        ) {
+          return "0x";
+        }
+        throw error;
+      }
+    },
     signMessage: () => Promise.reject(new Error("not implemented")),
     signTypedData: () => Promise.reject(new Error("not implemented")),
     ...standardExecutor,

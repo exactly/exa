@@ -3,15 +3,15 @@ import domain from "@exactly/common/domain";
 import { Credential } from "@exactly/common/validation";
 import type { ExaAPI } from "@exactly/server/api";
 import { sdk } from "@farcaster/miniapp-sdk";
-import { signMessage } from "@wagmi/core/actions";
+import { getAccount, signMessage } from "@wagmi/core";
 import { hc } from "hono/client";
 import { Platform } from "react-native";
 import { get as assert, create } from "react-native-passkeys";
 import { check, number, parse, pipe, safeParse, ValiError } from "valibot";
 
 import { encryptPIN, session } from "./panda";
-import queryClient, { APIError } from "./queryClient";
-import ownerConfig, { connectAccount, getAccount, getConnector } from "./wagmi/owner";
+import queryClient, { APIError, type AuthMethod } from "./queryClient";
+import ownerConfig from "./wagmi/owner";
 
 queryClient.setQueryDefaults<number | undefined>(["auth"], {
   retry: false,
@@ -19,24 +19,22 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
   staleTime: AUTH_EXPIRY,
   gcTime: AUTH_EXPIRY,
   queryFn: async () => {
-    const method = queryClient.getQueryData<"siwe" | "webauthn" | undefined>(["method"]);
-    const credential = queryClient.getQueryData<Credential>(["credential"]);
-    const credentialId = method === "siwe" ? await getAccount(credential) : credential?.credentialId;
+    const method = queryClient.getQueryData<AuthMethod>(["method"]);
+    const credentialId =
+      method === "siwe"
+        ? getAccount(ownerConfig).address
+        : queryClient.getQueryData<Credential>(["credential"])?.credentialId;
     if (method === "siwe" && !credentialId) return queryClient.getQueryData<number>(["auth"]) ?? 0;
     const get = await api.auth.authentication.$get({ query: { credentialId } });
     const options = await get.json();
     if (options.method === "webauthn" && Platform.OS === "android") delete options.allowCredentials; // HACK fix android credential filtering
     const json =
       options.method === "siwe"
-        ? await connectAccount(options.address).then(async () => ({
+        ? {
             method: "siwe" as const,
             id: options.address,
-            signature: await signMessage(ownerConfig, {
-              connector: await getConnector(),
-              account: options.address,
-              message: options.message,
-            }),
-          }))
+            signature: await signMessage(ownerConfig, { account: options.address, message: options.message }),
+          }
         : await assert({
             ...options,
             allowCredentials: Platform.OS === "android" ? undefined : options.allowCredentials, // HACK fix android credential filtering
@@ -136,24 +134,19 @@ export async function getCredential() {
 }
 
 export async function createCredential() {
-  const method = queryClient.getQueryData<"siwe" | "webauthn" | undefined>(["method"]);
-  const credentialId =
-    method === "siwe" ? await getAccount(queryClient.getQueryData<Credential>(["credential"])) : undefined;
+  const method = queryClient.getQueryData<AuthMethod>(["method"]);
+  const credentialId = method === "siwe" ? getAccount(ownerConfig).address : undefined;
   if (method === "siwe" && !credentialId) throw new Error("invalid operation");
   const get = await api.auth.registration.$get({ query: { credentialId } });
   const options = await get.json();
   const post = await api.auth.registration.$post({
     json:
       options.method === "siwe"
-        ? await connectAccount(options.address).then(async () => ({
+        ? {
             method: options.method,
             id: options.address,
-            signature: await signMessage(ownerConfig, {
-              connector: await getConnector(),
-              account: options.address,
-              message: options.message,
-            }),
-          }))
+            signature: await signMessage(ownerConfig, { account: options.address, message: options.message }),
+          }
         : await create({
             ...options,
             extensions: options.extensions as Record<string, unknown> | undefined,

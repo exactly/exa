@@ -1,16 +1,13 @@
-import type { Credential } from "@exactly/common/validation";
 import { Key, X } from "@tamagui/lucide-icons";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigation } from "expo-router";
 import React, { useState } from "react";
 import { Pressable, StyleSheet } from "react-native";
 import { XStack } from "tamagui";
-import { useConnect } from "wagmi";
 
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import PasskeysBlob from "../../assets/images/passkeys-blob.svg";
 import PasskeysImage from "../../assets/images/passkeys.svg";
-import alchemyConnector from "../../utils/alchemyConnector";
 import useAuth from "../../utils/useAuth";
 import ActionButton from "../shared/ActionButton";
 import ConnectSheet from "../shared/ConnectSheet";
@@ -20,17 +17,13 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function Passkeys() {
-  const { connect } = useConnect();
-  const queryClient = useQueryClient();
   const navigation = useNavigation<AppNavigationProperties>();
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
   const [connectModalOpen, setConnectModalOpen] = useState(false);
   const { data: isOwnerAvailable } = useQuery({ queryKey: ["is-owner-available"] });
 
-  const { handleAuth, loading } = useAuth(
-    (credential: Credential) => {
-      connect({ connector: alchemyConnector });
-      queryClient.setQueryData<Credential>(["credential"], credential);
+  const { signIn, isPending: loading } = useAuth(
+    () => {
       navigation.replace("(home)", { screen: "index" });
     },
     () => {
@@ -100,8 +93,7 @@ export default function Passkeys() {
                 disabled={loading}
                 onPress={() => {
                   if (loading) return;
-                  queryClient.setQueryData(["method"], "webauthn");
-                  handleAuth(true);
+                  signIn({ method: "webauthn", register: true });
                 }}
               >
                 Set passkey and create account
@@ -138,8 +130,7 @@ export default function Passkeys() {
           onClose={(method) => {
             setConnectModalOpen(false);
             if (!method) return;
-            queryClient.setQueryData(["method"], method);
-            handleAuth();
+            signIn({ method });
           }}
           title="Create account"
           description="Choose your preferred authentication method"

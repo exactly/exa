@@ -1,4 +1,3 @@
-import type { Credential } from "@exactly/common/validation";
 import { sdk } from "@farcaster/miniapp-sdk";
 import { TimeToFullDisplay } from "@sentry/react-native";
 import { Key, User } from "@tamagui/lucide-icons";
@@ -15,7 +14,6 @@ import Animated, {
   Easing,
 } from "react-native-reanimated";
 import type { SvgProps } from "react-native-svg";
-import { useConnect } from "wagmi";
 
 import ListItem from "./ListItem";
 import Pagination from "./Pagination";
@@ -28,7 +26,6 @@ import exaCardBlob from "../../assets/images/exa-card-blob.svg";
 import exaCard from "../../assets/images/exa-card.svg";
 import qrCodeBlob from "../../assets/images/qr-code-blob.svg";
 import qrCode from "../../assets/images/qr-code.svg";
-import alchemyConnector from "../../utils/alchemyConnector";
 import queryClient, { type EmbeddingContext } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAuth from "../../utils/useAuth";
@@ -40,7 +37,6 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function Auth() {
-  const { connect } = useConnect();
   const [activeIndex, setActiveIndex] = useState(0);
   const navigation = useNavigation<AppNavigationProperties>();
 
@@ -91,10 +87,8 @@ export default function Auth() {
     });
   }, [activeIndex]);
 
-  const { handleAuth, loading: loadingAuth } = useAuth(
-    (credential: Credential) => {
-      connect({ connector: alchemyConnector });
-      queryClient.setQueryData<Credential>(["credential"], credential);
+  const { signIn, isPending: loadingAuth } = useAuth(
+    () => {
       navigation.replace("(main)");
       if (isMiniApp) sdk.actions.addMiniApp().catch(reportError);
     },
@@ -181,8 +175,7 @@ export default function Auth() {
                 onPress={() => {
                   if (loading) return;
                   if (embeddingContext) {
-                    queryClient.setQueryData(["method"], "siwe");
-                    handleAuth();
+                    signIn({ method: "siwe" });
                     return;
                   }
                   if (isOwnerAvailable) {
@@ -210,12 +203,8 @@ export default function Auth() {
                   hitSlop={15}
                   onPress={() => {
                     if (loading) return;
-                    if (isOwnerAvailable) {
-                      setSignInModalOpen(true);
-                    } else {
-                      queryClient.setQueryData(["method"], "webauthn");
-                      handleAuth();
-                    }
+                    if (isOwnerAvailable) setSignInModalOpen(true);
+                    else signIn({ method: "webauthn" });
                   }}
                 >
                   <Button.Text>I already have an account</Button.Text>
@@ -243,8 +232,7 @@ export default function Auth() {
             onClose={(method) => {
               setSignInModalOpen(false);
               if (!method) return;
-              queryClient.setQueryData(["method"], method);
-              handleAuth();
+              signIn({ method });
             }}
             title="Log in"
             description="Choose your preferred authentication method"
@@ -262,8 +250,7 @@ export default function Auth() {
                 navigation.navigate("(passkeys)/passkeys");
                 return;
               }
-              queryClient.setQueryData(["method"], method);
-              handleAuth();
+              signIn({ method });
             }}
             title="Create account"
             description="Choose your preferred authentication method"

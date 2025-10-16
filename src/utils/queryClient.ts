@@ -9,7 +9,7 @@ import { hashFn, structuralSharing } from "wagmi/query";
 
 import reportError from "./reportError";
 import type { getActivity } from "./server";
-import { hasProvider } from "./wagmi/owner";
+import { isAvailable as isOwnerAvailable } from "./wagmi/owner";
 
 export const persister = createAsyncStoragePersister({ serialize, deserialize, storage: AsyncStorage });
 const queryClient = new QueryClient({
@@ -173,7 +173,7 @@ queryClient.setQueryDefaults(["manual-repayment-acknowledged"], {
   gcTime: Infinity,
   queryFn: () => queryClient.getQueryData(["manual-repayment-acknowledged"]),
 });
-queryClient.setQueryDefaults<"siwe" | "webauthn" | undefined>(["method"], {
+queryClient.setQueryDefaults<AuthMethod>(["method"], {
   initialData: undefined,
   retry: false,
   staleTime: Infinity,
@@ -185,7 +185,7 @@ queryClient.setQueryDefaults<"siwe" | "webauthn" | undefined>(["method"], {
 queryClient.setQueryDefaults(["is-owner-available"], {
   staleTime: Infinity,
   gcTime: Infinity,
-  queryFn: hasProvider,
+  queryFn: isOwnerAvailable,
 });
 queryClient.setQueryDefaults(["is-miniapp"], {
   staleTime: Infinity,
@@ -220,6 +220,7 @@ queryClient.setQueryDefaults<EmbeddingContext>(["embedding-context"], {
   },
 });
 
+export type AuthMethod = "siwe" | "webauthn";
 export type EmbeddingContext = "base" | "farcaster" | "farcaster-web" | "metamask" | "phantom" | "unknown" | null;
 export type ActivityItem = Awaited<ReturnType<typeof getActivity>>[number];
 export interface Withdraw {

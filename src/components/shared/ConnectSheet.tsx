@@ -7,6 +7,7 @@ import Button from "./Button";
 import ModalSheet from "./ModalSheet";
 import SafeView from "./SafeView";
 import Text from "./Text";
+import type { AuthMethod } from "../../utils/queryClient";
 
 export default function ConnectSheet({
   open,
@@ -17,7 +18,7 @@ export default function ConnectSheet({
   siweText,
 }: {
   open: boolean;
-  onClose: (method?: "webauthn" | "siwe") => void;
+  onClose: (method?: AuthMethod) => void;
   title: string;
   description: string;
   webAuthnText: string;

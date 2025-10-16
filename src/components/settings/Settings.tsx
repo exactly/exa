@@ -64,12 +64,12 @@ export default function Settings() {
               <Pressable
                 onPress={() => {
                   if (!connector) return;
-                  Promise.all([queryClient.cancelQueries(), connector.disconnect(), logout()])
+                  Promise.all([queryClient.cancelQueries(), logout()])
                     .then(() => {
                       logoutOneSignal();
                       queryClient.clear();
                       queryClient.unmount();
-                      disconnect();
+                      disconnect({ connector });
                       navigation.replace("(auth)");
                     })
                     .catch(reportError);
