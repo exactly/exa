@@ -10,6 +10,8 @@ module.exports = function config(api) {
           alias: {
             "@farcaster/quick-auth/decodeJwt": "@farcaster/quick-auth/dist/decodeJwt",
             "@farcaster/quick-auth/light": "@farcaster/quick-auth/dist/lightClient",
+            "@reown/appkit(-controllers|-scaffold-ui|-ui|-wallet)?(/[\\w-]+)?$": String.raw`@reown/appkit\1/dist/esm/exports\2`,
+            "@phosphor-icons/webcomponents/(\\w+)$": String.raw`@phosphor-icons/webcomponents/dist/icons/\1.mjs`, // cspell:ignore webcomponents
             "@wagmi/core/codegen": "@wagmi/core/dist/esm/exports/codegen",
             "hono/client": "hono/dist/client",
             "jose/jwt/decode": "jose/dist/browser/util/decode_jwt",
