@@ -507,7 +507,7 @@ async function encryptPIN(pin: string) {
               schema: resolver(
                 object({
                   code: pipe(literal("no card"), metadata({ examples: ["no card"] })),
-                  legacy: pipe(literal("card not found"), metadata({ examples: ["card not found"] })),
+                  legacy: pipe(literal("no card found"), metadata({ examples: ["no card found"] })),
                 }),
                 { errorMode: "ignore" },
               ),
