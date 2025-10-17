@@ -4,25 +4,58 @@ import type { Credential } from "@exactly/common/validation";
 import { ArrowLeft, CircleHelp, Info, Wallet } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigation } from "expo-router";
-import React from "react";
-import { Pressable } from "react-native";
-import { ScrollView, XStack, YStack } from "tamagui";
+import React, { useCallback } from "react";
+import { Linking, Platform, Pressable } from "react-native";
+import { ScrollView, useTheme, XStack, YStack } from "tamagui";
 import { isAddress } from "viem";
+import { ConnectorAlreadyConnectedError, useConnect, useConnectors } from "wagmi";
 
 import AddFundsOption from "./AddFundsOption";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import OptimismImage from "../../assets/images/optimism.svg";
+import WalletConnectImage from "../../assets/images/walletconnect.svg";
+import type { AuthMethod } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useIntercom from "../../utils/useIntercom";
+import externalConfig from "../../utils/wagmi/external";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function AddFunds() {
+  const theme = useTheme();
   const { presentArticle } = useIntercom();
   const navigation = useNavigation<AppNavigationProperties>();
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
+  const { data: method } = useQuery<AuthMethod>({ queryKey: ["method"] });
   const ownerAccount = credential && isAddress(credential.credentialId) ? credential.credentialId : undefined;
+
+  const [walletConnect] = useConnectors({ config: externalConfig });
+  const { connectAsync } = useConnect({ config: externalConfig });
+
+  const connectExternal = useCallback(() => {
+    if (!walletConnect) throw new Error("no wallet connect connector");
+    walletConnect
+      .getProvider()
+      .then(async (provider) => {
+        provider.once("display_uri", (uri) => {
+          if (Platform.OS === "web") return;
+          Linking.openURL(uri).catch(reportError);
+        });
+        try {
+          await connectAsync({ connector: walletConnect });
+          navigation.navigate("add-funds", { screen: "bridge", params: { sender: "external" } });
+        } catch (error) {
+          if (error instanceof ConnectorAlreadyConnectedError) {
+            navigation.navigate("add-funds", { screen: "bridge", params: { sender: "external" } });
+            return;
+          }
+          reportError(error);
+        }
+      })
+      .catch(reportError);
+  }, [connectAsync, navigation, walletConnect]);
+
   return (
     <SafeView fullScreen backgroundColor="$backgroundMild">
       <View gap={20} fullScreen padded>
@@ -53,19 +86,24 @@ export default function AddFunds() {
         </YStack>
         <ScrollView flex={1}>
           <YStack flex={1} gap="$s3_5">
+            {method === "siwe" && ownerAccount && (
+              <AddFundsOption
+                icon={<Wallet width={30} height={30} color="$iconBrandDefault" />}
+                title="From connected wallet"
+                subtitle={shortenHex(ownerAccount, 4, 6)}
+                onPress={() => {
+                  navigation.navigate("add-funds", { screen: "bridge" });
+                }}
+              />
+            )}
             <AddFundsOption
-              icon={<Wallet width={40} height={40} color="$iconBrandDefault" />}
-              title="From connected wallet"
-              subtitle={
-                // TODO add support for ens resolution
-                ownerAccount ? shortenHex(ownerAccount, 4, 6) : ""
-              }
-              onPress={() => {
-                navigation.navigate("add-funds", { screen: "bridge" });
-              }}
+              icon={<WalletConnectImage width={30} height={30} fill={theme.interactiveOnBaseBrandSoft.val} />}
+              title="Using WalletConnect"
+              subtitle={`From another wallet ${Platform.OS === "web" ? "" : "on your device"}`}
+              onPress={connectExternal}
             />
             <AddFundsOption
-              icon={<OptimismImage width={40} height={40} />}
+              icon={<OptimismImage width={30} height={30} />}
               title="From another wallet"
               subtitle={`On ${chain.name}`}
               onPress={() => {
