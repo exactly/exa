@@ -99,7 +99,7 @@ describe("webhook", () => {
       await auth.api.acceptInvitation({
         headers: integratorHeaders,
         body: {
-          invitationId: integratorInvitation.id,
+          invitationId: integratorInvitation.id ?? "",
         },
       });
     });
