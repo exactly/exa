@@ -9,6 +9,6 @@ export default createConfig({
   chains: [chain],
   connectors: [alchemyConnector],
   transports: { [chain.id]: custom(publicClient) },
-  storage: createStorage({ storage: AsyncStorage }),
+  storage: createStorage({ key: "wagmi.exa", storage: AsyncStorage }),
   multiInjectedProviderDiscovery: false,
 });

@@ -15,7 +15,7 @@ const config = createConfig({
   chains: [chain],
   connectors: [miniAppConnector(), injected()],
   transports: { [chain.id]: custom(publicClient) },
-  storage: createStorage({ storage: AsyncStorage }),
+  storage: createStorage({ key: "wagmi.owner", storage: AsyncStorage }),
 });
 export default config;
 
