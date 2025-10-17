@@ -156,6 +156,17 @@ describe("authenticated", () => {
     await expect(response.json()).resolves.toStrictEqual({ code: "no card" });
   });
 
+  it("returns 404 card not found on update", async () => {
+    const response = await appClient.index.$patch({
+      // @ts-expect-error - bad hono patch type
+      header: { "test-credential-id": "404" },
+      json: { status: "FROZEN" },
+    });
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toStrictEqual({ code: "no card" });
+  });
+
   it("returns panda card as default platinum product", async () => {
     vi.spyOn(panda, "getSecrets").mockResolvedValueOnce(panTemplate);
     vi.spyOn(panda, "getPIN").mockResolvedValueOnce(pinTemplate);
