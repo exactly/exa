@@ -1,34 +1,14 @@
-import type { Credential } from "@exactly/common/validation";
-import { sdk } from "@farcaster/miniapp-sdk";
 import type { ParamListBase } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { useQuery } from "@tanstack/react-query";
-import { SplashScreen, Stack, useNavigation } from "expo-router";
+import { Stack } from "expo-router";
 import Head from "expo-router/head";
-import React, { useEffect } from "react";
+import React from "react";
 import { Platform } from "react-native";
 
-import type { AppNavigationProperties } from "../(main)/_layout";
-import reportError from "../../utils/reportError";
 import useBackgroundColor from "../../utils/useBackgroundColor";
 
 export default function OnboardingLayout() {
   useBackgroundColor();
-
-  const { data: isMiniApp } = useQuery({ queryKey: ["is-miniapp"] });
-  const { data: credential, isLoading, isFetched } = useQuery<Credential>({ queryKey: ["credential"] });
-  const navigation = useNavigation<AppNavigationProperties>();
-
-  useEffect(() => {
-    if (isLoading || !isFetched) return;
-    if (isMiniApp) sdk.actions.ready().catch(reportError);
-    SplashScreen.hideAsync().catch(reportError);
-  }, [isFetched, isLoading, credential, navigation, isMiniApp]);
-
-  useEffect(() => {
-    if (isLoading || !isFetched) return;
-    if (credential) navigation.replace("(main)");
-  }, [credential, isFetched, isLoading, navigation]);
 
   return (
     <>
