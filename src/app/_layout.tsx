@@ -43,6 +43,7 @@ import reportError from "../utils/reportError";
 import exaConfig from "../utils/wagmi/exa";
 import ownerConfig, { getConnector as getOwnerConnector } from "../utils/wagmi/owner";
 
+queryClient.prefetchQuery({ queryKey: ["is-miniapp"] }).catch(reportError);
 SplashScreen.preventAutoHideAsync().catch(reportError);
 
 configI18n(initReactI18next)

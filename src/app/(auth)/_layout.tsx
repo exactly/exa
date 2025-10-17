@@ -15,7 +15,7 @@ import useBackgroundColor from "../../utils/useBackgroundColor";
 export default function OnboardingLayout() {
   useBackgroundColor();
 
-  const { data: isMiniApp } = useQuery({ queryKey: ["is-miniapp"] });
+  const { data: isMiniApp } = useQuery<boolean>({ queryKey: ["is-miniapp"] });
   const { data: credential, isLoading, isFetched } = useQuery<Credential>({ queryKey: ["credential"] });
   const navigation = useNavigation<AppNavigationProperties>();
 
