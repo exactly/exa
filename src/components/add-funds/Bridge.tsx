@@ -6,7 +6,7 @@ import { ArrowLeft, Check, CircleHelp, Clock, Repeat, X } from "@tamagui/lucide-
 import { useToastController } from "@tamagui/toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { switchChain } from "@wagmi/core";
-import { useNavigation } from "expo-router";
+import { useLocalSearchParams, useNavigation } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable } from "react-native";
 import { ScrollView, Spinner, Square, XStack, YStack } from "tamagui";
@@ -34,7 +34,8 @@ import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useOpenBrowser from "../../utils/useOpenBrowser";
-import senderConfig from "../../utils/wagmi/owner";
+import externalConfig from "../../utils/wagmi/external";
+import ownerConfig from "../../utils/wagmi/owner";
 import AssetLogo from "../shared/AssetLogo";
 import GradientScrollView from "../shared/GradientScrollView";
 import SafeView from "../shared/SafeView";
@@ -62,6 +63,7 @@ export default function Bridge() {
 
   const [bridgeStatus, setBridgeStatus] = useState<string | undefined>();
 
+  const senderConfig = useLocalSearchParams().sender === "external" ? externalConfig : ownerConfig;
   const { address: senderAddress } = useAccount({ config: senderConfig });
   const { sendTransactionAsync } = useSendTransaction({ config: senderConfig });
   const { sendCallsAsync } = useSendCalls({ config: senderConfig });

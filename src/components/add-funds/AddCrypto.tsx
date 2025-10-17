@@ -1,11 +1,12 @@
 import chain from "@exactly/common/generated/chain";
 import shortenHex from "@exactly/common/shortenHex";
-import { AlertTriangle, ArrowLeft, Files, Share as ShareIcon } from "@tamagui/lucide-icons";
+import { AlertTriangle, ArrowLeft, Files, Share as ShareIcon, Wallet } from "@tamagui/lucide-icons";
 import { setStringAsync } from "expo-clipboard";
 import { useNavigation } from "expo-router";
 import React, { useCallback, useState } from "react";
 import { PixelRatio, Pressable, Share } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
+import { useConnect, useConnectors } from "wagmi";
 
 import SupportedAssetsSheet from "./SupportedAssetsSheet";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
@@ -14,6 +15,7 @@ import assetLogos from "../../utils/assetLogos";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useIntercom from "../../utils/useIntercom";
+import externalConfig from "../../utils/wagmi/external";
 import AssetLogo from "../shared/AssetLogo";
 import CopyAddressSheet from "../shared/CopyAddressSheet";
 import SafeView from "../shared/SafeView";
@@ -30,6 +32,8 @@ export default function AddCrypto() {
   const fontScale = PixelRatio.getFontScale();
   const { presentArticle } = useIntercom();
   const { address } = useAccount();
+  const [walletConnect] = useConnectors({ config: externalConfig });
+  const { connect } = useConnect({ config: externalConfig });
 
   const [copyAddressShown, setCopyAddressShown] = useState(false);
   const [supportedAssetsShown, setSupportedAssetsShown] = useState(false);
@@ -39,6 +43,11 @@ export default function AddCrypto() {
     setStringAsync(address).catch(reportError);
     setCopyAddressShown(true);
   }, [address]);
+
+  const connectExternal = useCallback(() => {
+    if (!walletConnect) throw new Error("no wallet connect connector");
+    connect({ connector: walletConnect });
+  }, [connect, walletConnect]);
 
   const share = useCallback(async () => {
     if (!address) return;
@@ -150,6 +159,12 @@ export default function AddCrypto() {
                 })}
               </XStack>
             </XStack>
+            <Button secondary flex={1} onPress={connectExternal}>
+              <Button.Text>WalletConnect</Button.Text>
+              <Button.Icon>
+                <Wallet size={18 * fontScale} />
+              </Button.Icon>
+            </Button>
           </YStack>
         </ScrollView>
         <XStack
