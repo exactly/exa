@@ -17,14 +17,7 @@ export default function AddFundsOption({
   onPress: () => void;
 }) {
   return (
-    <YStack
-      padding="$s4_5"
-      backgroundColor="$backgroundSoft"
-      borderRadius="$r5"
-      cursor="pointer"
-      elevation={1}
-      onPress={onPress}
-    >
+    <YStack padding="$s4_5" backgroundColor="$backgroundSoft" borderRadius="$r5" cursor="pointer" onPress={onPress}>
       <XStack alignItems="center" gap="$s3_5" justifyContent="space-between">
         <XStack gap="$s3_5" alignItems="center" flex={1}>
           <View
