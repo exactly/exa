@@ -525,7 +525,15 @@ async function encryptPIN(pin: string) {
         404: {
           description: "Not found",
           content: {
-            "application/json": { schema: resolver(object({ code: literal("no card") }), { errorMode: "ignore" }) },
+            "application/json": {
+              schema: resolver(
+                object({
+                  code: pipe(literal("no card"), metadata({ examples: ["no card"] })),
+                  legacy: pipe(literal("no card found"), metadata({ examples: ["no card found"] })),
+                }),
+                { errorMode: "ignore" },
+              ),
+            },
           },
         },
       },
