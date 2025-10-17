@@ -1,5 +1,26 @@
 # @exactly/mobile
 
+## 1.0.27
+
+### Patch Changes
+
+- [`2105a1c`](https://github.com/exactly/exa/commit/2105a1c02b187509c3d466b67066d44efec55cf9) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🩹 fix ssr aspect ratio calculation
+
+- [`babd490`](https://github.com/exactly/exa/commit/babd490f60237ec2fcebad9e9a60b2a2c3953469) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 update auth buttons styles
+
+- [`22a114e`](https://github.com/exactly/exa/commit/22a114e1a5a05ab133f9283d97d1657de2ea53ef) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ handle unknown miniapp hosts
+
+- [`2b73515`](https://github.com/exactly/exa/commit/2b735156af51b8a49faeadf3a7d44618b57d5f97) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 improve web app loading styles
+
+- [`028e8f7`](https://github.com/exactly/exa/commit/028e8f795abf0b4db3459e8a5a195ded2fddbed6) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 📈 pass miniapp client id in api calls
+
+- [`065e841`](https://github.com/exactly/exa/commit/065e841a56fb3e12afcfc8db3a9ac2fcaf28f1c1) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix qr code scanner address
+
+- [`fa94e19`](https://github.com/exactly/exa/commit/fa94e19b0cbd6d90b501d188e772ea7198f21941) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ use redirect url from miniapp context
+
+- Updated dependencies [[`ad7c6e6`](https://github.com/exactly/exa/commit/ad7c6e6f0452a7657e7ef3d693e98b688f4b7f09)]:
+  - @exactly/server@0.2.26
+
 ## 1.0.26
 
 ### Patch Changes

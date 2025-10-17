@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.26
+
+### Patch Changes
+
+- [`ad7c6e6`](https://github.com/exactly/exa/commit/ad7c6e6f0452a7657e7ef3d693e98b688f4b7f09) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🥅 reset nonce on tx receipt timeout
+
 ## 0.2.25
 
 ### Patch Changes
