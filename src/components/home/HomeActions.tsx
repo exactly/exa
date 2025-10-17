@@ -1,6 +1,5 @@
 import { exaPluginAddress } from "@exactly/common/generated/chain";
 import { ArrowDownToLine, ArrowUpRight } from "@tamagui/lucide-icons";
-import { useQuery } from "@tanstack/react-query";
 import { useNavigation } from "expo-router";
 import React from "react";
 import { XStack, YStack } from "tamagui";
@@ -12,7 +11,6 @@ import {
   upgradeableModularAccountAbi,
   useReadUpgradeableModularAccountGetInstalledPlugins,
 } from "../../generated/contracts";
-import type { AuthMethod } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import Button from "../shared/StyledButton";
@@ -20,7 +18,6 @@ import Button from "../shared/StyledButton";
 export default function HomeActions() {
   const navigation = useNavigation<AppNavigationProperties>("/(main)");
   const { address: account } = useAccount();
-  const { data: method } = useQuery<AuthMethod>({ queryKey: ["method"] });
   const { data: bytecode } = useBytecode({ address: account ?? zeroAddress, query: { enabled: !!account } });
 
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
@@ -76,14 +73,7 @@ export default function HomeActions() {
               onPress={() => {
                 switch (key) {
                   case "deposit":
-                    switch (method) {
-                      case "siwe":
-                        navigation.navigate("add-funds", { screen: "index" });
-                        break;
-                      default:
-                        navigation.navigate("add-funds", { screen: "add-crypto" });
-                        break;
-                    }
+                    navigation.navigate("add-funds", { screen: "index" });
                     break;
                   case "send":
                     handleSend().catch(reportError);
