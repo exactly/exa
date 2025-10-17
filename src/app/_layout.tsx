@@ -2,6 +2,7 @@ import { optimism } from "@alchemy/aa-core";
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
+import { sdk } from "@farcaster/miniapp-sdk";
 import { createConfig, EVM } from "@lifi/sdk";
 import {
   ErrorBoundary,
@@ -128,9 +129,17 @@ export default wrap(function RootLayout() {
   }, [navigationContainer]);
 
   useEffect(() => {
-    reconnect(exaConfig).catch(reportError);
-    getOwnerConnector()
-      .then((connector) => reconnect(ownerConfig, { connectors: [connector] }))
+    Promise.all([
+      queryClient.fetchQuery<boolean>({ queryKey: ["is-miniapp"] }),
+      reconnect(exaConfig).catch(reportError),
+      getOwnerConnector()
+        .then((connector) => reconnect(ownerConfig, { connectors: [connector] }))
+        .catch(reportError),
+    ])
+      .then(([isMiniApp]) => {
+        if (isMiniApp) sdk.actions.ready().catch(reportError);
+        SplashScreen.hideAsync().catch(reportError);
+      })
       .catch(reportError);
 
     if (__DEV__) return;
