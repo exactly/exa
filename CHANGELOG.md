@@ -1,5 +1,11 @@
 # @exactly/mobile
 
+## 1.0.28
+
+### Patch Changes
+
+- [`ab3e5ac`](https://github.com/exactly/exa/commit/ab3e5ac873afb7e885e0f35c6e89d621e4a3e9b5) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ⏪️ revert build and submit profile changes
+
 ## 1.0.27
 
 ### Patch Changes
