@@ -49,7 +49,7 @@ export default function GettingStarted({ hasFunds, hasKYC }: { hasFunds: boolean
     if (isPending) return;
     switch (currentStep?.id) {
       case "add-funds":
-        navigation.navigate("add-funds", { screen: "add-crypto" });
+        navigation.navigate("add-funds", { screen: "index" });
         break;
       case "verify-identity":
         startKYC().catch(reportError);
