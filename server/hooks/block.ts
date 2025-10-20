@@ -37,7 +37,7 @@ import {
   ExecutionRevertedError,
   formatUnits,
 } from "viem";
-import { optimism, optimismSepolia } from "viem/chains";
+import { optimismSepolia } from "viem/chains";
 
 import {
   auditorAbi,
@@ -47,7 +47,7 @@ import {
   proposalManagerAbi,
   upgradeableModularAccountAbi,
 } from "../generated/contracts";
-import { headerValidator, webhooksKey } from "../utils/alchemy";
+import { headerValidator, network, webhooksKey } from "../utils/alchemy";
 import appOrigin from "../utils/appOrigin";
 import ensClient from "../utils/ensClient";
 import keeper from "../utils/keeper";
@@ -442,8 +442,6 @@ fetch("https://dashboard.alchemy.com/api/team-webhooks", alchemyInit)
     if (!webhooksResponse.ok) throw new Error(`${webhooksResponse.status} ${await webhooksResponse.text()}`);
 
     const url = `${appOrigin}/hooks/block`;
-    const network = { [optimism.id]: "OPT_MAINNET", [optimismSepolia.id]: "OPT_SEPOLIA" }[chain.id];
-
     const { data: webhooks } = (await webhooksResponse.json()) as {
       data: [
         {
