@@ -1,4 +1,4 @@
-import chain, { exaAccountFactoryAbi, exaPreviewerAddress, wethAddress } from "@exactly/common/generated/chain";
+import { exaAccountFactoryAbi, exaPreviewerAddress, wethAddress } from "@exactly/common/generated/chain";
 import { Address, Hash } from "@exactly/common/validation";
 import { vValidator } from "@hono/valibot-validator";
 import { SPAN_STATUS_ERROR, SPAN_STATUS_OK, type SpanStatus } from "@sentry/core";
@@ -17,7 +17,6 @@ import { eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import * as v from "valibot";
 import { bytesToBigInt, withRetry } from "viem";
-import { optimism } from "viem/chains";
 
 import database, { cards, credentials } from "../database";
 import {
@@ -27,7 +26,7 @@ import {
   marketAbi,
   upgradeableModularAccountAbi,
 } from "../generated/contracts";
-import { headerValidator } from "../utils/alchemy";
+import { headerValidator, network } from "../utils/alchemy";
 import decodePublicKey from "../utils/decodePublicKey";
 import keeper from "../utils/keeper";
 import { sendPushNotification } from "../utils/onesignal";
@@ -53,7 +52,7 @@ export default new Hono().post(
     v.object({
       type: v.literal("ADDRESS_ACTIVITY"),
       event: v.object({
-        network: v.literal(chain.id === optimism.id ? "OPT_MAINNET" : "OPT_SEPOLIA"),
+        network: v.literal(network),
         activity: v.array(
           v.intersect([
             v.object({ hash: Hash, fromAddress: Address, toAddress: Address }),

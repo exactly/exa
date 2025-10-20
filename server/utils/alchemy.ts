@@ -1,4 +1,6 @@
+import chain from "@exactly/common/generated/chain";
 import { validator } from "hono/validator";
+import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
 import verifySignature from "./verifySignature";
 
@@ -14,3 +16,11 @@ export function headerValidator(signingKeys: Set<string> | (() => Set<string>)) 
     return c.json({ code: "unauthorized", legacy: "unauthorized" }, 401);
   });
 }
+
+export const network =
+  {
+    [optimism.id]: "OPT_MAINNET" as const,
+    [optimismSepolia.id]: "OPT_SEPOLIA" as const,
+    [base.id]: "BASE_MAINNET" as const,
+    [baseSepolia.id]: "BASE_SEPOLIA" as const,
+  }[chain.id] ?? ("OPT_SEPOLIA" as const);
