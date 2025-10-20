@@ -82,14 +82,14 @@ databases:
     cluster_name: ${POSTGRES_NAME}
     production: true
     engine: PG
-    version: "16"
+    version: "17"
     db_name: defaultdb # cspell:ignore defaultdb
     db_user: doadmin # cspell:ignore doadmin
   - name: redis
     cluster_name: ${REDIS_NAME}
     production: true
-    engine: REDIS
-    version: "7"
+    engine: VALKEY
+    version: "8"
   - name: opensearch
     cluster_name: ${OPENSEARCH_NAME}
     production: true

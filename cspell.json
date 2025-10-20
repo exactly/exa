@@ -113,6 +113,7 @@
     "unshallow",
     "valibot",
     "valierror",
+    "valkey",
     "viem",
     "viewability",
     "wagmi",
