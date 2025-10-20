@@ -4,9 +4,15 @@ on:
     branches: [sandbox]
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 jobs:
-  deploy:
+  op-sepolia:
     uses: ./.github/workflows/server-deploy.yaml
     secrets: inherit
     with:
       environment: sandbox
       url: https://sandbox.exactly.app
+  base-sepolia:
+    uses: ./.github/workflows/server-deploy.yaml
+    secrets: inherit
+    with:
+      environment: base-sepolia
+      url: https://base-sepolia.exactly.app
