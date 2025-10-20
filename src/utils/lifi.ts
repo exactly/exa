@@ -4,7 +4,7 @@ import { config, getQuote, getToken, getTokenBalancesByChain, getTokens, type To
 import { parse } from "valibot";
 import { encodeFunctionData } from "viem";
 import type { Address } from "viem";
-import { optimism, optimismSepolia } from "viem/chains";
+import { optimism } from "viem/chains";
 
 import publicClient from "./publicClient";
 
@@ -16,7 +16,7 @@ export async function getRoute(
   receiver: Hex,
   denyExchanges?: Record<string, boolean>,
 ) {
-  if (chain.id === optimismSepolia.id) {
+  if (chain.testnet) {
     const fromAmount = await publicClient.readContract({
       abi: mockSwapperAbi,
       functionName: "getAmountIn",
