@@ -17,14 +17,14 @@ services:
       digest: ${IMAGE_DIGEST_SERVER}
     http_port: 3000
     instance_count: 1
-    instance_size_slug: apps-d-1vcpu-1gb # cspell:disable-line
+    instance_size_slug: apps-d-1vcpu-1gb # cspell:ignore vcpu
     log_destinations:
       - name: opensearch
         open_search:
           cluster_name: ${OPENSEARCH_NAME}
           index_name: logs
           basic_auth:
-            user: doadmin # cspell:disable-line
+            user: doadmin # cspell:ignore doadmin
     envs:
       - key: POSTGRES_URL
         scope: RUN_TIME
@@ -83,8 +83,8 @@ databases:
     production: true
     engine: PG
     version: "16"
-    db_name: defaultdb # cspell:disable-line
-    db_user: doadmin # cspell:disable-line
+    db_name: defaultdb # cspell:ignore defaultdb
+    db_user: doadmin # cspell:ignore doadmin
   - name: redis
     cluster_name: ${REDIS_NAME}
     production: true
