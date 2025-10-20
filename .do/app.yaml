@@ -95,6 +95,8 @@ databases:
     production: true
     engine: OPENSEARCH
     version: "2"
+egress:
+  type: DEDICATED_IP
 ingress:
   rules:
     - component:
