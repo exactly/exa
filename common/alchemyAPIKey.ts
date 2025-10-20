@@ -1,4 +1,4 @@
-import { optimism, optimismSepolia } from "viem/chains";
+import { baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
 import chain from "./generated/chain";
 
@@ -7,6 +7,7 @@ const maybeKey =
   {
     [optimism.id]: "Wz728rhq_yGIAXdRmCy4VuKIAFjSmlpc", // cspell:ignore Wz728rhq_yGIAXdRmCy4VuKIAFjSmlpc
     [optimismSepolia.id]: "YrH_56532-d48Mnz1QUwAIMdgyqVYU4C", // cspell:ignore YrH_56532-d48Mnz1QUwAIMdgyqVYU4C
+    [baseSepolia.id]: "YrH_56532-d48Mnz1QUwAIMdgyqVYU4C", // cspell:ignore YrH_56532-d48Mnz1QUwAIMdgyqVYU4C
   }[chain.id];
 if (!maybeKey) throw new Error("missing alchemy api key");
 const alchemyAPIKey: string = maybeKey;
