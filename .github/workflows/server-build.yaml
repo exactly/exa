@@ -1,0 +1,48 @@
+name: server/build
+on:
+  workflow_call:
+    inputs:
+      environment: { required: true, type: string }
+    secrets:
+      NX_CLOUD_ACCESS_TOKEN:
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions: { contents: read, packages: write, attestations: write, id-token: write }
+    env:
+      NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
+      IMAGE: ghcr.io/${{ github.repository }}-${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0, fetch-tags: true }
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=sha,format=long
+            type=ref,event=pr
+            type=ref,event=branch
+            type=match,pattern=^(?!@)(.*)$,group=1,event=tag
+            type=match,pattern=@exactly\/server@(\d+\.\d+\.\d+.*),group=1
+            type=match,pattern=@exactly\/server@(\d+\.\d+),group=1
+            type=match,pattern=@exactly\/server@(\d+),group=1
+      - uses: docker/login-action@v3
+        with: { registry: ghcr.io, username: "${{ github.repository_owner }}", password: "${{ secrets.GITHUB_TOKEN }}" }
+      - uses: docker/build-push-action@v6
+        id: build
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            CHAIN_ID=${{ vars.CHAIN_ID }}
+            APP_DOMAIN=${{ vars.APP_DOMAIN }}
+            EXPO_PUBLIC_DEVTOOLS=${{ vars.EXPO_PUBLIC_DEVTOOLS }}
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true

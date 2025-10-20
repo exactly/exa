@@ -1,12 +1,13 @@
 name: server/sandbox
 on:
-  push:
-    branches: [sandbox]
-concurrency: ${{ github.workflow }}-${{ github.ref }}
+  push: { branches: [sandbox] }
 jobs:
+  build:
+    uses: ./.github/workflows/server-build.yaml
+    secrets: inherit
+    with: { environment: sandbox }
   deploy:
+    needs: build
     uses: ./.github/workflows/server-deploy.yaml
     secrets: inherit
-    with:
-      environment: sandbox
-      url: https://sandbox.exactly.app
+    with: { environment: sandbox }
