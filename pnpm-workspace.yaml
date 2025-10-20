@@ -23,6 +23,7 @@ catalog:
 ignoreWorkspaceRootCheck: true
 includeWorkspaceRoot: true
 minimumReleaseAge: 1440
+minimumReleaseAgeExclude: ["@better-auth/*", better-auth]
 packages:
   - "."
   - common
