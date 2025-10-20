@@ -5,102 +5,44 @@ on:
       environment:
         required: true
         type: string
-      url:
-        required: true
-        type: string
     secrets:
       DIGITALOCEAN_TOKEN:
       NX_CLOUD_ACCESS_TOKEN:
 jobs:
   digitalocean:
-    environment:
-      name: ${{ inputs.environment }}
-      url: ${{ inputs.url }}
-    permissions:
-      packages: write
-      attestations: write
-      id-token: write
     runs-on: ubuntu-latest
+    environment: { name: "${{ inputs.environment }}", url: "https://${{ vars.APP_DOMAIN }}" }
+    concurrency:
+      group: server-deploy-${{ inputs.environment }}
+      cancel-in-progress: true
     env:
       CHAIN_ID: ${{ vars.CHAIN_ID }}
       APP_DOMAIN: ${{ vars.APP_DOMAIN }}
-      EXPO_PUBLIC_DEVTOOLS: ${{ vars.EXPO_PUBLIC_DEVTOOLS }}
       NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
-      IMAGE_NAME: ${{ github.repository }}-${{ inputs.environment }}
     steps:
+      - uses: digitalocean/app_action/deploy@v2
+        env: { IMAGE_TAG_SERVER: "sha-${{ github.sha }}" }
+        with:
+          app_name: ${{ inputs.environment }}
+          token: ${{ secrets.DIGITALOCEAN_TOKEN }}
+          print_build_logs: true
+          print_deploy_logs: true
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          fetch-tags: true
-      - uses: docker/metadata-action@v5
-        id: meta
-        with:
-          images: ghcr.io/${{ env.IMAGE_NAME }}
-          tags: |
-            type=sha
-            type=ref,event=pr
-            type=ref,event=branch
-            type=match,pattern=^(?!@)(.*)$,group=1,event=tag
-            type=match,pattern=@exactly\/server@(\d+\.\d+\.\d+.*),group=1
-            type=match,pattern=@exactly\/server@(\d+\.\d+),group=1
-            type=match,pattern=@exactly\/server@(\d+),group=1
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
-        id: push
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            CHAIN_ID=${{ vars.CHAIN_ID }}
-            APP_DOMAIN=${{ vars.APP_DOMAIN }}
-            EXPO_PUBLIC_DEVTOOLS=${{ vars.EXPO_PUBLIC_DEVTOOLS }}
-      - uses: actions/attest-build-provenance@v2
-        with:
-          subject-name: ghcr.io/${{ env.IMAGE_NAME }}
-          subject-digest: ${{ steps.push.outputs.digest }}
-          push-to-registry: true
-
+        with: { fetch-depth: 0, fetch-tags: true }
       - uses: pnpm/action-setup@v4
-        with:
-          version: "9.15.9"
-          run_install: false
+        with: { version: "9.15.9", run_install: false }
       - uses: actions/setup-node@v4
-        with:
-          node-version: ">=22.14.0"
-          cache: pnpm
+        with: { node-version: ">=22.14.0", cache: pnpm }
       - uses: foundry-rs/foundry-toolchain@v1
-        with:
-          version: v1.3.6
-      - uses: actions/cache@v4
-        with:
-          path: node_modules/.cache/nx
-          key: nx-${{ runner.os }}-${{ github.sha }}
-          restore-keys: nx-${{ runner.os }}-
+        with: { version: v1.3.6 }
       - run: pnpm install --frozen-lockfile
-      - uses: nrwl/nx-set-shas@v4 # cspell:ignore nrwl
-      - run: pnpm nx affected -t build -p server --outputStyle=stream-without-prefixes --parallel=1
+      - run: pnpm nx build server
       - run: echo "release=$(node -e 'console.log(require(`./server/generated/release`))')" >> $GITHUB_OUTPUT
         id: release
       - uses: getsentry/action-release@v3 # cspell:ignore getsentry
-        env:
-          SENTRY_ORG: exactly
-          SENTRY_PROJECT: server
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        env: { SENTRY_ORG: exactly, SENTRY_PROJECT: server, SENTRY_AUTH_TOKEN: "${{ secrets.SENTRY_AUTH_TOKEN }}" }
         with:
           environment: ${{ inputs.environment }}
           release: ${{ steps.release.outputs.release }}
           finalize: ${{ inputs.environment == 'production' }}
           sourcemaps: server/dist
-
-      - uses: digitalocean/app_action/deploy@v2
-        env:
-          IMAGE_DIGEST_SERVER: ${{ steps.push.outputs.digest }}
-        with:
-          app_name: ${{ inputs.environment }}
-          token: ${{ secrets.DIGITALOCEAN_TOKEN }}
