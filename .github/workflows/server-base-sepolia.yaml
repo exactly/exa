@@ -1,13 +1,13 @@
-name: server/production
+name: server/base-sepolia
 on:
-  push: { tags: ["@exactly/server@*"] }
+  push: { branches: [sandbox] }
 jobs:
   build:
     uses: ./.github/workflows/server-build.yaml
     secrets: inherit
-    with: { environment: production }
+    with: { environment: base-sepolia }
   deploy:
     needs: build
     uses: ./.github/workflows/server-deploy.yaml
     secrets: inherit
-    with: { environment: production }
+    with: { environment: base-sepolia }
