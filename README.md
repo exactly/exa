@@ -8,8 +8,8 @@
 
 - [node.js](https://github.com/asdf-vm/asdf-nodejs)
 - [pnpm](https://pnpm.io/installation)
-- [foundry](https://book.getfoundry.sh/getting-started/installation)
-- react-native [dependencies per platform](https://reactnative.dev/docs/environment-setup?guide=native)
+- [foundry](https://getfoundry.sh) v1.3.6 (`foundryup -i v1.3.6`)
+- react-native's [dependencies per platform](https://reactnative.dev/docs/environment-setup?guide=native)
 
 #### install
 
