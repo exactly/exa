@@ -1,4 +1,4 @@
-import { optimism, optimismSepolia } from "viem/chains";
+import { baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
 import chain from "./generated/chain";
 
@@ -7,6 +7,7 @@ const maybeId =
   {
     [optimism.id]: "cb9db554-658f-46eb-ae73-8bff8ed2556b",
     [optimismSepolia.id]: "dc767b7d-9ce8-4512-ba67-ebe2cf7a1577",
+    [baseSepolia.id]: "dc767b7d-9ce8-4512-ba67-ebe2cf7a1577",
   }[chain.id];
 if (!maybeId) throw new Error("missing alchemy gas policy");
 const alchemyGasPolicyId: string = maybeId;
