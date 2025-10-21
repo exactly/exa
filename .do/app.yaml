@@ -75,8 +75,6 @@ services:
         type: SECRET
       - key: PANDA_API_URL
         scope: RUN_TIME
-      - key: PANDA_ISSUING
-        scope: RUN_TIME
 databases:
   - name: postgres
     cluster_name: ${POSTGRES_NAME}
