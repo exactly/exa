@@ -1,9 +1,14 @@
-import { exaPluginAddress, exaPreviewerAddress, previewerAddress } from "@exactly/common/generated/chain";
-import { healthFactor, WAD } from "@exactly/lib";
+import {
+  exaPluginAddress,
+  exaPreviewerAddress,
+  previewerAddress,
+  ratePreviewerAddress,
+} from "@exactly/common/generated/chain";
+import { floatingDepositRates, healthFactor, WAD } from "@exactly/lib";
 import { TimeToFullDisplay } from "@sentry/react-native";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigation, useLocalSearchParams } from "expo-router";
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { RefreshControl } from "react-native";
 import { ScrollView, useTheme, YStack } from "tamagui";
 import { zeroAddress } from "viem";
@@ -21,6 +26,7 @@ import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import {
   useReadExaPreviewerPendingProposals,
   useReadPreviewerExactly,
+  useReadRatePreviewerSnapshot,
   useReadUpgradeableModularAccountGetInstalledPlugins,
 } from "../../generated/contracts";
 import { KYC_TEMPLATE_ID, LEGACY_KYC_TEMPLATE_ID } from "../../utils/persona";
@@ -99,14 +105,48 @@ export default function Home() {
         (error.text === "kyc not found" || error.text === "kyc not started" || error.text === "kyc not approved"),
     },
   });
-  let usdBalance = 0n;
-  if (markets) {
-    for (const market of markets) {
-      if (market.floatingDepositAssets > 0n) {
-        usdBalance += (market.floatingDepositAssets * market.usdPrice) / 10n ** BigInt(market.decimals);
-      }
+
+  const { data: rateSnapshot, dataUpdatedAt: rateDataUpdatedAt } = useReadRatePreviewerSnapshot({
+    address: ratePreviewerAddress,
+  });
+
+  const portfolio = useMemo(() => {
+    if (!markets) return { depositMarkets: [], usdBalance: 0n };
+
+    const depositMarkets: { market: string; symbol: string; usdValue: bigint }[] = [];
+    let usdBalance = 0n;
+    for (const { floatingDepositAssets, usdPrice, decimals, market, symbol } of markets) {
+      if (floatingDepositAssets <= 0n) continue;
+      const usdValue = (floatingDepositAssets * usdPrice) / 10n ** BigInt(decimals);
+      if (usdValue <= 0n) continue;
+      depositMarkets.push({ market, symbol: symbol.slice(3) === "WETH" ? "ETH" : symbol.slice(3), usdValue });
+      usdBalance += usdValue;
     }
-  }
+
+    return { usdBalance, depositMarkets };
+  }, [markets]);
+
+  const rates = useMemo(
+    () => (rateSnapshot ? floatingDepositRates(rateSnapshot, Math.floor(rateDataUpdatedAt / 1000)) : []),
+    [rateSnapshot, rateDataUpdatedAt],
+  );
+
+  const averageRate = useMemo(() => {
+    const { depositMarkets, usdBalance } = portfolio;
+    if (depositMarkets.length === 0 || usdBalance === 0n || rates.length === 0) return 0n;
+    const rateByMarket = new Map(rates.map(({ market, rate }) => [market, rate]));
+
+    let weightedRate = 0n;
+    for (const { market, usdValue } of depositMarkets) {
+      const rate = rateByMarket.get(market);
+      if (rate === undefined || usdValue <= 0n) continue;
+      weightedRate += rate * usdValue;
+    }
+
+    return weightedRate / usdBalance;
+  }, [portfolio, rates]);
+
+  const usdBalance = portfolio.usdBalance;
   const isPending = isPendingActivity || isPendingPreviewer;
   const style = { backgroundColor: theme.backgroundSoft.val, margin: -5 };
   return (
@@ -146,7 +186,7 @@ export default function Home() {
                   />
                 ))}
               <YStack gap="$s8">
-                <PortfolioSummary usdBalance={usdBalance} />
+                <PortfolioSummary portfolio={portfolio} averageRate={averageRate} />
                 <HomeActions />
               </YStack>
             </YStack>
