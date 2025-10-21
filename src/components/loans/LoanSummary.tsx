@@ -33,7 +33,7 @@ export default function LoanSummary({ loan }: { loan: Loan }) {
     address: previewerAddress,
     args: [loan.market ?? zeroAddress, loan.maturity ?? BigInt(defaultMaturity), loan.amount ?? 0n],
     query: {
-      enabled: isBorrow && !!loan.maturity && !!loan.amount && !!loan.market && !!address && !!bytecode,
+      enabled: isBorrow && !!loan.amount && !!loan.market && !!address && !!bytecode,
     },
   });
   const pending = isInstallmentsPending || isBorrowPending;
