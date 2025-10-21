@@ -128,7 +128,7 @@ export default function ReviewSheet({
                 disabled={!canSend}
                 iconAfter={<ArrowRight color={canSend ? "$interactiveOnBaseBrandDefault" : "$interactiveOnDisabled"} />}
               >
-                Send
+                {canSend ? "Send" : "Enter valid address"}
               </Button>
               <Pressable onPress={onClose}>
                 <Text emphasized footnote color="$interactiveBaseBrandDefault" alignSelf="center">

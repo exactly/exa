@@ -150,7 +150,8 @@ export default function Amount() {
     queryKey: ["contacts", "recent"],
   });
 
-  const canSend = market ? !!proposeSimulation : !!transferSimulation;
+  const canSend =
+    !!withdraw?.receiver && withdraw.receiver !== zeroAddress && market ? !!proposeSimulation : !!transferSimulation;
   const isFirstSend = !recentContacts?.some((contact) => contact.address === withdraw?.receiver);
 
   useEffect(() => {
