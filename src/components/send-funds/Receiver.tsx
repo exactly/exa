@@ -7,12 +7,12 @@ import { useLocalSearchParams, useNavigation } from "expo-router";
 import React from "react";
 import { Pressable } from "react-native";
 import { ScrollView, Separator, XStack, YStack } from "tamagui";
-import { parse, safeParse } from "valibot";
+import { safeParse } from "valibot";
 
 import Contacts from "./Contacts";
 import RecentContacts from "./RecentContacts";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
-import queryClient, { type Withdraw } from "../../utils/queryClient";
+import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useIntercom from "../../utils/useIntercom";
 import Button from "../shared/Button";
@@ -21,9 +21,9 @@ import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-export default function AddressSelection() {
+export default function ReceiverSelection() {
   const navigation = useNavigation<AppNavigationProperties>("/(main)");
-  const parameters = useLocalSearchParams();
+  const { receiver } = useLocalSearchParams();
   const { presentArticle } = useIntercom();
 
   const { data: recentContacts } = useQuery<{ address: Address; ens: string }[] | undefined>({
@@ -34,20 +34,14 @@ export default function AddressSelection() {
     queryKey: ["contacts", "saved"],
   });
 
-  const { data: withdraw } = useQuery<Withdraw>({ queryKey: ["withdrawal"] });
-
   const form = useForm({
-    defaultValues: { receiver: withdraw?.receiver ?? "" },
+    defaultValues: { receiver: typeof receiver === "string" ? receiver : undefined },
     onSubmit: ({ value }) => {
-      const receiver = parse(Address, value.receiver);
-      queryClient.setQueryData<Withdraw>(["withdrawal"], (old) =>
-        old ? { ...old, receiver } : { receiver, market: undefined, amount: 0n },
-      );
-      navigation.navigate("send-funds", { screen: "asset" });
+      navigation.navigate("send-funds", { screen: "asset", params: { receiver: String(value.receiver) } });
     },
   });
 
-  const { success, output } = safeParse(Address, parameters.receiver);
+  const { success, output } = safeParse(Address, receiver);
 
   if (success) {
     form.setFieldValue("receiver", output);

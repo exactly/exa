@@ -10,8 +10,6 @@ import { parse, safeParse } from "valibot";
 import { zeroAddress } from "viem";
 
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
-import type { Withdraw } from "../../utils/queryClient";
-import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import Button from "../shared/Button";
 import Text from "../shared/Text";
@@ -137,12 +135,9 @@ export default function Qr() {
           barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
           onBarcodeScanned={({ data: receiver }) => {
             const result = safeParse(Address, receiver);
-            if (result.success && result.output !== parse(Address, zeroAddress)) {
-              queryClient.setQueryData<Withdraw>(["withdrawal"], (old) =>
-                old ? { ...old, receiver: result.output } : { receiver: result.output, market: undefined, amount: 0n },
-              );
-              navigation.popTo("send-funds", { screen: "asset" });
-            }
+            if (!result.success) return;
+            if (result.output === parse(Address, zeroAddress)) return;
+            navigation.popTo("send-funds", { screen: "asset", params: { receiver: result.output } });
           }}
           facing={cameraFacing}
           style={styles.cameraView}
