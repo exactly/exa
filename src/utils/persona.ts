@@ -74,8 +74,8 @@ export async function resumeInquiry(inquiryId: string, sessionToken: string, nav
 }
 
 async function getRedirectURI() {
-  const { client } = (await sdk.context) as unknown as { client: { appUrl?: string } };
-  if (client.appUrl) return client.appUrl;
+  const miniappContext = (await sdk.context) as unknown as { client: { appUrl?: string } } | undefined;
+  if (miniappContext?.client.appUrl) return miniappContext.client.appUrl;
   switch (queryClient.getQueryData<EmbeddingContext>(["embedding-context"])) {
     case "farcaster-web":
       return `https://farcaster.xyz/miniapps/${
