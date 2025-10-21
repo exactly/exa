@@ -16,9 +16,7 @@ import decodePublicKey from "./decodePublicKey";
 import { identify } from "./segment";
 import database from "../database";
 import { credentials } from "../database/schema";
-
-if (!process.env.ALCHEMY_ACTIVITY_ID) throw new Error("missing alchemy activity id");
-const webhookId = process.env.ALCHEMY_ACTIVITY_ID;
+import { webhookId } from "../hooks/activity";
 
 export default async function createCredential<C extends string>(
   c: Context,
