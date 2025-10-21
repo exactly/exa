@@ -39,6 +39,21 @@ export async function findWebhook(predicate: (webhook: Webhook) => unknown) {
   return webhooks.find((hook) => hook.is_active && hook.network === network && predicate(hook));
 }
 
+export async function createWebhook(
+  options: { webhook_url: string; network?: never } & (
+    | { webhook_type: "ADDRESS_ACTIVITY"; addresses: string[] }
+    | { webhook_type: "GRAPHQL"; graphql_query: { skip_empty_messages: true; query: string } }
+  ),
+) {
+  const create = await fetch("https://dashboard.alchemy.com/api/create-webhook", {
+    headers,
+    method: "POST",
+    body: JSON.stringify({ ...options, network }),
+  });
+  if (!create.ok) throw new Error(`${create.status} ${await create.text()}`);
+  return parse(WebhookResponse, await create.json()).data;
+}
+
 const Webhook = object({
   id: string(),
   network: picklist(["OPT_MAINNET", "OPT_SEPOLIA", "BASE_MAINNET", "BASE_SEPOLIA"]),
@@ -49,4 +64,5 @@ const Webhook = object({
 });
 type Webhook = InferOutput<typeof Webhook>; // eslint-disable-line @typescript-eslint/no-redeclare
 
+const WebhookResponse = object({ data: Webhook });
 const WebhooksResponse = object({ data: array(Webhook) });
