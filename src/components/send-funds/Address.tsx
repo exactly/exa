@@ -1,12 +1,12 @@
 import chain from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
-import { ArrowLeft, ArrowRight, QrCode } from "@tamagui/lucide-icons";
+import { ArrowLeft, ArrowRight } from "@tamagui/lucide-icons";
 import { useForm } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import { useLocalSearchParams, useNavigation } from "expo-router";
 import React from "react";
 import { Pressable } from "react-native";
-import { ButtonIcon, ScrollView, Separator, XStack, YStack } from "tamagui";
+import { ScrollView, Separator, XStack, YStack } from "tamagui";
 import { parse, safeParse } from "valibot";
 
 import Contacts from "./Contacts";
@@ -97,20 +97,6 @@ export default function AddressSelection() {
                         value={value}
                         onChangeText={handleChange}
                       />
-                      <Button
-                        outlined
-                        borderColor="$uiNeutralTertiary"
-                        borderTopLeftRadius={0}
-                        borderBottomLeftRadius={0}
-                        borderLeftWidth={0}
-                        onPress={() => {
-                          navigation.navigate("send-funds", { screen: "qr" });
-                        }}
-                      >
-                        <ButtonIcon>
-                          <QrCode size={32} color="$interactiveOnBaseBrandSoft" />
-                        </ButtonIcon>
-                      </Button>
                     </XStack>
                     {meta.errors.length > 0 ? (
                       <Text padding="$s3" footnote color="$uiNeutralSecondary">
