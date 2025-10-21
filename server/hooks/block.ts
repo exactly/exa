@@ -47,7 +47,7 @@ import {
   proposalManagerAbi,
   upgradeableModularAccountAbi,
 } from "../generated/contracts";
-import { headers as alchemyHeaders, findWebhook, headerValidator, network } from "../utils/alchemy";
+import { headers as alchemyHeaders, createWebhook, findWebhook, headerValidator } from "../utils/alchemy";
 import appOrigin from "../utils/appOrigin";
 import ensClient from "../utils/ensClient";
 import keeper from "../utils/keeper";
@@ -478,16 +478,12 @@ findWebhook(({ webhook_type, webhook_url }) => webhook_type === "GRAPHQL" && web
     }
     if (!shouldUpdate) return;
 
-    const createResponse = await fetch("https://dashboard.alchemy.com/api/create-webhook", {
-      method: "POST",
-      headers: alchemyHeaders,
-      body: JSON.stringify({
-        network,
-        webhook_type: "GRAPHQL",
-        webhook_url: url,
-        graphql_query: {
-          skip_empty_messages: true,
-          query: `#graphql
+    const newHook = await createWebhook({
+      webhook_type: "GRAPHQL",
+      webhook_url: url,
+      graphql_query: {
+        skip_empty_messages: true,
+        query: `#graphql
 {
   block {
     number
@@ -513,11 +509,8 @@ findWebhook(({ webhook_type, webhook_url }) => webhook_type === "GRAPHQL" && web
     }
   }
 }`,
-        },
-      }),
+      },
     });
-    if (!createResponse.ok) throw new Error(`${createResponse.status} ${await createResponse.text()}`);
-    const { data: newHook } = (await createResponse.json()) as { data: { signing_key: string } };
     signingKeys.add(newHook.signing_key);
     if (currentHook) {
       const deleteResponse = await fetch(
