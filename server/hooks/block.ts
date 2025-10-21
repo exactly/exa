@@ -504,7 +504,9 @@ fetch("https://dashboard.alchemy.com/api/team-webhooks", alchemyInit)
         network,
         webhook_type: "GRAPHQL",
         webhook_url: url,
-        graphql_query: `#graphql
+        graphql_query: {
+          skip_empty_messages: true,
+          query: `#graphql
 {
   block {
     number
@@ -530,6 +532,7 @@ fetch("https://dashboard.alchemy.com/api/team-webhooks", alchemyInit)
     }
   }
 }`,
+        },
       }),
     });
     if (!createResponse.ok) throw new Error(`${createResponse.status} ${await createResponse.text()}`);
