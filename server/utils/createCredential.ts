@@ -10,7 +10,7 @@ import { setSignedCookie } from "hono/cookie";
 import { parse } from "valibot";
 import { hexToBytes, isAddress } from "viem";
 
-import { webhooksKey } from "./alchemy";
+import { headers as alchemyHeaders } from "./alchemy";
 import authSecret from "./authSecret";
 import decodePublicKey from "./decodePublicKey";
 import { identify } from "./segment";
@@ -53,7 +53,7 @@ export default async function createCredential<C extends string>(
     }),
     fetch("https://dashboard.alchemy.com/api/update-webhook-addresses", {
       method: "PATCH",
-      headers: { "Content-Type": "application/json", "X-Alchemy-Token": webhooksKey },
+      headers: alchemyHeaders,
       body: JSON.stringify({ webhook_id: webhookId, addresses_to_add: [account], addresses_to_remove: [] }),
     })
       .then(async (response) => {
