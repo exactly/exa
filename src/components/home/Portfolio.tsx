@@ -13,32 +13,27 @@ import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useIntercom from "../../utils/useIntercom";
 import useOpenBrowser from "../../utils/useOpenBrowser";
+import usePortfolio from "../../utils/usePortfolio";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
+import WeightedRate from "../shared/WeightedRate";
 
 export default function Portfolio() {
   const theme = useTheme();
   const { address } = useAccount();
   const openBrowser = useOpenBrowser();
   const { presentArticle } = useIntercom();
+  const { averageRate, portfolio } = usePortfolio(address);
   const navigation = useNavigation<AppNavigationProperties>();
   const style = { backgroundColor: theme.backgroundSoft.val, margin: -5 };
 
-  const {
-    data: markets,
-    refetch: refetchMarkets,
-    isFetching: isFetchingMarkets,
-  } = useReadPreviewerExactly({ address: previewerAddress, args: [address ?? zeroAddress] });
+  const { usdBalance } = portfolio;
 
-  let usdBalance = 0n;
-  if (markets) {
-    for (const market of markets) {
-      if (market.floatingDepositAssets > 0n) {
-        usdBalance += (market.floatingDepositAssets * market.usdPrice) / 10n ** BigInt(market.decimals);
-      }
-    }
-  }
+  const { refetch: refetchMarkets, isFetching: isFetchingMarkets } = useReadPreviewerExactly({
+    address: previewerAddress,
+    args: [address ?? zeroAddress],
+  });
 
   return (
     <SafeView fullScreen backgroundColor="$backgroundSoft">
@@ -80,7 +75,7 @@ export default function Portfolio() {
           backgroundColor="$backgroundSoft"
           paddingHorizontal="$s4"
           paddingVertical="$s5"
-          gap="$s4"
+          gap="$s5"
           alignItems="center"
         >
           <Text emphasized subHeadline color="$uiNeutralSecondary">
@@ -102,6 +97,16 @@ export default function Portfolio() {
               currencyDisplay: "narrowSymbol",
             })}
           </Text>
+          {usdBalance > 0n ? (
+            <WeightedRate
+              averageRate={averageRate}
+              depositMarkets={portfolio.depositMarkets}
+              onPress={(event) => {
+                event.stopPropagation();
+                presentArticle("12633694").catch(reportError);
+              }}
+            />
+          ) : null}
         </View>
         <View padded>
           <AssetList />

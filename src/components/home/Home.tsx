@@ -28,6 +28,7 @@ import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { APIError, getActivity, getKYCStatus } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
+import usePortfolio from "../../utils/usePortfolio";
 import OverduePayments from "../pay-mode/OverduePayments";
 import PaymentSheet from "../pay-mode/PaymentSheet";
 import UpcomingPayments from "../pay-mode/UpcomingPayments";
@@ -52,6 +53,8 @@ export default function Home() {
     address: account ?? zeroAddress,
     query: { enabled: !!account && !!bytecode },
   });
+  const { portfolio, averageRate } = usePortfolio(account);
+
   const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
   const { data: cardUpgradeOpen } = useQuery<boolean>({
     initialData: false,
@@ -99,14 +102,8 @@ export default function Home() {
         (error.text === "kyc not found" || error.text === "kyc not started" || error.text === "kyc not approved"),
     },
   });
-  let usdBalance = 0n;
-  if (markets) {
-    for (const market of markets) {
-      if (market.floatingDepositAssets > 0n) {
-        usdBalance += (market.floatingDepositAssets * market.usdPrice) / 10n ** BigInt(market.decimals);
-      }
-    }
-  }
+
+  const usdBalance = portfolio.usdBalance;
   const isPending = isPendingActivity || isPendingPreviewer;
   const style = { backgroundColor: theme.backgroundSoft.val, margin: -5 };
   return (
@@ -146,7 +143,7 @@ export default function Home() {
                   />
                 ))}
               <YStack gap="$s8">
-                <PortfolioSummary usdBalance={usdBalance} />
+                <PortfolioSummary portfolio={portfolio} averageRate={averageRate} />
                 <HomeActions />
               </YStack>
             </YStack>
