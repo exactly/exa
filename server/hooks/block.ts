@@ -47,7 +47,7 @@ import {
   proposalManagerAbi,
   upgradeableModularAccountAbi,
 } from "../generated/contracts";
-import { headers as alchemyHeaders, headerValidator, network } from "../utils/alchemy";
+import { headers as alchemyHeaders, findWebhook, headerValidator, network } from "../utils/alchemy";
 import appOrigin from "../utils/appOrigin";
 import ensClient from "../utils/ensClient";
 import keeper from "../utils/keeper";
@@ -436,27 +436,9 @@ function scheduleWithdraw(message: string) {
     .catch((error: unknown) => captureException(error));
 }
 
-fetch("https://dashboard.alchemy.com/api/team-webhooks", { headers: alchemyHeaders })
-  .then(async (webhooksResponse) => {
-    if (!webhooksResponse.ok) throw new Error(`${webhooksResponse.status} ${await webhooksResponse.text()}`);
-
-    const url = `${appOrigin}/hooks/block`;
-    const { data: webhooks } = (await webhooksResponse.json()) as {
-      data: [
-        {
-          id: string;
-          network: string;
-          webhook_type: string;
-          webhook_url: string;
-          signing_key: string;
-          is_active: boolean;
-        },
-      ];
-    };
-    const currentHook = webhooks.find(
-      (hook) =>
-        hook.is_active && hook.webhook_type === "GRAPHQL" && hook.network === network && hook.webhook_url === url,
-    );
+const url = `${appOrigin}/hooks/block`;
+findWebhook(({ webhook_type, webhook_url }) => webhook_type === "GRAPHQL" && webhook_url === url)
+  .then(async (currentHook) => {
     let shouldUpdate = !currentHook;
     let currentAddresses: string[] = [];
     if (currentHook) {
