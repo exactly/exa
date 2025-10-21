@@ -5,7 +5,7 @@ import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 import verifySignature from "./verifySignature";
 
 if (!process.env.ALCHEMY_WEBHOOKS_KEY) throw new Error("missing alchemy webhooks key");
-export const webhooksKey = process.env.ALCHEMY_WEBHOOKS_KEY;
+export const headers = { "Content-Type": "application/json", "X-Alchemy-Token": process.env.ALCHEMY_WEBHOOKS_KEY };
 
 export function headerValidator(signingKeys: Set<string> | (() => Set<string>)) {
   return validator("header", async ({ "x-alchemy-signature": signature }, c) => {
