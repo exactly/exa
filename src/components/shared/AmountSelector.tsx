@@ -1,30 +1,30 @@
+import { Address } from "@exactly/common/validation";
 import { WAD } from "@exactly/lib";
 import { useForm } from "@tanstack/react-form";
-import { useQuery } from "@tanstack/react-query";
+import { useLocalSearchParams } from "expo-router";
 import React, { useCallback, useRef, useState } from "react";
 import type { TextInput } from "react-native";
 import { StyleSheet } from "react-native";
 import { styled, YStack } from "tamagui";
-import { nonEmpty, pipe, string } from "valibot";
+import { nonEmpty, parse, pipe, string } from "valibot";
 import { formatUnits, parseUnits } from "viem";
 
 import Button from "./Button";
 import Input from "./Input";
 import Text from "./Text";
 import View from "./View";
-import type { Withdraw } from "../../utils/queryClient";
 import useAsset from "../../utils/useAsset";
 
 export default function AmountSelector({ onChange }: { onChange: (value: bigint) => void }) {
   const usdInputReference = useRef<TextInput>(null);
   const [overlayShown, setOverlayShown] = useState(false);
 
-  const { data: withdraw } = useQuery<Withdraw>({ queryKey: ["withdrawal"] });
-  const { market, externalAsset, available } = useAsset(withdraw?.market);
+  const { asset: assetAddress } = useLocalSearchParams();
+  const withdrawAsset = parse(Address, assetAddress);
 
-  const { Field, setFieldValue } = useForm({
-    defaultValues: { assetInput: "", usdInput: "" },
-  });
+  const { market, externalAsset, available } = useAsset(withdrawAsset);
+
+  const { Field, setFieldValue } = useForm({ defaultValues: { assetInput: "", usdInput: "" } });
 
   const handleAssetChange = useCallback(
     (text: string) => {
