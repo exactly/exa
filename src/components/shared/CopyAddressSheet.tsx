@@ -1,20 +1,23 @@
 import chain from "@exactly/common/generated/chain";
-import { AlertTriangle, CheckCircle, X } from "@tamagui/lucide-icons";
+import { CheckCircle, X } from "@tamagui/lucide-icons";
 import React from "react";
 import { ScrollView, XStack, YStack } from "tamagui";
 
+import AssetLogo from "./AssetLogo";
 import ModalSheet from "./ModalSheet";
-import reportError from "../../utils/reportError";
+import OptimismImage from "../../assets/images/optimism.svg";
+import assetLogos from "../../utils/assetLogos";
 import useAccount from "../../utils/useAccount";
-import useIntercom from "../../utils/useIntercom";
 import Button from "../shared/Button";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
-import View from "../shared/View";
+
+const supportedAssets = Object.entries(assetLogos)
+  .filter(([symbol]) => symbol !== "USDC.e" && symbol !== "DAI")
+  .map(([symbol, image]) => ({ symbol, image }));
 
 export default function CopyAddressSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { address } = useAccount();
-  const { presentArticle } = useIntercom();
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
       <ScrollView $platform-web={{ maxHeight: "100vh" }}>
@@ -41,33 +44,45 @@ export default function CopyAddressSheet({ open, onClose }: { open: boolean; onC
             <Text primary title fontFamily="$mono" textAlign="center">
               {address}
             </Text>
-            <XStack
-              gap="$s4"
+            <YStack
+              gap="$s5"
               alignItems="flex-start"
               borderTopWidth={1}
               borderTopColor="$borderNeutralSoft"
-              paddingTop="$s3"
+              paddingTop="$s5"
             >
-              <View>
-                <AlertTriangle size={16} width={16} height={16} color="$uiWarningSecondary" />
-              </View>
-              <XStack flex={1}>
-                <Text emphasized caption2 color="$uiNeutralPlaceholder" textAlign="justify">
-                  Only send assets on {chain.name}. Sending funds from other networks may cause permanent loss.
-                  <Text
-                    cursor="pointer"
-                    emphasized
-                    caption2
-                    color="$uiBrandSecondary"
-                    onPress={() => {
-                      presentArticle("8950801").catch(reportError);
-                    }}
-                  >
-                    &nbsp;Learn more about adding funds.
-                  </Text>
+              <XStack justifyContent="space-between" alignItems="center" width="100%">
+                <Text emphasized footnote color="$uiNeutralSecondary" textAlign="left">
+                  Network
+                </Text>
+                <Text emphasized footnote color="$uiNeutralSecondary" textAlign="right">
+                  Supported Assets
                 </Text>
               </XStack>
-            </XStack>
+              <XStack gap="$s5" justifyContent="space-between" alignItems="center" width="100%">
+                <XStack alignItems="center" gap="$s3" flex={1}>
+                  <OptimismImage height={32} width={32} />
+                  <Text emphasized primary headline>
+                    {chain.name}
+                  </Text>
+                </XStack>
+                <XStack
+                  borderWidth={1}
+                  borderColor="$borderNeutralSoft"
+                  borderRadius="$r_0"
+                  padding="$s3_5"
+                  alignSelf="flex-end"
+                >
+                  {supportedAssets.map((asset, index) => {
+                    return (
+                      <XStack key={index} marginRight={index < supportedAssets.length - 1 ? -12 : 0} zIndex={index}>
+                        <AssetLogo uri={asset.image} width={32} height={32} />
+                      </XStack>
+                    );
+                  })}
+                </XStack>
+              </XStack>
+            </YStack>
             <Button
               onPress={onClose}
               flexBasis={60}
