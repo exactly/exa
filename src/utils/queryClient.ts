@@ -90,11 +90,6 @@ queryClient.setQueryDefaults(["contacts", "recent"], {
     throw new Error("don't refetch");
   },
 });
-queryClient.setQueryDefaults(["withdrawal"], {
-  queryFn: () => {
-    throw new Error("don't refetch");
-  },
-});
 queryClient.setQueryDefaults(["loan"], {
   staleTime: Infinity,
   gcTime: Infinity,
@@ -225,11 +220,6 @@ queryClient.setQueryDefaults(["legacy", "kyc", "status"], { staleTime: 5 * 60_00
 export type AuthMethod = "siwe" | "webauthn";
 export type EmbeddingContext = "base" | "farcaster" | "farcaster-web" | "metamask" | "phantom" | "unknown" | null;
 export type ActivityItem = Awaited<ReturnType<typeof getActivity>>[number];
-export interface Withdraw {
-  market?: Address;
-  amount: bigint;
-  receiver?: Address;
-}
 
 export interface Loan {
   market?: Address;

@@ -1,13 +1,13 @@
 import shortenHex from "@exactly/common/shortenHex";
+import { Address } from "@exactly/common/validation";
 import { ArrowRight, User } from "@tamagui/lucide-icons";
-import { useQuery } from "@tanstack/react-query";
+import { useLocalSearchParams } from "expo-router";
 import React from "react";
 import { Pressable } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
+import { parse } from "valibot";
 
-import type { WithdrawDetails } from "./Amount";
 import assetLogos from "../../utils/assetLogos";
-import type { Withdraw } from "../../utils/queryClient";
 import useAsset from "../../utils/useAsset";
 import AssetLogo from "../shared/AssetLogo";
 import Button from "../shared/Button";
@@ -20,7 +20,7 @@ export default function ReviewSheet({
   open,
   onClose,
   onSend,
-  details: { amount, usdValue, name: assetName },
+  details: { amount, usdValue, symbol },
   canSend,
   isFirstSend,
 }: {
@@ -28,11 +28,12 @@ export default function ReviewSheet({
   onClose: () => void;
   onSend: () => void;
   canSend: boolean;
-  details: WithdrawDetails;
+  details: { external: boolean; symbol?: string; amount: string; usdValue: string };
   isFirstSend: boolean;
 }) {
-  const { data: withdraw } = useQuery<Withdraw>({ queryKey: ["withdrawal"] });
-  const { market, externalAsset } = useAsset(withdraw?.market);
+  const { asset, receiver } = useLocalSearchParams();
+  const receiverAddress = parse(Address, receiver);
+  const { market, externalAsset } = useAsset(parse(Address, asset));
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
       <ScrollView $platform-web={{ maxHeight: "100vh" }}>
@@ -60,7 +61,7 @@ export default function ReviewSheet({
                     {...(market
                       ? {
                           external: false,
-                          uri: assetLogos[assetName as keyof typeof assetLogos],
+                          uri: assetLogos[symbol as keyof typeof assetLogos],
                           width: 40,
                           height: 40,
                         }
@@ -74,7 +75,7 @@ export default function ReviewSheet({
                   />
                   <YStack flex={1}>
                     <Text title color="$uiNeutralPrimary">
-                      {amount} {assetName}
+                      {amount} {symbol}
                     </Text>
                     <Text subHeadline color="$uiNeutralSecondary">
                       {Number(usdValue).toLocaleString(undefined, {
@@ -106,7 +107,7 @@ export default function ReviewSheet({
                   </View>
                   <YStack>
                     <Text title color="$uiNeutralPrimary" fontFamily="$mono">
-                      {shortenHex(withdraw?.receiver ?? "", 3, 5)}
+                      {shortenHex(receiverAddress, 3, 5)}
                     </Text>
                     {isFirstSend && (
                       <Text subHeadline color="$uiNeutralSecondary">

@@ -24,7 +24,7 @@ export interface AppLayoutParameterList extends ParamListBase {
   "add-funds": { screen?: "index" | "add-crypto" | "add-fiat" | "bridge"; params?: { sender?: "external" } };
   "send-funds": {
     screen?: "index" | "qr" | "asset" | "amount";
-    params?: UnknownOutputParams & { receiver?: string };
+    params?: UnknownOutputParams & { asset?: string; amount?: string; external?: string; receiver?: string };
   };
   loan: { screen?: "index" | "amount" | "installments" | "maturity" | "receiver" | "review" };
   pay: { screen?: "index"; params?: { maturity?: string | null } };

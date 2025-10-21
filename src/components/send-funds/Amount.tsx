@@ -6,7 +6,7 @@ import { WAD } from "@exactly/lib";
 import { ArrowLeft, Coins, User, FilePen, Check, X } from "@tamagui/lucide-icons";
 import { useForm, useStore } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigation } from "expo-router";
+import { useLocalSearchParams, useNavigation } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable } from "react-native";
 import { Avatar, ScrollView, Square, XStack, YStack } from "tamagui";
@@ -22,7 +22,7 @@ import {
   useReadUpgradeableModularAccountGetInstalledPlugins,
 } from "../../generated/contracts";
 import assetLogos from "../../utils/assetLogos";
-import queryClient, { type Withdraw } from "../../utils/queryClient";
+import queryClient from "../../utils/queryClient";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import AmountSelector from "../shared/AmountSelector";
@@ -36,27 +36,18 @@ import Text from "../shared/Text";
 import TransactionDetails from "../shared/TransactionDetails";
 import View from "../shared/View";
 
-export interface WithdrawDetails {
-  external: boolean;
-  name?: string;
-  amount: string;
-  usdValue: string;
-}
-
 export default function Amount() {
   const navigation = useNavigation<AppNavigationProperties>();
   const { address } = useAccount();
   const [reviewOpen, setReviewOpen] = useState(false);
-  const { data: withdraw } = useQuery<Withdraw>({ queryKey: ["withdrawal"] });
-  const { market, externalAsset: external, available, isFetching } = useAsset(withdraw?.market);
 
-  const form = useForm({
-    defaultValues: { amount: withdraw?.amount ?? 0n },
-    onSubmit: ({ value: { amount } }) => {
-      queryClient.setQueryData<Withdraw>(["withdrawal"], (old) => (old ? { ...old, amount } : { amount }));
-    },
-  });
+  const { asset: assetAddress, receiver: receiverAddress, amount } = useLocalSearchParams();
+  const withdrawAsset = parse(Address, assetAddress);
+  const withdrawReceiver = parse(Address, receiverAddress);
 
+  const { market, externalAsset: external, available, isFetching } = useAsset(withdrawAsset);
+
+  const form = useForm({ defaultValues: { amount: typeof amount === "string" ? BigInt(amount) : 0n } });
   const formAmount = useStore(form.store, (state) => state.values.amount);
 
   const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
@@ -76,9 +67,9 @@ export default function Amount() {
             market?.market ?? zeroAddress,
             formAmount,
             ProposalType.Withdraw,
-            encodeAbiParameters([{ type: "address" }], [withdraw?.receiver ?? zeroAddress]),
+            encodeAbiParameters([{ type: "address" }], [withdrawReceiver]),
           ],
-          query: { enabled: !!withdraw && !!market && !!address && !!bytecode && formAmount > 0n },
+          query: { enabled: !!market && !!address && !!bytecode && formAmount > 0n },
         }
       : {
           address,
@@ -97,8 +88,8 @@ export default function Amount() {
               stateMutability: "nonpayable",
             },
           ],
-          args: [market?.market ?? zeroAddress, formAmount, withdraw?.receiver ?? zeroAddress],
-          query: { enabled: !!withdraw && !!market && !!address && !!bytecode && formAmount > 0n },
+          args: [withdrawAsset, formAmount, withdrawReceiver],
+          query: { enabled: !!market && !!address && !!bytecode && formAmount > 0n },
         },
   );
 
@@ -106,10 +97,8 @@ export default function Amount() {
     address: parse(Address, external?.address ?? zeroAddress),
     abi: erc20Abi,
     functionName: "transfer",
-    args: [withdraw?.receiver ?? zeroAddress, formAmount],
-    query: {
-      enabled: !!withdraw && !!external && !!address && !!bytecode && !!withdraw.receiver && formAmount > 0n,
-    },
+    args: [withdrawReceiver, formAmount],
+    query: { enabled: !!external && !!address && !!bytecode && formAmount > 0n },
   });
 
   const { writeContract, data: hash, isPending: pending, isSuccess: success, isError: error } = useWriteContract();
@@ -125,18 +114,23 @@ export default function Amount() {
     }
   }, [market, proposeSimulation, writeContract, external, transferSimulation]);
 
-  const details: WithdrawDetails = useMemo(
+  const details: {
+    external: boolean;
+    symbol?: string;
+    amount: string;
+    usdValue: string;
+  } = useMemo(
     () =>
       market
         ? {
             external: false,
-            name: market.symbol.slice(3) === "WETH" ? "ETH" : market.symbol.slice(3),
+            symbol: market.symbol.slice(3) === "WETH" ? "ETH" : market.symbol.slice(3),
             amount: formatUnits(formAmount, market.decimals),
             usdValue: formatUnits((formAmount * market.usdPrice) / WAD, market.decimals),
           }
         : {
             external: true,
-            name: external?.symbol,
+            symbol: external?.symbol,
             amount: formatUnits(formAmount, external?.decimals ?? 0),
             usdValue: formatUnits(
               (formAmount * parseUnits(external?.priceUSD ?? "0", 18)) / WAD,
@@ -151,16 +145,16 @@ export default function Amount() {
   });
 
   const canSend =
-    !!withdraw?.receiver && withdraw.receiver !== zeroAddress && market ? !!proposeSimulation : !!transferSimulation;
-  const isFirstSend = !recentContacts?.some((contact) => contact.address === withdraw?.receiver);
+    withdrawReceiver !== parse(Address, zeroAddress) && market ? !!proposeSimulation : !!transferSimulation;
+  const isFirstSend = !recentContacts?.some((contact) => contact.address === withdrawReceiver);
 
   useEffect(() => {
-    if (success && !recentContacts?.some((contact) => contact.address === withdraw?.receiver)) {
+    if (success && !recentContacts?.some((contact) => contact.address === withdrawReceiver)) {
       queryClient.setQueryData<{ address: Address; ens: string }[] | undefined>(["contacts", "recent"], (old) =>
-        [{ address: parse(Address, withdraw?.receiver), ens: "" }, ...(old ?? [])].slice(0, 3),
+        [{ address: withdrawReceiver, ens: "" }, ...(old ?? [])].slice(0, 3),
       );
     }
-  }, [success, withdraw?.receiver, recentContacts]);
+  }, [success, withdrawReceiver, recentContacts]);
 
   if (!pending && !error && !success) {
     return (
@@ -206,7 +200,7 @@ export default function Amount() {
                       To:
                     </Text>
                     <Text callout color="$uiNeutralPrimary" fontFamily="$mono">
-                      {withdraw?.receiver ? shortenHex(withdraw.receiver) : "..."}
+                      {shortenHex(withdrawReceiver)}
                     </Text>
                   </XStack>
                 </XStack>
@@ -352,7 +346,7 @@ export default function Amount() {
                 <>
                   Sending to&nbsp;
                   <Text emphasized primary body color="$uiNeutralPrimary">
-                    {shortenHex(withdraw?.receiver ?? "", 5, 7)}
+                    {shortenHex(withdrawReceiver, 5, 7)}
                   </Text>
                 </>
               )}
@@ -368,7 +362,7 @@ export default function Amount() {
                 <>
                   Failed&nbsp;
                   <Text emphasized primary body color="$uiNeutralPrimary">
-                    {shortenHex(withdraw?.receiver ?? "", 3, 5)}
+                    {shortenHex(withdrawReceiver, 3, 5)}
                   </Text>
                 </>
               )}
@@ -385,7 +379,7 @@ export default function Amount() {
                 {Number(details.amount).toLocaleString(undefined, { maximumFractionDigits: 8 })}
               </Text>
               <Text emphasized secondary subHeadline>
-                &nbsp;{details.name}&nbsp;
+                &nbsp;{details.symbol}&nbsp;
               </Text>
               <AssetLogo
                 {...(details.external
@@ -396,7 +390,7 @@ export default function Amount() {
                       height: 16,
                       borderRadius: 20,
                     }
-                  : { uri: assetLogos[details.name as keyof typeof assetLogos], width: 16, height: 16 })}
+                  : { uri: assetLogos[details.symbol as keyof typeof assetLogos], width: 16, height: 16 })}
               />
             </XStack>
           </YStack>

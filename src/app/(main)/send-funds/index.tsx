@@ -1,1 +1,1 @@
-export { default } from "../../../components/send-funds/Address";
+export { default } from "../../../components/send-funds/Receiver";
