@@ -1,12 +1,13 @@
 import { Address } from "@exactly/common/validation";
 import { ArrowLeft, BoxSelect, SwitchCamera } from "@tamagui/lucide-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
-import { useNavigation } from "expo-router";
-import React, { useRef, useState } from "react";
+import { useFocusEffect, useNavigation } from "expo-router";
+import React, { useCallback, useRef, useState } from "react";
 import { Linking, Pressable, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useWindowDimensions, XStack, YStack } from "tamagui";
-import { safeParse } from "valibot";
+import { parse, safeParse } from "valibot";
+import { zeroAddress } from "viem";
 
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import type { Withdraw } from "../../utils/queryClient";
@@ -18,11 +19,23 @@ import View from "../shared/View";
 
 export default function Qr() {
   const { top, bottom } = useSafeAreaInsets();
-  const navigation = useNavigation<AppNavigationProperties>("/(main)");
-  const cameraReference = useRef<CameraView>(null);
   const { height, width } = useWindowDimensions();
+
+  const cameraReference = useRef<CameraView>(null);
+  const navigation = useNavigation<AppNavigationProperties>("/(main)");
+
+  const [active, setActive] = useState(true);
   const [cameraFacing, setCameraFacing] = useState<"front" | "back">("back");
   const [permission, requestPermission] = useCameraPermissions();
+
+  useFocusEffect(
+    useCallback(() => {
+      setActive(true);
+      return () => {
+        setActive(false);
+      };
+    }, []),
+  );
 
   if (!permission) return <View fullScreen backgroundColor="$backgroundSoft" />;
   if (!permission.granted) {
@@ -118,21 +131,23 @@ export default function Qr() {
   }
   return (
     <View fullScreen backgroundColor="$backgroundSoft">
-      <CameraView
-        ref={cameraReference}
-        barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
-        onBarcodeScanned={({ data: receiver }) => {
-          const result = safeParse(Address, receiver);
-          if (result.success) {
-            queryClient.setQueryData<Withdraw>(["withdrawal"], (old) =>
-              old ? { ...old, receiver: result.output } : { receiver: result.output, market: undefined, amount: 0n },
-            );
-            navigation.popTo("send-funds", { screen: "asset" });
-          }
-        }}
-        facing={cameraFacing}
-        style={styles.cameraView}
-      />
+      {active && (
+        <CameraView
+          ref={cameraReference}
+          barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+          onBarcodeScanned={({ data: receiver }) => {
+            const result = safeParse(Address, receiver);
+            if (result.success && result.output !== parse(Address, zeroAddress)) {
+              queryClient.setQueryData<Withdraw>(["withdrawal"], (old) =>
+                old ? { ...old, receiver: result.output } : { receiver: result.output, market: undefined, amount: 0n },
+              );
+              navigation.popTo("send-funds", { screen: "asset" });
+            }
+          }}
+          facing={cameraFacing}
+          style={styles.cameraView}
+        />
+      )}
       <View position="absolute" fullScreen justifyContent="center" alignItems="center">
         <BoxSelect size={Math.min(width, height) * 0.5} color="white" />
       </View>
