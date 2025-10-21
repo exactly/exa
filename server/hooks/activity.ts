@@ -26,7 +26,8 @@ import {
   marketAbi,
   upgradeableModularAccountAbi,
 } from "../generated/contracts";
-import { headerValidator, network } from "../utils/alchemy";
+import { createWebhook, findWebhook, headerValidator, network } from "../utils/alchemy";
+import appOrigin from "../utils/appOrigin";
 import decodePublicKey from "../utils/decodePublicKey";
 import keeper from "../utils/keeper";
 import { sendPushNotification } from "../utils/onesignal";
@@ -35,18 +36,21 @@ import publicClient from "../utils/publicClient";
 import { track } from "../utils/segment";
 import validatorHook from "../utils/validatorHook";
 
-if (!process.env.ALCHEMY_ACTIVITY_KEY) throw new Error("missing alchemy activity key");
-const signingKey = process.env.ALCHEMY_ACTIVITY_KEY;
-
 const ETH = v.parse(Address, "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
 const WETH = v.parse(Address, wethAddress);
 
 const debug = createDebug("exa:activity");
 Object.assign(debug, { inspectOpts: { depth: undefined } });
 
+if (!process.env.ALCHEMY_ACTIVITY_ID) debug("missing alchemy activity id");
+export let webhookId = process.env.ALCHEMY_ACTIVITY_ID;
+
+if (!process.env.ALCHEMY_ACTIVITY_KEY) debug("missing alchemy activity key");
+const signingKeys = new Set(process.env.ALCHEMY_ACTIVITY_KEY && [process.env.ALCHEMY_ACTIVITY_KEY]);
+
 export default new Hono().post(
   "/",
-  headerValidator(new Set([signingKey])),
+  headerValidator(signingKeys),
   vValidator(
     "json",
     v.object({
@@ -231,3 +235,16 @@ export default new Hono().post(
     return c.json({});
   },
 );
+
+const url = `${appOrigin}/hooks/activity`;
+findWebhook(({ webhook_type, webhook_url }) => webhook_type === "ADDRESS_ACTIVITY" && webhook_url === url)
+  .then(async (currentHook) => {
+    if (currentHook) {
+      webhookId = currentHook.id;
+      return signingKeys.add(currentHook.signing_key);
+    }
+    const newHook = await createWebhook({ webhook_type: "ADDRESS_ACTIVITY", webhook_url: url, addresses: [] });
+    webhookId = newHook.id;
+    signingKeys.add(newHook.signing_key);
+  })
+  .catch((error: unknown) => captureException(error));
