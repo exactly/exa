@@ -47,7 +47,7 @@ import {
   proposalManagerAbi,
   upgradeableModularAccountAbi,
 } from "../generated/contracts";
-import { headerValidator, network, webhooksKey } from "../utils/alchemy";
+import { headers as alchemyHeaders, headerValidator, network } from "../utils/alchemy";
 import appOrigin from "../utils/appOrigin";
 import ensClient from "../utils/ensClient";
 import keeper from "../utils/keeper";
@@ -436,8 +436,7 @@ function scheduleWithdraw(message: string) {
     .catch((error: unknown) => captureException(error));
 }
 
-const alchemyInit = { headers: { "Content-Type": "application/json", "X-Alchemy-Token": webhooksKey } };
-fetch("https://dashboard.alchemy.com/api/team-webhooks", alchemyInit)
+fetch("https://dashboard.alchemy.com/api/team-webhooks", { headers: alchemyHeaders })
   .then(async (webhooksResponse) => {
     if (!webhooksResponse.ok) throw new Error(`${webhooksResponse.status} ${await webhooksResponse.text()}`);
 
@@ -465,7 +464,7 @@ fetch("https://dashboard.alchemy.com/api/team-webhooks", alchemyInit)
 
       const queryResponse = await fetch(
         `https://dashboard.alchemy.com/api/dashboard-webhook-graphql-query?webhook_id=${currentHook.id}`,
-        alchemyInit,
+        { headers: alchemyHeaders },
       );
       if (!queryResponse.ok) throw new Error(`${queryResponse.status} ${await queryResponse.text()}`);
       const { data: query } = (await queryResponse.json()) as { data: { graphql_query: string } };
@@ -498,8 +497,8 @@ fetch("https://dashboard.alchemy.com/api/team-webhooks", alchemyInit)
     if (!shouldUpdate) return;
 
     const createResponse = await fetch("https://dashboard.alchemy.com/api/create-webhook", {
-      ...alchemyInit,
       method: "POST",
+      headers: alchemyHeaders,
       body: JSON.stringify({
         network,
         webhook_type: "GRAPHQL",
@@ -541,7 +540,7 @@ fetch("https://dashboard.alchemy.com/api/team-webhooks", alchemyInit)
     if (currentHook) {
       const deleteResponse = await fetch(
         `https://dashboard.alchemy.com/api/delete-webhook?webhook_id=${currentHook.id}`,
-        { ...alchemyInit, method: "DELETE" },
+        { headers: alchemyHeaders, method: "DELETE" },
       );
       if (!deleteResponse.ok) throw new Error(`${deleteResponse.status} ${await deleteResponse.text()}`);
       await setTimeout(5000);
