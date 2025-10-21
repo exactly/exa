@@ -1,5 +1,13 @@
 # @exactly/mobile
 
+## 1.0.29
+
+### Patch Changes
+
+- [`7e811b2`](https://github.com/exactly/exa/commit/7e811b28653ee6f8c146dc1e0bb96bba84ef51b2) Thanks [@franm91](https://github.com/franm91)! - 🚑️ disable send funds with QR code
+
+- [`fd08d79`](https://github.com/exactly/exa/commit/fd08d7985209246a6d4a2d81bb05ebb8fafbcfb3) Thanks [@franm91](https://github.com/franm91)! - 🚑️ block send funds to zero address
+
 ## 1.0.28
 
 ### Patch Changes
