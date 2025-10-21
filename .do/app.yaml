@@ -1,95 +1,85 @@
-name: ${ENVIRONMENT}
+name: ${{ env.ENVIRONMENT }}
 region: sfo
 domains:
-  - domain: ${APP_DOMAIN}
+  - domain: ${{ env.APP_DOMAIN }}
     type: PRIMARY
 envs:
   - key: APP_DOMAIN
     scope: RUN_AND_BUILD_TIME
     value: ${APP_DOMAIN}
+  - key: CHAIN_ID
+    scope: RUN_AND_BUILD_TIME
+    value: ${{ env.CHAIN_ID }}
 services:
   - name: server
     image:
       registry_type: GHCR
       registry: exactly
-      repository: exa-${ENVIRONMENT}
-      registry_credentials: ${GHCR_CREDENTIALS}
-      digest: ${IMAGE_DIGEST_SERVER}
+      repository: exa-${{ env.ENVIRONMENT }}
+      registry_credentials: ${{ env.GHCR_CREDENTIALS }}
+      digest: ${{ env.IMAGE_DIGEST_SERVER }}
     http_port: 3000
     instance_count: 1
     instance_size_slug: apps-d-1vcpu-1gb # cspell:ignore vcpu
     log_destinations:
       - name: opensearch
         open_search:
-          cluster_name: ${OPENSEARCH_NAME}
+          cluster_name: ${{ env.OPENSEARCH_NAME }}
           index_name: logs
           basic_auth:
             user: doadmin # cspell:ignore doadmin
     envs:
-      - key: POSTGRES_URL
-        scope: RUN_TIME
-        value: ${postgres.DATABASE_URL}
-      - key: REDIS_URL
-        scope: RUN_TIME
-        value: ${redis.DATABASE_URL}
       - key: NODE_ENV
         scope: RUN_TIME
-        value: production
       - key: ALCHEMY_ACTIVITY_KEY
         scope: RUN_TIME
-        type: SECRET
       - key: ALCHEMY_ACTIVITY_ID
         scope: RUN_TIME
       - key: ALCHEMY_BLOCK_KEY
         scope: RUN_TIME
-        type: SECRET
       - key: ALCHEMY_WEBHOOKS_KEY
         scope: RUN_TIME
-        type: SECRET
       - key: AUTH_SECRET
         scope: RUN_TIME
-        type: SECRET
       - key: KEEPER_PRIVATE_KEY
         scope: RUN_TIME
-        type: SECRET
       - key: ONESIGNAL_API_KEY
         scope: RUN_TIME
-        type: SECRET
       - key: PERSONA_API_KEY
         scope: RUN_TIME
-        type: SECRET
       - key: PERSONA_TEMPLATE_ID
         scope: RUN_TIME
       - key: PERSONA_URL
         scope: RUN_TIME
       - key: PERSONA_WEBHOOK_SECRET
         scope: RUN_TIME
-        type: SECRET
+      - key: POSTGRES_URL
+        scope: RUN_TIME
+      - key: REDIS_URL
+        scope: RUN_TIME
       - key: SEGMENT_WRITE_KEY
         scope: RUN_TIME
-        type: SECRET
       - key: SENTRY_DSN
         scope: RUN_TIME
       - key: PANDA_API_KEY
         scope: RUN_TIME
-        type: SECRET
       - key: PANDA_API_URL
         scope: RUN_TIME
 databases:
   - name: postgres
-    cluster_name: ${POSTGRES_NAME}
+    cluster_name: ${{ env.POSTGRES_NAME }}
     production: true
     engine: PG
     version: "17"
     db_name: defaultdb # cspell:ignore defaultdb
     db_user: doadmin # cspell:ignore doadmin
   - name: redis
-    cluster_name: ${REDIS_NAME}
+    cluster_name: ${{ env.REDIS_NAME }}
     production: true
     engine: VALKEY
     version: "8"
   - name: opensearch
-    cluster_name: ${OPENSEARCH_NAME}
+    cluster_name: ${{ env.OPENSEARCH_NAME }}
     production: true
     engine: OPENSEARCH
     version: "2"
