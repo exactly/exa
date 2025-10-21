@@ -56,11 +56,11 @@ import publicClient from "../utils/publicClient";
 import redis from "../utils/redis";
 import validatorHook from "../utils/validatorHook";
 
-if (!process.env.ALCHEMY_BLOCK_KEY) throw new Error("missing alchemy block key");
-const signingKeys = new Set([process.env.ALCHEMY_BLOCK_KEY]);
-
 const debug = createDebug("exa:block");
 Object.assign(debug, { inspectOpts: { depth: undefined } });
+
+if (!process.env.ALCHEMY_BLOCK_KEY) debug("missing alchemy block key");
+const signingKeys = new Set(process.env.ALCHEMY_BLOCK_KEY && [process.env.ALCHEMY_BLOCK_KEY]);
 
 const mutexes = new Map<Address, Mutex>();
 function createMutex(address: Address) {
@@ -458,41 +458,44 @@ fetch("https://dashboard.alchemy.com/api/team-webhooks", alchemyInit)
       (hook) =>
         hook.is_active && hook.webhook_type === "GRAPHQL" && hook.network === network && hook.webhook_url === url,
     );
-    if (!currentHook) throw new Error("missing webhook");
-    signingKeys.add(currentHook.signing_key);
-
-    const queryResponse = await fetch(
-      `https://dashboard.alchemy.com/api/dashboard-webhook-graphql-query?webhook_id=${currentHook.id}`,
-      alchemyInit,
-    );
-    if (!queryResponse.ok) throw new Error(`${queryResponse.status} ${await queryResponse.text()}`);
-    const { data: query } = (await queryResponse.json()) as { data: { graphql_query: string } };
-    let shouldUpdate = false;
+    let shouldUpdate = !currentHook;
     let currentAddresses: string[] = [];
-    visit(parse(query.graphql_query), {
-      Field(node) {
-        if (node.name.value === "block") {
-          shouldUpdate ||= !node.selectionSet?.selections.find(
-            (selection) => selection.kind === Kind.FIELD && selection.name.value === "number",
-          );
-        } else if (node.name.value === "logs") {
-          const filterArguments = node.arguments?.find(({ name }) => name.value === "filter");
-          if (filterArguments?.value.kind === Kind.OBJECT) {
-            const addressesField = filterArguments.value.fields.find(({ name }) => name.value === "addresses");
-            if (addressesField?.value.kind === Kind.LIST) {
-              currentAddresses = addressesField.value.values
-                .filter((value): value is StringValueNode => value.kind === Kind.STRING)
-                .map(({ value }) => v.parse(Address, value));
-              shouldUpdate ||=
-                !currentAddresses.includes(exaPluginAddress) || !currentAddresses.includes(proposalManagerAddress);
+    if (currentHook) {
+      signingKeys.add(currentHook.signing_key);
+
+      const queryResponse = await fetch(
+        `https://dashboard.alchemy.com/api/dashboard-webhook-graphql-query?webhook_id=${currentHook.id}`,
+        alchemyInit,
+      );
+      if (!queryResponse.ok) throw new Error(`${queryResponse.status} ${await queryResponse.text()}`);
+      const { data: query } = (await queryResponse.json()) as { data: { graphql_query: string } };
+      visit(parse(query.graphql_query), {
+        Field(node) {
+          if (node.name.value === "block") {
+            shouldUpdate ||= !node.selectionSet?.selections.find(
+              (selection) => selection.kind === Kind.FIELD && selection.name.value === "number",
+            );
+          } else if (node.name.value === "logs") {
+            const filterArguments = node.arguments?.find(({ name }) => name.value === "filter");
+            if (filterArguments?.value.kind === Kind.OBJECT) {
+              const addressesField = filterArguments.value.fields.find(({ name }) => name.value === "addresses");
+              if (addressesField?.value.kind === Kind.LIST) {
+                currentAddresses = addressesField.value.values
+                  .filter((value): value is StringValueNode => value.kind === Kind.STRING)
+                  .map(({ value }) => v.parse(Address, value));
+                shouldUpdate ||=
+                  !currentAddresses.includes(exaPluginAddress) || !currentAddresses.includes(proposalManagerAddress);
+              }
+              const topicsField = filterArguments.value.fields.find(({ name }) => name.value === "topics");
+              if (topicsField?.value.kind === Kind.LIST) {
+                shouldUpdate ||= topicsField.value.values[0]?.kind !== Kind.LIST;
+              }
             }
-            const topicsField = filterArguments.value.fields.find(({ name }) => name.value === "topics");
-            if (topicsField?.value.kind === Kind.LIST) shouldUpdate ||= topicsField.value.values[0]?.kind !== Kind.LIST;
           }
-        }
-      },
-    });
-    if (!shouldUpdate) return; // eslint-disable-line @typescript-eslint/no-unnecessary-condition
+        },
+      });
+    }
+    if (!shouldUpdate) return;
 
     const createResponse = await fetch("https://dashboard.alchemy.com/api/create-webhook", {
       ...alchemyInit,
@@ -532,13 +535,15 @@ fetch("https://dashboard.alchemy.com/api/team-webhooks", alchemyInit)
     if (!createResponse.ok) throw new Error(`${createResponse.status} ${await createResponse.text()}`);
     const { data: newHook } = (await createResponse.json()) as { data: { signing_key: string } };
     signingKeys.add(newHook.signing_key);
-    const deleteResponse = await fetch(
-      `https://dashboard.alchemy.com/api/delete-webhook?webhook_id=${currentHook.id}`,
-      { ...alchemyInit, method: "DELETE" },
-    );
-    if (!deleteResponse.ok) throw new Error(`${deleteResponse.status} ${await deleteResponse.text()}`);
-    await setTimeout(5000);
-    signingKeys.delete(currentHook.signing_key);
+    if (currentHook) {
+      const deleteResponse = await fetch(
+        `https://dashboard.alchemy.com/api/delete-webhook?webhook_id=${currentHook.id}`,
+        { ...alchemyInit, method: "DELETE" },
+      );
+      if (!deleteResponse.ok) throw new Error(`${deleteResponse.status} ${await deleteResponse.text()}`);
+      await setTimeout(5000);
+      signingKeys.delete(currentHook.signing_key);
+    }
   })
   .catch((error: unknown) => captureException(error));
 
