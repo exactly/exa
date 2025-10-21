@@ -254,13 +254,12 @@ export default new Hono().get(
     const cardPurchases =
       !ignore("card") && maturity
         ? await (async function () {
+            if (!borrows) return [];
             const hashes = borrows
-              ? borrows
-                  .entries()
-                  .filter(([_, { events }]) => events.some(({ maturity: m }) => m === BigInt(maturity)))
-                  .map(([hash]) => hash)
-              : [];
-
+              .entries()
+              .filter(([_, { events }]) => events.some(({ maturity: m }) => m === BigInt(maturity)))
+              .map(([hash]) => hash);
+            if ([...hashes].length === 0) return [];
             const transactions = await database.query.transactions.findMany({
               where: arrayOverlaps(transactionsSchema.hashes, [...hashes]),
               columns: { hashes: true, payload: true },
