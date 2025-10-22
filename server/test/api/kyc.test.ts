@@ -4,6 +4,7 @@ import "../mocks/database";
 import "../mocks/deployments";
 
 import deriveAddress from "@exactly/common/deriveAddress";
+import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { zeroHash, padHex, zeroAddress } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
@@ -36,6 +37,7 @@ describe("authenticated", () => {
   });
 
   it("returns ok kyc approved without template", async () => {
+    await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, account));
     const getInquiry = vi.spyOn(persona, "getInquiry").mockResolvedValueOnce(personaTemplate);
     const getAccount = vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
       ...personaTemplate,

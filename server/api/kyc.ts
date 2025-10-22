@@ -30,10 +30,11 @@ export default new Hono()
     }
     const { credentialId } = c.req.valid("cookie");
     const credential = await database.query.credentials.findFirst({
-      columns: { id: true, account: true },
+      columns: { id: true, account: true, pandaId: true },
       where: eq(credentials.id, credentialId),
     });
     if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
+    if (credential.pandaId) return c.json({ code: "ok", legacy: "ok" }, 200);
     setUser({ id: parse(Address, credential.account) });
     setContext("exa", { credential });
     const inquiry = await getInquiry(credentialId, templateId);
@@ -66,10 +67,11 @@ export default new Hono()
       const templateId = payload.templateId ?? CRYPTOMATE_TEMPLATE;
       const redirectURI = payload.redirectURI;
       const credential = await database.query.credentials.findFirst({
-        columns: { id: true, account: true },
+        columns: { id: true, account: true, pandaId: true },
         where: eq(credentials.id, credentialId),
       });
       if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
+      if (credential.pandaId) return c.json({ code: "already approved", legacy: "kyc already approved" }, 400);
       setUser({ id: parse(Address, credential.account) });
       setContext("exa", { credential });
       const inquiry = await getInquiry(credentialId, templateId);
