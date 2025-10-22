@@ -76,7 +76,11 @@ export default function Home() {
     refetch: refetchMarkets,
     isPending: isPendingPreviewer,
   } = useReadPreviewerExactly({ address: previewerAddress, args: [account ?? zeroAddress] });
-  const { data: KYCStatus, refetch: refetchKYCStatus } = useQuery({
+  const {
+    data: KYCStatus,
+    isFetched: isKYCFetched,
+    refetch: refetchKYCStatus,
+  } = useQuery({
     queryKey: ["kyc", "status"],
     queryFn: async () => getKYCStatus(KYC_TEMPLATE_ID),
     meta: {
@@ -88,6 +92,7 @@ export default function Home() {
   const { data: legacyKYCStatus, refetch: refetchLegacyKYCStatus } = useQuery({
     queryKey: ["legacy", "kyc", "status"],
     queryFn: async () => getKYCStatus(LEGACY_KYC_TEMPLATE_ID),
+    enabled: isKYCFetched && KYCStatus !== "ok",
     meta: {
       suppressError: (error) =>
         error instanceof APIError &&

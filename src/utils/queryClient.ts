@@ -219,6 +219,8 @@ queryClient.setQueryDefaults<EmbeddingContext>(["embedding-context"], {
     return null;
   },
 });
+queryClient.setQueryDefaults(["kyc", "status"], { staleTime: 5 * 60_000, gcTime: 60 * 60_000 });
+queryClient.setQueryDefaults(["legacy", "kyc", "status"], { staleTime: 5 * 60_000, gcTime: 60 * 60_000 });
 
 export type AuthMethod = "siwe" | "webauthn";
 export type EmbeddingContext = "base" | "farcaster" | "farcaster-web" | "metamask" | "phantom" | "unknown" | null;
