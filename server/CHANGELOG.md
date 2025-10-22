@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.27
+
+### Patch Changes
+
+- [`fc28a72`](https://github.com/exactly/exa/commit/fc28a724e2530ac55558b23c6682e315457b3114) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚑 fix web kyc redirect
+
 ## 0.2.26
 
 ### Patch Changes

@@ -1,5 +1,22 @@
 # @exactly/mobile
 
+## 1.0.30
+
+### Patch Changes
+
+- [`5eb0503`](https://github.com/exactly/exa/commit/5eb05036b3a4ec329a317a212ecad74075ef5f58) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix camera view lifecycle
+
+- [`133d25e`](https://github.com/exactly/exa/commit/133d25e57481fe7b8e77aebd0c485fb469f05412) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🩹 drop maturity check in borrow query
+
+- [`7d51e11`](https://github.com/exactly/exa/commit/7d51e11240b4a335b2eab36fb4b0a7a0398d3b77) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ⚡️ set kyc status query defaults
+
+- [`61aadd8`](https://github.com/exactly/exa/commit/61aadd87f52879fd954d63607599dfd95a94d839) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 add network reminder to copy address modal
+
+- [`fc28a72`](https://github.com/exactly/exa/commit/fc28a724e2530ac55558b23c6682e315457b3114) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚑 fix web kyc redirect
+
+- Updated dependencies [[`fc28a72`](https://github.com/exactly/exa/commit/fc28a724e2530ac55558b23c6682e315457b3114)]:
+  - @exactly/server@0.2.27
+
 ## 1.0.29
 
 ### Patch Changes
