@@ -372,9 +372,13 @@ The admin should add a member using [addMember method](https://www.better-auth.c
           description: "Forbidden",
           content: {
             "application/json": {
-              schema: resolver(object({ code: literal("no permission"), message: optional(string()) }), {
-                errorMode: "ignore",
-              }),
+              schema: resolver(
+                object({
+                  code: picklist(["no permission", "no organization"]),
+                  message: optional(string()),
+                }),
+                { errorMode: "ignore" },
+              ),
             },
           },
         },
