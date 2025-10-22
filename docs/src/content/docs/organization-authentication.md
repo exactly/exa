@@ -116,14 +116,23 @@ new email for invites: foo@example.com { status: true }
 owner account will be the owner of the created organization
 
 ```typescript
-const chainId = optimismSepolia.id;
+import { createAuthClient } from "better-auth/client";
+import { siweClient, organizationClient } from "better-auth/client/plugins";
+import type { Hex } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { baseSepolia } from "viem/chains";
+import { createSiweMessage } from "viem/siwe";
+
+const chainId = baseSepolia.id;
+const API_BASE_URL = process.env.API_BASE_URL;
+if (!API_BASE_URL) throw new Error("API_BASE_URL environment variable is required");
 
 const authClient = createAuthClient({
-  baseURL: "http://localhost:3000",
+  baseURL: process.env.API_BASE_URL,
   plugins: [siweClient(), organizationClient()],
 });
 
-const owner = mnemonicToAccount("test test test test test test test test test test test siwe");
+const owner = privateKeyToAccount(process.env.INTEGRATOR_ADMIN_PRIVATE_KEY as Hex);
 
 authClient.siwe
   .nonce({
@@ -137,12 +146,12 @@ authClient.siwe
       statement,
       resources: ["https://exactly.github.io/exa"],
       nonce,
-      uri: `https://localhost`,
+      uri: API_BASE_URL,
       address: owner.address,
       chainId,
       scheme: "https",
       version: "1",
-      domain: "localhost",
+      domain: new URL(API_BASE_URL).hostname,
     });
     const signature = await owner.signMessage({ message });
 
