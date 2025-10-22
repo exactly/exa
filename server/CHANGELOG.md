@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.28
+
+### Patch Changes
+
+- [`a60dd6d`](https://github.com/exactly/exa/commit/a60dd6d9f5505b1911cf22364378eb0b6390d665) Thanks [@mainqueg](https://github.com/mainqueg)! - ⚡️ avoid persona calls when panda
+
 ## 0.2.27
 
 ### Patch Changes

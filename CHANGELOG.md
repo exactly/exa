@@ -1,5 +1,14 @@
 # @exactly/mobile
 
+## 1.0.31
+
+### Patch Changes
+
+- [`0153ae9`](https://github.com/exactly/exa/commit/0153ae936f599fb676374b1824c2dbd4f7692b50) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ⚡️ use asset logos with caching headers
+
+- Updated dependencies [[`a60dd6d`](https://github.com/exactly/exa/commit/a60dd6d9f5505b1911cf22364378eb0b6390d665)]:
+  - @exactly/server@0.2.28
+
 ## 1.0.30
 
 ### Patch Changes

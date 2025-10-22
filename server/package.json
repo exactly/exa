@@ -1,6 +1,6 @@
 {
   "name": "@exactly/server",
-  "version": "0.2.27",
+  "version": "0.2.28",
   "private": true,
   "scripts": {
     "build": "pkgroll --sourcemap --src . && sentry-cli sourcemaps inject -o exactly -p server dist",

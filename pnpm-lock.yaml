@@ -86,7 +86,7 @@ importers:
         specifier: ^0.1.0
         version: 0.1.0
       '@exactly/server':
-        specifier: workspace:^0.2.27
+        specifier: workspace:^0.2.28
         version: link:server
       '@expo/metro-runtime':
         specifier: ~4.0.1
