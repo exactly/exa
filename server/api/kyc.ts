@@ -5,7 +5,20 @@ import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { describeRoute } from "hono-openapi";
 import { resolver, validator as vValidator } from "hono-openapi/valibot";
-import { object, parse, optional, string, pipe, metadata, union, array, partial, check, literal } from "valibot";
+import {
+  array,
+  check,
+  literal,
+  metadata,
+  object,
+  optional,
+  parse,
+  partial,
+  picklist,
+  pipe,
+  string,
+  union,
+} from "valibot";
 import { sha256 } from "viem";
 import { parseSiweMessage } from "viem/siwe";
 
@@ -273,6 +286,20 @@ The admin should add a member using [addMember method](https://www.better-auth.c
             },
           },
         },
+        401: {
+          description: "Invalid Payload",
+          content: {
+            "application/json": {
+              schema: resolver(
+                object({
+                  code: literal("invalid payload"),
+                  message: optional(string()),
+                }),
+                { errorMode: "ignore" },
+              ),
+            },
+          },
+        },
         409: {
           description: "Bad request",
           content: {
@@ -299,7 +326,7 @@ The admin should add a member using [addMember method](https://www.better-auth.c
             "application/json": {
               schema: resolver(
                 object({
-                  code: literal("no permission"),
+                  code: picklist(["no permission", "no organization"]),
                   message: optional(string()),
                 }),
                 { errorMode: "ignore" },
