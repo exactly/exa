@@ -360,7 +360,7 @@ describe("proposal", () => {
 });
 
 const blockPayload = {
-  header: undefined,
+  header: {},
   json: {
     type: "GRAPHQL" as const,
     event: { data: { block: { number: 666, timestamp: Math.floor(Date.now() / 1000), logs: [] } } },
@@ -368,7 +368,7 @@ const blockPayload = {
 };
 
 const withdrawProposal = {
-  header: undefined,
+  header: {},
   json: {
     webhookId: "webhookId",
     id: "eventId",

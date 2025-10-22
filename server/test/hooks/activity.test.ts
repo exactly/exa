@@ -230,7 +230,7 @@ describe("address activity", () => {
 });
 
 const activityPayload = {
-  header: undefined,
+  header: {},
   json: {
     type: "ADDRESS_ACTIVITY",
     event: {
