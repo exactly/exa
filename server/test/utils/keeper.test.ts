@@ -108,9 +108,9 @@ describe("fault tolerance", () => {
 
   it("resets nonce with 100 transactions blocked", async () => {
     const waitForTransactionReceipt = publicClient.waitForTransactionReceipt;
-    vi.spyOn(publicClient, "waitForTransactionReceipt").mockImplementation((parameters) =>
-      waitForTransactionReceipt({ ...parameters, timeout: 100 }),
-    );
+    const mockWaitForTransactionReceipt = vi
+      .spyOn(publicClient, "waitForTransactionReceipt")
+      .mockImplementation((parameters) => waitForTransactionReceipt({ ...parameters, timeout: 100 }));
     const hardReset = vi.spyOn(nonceManager, "hardReset");
     const currentNonce = await nonceSource.get({
       address: keeperClient.account.address,
@@ -144,6 +144,8 @@ describe("fault tolerance", () => {
         reason: { name: "WaitForTransactionReceiptTimeoutError" },
       })),
     );
+
+    mockWaitForTransactionReceipt.mockRestore();
 
     await keeper.exaSend(
       { name: "test transfer", op: "test.transfer" },
