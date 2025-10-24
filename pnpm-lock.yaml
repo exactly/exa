@@ -221,8 +221,8 @@ importers:
         specifier: ^1.0.6
         version: 1.0.6
       hono:
-        specifier: ^4.10.2
-        version: 4.10.2
+        specifier: ^4.10.3
+        version: 4.10.3
       i18n-iso-countries:
         specifier: ^7.14.0
         version: 7.14.0
@@ -573,13 +573,13 @@ importers:
         version: 0.1.0
       '@hono/node-server':
         specifier: ^1.19.5
-        version: 1.19.5(hono@4.10.2)
+        version: 1.19.5(hono@4.10.3)
       '@hono/sentry':
         specifier: ^1.2.2
-        version: 1.2.2(hono@4.10.2)
+        version: 1.2.2(hono@4.10.3)
       '@hono/valibot-validator':
         specifier: ^0.5.3
-        version: 0.5.3(hono@4.10.2)(valibot@1.0.0(typescript@5.8.3))
+        version: 0.5.3(hono@4.10.3)(valibot@1.0.0(typescript@5.8.3))
       '@onesignal/node-onesignal':
         specifier: ^5.3.1-beta1
         version: 5.3.1-beta1
@@ -620,11 +620,11 @@ importers:
         specifier: ^16.11.0
         version: 16.11.0
       hono:
-        specifier: ^4.10.2
-        version: 4.10.2
+        specifier: ^4.10.3
+        version: 4.10.3
       hono-openapi:
         specifier: ^0.4.8
-        version: 0.4.8(@hono/valibot-validator@0.5.3(hono@4.10.2)(valibot@1.0.0(typescript@5.8.3)))(@valibot/to-json-schema@1.3.0(valibot@1.0.0(typescript@5.8.3)))(hono@4.10.2)(openapi-types@12.1.3)(valibot@1.0.0(typescript@5.8.3))(zod@3.25.76)
+        version: 0.4.8(@hono/valibot-validator@0.5.3(hono@4.10.3)(valibot@1.0.0(typescript@5.8.3)))(@valibot/to-json-schema@1.3.0(valibot@1.0.0(typescript@5.8.3)))(hono@4.10.3)(openapi-types@12.1.3)(valibot@1.0.0(typescript@5.8.3))(zod@3.25.76)
       ioredis:
         specifier: ^5.8.2
         version: 5.8.2
@@ -7939,8 +7939,8 @@ packages:
       zod-openapi:
         optional: true
 
-  hono@4.10.2:
-    resolution: {integrity: sha512-p6fyzl+mQo6uhESLxbF5WlBOAJMDh36PljwlKtP5V1v09NxlqGru3ShK+4wKhSuhuYf8qxMmrivHOa/M7q0sMg==}
+  hono@4.10.3:
+    resolution: {integrity: sha512-2LOYWUbnhdxdL8MNbNg9XZig6k+cZXm5IjHn2Aviv7honhBMOHb+jxrKIeJRZJRmn+htUCKhaicxwXuUDlchRA==}
     engines: {node: '>=16.9.0'}
 
   hosted-git-info@2.8.9:
@@ -14371,18 +14371,18 @@ snapshots:
 
   '@hexagon/base64@1.1.28': {}
 
-  '@hono/node-server@1.19.5(hono@4.10.2)':
+  '@hono/node-server@1.19.5(hono@4.10.3)':
     dependencies:
-      hono: 4.10.2
+      hono: 4.10.3
 
-  '@hono/sentry@1.2.2(hono@4.10.2)':
+  '@hono/sentry@1.2.2(hono@4.10.3)':
     dependencies:
-      hono: 4.10.2
+      hono: 4.10.3
       toucan-js: 4.1.1
 
-  '@hono/valibot-validator@0.5.3(hono@4.10.2)(valibot@1.0.0(typescript@5.8.3))':
+  '@hono/valibot-validator@0.5.3(hono@4.10.3)(valibot@1.0.0(typescript@5.8.3))':
     dependencies:
-      hono: 4.10.2
+      hono: 4.10.3
       valibot: 1.0.0(typescript@5.8.3)
 
   '@humanwhocodes/config-array@0.13.0':
@@ -21752,18 +21752,18 @@ snapshots:
     dependencies:
       react-is: 16.13.1
 
-  hono-openapi@0.4.8(@hono/valibot-validator@0.5.3(hono@4.10.2)(valibot@1.0.0(typescript@5.8.3)))(@valibot/to-json-schema@1.3.0(valibot@1.0.0(typescript@5.8.3)))(hono@4.10.2)(openapi-types@12.1.3)(valibot@1.0.0(typescript@5.8.3))(zod@3.25.76):
+  hono-openapi@0.4.8(@hono/valibot-validator@0.5.3(hono@4.10.3)(valibot@1.0.0(typescript@5.8.3)))(@valibot/to-json-schema@1.3.0(valibot@1.0.0(typescript@5.8.3)))(hono@4.10.3)(openapi-types@12.1.3)(valibot@1.0.0(typescript@5.8.3))(zod@3.25.76):
     dependencies:
       json-schema-walker: 2.0.0
       openapi-types: 12.1.3
     optionalDependencies:
-      '@hono/valibot-validator': 0.5.3(hono@4.10.2)(valibot@1.0.0(typescript@5.8.3))
+      '@hono/valibot-validator': 0.5.3(hono@4.10.3)(valibot@1.0.0(typescript@5.8.3))
       '@valibot/to-json-schema': 1.3.0(valibot@1.0.0(typescript@5.8.3))
-      hono: 4.10.2
+      hono: 4.10.3
       valibot: 1.0.0(typescript@5.8.3)
       zod: 3.25.76
 
-  hono@4.10.2: {}
+  hono@4.10.3: {}
 
   hosted-git-info@2.8.9: {}
 
