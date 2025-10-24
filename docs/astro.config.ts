@@ -16,7 +16,7 @@ export default defineConfig({
         ]),
       ],
       sidebar: [
-        { label: "Docs", items: ["index", "organization-authentication", "webhooks"] },
+        { label: "Docs", items: ["index", "organization-authentication", "resources", "webhooks"] },
         ...openAPISidebarGroups,
       ],
     }),
