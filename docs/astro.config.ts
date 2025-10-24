@@ -12,7 +12,7 @@ export default defineConfig({
       social: [{ icon: "github", label: "GitHub", href: "https://github.com/exactly/exa" }],
       plugins: [starlightOpenAPI([{ base: "api", schema: "../server/openapi.json", sidebar: { collapsed: false } }])],
       sidebar: [
-        { label: "Docs", items: ["index", "webhooks", "organization-authentication"] },
+        { label: "Docs", items: ["index", "organization-authentication", "resources", "webhooks"] },
         ...openAPISidebarGroups,
       ],
     }),
