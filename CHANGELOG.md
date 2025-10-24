@@ -1,5 +1,11 @@
 # @exactly/mobile
 
+## 1.0.32
+
+### Patch Changes
+
+- [`a49b314`](https://github.com/exactly/exa/commit/a49b314cff0b1d7f5e2e1b15258b8828700d3e5a) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ⬇️ downgrade node types and graphql
+
 ## 1.0.31
 
 ### Patch Changes
