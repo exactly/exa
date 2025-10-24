@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.29
+
+### Patch Changes
+
+- [`1dac936`](https://github.com/exactly/exa/commit/1dac9368f551d55b70843da29f16f40ffa2ec369) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ⬇️ downgrade sentry libraries
+
 ## 0.2.28
 
 ### Patch Changes
