@@ -11,6 +11,8 @@ import { WETH as IWETH } from "solady/tokens/WETH.sol";
 
 import { Disagreement, IMarket } from "./IExaAccount.sol";
 
+import { console } from "forge-std/console.sol";
+
 contract ExaPluginExtension {
   using SafeERC20 for IERC20;
 
@@ -52,6 +54,11 @@ contract ExaPluginExtension {
       if (r.market != EXA_USDC) IERC20(r.market.asset()).forceApprove(address(r.market), r.maxRepay);
       // slither-disable-next-line reentrancy-no-eth -- markets are safe
       uint256 actualRepay = r.market.repayAtMaturity(r.maturity, r.positionAssets, r.maxRepay, r.borrower);
+      console.log("actualRepay", actualRepay);
+      console.log("maxRepay", r.maxRepay);
+      console.log("fees", fees[0]);
+      console.log("spent", actualRepay + fees[0]);
+      console.log("r.maxRepay + fees[0]", r.maxRepay + fees[0]);
 
       uint256 spent = actualRepay + fees[0];
       // slither-disable-next-line reentrancy-benign -- markets are safe
@@ -60,6 +67,7 @@ contract ExaPluginExtension {
       _execute(r.borrower, address(r.market), 0, abi.encodeCall(IMarket.withdraw, (spent, address(this), r.borrower)));
       // slither-disable-next-line reentrancy-benign -- markets are safe
       delete callHash;
+      console.log("balance", IERC20(r.market.asset()).balanceOf(address(this)));
       IERC20(r.market.asset()).safeTransfer(_flashLoaner, r.maxRepay + fees[0]);
       return;
     }

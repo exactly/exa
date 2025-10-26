@@ -3681,6 +3681,36 @@ contract ExaPluginTest is ForkTest {
     assertEq(proposalManager.queueNonces(address(account)), queueNonce, "queue nonce didn't stay the same");
   }
 
+  function test_repay_whenFlashloanerHasFees_andActualRepayPlusFeesIsMaxRepay() external {
+    MockBalancerVault flashLoaner = new MockBalancerVault();
+    flashLoaner.setFee(1e6);
+    usdc.mint(address(flashLoaner), 1_000_000e6);
+
+    exaPlugin.setFlashLoaner(IFlashLoaner(address(flashLoaner)));
+
+    vm.startPrank(keeper);
+    account.poke(exaUSDC);
+    account.collectCredit(FixedLib.INTERVAL, 100e6, block.timestamp, _issuerOp(100e6, block.timestamp));
+
+    FixedPosition memory position = exaUSDC.fixedBorrowPositions(FixedLib.INTERVAL, address(account));
+    uint256 positionAssets = position.principal + position.fee;
+    assertGt(positionAssets, 0);
+
+    vm.startPrank(address(account));
+    account.propose(
+      exaUSDC,
+      100026854 + 1e6,
+      ProposalType.REPAY_AT_MATURITY,
+      abi.encode(RepayData({ maturity: FixedLib.INTERVAL, positionAssets: positionAssets }))
+    );
+
+    skip(proposalManager.delay());
+    account.executeProposal(proposalManager.nonces(address(account)));
+
+    position = exaUSDC.fixedBorrowPositions(FixedLib.INTERVAL, address(account));
+    assertEq(position.principal + position.fee, 0);
+  }
+
   // solhint-enable func-name-mixedcase
 
   function _issuerOp(uint256 amount, uint256 timestamp) internal view returns (bytes memory signature) {
