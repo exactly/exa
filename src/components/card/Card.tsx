@@ -4,6 +4,7 @@ import { ChevronRight, CircleHelp, CreditCard, DollarSign, Eye, EyeOff, Hash, Sn
 import { useToastController } from "@tamagui/toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigation } from "expo-router";
+import { Skeleton } from "moti/skeleton";
 import React, { useState } from "react";
 import { Pressable, RefreshControl } from "react-native";
 import { ScrollView, Separator, Spinner, Square, Switch, useTheme, XStack, YStack } from "tamagui";
@@ -59,7 +60,19 @@ export default function Card() {
     queryFn: () => getActivity({ include: "card" }),
   });
 
-  const limit = 10_000;
+  const {
+    data: cardDetails,
+    refetch: refetchCard,
+    isFetching: isFetchingCard,
+  } = useQuery({
+    queryKey: ["card", "details"],
+    queryFn: getCard,
+    retry: false,
+    gcTime: 0,
+    staleTime: 0,
+  });
+
+  const limit = cardDetails?.limit.amount ? cardDetails.limit.amount / 100 : undefined;
   const weeklyPurchases = purchases
     ? purchases.filter((item) => {
         if (item.type !== "panda") return false;
@@ -68,7 +81,6 @@ export default function Card() {
       })
     : [];
   const totalSpent = weeklyPurchases.reduce((accumulator, item) => accumulator + item.usdAmount, 0);
-  const remaining = limit - totalSpent;
 
   const { queryKey } = useAsset(marketUSDCAddress);
   const { address } = useAccount();
@@ -100,18 +112,6 @@ export default function Card() {
       }
     }
   }
-
-  const {
-    data: cardDetails,
-    refetch: refetchCard,
-    isFetching: isFetchingCard,
-  } = useQuery({
-    queryKey: ["card", "details"],
-    queryFn: getCard,
-    retry: false,
-    gcTime: 0,
-    staleTime: 0,
-  });
 
   const {
     mutateAsync: revealCard,
@@ -391,6 +391,7 @@ export default function Card() {
                     justifyContent="space-between"
                     cursor="pointer"
                     onPress={() => {
+                      if (!limit) return;
                       setSpendingLimitsOpen(true);
                     }}
                   >
@@ -401,15 +402,21 @@ export default function Card() {
                       </Text>
                     </XStack>
                     <XStack alignItems="center">
-                      <Text caption emphasized color="$uiBrandSecondary" lineHeight={24}>
-                        {remaining.toLocaleString(undefined, {
-                          style: "currency",
-                          currency: "USD",
-                          currencyDisplay: "narrowSymbol",
-                          maximumFractionDigits: 0,
-                        })}
-                      </Text>
-                      <ChevronRight color="$uiBrandSecondary" size={24} />
+                      {limit ? (
+                        <>
+                          <Text caption emphasized color="$uiBrandSecondary" lineHeight={24}>
+                            {(limit - totalSpent).toLocaleString(undefined, {
+                              style: "currency",
+                              currency: "USD",
+                              currencyDisplay: "narrowSymbol",
+                              maximumFractionDigits: 0,
+                            })}
+                          </Text>
+                          <ChevronRight color="$uiBrandSecondary" size={24} />
+                        </>
+                      ) : (
+                        <Skeleton width={100} height={16} />
+                      )}
                     </XStack>
                   </XStack>
                 </YStack>
@@ -480,8 +487,8 @@ export default function Card() {
         />
         <SpendingLimits
           open={spendingLimitsOpen}
-          remaining={remaining}
           totalSpent={totalSpent}
+          limit={limit}
           onClose={() => {
             setSpendingLimitsOpen(false);
           }}
