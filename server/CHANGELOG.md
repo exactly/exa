@@ -1,5 +1,15 @@
 # @exactly/server
 
+## 0.2.30
+
+### Patch Changes
+
+- [`5db2a08`](https://github.com/exactly/exa/commit/5db2a0817cf8355f612cabcf0b885ebf59972664) Thanks [@mainqueg](https://github.com/mainqueg)! - 🗃️ add bridge id
+
+- [`f00a6b8`](https://github.com/exactly/exa/commit/f00a6b8f0105deee6f364a379f53fc31ed1c188a) Thanks [@mainqueg](https://github.com/mainqueg)! - ✨ integrate manteca and bridge onramp
+
+- [`e0d261d`](https://github.com/exactly/exa/commit/e0d261d557007109ef639e073a71054258ad50fc) Thanks [@mainqueg](https://github.com/mainqueg)! - 🥅 improve validation error messages
+
 ## 0.2.29
 
 ### Patch Changes
