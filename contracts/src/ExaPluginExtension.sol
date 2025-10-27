@@ -147,9 +147,9 @@ struct CrossRepayCallbackData {
 }
 
 struct RepayCallbackData {
+  IMarket market;
   uint256 maturity;
   address borrower;
   uint256 positionAssets;
   uint256 maxRepay;
-  IMarket market;
 }
