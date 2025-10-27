@@ -15,13 +15,13 @@ import View from "../shared/View";
 export default function SpendingLimits({
   open,
   onClose,
-  remaining,
   totalSpent,
+  limit,
 }: {
   open: boolean;
   onClose: () => void;
-  remaining: number;
   totalSpent: number;
+  limit?: number;
 }) {
   const { newMessage } = useIntercom();
   function handleSupport() {
@@ -43,7 +43,7 @@ export default function SpendingLimits({
                   </Text>
                 </YStack>
                 <YStack paddingBottom="$s4">
-                  <SpendingLimit title="Weekly" limit={10_000} remaining={remaining} totalSpent={totalSpent} />
+                  <SpendingLimit title="Weekly" limit={limit} totalSpent={totalSpent} />
                 </YStack>
                 <Button onPress={handleSupport} primary>
                   <Button.Text>Increase spending limit</Button.Text>
