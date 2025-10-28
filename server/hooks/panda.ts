@@ -36,6 +36,7 @@ import {
   toBytes,
   withRetry,
   zeroHash,
+  type TransactionReceipt,
 } from "viem";
 
 import database, { cards, credentials, transactions } from "../database/index";
@@ -216,16 +217,15 @@ export default new Hono().post(
     setContext("panda", jsonBody); // eslint-disable-line @typescript-eslint/no-unsafe-argument
     getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, `panda.${payload.resource}.${payload.action}`);
 
-    startSpan({ name: "webhook", op: "panda.webhook" }, () => publish(payload)).catch((error: unknown) =>
-      captureException(error),
-    );
-
     if (payload.resource !== "transaction") {
       const user = await database.query.credentials.findFirst({
         columns: { account: true },
         where: and(eq(credentials.pandaId, payload.resource === "card" ? payload.body.userId : payload.body.id)),
       });
       if (user) setUser({ id: user.account });
+      startSpan({ name: "webhook", op: `panda.webhook.${payload.id}` }, () => publish(payload)).catch(
+        (error: unknown) => captureException(error, { level: "error" }),
+      );
       return c.json({ code: "ok" });
     }
 
@@ -430,6 +430,10 @@ export default new Hono().post(
                         },
                       ]));
                 },
+                onReceipt: (receipt) =>
+                  startSpan({ name: "webhook", op: `panda.webhook.${payload.id}` }, () =>
+                    publish(payload, receipt),
+                  ).catch((error: unknown) => captureException(error, { level: "error" })),
               },
             );
             sendPushNotification({
@@ -451,8 +455,12 @@ export default new Hono().post(
         }
       // falls through
       case "created": {
-        if (payload.body.spend.amount < 0) return c.json({ code: "ok" });
-
+        if (payload.body.spend.amount < 0) {
+          startSpan({ name: "webhook", op: `panda.webhook.${payload.id}` }, () => publish(payload)).catch(
+            (error: unknown) => captureException(error, { level: "error" }),
+          );
+          return c.json({ code: "ok" });
+        }
         const card = await findCardById(payload.body.spend.cardId);
         const account = v.parse(Address, card.credential.account);
         setUser({ id: account });
@@ -466,6 +474,9 @@ export default new Hono().post(
           mutex?.release();
           setContext("mutex", { locked: mutex?.isLocked() });
           trackTransactionRejected(account, payload, card.mode);
+          startSpan({ name: "webhook", op: `panda.webhook.${payload.id}` }, () => publish(payload)).catch(
+            (error: unknown) => captureException(error, { level: "error" }),
+          );
           return c.json({ code: "ok" });
         }
         if (payload.body.spend.status !== "pending" && payload.action !== "completed") return c.json({ code: "ok" });
@@ -491,7 +502,9 @@ export default new Hono().post(
                 },
               })
               .where(and(eq(transactions.id, payload.body.id), eq(transactions.cardId, payload.body.spend.cardId)));
-
+            startSpan({ name: "webhook", op: `panda.webhook.${payload.id}` }, () => publish(payload)).catch(
+              (error: unknown) => captureException(error, { level: "error" }),
+            );
             return c.json({ code: "ok" });
           }
           try {
@@ -542,6 +555,10 @@ export default new Hono().post(
                         },
                       ]));
                 },
+                onReceipt: (receipt) =>
+                  startSpan({ name: "webhook", op: `panda.webhook.${payload.body.id}` }, () =>
+                    publish(payload, receipt),
+                  ).catch((error: unknown) => captureException(error, { level: "error" })),
               },
             );
 
@@ -846,8 +863,9 @@ async function findCardById(cardId: string) {
   return card;
 }
 
-async function publish(payload: v.InferOutput<typeof Payload>) {
+async function publish(payload: v.InferOutput<typeof Payload>, receipt?: TransactionReceipt) {
   if (payload.resource === "transaction" && payload.action === "requested") return;
+  if (receipt && receipt.status === "reverted") return;
 
   async function sendWebhook(webhookPayload: v.InferOutput<typeof Webhook>, url: string, secret: string) {
     try {
@@ -893,10 +911,7 @@ async function publish(payload: v.InferOutput<typeof Payload>) {
         if (error instanceof Error && error.message === "WebhookFailed") {
           debugWebhook(error.cause);
         } else {
-          debugWebhook({
-            error: error.message,
-            payload: webhookPayload,
-          });
+          debugWebhook({ error: error.message, payload: webhookPayload });
         }
       }
       throw error;
@@ -943,6 +958,7 @@ async function publish(payload: v.InferOutput<typeof Payload>) {
           return sendWebhook(
             v.parse(Webhook, {
               ...payload,
+              ...(receipt && { receipt }),
               timestamp,
             }),
             webhook.transaction?.[payload.action] ?? webhook.url,
@@ -976,6 +992,13 @@ const BaseWebhook = v.object({
   }),
 });
 
+const Receipt = v.pipe(
+  v.object({ blockNumber: v.bigint(), transactionHash: v.string() }),
+  v.transform((r) => {
+    return { ...r, blockNumber: Number(r.blockNumber) };
+  }),
+);
+
 const Webhook = v.variant("resource", [
   v.variant("action", [
     v.object({
@@ -983,6 +1006,7 @@ const Webhook = v.variant("resource", [
       timestamp: v.pipe(v.string(), v.isoTimestamp()),
       resource: v.literal("transaction"),
       action: v.literal("created"),
+      receipt: v.optional(Receipt),
       body: v.object({
         ...BaseWebhook.entries,
         spend: v.object({
@@ -997,6 +1021,7 @@ const Webhook = v.variant("resource", [
       timestamp: v.pipe(v.string(), v.isoTimestamp()),
       resource: v.literal("transaction"),
       action: v.literal("updated"),
+      receipt: Receipt,
       body: v.object({
         ...BaseWebhook.entries,
         spend: v.object({
@@ -1016,6 +1041,7 @@ const Webhook = v.variant("resource", [
       timestamp: v.pipe(v.string(), v.isoTimestamp()),
       resource: v.literal("transaction"),
       action: v.literal("completed"),
+      receipt: v.optional(Receipt),
       body: v.object({
         ...BaseWebhook.entries,
         spend: v.object({
