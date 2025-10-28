@@ -56,6 +56,7 @@ export function extender(keeper: WalletClient<HttpTransport, typeof chain, Priva
       call: Prettify<Pick<WriteContractParameters, "address" | "functionName" | "args" | "abi">>,
       options?: {
         onHash?: (hash: Hash) => MaybePromise<unknown>;
+        onReceipt?: (hash: TransactionReceipt) => MaybePromise<unknown>;
         ignore?: string[] | ((reason: string) => MaybePromise<TransactionReceipt | boolean | undefined>);
       },
     ) =>
@@ -143,16 +144,22 @@ export function extender(keeper: WalletClient<HttpTransport, typeof chain, Priva
             if (receiptResult.status === "rejected") throw receiptResult.reason;
             const receipt = receiptResult.value;
             scope.setContext("tx", { request, receipt });
-            const trace = await startSpan({ name: "trace transaction", op: "tx.trace" }, () =>
-              withRetry(() => traceClient.traceTransaction(hash), {
-                delay: 1000,
-                retryCount: 10,
-                shouldRetry: ({ error }) => error instanceof InvalidInputRpcError,
-              }).catch((error: unknown) => {
-                captureException(error, { level: "error" });
-                return null;
-              }),
-            );
+            const [traceResult] = await Promise.allSettled([
+              startSpan({ name: "trace transaction", op: "tx.trace" }, () =>
+                withRetry(() => traceClient.traceTransaction(hash), {
+                  delay: 1000,
+                  retryCount: 10,
+                  shouldRetry: ({ error }) => error instanceof InvalidInputRpcError,
+                }).catch((error: unknown) => {
+                  captureException(error, { level: "error" });
+                  return null;
+                }),
+              ),
+              Promise.resolve(options?.onReceipt?.(receipt)).catch((error: unknown) =>
+                captureException(error, { level: "error" }),
+              ),
+            ]);
+            const trace = traceResult.status === "fulfilled" ? traceResult.value : null;
             scope.setContext("tx", { request, receipt, trace });
             if (receipt.status !== "success") {
               if (!trace) throw new Error("no trace");
