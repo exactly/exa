@@ -2,7 +2,7 @@ import type { Credential } from "@exactly/common/validation";
 import { ArrowRight, ChevronRight, IdCard } from "@tamagui/lucide-icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigation } from "expo-router";
-import React, { useContext, useEffect } from "react";
+import React, { useEffect } from "react";
 import { PixelRatio, Pressable } from "react-native";
 import { Spinner, XStack, YStack } from "tamagui";
 
@@ -11,13 +11,13 @@ import { createInquiry, KYC_TEMPLATE_ID, resumeInquiry } from "../../utils/perso
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { APIError, getKYCStatus } from "../../utils/server";
-import { OnboardingContext } from "../context/OnboardingProvider";
+import useOnboardingSteps from "../../utils/useOnboardingSteps";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function GettingStarted({ hasFunds, hasKYC }: { hasFunds: boolean; hasKYC: boolean }) {
   const navigation = useNavigation<AppNavigationProperties>();
-  const { steps, currentStep, completedSteps, setSteps } = useContext(OnboardingContext);
+  const { steps, currentStep, completedSteps, setSteps } = useOnboardingSteps();
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const { mutateAsync: startKYC, isPending } = useMutation({
     mutationKey: ["kyc"],
@@ -57,13 +57,13 @@ export default function GettingStarted({ hasFunds, hasKYC }: { hasFunds: boolean
     }
   }
   useEffect(() => {
-    setSteps((previous) => {
-      return previous.map((step) => {
+    setSteps((previous) =>
+      previous.map((step) => {
         if (step.id === "add-funds" && hasFunds) return { ...step, completed: true };
         if (step.id === "verify-identity" && hasKYC) return { ...step, completed: true };
         return step;
-      });
-    });
+      }),
+    );
   }, [hasFunds, hasKYC, setSteps]);
 
   if (hasFunds && hasKYC) return null;
