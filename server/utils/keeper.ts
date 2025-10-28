@@ -74,6 +74,7 @@ export function extender(
         ignore?: ((reason: string) => MaybePromise<boolean | TransactionReceipt | undefined>) | string[];
         level?: "error" | "warning" | ((reason: string, error: unknown) => "error" | "warning" | false) | false;
         onHash?: (hash: Hash) => MaybePromise<unknown>;
+        onReceipt?: (receipt: TransactionReceipt) => MaybePromise<unknown>;
       },
     ) =>
       withScope((scope) =>
@@ -164,6 +165,9 @@ export function extender(
             if (receiptResult.status === "rejected") throw receiptResult.reason;
             const receipt = receiptResult.value;
             scope.setContext("tx", { request, receipt });
+            Promise.resolve(options?.onReceipt?.(receipt)).catch((error: unknown) =>
+              captureException(error, { level: "error" }),
+            );
             const trace = await startSpan({ name: "trace transaction", op: "tx.trace" }, () =>
               withRetry(() => traceClient.traceTransaction(hash), {
                 delay: 1000,
