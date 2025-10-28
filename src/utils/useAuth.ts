@@ -11,7 +11,7 @@ import reportError from "./reportError";
 import { APIError, createCredential, getCredential } from "./server";
 import ownerConfig, { getConnector as getOwnerConnector } from "./wagmi/owner";
 
-export default function useAuth(onSuccess: (credential: Credential) => unknown, onDomainError: () => void) {
+export default function useAuth(onDomainError: () => void, onSuccess?: (credential: Credential) => unknown) {
   const toast = useToastController();
   const { connectAsync: connectExa } = useConnect();
   const { connectAsync: connectOwner } = useConnect({ config: ownerConfig });

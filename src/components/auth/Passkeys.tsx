@@ -22,14 +22,9 @@ export default function Passkeys() {
   const [connectModalOpen, setConnectModalOpen] = useState(false);
   const { data: isOwnerAvailable } = useQuery({ queryKey: ["is-owner-available"] });
 
-  const { signIn, isPending: loading } = useAuth(
-    () => {
-      navigation.replace("(home)", { screen: "index" });
-    },
-    () => {
-      setErrorDialogOpen(true);
-    },
-  );
+  const { signIn, isPending: loading } = useAuth(() => {
+    setErrorDialogOpen(true);
+  });
 
   return (
     <SafeView fullScreen backgroundColor="$backgroundSoft">
