@@ -87,7 +87,7 @@ describe("webhook", () => {
 
       const integratorInvitation = await auth.api.createInvitation({
         headers: ownerHeaders,
-        body: { email: integrator.user.email, role: "admin", organizationId: externalOrganization?.id },
+        body: { email: integrator.user.email, role: "admin", organizationId: externalOrganization.id },
       });
       await auth.api.acceptInvitation({ headers: integratorHeaders, body: { invitationId: integratorInvitation.id } });
     });
