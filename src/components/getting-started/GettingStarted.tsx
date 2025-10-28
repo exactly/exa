@@ -90,18 +90,6 @@ export default function GettingStarted() {
                   Account created
                 </Text>
               </XStack>
-
-              <Step
-                title="Verify your identity"
-                description="To enable the Exa Card we need to verify that you are you."
-                action="Learn more about the KYC process"
-                icon={<IdCard size={20} strokeWidth={2} color="$uiBrandSecondary" />}
-                completed={steps.find(({ id }) => id === "verify-identity")?.completed ?? false}
-                onPress={() => {
-                  presentArticle("9448693").catch(reportError);
-                }}
-              />
-
               <Step
                 title="Add funds to your account"
                 description="Your funds serve as collateral to increase your spending limits."
@@ -110,6 +98,16 @@ export default function GettingStarted() {
                 completed={steps.find(({ id }) => id === "add-funds")?.completed ?? false}
                 onPress={() => {
                   presentArticle("8950805").catch(reportError);
+                }}
+              />
+              <Step
+                title="Verify your identity"
+                description="To enable the Exa Card we need to verify that you are you."
+                action="Learn more about the KYC process"
+                icon={<IdCard size={20} strokeWidth={2} color="$uiBrandSecondary" />}
+                completed={steps.find(({ id }) => id === "verify-identity")?.completed ?? false}
+                onPress={() => {
+                  presentArticle("9448693").catch(reportError);
                 }}
               />
             </YStack>
