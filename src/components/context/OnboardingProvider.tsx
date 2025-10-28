@@ -24,8 +24,8 @@ const OnboardingContext = createContext<OnboardingContextProperties>({
 function OnboardingProvider({ children }: { children: ReactNode }) {
   const [steps, setSteps] = useState([
     { id: "create-account", title: "Create account", completed: true },
-    { id: "verify-identity", title: "Verify your identity", completed: false },
     { id: "add-funds", title: "Add funds to account", completed: false },
+    { id: "verify-identity", title: "Verify your identity", completed: false },
   ]);
 
   const currentStep = steps.find((step) => !step.completed);
