@@ -37,7 +37,7 @@ Ensure that the computed signature matches the Signature header received in the 
 
 ## Retry policy and timeout
 
-An exponential backoff with 20 retries and 60 second timeout is used. Retries occur if the request returns an http status code other than 200 or times out.
+An exponential backoff with 20 retries and 60 second timeout is used. Retries occur if the request returns an http status code other than 2xx or times out.
 
 | Retry Count | Delay (ms) | Delay (seconds) | Delay (minutes) |
 | --- | --- | --- | --- |
@@ -130,12 +130,16 @@ sequenceDiagram
 
 Transaction authorized and created with timestamp, for $100.00 amount.
 
-```typescript
+```json
 {
   "id": "99493687-78c1-4018-8831-d8b1f66f58e2",
   "timestamp": "2025-08-13T14:36:04.586Z",
   "resource": "transaction",
   "action": "created",
+  "receipt": {
+    "blockNumber": 97,
+    "transactionHash": "0xb0af3b716fc47e18519a74858690a8b428d9a5ac9c5537d08314443a5b1501db",
+  },
   "body": {
     "id": "bdc87700-bf6d-4d7d-ac29-3effb06e3000",
     "type": "spend",
@@ -162,12 +166,16 @@ Transaction authorized and created with timestamp, for $100.00 amount.
 Amount adjusted from $100.00 to $80.00 with status "reversed" and authorizationUpdateAmount of -$20.00
 Note that this is a reversal, 1 of the 3 types of refunds.
 
-```typescript
+```json
 {
   "id": "e7b2853e-4bb7-4428-8dc2-27e604766dfa",
   "timestamp": "2025-08-12T20:08:37.707Z",
   "resource": "transaction",
   "action": "updated",
+  "receipt": {
+    "blockNumber": 98,
+    "transactionHash": "0x8c6ef90db7901c43018b3b079ac5ccf84e9c1eb2aaf0fd5f1f8b3e2b97d25fa3",
+  },
   "body": {
     "id": "bdc87700-bf6d-4d7d-ac29-3effb06e3000",
     "type": "spend",
@@ -196,7 +204,7 @@ Note that this is a reversal, 1 of the 3 types of refunds.
 
 Final settlement at $80.00 with status "completed".
 
-```typescript
+```json
 {
   "id": "662eb701-f9ac-4baa-9f86-b341a730c98a",
   "timestamp": "2025-08-12T20:23:20.662Z",
@@ -233,12 +241,16 @@ In a partial capture, the merchant settles for less than the authorized amount. 
 
 Transaction authorized and created with timestamp for $100.00 amount.
 
-```typescript
+```json
 {
   "id": "99493687-78c1-4018-8831-d8b1f66f58e2",
   "timestamp": "2025-08-13T16:37:08.862Z",
   "resource": "transaction",
   "action": "created",
+  "receipt": {
+    "blockNumber": 108,
+    "transactionHash": "0x59be2972d1094e6abc14f595b71ed4e9e6ec4e2cd8d61e292f6debcba37e19b4",
+  },
   "body": {
     "id": "be67eeb7-294a-42d9-b337-77bfad198aad",
     "type": "spend",
@@ -264,12 +276,16 @@ Transaction authorized and created with timestamp for $100.00 amount.
 
 Final settlement at $90.00 with status "completed" and timestamp. The final amount is $90 and previously $100 was authorized and captured to the user so $10 is refunded. This is one of the 3 types of refunds.
 
-```typescript
+```json
 {
   "id": "a79306b2-bbbc-4511-9e58-ca9fbc9a2d9a",
   "timestamp": "2025-08-13T16:42:28.955Z",
   "resource": "transaction",
   "action": "completed",
+  "receipt": {
+    "blockNumber": 109,
+    "transactionHash": "0xd3b27341a97f4621865d896713a82be4099c5e0ad18782fb134fa33a77bba937",
+  },
   "body": {
     "id": "be67eeb7-294a-42d9-b337-77bfad198aad",
     "type": "spend",
@@ -302,12 +318,16 @@ Certain industries, like restaurants and bars, are allowed to settle for more th
 
 Transaction authorized and created with timestamp for $100.00 amount.
 
-```typescript
+```json
 {
   "id": "9d96c8c9-d10f-4d3a-90b9-978eca13ae2a",
   "timestamp": "2025-08-13T16:53:21.455Z",
   "resource": "transaction",
   "action": "created",
+  "receipt": {
+    "blockNumber": 300,
+    "transactionHash": "0x7faf9d14fde333a946c27f9e173c2d640ef3b4fbafc7e75d2a8a4b8743efb001",
+  },
   "body": {
     "id": "be67eeb7-294a-42d9-b337-77bfad198aad",
     "type": "spend",
@@ -333,12 +353,16 @@ Transaction authorized and created with timestamp for $100.00 amount.
 
 Final settlement at $110.00 with status "completed" and timestamp. Note that the final amount is 110 but 100 was authorized and captured so capturing an extra $10 to the user is needed.
 
-```typescript
+```json
 {
   "id": "593b0673-82ba-457b-afce-1cbd725f9e3c",
   "timestamp": "2025-08-13T16:55:11.934Z",
   "resource": "transaction",
   "action": "completed",
+  "receipt": {
+    "blockNumber": 499,
+    "transactionHash": "0x2d3a8b61a94f5f36b0d64f3e6a7c5e1bb7eeba6004cd3f1dc7c02b265aec7b02",
+  },
   "body": {
     "id": "be67eeb7-294a-42d9-b337-77bfad198aad",
     "type": "spend",
@@ -368,12 +392,16 @@ A force capture occurs when a merchant settles a transaction without prior autho
 
 #### Transaction completed
 
-```typescript
+```json
 {
   "id": "593b0673-82ba-457b-afce-1cbd725f9e3c",
   "timestamp": "2025-08-13T17:00:08.061Z",
   "resource": "transaction",
   "action": "completed",
+  "receipt": {
+    "blockNumber": 97,
+    "transactionHash": "0xb0af3b716fc47e18519a74858690a8b428d9a5ac9c5537d08314443a5b1501db",
+  },
   "body": {
     "id": "0x8eFc15407B97a28a537d105AB28fB442324CC2ee-card",
     "type": "spend",
@@ -406,7 +434,7 @@ Refunds are treated as negative transactions and may or may not reference the or
 The webhook is only for informational purpose, Exa does not return funds to the user with this event, is just to notify that a proper refund is coming and
 do sanity checks.
 
-```typescript
+```json
 {
   "id": "a2684ac7-13bc-4b0e-ab4d-5a2ac036218a",
   "timestamp": "2025-08-13T17:08:50.609Z",
@@ -437,12 +465,16 @@ do sanity checks.
 
 Final settlement of -$100.00 with status "completed" and timestamp. Refund $100 to the user.
 
-```typescript
+```json
 {
   "id": "77474a56-51eb-4918-b09e-73cf20077b1b",
   "timestamp": "2025-08-13T17:12:48.858Z",
   "resource": "transaction",
   "action": "completed",
+  "receipt": {
+    "blockNumber": 97,
+    "transactionHash": "0xb0af3b716fc47e18519a74858690a8b428d9a5ac9c5537d08314443a5b1501db",
+  },
   "body": {
     "id": "be67eeb7-294a-42d9-b337-77bfad198aad",
     "type": "spend",
@@ -494,6 +526,7 @@ Refunds come after the purchase enters a terminal state and could be associated 
 
 The transaction created webhook is sent when the transaction flow is created, whether it has been authorized or declined. You must persist this information.
 This event initiates the purchase lifecycle in case of `pending`, then could exist many intermediate state changes done by `transaction update` event and finally the  `transaction complete` event sets the purchase in terminal state. No more events coming except of a refund which transaction id could be the same as the original purchase or not.
+The onchain receipt will be present only if a onchain transaction is necessary.
 
 | field | type | description | example |
 | --- | --- | --- | --- |
@@ -501,6 +534,8 @@ This event initiates the purchase lifecycle in case of `pending`, then could exi
 | timestamp | string | Time when sent the event. Always the same when retry | 2025-08-06T20:29:23.870Z |
 | resource | "transaction" | | transaction |
 | action | "created" | | created |
+| receipt?.blockNumber | number | onchain transaction block number | 97 |
+| receipt?.transactionHash | string | Transaction hash | 0xb0af3b716fc47e18519a74858690a8b428d9a5ac9c5537d08314443a5b1501db |
 | body.id | string | Transaction id. Is the same for many events in the life cycle of the purchase | f1083e93-afd5-4271-85c6-dd47099e9746 |
 | body.type | "spend" | | spend |
 | body.spend.amount | integer | Amount of the purchase in USD in cents. 1 USD = 100 | 100 |
@@ -529,6 +564,8 @@ Triggered for events such as incremental authorizations or reversals (a type of 
 | timestamp | string | time when the event was triggered in ISO 8601 format | 2025-08-11T15:30:39.939Z |
 | resource | "transaction" | | transaction |
 | action | "updated" | | updated |
+| receipt.blockNumber | number | onchain transaction block number | 97 |
+| receipt.transactionHash | string | Transaction hash | 0xb0af3b716fc47e18519a74858690a8b428d9a5ac9c5537d08314443a5b1501db |
 | body.id | string | transaction id. the same in the life cycle of the purchase | 96fbeb61-b4b0-59ab-93e0-2f2afce7637c |
 | body.type | "spend" | | spend |
 | body.spend.amount | number | amount in usd authorized | 2499 |
@@ -551,7 +588,8 @@ Triggered for events such as incremental authorizations or reversals (a type of 
 
 ### Transaction completed event
 
-This webhook is sent whenever a transaction reaches a final state. Note that the transaction may not have been created before this update.
+This webhook is sent whenever a transaction reaches a final state. Note that the transaction may not have been created before this update. The `receipt` exist only
+if an onchain transaction is necessary.
 
 | field | type | description | example |
 | --- | --- | --- | --- |
@@ -559,6 +597,8 @@ This webhook is sent whenever a transaction reaches a final state. Note that the
 | timestamp | string | time when the event was triggered in ISO 8601 format | 2025-08-12T18:29:20.499Z |
 | resource | "transaction" | | transaction |
 | action | "completed" | | completed |
+| receipt?.blockNumber | number | onchain transaction block number. | 97 |
+| receipt?.transactionHash | string | Transaction hash | 0xb0af3b716fc47e18519a74858690a8b428d9a5ac9c5537d08314443a5b1501db |
 | body.id | string | Is the Transaction id and is the same in the life cycle of the purchase. With refunds could be different from the original purchase. | 96fbeb61-b4b0-59ab-93e0-2f2afce7637c |
 | body.type | "spend" | | spend |
 | body.spend.amount | number | final settled amount in usd | 1041 |
