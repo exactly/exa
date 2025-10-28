@@ -89,11 +89,10 @@ export default function Auth() {
 
   const { signIn, isPending: loadingAuth } = useAuth(
     () => {
-      navigation.replace("(main)");
-      if (isMiniApp) sdk.actions.addMiniApp().catch(reportError);
+      setErrorDialogOpen(true);
     },
     () => {
-      setErrorDialogOpen(true);
+      if (isMiniApp) sdk.actions.addMiniApp().catch(reportError);
     },
   );
 
