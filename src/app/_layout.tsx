@@ -32,7 +32,6 @@ import BDOGroteskDemiBold from "../assets/fonts/BDOGrotesk-DemiBold.otf";
 import BDOGroteskRegular from "../assets/fonts/BDOGrotesk-Regular.otf";
 import IBMPlexMonoMedium from "../assets/fonts/IBMPlexMono-Medm.otf";
 import AppIcon from "../assets/icon.png";
-import { OnboardingProvider } from "../components/context/OnboardingProvider";
 import ThemeProvider from "../components/context/ThemeProvider";
 import Error from "../components/shared/Error";
 import release from "../generated/release";
@@ -170,22 +169,20 @@ export default wrap(function RootLayout() {
         <ToastProvider>
           <SafeAreaProvider>
             <ThemeProvider>
-              <OnboardingProvider>
-                <ErrorBoundary
-                  fallback={(data) => (
-                    <Error
-                      resetError={() => {
-                        data.resetError();
-                      }}
-                    />
-                  )}
-                >
-                  <Stack screenOptions={{ headerShown: false }}>
-                    <Stack.Screen name="(auth)" />
-                    <Stack.Screen name="(main)" />
-                  </Stack>
-                </ErrorBoundary>
-              </OnboardingProvider>
+              <ErrorBoundary
+                fallback={(data) => (
+                  <Error
+                    resetError={() => {
+                      data.resetError();
+                    }}
+                  />
+                )}
+              >
+                <Stack screenOptions={{ headerShown: false }}>
+                  <Stack.Screen name="(auth)" />
+                  <Stack.Screen name="(main)" />
+                </Stack>
+              </ErrorBoundary>
             </ThemeProvider>
           </SafeAreaProvider>
           {devtools && <ReactQueryDevtools initialIsOpen={false} client={queryClient} />}

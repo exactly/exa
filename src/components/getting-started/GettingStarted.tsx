@@ -2,7 +2,7 @@ import type { Credential } from "@exactly/common/validation";
 import { ArrowDownToLine, ArrowLeft, Check, IdCard } from "@tamagui/lucide-icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigation } from "expo-router";
-import React, { useContext } from "react";
+import React from "react";
 import { Pressable } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 
@@ -13,7 +13,7 @@ import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { APIError, getKYCStatus } from "../../utils/server";
 import useIntercom from "../../utils/useIntercom";
-import { OnboardingContext } from "../context/OnboardingProvider";
+import useOnboardingSteps from "../../utils/useOnboardingSteps";
 import ActionButton from "../shared/ActionButton";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
@@ -21,7 +21,7 @@ import View from "../shared/View";
 
 export default function GettingStarted() {
   const navigation = useNavigation<AppNavigationProperties>();
-  const { steps } = useContext(OnboardingContext);
+  const { steps } = useOnboardingSteps();
   const { presentArticle } = useIntercom();
   return (
     <SafeView fullScreen backgroundColor="$backgroundBrandSoft" paddingBottom={0}>
@@ -120,7 +120,7 @@ export default function GettingStarted() {
 
 function CurrentStep() {
   const navigation = useNavigation<AppNavigationProperties>();
-  const { currentStep, completedSteps } = useContext(OnboardingContext);
+  const { currentStep, completedSteps } = useOnboardingSteps();
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const { mutateAsync: startKYC } = useMutation({
     mutationKey: ["kyc"],
