@@ -1452,11 +1452,15 @@ describe("webhooks", () => {
 
   it("forwards transaction created", async () => {
     const cardId = `${webhookAccount}-card`;
-
-    const mockFetch = vi.spyOn(global, "fetch").mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-    } as Response);
+    const fetch = global.fetch;
+    let publish = false;
+    const mockFetch = vi.spyOn(global, "fetch").mockImplementation(async (url, init) => {
+      if (url === "https://exa.test") {
+        publish = true;
+        return { ok: true, status: 200 } as Response;
+      }
+      return fetch(url, init);
+    });
 
     await appClient.index.$post({
       ...transactionCreated,
@@ -1465,12 +1469,17 @@ describe("webhooks", () => {
         body: {
           ...transactionCreated.json.body,
           id: cardId,
-          spend: { ...transactionCreated.json.body.spend, cardId, userId: webhookAccount },
+          spend: {
+            ...transactionCreated.json.body.spend,
+            cardId,
+            userId: webhookAccount,
+            amount: 100,
+            authorizedAt: new Date().toISOString(),
+          },
         },
       },
     });
-
-    await vi.waitUntil(() => mockFetch.mock.calls.length > 0, 10_000);
+    await vi.waitUntil(() => publish, 60_000);
     const options = mockFetch.mock.calls.find(([url]) => url === "https://exa.test")?.[1];
     const headers = parse(object({ Signature: string() }), options?.headers);
 
@@ -1481,10 +1490,15 @@ describe("webhooks", () => {
     vi.spyOn(pandaUtils, "getUser").mockResolvedValue(userResponseTemplate);
     const cardId = `${webhookAccount}-card`;
 
-    const mockFetch = vi.spyOn(global, "fetch").mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-    } as Response);
+    const fetch = global.fetch;
+    let publish = false;
+    const mockFetch = vi.spyOn(global, "fetch").mockImplementation(async (url, init) => {
+      if (url === "https://exa.test") {
+        publish = true;
+        return { ok: true, status: 200 } as Response;
+      }
+      return fetch(url, init);
+    });
 
     await appClient.index.$post({
       ...transactionUpdated,
@@ -1492,13 +1506,20 @@ describe("webhooks", () => {
         ...transactionUpdated.json,
         body: {
           ...transactionUpdated.json.body,
-          id: cardId,
-          spend: { ...transactionUpdated.json.body.spend, cardId, userId: webhookAccount },
+          id: "forward-transaction-updated",
+          spend: {
+            ...transactionUpdated.json.body.spend,
+            cardId,
+            userId: webhookAccount,
+            authorizedAt: new Date().toISOString(),
+            status: "pending",
+            authorizationUpdateAmount: 98,
+          },
         },
       },
     });
 
-    await vi.waitUntil(() => mockFetch.mock.calls.length > 0, 10_000);
+    await vi.waitUntil(() => publish, 60_000);
     const options = mockFetch.mock.calls.find(([url]) => url === "https://exa.test")?.[1];
     const headers = parse(object({ Signature: string() }), options?.headers);
 
@@ -1509,10 +1530,32 @@ describe("webhooks", () => {
     vi.spyOn(pandaUtils, "getUser").mockResolvedValue(userResponseTemplate);
     const cardId = `${webhookAccount}-card`;
 
-    const mockFetch = vi.spyOn(global, "fetch").mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-    } as Response);
+    const fetch = global.fetch;
+    let publishCounter = 0;
+    const mockFetch = vi.spyOn(global, "fetch").mockImplementation(async (url, init) => {
+      if (url === "https://exa.test") {
+        publishCounter++;
+        return { ok: true, status: 200 } as Response;
+      }
+      return fetch(url, init);
+    });
+    await appClient.index.$post({
+      ...transactionCreated,
+      json: {
+        ...transactionCreated.json,
+        body: {
+          ...transactionCreated.json.body,
+          id: "forward-transaction-completed",
+          spend: {
+            ...transactionCreated.json.body.spend,
+            cardId,
+            userId: webhookAccount,
+            amount: 99,
+            authorizedAt: new Date().toISOString(),
+          },
+        },
+      },
+    });
 
     await appClient.index.$post({
       ...transactionCompleted,
@@ -1520,14 +1563,22 @@ describe("webhooks", () => {
         ...transactionCompleted.json,
         body: {
           ...transactionCompleted.json.body,
-          id: cardId,
-          spend: { ...transactionCompleted.json.body.spend, cardId, userId: webhookAccount },
+          id: "forward-transaction-completed",
+          spend: {
+            ...transactionCompleted.json.body.spend,
+            cardId,
+            userId: webhookAccount,
+            postedAt: new Date().toISOString(),
+            status: "completed",
+            amount: 99,
+            authorizedAmount: 99,
+          },
         },
       },
     });
 
-    await vi.waitUntil(() => mockFetch.mock.calls.length > 1, 10_000);
-    const options = mockFetch.mock.calls.find(([url]) => url === "https://exa.test")?.[1];
+    await vi.waitUntil(() => publishCounter > 1, 60_000);
+    const options = mockFetch.mock.calls.filter(([url]) => url === "https://exa.test")[1]?.[1];
     const headers = parse(object({ Signature: string() }), options?.headers);
 
     expect(createHmac("sha256", secret).update(parse(string(), options?.body)).digest("hex")).toBe(headers.Signature);
