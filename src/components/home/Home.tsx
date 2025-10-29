@@ -67,7 +67,7 @@ export default function Home() {
   const { refetch: refetchPendingProposals } = useReadExaPreviewerPendingProposals({
     address: exaPreviewerAddress,
     args: [account ?? zeroAddress],
-    query: { enabled: !!account, gcTime: 0, refetchInterval: 30_000 },
+    query: { enabled: !!account && !!bytecode, gcTime: 0, refetchInterval: 30_000 },
   });
   const {
     data: activity,
