@@ -133,7 +133,7 @@ export default function AssetSelectSheet({
                     borderWidth={0}
                     borderColor="transparent"
                     backgroundColor="transparent"
-                    padding="0"
+                    padding={0}
                     minHeight={44}
                     color="$uiNeutralPrimary"
                     fontSize={15}
