@@ -5,7 +5,7 @@ import ProposalType, {
   decodeRollDebt,
   decodeWithdraw,
 } from "@exactly/common/ProposalType";
-import { exaPreviewerAddress } from "@exactly/common/generated/chain";
+import chain from "@exactly/common/generated/chain";
 import shortenHex from "@exactly/common/shortenHex";
 import {
   ArrowLeft,
@@ -15,20 +15,23 @@ import {
   ArrowLeftRight,
   ArrowUpRight,
   SearchSlash,
+  Shuffle,
 } from "@tamagui/lucide-icons";
+import type { MutationState } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useNavigation } from "expo-router";
 import React from "react";
 import { Pressable, RefreshControl, ScrollView } from "react-native";
 import { XStack, YStack } from "tamagui";
-import { zeroAddress } from "viem";
+import { extractChain, type Chain } from "viem";
+import * as chains from "viem/chains";
 
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
-import { useReadExaPreviewerPendingProposals } from "../../generated/contracts";
+import type { RouteFrom } from "../../utils/lifi";
 import reportError from "../../utils/reportError";
-import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useIntercom from "../../utils/useIntercom";
+import usePendingOperations from "../../utils/usePendingOperations";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
@@ -110,17 +113,12 @@ function getProposal(proposal: Proposal): ProposalWithMetadata {
 
 export default function PendingProposals() {
   const navigation = useNavigation<AppNavigationProperties>();
-  const { address } = useAccount();
   const { presentArticle } = useIntercom();
   const {
-    data: pendingProposals,
-    refetch: refetchPendingProposals,
-    isLoading,
-  } = useReadExaPreviewerPendingProposals({
-    address: exaPreviewerAddress,
-    args: [address ?? zeroAddress],
-    query: { enabled: !!address, gcTime: 0, refetchInterval: 30_000 },
-  });
+    count,
+    mutations,
+    proposals: { isLoading, refetch: refetchPendingProposals, data: pendingProposals },
+  } = usePendingOperations();
   return (
     <SafeView fullScreen>
       <View fullScreen padded>
@@ -161,7 +159,7 @@ export default function PendingProposals() {
           }
         >
           <View flex={1}>
-            {(!pendingProposals || pendingProposals.length === 0) && (
+            {count === 0 && (
               <YStack alignItems="center" justifyContent="center" gap="$s4" paddingTop="$s4">
                 <Text textAlign="center" color="$uiNeutralSecondary" emphasized headline>
                   🙌
@@ -173,6 +171,9 @@ export default function PendingProposals() {
             )}
             {pendingProposals?.map(({ nonce, proposal }) => {
               return <ProposalItem key={nonce.toString()} proposal={proposal} />;
+            })}
+            {mutations.map((mutation, index) => {
+              return <MutationItem key={index} mutation={mutation} />;
             })}
           </View>
         </ScrollView>
@@ -258,6 +259,38 @@ function ProposalItem({ proposal }: { proposal: Proposal }) {
               })} ${symbol}`}
             </Text>
           ) : null}
+        </YStack>
+      </XStack>
+    </XStack>
+  );
+}
+
+function MutationItem({ mutation }: { mutation: MutationState<unknown, Error, RouteFrom> }) {
+  const { name: sourceChainName } = extractChain({
+    chains: Object.values(chains) as unknown as readonly [Chain, ...Chain[]],
+    id: mutation.variables?.chainId ?? 0,
+  });
+  // TODO map values to other supported mutations
+  return (
+    <XStack gap="$s4" paddingVertical="$s3">
+      <View
+        width={40}
+        height={40}
+        borderRadius="$r3"
+        backgroundColor="$interactiveBaseInformationSoftDefault"
+        justifyContent="center"
+        alignItems="center"
+      >
+        <Shuffle color="$interactiveOnBaseInformationSoft" />
+      </View>
+      <XStack justifyContent="space-between" flex={1}>
+        <YStack flex={1}>
+          <Text subHeadline maxFontSizeMultiplier={1} color="$uiPrimary" numberOfLines={1}>
+            Bridge
+          </Text>
+          <Text footnote maxFontSizeMultiplier={1} color="$uiNeutralSecondary" numberOfLines={1}>
+            {sourceChainName} → {chain.name}
+          </Text>
         </YStack>
       </XStack>
     </XStack>
