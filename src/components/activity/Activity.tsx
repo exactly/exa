@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import React, { useMemo } from "react";
+import React, { memo, useCallback, useMemo } from "react";
+import type { ListRenderItem } from "react-native";
 import { FlatList, RefreshControl } from "react-native";
 import { styled, useTheme } from "tamagui";
 
@@ -16,24 +17,48 @@ import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
+type ActivityEvent = Awaited<ReturnType<typeof getActivity>>[number];
+
 export default function Activity() {
   const theme = useTheme();
   const { data: activity, refetch, isPending } = useQuery({ queryKey: ["activity"], queryFn: () => getActivity() });
   const { queryKey } = useAsset();
-  const groupedActivity = useMemo(() => {
-    if (!activity) return [];
-    const groups: Record<string, typeof activity> = {};
-    for (const item of activity) {
-      const date = format(item.timestamp, "yyyy-MM-dd");
-      groups[date] = groups[date] ?? [];
-      groups[date].push(item);
+
+  const { data, stickyHeaderIndices } = useMemo(() => {
+    if (!activity?.length) return { data: [] as ActivityItemType[], stickyHeaderIndices: [] as number[] };
+
+    const items: ActivityItemType[] = [];
+    const stickyIndices: number[] = [];
+    const totalEvents = activity.length;
+    let currentDate: string | undefined;
+    let eventPosition = 0;
+
+    for (const event of activity) {
+      const date = format(event.timestamp, "yyyy-MM-dd");
+      if (date !== currentDate) {
+        items.push({ type: "header", date });
+        stickyIndices.push(items.length);
+        currentDate = date;
+      }
+
+      const isLast = eventPosition === totalEvents - 1;
+      items.push({ type: "event", event, isLast });
+      eventPosition += 1;
     }
-    return Object.entries(groups).map(([date, events]) => ({ date, events }));
+
+    return { data: items, stickyHeaderIndices: stickyIndices };
   }, [activity]);
-  const data = groupedActivity.flatMap(({ date, events }) => [
-    { type: "header" as const, date },
-    ...events.map((event) => ({ type: "event" as const, event })),
-  ]);
+
+  const renderItem = useCallback<ListRenderItem<ActivityItemType>>(({ item }) => {
+    if (item.type === "header") return <HeaderRow date={item.date} />;
+    return <MemoizedActivityItem item={item.event} isLast={item.isLast} />;
+  }, []);
+
+  const keyExtractor = useCallback(
+    (item: ActivityItemType) => (item.type === "header" ? `header-${item.date}` : `event-${item.event.id}`),
+    [],
+  );
+
   const style = { backgroundColor: theme.backgroundSoft.val, margin: -5 };
   return (
     <SafeView fullScreen tab backgroundColor="$backgroundSoft">
@@ -68,33 +93,9 @@ export default function Activity() {
           }
           ListEmptyComponent={<Empty />}
           data={data}
-          renderItem={({ item }) => {
-            if (item.type === "header") {
-              const { date } = item;
-              return (
-                <View paddingHorizontal="$s4" paddingVertical="$s3" backgroundColor="$backgroundSoft">
-                  <Text subHeadline color="$uiNeutralSecondary">
-                    {date}
-                  </Text>
-                </View>
-              );
-            }
-            const { event } = item;
-            return (
-              <ActivityItem
-                key={event.id}
-                item={event}
-                isLast={
-                  data.findIndex(
-                    (activityItem) => activityItem.type === "event" && activityItem.event.id === event.id,
-                  ) ===
-                  data.length - 1
-                }
-              />
-            );
-          }}
-          keyExtractor={(item, index) => `${item.type}-${index}`}
-          stickyHeaderIndices={data.flatMap((item, index) => (item.type === "header" ? [index + 1] : []))}
+          renderItem={renderItem}
+          keyExtractor={keyExtractor}
+          stickyHeaderIndices={stickyHeaderIndices}
         />
       </View>
     </SafeView>
@@ -102,14 +103,33 @@ export default function Activity() {
 }
 
 type ActivityItemType =
-  | {
-      type: "header";
-      date: string;
-    }
+  | { type: "header"; date: string }
   | {
       type: "event";
-      event: Awaited<ReturnType<typeof getActivity>>[number];
+      event: ActivityEvent;
+      isLast: boolean;
     };
+
+type ActivityItemProperties = React.ComponentProps<typeof ActivityItem>;
+
 const StyledFlatList = styled(FlatList<ActivityItemType>, { backgroundColor: "$backgroundMild" });
+
 export const activityScrollReference = React.createRef<FlatList>();
 export const activityRefreshControlReference = React.createRef<RefreshControl>();
+
+const HeaderRow = memo(function HeaderRow({ date }: { date: string }) {
+  return (
+    <View paddingHorizontal="$s4" paddingVertical="$s3" backgroundColor="$backgroundSoft">
+      <Text subHeadline color="$uiNeutralSecondary">
+        {date}
+      </Text>
+    </View>
+  );
+});
+HeaderRow.displayName = "HeaderRow";
+
+const areActivityItemsEqual = (previous: ActivityItemProperties, next: ActivityItemProperties) =>
+  previous.item === next.item && previous.isLast === next.isLast;
+
+const MemoizedActivityItem = memo(ActivityItem, areActivityItemsEqual);
+MemoizedActivityItem.displayName = "MemoizedActivityItem";
