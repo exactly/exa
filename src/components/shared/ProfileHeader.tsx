@@ -1,4 +1,3 @@
-import { exaPreviewerAddress } from "@exactly/common/generated/chain";
 import shortenHex from "@exactly/common/shortenHex";
 import { Eye, EyeOff, Settings, ClockArrowUp } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
@@ -7,15 +6,14 @@ import { useNavigation } from "expo-router";
 import React, { useState } from "react";
 import { Pressable } from "react-native";
 import { Image } from "tamagui";
-import { zeroAddress } from "viem";
 
 import CopyAddressSheet from "./CopyAddressSheet";
 import StatusIndicator from "./StatusIndicator";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
-import { useReadExaPreviewerPendingProposals } from "../../generated/contracts";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
+import usePendingOperations from "../../utils/usePendingOperations";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
@@ -23,11 +21,10 @@ export default function ProfileHeader() {
   const { address, isConnected } = useAccount();
   const [copyAddressShown, setCopyAddressShown] = useState(false);
   const navigation = useNavigation<AppNavigationProperties>("/(main)");
-  const { data: pendingProposals, isFetching: pendingProposalsFetching } = useReadExaPreviewerPendingProposals({
-    address: exaPreviewerAddress,
-    args: [address ?? zeroAddress],
-    query: { enabled: !!address, gcTime: 0, refetchInterval: 30_000 },
-  });
+  const {
+    count,
+    proposals: { isFetching: pendingProposalsFetching },
+  } = usePendingOperations();
   const { data: hidden } = useQuery<boolean>({ queryKey: ["settings", "sensitive"] });
   function toggle() {
     queryClient.setQueryData(["settings", "sensitive"], !hidden);
@@ -65,7 +62,7 @@ export default function ProfileHeader() {
           <Pressable onPress={toggle} hitSlop={15}>
             {hidden ? <EyeOff color="$uiNeutralSecondary" /> : <Eye color="$uiNeutralSecondary" />}
           </Pressable>
-          {pendingProposals && pendingProposals.length > 0 && (
+          {count > 0 && (
             <Pressable
               disabled={pendingProposalsFetching}
               onPress={() => {

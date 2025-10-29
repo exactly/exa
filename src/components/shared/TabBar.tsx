@@ -1,26 +1,17 @@
-import { exaPreviewerAddress } from "@exactly/common/generated/chain";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import type { NavigationRoute } from "@sentry/react-native/dist/js/tracing/reactnavigation";
 import React, { useCallback } from "react";
 import { ToggleGroup } from "tamagui";
-import { zeroAddress } from "viem";
-import { useBytecode } from "wagmi";
 
 import SafeView from "./SafeView";
 import StatusIndicator from "./StatusIndicator";
 import Text from "./Text";
 import View from "./View";
-import { useReadExaPreviewerPendingProposals } from "../../generated/contracts";
-import useAccount from "../../utils/useAccount";
+import usePendingOperations from "../../utils/usePendingOperations";
 
 export default function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
-  const { address } = useAccount();
-  const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
-  const { data: pendingProposals } = useReadExaPreviewerPendingProposals({
-    address: exaPreviewerAddress,
-    args: [address ?? zeroAddress],
-    query: { enabled: !!address && !!bytecode, gcTime: 0, refetchInterval: 30_000 },
-  });
+  const { count } = usePendingOperations();
+
   const onPress = useCallback(
     (route: NavigationRoute, focused: boolean) => {
       const event = navigation.emit({ type: "tabPress", target: route.key, canPreventDefault: true });
@@ -62,9 +53,7 @@ export default function TabBar({ state, descriptors, navigation }: BottomTabBarP
               backgroundColor="transparent"
             >
               <View>
-                {route.name === "activity" && pendingProposals && pendingProposals.length > 0 && (
-                  <StatusIndicator type="notification" />
-                )}
+                {route.name === "activity" && count > 0 && <StatusIndicator type="notification" />}
                 {typeof icon === "function" &&
                   icon({ size: 24, focused, color: focused ? "$uiBrandSecondary" : "$uiNeutralSecondary" })}
               </View>

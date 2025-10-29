@@ -12,8 +12,10 @@ import publicClient from "../publicClient";
 
 const walletConnect = walletConnectUntyped as typeof walletConnectType;
 
+export const supportedChains = [chain, ...Object.values(chains)] as unknown as readonly [Chain, ...Chain[]];
+
 export default createConfig({
-  chains: Object.values(chains) as unknown as readonly [Chain, ...Chain[]],
+  chains: supportedChains,
   connectors: [walletConnect({ projectId: "d94854d116f9c1da5f21baf7421b7732", showQrModal: Platform.OS === "web" })],
   transports: {
     ...Object.fromEntries(Object.values(chains).map((c) => [c.id, http()])),
