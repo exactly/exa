@@ -38,7 +38,7 @@ const apiKey = process.env.BRIDGE_API_KEY;
 
 // #region services
 export async function createCustomer(user: InferInput<typeof CreateCustomer>) {
-  return await request(NewCustomer, `/customers`, {}, user, "POST");
+  return await request(NewCustomer, "/customers", {}, user, "POST");
 }
 
 export async function updateCustomer(customerId: string, user: Partial<InferInput<typeof CreateCustomer>>) {
@@ -83,7 +83,7 @@ export async function getVirtualAccounts(customerId: string) {
 }
 
 export async function createTransfer(data: InferInput<typeof CreateTransfer>) {
-  return await request(Transfer, `/transfers`, {}, data, "POST");
+  return await request(Transfer, "/transfers", {}, data, "POST");
 }
 
 // TODO pagination
@@ -190,35 +190,23 @@ export async function getProvider(data: GetProvider): Promise<InferOutput<typeof
   if (inquiry.attributes.status !== "approved" && inquiry.attributes.status !== "completed") {
     throw new Error(ErrorCodes.KYC_NOT_APPROVED);
   }
-  const identificationNumbers = personaAccount.attributes["identification-numbers"];
-  if (!identificationNumbers) throw new Error(ErrorCodes.NO_IDENTIFICATION_NUMBER);
-  if (Object.keys(identificationNumbers).length === 0) throw new Error(ErrorCodes.NO_IDENTIFICATION_NUMBER);
-  // TODO support multiple id classes
-  delete identificationNumbers.ssn;
-  if (Object.keys(identificationNumbers).length > 1) throw new Error(ErrorCodes.MULTIPLE_IDENTIFICATION_NUMBERS);
-  const identification = Object.values(identificationNumbers)[0];
-  if (!identification) throw new Error(ErrorCodes.NO_IDENTIFICATION_NUMBER);
-  if (!identification[0]) throw new Error(ErrorCodes.NO_IDENTIFICATION_NUMBER);
-  // TODO support multiple id documents
-  if (identification.length > 1) throw new Error(ErrorCodes.MULTIPLE_IDENTIFICATION);
-  const countryCode = identification[0]["issuing-country"];
-  const identificationClass = identification[0]["identification-class"];
+  const countryCode = personaAccount.attributes["country-code"];
+  const identificationClass = inquiry.attributes.fields["identification-class"]?.value;
   if (!identificationClass) throw new Error(ErrorCodes.NO_IDENTIFICATION_CLASS);
-  const identificationType: (typeof IdentityDocumentType)[number] | undefined = idClassToBridge(identificationClass);
-  if (!SupportedIdentificationTypes.includes(identificationType as (typeof SupportedIdentificationTypes)[number])) {
+  const bridgeIdType = idClassToBridge(identificationClass);
+  if (!SupportedIdentificationTypes.includes(bridgeIdType as (typeof SupportedIdentificationTypes)[number])) {
     throw new Error(ErrorCodes.NOT_SUPPORTED_IDENTIFICATION_CLASS);
   }
 
-  const postalCode =
-    inquiry.attributes.fields.address_postal_code?.value ?? personaAccount.attributes["address-postal-code"];
+  const postalCode = inquiry.attributes.fields["address-postal-code"]?.value;
   if (!postalCode) throw new Error(ErrorCodes.NO_POSTAL_CODE);
   const subdivision =
-    inquiry.attributes.fields.address_subdivision?.value ?? personaAccount.attributes["address-subdivision"];
+    inquiry.attributes.fields["address-subdivision"]?.value ?? personaAccount.attributes["address-subdivision"];
   if (!subdivision) throw new Error(ErrorCodes.NO_SUBDIVISION);
   const streetLine1 =
-    inquiry.attributes.fields.address_street_1?.value ?? personaAccount.attributes["address-street-1"];
+    inquiry.attributes.fields["address-street-1"]?.value ?? personaAccount.attributes["address-street-1"];
   if (!streetLine1) throw new Error(ErrorCodes.NO_ADDRESS);
-  const city = inquiry.attributes.fields.address_city?.value ?? personaAccount.attributes["address-city"];
+  const city = inquiry.attributes.fields["address-city"]?.value ?? personaAccount.attributes["address-city"];
   if (!city) throw new Error(ErrorCodes.NO_CITY);
 
   const country = alpha2ToAlpha3(countryCode);
@@ -280,25 +268,17 @@ export async function onboarding(data: Onboarding): Promise<void> {
     throw new Error(ErrorCodes.KYC_NOT_APPROVED);
   }
 
-  const identificationNumbers = personaAccount.attributes["identification-numbers"];
-  if (!identificationNumbers) throw new Error(ErrorCodes.NO_IDENTIFICATION_NUMBER);
-  if (Object.keys(identificationNumbers).length === 0) throw new Error(ErrorCodes.NO_IDENTIFICATION_NUMBER);
-  // TODO support multiple id numbers
-  delete identificationNumbers.ssn;
-  if (Object.keys(identificationNumbers).length > 1) throw new Error(ErrorCodes.MULTIPLE_IDENTIFICATION_NUMBERS);
-  const identification = Object.values(identificationNumbers)[0];
-  if (!identification) throw new Error(ErrorCodes.NO_IDENTIFICATION_NUMBER);
-  if (!identification[0]) throw new Error(ErrorCodes.NO_IDENTIFICATION_NUMBER);
-  // TODO support multiple id documents
-  if (identification.length > 1) throw new Error(ErrorCodes.MULTIPLE_IDENTIFICATION);
-  const countryCode = identification[0]["issuing-country"];
-  const identificationClass = identification[0]["identification-class"];
+  const countryCode = personaAccount.attributes["country-code"];
+  const identificationClass = inquiry.attributes.fields["identification-class"]?.value;
   if (!identificationClass) throw new Error(ErrorCodes.NO_IDENTIFICATION_CLASS);
-  const identificationType: (typeof IdentityDocumentType)[number] | undefined = idClassToBridge(identificationClass);
-  if (!SupportedIdentificationTypes.includes(identificationType as (typeof SupportedIdentificationTypes)[number])) {
+  const bridgeIdType = idClassToBridge(identificationClass);
+  if (!bridgeIdType) throw new Error(ErrorCodes.NOT_FOUND_IDENTIFICATION_CLASS);
+  if (!SupportedIdentificationTypes.includes(bridgeIdType as (typeof SupportedIdentificationTypes)[number])) {
     throw new Error(ErrorCodes.NOT_SUPPORTED_IDENTIFICATION_CLASS);
   }
-  if (!identificationType) throw new Error(ErrorCodes.NOT_FOUND_IDENTIFICATION_CLASS);
+  const identificationNumber = inquiry.attributes.fields["identification-number"]?.value;
+  if (!identificationNumber) throw new Error(ErrorCodes.NO_IDENTIFICATION_NUMBER);
+
   const endorsements: (typeof Endorsements)[number][] = ["base", "sepa"];
 
   if (countryCode === "MX") {
@@ -310,17 +290,17 @@ export async function onboarding(data: Onboarding): Promise<void> {
   }
 
   const postalCode =
-    inquiry.attributes.fields.address_postal_code?.value ?? personaAccount.attributes["address-postal-code"];
+    inquiry.attributes.fields["address-postal-code"]?.value ?? personaAccount.attributes["address-postal-code"];
   if (!postalCode) throw new Error(ErrorCodes.NO_POSTAL_CODE);
   const subdivision =
-    inquiry.attributes.fields.address_subdivision?.value ?? personaAccount.attributes["address-subdivision"];
+    inquiry.attributes.fields["address-subdivision"]?.value ?? personaAccount.attributes["address-subdivision"];
   if (!subdivision) throw new Error(ErrorCodes.NO_SUBDIVISION);
   const streetLine1 =
-    inquiry.attributes.fields.address_street_1?.value ?? personaAccount.attributes["address-street-1"];
+    inquiry.attributes.fields["address-street-1"]?.value ?? personaAccount.attributes["address-street-1"];
   if (!streetLine1) throw new Error(ErrorCodes.NO_ADDRESS);
   const streetLine2 =
-    inquiry.attributes.fields.address_street_2?.value ?? personaAccount.attributes["address-street-2"];
-  const city = inquiry.attributes.fields.address_city?.value ?? personaAccount.attributes["address-city"];
+    inquiry.attributes.fields["address-street-2"]?.value ?? personaAccount.attributes["address-street-2"];
+  const city = inquiry.attributes.fields["address-city"]?.value ?? personaAccount.attributes["address-city"];
   if (!city) throw new Error(ErrorCodes.NO_CITY);
 
   const country = alpha2ToAlpha3(countryCode);
@@ -343,9 +323,9 @@ export async function onboarding(data: Onboarding): Promise<void> {
 
   const identifyingInformation: (InferInput<typeof IdentityDocument> | InferInput<typeof TIN>)[] = [];
   identifyingInformation.push({
-    type: identificationType,
+    type: bridgeIdType,
     issuing_country: country,
-    number: identification[0]["identification-number"],
+    number: identificationNumber,
     image_front: frontFileEncoded,
     image_back: backFileEncoded,
   });

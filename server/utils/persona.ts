@@ -13,7 +13,6 @@ import {
   number,
   object,
   picklist,
-  record,
   safeParse,
   string,
   ValiError,
@@ -140,12 +139,6 @@ export const Documents = object({
 
 export const GetDocumentResponse = object({ data: Documents });
 
-const IdentificationDocument = object({
-  "issuing-country": string(),
-  "identification-class": string(),
-  "identification-number": string(),
-});
-
 interface AccountCustomFields {
   isnotfacta?: boolean; // cspell:ignore isnotfacta
   tin?: string;
@@ -166,7 +159,6 @@ export const Account = object({
   type: literal("account"),
   attributes: object({
     "country-code": nullable(string(), "unknown"),
-    "identification-numbers": nullable(record(string(), array(IdentificationDocument))),
     "address-street-1": nullable(string()),
     "address-street-2": nullable(string()),
     "address-city": nullable(string()),
@@ -184,13 +176,14 @@ const GetAccountsResponse = object({
 const InquiryFields = object({
   // these are custom fields, if we change the name in the inquiry template we need to update it here
   "input-select": nullish(object({ type: literal("choices"), value: nullish(string()) })),
-  address_street_1: nullish(object({ type: literal("string"), value: nullish(string()) })),
-  address_street_2: nullish(object({ type: literal("string"), value: nullish(string()) })),
-  address_city: nullish(object({ type: literal("string"), value: nullish(string()) })),
-  address_subdivision: nullish(object({ type: literal("string"), value: nullish(string()) })),
-  address_postal_code: nullish(object({ type: literal("string"), value: nullish(string()) })),
-  address_country_code: nullish(object({ type: literal("string"), value: nullish(string()) })),
-  social_security_number: nullish(object({ type: literal("string"), value: nullish(string()) })),
+  "address-street-1": nullish(object({ type: literal("string"), value: nullish(string()) })),
+  "address-street-2": nullish(object({ type: literal("string"), value: nullish(string()) })),
+  "address-city": nullish(object({ type: literal("string"), value: nullish(string()) })),
+  "address-subdivision": nullish(object({ type: literal("string"), value: nullish(string()) })),
+  "address-postal-code": nullish(object({ type: literal("string"), value: nullish(string()) })),
+  "social-security-number": nullish(object({ type: literal("string"), value: nullish(string()) })),
+  "identification-class": nullish(object({ type: literal("string"), value: nullish(string()) })),
+  "identification-number": nullish(object({ type: literal("string"), value: nullish(string()) })),
 });
 
 export const Inquiry = object({

@@ -44,7 +44,6 @@ describe("authenticated", () => {
       type: "account",
       attributes: {
         "country-code": "AR",
-        "identification-numbers": {},
         "social-security-number": null,
         "address-street-1": "123 Main St",
         "address-street-2": null,

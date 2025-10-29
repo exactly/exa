@@ -45,7 +45,7 @@ export async function getUser(userId: string): Promise<InferInput<typeof UserRes
 }
 
 export async function initiateOnboarding(user: InferInput<typeof UserOnboarding>) {
-  return await request(NewUserResponse, `/crypto/v2/onboarding-actions/initial`, {}, user, "POST");
+  return await request(NewUserResponse, "/crypto/v2/onboarding-actions/initial", {}, user, "POST");
 }
 
 export async function uploadIdentityFile(
@@ -57,7 +57,7 @@ export async function uploadIdentityFile(
   if (!documentURL) return;
   const { url: presignedURL } = await request(
     UploadIdentityFileResponse,
-    `/crypto/v2/onboarding-actions/upload-identity-image`,
+    "/crypto/v2/onboarding-actions/upload-identity-image",
     {},
     {
       userAnyId,
@@ -106,7 +106,7 @@ export async function lockPrice(side: "BUY" | "SELL", asset: string, against: st
 }
 
 export async function createOnRampSynthetic(order: InferInput<typeof OnRampSynthetic>) {
-  return await request(OnRampSyntheticResponse, `/crypto/v2/synthetics/ramp-on`, {}, order, "POST");
+  return await request(OnRampSyntheticResponse, "/crypto/v2/synthetics/ramp-on", {}, order, "POST");
 }
 
 export async function getSynthetic(syntheticId: string) {
@@ -118,11 +118,11 @@ export async function getLimits(userNumberId: string) {
 }
 
 export async function createOrder(order: InferInput<typeof Order>) {
-  return await request(OrderResponse, `/crypto/v2/orders`, {}, order, "POST");
+  return await request(OrderResponse, "/crypto/v2/orders", {}, order, "POST");
 }
 
 export async function withdrawOrder(withdraw: InferInput<typeof Withdraw>) {
-  return await request(WithdrawResponse, `/crypto/v2/withdraws  `, {}, withdraw, "POST");
+  return await request(WithdrawResponse, "/crypto/v2/withdraws", {}, withdraw, "POST");
 }
 
 export function getDepositDetails(
@@ -245,9 +245,10 @@ export async function getProvider(
     if (inquiry.attributes.status !== "approved" && inquiry.attributes.status !== "completed") {
       throw new Error(ErrorCodes.KYC_NOT_APPROVED);
     }
+    const country = personaAccount.attributes["country-code"];
 
     try {
-      validatePersonaAccount(personaAccount);
+      validateIdentification(inquiry, personaAccount);
     } catch (error) {
       captureException(error, { contexts: { inquiry } });
       if (error instanceof Error && Object.values(ErrorCodes).includes(error.message)) {
@@ -260,7 +261,7 @@ export async function getProvider(
               type: "INQUIRY",
               link: await resumeOrCreateMantecaInquiryOTL(credentialId, redirectURL),
               displayText: "We need more information to complete your KYC",
-              currencies,
+              currencies: getSupportedByCountry(country),
               cryptoCurrencies: [],
             };
             return { status: "MISSING_INFORMATION", currencies, cryptoCurrencies: [], pendingTasks: [inquiryTask] };
@@ -283,7 +284,7 @@ export async function getProvider(
   );
   if (hasPendingTasks) {
     captureException(new Error("has pending tasks"), { contexts: { mantecaUser } });
-    return { status: "NOT_STARTED", currencies, cryptoCurrencies: [], pendingTasks: [] };
+    return { status: "ONBOARDING", currencies, cryptoCurrencies: [], pendingTasks: [] };
   }
   return { status: "ONBOARDING", currencies, cryptoCurrencies: [], pendingTasks: [] };
 }
@@ -807,22 +808,23 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
   return parse(schema, JSON.parse(new TextDecoder().decode(rawBody)));
 }
 
-export function validatePersonaAccount(personaAccount: InferOutput<typeof Account>) {
-  const identificationNumbers = personaAccount.attributes["identification-numbers"];
-  if (!identificationNumbers) throw new Error(ErrorCodes.NO_IDENTIFICATION_NUMBER);
-  if (Object.keys(identificationNumbers).length === 0) throw new Error(ErrorCodes.NO_IDENTIFICATION_NUMBER);
-  // TODO support multiple id documents
-  if (Object.keys(identificationNumbers).length > 1) throw new Error(ErrorCodes.MULTIPLE_IDENTIFICATION_NUMBERS);
-  const identification = Object.values(identificationNumbers)[0];
-  if (!identification) throw new Error(ErrorCodes.NO_IDENTIFICATION_NUMBER);
-  if (!identification[0]) throw new Error(ErrorCodes.NO_IDENTIFICATION_NUMBER);
-  // TODO support multiple id documents
-  if (identification.length > 1) throw new Error(ErrorCodes.MULTIPLE_IDENTIFICATION_NUMBERS);
-  const countryCode = identification[0]["issuing-country"];
-  const idType = identification[0]["identification-class"];
-  const country = allowedCountries.get(countryCode as (typeof CountryCode)[number]);
-  if (!country) throw new Error(ErrorCodes.COUNTRY_NOT_ALLOWED);
-  if (!country.allowedIds.includes(idType as (typeof IdentificationClasses)[number])) {
+export function validateIdentification(
+  inquiry: InferOutput<typeof Inquiry>,
+  personaAccount: InferOutput<typeof Account>,
+) {
+  const countryCode = personaAccount.attributes["country-code"];
+  const allowedIdentificationClasses = allowedCountries.get(countryCode as (typeof CountryCode)[number])?.allowedIds;
+  if (!allowedIdentificationClasses) throw new Error(ErrorCodes.COUNTRY_NOT_ALLOWED);
+  if (inquiry.attributes.status !== "approved" && inquiry.attributes.status !== "completed") {
+    throw new Error(ErrorCodes.KYC_NOT_APPROVED);
+  }
+  const identificationClass = inquiry.attributes.fields["identification-class"]?.value;
+  if (!identificationClass) throw new Error(ErrorCodes.NO_IDENTIFICATION_CLASS);
+  if (!allowedIdentificationClasses.includes(identificationClass as (typeof allowedIdentificationClasses)[number])) {
+    captureMessage("manteca_id_not_allowed", {
+      contexts: { identification: { identificationClass, countryCode } },
+      level: "error",
+    });
     throw new Error(ErrorCodes.ID_NOT_ALLOWED);
   }
 
@@ -916,6 +918,7 @@ async function safeText(response: Response): Promise<string> {
 export const ErrorCodes = {
   MULTIPLE_IDENTIFICATION_NUMBERS: "multiple identification numbers",
   NO_IDENTIFICATION_NUMBER: "no identification number",
+  NO_IDENTIFICATION_CLASS: "no identification class",
   BAD_KYC_ADDITIONAL_DATA: "bad kyc additional data",
   NOT_SUPPORTED_CURRENCY: "not supported currency",
   NOT_SUPPORTED_CHAIN_ID: "not supported chain id",
