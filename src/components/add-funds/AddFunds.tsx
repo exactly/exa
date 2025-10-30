@@ -124,8 +124,7 @@ export default function AddFunds() {
           </View>
           <XStack flex={1}>
             <Text emphasized caption2 color="$uiNeutralPlaceholder">
-              Assets are added to your balance as collateral to increase your credit limit. You can change collateral
-              preferences in your account.
+              Assets are added to your balance as collateral to increase your credit limit.
               <Text
                 cursor="pointer"
                 emphasized
