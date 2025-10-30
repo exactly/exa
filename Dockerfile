@@ -17,7 +17,6 @@ WORKDIR /usr/src/app
 COPY . .
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store pnpm install --frozen-lockfile
 RUN pnpm expo export --platform web --no-minify --source-maps --output-dir server/app && \
-  pnpm run --filter server build && \
   pnpm deploy --filter server --prod --ignore-scripts /prod/server
 
 FROM base AS server
