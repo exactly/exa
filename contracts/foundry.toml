@@ -21,6 +21,10 @@ sort_imports = true
 bracket_spacing = true
 number_underscore = "thousands"
 
+[lint]
+exclude_lints = ["incorrect-shift", "mixed-case-function", "mixed-case-variable", "pascal-case-struct"]
+ignore = ["**/*.t.sol", "**/mocks/**/*.sol"]
+
 [profile.production.fuzz]
 runs = 66_666
 
