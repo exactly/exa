@@ -3,6 +3,7 @@ import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
 import { createConfig, EVM } from "@lifi/sdk";
+import { AppKit, AppKitProvider } from "@reown/appkit-react-native";
 import {
   ErrorBoundary,
   feedbackIntegration,
@@ -34,8 +35,10 @@ import IBMPlexMonoMedium from "../assets/fonts/IBMPlexMono-Medm.otf";
 import AppIcon from "../assets/icon.png";
 import ThemeProvider from "../components/context/ThemeProvider";
 import Error from "../components/shared/Error";
+import View from "../components/shared/View";
 import release from "../generated/release";
 import translation from "../i18n/en.json";
+import appKit from "../utils/appkit";
 import publicClient from "../utils/publicClient";
 import queryClient, { persister } from "../utils/queryClient";
 import reportError from "../utils/reportError";
@@ -168,22 +171,27 @@ export default wrap(function RootLayout() {
       <PersistQueryClientProvider client={queryClient} persistOptions={{ persister }}>
         <ToastProvider>
           <SafeAreaProvider>
-            <ThemeProvider>
-              <ErrorBoundary
-                fallback={(data) => (
-                  <Error
-                    resetError={() => {
-                      data.resetError();
-                    }}
-                  />
-                )}
-              >
-                <Stack screenOptions={{ headerShown: false }}>
-                  <Stack.Screen name="(auth)" />
-                  <Stack.Screen name="(main)" />
-                </Stack>
-              </ErrorBoundary>
-            </ThemeProvider>
+            <AppKitProvider instance={appKit}>
+              <ThemeProvider>
+                <ErrorBoundary
+                  fallback={(data) => (
+                    <Error
+                      resetError={() => {
+                        data.resetError();
+                      }}
+                    />
+                  )}
+                >
+                  <Stack screenOptions={{ headerShown: false }}>
+                    <Stack.Screen name="(auth)" />
+                    <Stack.Screen name="(main)" />
+                  </Stack>
+                  <View pointerEvents="none" position="absolute" height="100%" width="100%">
+                    <AppKit />
+                  </View>
+                </ErrorBoundary>
+              </ThemeProvider>
+            </AppKitProvider>
           </SafeAreaProvider>
           {devtools && <ReactQueryDevtools initialIsOpen={false} client={queryClient} />}
         </ToastProvider>

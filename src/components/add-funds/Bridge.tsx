@@ -8,7 +8,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { switchChain, waitForTransactionReceipt } from "@wagmi/core";
 import { useLocalSearchParams, useNavigation } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Pressable } from "react-native";
+import { Platform, Pressable } from "react-native";
 import { ScrollView, Spinner, Square, XStack, YStack } from "tamagui";
 import {
   encodeFunctionData,
@@ -22,13 +22,21 @@ import {
   TransactionExecutionError,
   getAddress,
 } from "viem";
-import { useReadContract, useSendCalls, useSendTransaction, useSimulateContract, useWriteContract } from "wagmi";
+import {
+  useReadContract,
+  useSendCalls,
+  useSendTransaction,
+  useSimulateContract,
+  useWriteContract,
+  WagmiProvider,
+} from "wagmi";
 
 import AssetSelectSheet from "./AssetSelectSheet";
 import TokenLogo from "./TokenLogo";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import OptimismImage from "../../assets/images/optimism.svg";
 import { useReadPreviewerExactly } from "../../generated/contracts";
+import { appKitWagmiConfig } from "../../utils/appkit";
 import { getRouteFrom, getBridgeSources, tokenCorrelation, type RouteFrom, type BridgeSources } from "../../utils/lifi";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
@@ -66,7 +74,9 @@ export default function Bridge() {
 
   const { sender } = useLocalSearchParams();
   const isExternalSender = sender === "external";
-  const senderConfig = isExternalSender ? externalConfig : ownerConfig;
+  const useAppKitExternal = isExternalSender && Platform.OS !== "web";
+  const senderConfig = useAppKitExternal ? appKitWagmiConfig : isExternalSender ? externalConfig : ownerConfig;
+
   const { address: senderAddress } = useAccount({ config: senderConfig });
   const { sendTransactionAsync } = useSendTransaction({ config: senderConfig });
   const { sendCallsAsync } = useSendCalls({ config: senderConfig });
@@ -580,175 +590,192 @@ export default function Bridge() {
 
   return (
     <SafeView fullScreen>
-      <View fullScreen>
-        <View
-          padded
-          flexDirection="row"
-          gap={10}
-          paddingBottom="$s4"
-          justifyContent="space-between"
-          alignItems="center"
-        >
-          <Pressable
-            onPress={() => {
-              if (navigation.canGoBack()) {
-                navigation.goBack();
-              } else {
-                navigation.replace("(home)", { screen: "index" });
-              }
-            }}
+      <WagmiProvider config={senderConfig}>
+        <View fullScreen>
+          <View
+            padded
+            flexDirection="row"
+            gap={10}
+            paddingBottom="$s4"
+            justifyContent="space-between"
+            alignItems="center"
           >
-            <ArrowLeft size={24} color="$uiNeutralPrimary" />
-          </Pressable>
-          <Text primary emphasized subHeadline>
-            Add funds
-          </Text>
-          <Pressable
-            onPress={() => {
-              openBrowser("https://li.fi/").catch(reportError); // TODO replace with article
-            }}
-          >
-            <CircleHelp color="$uiNeutralPrimary" />
-          </Pressable>
-        </View>
-        <ScrollView showsVerticalScrollIndicator={false} flex={1}>
-          <View padded>
-            <YStack gap="$s5">
-              {isLoadingAssets && (
-                <View
-                  borderWidth={1}
-                  borderColor="$borderNeutralSoft"
-                  backgroundColor="$backgroundSoft"
-                  borderRadius="$r3"
-                  padding="$s4"
-                  gap="$s3"
-                >
-                  <Skeleton height={20} width="60%" />
-                  <Skeleton height={16} width="80%" />
-                  <Skeleton height={48} width="100%" radius={12} />
-                </View>
-              )}
-              {!isLoadingAssets && assetGroups.length === 0 && (
-                <View
-                  borderWidth={1}
-                  borderColor="$borderWarningStrong"
-                  backgroundColor="$interactiveBaseWarningSoftDefault"
-                  borderRadius="$r3"
-                  padding="$s4"
-                  gap="$s3"
-                >
-                  <Text emphasized callout color="$interactiveOnBaseWarningSoft">
-                    No external assets detected
+            <Pressable
+              onPress={() => {
+                if (navigation.canGoBack()) {
+                  navigation.goBack();
+                } else {
+                  navigation.replace("(home)", { screen: "index" });
+                }
+              }}
+            >
+              <ArrowLeft size={24} color="$uiNeutralPrimary" />
+            </Pressable>
+            <Text primary emphasized subHeadline>
+              Add funds
+            </Text>
+            <Pressable
+              onPress={() => {
+                openBrowser("https://li.fi/").catch(reportError); // TODO replace with article
+              }}
+            >
+              <CircleHelp color="$uiNeutralPrimary" />
+            </Pressable>
+          </View>
+          <ScrollView showsVerticalScrollIndicator={false} flex={1}>
+            <View padded>
+              <YStack gap="$s5">
+                {isLoadingAssets && (
+                  <View
+                    borderWidth={1}
+                    borderColor="$borderNeutralSoft"
+                    backgroundColor="$backgroundSoft"
+                    borderRadius="$r3"
+                    padding="$s4"
+                    gap="$s3"
+                  >
+                    <Skeleton height={20} width="60%" />
+                    <Skeleton height={16} width="80%" />
+                    <Skeleton height={48} width="100%" radius={12} />
+                  </View>
+                )}
+                {!isLoadingAssets && assetGroups.length === 0 && (
+                  <View
+                    borderWidth={1}
+                    borderColor="$borderWarningStrong"
+                    backgroundColor="$interactiveBaseWarningSoftDefault"
+                    borderRadius="$r3"
+                    padding="$s4"
+                    gap="$s3"
+                  >
+                    <Text emphasized callout color="$interactiveOnBaseWarningSoft">
+                      No external assets detected
+                    </Text>
+                    <Text footnote color="$interactiveOnBaseWarningSoft">
+                      Top up an external wallet supported by LI.FI to unlock bridging into {chain.name}.
+                    </Text>
+                  </View>
+                )}
+                {assetGroups.length > 0 && (
+                  <TokenInput
+                    label="Send from"
+                    subLabel={shortenHex(senderAddress ?? zeroAddress, 4, 6)}
+                    token={sourceToken}
+                    amount={sourceAmount}
+                    balance={sourceBalance}
+                    isLoading={isSourcesPending}
+                    isActive
+                    onTokenSelect={() => {
+                      if (assetGroups.length > 0) setAssetSheetOpen(true);
+                    }}
+                    onChange={(value) => {
+                      setSourceAmount(value);
+                    }}
+                    onUseMax={(maxAmount) => {
+                      setSourceAmount(maxAmount);
+                    }}
+                    chainLogoUri={selectedGroup?.chain.id === 10 ? undefined : selectedGroup?.chain.logoURI}
+                  />
+                )}
+                {insufficientBalance && (
+                  <Text caption2 color="$interactiveOnBaseWarningSoft">
+                    Amount exceeds available balance.
                   </Text>
-                  <Text footnote color="$interactiveOnBaseWarningSoft">
-                    Top up an external wallet supported by LI.FI to unlock bridging into {chain.name}.
-                  </Text>
-                </View>
-              )}
-              {assetGroups.length > 0 && (
-                <TokenInput
-                  label="Send from"
-                  subLabel={shortenHex(senderAddress ?? zeroAddress, 4, 6)}
-                  token={sourceToken}
-                  amount={sourceAmount}
-                  balance={sourceBalance}
-                  isLoading={isSourcesPending}
-                  isActive
-                  onTokenSelect={() => {
-                    if (assetGroups.length > 0) setAssetSheetOpen(true);
-                  }}
-                  onChange={(value) => {
-                    setSourceAmount(value);
-                  }}
-                  onUseMax={(maxAmount) => {
-                    setSourceAmount(maxAmount);
-                  }}
-                  chainLogoUri={selectedGroup?.chain.id === 10 ? undefined : selectedGroup?.chain.logoURI}
-                />
-              )}
-              {insufficientBalance && (
-                <Text caption2 color="$interactiveOnBaseWarningSoft">
-                  Amount exceeds available balance.
-                </Text>
-              )}
-              {destinationToken && (
-                <YStack
-                  borderWidth={1}
-                  borderColor={destinationModalOpen ? "$borderBrandStrong" : "$borderNeutralSoft"}
-                  backgroundColor="$backgroundMild"
-                  borderRadius="$r3"
-                  padding="$s4_5"
-                  gap="$s3"
-                >
-                  <XStack alignItems="center" justifyContent="space-between">
-                    <YStack gap="$s1">
-                      <Text emphasized subHeadline color="$uiNeutralPrimary">
-                        {isSameChain ? "Destination" : "Destination asset"}
-                      </Text>
-                      <Text footnote color="$uiNeutralSecondary">
-                        Exa Account | {shortenHex(account ?? zeroAddress, 4, 6)}
-                      </Text>
-                    </YStack>
-                  </XStack>
-                  {!isSameChain && (
-                    <YStack gap="$s3_5">
-                      <Pressable
-                        onPress={() => {
-                          if (destinationTokens.length > 0) setDestinationModalOpen(true);
-                        }}
-                        hitSlop={10}
-                        style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1, width: "100%" })}
-                      >
-                        <XStack gap="$s3_5" alignItems="center" justifyContent="space-between" flex={1}>
-                          <XStack gap="$s3_5" alignItems="center" flex={1}>
-                            <View width={40} height={40} position="relative">
-                              {destinationToken.logoURI ? (
-                                <AssetLogo source={{ uri: destinationToken.logoURI }} width={40} height={40} />
-                              ) : (
-                                <TokenLogo token={destinationToken} size={40} />
-                              )}
-                              <View
-                                position="absolute"
-                                bottom={0}
-                                right={0}
-                                width={20}
-                                height={20}
-                                borderWidth={1}
-                                borderColor="white"
-                                borderRadius={10}
-                                overflow="hidden"
-                              >
-                                <OptimismImage width="100%" height="100%" />
-                              </View>
-                            </View>
-                            <YStack flex={1}>
-                              {!!account && sourceAmount > 0n && !insufficientBalance && isBridgeQuoteLoading ? (
-                                <Skeleton height={28} width="60%" />
-                              ) : (
-                                <Text
-                                  primary
-                                  emphasized
-                                  title
-                                  textAlign="left"
-                                  flex={1}
-                                  width="100%"
-                                  color="$uiNeutralSecondary"
-                                >
-                                  {Number(formatUnits(toAmount, destinationToken.decimals)).toLocaleString(undefined, {
-                                    minimumFractionDigits: 0,
-                                    maximumFractionDigits: destinationToken.decimals,
-                                    useGrouping: false,
-                                  })}
-                                </Text>
-                              )}
-                              <XStack justifyContent="space-between" alignItems="center" flex={1}>
-                                {!!account && sourceAmount > 0n && !insufficientBalance && isBridgeQuoteLoading ? (
-                                  <Skeleton height={16} width={100} />
+                )}
+                {destinationToken && (
+                  <YStack
+                    borderWidth={1}
+                    borderColor={destinationModalOpen ? "$borderBrandStrong" : "$borderNeutralSoft"}
+                    backgroundColor="$backgroundMild"
+                    borderRadius="$r3"
+                    padding="$s4_5"
+                    gap="$s3"
+                  >
+                    <XStack alignItems="center" justifyContent="space-between">
+                      <YStack gap="$s1">
+                        <Text emphasized subHeadline color="$uiNeutralPrimary">
+                          {isSameChain ? "Destination" : "Destination asset"}
+                        </Text>
+                        <Text footnote color="$uiNeutralSecondary">
+                          Exa Account | {shortenHex(account ?? zeroAddress, 4, 6)}
+                        </Text>
+                      </YStack>
+                    </XStack>
+                    {!isSameChain && (
+                      <YStack gap="$s3_5">
+                        <Pressable
+                          onPress={() => {
+                            if (destinationTokens.length > 0) setDestinationModalOpen(true);
+                          }}
+                          hitSlop={10}
+                          style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1, width: "100%" })}
+                        >
+                          <XStack gap="$s3_5" alignItems="center" justifyContent="space-between" flex={1}>
+                            <XStack gap="$s3_5" alignItems="center" flex={1}>
+                              <View width={40} height={40} position="relative">
+                                {destinationToken.logoURI ? (
+                                  <AssetLogo source={{ uri: destinationToken.logoURI }} width={40} height={40} />
                                 ) : (
-                                  <Text callout color="$uiNeutralPlaceholder">
-                                    {`≈${Number(
+                                  <TokenLogo token={destinationToken} size={40} />
+                                )}
+                                <View
+                                  position="absolute"
+                                  bottom={0}
+                                  right={0}
+                                  width={20}
+                                  height={20}
+                                  borderWidth={1}
+                                  borderColor="white"
+                                  borderRadius={10}
+                                  overflow="hidden"
+                                >
+                                  <OptimismImage width="100%" height="100%" />
+                                </View>
+                              </View>
+                              <YStack flex={1}>
+                                {!!account && sourceAmount > 0n && !insufficientBalance && isBridgeQuoteLoading ? (
+                                  <Skeleton height={28} width="60%" />
+                                ) : (
+                                  <Text
+                                    primary
+                                    emphasized
+                                    title
+                                    textAlign="left"
+                                    flex={1}
+                                    width="100%"
+                                    color="$uiNeutralSecondary"
+                                  >
+                                    {Number(formatUnits(toAmount, destinationToken.decimals)).toLocaleString(
+                                      undefined,
+                                      {
+                                        minimumFractionDigits: 0,
+                                        maximumFractionDigits: destinationToken.decimals,
+                                        useGrouping: false,
+                                      },
+                                    )}
+                                  </Text>
+                                )}
+                                <XStack justifyContent="space-between" alignItems="center" flex={1}>
+                                  {!!account && sourceAmount > 0n && !insufficientBalance && isBridgeQuoteLoading ? (
+                                    <Skeleton height={16} width={100} />
+                                  ) : (
+                                    <Text callout color="$uiNeutralPlaceholder">
+                                      {`≈${Number(
+                                        formatUnits(
+                                          (toAmount * parseUnits(destinationToken.priceUSD, 18)) / WAD,
+                                          destinationToken.decimals,
+                                        ),
+                                      ).toLocaleString(undefined, {
+                                        style: "currency",
+                                        currency: "USD",
+                                        currencyDisplay: "narrowSymbol",
+                                      })}`}
+                                    </Text>
+                                  )}
+                                  <Text footnote color="$uiNeutralSecondary" textAlign="right">
+                                    {`Balance: ${Number(
                                       formatUnits(
-                                        (toAmount * parseUnits(destinationToken.priceUSD, 18)) / WAD,
+                                        (destinationBalance * parseUnits(destinationToken.priceUSD, 18)) / WAD,
                                         destinationToken.decimals,
                                       ),
                                     ).toLocaleString(undefined, {
@@ -757,239 +784,227 @@ export default function Bridge() {
                                       currencyDisplay: "narrowSymbol",
                                     })}`}
                                   </Text>
-                                )}
-                                <Text footnote color="$uiNeutralSecondary" textAlign="right">
-                                  {`Balance: ${Number(
-                                    formatUnits(
-                                      (destinationBalance * parseUnits(destinationToken.priceUSD, 18)) / WAD,
-                                      destinationToken.decimals,
-                                    ),
-                                  ).toLocaleString(undefined, {
-                                    style: "currency",
-                                    currency: "USD",
-                                    currencyDisplay: "narrowSymbol",
-                                  })}`}
-                                </Text>
-                              </XStack>
-                            </YStack>
+                                </XStack>
+                              </YStack>
+                            </XStack>
                           </XStack>
-                        </XStack>
-                      </Pressable>
-                    </YStack>
-                  )}
-                </YStack>
-              )}
-              {senderAddress &&
-                account &&
-                sourceToken &&
-                destinationToken &&
-                !isBridgeQuoteLoading &&
-                canShowBridgeQuote &&
-                sourceAmount > 0n &&
-                !insufficientBalance && (
-                  <YStack gap="$s3_5">
-                    <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
-                      <Text caption color="$uiNeutralSecondary">
-                        You send
-                      </Text>
-                      <Text caption color="$uiNeutralPrimary" textAlign="right" flexShrink={1}>
-                        {`${Number(formatUnits(sourceAmount, sourceToken.decimals)).toLocaleString(undefined, {
-                          minimumFractionDigits: 0,
-                          maximumFractionDigits: sourceToken.decimals,
-                          useGrouping: false,
-                        })} ${sourceToken.symbol}`}
-                      </Text>
-                    </XStack>
-                    <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
-                      <Text caption color="$uiNeutralSecondary">
-                        Source network
-                      </Text>
-                      <Text caption color="$uiNeutralPrimary" textAlign="right" flexShrink={1}>
-                        {selectedGroup?.chain.name ?? (selectedSource?.chain ? `Chain ${selectedSource.chain}` : "—")}
-                      </Text>
-                    </XStack>
-                    <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
-                      <Text caption color="$uiNeutralSecondary">
-                        Estimated arrival
-                      </Text>
-                      <Text caption color="$uiNeutralPrimary" textAlign="right" flexShrink={1}>
-                        {bridgeQuote.estimate.toAmount
-                          ? `≈${Number(
-                              formatUnits(BigInt(bridgeQuote.estimate.toAmount), destinationToken.decimals),
+                        </Pressable>
+                      </YStack>
+                    )}
+                  </YStack>
+                )}
+                {senderAddress &&
+                  account &&
+                  sourceToken &&
+                  destinationToken &&
+                  !isBridgeQuoteLoading &&
+                  canShowBridgeQuote &&
+                  sourceAmount > 0n &&
+                  !insufficientBalance && (
+                    <YStack gap="$s3_5">
+                      <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
+                        <Text caption color="$uiNeutralSecondary">
+                          You send
+                        </Text>
+                        <Text caption color="$uiNeutralPrimary" textAlign="right" flexShrink={1}>
+                          {`${Number(formatUnits(sourceAmount, sourceToken.decimals)).toLocaleString(undefined, {
+                            minimumFractionDigits: 0,
+                            maximumFractionDigits: sourceToken.decimals,
+                            useGrouping: false,
+                          })} ${sourceToken.symbol}`}
+                        </Text>
+                      </XStack>
+                      <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
+                        <Text caption color="$uiNeutralSecondary">
+                          Source network
+                        </Text>
+                        <Text caption color="$uiNeutralPrimary" textAlign="right" flexShrink={1}>
+                          {selectedGroup?.chain.name ?? (selectedSource?.chain ? `Chain ${selectedSource.chain}` : "—")}
+                        </Text>
+                      </XStack>
+                      <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
+                        <Text caption color="$uiNeutralSecondary">
+                          Estimated arrival
+                        </Text>
+                        <Text caption color="$uiNeutralPrimary" textAlign="right" flexShrink={1}>
+                          {bridgeQuote.estimate.toAmount
+                            ? `≈${Number(
+                                formatUnits(BigInt(bridgeQuote.estimate.toAmount), destinationToken.decimals),
+                              ).toLocaleString(undefined, {
+                                minimumFractionDigits: 0,
+                                maximumFractionDigits: destinationToken.decimals,
+                                useGrouping: false,
+                              })} ${destinationToken.symbol}`
+                            : "—"}
+                        </Text>
+                      </XStack>
+                      <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
+                        <Text caption color="$uiNeutralSecondary">
+                          Destination network
+                        </Text>
+                        <Text caption color="$uiNeutralPrimary" textAlign="right" flexShrink={1}>
+                          {chain.name}
+                        </Text>
+                      </XStack>
+                      {bridgeQuote.estimate.toAmountMin && (
+                        <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
+                          <Text caption color="$uiNeutralSecondary">
+                            Minimum received
+                          </Text>
+                          <Text caption color="$uiNeutralPrimary" textAlign="right" flexShrink={1}>
+                            {`${Number(
+                              formatUnits(BigInt(bridgeQuote.estimate.toAmountMin), destinationToken.decimals),
                             ).toLocaleString(undefined, {
                               minimumFractionDigits: 0,
                               maximumFractionDigits: destinationToken.decimals,
                               useGrouping: false,
-                            })} ${destinationToken.symbol}`
-                          : "—"}
-                      </Text>
-                    </XStack>
-                    <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
-                      <Text caption color="$uiNeutralSecondary">
-                        Destination network
-                      </Text>
-                      <Text caption color="$uiNeutralPrimary" textAlign="right" flexShrink={1}>
-                        {chain.name}
-                      </Text>
-                    </XStack>
-                    {bridgeQuote.estimate.toAmountMin && (
+                            })} ${destinationToken.symbol}`}
+                          </Text>
+                        </XStack>
+                      )}
                       <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
                         <Text caption color="$uiNeutralSecondary">
-                          Minimum received
+                          Fees
                         </Text>
                         <Text caption color="$uiNeutralPrimary" textAlign="right" flexShrink={1}>
-                          {`${Number(
-                            formatUnits(BigInt(bridgeQuote.estimate.toAmountMin), destinationToken.decimals),
-                          ).toLocaleString(undefined, {
-                            minimumFractionDigits: 0,
-                            maximumFractionDigits: destinationToken.decimals,
-                            useGrouping: false,
-                          })} ${destinationToken.symbol}`}
+                          0.25%
                         </Text>
                       </XStack>
-                    )}
-                    <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
-                      <Text caption color="$uiNeutralSecondary">
-                        Fees
-                      </Text>
-                      <Text caption color="$uiNeutralPrimary" textAlign="right" flexShrink={1}>
-                        0.25%
-                      </Text>
-                    </XStack>
-                    <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
-                      <Text caption color="$uiNeutralSecondary">
-                        Slippage
-                      </Text>
-                      <Text caption color="$uiNeutralPrimary" textAlign="right" flexShrink={1}>
-                        2%
-                      </Text>
-                    </XStack>
-                    {bridgeQuote.estimate.executionDuration && (
                       <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
                         <Text caption color="$uiNeutralSecondary">
-                          Estimated time
+                          Slippage
                         </Text>
                         <Text caption color="$uiNeutralPrimary" textAlign="right" flexShrink={1}>
-                          {`~${Math.max(1, Math.round(bridgeQuote.estimate.executionDuration / 60))} min`}
+                          2%
                         </Text>
                       </XStack>
-                    )}
-                    {(bridgeQuote.tool ?? bridgeQuote.estimate.tool) && (
-                      <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
-                        <Text caption color="$uiNeutralSecondary">
-                          Exchange
-                        </Text>
-                        <Text
-                          caption
-                          color="$uiNeutralPrimary"
-                          textAlign="right"
-                          flexShrink={1}
-                          textTransform="uppercase"
-                        >
-                          {bridgeQuote.tool ?? bridgeQuote.estimate.tool}
-                        </Text>
-                      </XStack>
-                    )}
-                  </YStack>
-                )}
-              {statusMessage && (
-                <XStack gap="$s3" alignItems="center">
-                  <Spinner color="$uiBrandSecondary" size="small" />
-                  <Text footnote color="$uiNeutralSecondary">
-                    {statusMessage}
-                  </Text>
-                </XStack>
-              )}
-              {bridgeQuoteError && senderAddress && account && sourceAmount > 0n && !insufficientBalance && (
-                <Text caption2 color="$interactiveOnBaseWarningSoft">
-                  Unable to fetch a bridge quote right now. Please adjust the amount or try again later.
-                </Text>
-              )}
-              {transferSimulationError &&
-                isSameChain &&
-                !isNativeSource &&
-                sourceAmount > 0n &&
-                !insufficientBalance && (
-                  <Text caption2 color="$interactiveOnBaseWarningSoft">
-                    Unable to simulate a transfer right now. Please adjust the amount or try again later.
-                  </Text>
-                )}
-            </YStack>
-          </View>
-        </ScrollView>
-        <View padded>
-          <YStack
-            gap="$s4"
-            borderTopWidth={bridgeQuote?.estimate.approvalAddress ? 1 : 0}
-            borderColor="$borderNeutralSoft"
-            paddingTop="$s3"
-          >
-            {bridgeQuote?.estimate.approvalAddress && (
-              <YStack>
-                <XStack gap="$s4" alignItems="flex-start" paddingTop="$s3">
-                  <View>
-                    <Clock size={16} width={16} height={16} color="$uiInfoSecondary" />
-                  </View>
-                  <XStack flex={1}>
-                    <Text caption2 color="$uiNeutralPlaceholder">
-                      Bridging assets may take up to 10 minutes.
+                      {bridgeQuote.estimate.executionDuration && (
+                        <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
+                          <Text caption color="$uiNeutralSecondary">
+                            Estimated time
+                          </Text>
+                          <Text caption color="$uiNeutralPrimary" textAlign="right" flexShrink={1}>
+                            {`~${Math.max(1, Math.round(bridgeQuote.estimate.executionDuration / 60))} min`}
+                          </Text>
+                        </XStack>
+                      )}
+                      {(bridgeQuote.tool ?? bridgeQuote.estimate.tool) && (
+                        <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
+                          <Text caption color="$uiNeutralSecondary">
+                            Exchange
+                          </Text>
+                          <Text
+                            caption
+                            color="$uiNeutralPrimary"
+                            textAlign="right"
+                            flexShrink={1}
+                            textTransform="uppercase"
+                          >
+                            {bridgeQuote.tool ?? bridgeQuote.estimate.tool}
+                          </Text>
+                        </XStack>
+                      )}
+                    </YStack>
+                  )}
+                {statusMessage && (
+                  <XStack gap="$s3" alignItems="center">
+                    <Spinner color="$uiBrandSecondary" size="small" />
+                    <Text footnote color="$uiNeutralSecondary">
+                      {statusMessage}
                     </Text>
                   </XStack>
-                </XStack>
+                )}
+                {bridgeQuoteError && senderAddress && account && sourceAmount > 0n && !insufficientBalance && (
+                  <Text caption2 color="$interactiveOnBaseWarningSoft">
+                    Unable to fetch a bridge quote right now. Please adjust the amount or try again later.
+                  </Text>
+                )}
+                {transferSimulationError &&
+                  isSameChain &&
+                  !isNativeSource &&
+                  sourceAmount > 0n &&
+                  !insufficientBalance && (
+                    <Text caption2 color="$interactiveOnBaseWarningSoft">
+                      Unable to simulate a transfer right now. Please adjust the amount or try again later.
+                    </Text>
+                  )}
               </YStack>
-            )}
-            <Button
-              primary
-              width="100%"
-              alignItems="center"
-              onPress={() => {
-                if (isSameChain) {
-                  executeTransfer().catch(reportError);
-                  return;
-                }
-                if (!bridgeQuote) return;
-                executeBridge(bridgeQuote).catch(reportError);
-              }}
-              disabled={isActionDisabled}
-              loading={isBridging || isTransferring}
+            </View>
+          </ScrollView>
+          <View padded>
+            <YStack
+              gap="$s4"
+              borderTopWidth={bridgeQuote?.estimate.approvalAddress ? 1 : 0}
+              borderColor="$borderNeutralSoft"
+              paddingTop="$s3"
             >
-              <Button.Text>
-                {sourceToken ? `${isSameChain ? "Transfer" : "Bridge"} ${sourceToken.symbol}` : "Select source asset"}
-              </Button.Text>
-              <Button.Icon>
-                <Repeat strokeWidth={2.5} />
-              </Button.Icon>
-            </Button>
-          </YStack>
+              {bridgeQuote?.estimate.approvalAddress && (
+                <YStack>
+                  <XStack gap="$s4" alignItems="flex-start" paddingTop="$s3">
+                    <View>
+                      <Clock size={16} width={16} height={16} color="$uiInfoSecondary" />
+                    </View>
+                    <XStack flex={1}>
+                      <Text caption2 color="$uiNeutralPlaceholder">
+                        Bridging assets may take up to 10 minutes.
+                      </Text>
+                    </XStack>
+                  </XStack>
+                </YStack>
+              )}
+              <Button
+                primary
+                width="100%"
+                alignItems="center"
+                onPress={() => {
+                  if (isSameChain) {
+                    executeTransfer().catch(reportError);
+                    return;
+                  }
+                  if (!bridgeQuote) return;
+                  executeBridge(bridgeQuote).catch(reportError);
+                }}
+                disabled={isActionDisabled}
+                loading={isBridging || isTransferring}
+              >
+                <Button.Text>
+                  {sourceToken ? `${isSameChain ? "Transfer" : "Bridge"} ${sourceToken.symbol}` : "Select source asset"}
+                </Button.Text>
+                <Button.Icon>
+                  <Repeat strokeWidth={2.5} />
+                </Button.Icon>
+              </Button>
+            </YStack>
+          </View>
+          <AssetSelectSheet
+            label="Select asset to send"
+            open={assetSheetOpen}
+            onClose={() => {
+              setAssetSheetOpen(false);
+            }}
+            groups={assetGroups}
+            selected={selectedSource}
+            onSelect={(chainId, token) => {
+              setSourceAmount(0n);
+              setSelectedSource({ chain: chainId, address: token.address });
+            }}
+          />
+          <AssetSelectSheet
+            hideBalances
+            label="Select asset to receive"
+            open={destinationModalOpen}
+            onClose={() => {
+              setDestinationModalOpen(false);
+            }}
+            groups={destinationAssetGroups}
+            selected={destinationToken ? { chain: chain.id, address: destinationToken.address } : undefined}
+            onSelect={(_, token) => {
+              setSelectedDestinationAddress(token.address);
+              setDestinationModalOpen(false);
+            }}
+          />
         </View>
-        <AssetSelectSheet
-          label="Select asset to send"
-          open={assetSheetOpen}
-          onClose={() => {
-            setAssetSheetOpen(false);
-          }}
-          groups={assetGroups}
-          selected={selectedSource}
-          onSelect={(chainId, token) => {
-            setSourceAmount(0n);
-            setSelectedSource({ chain: chainId, address: token.address });
-          }}
-        />
-        <AssetSelectSheet
-          hideBalances
-          label="Select asset to receive"
-          open={destinationModalOpen}
-          onClose={() => {
-            setDestinationModalOpen(false);
-          }}
-          groups={destinationAssetGroups}
-          selected={destinationToken ? { chain: chain.id, address: destinationToken.address } : undefined}
-          onSelect={(_, token) => {
-            setSelectedDestinationAddress(token.address);
-            setDestinationModalOpen(false);
-          }}
-        />
-      </View>
+      </WagmiProvider>
     </SafeView>
   );
 }
