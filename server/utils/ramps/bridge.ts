@@ -148,12 +148,12 @@ export async function getProvider(data: GetProvider): Promise<InferOutput<typeof
         break;
     }
 
-    if (bridgeUser.future_requirements_due) {
+    if (bridgeUser.future_requirements_due?.length) {
       // TODO handle future requirements
       captureMessage("bridge_future_requirements_due", { contexts: { bridgeUser }, level: "warning" });
     }
 
-    if (bridgeUser.requirements_due) {
+    if (bridgeUser.requirements_due?.length) {
       // TODO handle requirements due
       // ? external_account is only for off-ramp
       captureMessage("bridge_requirements_due", { contexts: { bridgeUser }, level: "warning" });

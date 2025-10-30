@@ -250,7 +250,6 @@ export async function getProvider(
     try {
       validateIdentification(inquiry, personaAccount);
     } catch (error) {
-      captureException(error, { contexts: { inquiry } });
       if (error instanceof Error && Object.values(ErrorCodes).includes(error.message)) {
         switch (error.message) {
           case ErrorCodes.COUNTRY_NOT_ALLOWED:
@@ -267,6 +266,7 @@ export async function getProvider(
             return { status: "MISSING_INFORMATION", currencies, cryptoCurrencies: [], pendingTasks: [inquiryTask] };
           }
         }
+        captureException(error, { contexts: { inquiry } });
       }
       throw error;
     }
