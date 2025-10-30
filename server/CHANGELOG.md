@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.31
+
+### Patch Changes
+
+- [`bad4485`](https://github.com/exactly/exa/commit/bad4485f2702eacb266f5a97d7df0b13be1123e3) Thanks [@mainqueg](https://github.com/mainqueg)! - 🦺 validate document from inquiry
+
 ## 0.2.30
 
 ### Patch Changes
