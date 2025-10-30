@@ -22,4 +22,16 @@ contract DeployLiquidator is BaseScript {
 
     vm.stopBroadcast();
   }
+
+  function getCode() external returns (bytes memory code) {
+    return address(
+      new Liquidator(
+        acct("deployer"),
+        protocol("Auditor"),
+        acct("Uniswap3Factory"),
+        acct("Uniswap3Router02"),
+        protocol("VelodromePoolFactory")
+      )
+    ).code;
+  }
 }
