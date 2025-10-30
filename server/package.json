@@ -16,6 +16,10 @@
     "dev": "tsx --watch --env-file=.env --require=./instrument.cjs index.ts"
   },
   "bin": "./dist/index.cjs",
+  "exports": {
+    "./api": "./dist/api/index.d.ts",
+    "./api/activity": "./dist/api/activity.d.ts"
+  },
   "files": [
     "app",
     "dist",
