@@ -69,6 +69,7 @@
     "@vitest/coverage-v8": "^3.2.4",
     "@vitest/ui": "^3.2.4",
     "@wagmi/core": "^2.22.1",
+    "clinic": "^13.0.0",
     "drizzle-kit": "^0.31.5",
     "execa": "^9.6.0",
     "ioredis-mock": "^8.13.0",

@@ -183,7 +183,9 @@
       "form-data@4.0.2": "^4.0.4",
       "nanoid@3.3.7": "^3.3.8",
       "on-headers@1.0.2": "^1.1.0",
+      "package-json@6.5.0": "^7.0.0",
       "react-native": "$react-native",
+      "request@2.88.2": "npm:@cypress/request@^3.0.9",
       "semver@7.3.2": "^7.5.2",
       "send@0.18.0": "^0.19.0",
       "sharp": "$sharp",
@@ -271,6 +273,11 @@
       "ignoreMissing": [
         "hardhat",
         "typechain"
+      ]
+    },
+    "auditConfig": {
+      "ignoreGhsas": [
+        "GHSA-36jr-mh4h-2g58"
       ]
     }
   },
