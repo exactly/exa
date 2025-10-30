@@ -24,10 +24,12 @@ generated/
 
 *.log
 *.dump
+*.heapprofile
 application_x_sentry_envelope-*.txt
 lcov.info
 **/.vscode/*
 !/.vscode/extensions.json
+.clinic/
 .env
 .env*.local
 .*-version*
