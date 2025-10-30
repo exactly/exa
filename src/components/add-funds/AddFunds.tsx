@@ -1,14 +1,14 @@
 import chain from "@exactly/common/generated/chain";
 import shortenHex from "@exactly/common/shortenHex";
 import type { Credential } from "@exactly/common/validation";
+import { useAppKit, useAppKitState } from "@reown/appkit-react-native";
 import { ArrowLeft, CircleHelp, Info, Wallet } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigation } from "expo-router";
-import React, { useCallback } from "react";
-import { Linking, Platform, Pressable } from "react-native";
+import React, { useEffect } from "react";
+import { Platform, Pressable } from "react-native";
 import { ScrollView, useTheme, XStack, YStack } from "tamagui";
 import { isAddress } from "viem";
-import { ConnectorAlreadyConnectedError, useConnect, useConnectors } from "wagmi";
 
 import AddFundsOption from "./AddFundsOption";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
@@ -17,44 +17,24 @@ import WalletConnectImage from "../../assets/images/walletconnect.svg";
 import type { AuthMethod } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useIntercom from "../../utils/useIntercom";
-import externalConfig from "../../utils/wagmi/external";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function AddFunds() {
   const theme = useTheme();
+  const { open } = useAppKit();
   const { presentArticle } = useIntercom();
   const navigation = useNavigation<AppNavigationProperties>();
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const { data: method } = useQuery<AuthMethod>({ queryKey: ["method"] });
   const ownerAccount = credential && isAddress(credential.credentialId) ? credential.credentialId : undefined;
 
-  const [walletConnect] = useConnectors({ config: externalConfig });
-  const { connectAsync } = useConnect({ config: externalConfig });
+  const { isConnected, isOpen } = useAppKitState();
 
-  const connectExternal = useCallback(() => {
-    if (!walletConnect) throw new Error("no wallet connect connector");
-    walletConnect
-      .getProvider()
-      .then(async (provider) => {
-        provider.once("display_uri", (uri) => {
-          if (Platform.OS === "web") return;
-          Linking.openURL(uri).catch(reportError);
-        });
-        try {
-          await connectAsync({ connector: walletConnect });
-          navigation.navigate("add-funds", { screen: "bridge", params: { sender: "external" } });
-        } catch (error) {
-          if (error instanceof ConnectorAlreadyConnectedError) {
-            navigation.navigate("add-funds", { screen: "bridge", params: { sender: "external" } });
-            return;
-          }
-          reportError(error);
-        }
-      })
-      .catch(reportError);
-  }, [connectAsync, navigation, walletConnect]);
+  useEffect(() => {
+    if (isConnected && isOpen) navigation.navigate("add-funds", { screen: "bridge", params: { sender: "external" } });
+  }, [isConnected, isOpen, navigation]);
 
   return (
     <SafeView fullScreen backgroundColor="$backgroundMild">
@@ -100,7 +80,7 @@ export default function AddFunds() {
               icon={<WalletConnectImage width={30} height={30} fill={theme.interactiveOnBaseBrandSoft.val} />}
               title="Using WalletConnect"
               subtitle={`From another wallet ${Platform.OS === "web" ? "" : "on your device"}`}
-              onPress={connectExternal}
+              onPress={open}
             />
             <AddFundsOption
               icon={<OptimismImage width={30} height={30} />}

@@ -1,19 +1,28 @@
 import "@walletconnect/react-native-compat";
 
+import chain from "@exactly/common/generated/chain";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createAppKit } from "@reown/appkit-react-native";
 import { WagmiAdapter } from "@reown/appkit-wagmi-react-native";
+import { setStringAsync } from "expo-clipboard";
 
-import { supportedChains } from "./wagmi/external";
+import { supportedChains, projectId } from "./wagmi/external";
 
-const projectId = "YOUR_PROJECT_ID"; // Obtain from https://dashboard.reown.com/
-
-export const wagmiAdapter = new WagmiAdapter({ projectId, networks: supportedChains });
+const wagmiAdapter = new WagmiAdapter({ projectId, networks: supportedChains });
+export const appKitWagmiConfig = wagmiAdapter.wagmiConfig;
 
 export default createAppKit({
   projectId,
   networks: [...supportedChains],
   adapters: [wagmiAdapter],
+  defaultNetwork: chain,
+  features: { onramp: false, socials: false, swaps: false, showWallets: false },
+  clipboardClient: {
+    setString: async (value: string) => {
+      await setStringAsync(value);
+    },
+  },
+  debug: true, // TODO remove in production
   metadata: {
     name: "Exa App",
     description: "What finance should be today",
@@ -21,6 +30,7 @@ export default createAppKit({
     icons: ["https://exactly.app/og-image.webp"], // TODO replace with actual icon
   },
   storage: {
+    // TODO replace with storage solution
     getKeys: async () => {
       return (await AsyncStorage.getAllKeys()) as string[];
     },

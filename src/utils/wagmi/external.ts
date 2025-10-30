@@ -11,12 +11,12 @@ import { createConfig, createStorage, custom } from "wagmi";
 import publicClient from "../publicClient";
 
 const walletConnect = walletConnectUntyped as typeof walletConnectType;
-
+export const projectId = "d94854d116f9c1da5f21baf7421b7732";
 export const supportedChains = [chain, ...Object.values(chains)] as unknown as readonly [Chain, ...Chain[]];
 
 export default createConfig({
   chains: supportedChains,
-  connectors: [walletConnect({ projectId: "d94854d116f9c1da5f21baf7421b7732", showQrModal: Platform.OS === "web" })],
+  connectors: [walletConnect({ projectId, showQrModal: Platform.OS === "web" })],
   transports: {
     ...Object.fromEntries(Object.values(chains).map((c) => [c.id, http()])),
     [chain.id]: custom(publicClient),
