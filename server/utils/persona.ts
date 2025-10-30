@@ -87,7 +87,7 @@ export async function resumeOrCreateMantecaInquiryOTL(referenceId: string, redir
   }
 
   // TODO prefill inquiry with known fields
-  const { data } = await request(ResumeMantecaInquiryResponse, `/inquiries`, {
+  const { data } = await request(CreateInquiryResponse, `/inquiries`, {
     data: {
       attributes: { "inquiry-template-id": MANTECA_TEMPLATE, "redirect-uri": `${redirectURL ?? appOrigin}/` },
     },
@@ -184,6 +184,9 @@ const InquiryFields = object({
   "social-security-number": nullish(object({ type: literal("string"), value: nullish(string()) })),
   "identification-class": nullish(object({ type: literal("string"), value: nullish(string()) })),
   "identification-number": nullish(object({ type: literal("string"), value: nullish(string()) })),
+  "current-government-id": nullish(
+    object({ type: literal("string"), value: nullish(object({ id: nullish(string()) })) }),
+  ),
 });
 
 export const Inquiry = object({
@@ -272,8 +275,6 @@ const MantecaInquiry = object({
 });
 
 const GetMantecaInquiryResponse = object({ data: array(MantecaInquiry) });
-
-const ResumeMantecaInquiryResponse = object({ data: MantecaInquiry, meta: object({ "session-token": string() }) });
 
 export function headerValidator() {
   return vValidator("header", object({ "persona-signature": string() }), async (r, c) => {
