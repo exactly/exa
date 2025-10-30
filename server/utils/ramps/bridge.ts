@@ -148,12 +148,12 @@ export async function getProvider(data: GetProvider): Promise<InferOutput<typeof
         break;
     }
 
-    if (bridgeUser.future_requirements_due) {
+    if (bridgeUser.future_requirements_due?.length) {
       // TODO handle future requirements
       captureMessage("bridge_future_requirements_due", { contexts: { bridgeUser }, level: "warning" });
     }
 
-    if (bridgeUser.requirements_due) {
+    if (bridgeUser.requirements_due?.length) {
       // TODO handle requirements due
       // ? external_account is only for off-ramp
       captureMessage("bridge_requirements_due", { contexts: { bridgeUser }, level: "warning" });
@@ -228,9 +228,15 @@ export async function getProvider(data: GetProvider): Promise<InferOutput<typeof
     currencies.push(...CurrencyByEndorsement[endorsement]);
   }
 
+  let bridgeRedirectURL: URL | undefined = undefined;
+  if (data.redirectURL) {
+    bridgeRedirectURL = new URL(data.redirectURL);
+    bridgeRedirectURL.searchParams.set("provider", "bridge" satisfies (typeof common.RampProvider)[number]);
+  }
+
   pendingTasks.push({
     type: "TOS_LINK",
-    link: await agreementLink(data.redirectURL),
+    link: await agreementLink(bridgeRedirectURL?.toString()),
     displayText: "Terms of Service",
     currencies,
     cryptoCurrencies,
