@@ -23,9 +23,27 @@
       "8453": "0x3Ed5B7C4F0406b0D5afbe8ccFd1BD845f8F9D415",
       "default": "0xe2D63e18Fb136ef84557f79052BFE8EFa90F69Bd"
     },
+    "liquidator": {
+      "10": "0xd49a86AF1C8e112000bA02262811fee221C2Dab8",
+      "default": "0xeB2962b62C44138bBE094f2ff5a41e5C17152630"
+    },
+    "liquidatorAdmin": {
+      "10": "0x59C41d3629F81ef8Ce554B4eB3446a2b6A129260",
+      "default": "0xDb90CDB64CfF03f254e4015C4F705C3F3C834400"
+    },
     "Swapper": {
       "11155420": "0x3E2D4b69C52932CB5b2a9Ee744CB585bb201c771",
       "default": "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE"
+    },
+    "Uniswap3Factory": {
+      "10": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+      "8453": "0x33128a8fC17869897dcE68Ed026d694621f6FDfD",
+      "default": "0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24"
+    },
+    "Uniswap3Router02": {
+      "10": "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45",
+      "8453": "0x2626664c2603336E57B271c5C0b26F421741e481",
+      "default": "0x94cC0AaC535CCDB3C01d6787D6413C739ae12bc4"
     }
   },
   "issuerChecker": { "operationExpiry": 4838400, "prevIssuerWindow": 4838400 },

@@ -7,6 +7,7 @@ import { MockPriceFeed } from "@exactly/protocol/mocks/MockPriceFeed.sol";
 import { Ownable } from "solady/auth/Ownable.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
+import { DeployLiquidator } from "../script/Liquidator.s.sol";
 import { Liquidator } from "../src/Liquidator.sol";
 import { ForkTest } from "./Fork.t.sol";
 
@@ -42,13 +43,10 @@ contract LiquidatorTest is ForkTest {
     weth = protocol("WETH");
     wstETH = protocol("wstETH");
 
-    liquidator = new Liquidator(
-      address(this),
-      address(auditor),
-      0x1F98431c8aD98523631AE4a59f267346ea31F984,
-      0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45,
-      protocol("VelodromePoolFactory")
-    );
+    set("liquidatorAdmin", address(this));
+    DeployLiquidator d = new DeployLiquidator();
+    d.run();
+    liquidator = d.liquidator();
 
     vm.label(ALICE, "alice");
   }

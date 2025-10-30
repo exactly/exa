@@ -14,6 +14,9 @@ out/
 !/broadcast/IssuerChecker.s.sol
 /broadcast/IssuerChecker.s.sol/*/*
 !/broadcast/IssuerChecker.s.sol/*/run-latest.json
+!/broadcast/Liquidator.s.sol
+/broadcast/Liquidator.s.sol/*/*
+!/broadcast/Liquidator.s.sol/*/run-latest.json
 !/broadcast/Mocks.s.sol
 /broadcast/Mocks.s.sol/*/*
 !/broadcast/Mocks.s.sol/*/run-latest.json
