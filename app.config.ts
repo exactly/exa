@@ -59,6 +59,7 @@ export default {
       ITSAppUsesNonExemptEncryption: false,
       NSCameraUsageDescription: "This app uses the camera to verify your identity.",
       NSLocationWhenInUseUsageDescription: "This app uses your location to verify your identity.",
+      LSApplicationQueriesSchemes: ["metamask", "trust", "safe", "rainbow", "uniswap", "binance", "base", "rabby"], // cspell:ignore rabby
     },
     userInterfaceStyle: "automatic",
     splash: {
@@ -117,6 +118,7 @@ export default {
         largeIcons: ["src/assets/notifications_default_large.png"],
       } satisfies OneSignalPlugin.OneSignalPluginProps,
     ],
+    "./src/android.js",
   ],
   experiments: { typedRoutes: true },
   extra: { eas: { projectId: "06bc0158-d23b-430b-a7e8-802df03c450b" } },

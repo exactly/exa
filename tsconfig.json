@@ -18,6 +18,7 @@
     "expo-env.d.ts",
     "src/**/*.ts",
     "src/**/*.tsx",
+    "src/android.js",
     "src/index.js",
     "tamagui.config.ts"
   ]
