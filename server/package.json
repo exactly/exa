@@ -18,7 +18,8 @@
   "bin": "./dist/index.cjs",
   "exports": {
     "./api": "./dist/api/index.d.ts",
-    "./api/activity": "./dist/api/activity.d.ts"
+    "./api/activity": "./dist/api/activity.d.ts",
+    "./script/liquidator": "./dist/script/liquidator.cjs"
   },
   "files": [
     "app",
