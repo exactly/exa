@@ -1,7 +1,8 @@
 import { vValidator } from "@hono/valibot-validator";
-import { captureException, getActiveSpan, SEMANTIC_ATTRIBUTE_SENTRY_OP, setContext, setUser } from "@sentry/node";
+import { captureException, getActiveSpan, SEMANTIC_ATTRIBUTE_SENTRY_OP, setUser } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
+import crypto from "node:crypto";
 import type { InferOutput } from "valibot";
 import {
   array,
@@ -23,8 +24,8 @@ import {
 import database, { credentials } from "../database/index";
 import { createUser } from "../utils/panda";
 import { headerValidator } from "../utils/persona";
+import { customer } from "../utils/sardine";
 import validatorHook from "../utils/validatorHook";
-
 const Session = pipe(
   object({
     type: literal("inquiry-session"),
@@ -56,6 +57,18 @@ export default new Hono().post(
                 attributes: object({
                   status: literal("approved"),
                   referenceId: string(),
+                  emailAddress: string(),
+                  phoneNumber: string(),
+                  birthdate: string(),
+                  nameFirst: string(),
+                  nameMiddle: nullable(string()),
+                  nameLast: string(),
+                  addressStreet1: string(),
+                  addressStreet2: nullable(string()),
+                  addressCity: string(),
+                  addressSubdivision: string(),
+                  addressSubdivisionAbbr: nullable(string()),
+                  addressPostalCode: string(),
                   fields: pipe(
                     object({
                       accountPurpose: object({ value: string() }),
@@ -64,6 +77,7 @@ export default new Hono().post(
                       expectedMonthlyVolume: object({ value: nullable(string()) }),
                       inputSelect: object({ value: string() }),
                       monthlyPurchasesRange: optional(object({ value: string() })),
+                      addressCountryCode: object({ value: string() }),
                     }),
                     check(
                       (fields) => !!fields.annualSalaryRangesUs150000?.value || !!fields.annualSalary.value,
@@ -122,14 +136,12 @@ export default new Hono().post(
   async (c) => {
     getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "persona.inquiry");
     const {
-      data: {
-        id: personaShareToken,
-        attributes: { fields, referenceId },
-      },
+      data: { id: personaShareToken, attributes },
       session,
       annualSalary,
       expectedMonthlyVolume,
     } = c.req.valid("json").data.attributes.payload;
+    const { referenceId, fields } = attributes;
 
     const credential = await database.query.credentials.findFirst({
       columns: { account: true, pandaId: true },
@@ -141,11 +153,46 @@ export default new Hono().post(
       return c.json({ code: "no credential" }, 200);
     }
     setUser({ id: credential.account });
-    setContext("persona", { inquiryId: personaShareToken });
+    getActiveSpan()?.setAttribute("exa.inquiryId", personaShareToken);
 
     if (credential.pandaId) {
       getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "persona.inquiry.already-created");
       return c.json({ code: "already created" }, 200);
+    }
+
+    const risk = await customer({
+      sessionKey: crypto.randomUUID(),
+      customer: {
+        id: referenceId,
+        type: "customer",
+        createdAtMillis: Date.now(),
+        firstName: attributes.nameFirst,
+        middleName: attributes.nameMiddle ?? undefined,
+        lastName: attributes.nameLast,
+        address: {
+          street1: attributes.addressStreet1,
+          street2: attributes.addressStreet2 ?? undefined,
+          city: attributes.addressCity,
+          regionCode: attributes.addressSubdivisionAbbr ?? undefined,
+          postalCode: attributes.addressPostalCode,
+          countryCode: fields.addressCountryCode.value,
+        },
+        phone: attributes.phoneNumber,
+        emailAddress: attributes.emailAddress,
+        dateOfBirth: attributes.birthdate,
+      },
+      device: {
+        ip: session.attributes.IPAddress,
+        createdAtMillis: Date.now(), // cspell:ignore createdAtMillis
+      },
+    }).catch((error: unknown) => {
+      captureException(error, { level: "error" });
+    });
+
+    if (risk) {
+      getActiveSpan()?.setAttributes({ "exa.risk": risk.level });
+      getActiveSpan()?.setAttributes({ "exa.score": risk.customer?.score });
+      if (risk.level === "very_high") return c.json({ code: "very high risk" }, 200);
     }
 
     // TODO implement error handling to return 200 if event should not be retried
@@ -161,7 +208,7 @@ export default new Hono().post(
 
     await database.update(credentials).set({ pandaId: id }).where(eq(credentials.id, referenceId));
 
-    setContext("persona", { inquiryId: personaShareToken, pandaId: id });
+    getActiveSpan()?.setAttributes({ "exa.pandaId": id });
 
     return c.json({ id }, 200);
   },

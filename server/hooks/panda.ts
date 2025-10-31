@@ -55,6 +55,7 @@ import keeper from "../utils/keeper";
 import { sendPushNotification } from "../utils/onesignal";
 import { collectors, createMutex, getMutex, getUser, headerValidator, signIssuerOp, updateUser } from "../utils/panda";
 import publicClient from "../utils/publicClient";
+import risk, { feedback } from "../utils/sardine";
 import { track } from "../utils/segment";
 import traceClient, { type CallFrame } from "../utils/traceClient";
 import validatorHook from "../utils/validatorHook";
@@ -75,11 +76,12 @@ const BaseTransaction = v.object({
     cardType: v.literal("virtual"),
     localAmount: v.number(),
     localCurrency: v.pipe(v.string(), v.length(3)),
-    merchantCity: v.nullish(v.string()),
-    merchantCountry: v.nullish(v.string()),
-    merchantCategory: v.nullish(v.string()),
+    merchantCity: v.string(),
+    merchantCountry: v.string(),
+    merchantCategory: v.string(),
+    merchantCategoryCode: v.string(),
     merchantName: v.string(),
-    merchantId: v.nullish(v.string()),
+    merchantId: v.optional(v.string()),
     authorizedAt: v.optional(v.pipe(v.string(), v.isoTimestamp())),
     authorizedAmount: v.nullish(v.number()),
     userId: v.string(),
@@ -96,7 +98,7 @@ const Transaction = v.variant("action", [
       spend: v.object({
         ...BaseTransaction.entries.spend.entries,
         status: v.picklist(["pending", "declined"]),
-        declinedReason: v.nullish(v.string()),
+        declinedReason: v.optional(v.string()),
       }),
     }),
   }),
@@ -111,7 +113,7 @@ const Transaction = v.variant("action", [
         authorizationUpdateAmount: v.number(),
         authorizedAt: v.pipe(v.string(), v.isoTimestamp()),
         status: v.picklist(["declined", "pending", "reversed"]),
-        declinedReason: v.nullish(v.string()),
+        declinedReason: v.optional(v.string()),
         enrichedMerchantIcon: v.nullish(v.string()),
         enrichedMerchantName: v.nullish(v.string()),
         enrichedMerchantCategory: v.nullish(v.string()),
@@ -124,7 +126,6 @@ const Transaction = v.variant("action", [
     action: v.literal("requested"),
     body: v.object({
       ...BaseTransaction.entries,
-      id: v.optional(v.string()),
       spend: v.object({
         ...BaseTransaction.entries.spend.entries,
         authorizedAmount: v.number(),
@@ -234,10 +235,43 @@ export default new Hono().post(
 
     switch (payload.action) {
       case "requested": {
-        if (payload.body.spend.amount < 0) return c.json({ code: "ok" });
         const card = await findCardById(payload.body.spend.cardId);
         const account = v.parse(Address, card.credential.account);
         setUser({ id: account });
+        const assess = () => {
+          return risk({
+            sessionKey: payload.id,
+            customerId: account,
+            transaction: {
+              id: payload.body.id,
+              currencyCode: payload.body.spend.localCurrency,
+              amount: Math.abs(payload.body.spend.localAmount) / 100,
+              type: payload.body.spend.amount < 0 ? "return" : "purchase",
+              merchant: {
+                mcc: payload.body.spend.merchantCategoryCode,
+                id: payload.body.spend.merchantId,
+                name: payload.body.spend.merchantName,
+              },
+              status: "pending",
+            },
+            card: { id: payload.body.spend.cardId },
+          }).catch((error: unknown) => {
+            captureException(error, { level: "error" });
+            if (error instanceof Error && error.name === "TimeoutError") {
+              return { status: "timeout", level: "unknown", score: 0 };
+            }
+          });
+        };
+
+        if (payload.body.spend.amount < 0) {
+          const assessment = await assess();
+          getActiveSpan()?.setAttribute("exa.level", assessment?.level);
+          getActiveSpan()?.setAttribute("exa.score", assessment?.score);
+          if (assessment?.level.includes("high")) {
+            return c.json({ code: "high risk refund" }, 559 as UnofficialStatusCode);
+          }
+          return c.json({ code: "ok" });
+        }
         const mutex = getMutex(account) ?? createMutex(account);
         try {
           await startSpan({ name: "acquire mutex", op: "panda.mutex" }, () => mutex.acquire());
@@ -251,45 +285,58 @@ export default new Hono().post(
           throw error;
         }
         setContext("mutex", { locked: mutex.isLocked() });
+
         try {
           const { amount, call, transaction } = await prepareCollection(card, payload);
           const authorize = () => {
             trackTransactionAuthorized(account, payload, card.mode);
             return c.json({ code: "ok" });
           };
-          if (!transaction) return authorize();
+          if (!transaction) {
+            const assessment = await assess();
+            getActiveSpan()?.setAttribute("exa.level", assessment?.level);
+            getActiveSpan()?.setAttribute("exa.score", assessment?.score);
+            if (assessment?.level.includes("high")) throw new PandaError("high risk", 558 as UnofficialStatusCode);
+            return authorize();
+          }
           try {
-            const trace = await startSpan({ name: "debug_traceCall", op: "tx.trace" }, () =>
-              traceClient.traceCall({
-                from: account,
-                to: exaPreviewerAddress,
-                data: transaction.data,
-                stateOverride: [
-                  {
-                    address: exaPluginAddress,
-                    stateDiff: [
-                      {
-                        slot: keccak256(
-                          encodeAbiParameters(
-                            [{ type: "address" }, { type: "bytes32" }],
-                            [
-                              exaPreviewerAddress,
-                              keccak256(
-                                encodeAbiParameters(
-                                  [{ type: "bytes32" }, { type: "uint256" }],
-                                  [keccak256(toBytes("KEEPER_ROLE")), 0n],
+            const [trace, assessment] = await Promise.all([
+              startSpan({ name: "debug_traceCall", op: "tx.trace" }, () =>
+                traceClient.traceCall({
+                  from: account,
+                  to: exaPreviewerAddress,
+                  data: transaction.data,
+                  stateOverride: [
+                    {
+                      address: exaPluginAddress,
+                      stateDiff: [
+                        {
+                          slot: keccak256(
+                            encodeAbiParameters(
+                              [{ type: "address" }, { type: "bytes32" }],
+                              [
+                                exaPreviewerAddress,
+                                keccak256(
+                                  encodeAbiParameters(
+                                    [{ type: "bytes32" }, { type: "uint256" }],
+                                    [keccak256(toBytes("KEEPER_ROLE")), 0n],
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
-                        value: encodeAbiParameters([{ type: "uint256" }], [1n]),
-                      },
-                    ],
-                  },
-                ],
-              }),
-            );
+                          value: encodeAbiParameters([{ type: "uint256" }], [1n]),
+                        },
+                      ],
+                    },
+                  ],
+                }),
+              ),
+              startSpan({ name: "assess risk", op: "tx.risk" }, assess),
+            ]);
+            getActiveSpan()?.setAttribute("exa.level", assessment?.level);
+            getActiveSpan()?.setAttribute("exa.score", assessment?.score);
+            if (assessment?.level.includes("high")) throw new PandaError("high risk", 558 as UnofficialStatusCode);
             setContext("tx", { call, trace });
             if (trace.output) {
               const contractError = getContractError(new RawContractError({ data: trace.output }), {
@@ -444,6 +491,15 @@ export default new Hono().post(
               },
             }).catch((error: unknown) => captureException(error));
             trackTransactionRefund(account, refundAmountUsd, payload);
+            if (payload.action === "completed" && payload.body.spend.amount < 0) {
+              feedback({
+                sessionKey: payload.id,
+                kind: "issuing",
+                customer: { id: account },
+                transaction: { id: payload.body.id },
+                feedback: { type: { type: "settlement", status: "refund" } },
+              }).catch((error: unknown) => captureException(error, { level: "error" }));
+            }
             return c.json({ code: "ok" });
           } catch (error: unknown) {
             captureException(error, { level: "fatal", tags: { unhandled: true } });
@@ -455,12 +511,6 @@ export default new Hono().post(
         }
       // falls through
       case "created": {
-        if (payload.body.spend.amount < 0) {
-          startSpan({ name: "webhook", op: `panda.webhook.${payload.id}` }, () => publish(payload)).catch(
-            (error: unknown) => captureException(error, { level: "error" }),
-          );
-          return c.json({ code: "ok" });
-        }
         const card = await findCardById(payload.body.spend.cardId);
         const account = v.parse(Address, card.credential.account);
         setUser({ id: account });
@@ -474,6 +524,29 @@ export default new Hono().post(
           mutex?.release();
           setContext("mutex", { locked: mutex?.isLocked() });
           trackTransactionRejected(account, payload, card.mode);
+          startSpan({ name: "webhook", op: `panda.webhook.${payload.id}` }, () => publish(payload)).catch(
+            (error: unknown) => captureException(error, { level: "error" }),
+          );
+          feedback({
+            sessionKey: payload.id,
+            kind: "issuing",
+            customer: { id: account },
+            transaction: { id: payload.body.id },
+            feedback: {
+              type: { type: "authorization", status: "network_declined", reason: payload.body.spend.declinedReason },
+            },
+          }).catch((error: unknown) => captureException(error, { level: "error" }));
+          return c.json({ code: "ok" });
+        }
+        if (payload.body.spend.amount < 0) {
+          feedback({
+            sessionKey: payload.id,
+            kind: "issuing",
+            customer: { id: account },
+            transaction: { id: payload.body.id },
+            feedback: { type: { type: "authorization", status: "approved" } },
+          }).catch((error: unknown) => captureException(error, { level: "error" }));
+
           startSpan({ name: "webhook", op: `panda.webhook.${payload.id}` }, () => publish(payload)).catch(
             (error: unknown) => captureException(error, { level: "error" }),
           );
@@ -505,6 +578,18 @@ export default new Hono().post(
             startSpan({ name: "webhook", op: `panda.webhook.${payload.id}` }, () => publish(payload)).catch(
               (error: unknown) => captureException(error, { level: "error" }),
             );
+            feedback({
+              sessionKey: payload.id,
+              kind: "issuing",
+              customer: { id: account },
+              transaction: { id: payload.body.id },
+              feedback: {
+                type:
+                  payload.action === "created"
+                    ? { type: "authorization", status: "approved" }
+                    : { type: "settlement", status: "settled" },
+              },
+            }).catch((error: unknown) => captureException(error, { level: "error" }));
             return c.json({ code: "ok" });
           }
           try {
@@ -576,6 +661,26 @@ export default new Hono().post(
                   })} at ${payload.body.spend.merchantName.trim()}. Paid ${{ 0: "with USDC", 1: "with credit" }[card.mode] ?? `in ${card.mode} installments`}`,
                 },
               }).catch((error: unknown) => captureException(error, { level: "error" }));
+            }
+            switch (payload.action) {
+              case "created":
+                feedback({
+                  sessionKey: payload.id,
+                  kind: "issuing",
+                  customer: { id: account },
+                  transaction: { id: payload.body.id },
+                  feedback: { type: { type: "authorization", status: "approved" } },
+                }).catch((error: unknown) => captureException(error, { level: "error" }));
+                break;
+              case "completed":
+                feedback({
+                  sessionKey: payload.id,
+                  kind: "issuing",
+                  customer: { id: account },
+                  transaction: { id: payload.body.id },
+                  feedback: { type: { type: "settlement", status: "settled" } },
+                }).catch((error: unknown) => captureException(error, { level: "error" }));
+                break;
             }
             return c.json({ code: "ok" });
           } catch (error: unknown) {
@@ -1012,7 +1117,7 @@ const Webhook = v.variant("resource", [
         spend: v.object({
           ...BaseWebhook.entries.spend.entries,
           status: v.picklist(["pending", "declined"]),
-          declinedReason: v.nullish(v.string()),
+          declinedReason: v.optional(v.string()),
         }),
       }),
     }),

@@ -26,6 +26,7 @@ export default defineConfig({
       POSTGRES_URL: "postgres",
       REDIS_URL: "redis",
       SEGMENT_WRITE_KEY: "segment",
+      SARDINE_API_KEY: "sardine",
     },
     coverage: { enabled: true, reporter: ["lcov"] },
     testTimeout: 36_666,
