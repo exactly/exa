@@ -109,7 +109,7 @@ contract ExaPreviewerTest is ForkTest {
 
     DeployMocks m = new DeployMocks();
     m.run();
-    set("swapper", address(m.swapper()));
+    set("Swapper", address(m.swapper()));
 
     DeployRefunder r = new DeployRefunder();
     r.run();

@@ -33,7 +33,7 @@ const [issuerChecker] = loadBroadcast("IssuerChecker").transactions;
 const [proposalManager] = loadBroadcast("ProposalManager").transactions;
 const [refunder] = loadBroadcast("Refunder").transactions;
 const [exaPreviewer] = loadBroadcast("ExaPreviewer").transactions;
-const swapper = (deploy.accounts.swapper as Record<string, string>)[chainId] ?? deploy.accounts.swapper.default;
+const swapper = (deploy.accounts.Swapper as Record<string, string>)[chainId] ?? deploy.accounts.Swapper.default;
 if (!exaPlugin || !issuerChecker || !proposalManager || !exaPreviewer || !refunder || !swapper) {
   throw new Error("missing contracts");
 }

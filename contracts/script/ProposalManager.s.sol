@@ -34,7 +34,7 @@ contract DeployProposalManager is BaseScript {
       vm.label(address(markets[i]), symbol);
       vm.label(asset, symbol.slice(3));
     }
-    allowlist.push(acct("swapper"));
+    allowlist.push(acct("Swapper"));
     address esEXA = protocol("esEXA", false);
     if (esEXA != address(0)) allowlist.push(esEXA);
     address rewardsController = protocol("RewardsController", false);

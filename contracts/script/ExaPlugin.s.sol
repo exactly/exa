@@ -31,7 +31,7 @@ contract DeployExaPlugin is BaseScript {
         issuerChecker: IssuerChecker(broadcast("IssuerChecker")),
         proposalManager: IProposalManager(broadcast("ProposalManager")),
         collector: acct("collector"),
-        swapper: acct("swapper"),
+        swapper: acct("Swapper"),
         firstKeeper: acct("keeper")
       })
     );
