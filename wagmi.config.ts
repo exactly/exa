@@ -105,6 +105,7 @@ export default defineConfig([
         issuerChecker: issuerChecker.contractAddress,
         refunder: refunder.contractAddress,
       }),
+      blockNumbers({ auditor: auditor.receipt.blockNumber }),
       foundry({
         forge: { build: false },
         project: "contracts",
@@ -145,6 +146,19 @@ function addresses(contracts: Record<string, string>, scripts?: Record<string, s
   };
 }
 
+function blockNumbers(contracts: Record<string, number>): Plugin {
+  return {
+    name: "Block Numbers",
+    run() {
+      return {
+        content: `${Object.entries(contracts)
+          .map(([key, value]) => `export const ${key}BlockNumber = ${value} as const`)
+          .join("\n")}\n`,
+      };
+    },
+  };
+}
+
 function chain(): Plugin {
   const importName = {
     [base.id]: "base",
@@ -167,6 +181,7 @@ function loadDeployment(contract: string) {
   return JSON.parse(readFileSync(`node_modules/@exactly/protocol/deployments/${network}/${contract}.json`, "utf8")) as {
     address: string;
     abi: Abi;
+    receipt: { blockNumber: number };
   };
 }
 
