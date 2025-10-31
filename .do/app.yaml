@@ -137,6 +137,13 @@ services:
       - key: SENTRY_DSN
         scope: RUN_TIME
         value: ${{ env.SENTRY_DSN }}
+      - key: SARDINE_API_URL
+        scope: RUN_TIME
+        value: ${{ env.SARDINE_API_URL }}
+      - key: SARDINE_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+        value: ${{ env.ENCRYPTED_SARDINE_API_KEY || env.SARDINE_API_KEY }}
     http_port: 3000
     image:
       registry: exactly
