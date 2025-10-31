@@ -27,6 +27,8 @@ export default defineConfig({
       PERSONA_WEBHOOK_SECRET: "persona",
       POSTGRES_URL: "postgres",
       REDIS_URL: "redis",
+      SARDINE_API_KEY: "sardine",
+      SARDINE_API_URL: "https://api.sardine.ai",
       SEGMENT_WRITE_KEY: "segment",
       ...(env.NODE_ENV === "e2e" && { APP_DOMAIN: "localhost", DEBUG: "exa:*" }),
     },

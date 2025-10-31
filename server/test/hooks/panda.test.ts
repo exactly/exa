@@ -5,6 +5,7 @@ import "../mocks/onesignal";
 import "../mocks/panda";
 import "../mocks/redis";
 import "../mocks/keeper";
+import "../mocks/sardine";
 
 import ProposalType from "@exactly/common/ProposalType";
 import deriveAddress from "@exactly/common/deriveAddress";
@@ -48,6 +49,7 @@ import app from "../../hooks/panda";
 import keeper from "../../utils/keeper";
 import * as pandaUtils from "../../utils/panda";
 import publicClient from "../../utils/publicClient";
+import * as sardine from "../../utils/sardine";
 import traceClient from "../../utils/traceClient";
 import anvilClient from "../anvilClient";
 
@@ -244,6 +246,55 @@ describe("card operations", () => {
           expect.anything(),
         );
         expect(response.status).toBe(550);
+      });
+
+      it("rejects spend because of high risk", async () => {
+        vi.spyOn(sardine, "default").mockResolvedValueOnce({
+          status: "Success",
+          level: "high",
+          sessionKey: "123",
+          amlLevel: "high",
+          score: 98,
+          reasonCodes: ["AR01"],
+        });
+        await database.insert(cards).values([{ id: "high-risk", credentialId: "cred", lastFour: "5678", mode: 0 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: { ...authorization.json.body, spend: { ...authorization.json.body.spend, cardId: "high-risk" } },
+          },
+        });
+
+        expect(response.status).toBe(558);
+      });
+
+      it("rejects refund because of high risk", async () => {
+        vi.spyOn(sardine, "default").mockResolvedValueOnce({
+          status: "Success",
+          level: "high",
+          sessionKey: "123",
+          amlLevel: "high",
+          score: 98,
+          reasonCodes: ["AR01"],
+        });
+        await database
+          .insert(cards)
+          .values([{ id: "high-risk-refund", credentialId: "cred", lastFour: "5678", mode: 0 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: {
+              ...authorization.json.body,
+              spend: { ...authorization.json.body.spend, cardId: "high-risk-refund", amount: -100 },
+            },
+          },
+        });
+
+        expect(response.status).toBe(559);
       });
 
       describe("with drain proposal", () => {

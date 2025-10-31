@@ -13,6 +13,7 @@ import { hexToBytes, isAddress } from "viem";
 import { headers as alchemyHeaders } from "./alchemy";
 import authSecret from "./authSecret";
 import decodePublicKey from "./decodePublicKey";
+import { customer } from "./sardine";
 import { identify } from "./segment";
 import database from "../database";
 import { credentials } from "../database/schema";
@@ -57,6 +58,9 @@ export default async function createCredential<C extends string>(
         if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);
       })
       .catch((error: unknown) => captureException(error)),
+    customer({ flow: { name: "signup", type: "signup" }, customer: { id: credentialId } }).catch((error: unknown) =>
+      captureException(error, { level: "error" }),
+    ),
   ]);
   identify({ userId: account });
   return { credentialId, factory: parse(Address, exaAccountFactoryAddress), x, y, auth: expires.getTime() };
