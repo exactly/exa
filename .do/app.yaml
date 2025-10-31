@@ -73,6 +73,8 @@ services:
         scope: RUN_TIME
       - key: PANDA_API_URL
         scope: RUN_TIME
+      - key: SARDINE_API_KEY
+        scope: RUN_TIME
 databases:
   - name: postgres
     cluster_name: ${{ env.POSTGRES_NAME }}

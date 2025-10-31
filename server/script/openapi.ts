@@ -25,6 +25,7 @@ process.env.PERSONA_WEBHOOK_SECRET = "persona";
 process.env.POSTGRES_URL = "postgres";
 process.env.REDIS_URL = "redis";
 process.env.SEGMENT_WRITE_KEY = "segment";
+process.env.SARDINE_API_KEY = "sardine";
 
 /* eslint-disable n/no-process-exit, unicorn/no-process-exit, no-console -- cli */
 import("../api")
