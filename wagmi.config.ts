@@ -37,6 +37,10 @@ const swapper = (deploy.accounts.Swapper as Record<string, string>)[chainId] ?? 
 if (!exaPlugin || !issuerChecker || !proposalManager || !exaPreviewer || !refunder || !swapper) {
   throw new Error("missing contracts");
 }
+let liquidator: ReturnType<typeof loadBroadcast>["transactions"][number] | undefined;
+try {
+  [liquidator] = loadBroadcast("Liquidator").transactions;
+} catch {} // eslint-disable-line no-empty
 
 execSync("forge build", { cwd: "contracts", stdio: "inherit" });
 
@@ -83,7 +87,7 @@ export default defineConfig([
           usdc: usdc.address,
           weth: weth.address,
         },
-        { exaAccountFactory: "ExaAccountFactory" },
+        { scripts: { exaAccountFactory: "ExaAccountFactory" } },
       ),
       foundry({
         forge: { build: false },
@@ -101,10 +105,13 @@ export default defineConfig([
       { name: "Previewer", abi: previewer.abi },
     ],
     plugins: [
-      addresses({
-        issuerChecker: issuerChecker.contractAddress,
-        refunder: refunder.contractAddress,
-      }),
+      addresses(
+        {
+          issuerChecker: issuerChecker.contractAddress,
+          refunder: refunder.contractAddress,
+        },
+        { optional: { liquidator: liquidator?.contractAddress } },
+      ),
       blockNumbers({ auditor: auditor.receipt.blockNumber }),
       foundry({
         forge: { build: false },
@@ -113,6 +120,7 @@ export default defineConfig([
           "ExaPlugin.sol/ExaPlugin.json",
           "ExaPreviewer.sol/ExaPreviewer.json",
           "IssuerChecker.sol/IssuerChecker.json",
+          "Liquidator.sol/Liquidator.json",
           "ProposalManager.sol/ProposalManager.json",
           "Refunder.sol/Refunder.json",
           "UpgradeableModularAccount.sol/UpgradeableModularAccount.json",
@@ -122,7 +130,10 @@ export default defineConfig([
   },
 ]);
 
-function addresses(contracts: Record<string, string>, scripts?: Record<string, string>): Plugin {
+function addresses(
+  contracts: Record<string, string>,
+  { scripts, optional }: { scripts?: Record<string, string>; optional?: Record<string, string | undefined> } = {},
+): Plugin {
   return {
     name: "Addresses",
     run() {
@@ -138,9 +149,15 @@ function addresses(contracts: Record<string, string>, scripts?: Record<string, s
         }
       }
       return {
-        content: `${Object.entries(contracts)
-          .map(([key, value]) => `export const ${key}Address = "${getAddress(value)}" as const`)
-          .join("\n")}\n`,
+        content: `${[
+          ...Object.entries(contracts).map(
+            ([key, value]) => `export const ${key}Address = "${getAddress(value)}" as const`,
+          ),
+          ...Object.entries(optional ?? {}).map(
+            ([key, value]) =>
+              `export const ${key}Address = ${value ? `"${getAddress(value)}"` : "undefined"} as \`0x\${string}\` | undefined`,
+          ),
+        ].join("\n")}\n`,
       };
     },
   };
