@@ -13,6 +13,7 @@ import {
   decodeEventLog,
   decodeFunctionResult,
   encodeEventTopics,
+  encodeFunctionData,
   getAbiItem,
   getAddress,
   http,
@@ -133,33 +134,52 @@ async function liquidator(blockNumber?: bigint) {
       }
       const { assets: preflightAssets } = parseLiquidateEvent(preflight.logs);
       debug(account, Number(toUSD(preflightAssets, repay)) / 1e18, `${repay.assetSymbol}/${seize.assetSymbol}`);
-      const { poolPair, fee, pairFee } = poolArgs(repay.assetSymbol, seize.assetSymbol);
-      const liquidate = {
+      const maxRepay = mulDiv(preflightAssets, 1003n, 1000n) + 2n;
+      const { uniswap: uniswapArgs, velodrome: velodromeArgs } = poolArgs(repay.assetSymbol, seize.assetSymbol);
+      const uniswapCall = {
         to: liquidatorAddress ?? walletAccount.address,
         functionName: "liquidateUniswap",
-        args: [repay.market, seize.market, account, mulDiv(preflightAssets, 1003n, 1000n) + 2n, poolPair, fee, pairFee],
+        args: [repay.market, seize.market, account, maxRepay, ...uniswapArgs],
         abi: [...liquidatorAbi, ...protocolAbi],
       } as const;
-      const {
-        results: [{ status, error, logs, gasUsed }],
-      } = await smallClient.simulateCalls({ account: walletAccount, calls: [liquidate], stateOverrides, blockNumber });
-      if (status !== "success") {
-        if (["InsufficientShortfall", "ZeroWithdraw", "TransferFailed"].includes(errorName(error))) return;
-        throw new Error(error.message);
-      }
-      const { assets: simulationAssets } = parseLiquidateEvent(logs);
-      if (simulationAssets < preflightAssets) debug(`${account} ${simulationAssets} < ${preflightAssets}`);
+      const velodromeCall = {
+        to: uniswapCall.to,
+        functionName: "liquidateVelodrome",
+        args: [repay.market, seize.market, account, maxRepay, ...velodromeArgs],
+        abi: [...liquidatorAbi, ...protocolAbi, { type: "error", name: "InsufficientLiquidity", inputs: [] }],
+      } as const;
+      const [{ results: uniswap }, { results: velodrome }] = await Promise.all([
+        smallClient.simulateCalls({ account: walletAccount, calls: [uniswapCall], stateOverrides, blockNumber }),
+        smallClient.simulateCalls({ account: walletAccount, calls: [velodromeCall], stateOverrides, blockNumber }),
+      ]);
+      const simulations = [uniswap[0], velodrome[0]];
+      const errors = simulations.filter((s) => s.status === "failure").map((s) => s.error);
+      const unexpectedErrors = errors.filter(
+        (error) =>
+          !["InsufficientShortfall", "ZeroWithdraw", "TransferFailed", "Unsupported"].includes(errorName(error)),
+      );
+      if (errors.length === simulations.length && unexpectedErrors.length === 0) return;
+      const [simulation] = simulations
+        .filter((s) => s.status === "success")
+        .map((s) => ({
+          call: s === velodrome[0] ? velodromeCall : uniswapCall,
+          assets: parseLiquidateEvent(s.logs).assets,
+          gasUsed: s.gasUsed,
+        }))
+        .sort(({ assets: a }, { assets: b }) => Number(b - a));
+      if (!simulation) throw new Error(unexpectedErrors.map(({ message }) => message).join("\n"));
+      if (simulation.assets < preflightAssets) debug(`${account} ${simulation.assets} < ${preflightAssets}`);
       if (blockNumber || stateOverrides) {
-        debug(account, "simulation", Number(toUSD(simulationAssets, repay)) / 1e18);
+        debug(account, "simulation", Number(toUSD(simulation.assets, repay)) / 1e18);
         return;
       }
-      const hash = await walletClient.writeContract({
+      const hash = await walletClient.sendTransaction({
+        data: encodeFunctionData({ ...simulation.call, abi: liquidatorAbi }),
+        address: simulation.call.to,
         type: "eip1559",
-        address: liquidate.to,
         maxFeePerGas: 10_000_000n,
         maxPriorityFeePerGas: 10_000n,
-        gas: mulDiv(gasUsed, 15n, 10n),
-        ...liquidate,
+        gas: mulDiv(simulation.gasUsed, 15n, 10n),
       });
       debug(account, hash);
       await smallClient.waitForTransactionReceipt({ hash, confirmations: 0 });
@@ -173,12 +193,14 @@ async function liquidator(blockNumber?: bigint) {
 // #region config
 const POOLS = {
   [optimism.id]: {
-    OP: { USDC: { fee: 3000 } },
+    OP: { USDC: { uniswap: { fee: 3000 }, velodrome: { poolPair: wethAddress } } },
     USDC: { USDC: { fee: 100, poolPair: "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58" }, WBTC: { fee: 3000 } },
     WBTC: { wstETH: { fee: 100, pairFee: 500, poolPair: wethAddress } },
     WETH: { wstETH: { fee: 100 } },
   },
-}[chain.id] as Record<string, Record<string, { poolPair?: Address; fee?: number; pairFee?: number }>> | undefined;
+}[chain.id] as
+  | Record<string, Record<string, UniswapArgs | { uniswap?: UniswapArgs; velodrome: VelodromeArgs }>>
+  | undefined;
 const DUST_THRESHOLD = 10_000_000_000_000_000n; // 0.01 adjusted USD
 const LOG_BATCH_SIZE = 25_000_000;
 const ACCOUNT_BATCH_SIZE = 5000;
@@ -208,19 +230,25 @@ liquidator(argv[2] ? BigInt(argv[2]) : undefined).catch((error: unknown) => {
 
 // #region helpers
 type MarketAccount = ReadContractReturnType<typeof previewerAbi, "exactly">[number];
+type UniswapArgs = { poolPair?: Address; fee?: number; pairFee?: number }; // eslint-disable-line @typescript-eslint/consistent-type-definitions
+type VelodromeArgs = { poolPair?: Address; stable?: boolean; pairStable?: boolean }; // eslint-disable-line @typescript-eslint/consistent-type-definitions
 
 function poolArgs(repayAssetSymbol: string, seizeAssetSymbol: string) {
   const [symbol0, symbol1] = [repayAssetSymbol, seizeAssetSymbol].sort() as [string, string];
+  const config = POOLS?.[symbol0]?.[symbol1] ?? {};
   const {
-    poolPair = repayAssetSymbol === seizeAssetSymbol
-      ? repayAssetSymbol === "USDC"
-        ? wethAddress
-        : usdcAddress
-      : zeroAddress,
-    fee = 500,
-    pairFee = 0,
-  } = POOLS?.[symbol0]?.[symbol1] ?? {};
-  return { poolPair, fee, pairFee };
+    uniswap: {
+      poolPair = repayAssetSymbol === seizeAssetSymbol
+        ? repayAssetSymbol === "USDC"
+          ? wethAddress
+          : usdcAddress
+        : zeroAddress,
+      fee = 500,
+      pairFee = 0,
+    } = {},
+    velodrome: { poolPair: velodromePoolPair = zeroAddress, stable = false, pairStable = false } = {},
+  } = "velodrome" in config ? config : { uniswap: config };
+  return { uniswap: [poolPair, fee, pairFee] as const, velodrome: [velodromePoolPair, stable, pairStable] as const };
 }
 
 function totalDebt({ floatingBorrowAssets, fixedBorrowPositions }: MarketAccount) {
