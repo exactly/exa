@@ -1,5 +1,27 @@
 # @exactly/mobile
 
+## 1.0.33
+
+### Patch Changes
+
+- [`ec06eb8`](https://github.com/exactly/exa/commit/ec06eb8146cd152afe1c6750453f4f0ac4045872) Thanks [@franm91](https://github.com/franm91)! - ✨ implement partial repays
+
+- [`f4595fa`](https://github.com/exactly/exa/commit/f4595faae821fac2847b8dcd75b072f3dd0f1c97) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ implement lifi bridge
+
+- [`55185d7`](https://github.com/exactly/exa/commit/55185d76d60892d1156b6f79668b65f4cf705e91) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🩹 add missing enable condition for pending proposals
+
+- [`fd48e1b`](https://github.com/exactly/exa/commit/fd48e1bbf9cc3bc3e760dcf3130a22e79284fc38) Thanks [@franm91](https://github.com/franm91)! - ✨ read card limit from server
+
+- [`e383ee0`](https://github.com/exactly/exa/commit/e383ee03a6dc1d204496ae3ee2ce0565130ec213) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ implement weighted apr
+
+- [`cc23a18`](https://github.com/exactly/exa/commit/cc23a183180f430a76a456506da3280087d210db) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 avoid double navigation
+
+- [`4b48e73`](https://github.com/exactly/exa/commit/4b48e7386ec142cb86e5c803b43cb767f59889e3) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ enable send funds with qr code
+
+- [`b840b84`](https://github.com/exactly/exa/commit/b840b84703911478515dc3a190d2914e93fd3210) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ read pending bridge mutation state
+
+- [`1c36909`](https://github.com/exactly/exa/commit/1c36909d63a7f3f869625b03c5cc5f8725addd13) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 👔 invert onboarding steps order
+
 ## 1.0.32
 
 ### Patch Changes
