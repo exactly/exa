@@ -36,6 +36,52 @@ describe("authenticated", () => {
     vi.restoreAllMocks();
   });
 
+  it("returns ok kyc approved with country code", async () => {
+    await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, account));
+    const getInquiry = vi.spyOn(persona, "getInquiry");
+    const getAccount = vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
+      ...personaTemplate,
+      type: "account",
+      attributes: {
+        "country-code": "AR",
+        "social-security-number": null,
+        "address-street-1": "123 Main St",
+        "address-street-2": null,
+        "address-city": "New York",
+        "address-subdivision": null,
+        "address-postal-code": "10001",
+        fields: {},
+      },
+    });
+
+    const response = await appClient.index.$get(
+      { query: { countryCode: "true" } },
+      { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
+    );
+
+    expect(getAccount).toHaveBeenCalledOnce();
+    expect(getInquiry).not.toHaveBeenCalled();
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok", legacy: "ok" });
+    expect(response.headers.get("User-Country")).toBe("AR");
+    expect(response.status).toBe(200);
+  });
+
+  it("returns ok kyc approved when panda id is present", async () => {
+    await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, account));
+    const getInquiry = vi.spyOn(persona, "getInquiry");
+    const getAccount = vi.spyOn(persona, "getAccount");
+
+    const response = await appClient.index.$get(
+      { query: {} },
+      { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
+    );
+
+    expect(getAccount).not.toHaveBeenCalled();
+    expect(getInquiry).not.toHaveBeenCalled();
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok", legacy: "ok" });
+    expect(response.status).toBe(200);
+  });
+
   it("returns ok kyc approved without template", async () => {
     await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, account));
     const getInquiry = vi.spyOn(persona, "getInquiry").mockResolvedValueOnce(personaTemplate);
