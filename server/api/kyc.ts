@@ -4,7 +4,7 @@ import createDebug from "debug";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { validator as vValidator } from "hono-openapi/valibot";
-import { object, optional, parse, string } from "valibot";
+import { literal, object, optional, parse, string } from "valibot";
 
 import database, { credentials } from "../database/index";
 import auth from "../middleware/auth";
@@ -22,9 +22,11 @@ import validatorHook from "../utils/validatorHook";
 const debug = createDebug("exa:kyc");
 Object.assign(debug, { inspectOpts: { depth: undefined } });
 
+const GetKYCQuery = object({ templateId: optional(string()), countryCode: optional(literal("true")) });
+
 export default new Hono()
-  .get("/", auth(), async (c) => {
-    const templateId = c.req.query("templateId") ?? CRYPTOMATE_TEMPLATE;
+  .get("/", auth(), vValidator("query", GetKYCQuery, validatorHook()), async (c) => {
+    const templateId = c.req.valid("query").templateId ?? CRYPTOMATE_TEMPLATE;
     if (templateId !== CRYPTOMATE_TEMPLATE && templateId !== PANDA_TEMPLATE) {
       return c.json({ code: "bad template", legacy: "invalid persona template" }, 400);
     }
@@ -34,9 +36,13 @@ export default new Hono()
       where: eq(credentials.id, credentialId),
     });
     if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
-    if (credential.pandaId) return c.json({ code: "ok", legacy: "ok" }, 200);
+    if (c.req.valid("query").countryCode) {
+      const account = await getAccount(credentialId);
+      if (account) c.header("User-Country", account.attributes["country-code"]);
+    }
     setUser({ id: parse(Address, credential.account) });
     setContext("exa", { credential });
+    if (credential.pandaId) return c.json({ code: "ok", legacy: "ok" }, 200);
     const inquiry = await getInquiry(credentialId, templateId);
     if (!inquiry) return c.json({ code: "no kyc", legacy: "kyc not found" }, 404);
     if (inquiry.attributes.status === "created") {
