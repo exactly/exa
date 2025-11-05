@@ -73,7 +73,7 @@ export async function resumeInquiry(inquiryId: string, sessionToken: string, nav
     .start();
 }
 
-async function getRedirectURI() {
+export async function getRedirectURI() {
   const miniappContext = (await sdk.context) as unknown as { client: { appUrl?: string } } | undefined;
   if (miniappContext?.client.appUrl) return miniappContext.client.appUrl;
   switch (queryClient.getQueryData<EmbeddingContext>(["embedding-context"])) {

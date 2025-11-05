@@ -76,14 +76,7 @@ export default function HomeActions() {
               onPress={() => {
                 switch (key) {
                   case "deposit":
-                    switch (method) {
-                      case "siwe":
-                        navigation.navigate("add-funds", { screen: "index" });
-                        break;
-                      default:
-                        navigation.navigate("add-funds", { screen: "add-crypto" });
-                        break;
-                    }
+                    navigation.navigate("add-funds", { screen: "index" });
                     break;
                   case "send":
                     handleSend().catch(reportError);

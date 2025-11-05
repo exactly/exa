@@ -2,12 +2,13 @@ import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 import domain from "@exactly/common/domain";
 import { Credential } from "@exactly/common/validation";
 import type { ExaAPI } from "@exactly/server/api";
+import type { ProviderInfo as ProviderInfoSchema, RampProvider } from "@exactly/server/utils/ramps/shared";
 import { sdk } from "@farcaster/miniapp-sdk";
 import { getAccount, signMessage } from "@wagmi/core";
 import { hc } from "hono/client";
 import { Platform } from "react-native";
 import { get as assert, create } from "react-native-passkeys";
-import { check, number, parse, pipe, safeParse, ValiError } from "valibot";
+import { check, number, parse, pipe, safeParse, ValiError, type InferInput } from "valibot";
 
 import { encryptPIN, session } from "./panda";
 import queryClient, { APIError, type AuthMethod } from "./queryClient";
@@ -122,9 +123,9 @@ export async function getKYCLink(templateId: string, redirectURI?: string) {
   return stringOrLegacy(await response.json());
 }
 
-export async function getKYCStatus(templateId: string) {
+export async function getKYCStatus(templateId: string, countryCode?: string) {
   await auth();
-  const response = await api.kyc.$get({ query: { templateId } });
+  const response = await api.kyc.$get({ query: { templateId, countryCode } });
   queryClient.setQueryData(["user", "country"], response.headers.get("User-Country"));
   if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
   const result = await response.json();
@@ -198,4 +199,59 @@ function stringOrLegacy(response: string | { legacy: string }) {
   if (typeof response === "string") return response;
   if ("legacy" in response && typeof response.legacy === "string") return response.legacy;
   throw new Error("invalid api response");
+}
+
+function extractErrorMessage(response: unknown): string {
+  if (typeof response === "string") return response;
+
+  if (typeof response === "object" && response !== null) {
+    if ("code" in response && typeof response.code === "string") {
+      return response.code;
+    }
+    if ("legacy" in response && typeof response.legacy === "string") {
+      return response.legacy;
+    }
+  }
+  return "Unknown error";
+}
+
+export async function getOnrampProviders(templateId?: string, countryCode?: string, redirectURL?: string) {
+  await auth();
+  const query = { templateId, countryCode, redirectURL };
+
+  const response = await api.onramp.$get({ query });
+  if (!response.ok) throw new APIError(response.status, extractErrorMessage(await response.json()));
+  return response.json();
+}
+
+export type OnRampProvider = (typeof RampProvider)[number];
+
+export type ProviderInfo = InferInput<typeof ProviderInfoSchema>;
+
+export async function getOnrampQuote(query: NonNullable<Parameters<typeof api.onramp.quote.$get>[0]>["query"]) {
+  await auth();
+  const response = await api.onramp.quote.$get({ query });
+
+  if (!response.ok) {
+    throw new APIError(response.status, extractErrorMessage(await response.json()));
+  }
+
+  return response.json();
+}
+
+export async function startOnrampOnboarding(
+  onboardingData: { provider: "manteca" } | { provider: "bridge"; acceptedTermsId: string },
+  templateId?: string,
+) {
+  await auth();
+  const response = await api.onramp.onboarding.$post({
+    query: { templateId },
+    json: onboardingData,
+  });
+
+  if (!response.ok) {
+    throw new APIError(response.status, extractErrorMessage(await response.json()));
+  }
+
+  return response.json();
 }
