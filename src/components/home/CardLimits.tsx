@@ -1,5 +1,5 @@
 import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
-import { borrowLimit, withdrawLimit } from "@exactly/lib";
+import { borrowLimit, WAD, withdrawLimit } from "@exactly/lib";
 import { ChevronRight, Info } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigation } from "expo-router";
@@ -38,8 +38,9 @@ export default function CardLimits({ onPress }: { onPress: () => void }) {
             color="white"
           >
             {(markets
-              ? Number(isCredit ? borrowLimit(markets, marketUSDCAddress) : withdrawLimit(markets, marketUSDCAddress)) /
-                1e6
+              ? Number(
+                  isCredit ? borrowLimit(markets, marketUSDCAddress) : withdrawLimit(markets, marketUSDCAddress, WAD),
+                ) / 1e6
               : 0
             ).toLocaleString(undefined, { style: "currency", currency: "USD", currencyDisplay: "narrowSymbol" })}
           </Text>
