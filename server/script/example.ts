@@ -15,19 +15,17 @@ import {
   http,
   sha256,
   getAddress,
+  type WalletClient,
 } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
+import { type Account, privateKeyToAccount } from "viem/accounts";
 import { optimismSepolia } from "viem/chains";
 import { createSiweMessage } from "viem/siwe";
 
 /* eslint-disable no-console */
 
 const API_BASE_URL = process.env.API_BASE_URL;
-const PRIVATE_KEY = process.env.PRIVATE_KEY_WALLET;
 const FIRST_NAME_ID =
   process.env.FIRST_NAME_ID ?? Array.from({ length: 8 }, () => Math.random().toString(36).charAt(2)).join("");
-
-if (!PRIVATE_KEY) throw new Error("PRIVATE_KEY environment variable is required");
 if (!API_BASE_URL) throw new Error("API_BASE_URL environment variable is required");
 
 const authClient = createAuthClient({
@@ -68,6 +66,7 @@ const KYCStatus = v.object({
 });
 
 const CardResponse = v.object({
+  cardId: v.string(),
   displayName: v.string(),
   encryptedPan: v.object({
     data: v.string(),
@@ -92,6 +91,7 @@ const CardResponse = v.object({
 });
 
 const CreatedCardResponse = v.object({
+  cardId: v.string(),
   lastFour: v.string(),
   status: v.picklist(["ACTIVE", "FROZEN"]),
 });
@@ -167,114 +167,131 @@ function decryptPIN(base64Secret: string, base64Iv: string, secretKey: string) {
   return data.slice(2, 2 + Number.parseInt(length, 10));
 }
 
-const account = privateKeyToAccount(PRIVATE_KEY as `0x${string}`);
-const wallet = createWalletClient({
-  account,
-  chain: optimismSepolia,
-  transport: http(),
-});
+function initializeWalletClient(privateKey?: string) {
+  const pk = privateKey ?? process.env.PRIVATE_KEY_WALLET;
+  if (!pk) throw new Error("PRIVATE_KEY_WALLET is not set");
+  const account = privateKeyToAccount(pk as `0x${string}`);
+  const wallet = createWalletClient({
+    account,
+    chain: optimismSepolia,
+    transport: http(),
+  });
+  console.log(`🔑 Using wallet address: ${account.address}`);
+  return { wallet, account };
+}
 
 const client = createPublicClient({
   chain: optimismSepolia,
   transport: http(),
 });
 
-console.log(`🔑 Using wallet address: ${account.address}`);
-
-const AUTH_HEADERS = {
-  Cookie: "",
-};
 // #endregion utilities
 
 // #region actions
-async function getAuthOptions(address: string): Promise<v.InferOutput<typeof AuthenticationOptions>> {
-  const response = await fetch(`${API_BASE_URL}/api/auth/authentication?credentialId=${address}`);
-  if (!response.ok) {
-    throw new Error(`Failed to get auth options: ${response.status} ${response.statusText}`);
+export class ExaClient {
+  private readonly wallet: WalletClient;
+  readonly account: Readonly<Account>;
+  authHeaders: Record<string, string>;
+
+  constructor(privateKey?: string) {
+    const pk = privateKey ?? process.env.PRIVATE_KEY_WALLET;
+    if (!pk) throw new Error("PRIVATE_KEY_WALLET is not set");
+    const { wallet, account } = initializeWalletClient(pk);
+    this.wallet = wallet;
+    this.account = account;
+    this.authHeaders = {
+      Cookie: "",
+    };
   }
-  const setCookieHeader = response.headers.get("set-cookie");
-  const sessionCookie = setCookieHeader?.match(/session_id=([^;]+)/)?.[1];
-  if (!sessionCookie) throw new Error("No session cookie received");
 
-  const data = await response.json();
-  const authOptions = v.parse(AuthenticationOptions, data);
-  AUTH_HEADERS.Cookie = setCookieHeader;
-  return authOptions;
-}
+  async getAuthOptions(address: string): Promise<v.InferOutput<typeof AuthenticationOptions>> {
+    const response = await fetch(`${API_BASE_URL}/api/auth/authentication?credentialId=${address}`);
+    if (!response.ok) {
+      throw new Error(`Failed to get auth options: ${response.status} ${response.statusText}`);
+    }
+    const setCookieHeader = response.headers.get("set-cookie");
+    const sessionCookie = setCookieHeader?.match(/session_id=([^;]+)/)?.[1];
+    if (!sessionCookie) throw new Error("No session cookie received");
 
-async function signSiwe(message: string): Promise<`0x${string}`> {
-  console.log("✍️  Signing SIWE message...");
-  const signature = await wallet.signMessage({
-    message,
-    account,
-  });
-  return signature;
-}
-
-async function authenticate(address: string, signature: string): Promise<ViemAddress> {
-  const response = await fetch(`${API_BASE_URL}/api/auth/authentication`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...AUTH_HEADERS,
-    },
-    body: JSON.stringify({
-      method: "siwe",
-      id: address,
-      signature,
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Authentication failed: ${response.status} ${response.statusText} - ${error}`);
-  }
-  const setCookieHeader = response.headers.get("set-cookie");
-  if (!setCookieHeader) throw new Error("No set-cookie header received");
-  AUTH_HEADERS.Cookie = setCookieHeader;
-
-  const data = await response.json();
-  const authResponse = v.parse(AuthenticationResponse, data);
-
-  const accountAddress = await client.readContract({
-    address: authResponse.factory,
-    abi: exaAccountFactoryAbi,
-    functionName: "getAddress",
-    args: [
-      0n,
-      [
-        {
-          x: BigInt(authResponse.x),
-          y: BigInt(authResponse.y),
-        },
-      ],
-    ],
-  });
-  return accountAddress;
-}
-
-async function getKyc(): Promise<v.InferOutput<typeof KYCStatus> | v.InferOutput<typeof BadRequest>> {
-  console.log("Getting KYC application...");
-
-  const response = await fetch(`${API_BASE_URL}/api/kyc/application`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      ...AUTH_HEADERS,
-    },
-  });
-
-  if (!response.ok) {
     const data = await response.json();
-    return v.parse(BadRequest, data);
+    const authOptions = v.parse(AuthenticationOptions, data);
+    this.authHeaders.Cookie = setCookieHeader;
+    return authOptions;
   }
 
-  const data = await response.json();
-  return v.parse(KYCStatus, data);
-}
+  async signSiwe(message: string): Promise<`0x${string}`> {
+    console.log("✍️  Signing SIWE message...");
+    const signature = await this.wallet.signMessage({
+      message,
+      account: this.account,
+    });
+    return signature;
+  }
 
-function encryptKyc(payload: string) {
-  const sandboxPublicKey = `-----BEGIN PUBLIC KEY-----
+  async authenticate(address: string, signature: string): Promise<ViemAddress> {
+    const response = await fetch(`${API_BASE_URL}/api/auth/authentication`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...this.authHeaders,
+      },
+      body: JSON.stringify({
+        method: "siwe",
+        id: address,
+        signature,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Authentication failed: ${response.status} ${response.statusText} - ${error}`);
+    }
+    const setCookieHeader = response.headers.get("set-cookie");
+    if (!setCookieHeader) throw new Error("No set-cookie header received");
+    this.authHeaders.Cookie = setCookieHeader;
+
+    const data = await response.json();
+    const authResponse = v.parse(AuthenticationResponse, data);
+
+    const accountAddress = await client.readContract({
+      address: authResponse.factory,
+      abi: exaAccountFactoryAbi,
+      functionName: "getAddress",
+      args: [
+        0n,
+        [
+          {
+            x: BigInt(authResponse.x),
+            y: BigInt(authResponse.y),
+          },
+        ],
+      ],
+    });
+    return accountAddress;
+  }
+
+  async getKyc(): Promise<v.InferOutput<typeof KYCStatus> | v.InferOutput<typeof BadRequest>> {
+    console.log("Getting KYC application...");
+
+    const response = await fetch(`${API_BASE_URL}/api/kyc/application`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...this.authHeaders,
+      },
+    });
+
+    if (!response.ok) {
+      const data = await response.json();
+      return v.parse(BadRequest, data);
+    }
+
+    const data = await response.json();
+    return v.parse(KYCStatus, data);
+  }
+
+  static encryptKyc(payload: string) {
+    const sandboxPublicKey = `-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyZixoAuo015iMt+JND0y
 usAvU2iJhtKRM+7uAxd8iXq7Z/3kXlGmoOJAiSNfpLnBAG0SCWslNCBzxf9+2p5t
 HGbQUkZGkfrYvpAzmXKsoCrhWkk1HKk9f7hMHsyRlOmXbFmIgQHggEzEArjhkoXD
@@ -283,182 +300,186 @@ pl2iMP1ykCY0YAS+ni747DqcDOuFqLrNA138AxLNZdFsySHbxn8fzcfd3X0J/m/T
 S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
 2wIDAQAB
 -----END PUBLIC KEY-----`;
-  const aesKey = crypto.randomBytes(32);
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv("aes-256-gcm", aesKey, iv);
+    const aesKey = crypto.randomBytes(32);
+    const iv = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv("aes-256-gcm", aesKey, iv);
 
-  const ciphertext = Buffer.concat([cipher.update(payload, "utf8"), cipher.final()]);
-  const tag = cipher.getAuthTag();
+    const ciphertext = Buffer.concat([cipher.update(payload, "utf8"), cipher.final()]);
+    const tag = cipher.getAuthTag();
 
-  const key = crypto.publicEncrypt(
-    {
-      key: sandboxPublicKey,
-      padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
-      oaepHash: "sha256",
-    },
-    aesKey,
-  );
-
-  return {
-    key: key.toString("base64"),
-    iv: iv.toString("base64"),
-    ciphertext: ciphertext.toString("base64"),
-    tag: tag.toString("base64"),
-    hash: sha256(ciphertext),
-  };
-}
-
-async function submitKyc(exaAccount: `0x${string}`) {
-  console.log("Submitting KYC application...");
-
-  if (!process.env.INTEGRATOR_ADMIN_PRIVATE_KEY) throw new Error("INTEGRATOR_ADMIN_PRIVATE_KEY is not set");
-
-  const integratorAdmin = privateKeyToAccount(process.env.INTEGRATOR_ADMIN_PRIVATE_KEY as `0x${string}`);
-
-  const { data, error: nonceError } = await authClient.siwe.nonce({
-    walletAddress: integratorAdmin.address,
-    chainId: optimismSepolia.id,
-  });
-  if (!data) throw new Error(`Failed to get nonce: ${nonceError.message}`);
-
-  const encryptedPayload = encryptKyc(JSON.stringify(kycPayload));
-  const statement = `I apply for KYC approval on behalf of address ${getAddress(exaAccount)} with payload hash ${encryptedPayload.hash}`;
-  if (!API_BASE_URL) throw new Error("API_BASE_URL is not set");
-  const message = createSiweMessage({
-    statement,
-    resources: ["https://exactly.github.io/exa"],
-    nonce: data.nonce,
-    uri: API_BASE_URL,
-    address: integratorAdmin.address,
-    chainId: optimismSepolia.id,
-    scheme: "https",
-    version: "1",
-    domain: new URL(API_BASE_URL).hostname,
-  });
-  const signature = await integratorAdmin.signMessage({ message });
-
-  const { hash, ...payload } = encryptedPayload;
-  console.log("application payload");
-  const response = await fetch(`${API_BASE_URL}/api/kyc/application`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...AUTH_HEADERS,
-      encrypted: "true",
-    },
-    body: JSON.stringify({
-      ...payload,
-      verify: {
-        message,
-        signature,
-        walletAddress: integratorAdmin.address,
-        chainId: optimismSepolia.id,
+    const key = crypto.publicEncrypt(
+      {
+        key: sandboxPublicKey,
+        padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
+        oaepHash: "sha256",
       },
-    }),
-  });
+      aesKey,
+    );
 
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`KYC application submission failed: ${response.status} ${response.statusText} - ${error}`);
+    return {
+      key: key.toString("base64"),
+      iv: iv.toString("base64"),
+      ciphertext: ciphertext.toString("base64"),
+      tag: tag.toString("base64"),
+      hash: sha256(ciphertext),
+    };
   }
-}
 
-async function getCard(): Promise<
-  | {
-      details: v.InferOutput<typeof CardResponse>;
-      pan: string;
-      cvc: string;
-      pin: string | null;
+  async submitKyc(
+    exaAccount: `0x${string}`,
+    kycPayload: ReturnType<typeof buildKycPayload>,
+    integratorPrivateKey?: string,
+  ) {
+    console.log("Submitting KYC application...");
+
+    const pk = integratorPrivateKey ?? process.env.INTEGRATOR_ADMIN_PRIVATE_KEY;
+    if (!pk) throw new Error("INTEGRATOR_ADMIN_PRIVATE_KEY is not set");
+    const integratorAdmin = privateKeyToAccount(pk as `0x${string}`);
+
+    const { data, error: nonceError } = await authClient.siwe.nonce({
+      walletAddress: integratorAdmin.address,
+      chainId: optimismSepolia.id,
+    });
+    if (!data) throw new Error(`Failed to get nonce: ${nonceError.message}`);
+
+    const encryptedPayload = ExaClient.encryptKyc(JSON.stringify(kycPayload));
+    const statement = `I apply for KYC approval on behalf of address ${getAddress(exaAccount)} with payload hash ${encryptedPayload.hash}`;
+    if (!API_BASE_URL) throw new Error("API_BASE_URL is not set");
+    const message = createSiweMessage({
+      statement,
+      resources: ["https://exactly.github.io/exa"],
+      nonce: data.nonce,
+      uri: API_BASE_URL,
+      address: integratorAdmin.address,
+      chainId: optimismSepolia.id,
+      scheme: "https",
+      version: "1",
+      domain: new URL(API_BASE_URL).hostname,
+    });
+    const signature = await integratorAdmin.signMessage({ message });
+
+    const { hash, ...payload } = encryptedPayload;
+    console.log("application payload");
+    const response = await fetch(`${API_BASE_URL}/api/kyc/application`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...this.authHeaders,
+        encrypted: "true",
+      },
+      body: JSON.stringify({
+        ...payload,
+        verify: {
+          message,
+          signature,
+          walletAddress: integratorAdmin.address,
+          chainId: optimismSepolia.id,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`KYC application submission failed: ${response.status} ${response.statusText} - ${error}`);
     }
-  | undefined
-> {
-  const { id, secret } = session();
-  const response = await fetch(`${API_BASE_URL}/api/card`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      ...AUTH_HEADERS,
-      sessionid: id,
-    },
-  });
-
-  if (!response.ok) {
-    if (response.status === 404) return;
-    const error = await response.text();
-    throw new Error(`Failed to get card: ${response.status} ${response.statusText} - ${error}`);
   }
 
-  const data = await response.json();
-  const details = v.parse(CardResponse, data);
+  async getCard(): Promise<
+    | {
+        details: v.InferOutput<typeof CardResponse>;
+        pan: string;
+        cvc: string;
+        pin: string | null;
+      }
+    | undefined
+  > {
+    const { id, secret } = session();
+    const response = await fetch(`${API_BASE_URL}/api/card`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...this.authHeaders,
+        sessionid: id,
+      },
+    });
 
-  const pan = decrypt(details.encryptedPan.data, details.encryptedPan.iv, secret);
-  const cvc = decrypt(details.encryptedCvc.data, details.encryptedCvc.iv, secret);
-  const pin = details.pin ? decryptPIN(details.pin.data, details.pin.iv, secret) : null;
-  return { details, pan, cvc, pin };
-}
+    if (!response.ok) {
+      if (response.status === 404) return;
+      const error = await response.text();
+      throw new Error(`Failed to get card: ${response.status} ${response.statusText} - ${error}`);
+    }
 
-async function createCard(): Promise<v.InferOutput<typeof CreatedCardResponse>> {
-  console.log("Creating card...");
-  const response = await fetch(`${API_BASE_URL}/api/card`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...AUTH_HEADERS,
-    },
-  });
+    const data = await response.json();
+    const details = v.parse(CardResponse, data);
 
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Failed to create card: ${response.status} ${response.statusText} - ${error}`);
+    const pan = decrypt(details.encryptedPan.data, details.encryptedPan.iv, secret);
+    const cvc = decrypt(details.encryptedCvc.data, details.encryptedCvc.iv, secret);
+    const pin = details.pin ? decryptPIN(details.pin.data, details.pin.iv, secret) : null;
+    return { details, pan, cvc, pin };
   }
 
-  const data = await response.json();
-  return v.parse(CreatedCardResponse, data);
-}
+  async createCard(): Promise<v.InferOutput<typeof CreatedCardResponse>> {
+    console.log("Creating card...");
+    const response = await fetch(`${API_BASE_URL}/api/card`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...this.authHeaders,
+      },
+    });
 
-async function updateCard(
-  payload: v.InferOutput<typeof UpdateCard>,
-): Promise<v.InferOutput<typeof UpdatedCardResponse>> {
-  const response = await fetch(`${API_BASE_URL}/api/card`, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-      ...AUTH_HEADERS,
-    },
-    body: JSON.stringify(payload),
-  });
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Failed to create card: ${response.status} ${response.statusText} - ${error}`);
+    }
 
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Failed to update card: ${response.status} ${response.statusText} - ${error}`);
+    const data = await response.json();
+    return v.parse(CreatedCardResponse, data);
   }
-  const data = await response.json();
-  return v.parse(UpdatedCardResponse, data);
+
+  async updateCard(payload: v.InferOutput<typeof UpdateCard>): Promise<v.InferOutput<typeof UpdatedCardResponse>> {
+    const response = await fetch(`${API_BASE_URL}/api/card`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...this.authHeaders,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Failed to update card: ${response.status} ${response.statusText} - ${error}`);
+    }
+    const data = await response.json();
+    return v.parse(UpdatedCardResponse, data);
+  }
 }
 // #endregion actions
 
 // #region flows
-async function onboarding() {
+export async function onboarding(exaClient: ExaClient = new ExaClient(), identifier?: string) {
   console.log("🚀 Starting onboarding flow...\n");
-  const authOptions = await getAuthOptions(account.address);
-  const signature = await signSiwe(authOptions.message);
-  const accountAddress = await authenticate(account.address, signature);
+  const authOptions = await exaClient.getAuthOptions(exaClient.account.address);
+  const signature = await exaClient.signSiwe(authOptions.message);
+  const accountAddress = await exaClient.authenticate(exaClient.account.address, signature);
   console.log(
     `\n⚠️ Ensure that USDC faucet funds are sent to the Exa account ${accountAddress} in order to start using the card.\n`,
   );
 
-  const kyc = await getKyc();
+  const kyc = await exaClient.getKyc();
   if (kyc.code === "not started") {
     console.log("KYC application not started, submitting...");
-    await submitKyc(accountAddress);
+    await exaClient.submitKyc(accountAddress, buildKycPayload());
     console.log("✅ KYC application submitted successfully");
   } else {
     console.log("KYC application already submitted");
   }
 
-  const card = await getCard();
+  const card = await exaClient.getCard();
+  let newCard: v.InferOutput<typeof CreatedCardResponse> | undefined;
   if (!card) {
-    const newCard = await createCard();
+    newCard = await exaClient.createCard();
     console.log("✅ Card created successfully:", newCard.lastFour);
   } else if (card.details.status === "ACTIVE") {
     console.log("✅ Card already exists:", {
@@ -472,20 +493,21 @@ async function onboarding() {
     console.log("❌ Card is not active:", card.details.status);
   }
   console.log("🎉 Onboarding flow completed successfully!\n");
+  return { authHeaders: exaClient.authHeaders, cardId: newCard?.cardId ?? card?.details.cardId };
 }
 
-async function cardUpdates() {
+export async function cardUpdates(exaClient: ExaClient = new ExaClient()) {
   const newPin = Math.floor(Math.random() * 10_000)
     .toString()
     .padStart(4, "0");
   const mode = Math.floor(Math.random() * MAX_INSTALLMENTS);
   console.log(`Updating: PIN: ${newPin}, Mode: ${mode}, Status: FROZEN/ACTIVE`);
 
-  const authOptions = await getAuthOptions(account.address);
-  const signature = await signSiwe(authOptions.message);
-  await authenticate(account.address, signature);
+  const authOptions = await exaClient.getAuthOptions(exaClient.account.address);
+  const signature = await exaClient.signSiwe(authOptions.message);
+  await exaClient.authenticate(exaClient.account.address, signature);
 
-  const card = await getCard();
+  const card = await exaClient.getCard();
   if (!card) throw new Error("No card found");
   const { pin } = card;
   console.log("Current PIN:", pin);
@@ -494,19 +516,19 @@ async function cardUpdates() {
   const { data, iv, sessionId } = await encryptPIN(newPin);
 
   console.log(" - Freezing card");
-  await updateCard({ status: "FROZEN" });
+  await exaClient.updateCard({ status: "FROZEN" });
 
   console.log(" - Updating PIN");
-  await updateCard({ iv, data, sessionId });
+  await exaClient.updateCard({ iv, data, sessionId });
 
   console.log(" - Unfreezing card");
-  await updateCard({ status: "ACTIVE" });
+  await exaClient.updateCard({ status: "ACTIVE" });
 
   console.log(` - Updating Mode to ${mode}`);
-  await updateCard({ mode });
+  await exaClient.updateCard({ mode });
 
   console.log("\nGetting updated card...");
-  const updatedCard = await getCard();
+  const updatedCard = await exaClient.getCard();
   if (!updatedCard) throw new Error("No card found");
   console.log("✅ Card updated successfully:", {
     lastFour: updatedCard.details.lastFour,
@@ -517,8 +539,11 @@ async function cardUpdates() {
 }
 // #endregion flows
 
-const flow = process.argv[2] ?? "onboarding";
+const flow = process.env.SKIP_EXAMPLE_FLOWS === "true" ? "none" : (process.argv[2] ?? "onboarding");
 switch (flow) {
+  case "none":
+    console.log("🔍 Skipping example flows");
+    break;
   case "onboarding":
     onboarding().catch(console.error);
     break;
@@ -531,32 +556,33 @@ switch (flow) {
 }
 
 // #region mock data
-// TODO encrypt
-const kycPayload = {
-  firstName: FIRST_NAME_ID,
-  lastName: "TestApproved",
-  birthDate: "1990-01-15",
-  nationalId: "123456789",
-  countryOfIssue: "US",
-  email: "john.doe@example.com",
-  phoneCountryCode: "1",
-  phoneNumber: "5551234567",
-  ipAddress: "192.168.1.1",
-  occupation: "Software Developers, Applications",
-  annualSalary: "7000",
-  accountPurpose: "personal use",
-  expectedMonthlyVolume: "5000",
-  isTermsOfServiceAccepted: true,
-  address: {
-    line1: "123 main street",
-    line2: "apt 1",
-    city: "new york",
-    region: "ny",
-    postalCode: "10001",
-    countryCode: "US",
-    country: "united states",
-  },
-};
+export function buildKycPayload(identifier?: string) {
+  return {
+    firstName: identifier ?? FIRST_NAME_ID,
+    lastName: "TestApproved",
+    birthDate: "1990-01-15",
+    nationalId: "123456789",
+    countryOfIssue: "US",
+    email: "john.doe@example.com",
+    phoneCountryCode: "1",
+    phoneNumber: "5551234567",
+    ipAddress: "192.168.1.1",
+    occupation: "Software Developers, Applications",
+    annualSalary: "7000",
+    accountPurpose: "personal use",
+    expectedMonthlyVolume: "5000",
+    isTermsOfServiceAccepted: true,
+    address: {
+      line1: "123 main street",
+      line2: "apt 1",
+      city: "new york",
+      region: "ny",
+      postalCode: "10001",
+      countryCode: "US",
+      country: "united states",
+    },
+  };
+}
 // #endregion mock data
 
 const exaAccountFactoryAbi = [
