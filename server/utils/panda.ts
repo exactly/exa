@@ -55,6 +55,7 @@ export async function createCard(userId: string) {
       status: "active",
       limit: { amount: 1_000_000, frequency: "per7DayPeriod" },
       configuration: {
+        productId: "406",
         virtualCardArt:
           { "web.exactly.app": "81e42f27affd4e328f19651d4f2b438e" }[domain] ?? "0c515d7eb0a140fa8f938f8242b0780a",
       },
@@ -181,7 +182,7 @@ const CreateCardRequest = object({
       "allTime",
     ]),
   }),
-  configuration: object({ virtualCardArt: string() }),
+  configuration: object({ productId: string(), virtualCardArt: string() }),
 });
 
 const CardResponse = object({
