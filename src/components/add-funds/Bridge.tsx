@@ -7,7 +7,7 @@ import { useToastController } from "@tamagui/toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { switchChain, waitForTransactionReceipt } from "@wagmi/core";
 import { useNavigation } from "expo-router";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Pressable } from "react-native";
 import { ScrollView, Spinner, Square, XStack, YStack } from "tamagui";
 import {
@@ -22,7 +22,14 @@ import {
   TransactionExecutionError,
   getAddress,
 } from "viem";
-import { useReadContract, useSendCalls, useSendTransaction, useSimulateContract, useWriteContract } from "wagmi";
+import {
+  useConnect,
+  useReadContract,
+  useSendCalls,
+  useSendTransaction,
+  useSimulateContract,
+  useWriteContract,
+} from "wagmi";
 
 import AssetSelectSheet from "./AssetSelectSheet";
 import TokenLogo from "./TokenLogo";
@@ -34,7 +41,8 @@ import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useOpenBrowser from "../../utils/useOpenBrowser";
-import ownerConfig from "../../utils/wagmi/owner";
+import exaConfig from "../../utils/wagmi/exa";
+import ownerConfig, { getConnector } from "../../utils/wagmi/owner";
 import AssetLogo from "../shared/AssetLogo";
 import GradientScrollView from "../shared/GradientScrollView";
 import SafeView from "../shared/SafeView";
@@ -53,7 +61,13 @@ export default function Bridge() {
   const [assetSheetOpen, setAssetSheetOpen] = useState(false);
   const [destinationModalOpen, setDestinationModalOpen] = useState(false);
 
-  const { address: account } = useAccount();
+  const senderConfig = ownerConfig;
+
+  const { address: exaAddress } = useAccount({ config: exaConfig });
+  const { address: senderAddress, isConnected: isSenderConnected } = useAccount({ config: senderConfig });
+
+  const { connectAsync: connectSender } = useConnect({ config: senderConfig });
+
   const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [zeroAddress] });
 
   const [selectedSource, setSelectedSource] = useState<{ chain: number; address: string } | undefined>();
@@ -63,8 +77,21 @@ export default function Bridge() {
   const [bridgeStatus, setBridgeStatus] = useState<string | undefined>();
   const [bridgePreview, setBridgePreview] = useState<{ sourceToken: Token; sourceAmount: bigint } | undefined>();
 
-  const senderConfig = ownerConfig;
-  const { address: senderAddress } = useAccount({ config: senderConfig });
+  const goBack = useCallback(() => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      navigation.replace("add-funds", { screen: "index" });
+    }
+  }, [navigation]);
+
+  useEffect(() => {
+    if (isSenderConnected) return;
+    getConnector()
+      .then((connector) => connectSender({ connector }).catch(goBack))
+      .catch(reportError);
+  }, [connectSender, goBack, isSenderConnected, navigation, senderConfig]);
+
   const { sendTransactionAsync } = useSendTransaction({ config: senderConfig });
   const { sendCallsAsync } = useSendCalls({ config: senderConfig });
   const { writeContractAsync: transfer } = useWriteContract({ config: senderConfig });
@@ -152,7 +179,7 @@ export default function Bridge() {
 
   const bridgeQuoteEnabled =
     !!senderAddress &&
-    !!account &&
+    !!exaAddress &&
     !!selectedSource &&
     !!sourceToken &&
     !!destinationToken &&
@@ -169,7 +196,7 @@ export default function Bridge() {
       "bridge",
       "quote",
       senderAddress,
-      account,
+      exaAddress,
       selectedSource?.chain,
       selectedSource?.address,
       destinationToken?.address,
@@ -184,7 +211,7 @@ export default function Bridge() {
     queryFn: () => {
       if (
         !senderAddress ||
-        !account ||
+        !exaAddress ||
         !selectedSource ||
         !sourceToken ||
         !destinationToken ||
@@ -199,7 +226,7 @@ export default function Bridge() {
         toTokenAddress: destinationToken.address,
         fromAmount: sourceAmount,
         fromAddress: senderAddress,
-        toAddress: account,
+        toAddress: exaAddress,
       });
     },
     enabled: bridgeQuoteEnabled,
@@ -212,7 +239,7 @@ export default function Bridge() {
     isSameChain &&
     !isNativeSource &&
     !!senderAddress &&
-    !!account &&
+    !!exaAddress &&
     !!selectedSource.address &&
     !!sourceToken &&
     sourceAmount > 0n &&
@@ -228,7 +255,7 @@ export default function Bridge() {
     address: transferSimulationEnabled ? getAddress(selectedSource.address) : undefined,
     abi: erc20Abi,
     functionName: "transfer",
-    args: transferSimulationEnabled ? ([getAddress(account), sourceAmount] as const) : undefined,
+    args: transferSimulationEnabled ? ([getAddress(exaAddress), sourceAmount] as const) : undefined,
     query: { enabled: transferSimulationEnabled },
   });
 
@@ -269,7 +296,7 @@ export default function Bridge() {
       setBridgePreview({ sourceToken, sourceAmount: BigInt(route.estimate.fromAmount) });
     },
     mutationFn: async (from) => {
-      if (!senderAddress || !selectedSource || !account) throw new Error("missing bridge context");
+      if (!senderAddress || !selectedSource || !exaAddress) throw new Error("missing bridge context");
       if (isSameChain) throw new Error("invalid bridge context");
 
       setBridgeStatus(`Switching to ${selectedGroup?.chain.name ?? `Chain ${from.chainId}`}...`);
@@ -356,11 +383,11 @@ export default function Bridge() {
       setBridgePreview({ sourceToken, sourceAmount });
     },
     mutationFn: async () => {
-      if (!senderAddress || !selectedSource || !account) throw new Error("missing transfer context");
+      if (!senderAddress || !selectedSource || !exaAddress) throw new Error("missing transfer context");
       if (!isSameChain) throw new Error("transfer mutation invoked for different chains");
 
       setBridgeStatus("Submitting transfer transaction...");
-      const recipient = getAddress(account);
+      const recipient = getAddress(exaAddress);
       let hash: Hex;
       if (isNativeSource) {
         hash = await sendTransactionAsync({ to: recipient, value: sourceAmount });
@@ -404,7 +431,7 @@ export default function Bridge() {
     isTransferring ||
     isTransferSimulationPending ||
     !senderAddress ||
-    !account ||
+    !exaAddress ||
     !sourceToken ||
     !destinationToken ||
     sourceAmount === 0n ||
@@ -586,15 +613,7 @@ export default function Bridge() {
           justifyContent="space-between"
           alignItems="center"
         >
-          <Pressable
-            onPress={() => {
-              if (navigation.canGoBack()) {
-                navigation.goBack();
-              } else {
-                navigation.replace("(home)", { screen: "index" });
-              }
-            }}
-          >
+          <Pressable onPress={goBack}>
             <ArrowLeft size={24} color="$uiNeutralPrimary" />
           </Pressable>
           <Text primary emphasized subHeadline>
@@ -683,7 +702,7 @@ export default function Bridge() {
                         {isSameChain ? "Destination" : "Destination asset"}
                       </Text>
                       <Text footnote color="$uiNeutralSecondary">
-                        Exa Account | {shortenHex(account ?? zeroAddress, 4, 6)}
+                        Exa Account | {shortenHex(exaAddress ?? zeroAddress, 4, 6)}
                       </Text>
                     </YStack>
                   </XStack>
@@ -725,7 +744,7 @@ export default function Bridge() {
                               </View>
                             </View>
                             <YStack flex={1}>
-                              {!!account && sourceAmount > 0n && !insufficientBalance && isBridgeQuoteLoading ? (
+                              {!!exaAddress && sourceAmount > 0n && !insufficientBalance && isBridgeQuoteLoading ? (
                                 <Skeleton height={28} width="60%" />
                               ) : (
                                 <Text
@@ -745,7 +764,7 @@ export default function Bridge() {
                                 </Text>
                               )}
                               <XStack justifyContent="space-between" alignItems="center" flex={1}>
-                                {!!account && sourceAmount > 0n && !insufficientBalance && isBridgeQuoteLoading ? (
+                                {!!exaAddress && sourceAmount > 0n && !insufficientBalance && isBridgeQuoteLoading ? (
                                   <Skeleton height={16} width={100} />
                                 ) : (
                                   <Text callout color="$uiNeutralPlaceholder">
@@ -783,7 +802,7 @@ export default function Bridge() {
                 </YStack>
               )}
               {senderAddress &&
-                account &&
+                exaAddress &&
                 sourceToken &&
                 destinationToken &&
                 !isBridgeQuoteLoading &&
@@ -903,7 +922,7 @@ export default function Bridge() {
                   </Text>
                 </XStack>
               )}
-              {bridgeQuoteError && senderAddress && account && sourceAmount > 0n && !insufficientBalance && (
+              {bridgeQuoteError && senderAddress && exaAddress && sourceAmount > 0n && !insufficientBalance && (
                 <Text caption2 color="$interactiveOnBaseWarningSoft">
                   Unable to fetch a bridge quote right now. Please adjust the amount or try again later.
                 </Text>
