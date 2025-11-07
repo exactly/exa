@@ -5,7 +5,7 @@ import type { Chain, Token } from "@lifi/sdk";
 import { ArrowLeft, Check, CircleHelp, Clock, Repeat, X } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { switchChain, waitForTransactionReceipt } from "@wagmi/core";
+import { ConnectorAlreadyConnectedError, switchChain, waitForTransactionReceipt } from "@wagmi/core";
 import { useNavigation } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Pressable } from "react-native";
@@ -413,6 +413,25 @@ export default function Bridge() {
       setBridgeStatus(undefined);
     },
   });
+
+  const handleAction = useCallback(async () => {
+    const continueFlow = async () => {
+      if (isSameChain) await executeTransfer();
+      if (!bridgeQuote) return;
+      await executeBridge(bridgeQuote);
+    };
+
+    try {
+      await connectSender({ connector: await getConnector() });
+    } catch (error) {
+      if (!(error instanceof ConnectorAlreadyConnectedError)) {
+        reportError(error);
+        return;
+      }
+    }
+
+    await continueFlow();
+  }, [bridgeQuote, connectSender, executeBridge, executeTransfer, isSameChain]);
 
   const isLoadingAssets = isSourcesPending && !bridge;
   const isTransferSimulationPending = transferSimulationEnabled && isSimulatingTransfer;
@@ -965,12 +984,7 @@ export default function Bridge() {
               width="100%"
               alignItems="center"
               onPress={() => {
-                if (isSameChain) {
-                  executeTransfer().catch(reportError);
-                  return;
-                }
-                if (!bridgeQuote) return;
-                executeBridge(bridgeQuote).catch(reportError);
+                handleAction().catch(reportError);
               }}
               disabled={isActionDisabled}
               loading={isBridging || isTransferring}
