@@ -4,16 +4,18 @@ import type { Credential } from "@exactly/common/validation";
 import { ArrowLeft, CircleHelp, Info, Wallet } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigation } from "expo-router";
-import React from "react";
+import React, { useCallback } from "react";
 import { Pressable } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 import { isAddress } from "viem";
+import { ConnectorAlreadyConnectedError, useConnect } from "wagmi";
 
 import AddFundsOption from "./AddFundsOption";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import OptimismImage from "../../assets/images/optimism.svg";
 import reportError from "../../utils/reportError";
 import useIntercom from "../../utils/useIntercom";
+import ownerConfig, { getConnector } from "../../utils/wagmi/owner";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
@@ -23,6 +25,21 @@ export default function AddFunds() {
   const navigation = useNavigation<AppNavigationProperties>();
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const ownerAccount = credential && isAddress(credential.credentialId) ? credential.credentialId : undefined;
+
+  const { connectAsync: connectOwner } = useConnect({ config: ownerConfig });
+
+  const handlePress = useCallback(async () => {
+    connectOwner({ connector: await getConnector() })
+      .then(() => {
+        navigation.navigate("add-funds", { screen: "bridge" });
+      })
+      .catch((error: unknown) => {
+        if (error instanceof ConnectorAlreadyConnectedError) {
+          navigation.navigate("add-funds", { screen: "bridge" });
+        }
+      });
+  }, [connectOwner, navigation]);
+
   return (
     <SafeView fullScreen backgroundColor="$backgroundMild">
       <View gap={20} fullScreen padded>
@@ -61,7 +78,7 @@ export default function AddFunds() {
                 ownerAccount ? shortenHex(ownerAccount, 4, 6) : ""
               }
               onPress={() => {
-                navigation.navigate("add-funds", { screen: "bridge" });
+                handlePress().catch(reportError);
               }}
             />
             <AddFundsOption
