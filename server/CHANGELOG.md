@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.33
+
+### Patch Changes
+
+- [`f2475ff`](https://github.com/exactly/exa/commit/f2475ffeb1339d2bb8b385970b498eacc4538c8a) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🩹 add product id to card creation
+
 ## 0.2.32
 
 ### Patch Changes
