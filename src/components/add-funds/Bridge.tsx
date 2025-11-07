@@ -96,23 +96,11 @@ export default function Bridge() {
   const { sendCallsAsync } = useSendCalls({ config: senderConfig });
   const { writeContractAsync: transfer } = useWriteContract({ config: senderConfig });
 
-  const protocolSymbols = useMemo(() => {
-    if (!markets) return [];
-    return [
-      ...new Set([
-        ...markets
-          .map((market) => market.symbol.slice(3))
-          .filter((symbol) => symbol !== "USDC.e" && symbol !== "DAI" && symbol !== "WETH"),
-        "ETH",
-      ]),
-    ];
-  }, [markets]);
-
   const { data: bridge, isPending: isSourcesPending } = useQuery<BridgeSources>({
-    queryKey: ["bridge", "sources", senderAddress, protocolSymbols],
-    queryFn: () => getBridgeSources(senderAddress ?? undefined, protocolSymbols),
+    queryKey: ["bridge", "sources", senderAddress],
+    queryFn: () => getBridgeSources(senderAddress ?? undefined),
     staleTime: 60_000,
-    enabled: !!senderAddress && !!markets && protocolSymbols.length > 0,
+    enabled: !!senderAddress && !!markets,
     refetchInterval: 60_000,
     refetchIntervalInBackground: true,
   });
@@ -163,7 +151,7 @@ export default function Bridge() {
       logoURI: undefined,
     };
     const assets = destinationTokens
-      .filter((token) => token.logoURI && protocolSymbols.includes(token.symbol))
+      .filter((token) => token.logoURI)
       .map((token) => {
         const balance = destinationBalances.find((item) => item.address === token.address)?.amount ?? 0n;
         const usdKey = `${chain.id}:${token.address}`;
@@ -175,7 +163,7 @@ export default function Bridge() {
         };
       });
     return [{ chain: chainData, assets }];
-  }, [chains, destinationBalances, destinationTokens, protocolSymbols, usdByToken]);
+  }, [chains, destinationBalances, destinationTokens, usdByToken]);
 
   const bridgeQuoteEnabled =
     !!senderAddress &&

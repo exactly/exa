@@ -8,6 +8,7 @@ import {
   getToken,
   getTokenBalancesByChain,
   getTokens,
+  getTokenBalances as getLifiTokenBalances,
   type Estimate,
   type ExtendedChain,
   type Token,
@@ -233,34 +234,46 @@ export interface BridgeSources {
   defaultTokenAddress?: string;
 }
 
-export async function getBridgeSources(account?: string, protocolSymbols: string[] = []): Promise<BridgeSources> {
+export async function getBridgeSources(account?: string): Promise<BridgeSources> {
   if (!account) throw new Error("account is required");
-  const bridgeTokenSymbols = new Set(protocolSymbols);
-  if (bridgeTokenSymbols.size === 0) throw new Error("protocol symbols is required");
-  const supportedChains = await getChains({ chainTypes: [ChainType.EVM] });
-  const chainIds = supportedChains.map((item) => item.id);
-  const { tokens: supportedTokens } = await getTokens({ chainTypes: [ChainType.EVM] });
+
+  const lifiChains = await getChains({ chainTypes: [ChainType.EVM] });
+
+  const chainIds = lifiChains.map((item) => item.id);
+  const { tokens: supportedTokens } = await getTokens({
+    chainTypes: [ChainType.EVM],
+    chains: chainIds,
+  });
 
   const usdByChain: Record<number, number> = {};
   const usdByToken: Record<string, number> = {};
   const tokensByChain: Record<number, Token[]> = {};
   const ownerAssetsByChain: Record<number, { token: Token; balance: bigint; usdValue: number }[]> = {};
 
+  const tokensToBalance: Token[] = [];
   for (const id of chainIds) {
     const chainTokens = supportedTokens[id] ?? [];
-    if (chainTokens.length > 0) tokensByChain[id] = chainTokens;
+    if (chainTokens.length > 0) {
+      tokensByChain[id] = chainTokens;
+      tokensToBalance.push(...chainTokens);
+    }
   }
 
-  const balancesByChain = await getTokenBalancesByChain(
-    account,
-    Object.fromEntries(Object.entries(tokensByChain).map(([id, chainTokens]) => [Number(id), chainTokens])),
-  );
+  const tokenAmounts = tokensToBalance.length > 0 ? await getLifiTokenBalances(account, tokensToBalance) : [];
+  const balancesByChain: Record<number, TokenAmount[]> = {};
+  const balanceLookup = new Map<string, TokenAmount>();
+
+  for (const tokenAmount of tokenAmounts) {
+    const id = Number(tokenAmount.chainId);
+    balancesByChain[id] ??= [];
+    balancesByChain[id].push(tokenAmount);
+    balanceLookup.set(`${id}:${tokenAmount.address}`, tokenAmount);
+  }
 
   for (const [chainId, chainTokens] of Object.entries(tokensByChain)) {
     const id = Number(chainId);
-    const tokenAmounts = balancesByChain[id] ?? [];
     const assets = chainTokens.map((token) => {
-      const balance = tokenAmounts.find((t) => t.address === token.address)?.amount ?? 0n;
+      const balance = balanceLookup.get(`${id}:${token.address}`)?.amount ?? 0n;
       const key = `${id}:${token.address}`;
       const usdValue = Number(formatUnits(balance, token.decimals)) * Number(token.priceUSD);
       usdByToken[key] = usdValue;
@@ -282,7 +295,7 @@ export async function getBridgeSources(account?: string, protocolSymbols: string
     if (total > 0) usdByChain[id] = total;
   }
 
-  const chains = [...supportedChains]
+  const chains = [...lifiChains]
     .filter((c) => (usdByChain[c.id] ?? 0) > 0)
     .sort((a, b) => {
       const bValue = usdByChain[b.id] ?? 0;
