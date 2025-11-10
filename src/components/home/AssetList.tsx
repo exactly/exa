@@ -32,8 +32,8 @@ function AssetRow({ asset }: { asset: AssetItem }) {
       <XStack gap={10} alignItems="center" flex={1} $platform-web={{ flexBasis: 1 / 3 }}>
         <AssetLogo
           {...(logoURI
-            ? { external: true, source: { uri: logoURI }, width: 32, height: 32, borderRadius: "$r_0" }
-            : { uri: assetLogos[symbol as keyof typeof assetLogos], width: 32, height: 32 })}
+            ? { source: { uri: logoURI }, width: 32, height: 32, borderRadius: "$r_0" }
+            : { source: { uri: assetLogos[symbol as keyof typeof assetLogos] }, width: 32, height: 32 })}
         />
         <YStack gap="$s2" alignItems="flex-start">
           <Text subHeadline color="$uiNeutralPrimary" numberOfLines={1}>

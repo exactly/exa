@@ -108,7 +108,7 @@ export default function RepayAmountSelector({
                   maxWidth="80%"
                   height={60}
                 >
-                  <AssetLogo uri={assetLogos.USDC} width={32} height={32} />
+                  <AssetLogo source={{ uri: assetLogos.USDC }} width={32} height={32} />
                   <AmountInput
                     height="auto"
                     inputMode="decimal"

@@ -42,7 +42,7 @@ export default function WeightedRate({
             const uri = assetLogos[symbol as keyof typeof assetLogos];
             return (
               <XStack key={market} marginRight={index < array.length - 1 ? -6 : 0} zIndex={array.length - index}>
-                <AssetLogo uri={uri} width={16} height={16} />
+                <AssetLogo source={{ uri }} width={16} height={16} />
               </XStack>
             );
           })}
