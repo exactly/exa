@@ -547,7 +547,7 @@ export default function Pay() {
                     Debt
                   </Text>
                   <XStack alignItems="center" gap="$s2">
-                    <AssetLogo uri={assetLogos.USDC} width={24} height={24} />
+                    <AssetLogo source={{ uri: assetLogos.USDC }} width={24} height={24} />
                     <Text primary title3 textAlign="right">
                       {(Number(positionValue) / 1e6).toLocaleString(undefined, {
                         minimumFractionDigits: 0,
@@ -575,7 +575,7 @@ export default function Pay() {
                       Subtotal
                     </Text>
                     <XStack alignItems="center" gap="$s2_5">
-                      <AssetLogo uri={assetLogos.USDC} width={20} height={20} />
+                      <AssetLogo source={{ uri: assetLogos.USDC }} width={20} height={20} />
                       {isRouteFetching ? (
                         <Skeleton height={25} width={40} />
                       ) : (
@@ -620,7 +620,7 @@ export default function Pay() {
                       </Text>
                     )}
                     <XStack alignItems="center" gap="$s2">
-                      <AssetLogo uri={assetLogos.USDC} width={20} height={20} />
+                      <AssetLogo source={{ uri: assetLogos.USDC }} width={20} height={20} />
                       <Text
                         primary
                         title3
@@ -648,7 +648,7 @@ export default function Pay() {
                       </Text>
                       <YStack alignItems="flex-end">
                         <XStack alignItems="center" gap="$s2_5">
-                          <AssetLogo uri={assetLogos.USDC} width={20} height={20} />
+                          <AssetLogo source={{ uri: assetLogos.USDC }} width={20} height={20} />
                           {isRouteFetching ? (
                             <Skeleton height={25} width={40} />
                           ) : (
@@ -712,7 +712,11 @@ export default function Pay() {
                     }}
                   >
                     {repayMarket && (
-                      <AssetLogo uri={assetLogos[symbol as keyof typeof assetLogos]} width={16} height={16} />
+                      <AssetLogo
+                        source={{ uri: assetLogos[symbol as keyof typeof assetLogos] }}
+                        width={16}
+                        height={16}
+                      />
                     )}
                     {selectedAsset.external && externalAsset && (
                       <Image source={{ uri: externalAsset.logoURI }} width={16} height={16} borderRadius={50} />
@@ -731,7 +735,11 @@ export default function Pay() {
                 <YStack gap="$s2">
                   <XStack alignItems="center" gap="$s2">
                     {repayMarket && (
-                      <AssetLogo uri={assetLogos[symbol as keyof typeof assetLogos]} width={16} height={16} />
+                      <AssetLogo
+                        source={{ uri: assetLogos[symbol as keyof typeof assetLogos] }}
+                        width={16}
+                        height={16}
+                      />
                     )}
                     {selectedAsset.external && externalAsset && (
                       <Image source={{ uri: externalAsset.logoURI }} width={16} height={16} borderRadius={50} />
@@ -764,7 +772,7 @@ export default function Pay() {
                 </Text>
                 <YStack gap="$s2">
                   <XStack alignItems="center" gap="$s2">
-                    <AssetLogo uri={assetLogos.USDC} width={16} height={16} />
+                    <AssetLogo source={{ uri: assetLogos.USDC }} width={16} height={16} />
                     {isRouteFromFetching ? (
                       <Skeleton height={23} width={50} />
                     ) : (

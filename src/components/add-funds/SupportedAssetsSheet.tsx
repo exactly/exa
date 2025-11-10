@@ -50,7 +50,7 @@ export default function SupportedAssetsSheet({ open, onClose }: { open: boolean;
                     margin="$s3"
                     gap="$s2"
                   >
-                    <AssetLogo uri={asset.image} width={32} height={32} />
+                    <AssetLogo source={{ uri: asset.image }} width={32} height={32} />
                     <Text primary emphasized callout>
                       {asset.symbol}
                     </Text>
