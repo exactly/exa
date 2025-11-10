@@ -19,6 +19,7 @@
     "expo-clipboard",
     "expo-dev-client",
     "expo-font",
+    "expo-image",
     "expo-insights",
     "expo-linear-gradient",
     "expo-linking",
