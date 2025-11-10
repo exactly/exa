@@ -36,7 +36,7 @@ export default function ReceivedActivity({ item }: { item: Omit<DepositActivity,
               &nbsp;
               {currency}
             </Text>
-            <AssetLogo uri={assetLogos[currency as keyof typeof assetLogos]} width={16} height={16} />
+            <AssetLogo source={{ uri: assetLogos[currency as keyof typeof assetLogos] }} width={16} height={16} />
           </XStack>
         </YStack>
       </YStack>

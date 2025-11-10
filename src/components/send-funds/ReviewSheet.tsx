@@ -60,13 +60,11 @@ export default function ReviewSheet({
                   <AssetLogo
                     {...(market
                       ? {
-                          external: false,
-                          uri: assetLogos[symbol as keyof typeof assetLogos],
+                          source: { uri: assetLogos[symbol as keyof typeof assetLogos] },
                           width: 40,
                           height: 40,
                         }
                       : {
-                          external: true,
                           source: { uri: externalAsset?.logoURI },
                           width: 40,
                           height: 40,

@@ -47,7 +47,7 @@ export default function LoanSummary({ loan }: { loan: Loan }) {
           <Skeleton width={100} height={24} />
         ) : (
           <XStack alignItems="center" gap="$s2">
-            <AssetLogo uri={assetLogos[symbol as keyof typeof assetLogos]} width={16} height={16} />
+            <AssetLogo source={{ uri: assetLogos[symbol as keyof typeof assetLogos] }} width={16} height={16} />
             <Text title3>
               {(
                 Number(!isBorrow && installments ? installments.amounts.reduce((a, b) => a + b, 0n) : borrow?.assets) /
