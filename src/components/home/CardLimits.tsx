@@ -27,7 +27,7 @@ export default function CardLimits({ onPress }: { onPress: () => void }) {
     <YStack justifyContent="space-between" height="100%">
       <YStack justifyContent="center" gap="$s2" alignItems="flex-start">
         <XStack justifyContent="center" alignItems="center" gap="$s3">
-          {isCredit ? null : <AssetLogo width={24} height={24} uri={assetLogos.USDC} />}
+          {isCredit ? null : <AssetLogo width={24} height={24} source={{ uri: assetLogos.USDC }} />}
           <Text
             sensitive
             textAlign="center"

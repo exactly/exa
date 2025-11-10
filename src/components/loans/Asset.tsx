@@ -93,7 +93,11 @@ export default function Asset() {
                         {selected && <Check size={12} color="$interactiveOnBaseBrandDefault" />}
                       </View>
                       <XStack gap="$s2" alignItems="center">
-                        <AssetLogo uri={assetLogos[assetSymbol as keyof typeof assetLogos]} width={16} height={16} />
+                        <AssetLogo
+                          source={{ uri: assetLogos[assetSymbol as keyof typeof assetLogos] }}
+                          width={16}
+                          height={16}
+                        />
                         <Text primary emphasized body>
                           {assetSymbol}
                         </Text>

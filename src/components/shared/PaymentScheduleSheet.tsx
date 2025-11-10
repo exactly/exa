@@ -57,7 +57,11 @@ export default function PaymentScheduleSheet({
                         <Text emphasized title3>
                           {index + 1}
                         </Text>
-                        <AssetLogo uri={assetLogos[symbol as keyof typeof assetLogos]} width={16} height={16} />
+                        <AssetLogo
+                          source={{ uri: symbol ? assetLogos[symbol as keyof typeof assetLogos] : undefined }}
+                          width={16}
+                          height={16}
+                        />
                         <Text title3 color="$uiNeutralPrimary">
                           {(Number(installmentsAmount) / 1e6).toLocaleString(undefined, {
                             minimumFractionDigits: 2,

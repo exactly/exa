@@ -206,7 +206,11 @@ export default function Review() {
                   {`You ${receiver === address ? "receive" : "send"}`}
                 </Text>
                 <XStack alignItems="center" gap="$s2">
-                  <AssetLogo uri={assetLogos[symbol as keyof typeof assetLogos]} width={16} height={16} />
+                  <AssetLogo
+                    height={16}
+                    source={{ uri: symbol ? assetLogos[symbol as keyof typeof assetLogos] : undefined }}
+                    width={16}
+                  />
                   <Text title3 color="$uiNeutralPrimary">
                     {(Number(amount ?? 0n) / 1e6).toLocaleString(undefined, {
                       minimumFractionDigits: 2,
@@ -224,7 +228,11 @@ export default function Review() {
                   })} APR`}
                 </Text>
                 <XStack alignItems="center" gap="$s2">
-                  <AssetLogo uri={assetLogos[symbol as keyof typeof assetLogos]} width={16} height={16} />
+                  <AssetLogo
+                    height={16}
+                    source={{ uri: symbol ? assetLogos[symbol as keyof typeof assetLogos] : undefined }}
+                    width={16}
+                  />
                   <Text title3 color="$uiNeutralPrimary">
                     {(Number(feeAmount) / 1e6).toLocaleString(undefined, {
                       minimumFractionDigits: 2,
@@ -241,7 +249,11 @@ export default function Review() {
                   </Text>
                   <XStack alignItems="center" gap="$s2">
                     <XStack alignItems="center" gap="$s2">
-                      <AssetLogo uri={assetLogos[symbol as keyof typeof assetLogos]} width={16} height={16} />
+                      <AssetLogo
+                        height={16}
+                        source={{ uri: symbol ? assetLogos[symbol as keyof typeof assetLogos] : undefined }}
+                        width={16}
+                      />
                       <Text title3 color="$uiNeutralPrimary">
                         {(Number(singleInstallment ? totalAmount : installmentsAmount) / 1e6).toLocaleString(
                           undefined,
@@ -265,7 +277,11 @@ export default function Review() {
                     Total
                   </Text>
                   <XStack alignItems="center" gap="$s2">
-                    <AssetLogo uri={assetLogos[symbol as keyof typeof assetLogos]} width={16} height={16} />
+                    <AssetLogo
+                      height={16}
+                      source={{ uri: symbol ? assetLogos[symbol as keyof typeof assetLogos] : undefined }}
+                      width={16}
+                    />
                     <Text title3 color="$uiNeutralPrimary">
                       {(Number(totalAmount) / 1e6).toLocaleString(undefined, {
                         minimumFractionDigits: 2,
@@ -393,7 +409,11 @@ export default function Review() {
               </Text>
             </Text>
             <XStack gap="$s2" alignItems="center" justifyContent="center">
-              <AssetLogo uri={assetLogos[symbol as keyof typeof assetLogos]} width={32} height={32} />
+              <AssetLogo
+                height={32}
+                source={{ uri: symbol ? assetLogos[symbol as keyof typeof assetLogos] : undefined }}
+                width={32}
+              />
               <Text primary fontSize={34}>
                 {(Number(totalAmount) / 1e6).toLocaleString(undefined, {
                   minimumFractionDigits: 2,

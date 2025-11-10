@@ -430,9 +430,15 @@ export default function Amount() {
                 &nbsp;{details.symbol}&nbsp;
               </Text>
               <AssetLogo
-                {...(details.external
-                  ? { external: true, source: { uri: external?.logoURI }, width: 16, height: 16, borderRadius: 20 }
-                  : { uri: assetLogos[details.symbol as keyof typeof assetLogos], width: 16, height: 16 })}
+                height={16}
+                source={{
+                  uri: details.external
+                    ? external?.logoURI
+                    : details.symbol
+                      ? assetLogos[details.symbol as keyof typeof assetLogos]
+                      : undefined,
+                }}
+                width={16}
               />
             </XStack>
           </YStack>
