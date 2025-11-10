@@ -80,13 +80,13 @@ export default function AmountSelector({
                   height={60}
                 >
                   <AssetLogo
-                    uri={
-                      assetLogos[
+                    source={{
+                      uri: assetLogos[
                         selectedMarket?.symbol.slice(3) === "WETH"
                           ? "ETH"
                           : (selectedMarket?.symbol.slice(3) as keyof typeof assetLogos)
-                      ]
-                    }
+                      ],
+                    }}
                     width={32}
                     height={32}
                   />
