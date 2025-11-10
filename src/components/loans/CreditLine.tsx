@@ -37,7 +37,7 @@ export default function CreditLine() {
       </XStack>
       <YStack padding="$s4" paddingTop={0}>
         <XStack alignItems="center" gap="$s2">
-          <AssetLogo uri={assetLogos.USDC} width={20} height={20} />
+          <AssetLogo source={{ uri: assetLogos.USDC }} width={20} height={20} />
           <Text emphasized title2 sensitive>
             {(markets ? Number(formatUnits(borrowLimit(markets, marketUSDCAddress), 6)) : 0).toLocaleString(undefined, {
               minimumFractionDigits: 2,

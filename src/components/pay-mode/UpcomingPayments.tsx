@@ -91,7 +91,7 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
                 <XStack alignItems="center" gap="$s3">
                   <YStack gap="$s2">
                     <XStack alignItems="center" gap="$s3">
-                      <AssetLogo uri={assetLogos.USDC} width={12} height={12} />
+                      <AssetLogo source={{ uri: assetLogos.USDC }} width={12} height={12} />
                       <Text
                         sensitive
                         subHeadline
