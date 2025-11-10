@@ -65,18 +65,8 @@ export default function ReviewSheet({
                 <XStack alignItems="center" gap="$s3">
                   <AssetLogo
                     {...(external
-                      ? {
-                          external: true,
-                          source: { uri: logoURI },
-                          width: 40,
-                          height: 40,
-                          borderRadius: 20,
-                        }
-                      : {
-                          uri: assetLogos[symbol as keyof typeof assetLogos],
-                          width: 40,
-                          height: 40,
-                        })}
+                      ? { external: true, source: { uri: logoURI }, width: 40, height: 40, borderRadius: 20 }
+                      : { source: { uri: assetLogos[symbol as keyof typeof assetLogos] }, width: 40, height: 40 })}
                   />
                   <YStack flex={1}>
                     <Text title color="$uiNeutralPrimary">

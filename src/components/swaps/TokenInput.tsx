@@ -128,7 +128,7 @@ export default function TokenInput({
           >
             {token ? (
               <>
-                <AssetLogo external source={{ uri: token.logoURI }} width={40} height={40} borderRadius="$r_0" />
+                <AssetLogo source={{ uri: token.logoURI }} width={40} height={40} borderRadius="$r_0" />
                 <View
                   borderRadius="$r_0"
                   position="absolute"
