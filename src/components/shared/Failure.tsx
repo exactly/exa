@@ -67,7 +67,7 @@ export default function Failure({
               <Text title primary color="$uiNeutralPrimary">
                 &nbsp;USDC&nbsp;
               </Text>
-              <AssetLogo uri={assetLogos.USDC} width={28} height={28} />
+              <AssetLogo source={{ uri: assetLogos.USDC }} width={28} height={28} />
             </XStack>
             {currency !== "USDC" && (
               <XStack gap="$s2" alignItems="center">
@@ -83,15 +83,16 @@ export default function Failure({
                   &nbsp;{currency}&nbsp;
                 </Text>
                 <AssetLogo
-                  {...(externalAsset
-                    ? {
-                        external: true,
-                        source: { uri: externalAsset.logoURI },
-                        width: 22,
-                        height: 22,
-                        borderRadius: 20,
-                      }
-                    : { uri: assetLogos[currency as keyof typeof assetLogos], width: 22, height: 22 })}
+                  borderRadius={20}
+                  height={22}
+                  width={22}
+                  source={{
+                    uri: externalAsset
+                      ? externalAsset.logoURI
+                      : currency
+                        ? assetLogos[currency as keyof typeof assetLogos]
+                        : undefined,
+                  }}
                 />
               </XStack>
             )}

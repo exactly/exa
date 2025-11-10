@@ -109,7 +109,11 @@ function Installment({
         </Text>
       </XStack>
       <XStack gap="$s2" alignItems="center" justifyContent="flex-end" flex={1}>
-        <AssetLogo uri={assetLogos[symbol as keyof typeof assetLogos]} width={16} height={16} />
+        <AssetLogo
+          height={16}
+          source={{ uri: symbol ? assetLogos[symbol as keyof typeof assetLogos] : undefined }}
+          width={16}
+        />
         <XStack>
           {hasInstallments &&
             (isInstallmentsPending || isBorrowPending ? (
