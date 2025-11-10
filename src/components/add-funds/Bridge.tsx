@@ -703,13 +703,7 @@ export default function Bridge() {
                           <XStack gap="$s3_5" alignItems="center" flex={1}>
                             <View width={40} height={40} position="relative">
                               {destinationToken.logoURI ? (
-                                <AssetLogo
-                                  external
-                                  source={{ uri: destinationToken.logoURI }}
-                                  width={40}
-                                  height={40}
-                                  borderRadius="$r_0"
-                                />
+                                <AssetLogo source={{ uri: destinationToken.logoURI }} width={40} height={40} />
                               ) : (
                                 <TokenLogo token={destinationToken} size={40} />
                               )}

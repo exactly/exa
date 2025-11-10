@@ -289,7 +289,7 @@ function InstallmentButton({
             <Text headline color={installment > 0 ? "$uiNeutralSecondary" : "$uiNeutralPrimary"}>
               {installment > 0 ? `${installment}x` : "Pay Now"}
             </Text>
-            {installment > 0 && <AssetLogo uri={assetLogos.USDC} width={17} height={17} />}
+            {installment > 0 && <AssetLogo source={{ uri: assetLogos.USDC }} width={17} height={17} />}
 
             {installment > 0 &&
               (isInstallmentsFetching || (installment === 1 && isBorrowPreviewLoading) ? (

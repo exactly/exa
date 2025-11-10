@@ -144,7 +144,7 @@ export default function AddCrypto() {
                 {supportedAssets.map((asset, index) => {
                   return (
                     <XStack key={index} marginRight={index < supportedAssets.length - 1 ? -12 : 0} zIndex={index}>
-                      <AssetLogo uri={asset.image} width={32} height={32} />
+                      <AssetLogo source={{ uri: asset.image }} width={32} height={32} />
                     </XStack>
                   );
                 })}

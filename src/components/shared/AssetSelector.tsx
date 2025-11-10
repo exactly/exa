@@ -131,9 +131,11 @@ export default function AssetSelector({
                 >
                   <View flexDirection="row" gap={10} alignItems="center" maxWidth="50%">
                     <AssetLogo
-                      uri={
-                        assetLogos[symbol.slice(3) === "WETH" ? "ETH" : (symbol.slice(3) as keyof typeof assetLogos)]
-                      }
+                      source={{
+                        uri: assetLogos[
+                          symbol.slice(3) === "WETH" ? "ETH" : (symbol.slice(3) as keyof typeof assetLogos)
+                        ],
+                      }}
                       width={32}
                       height={32}
                     />

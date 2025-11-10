@@ -120,7 +120,7 @@ export default function TokenInput({
           <View onPress={onTokenSelect} cursor="pointer" hitSlop={20} position="relative" width={40} height={40}>
             {token ? (
               <>
-                <AssetLogo external source={{ uri: token.logoURI }} width={40} height={40} borderRadius="$r_0" />
+                <AssetLogo source={{ uri: token.logoURI }} width={40} height={40} borderRadius="$r_0" />
                 <View
                   borderRadius="$r_0"
                   position="absolute"
