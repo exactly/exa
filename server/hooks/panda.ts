@@ -1090,6 +1090,7 @@ const BaseWebhook = v.object({
     merchantCity: v.nullish(v.pipe(v.string(), v.trim())),
     merchantCountry: v.nullish(v.pipe(v.string(), v.trim())),
     merchantCategory: v.nullish(v.pipe(v.string(), v.trim())),
+    merchantCategoryCode: v.string(),
     merchantName: v.pipe(v.string(), v.trim()),
     authorizedAt: v.optional(v.pipe(v.string(), v.isoTimestamp())),
     authorizedAmount: v.nullish(v.number()),
