@@ -546,6 +546,7 @@ The onchain receipt will be present only if a onchain transaction is necessary.
 | body.spend.merchantCity? | string | The merchant city | "San Francisco" |
 | body.spend.merchantCountry? | string | The merchant country | "US" |
 | body.spend.merchantCategory? | string | The merchant category | "5814 - Quick Payment Service-Fast Food Restaurants" |
+| body.spend.merchantCategoryCode? | string | The merchant category code | "5599" |
 | body.spend.merchantName | string | The merchant name | SQ *BLUE BOTTLE COFFEE |
 | body.spend.merchantId? | string | Id of the merchant | 550e8400-e29b-41d4-a716-446655440000 |
 | body.spend.authorizedAt | string | Time when purchase was authorized in ISO 8601 | 2025-08-06T20:29:23.288Z |
@@ -576,6 +577,7 @@ Triggered for events such as incremental authorizations or reversals (a type of 
 | body.spend.merchantCity? | string | city of the merchant | SAN FRANCISCO |
 | body.spend.merchantCountry? | string | country of the merchant | US |
 | body.spend.merchantCategory? | string | category of the merchant | 4121 - Taxicabs and Limousines |
+| body.spend.merchantCategoryCode? | string | The merchant category code | "5599" |
 | body.spend.merchantId? | string | Id of the merchant | 550e8400-e29b-41d4-a716-446655440000 |
 | body.spend.merchantName | string | name of the merchant | UBER *TRIP |
 | body.spend.authorizedAt | string | time when purchase was authorized in ISO 8601 | 2025-08-10T04:28:39.547Z |
@@ -609,6 +611,7 @@ if an onchain transaction is necessary.
 | body.spend.merchantCity? | string | city of the merchant | CAP.FEDERAL |
 | body.spend.merchantCountry? | string | country of the merchant | AR |
 | body.spend.merchantCategory? | string | category of the merchant | Recreation Services |
+| body.spend.merchantCategoryCode? | string | The merchant category code | "5599" |
 | body.spend.merchantName | string | name of the merchant | JOCKEY CLUB |
 | body.spend.merchantId? | string | Id of the merchant | 550e8400-e29b-41d4-a716-446655440000 |
 | body.spend.authorizedAt | string | time when purchase was authorized in ISO 8601 | 2025-08-08T17:55:14.312Z |
