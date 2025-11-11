@@ -227,6 +227,28 @@ describe("address activity", () => {
 
     expect(response.status).toBe(200);
   });
+
+  it("deploy account for non market asset", async () => {
+    const waitForTransactionReceipt = vi.spyOn(publicClient, "waitForTransactionReceipt");
+
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: {
+          ...activityPayload.json.event,
+          activity: [{ ...activityPayload.json.event.activity[2], toAddress: account }],
+        },
+      },
+    });
+
+    await vi.waitUntil(() => waitForTransactionReceipt.mock.settledResults.length > 0, 26_666);
+
+    const deployed = !!(await publicClient.getCode({ address: account }));
+
+    expect(deployed).toBe(true);
+    expect(response.status).toBe(200);
+  });
 });
 
 const activityPayload = {
@@ -256,6 +278,20 @@ const activityPayload = {
             rawValue: "0x0000000000000000000000000000000000000000000000000000000005f57788",
             address: "0x0b2c639c533813f4aa9d7837caf62653d097ff85",
             decimals: 18,
+          },
+        },
+        {
+          fromAddress: "0x6d37817d118f72f362cf01e64d9454bdd8e8e92f",
+          toAddress: "0xad0e941d2693286581520d320fd37377387cd868",
+          blockNum: "0x88e6e99",
+          hash: "0xd297a8fbd58223c82ea80ff6a730d210cde78a5774e263fa33f589ce249e39e9",
+          value: 5,
+          asset: "USDT",
+          category: "token",
+          rawContract: {
+            rawValue: "0x00000000000000000000000000000000000000000000000000000000004c4b40",
+            address: "0x94b008aa00579c1307b0ef2c499ad98a8ce58e58",
+            decimals: 6,
           },
         },
       ],

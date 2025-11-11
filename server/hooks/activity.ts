@@ -105,16 +105,17 @@ export default new Hono().post(
       if (!accounts[account]) continue;
       const asset = rawContract.address ?? ETH;
       const underlying = asset === ETH ? WETH : asset;
-      if (!marketsByAsset.has(underlying)) continue;
-
       sendPushNotification({
         userId: account,
         headings: { en: "Funds received" },
-        contents: { en: `${value ? `${value} ` : ""}${assetSymbol} received and instantly started earning yield` },
+        contents: {
+          en: `${value ? `${value} ` : ""}${assetSymbol} received${marketsByAsset.has(underlying) ? " and instantly started earning yield" : ""}`,
+        },
       }).catch((error: unknown) => captureException(error));
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      if (pokes.has(account)) pokes.get(account)!.assets.add(asset);
-      else {
+
+      if (pokes.has(account)) {
+        pokes.get(account)?.assets.add(asset);
+      } else {
         const { publicKey, factory } = accounts[account];
         pokes.set(account, { publicKey, factory, assets: new Set([asset]) });
       }
@@ -150,32 +151,34 @@ export default new Hono().post(
                 }
                 if (assets.has(ETH)) assets.delete(WETH);
                 const results = await Promise.allSettled(
-                  [...assets].map(async (asset) =>
-                    withRetry(
-                      () =>
-                        keeper.exaSend(
-                          { name: "poke account", op: "exa.poke", attributes: { account, asset } },
-                          {
-                            address: account,
-                            abi: [...exaPluginAbi, ...upgradeableModularAccountAbi, ...auditorAbi, ...marketAbi],
-                            ...(asset === ETH
-                              ? { functionName: "pokeETH" }
-                              : {
-                                  functionName: "poke",
-                                  args: [marketsByAsset.get(asset)!], // eslint-disable-line @typescript-eslint/no-non-null-assertion
-                                }),
+                  [...assets]
+                    .filter((asset) => marketsByAsset.has(asset) || asset === ETH)
+                    .map(async (asset) =>
+                      withRetry(
+                        () =>
+                          keeper.exaSend(
+                            { name: "poke account", op: "exa.poke", attributes: { account, asset } },
+                            {
+                              address: account,
+                              abi: [...exaPluginAbi, ...upgradeableModularAccountAbi, ...auditorAbi, ...marketAbi],
+                              ...(asset === ETH
+                                ? { functionName: "pokeETH" }
+                                : {
+                                    functionName: "poke",
+                                    args: [marketsByAsset.get(asset)!], // eslint-disable-line @typescript-eslint/no-non-null-assertion
+                                  }),
+                            },
+                          ),
+                        {
+                          delay: 2000,
+                          retryCount: 5,
+                          shouldRetry: ({ error }) => {
+                            captureException(error, { level: "error" });
+                            return true;
                           },
-                        ),
-                      {
-                        delay: 2000,
-                        retryCount: 5,
-                        shouldRetry: ({ error }) => {
-                          captureException(error, { level: "error" });
-                          return true;
                         },
-                      },
+                      ),
                     ),
-                  ),
                 );
                 for (const result of results) {
                   if (result.status === "fulfilled") continue;
