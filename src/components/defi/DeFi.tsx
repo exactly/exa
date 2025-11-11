@@ -5,6 +5,8 @@ import React, { useState } from "react";
 import type { RefreshControl } from "react-native";
 import { Pressable } from "react-native";
 import { ScrollView, useTheme, XStack, YStack } from "tamagui";
+import { zeroAddress } from "viem";
+import { useBytecode } from "wagmi";
 
 import AboutDefiSheet from "./AboutDefiSheet";
 import ConnectionSheet from "./ConnectionSheet";
@@ -15,6 +17,7 @@ import ExactlyLogo from "../../assets/images/exactly.svg";
 import LiFiLogo from "../../assets/images/lifi.svg";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
+import useAccount from "../../utils/useAccount";
 import useOpenBrowser from "../../utils/useOpenBrowser";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
@@ -26,6 +29,8 @@ export default function DeFi() {
   const { data: shown } = useQuery<boolean>({ queryKey: ["settings", "defi-intro-shown"] });
   const { data: fundingConnected } = useQuery<boolean>({ queryKey: ["defi", "usdc-funding-connected"] });
   const { data: lifiConnected } = useQuery<boolean>({ queryKey: ["defi", "lifi-connected"] });
+  const { address } = useAccount();
+  const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
   const [aboutDefiSheetOpen, setAboutDefiSheetOpen] = useState(false);
   const [fundingSheetOpen, setFundingSheetOpen] = useState(false);
   const [lifiSheetOpen, setLifiSheetOpen] = useState(false);
@@ -63,22 +68,24 @@ export default function DeFi() {
             }}
             icon={<ExactlyLogo width={24} height={24} fill={theme.interactiveOnBaseBrandSoft.val} />}
           />
-          <DeFiServiceButton
-            title="Swap tokens"
-            description="Connect your wallet to LI.FI"
-            connected={lifiConnected ?? false}
-            onPress={() => {
-              if (lifiConnected) {
-                navigation.navigate("swaps/index");
-              } else {
-                setLifiSheetOpen(true);
-              }
-            }}
-            onActionPress={() => {
-              setDisconnectLifi(true);
-            }}
-            icon={<LiFiLogo width={24} height={24} fill={theme.interactiveOnBaseBrandSoft.val} />}
-          />
+          {bytecode && (
+            <DeFiServiceButton
+              title="Swap tokens"
+              description="Connect your wallet to LI.FI"
+              connected={lifiConnected ?? false}
+              onPress={() => {
+                if (lifiConnected) {
+                  navigation.navigate("swaps/index");
+                } else {
+                  setLifiSheetOpen(true);
+                }
+              }}
+              onActionPress={() => {
+                setDisconnectLifi(true);
+              }}
+              icon={<LiFiLogo width={24} height={24} fill={theme.interactiveOnBaseBrandSoft.val} />}
+            />
+          )}
         </YStack>
       </ScrollView>
       <IntroSheet
