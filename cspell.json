@@ -4,6 +4,7 @@
     "*.svg",
     "cspell.json",
     "contracts/broadcast",
+    "i18n",
     "patches",
     "pnpm-lock.yaml"
   ],
