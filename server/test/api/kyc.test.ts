@@ -15,7 +15,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } fr
 import chain from "@exactly/common/generated/chain";
 
 import app from "../../api/kyc";
-import database, { credentials, sources } from "../../database";
+import database, { credentials, organizations, sources } from "../../database";
 import auth from "../../utils/auth";
 import * as panda from "../../utils/panda";
 import * as persona from "../../utils/persona";
@@ -1348,6 +1348,7 @@ describe("authenticated", () => {
           },
         });
         organizationId = externalOrganization?.id ?? "";
+        await database.update(organizations).set({ role: "kyc" }).where(eq(organizations.id, organizationId));
 
         await auth.api
           .getSiweNonce({
@@ -1725,6 +1726,49 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
             );
 
             expect(response.status).toBe(403);
+          });
+
+          it("returns 403 no permission when organization role is not kyc", async () => {
+            await database.update(organizations).set({ role: null }).where(eq(organizations.id, organizationId));
+            try {
+              const credential = await database.query.credentials.findFirst({ where: eq(credentials.id, account) });
+              const encryptedPayload = encrypt(JSON.stringify(applicationPayload));
+              const statement = `I apply for KYC approval on behalf of address ${getAddress(credential?.account ?? "")} with payload hash ${sha256(encryptedPayload.ciphertext)}`;
+              const message = createSiweMessage({
+                statement,
+                resources: ["https://exactly.github.io/exa"],
+                nonce: generateSiweNonce(),
+                uri: `https://sandbox.exactly.app`,
+                address: owner.address,
+                chainId: chain.id,
+                scheme: "https",
+                version: "1",
+                domain: "sandbox.exactly.app",
+              });
+
+              const response = await appClient.application.$post(
+                {
+                  json: {
+                    key: encryptedPayload.key.toString("base64"),
+                    iv: encryptedPayload.iv.toString("base64"),
+                    ciphertext: encryptedPayload.ciphertext.toString("base64"),
+                    tag: encryptedPayload.tag.toString("base64"),
+                    verify: {
+                      message,
+                      signature: await owner.signMessage({ message }),
+                      walletAddress: owner.address,
+                      chainId: chain.id,
+                    },
+                  },
+                },
+                { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
+              );
+
+              expect(response.status).toBe(403);
+              await expect(response.json()).resolves.toStrictEqual({ code: "no permission" });
+            } finally {
+              await database.update(organizations).set({ role: "kyc" }).where(eq(organizations.id, organizationId));
+            }
           });
         });
       });
