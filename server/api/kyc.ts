@@ -395,11 +395,18 @@ The admin should add a member using [addMember method](https://www.better-auth.c
       if (!(await verifyMessage({ address, message, signature }))) {
         return c.json({ code: "no permission", message: "invalid signature" }, 403);
       }
-
       const account = await database.query.walletAddresses.findFirst({
         where: eq(walletAddresses.address, address),
         with: {
-          user: { columns: { id: true }, with: { members: { columns: { organizationId: true, role: true } } } },
+          user: {
+            columns: { id: true },
+            with: {
+              members: {
+                columns: { role: true },
+                with: { organization: { columns: { id: true, role: true } } },
+              },
+            },
+          },
         },
       });
 
@@ -407,6 +414,7 @@ The admin should add a member using [addMember method](https://www.better-auth.c
       const member = account.user.members[0];
       if (!member) return c.json({ code: "no organization" }, 403);
       if (member.role !== "admin" && member.role !== "owner") return c.json({ code: "no permission" }, 403);
+      if (member.organization.role !== "kyc") return c.json({ code: "no permission" }, 403);
 
       const { credentialId } = c.req.valid("cookie");
       const credential = await database.query.credentials.findFirst({
@@ -440,7 +448,7 @@ The admin should add a member using [addMember method](https://www.better-auth.c
         const application = await submitApplication(payload, c.req.header("encrypted") === "true");
         await database
           .update(credentials)
-          .set({ pandaId: application.id, source: member.organizationId })
+          .set({ pandaId: application.id, source: member.organization.id })
           .where(eq(credentials.id, credentialId));
         return c.json({ status: application.applicationStatus }, 200);
       } catch (error) {
