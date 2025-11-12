@@ -26,7 +26,7 @@ import exaCardBlob from "../../assets/images/exa-card-blob.svg";
 import exaCard from "../../assets/images/exa-card.svg";
 import qrCodeBlob from "../../assets/images/qr-code-blob.svg";
 import qrCode from "../../assets/images/qr-code.svg";
-import queryClient, { type EmbeddingContext } from "../../utils/queryClient";
+import type { EmbeddingContext } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAuth from "../../utils/useAuth";
 import ConnectSheet from "../shared/ConnectSheet";
@@ -246,7 +246,6 @@ export default function Auth() {
               setSignUpModalOpen(false);
               if (!method) return;
               if (method === "webauthn") {
-                queryClient.setQueryData(["method"], "webauthn");
                 setSignUpModalOpen(false);
                 navigation.navigate("(passkeys)/passkeys");
                 return;
