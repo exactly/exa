@@ -12,6 +12,7 @@ import { supportedChains, projectId } from "./wagmi/external";
 
 const wagmiAdapter = new WagmiAdapter({ projectId, networks: supportedChains });
 export const appKitWagmiConfig = wagmiAdapter.wagmiConfig;
+const store = new Map<string, string>();
 
 export default createAppKit({
   projectId,
@@ -30,24 +31,46 @@ export default createAppKit({
     url: `https://${domain}`,
     icons: [`https://${domain}/assets/src/assets/icon.398a7d94ad4f3fdc1e745ea39378674a.png`],
   },
-  storage: {
-    getKeys: async () => {
-      return (await AsyncStorage.getAllKeys()) as string[];
-    },
-    getEntries: async <T = unknown>(): Promise<[string, T][]> => {
-      const keys = await AsyncStorage.getAllKeys();
-      return await Promise.all(keys.map(async (key) => [key, deserialize<T>((await AsyncStorage.getItem(key)) ?? "")]));
-    },
-    setItem: async (key: string, value: unknown) => {
-      await AsyncStorage.setItem(key, serialize(value));
-    },
-    getItem: async <T = unknown>(key: string): Promise<T | undefined> => {
-      const item = await AsyncStorage.getItem(key);
-      if (item === null) return undefined;
-      return deserialize<T>(item);
-    },
-    removeItem: async (key: string) => {
-      await AsyncStorage.removeItem(key);
-    },
-  },
+  storage:
+    typeof window === "undefined"
+      ? {
+          getKeys: async () => {
+            return await Promise.resolve([...store.keys()]);
+          },
+          getEntries: async <T = unknown>(): Promise<[string, T][]> =>
+            await Promise.resolve([...store.entries()].map(([key, value]) => [key, deserialize<T>(value)])),
+          setItem: async (key, value) => {
+            await Promise.resolve(store.set(key, serialize(value)));
+          },
+          getItem: async <T = unknown>(key: string): Promise<T | undefined> => {
+            const item = store.get(key);
+            if (item === undefined) return undefined;
+            return await Promise.resolve(deserialize<T>(item));
+          },
+          removeItem: async (key: string) => {
+            await Promise.resolve(store.delete(key));
+          },
+        }
+      : {
+          getKeys: async () => {
+            return (await AsyncStorage.getAllKeys()) as string[];
+          },
+          getEntries: async <T = unknown>(): Promise<[string, T][]> => {
+            const keys = await AsyncStorage.getAllKeys();
+            return await Promise.all(
+              keys.map(async (key) => [key, deserialize<T>((await AsyncStorage.getItem(key)) ?? "")]),
+            );
+          },
+          setItem: async (key: string, value: unknown) => {
+            await AsyncStorage.setItem(key, serialize(value));
+          },
+          getItem: async <T = unknown>(key: string): Promise<T | undefined> => {
+            const item = await AsyncStorage.getItem(key);
+            if (item === null) return undefined;
+            return deserialize<T>(item);
+          },
+          removeItem: async (key: string) => {
+            await AsyncStorage.removeItem(key);
+          },
+        },
 });
