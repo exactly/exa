@@ -15,7 +15,7 @@ import { createSiweMessage, generateSiweNonce } from "viem/siwe";
 import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 
 import app from "../../api/kyc";
-import database, { credentials, sources } from "../../database";
+import database, { credentials, organizations, sources } from "../../database";
 import auth from "../../utils/auth";
 import * as kyc from "../../utils/kyc";
 import * as panda from "../../utils/panda";
@@ -234,6 +234,7 @@ describe("authenticated", () => {
           },
         });
         organizationId = externalOrganization?.id ?? "";
+        await database.update(organizations).set({ role: "kyc" }).where(eq(organizations.id, organizationId));
 
         await auth.api
           .getSiweNonce({
