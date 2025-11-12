@@ -27,10 +27,10 @@ export default function ConnectionSheet({
   actionText: string;
   onActionPress: () => void;
 }) {
-  const [acknowledged, setAcknowledged] = useState(false);
+  const [acknowledged, setAcknowledged] = useState(true);
 
   useEffect(() => {
-    setAcknowledged(!open);
+    setAcknowledged(true);
   }, [open]);
 
   return (
