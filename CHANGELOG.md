@@ -1,5 +1,13 @@
 # @exactly/mobile
 
+## 1.0.34
+
+### Patch Changes
+
+- [`84acb3f`](https://github.com/exactly/exa/commit/84acb3ff42fe474e9ff18972db22f5f73237d4a9) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ display swaps on account deploy
+
+- [`a83cb2b`](https://github.com/exactly/exa/commit/a83cb2babb88e156048d371c0fb4386b51b480e9) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🎨 unify usdc display value
+
 ## 1.0.33
 
 ### Patch Changes
