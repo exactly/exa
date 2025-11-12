@@ -153,6 +153,7 @@ export const organizations = pgTable("organizations", {
   logo: text("logo"),
   createdAt: timestamp("created_at").notNull(),
   metadata: text("metadata"),
+  role: text("role"),
 });
 
 export const members = pgTable("members", {
@@ -185,10 +186,11 @@ export const walletRelations = relations(walletAddresses, ({ one }) => ({
   user: one(users, { fields: [walletAddresses.userId], references: [users.id] }),
 }));
 
-export const usersRelations = relations(users, ({ many, one }) => ({
+export const usersRelations = relations(users, ({ many }) => ({
   members: many(members),
 }));
 
 export const membersRelations = relations(members, ({ one }) => ({
   member: one(users, { fields: [members.userId], references: [users.id] }),
+  organization: one(organizations, { fields: [members.organizationId], references: [organizations.id] }),
 }));
