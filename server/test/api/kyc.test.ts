@@ -15,7 +15,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } fr
 import chain from "@exactly/common/generated/chain";
 
 import app from "../../api/kyc";
-import database, { credentials, sources } from "../../database";
+import database, { credentials, organizations, sources } from "../../database";
 import auth from "../../utils/auth";
 import * as panda from "../../utils/panda";
 import * as persona from "../../utils/persona";
@@ -1073,6 +1073,7 @@ describe("authenticated", () => {
           },
         });
         organizationId = externalOrganization?.id ?? "";
+        await database.update(organizations).set({ role: "kyc" }).where(eq(organizations.id, organizationId));
 
         await auth.api
           .getSiweNonce({

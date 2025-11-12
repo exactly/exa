@@ -64,6 +64,9 @@ export default betterAuth({
           ...memberAc.statements,
         }),
       },
+      additionalFields: {
+        role: { type: "string", required: false, input: false },
+      },
       allowUserToCreateOrganization: () => true,
     }),
   ],
