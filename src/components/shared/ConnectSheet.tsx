@@ -1,7 +1,9 @@
+import chain from "@exactly/common/generated/chain";
 import { Fingerprint, Wallet } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import React from "react";
 import { ScrollView, YStack } from "tamagui";
+import { base } from "viem/chains";
 
 import Button from "./Button";
 import ModalSheet from "./ModalSheet";
@@ -52,18 +54,20 @@ export default function ConnectSheet({
               </Text>
             </YStack>
             <YStack gap="$s4" alignItems="stretch">
-              <Button
-                onPress={() => {
-                  onClose("webauthn");
-                }}
-                contained
-                main
-                spaced
-                halfWidth
-                iconAfter={<Fingerprint size={20} color="$interactiveOnBaseBrandDefault" />}
-              >
-                {webAuthnText}
-              </Button>
+              {chain.id === base.id ? null : (
+                <Button
+                  onPress={() => {
+                    onClose("webauthn");
+                  }}
+                  contained
+                  main
+                  spaced
+                  halfWidth
+                  iconAfter={<Fingerprint size={20} color="$interactiveOnBaseBrandDefault" />}
+                >
+                  {webAuthnText}
+                </Button>
+              )}
               {isOwnerAvailable && (
                 <Button
                   onPress={() => {
