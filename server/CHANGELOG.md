@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.34
+
+### Patch Changes
+
+- [`339222b`](https://github.com/exactly/exa/commit/339222bc0bb28cb1a5d17b92a6576e2902a1a62f) Thanks [@nfmelendez](https://github.com/nfmelendez)! - ✨ deploy account for non-market assets
+
 ## 0.2.33
 
 ### Patch Changes
