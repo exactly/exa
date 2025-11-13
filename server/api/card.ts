@@ -1,4 +1,5 @@
 import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
+import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import { Address } from "@exactly/common/validation";
 import { captureException, setContext, setUser } from "@sentry/node";
 import { Mutex } from "async-mutex";
@@ -83,12 +84,20 @@ const CardResponse = object({
       "perAuthorization",
     ]),
   }),
+  productId: pipe(
+    picklist([PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID]),
+    metadata({ examples: [PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID] }),
+  ),
 });
 
 const CreatedCardResponse = object({
   lastFour: pipe(string(), metadata({ examples: ["1234"] })),
   cardId: pipe(string(), uuid(), metadata({ examples: ["123e4567-e89b-12d3-a456-426655440000"] })),
   status: pipe(picklist(["ACTIVE", "FROZEN"]), metadata({ examples: ["ACTIVE", "FROZEN"] })),
+  productId: pipe(
+    picklist([PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID]),
+    metadata({ examples: [PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID] }),
+  ),
 });
 
 const UpdateCard = union([
@@ -230,7 +239,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
         columns: { account: true, pandaId: true },
         with: {
           cards: {
-            columns: { id: true, lastFour: true, status: true, mode: true },
+            columns: { id: true, lastFour: true, status: true, mode: true, productId: true },
             where: inArray(cards.status, ["ACTIVE", "FROZEN"]),
           },
         },
@@ -240,7 +249,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
       setUser({ id: account });
       if (!credential.pandaId) return c.json({ code: BadRequestCodes.NO_PANDA, legacy: BadRequestCodes.NO_PANDA }, 403);
       if (credential.cards.length > 0 && credential.cards[0]) {
-        const { id, lastFour, status, mode } = credential.cards[0];
+        const { id, lastFour, status, mode, productId } = credential.cards[0];
         if (status === "DELETED") throw new Error("card deleted");
         const [{ expirationMonth, expirationYear, limit }, pan, { firstName, lastName }, pin] = await Promise.all([
           getCard(id),
@@ -261,6 +270,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
             provider: "panda" as const,
             status,
             limit,
+            productId: parse(CardResponse.entries.productId, productId),
           } satisfies InferOutput<typeof CardResponse>,
           200,
         );
@@ -361,15 +371,17 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
             }
           }
           if (cardCount > 0) return c.json({ code: "already created", legacy: "card already exists" }, 400);
-          const card = await createCard(credential.pandaId);
+          const card = await createCard(credential.pandaId, SIGNATURE_PRODUCT_ID);
           let mode = 0;
           try {
             if (await autoCredit(account)) mode = 1;
           } catch (error) {
             captureException(error);
           }
-          await database.insert(cards).values([{ id: card.id, credentialId, lastFour: card.last4, mode }]);
-          track({ event: "CardIssued", userId: account });
+          await database
+            .insert(cards)
+            .values([{ id: card.id, credentialId, lastFour: card.last4, mode, productId: SIGNATURE_PRODUCT_ID }]);
+          track({ event: "CardIssued", userId: account, properties: { productId: SIGNATURE_PRODUCT_ID } });
           if (mode) {
             sendPushNotification({
               userId: account,
@@ -378,9 +390,12 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
             }).catch((error: unknown) => captureException(error));
           }
           return c.json(
-            { lastFour: card.last4, status: "ACTIVE", cardId: card.id } satisfies InferOutput<
-              typeof CreatedCardResponse
-            >,
+            {
+              lastFour: card.last4,
+              status: "ACTIVE",
+              cardId: card.id,
+              productId: SIGNATURE_PRODUCT_ID,
+            } satisfies InferOutput<typeof CreatedCardResponse>,
             200,
           );
         })
