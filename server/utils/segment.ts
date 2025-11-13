@@ -22,7 +22,7 @@ interface MerchantProperties {
 
 export function track(
   action: Id<
-    | { event: "CardIssued" }
+    | { event: "CardIssued"; properties: { productId: string } }
     | { event: "CardFrozen" }
     | { event: "CardUnfrozen" }
     | { event: "AccountFunded" }
