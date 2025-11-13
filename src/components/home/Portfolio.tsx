@@ -21,22 +21,19 @@ import View from "../shared/View";
 import WeightedRate from "../shared/WeightedRate";
 
 export default function Portfolio() {
-  const theme = useTheme();
   const { address } = useAccount();
-  const openBrowser = useOpenBrowser();
   const { presentArticle } = useIntercom();
-  const { averageRate, portfolio } = usePortfolio(address);
   const navigation = useNavigation<AppNavigationProperties>();
-  const { t } = useTranslation();
-  const style = { backgroundColor: theme.backgroundSoft.val, margin: -5 };
-
+  const openBrowser = useOpenBrowser();
+  const { averageRate, portfolio } = usePortfolio(address);
   const { usdBalance } = portfolio;
+  const theme = useTheme();
+  const { t } = useTranslation();
 
   const { refetch: refetchMarkets, isFetching: isFetchingMarkets } = useReadPreviewerExactly({
     address: previewerAddress,
     args: [address ?? zeroAddress],
   });
-
   return (
     <SafeView fullScreen backgroundColor="$backgroundSoft">
       <View padded flexDirection="row" gap={10} paddingBottom="$s4" justifyContent="space-between" alignItems="center">
@@ -65,7 +62,7 @@ export default function Portfolio() {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            style={style}
+            style={{ backgroundColor: theme.backgroundSoft.val, margin: -5 }} // eslint-disable-line react-native/no-inline-styles
             refreshing={isFetchingMarkets}
             onRefresh={() => {
               refetchMarkets().catch(reportError);

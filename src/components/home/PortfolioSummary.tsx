@@ -8,21 +8,19 @@ import { XStack, YStack } from "tamagui";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import isProcessing from "../../utils/isProcessing";
 import { getActivity } from "../../utils/server";
+import useAccount from "../../utils/useAccount";
+import usePortfolio from "../../utils/usePortfolio";
 import Text from "../shared/Text";
 import WeightedRate from "../shared/WeightedRate";
 
-export default function PortfolioSummary({
-  averageRate,
-  portfolio,
-}: {
-  averageRate: bigint;
-  portfolio: { usdBalance: bigint; depositMarkets: { market: string; symbol: string; usdValue: bigint }[] };
-}) {
+export default function PortfolioSummary() {
+  const { address } = useAccount();
+  const { portfolio, averageRate } = usePortfolio(address);
   const { usdBalance, depositMarkets } = portfolio;
   const navigation = useNavigation<AppNavigationProperties>();
-  const { data: country } = useQuery({ queryKey: ["user", "country"] });
   const { t } = useTranslation();
 
+  const { data: country } = useQuery({ queryKey: ["user", "country"] });
   const { data: processingBalance } = useQuery({
     queryKey: ["processing-balance"],
     queryFn: () => getActivity(),

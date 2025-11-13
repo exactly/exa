@@ -87,18 +87,20 @@ export default function Card() {
     : [];
   const totalSpent = weeklyPurchases.reduce((accumulator, item) => accumulator + item.usdAmount, 0);
 
-  const { queryKey } = useAsset(marketUSDCAddress);
   const { address } = useAccount();
+  const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
+
+  const { queryKey } = useAsset(marketUSDCAddress);
   const { data: KYCStatus, refetch: refetchKYCStatus } = useQuery({
     queryKey: ["kyc", "status"],
     queryFn: async () => getKYCStatus(KYC_TEMPLATE_ID),
+    enabled: !!bytecode,
     meta: {
       suppressError: (error) =>
         error instanceof APIError &&
         (error.text === "kyc not found" || error.text === "kyc not started" || error.text === "kyc not approved"),
     },
   });
-  const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
   const { refetch: refetchInstalledPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
     address: address ?? zeroAddress,
     query: { enabled: !!address && !!bytecode },
