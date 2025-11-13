@@ -20,9 +20,11 @@ import {
   union,
 } from "valibot";
 
+import { firewallAbi, firewallAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
 import database, { credentials } from "../database/index";
+import keeper from "../utils/keeper";
 import { createUser } from "../utils/panda";
 import { addCapita, deriveAssociateId } from "../utils/pax";
 import { addDocument, headerValidator, MANTECA_TEMPLATE_WITH_ID_CLASS, PANDA_TEMPLATE } from "../utils/persona";
@@ -308,6 +310,15 @@ export default new Hono().post(
         extra: { pandaId: id, referenceId, account: credential.account },
         level: "error",
       });
+    }
+
+    if (firewallAddress) {
+      keeper
+        .exaSend(
+          { name: "exa.firewall", op: "exa.firewall", attributes: { account: credential.account, personaShareToken } },
+          { address: firewallAddress, functionName: "allow", args: [credential.account, true], abi: firewallAbi },
+        )
+        .catch((error: unknown) => captureException(error, { level: "error" }));
     }
     addDocument(referenceId, {
       id_class: { value: fields.identificationClass.value },
