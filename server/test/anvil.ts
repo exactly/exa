@@ -54,8 +54,8 @@ export default async function setup({ provide }: TestProject) {
   const marketWETH = protocol[21].contractAddress;
   const balancer = protocol[27].contractAddress;
   const debtManager = protocol[28].contractAddress;
-  const previewer = protocol[30].contractAddress;
-  const installmentsRouter = protocol[31].contractAddress;
+  const previewer = protocol[32].contractAddress;
+  const installmentsRouter = protocol[33].contractAddress;
 
   if (initialize) {
     // cspell:ignoreRegExp [\b_][A-Z]+_ADDRESS\b
@@ -239,6 +239,8 @@ const Protocol = object({
       contractAddress: Address,
     }),
     object({ transactionType: literal("CREATE"), contractName: literal("DebtManager"), contractAddress: Address }),
+    object({ transactionType: literal("CALL") }),
+    object({ transactionType: literal("CALL") }),
     object({ transactionType: literal("CALL") }),
     object({ transactionType: literal("CREATE"), contractName: literal("Previewer"), contractAddress: Address }),
     object({

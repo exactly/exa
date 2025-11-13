@@ -29,11 +29,13 @@ import { ReentrancyGuard } from "solady/utils/ReentrancyGuard.sol";
 import { SafeCastLib } from "solady/utils/SafeCastLib.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
+import { CrossRepayCallbackData, ExaPluginExtension, RepayCallbackData } from "./ExaPluginExtension.sol";
 import {
   BorrowAtMaturityData,
   CollectorSet,
   CrossRepayData,
   Disagreement,
+  ExtensionFailed,
   FlashLoanerSet,
   IAuditor,
   IDebtManager,
@@ -83,6 +85,7 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
   IDebtManager public immutable DEBT_MANAGER;
   IInstallmentsRouter public immutable INSTALLMENTS_ROUTER;
   IssuerChecker public immutable ISSUER_CHECKER;
+  ExaPluginExtension public immutable EXTENSION;
 
   IERC20 private immutable USDC;
   IWETH private immutable WETH;
@@ -106,6 +109,7 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
     DEBT_MANAGER = p.debtManager;
     INSTALLMENTS_ROUTER = p.installmentsRouter;
     ISSUER_CHECKER = p.issuerChecker;
+    EXTENSION = new ExaPluginExtension(EXA_USDC, EXA_WETH);
 
     _grantRole(KEEPER_ROLE, p.firstKeeper);
     _grantRole(DEFAULT_ADMIN_ROLE, p.owner);
@@ -114,9 +118,10 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
     _setCollector(p.collector);
     _setProposalManager(p.proposalManager);
 
-    IERC20(USDC).forceApprove(address(EXA_USDC), type(uint256).max);
+    USDC.forceApprove(address(EXA_USDC), type(uint256).max);
   }
 
+  // slither-disable-next-line calls-loop
   function swap(IERC20 assetIn, IERC20 assetOut, uint256 maxAmountIn, uint256 minAmountOut, bytes memory route)
     public
     nonReentrant
@@ -137,11 +142,13 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
     amountIn = balanceIn - assetIn.balanceOf(msg.sender);
   }
 
-  function executeProposal(uint256 nonce) external {
+  function executeProposal(uint256 nonce) public {
     IProposalManager _proposalManager = proposalManager;
+    // slither-disable-next-line calls-loop
     (uint256 nextNonce, Proposal memory proposal) = _proposalManager.nextProposal(msg.sender);
     if (nonce != nextNonce) revert NotNext();
 
+    // slither-disable-next-line calls-loop
     if (proposal.timestamp + _proposalManager.delay() > block.timestamp) revert Timelocked();
 
     if (proposal.proposalType == ProposalType.WITHDRAW || proposal.proposalType == ProposalType.REDEEM) {
@@ -156,6 +163,12 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
       _rollDebt(proposal);
     } else if (proposal.proposalType == ProposalType.REPAY_AT_MATURITY) {
       _repay(proposal);
+    }
+  }
+
+  function executeProposals(uint256 firstNonce, uint256 count) external {
+    for (uint256 i = 0; i < count; ++i) {
+      executeProposal(firstNonce + i);
     }
   }
 
@@ -195,9 +208,19 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
     (amountIn, amountOut) = _swap(IERC20(collateral.asset()), IERC20(USDC), maxAmountIn, amount, route);
     IERC20(USDC).safeTransfer(collector, amount);
 
-    _depositUnspent(collateral, maxAmountIn - amountIn, msg.sender);
-    _depositApprovedUnspent(amountOut - amount, msg.sender);
-    _executeFromSender(address(AUDITOR), 0, abi.encodeCall(IAuditor.enterMarket, (EXA_USDC)));
+    uint256 unspentCollateral = maxAmountIn - amountIn;
+    if (unspentCollateral != 0) {
+      if (_checkDeposit(collateral, unspentCollateral)) {
+        _depositUnspent(collateral, unspentCollateral, msg.sender);
+      } else {
+        IERC20(collateral.asset()).safeTransfer(msg.sender, unspentCollateral);
+      }
+    }
+    uint256 unspent = amountOut - amount;
+    if (_checkDeposit(EXA_USDC, unspent)) {
+      EXA_USDC.deposit(unspent, msg.sender);
+      _executeFromSender(address(AUDITOR), 0, abi.encodeCall(IAuditor.enterMarket, (EXA_USDC)));
+    }
   }
 
   function collectCredit(uint256 maturity, uint256 amount, uint256 timestamp, bytes calldata signature) external {
@@ -257,49 +280,19 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
     _poke(EXA_WETH);
   }
 
-  function receiveFlashLoan(IERC20[] calldata, uint256[] calldata, uint256[] calldata, bytes calldata data) external {
-    address _flashLoaner = address(flashLoaner);
-    // slither-disable-next-line incorrect-equality -- hash comparison
-    assert(msg.sender == _flashLoaner && flashLoaning == keccak256(data));
-    delete flashLoaning;
-
-    uint256 actualRepay = 0;
-    if (data[0] == 0x01) {
-      RepayCallbackData memory r = abi.decode(data[1:], (RepayCallbackData));
-      // slither-disable-next-line reentrancy-no-eth -- markets are safe
-      actualRepay = EXA_USDC.repayAtMaturity(r.maturity, r.positionAssets, r.maxRepay, r.borrower);
-
-      // slither-disable-next-line reentrancy-benign -- markets are safe
-      callHash = keccak256(abi.encode(EXA_USDC, IERC4626.withdraw.selector, actualRepay, address(this), r.borrower))
-        | bytes32(uint256(1));
-      _execute(
-        r.borrower, address(EXA_USDC), 0, abi.encodeCall(IMarket.withdraw, (actualRepay, address(this), r.borrower))
-      );
-      // slither-disable-next-line reentrancy-benign -- markets are safe
-      delete callHash;
-      USDC.safeTransfer(_flashLoaner, r.maxRepay);
-      return;
-    }
-    CrossRepayCallbackData memory c = abi.decode(data[1:], (CrossRepayCallbackData));
-    actualRepay = EXA_USDC.repayAtMaturity(c.maturity, c.positionAssets, c.maxRepay, c.borrower);
-    _execute(
-      c.borrower, address(c.marketIn), 0, abi.encodeCall(IMarket.withdraw, (c.maxAmountIn, c.borrower, c.borrower))
-    );
-    (uint256 amountIn, uint256 amountOut) =
-      _swap(c.borrower, IERC20(c.marketIn.asset()), USDC, c.maxAmountIn, c.maxRepay, c.route);
-
-    _transferFromAccount(c.borrower, USDC, address(this), actualRepay);
-    USDC.safeTransfer(_flashLoaner, c.maxRepay);
-
-    uint256 unspent = amountOut - actualRepay;
-    if (unspent != 0) {
-      _approve(c.borrower, address(USDC), address(EXA_USDC), unspent);
-      _execute(c.borrower, address(EXA_USDC), 0, abi.encodeCall(IERC4626.deposit, (unspent, c.borrower)));
-    }
-    uint256 unspentCollateral = c.maxAmountIn - amountIn;
-    if (unspentCollateral != 0) {
-      _transferFromAccount(c.borrower, IERC20(c.marketIn.asset()), address(this), unspentCollateral);
-      _depositUnspent(c.marketIn, unspentCollateral, c.borrower);
+  function receiveFlashLoan(IERC20[] calldata, uint256[] calldata, uint256[] calldata, bytes calldata) external {
+    // solhint-disable avoid-low-level-calls
+    // slither-disable-next-line controlled-delegatecall,low-level-calls -- extension is safe
+    (bool success, bytes memory returnData) = address(EXTENSION).delegatecall(msg.data);
+    // solhint-enable avoid-low-level-calls
+    if (!success) {
+      if (returnData.length == 0) revert ExtensionFailed();
+      // solhint-disable no-inline-assembly
+      // slither-disable-next-line assembly
+      assembly ("memory-safe") {
+        // solhint-enable no-inline-assembly
+        revert(add(32, returnData), mload(returnData))
+      }
     }
   }
 
@@ -335,19 +328,20 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
 
   /// @inheritdoc BasePlugin
   function pluginManifest() external pure override returns (PluginManifest memory manifest) {
-    bytes4[] memory executionFunctions = new bytes4[](12);
+    bytes4[] memory executionFunctions = new bytes4[](13);
     executionFunctions[0] = this.swap.selector;
     executionFunctions[1] = this.propose.selector;
     executionFunctions[2] = this.executeProposal.selector;
-    executionFunctions[3] = this.setProposalNonce.selector;
-    executionFunctions[4] = this.proposeRepay.selector;
-    executionFunctions[5] = this.collectCollateral.selector;
-    executionFunctions[6] = bytes4(keccak256("collectCredit(uint256,uint256,uint256,bytes)"));
-    executionFunctions[7] = bytes4(keccak256("collectCredit(uint256,uint256,uint256,uint256,bytes)"));
-    executionFunctions[8] = this.collectDebit.selector;
-    executionFunctions[9] = this.collectInstallments.selector;
-    executionFunctions[10] = this.poke.selector;
-    executionFunctions[11] = this.pokeETH.selector;
+    executionFunctions[3] = this.executeProposals.selector;
+    executionFunctions[4] = this.setProposalNonce.selector;
+    executionFunctions[5] = this.proposeRepay.selector;
+    executionFunctions[6] = this.collectCollateral.selector;
+    executionFunctions[7] = bytes4(keccak256("collectCredit(uint256,uint256,uint256,bytes)"));
+    executionFunctions[8] = bytes4(keccak256("collectCredit(uint256,uint256,uint256,uint256,bytes)"));
+    executionFunctions[9] = this.collectDebit.selector;
+    executionFunctions[10] = this.collectInstallments.selector;
+    executionFunctions[11] = this.poke.selector;
+    executionFunctions[12] = this.pokeETH.selector;
     manifest.executionFunctions = executionFunctions;
 
     ManifestFunction memory selfRuntimeValidationFunction = ManifestFunction({
@@ -366,7 +360,7 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
       dependencyIndex: 0
     });
 
-    ManifestAssociatedFunction[] memory runtimeValidationFunctions = new ManifestAssociatedFunction[](12);
+    ManifestAssociatedFunction[] memory runtimeValidationFunctions = new ManifestAssociatedFunction[](13);
     runtimeValidationFunctions[0] = ManifestAssociatedFunction({
       executionSelector: IExaAccount.swap.selector,
       associatedFunction: selfRuntimeValidationFunction
@@ -380,38 +374,42 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
       associatedFunction: keeperOrSelfRuntimeValidationFunction
     });
     runtimeValidationFunctions[3] = ManifestAssociatedFunction({
-      executionSelector: IExaAccount.setProposalNonce.selector,
+      executionSelector: IExaAccount.executeProposals.selector,
       associatedFunction: keeperOrSelfRuntimeValidationFunction
     });
     runtimeValidationFunctions[4] = ManifestAssociatedFunction({
+      executionSelector: IExaAccount.setProposalNonce.selector,
+      associatedFunction: keeperOrSelfRuntimeValidationFunction
+    });
+    runtimeValidationFunctions[5] = ManifestAssociatedFunction({
       executionSelector: IExaAccount.proposeRepay.selector,
       associatedFunction: keeperRuntimeValidationFunction
     });
-    runtimeValidationFunctions[5] = ManifestAssociatedFunction({
+    runtimeValidationFunctions[6] = ManifestAssociatedFunction({
       executionSelector: IExaAccount.collectCollateral.selector,
       associatedFunction: keeperRuntimeValidationFunction
     });
-    runtimeValidationFunctions[6] = ManifestAssociatedFunction({
+    runtimeValidationFunctions[7] = ManifestAssociatedFunction({
       executionSelector: bytes4(keccak256("collectCredit(uint256,uint256,uint256,bytes)")),
       associatedFunction: keeperRuntimeValidationFunction
     });
-    runtimeValidationFunctions[7] = ManifestAssociatedFunction({
+    runtimeValidationFunctions[8] = ManifestAssociatedFunction({
       executionSelector: bytes4(keccak256("collectCredit(uint256,uint256,uint256,uint256,bytes)")),
       associatedFunction: keeperRuntimeValidationFunction
     });
-    runtimeValidationFunctions[8] = ManifestAssociatedFunction({
+    runtimeValidationFunctions[9] = ManifestAssociatedFunction({
       executionSelector: IExaAccount.collectDebit.selector,
       associatedFunction: keeperRuntimeValidationFunction
     });
-    runtimeValidationFunctions[9] = ManifestAssociatedFunction({
+    runtimeValidationFunctions[10] = ManifestAssociatedFunction({
       executionSelector: IExaAccount.collectInstallments.selector,
       associatedFunction: keeperRuntimeValidationFunction
     });
-    runtimeValidationFunctions[10] = ManifestAssociatedFunction({
+    runtimeValidationFunctions[11] = ManifestAssociatedFunction({
       executionSelector: IExaAccount.poke.selector,
       associatedFunction: keeperRuntimeValidationFunction
     });
-    runtimeValidationFunctions[11] = ManifestAssociatedFunction({
+    runtimeValidationFunctions[12] = ManifestAssociatedFunction({
       executionSelector: IExaAccount.pokeETH.selector,
       associatedFunction: keeperRuntimeValidationFunction
     });
@@ -539,6 +537,10 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
     }
   }
 
+  function _checkDeposit(IMarket market, uint256 amount) internal view returns (bool) {
+    return market.previewDeposit(amount) != 0 && !market.isFrozen();
+  }
+
   function hasPendingProposals(address account) external view returns (bool) {
     IProposalManager _proposalManager = proposalManager;
     return _proposalManager.nonces(account) != _proposalManager.queueNonces(account);
@@ -574,21 +576,15 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
     _approve(msg.sender, asset, spender, amount);
   }
 
-  function _approveAndExecute(address account, address target, address asset, uint256 amount, bytes memory data)
-    internal
-  {
-    _approve(account, asset, target, amount);
-    _execute(account, target, 0, data);
-  }
-
   function _approveAndExecuteFromSender(address target, address asset, uint256 amount, bytes memory data) internal {
-    _approveAndExecute(msg.sender, target, asset, amount, data);
+    _approve(msg.sender, asset, target, amount);
+    _execute(msg.sender, target, 0, data);
   }
 
   function _borrowAtMaturity(Proposal memory proposal) internal {
     BorrowAtMaturityData memory borrowData = abi.decode(proposal.data, (BorrowAtMaturityData));
     _executeFromSender(
-      address(EXA_USDC),
+      address(proposal.market),
       0,
       abi.encodeCall(
         IMarket.borrowAtMaturity,
@@ -617,16 +613,19 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
             positionAssets: crossData.positionAssets,
             maxRepay: crossData.maxRepay,
             marketIn: proposal.market,
+            marketOut: crossData.marketOut,
             maxAmountIn: proposal.amount,
             route: crossData.route
           })
         )
       )
     );
-    _flashLoan(crossData.maxRepay, data);
+    // slither-disable-next-line calls-loop
+    _flashLoan(crossData.maxRepay, IERC20(crossData.marketOut.asset()), data);
   }
 
   function _execute(address account, address target, uint256 value, bytes memory data) internal {
+    // slither-disable-next-line calls-loop
     IPluginExecutor(account).executeFromPluginExternal(target, value, data);
   }
 
@@ -634,32 +633,29 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
     _execute(msg.sender, target, value, data);
   }
 
-  function _flashLoan(uint256 amount, bytes memory data) internal {
+  function _flashLoan(uint256 amount, IERC20 token, bytes memory data) internal {
     IERC20[] memory tokens = new IERC20[](1);
-    tokens[0] = IERC20(USDC);
+    tokens[0] = token;
     uint256[] memory amounts = new uint256[](1);
     amounts[0] = amount;
 
+    // slither-disable-next-line calls-loop
     flashLoaner.flashLoan(address(this), tokens, amounts, data);
   }
 
-  function _depositApprovedUnspent(uint256 unspent, address receiver) internal {
-    if (unspent != 0) EXA_USDC.deposit(unspent, receiver);
-  }
-
   function _depositUnspent(IMarket market, uint256 unspent, address receiver) internal {
-    if (unspent != 0) {
-      IERC20(market.asset()).forceApprove(address(market), unspent);
-      market.deposit(unspent, receiver);
-    }
+    if (market != EXA_USDC) IERC20(market.asset()).forceApprove(address(market), unspent);
+    market.deposit(unspent, receiver);
   }
 
   function _hash(bytes memory data) internal returns (bytes memory) {
+    // slither-disable-next-line costly-loop
     flashLoaning = keccak256(data);
     return data;
   }
 
   function _isMarket(IMarket market) internal view returns (bool) {
+    // slither-disable-next-line calls-loop
     return AUDITOR.markets(market).isListed;
   }
 
@@ -685,6 +681,7 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
         bytes1(0x01),
         abi.encode(
           RepayCallbackData({
+            market: proposal.market,
             maturity: repayData.maturity,
             borrower: msg.sender,
             positionAssets: repayData.positionAssets,
@@ -693,19 +690,20 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
         )
       )
     );
-    _flashLoan(proposal.amount, data);
+    // slither-disable-next-line calls-loop
+    _flashLoan(proposal.amount, IERC20(proposal.market.asset()), data);
   }
 
   function _rollDebt(Proposal memory proposal) internal {
     RollDebtData memory rollData = abi.decode(proposal.data, (RollDebtData));
     _approveAndExecuteFromSender(
       address(DEBT_MANAGER),
-      address(EXA_USDC),
+      address(proposal.market),
       rollData.maxRepayAssets,
       abi.encodeCall(
         IDebtManager.rollFixed,
         (
-          EXA_USDC,
+          proposal.market,
           rollData.repayMaturity,
           rollData.borrowMaturity,
           rollData.maxRepayAssets,
@@ -714,7 +712,7 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
         )
       )
     );
-    _approveFromSender(address(EXA_USDC), address(DEBT_MANAGER), 0);
+    _approveFromSender(address(proposal.market), address(DEBT_MANAGER), 0);
   }
 
   function _setFlashLoaner(IFlashLoaner flashLoaner_) internal {
@@ -744,6 +742,7 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
   function _swap(Proposal memory proposal) internal {
     _withdrawFromSender(proposal.market, proposal.amount, msg.sender);
     SwapData memory data = abi.decode(proposal.data, (SwapData));
+    // slither-disable-next-line calls-loop
     swap(IERC20(proposal.market.asset()), data.assetOut, proposal.amount, data.minAmountOut, data.route);
   }
 
@@ -766,31 +765,6 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
     amountIn = balanceIn - assetIn.balanceOf(address(this));
   }
 
-  function _swap(
-    address account,
-    IERC20 assetIn,
-    IERC20 assetOut,
-    uint256 maxAmountIn,
-    uint256 minAmountOut,
-    bytes memory route
-  ) internal nonReentrant returns (uint256 amountIn, uint256 amountOut) {
-    uint256 balanceIn = assetIn.balanceOf(account);
-    uint256 balanceOut = assetOut.balanceOf(account);
-    address _swapper = swapper;
-
-    _approveAndExecute(account, _swapper, address(assetIn), maxAmountIn, route);
-
-    amountOut = assetOut.balanceOf(account) - balanceOut;
-    if (minAmountOut > amountOut) revert Disagreement();
-
-    _approve(account, address(assetIn), _swapper, 0);
-    amountIn = balanceIn - assetIn.balanceOf(account);
-  }
-
-  function _transferFromAccount(address account, IERC20 asset, address receiver, uint256 amount) internal {
-    _execute(account, address(asset), 0, abi.encodeCall(IERC20.transfer, (receiver, amount)));
-  }
-
   function _willUninstallThis(bytes memory data) internal view returns (bool) {
     (address plugin,,) = abi.decode(data, (address, bytes, bytes));
     return plugin == address(this);
@@ -804,6 +778,7 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
     address receiver = abi.decode(proposal.data, (address));
     bool isWETH = proposal.market == EXA_WETH;
     if (isWETH) {
+      // slither-disable-next-line costly-loop
       callHash = keccak256(
         abi.encode(
           proposal.market,
@@ -812,11 +787,12 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
           address(this),
           msg.sender
         )
-      ) & ~bytes32(uint256(1));
+      ) | bytes32(uint256(1));
     }
 
     uint256 assets = 0;
     if (proposal.proposalType == ProposalType.REDEEM) {
+      // slither-disable-next-line calls-loop
       assets = abi.decode(
         IPluginExecutor(msg.sender).executeFromPluginExternal(
           address(proposal.market),
@@ -831,8 +807,9 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
     }
 
     if (isWETH) {
-      // slither-disable-next-line reentrancy-benign -- markets are safe
+      // slither-disable-next-line reentrancy-benign,costly-loop -- markets are safe
       delete callHash;
+      // slither-disable-next-line calls-loop
       WETH.withdraw(assets);
       receiver.safeTransferETH(assets);
     }
@@ -850,23 +827,6 @@ enum FunctionId {
   RUNTIME_VALIDATION_SELF,
   RUNTIME_VALIDATION_KEEPER,
   RUNTIME_VALIDATION_KEEPER_OR_SELF
-}
-
-struct CrossRepayCallbackData {
-  uint256 maturity;
-  address borrower;
-  uint256 positionAssets;
-  uint256 maxRepay;
-  IMarket marketIn;
-  uint256 maxAmountIn;
-  bytes route;
-}
-
-struct RepayCallbackData {
-  uint256 maturity;
-  address borrower;
-  uint256 positionAssets;
-  uint256 maxRepay;
 }
 
 struct Parameters {

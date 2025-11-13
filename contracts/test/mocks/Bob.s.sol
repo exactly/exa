@@ -130,6 +130,7 @@ contract BobScript is BaseScript {
               maturity: maturity + FixedLib.INTERVAL,
               positionAssets: 82e6,
               maxRepay: 82e6,
+              marketOut: exaUSDC,
               route: abi.encodeCall(
                 MockSwapper.swapExactAmountOut, (address(exa), 100e18, address(usdc), 82e6, address(bobAccount))
               )

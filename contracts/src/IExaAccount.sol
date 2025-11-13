@@ -9,6 +9,7 @@ interface IExaAccount {
     external
     returns (uint256 amountIn, uint256 amountOut);
   function executeProposal(uint256 nonce) external;
+  function executeProposals(uint256 firstNonce, uint256 count) external;
   function propose(IMarket market, uint256 amount, ProposalType proposalType, bytes memory data) external;
   function proposeRepay(IMarket market, uint256 amount, ProposalType proposalType, bytes memory data) external;
   function setProposalNonce(uint256 nonce) external;
@@ -153,6 +154,7 @@ struct BorrowAtMaturityData {
 struct CrossRepayData {
   uint256 maturity;
   uint256 positionAssets;
+  IMarket marketOut;
   uint256 maxRepay;
   bytes route;
 }
@@ -176,6 +178,7 @@ enum ProposalType {
 error BorrowLimitExceeded();
 error Disagreement();
 error Expired();
+error ExtensionFailed();
 error InsufficientLiquidity();
 error NotNext();
 error NoBalance();
@@ -188,6 +191,7 @@ error Timelocked();
 error Unauthorized();
 error ZeroAddress();
 error InvalidDelay();
+error InvalidProposal();
 error ZeroAmount();
 
 interface IAuditor {
@@ -207,13 +211,26 @@ interface IMarket is IERC4626 {
   function borrowAtMaturity(uint256 maturity, uint256 assets, uint256 maxAssets, address receiver, address borrower)
     external
     returns (uint256 assetsOwed);
+  function depositAtMaturity(uint256 maturity, uint256 assets, uint256 minAssetsRequired, address receiver)
+    external
+    returns (uint256 positionAssets);
   function fixedBorrowPositions(uint256 maturity, address borrower) external view returns (FixedPosition memory);
   function fixedPools(uint256 maturity) external view returns (FixedPool memory);
+  function isFrozen() external view returns (bool);
   function penaltyRate() external view returns (uint256);
+  function repay(uint256 assets, address borrower) external;
   function repayAtMaturity(uint256 maturity, uint256 positionAssets, uint256 maxAssets, address borrower)
     external
     returns (uint256 actualRepayAssets);
+  function setFrozen(bool frozen) external;
   function withdraw(uint256 assets, address receiver, address owner) external returns (uint256 shares);
+  function withdrawAtMaturity(
+    uint256 maturity,
+    uint256 positionAssets,
+    uint256 minAssetsRequired,
+    address receiver,
+    address owner
+  ) external returns (uint256 assetsDiscounted);
 }
 
 interface IPriceFeed {

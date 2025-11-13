@@ -9,6 +9,7 @@ import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 import { ExaPlugin } from "./ExaPlugin.sol";
 import {
   BorrowAtMaturityData,
+  CrossRepayData,
   DelaySet,
   IAuditor,
   IDebtManager,
@@ -17,6 +18,7 @@ import {
   IProposalManager,
   InsufficientLiquidity,
   InvalidDelay,
+  InvalidProposal,
   MarketData,
   NoProposal,
   NonceTooLow,
@@ -213,6 +215,7 @@ contract ProposalManager is IProposalManager, AccessControl {
     if (proposal.market != target) revert NoProposal();
     if (proposal.timestamp + delay > block.timestamp) revert Timelocked();
     if (proposal.proposalType == ProposalType.WITHDRAW || proposal.proposalType == ProposalType.REDEEM) {
+      if (hasRole(PROPOSER_ROLE, receiver)) return;
       if (abi.decode(proposal.data, (address)) != receiver) revert NoProposal();
     }
   }
@@ -222,7 +225,11 @@ contract ProposalManager is IProposalManager, AccessControl {
     onlyRole(PROPOSER_ROLE)
   {
     if (amount == 0) revert ZeroAmount();
+    if (proposalType == ProposalType.NONE) revert InvalidProposal();
     _checkMarket(market);
+    if (proposalType == ProposalType.CROSS_REPAY_AT_MATURITY) {
+      _checkMarket(abi.decode(data, (CrossRepayData)).marketOut);
+    }
     uint256 nonce = queueNonces[account];
     proposals[account][nonce] =
       Proposal({ amount: amount, market: market, timestamp: block.timestamp, proposalType: proposalType, data: data });
