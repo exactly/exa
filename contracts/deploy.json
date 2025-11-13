@@ -2,6 +2,7 @@
   "accounts": {
     "admin": {
       "10": "0x6561b09d5d6012D416dfDf9BeFe37228Ae89434C",
+      "8453": "0x6561b09d5d6012D416dfDf9BeFe37228Ae89434C",
       "default": "0xDb90CDB64CfF03f254e4015C4F705C3F3C834400"
     },
     "deployer": {
