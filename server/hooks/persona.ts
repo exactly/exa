@@ -1,3 +1,4 @@
+import { Address } from "@exactly/common/validation";
 import { vValidator } from "@hono/valibot-validator";
 import { captureException, getActiveSpan, SEMANTIC_ATTRIBUTE_SENTRY_OP, setUser } from "@sentry/node";
 import { eq } from "drizzle-orm";
@@ -15,6 +16,7 @@ import {
   nullable,
   object,
   optional,
+  parse,
   pipe,
   safeParse,
   string,
@@ -22,6 +24,8 @@ import {
 } from "valibot";
 
 import database, { credentials } from "../database/index";
+import { firewallAddress, firewallAbi } from "../generated/contracts";
+import keeper from "../utils/keeper";
 import { createUser } from "../utils/panda";
 import { headerValidator } from "../utils/persona";
 import { customer } from "../utils/sardine";
@@ -209,6 +213,27 @@ export default new Hono().post(
     await database.update(credentials).set({ pandaId: id }).where(eq(credentials.id, referenceId));
 
     getActiveSpan()?.setAttributes({ "exa.pandaId": id });
+
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    if (firewallAddress) {
+      keeper
+        .exaSend(
+          {
+            name: "exa.firewall",
+            op: `exa.firewall.${personaShareToken}`,
+            attributes: { account: credential.account },
+          },
+          {
+            address: parse(Address, firewallAddress),
+            functionName: "allow",
+            args: [credential.account, true],
+            abi: firewallAbi,
+          },
+        )
+        .catch((error: unknown) => {
+          captureException(error, { level: "error" });
+        });
+    }
 
     return c.json({ id }, 200);
   },

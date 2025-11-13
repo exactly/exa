@@ -2,7 +2,7 @@ import "dotenv/config";
 import { defineConfig, type Plugin } from "@wagmi/cli";
 import { foundry, react } from "@wagmi/cli/plugins";
 import { execSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { type Abi, getAddress } from "viem";
 import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
@@ -11,7 +11,6 @@ import deploy from "./contracts/deploy.json";
 const easBuild = process.env.EAS_BUILD_RUNNER === "eas-build";
 
 const chainId = Number(process.env.CHAIN_ID ?? String(easBuild ? optimism.id : optimismSepolia.id));
-
 if (easBuild) {
   execSync(
     "export FOUNDRY_DIR=${FOUNDRY_DIR-$HOME/workingdir} && curl -L https://foundry.paradigm.xyz | bash || true && foundryup -i v1.3.6",
@@ -28,6 +27,7 @@ const ratePreviewer = loadDeployment("RatePreviewer");
 const usdc = loadDeployment("USDC");
 const weth = loadDeployment("WETH");
 const balancerVault = loadDeployment("BalancerVault");
+const firewall = loadDeployment("Firewall");
 const [exaPlugin] = loadBroadcast("ExaPlugin").transactions;
 const [issuerChecker] = loadBroadcast("IssuerChecker").transactions;
 const [proposalManager] = loadBroadcast("ProposalManager").transactions;
@@ -99,11 +99,13 @@ export default defineConfig([
       { name: "Auditor", abi: auditor.abi },
       { name: "Market", abi: marketWETH.abi },
       { name: "Previewer", abi: previewer.abi },
+      { name: "Firewall", abi: firewall.abi },
     ],
     plugins: [
       addresses({
         issuerChecker: issuerChecker.contractAddress,
         refunder: refunder.contractAddress,
+        firewall: firewall.address,
       }),
       foundry({
         forge: { build: false },
@@ -115,13 +117,14 @@ export default defineConfig([
           "ProposalManager.sol/ProposalManager.json",
           "Refunder.sol/Refunder.json",
           "UpgradeableModularAccount.sol/UpgradeableModularAccount.json",
+          "Firewall.sol/Firewall.json",
         ],
       }),
     ],
   },
 ]);
 
-function addresses(contracts: Record<string, string>, scripts?: Record<string, string>): Plugin {
+function addresses(contracts: Record<string, string | undefined>, scripts?: Record<string, string>): Plugin {
   return {
     name: "Addresses",
     run() {
@@ -138,7 +141,11 @@ function addresses(contracts: Record<string, string>, scripts?: Record<string, s
       }
       return {
         content: `${Object.entries(contracts)
-          .map(([key, value]) => `export const ${key}Address = "${getAddress(value)}" as const`)
+          .map(([key, value]) => {
+            return value
+              ? `export const ${key}Address = "${getAddress(value)}" as const`
+              : `export const ${key}Address = undefined`;
+          })
           .join("\n")}\n`,
       };
     },
@@ -164,7 +171,9 @@ function loadDeployment(contract: string) {
     [optimismSepolia.id]: "op-sepolia",
   }[chainId];
   if (!network) throw new Error("unknown chain");
-  return JSON.parse(readFileSync(`node_modules/@exactly/protocol/deployments/${network}/${contract}.json`, "utf8")) as {
+  const path = `node_modules/@exactly/protocol/deployments/${network}/${contract}.json`;
+  if (!existsSync(path)) return { address: undefined, abi: [] as Abi };
+  return JSON.parse(readFileSync(path, "utf8")) as {
     address: string;
     abi: Abi;
   };
