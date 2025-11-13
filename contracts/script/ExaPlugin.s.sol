@@ -18,6 +18,11 @@ contract DeployExaPlugin is BaseScript {
   ExaPlugin public exaPlugin;
 
   function run() external {
+    IDebtManager debtManager = IDebtManager(protocol("DebtRoller", false));
+    IFlashLoaner flashLoaner = IFlashLoaner(protocol("FlashLoanAdapter", false));
+    if (address(debtManager) == address(0)) debtManager = IDebtManager(protocol("DebtManager"));
+    if (address(flashLoaner) == address(0)) flashLoaner = IFlashLoaner(protocol("Balancer2Vault"));
+
     vm.broadcast(acct("deployer"));
     exaPlugin = new ExaPlugin(
       Parameters({
@@ -25,8 +30,8 @@ contract DeployExaPlugin is BaseScript {
         auditor: IAuditor(protocol("Auditor")),
         exaUSDC: IMarket(protocol("MarketUSDC")),
         exaWETH: IMarket(protocol("MarketWETH")),
-        flashLoaner: IFlashLoaner(protocol("Balancer2Vault")),
-        debtManager: IDebtManager(protocol("DebtManager")),
+        flashLoaner: flashLoaner,
+        debtManager: debtManager,
         installmentsRouter: IInstallmentsRouter(protocol("InstallmentsRouter")),
         issuerChecker: IssuerChecker(broadcast("IssuerChecker")),
         proposalManager: IProposalManager(broadcast("ProposalManager")),

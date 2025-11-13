@@ -52,11 +52,14 @@ contract DeployProposalManager is BaseScript {
       }
     }
 
+    IDebtManager debtManager = IDebtManager(protocol("DebtRoller", false));
+    if (address(debtManager) == address(0)) debtManager = IDebtManager(protocol("DebtManager"));
+
     vm.broadcast(acct("deployer"));
     proposalManager = new ProposalManager(
       acct("admin"),
       auditor,
-      IDebtManager(protocol("DebtManager")),
+      debtManager,
       IInstallmentsRouter(protocol("InstallmentsRouter")),
       acct("collector"),
       allowlist,
