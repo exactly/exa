@@ -11,7 +11,6 @@ import { zeroAddress } from "viem";
 import { useBytecode } from "wagmi";
 
 import CardStatus from "./CardStatus";
-import ExploreDeFi from "./ExploreDeFi";
 import GettingStarted from "./GettingStarted";
 import HomeActions from "./HomeActions";
 import HomeDisclaimer from "./HomeDisclaimer";
@@ -65,7 +64,6 @@ export default function Home() {
       return false;
     },
   });
-  const { data: exploreDeFiShown } = useQuery<boolean>({ queryKey: ["settings", "explore-defi-shown"] });
   const { refetch: refetchPendingProposals } = useReadExaPreviewerPendingProposals({
     address: exaPreviewerAddress,
     args: [account ?? zeroAddress],
@@ -158,7 +156,6 @@ export default function Home() {
                 }}
               />
               <GettingStarted hasFunds={usdBalance > 0n} hasKYC={KYCStatus === "ok"} />
-              {bytecode && exploreDeFiShown && <ExploreDeFi />}
               <OverduePayments
                 onSelect={(maturity) => {
                   navigation.setParams({ ...parameters, maturity: maturity.toString() });
