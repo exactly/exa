@@ -93,7 +93,10 @@ const CardResponse = object({
       "perAuthorization",
     ]),
   }),
-  productId: pipe(string(), metadata({ examples: ["402"] })),
+  productId: pipe(
+    picklist([PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID]),
+    metadata({ examples: [PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID] }),
+  ),
   challenge: optional(pipe(string(), metadata({ examples: ["1a2b3c"] }))),
   provisioning: optional(
     object({
@@ -107,7 +110,10 @@ const CreatedCardResponse = object({
   lastFour: pipe(string(), metadata({ examples: ["1234"] })),
   cardId: pipe(string(), uuid(), metadata({ examples: ["123e4567-e89b-12d3-a456-426655440000"] })),
   status: pipe(picklist(["ACTIVE", "FROZEN"]), metadata({ examples: ["ACTIVE", "FROZEN"] })),
-  productId: pipe(string(), metadata({ examples: ["402"] })),
+  productId: pipe(
+    picklist([PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID]),
+    metadata({ examples: [PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID] }),
+  ),
 });
 
 const UpdateCard = union([
@@ -381,7 +387,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
             provider: "panda" as const,
             status,
             limit,
-            productId,
+            productId: parse(CardResponse.entries.productId, productId),
             ...(challenge && { challenge }),
             ...(provisioning && { provisioning }),
           } satisfies InferOutput<typeof CardResponse>,
