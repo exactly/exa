@@ -79,14 +79,20 @@ const CardResponse = object({
       "perAuthorization",
     ]),
   }),
-  productId: pipe(string(), metadata({ examples: ["402"] })),
+  productId: pipe(
+    picklist([PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID]),
+    metadata({ examples: [PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID] }),
+  ),
 });
 
 const CreatedCardResponse = object({
   lastFour: pipe(string(), metadata({ examples: ["1234"] })),
   cardId: pipe(string(), uuid(), metadata({ examples: ["123e4567-e89b-12d3-a456-426655440000"] })),
   status: pipe(picklist(["ACTIVE", "FROZEN"]), metadata({ examples: ["ACTIVE", "FROZEN"] })),
-  productId: pipe(string(), metadata({ examples: ["402"] })),
+  productId: pipe(
+    picklist([PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID]),
+    metadata({ examples: [PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID] }),
+  ),
 });
 
 const UpdateCard = union([
@@ -271,7 +277,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
             provider: "panda" as const,
             status,
             limit,
-            productId,
+            productId: parse(CardResponse.entries.productId, productId),
           } satisfies InferOutput<typeof CardResponse>,
           200,
         );
@@ -487,12 +493,12 @@ async function encryptPIN(pin: string) {
     secretKeyBase64Buffer,
   );
   const sessionId = secretKeyBase64BufferEncrypted.toString("base64");
-  
+
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv("aes-128-gcm", Buffer.from(secret, "hex"), iv);
   const encrypted = Buffer.concat([cipher.update(data, "utf8"), cipher.final()]);
   const authTag = cipher.getAuthTag();
-  
+
   return {
     data: Buffer.concat([encrypted, authTag]).toString("base64"),
     iv: iv.toString("base64"),
