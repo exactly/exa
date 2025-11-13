@@ -493,8 +493,8 @@ importers:
         specifier: ^0.1.26
         version: 0.1.26
       webauthn-owner-plugin:
-        specifier: exactly/webauthn-owner-plugin#1914de0
-        version: https://codeload.github.com/exactly/webauthn-owner-plugin/tar.gz/1914de0
+        specifier: exactly/webauthn-owner-plugin#9c0c38b
+        version: https://codeload.github.com/exactly/webauthn-owner-plugin/tar.gz/9c0c38b
       webauthn-sol:
         specifier: base/webauthn-sol#v1.0.0
         version: webauthn-sol#v1.0.0@https://codeload.github.com/base/webauthn-sol/tar.gz/619f20ab0f074fef41066ee4ab24849a913263b2
@@ -702,8 +702,8 @@ importers:
         specifier: ^3.2.4
         version: 3.2.4(@types/debug@4.1.12)(@types/node@22.14.1)(@vitest/ui@3.2.4)(jiti@1.21.7)(lightningcss@1.27.0)(terser@5.39.0)(tsx@4.20.6)(yaml@2.8.1)
       webauthn-owner-plugin:
-        specifier: exactly/webauthn-owner-plugin#42b67f8
-        version: https://codeload.github.com/exactly/webauthn-owner-plugin/tar.gz/42b67f8
+        specifier: exactly/webauthn-owner-plugin#9c0c38b
+        version: https://codeload.github.com/exactly/webauthn-owner-plugin/tar.gz/9c0c38b
 
 packages:
 
@@ -11789,12 +11789,8 @@ packages:
     resolution: {integrity: sha512-d2JWLCivmZYTSIoge9MsgFCZrt571BikcWGYkjC1khllbTeDlGqZ2D8vD8E/lJa8WGWbb7Plm8/XJYV7IJHZZw==}
     engines: {node: '>= 8'}
 
-  webauthn-owner-plugin@https://codeload.github.com/exactly/webauthn-owner-plugin/tar.gz/1914de0:
-    resolution: {tarball: https://codeload.github.com/exactly/webauthn-owner-plugin/tar.gz/1914de0}
-    version: 0.0.0
-
-  webauthn-owner-plugin@https://codeload.github.com/exactly/webauthn-owner-plugin/tar.gz/42b67f8:
-    resolution: {tarball: https://codeload.github.com/exactly/webauthn-owner-plugin/tar.gz/42b67f8}
+  webauthn-owner-plugin@https://codeload.github.com/exactly/webauthn-owner-plugin/tar.gz/9c0c38b:
+    resolution: {tarball: https://codeload.github.com/exactly/webauthn-owner-plugin/tar.gz/9c0c38b}
     version: 0.0.0
 
   webauthn-sol#v1.0.0@https://codeload.github.com/base/webauthn-sol/tar.gz/619f20ab0f074fef41066ee4ab24849a913263b2:
@@ -26449,9 +26445,7 @@ snapshots:
 
   web-streams-polyfill@3.3.3: {}
 
-  webauthn-owner-plugin@https://codeload.github.com/exactly/webauthn-owner-plugin/tar.gz/1914de0: {}
-
-  webauthn-owner-plugin@https://codeload.github.com/exactly/webauthn-owner-plugin/tar.gz/42b67f8: {}
+  webauthn-owner-plugin@https://codeload.github.com/exactly/webauthn-owner-plugin/tar.gz/9c0c38b: {}
 
   webauthn-sol#v1.0.0@https://codeload.github.com/base/webauthn-sol/tar.gz/619f20ab0f074fef41066ee4ab24849a913263b2: {}
 
