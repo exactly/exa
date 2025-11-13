@@ -215,10 +215,9 @@ describe("authenticated", () => {
   });
 
   it("creates a panda debit card with signature product id", async () => {
-    vi.spyOn(panda, "createCard").mockResolvedValueOnce({
-      ...cardTemplate,
-      id: "123e4567-e89b-12d3-a456-426655440000",
-    });
+    const id = "a479254e-bb88-43a2-9fbe-3bf8424c19c9";
+    vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id });
+
     vi.spyOn(kyc, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
 
     const response = await appClient.index.$post({ header: { "test-credential-id": account } });
@@ -232,20 +231,13 @@ describe("authenticated", () => {
     });
 
     expect(created?.mode).toBe(0);
-    expect(json).toStrictEqual({
-      status: "ACTIVE",
-      lastFour: "7394",
-      cardId: "123e4567-e89b-12d3-a456-426655440000",
-      productId: SIGNATURE_PRODUCT_ID,
-    });
+    expect(json).toStrictEqual({ cardId: id, status: "ACTIVE", lastFour: "7394", productId: SIGNATURE_PRODUCT_ID });
   });
 
   it("creates a panda credit card with signature product id", async () => {
-    vi.spyOn(panda, "createCard").mockResolvedValueOnce({
-      ...cardTemplate,
-      id: "123e4567-e89b-12d3-a456-426655440000",
-      last4: "1224",
-    });
+    const id = "b7331464-496a-4f7b-b06d-f02ae080a93f";
+    vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id, last4: "1224" });
+
     vi.spyOn(kyc, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
 
     const response = await appClient.index.$post({ header: { "test-credential-id": ethAccount } });
@@ -260,12 +252,7 @@ describe("authenticated", () => {
 
     expect(created?.mode).toBe(1);
 
-    expect(json).toStrictEqual({
-      status: "ACTIVE",
-      lastFour: "1224",
-      cardId: "123e4567-e89b-12d3-a456-426655440000",
-      productId: SIGNATURE_PRODUCT_ID,
-    });
+    expect(json).toStrictEqual({ status: "ACTIVE", lastFour: "1224", cardId: id, productId: SIGNATURE_PRODUCT_ID });
   });
 
   it("cancels a card", async () => {
