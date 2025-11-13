@@ -1,4 +1,4 @@
-import { Address } from "@exactly/common/validation";
+import { firewallAbi, firewallAddress } from "@exactly/common/generated/chain";
 import { vValidator } from "@hono/valibot-validator";
 import { captureException, getActiveSpan, SEMANTIC_ATTRIBUTE_SENTRY_OP, setContext, setUser } from "@sentry/node";
 import { eq } from "drizzle-orm";
@@ -22,6 +22,7 @@ import {
 } from "valibot";
 
 import database, { credentials } from "../database/index";
+import keeper from "../utils/keeper";
 import { createUser } from "../utils/panda";
 import { addCapita, deriveAssociateId } from "../utils/pax";
 import { headerValidator } from "../utils/persona";
@@ -253,6 +254,15 @@ export default new Hono().post(
       captureException(new Error("invalid account address"), {
         extra: { pandaId: id, referenceId, account: credential.account },
       });
+    }
+
+    if (firewallAddress) {
+      keeper
+        .exaSend(
+          { name: "exa.firewall", op: "exa.firewall", attributes: { account: credential.account, personaShareToken } },
+          { address: firewallAddress, functionName: "allow", args: [credential.account, true], abi: firewallAbi },
+        )
+        .catch((error: unknown) => captureException(error, { level: "error" }));
     }
 
     return c.json({ id }, 200);
