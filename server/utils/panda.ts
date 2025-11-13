@@ -1,10 +1,10 @@
-import domain from "@exactly/common/domain";
 import chain, {
   exaAccountFactoryAddress,
   exaPluginAddress,
   marketUSDCAddress,
   previewerAddress,
 } from "@exactly/common/generated/chain";
+import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import { Address, Hash } from "@exactly/common/validation";
 import { proposalManager } from "@exactly/plugin/deploy.json";
 import { vValidator } from "@hono/valibot-validator";
@@ -45,7 +45,7 @@ if (!process.env.PANDA_API_KEY) throw new Error("missing panda api key");
 const key = process.env.PANDA_API_KEY;
 export default key;
 
-export async function createCard(userId: string) {
+export async function createCard(userId: string, productId: typeof PLATINUM_PRODUCT_ID | typeof SIGNATURE_PRODUCT_ID) {
   return await request(
     CardResponse,
     `/issuing/users/${userId}/cards`,
@@ -55,9 +55,11 @@ export async function createCard(userId: string) {
       status: "active",
       limit: { amount: 1_000_000, frequency: "per7DayPeriod" },
       configuration: {
-        productId: "406",
-        virtualCardArt:
-          { "web.exactly.app": "81e42f27affd4e328f19651d4f2b438e" }[domain] ?? "0c515d7eb0a140fa8f938f8242b0780a",
+        productId,
+        virtualCardArt: {
+          [PLATINUM_PRODUCT_ID]: "81e42f27affd4e328f19651d4f2b438e",
+          [SIGNATURE_PRODUCT_ID]: "398c4919514b4ec4927e6a9114a4c816",
+        }[productId],
       },
     }),
     "POST",
@@ -182,7 +184,7 @@ const CreateCardRequest = object({
       "allTime",
     ]),
   }),
-  configuration: object({ productId: string(), virtualCardArt: string() }),
+  configuration: object({ productId: picklist([PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID]), virtualCardArt: string() }),
 });
 
 const CardResponse = object({

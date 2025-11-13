@@ -5,6 +5,7 @@ import "../mocks/deployments";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import { exaAccountFactoryAbi } from "@exactly/common/generated/chain";
+import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { zeroHash, padHex, zeroAddress, hexToBigInt, parseEther } from "viem";
@@ -87,7 +88,7 @@ describe("authenticated", () => {
     expect(response.status).toBe(404);
   });
 
-  it("returns panda card", async () => {
+  it("returns panda card as default platinum product", async () => {
     await database
       .insert(cards)
       .values([{ id: "543c1771-beae-4f26-b662-44ea48b40dc6", credentialId: account, lastFour: "1234" }]);
@@ -117,6 +118,46 @@ describe("authenticated", () => {
       provider: "panda",
       status: "ACTIVE",
       limit: { amount: 5000, frequency: "per24HourPeriod" },
+      productId: PLATINUM_PRODUCT_ID,
+    });
+  });
+
+  it("returns panda card with signature product id", async () => {
+    await database.insert(cards).values([
+      {
+        id: "543c1771-beae-4f26-b662-44ea48b40dc6",
+        credentialId: account,
+        lastFour: "1234",
+        productId: SIGNATURE_PRODUCT_ID,
+      },
+    ]);
+    vi.spyOn(panda, "getSecrets").mockResolvedValueOnce(panTemplate);
+    vi.spyOn(panda, "getPIN").mockResolvedValueOnce(pinTemplate);
+
+    vi.spyOn(panda, "getCard").mockResolvedValueOnce(cardTemplate);
+    vi.spyOn(panda, "getUser").mockResolvedValueOnce(userTemplate);
+
+    vi.spyOn(panda, "isPanda").mockResolvedValueOnce(true);
+
+    const response = await appClient.index.$get(
+      { header: { sessionid: "fakeSession" } },
+      { headers: { "test-credential-id": account } },
+    );
+    const json = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(json).toStrictEqual({
+      ...panTemplate,
+      ...pinTemplate,
+      displayName: "First Last",
+      expirationMonth: "9",
+      expirationYear: "2029",
+      lastFour: "1234",
+      mode: 0,
+      provider: "panda",
+      status: "ACTIVE",
+      limit: { amount: 5000, frequency: "per24HourPeriod" },
+      productId: SIGNATURE_PRODUCT_ID,
     });
   });
 
@@ -148,7 +189,7 @@ describe("authenticated", () => {
     expect(response.status).toBe(403);
   });
 
-  it("creates a panda debit card", async () => {
+  it("creates a panda debit card with signature product id", async () => {
     vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: "createCard" });
 
     const response = await appClient.index.$post({ header: { "test-credential-id": account } });
@@ -165,10 +206,11 @@ describe("authenticated", () => {
     expect(json).toStrictEqual({
       status: "active",
       lastFour: "7394",
+      productId: SIGNATURE_PRODUCT_ID,
     });
   });
 
-  it("creates a panda credit card", async () => {
+  it("creates a panda credit card with signature product id", async () => {
     vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: "createCreditCard", last4: "1224" });
 
     const response = await appClient.index.$post({ header: { "test-credential-id": ethAccount } });
@@ -186,6 +228,7 @@ describe("authenticated", () => {
     expect(json).toStrictEqual({
       status: "active",
       lastFour: "1224",
+      productId: SIGNATURE_PRODUCT_ID,
     });
   });
 

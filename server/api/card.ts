@@ -1,4 +1,5 @@
 import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
+import { SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import { Address } from "@exactly/common/validation";
 import { captureException, setContext, setUser } from "@sentry/node";
 import { Mutex } from "async-mutex";
@@ -47,7 +48,7 @@ export default new Hono()
         columns: { account: true, pandaId: true },
         with: {
           cards: {
-            columns: { id: true, lastFour: true, status: true, mode: true },
+            columns: { id: true, lastFour: true, status: true, mode: true, productId: true },
             where: inArray(cards.status, ["ACTIVE", "FROZEN"]),
           },
         },
@@ -57,7 +58,7 @@ export default new Hono()
       setUser({ id: account });
       if (!credential.pandaId) return c.json({ code: "no panda", legacy: "no panda" }, 403);
       if (credential.cards.length > 0 && credential.cards[0]) {
-        const { id, lastFour, status, mode } = credential.cards[0];
+        const { id, lastFour, status, mode, productId } = credential.cards[0];
         const [{ expirationMonth, expirationYear, limit }, pan, { firstName, lastName }, pin] = await Promise.all([
           getCard(id),
           getSecrets(id, c.req.valid("header").sessionid),
@@ -76,6 +77,7 @@ export default new Hono()
             provider: "panda" as const,
             status,
             limit,
+            productId,
           },
           200,
         );
@@ -118,15 +120,17 @@ export default new Hono()
           }
         }
         if (cardCount > 0) return c.json({ code: "already created", legacy: "card already exists" }, 400);
-        const card = await createCard(credential.pandaId);
+        const card = await createCard(credential.pandaId, SIGNATURE_PRODUCT_ID);
         let mode = 0;
         try {
           if (await autoCredit(account)) mode = 1;
         } catch (error) {
           captureException(error);
         }
-        await database.insert(cards).values([{ id: card.id, credentialId, lastFour: card.last4, mode }]);
-        track({ event: "CardIssued", userId: account });
+        await database
+          .insert(cards)
+          .values([{ id: card.id, credentialId, lastFour: card.last4, mode, productId: SIGNATURE_PRODUCT_ID }]);
+        track({ event: "CardIssued", userId: account, properties: { productId: SIGNATURE_PRODUCT_ID } });
         if (mode) {
           sendPushNotification({
             userId: account,
@@ -134,7 +138,7 @@ export default new Hono()
             contents: { en: "Credit mode is active" },
           }).catch((error: unknown) => captureException(error));
         }
-        return c.json({ lastFour: card.last4, status: card.status }, 200);
+        return c.json({ lastFour: card.last4, status: card.status, productId: SIGNATURE_PRODUCT_ID }, 200);
       })
       .finally(() => {
         if (!mutex.isLocked()) mutexes.delete(credentialId);
