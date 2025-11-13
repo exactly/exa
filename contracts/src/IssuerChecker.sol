@@ -40,6 +40,7 @@ contract IssuerChecker is AccessControl, EIP712 {
 
     bytes32 hash = keccak256(abi.encode(amount, timestamp));
     address recovered;
+    // solhint-disable gas-small-strings
     if (refund) {
       if (refunds[account][hash]) revert Replay();
       refunds[account][hash] = true;
@@ -61,7 +62,9 @@ contract IssuerChecker is AccessControl, EIP712 {
         )
       ).recoverCalldata(signature);
     }
+    // solhint-enable gas-small-strings
 
+    // solhint-disable-next-line gas-strict-inequalities
     if (recovered == issuer || (recovered == prevIssuer && block.timestamp <= prevIssuerWindow + prevIssuerTimestamp)) {
       return;
     }

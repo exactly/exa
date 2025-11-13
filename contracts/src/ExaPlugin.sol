@@ -172,6 +172,7 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
     }
   }
 
+  // solhint-disable-next-line gas-calldata-parameters
   function propose(IMarket market, uint256 amount, ProposalType proposalType, bytes memory data) external {
     _propose(market, amount, proposalType, data);
   }
@@ -180,6 +181,7 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
     proposalManager.setNonce(msg.sender, nonce);
   }
 
+  // solhint-disable-next-line gas-calldata-parameters
   function proposeRepay(IMarket market, uint256 amount, ProposalType proposalType, bytes memory data) external {
     if (
       proposalType != ProposalType.CROSS_REPAY_AT_MATURITY && proposalType != ProposalType.REPAY_AT_MATURITY
@@ -327,6 +329,7 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
   function onUninstall(bytes calldata) external override { } // solhint-disable-line no-empty-blocks
 
   /// @inheritdoc BasePlugin
+  // solhint-disable-next-line function-max-lines
   function pluginManifest() external pure override returns (PluginManifest memory manifest) {
     bytes4[] memory executionFunctions = new bytes4[](13);
     executionFunctions[0] = this.swap.selector;
@@ -336,8 +339,8 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
     executionFunctions[4] = this.setProposalNonce.selector;
     executionFunctions[5] = this.proposeRepay.selector;
     executionFunctions[6] = this.collectCollateral.selector;
-    executionFunctions[7] = bytes4(keccak256("collectCredit(uint256,uint256,uint256,bytes)"));
-    executionFunctions[8] = bytes4(keccak256("collectCredit(uint256,uint256,uint256,uint256,bytes)"));
+    executionFunctions[7] = bytes4(keccak256("collectCredit(uint256,uint256,uint256,bytes)")); // solhint-disable-line gas-small-strings
+    executionFunctions[8] = bytes4(keccak256("collectCredit(uint256,uint256,uint256,uint256,bytes)")); // solhint-disable-line gas-small-strings
     executionFunctions[9] = this.collectDebit.selector;
     executionFunctions[10] = this.collectInstallments.selector;
     executionFunctions[11] = this.poke.selector;
@@ -390,11 +393,11 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
       associatedFunction: keeperRuntimeValidationFunction
     });
     runtimeValidationFunctions[7] = ManifestAssociatedFunction({
-      executionSelector: bytes4(keccak256("collectCredit(uint256,uint256,uint256,bytes)")),
+      executionSelector: bytes4(keccak256("collectCredit(uint256,uint256,uint256,bytes)")), // solhint-disable-line gas-small-strings
       associatedFunction: keeperRuntimeValidationFunction
     });
     runtimeValidationFunctions[8] = ManifestAssociatedFunction({
-      executionSelector: bytes4(keccak256("collectCredit(uint256,uint256,uint256,uint256,bytes)")),
+      executionSelector: bytes4(keccak256("collectCredit(uint256,uint256,uint256,uint256,bytes)")), // solhint-disable-line gas-small-strings
       associatedFunction: keeperRuntimeValidationFunction
     });
     runtimeValidationFunctions[9] = ManifestAssociatedFunction({

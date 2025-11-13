@@ -89,6 +89,7 @@ contract ProposalManager is IProposalManager, AccessControl {
     _setNonce(account, nonce + 1, true);
   }
 
+  // solhint-disable-next-line gas-calldata-parameters
   function preExecutionChecker(address sender, address target, bytes4 selector, bytes memory callData)
     external
     onlyRole(PROPOSER_ROLE)
@@ -220,6 +221,7 @@ contract ProposalManager is IProposalManager, AccessControl {
     }
   }
 
+  // solhint-disable-next-line gas-calldata-parameters
   function propose(address account, IMarket market, uint256 amount, ProposalType proposalType, bytes memory data)
     external
     onlyRole(PROPOSER_ROLE)
@@ -242,7 +244,7 @@ contract ProposalManager is IProposalManager, AccessControl {
   }
 
   function _setNonce(address account, uint256 nonce, bool executed) internal {
-    if (nonce <= nonces[account]) revert NonceTooLow();
+    if (nonce <= nonces[account]) revert NonceTooLow(); // solhint-disable-line gas-strict-inequalities
     if (nonce > queueNonces[account]) revert NoProposal();
     nonces[account] = nonce;
     emit ProposalNonceSet(account, nonce, executed);

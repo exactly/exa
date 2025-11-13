@@ -50,9 +50,11 @@ contract MockSwapper {
     IERC20(tokenIn).safeTransferFrom(msg.sender, pool, amountIn);
     IVelodromePool(pool).swap(isToken0 ? 0 : amountOut, isToken0 ? amountOut : 0, receiver, "");
 
+    // solhint-disable gas-increment-by-one
     emit LiFiGenericSwapCompleted(
       bytes32(transactionCount++), "exa_app", "exa_app", receiver, tokenIn, tokenOut, amountIn, amountOut
     );
+    // solhint-enable gas-increment-by-one
   }
 
   function swapExactAmountIn(
@@ -71,9 +73,11 @@ contract MockSwapper {
     IERC20(tokenIn).safeTransferFrom(msg.sender, pool, amountIn);
     IVelodromePool(pool).swap(isToken0 ? 0 : amountOut, isToken0 ? amountOut : 0, receiver, "");
 
+    // solhint-disable gas-increment-by-one
     emit LiFiGenericSwapCompleted(
       bytes32(transactionCount++), "exa_app", "exa_app", receiver, tokenIn, tokenOut, amountIn, amountOut
     );
+    // solhint-enable gas-increment-by-one
   }
 
   function _getAmountIn(address pool, uint256 amountOut, bool isToken0, uint256 fee) internal view returns (uint256) {

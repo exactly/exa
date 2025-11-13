@@ -82,7 +82,7 @@ contract MockVelodromePool is IVelodromePool {
   function swap(uint256 amount0Out, uint256 amount1Out, address to, bytes calldata data) external {
     if (amount0Out == 0 && amount1Out == 0) revert InsufficientOutputAmount();
     (uint256 reserve0_, uint256 reserve1_) = (reserve0, reserve1);
-    if (amount0Out >= reserve0_ || amount1Out >= reserve1_) revert InsufficientLiquidity();
+    if (amount0Out >= reserve0_ || amount1Out >= reserve1_) revert InsufficientLiquidity(); // solhint-disable-line gas-strict-inequalities,max-line-length
 
     uint256 balance0;
     uint256 balance1;
