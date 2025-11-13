@@ -1,5 +1,5 @@
 import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
-import { SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
+import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import { Address } from "@exactly/common/validation";
 import { captureException, setContext, setUser } from "@sentry/node";
 import { Mutex } from "async-mutex";
@@ -83,14 +83,20 @@ const CardResponse = object({
       "perAuthorization",
     ]),
   }),
-  productId: pipe(string(), metadata({ examples: ["402"] })),
+  productId: pipe(
+    picklist([PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID]),
+    metadata({ examples: [PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID] }),
+  ),
 });
 
 const CreatedCardResponse = object({
   lastFour: pipe(string(), metadata({ examples: ["1234"] })),
   cardId: pipe(string(), uuid(), metadata({ examples: ["123e4567-e89b-12d3-a456-426655440000"] })),
   status: pipe(picklist(["ACTIVE", "DELETED", "FROZEN"]), metadata({ examples: ["ACTIVE", "DELETED", "FROZEN"] })),
-  productId: pipe(string(), metadata({ examples: ["402"] })),
+  productId: pipe(
+    picklist([PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID]),
+    metadata({ examples: [PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID] }),
+  ),
 });
 
 const UpdateCard = union([
@@ -263,7 +269,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
             provider: "panda" as const,
             status,
             limit,
-            productId,
+            productId: parse(CardResponse.entries.productId, productId),
           } satisfies InferOutput<typeof CardResponse>,
           200,
         );
