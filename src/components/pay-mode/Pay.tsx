@@ -23,6 +23,7 @@ import {
   ContractFunctionRevertedError,
   encodeFunctionData,
   erc20Abi,
+  maxUint256,
   zeroAddress,
 } from "viem";
 import { useBytecode, useReadContract, useSimulateContract, useWriteContract } from "wagmi";
@@ -140,13 +141,13 @@ export default function Pay() {
   const repayMarketAvailable =
     repayMarket && selectedAsset.address && !selectedAsset.external ? repayMarket.floatingDepositAssets : 0n;
 
-  const { data: balancerUSDCBalance } = useReadContract({
+  const { data: balancerUSDCBalance = maxUint256 } = useReadContract({
     address: usdcAddress,
     abi: erc20Abi,
     functionName: "balanceOf",
-    args: [balancerVaultAddress],
+    args: [balancerVaultAddress ?? zeroAddress],
     query: {
-      enabled: !!account && !!bytecode,
+      enabled: !!account && !!bytecode && !!balancerVaultAddress,
       select: (data) => (data * (WAD * 990n)) / 1000n / WAD,
       refetchInterval: 20_000,
     },
