@@ -1,4 +1,6 @@
 import "dotenv/config";
+import Firewall from "@exactly/protocol/deployments/base/Firewall.json" with { type: "json" };
+import FlashLoanAdapter from "@exactly/protocol/deployments/base/FlashLoanAdapter.json" with { type: "json" };
 import { defineConfig, type Plugin } from "@wagmi/cli";
 import { foundry, react } from "@wagmi/cli/plugins";
 import { execSync } from "node:child_process";
@@ -27,7 +29,9 @@ const previewer = loadDeployment("Previewer");
 const ratePreviewer = loadDeployment("RatePreviewer");
 const usdc = loadDeployment("USDC");
 const weth = loadDeployment("WETH");
-const balancerVault = loadDeployment("Balancer2Vault");
+const firewall = loadDeployment("Firewall", false);
+const balancerVault = loadDeployment("Balancer2Vault", false);
+const flashLoanAdapter = loadDeployment("FlashLoanAdapter", false);
 const [exaPlugin] = loadBroadcast("ExaPlugin").transactions;
 const [issuerChecker] = loadBroadcast("IssuerChecker").transactions;
 const [proposalManager] = loadBroadcast("ProposalManager").transactions;
@@ -46,6 +50,7 @@ export default defineConfig([
     contracts: [
       { name: "Auditor", abi: auditor.abi },
       { name: "IntegrationPreviewer", abi: integrationPreviewer.abi },
+      { name: "FlashLoanAdapter", abi: FlashLoanAdapter.abi as Abi },
       { name: "Market", abi: marketWETH.abi },
       { name: "Previewer", abi: previewer.abi },
       { name: "RatePreviewer", abi: ratePreviewer.abi },
@@ -70,7 +75,6 @@ export default defineConfig([
       addresses(
         {
           auditor: auditor.address,
-          balancerVault: balancerVault.address,
           exaPlugin: exaPlugin.contractAddress,
           exaPreviewer: exaPreviewer.contractAddress,
           integrationPreviewer: integrationPreviewer.address,
@@ -83,7 +87,10 @@ export default defineConfig([
           usdc: usdc.address,
           weth: weth.address,
         },
-        { exaAccountFactory: "ExaAccountFactory" },
+        {
+          scripts: { exaAccountFactory: "ExaAccountFactory" },
+          optional: { balancerVault: balancerVault?.address, flashLoanAdapter: flashLoanAdapter?.address },
+        },
       ),
       foundry({
         forge: { build: false },
@@ -97,14 +104,15 @@ export default defineConfig([
     out: "server/generated/contracts.ts",
     contracts: [
       { name: "Auditor", abi: auditor.abi },
+      { name: "Firewall", abi: Firewall.abi as Abi },
       { name: "Market", abi: marketWETH.abi },
       { name: "Previewer", abi: previewer.abi },
     ],
     plugins: [
-      addresses({
-        issuerChecker: issuerChecker.contractAddress,
-        refunder: refunder.contractAddress,
-      }),
+      addresses(
+        { issuerChecker: issuerChecker.contractAddress, refunder: refunder.contractAddress },
+        { optional: { firewall: firewall?.address } },
+      ),
       foundry({
         forge: { build: false },
         project: "contracts",
@@ -121,7 +129,10 @@ export default defineConfig([
   },
 ]);
 
-function addresses(contracts: Record<string, string>, scripts?: Record<string, string>): Plugin {
+function addresses(
+  contracts: Record<string, string>,
+  { scripts, optional }: { scripts?: Record<string, string>; optional?: Record<string, string | undefined> } = {},
+): Plugin {
   return {
     name: "Addresses",
     run() {
@@ -137,9 +148,15 @@ function addresses(contracts: Record<string, string>, scripts?: Record<string, s
         }
       }
       return {
-        content: `${Object.entries(contracts)
-          .map(([key, value]) => `export const ${key}Address = "${getAddress(value)}" as const`)
-          .join("\n")}\n`,
+        content: `${[
+          ...Object.entries(contracts).map(
+            ([key, value]) => `export const ${key}Address = "${getAddress(value)}" as const`,
+          ),
+          ...Object.entries(optional ?? {}).map(
+            ([key, value]) =>
+              `export const ${key}Address = ${value ? `"${getAddress(value)}"` : "undefined"} as \`0x\${string}\` | undefined`,
+          ),
+        ].join("\n")}\n`,
       };
     },
   };
@@ -156,7 +173,10 @@ function chain(): Plugin {
   return { name: "Chain", run: () => ({ content: `export { ${importName} as default } from "@alchemy/aa-core"` }) };
 }
 
-function loadDeployment(contract: string) {
+function loadDeployment<R extends boolean = true>(
+  contract: string,
+  required = true as R,
+): R extends true ? Deployment : Deployment | undefined {
   const network = {
     [base.id]: "base",
     [baseSepolia.id]: "base-sepolia",
@@ -164,14 +184,23 @@ function loadDeployment(contract: string) {
     [optimismSepolia.id]: "op-sepolia",
   }[chainId];
   if (!network) throw new Error("unknown chain");
-  return JSON.parse(readFileSync(`node_modules/@exactly/protocol/deployments/${network}/${contract}.json`, "utf8")) as {
-    address: string;
-    abi: Abi;
-  };
+  try {
+    return JSON.parse(
+      readFileSync(`node_modules/@exactly/protocol/deployments/${network}/${contract}.json`, "utf8"),
+    ) as never;
+  } catch (error) {
+    if (!required) return undefined as never;
+    throw error;
+  }
 }
 
 function loadBroadcast(script: string) {
   return JSON.parse(
     readFileSync(`node_modules/@exactly/plugin/broadcast/${script}.s.sol/${chainId}/run-latest.json`, "utf8"),
   ) as { transactions: { contractAddress: string }[] };
+}
+
+interface Deployment {
+  address: string;
+  abi: Abi;
 }
