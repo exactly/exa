@@ -66,7 +66,7 @@ export default async function setup({ provide }: TestProject) {
     shell.env.PROTOCOL_MARKETUSDC_ADDRESS = marketUSDC;
     shell.env.PROTOCOL_WETH_ADDRESS = weth;
     shell.env.PROTOCOL_MARKETWETH_ADDRESS = marketWETH;
-    shell.env.PROTOCOL_BALANCERVAULT_ADDRESS = balancer;
+    shell.env.PROTOCOL_BALANCER2VAULT_ADDRESS = balancer;
     shell.env.PROTOCOL_DEBTMANAGER_ADDRESS = debtManager;
     shell.env.PROTOCOL_PREVIEWER_ADDRESS = previewer;
     shell.env.PROTOCOL_INSTALLMENTSROUTER_ADDRESS = installmentsRouter;
@@ -183,7 +183,7 @@ export default async function setup({ provide }: TestProject) {
   }
 
   provide("Auditor", auditor);
-  provide("BalancerVault", balancer);
+  provide("Balancer2Vault", balancer);
   provide("ExaPreviewer", exaPreviewer);
   provide("EXA", exa);
   provide("ExaAccountFactory", exaAccountFactory);
@@ -252,7 +252,7 @@ const Protocol = object({
 declare module "vitest" {
   export interface ProvidedContext {
     Auditor: Address;
-    BalancerVault: Address;
+    Balancer2Vault: Address;
     ExaPreviewer: Address;
     EXA: Address;
     ExaAccountFactory: Address;

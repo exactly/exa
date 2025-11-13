@@ -22,7 +22,7 @@ contract BobExecuteScript is BaseScript {
     protocol("Auditor");
     protocol("MarketEXA");
     protocol("MarketUSDC");
-    protocol("BalancerVault");
+    protocol("Balancer2Vault");
     broadcast("ProposalManager");
 
     skip(10 minutes);

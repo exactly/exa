@@ -25,7 +25,7 @@ contract DeployExaPlugin is BaseScript {
         auditor: IAuditor(protocol("Auditor")),
         exaUSDC: IMarket(protocol("MarketUSDC")),
         exaWETH: IMarket(protocol("MarketWETH")),
-        flashLoaner: IFlashLoaner(protocol("BalancerVault")),
+        flashLoaner: IFlashLoaner(protocol("Balancer2Vault")),
         debtManager: IDebtManager(protocol("DebtManager")),
         installmentsRouter: IInstallmentsRouter(protocol("InstallmentsRouter")),
         issuerChecker: IssuerChecker(broadcast("IssuerChecker")),

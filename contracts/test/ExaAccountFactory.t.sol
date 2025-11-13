@@ -40,7 +40,7 @@ contract ExaAccountFactoryTest is ForkTest {
     set("Auditor", address(this));
     set("MarketUSDC", address(new MockERC4626(new MockERC20())));
     set("MarketWETH", address(new MockERC4626(new MockERC20())));
-    set("BalancerVault", address(this));
+    set("Balancer2Vault", address(this));
     set("DebtManager", address(this));
     set("InstallmentsRouter", address(this));
     set("IssuerChecker", address(this));

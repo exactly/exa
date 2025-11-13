@@ -98,7 +98,7 @@ contract ExaPreviewerTest is ForkTest {
     set("Auditor", address(auditor));
     set("MarketUSDC", address(exaUSDC));
     set("MarketWETH", address(exaWETH));
-    set("BalancerVault", address(p.balancer()));
+    set("Balancer2Vault", address(p.balancer()));
     set("DebtManager", address(p.debtManager()));
     set("InstallmentsRouter", address(p.installmentsRouter()));
 
