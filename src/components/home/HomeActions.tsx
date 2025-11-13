@@ -16,7 +16,7 @@ import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import Button from "../shared/StyledButton";
 
-export default function HomeActions() {
+export default function HomeActions({ disableSend }: { disableSend: boolean }) {
   const navigation = useNavigation<AppNavigationProperties>("/(main)");
   const { address: account } = useAccount();
   const { data: bytecode } = useBytecode({ address: account ?? zeroAddress, query: { enabled: !!account } });
@@ -69,9 +69,9 @@ export default function HomeActions() {
           <YStack key={key} alignItems="center" flex={1} gap="$s3_5" flexBasis={1 / 2}>
             <Button
               primary={key === "deposit"}
-              secondary={key !== "deposit"}
-              disabled={key !== "deposit" && !bytecode}
-              loading={key === "send" && !isLatestPlugin && isPending && !!bytecode}
+              secondary={key === "send"}
+              disabled={key === "send" && disableSend}
+              loading={key === "send" && !isLatestPlugin && isPending && !disableSend}
               onPress={() => {
                 switch (key) {
                   case "deposit":
