@@ -1,0 +1,6 @@
+{
+  "rules": {
+    "function-max-lines": "off",
+    "gas-small-strings": "off"
+  }
+}
