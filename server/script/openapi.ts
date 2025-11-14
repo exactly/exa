@@ -20,7 +20,6 @@ process.env.PANDA_API_URL = "https://panda.test";
 process.env.KYC_API_KEY = "panda";
 process.env.KYC_API_URL = "https://panda.test";
 process.env.PERSONA_API_KEY = "persona";
-process.env.PERSONA_TEMPLATE_ID = "template";
 process.env.PERSONA_URL = "https://persona.test";
 process.env.PERSONA_WEBHOOK_SECRET = "persona";
 process.env.POSTGRES_URL = "postgres";
