@@ -32,6 +32,7 @@ lcov.info
 .clinic/
 .env
 .env*.local
+*.local.yaml
 .*-version*
 *.tsbuildinfo
 expo-env.d.ts
