@@ -79,6 +79,7 @@ const BaseTransaction = v.object({
     merchantCity: v.nullish(v.string()),
     merchantCountry: v.nullish(v.string()),
     merchantCategory: v.nullish(v.string()),
+    merchantCategoryCode: v.string(),
     merchantName: v.string(),
     merchantId: v.nullish(v.string()),
     authorizedAt: v.optional(v.pipe(v.string(), v.isoTimestamp())),
