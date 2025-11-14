@@ -48,4 +48,14 @@ contract DeployExaAccountFactory is BaseScript {
     vm.etch(address(0), vm.getDeployedCode("ExaPlugin.sol:ExaPlugin"));
     return CREATE3_FACTORY.getDeployed(acct("admin"), _salt(IPlugin(address(0))));
   }
+
+  function constructorArguments() external returns (bytes memory) {
+    return abi.encode(
+      acct("admin"),
+      dependency("webauthn-owner-plugin", "WebauthnOwnerPlugin", "Plugin", 0),
+      broadcast("ExaPlugin"),
+      ACCOUNT_IMPL,
+      ENTRYPOINT
+    );
+  }
 }
