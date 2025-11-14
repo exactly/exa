@@ -29,7 +29,7 @@ import {
 } from "valibot";
 import { BaseError, ContractFunctionZeroDataError } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { optimism } from "viem/chains";
+import { base, optimism } from "viem/chains";
 
 import database, { credentials } from "../database";
 import verifySignature from "./verifySignature";
@@ -299,6 +299,7 @@ export function headerValidator() {
 export const collectors: Address[] = (
   {
     [optimism.id]: ["0x3a73880ff21ABf9cA9F80B293570a3cBD846eFc5"],
+    [base.id]: ["0x62558A46dBFDc36B737285a1eFDcdfBEBe43253E"],
   }[chain.id] ?? ["0xDb90CDB64CfF03f254e4015C4F705C3F3C834400"]
 ).map((address) => parse(Address, address));
 
