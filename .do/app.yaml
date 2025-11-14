@@ -57,8 +57,6 @@ services:
         scope: RUN_TIME
       - key: PERSONA_API_KEY
         scope: RUN_TIME
-      - key: PERSONA_TEMPLATE_ID
-        scope: RUN_TIME
       - key: PERSONA_URL
         scope: RUN_TIME
       - key: PERSONA_WEBHOOK_SECRET
