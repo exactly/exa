@@ -1,98 +1,46 @@
-name: ${{ env.ENVIRONMENT }}
-region: sfo
+alerts:
+  - rule: DEPLOYMENT_FAILED
+  - rule: DOMAIN_FAILED
+databases:
+  - cluster_name: ${{ env.ENVIRONMENT }}-pg
+    db_name: defaultdb # cspell:ignore defaultdb
+    db_user: doadmin # cspell:ignore doadmin
+    engine: PG
+    name: postgres
+    production: true
+    version: "18"
+  - cluster_name: ${{ env.ENVIRONMENT }}-kv
+    engine: VALKEY
+    name: redis
+    production: true
+    version: "8"
+  # @if ${{ env.NODE_ENV == "production" }}
+  - cluster_name: ${{ env.ENVIRONMENT }}-os
+    engine: OPENSEARCH
+    name: opensearch
+    production: true
+    version: "2"
+#   @endif
 domains:
   - domain: ${{ env.APP_DOMAIN }}
     type: PRIMARY
+egress:
+  type: DEDICATED_IP
 envs:
   - key: APP_DOMAIN
     scope: RUN_AND_BUILD_TIME
     value: ${APP_DOMAIN}
   - key: CHAIN_ID
     scope: RUN_AND_BUILD_TIME
-    value: ${{ env.CHAIN_ID }}
-services:
-  - name: server
-    image:
-      registry_type: GHCR
-      registry: exactly
-      repository: exa-${{ env.ENVIRONMENT }}
-      registry_credentials: ${{ env.GHCR_CREDENTIALS }}
-      digest: ${{ env.IMAGE_DIGEST_SERVER }}
-    http_port: 3000
-    instance_count: 1
-    instance_size_slug: apps-d-1vcpu-1gb # cspell:ignore vcpu
-    log_destinations:
-      - name: opensearch
-        open_search:
-          cluster_name: ${{ env.OPENSEARCH_NAME }}
-          index_name: logs
-          basic_auth:
-            user: doadmin # cspell:ignore doadmin
-    envs:
-      - key: NODE_ENV
-        scope: RUN_TIME
-      - key: ALCHEMY_ACTIVITY_KEY
-        scope: RUN_TIME
-      - key: ALCHEMY_ACTIVITY_ID
-        scope: RUN_TIME
-      - key: ALCHEMY_BLOCK_KEY
-        scope: RUN_TIME
-      - key: ALCHEMY_WEBHOOKS_KEY
-        scope: RUN_TIME
-      - key: AUTH_SECRET
-        scope: RUN_TIME
-      - key: BRIDGE_API_KEY
-        scope: RUN_TIME
-      - key: BRIDGE_API_URL
-        scope: RUN_TIME
-      - key: KEEPER_PRIVATE_KEY
-        scope: RUN_TIME
-      - key: MANTECA_API_KEY
-        scope: RUN_TIME
-      - key: MANTECA_API_URL
-        scope: RUN_TIME
-      - key: MANTECA_WEBHOOKS_KEY
-        scope: RUN_TIME
-      - key: ONESIGNAL_API_KEY
-        scope: RUN_TIME
-      - key: PERSONA_API_KEY
-        scope: RUN_TIME
-      - key: PERSONA_URL
-        scope: RUN_TIME
-      - key: PERSONA_WEBHOOK_SECRET
-        scope: RUN_TIME
-      - key: POSTGRES_URL
-        scope: RUN_TIME
-      - key: REDIS_URL
-        scope: RUN_TIME
-      - key: SEGMENT_WRITE_KEY
-        scope: RUN_TIME
-      - key: SENTRY_DSN
-        scope: RUN_TIME
-      - key: PANDA_API_KEY
-        scope: RUN_TIME
-      - key: PANDA_API_URL
-        scope: RUN_TIME
-databases:
-  - name: postgres
-    cluster_name: ${{ env.POSTGRES_NAME }}
-    production: true
-    engine: PG
-    version: "17"
-    db_name: defaultdb # cspell:ignore defaultdb
-    db_user: doadmin # cspell:ignore doadmin
-  - name: redis
-    cluster_name: ${{ env.REDIS_NAME }}
-    production: true
-    engine: VALKEY
-    version: "8"
-  - name: opensearch
-    cluster_name: ${{ env.OPENSEARCH_NAME }}
-    production: true
-    engine: OPENSEARCH
-    version: "2"
-egress:
-  type: DEDICATED_IP
+    value: "${{ env.CHAIN_ID }}"
+  - key: EXPO_PUBLIC_DEVTOOLS
+    scope: RUN_AND_BUILD_TIME
+    value: "${{ env.NODE_ENV == 'production' ? 'false' : 'true' }}"
+  - key: NODE_ENV
+    scope: RUN_AND_BUILD_TIME
+    value: ${{ env.NODE_ENV }}
+features:
+  - buildpack-stack=ubuntu-22
 ingress:
   rules:
     - component:
@@ -100,8 +48,111 @@ ingress:
       match:
         path:
           prefix: /
-features:
-  - buildpack-stack=ubuntu-22
-alerts:
-  - rule: DEPLOYMENT_FAILED
-  - rule: DOMAIN_FAILED
+name: ${{ env.ENVIRONMENT }}
+region: sfo
+services:
+  - envs:
+      - key: ALCHEMY_ACTIVITY_ID
+        scope: RUN_TIME
+        value: ${{ env.ALCHEMY_ACTIVITY_ID }}
+      - key: ALCHEMY_ACTIVITY_KEY
+        scope: RUN_TIME
+        type: SECRET
+        value: ${{ env.ENCRYPTED_ALCHEMY_ACTIVITY_KEY || env.ALCHEMY_ACTIVITY_KEY }}
+      - key: ALCHEMY_BLOCK_KEY
+        scope: RUN_TIME
+        type: SECRET
+        value: ${{ env.ENCRYPTED_ALCHEMY_BLOCK_KEY || env.ALCHEMY_BLOCK_KEY }}
+      - key: ALCHEMY_WEBHOOKS_KEY
+        scope: RUN_TIME
+        type: SECRET
+        value: ${{ env.ENCRYPTED_ALCHEMY_WEBHOOKS_KEY || env.ALCHEMY_WEBHOOKS_KEY }}
+      - key: AUTH_SECRET
+        scope: RUN_TIME
+        type: SECRET
+        value: ${{ env.ENCRYPTED_AUTH_SECRET || env.AUTH_SECRET }}
+      - key: BRIDGE_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+        value: ${{ env.ENCRYPTED_BRIDGE_API_KEY || env.BRIDGE_API_KEY }}
+      - key: BRIDGE_API_URL
+        scope: RUN_TIME
+        value: ${{ env.BRIDGE_API_URL }}
+      - key: DEBUG
+        scope: RUN_TIME
+        value: ${{ env.DEBUG }}
+      - key: ISSUER_PRIVATE_KEY
+        scope: RUN_TIME
+        type: SECRET
+        value: ${{ env.ENCRYPTED_ISSUER_PRIVATE_KEY || env.ISSUER_PRIVATE_KEY }}
+      - key: KEEPER_PRIVATE_KEY
+        scope: RUN_TIME
+        type: SECRET
+        value: ${{ env.ENCRYPTED_KEEPER_PRIVATE_KEY || env.KEEPER_PRIVATE_KEY }}
+      - key: MANTECA_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+        value: ${{ env.ENCRYPTED_MANTECA_API_KEY || env.MANTECA_API_KEY }}
+      - key: MANTECA_API_URL
+        scope: RUN_TIME
+        value: ${{ env.MANTECA_API_URL }}
+      - key: MANTECA_WEBHOOKS_KEY
+        scope: RUN_TIME
+        type: SECRET
+        value: ${{ env.ENCRYPTED_MANTECA_WEBHOOKS_KEY || env.MANTECA_WEBHOOKS_KEY }}
+      - key: ONESIGNAL_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+        value: ${{ env.ENCRYPTED_ONESIGNAL_API_KEY || env.ONESIGNAL_API_KEY }}
+      - key: PANDA_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+        value: ${{ env.ENCRYPTED_PANDA_API_KEY || env.PANDA_API_KEY }}
+      - key: PANDA_API_URL
+        scope: RUN_TIME
+        value: ${{ env.PANDA_API_URL }}
+      - key: PERSONA_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+        value: ${{ env.ENCRYPTED_PERSONA_API_KEY || env.PERSONA_API_KEY }}
+      - key: PERSONA_URL
+        scope: RUN_TIME
+        value: ${{ env.PERSONA_URL }}
+      - key: PERSONA_WEBHOOK_SECRET
+        scope: RUN_TIME
+        type: SECRET
+        value: ${{ env.ENCRYPTED_PERSONA_WEBHOOK_SECRET || env.PERSONA_WEBHOOK_SECRET }}
+      - key: POSTGRES_URL
+        scope: RUN_TIME
+        type: SECRET
+        value: ${{ env.ENCRYPTED_POSTGRES_URL || env.POSTGRES_URL }}
+      - key: REDIS_URL
+        scope: RUN_TIME
+        type: SECRET
+        value: ${{ env.ENCRYPTED_REDIS_URL || env.REDIS_URL }}
+      - key: SEGMENT_WRITE_KEY
+        scope: RUN_TIME
+        type: SECRET
+        value: ${{ env.ENCRYPTED_SEGMENT_WRITE_KEY || env.SEGMENT_WRITE_KEY }}
+      - key: SENTRY_DSN
+        scope: RUN_TIME
+        value: ${{ env.SENTRY_DSN }}
+    http_port: 3000
+    image:
+      registry: exactly
+      registry_credentials: ${{ env.ENCRYPTED_GHCR_CREDENTIALS || env.GHCR_CREDENTIALS }}
+      registry_type: GHCR
+      repository: exa-${{ env.ENVIRONMENT }}
+      tag: ${{ env.IMAGE_TAG_SERVER }}
+    instance_count: 1
+    instance_size_slug: "${{ env.NODE_ENV == 'production' ? 'apps-d-1vcpu-1gb' : 'apps-s-1vcpu-0.5gb' }}" # cspell:ignore vcpu
+    # @if ${{ env.NODE_ENV == "production" }}
+    log_destinations:
+      - name: opensearch
+        open_search:
+          basic_auth:
+            user: doadmin # cspell:ignore doadmin
+          cluster_name: ${{ env.ENVIRONMENT }}-os
+          index_name: logs
+    # @endif
+    name: server
