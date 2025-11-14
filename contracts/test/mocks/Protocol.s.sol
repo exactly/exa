@@ -2,18 +2,17 @@
 pragma solidity ^0.8.0;
 
 import { Auditor, IPriceFeed } from "@exactly/protocol/Auditor.sol";
-
 import { InterestRateModel, Parameters } from "@exactly/protocol/InterestRateModel.sol";
 import { Market } from "@exactly/protocol/Market.sol";
 import { MockBalancerVault } from "@exactly/protocol/mocks/MockBalancerVault.sol";
 import { MockPriceFeed } from "@exactly/protocol/mocks/MockPriceFeed.sol";
+import { MockWETH } from "@exactly/protocol/mocks/MockWETH.sol";
 import { DebtManager, IBalancerVault, IPermit2 } from "@exactly/protocol/periphery/DebtManager.sol";
 import { InstallmentsRouter } from "@exactly/protocol/periphery/InstallmentsRouter.sol";
 import { Previewer } from "@exactly/protocol/periphery/Previewer.sol";
+import { Firewall } from "@exactly/protocol/verified/Firewall.sol";
 
 import { ERC1967Proxy } from "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-
-import { MockWETH } from "@exactly/protocol/mocks/MockWETH.sol";
 
 import { MockERC20 } from "solmate/src/test/utils/mocks/MockERC20.sol";
 
@@ -31,6 +30,7 @@ contract DeployProtocol is BaseScript {
   DebtManager public debtManager;
   Previewer public previewer;
   InstallmentsRouter public installmentsRouter;
+  Firewall public firewall;
 
   IFlashLoaner public balancer;
 
@@ -88,6 +88,10 @@ contract DeployProtocol is BaseScript {
     previewer = new Previewer(auditor, IPriceFeed(address(0)));
 
     installmentsRouter = new InstallmentsRouter(auditor, exaWETH);
+
+    firewall = Firewall(address(new ERC1967Proxy(address(new Firewall()), "")));
+    firewall.initialize();
+    vm.label(address(firewall), "Firewall");
 
     exa.mint(address(balancer), 1_000_000e18);
     usdc.mint(address(balancer), 1_000_000e6);

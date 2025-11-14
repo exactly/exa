@@ -56,6 +56,7 @@ export default async function setup({ provide }: TestProject) {
   const debtManager = protocol[28].contractAddress;
   const previewer = protocol[32].contractAddress;
   const installmentsRouter = protocol[33].contractAddress;
+  const firewall = protocol[35].contractAddress;
 
   if (initialize) {
     // cspell:ignoreRegExp [\b_][A-Z]+_ADDRESS\b
@@ -70,6 +71,7 @@ export default async function setup({ provide }: TestProject) {
     shell.env.PROTOCOL_DEBTMANAGER_ADDRESS = debtManager;
     shell.env.PROTOCOL_PREVIEWER_ADDRESS = previewer;
     shell.env.PROTOCOL_INSTALLMENTSROUTER_ADDRESS = installmentsRouter;
+    shell.env.PROTOCOL_FIREWALL_ADDRESS = firewall;
     shell.env.PROTOCOL_ESEXA_ADDRESS = padHex("0x666", { size: 20 });
     shell.env.PROTOCOL_REWARDSCONTROLLER_ADDRESS = padHex("0x666", { size: 20 });
 
@@ -188,6 +190,7 @@ export default async function setup({ provide }: TestProject) {
   provide("EXA", exa);
   provide("ExaAccountFactory", exaAccountFactory);
   provide("ExaPlugin", exaPlugin);
+  provide("Firewall", firewall);
   provide("InstallmentsRouter", installmentsRouter);
   provide("IssuerChecker", issuerChecker);
   provide("MarketEXA", marketEXA);
@@ -248,6 +251,8 @@ const Protocol = object({
       contractName: literal("InstallmentsRouter"),
       contractAddress: Address,
     }),
+    object({ transactionType: literal("CREATE"), contractName: literal("Firewall") }),
+    object({ transactionType: literal("CREATE"), contractName: literal("ERC1967Proxy"), contractAddress: Address }),
   ]),
 });
 
@@ -259,6 +264,7 @@ declare module "vitest" {
     EXA: Address;
     ExaAccountFactory: Address;
     ExaPlugin: Address;
+    Firewall: Address;
     InstallmentsRouter: Address;
     IssuerChecker: Address;
     MarketEXA: Address;

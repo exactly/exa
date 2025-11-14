@@ -9,6 +9,7 @@ webauthn-owner-plugin/=node_modules/webauthn-owner-plugin/src
 webauthn-sol/=node_modules/webauthn-sol/src
 
 @exactly/protocol/=node_modules/@exactly/protocol/contracts/
+@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable-v4/
 @openzeppelin/contracts-upgradeable-v4/=node_modules/@openzeppelin/contracts-upgradeable-v4/
 @openzeppelin/contracts-v4/=node_modules/@openzeppelin/contracts-v4/
 @openzeppelin/contracts/=node_modules/@openzeppelin/contracts-v4/
