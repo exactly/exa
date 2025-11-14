@@ -22,7 +22,6 @@ import {
 import appOrigin from "./appOrigin";
 
 if (!process.env.PERSONA_API_KEY) throw new Error("missing persona api key");
-if (!process.env.PERSONA_TEMPLATE_ID) throw new Error("missing persona template id");
 if (!process.env.PERSONA_URL) throw new Error("missing persona url");
 if (!process.env.PERSONA_WEBHOOK_SECRET) throw new Error("missing persona webhook secret");
 

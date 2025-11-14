@@ -22,7 +22,6 @@ export default defineConfig({
       PANDA_API_KEY: "panda",
       PANDA_API_URL: "https://panda.test",
       PERSONA_API_KEY: "persona",
-      PERSONA_TEMPLATE_ID: "template",
       PERSONA_URL: "https://persona.test",
       PERSONA_WEBHOOK_SECRET: "persona",
       POSTGRES_URL: "postgres",
