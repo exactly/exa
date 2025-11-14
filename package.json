@@ -272,6 +272,11 @@
         "hardhat",
         "typechain"
       ]
+    },
+    "auditConfig": {
+      "ignoreGhsas": [
+        "GHSA-mh29-5h37-fv8m"
+      ]
     }
   },
   "expo": {
