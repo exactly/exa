@@ -49,14 +49,21 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
     return parse(Auth, expires);
   },
   meta: {
-    suppressError: (error) =>
-      error instanceof ValiError ||
-      (error instanceof Error &&
+    suppressError: (error) => {
+      if (error instanceof ValiError) return true;
+      if (
+        error instanceof Error &&
         (error.name === "NotAllowedError" ||
           error.message ===
             "The operation couldn’t be completed. (com.apple.AuthenticationServices.AuthorizationError error 1001.)" ||
           error.message === "The operation couldn’t be completed. Device must be unlocked to perform request." ||
-          error.message === "UserCancelled")),
+          error.message === "UserCancelled" ||
+          error.message.startsWith("androidx.credentials.exceptions.domerrors.NotAllowedError"))
+      ) {
+        return true;
+      }
+      return false;
+    },
   },
 });
 
