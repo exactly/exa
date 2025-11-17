@@ -22,6 +22,7 @@ const ac = createAccessControl({
 export default betterAuth({
   database: authAdapter,
   baseURL: `https://${domain}`,
+  trustedOrigins: [`https://${domain}`],
   secret: authSecret,
   user: { changeEmail: { enabled: true } },
   plugins: [
