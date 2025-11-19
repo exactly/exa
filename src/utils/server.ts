@@ -1,13 +1,15 @@
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 import domain from "@exactly/common/domain";
+import chain from "@exactly/common/generated/chain";
 import { Credential } from "@exactly/common/validation";
 import type { ExaAPI } from "@exactly/server/api";
 import { sdk } from "@farcaster/miniapp-sdk";
-import { getAccount, signMessage } from "@wagmi/core";
+import { getAccount, signMessage, switchChain } from "@wagmi/core";
 import { hc, parseResponse } from "hono/client";
 import { Platform } from "react-native";
 import { get as assert, create } from "react-native-passkeys";
 import { check, number, parse, pipe, safeParse, ValiError } from "valibot";
+import { base } from "viem/chains";
 
 import { encryptPIN, session } from "./panda";
 import queryClient, { APIError, type AuthMethod } from "./queryClient";
@@ -19,22 +21,33 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
   staleTime: AUTH_EXPIRY,
   gcTime: AUTH_EXPIRY,
   queryFn: async () => {
+    console.log("queryFn", chain.id);
     const method = queryClient.getQueryData<AuthMethod>(["method"]);
+    console.log("method", method);
     const credentialId =
       method === "siwe"
         ? getAccount(ownerConfig).address
         : queryClient.getQueryData<Credential>(["credential"])?.credentialId;
+    console.log("credentialId", credentialId);
     if (method === "siwe" && !credentialId) return queryClient.getQueryData<number>(["auth"]) ?? 0;
+    console.log("getting authentication options");
     const get = await api.auth.authentication.$get({ query: { credentialId } });
     const options = await get.json();
+    console.log("options", options);
     if (options.method === "webauthn" && Platform.OS === "android") delete options.allowCredentials; // HACK fix android credential filtering
     const json =
       options.method === "siwe"
-        ? {
-            method: "siwe" as const,
-            id: options.address,
-            signature: await signMessage(ownerConfig, { account: options.address, message: options.message }),
-          }
+        ? await switchChain(ownerConfig, { chainId: chain.id }).then(async () => {
+            ownerConfig.setState((x) => ({ ...x, chainId: chain.id }));
+            console.log("switching chain", base.id);
+            console.log("signing message", options.address, options.message);
+            console.log("state", ownerConfig.state);
+            return {
+              method: "siwe" as const,
+              id: options.address,
+              signature: await signMessage(ownerConfig, { account: options.address, message: options.message }),
+            };
+          })
         : await assert({
             ...options,
             allowCredentials: Platform.OS === "android" ? undefined : options.allowCredentials, // HACK fix android credential filtering

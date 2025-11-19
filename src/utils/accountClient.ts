@@ -16,7 +16,7 @@ import { ECDSASigValue } from "@peculiar/asn1-ecc";
 import { AsnParser } from "@peculiar/asn1-schema";
 import { setUser } from "@sentry/react-native";
 import { base64URLStringToBuffer, bufferToBase64URLString } from "@simplewebauthn/browser";
-import { getAccount, signMessage } from "@wagmi/core/actions";
+import { getAccount, signMessage, switchChain } from "@wagmi/core/actions";
 import { Platform } from "react-native";
 import { get } from "react-native-passkeys";
 import {
@@ -49,6 +49,9 @@ export default async function createAccountClient({ credentialId, factory, x, y 
     signUserOperationHash: async (uoHash) => {
       try {
         if (queryClient.getQueryData<AuthMethod>(["method"]) === "siwe" && getAccount(ownerConfig).address) {
+          console.log("switching chain", chain.id);
+          await switchChain(ownerConfig, { chainId: chain.id });
+          ownerConfig.setState((state) => ({ ...state, chainId: chain.id }));
           return wrapSignature(0, await signMessage(ownerConfig, { message: { raw: uoHash } }));
         }
         const credential = await get({
