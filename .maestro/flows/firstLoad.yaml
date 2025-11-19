@@ -1,0 +1,11 @@
+name: firstLoad
+url: http://localhost:8081
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+      text: "Introducing the first onchain card"
+    timeout: 15000
+- assertVisible: "Create new account"
+- assertVisible: "I already have an account"
+- killApp

@@ -1,0 +1,7 @@
+flows:
+  - "flows/*.yaml"
+executionOrder:
+  continueOnFailure: false
+  flowsOrder:
+    - firstLoad
+    - signIn

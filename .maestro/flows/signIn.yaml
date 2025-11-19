@@ -1,0 +1,19 @@
+name: signIn
+url: http://localhost:8081
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+      text: "I already have an account"
+    timeout: 15000
+- tapOn: "I already have an account"
+- extendedWaitUntil:
+    visible:
+      text: "Log in with browser wallet"
+    timeout: 15000
+- tapOn: "Log in with browser wallet"
+- extendedWaitUntil:
+    visible:
+      text: "Your portfolio"
+    timeout: 15000
+- killApp
