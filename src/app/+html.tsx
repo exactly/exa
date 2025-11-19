@@ -149,6 +149,22 @@ export default function HTML({ children }: { children: ReactNode }) {
             /* #endregion */
           `}
         </style>
+        <script src="https://cdn.jsdelivr.net/npm/eruda" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+                if (typeof eruda !== "undefined") {
+                  eruda.init();
+                } else {
+                  window.addEventListener("load", () => {
+                    if (typeof eruda !== "undefined") {
+                      eruda.init();
+                    }
+                  });
+                }
+            `,
+          }}
+        />
       </head>
       <body>
         <div id="app-loader">
