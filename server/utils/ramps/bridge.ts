@@ -25,7 +25,7 @@ import {
 } from "valibot";
 import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
-import type { IdentificationClasses as PersonaIdentificationClasses, Inquiry } from "../persona";
+import type { IdentificationClasses as PersonaIdentificationClasses } from "../persona";
 import { getAccount, getDocument, getInquiry } from "../persona";
 import type * as common from "./shared";
 import database, { credentials } from "../../database";
@@ -38,7 +38,13 @@ const apiKey = process.env.BRIDGE_API_KEY;
 
 // #region services
 export async function createCustomer(user: InferInput<typeof CreateCustomer>) {
-  return await request(NewCustomer, "/customers", {}, user, "POST");
+  return await request(NewCustomer, "/customers", {}, user, "POST").catch((error: unknown) => {
+    if (error instanceof Error && error.message.includes(BridgeApiErrorCodes.EMAIL_ALREADY_EXISTS)) {
+      captureMessage("email_already_exists", { contexts: { user }, level: "error" });
+      throw new Error(ErrorCodes.EMAIL_ALREADY_EXISTS);
+    }
+    throw error;
+  });
 }
 
 export async function updateCustomer(customerId: string, user: Partial<InferInput<typeof CreateCustomer>>) {
@@ -148,12 +154,12 @@ export async function getProvider(data: GetProvider): Promise<InferOutput<typeof
         break;
     }
 
-    if (bridgeUser.future_requirements_due) {
+    if (bridgeUser.future_requirements_due?.length) {
       // TODO handle future requirements
       captureMessage("bridge_future_requirements_due", { contexts: { bridgeUser }, level: "warning" });
     }
 
-    if (bridgeUser.requirements_due) {
+    if (bridgeUser.requirements_due?.length) {
       // TODO handle requirements due
       // ? external_account is only for off-ramp
       captureMessage("bridge_requirements_due", { contexts: { bridgeUser }, level: "warning" });
@@ -208,6 +214,8 @@ export async function getProvider(data: GetProvider): Promise<InferOutput<typeof
   if (!streetLine1) throw new Error(ErrorCodes.NO_ADDRESS);
   const city = inquiry.attributes.fields["address-city"]?.value ?? personaAccount.attributes["address-city"];
   if (!city) throw new Error(ErrorCodes.NO_CITY);
+  const documentId = inquiry.attributes.fields["current-government-id"]?.value?.id;
+  if (!documentId) throw new Error(ErrorCodes.NO_DOCUMENT_ID);
 
   const country = alpha2ToAlpha3(countryCode);
   if (!country) throw new Error(ErrorCodes.NO_COUNTRY_ALPHA3);
@@ -228,9 +236,15 @@ export async function getProvider(data: GetProvider): Promise<InferOutput<typeof
     currencies.push(...CurrencyByEndorsement[endorsement]);
   }
 
+  let bridgeRedirectURL: URL | undefined = undefined;
+  if (data.redirectURL) {
+    bridgeRedirectURL = new URL(data.redirectURL);
+    bridgeRedirectURL.searchParams.set("provider", "bridge" satisfies (typeof common.RampProvider)[number]);
+  }
+
   pendingTasks.push({
     type: "TOS_LINK",
-    link: await agreementLink(data.redirectURL),
+    link: await agreementLink(bridgeRedirectURL?.toString()),
     displayText: "Terms of Service",
     currencies,
     cryptoCurrencies,
@@ -306,7 +320,8 @@ export async function onboarding(data: Onboarding): Promise<void> {
   const country = alpha2ToAlpha3(countryCode);
   if (!country) throw new Error(ErrorCodes.NO_COUNTRY_ALPHA3);
 
-  const documentId = getDocumentId(inquiry);
+  const documentId = inquiry.attributes.fields["current-government-id"]?.value?.id;
+  if (!documentId) throw new Error(ErrorCodes.NO_DOCUMENT_ID);
   const identityDocument = await getDocument(documentId);
   const frontDocumentURL = identityDocument.attributes["front-photo"]?.url;
   const backDocumentURL = identityDocument.attributes["back-photo"]?.url;
@@ -361,6 +376,9 @@ export async function onboarding(data: Onboarding): Promise<void> {
     nationality: country,
     identifying_information: identifyingInformation,
   });
+
+  // TODO handle user already onboarded
+
   await database.update(credentials).set({ bridgeId: customer.id }).where(eq(credentials.id, data.credentialId));
 }
 
@@ -1059,16 +1077,6 @@ function idClassToBridge(idClass: string): (typeof IdentityDocumentType)[number]
   return IdClassToBridge[idClass as keyof typeof IdClassToBridge];
 }
 
-export function getDocumentId(inquiry: InferOutput<typeof Inquiry>) {
-  const documents = inquiry.relationships.documents?.data;
-  if (!documents) throw new Error(ErrorCodes.NO_DOCUMENT);
-  if (!documents[0]) throw new Error(ErrorCodes.NO_DOCUMENT);
-  if (documents.length > 1) throw new Error(ErrorCodes.MULTIPLE_DOCUMENTS);
-  const documentId = documents[0].id;
-  if (!documentId) throw new Error(ErrorCodes.NO_DOCUMENT_ID);
-  return documentId;
-}
-
 function getDepositDetailsFromVirtualAccount(
   virtualAccount: InferOutput<typeof VirtualAccount>,
   account: string,
@@ -1186,6 +1194,7 @@ export const ErrorCodes = {
   MULTIPLE_IDENTIFICATION: "multiple identification",
   NOT_AVAILABLE_CURRENCY: "not available currency",
   NOT_SUPPORTED_CHAIN_ID: "not supported chain id",
+  EMAIL_ALREADY_EXISTS: "email already exists",
   NOT_ACTIVE_CUSTOMER: "not active customer",
   MULTIPLE_DOCUMENTS: "multiple documents",
   NO_FIAT_CAPABILITY: "no fiat capability",
@@ -1208,4 +1217,5 @@ export const ErrorCodes = {
 
 const BridgeApiErrorCodes = {
   NOT_FOUND: "not_found",
+  EMAIL_ALREADY_EXISTS: "A customer with this email already exists",
 } as const;

@@ -125,6 +125,16 @@ export async function withdrawOrder(withdraw: InferInput<typeof Withdraw>) {
   return await request(WithdrawResponse, "/crypto/v2/withdraws", {}, withdraw, "POST");
 }
 
+export async function lockQrPayment(userAnyId: string, paymentDestination: string, amount?: string, against?: string) {
+  return await request(
+    QrPaymentResponse,
+    "/crypto/v2/payment-locks",
+    {},
+    { userAnyId, paymentDestination, amount, against },
+    "POST",
+  );
+}
+
 export function getDepositDetails(
   currency: (typeof MantecaCurrency)[number],
   exchange: (typeof Exchange)[number],
@@ -183,6 +193,11 @@ export async function convertBalanceToUsdc(userNumberId: string, against: string
     asset: "USDC",
     against,
     againstAmount: assetBalance,
+  }).catch((error: unknown) => {
+    if (error instanceof Error && error.message.includes(MantecaApiErrorCodes.INVALID_ORDER_SIZE)) {
+      throw new Error(ErrorCodes.INVALID_ORDER_SIZE);
+    }
+    throw error;
   });
 }
 
@@ -245,21 +260,27 @@ export async function getProvider(
     if (inquiry.attributes.status !== "approved" && inquiry.attributes.status !== "completed") {
       throw new Error(ErrorCodes.KYC_NOT_APPROVED);
     }
+    const documentId = inquiry.attributes.fields["current-government-id"]?.value?.id;
+    if (!documentId) throw new Error(ErrorCodes.NO_DOCUMENT);
     const country = personaAccount.attributes["country-code"];
 
     try {
       validateIdentification(inquiry, personaAccount);
     } catch (error) {
-      captureException(error, { contexts: { inquiry } });
       if (error instanceof Error && Object.values(ErrorCodes).includes(error.message)) {
         switch (error.message) {
           case ErrorCodes.COUNTRY_NOT_ALLOWED:
           case ErrorCodes.ID_NOT_ALLOWED:
             return { status: "NOT_AVAILABLE", currencies: [], cryptoCurrencies: [], pendingTasks: [] };
           case ErrorCodes.BAD_KYC_ADDITIONAL_DATA: {
+            let mantecaRedirectURL: URL | undefined = undefined;
+            if (redirectURL) {
+              mantecaRedirectURL = new URL(redirectURL);
+              mantecaRedirectURL.searchParams.set("provider", "manteca" satisfies (typeof shared.RampProvider)[number]);
+            }
             const inquiryTask: InferOutput<typeof shared.PendingTask> = {
               type: "INQUIRY",
-              link: await resumeOrCreateMantecaInquiryOTL(credentialId, redirectURL),
+              link: await resumeOrCreateMantecaInquiryOTL(credentialId, mantecaRedirectURL?.toString()),
               displayText: "We need more information to complete your KYC",
               currencies: getSupportedByCountry(country),
               cryptoCurrencies: [],
@@ -267,6 +288,7 @@ export async function getProvider(
             return { status: "MISSING_INFORMATION", currencies, cryptoCurrencies: [], pendingTasks: [inquiryTask] };
           }
         }
+        captureException(error, { contexts: { inquiry } });
       }
       throw error;
     }
@@ -344,7 +366,8 @@ export async function mantecaOnboarding(account: string, credentialId: string, t
     });
   }
 
-  const documentId = getDocumentId(inquiry);
+  const documentId = inquiry.attributes.fields["current-government-id"]?.value?.id;
+  if (!documentId) throw new Error(ErrorCodes.NO_DOCUMENT);
   const identityDocument = await getDocument(documentId);
   const frontDocumentURL = identityDocument.attributes["front-photo"]?.url;
   const backDocumentURL = identityDocument.attributes["back-photo"]?.url;
@@ -496,6 +519,23 @@ export const PriceLockResponse = object({
   asset: string(),
   against: string(),
   price: string(),
+});
+
+export const QrPaymentResponse = object({
+  code: optional(string()),
+  type: string(),
+  companyId: string(),
+  userId: string(),
+  userNumberId: string(),
+  userExternalId: optional(string()),
+  paymentRecipientName: optional(string()),
+  paymentRecipientLegalId: optional(string()),
+  paymentAssetAmount: string(),
+  paymentAsset: string(),
+  paymentPrice: optional(string()),
+  paymentAgainstAmount: string(),
+  expireAt: string(),
+  creationTime: string(),
 });
 
 export const QuoteResponse = object({
@@ -837,16 +877,6 @@ export function validateIdentification(
   if (!additionalData.success) throw new Error(ErrorCodes.BAD_KYC_ADDITIONAL_DATA);
 }
 
-function getDocumentId(inquiry: InferOutput<typeof Inquiry>) {
-  const documents = inquiry.relationships.documents?.data;
-  if (!documents) throw new Error(ErrorCodes.NO_DOCUMENT);
-  if (!documents[0]) throw new Error(ErrorCodes.NO_DOCUMENT);
-  if (documents.length > 1) throw new Error(ErrorCodes.MULTIPLE_DOCUMENTS);
-  const documentId = documents[0].id;
-  if (!documentId) throw new Error(ErrorCodes.NO_DOCUMENT);
-  return documentId;
-}
-
 const getExchange = (countryCode: string): (typeof Exchange)[number] => {
   const exchange = ExchangeByCountry[countryCode as (typeof CountryCode)[number]];
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
@@ -926,6 +956,7 @@ export const ErrorCodes = {
   COUNTRY_NOT_ALLOWED: "country not allowed",
   MULTIPLE_DOCUMENTS: "multiple documents",
   NO_PERSONA_ACCOUNT: "no persona account",
+  INVALID_ORDER_SIZE: "invalid order size",
   KYC_NOT_APPROVED: "kyc not approved",
   BAD_MANTECA_KYC: "bad manteca kyc",
   ID_NOT_ALLOWED: "id not allowed",
@@ -936,5 +967,6 @@ export const ErrorCodes = {
 };
 
 const MantecaApiErrorCodes = {
+  INVALID_ORDER_SIZE: "MIN_SIZE",
   USER_NOT_FOUND: "USER_NF",
 } as const;
