@@ -15,7 +15,7 @@
     "@astrojs/starlight": "^0.36.2",
     "@exactly/mobile": "workspace:^1.0.22",
     "@exactly/server": "workspace:^0.2.13",
-    "astro": "^5.15.6",
+    "astro": "^5.16.0",
     "astro-mermaid": "^1.1.0",
     "mermaid": "^11.12.1",
     "openapi-types": "^12.1.3",
