@@ -1,5 +1,19 @@
 # @exactly/mobile
 
+## 1.0.35
+
+### Patch Changes
+
+- [`f261a15`](https://github.com/exactly/exa/commit/f261a15fe92eb1eb74a93b53ada3aa9aa2242bed) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚸 update default opt-in state
+
+- [`f0bf340`](https://github.com/exactly/exa/commit/f0bf3409d9e58db1f275f1bc067512a7886cb3fa) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🔥 remove explore defi banner from home screen
+
+- [`c0a593f`](https://github.com/exactly/exa/commit/c0a593f8db4d4d7f8e658ef33e98d240c512724e) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🥅 prevent report of expected auth errors
+
+- Updated dependencies [[`a33c539`](https://github.com/exactly/exa/commit/a33c539f67c728203f26f86c9b165ffbd0f9a413), [`2844485`](https://github.com/exactly/exa/commit/2844485904f8dd145a488557a03de828f2789efa), [`99ecd42`](https://github.com/exactly/exa/commit/99ecd42e858084c643eb70cb63fc44592a5cc5fb), [`1018828`](https://github.com/exactly/exa/commit/10188281b50fe5ee7d5fb9d0fdd848cec3549eb6), [`f15fba0`](https://github.com/exactly/exa/commit/f15fba0e093004b7b119a600e9b1fe10bca90ab5), [`1c3eac5`](https://github.com/exactly/exa/commit/1c3eac533661ab7c975f07fe92d6bbf15deb0a78)]:
+  - @exactly/common@0.0.9
+  - @exactly/server@0.2.35
+
 ## 1.0.34
 
 ### Patch Changes

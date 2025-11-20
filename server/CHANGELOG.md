@@ -1,5 +1,19 @@
 # @exactly/server
 
+## 0.2.35
+
+### Patch Changes
+
+- [`2844485`](https://github.com/exactly/exa/commit/2844485904f8dd145a488557a03de828f2789efa) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 📈 add http code for replay
+
+- [`99ecd42`](https://github.com/exactly/exa/commit/99ecd42e858084c643eb70cb63fc44592a5cc5fb) Thanks [@mainqueg](https://github.com/mainqueg)! - ♻️ use current government id
+
+- [`1018828`](https://github.com/exactly/exa/commit/10188281b50fe5ee7d5fb9d0fdd848cec3549eb6) Thanks [@mainqueg](https://github.com/mainqueg)! - ✨ create signature card
+
+- [`f15fba0`](https://github.com/exactly/exa/commit/f15fba0e093004b7b119a600e9b1fe10bca90ab5) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🗃️ add product id to card table
+
+- [`1c3eac5`](https://github.com/exactly/exa/commit/1c3eac533661ab7c975f07fe92d6bbf15deb0a78) Thanks [@mainqueg](https://github.com/mainqueg)! - 🌐 retrieve country code
+
 ## 0.2.34
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @exactly/common
 
+## 0.0.9
+
+### Patch Changes
+
+- [`a33c539`](https://github.com/exactly/exa/commit/a33c539f67c728203f26f86c9b165ffbd0f9a413) Thanks [@mainqueg](https://github.com/mainqueg)! - 🏷️ add panda constants
+
 ## 0.0.8
 
 ### Patch Changes
