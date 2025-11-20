@@ -232,6 +232,30 @@ describe("authenticated", () => {
     });
   });
 
+  it("cancels a card", async () => {
+    const cardResponse = { ...cardTemplate, id: "cardForCancel", last4: "1224", status: "active" as const };
+    vi.spyOn(panda, "createCard").mockResolvedValueOnce(cardResponse);
+    vi.spyOn(panda, "updateCard").mockResolvedValueOnce({ ...cardResponse, status: "canceled" });
+
+    const response = await appClient.index.$post({ header: { "test-credential-id": ethAccount } });
+
+    const cancelResponse = await appClient.index.$patch({
+      // @ts-expect-error - bad hono patch type
+      header: { "test-credential-id": ethAccount },
+      json: { status: "DELETED" },
+    });
+
+    expect(response.status).toBe(200);
+    expect(cancelResponse.status).toBe(200);
+
+    const card = await database.query.cards.findFirst({
+      columns: { status: true },
+      where: eq(cards.credentialId, ethAccount),
+    });
+
+    expect(card?.status).toBe("DELETED");
+  });
+
   describe("migration", () => {
     it("creates a panda card having a cm card with upgraded plugin", async () => {
       await database.insert(cards).values([{ id: "cm", credentialId: account, lastFour: "1234" }]);

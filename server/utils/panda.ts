@@ -107,6 +107,27 @@ export async function getCard(cardId: string) {
   return await request(CardResponse, `/issuing/cards/${cardId}`);
 }
 
+export async function updateCard(card: {
+  id: string;
+  status?: "active" | "canceled" | "locked" | "notActivated";
+  limit?: {
+    amount: number;
+    frequency: "per24HourPeriod" | "per7DayPeriod" | "per30DayPeriod" | "perYearPeriod";
+  };
+  billing?: {
+    line1: string;
+    line2?: string;
+    city: string;
+    region: string;
+    postalCode: string;
+    countryCode: string;
+    country?: string;
+  };
+  configuration?: { virtualCardArt: string };
+}) {
+  return await request(CardResponse, `/issuing/cards/${card.id}`, {}, card, "PATCH");
+}
+
 export async function getSecrets(cardId: string, sessionId: string) {
   return await request(PANResponse, `/issuing/cards/${cardId}/secrets`, { SessionId: sessionId });
 }

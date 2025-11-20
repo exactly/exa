@@ -25,6 +25,7 @@ export function track(
     | { event: "CardIssued"; properties: { productId: string } }
     | { event: "CardFrozen" }
     | { event: "CardUnfrozen" }
+    | { event: "CardDeleted" }
     | { event: "AccountFunded" }
     | {
         event: "TransactionAuthorized";

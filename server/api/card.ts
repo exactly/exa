@@ -25,7 +25,7 @@ import {
 import database, { cards, credentials } from "../database";
 import auth from "../middleware/auth";
 import { sendPushNotification } from "../utils/onesignal";
-import { autoCredit, createCard, getCard, getPIN, getSecrets, getUser, setPIN } from "../utils/panda";
+import { autoCredit, createCard, getCard, getPIN, getSecrets, getUser, setPIN, updateCard } from "../utils/panda";
 import { track } from "../utils/segment";
 import validatorHook from "../utils/validatorHook";
 
@@ -155,7 +155,7 @@ export default new Hono()
           transform((patch) => ({ ...patch, type: "mode" as const })),
         ),
         pipe(
-          strictObject({ status: picklist(["ACTIVE", "FROZEN"]) }),
+          strictObject({ status: picklist(["ACTIVE", "DELETED", "FROZEN"]) }),
           transform((patch) => ({ ...patch, type: "status" as const })),
         ),
         pipe(
@@ -195,8 +195,19 @@ export default new Hono()
             case "status": {
               const { status } = patch;
               if (card.status === status) return c.json({ code: "already set", status, legacy: "already set" }, 400);
+              switch (status) {
+                case "ACTIVE":
+                  track({ userId: account, event: "CardUnfrozen" });
+                  break;
+                case "DELETED":
+                  await updateCard({ id: card.id, status: "canceled" });
+                  track({ userId: account, event: "CardDeleted" });
+                  break;
+                case "FROZEN":
+                  track({ userId: account, event: "CardFrozen" });
+                  break;
+              }
               await database.update(cards).set({ status }).where(eq(cards.id, card.id));
-              track({ userId: account, event: status === "FROZEN" ? "CardFrozen" : "CardUnfrozen" });
               return c.json({ status }, 200);
             }
             case "pin": {
