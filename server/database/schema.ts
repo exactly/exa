@@ -1,3 +1,4 @@
+import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
 import { relations } from "drizzle-orm";
 import { customType, integer, jsonb, pgEnum, pgTable, text, uniqueIndex } from "drizzle-orm/pg-core";
 
@@ -29,6 +30,7 @@ export const cards = pgTable("cards", {
   status: cardStatus("status").notNull().default("ACTIVE"),
   lastFour: text("last_four").notNull(),
   mode: integer("mode").notNull().default(0),
+  productId: text("product_id").notNull().default(PLATINUM_PRODUCT_ID),
 });
 
 export const transactions = pgTable("transactions", {
