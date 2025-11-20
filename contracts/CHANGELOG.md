@@ -1,5 +1,33 @@
 # @exactly/plugin
 
+## 1.1.0
+
+### Minor Changes
+
+- [`c132d69`](https://github.com/exactly/exa/commit/c132d697a52b1e796eb625df0fd7696dd93dc8e3) Thanks [@itofarina](https://github.com/itofarina)! - 🩹 prevent invalid market out on cross repay
+
+- [`16efc1b`](https://github.com/exactly/exa/commit/16efc1be67e03dcd407ad3430150456dac965434) Thanks [@itofarina](https://github.com/itofarina)! - ✨ allow multiple proposals execution
+
+- [`b6eb92f`](https://github.com/exactly/exa/commit/b6eb92f753d68bcc8762ea9ca514f1d05830d551) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚀 deploy all contracts to base
+
+- [`1569032`](https://github.com/exactly/exa/commit/15690323acf04e0e72f4f16efe88c4e3addfcf79) Thanks [@itofarina](https://github.com/itofarina)! - 👔 allow roll debts for any market
+
+- [`be96d62`](https://github.com/exactly/exa/commit/be96d62a3ea328597dad98264c43ad7d0f30502c) Thanks [@itofarina](https://github.com/itofarina)! - 🩹 contemplate flashloan fees on repays
+
+- [`3c7b7b0`](https://github.com/exactly/exa/commit/3c7b7b0b6eeb13abfe497b536d54b9981546a520) Thanks [@itofarina](https://github.com/itofarina)! - ✨ allow cross repay to any market
+
+- [`b222469`](https://github.com/exactly/exa/commit/b222469840e30305598897a3fcf18f113fb5cc84) Thanks [@itofarina](https://github.com/itofarina)! - 👔 allow repays for any market
+
+### Patch Changes
+
+- [`1a27efd`](https://github.com/exactly/exa/commit/1a27efdfb95e76e711251670d4fb5fa66a90ce2d) Thanks [@itofarina](https://github.com/itofarina)! - 🐛 consume weth withdraw proposal
+
+- [`4f9d92f`](https://github.com/exactly/exa/commit/4f9d92f001447f5fe166915153369ffeee78898f) Thanks [@itofarina](https://github.com/itofarina)! - 🐛 allow borrows from any market
+
+- [`aafaa97`](https://github.com/exactly/exa/commit/aafaa975e76cb04a0d2f67a58c155f598d8fe15b) Thanks [@itofarina](https://github.com/itofarina)! - 🦺 prevent none type proposals
+
+- [`e00dcf2`](https://github.com/exactly/exa/commit/e00dcf245b1ac77946ef3362093ea50032a7ba27) Thanks [@itofarina](https://github.com/itofarina)! - 👔 avoid failing deposits
+
 ## 1.0.0
 
 ### Major Changes
