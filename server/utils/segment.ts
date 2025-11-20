@@ -27,6 +27,8 @@ export function track(
     | { event: "CardUnfrozen" }
     | { event: "CardDeleted" }
     | { event: "AccountFunded" }
+    | { event: "MantecaOnboarding" }
+    | { event: "BridgeOnboarding" }
     | {
         event: "TransactionAuthorized";
         properties: {

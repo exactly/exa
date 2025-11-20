@@ -29,6 +29,7 @@ import {
   type Inquiry,
 } from "../persona";
 import type * as shared from "./shared";
+import { track } from "../segment";
 
 if (!process.env.MANTECA_API_URL) throw new Error("missing manteca api url");
 const baseURL = process.env.MANTECA_API_URL;
@@ -311,7 +312,7 @@ export async function getProvider(
   return { status: "ONBOARDING", currencies, cryptoCurrencies: [], pendingTasks: [] };
 }
 
-export async function mantecaOnboarding(account: string, credentialId: string, templateId: string) {
+export async function mantecaOnboarding(account: Address, credentialId: string, templateId: string) {
   const supportedChainId = SupportedOnRampChainId[chain.id as (typeof shared.SupportedChainId)[number]];
   if (!supportedChainId) {
     captureMessage("manteca_not_supported_chain_id", { contexts: { chain }, level: "error" });
@@ -391,6 +392,7 @@ export async function mantecaOnboarding(account: string, credentialId: string, t
   for (const result of results) {
     result.status === "rejected" && captureException(result.reason, { extra: { account } });
   }
+  track({ event: "MantecaOnboarding", userId: account });
 }
 // #endregion services
 

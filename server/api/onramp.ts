@@ -1,3 +1,4 @@
+import { Address } from "@exactly/common/validation";
 import { vValidator } from "@hono/valibot-validator";
 import { captureException, setUser } from "@sentry/core";
 import createDebug from "debug";
@@ -8,6 +9,7 @@ import {
   object,
   optional,
   picklist,
+  parse,
   string,
   union,
   variant,
@@ -213,12 +215,13 @@ export default new Hono()
         columns: { account: true, bridgeId: true },
       });
       if (!credential) return c.json({ code: ErrorCodes.NO_CREDENTIAL }, 400);
+      const account = parse(Address, credential.account);
       setUser({ id: credential.account });
 
       switch (onboarding.provider) {
         case "manteca":
           try {
-            await mantecaOnboarding(credential.account, credentialId, templateId);
+            await mantecaOnboarding(account, credentialId, templateId);
           } catch (error) {
             captureException(error, { contexts: { credential } });
             if (error instanceof Error && Object.values(MantecaErrorCodes).includes(error.message)) {
@@ -235,6 +238,7 @@ export default new Hono()
         case "bridge":
           try {
             await bridgeOnboarding({
+              account,
               credentialId,
               customerId: credential.bridgeId,
               templateId,

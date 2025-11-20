@@ -29,6 +29,7 @@ import type { IdentificationClasses as PersonaIdentificationClasses } from "../p
 import { getAccount, getDocument, getInquiry } from "../persona";
 import type * as common from "./shared";
 import database, { credentials } from "../../database";
+import { track } from "../segment";
 
 if (!process.env.BRIDGE_API_URL) throw new Error("missing bridge api url");
 const baseURL = process.env.BRIDGE_API_URL;
@@ -254,6 +255,7 @@ export async function getProvider(data: GetProvider): Promise<InferOutput<typeof
 }
 
 interface Onboarding {
+  account: Address;
   credentialId: string;
   customerId: string | null;
   templateId: string;
@@ -376,6 +378,7 @@ export async function onboarding(data: Onboarding): Promise<void> {
     nationality: country,
     identifying_information: identifyingInformation,
   });
+  track({ event: "BridgeOnboarding", userId: data.account });
 
   // TODO handle user already onboarded
 
