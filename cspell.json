@@ -2,6 +2,7 @@
   "language": "en",
   "ignorePaths": [
     "*.svg",
+    "*.local.yaml",
     "cspell.json",
     "contracts/broadcast",
     "patches",
