@@ -41,6 +41,7 @@ import queryClient, { persister } from "../utils/queryClient";
 import reportError from "../utils/reportError";
 import exaConfig from "../utils/wagmi/exa";
 import ownerConfig, { getConnector as getOwnerConnector } from "../utils/wagmi/owner";
+import "../utils/test";
 
 SplashScreen.preventAutoHideAsync().catch(reportError);
 
