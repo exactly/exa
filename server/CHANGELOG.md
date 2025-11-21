@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.36
+
+### Patch Changes
+
+- [`1e6ad4a`](https://github.com/exactly/exa/commit/1e6ad4a991f19ed1806c1f6d54d7b49a0b15890b) Thanks [@mainqueg](https://github.com/mainqueg)! - 🩹 remove field from current government id
+
 ## 0.2.35
 
 ### Patch Changes
