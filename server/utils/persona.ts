@@ -184,9 +184,7 @@ const InquiryFields = object({
   "social-security-number": nullish(object({ type: literal("string"), value: nullish(string()) })),
   "identification-class": nullish(object({ type: literal("string"), value: nullish(string()) })),
   "identification-number": nullish(object({ type: literal("string"), value: nullish(string()) })),
-  "current-government-id": nullish(
-    object({ type: literal("string"), value: nullish(object({ id: nullish(string()) })) }),
-  ),
+  "current-government-id": nullish(object({ value: nullish(object({ id: nullish(string()) })) })),
 });
 
 export const Inquiry = object({
