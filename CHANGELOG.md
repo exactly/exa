@@ -1,5 +1,14 @@
 # @exactly/mobile
 
+## 1.0.36
+
+### Patch Changes
+
+- [`d50873a`](https://github.com/exactly/exa/commit/d50873a49bf66000b94157429667ab1cddbc0cca) Thanks [@franm91](https://github.com/franm91)! - 🚑 prevent wrong address display
+
+- Updated dependencies [[`ecfaa8a`](https://github.com/exactly/exa/commit/ecfaa8a3f3eb19dd18a223e696b18993c689fec1)]:
+  - @exactly/server@0.2.37
+
 ## 1.0.35
 
 ### Patch Changes
