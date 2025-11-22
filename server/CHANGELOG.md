@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.38
+
+### Patch Changes
+
+- [`d2a7bc2`](https://github.com/exactly/exa/commit/d2a7bc2c39d930f51480a760412dd20ae4295e26) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🚑 use exa factory v1.0 on optimism
+
 ## 0.2.37
 
 ### Patch Changes
