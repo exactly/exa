@@ -86,9 +86,15 @@ export default defineConfig([
           swapper,
           usdc: usdc.address,
           weth: weth.address,
+          ...(chainId !== base.id && {
+            exaAccountFactory:
+              {
+                [optimism.id]: "0x961EbA47650e2198A959Ef5f337E542df5E4F61b",
+              }[chainId] ?? "0x98d3E8B291d9E89C25D8371b7e8fFa8BC32E0aEC",
+          }),
         },
         {
-          scripts: { exaAccountFactory: "ExaAccountFactory" },
+          ...(chainId === base.id && { scripts: { exaAccountFactory: "ExaAccountFactory" } }),
           optional: { balancerVault: balancerVault?.address, flashLoanAdapter: flashLoanAdapter?.address },
         },
       ),
