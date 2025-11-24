@@ -2,7 +2,7 @@ import chain from "@exactly/common/generated/chain";
 import { validator } from "hono/validator";
 import { array, boolean, object, parse, picklist, string, type InferOutput } from "valibot";
 import { withRetry } from "viem";
-import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
+import { anvil, base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
 import verifySignature from "./verifySignature";
 
@@ -25,6 +25,7 @@ export const network =
     [optimismSepolia.id]: "OPT_SEPOLIA" as const,
     [base.id]: "BASE_MAINNET" as const,
     [baseSepolia.id]: "BASE_SEPOLIA" as const,
+    [anvil.id]: "ANVIL" as const,
   }[chain.id] ?? ("OPT_SEPOLIA" as const);
 
 export async function findWebhook(predicate: (webhook: Webhook) => unknown) {

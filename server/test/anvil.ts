@@ -55,8 +55,10 @@ export default async function setup({ provide }: TestProject) {
   const balancer = protocol[27].contractAddress;
   const debtManager = protocol[28].contractAddress;
   const previewer = protocol[32].contractAddress;
-  const installmentsRouter = protocol[33].contractAddress;
-  const firewall = protocol[35].contractAddress;
+  const integrationPreviewer = protocol[33].contractAddress;
+  const ratePreviewer = protocol[34].contractAddress;
+  const installmentsRouter = protocol[35].contractAddress;
+  const firewall = protocol[37].contractAddress;
 
   if (initialize) {
     // cspell:ignoreRegExp [\b_][A-Z]+_ADDRESS\b
@@ -70,6 +72,8 @@ export default async function setup({ provide }: TestProject) {
     shell.env.PROTOCOL_BALANCER2VAULT_ADDRESS = balancer;
     shell.env.PROTOCOL_DEBTMANAGER_ADDRESS = debtManager;
     shell.env.PROTOCOL_PREVIEWER_ADDRESS = previewer;
+    shell.env.PROTOCOL_INTEGRATIONPREVIEWER_ADDRESS = integrationPreviewer;
+    shell.env.PROTOCOL_RATEPREVIEWER_ADDRESS = ratePreviewer;
     shell.env.PROTOCOL_INSTALLMENTSROUTER_ADDRESS = installmentsRouter;
     shell.env.PROTOCOL_FIREWALL_ADDRESS = firewall;
     shell.env.PROTOCOL_ESEXA_ADDRESS = padHex("0x666", { size: 20 });
@@ -169,7 +173,7 @@ export default async function setup({ provide }: TestProject) {
 
   if (initialize) {
     const files = await readdir(__dirname, { recursive: true }); // eslint-disable-line unicorn/prefer-module
-    for (const testFile of files.filter((file) => file.endsWith(".test.ts"))) {
+    for (const testFile of files.filter((file) => file.endsWith(".test.ts") || file.endsWith("e2e.ts"))) {
       const address = privateKeyToAddress(keccak256(toBytes(testFile)));
       await anvilClient.setBalance({ address, value: 10n ** 24n });
       for (const contract of [exaPlugin, refunder]) {
@@ -192,12 +196,14 @@ export default async function setup({ provide }: TestProject) {
   provide("ExaPlugin", exaPlugin);
   provide("Firewall", firewall);
   provide("InstallmentsRouter", installmentsRouter);
+  provide("IntegrationPreviewer", integrationPreviewer);
   provide("IssuerChecker", issuerChecker);
   provide("MarketEXA", marketEXA);
   provide("MarketUSDC", marketUSDC);
   provide("MarketWETH", marketWETH);
   provide("Previewer", previewer);
   provide("ProposalManager", proposalManager);
+  provide("RatePreviewer", ratePreviewer);
   provide("Refunder", refunder);
   provide("USDC", usdc);
   provide("WETH", weth);
@@ -248,6 +254,12 @@ const Protocol = object({
     object({ transactionType: literal("CREATE"), contractName: literal("Previewer"), contractAddress: Address }),
     object({
       transactionType: literal("CREATE"),
+      contractName: literal("IntegrationPreviewer"),
+      contractAddress: Address,
+    }),
+    object({ transactionType: literal("CREATE"), contractName: literal("RatePreviewer"), contractAddress: Address }),
+    object({
+      transactionType: literal("CREATE"),
       contractName: literal("InstallmentsRouter"),
       contractAddress: Address,
     }),
@@ -266,12 +278,14 @@ declare module "vitest" {
     ExaPlugin: Address;
     Firewall: Address;
     InstallmentsRouter: Address;
+    IntegrationPreviewer: Address;
     IssuerChecker: Address;
     MarketEXA: Address;
     MarketUSDC: Address;
     MarketWETH: Address;
     ProposalManager: Address;
     Previewer: Address;
+    RatePreviewer: Address;
     Refunder: Address;
     USDC: Address;
     WETH: Address;

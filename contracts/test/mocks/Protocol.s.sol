@@ -9,7 +9,9 @@ import { MockPriceFeed } from "@exactly/protocol/mocks/MockPriceFeed.sol";
 import { MockWETH } from "@exactly/protocol/mocks/MockWETH.sol";
 import { DebtManager, IBalancerVault, IPermit2 } from "@exactly/protocol/periphery/DebtManager.sol";
 import { InstallmentsRouter } from "@exactly/protocol/periphery/InstallmentsRouter.sol";
+import { IntegrationPreviewer } from "@exactly/protocol/periphery/IntegrationPreviewer.sol";
 import { Previewer } from "@exactly/protocol/periphery/Previewer.sol";
+import { RatePreviewer } from "@exactly/protocol/periphery/RatePreviewer.sol";
 import { Firewall } from "@exactly/protocol/verified/Firewall.sol";
 
 import { ERC1967Proxy } from "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
@@ -29,6 +31,8 @@ contract DeployProtocol is BaseScript {
   MockWETH public weth;
   DebtManager public debtManager;
   Previewer public previewer;
+  IntegrationPreviewer public integrationPreviewer;
+  RatePreviewer public ratePreviewer;
   InstallmentsRouter public installmentsRouter;
   Firewall public firewall;
 
@@ -86,6 +90,8 @@ contract DeployProtocol is BaseScript {
     debtManager.approve(exaEXA);
     debtManager.approve(exaWETH);
     previewer = new Previewer(auditor, IPriceFeed(address(0)));
+    integrationPreviewer = new IntegrationPreviewer(auditor);
+    ratePreviewer = new RatePreviewer(auditor);
 
     installmentsRouter = new InstallmentsRouter(auditor, exaWETH);
 

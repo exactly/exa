@@ -10,6 +10,7 @@ import { LibString } from "solady/utils/LibString.sol";
 import { ACCOUNT_IMPL, ENTRYPOINT } from "webauthn-owner-plugin/../script/Factory.s.sol";
 
 import { BaseScript } from "../../script/Base.s.sol";
+import { MockPaymaster } from "./MockPaymaster.sol";
 
 contract DeployAccount is BaseScript {
   using LibString for address;
@@ -17,6 +18,7 @@ contract DeployAccount is BaseScript {
 
   EntryPoint public entrypoint;
   UpgradeableModularAccount public implementation;
+  MockPaymaster public paymaster;
 
   function run() external {
     vm.startBroadcast(acct("deployer"));
@@ -36,7 +38,9 @@ contract DeployAccount is BaseScript {
           string.concat('["', ACCOUNT_IMPL.toHexString(), '","', ACCOUNT_IMPL.code.toHexString(), '"]') // solhint-disable-line quotes
         );
       } catch { } // solhint-disable-line no-empty-blocks
+      paymaster = new MockPaymaster();
     }
+
     vm.stopBroadcast();
   }
 }

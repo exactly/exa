@@ -255,7 +255,7 @@ const activityPayload = {
   json: {
     type: "ADDRESS_ACTIVITY",
     event: {
-      network: "OPT_SEPOLIA",
+      network: "ANVIL",
       activity: [
         {
           fromAddress: "0x3372cf7cad49a330f7b7403eaa544444d5985877",

@@ -41,6 +41,7 @@ import queryClient, { persister } from "../utils/queryClient";
 import reportError from "../utils/reportError";
 import exaConfig from "../utils/wagmi/exa";
 import ownerConfig, { getConnector as getOwnerConnector } from "../utils/wagmi/owner";
+import "../utils/e2e";
 
 SplashScreen.preventAutoHideAsync().catch(reportError);
 
@@ -86,7 +87,9 @@ init({
   release,
   dsn:
     process.env.EXPO_PUBLIC_SENTRY_DSN ??
-    "https://ac8875331e4cecd67dd0a7519a36dfeb@o1351734.ingest.us.sentry.io/4506186349674496",
+    (process.env.EXPO_PUBLIC_ENV === "e2e"
+      ? undefined
+      : "https://ac8875331e4cecd67dd0a7519a36dfeb@o1351734.ingest.us.sentry.io/4506186349674496"),
   environment: __DEV__ ? "development" : (channel ?? "production"),
   tracesSampleRate: 1,
   attachStacktrace: true,

@@ -106,10 +106,6 @@ export default {
       } satisfies IntercomPluginProps,
     ],
     [
-      "@sentry/react-native/expo",
-      { organization: "exactly", project: "exa" } satisfies Parameters<typeof withSentry>[1],
-    ],
-    [
       "onesignal-expo-plugin",
       {
         mode: process.env.NODE_ENV === "production" ? Mode.Prod : Mode.Dev,
@@ -117,6 +113,17 @@ export default {
         largeIcons: ["src/assets/notifications_default_large.png"],
       } satisfies OneSignalPlugin.OneSignalPluginProps,
     ],
+    ...(process.env.EXPO_PUBLIC_ENV === "e2e"
+      ? []
+      : [
+          [
+            "@sentry/react-native/expo",
+            {
+              organization: "exactly",
+              project: "exa",
+            },
+          ] satisfies [string, Parameters<typeof withSentry>[1]],
+        ]),
   ],
   experiments: { typedRoutes: true },
   extra: { eas: { projectId: "06bc0158-d23b-430b-a7e8-802df03c450b" } },

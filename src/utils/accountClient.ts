@@ -1,11 +1,13 @@
 import { standardExecutor } from "@alchemy/aa-accounts";
-import { alchemyGasManagerMiddleware } from "@alchemy/aa-alchemy";
+import { alchemyFeeEstimator, alchemyGasManagerMiddleware, getAlchemyPaymasterAddress } from "@alchemy/aa-alchemy";
 import {
   createSmartAccountClient,
   deepHexlify,
+  defaultGasEstimator,
   getEntryPoint,
   resolveProperties,
   toSmartContractAccount,
+  type ClientMiddlewareConfig,
 } from "@alchemy/aa-core";
 import accountInitCode from "@exactly/common/accountInitCode";
 import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
@@ -23,6 +25,7 @@ import {
   type Hex,
   bytesToBigInt,
   bytesToHex,
+  concat,
   custom,
   encodeAbiParameters,
   encodePacked,
@@ -30,11 +33,24 @@ import {
   hexToBytes,
   maxUint256,
 } from "viem";
+import { anvil } from "viem/chains";
 
 import { login } from "./onesignal";
 import publicClient from "./publicClient";
 import queryClient, { type AuthMethod } from "./queryClient";
 import ownerConfig from "./wagmi/owner";
+
+if (chain.id !== anvil.id && !alchemyGasPolicyId) throw new Error("missing alchemy gas policy id");
+const gasMiddleware = alchemyGasPolicyId
+  ? alchemyGasManagerMiddleware(publicClient, { policyId: alchemyGasPolicyId })
+  : ({
+      gasEstimator: defaultGasEstimator(publicClient),
+      feeEstimator: alchemyFeeEstimator(publicClient),
+      paymasterAndData: {
+        dummyPaymasterAndData: () => concat([getAlchemyPaymasterAddress(publicClient.chain), "0x"]),
+        paymasterAndData: (struct) => Promise.resolve(struct),
+      },
+    } satisfies Pick<ClientMiddlewareConfig, "paymasterAndData" | "feeEstimator" | "gasEstimator">);
 
 export default async function createAccountClient({ credentialId, factory, x, y }: Credential) {
   const transport = custom(publicClient);
@@ -93,7 +109,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
     chain,
     transport,
     account,
-    ...alchemyGasManagerMiddleware(publicClient, { policyId: alchemyGasPolicyId }),
+    ...gasMiddleware,
     async customMiddleware(userOp) {
       if ((await userOp.signature) === "0x") {
         // dynamic dummy signature

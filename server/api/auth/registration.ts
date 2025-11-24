@@ -179,7 +179,11 @@ export default new Hono()
       const sessionId = generateSiweNonce();
       const issuedAt = new Date();
       const expires = new Date(issuedAt.getTime() + timeout);
-      setCookie(c, "session_id", sessionId, { domain, expires, httpOnly: true, sameSite: "none", secure: true });
+      setCookie(c, "session_id", sessionId, {
+        expires,
+        httpOnly: true,
+        ...(domain === "localhost" ? { sameSite: "lax", secure: false } : { domain, sameSite: "none", secure: true }),
+      });
       const query = c.req.valid("query");
       if (query?.credentialId) {
         const message = createSiweMessage({

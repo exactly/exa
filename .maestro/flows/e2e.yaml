@@ -1,0 +1,11 @@
+appId: app.exactly
+tags:
+  - critical
+  - e2e
+---
+- launchApp: { clearState: true }
+- runFlow: { file: ../subflows/signIn.yaml }
+- runScript:
+    file: ../dist/setBalance.js
+    env:
+      { account: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", balance: 69420 }

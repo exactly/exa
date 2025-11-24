@@ -1,0 +1,48 @@
+{
+  "name": "@exactly/e2e",
+  "version": "0.0.1",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "prepare": "nx build",
+    "dev": "nx dev"
+  },
+  "devDependencies": {
+    "@noble/hashes": "^2.0.1",
+    "esbuild": "^0.27.0",
+    "fast-text-encoding": "^1.0.6",
+    "typescript": "^5.8.3",
+    "viem": "^2.40.3"
+  },
+  "nx": {
+    "projectType": "library",
+    "targets": {
+      "build": {
+        "executor": "@nx/esbuild:esbuild",
+        "options": {
+          "bundle": true,
+          "thirdParty": true,
+          "platform": "neutral",
+          "external": [
+            "isows"
+          ],
+          "outputPath": "dist",
+          "tsConfig": ".maestro/tsconfig.json",
+          "main": "src/script/setBalance.ts",
+          "additionalEntryPoints": [
+            "src/script/mint.ts"
+          ],
+          "esbuildOptions": {
+            "mainFields": [
+              "module",
+              "main"
+            ],
+            "inject": [
+              "src/polyfill.ts"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

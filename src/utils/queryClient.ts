@@ -193,6 +193,7 @@ queryClient.setQueryDefaults<EmbeddingContext>(["embedding-context"], {
   staleTime: Infinity,
   gcTime: Infinity,
   queryFn: async () => {
+    if (process.env.EXPO_PUBLIC_ENV === "e2e") return "e2e";
     if (await sdk.isInMiniApp()) {
       const { client } = await sdk.context;
       switch (client.clientFid) {
@@ -218,7 +219,15 @@ queryClient.setQueryDefaults(["kyc", "status"], { staleTime: 5 * 60_000, gcTime:
 queryClient.setQueryDefaults(["legacy", "kyc", "status"], { staleTime: 5 * 60_000, gcTime: 60 * 60_000 });
 
 export type AuthMethod = "siwe" | "webauthn";
-export type EmbeddingContext = "base" | "farcaster" | "farcaster-web" | "metamask" | "phantom" | "unknown" | null;
+export type EmbeddingContext =
+  | "base"
+  | "farcaster"
+  | "farcaster-web"
+  | "metamask"
+  | "phantom"
+  | "unknown"
+  | "e2e"
+  | null;
 export type ActivityItem = Awaited<ReturnType<typeof getActivity>>[number];
 
 export interface Loan {
