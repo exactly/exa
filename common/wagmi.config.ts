@@ -1,12 +1,17 @@
 import "dotenv/config";
+import Auditor from "@exactly/protocol/deployments/base/Auditor.json" with { type: "json" };
 import Firewall from "@exactly/protocol/deployments/base/Firewall.json" with { type: "json" };
 import FlashLoanAdapter from "@exactly/protocol/deployments/base/FlashLoanAdapter.json" with { type: "json" };
+import IntegrationPreviewer from "@exactly/protocol/deployments/base/IntegrationPreviewer.json" with { type: "json" };
+import Market from "@exactly/protocol/deployments/base/MarketWETH.json" with { type: "json" };
+import Previewer from "@exactly/protocol/deployments/base/Previewer.json" with { type: "json" };
+import RatePreviewer from "@exactly/protocol/deployments/base/RatePreviewer.json" with { type: "json" };
 import { defineConfig, type Plugin } from "@wagmi/cli";
 import { foundry, react } from "@wagmi/cli/plugins";
 import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { type Abi, getAddress } from "viem";
-import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
+import { anvil, base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
 import deploy from "../contracts/deploy.json";
 
@@ -48,12 +53,12 @@ export default defineConfig([
   {
     out: "generated/hooks.ts",
     contracts: [
-      { name: "Auditor", abi: auditor.abi },
-      { name: "IntegrationPreviewer", abi: integrationPreviewer.abi },
+      { name: "Auditor", abi: Auditor.abi as Abi },
+      { name: "IntegrationPreviewer", abi: IntegrationPreviewer.abi as Abi },
       { name: "FlashLoanAdapter", abi: FlashLoanAdapter.abi as Abi },
-      { name: "Market", abi: marketWETH.abi },
-      { name: "Previewer", abi: previewer.abi },
-      { name: "RatePreviewer", abi: ratePreviewer.abi },
+      { name: "Market", abi: Market.abi as Abi },
+      { name: "Previewer", abi: Previewer.abi as Abi },
+      { name: "RatePreviewer", abi: RatePreviewer.abi as Abi },
     ],
     plugins: [
       foundry({
@@ -72,10 +77,10 @@ export default defineConfig([
   {
     out: "generated/chain.ts",
     contracts: [
-      { name: "Auditor", abi: auditor.abi },
+      { name: "Auditor", abi: Auditor.abi as Abi },
       { name: "Firewall", abi: Firewall.abi as Abi },
-      { name: "Market", abi: marketWETH.abi },
-      { name: "Previewer", abi: previewer.abi },
+      { name: "Market", abi: Market.abi as Abi },
+      { name: "Previewer", abi: Previewer.abi as Abi },
     ],
     plugins: [
       addresses(
@@ -157,11 +162,20 @@ function addresses(
 }
 
 function chain(): Plugin {
+  if (chainId === anvil.id) {
+    return {
+      name: "Chain",
+      run: () => ({
+        content: `import { anvil, type Chain } from "viem/chains"\nconst chain = anvil as Chain\nchain.rpcUrls.alchemy = chain.rpcUrls.default\nexport default chain as Chain`,
+      }),
+    };
+  }
   const importName = {
     [base.id]: "base",
     [baseSepolia.id]: "baseSepolia",
     [optimism.id]: "optimism",
     [optimismSepolia.id]: "optimismSepolia",
+    [anvil.id]: "anvil",
   }[chainId];
   if (!importName) throw new Error("unknown chain");
   return { name: "Chain", run: () => ({ content: `export { ${importName} as default } from "@alchemy/aa-core"` }) };
@@ -171,6 +185,24 @@ function loadDeployment<R extends boolean = true>(
   contract: string,
   required = true as R,
 ): R extends true ? Deployment : Deployment | undefined {
+  if (chainId === anvil.id) {
+    const address =
+      loadBroadcast("Protocol").transactions[
+        {
+          Auditor: 1,
+          Firewall: 37,
+          MarketUSDC: 13,
+          MarketWETH: 21,
+          IntegrationPreviewer: 33,
+          Previewer: 32,
+          RatePreviewer: 34,
+          USDC: 11,
+          WETH: 19,
+        }[contract] ?? Infinity
+      ]?.contractAddress;
+    if (!address && required) throw new Error(`unknown contract: ${contract}`);
+    return { address } as R extends true ? Deployment : Deployment | undefined;
+  }
   const network = {
     [base.id]: "base",
     [baseSepolia.id]: "base-sepolia",
@@ -196,5 +228,4 @@ function loadBroadcast(script: string) {
 
 interface Deployment {
   address: string;
-  abi: Abi;
 }

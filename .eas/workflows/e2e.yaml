@@ -1,0 +1,121 @@
+name: e2e
+on: { push: {} }
+defaults: { tools: { node: "22.14.0", pnpm: "9.15.9" } }
+jobs:
+  fingerprint:
+    type: fingerprint
+    environment: preview
+
+  android_get:
+    type: get-build
+    needs: [fingerprint]
+    environment: preview
+    params:
+      platform: android
+      fingerprint_hash: ${{ needs.fingerprint.outputs.android_fingerprint_hash }}
+
+  android_build:
+    type: build
+    needs: [android_get]
+    if: ${{ !needs.android_get.outputs.build_id }}
+    params: { platform: android, profile: e2e }
+
+  android_repack:
+    type: repack
+    needs: [android_get]
+    if: ${{ needs.android_get.outputs.build_id }}
+    params: { build_id: "${{ needs.android_get.outputs.build_id }}" }
+
+  android_e2e:
+    after: [android_repack, android_build]
+    runs_on: linux-large-nested-virtualization
+    environment: preview
+    image: latest
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - name: Exa setup
+        env: { APP_DOMAIN: localhost, NODE_ENV: e2e }
+        run: |
+          pnpm run --filter server e2e > /tmp/server.log 2>&1 &
+          echo $! > /tmp/server.pid
+          for i in {1..60}; do
+            curl -f http://localhost:3000/api/auth/authentication > /dev/null 2>&1 && break
+            [ $i -eq 60 ] && cat /tmp/server.log && exit 1
+            sleep 1
+          done
+      - uses: eas/download_build
+        id: download
+        with: { build_id: "${{ needs.android_build.outputs.build_id || needs.android_repack.outputs.build_id }}" }
+      - uses: eas/start_android_emulator
+      - run: adb wait-for-device
+      - run: adb reverse tcp:3000 tcp:3000 && adb reverse tcp:8545 tcp:8545
+      - run: adb install "${{ steps.download.outputs.artifact_path }}"
+      - uses: eas/install_maestro
+      - run: pnpm e2e:maestro
+      - name: Exa teardown
+        if: always()
+        run: |
+          [ -f /tmp/server.pid ] && kill $(cat /tmp/server.pid) 2>/dev/null || true
+          mkdir -p ${ eas.env.HOME }/.maestro/tests
+          adb logcat -d -v time > ${ eas.env.HOME }/.maestro/tests/android-device.log
+      - uses: eas/upload_artifact
+        if: always()
+        with:
+          type: other
+          path: ${ eas.env.HOME }/.maestro/tests
+          ignore_error: true
+
+  ios_get:
+    type: get-build
+    needs: [fingerprint]
+    environment: preview
+    params: { platform: ios, fingerprint_hash: "${{ needs.fingerprint.outputs.ios_fingerprint_hash }}" }
+
+  ios_build:
+    type: build
+    needs: [ios_get]
+    if: ${{ !needs.ios_get.outputs.build_id }}
+    params: { platform: ios, profile: e2e }
+
+  ios_repack:
+    type: repack
+    needs: [ios_get]
+    if: ${{ needs.ios_get.outputs.build_id }}
+    params: { build_id: "${{ needs.ios_get.outputs.build_id }}" }
+
+  ios_e2e:
+    after: [ios_repack, ios_build]
+    runs_on: macos-large
+    environment: preview
+    image: latest
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - name: Start Anvil and Exa Server
+        env: { APP_DOMAIN: localhost, NODE_ENV: e2e }
+        run: |
+          pnpm run --filter server e2e > /tmp/server.log 2>&1 &
+          echo $! > /tmp/server.pid
+          for i in {1..60}; do
+            curl -f http://localhost:3000/api/auth/authentication > /dev/null 2>&1 && break
+            [ $i -eq 60 ] && cat /tmp/server.log && exit 1
+            sleep 1
+          done
+      - uses: eas/download_build
+        id: download
+        with: { build_id: "${{ needs.ios_build.outputs.build_id || needs.ios_repack.outputs.build_id }}" }
+      - uses: eas/start_ios_simulator
+      - run: xcrun simctl install booted "${{ steps.download.outputs.artifact_path }}" # cspell:ignore xcrun simctl
+      - uses: eas/install_maestro
+      - run: pnpm e2e:maestro
+      - name: Stop Anvil and Exa Server
+        if: always()
+        run: |
+          [ -f /tmp/server.pid ] && kill $(cat /tmp/server.pid) 2>/dev/null || true
+      - uses: eas/upload_artifact
+        if: always()
+        with:
+          type: other
+          path: ${ eas.env.HOME }/.maestro/tests
+          ignore_error: true

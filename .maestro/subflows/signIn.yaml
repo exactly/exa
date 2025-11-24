@@ -1,0 +1,12 @@
+appId: app.exactly
+name: signIn
+---
+- extendedWaitUntil:
+    visible:
+      text: Sign in
+    timeout: 15000
+- tapOn: Sign in
+- extendedWaitUntil:
+    visible:
+      text: Your portfolio
+    timeout: 15000

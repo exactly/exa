@@ -279,14 +279,28 @@ app.onError((error, c) => {
 
 const server = serve(app);
 
-["SIGINT", "SIGTERM"].map((code) =>
-  process.on(code, () =>
+export default async function closeServer() {
+  return new Promise((resolve, reject) => {
     server.close((error) => {
       Promise.allSettled([close(), closeAndFlush()])
         .then((results) => {
-          process.exit(error || results.some((result) => result.status === "rejected") ? 1 : 0); // eslint-disable-line n/no-process-exit
+          if (error) reject(error);
+          else if (results.some((result) => result.status === "rejected")) reject(new Error("closing services failed"));
+          else resolve(null);
         })
-        .catch(() => undefined);
-    }),
-  ),
+        .catch(reject);
+    });
+  });
+}
+
+["SIGINT", "SIGTERM"].map((code) =>
+  process.on(code, () => {
+    closeServer()
+      .then(() => {
+        process.exit(0); // eslint-disable-line n/no-process-exit
+      })
+      .catch(() => {
+        process.exit(1); // eslint-disable-line n/no-process-exit
+      });
+  }),
 );
