@@ -382,7 +382,7 @@ const withdrawProposal = {
         },
       },
       sequenceNumber: "10000000000578619000",
-      network: "OPT_SEPOLIA",
+      network: "ANVIL",
     },
   },
 };

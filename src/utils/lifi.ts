@@ -16,6 +16,7 @@ import {
 import { parse } from "valibot";
 import { encodeFunctionData, formatUnits } from "viem";
 import type { Address } from "viem";
+import { anvil } from "viem/chains";
 
 import publicClient from "./publicClient";
 
@@ -27,7 +28,7 @@ export async function getRoute(
   receiver: Hex,
   denyExchanges?: Record<string, boolean>,
 ) {
-  if (chain.testnet) {
+  if (chain.testnet || chain.id === anvil.id) {
     const fromAmount = await publicClient.readContract({
       abi: mockSwapperAbi,
       functionName: "getAmountIn",
@@ -86,17 +87,20 @@ export async function getRoute(
 }
 
 async function getAllTokens(): Promise<Token[]> {
+  if (chain.testnet || chain.id === anvil.id) return [];
   const response = await getTokens({ chains: [chain.id] });
   const exa = await getToken(chain.id, "0x1e925De1c68ef83bD98eE3E130eF14a50309C01B");
   return [exa, ...(response.tokens[chain.id] ?? [])];
 }
 
 export async function getAsset(account: Address) {
+  if (chain.testnet || chain.id === anvil.id) return;
   const tokens = await getAllTokens();
   return tokens.find((token) => token.address === account);
 }
 
 export async function getTokenBalances(account: Address) {
+  if (chain.testnet || chain.id === anvil.id) return [];
   const tokens = await getAllTokens();
   const balances = await getTokenBalancesByChain(account, { [chain.id]: tokens });
   return balances[chain.id]?.filter((balance) => balance.amount && balance.amount > 0n) ?? [];
@@ -145,6 +149,7 @@ const allowList = new Set([
 ]);
 
 export async function getAllowTokens() {
+  if (chain.testnet || chain.id === anvil.id) return [];
   const exa = await getToken(chain.id, "0x1e925De1c68ef83bD98eE3E130eF14a50309C01B");
   const { tokens } = await getTokens({ chains: [chain.id] });
   const allowTokens = tokens[chain.id]?.filter((token) => allowList.has(token.address)) ?? [];

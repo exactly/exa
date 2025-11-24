@@ -1,0 +1,9 @@
+appId: app.exactly
+---
+- runFlow:
+    when: { visible: Development servers }
+    commands:
+      - tapOn: http://localhost:8081
+      - extendedWaitUntil: { visible: .*developer menu.* }
+      - tapOn: Continue
+      - swipe: { direction: DOWN }

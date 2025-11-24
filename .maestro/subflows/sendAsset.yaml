@@ -1,0 +1,17 @@
+appId: app.exactly
+---
+- assertTrue: ${asset && to && amount && !Number.isNaN(Number(amount))}
+- tapOn: Send
+- tapOn: Enter Anvil address
+- inputText: ${to}
+- hideKeyboard
+- tapOn: { text: Next, waitToSettleTimeoutMs: 500 }
+- tapOn: { text: "${asset}", waitToSettleTimeoutMs: 500 }
+- tapOn: ${asset}
+- inputText: ${amount}
+- tapOn: "To:"
+- tapOn: Review
+- tapOn: Send
+# TODO assert success
+- tapOn: Close
+- tapOn: Back # HACK return to home

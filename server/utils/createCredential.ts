@@ -42,12 +42,11 @@ export default async function createCredential<C extends string>(
   ]);
   await Promise.all([
     setSignedCookie(c, "credential_id", credentialId, authSecret, {
-      domain,
       expires,
       httpOnly: true,
-      sameSite: "none",
-      secure: true,
-      partitioned: true,
+      ...(domain === "localhost"
+        ? { sameSite: "lax", secure: false }
+        : { domain, sameSite: "none", secure: true, partitioned: true }),
     }),
     fetch("https://dashboard.alchemy.com/api/update-webhook-addresses", {
       method: "PATCH",

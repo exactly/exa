@@ -1,0 +1,61 @@
+appId: app.exactly
+---
+- extendedWaitUntil: { visible: Begin verifying }
+- tapOn: Begin verifying
+- extendedWaitUntil: { visible: I saved my ID with Persona }
+- tapOn: Begin verifying
+- extendedWaitUntil: { visible: "What country is your government ID from?" }
+- tapOn: Select
+- extendedWaitUntil: { visible: Upload a photo ID }
+- tapOn: Passport
+- runFlow:
+    when:
+      visible: Couldn't access camera
+    commands: [{ tapOn: Continue }]
+- extendedWaitUntil: { visible: Take Photo }
+- tapOn: Take Photo
+- extendedWaitUntil: { visible: Use this photo }
+- tapOn: Use this photo
+- extendedWaitUntil: { visible: Address }
+- hideKeyboard
+- tapOn: Continue
+- extendedWaitUntil: { visible: Let's make sure you’re you }
+- tapOn: Get started
+- extendedWaitUntil: { visible: shutter button }
+- repeat:
+    while: { visible: shutter button }
+    commands: [{ tapOn: shutter button }]
+- extendedWaitUntil: { visible: Email address }
+- inputText: test@test.com
+- tapOn: Continue
+- extendedWaitUntil: { visible: Confirmation Code }
+- inputText: "12345"
+- tapOn: Continue
+- extendedWaitUntil: { visible: "What is your phone number?" }
+- inputText: "+12125551234"
+- tapOn: Continue
+- extendedWaitUntil: { visible: Resend confirmation code }
+- inputText: "1234"
+- extendedWaitUntil: { visible: Economic activity }
+- tapOn: Economic activity
+- swipe: { direction: UP }
+- tapOn: Science
+- swipe: { direction: UP }
+- tapOn: Travel Usage
+- swipe: { direction: UP }
+- tapOn: .*US\$.*
+- swipe: { direction: UP }
+- tapOn: .*US\$.*
+- tapOn: Continue
+- tapOn: Select
+- swipe: { direction: UP }
+- tapOn: \s*No\s*
+- tapOn: Continue
+- extendedWaitUntil: { visible: Read and accept the following documents }
+- repeat: { times: 6, commands: [{ tapOn: square }] }
+- tapOn: Continue
+- extendedWaitUntil: { visible: Done }
+- tapOn: Done
+- runScript:
+    file: ../dist/approveKYC.js
+    env: { credentialId: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" }

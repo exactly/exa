@@ -1,6 +1,8 @@
 const domain = require("@exactly/common/domain");
-const { extraErrorDataIntegration, init } = require("@sentry/node");
+const { consoleLoggingIntegration, extraErrorDataIntegration, init } = require("@sentry/node");
 const { nodeProfilingIntegration } = require("@sentry/profiling-node");
+
+const development = !process.env.APP_DOMAIN || process.env.APP_DOMAIN === "localhost";
 
 init({
   dsn: process.env.SENTRY_DSN,
@@ -17,7 +19,12 @@ init({
   attachStacktrace: true,
   maxValueLength: 8192,
   normalizeDepth: 69,
-  integrations: [nodeProfilingIntegration(), extraErrorDataIntegration({ depth: 69 })],
-  spotlight: !process.env.APP_DOMAIN || process.env.APP_DOMAIN === "localhost",
+  enableLogs: true,
+  integrations: [
+    nodeProfilingIntegration(),
+    extraErrorDataIntegration({ depth: 69 }),
+    ...(development ? [consoleLoggingIntegration()] : []),
+  ],
   beforeSendTransaction: (transaction) => (transaction.extra?.["exa.ignore"] ? null : transaction),
+  spotlight: development,
 });

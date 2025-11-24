@@ -36,6 +36,7 @@
         "inputs": [
           "production",
           "^production",
+          "{workspaceRoot}/server/test/anvil.ts",
           {
             "env": "CHAIN_ID"
           },

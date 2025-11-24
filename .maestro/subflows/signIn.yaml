@@ -1,0 +1,6 @@
+appId: app.exactly
+---
+- extendedWaitUntil: { visible: Sign in }
+- tapOn: Sign in
+- extendedWaitUntil: { visible: Your portfolio }
+- assertVisible: 0x699F…7C6e

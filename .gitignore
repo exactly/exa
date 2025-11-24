@@ -21,6 +21,8 @@ generated/
 *.aab
 *.apk
 *.ipa
+*.app
+*.tar.gz
 
 *.log
 *.dump
