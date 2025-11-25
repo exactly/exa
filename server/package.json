@@ -68,7 +68,7 @@
     "@vitest/ui": "^3.2.4",
     "@wagmi/core": "^2.22.1",
     "better-sqlite3": "^12.4.1",
-    "drizzle-kit": "^0.31.5",
+    "drizzle-kit": "^0.31.7",
     "execa": "^9.6.0",
     "ioredis-mock": "^8.13.0",
     "openapi-types": "^12.1.3",
