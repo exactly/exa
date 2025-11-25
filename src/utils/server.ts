@@ -136,7 +136,13 @@ export async function getKYCStatus(templateId: string) {
 export async function getCredential() {
   await auth();
   const response = await api.passkey.$get();
-  if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
+  if (!response.ok) {
+    if ((response.status as number) === 401) {
+      queryClient.setQueryData(["auth"], undefined);
+      return getCredential();
+    }
+    throw new APIError(response.status, stringOrLegacy(await response.json()));
+  }
   return response.json();
 }
 
