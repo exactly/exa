@@ -103,15 +103,17 @@ const useServerFonts = typeof window === "undefined" ? useFonts : () => undefine
 const useServerAssets = typeof window === "undefined" ? useAssets : () => undefined;
 const useLayoutEffect = typeof window === "undefined" ? () => undefined : useClientLayoutEffect;
 const devtools = !!JSON.parse(process.env.EXPO_PUBLIC_DEVTOOLS ?? String(Platform.OS === "web" && __DEV__));
-createConfig({
-  integrator: "exa_app",
-  apiKey: "4bdb54aa-4f28-4c61-992a-a2fdc87b0a0b.251e33ad-ef5e-40cb-9b0f-52d634b99e8f",
-  providers: [EVM({ getWalletClient: () => Promise.resolve(publicClient) })],
-  rpcUrls: {
-    [optimism.id]: [`${optimism.rpcUrls.alchemy?.http[0]}/${alchemyAPIKey}`],
-    [chain.id]: [publicClient.transport.url],
-  },
-});
+if (!chain.testnet) {
+  createConfig({
+    integrator: "exa_app",
+    apiKey: "4bdb54aa-4f28-4c61-992a-a2fdc87b0a0b.251e33ad-ef5e-40cb-9b0f-52d634b99e8f",
+    providers: [EVM({ getWalletClient: () => Promise.resolve(publicClient) })],
+    rpcUrls: {
+      [optimism.id]: [`${optimism.rpcUrls.alchemy?.http[0]}/${alchemyAPIKey}`],
+      [chain.id]: [publicClient.transport.url],
+    },
+  });
+}
 
 export default wrap(function RootLayout() {
   const navigationContainer = useNavigationContainerRef();
