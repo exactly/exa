@@ -58,7 +58,7 @@ app.get("/.well-known/farcaster.json", (c) =>
       description: appMetadata.description,
       ogDescription: appMetadata.description,
       buttonTitle: "Get your card",
-      iconUrl: `${appOrigin}/assets/src/assets/icon.398a7d94ad4f3fdc1e745ea39378674a.png`,
+      iconUrl: `${appOrigin}/assets/src/assets/icon.ee8db558f86485a670692d730dc29e85.png`,
       imageUrl: "https://exactly.app/miniapp-image.webp",
       ogImageUrl: "https://exactly.app/og-image.webp",
       heroImageUrl: "https://exactly.app/og-image.webp",
