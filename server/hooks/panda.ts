@@ -1078,11 +1078,24 @@ async function publish(payload: v.InferOutput<typeof Payload>, receipt?: Transac
               timestamp,
               body: { ...payload.body, credentialId: user.id },
             }),
-            webhook.card?.[payload.action] ?? webhook.url,
+            webhook.user?.[payload.action] ?? webhook.url,
             webhook.secret,
           );
         case "card":
-        // falls through
+          return sendWebhook(
+            v.parse(Webhook, {
+              ...payload,
+              timestamp,
+              body: {
+                ...payload.body,
+                status: { active: "ACTIVE", locked: "FROZEN", canceled: "DELETED", notActivated: "INACTIVE" }[
+                  payload.body.status
+                ],
+              },
+            }),
+            webhook.card?.[payload.action] ?? webhook.url,
+            webhook.secret,
+          );
         case "transaction":
           return sendWebhook(
             v.parse(Webhook, {
@@ -1197,7 +1210,7 @@ const Webhook = v.variant("resource", [
         amount: v.number(),
         frequency: v.picklist(["per24HourPeriod", "per7DayPeriod", "per30DayPeriod", "perYearPeriod"]),
       }),
-      status: v.picklist(["notActivated", "active", "locked", "canceled"]),
+      status: v.picklist(["ACTIVE", "FROZEN", "DELETED"]),
       tokenWallets: v.union([v.array(v.literal("Apple")), v.array(v.literal("Google Pay"))]),
     }),
   }),
