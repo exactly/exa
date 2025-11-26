@@ -89,6 +89,7 @@ export default defineConfig([
           usdc: usdc.address,
           weth: weth.address,
           ...(chainId !== base.id &&
+            chainId !== baseSepolia.id &&
             chainId !== anvil.id && {
               exaAccountFactory:
                 {
@@ -97,7 +98,9 @@ export default defineConfig([
             }),
         },
         {
-          ...((chainId === base.id || chainId === anvil.id) && { scripts: { exaAccountFactory: "ExaAccountFactory" } }),
+          ...((chainId === base.id || chainId === baseSepolia.id || chainId === anvil.id) && {
+            scripts: { exaAccountFactory: "ExaAccountFactory" },
+          }),
           optional: {
             balancerVault: balancerVault?.address,
             flashLoanAdapter: flashLoanAdapter?.address,
