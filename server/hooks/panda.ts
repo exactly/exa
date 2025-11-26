@@ -896,7 +896,7 @@ async function publish(payload: v.InferOutput<typeof Payload>, receipt?: Transac
         },
         {
           delay: ({ count }) => Math.trunc(1 << count) * 500,
-          retryCount: domain === "web.exactly.app" ? 20 : 3,
+          retryCount: domain === "base-sepolia.exactly.app" ? 3 : 20,
           shouldRetry: ({ error }) => {
             if (error instanceof Error) {
               return error.message === "WebhookFailed" || error.name === "TimeoutError";
