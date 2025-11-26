@@ -33,20 +33,8 @@ export default {
     splash: {
       backgroundColor: "#FCFCFC",
       image: "src/assets/splash.png",
-      mdpi: "src/assets/splash.png",
-      hdpi: "src/assets/splash@1.5x.png",
-      xhdpi: "src/assets/splash@2x.png",
-      xxhdpi: "src/assets/splash@3x.png",
-      xxxhdpi: "src/assets/splash@4x.png",
-      dark: {
-        backgroundColor: "#1D1D1D",
-        image: "src/assets/splash-dark.png",
-        mdpi: "src/assets/splash-dark.png",
-        hdpi: "src/assets/splash-dark@1.5x.png",
-        xhdpi: "src/assets/splash-dark@2x.png",
-        xxhdpi: "src/assets/splash-dark@3x.png",
-        xxxhdpi: "src/assets/splash-dark@4x.png",
-      },
+      resizeMode: "contain",
+      dark: { backgroundColor: "#1D1D1D", image: "src/assets/splash-dark.png" },
     },
   },
   ios: {
@@ -64,6 +52,7 @@ export default {
     splash: {
       backgroundColor: "#FCFCFC",
       image: "src/assets/splash.png",
+      resizeMode: "contain",
       dark: { backgroundColor: "#1D1D1D", image: "src/assets/splash-dark.png" },
     },
   },
