@@ -99,6 +99,7 @@ export default defineConfig([
               exaAccountFactory:
                 {
                   [optimism.id]: "0x961EbA47650e2198A959Ef5f337E542df5E4F61b",
+                  [baseSepolia.id]: "0x343efd4e2073afc4cbe304b5dd50f8d6480e2dd2",
                 }[chainId] ?? "0x98d3E8B291d9E89C25D8371b7e8fFa8BC32E0aEC",
             }),
         },
