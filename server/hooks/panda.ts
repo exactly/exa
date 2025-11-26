@@ -1400,7 +1400,7 @@ const Webhook = v.variant("resource", [
         amount: v.number(),
         frequency: v.picklist(["per24HourPeriod", "per7DayPeriod", "per30DayPeriod", "perYearPeriod"]),
       }),
-      status: v.picklist(["notActivated", "active", "locked", "canceled"]),
+      status: v.picklist(["ACTIVE", "FROZEN", "DELETED"]),
       tokenWallets: v.union([v.array(v.literal("Apple")), v.array(v.literal("Google Pay"))]),
     }),
   }),
