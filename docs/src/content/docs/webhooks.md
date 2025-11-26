@@ -539,10 +539,10 @@ The onchain receipt will be present only if a onchain transaction is necessary.
 | body.id                      | string   | Transaction id. Is the same for many events in the life cycle of the purchase| f1083e93-afd5-4271-85c6-dd47099e9746         |
 | body.type                    | "spend"   |                                                                             | spend                                        |
 | body.spend.amount            | integer  | Amount of the purchase in USD in cents. 1 USD = 100                         | 100                                          |
-| body.spend.currency          | string   | Always in usd                                                               | usd                                          |
+| body.spend.currency          | string   | Always in usd  ISO 4217                                                               | usd                                          |
 | body.spend.cardId            | string   |                                                                             | 47c3c3b3-b197-4a97-ace3-901a6ad7cf61         |
 | body.spend.localAmount       | integer  | Purchase amount in local currency                                           | 100                                          |
-| body.spend.localCurrency     | string   | The local currency                                                          | usd, eur, ars                                |
+| body.spend.localCurrency     | string   | The local currency ISO 4217                                                          | eur                                |
 | body.spend.merchantCity?     | string   | The merchant city                                                           | "San Francisco"                              |
 | body.spend.merchantCountry?  | string   | The merchant country                                                        | "US"                                         |
 | body.spend.merchantCategory? | string   | The merchant category                                                       | "5814 - Quick Payment Service-Fast Food Restaurants" |
@@ -570,10 +570,10 @@ Triggered for events such as incremental authorizations or reversals (a type of 
 | body.id                      | string                            | transaction id. the same in the life cycle of the purchase        | 96fbeb61-b4b0-59ab-93e0-2f2afce7637c |
 | body.type                    | "spend"                           |                      | spend                    |
 | body.spend.amount            | number                            | amount in usd authorized                     | 2499                       |
-| body.spend.currency          | string                            |       always dollars               |         usd                 |
+| body.spend.currency          | string                            |       always dollars  ISO 4217                |         usd                 |
 | body.spend.cardId            | string                            | card identifier     | e874583f-47d9-4211-8ea6-3b92e450821b |
 | body.spend.localAmount       | number                            |    amount in local currency authorized                  |     2499                     |
-| body.spend.localCurrency     | string                            |      currency of the purchase                |          usd                |
+| body.spend.localCurrency     | string                            |      currency of the purchase  ISO 4217                 |          usd                |
 | body.spend.merchantCity?      | string                            | city of the merchant | SAN FRANCISCO             |
 | body.spend.merchantCountry?   | string                            | country of the merchant | US                     |
 | body.spend.merchantCategory?  | string                            | category of the merchant | 4121 - Taxicabs and Limousines |
@@ -604,10 +604,10 @@ if an onchain transaction is necessary.
 | body.id                      | string   | Is the Transaction id and is the same in the life cycle of the purchase. With refunds could be different from the original purchase. | 96fbeb61-b4b0-59ab-93e0-2f2afce7637c |
 | body.type                    | "spend"  |                                                       | spend                                        |
 | body.spend.amount            | number   | final settled amount in usd                           | 1041                                         |
-| body.spend.currency          | string   | always dollars                                        | usd                                          |
+| body.spend.currency          | string   | always dollars  ISO 4217                                      | usd                                          |
 | body.spend.cardId            | string   | card identifier                                       | e874583f-47d9-4211-8ea6-3b92e450821b |
 | body.spend.localAmount       | number   | final settled amount in local currency                | 1270000                                      |
-| body.spend.localCurrency     | string   | currency of the purchase                              | ars                                          |
+| body.spend.localCurrency     | string   | currency of the purchase ISO 4217                               | ars                                          |
 | body.spend.merchantCity?     | string   | city of the merchant                                  | CAP.FEDERAL                                  |
 | body.spend.merchantCountry?  | string   | country of the merchant                               | AR                                           |
 | body.spend.merchantCategory? | string   | category of the merchant                              | Recreation Services                          |
@@ -650,5 +650,5 @@ This webhook is currently triggered when a user adds their card to a digital wal
 | body.last4                   | string   | last 4 digits of the card                             | 7392                                         |
 | body.limit.amount            | number   | spending limit amount                                 | 1000000                                      |
 | body.limit.frequency         | "per24HourPeriod" \| "per7DayPeriod" \|"per30DayPeriod" \|"perYearPeriod"   | frequency of the spending limit                       | per7DayPeriod                                |
-| body.status                  | "notActivated" \| "active" \| "locked" \| "canceled"   | current status of the card                            | active                                       |
+| body.status                  | "ACTIVE" \| "FROZEN" \| "DELETED"    | current status of the card                            | ACTIVE                                       |
 | body.tokenWallets            | ["Apple"] \| ["Google Pay"] | array of token wallets                                | ["Apple"]                                    |
