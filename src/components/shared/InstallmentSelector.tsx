@@ -1,5 +1,6 @@
 import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
 import { previewerAddress } from "@exactly/common/generated/chain";
+import { useReadPreviewerPreviewBorrowAtMaturity } from "@exactly/common/generated/hooks";
 import type { Hex } from "@exactly/common/validation";
 import { Check } from "@tamagui/lucide-icons";
 import React from "react";
@@ -10,7 +11,6 @@ import { zeroAddress } from "viem";
 import AssetLogo from "./AssetLogo";
 import Skeleton from "./Skeleton";
 import Text from "./Text";
-import { useReadPreviewerPreviewBorrowAtMaturity } from "../../generated/contracts";
 import assetLogos from "../../utils/assetLogos";
 import useAsset from "../../utils/useAsset";
 import useInstallments from "../../utils/useInstallments";

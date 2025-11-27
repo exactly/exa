@@ -1,4 +1,5 @@
 import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
+import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { ArrowLeft, CircleHelp } from "@tamagui/lucide-icons";
 import { useNavigation, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
@@ -8,7 +9,6 @@ import { zeroAddress } from "viem";
 
 import CreditLine from "./CreditLine";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
-import { useReadPreviewerExactly } from "../../generated/contracts";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAsset from "../../utils/useAsset";

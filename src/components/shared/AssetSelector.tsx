@@ -1,4 +1,5 @@
 import { previewerAddress } from "@exactly/common/generated/chain";
+import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { Address } from "@exactly/common/validation";
 import { withdrawLimit } from "@exactly/lib";
 import React, { useState } from "react";
@@ -10,7 +11,6 @@ import { zeroAddress } from "viem";
 
 import AssetLogo from "./AssetLogo";
 import Skeleton from "./Skeleton";
-import { useReadPreviewerExactly } from "../../generated/contracts";
 import assetLogos from "../../utils/assetLogos";
 import useAccount from "../../utils/useAccount";
 import useAccountAssets from "../../utils/useAccountAssets";

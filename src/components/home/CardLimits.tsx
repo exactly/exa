@@ -1,4 +1,5 @@
 import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
+import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { borrowLimit, WAD, withdrawLimit } from "@exactly/lib";
 import { ChevronRight, Info } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
@@ -9,7 +10,6 @@ import { XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
 
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
-import { useReadPreviewerExactly } from "../../generated/contracts";
 import assetLogos from "../../utils/assetLogos";
 import { getCard } from "../../utils/server";
 import useAccount from "../../utils/useAccount";

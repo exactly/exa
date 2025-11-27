@@ -1,11 +1,11 @@
 import chain, { previewerAddress } from "@exactly/common/generated/chain";
+import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { withdrawLimit } from "@exactly/lib";
 import { useQuery } from "@tanstack/react-query";
 import { zeroAddress } from "viem";
 
 import { getTokenBalances } from "./lifi";
 import useAccount from "./useAccount";
-import { useReadPreviewerExactly } from "../generated/contracts";
 
 export interface ProtocolAsset {
   asset: string;

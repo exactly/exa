@@ -5,6 +5,16 @@ import {
   proposalManagerAddress,
   swapperAddress,
 } from "@exactly/common/generated/chain";
+import {
+  auditorAbi,
+  exaPluginAbi,
+  marketAbi,
+  proposalManagerAbi,
+  upgradeableModularAccountAbi,
+  useReadExaPreviewerAssets,
+  useReadProposalManagerDelay,
+  useReadProposalManagerQueueNonces,
+} from "@exactly/common/generated/hooks";
 import { useMemo } from "react";
 import {
   bytesToHex,
@@ -20,17 +30,6 @@ import {
   type StateOverride,
 } from "viem";
 import { useBytecode, useSimulateContract } from "wagmi";
-
-import {
-  auditorAbi,
-  exaPluginAbi,
-  marketAbi,
-  proposalManagerAbi,
-  upgradeableModularAccountAbi,
-  useReadExaPreviewerAssets,
-  useReadProposalManagerDelay,
-  useReadProposalManagerQueueNonces,
-} from "../generated/contracts";
 
 export default function useSimulateProposal({
   account,

@@ -1,4 +1,5 @@
 import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
+import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { useNavigation, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
 import { RefreshControl } from "react-native";
@@ -10,7 +11,6 @@ import PaySelector from "./PaySelector";
 import PaymentSheet from "./PaymentSheet";
 import UpcomingPayments from "./UpcomingPayments";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
-import { useReadPreviewerExactly } from "../../generated/contracts";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAsset from "../../utils/useAsset";

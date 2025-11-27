@@ -1,4 +1,5 @@
 import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
+import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
 import { borrowLimit, withdrawLimit } from "@exactly/lib";
 import { Loader, LockKeyhole, Snowflake } from "@tamagui/lucide-icons";
@@ -10,7 +11,6 @@ import { zeroAddress } from "viem";
 
 import SignatureCard from "../../../assets/images/card-signature.svg";
 import Card from "../../../assets/images/card.svg";
-import { useReadPreviewerExactly } from "../../../generated/contracts";
 import useAccount from "../../../utils/useAccount";
 import AnimatedView from "../../shared/AnimatedView";
 import Text from "../../shared/Text";
