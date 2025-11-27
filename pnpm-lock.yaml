@@ -20,6 +20,7 @@ overrides:
   form-data@4.0.2: ^4.0.4
   glob@10.4.5: ^10.5.0
   nanoid@3.3.7: ^3.3.8
+  node-forge@1.3.1: ^1.3.2
   on-headers@1.0.2: ^1.1.0
   react-native: 0.76.9
   semver@7.3.2: ^7.5.2
@@ -27,7 +28,7 @@ overrides:
   sharp: ^0.34.1
   tmp@0.0.33: ^0.2.4
   typescript: ^5.8.3
-  valibot: ^1.0.0
+  valibot: ^1.2.0
   viem: ^2.40.3
   wagmi: ^2.18.1
   ws: ^8.18.1
@@ -285,8 +286,8 @@ importers:
         specifier: ^4.3.2
         version: 4.3.2
       valibot:
-        specifier: ^1.0.0
-        version: 1.0.0(typescript@5.8.3)
+        specifier: ^1.2.0
+        version: 1.2.0(typescript@5.8.3)
       viem:
         specifier: ^2.40.3
         version: 2.40.3(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
@@ -469,8 +470,8 @@ importers:
         specifier: ^3.19.0
         version: 3.19.0(typescript@5.8.3)(viem@2.40.3(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76))
       valibot:
-        specifier: ^1.0.0
-        version: 1.0.0(typescript@5.8.3)
+        specifier: ^1.2.0
+        version: 1.2.0(typescript@5.8.3)
       viem:
         specifier: ^2.40.3
         version: 2.40.3(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
@@ -580,7 +581,7 @@ importers:
         version: 1.2.2(hono@4.10.3)
       '@hono/valibot-validator':
         specifier: ^0.5.3
-        version: 0.5.3(hono@4.10.3)(valibot@1.0.0(typescript@5.8.3))
+        version: 0.5.3(hono@4.10.3)(valibot@1.2.0(typescript@5.8.3))
       '@onesignal/node-onesignal':
         specifier: ^5.3.1-beta1
         version: 5.3.1-beta1
@@ -604,7 +605,7 @@ importers:
         version: 4.1.12
       '@valibot/to-json-schema':
         specifier: ^1.3.0
-        version: 1.3.0(valibot@1.0.0(typescript@5.8.3))
+        version: 1.3.0(valibot@1.2.0(typescript@5.8.3))
       async-mutex:
         specifier: ^0.5.0
         version: 0.5.0
@@ -625,7 +626,7 @@ importers:
         version: 4.10.3
       hono-openapi:
         specifier: ^0.4.8
-        version: 0.4.8(@hono/valibot-validator@0.5.3(hono@4.10.3)(valibot@1.0.0(typescript@5.8.3)))(@valibot/to-json-schema@1.3.0(valibot@1.0.0(typescript@5.8.3)))(hono@4.10.3)(openapi-types@12.1.3)(valibot@1.0.0(typescript@5.8.3))(zod@3.25.76)
+        version: 0.4.8(@hono/valibot-validator@0.5.3(hono@4.10.3)(valibot@1.2.0(typescript@5.8.3)))(@valibot/to-json-schema@1.3.0(valibot@1.2.0(typescript@5.8.3)))(hono@4.10.3)(openapi-types@12.1.3)(valibot@1.2.0(typescript@5.8.3))(zod@3.25.76)
       i18n-iso-countries:
         specifier: ^7.14.0
         version: 7.14.0
@@ -639,8 +640,8 @@ importers:
         specifier: ^5.6.2
         version: 5.6.2(ioredis@5.8.2)
       valibot:
-        specifier: ^1.0.0
-        version: 1.0.0(typescript@5.8.3)
+        specifier: ^1.2.0
+        version: 1.2.0(typescript@5.8.3)
       viem:
         specifier: ^2.40.3
         version: 2.40.3(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
@@ -2345,7 +2346,7 @@ packages:
     resolution: {integrity: sha512-91wjmjDvrTdEm2ZcuCyLBghtld78QoLEduzfkqLo1L74n6sqqoVfc0gDfmju1Ar6w1eK8Q0UyIubrtj4KMWVnQ==}
     peerDependencies:
       hono: '>=3.9.0'
-      valibot: ^1.0.0
+      valibot: ^1.2.0
 
   '@humanwhocodes/config-array@0.13.0':
     resolution: {integrity: sha512-DZLEEqFWQFiyK6h5YIeynKx7JlvCYWL0cImfSRXZ9l4Sg2efkFGTuFf6vzXjK1cq6IYkU+Eg/JizXw+TD2vRNw==}
@@ -5111,7 +5112,7 @@ packages:
   '@valibot/to-json-schema@1.3.0':
     resolution: {integrity: sha512-82Vv6x7sOYhv5YmTRgSppSqj1nn2pMCk5BqCMGWYp0V/fq+qirrbGncqZAtZ09/lrO40ne/7z8ejwE728aVreg==}
     peerDependencies:
-      valibot: ^1.0.0
+      valibot: ^1.2.0
 
   '@vitest/coverage-v8@3.2.4':
     resolution: {integrity: sha512-EyF9SXU6kS5Ku/U82E259WSnvg6c8KTjppUncuNdm5QHpe17mwREHnjDzozC8x9MZ0xfBUFSaLkRv4TMA75ALQ==}
@@ -7945,7 +7946,7 @@ packages:
       effect: ^3.11.3
       hono: ^4.6.13
       openapi-types: ^12.1.3
-      valibot: ^1.0.0
+      valibot: ^1.2.0
       zod: ^3.23.8
       zod-openapi: ^4.0.0
     peerDependenciesMeta:
@@ -9405,8 +9406,8 @@ packages:
       encoding:
         optional: true
 
-  node-forge@1.3.1:
-    resolution: {integrity: sha512-dPEtOeMvF9VMcYV/1Wb8CPoVAXtp6MKMlcbAt4ddqmGqUJ6fQZFXkNZNkNlfevtNkGtaSoXf/vNNNSvgrdXwtA==}
+  node-forge@1.3.2:
+    resolution: {integrity: sha512-6xKiQ+cph9KImrRh0VsjH2d8/GXA4FIMlgU4B757iI1ApvcyA9VlouP0yZJha01V+huImO+kKMU7ih+2+E14fw==}
     engines: {node: '>= 6.13.0'}
 
   node-gyp-build-optional-packages@5.2.2:
@@ -11629,8 +11630,8 @@ packages:
     resolution: {integrity: sha512-+NYs2QeMWy+GWFOEm9xnn6HCDp0l7QBD7ml8zLUmJ+93Q5NF0NocErnwkTkXVFNiX3/fpC6afS8Dhb/gz7R7eg==}
     hasBin: true
 
-  valibot@1.0.0:
-    resolution: {integrity: sha512-1Hc0ihzWxBar6NGeZv7fPLY0QuxFMyxwYR2sF1Blu7Wq7EnremwY2W02tit2ij2VJT8HcSkHAQqmFfl77f73Yw==}
+  valibot@1.2.0:
+    resolution: {integrity: sha512-mm1rxUsmOxzrwnX5arGS+U4T25RdvpPjPN4yR0u9pUBov9+zGVtO84tif1eY4r6zWxVxu3KzIyknJy3rxfRZZg==}
     peerDependencies:
       typescript: ^5.8.3
     peerDependenciesMeta:
@@ -14109,7 +14110,7 @@ snapshots:
       is-wsl: 2.2.0
       lodash.debounce: 4.0.8
       minimatch: 3.1.2
-      node-forge: 1.3.1
+      node-forge: 1.3.2
       npm-package-arg: 11.0.3
       ora: 3.4.0
       picomatch: 3.0.1
@@ -14146,7 +14147,7 @@ snapshots:
 
   '@expo/code-signing-certificates@0.0.5':
     dependencies:
-      node-forge: 1.3.1
+      node-forge: 1.3.2
       nullthrows: 1.1.1
 
   '@expo/config-plugins@9.0.17':
@@ -14490,10 +14491,10 @@ snapshots:
       hono: 4.10.3
       toucan-js: 4.1.1
 
-  '@hono/valibot-validator@0.5.3(hono@4.10.3)(valibot@1.0.0(typescript@5.8.3))':
+  '@hono/valibot-validator@0.5.3(hono@4.10.3)(valibot@1.2.0(typescript@5.8.3))':
     dependencies:
       hono: 4.10.3
-      valibot: 1.0.0(typescript@5.8.3)
+      valibot: 1.2.0(typescript@5.8.3)
 
   '@humanwhocodes/config-array@0.13.0':
     dependencies:
@@ -18265,9 +18266,9 @@ snapshots:
     transitivePeerDependencies:
       - graphql
 
-  '@valibot/to-json-schema@1.3.0(valibot@1.0.0(typescript@5.8.3))':
+  '@valibot/to-json-schema@1.3.0(valibot@1.2.0(typescript@5.8.3))':
     dependencies:
-      valibot: 1.0.0(typescript@5.8.3)
+      valibot: 1.2.0(typescript@5.8.3)
 
   '@vitest/coverage-v8@3.2.4(vitest@3.2.4)':
     dependencies:
@@ -21853,15 +21854,15 @@ snapshots:
     dependencies:
       react-is: 16.13.1
 
-  hono-openapi@0.4.8(@hono/valibot-validator@0.5.3(hono@4.10.3)(valibot@1.0.0(typescript@5.8.3)))(@valibot/to-json-schema@1.3.0(valibot@1.0.0(typescript@5.8.3)))(hono@4.10.3)(openapi-types@12.1.3)(valibot@1.0.0(typescript@5.8.3))(zod@3.25.76):
+  hono-openapi@0.4.8(@hono/valibot-validator@0.5.3(hono@4.10.3)(valibot@1.2.0(typescript@5.8.3)))(@valibot/to-json-schema@1.3.0(valibot@1.2.0(typescript@5.8.3)))(hono@4.10.3)(openapi-types@12.1.3)(valibot@1.2.0(typescript@5.8.3))(zod@3.25.76):
     dependencies:
       json-schema-walker: 2.0.0
       openapi-types: 12.1.3
     optionalDependencies:
-      '@hono/valibot-validator': 0.5.3(hono@4.10.3)(valibot@1.0.0(typescript@5.8.3))
-      '@valibot/to-json-schema': 1.3.0(valibot@1.0.0(typescript@5.8.3))
+      '@hono/valibot-validator': 0.5.3(hono@4.10.3)(valibot@1.2.0(typescript@5.8.3))
+      '@valibot/to-json-schema': 1.3.0(valibot@1.2.0(typescript@5.8.3))
       hono: 4.10.3
-      valibot: 1.0.0(typescript@5.8.3)
+      valibot: 1.2.0(typescript@5.8.3)
       zod: 3.25.76
 
   hono@4.10.3: {}
@@ -23725,7 +23726,7 @@ snapshots:
     dependencies:
       whatwg-url: 5.0.0
 
-  node-forge@1.3.1: {}
+  node-forge@1.3.2: {}
 
   node-gyp-build-optional-packages@5.2.2:
     dependencies:
@@ -25174,7 +25175,7 @@ snapshots:
   selfsigned@2.4.1:
     dependencies:
       '@types/node-forge': 1.3.11
-      node-forge: 1.3.1
+      node-forge: 1.3.2
 
   semver@5.7.2: {}
 
@@ -26322,7 +26323,7 @@ snapshots:
 
   uuid@8.3.2: {}
 
-  valibot@1.0.0(typescript@5.8.3):
+  valibot@1.2.0(typescript@5.8.3):
     optionalDependencies:
       typescript: 5.8.3
 
