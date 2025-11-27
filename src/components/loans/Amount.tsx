@@ -1,4 +1,5 @@
 import { previewerAddress } from "@exactly/common/generated/chain";
+import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { ArrowLeft, ArrowRight, Check, CircleHelp, TriangleAlert } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigation } from "expo-router";
@@ -10,7 +11,6 @@ import { useBytecode } from "wagmi";
 
 import AmountSelector from "./AmountSelector";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
-import { useReadPreviewerExactly } from "../../generated/contracts";
 import type { Loan } from "../../utils/queryClient";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";

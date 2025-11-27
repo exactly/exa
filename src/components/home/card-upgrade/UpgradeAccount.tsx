@@ -1,4 +1,10 @@
 import { exaPluginAddress } from "@exactly/common/generated/chain";
+import {
+  exaPluginAbi,
+  upgradeableModularAccountAbi,
+  useReadExaPluginPluginManifest,
+  useReadUpgradeableModularAccountGetInstalledPlugins,
+} from "@exactly/common/generated/hooks";
 import { ArrowUpToLine } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -8,12 +14,6 @@ import { encodeAbiParameters, encodeFunctionData, getAbiItem, keccak256, zeroAdd
 import { useBytecode } from "wagmi";
 
 import Progression from "./Progression";
-import {
-  exaPluginAbi,
-  upgradeableModularAccountAbi,
-  useReadExaPluginPluginManifest,
-  useReadUpgradeableModularAccountGetInstalledPlugins,
-} from "../../../generated/contracts";
 import { accountClient } from "../../../utils/alchemyConnector";
 import queryClient from "../../../utils/queryClient";
 import reportError from "../../../utils/reportError";

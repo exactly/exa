@@ -1,6 +1,12 @@
 import type { BatchUserOperationCallData } from "@alchemy/aa-core";
 import ProposalType from "@exactly/common/ProposalType";
 import { exaPluginAddress, marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
+import {
+  exaPluginAbi,
+  upgradeableModularAccountAbi,
+  useReadPreviewerPreviewBorrowAtMaturity,
+  useReadUpgradeableModularAccountGetInstalledPlugins,
+} from "@exactly/common/generated/hooks";
 import shortenHex from "@exactly/common/shortenHex";
 import { MATURITY_INTERVAL, WAD } from "@exactly/lib";
 import { ArrowLeft, ArrowRight, Check, ChevronRight, CircleHelp, X } from "@tamagui/lucide-icons";
@@ -15,12 +21,6 @@ import { encodeAbiParameters, encodeFunctionData, maxUint256, zeroAddress } from
 import { useBytecode } from "wagmi";
 
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
-import {
-  exaPluginAbi,
-  upgradeableModularAccountAbi,
-  useReadPreviewerPreviewBorrowAtMaturity,
-  useReadUpgradeableModularAccountGetInstalledPlugins,
-} from "../../generated/contracts";
 import { accountClient } from "../../utils/alchemyConnector";
 import assetLogos from "../../utils/assetLogos";
 import type { Loan } from "../../utils/queryClient";

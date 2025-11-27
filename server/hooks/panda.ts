@@ -1,5 +1,18 @@
 import MIN_BORROW_INTERVAL from "@exactly/common/MIN_BORROW_INTERVAL";
-import { exaPluginAddress, exaPreviewerAddress, usdcAddress } from "@exactly/common/generated/chain";
+import {
+  auditorAbi,
+  exaPluginAbi,
+  exaPluginAddress,
+  exaPreviewerAbi,
+  exaPreviewerAddress,
+  issuerCheckerAbi,
+  marketAbi,
+  proposalManagerAbi,
+  refunderAbi,
+  refunderAddress,
+  upgradeableModularAccountAbi,
+  usdcAddress,
+} from "@exactly/common/generated/chain";
 import { Address, type Hash, type Hex } from "@exactly/common/validation";
 import { MATURITY_INTERVAL, splitInstallments } from "@exactly/lib";
 import { vValidator } from "@hono/valibot-validator";
@@ -36,17 +49,6 @@ import {
 } from "viem";
 
 import database, { cards, credentials, transactions } from "../database/index";
-import {
-  auditorAbi,
-  exaPluginAbi,
-  exaPreviewerAbi,
-  issuerCheckerAbi,
-  marketAbi,
-  proposalManagerAbi,
-  refunderAbi,
-  refunderAddress,
-  upgradeableModularAccountAbi,
-} from "../generated/contracts";
 import keeper from "../utils/keeper";
 import { sendPushNotification } from "../utils/onesignal";
 import { collectors, createMutex, getMutex, getUser, headerValidator, signIssuerOp, updateUser } from "../utils/panda";

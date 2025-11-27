@@ -1,4 +1,5 @@
 import { previewerAddress } from "@exactly/common/generated/chain";
+import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { ArrowLeft, ArrowRight, Check, CircleHelp } from "@tamagui/lucide-icons";
 import { useNavigation } from "expo-router";
 import React, { useState } from "react";
@@ -7,7 +8,6 @@ import { ScrollView, XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
 
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
-import { useReadPreviewerExactly } from "../../generated/contracts";
 import assetLogos from "../../utils/assetLogos";
 import queryClient, { type Loan } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";

@@ -4,6 +4,7 @@ import ProposalType, {
   decodeRollDebt,
 } from "@exactly/common/ProposalType";
 import { exaPreviewerAddress, previewerAddress } from "@exactly/common/generated/chain";
+import { useReadExaPreviewerPendingProposals, useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { WAD } from "@exactly/lib";
 import { ChevronRight } from "@tamagui/lucide-icons";
 import { format, isBefore } from "date-fns";
@@ -12,7 +13,6 @@ import { XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
 import { useBytecode } from "wagmi";
 
-import { useReadExaPreviewerPendingProposals, useReadPreviewerExactly } from "../../generated/contracts";
 import assetLogos from "../../utils/assetLogos";
 import useAccount from "../../utils/useAccount";
 import AssetLogo from "../shared/AssetLogo";

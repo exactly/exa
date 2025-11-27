@@ -1,4 +1,5 @@
 import { exaPreviewerAddress } from "@exactly/common/generated/chain";
+import { useReadExaPreviewerPendingProposals } from "@exactly/common/generated/hooks";
 import type { MutationState } from "@tanstack/react-query";
 import { useMutationState } from "@tanstack/react-query";
 import { useMemo } from "react";
@@ -7,7 +8,6 @@ import { useBytecode } from "wagmi";
 
 import type { RouteFrom } from "./lifi";
 import useAccount from "./useAccount";
-import { useReadExaPreviewerPendingProposals } from "../generated/contracts";
 import exa from "./wagmi/exa";
 
 export default function usePendingOperations() {

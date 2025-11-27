@@ -7,6 +7,13 @@ import {
   usdcAddress,
   integrationPreviewerAddress,
 } from "@exactly/common/generated/chain";
+import {
+  auditorAbi,
+  integrationPreviewerAbi,
+  marketAbi,
+  upgradeableModularAccountAbi,
+  useReadUpgradeableModularAccountGetInstalledPlugins,
+} from "@exactly/common/generated/hooks";
 import { Address } from "@exactly/common/validation";
 import { divWad, fixedRepayAssets, fixedRepayPosition, min, mulWad, WAD } from "@exactly/lib";
 import { ArrowLeft, ChevronRight, Coins } from "@tamagui/lucide-icons";
@@ -35,13 +42,6 @@ import SafeView from "../../components/shared/SafeView";
 import Button from "../../components/shared/StyledButton";
 import Text from "../../components/shared/Text";
 import View from "../../components/shared/View";
-import {
-  auditorAbi,
-  integrationPreviewerAbi,
-  marketAbi,
-  upgradeableModularAccountAbi,
-  useReadUpgradeableModularAccountGetInstalledPlugins,
-} from "../../generated/contracts";
 import { accountClient } from "../../utils/alchemyConnector";
 import assetLogos from "../../utils/assetLogos";
 import { getRoute, getRouteFrom } from "../../utils/lifi";

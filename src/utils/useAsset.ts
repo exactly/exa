@@ -1,4 +1,5 @@
 import { previewerAddress } from "@exactly/common/generated/chain";
+import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { borrowLimit, withdrawLimit } from "@exactly/lib";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
@@ -6,7 +7,6 @@ import { zeroAddress, type Address } from "viem";
 
 import { getAsset, getTokenBalances } from "./lifi";
 import useAccount from "./useAccount";
-import { useReadPreviewerExactly } from "../generated/contracts";
 
 export default function useAsset(address?: Address) {
   const { address: account } = useAccount();

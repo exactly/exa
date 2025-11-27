@@ -1,10 +1,9 @@
 import { previewerAddress, ratePreviewerAddress } from "@exactly/common/generated/chain";
+import { useReadPreviewerExactly, useReadRatePreviewerSnapshot } from "@exactly/common/generated/hooks";
 import type { Hex } from "@exactly/common/validation";
 import { floatingDepositRates } from "@exactly/lib";
 import { useMemo } from "react";
 import { zeroAddress } from "viem";
-
-import { useReadPreviewerExactly, useReadRatePreviewerSnapshot } from "../generated/contracts";
 
 export default function usePortfolio(account?: Hex) {
   const { data: rateSnapshot, dataUpdatedAt: rateDataUpdatedAt } = useReadRatePreviewerSnapshot({

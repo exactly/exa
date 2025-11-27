@@ -1,5 +1,6 @@
 import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
 import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
+import { useReadPreviewerExactly, useReadPreviewerPreviewBorrowAtMaturity } from "@exactly/common/generated/hooks";
 import { borrowLimit, WAD, withdrawLimit } from "@exactly/lib";
 import { CircleHelp, Check } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
@@ -11,7 +12,6 @@ import { XStack, YStack } from "tamagui";
 import { formatUnits, parseUnits, zeroAddress } from "viem";
 
 import ManualRepaymentSheet from "./ManualRepaymentSheet";
-import { useReadPreviewerExactly, useReadPreviewerPreviewBorrowAtMaturity } from "../../generated/contracts";
 import assetLogos from "../../utils/assetLogos";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
