@@ -390,6 +390,7 @@ export default function Card() {
                     paddingVertical="$s4"
                     justifyContent="space-between"
                     cursor="pointer"
+                    gap="$s3"
                     onPress={() => {
                       if (!limit) return;
                       setSpendingLimitsOpen(true);
@@ -414,9 +415,9 @@ export default function Card() {
                           </Text>
                           <ChevronRight color="$uiBrandSecondary" size={24} />
                         </>
-                      ) : (
+                      ) : isFetchingCard ? (
                         <Skeleton width={100} height={16} />
-                      )}
+                      ) : null}
                     </XStack>
                   </XStack>
                 </YStack>
