@@ -1,4 +1,9 @@
 import { exaPluginAddress, exaPreviewerAddress, previewerAddress } from "@exactly/common/generated/chain";
+import {
+  useReadExaPreviewerPendingProposals,
+  useReadPreviewerExactly,
+  useReadUpgradeableModularAccountGetInstalledPlugins,
+} from "@exactly/common/generated/hooks";
 import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
 import { healthFactor, WAD } from "@exactly/lib";
 import { TimeToFullDisplay } from "@sentry/react-native";
@@ -20,11 +25,6 @@ import VisaSignatureBanner from "./VisaSignatureBanner";
 import VisaSignatureModal from "./VisaSignatureSheet";
 import CardUpgradeSheet from "./card-upgrade/CardUpgradeSheet";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
-import {
-  useReadExaPreviewerPendingProposals,
-  useReadPreviewerExactly,
-  useReadUpgradeableModularAccountGetInstalledPlugins,
-} from "../../generated/contracts";
 import { KYC_TEMPLATE_ID, LEGACY_KYC_TEMPLATE_ID } from "../../utils/persona";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";

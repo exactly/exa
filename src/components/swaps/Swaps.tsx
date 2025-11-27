@@ -1,5 +1,11 @@
 import ProposalType from "@exactly/common/ProposalType";
 import { previewerAddress } from "@exactly/common/generated/chain";
+import {
+  auditorAbi,
+  marketAbi,
+  upgradeableModularAccountAbi,
+  useReadPreviewerExactly,
+} from "@exactly/common/generated/hooks";
 import { Address } from "@exactly/common/validation";
 import { WAD } from "@exactly/lib";
 import type { Token } from "@lifi/sdk";
@@ -21,12 +27,6 @@ import Success from "./Success";
 import SwapDetails from "./SwapDetails";
 import TokenInput from "./TokenInput";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
-import {
-  auditorAbi,
-  marketAbi,
-  upgradeableModularAccountAbi,
-  useReadPreviewerExactly,
-} from "../../generated/contracts";
 import { getAllowTokens, getRoute, getRouteFrom } from "../../utils/lifi";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";

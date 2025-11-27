@@ -1,4 +1,8 @@
 import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
+import {
+  useReadPreviewerExactly,
+  useReadUpgradeableModularAccountGetInstalledPlugins,
+} from "@exactly/common/generated/hooks";
 import type { Credential } from "@exactly/common/validation";
 import { ChevronRight, CircleHelp, CreditCard, DollarSign, Eye, EyeOff, Hash, Snowflake } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
@@ -17,10 +21,6 @@ import SpendingLimits from "./SpendingLimits";
 import VerificationFailure from "./VerificationFailure";
 import ExaCard from "./exa-card/ExaCard";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
-import {
-  useReadPreviewerExactly,
-  useReadUpgradeableModularAccountGetInstalledPlugins,
-} from "../../generated/contracts";
 import { createInquiry, KYC_TEMPLATE_ID, resumeInquiry } from "../../utils/persona";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";

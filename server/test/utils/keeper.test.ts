@@ -2,12 +2,12 @@ import "../mocks/sentry";
 import "../mocks/deployments";
 import { nonceSource, keeperClient } from "../mocks/keeper"; // eslint-disable-line import/order
 
+import { auditorAbi } from "@exactly/common/generated/chain";
 import { captureException } from "@sentry/node";
 import type * as timers from "node:timers/promises";
 import type { Hex } from "viem";
 import { afterEach, describe, expect, inject, it, vi } from "vitest";
 
-import { auditorAbi } from "../../generated/contracts";
 import keeper from "../../utils/keeper";
 import nonceManager from "../../utils/nonceManager";
 import publicClient from "../../utils/publicClient";

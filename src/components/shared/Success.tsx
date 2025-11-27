@@ -1,4 +1,5 @@
 import { exaPluginAddress, marketUSDCAddress } from "@exactly/common/generated/chain";
+import { useReadUpgradeableModularAccountGetInstalledPlugins } from "@exactly/common/generated/hooks";
 import type { Hex } from "@exactly/common/validation";
 import { Check, X } from "@tamagui/lucide-icons";
 import { format, isAfter } from "date-fns";
@@ -11,7 +12,6 @@ import { useBytecode } from "wagmi";
 import GradientScrollView from "./GradientScrollView";
 import SafeView from "./SafeView";
 import View from "./View";
-import { useReadUpgradeableModularAccountGetInstalledPlugins } from "../../generated/contracts";
 import assetLogos from "../../utils/assetLogos";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";

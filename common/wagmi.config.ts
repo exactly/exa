@@ -1,18 +1,18 @@
 import "dotenv/config";
+import deploy from "@exactly/plugin/deploy.json" with { type: "json" };
 import Firewall from "@exactly/protocol/deployments/base/Firewall.json" with { type: "json" };
 import FlashLoanAdapter from "@exactly/protocol/deployments/base/FlashLoanAdapter.json" with { type: "json" };
 import { defineConfig, type Plugin } from "@wagmi/cli";
 import { foundry, react } from "@wagmi/cli/plugins";
 import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { type Abi, getAddress } from "viem";
+import { env } from "node:process";
+import { getAddress, type Abi } from "viem";
 import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
-import deploy from "./contracts/deploy.json";
+const easBuild = env.EAS_BUILD_RUNNER === "eas-build";
 
-const easBuild = process.env.EAS_BUILD_RUNNER === "eas-build";
-
-const chainId = Number(process.env.CHAIN_ID ?? String(easBuild ? optimism.id : optimismSepolia.id));
+const chainId = Number(env.CHAIN_ID ?? String(easBuild ? optimism.id : optimismSepolia.id));
 
 if (easBuild) {
   execSync(
@@ -42,11 +42,11 @@ if (!exaPlugin || !issuerChecker || !proposalManager || !exaPreviewer || !refund
   throw new Error("missing contracts");
 }
 
-execSync("forge build", { cwd: "contracts", stdio: "inherit" });
+execSync("forge build", { cwd: "../contracts", stdio: "inherit" });
 
 export default defineConfig([
   {
-    out: "src/generated/contracts.ts",
+    out: "generated/hooks.ts",
     contracts: [
       { name: "Auditor", abi: auditor.abi },
       { name: "IntegrationPreviewer", abi: integrationPreviewer.abi },
@@ -58,7 +58,7 @@ export default defineConfig([
     plugins: [
       foundry({
         forge: { build: false },
-        project: "contracts",
+        project: "../contracts",
         include: [
           "ExaPlugin.sol/ExaPlugin.json",
           "ExaPreviewer.sol/ExaPreviewer.json",
@@ -70,7 +70,13 @@ export default defineConfig([
     ],
   },
   {
-    out: "common/generated/chain.ts",
+    out: "generated/chain.ts",
+    contracts: [
+      { name: "Auditor", abi: auditor.abi },
+      { name: "Firewall", abi: Firewall.abi as Abi },
+      { name: "Market", abi: marketWETH.abi },
+      { name: "Previewer", abi: previewer.abi },
+    ],
     plugins: [
       addresses(
         {
@@ -78,11 +84,13 @@ export default defineConfig([
           exaPlugin: exaPlugin.contractAddress,
           exaPreviewer: exaPreviewer.contractAddress,
           integrationPreviewer: integrationPreviewer.address,
+          issuerChecker: issuerChecker.contractAddress,
           marketUSDC: marketUSDC.address,
           marketWETH: marketWETH.address,
           previewer: previewer.address,
           proposalManager: proposalManager.contractAddress,
           ratePreviewer: ratePreviewer.address,
+          refunder: refunder.contractAddress,
           swapper,
           usdc: usdc.address,
           weth: weth.address,
@@ -95,42 +103,28 @@ export default defineConfig([
         },
         {
           ...(chainId === base.id && { scripts: { exaAccountFactory: "ExaAccountFactory" } }),
-          optional: { balancerVault: balancerVault?.address, flashLoanAdapter: flashLoanAdapter?.address },
+          optional: {
+            balancerVault: balancerVault?.address,
+            flashLoanAdapter: flashLoanAdapter?.address,
+            firewall: firewall?.address,
+          },
         },
       ),
       foundry({
         forge: { build: false },
-        project: "contracts",
-        include: ["ExaAccountFactory.sol/ExaAccountFactory.json", "MockSwapper.sol/MockSwapper.json"],
-      }),
-      chain(),
-    ],
-  },
-  {
-    out: "server/generated/contracts.ts",
-    contracts: [
-      { name: "Auditor", abi: auditor.abi },
-      { name: "Firewall", abi: Firewall.abi as Abi },
-      { name: "Market", abi: marketWETH.abi },
-      { name: "Previewer", abi: previewer.abi },
-    ],
-    plugins: [
-      addresses(
-        { issuerChecker: issuerChecker.contractAddress, refunder: refunder.contractAddress },
-        { optional: { firewall: firewall?.address } },
-      ),
-      foundry({
-        forge: { build: false },
-        project: "contracts",
+        project: "../contracts",
         include: [
+          "ExaAccountFactory.sol/ExaAccountFactory.json",
           "ExaPlugin.sol/ExaPlugin.json",
           "ExaPreviewer.sol/ExaPreviewer.json",
           "IssuerChecker.sol/IssuerChecker.json",
+          "MockSwapper.sol/MockSwapper.json",
           "ProposalManager.sol/ProposalManager.json",
           "Refunder.sol/Refunder.json",
           "UpgradeableModularAccount.sol/UpgradeableModularAccount.json",
         ],
       }),
+      chain(),
     ],
   },
 ]);
@@ -145,7 +139,7 @@ function addresses(
       if (scripts) {
         for (const [key, script] of Object.entries(scripts)) {
           const output = execSync(`forge script -s 'getAddress()' script/${script}.s.sol --chain ${chainId}`, {
-            cwd: "contracts",
+            cwd: "../contracts",
             encoding: "utf8",
           });
           const address = new RegExp(/== return ==\n0: address (0x[\da-f]{40})/i).exec(output)?.[1];
