@@ -1,11 +1,11 @@
 import { previewerAddress } from "@exactly/common/generated/chain";
+import { useReadPreviewerPreviewBorrowAtMaturity } from "@exactly/common/generated/hooks";
 import { MATURITY_INTERVAL, WAD } from "@exactly/lib";
 import React from "react";
 import { XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
 import { useBytecode } from "wagmi";
 
-import { useReadPreviewerPreviewBorrowAtMaturity } from "../../generated/contracts";
 import assetLogos from "../../utils/assetLogos";
 import type { Loan } from "../../utils/queryClient";
 import useAccount from "../../utils/useAccount";

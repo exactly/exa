@@ -1,8 +1,11 @@
 import chain, {
   exaAccountFactoryAddress,
   exaPluginAddress,
+  issuerCheckerAddress,
   marketUSDCAddress,
+  previewerAbi,
   previewerAddress,
+  upgradeableModularAccountAbi,
 } from "@exactly/common/generated/chain";
 import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import { Address, Hash } from "@exactly/common/validation";
@@ -33,7 +36,6 @@ import { optimism } from "viem/chains";
 
 import database, { credentials } from "../database";
 import verifySignature from "./verifySignature";
-import { issuerCheckerAddress, previewerAbi, upgradeableModularAccountAbi } from "../generated/contracts";
 import publicClient from "../utils/publicClient";
 
 const plugin = exaPluginAddress.toLowerCase();

@@ -2,6 +2,9 @@
   "name": "@exactly/common",
   "version": "0.0.9",
   "private": true,
+  "scripts": {
+    "prepare": "wagmi generate"
+  },
   "engines": {
     "node": ">=22.14.0"
   },
@@ -11,6 +14,16 @@
     "viem": "^2.40.3"
   },
   "devDependencies": {
-    "@exactly/plugin": "workspace:^1.0.0"
+    "@exactly/plugin": "workspace:^1.1.0",
+    "@exactly/protocol": "^0.2.22",
+    "@wagmi/cli": "^2.8.0"
+  },
+  "peerDependencies": {
+    "wagmi": "^2.18.1"
+  },
+  "peerDependenciesMeta": {
+    "wagmi": {
+      "optional": true
+    }
   }
 }

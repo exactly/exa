@@ -1,17 +1,17 @@
 import { exaPluginAddress } from "@exactly/common/generated/chain";
-import { useMutation } from "@tanstack/react-query";
-import React from "react";
-import { encodeAbiParameters, encodeFunctionData, getAbiItem, keccak256, zeroAddress } from "viem";
-import { useBytecode } from "wagmi";
-
-import InfoAlert from "./InfoAlert";
 import {
   exaPluginAbi,
   upgradeableModularAccountAbi,
   useReadExaPluginPluginManifest,
   useReadUpgradeableModularAccountGetInstalledPlugins,
   useSimulateUpgradeableModularAccountUninstallPlugin,
-} from "../../generated/contracts";
+} from "@exactly/common/generated/hooks";
+import { useMutation } from "@tanstack/react-query";
+import React from "react";
+import { encodeAbiParameters, encodeFunctionData, getAbiItem, keccak256, zeroAddress } from "viem";
+import { useBytecode } from "wagmi";
+
+import InfoAlert from "./InfoAlert";
 import { accountClient } from "../../utils/alchemyConnector";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";

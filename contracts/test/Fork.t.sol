@@ -68,7 +68,7 @@ abstract contract ForkTest is Test {
     if (addr == address(0)) {
       try vm.readFile(
         string.concat(
-          "../node_modules/@exactly/protocol/deployments/",
+          "node_modules/@exactly/protocol/deployments/",
           block.chainid == 11_155_420 ? "op-sepolia" : getChain(block.chainid).chainAlias.replace("_", "-"),
           "/",
           name,

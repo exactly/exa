@@ -1,9 +1,15 @@
 import ProposalType from "@exactly/common/ProposalType";
 import chain, {
+  auditorAbi,
+  exaPluginAbi,
   exaPluginAddress,
+  exaPreviewerAbi,
   exaPreviewerAddress,
+  marketAbi,
   marketWETHAddress,
+  proposalManagerAbi,
   proposalManagerAddress,
+  upgradeableModularAccountAbi,
 } from "@exactly/common/generated/chain";
 import shortenHex from "@exactly/common/shortenHex";
 import { Address, Hash, Hex } from "@exactly/common/validation";
@@ -39,14 +45,6 @@ import {
 } from "viem";
 import { optimismSepolia } from "viem/chains";
 
-import {
-  auditorAbi,
-  exaPluginAbi,
-  exaPreviewerAbi,
-  marketAbi,
-  proposalManagerAbi,
-  upgradeableModularAccountAbi,
-} from "../generated/contracts";
 import { headers as alchemyHeaders, createWebhook, findWebhook, headerValidator } from "../utils/alchemy";
 import appOrigin from "../utils/appOrigin";
 import ensClient from "../utils/ensClient";

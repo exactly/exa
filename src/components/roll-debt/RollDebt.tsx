@@ -1,5 +1,10 @@
 import ProposalType from "@exactly/common/ProposalType";
 import { exaPreviewerAddress, marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
+import {
+  useReadExaPreviewerPendingProposals,
+  useReadPreviewerPreviewBorrowAtMaturity,
+  useSimulateExaPluginPropose,
+} from "@exactly/common/generated/hooks";
 import { MATURITY_INTERVAL, WAD } from "@exactly/lib";
 import { ArrowLeft, ArrowRight } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
@@ -17,11 +22,6 @@ import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import SafeView from "../../components/shared/SafeView";
 import Text from "../../components/shared/Text";
 import View from "../../components/shared/View";
-import {
-  useReadExaPreviewerPendingProposals,
-  useReadPreviewerPreviewBorrowAtMaturity,
-  useSimulateExaPluginPropose,
-} from "../../generated/contracts";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
