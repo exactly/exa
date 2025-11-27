@@ -3,7 +3,11 @@
   "version": "0.0.9",
   "private": true,
   "scripts": {
-    "prepare": "wagmi generate"
+    "prepare": "nx prepare:* common",
+    "prepare:*": "true",
+    "prepare:git": "git config blame.ignoreRevsFile .git-blame-ignore-revs || true",
+    "generate:wagmi": "wagmi generate",
+    "git:unshallow": "git fetch --unshallow || true"
   },
   "engines": {
     "node": ">=22.14.0"
@@ -24,6 +28,25 @@
   "peerDependenciesMeta": {
     "wagmi": {
       "optional": true
+    }
+  },
+  "nx": {
+    "projectType": "library",
+    "targets": {
+      "prepare:*": {
+        "dependsOn": [
+          "prepare:git",
+          "generate:wagmi"
+        ]
+      },
+      "generate:wagmi": {
+        "outputs": [
+          "{projectRoot}/generated"
+        ]
+      },
+      "git:unshallow": {
+        "cache": false
+      }
     }
   }
 }

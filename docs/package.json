@@ -3,9 +3,9 @@
   "version": "0.1.2",
   "private": true,
   "scripts": {
-    "prepare": "pnpm run --aggregate-output --reporter-hide-prefix /prepare:/",
-    "prepare:astro": "astro sync",
-    "prepare:server": "pnpm run --filter server openapi",
+    "prepare": "nx prepare:* docs",
+    "prepare:*": "true",
+    "generate:astro": "astro sync",
     "dev": "astro dev",
     "start": "astro dev",
     "build": "astro build",
@@ -20,5 +20,28 @@
     "openapi-types": "^12.1.3",
     "sharp": "^0.34.1",
     "starlight-openapi": "^0.21.1"
+  },
+  "nx": {
+    "projectType": "application",
+    "targets": {
+      "prepare:*": {
+        "dependsOn": [
+          "generate:astro"
+        ]
+      },
+      "generate:astro": {
+        "outputs": [
+          "{projectRoot}/.astro"
+        ]
+      },
+      "build": {
+        "dependsOn": [
+          {
+            "projects": "@exactly/server",
+            "target": "generate:openapi"
+          }
+        ]
+      }
+    }
   }
 }
