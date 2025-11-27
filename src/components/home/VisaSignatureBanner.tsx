@@ -2,6 +2,7 @@ import { ArrowRight } from "@tamagui/lucide-icons";
 import React from "react";
 import { XStack, YStack, Image } from "tamagui";
 
+import SignatureBanner from "../../assets/images/signature-banner.png";
 import Text from "../shared/Text";
 
 export default function VisaSignatureBanner({ onPress }: { onPress: () => void }) {
@@ -31,12 +32,7 @@ export default function VisaSignatureBanner({ onPress }: { onPress: () => void }
         </YStack>
       </YStack>
       <YStack pointerEvents="none" height="100%" flexBasis="30%">
-        <Image
-          source={{ uri: "https://assets.exactly.app/signature-banner.png" }}
-          height="100%"
-          width="100%"
-          objectFit="cover"
-        />
+        <Image source={SignatureBanner} height="100%" width="100%" objectFit="cover" />
       </YStack>
     </XStack>
   );

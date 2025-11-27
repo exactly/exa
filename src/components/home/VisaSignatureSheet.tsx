@@ -4,10 +4,10 @@ import { useMutation } from "@tanstack/react-query";
 import { useNavigation } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import { Platform, Pressable } from "react-native";
-import { SvgUri } from "react-native-svg";
 import { ScrollView, Spinner, XStack, YStack } from "tamagui";
 
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
+import PlatinumCard from "../../assets/images/platinum-full.svg";
 import SignatureCard from "../../assets/images/signature-full.svg";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
@@ -92,11 +92,11 @@ export default function VisaSignatureSheet({ open, onClose }: { open: boolean; o
           >
             <View flex={1.5} justifyContent="center" alignItems="center">
               {isPending ? (
-                <SvgUri
+                <PlatinumCard
                   width="100%"
                   height="100%"
                   preserveAspectRatio="xMidYMax"
-                  uri="https://assets.exactly.app/platinum-full.svg"
+                  {...(Platform.OS === "web" ? undefined : { shouldRasterizeIOS: true })}
                 />
               ) : (
                 <SignatureCard

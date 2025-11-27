@@ -108,7 +108,7 @@ export default function Home() {
   const { data: card } = useQuery({
     queryKey: ["card", "details"],
     queryFn: getCard,
-    enabled: !!account && !!bytecode,
+    enabled: !!account && !!bytecode, // TODO review enabled
   });
 
   const usdBalance = portfolio.usdBalance;
