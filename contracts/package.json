@@ -33,5 +33,8 @@
     "solmate": "transmissions11/solmate#v7",
     "surl": "memester-xyz/surl",
     "typescript": "^5.8.3"
+  },
+  "nx": {
+    "projectType": "application"
   }
 }

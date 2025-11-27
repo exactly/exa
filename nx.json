@@ -1,0 +1,11 @@
+{
+  "extends": "nx/presets/npm.json",
+  "cli": { "packageManager": "pnpm" },
+  "tasksRunnerOptions": { "default": "nx/tasks-runners/default" },
+  "targetDefaults": {
+    "generate:*": { "cache": true },
+    "build": { "dependsOn": ["^prepare"], "outputs": ["{projectRoot}/dist"], "cache": true },
+    "test": { "dependsOn": ["build"] }
+  },
+  "tui": { "autoExit": true }
+}

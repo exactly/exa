@@ -1,0 +1,5 @@
+{
+  "servers": {
+    "nx-mcp": { "command": "pnpx", "args": ["nx-mcp@latest"] }
+  }
+}

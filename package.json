@@ -10,11 +10,13 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "prepare": "(git fetch --unshallow || true) && pnpm run --aggregate-output --reporter-hide-prefix /prepare:/",
-    "prepare:git": "git config blame.ignoreRevsFile .git-blame-ignore-revs || true",
-    "prepare:expo": "expo customize tsconfig.json",
-    "prepare:version": "mkdir -p src/generated && echo \"module.exports = /** @type {const} */ ($(git rev-list --count HEAD))\" > src/generated/versionCode.js",
-    "prepare:release": "mkdir -p common/generated && echo \"module.exports = /** @type {const} */ ('$(git describe --tags --abbrev=7 --match '@exactly/mobile@*' | sed 's/@exactly\\///')')\" > src/generated/release.js",
+    "build": "expo export --platform web --no-minify --source-maps",
+    "prepare": "nx prepare:* mobile",
+    "prepare:*": "true",
+    "generate:expo": "expo customize tsconfig.json",
+    "generate:dir": "mkdir -p src/generated",
+    "generate:version": "echo \"module.exports = /** @type {const} */ ($(git rev-list --count HEAD))\" > src/generated/versionCode.js",
+    "generate:release": "echo \"module.exports = /** @type {const} */ ('$(git describe --tags --abbrev=7 --match '@exactly/mobile@*' | sed 's/@exactly\\///')')\" > src/generated/release.js",
     "eas-build-on-success": "pnpm run --aggregate-output --reporter-hide-prefix /eas-build-on-success:/",
     "eas-build-on-success:release": "if [ \"$EAS_BUILD_PROFILE\" = production ]; then sentry-cli releases new --finalize -o exactly -p exa $(node -e 'console.log(require(`./src/generated/release`))'); fi",
     "eas-build-on-success:fingerprint": "expo-updates fingerprint:generate --debug --platform $EAS_BUILD_PLATFORM",
@@ -153,6 +155,7 @@
     "expo-doctor": "^1.12.8",
     "markdownlint-cli": "^0.44.0",
     "metro-config": "^0.81.0",
+    "nx": "^22.1.2",
     "onesignal-expo-plugin": "^2.0.3",
     "prettier": "^3.5.3",
     "react-native-svg-transformer": "^1.5.0",
@@ -162,6 +165,7 @@
     "typescript": "^5.8.3",
     "ws": "^8.18.1"
   },
+  "packageManager": "pnpm@9.15.9",
   "pnpm": {
     "overrides": {
       "@tanstack/react-form@0.19.5": "^0.42.1",
@@ -295,6 +299,52 @@
         "react-native-webview",
         "typescript"
       ]
+    }
+  },
+  "nx": {
+    "projectType": "application",
+    "targets": {
+      "prepare:*": {
+        "dependsOn": [
+          "generate:expo",
+          "generate:release",
+          "generate:version"
+        ]
+      },
+      "generate:expo": {
+        "dependsOn": [
+          "generate:version"
+        ],
+        "outputs": [
+          "{projectRoot}/expo-env.d.ts"
+        ]
+      },
+      "generate:release": {
+        "cache": false,
+        "dependsOn": [
+          "generate:dir",
+          {
+            "projects": "@exactly/common",
+            "target": "git:unshallow"
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/generated/release.js"
+        ]
+      },
+      "generate:version": {
+        "cache": false,
+        "dependsOn": [
+          "generate:dir",
+          {
+            "projects": "@exactly/common",
+            "target": "git:unshallow"
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/generated/versionCode.js"
+        ]
+      }
     }
   },
   "private": true
