@@ -94,7 +94,7 @@ export async function createCard() {
   return response.json();
 }
 
-export async function setCardStatus(status: "ACTIVE" | "FROZEN") {
+export async function setCardStatus(status: "ACTIVE" | "FROZEN" | "DELETED") {
   await auth();
   const response = await api.card.$patch({ json: { status } });
   if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));

@@ -1,4 +1,5 @@
 import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
+import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
 import { borrowLimit, withdrawLimit } from "@exactly/lib";
 import { Loader, LockKeyhole, Snowflake } from "@tamagui/lucide-icons";
 import React from "react";
@@ -7,6 +8,7 @@ import { useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 import { AnimatePresence, XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
 
+import SignatureCard from "../../../assets/images/card-signature.svg";
 import Card from "../../../assets/images/card.svg";
 import { useReadPreviewerExactly } from "../../../generated/contracts";
 import useAccount from "../../../utils/useAccount";
@@ -19,11 +21,13 @@ export default function CardContents({
   disabled,
   frozen,
   revealing,
+  productId,
 }: {
   isCredit: boolean;
   disabled: boolean;
   frozen: boolean;
   revealing: boolean;
+  productId?: string;
 }) {
   const { address } = useAccount();
   const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [address ?? zeroAddress] });
@@ -101,12 +105,21 @@ export default function CardContents({
         </AnimatePresence>
       </YStack>
       <XStack animation="moderate" position="absolute" right={0} left={0} top={0} bottom={0} justifyContent="flex-end">
-        <Card
-          width="50%"
-          height="100%"
-          preserveAspectRatio="xMaxYMid"
-          {...(Platform.OS === "web" ? undefined : { shouldRasterizeIOS: true })}
-        />
+        {productId === PLATINUM_PRODUCT_ID ? (
+          <Card
+            width="100%"
+            height="100%"
+            preserveAspectRatio="xMaxYMid"
+            {...(Platform.OS === "web" ? undefined : { shouldRasterizeIOS: true })}
+          />
+        ) : (
+          <SignatureCard
+            width="100%"
+            height="100%"
+            preserveAspectRatio="xMaxYMid"
+            {...(Platform.OS === "web" ? undefined : { shouldRasterizeIOS: true })}
+          />
+        )}
       </XStack>
     </XStack>
   );
