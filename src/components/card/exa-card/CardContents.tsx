@@ -47,9 +47,9 @@ export default function CardContents({
       padding="$s4"
       opacity={disabled ? 0.5 : 1}
     >
-      <YStack height="100%" justifyContent="space-between" alignItems="flex-start">
+      <YStack height="100%" justifyContent="space-between" alignItems="flex-start" flex={1} width="100%" zIndex={1}>
         <AnimatePresence exitBeforeEnter>
-          <YStack>
+          <>
             {disabled ? (
               <LockKeyhole size={40} strokeWidth={2} color="white" />
             ) : revealing ? (
@@ -66,15 +66,23 @@ export default function CardContents({
                 exitStyle={{ opacity: 0, transform: [{ translateX: -100 }] }} // eslint-disable-line react-native/no-inline-styles
                 transform={[{ translateX: 0 }]}
               >
-                <Text sensitive color="white" title maxFontSizeMultiplier={1}>
+                <Text sensitive color="white" title maxFontSizeMultiplier={1} numberOfLines={1}>
                   {(markets ? Number(borrowLimit(markets, marketUSDCAddress)) / 1e6 : 0).toLocaleString(undefined, {
                     style: "currency",
                     currency: "USD",
                     currencyDisplay: "narrowSymbol",
                   })}
                 </Text>
-                <View>
-                  <Text color="white" emphasized caption maxFontSizeMultiplier={1}>
+                <View flexShrink={1} minWidth={0} width="100%">
+                  <Text
+                    color="white"
+                    emphasized
+                    caption
+                    maxFontSizeMultiplier={1}
+                    width="100%"
+                    numberOfLines={2}
+                    ellipsizeMode="clip"
+                  >
                     AVAILABLE BALANCE
                   </Text>
                 </View>
@@ -87,21 +95,29 @@ export default function CardContents({
                 exitStyle={{ opacity: 0, transform: [{ translateX: 100 }] }} // eslint-disable-line react-native/no-inline-styles
                 transform={[{ translateX: 0 }]}
               >
-                <Text sensitive color="white" title maxFontSizeMultiplier={1}>
+                <Text sensitive color="white" title maxFontSizeMultiplier={1} numberOfLines={1}>
                   {(markets ? Number(withdrawLimit(markets, marketUSDCAddress)) / 1e6 : 0).toLocaleString(undefined, {
                     style: "currency",
                     currency: "USD",
                     currencyDisplay: "narrowSymbol",
                   })}
                 </Text>
-                <View>
-                  <Text color="white" emphasized caption maxFontSizeMultiplier={1}>
+                <View flexShrink={1} minWidth={0} width="100%">
+                  <Text
+                    color="white"
+                    emphasized
+                    caption
+                    maxFontSizeMultiplier={1}
+                    width="100%"
+                    numberOfLines={2}
+                    ellipsizeMode="clip"
+                  >
                     AVAILABLE BALANCE
                   </Text>
                 </View>
               </View>
             )}
-          </YStack>
+          </>
         </AnimatePresence>
       </YStack>
       <XStack animation="moderate" position="absolute" right={0} left={0} top={0} bottom={0} justifyContent="flex-end">
