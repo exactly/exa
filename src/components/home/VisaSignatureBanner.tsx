@@ -1,0 +1,43 @@
+import { ArrowRight } from "@tamagui/lucide-icons";
+import React from "react";
+import { XStack, YStack, Image } from "tamagui";
+
+import Text from "../shared/Text";
+
+export default function VisaSignatureBanner({ onPress }: { onPress: () => void }) {
+  return (
+    <XStack
+      backgroundColor="$grayscaleLight12"
+      borderRadius="$r4"
+      alignItems="center"
+      overflow="hidden"
+      minHeight={120}
+      cursor="pointer"
+      onPress={onPress}
+      position="relative"
+      flex={1}
+    >
+      <YStack padding="$s4" gap="$s2" height="100%" flex={1}>
+        <YStack height="100%" justifyContent="space-between" alignItems="flex-start">
+          <Text textAlign="left" maxFontSizeMultiplier={1} emphasized body color="white">
+            Get your Visa Signature Exa Card
+          </Text>
+          <XStack alignSelf="flex-start" alignItems="center" gap="$s2">
+            <Text emphasized footnote color="white" maxFontSizeMultiplier={1}>
+              Upgrade now
+            </Text>
+            <ArrowRight size={16} color="white" />
+          </XStack>
+        </YStack>
+      </YStack>
+      <YStack pointerEvents="none" height="100%" flexBasis="30%">
+        <Image
+          source={{ uri: "https://assets.exactly.app/signature-banner.png" }}
+          height="100%"
+          width="100%"
+          objectFit="cover"
+        />
+      </YStack>
+    </XStack>
+  );
+}

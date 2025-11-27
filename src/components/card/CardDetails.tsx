@@ -1,3 +1,4 @@
+import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import { Copy } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { useQuery } from "@tanstack/react-query";
@@ -9,8 +10,10 @@ import { ScrollView, XStack, YStack } from "tamagui";
 import DismissableAlert from "./DismissableAlert";
 import ExaLogoDark from "../../assets/images/exa-logo-dark.svg";
 import ExaLogoLight from "../../assets/images/exa-logo-light.svg";
+import ExaLogoSignature from "../../assets/images/exa-logo-signature.svg";
 import VisaLogoDark from "../../assets/images/visa-logo-dark.svg";
 import VisaLogoLight from "../../assets/images/visa-logo-light.svg";
+import VisaLogoSignature from "../../assets/images/visa-logo-signature.svg";
 import { decrypt } from "../../utils/panda";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
@@ -27,6 +30,7 @@ export default function CardDetails({ open, onClose }: { open: boolean; onClose:
   const { data: alertShown } = useQuery({ queryKey: ["settings", "alertShown"] });
   const { data: card, isPending } = useQuery({ queryKey: ["card", "details"], queryFn: getCard });
   const [details, setDetails] = useState({ pan: "", cvc: "" });
+
   useEffect(() => {
     if (card) {
       Promise.all([
@@ -52,7 +56,7 @@ export default function CardDetails({ open, onClose }: { open: boolean; onClose:
                   borderRadius="$s3"
                   borderWidth={1}
                   borderColor="$borderNeutralSoft"
-                  backgroundColor="$uiNeutralPrimary"
+                  backgroundColor={card.productId === SIGNATURE_PRODUCT_ID ? "$grayscaleLight12" : "$uiNeutralPrimary"}
                   paddingHorizontal="$s5"
                   paddingTop="$s9"
                   paddingBottom="$s9"
@@ -60,28 +64,46 @@ export default function CardDetails({ open, onClose }: { open: boolean; onClose:
                   width="100%"
                   gap="$s4"
                 >
-                  <View position="absolute" top="$s4" left="$s5">
-                    {theme === "light" ? (
-                      <ExaLogoLight height={20} width={63} />
-                    ) : (
-                      <ExaLogoDark height={20} width={63} />
-                    )}
-                  </View>
-                  <View position="absolute" bottom="$s4" right="$s5">
-                    {theme === "light" ? (
-                      <VisaLogoLight height={40} width={72} />
-                    ) : (
-                      <VisaLogoDark height={40} width={72} />
-                    )}
-                  </View>
+                  {card.productId === SIGNATURE_PRODUCT_ID ? (
+                    <>
+                      <View position="absolute" top="$s4" left="$s5">
+                        <ExaLogoSignature height={20} width={63} />
+                      </View>
+                      <View position="absolute" top="$s4" right="$s5">
+                        <VisaLogoSignature height={40} width={72} />
+                      </View>
+                    </>
+                  ) : (
+                    <>
+                      <View position="absolute" top="$s4" left="$s5">
+                        {theme === "light" ? (
+                          <ExaLogoLight height={20} width={63} />
+                        ) : (
+                          <ExaLogoDark height={20} width={63} />
+                        )}
+                      </View>
+                      <View position="absolute" bottom="$s4" right="$s5">
+                        {theme === "light" ? (
+                          <VisaLogoLight height={40} width={72} />
+                        ) : (
+                          <VisaLogoDark height={40} width={72} />
+                        )}
+                      </View>
+                    </>
+                  )}
                   <XStack gap="$s4" alignItems="center" flexWrap="wrap">
-                    <Text headline letterSpacing={2} fontFamily="$mono" color="$uiNeutralInversePrimary">
+                    <Text
+                      headline
+                      letterSpacing={2}
+                      fontFamily="$mono"
+                      color={card.productId === PLATINUM_PRODUCT_ID ? "$uiNeutralInversePrimary" : "white"}
+                    >
                       {details.pan.match(/.{1,4}/g)?.join(" ") ?? ""}
                     </Text>
                     <Copy
                       hitSlop={20}
                       size={16}
-                      color="$uiNeutralInversePrimary"
+                      color={card.productId === PLATINUM_PRODUCT_ID ? "$uiNeutralInversePrimary" : "white"}
                       strokeWidth={2.5}
                       onPress={() => {
                         setStringAsync(details.pan).catch(reportError);
@@ -95,24 +117,49 @@ export default function CardDetails({ open, onClose }: { open: boolean; onClose:
                   </XStack>
                   <XStack gap="$s5" alignItems="center" flexWrap="wrap">
                     <XStack alignItems="center" gap="$s3">
-                      <Text caption color="$uiNeutralInverseSecondary">
+                      <Text
+                        caption
+                        color={
+                          card.productId === PLATINUM_PRODUCT_ID ? "$uiNeutralInverseSecondary" : "$grayscaleLight3"
+                        }
+                      >
                         Expires
                       </Text>
-                      <Text headline letterSpacing={2} fontFamily="$mono" color="$uiNeutralInversePrimary">
-                        {`${card.expirationMonth}/${card.expirationYear}`}
+                      <Text
+                        headline
+                        letterSpacing={2}
+                        fontFamily="$mono"
+                        color={card.productId === PLATINUM_PRODUCT_ID ? "uiNeutralInversePrimary" : "white"}
+                      >
+                        {`${card.expirationMonth}/${card.expirationYear.length === 4 ? card.expirationYear.slice(-2) : card.expirationYear}`}
                       </Text>
                     </XStack>
                     <XStack alignItems="center" gap="$s3">
-                      <Text caption color="$uiNeutralInverseSecondary">
+                      <Text
+                        caption
+                        color={
+                          card.productId === PLATINUM_PRODUCT_ID ? "$uiNeutralInverseSecondary" : "$grayscaleLight3"
+                        }
+                      >
                         CVV&nbsp;
                       </Text>
-                      <Text headline letterSpacing={2} fontFamily="$mono" color="$uiNeutralInversePrimary">
+                      <Text
+                        headline
+                        letterSpacing={2}
+                        fontFamily="$mono"
+                        color={card.productId === PLATINUM_PRODUCT_ID ? "uiNeutralInversePrimary" : "white"}
+                      >
                         {details.cvc}
                       </Text>
                     </XStack>
                   </XStack>
                   <YStack>
-                    <Text emphasized headline letterSpacing={2} color="$uiNeutralInversePrimary">
+                    <Text
+                      emphasized
+                      headline
+                      letterSpacing={2}
+                      color={card.productId === PLATINUM_PRODUCT_ID ? "uiNeutralInversePrimary" : "white"}
+                    >
                       {card.displayName}
                     </Text>
                   </YStack>

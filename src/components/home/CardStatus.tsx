@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import { useNavigation } from "expo-router";
 import React from "react";
 import { Platform } from "react-native";
@@ -6,16 +6,14 @@ import { XStack, YStack } from "tamagui";
 
 import CardLimits from "./CardLimits";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
+import SignatureCard from "../../assets/images/card-signature.svg";
 import Card from "../../assets/images/card.svg";
-import { getCard } from "../../utils/server";
 
-export default function CardStatus({ onInfoPress }: { onInfoPress: () => void }) {
+export default function CardStatus({ onInfoPress, productId }: { onInfoPress: () => void; productId: string }) {
   const navigation = useNavigation<AppNavigationProperties>();
-  const { data: card } = useQuery({ queryKey: ["card", "details"], queryFn: getCard });
-  if (!card) return null;
   return (
     <XStack
-      backgroundColor="black"
+      backgroundColor={productId === SIGNATURE_PRODUCT_ID ? "$grayscaleLight12" : "black"}
       borderRadius="$r4"
       alignItems="center"
       overflow="hidden"
@@ -38,12 +36,21 @@ export default function CardStatus({ onInfoPress }: { onInfoPress: () => void })
           navigation.navigate("(home)", { screen: "card" });
         }}
       >
-        <Card
-          width="100%"
-          height="100%"
-          preserveAspectRatio="xMaxYMid"
-          {...(Platform.OS === "web" ? undefined : { shouldRasterizeIOS: true })}
-        />
+        {productId === SIGNATURE_PRODUCT_ID ? (
+          <SignatureCard
+            width="100%"
+            height="100%"
+            preserveAspectRatio="xMaxYMid"
+            {...(Platform.OS === "web" ? undefined : { shouldRasterizeIOS: true })}
+          />
+        ) : (
+          <Card
+            width="100%"
+            height="100%"
+            preserveAspectRatio="xMaxYMid"
+            {...(Platform.OS === "web" ? undefined : { shouldRasterizeIOS: true })}
+          />
+        )}
       </XStack>
     </XStack>
   );

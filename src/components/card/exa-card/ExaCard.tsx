@@ -1,3 +1,4 @@
+import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
 import { useQuery } from "@tanstack/react-query";
 import React from "react";
 import { Pressable } from "react-native";
@@ -22,8 +23,8 @@ export default function ExaCard({ disabled = false, revealing, frozen, onPress }
       <Pressable onPress={onPress}>
         <View
           zIndex={3}
-          backgroundColor="black"
-          borderColor="black"
+          backgroundColor={card?.productId === PLATINUM_PRODUCT_ID ? "black" : "$grayscaleLight12"}
+          borderColor={card?.productId === PLATINUM_PRODUCT_ID ? "black" : "$grayscaleLight12"}
           borderRadius="$r4"
           borderWidth={1}
           overflow="hidden"
@@ -33,6 +34,7 @@ export default function ExaCard({ disabled = false, revealing, frozen, onPress }
             disabled={disabled}
             frozen={frozen}
             revealing={revealing}
+            productId={card?.productId}
           />
         </View>
       </Pressable>

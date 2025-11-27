@@ -1,4 +1,5 @@
 import { exaPluginAddress, exaPreviewerAddress, previewerAddress } from "@exactly/common/generated/chain";
+import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
 import { healthFactor, WAD } from "@exactly/lib";
 import { TimeToFullDisplay } from "@sentry/react-native";
 import { useQuery } from "@tanstack/react-query";
@@ -15,6 +16,8 @@ import HomeActions from "./HomeActions";
 import HomeDisclaimer from "./HomeDisclaimer";
 import PortfolioSummary from "./PortfolioSummary";
 import SpendingLimitsSheet from "./SpendingLimitsSheet";
+import VisaSignatureBanner from "./VisaSignatureBanner";
+import VisaSignatureModal from "./VisaSignatureSheet";
 import CardUpgradeSheet from "./card-upgrade/CardUpgradeSheet";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import {
@@ -25,7 +28,7 @@ import {
 import { KYC_TEMPLATE_ID, LEGACY_KYC_TEMPLATE_ID } from "../../utils/persona";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
-import { APIError, getActivity, getKYCStatus } from "../../utils/server";
+import { APIError, getActivity, getCard, getKYCStatus } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
 import usePortfolio from "../../utils/usePortfolio";
 import OverduePayments from "../pay-mode/OverduePayments";
@@ -46,6 +49,8 @@ export default function Home() {
   const navigation = useNavigation<AppNavigationProperties>();
   const [paySheetOpen, setPaySheetOpen] = useState(false);
   const [spendingLimitsInfoSheetOpen, setSpendingLimitsInfoSheetOpen] = useState(false);
+  const [visaSignatureModalOpen, setVisaSignatureModalOpen] = useState(false);
+
   const { address: account } = useAccount();
   const { data: bytecode } = useBytecode({ address: account ?? zeroAddress, query: { enabled: !!account } });
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
@@ -100,6 +105,11 @@ export default function Home() {
         (error.text === "kyc not found" || error.text === "kyc not started" || error.text === "kyc not approved"),
     },
   });
+  const { data: card } = useQuery({
+    queryKey: ["card", "details"],
+    queryFn: getCard,
+    enabled: !!account && !!bytecode,
+  });
 
   const usdBalance = portfolio.usdBalance;
   const isPending = isPendingActivity || isPendingPreviewer;
@@ -146,11 +156,21 @@ export default function Home() {
               </YStack>
             </YStack>
             <View padded gap="$s5">
-              <CardStatus
-                onInfoPress={() => {
-                  setSpendingLimitsInfoSheetOpen(true);
-                }}
-              />
+              {card && (
+                <CardStatus
+                  onInfoPress={() => {
+                    setSpendingLimitsInfoSheetOpen(true);
+                  }}
+                  productId={card.productId}
+                />
+              )}
+              {card && card.productId === PLATINUM_PRODUCT_ID && (
+                <VisaSignatureBanner
+                  onPress={() => {
+                    setVisaSignatureModalOpen(true);
+                  }}
+                />
+              )}
               <GettingStarted hasFunds={usdBalance > 0n} hasKYC={KYCStatus === "ok"} />
               <OverduePayments
                 onSelect={(maturity) => {
@@ -186,6 +206,12 @@ export default function Home() {
             open={spendingLimitsInfoSheetOpen}
             onClose={() => {
               setSpendingLimitsInfoSheetOpen(false);
+            }}
+          />
+          <VisaSignatureModal
+            open={visaSignatureModalOpen}
+            onClose={() => {
+              setVisaSignatureModalOpen(false);
             }}
           />
         </ScrollView>
