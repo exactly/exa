@@ -1,11 +1,11 @@
 import { previewerAddress, ratePreviewerAddress } from "@exactly/common/generated/chain";
+import { useReadPreviewerExactly, useReadRatePreviewerSnapshot } from "@exactly/common/generated/hooks";
 import { floatingDepositRates } from "@exactly/lib";
 import React from "react";
 import { vs } from "react-native-size-matters";
 import { XStack, YStack } from "tamagui";
 import { zeroAddress, parseUnits } from "viem";
 
-import { useReadPreviewerExactly, useReadRatePreviewerSnapshot } from "../../generated/contracts";
 import assetLogos from "../../utils/assetLogos";
 import useAccount from "../../utils/useAccount";
 import useAccountAssets from "../../utils/useAccountAssets";

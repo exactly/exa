@@ -1,4 +1,5 @@
 import chain, { previewerAddress } from "@exactly/common/generated/chain";
+import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import shortenHex from "@exactly/common/shortenHex";
 import { WAD } from "@exactly/lib";
 import type { Chain, Token } from "@lifi/sdk";
@@ -28,7 +29,6 @@ import AssetSelectSheet from "./AssetSelectSheet";
 import TokenLogo from "./TokenLogo";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import OptimismImage from "../../assets/images/optimism.svg";
-import { useReadPreviewerExactly } from "../../generated/contracts";
 import { getRouteFrom, getBridgeSources, tokenCorrelation, type RouteFrom, type BridgeSources } from "../../utils/lifi";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";

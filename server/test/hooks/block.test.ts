@@ -6,7 +6,14 @@ import "../mocks/deployments";
 
 import ProposalType from "@exactly/common/ProposalType";
 import deriveAddress from "@exactly/common/deriveAddress";
-import chain from "@exactly/common/generated/chain";
+import chain, {
+  auditorAbi,
+  exaPluginAbi,
+  issuerCheckerAbi,
+  marketAbi,
+  proposalManagerAbi,
+  upgradeableModularAccountAbi,
+} from "@exactly/common/generated/chain";
 import { testClient } from "hono/testing";
 import {
   createWalletClient,
@@ -30,14 +37,6 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import { afterEach, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
-import {
-  auditorAbi,
-  exaPluginAbi,
-  issuerCheckerAbi,
-  marketAbi,
-  proposalManagerAbi,
-  upgradeableModularAccountAbi,
-} from "../../generated/contracts";
 import app from "../../hooks/block";
 import publicClient from "../../utils/publicClient";
 import anvilClient from "../anvilClient";

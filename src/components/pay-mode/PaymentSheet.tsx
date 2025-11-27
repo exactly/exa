@@ -1,4 +1,5 @@
 import chain, { exaPluginAddress, marketUSDCAddress } from "@exactly/common/generated/chain";
+import { useReadUpgradeableModularAccountGetInstalledPlugins } from "@exactly/common/generated/hooks";
 import { WAD } from "@exactly/lib";
 import {
   ArrowRight,
@@ -25,7 +26,6 @@ import { useBytecode } from "wagmi";
 
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import CalendarImage from "../../assets/images/calendar-rollover.svg";
-import { useReadUpgradeableModularAccountGetInstalledPlugins } from "../../generated/contracts";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";

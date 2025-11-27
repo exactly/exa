@@ -8,15 +8,12 @@ vi.mock("@exactly/common/generated/chain", async (importOriginal) => ({
   exaPluginAddress: inject("ExaPlugin"),
   exaPreviewerAddress: inject("ExaPreviewer"),
   firewallAddress: inject("Firewall"),
+  issuerCheckerAddress: inject("IssuerChecker"),
   marketUSDCAddress: inject("MarketUSDC"),
   marketWETHAddress: inject("MarketWETH"),
   previewerAddress: inject("Previewer"),
   proposalManagerAddress: inject("ProposalManager"),
+  refunderAddress: inject("Refunder"),
   usdcAddress: inject("USDC"),
   wethAddress: inject("WETH"),
-}));
-vi.mock("../../generated/contracts", async (importOriginal) => ({
-  ...(await importOriginal()),
-  issuerCheckerAddress: inject("IssuerChecker"),
-  refunderAddress: inject("Refunder"),
 }));

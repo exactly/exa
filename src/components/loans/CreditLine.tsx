@@ -1,4 +1,5 @@
 import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
+import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { borrowLimit } from "@exactly/lib";
 import { ArrowRight } from "@tamagui/lucide-icons";
 import { format } from "date-fns";
@@ -9,7 +10,6 @@ import { formatUnits, zeroAddress } from "viem";
 import { useBytecode } from "wagmi";
 
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
-import { useReadPreviewerExactly } from "../../generated/contracts";
 import assetLogos from "../../utils/assetLogos";
 import queryClient, { type Loan } from "../../utils/queryClient";
 import useAccount from "../../utils/useAccount";
