@@ -1,13 +1,6 @@
 {
   "language": "en",
-  "ignorePaths": [
-    "*.svg",
-    "*.local.yaml",
-    "cspell.json",
-    "contracts/broadcast",
-    "patches",
-    "pnpm-lock.yaml"
-  ],
+  "ignorePaths": ["*.svg", "*.local.yaml", "cspell.json", "contracts/broadcast", "patches", "pnpm-lock.yaml"],
   "words": [
     "abitype",
     "adduser",
@@ -139,9 +132,5 @@
     "zrange",
     "zrem"
   ],
-  "ignoreRegExpList": [
-    "\\bitmpl_\\w+\\b",
-    "\\b(w|stat)?aBas\\w+\\b",
-    "\\baOpt\\w+\\b"
-  ]
+  "ignoreRegExpList": ["\\bitmpl_\\w+\\b", "\\b(w|stat)?aBas\\w+\\b", "\\baOpt\\w+\\b"]
 }
