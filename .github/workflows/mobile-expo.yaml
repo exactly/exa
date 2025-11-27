@@ -41,6 +41,11 @@ jobs:
           packager: pnpm
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
+      - uses: actions/cache@v4
+        with:
+          path: node_modules/.cache/nx
+          key: nx-${{ runner.os }}-${{ github.sha }}
+          restore-keys: nx-${{ runner.os }}-
       - run: pnpm install --frozen-lockfile
       - run: eas build --profile ${{ inputs.profile }} --platform all --non-interactive --no-wait
         if: inputs.build
