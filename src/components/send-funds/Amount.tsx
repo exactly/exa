@@ -1,5 +1,10 @@
 import ProposalType from "@exactly/common/ProposalType";
 import { exaPluginAddress } from "@exactly/common/generated/chain";
+import {
+  exaPluginAbi,
+  upgradeableModularAccountAbi,
+  useReadUpgradeableModularAccountGetInstalledPlugins,
+} from "@exactly/common/generated/hooks";
 import shortenHex from "@exactly/common/shortenHex";
 import { Address } from "@exactly/common/validation";
 import { WAD } from "@exactly/lib";
@@ -16,11 +21,6 @@ import { useBytecode, useSimulateContract, useWriteContract } from "wagmi";
 
 import ReviewSheet from "./ReviewSheet";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
-import {
-  exaPluginAbi,
-  upgradeableModularAccountAbi,
-  useReadUpgradeableModularAccountGetInstalledPlugins,
-} from "../../generated/contracts";
 import assetLogos from "../../utils/assetLogos";
 import queryClient from "../../utils/queryClient";
 import useAccount from "../../utils/useAccount";

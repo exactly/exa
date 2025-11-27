@@ -4,7 +4,7 @@ import "../mocks/database";
 import "../mocks/deployments";
 
 import deriveAddress from "@exactly/common/deriveAddress";
-import { exaAccountFactoryAbi } from "@exactly/common/generated/chain";
+import { exaAccountFactoryAbi, exaPluginAbi } from "@exactly/common/generated/chain";
 import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
@@ -14,7 +14,6 @@ import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 
 import app from "../../api/card";
 import database, { cards, credentials } from "../../database";
-import { exaPluginAbi } from "../../generated/contracts";
 import keeper from "../../utils/keeper";
 import * as panda from "../../utils/panda";
 import publicClient from "../../utils/publicClient";

@@ -1,4 +1,8 @@
 import { exaPluginAddress } from "@exactly/common/generated/chain";
+import {
+  upgradeableModularAccountAbi,
+  useReadUpgradeableModularAccountGetInstalledPlugins,
+} from "@exactly/common/generated/hooks";
 import { ArrowDownToLine, ArrowUpRight } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigation } from "expo-router";
@@ -8,10 +12,6 @@ import { zeroAddress } from "viem";
 import { useBytecode, useReadContract } from "wagmi";
 
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
-import {
-  upgradeableModularAccountAbi,
-  useReadUpgradeableModularAccountGetInstalledPlugins,
-} from "../../generated/contracts";
 import type { AuthMethod } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";

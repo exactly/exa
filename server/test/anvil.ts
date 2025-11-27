@@ -1,3 +1,4 @@
+import { exaPluginAbi } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 import { $ } from "execa";
 import { readdir } from "node:fs/promises";
@@ -9,7 +10,6 @@ import { foundry } from "viem/chains";
 import type { TestProject } from "vitest/node";
 
 import anvilClient from "./anvilClient";
-import { exaPluginAbi } from "../generated/contracts";
 
 export default async function setup({ provide }: TestProject) {
   const instance = anvil({ codeSizeLimit: 69_000, blockBaseFeePerGas: 1n });

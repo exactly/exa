@@ -1,4 +1,5 @@
 import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
+import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { borrowLimit, withdrawLimit } from "@exactly/lib";
 import { Loader, LockKeyhole, Snowflake } from "@tamagui/lucide-icons";
 import React from "react";
@@ -8,7 +9,6 @@ import { AnimatePresence, XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
 
 import Card from "../../../assets/images/card.svg";
-import { useReadPreviewerExactly } from "../../../generated/contracts";
 import useAccount from "../../../utils/useAccount";
 import AnimatedView from "../../shared/AnimatedView";
 import Text from "../../shared/Text";

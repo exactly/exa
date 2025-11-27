@@ -1,4 +1,13 @@
-import { exaAccountFactoryAbi, exaPreviewerAddress, wethAddress } from "@exactly/common/generated/chain";
+import {
+  auditorAbi,
+  exaAccountFactoryAbi,
+  exaPluginAbi,
+  exaPreviewerAbi,
+  exaPreviewerAddress,
+  marketAbi,
+  upgradeableModularAccountAbi,
+  wethAddress,
+} from "@exactly/common/generated/chain";
 import { Address, Hash } from "@exactly/common/validation";
 import { vValidator } from "@hono/valibot-validator";
 import { SPAN_STATUS_ERROR, SPAN_STATUS_OK, type SpanStatus } from "@sentry/core";
@@ -19,13 +28,6 @@ import * as v from "valibot";
 import { bytesToBigInt, withRetry } from "viem";
 
 import database, { cards, credentials } from "../database";
-import {
-  auditorAbi,
-  exaPluginAbi,
-  exaPreviewerAbi,
-  marketAbi,
-  upgradeableModularAccountAbi,
-} from "../generated/contracts";
 import { createWebhook, findWebhook, headerValidator, network } from "../utils/alchemy";
 import appOrigin from "../utils/appOrigin";
 import decodePublicKey from "../utils/decodePublicKey";

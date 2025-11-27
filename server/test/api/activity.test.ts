@@ -5,6 +5,7 @@ import "../mocks/deployments";
 import "../expect";
 
 import deriveAddress from "@exactly/common/deriveAddress";
+import { marketAbi } from "@exactly/common/generated/chain";
 import { captureException } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
@@ -15,7 +16,6 @@ import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 
 import app, { CreditActivity, DebitActivity, InstallmentsActivity, PandaActivity } from "../../api/activity";
 import database, { cards, credentials, transactions } from "../../database";
-import { marketAbi } from "../../generated/contracts";
 import anvilClient from "../anvilClient";
 
 const appClient = testClient(app);

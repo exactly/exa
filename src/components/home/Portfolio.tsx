@@ -1,4 +1,5 @@
 import { previewerAddress } from "@exactly/common/generated/chain";
+import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { ArrowLeft, CircleHelp } from "@tamagui/lucide-icons";
 import { useNavigation } from "expo-router";
 import React from "react";
@@ -8,7 +9,6 @@ import { zeroAddress } from "viem";
 
 import AssetList from "./AssetList";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
-import { useReadPreviewerExactly } from "../../generated/contracts";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useIntercom from "../../utils/useIntercom";
