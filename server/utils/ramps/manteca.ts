@@ -23,7 +23,7 @@ import {
   getAccount,
   getDocument,
   getInquiry,
-  resumeOrCreateMantecaInquiryOTL,
+  resumeOrCreateMantecaInquiry,
   type IdentificationClasses,
   type Account,
   type Inquiry,
@@ -227,7 +227,7 @@ export async function withdrawBalance(userNumberId: string, asset: string, addre
 export async function getProvider(
   account: string,
   credentialId: string,
-  templateId: string,
+  kycTemplateId: string,
   countryCode?: string,
   redirectURL?: string,
 ): Promise<{
@@ -254,7 +254,7 @@ export async function getProvider(
   const mantecaUser = await getUser(account.replace("0x", ""));
   if (!mantecaUser) {
     const [inquiry, personaAccount] = await Promise.all([
-      getInquiry(credentialId, templateId),
+      getInquiry(credentialId, kycTemplateId),
       getAccount(credentialId),
     ]);
     if (!inquiry || !personaAccount) throw new Error(ErrorCodes.NO_KYC);
@@ -279,12 +279,18 @@ export async function getProvider(
               mantecaRedirectURL = new URL(redirectURL);
               mantecaRedirectURL.searchParams.set("provider", "manteca" satisfies (typeof shared.RampProvider)[number]);
             }
+            const { link, inquiryId, sessionToken } = await resumeOrCreateMantecaInquiry(
+              credentialId,
+              mantecaRedirectURL?.toString(),
+            );
             const inquiryTask: InferOutput<typeof shared.PendingTask> = {
               type: "INQUIRY",
-              link: await resumeOrCreateMantecaInquiryOTL(credentialId, mantecaRedirectURL?.toString()),
               displayText: "We need more information to complete your KYC",
               currencies: getSupportedByCountry(country),
               cryptoCurrencies: [],
+              sessionToken,
+              inquiryId,
+              link,
             };
             return { status: "MISSING_INFORMATION", currencies, cryptoCurrencies: [], pendingTasks: [inquiryTask] };
           }

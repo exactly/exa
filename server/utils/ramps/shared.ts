@@ -122,6 +122,8 @@ export const PendingTask = variant("type", [
   object({
     type: literal("INQUIRY"),
     link: string(),
+    inquiryId: string(),
+    sessionToken: string(),
     displayText: optional(string()),
     currencies: array(string()),
     cryptoCurrencies: array(object({ cryptoCurrency: string(), network: string() })),

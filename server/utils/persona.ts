@@ -75,15 +75,22 @@ export async function getDocument(documentId: string) {
   return data;
 }
 
-export async function resumeOrCreateMantecaInquiryOTL(referenceId: string, redirectURL?: string): Promise<string> {
+export async function resumeOrCreateMantecaInquiry(
+  referenceId: string,
+  redirectURL?: string,
+): Promise<{ link: string; inquiryId: string; sessionToken: string }> {
   const { data: inquiries } = await request(
     GetMantecaInquiryResponse,
     `/inquiries?page[size]=1&filter[reference-id]=${referenceId}&filter[inquiry-template-id]=${MANTECA_TEMPLATE}&filter[status]=created,pending`,
   );
-
   if (inquiries[0]) {
     const { meta } = await generateOTL(inquiries[0].id);
-    return meta["one-time-link"];
+    const resumedInquiry = await resumeInquiry(inquiries[0].id);
+    return {
+      link: meta["one-time-link"],
+      sessionToken: resumedInquiry.meta["session-token"],
+      inquiryId: inquiries[0].id,
+    };
   }
 
   // TODO prefill inquiry with known fields
@@ -94,7 +101,12 @@ export async function resumeOrCreateMantecaInquiryOTL(referenceId: string, redir
     meta: { "auto-create-account-reference-id": referenceId },
   });
   const { meta } = await generateOTL(data.id);
-  return meta["one-time-link"];
+  const resumedInquiry = await resumeInquiry(data.id);
+  return {
+    link: meta["one-time-link"],
+    sessionToken: resumedInquiry.meta["session-token"],
+    inquiryId: data.id,
+  };
 }
 
 async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
