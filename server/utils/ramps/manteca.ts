@@ -271,9 +271,11 @@ export async function getProvider(
       if (error instanceof Error && Object.values(ErrorCodes).includes(error.message)) {
         switch (error.message) {
           case ErrorCodes.COUNTRY_NOT_ALLOWED:
-          case ErrorCodes.ID_NOT_ALLOWED:
             return { status: "NOT_AVAILABLE", currencies: [], cryptoCurrencies: [], pendingTasks: [] };
+          case ErrorCodes.ID_NOT_ALLOWED:
           case ErrorCodes.BAD_KYC_ADDITIONAL_DATA: {
+            const templateId = getInquiryTemplateId(error.message);
+            if (!templateId) throw new Error(ErrorCodes.NO_TEMPLATE_ID);
             let mantecaRedirectURL: URL | undefined = undefined;
             if (redirectURL) {
               mantecaRedirectURL = new URL(redirectURL);
@@ -281,6 +283,7 @@ export async function getProvider(
             }
             const { link, inquiryId, sessionToken } = await resumeOrCreateMantecaInquiry(
               credentialId,
+              templateId,
               mantecaRedirectURL?.toString(),
             );
             const inquiryTask: InferOutput<typeof shared.PendingTask> = {
@@ -714,7 +717,7 @@ export const allowedCountries = new Map<
   // ["BO", { allowedIds: [] }],
 
   // TODO for testing, remove
-  ["US", { allowedIds: ["dl"] }],
+  ["US", { allowedIds: ["id", "pp"] }],
 ]);
 
 export const NewUserResponse = object({
@@ -906,6 +909,17 @@ const getNationality = (countryCode: string): string => {
   return nationality;
 };
 
+function getInquiryTemplateId(errorCode: string): string | undefined {
+  switch (errorCode) {
+    case ErrorCodes.ID_NOT_ALLOWED:
+      return "itmpl_TjaqJdQYkht17v645zNFUfkaWNan";
+    case ErrorCodes.BAD_KYC_ADDITIONAL_DATA:
+      return "itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo";
+    default:
+      return undefined;
+  }
+}
+
 async function forwardFileToURL(sourceURL: string, destinationURL: string): Promise<void> {
   const abort = new AbortController();
   const timeout = setTimeout(() => {
@@ -968,6 +982,7 @@ export const ErrorCodes = {
   KYC_NOT_APPROVED: "kyc not approved",
   BAD_MANTECA_KYC: "bad manteca kyc",
   ID_NOT_ALLOWED: "id not allowed",
+  NO_TEMPLATE_ID: "no template id",
   NO_NON_FACTA: "no non facta",
   NO_DOCUMENT: "no document",
   NO_GENDER: "no gender",

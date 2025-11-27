@@ -28,7 +28,6 @@ if (!process.env.PERSONA_WEBHOOK_SECRET) throw new Error("missing persona webhoo
 
 export const CRYPTOMATE_TEMPLATE = "itmpl_8uim4FvD5P3kFpKHX37CW817";
 export const PANDA_TEMPLATE = "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2";
-export const MANTECA_TEMPLATE = "itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo";
 
 const authorization = `Bearer ${process.env.PERSONA_API_KEY}`;
 const baseURL = process.env.PERSONA_URL;
@@ -77,11 +76,12 @@ export async function getDocument(documentId: string) {
 
 export async function resumeOrCreateMantecaInquiry(
   referenceId: string,
+  templateId: string,
   redirectURL?: string,
 ): Promise<{ link: string; inquiryId: string; sessionToken: string }> {
   const { data: inquiries } = await request(
     GetMantecaInquiryResponse,
-    `/inquiries?page[size]=1&filter[reference-id]=${referenceId}&filter[inquiry-template-id]=${MANTECA_TEMPLATE}&filter[status]=created,pending`,
+    `/inquiries?page[size]=1&filter[reference-id]=${referenceId}&filter[inquiry-template-id]=${templateId}&filter[status]=created,pending`,
   );
   if (inquiries[0]) {
     const { meta } = await generateOTL(inquiries[0].id);
@@ -96,7 +96,7 @@ export async function resumeOrCreateMantecaInquiry(
   // TODO prefill inquiry with known fields
   const { data } = await request(CreateInquiryResponse, `/inquiries`, {
     data: {
-      attributes: { "inquiry-template-id": MANTECA_TEMPLATE, "redirect-uri": `${redirectURL ?? appOrigin}/` },
+      attributes: { "inquiry-template-id": templateId, "redirect-uri": `${redirectURL ?? appOrigin}/` },
     },
     meta: { "auto-create-account-reference-id": referenceId },
   });
