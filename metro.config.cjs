@@ -27,6 +27,6 @@ module.exports = {
   },
   transformer: {
     ...config.transformer,
-    babelTransformerPath: require.resolve("react-native-svg-transformer/expo"),
+    babelTransformerPath: require.resolve("./svg.config.mjs"),
   },
 };
