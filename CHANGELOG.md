@@ -1,5 +1,13 @@
 # @exactly/mobile
 
+## 1.0.38
+
+### Patch Changes
+
+- [`7139332`](https://github.com/exactly/exa/commit/71393326f1758eb2762cfee99d0a2ebdab3727df) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ⚡️ improve virtualized flat list usage
+
+- [`43f5dbc`](https://github.com/exactly/exa/commit/43f5dbc7fe321bfa0ee365e4c68756d19da3f880) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 handle bad auth data
+
 ## 1.0.37
 
 ### Patch Changes
