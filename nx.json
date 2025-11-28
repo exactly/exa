@@ -7,5 +7,6 @@
     "build": { "dependsOn": ["^prepare"], "outputs": ["{projectRoot}/dist"], "cache": true },
     "test": { "dependsOn": ["build"] }
   },
-  "tui": { "autoExit": true }
+  "tui": { "autoExit": true },
+  "nxCloudId": "6928f9d8110f2025cfd60d83"
 }
