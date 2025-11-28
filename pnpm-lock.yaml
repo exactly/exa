@@ -325,9 +325,24 @@ importers:
       '@expo/fingerprint':
         specifier: ^0.11.11
         version: 0.11.11
+      '@expo/metro-config':
+        specifier: ^0.19.12
+        version: 0.19.12
       '@spotlightjs/spotlight':
         specifier: ^2.13.0
         version: 2.13.0
+      '@svgr/cli':
+        specifier: ^8.1.0
+        version: 8.1.0(typescript@5.8.3)
+      '@svgr/core':
+        specifier: ^8.1.0
+        version: 8.1.0(typescript@5.8.3)
+      '@svgr/plugin-jsx':
+        specifier: ^8.1.0
+        version: 8.1.0(@svgr/core@8.1.0(typescript@5.8.3))
+      '@svgr/plugin-svgo':
+        specifier: ^8.1.0
+        version: 8.1.0(@svgr/core@8.1.0(typescript@5.8.3))(typescript@5.8.3)
       '@tamagui/babel-plugin':
         specifier: 1.125.26
         version: 1.125.26(@swc/helpers@0.5.17)(react-dom@18.3.1(react@18.3.1))(react-native@0.76.9(@babel/core@7.26.10)(@babel/preset-env@7.26.9(@babel/core@7.26.10))(@types/react@18.3.20)(bufferutil@4.0.9)(react@18.3.1)(utf-8-validate@5.0.10))(react@18.3.1)
@@ -436,6 +451,9 @@ importers:
       markdownlint-cli:
         specifier: ^0.44.0
         version: 0.44.0
+      metro-babel-transformer:
+        specifier: ^0.81.4
+        version: 0.81.4
       metro-config:
         specifier: ^0.81.0
         version: 0.81.4(bufferutil@4.0.9)(utf-8-validate@5.0.10)
@@ -445,18 +463,12 @@ importers:
       prettier:
         specifier: ^3.5.3
         version: 3.5.3
-      react-native-svg-transformer:
-        specifier: ^1.5.0
-        version: 1.5.0(react-native-svg@15.11.2(react-native@0.76.9(@babel/core@7.26.10)(@babel/preset-env@7.26.9(@babel/core@7.26.10))(@types/react@18.3.20)(bufferutil@4.0.9)(react@18.3.1)(utf-8-validate@5.0.10))(react@18.3.1))(react-native@0.76.9(@babel/core@7.26.10)(@babel/preset-env@7.26.9(@babel/core@7.26.10))(@types/react@18.3.20)(bufferutil@4.0.9)(react@18.3.1)(utf-8-validate@5.0.10))(typescript@5.8.3)
       sharp:
         specifier: ^0.34.1
         version: 0.34.1
       sharp-cli:
         specifier: ^2.1.1
         version: 2.1.1
-      svgo:
-        specifier: ^3.3.2
-        version: 3.3.2
       typescript:
         specifier: ^5.8.3
         version: 5.8.3
@@ -4053,6 +4065,11 @@ packages:
     peerDependencies:
       '@babel/core': ^7.0.0-0
 
+  '@svgr/cli@8.1.0':
+    resolution: {integrity: sha512-SnlaLspB610XFXvs3PmhzViHErsXp0yIy4ERyZlHDlO1ro2iYtHMWYk2mztdLD/lBjiA4ZXe4RePON3qU/Tc4A==}
+    engines: {node: '>=14'}
+    hasBin: true
+
   '@svgr/core@8.1.0':
     resolution: {integrity: sha512-8QqtOQT5ACVlmsvKOJNEaWmRPmcojMOzCz4Hs2BGG/toAp/K38LcsMRyLp349glq5AzJbCEeimEoxaX6v/fLrA==}
     engines: {node: '>=14'}
@@ -4063,6 +4080,12 @@ packages:
 
   '@svgr/plugin-jsx@8.1.0':
     resolution: {integrity: sha512-0xiIyBsLlr8quN+WyuxooNW9RJ0Dpr8uOnH/xrCVO8GLUcwHISwj1AG0k+LFzteTkAA0GbX0kj9q6Dk70PTiPA==}
+    engines: {node: '>=14'}
+    peerDependencies:
+      '@svgr/core': '*'
+
+  '@svgr/plugin-prettier@8.1.0':
+    resolution: {integrity: sha512-o4/uFI8G64tAjBZ4E7gJfH+VP7Qi3T0+M4WnIsP91iFnGPqs5WvPDkpZALXPiyWEtzfYs1Rmwy1Zdfu8qoZuKw==}
     engines: {node: '>=14'}
     peerDependencies:
       '@svgr/core': '*'
@@ -6022,6 +6045,10 @@ packages:
     resolution: {integrity: sha512-OkTL9umf+He2DZkUq8f8J9of7yL6RJKI24dVITBmNfZBmri9zYZQrKkuXiKhyfPSu8tUhnVBB1iKXevvnlR4Ww==}
     engines: {node: '>= 12'}
 
+  commander@9.5.0:
+    resolution: {integrity: sha512-KRs7WVDKg86PWiuAqhDrAQnTXZKraVcCc6vFdL14qrZ/DcWwuRo7VoiYXalXO7S5GKpqYiVEwCbgFDfxNHKJBQ==}
+    engines: {node: ^12.20.0 || >=14}
+
   comment-json@4.2.5:
     resolution: {integrity: sha512-bKw/r35jR3HGt5PEPm1ljsQQGyCrR8sFGNiN5L+ykDHdpO8Smxkrkla9Yi6NkQyUrb8V54PGhfMs6NrIwtxtdw==}
     engines: {node: '>= 6'}
@@ -6373,6 +6400,10 @@ packages:
 
   damerau-levenshtein@1.0.8:
     resolution: {integrity: sha512-sdQSFB7+llfUcQHUQO3+B8ERRj0Oa4w9POWMI/puGtuf7gFywGmkaLCElnudfTiKZV+NvHqL0ifzdrI8Ro7ESA==}
+
+  dashify@2.0.0:
+    resolution: {integrity: sha512-hpA5C/YrPjucXypHPPc0oJ1l9Hf6wWbiOL7Ik42cxnsUOhWiCB/fylKbKqqJalW9FgkNQCw16YO8uW9Hs0Iy1A==}
+    engines: {node: '>=4'}
 
   data-uri-to-buffer@3.0.1:
     resolution: {integrity: sha512-WboRycPNsVw3B3TL559F7kuBUM4d8CgMEvk6xEJlOp7OBPjt6G7z8WMWlD2rOFZLk6OYfFIUGsCOWzcQH9K2og==}
@@ -9702,9 +9733,6 @@ packages:
   path-data-parser@0.1.0:
     resolution: {integrity: sha512-NOnmBpt5Y2RWbuv0LMzsayp3lVylAHLPUTut412ZA3l+C4uw4ZVkQbjShYCQ8TCpUMdPapr4YjUqLYD6v68j+w==}
 
-  path-dirname@1.0.2:
-    resolution: {integrity: sha512-ALzNPpyNq9AqXMBjeymIjFDAkAFH06mHJH/cSBHAgU0s4vfpBn6b2nf8tiRLvagKD8RbTpq2FKTBg7cl9l3c7Q==}
-
   path-exists@3.0.0:
     resolution: {integrity: sha512-bpC7GYwiDYQ4wYLe+FA8lhRjhQCMcQGuSgGGqDkg/QerRWw9CmGRT0iSOVRSZJ29NMLZgIzqaljJ63oaL4NIJQ==}
     engines: {node: '>=4'}
@@ -10186,12 +10214,6 @@ packages:
     resolution: {integrity: sha512-DKE3f/sdcozd24oASgkP1iGg+YU3HoajRa5k3a4wkRzpiqREq8SGX12Y5zBgAt/8IivLQoTMYkyQu1/Giuy+zQ==}
     peerDependencies:
       react-native: 0.76.9
-
-  react-native-svg-transformer@1.5.0:
-    resolution: {integrity: sha512-RG5fSWJT7mjCQYocgYFUo1KYPLOoypPVG5LQab+pZZO7m4ciGaQIe0mhok3W4R5jLQsEXKo0u+aQGkZV/bZG7w==}
-    peerDependencies:
-      react-native: 0.76.9
-      react-native-svg: '>=12.0.0'
 
   react-native-svg@15.11.2:
     resolution: {integrity: sha512-+YfF72IbWQUKzCIydlijV1fLuBsQNGMT6Da2kFlo1sh+LE3BIm/2Q7AR1zAAR6L0BFLi1WaQPLfFUC9bNZpOmw==}
@@ -12354,10 +12376,10 @@ snapshots:
 
   '@babel/generator@7.27.0':
     dependencies:
-      '@babel/parser': 7.27.0
-      '@babel/types': 7.27.0
+      '@babel/parser': 7.28.5
+      '@babel/types': 7.28.5
       '@jridgewell/gen-mapping': 0.3.8
-      '@jridgewell/trace-mapping': 0.3.25
+      '@jridgewell/trace-mapping': 0.3.31
       jsesc: 3.1.0
 
   '@babel/helper-annotate-as-pure@7.25.9':
@@ -12406,7 +12428,7 @@ snapshots:
   '@babel/helper-member-expression-to-functions@7.25.9':
     dependencies:
       '@babel/traverse': 7.27.0
-      '@babel/types': 7.27.0
+      '@babel/types': 7.28.5
     transitivePeerDependencies:
       - supports-color
 
@@ -12428,7 +12450,7 @@ snapshots:
 
   '@babel/helper-optimise-call-expression@7.25.9':
     dependencies:
-      '@babel/types': 7.27.0
+      '@babel/types': 7.28.5
 
   '@babel/helper-plugin-utils@7.26.5': {}
 
@@ -12471,7 +12493,7 @@ snapshots:
     dependencies:
       '@babel/template': 7.27.0
       '@babel/traverse': 7.27.0
-      '@babel/types': 7.27.0
+      '@babel/types': 7.28.5
     transitivePeerDependencies:
       - supports-color
 
@@ -12482,7 +12504,7 @@ snapshots:
 
   '@babel/highlight@7.25.9':
     dependencies:
-      '@babel/helper-validator-identifier': 7.25.9
+      '@babel/helper-validator-identifier': 7.28.5
       chalk: 2.4.2
       js-tokens: 4.0.0
       picocolors: 1.1.1
@@ -14261,8 +14283,8 @@ snapshots:
     dependencies:
       '@babel/core': 7.26.10
       '@babel/generator': 7.27.0
-      '@babel/parser': 7.27.0
-      '@babel/types': 7.27.0
+      '@babel/parser': 7.28.5
+      '@babel/types': 7.28.5
       '@expo/config': 10.0.11
       '@expo/env': 0.4.2
       '@expo/json-file': 9.0.2
@@ -14708,7 +14730,7 @@ snapshots:
   '@jridgewell/source-map@0.3.6':
     dependencies:
       '@jridgewell/gen-mapping': 0.3.8
-      '@jridgewell/trace-mapping': 0.3.25
+      '@jridgewell/trace-mapping': 0.3.31
 
   '@jridgewell/sourcemap-codec@1.5.0': {}
 
@@ -16518,6 +16540,22 @@ snapshots:
       '@svgr/babel-plugin-transform-react-native-svg': 8.1.0(@babel/core@7.26.10)
       '@svgr/babel-plugin-transform-svg-component': 8.0.0(@babel/core@7.26.10)
 
+  '@svgr/cli@8.1.0(typescript@5.8.3)':
+    dependencies:
+      '@svgr/core': 8.1.0(typescript@5.8.3)
+      '@svgr/plugin-jsx': 8.1.0(@svgr/core@8.1.0(typescript@5.8.3))
+      '@svgr/plugin-prettier': 8.1.0(@svgr/core@8.1.0(typescript@5.8.3))
+      '@svgr/plugin-svgo': 8.1.0(@svgr/core@8.1.0(typescript@5.8.3))(typescript@5.8.3)
+      camelcase: 6.3.0
+      chalk: 4.1.2
+      commander: 9.5.0
+      dashify: 2.0.0
+      glob: 8.1.0
+      snake-case: 3.0.4
+    transitivePeerDependencies:
+      - supports-color
+      - typescript
+
   '@svgr/core@8.1.0(typescript@5.8.3)':
     dependencies:
       '@babel/core': 7.26.10
@@ -16531,7 +16569,7 @@ snapshots:
 
   '@svgr/hast-util-to-babel-ast@8.0.0':
     dependencies:
-      '@babel/types': 7.27.0
+      '@babel/types': 7.28.5
       entities: 4.5.0
 
   '@svgr/plugin-jsx@8.1.0(@svgr/core@8.1.0(typescript@5.8.3))':
@@ -16543,6 +16581,12 @@ snapshots:
       svg-parser: 2.0.4
     transitivePeerDependencies:
       - supports-color
+
+  '@svgr/plugin-prettier@8.1.0(@svgr/core@8.1.0(typescript@5.8.3))':
+    dependencies:
+      '@svgr/core': 8.1.0(typescript@5.8.3)
+      deepmerge: 4.3.1
+      prettier: 2.8.8
 
   '@svgr/plugin-svgo@8.1.0(@svgr/core@8.1.0(typescript@5.8.3))(typescript@5.8.3)':
     dependencies:
@@ -18889,9 +18933,9 @@ snapshots:
   babel-literal-to-ast@2.1.0(@babel/core@7.26.10):
     dependencies:
       '@babel/core': 7.26.10
-      '@babel/parser': 7.27.0
+      '@babel/parser': 7.28.5
       '@babel/traverse': 7.27.0
-      '@babel/types': 7.27.0
+      '@babel/types': 7.28.5
     transitivePeerDependencies:
       - supports-color
 
@@ -18908,7 +18952,7 @@ snapshots:
   babel-plugin-jest-hoist@29.6.3:
     dependencies:
       '@babel/template': 7.27.0
-      '@babel/types': 7.27.0
+      '@babel/types': 7.28.5
       '@types/babel__core': 7.20.5
       '@types/babel__traverse': 7.20.7
 
@@ -19458,6 +19502,8 @@ snapshots:
 
   commander@8.3.0: {}
 
+  commander@9.5.0: {}
+
   comment-json@4.2.5:
     dependencies:
       array-timsort: 1.0.3
@@ -19905,6 +19951,8 @@ snapshots:
       lodash-es: 4.17.21
 
   damerau-levenshtein@1.0.8: {}
+
+  dashify@2.0.0: {}
 
   data-uri-to-buffer@3.0.1: {}
 
@@ -22267,7 +22315,7 @@ snapshots:
   istanbul-lib-instrument@5.2.1:
     dependencies:
       '@babel/core': 7.26.10
-      '@babel/parser': 7.27.0
+      '@babel/parser': 7.28.5
       '@istanbuljs/schema': 0.1.3
       istanbul-lib-coverage: 3.2.2
       semver: 6.3.1
@@ -22339,7 +22387,7 @@ snapshots:
 
   jest-message-util@29.7.0:
     dependencies:
-      '@babel/code-frame': 7.26.2
+      '@babel/code-frame': 7.27.1
       '@jest/types': 29.6.3
       '@types/stack-utils': 2.0.3
       chalk: 4.1.2
@@ -22421,7 +22469,7 @@ snapshots:
   jscodeshift@0.14.0(@babel/preset-env@7.26.9(@babel/core@7.26.10)):
     dependencies:
       '@babel/core': 7.26.10
-      '@babel/parser': 7.27.0
+      '@babel/parser': 7.28.5
       '@babel/plugin-proposal-class-properties': 7.18.6(@babel/core@7.26.10)
       '@babel/plugin-proposal-nullish-coalescing-operator': 7.18.6(@babel/core@7.26.10)
       '@babel/plugin-proposal-optional-chaining': 7.21.0(@babel/core@7.26.10)
@@ -23110,8 +23158,8 @@ snapshots:
     dependencies:
       '@babel/core': 7.26.10
       '@babel/generator': 7.27.0
-      '@babel/parser': 7.27.0
-      '@babel/types': 7.27.0
+      '@babel/parser': 7.28.5
+      '@babel/types': 7.28.5
       flow-enums-runtime: 0.0.6
       metro: 0.81.4(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       metro-babel-transformer: 0.81.4
@@ -24077,8 +24125,6 @@ snapshots:
 
   path-data-parser@0.1.0: {}
 
-  path-dirname@1.0.2: {}
-
   path-exists@3.0.0: {}
 
   path-exists@4.0.0: {}
@@ -24533,18 +24579,6 @@ snapshots:
   react-native-size-matters@0.4.2(react-native@0.76.9(@babel/core@7.26.10)(@babel/preset-env@7.26.9(@babel/core@7.26.10))(@types/react@18.3.20)(bufferutil@4.0.9)(react@18.3.1)(utf-8-validate@5.0.10)):
     dependencies:
       react-native: 0.76.9(@babel/core@7.26.10)(@babel/preset-env@7.26.9(@babel/core@7.26.10))(@types/react@18.3.20)(bufferutil@4.0.9)(react@18.3.1)(utf-8-validate@5.0.10)
-
-  react-native-svg-transformer@1.5.0(react-native-svg@15.11.2(react-native@0.76.9(@babel/core@7.26.10)(@babel/preset-env@7.26.9(@babel/core@7.26.10))(@types/react@18.3.20)(bufferutil@4.0.9)(react@18.3.1)(utf-8-validate@5.0.10))(react@18.3.1))(react-native@0.76.9(@babel/core@7.26.10)(@babel/preset-env@7.26.9(@babel/core@7.26.10))(@types/react@18.3.20)(bufferutil@4.0.9)(react@18.3.1)(utf-8-validate@5.0.10))(typescript@5.8.3):
-    dependencies:
-      '@svgr/core': 8.1.0(typescript@5.8.3)
-      '@svgr/plugin-jsx': 8.1.0(@svgr/core@8.1.0(typescript@5.8.3))
-      '@svgr/plugin-svgo': 8.1.0(@svgr/core@8.1.0(typescript@5.8.3))(typescript@5.8.3)
-      path-dirname: 1.0.2
-      react-native: 0.76.9(@babel/core@7.26.10)(@babel/preset-env@7.26.9(@babel/core@7.26.10))(@types/react@18.3.20)(bufferutil@4.0.9)(react@18.3.1)(utf-8-validate@5.0.10)
-      react-native-svg: 15.11.2(react-native@0.76.9(@babel/core@7.26.10)(@babel/preset-env@7.26.9(@babel/core@7.26.10))(@types/react@18.3.20)(bufferutil@4.0.9)(react@18.3.1)(utf-8-validate@5.0.10))(react@18.3.1)
-    transitivePeerDependencies:
-      - supports-color
-      - typescript
 
   react-native-svg@15.11.2(react-native@0.76.9(@babel/core@7.26.10)(@babel/preset-env@7.26.9(@babel/core@7.26.10))(@types/react@18.3.20)(bufferutil@4.0.9)(react@18.3.1)(utf-8-validate@5.0.10))(react@18.3.1):
     dependencies:
