@@ -22,6 +22,11 @@ jobs:
       - uses: foundry-rs/foundry-toolchain@v1
         with:
           version: v1.3.6
+      - uses: actions/cache@v4
+        with:
+          path: node_modules/.cache/nx
+          key: nx-${{ runner.os }}-${{ github.sha }}
+          restore-keys: nx-${{ runner.os }}-
       - run: pnpm install --frozen-lockfile
       - uses: crazy-max/ghaction-import-gpg@v5 # cspell:ignore ghaction
         with:
