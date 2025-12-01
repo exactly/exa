@@ -1,0 +1,26 @@
+{
+  "extends": "nx/presets/npm.json",
+  "cli": { "packageManager": "pnpm" },
+  "tasksRunnerOptions": { "default": "nx/tasks-runners/default" },
+  "namedInputs": {
+    "default": ["{projectRoot}/**/*", "sharedGlobals"],
+    "production": ["default", "!{projectRoot}/test/**/*"],
+    "sharedGlobals": ["{workspaceRoot}/nx.json", "{workspaceRoot}/package.json", "{workspaceRoot}/pnpm-lock.yaml"]
+  },
+  "targetDefaults": {
+    "generate:*": { "inputs": ["production", "^production"], "cache": true },
+    "build": {
+      "dependsOn": ["^prepare"],
+      "inputs": ["production", "^production"],
+      "outputs": ["{projectRoot}/dist"],
+      "cache": true
+    },
+    "test": {
+      "dependsOn": ["^prepare"],
+      "inputs": ["default", "^production"],
+      "outputs": ["{projectRoot}/coverage"],
+      "cache": true
+    }
+  },
+  "tui": { "autoExit": true }
+}

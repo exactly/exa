@@ -75,8 +75,14 @@ jobs:
       - uses: foundry-rs/foundry-toolchain@v1
         with:
           version: v1.3.6
+      - uses: actions/cache@v4
+        with:
+          path: node_modules/.cache/nx
+          key: nx-${{ runner.os }}-${{ github.sha }}
+          restore-keys: nx-${{ runner.os }}-
       - run: pnpm install --frozen-lockfile
-      - run: pnpm run --filter server build
+      - uses: nrwl/nx-set-shas@v4 # cspell:ignore nrwl
+      - run: pnpm nx affected -t build -p server --outputStyle=stream-without-prefixes --parallel=1
       - run: echo "release=$(node -e 'console.log(require(`./server/generated/release`))')" >> $GITHUB_OUTPUT
         id: release
       - uses: getsentry/action-release@v3 # cspell:ignore getsentry
@@ -89,7 +95,7 @@ jobs:
           release: ${{ steps.release.outputs.release }}
           finalize: ${{ inputs.environment == 'production' }}
           sourcemaps: server/dist
-  
+
       - uses: digitalocean/app_action/deploy@v2
         env:
           IMAGE_DIGEST_SERVER: ${{ steps.push.outputs.digest }}

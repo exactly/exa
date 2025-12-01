@@ -1,4 +1,3 @@
-import "dotenv/config";
 import deploy from "@exactly/plugin/deploy.json" with { type: "json" };
 import Firewall from "@exactly/protocol/deployments/base/Firewall.json" with { type: "json" };
 import FlashLoanAdapter from "@exactly/protocol/deployments/base/FlashLoanAdapter.json" with { type: "json" };
