@@ -30,6 +30,8 @@ lcov.info
 **/.vscode/*
 !/.vscode/extensions.json
 .clinic/
+.nx/cache
+.nx/workspace-data
 .env
 .env*.local
 *.local.yaml

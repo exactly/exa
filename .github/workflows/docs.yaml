@@ -27,8 +27,14 @@ jobs:
       - uses: foundry-rs/foundry-toolchain@v1
         with:
           version: v1.3.6
+      - uses: actions/cache@v4
+        with:
+          path: node_modules/.cache/nx
+          key: nx-${{ runner.os }}-${{ github.sha }}
+          restore-keys: nx-${{ runner.os }}-
       - run: pnpm install --frozen-lockfile
-      - run: pnpm run --filter docs build
+      - uses: nrwl/nx-set-shas@v4 # cspell:ignore nrwl
+      - run: pnpm nx affected -t build -p docs --outputStyle=stream-without-prefixes --parallel=1
       - uses: actions/upload-pages-artifact@v3
         with:
           path: docs/dist

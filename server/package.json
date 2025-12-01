@@ -4,14 +4,15 @@
   "private": true,
   "scripts": {
     "build": "pkgroll --sourcemap --src . && sentry-cli sourcemaps inject -o exactly -p server dist",
-    "prepare": "(git fetch --unshallow || true) && pnpm run --aggregate-output --reporter-hide-prefix /prepare:/",
-    "prepare:release": "mkdir -p generated && echo \"module.exports = /** @type {const} */ ('$(git describe --tags --abbrev=7 --match '@exactly/server@*' | sed 's/@exactly\\///')')\" > generated/release.js",
-    "openapi": "tsx script/openapi.ts",
+    "prepare": "nx generate:release server",
+    "prepare:generated": "mkdir -p generated",
+    "generate:release": "echo \"module.exports = /** @type {const} */ ('$(git describe --tags --abbrev=7 --match '@exactly/server@*' | sed 's/@exactly\\///')')\" > generated/release.js",
+    "generate:openapi": "tsx script/openapi.ts",
     "db:push": "drizzle-kit push",
-    "test": "bash -c 'if [[ -z \"$GITHUB_ACTIONS\" ]]; then pnpm run /test:/; else set -o pipefail && pnpm run --aggregate-output --reporter-hide-prefix /test:/ 2>&1 | perl -pe \"s|(?<![a-zA-Z0-9/\\.@])([a-zA-Z][^\\s:\\\"]*?/[^\\s:\\\"]+)|server/\\1|g\"; fi'",
+    "test": "nx run-many -t test:ts test:vi test:openapi -p server",
     "test:ts": "tsc --pretty $([ \"$GITHUB_ACTIONS\" = true ] && echo false || echo true)",
     "test:vi": "vitest run",
-    "test:openapi": "pnpm openapi",
+    "test:openapi": "nx generate:openapi server",
     "spotlight:replay": "for f in node_modules/@exactly/.spotlight/*; do curl --data-binary @$f -H content-type:application/x-sentry-envelope http://localhost:8969/stream; done",
     "dev": "tsx --watch --env-file=.env --require=./instrument.cjs index.ts"
   },
@@ -74,5 +75,29 @@
     "typescript": "^5.8.3",
     "vitest": "^3.2.4",
     "webauthn-owner-plugin": "exactly/webauthn-owner-plugin#9c0c38b"
+  },
+  "nx": {
+    "projectType": "application",
+    "targets": {
+      "generate:release": {
+        "dependsOn": [
+          "prepare:generated",
+          {
+            "projects": "@exactly/common",
+            "target": "git:unshallow"
+          }
+        ],
+        "inputs": [],
+        "outputs": [
+          "{projectRoot}/generated/release.js"
+        ],
+        "cache": false
+      },
+      "generate:openapi": {
+        "outputs": [
+          "{projectRoot}/openapi.json"
+        ]
+      }
+    }
   }
 }

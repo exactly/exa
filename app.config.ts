@@ -1,5 +1,3 @@
-import "dotenv/config";
-
 import type { IntercomPluginProps } from "@intercom/intercom-react-native/lib/typescript/expo-plugins/@types";
 import type { withSentry } from "@sentry/react-native/expo";
 import type { ExpoConfig } from "expo/config";
