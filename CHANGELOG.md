@@ -1,5 +1,24 @@
 # @exactly/mobile
 
+## 1.0.38
+
+### Patch Changes
+
+- [`f2283a8`](https://github.com/exactly/exa/commit/f2283a874ac62b444b7d02f4b0acc8135176b1e0) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix persisting spending limits skeleton
+
+- [`d2c3796`](https://github.com/exactly/exa/commit/d2c379666bb352d75650e0f0f6cc8fbae43943f5) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix available balance text wrap
+
+- [`05dbaf0`](https://github.com/exactly/exa/commit/05dbaf08557c8d9fba53fa5c6bfeadbf78a767d8) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🍱 update icon and splash screen assets
+
+- [`7139332`](https://github.com/exactly/exa/commit/71393326f1758eb2762cfee99d0a2ebdab3727df) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ⚡️ improve virtualized flat list usage
+
+- [`320af8b`](https://github.com/exactly/exa/commit/320af8b2f0eafaf62032b8f92ed5634c9abb8493) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ implement visa signature migration
+
+- [`43f5dbc`](https://github.com/exactly/exa/commit/43f5dbc7fe321bfa0ee365e4c68756d19da3f880) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 handle bad auth data
+
+- Updated dependencies [[`2c4c71a`](https://github.com/exactly/exa/commit/2c4c71a14f84b8ecb54b701d121ba4da2349d36b)]:
+  - @exactly/server@0.2.39
+
 ## 1.0.37
 
 ### Patch Changes

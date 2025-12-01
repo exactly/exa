@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.39
+
+### Patch Changes
+
+- [`2c4c71a`](https://github.com/exactly/exa/commit/2c4c71a14f84b8ecb54b701d121ba4da2349d36b) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🔧 update app manifest icons
+
 ## 0.2.38
 
 ### Patch Changes
