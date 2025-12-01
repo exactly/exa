@@ -8,7 +8,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { switchChain, waitForTransactionReceipt } from "@wagmi/core";
 import { useLocalSearchParams, useNavigation } from "expo-router";
 import type { TFunction } from "i18next";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Platform, Pressable } from "react-native";
 import { ScrollView, Spinner, Square, XStack, YStack } from "tamagui";
@@ -25,6 +25,7 @@ import {
   getAddress,
 } from "viem";
 import {
+  useConnect,
   useReadContract,
   useSendCalls,
   useSendTransaction,
@@ -44,8 +45,9 @@ import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useOpenBrowser from "../../utils/useOpenBrowser";
+import exaConfig from "../../utils/wagmi/exa";
 import externalConfig from "../../utils/wagmi/external";
-import ownerConfig from "../../utils/wagmi/owner";
+import ownerConfig, { getConnector as getOwnerConnector } from "../../utils/wagmi/owner";
 import AssetLogo from "../shared/AssetLogo";
 import GradientScrollView from "../shared/GradientScrollView";
 import SafeView from "../shared/SafeView";
@@ -65,7 +67,7 @@ export default function Bridge() {
   const [assetSheetOpen, setAssetSheetOpen] = useState(false);
   const [destinationModalOpen, setDestinationModalOpen] = useState(false);
 
-  const { address: exaAccount } = useAccount();
+  const { address: exaAccount } = useAccount({ config: exaConfig });
   const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [zeroAddress] });
 
   const [selectedSource, setSelectedSource] = useState<{ chain: number; address: string } | undefined>();
@@ -80,7 +82,17 @@ export default function Bridge() {
   const useAppKitExternal = isExternalSender && Platform.OS !== "web";
   const senderConfig = useAppKitExternal ? appKitWagmiConfig : isExternalSender ? externalConfig : ownerConfig;
 
-  const { address: senderAddress } = useAccount({ config: senderConfig });
+  const { address: senderAddress, isConnected: isSenderConnected } = useAccount({ config: senderConfig });
+  const { connectAsync: connectSender } = useConnect({ config: senderConfig });
+
+  const goBack = useCallback(() => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      navigation.replace("add-funds", { screen: "index" });
+    }
+  }, [navigation]);
+
   const { sendTransactionAsync } = useSendTransaction({ config: senderConfig });
   const { sendCallsAsync } = useSendCalls({ config: senderConfig });
   const { writeContractAsync: transfer } = useWriteContract({ config: senderConfig });
@@ -500,6 +512,13 @@ export default function Bridge() {
     previousSourceAddress.current = sourceTokenAddress;
   }, [destinationToken, destinationTokens, selectedDestinationAddress, sourceTokenAddress, sourceTokenSymbol]);
 
+  useEffect(() => {
+    if (isSenderConnected) return;
+    getOwnerConnector()
+      .then((connector) => connectSender({ connector }).catch(goBack))
+      .catch(reportError);
+  }, [connectSender, goBack, isSenderConnected, navigation, senderConfig]);
+
   if (processing) {
     const isPending = isBridging || isTransferring;
     const isSuccess = isBridgeSuccess || isTransferSuccess;
@@ -522,7 +541,7 @@ export default function Bridge() {
                   resetBridgeMutation();
                   resetTransferMutation();
                 }
-                navigation.replace("(home)", { screen: "index" });
+                goBack();
               }}
             >
               <X size={24} color="$uiNeutralPrimary" />
