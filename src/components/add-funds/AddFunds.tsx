@@ -5,11 +5,12 @@ import { useAppKit, useAppKitState } from "@reown/appkit-react-native";
 import { ArrowLeft, CircleHelp, Info, Wallet } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigation } from "expo-router";
-import React, { useEffect } from "react";
+import React, { useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Platform, Pressable } from "react-native";
 import { ScrollView, useTheme, XStack, YStack } from "tamagui";
 import { isAddress } from "viem";
+import { ConnectorAlreadyConnectedError, useConnect } from "wagmi";
 
 import AddFundsOption from "./AddFundsOption";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
@@ -18,25 +19,42 @@ import WalletConnectImage from "../../assets/images/walletconnect.svg";
 import type { AuthMethod } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useIntercom from "../../utils/useIntercom";
+import ownerConfig, { getConnector as getOwnerConnector } from "../../utils/wagmi/owner";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function AddFunds() {
   const theme = useTheme();
-  const { open } = useAppKit();
   const { presentArticle } = useIntercom();
   const navigation = useNavigation<AppNavigationProperties>();
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const { data: method } = useQuery<AuthMethod>({ queryKey: ["method"] });
   const { t } = useTranslation();
+
   const ownerAccount = credential && isAddress(credential.credentialId) ? credential.credentialId : undefined;
 
-  const { isConnected, isOpen } = useAppKitState();
+  const { open: openWC } = useAppKit();
+  const { isConnected: isWCConnected, isOpen: isWCOpen } = useAppKitState();
+
+  const { connectAsync: connectOwner } = useConnect({ config: ownerConfig });
+
+  const handlePress = useCallback(async () => {
+    connectOwner({ connector: await getOwnerConnector() })
+      .then(() => {
+        navigation.navigate("add-funds", { screen: "bridge" });
+      })
+      .catch((error: unknown) => {
+        if (error instanceof ConnectorAlreadyConnectedError) {
+          navigation.navigate("add-funds", { screen: "bridge" });
+        }
+      });
+  }, [connectOwner, navigation]);
 
   useEffect(() => {
-    if (isConnected && isOpen) navigation.navigate("add-funds", { screen: "bridge", params: { sender: "external" } });
-  }, [isConnected, isOpen, navigation]);
+    if (isWCConnected && isWCOpen)
+      navigation.navigate("add-funds", { screen: "bridge", params: { sender: "external" } });
+  }, [isWCConnected, isWCOpen, navigation]);
 
   return (
     <SafeView fullScreen backgroundColor="$backgroundMild">
@@ -74,7 +92,7 @@ export default function AddFunds() {
                 title={t("From connected wallet")}
                 subtitle={shortenHex(ownerAccount, 4, 6)}
                 onPress={() => {
-                  navigation.navigate("add-funds", { screen: "bridge" });
+                  handlePress().catch(reportError);
                 }}
               />
             )}
@@ -82,7 +100,7 @@ export default function AddFunds() {
               icon={<WalletConnectImage width={30} height={30} fill={theme.interactiveOnBaseBrandSoft.val} />}
               title={t("Using WalletConnect")}
               subtitle={Platform.OS === "web" ? t("From another wallet") : t("From another wallet on your device")}
-              onPress={open}
+              onPress={openWC}
             />
             <AddFundsOption
               icon={<OptimismImage width={30} height={30} />}
