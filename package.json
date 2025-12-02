@@ -192,6 +192,7 @@
       "sharp": "$sharp",
       "tmp@0.0.33": "^0.2.4",
       "typescript": "$typescript",
+      "unicorn-magic@0.3.0": "^0.2.0",
       "valibot": "$valibot",
       "viem": "$viem",
       "wagmi": "$wagmi",
