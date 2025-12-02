@@ -30,7 +30,7 @@
     "test:eslint": "eslint --max-warnings 0 ."
   },
   "engines": {
-    "node": ">=22.14.0"
+    "node": "~24.12.0"
   },
   "dependencies": {
     "@alchemy/aa-accounts": "^3.19.0",
@@ -127,7 +127,7 @@
     "@types/eslint": "^9.6.1",
     "@types/eslint-plugin-jsx-a11y": "^6.10.0",
     "@types/fast-text-encoding": "^1.0.3",
-    "@types/node": "^22.14.1",
+    "@types/node": "^24.10.3",
     "@types/react": "~18.3.12",
     "@typescript-eslint/eslint-plugin": "^8.30.1",
     "@typescript-eslint/parser": "^8.30.1",
