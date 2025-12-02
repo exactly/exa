@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.40
+
+### Patch Changes
+
+- [`711c923`](https://github.com/exactly/exa/commit/711c923942249fcb6d633640b5c4e4a48e29d6c2) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ⏪️ revert svgr and custom svg transformer
+
 ## 0.2.39
 
 ### Patch Changes
