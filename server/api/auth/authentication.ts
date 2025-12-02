@@ -1,12 +1,13 @@
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
+import deriveAddress from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
-import { Address, Base64URL, Hex, Credential } from "@exactly/common/validation";
+import { Address, Base64URL, Credential, Hex } from "@exactly/common/validation";
 import { captureException, setContext, setUser } from "@sentry/node";
 import {
-  type AuthenticatorTransportFuture,
   generateAuthenticationOptions,
   verifyAuthenticationResponse,
+  type AuthenticatorTransportFuture,
 } from "@simplewebauthn/server";
 import { eq } from "drizzle-orm";
 import { Hono, type Env } from "hono";
@@ -19,6 +20,7 @@ import {
   description,
   literal,
   metadata,
+  nullable,
   number,
   object,
   optional,
@@ -42,6 +44,7 @@ import appOrigin from "../../utils/appOrigin";
 import authSecret from "../../utils/authSecret";
 import createCredential from "../../utils/createCredential";
 import decodePublicKey from "../../utils/decodePublicKey";
+import getIntercomToken from "../../utils/intercom";
 import publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
 import validatorHook from "../../utils/validatorHook";
@@ -108,9 +111,10 @@ const AuthenticationOptions = variant("method", [
 export const Authentication = object({
   ...Credential.entries,
   auth: pipe(number(), title("Session expiry"), description("When the authenticated session will expire.")),
+  intercomToken: pipe(nullable(string()), description("Intercom Identity Verification Token")),
 });
 
-const LegacyAuthentication = object({
+export const LegacyAuthentication = object({
   ...Authentication.entries,
   expires: pipe(
     number(),
@@ -319,7 +323,16 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
           return c.json({ code: "bad authentication", legacy: "bad authentication" }, 400);
         }
         const result = await createCredential(c, assertion.id);
-        return c.json({ ...result, expires: result.auth } satisfies InferOutput<typeof LegacyAuthentication>, 200);
+        const account = deriveAddress(result.factory, { x: result.x, y: result.y });
+        const intercomToken = await getIntercomToken(account, result.auth);
+        return c.json(
+          {
+            ...result,
+            expires: result.auth,
+            intercomToken,
+          } satisfies InferOutput<typeof LegacyAuthentication>,
+          200,
+        );
       }
       setUser({ id: parse(Address, credential.account) });
 
@@ -369,7 +382,8 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
       }
 
       const expires = new Date(Date.now() + AUTH_EXPIRY);
-      await Promise.all([
+      const [intercomToken] = await Promise.all([
+        getIntercomToken(parse(Address, credential.account), expires),
         setSignedCookie(c, "credential_id", assertion.id, authSecret, {
           expires,
           httpOnly: true,
@@ -387,6 +401,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
           ...decodePublicKey(credential.publicKey),
           auth: expires.getTime(),
           expires: expires.getTime(),
+          intercomToken,
         } satisfies InferOutput<typeof LegacyAuthentication>,
         200,
       );
