@@ -29,6 +29,7 @@ overrides:
   sharp: ^0.34.1
   tmp@0.0.33: ^0.2.4
   typescript: ^5.8.3
+  unicorn-magic@0.3.0: ^0.2.0
   valibot: ^1.2.0
   viem: ^2.40.3
   wagmi: ^2.18.1
@@ -11920,8 +11921,8 @@ packages:
   unicode-trie@2.0.0:
     resolution: {integrity: sha512-x7bc76x0bm4prf1VLg79uhAzKw8DVboClSN5VxJuQ+LKDOVEW9CdH+VY7SP+vX7xCYQqzzgQpFqz15zeLvAtZQ==}
 
-  unicorn-magic@0.3.0:
-    resolution: {integrity: sha512-+QBBXBCvifc56fsbuxZQ6Sic3wqqc3WWaqxs58gvJrcOuN83HGTCwz3oS5phzU9LthRNE9VrJCFCLUgHeeFnfA==}
+  unicorn-magic@0.2.0:
+    resolution: {integrity: sha512-q83y+/QtXrbKX1jYY+bdQROAbZj6EeSP+Plv0cYZBMPfirSaEvnnhMwRk2WH4n5XkNCQHygAiwTVNpvw3I1dCg==}
     engines: {node: '>=18'}
 
   unified@11.0.5:
@@ -24791,7 +24792,7 @@ snapshots:
   npm-run-path@6.0.0:
     dependencies:
       path-key: 4.0.0
-      unicorn-magic: 0.3.0
+      unicorn-magic: 0.2.0
 
   nth-check@2.1.1:
     dependencies:
@@ -27360,7 +27361,7 @@ snapshots:
       pako: 0.2.9
       tiny-inflate: 1.0.3
 
-  unicorn-magic@0.3.0: {}
+  unicorn-magic@0.2.0: {}
 
   unified@11.0.5:
     dependencies:
