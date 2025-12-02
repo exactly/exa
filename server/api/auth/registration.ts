@@ -1,11 +1,13 @@
+import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
+import deriveAddress from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
 import { Address, Base64URL, Hex } from "@exactly/common/validation";
 import { captureException, setContext } from "@sentry/node";
 import {
-  type AuthenticatorTransportFuture,
   generateRegistrationOptions,
   verifyRegistrationResponse,
+  type AuthenticatorTransportFuture,
   type WebAuthnCredential,
 } from "@simplewebauthn/server";
 import { cose } from "@simplewebauthn/server/helpers";
@@ -37,6 +39,7 @@ import { Authentication } from "./authentication";
 import androidOrigins from "../../utils/android/origins";
 import appOrigin from "../../utils/appOrigin";
 import createCredential from "../../utils/createCredential";
+import getIntercomToken from "../../utils/intercom";
 import publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
 import validatorHook from "../../utils/validatorHook";
@@ -354,8 +357,14 @@ export default new Hono()
         await redis.del(sessionId);
       }
 
+      const result = await createCredential(c, attestation.id, webauthn);
+      const account = deriveAddress(result.factory, { x: result.x, y: result.y });
+      const intercomToken = await getIntercomToken(account, new Date(Date.now() + AUTH_EXPIRY));
       return c.json(
-        (await createCredential(c, attestation.id, webauthn)) satisfies InferOutput<typeof Authentication>,
+        {
+          ...result,
+          intercomToken,
+        } satisfies InferOutput<typeof Authentication>,
         200,
       );
     },
