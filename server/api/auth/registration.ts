@@ -3,9 +3,9 @@ import chain from "@exactly/common/generated/chain";
 import { Address, Base64URL, Hex } from "@exactly/common/validation";
 import { captureException, setContext } from "@sentry/node";
 import {
-  type AuthenticatorTransportFuture,
   generateRegistrationOptions,
   verifyRegistrationResponse,
+  type AuthenticatorTransportFuture,
   type WebAuthnCredential,
 } from "@simplewebauthn/server";
 import { cose } from "@simplewebauthn/server/helpers";
@@ -33,7 +33,7 @@ import {
 } from "valibot";
 import { createSiweMessage, generateSiweNonce, parseSiweMessage, validateSiweMessage } from "viem/siwe";
 
-import { Authentication } from "./authentication";
+import { Authentication, getIntercomToken } from "./authentication";
 import androidOrigins from "../../utils/android/origins";
 import appOrigin from "../../utils/appOrigin";
 import createCredential from "../../utils/createCredential";
@@ -350,8 +350,12 @@ export default new Hono()
         await redis.del(sessionId);
       }
 
+      const intercomToken = await getIntercomToken(attestation.id);
       return c.json(
-        (await createCredential(c, attestation.id, webauthn)) satisfies InferOutput<typeof Authentication>,
+        {
+          ...(await createCredential(c, attestation.id, webauthn)),
+          intercomToken,
+        } satisfies InferOutput<typeof Authentication>,
         200,
       );
     },

@@ -1,24 +1,26 @@
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
-import { Address, Base64URL, Hex, Credential } from "@exactly/common/validation";
+import { Address, Base64URL, Credential, Hex } from "@exactly/common/validation";
 import { captureException, setContext, setUser } from "@sentry/node";
 import {
-  type AuthenticatorTransportFuture,
   generateAuthenticationOptions,
   verifyAuthenticationResponse,
+  type AuthenticatorTransportFuture,
 } from "@simplewebauthn/server";
 import { eq } from "drizzle-orm";
 import { Hono, type Env } from "hono";
 import { setCookie, setSignedCookie } from "hono/cookie";
 import { describeRoute } from "hono-openapi";
 import { resolver, validator as vValidator } from "hono-openapi/valibot";
+import { SignJWT } from "jose";
 import {
   any,
   array,
   description,
   literal,
   metadata,
+  nullable,
   number,
   object,
   optional,
@@ -45,6 +47,8 @@ import decodePublicKey from "../../utils/decodePublicKey";
 import publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
 import validatorHook from "../../utils/validatorHook";
+
+const INTERCOM_JWT_EXPIRY = "1h";
 
 const Cookie = object({
   session_id: pipe(Base64URL, title("Session identifier"), description("HTTP-only cookie.")),
@@ -108,9 +112,10 @@ const AuthenticationOptions = variant("method", [
 export const Authentication = object({
   ...Credential.entries,
   auth: pipe(number(), title("Session expiry"), description("When the authenticated session will expire.")),
+  intercomToken: pipe(nullable(string()), description("Intercom Identity Verification Token")),
 });
 
-const LegacyAuthentication = object({
+export const LegacyAuthentication = object({
   ...Authentication.entries,
   expires: pipe(
     number(),
@@ -304,7 +309,11 @@ export default new Hono()
           return c.json({ code: "bad authentication", legacy: "bad authentication" }, 400);
         }
         const result = await createCredential(c, assertion.id);
-        return c.json({ ...result, expires: result.auth } satisfies InferOutput<typeof LegacyAuthentication>, 200);
+        const intercomToken = await getIntercomToken(assertion.id);
+        return c.json(
+          { ...result, expires: result.auth, intercomToken } satisfies InferOutput<typeof LegacyAuthentication>,
+          200,
+        );
       }
       setUser({ id: parse(Address, credential.account) });
 
@@ -366,6 +375,8 @@ export default new Hono()
         newCounter && database.update(credentials).set({ counter: newCounter }).where(eq(credentials.id, assertion.id)),
       ]);
 
+      const intercomToken = await getIntercomToken(assertion.id);
+
       return c.json(
         {
           credentialId: assertion.id,
@@ -373,6 +384,7 @@ export default new Hono()
           ...decodePublicKey(credential.publicKey),
           auth: expires.getTime(),
           expires: expires.getTime(),
+          intercomToken,
         } satisfies InferOutput<typeof LegacyAuthentication>,
         200,
       );
@@ -380,3 +392,18 @@ export default new Hono()
   );
 
 const scheme = domain === "localhost" ? "http" : "https";
+/**
+ * Generates an Intercom Identity token for the given assertion ID.
+ * @param assertionId The assertion ID to generate a token for.
+ * @returns The Intercom token, or null if the secret is not set.
+ */
+export const getIntercomToken = async (assertionId: string): Promise<string | null> => {
+  if (!process.env.INTERCOM_IDENTITY_SECRET) return null;
+
+  return await new SignJWT({ sub: assertionId })
+    .setProtectedHeader({ alg: "HS256" })
+    // use the current ts
+    .setIssuedAt()
+    .setExpirationTime(INTERCOM_JWT_EXPIRY)
+    .sign(new TextEncoder().encode(process.env.INTERCOM_IDENTITY_SECRET));
+};
