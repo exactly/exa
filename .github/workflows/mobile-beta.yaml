@@ -15,7 +15,7 @@ jobs:
           fetch-tags: true
       - uses: actions/setup-node@v4
         with:
-          node-version: ">=22.14.0"
+          node-version: ">=24.12.0"
       - run: npx @changesets/cli status --since ${{ github.event.before }} --output changesets.json
       - run: echo "mobile=$(jq 'any(.releases[].name; . == "@exactly/mobile")' changesets.json)" >> $GITHUB_OUTPUT
         id: release
