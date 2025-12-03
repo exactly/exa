@@ -15,7 +15,7 @@ export default function HTML({ children }: { children: ReactNode }) {
         <meta property="og:type" content="website" />
         <meta property="og:title" content={appMetadata.title} />
         <meta property="og:description" content={appMetadata.description} />
-        <meta property="og:image" content="https://exactly.app/og-image.webp" />
+        <meta property="og:image" content="https://assets.exactly.app/og-image.webp" />
         <meta property="og:image:width" content="1200" />
         <meta property="og:image:height" content="630" />
         <meta name="twitter:card" content="summary_large_image" />
