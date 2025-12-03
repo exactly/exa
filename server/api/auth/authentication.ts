@@ -48,7 +48,7 @@ import publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
 import validatorHook from "../../utils/validatorHook";
 
-const INTERCOM_JWT_EXPIRY = "1h";
+const INTERCOM_JWT_EXPIRY = "24h";
 
 const Cookie = object({
   session_id: pipe(Base64URL, title("Session identifier"), description("HTTP-only cookie.")),
@@ -309,9 +309,13 @@ export default new Hono()
           return c.json({ code: "bad authentication", legacy: "bad authentication" }, 400);
         }
         const result = await createCredential(c, assertion.id);
-        const intercomToken = await getIntercomToken(assertion.id);
+        const intercomToken = await getIntercomToken(assertion.id, result.account);
         return c.json(
-          { ...result, expires: result.auth, intercomToken } satisfies InferOutput<typeof LegacyAuthentication>,
+          {
+            ...result,
+            expires: result.auth,
+            intercomToken,
+          } satisfies InferOutput<typeof LegacyAuthentication>,
           200,
         );
       }
@@ -375,7 +379,7 @@ export default new Hono()
         newCounter && database.update(credentials).set({ counter: newCounter }).where(eq(credentials.id, assertion.id)),
       ]);
 
-      const intercomToken = await getIntercomToken(assertion.id);
+      const intercomToken = await getIntercomToken(assertion.id, parse(Address, credential.account));
 
       return c.json(
         {
@@ -395,12 +399,13 @@ const scheme = domain === "localhost" ? "http" : "https";
 /**
  * Generates an Intercom Identity token for the given assertion ID.
  * @param assertionId The assertion ID to generate a token for.
+ * @param userId The user ID to generate a token for.
  * @returns The Intercom token, or null if the secret is not set.
  */
-export const getIntercomToken = async (assertionId: string): Promise<string | null> => {
+export const getIntercomToken = async (assertionId: string, userId: string): Promise<string | null> => {
   if (!process.env.INTERCOM_IDENTITY_SECRET) return null;
 
-  return await new SignJWT({ sub: assertionId })
+  return await new SignJWT({ sub: userId, user_id: userId })
     .setProtectedHeader({ alg: "HS256" })
     // use the current ts
     .setIssuedAt()

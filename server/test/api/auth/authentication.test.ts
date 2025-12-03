@@ -5,6 +5,8 @@ import "../../mocks/sentry";
 import type * as SimpleWebAuthn from "@simplewebauthn/server";
 import type * as SimpleWebAuthnHelpers from "@simplewebauthn/server/helpers";
 import { testClient } from "hono/testing";
+import { decodeJwt } from "jose";
+import assert from "node:assert";
 import type { Brand, InferOutput } from "valibot";
 import { zeroAddress, type Address } from "viem";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -42,6 +44,7 @@ vi.mock("../../../utils/createCredential", () => ({
     x: "0x",
     y: "0x",
     auth: Date.now() + 1000,
+    account: zeroAddress as unknown as Address & Brand<"Address">,
   }),
 }));
 
@@ -115,6 +118,18 @@ describe("authentication", () => {
     const json = await response.json();
     const authResponse = json as InferOutput<typeof Authentication>;
 
-    expect(authResponse.intercomToken).toBeTypeOf("string");
+    assert(authResponse.intercomToken);
+
+    const payload = decodeJwt(authResponse.intercomToken);
+
+    expect(payload.user_id).toBe(zeroAddress);
+
+    expect(payload.sub).toBe(zeroAddress);
+    // 24h = 86400 seconds. Allow some leeway for execution time.
+
+    const nowInSeconds = Math.floor(Date.now() / 1000);
+
+    expect(payload.exp).toBeGreaterThan(nowInSeconds + 86_000);
+    expect(payload.exp).toBeLessThan(nowInSeconds + 86_500);
   });
 });

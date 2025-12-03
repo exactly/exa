@@ -62,5 +62,5 @@ export default async function createCredential<C extends string>(
       .catch((error: unknown) => captureException(error)),
   ]);
   identify({ userId: account });
-  return { credentialId, factory: parse(Address, exaAccountFactoryAddress), x, y, auth: expires.getTime() };
+  return { credentialId, factory: parse(Address, exaAccountFactoryAddress), x, y, auth: expires.getTime(), account };
 }
