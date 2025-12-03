@@ -22,7 +22,14 @@ import {
   TransactionExecutionError,
   getAddress,
 } from "viem";
-import { useReadContract, useSendCalls, useSendTransaction, useSimulateContract, useWriteContract } from "wagmi";
+import {
+  useReadContract,
+  useReconnect,
+  useSendCalls,
+  useSendTransaction,
+  useSimulateContract,
+  useWriteContract,
+} from "wagmi";
 
 import AssetSelectSheet from "./AssetSelectSheet";
 import TokenLogo from "./TokenLogo";
@@ -64,7 +71,9 @@ export default function Bridge() {
   const [bridgePreview, setBridgePreview] = useState<{ sourceToken: Token; sourceAmount: bigint } | undefined>();
 
   const senderConfig = ownerConfig;
-  const { address: senderAddress } = useAccount({ config: senderConfig });
+  const { reconnectAsync: reconnectSender } = useReconnect({ config: senderConfig });
+  const { address: senderAddress, isConnected: isSenderConnected } = useAccount({ config: senderConfig });
+  console.log("senderAddress:", senderAddress, "isSenderConnected:", isSenderConnected);
   const { sendTransactionAsync } = useSendTransaction({ config: senderConfig });
   const { sendCallsAsync } = useSendCalls({ config: senderConfig });
   const { writeContractAsync: transfer } = useWriteContract({ config: senderConfig });
@@ -482,6 +491,13 @@ export default function Bridge() {
 
     previousSourceAddress.current = sourceTokenAddress;
   }, [destinationToken, destinationTokens, selectedDestinationAddress, sourceTokenAddress, sourceTokenSymbol]);
+
+  useEffect(() => {
+    if (!isSenderConnected && !senderAddress) {
+      console.log("reconnecting sender...");
+      reconnectSender().catch(reportError);
+    }
+  }, [isSenderConnected, reconnectSender, senderAddress]);
 
   if (processing) {
     const isPending = isBridging || isTransferring;
