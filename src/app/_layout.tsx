@@ -127,11 +127,9 @@ export default wrap(function RootLayout() {
   }, [navigationContainer]);
 
   useEffect(() => {
-    reconnect(exaConfig).catch(reportError);
-    getOwnerConnector()
-      .then((connector) => reconnect(ownerConfig, { connectors: [connector] }))
+    reconnect(exaConfig)
+      .then(() => reconnect(ownerConfig))
       .catch(reportError);
-
     if (__DEV__) return;
     let shouldReload = false;
     const subscription = AppState.addEventListener("change", (state) => {
