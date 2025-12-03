@@ -8,6 +8,7 @@ import { exaAccountFactoryAbi } from "@exactly/common/generated/chain";
 import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
+import crypto from "node:crypto";
 import { zeroHash, padHex, zeroAddress, hexToBigInt, parseEther } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
@@ -215,6 +216,28 @@ describe("authenticated", () => {
     expect(created?.mode).toBe(1);
 
     expect(json).toStrictEqual({ status: "ACTIVE", lastFour: "1224", cardId: id, productId: SIGNATURE_PRODUCT_ID });
+  });
+
+  it("sets an invalid card pin", async () => {
+    const cardResponse = { ...cardTemplate, id: crypto.randomUUID(), last4: "1224", status: "active" as const };
+    vi.spyOn(kyc, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
+    vi.spyOn(panda, "createCard").mockResolvedValueOnce(cardResponse);
+    vi.spyOn(panda, "setPIN").mockRejectedValueOnce(
+      new Error(
+        `400 {"message":"Weak PIN. Avoid repeating (1111) or sequential (1234) numbers.","error":"BadRequestError","statusCode":400}`,
+      ),
+    );
+    const response = await appClient.index.$post({ header: { "test-credential-id": ethAccount } });
+
+    const cancelResponse = await appClient.index.$patch({
+      // @ts-expect-error - bad hono patch type
+      header: { "test-credential-id": ethAccount },
+      json: { sessionId: "sessionId", data: "data", iv: "iv" },
+    });
+
+    expect(response.status).toBe(200);
+    expect(cancelResponse.status).toBe(400);
+    await expect(cancelResponse.json()).resolves.toStrictEqual({ code: "weak pin", legacy: "weak pin" });
   });
 
   describe("migration", () => {
