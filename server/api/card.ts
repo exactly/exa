@@ -661,6 +661,7 @@ async function encryptPIN(pin: string) {
                   object({ code: literal("bad signature") }),
                   object({ code: literal("already set"), mode: number() }),
                   object({ code: literal("already set"), status: picklist(["ACTIVE", "DELETED", "FROZEN"]) }),
+                  object({ code: literal("weak pin") }),
                 ]),
                 { errorMode: "ignore" },
               ),
@@ -740,7 +741,14 @@ async function encryptPIN(pin: string) {
             }
             case "pin": {
               const { sessionId, data, iv } = patch;
-              await setPIN(card.id, sessionId, { data, iv });
+              try {
+                await setPIN(card.id, sessionId, { data, iv });
+              } catch (error) {
+                if (error instanceof Error && error.message.includes("Weak PIN")) {
+                  return c.json({ code: "weak pin" }, 400);
+                }
+                throw error;
+              }
               return c.json({ data, iv } satisfies InferOutput<typeof UpdatedCardResponse>, 200);
             }
             case "signature": {
