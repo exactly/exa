@@ -60,6 +60,7 @@ const BadRequestCodes = {
   BAD_REQUEST: "bad request",
   ALREADY_CREATED: "already created",
   ALREADY_SET: "already set",
+  WEAK_PIN: "weak pin",
 } as const;
 
 const CardResponse = object({
@@ -525,7 +526,11 @@ async function encryptPIN(pin: string) {
           content: {
             "application/json": {
               schema: resolver(
-                union([buildBaseResponse(BadRequestCodes.BAD_REQUEST), buildBaseResponse(BadRequestCodes.ALREADY_SET)]),
+                union([
+                  buildBaseResponse(BadRequestCodes.ALREADY_SET),
+                  buildBaseResponse(BadRequestCodes.BAD_REQUEST),
+                  buildBaseResponse(BadRequestCodes.WEAK_PIN),
+                ]),
                 { errorMode: "ignore" },
               ),
             },
@@ -597,7 +602,14 @@ async function encryptPIN(pin: string) {
             }
             case "pin": {
               const { sessionId, data, iv } = patch;
-              await setPIN(card.id, sessionId, { data, iv });
+              try {
+                await setPIN(card.id, sessionId, { data, iv });
+              } catch (error) {
+                if (error instanceof Error && error.message.includes("Weak PIN")) {
+                  return c.json({ code: BadRequestCodes.WEAK_PIN, legacy: BadRequestCodes.WEAK_PIN }, 400);
+                }
+                throw error;
+              }
               return c.json({ data, iv } satisfies InferOutput<typeof UpdatedCardResponse>, 200);
             }
           }
