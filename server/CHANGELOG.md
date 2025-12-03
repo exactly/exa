@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.41
+
+### Patch Changes
+
+- [`5f64a66`](https://github.com/exactly/exa/commit/5f64a6612af9fbf78d951546b2b9b28b9327f37b) Thanks [@franm91](https://github.com/franm91)! - 🔧 update farcaster manifest images
+
 ## 0.2.40
 
 ### Patch Changes

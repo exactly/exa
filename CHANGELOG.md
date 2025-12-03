@@ -1,5 +1,18 @@
 # @exactly/mobile
 
+## 1.0.39
+
+### Patch Changes
+
+- [`cf0ff6f`](https://github.com/exactly/exa/commit/cf0ff6f9694f26aa0cad141f5ec60c503ebd6c2f) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix owner config reconnection
+
+- [`f6e452c`](https://github.com/exactly/exa/commit/f6e452cfb3cf916474c5bb56c9451698d2462f47) Thanks [@franm91](https://github.com/franm91)! - 🔧 update farcaster sharing manifest
+
+- [`90d0195`](https://github.com/exactly/exa/commit/90d019564dfe043710309fbd861acd0aa507e13e) Thanks [@franm91](https://github.com/franm91)! - 🔧 update opengraph meta tag
+
+- Updated dependencies [[`5f64a66`](https://github.com/exactly/exa/commit/5f64a6612af9fbf78d951546b2b9b28b9327f37b)]:
+  - @exactly/server@0.2.41
+
 ## 1.0.38
 
 ### Patch Changes
