@@ -1805,6 +1805,31 @@ describe("authenticated", () => {
       );
     });
   });
+
+  it("rejects weak PIN with appropriate error code", async () => {
+    const setPIN = vi
+      .spyOn(panda, "setPIN")
+      .mockRejectedValueOnce(
+        new ServiceError(
+          "Panda",
+          400,
+          '{"message":"Weak PIN. Avoid repeating (1111) or sequential (1234) numbers.","error":"BadRequestError","statusCode":400}',
+          "BadRequestError",
+          "Weak PIN. Avoid repeating (1111) or sequential (1234) numbers.",
+        ),
+      );
+
+    const response = await appClient.index.$patch({
+      // @ts-expect-error - bad hono patch type
+      header: { "test-credential-id": "default" },
+      json: { sessionId: "sessionId", data: "data", iv: "iv" },
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toStrictEqual({ code: "weak pin" });
+    expect(setPIN).toHaveBeenCalledOnce();
+  });
+
   describe("migration", () => {
     it("creates a panda card having a cm card with upgraded plugin", async () => {
       const cardId = "cm-not-uuid";
