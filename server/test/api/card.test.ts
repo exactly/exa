@@ -744,6 +744,23 @@ describe("authenticated", () => {
     expect(card?.status).toBe("DELETED");
   });
 
+  it("sets an invalid card pin", async () => {
+    vi.spyOn(panda, "setPIN").mockRejectedValueOnce(
+      new Error(
+        `400 {"message":"Weak PIN. Avoid repeating (1111) or sequential (1234) numbers.","error":"BadRequestError","statusCode":400}`,
+      ),
+    );
+
+    const cancelResponse = await appClient.index.$patch({
+      // @ts-expect-error - bad hono patch type
+      header: { "test-credential-id": "default" },
+      json: { sessionId: "sessionId", data: "data", iv: "iv" },
+    });
+
+    expect(cancelResponse.status).toBe(400);
+    await expect(cancelResponse.json()).resolves.toStrictEqual({ code: "weak pin" });
+  });
+
   describe("migration", () => {
     it("creates a panda card having a cm card with upgraded plugin", async () => {
       const cardId = "cm-not-uuid";
