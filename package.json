@@ -159,7 +159,7 @@
     "metro-config": "^0.81.0",
     "onesignal-expo-plugin": "^2.0.3",
     "prettier": "^3.5.3",
-    "react-native-svg-transformer": "^1.5.0",
+    "react-native-svg-transformer": "^1.5.2",
     "sharp": "^0.34.1",
     "sharp-cli": "^2.1.1",
     "svgo": "^3.3.2",
@@ -226,7 +226,8 @@
     },
     "patchedDependencies": {
       "eslint-config-universe": "patches/eslint-config-universe.patch",
-      "@lifi/sdk": "patches/@lifi__sdk.patch"
+      "@lifi/sdk": "patches/@lifi__sdk.patch",
+      "react-native-svg-transformer": "patches/react-native-svg-transformer.patch"
     },
     "updateConfig": {
       "ignoreDependencies": [
