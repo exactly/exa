@@ -87,22 +87,21 @@ export default function VisaSignatureSheet({ open, onClose }: { open: boolean; o
             flex={1}
             padding="$s5"
             gap="$s5"
-            paddingTop="$s7"
             justifyContent={isSuccess || isIdle || isError ? "space-between" : "center"}
           >
-            <View flex={1.5} justifyContent="center" alignItems="center">
+            <View flex={1} justifyContent="center" alignItems="center">
               {isPending ? (
                 <SvgUri
                   width="100%"
                   height="100%"
-                  preserveAspectRatio="xMidYMax"
+                  preserveAspectRatio="xMidYMid"
                   uri="https://assets.exactly.app/platinum-full.svg"
                 />
               ) : (
                 <SignatureCard
                   width="100%"
                   height="100%"
-                  preserveAspectRatio="xMidYMax"
+                  preserveAspectRatio="xMidYMid"
                   {...(Platform.OS === "web" ? undefined : { shouldRasterizeIOS: true })}
                 />
               )}
@@ -110,7 +109,7 @@ export default function VisaSignatureSheet({ open, onClose }: { open: boolean; o
             {(isIdle || isError) && (
               <>
                 <YStack flex={1} gap="$s5" alignItems="center" justifyContent="center">
-                  <Text emphasized title color="white">
+                  <Text emphasized title color="white" textAlign="center">
                     Level up your Exa Card
                   </Text>
                   <Text footnote color="white" textAlign="center">
