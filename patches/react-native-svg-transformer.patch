@@ -1,0 +1,13 @@
+diff --git a/index.js b/index.js
+index ca5bc4fc811d428d18180086a35076e9dd7d6391..6c04fcd26230959575b5f30a9970b71047712c08 100644
+--- a/index.js
++++ b/index.js
+@@ -56,7 +56,7 @@ function createTransformer(transformer) {
+         ? { ...defaultSVGRConfig, ...config }
+         : defaultSVGRConfig;
+       return transformer.transform({
+-        src: await transform(src, svgrConfig),
++        src: await transform(src, svgrConfig, { filePath: filename }),
+         filename,
+         ...rest
+       });
