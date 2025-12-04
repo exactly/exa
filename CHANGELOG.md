@@ -1,5 +1,14 @@
 # @exactly/mobile
 
+## 1.0.40
+
+### Patch Changes
+
+- [`323e6e0`](https://github.com/exactly/exa/commit/323e6e05ff4c61e73d4f89c25c07f4411d278e50) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 prefix svg ids
+
+- Updated dependencies [[`323e6e0`](https://github.com/exactly/exa/commit/323e6e05ff4c61e73d4f89c25c07f4411d278e50)]:
+  - @exactly/server@0.2.42
+
 ## 1.0.39
 
 ### Patch Changes
