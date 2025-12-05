@@ -52,7 +52,10 @@ export default function Home() {
   const [visaSignatureModalOpen, setVisaSignatureModalOpen] = useState(false);
 
   const { address: account } = useAccount();
-  const { data: bytecode } = useBytecode({ address: account ?? zeroAddress, query: { enabled: !!account } });
+  const { data: bytecode, refetch: refetchBytecode } = useBytecode({
+    address: account ?? zeroAddress,
+    query: { enabled: !!account },
+  });
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
     address: account ?? zeroAddress,
     query: { enabled: !!account && !!bytecode },
@@ -128,6 +131,7 @@ export default function Home() {
               refreshing={isPending}
               onRefresh={() => {
                 refetchActivity().catch(reportError);
+                refetchBytecode().catch(reportError);
                 refetchMarkets().catch(reportError);
                 refetchKYCStatus().catch(reportError);
                 refetchLegacyKYCStatus().catch(reportError);
