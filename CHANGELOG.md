@@ -1,5 +1,15 @@
 # @exactly/mobile
 
+## 1.0.41
+
+### Patch Changes
+
+- [`742e54d`](https://github.com/exactly/exa/commit/742e54d1459ae7a83f7f9d424aa87a5526946f73) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix send button disabled state
+
+- [`34240a9`](https://github.com/exactly/exa/commit/34240a9c8c8edac3f9b714c4608b8644edfaa15b) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💬 update arrival time text
+
+- [`30acc21`](https://github.com/exactly/exa/commit/30acc213be0d7f0ceebbd88480d036a6e68d8e02) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 improve card migration layout
+
 ## 1.0.40
 
 ### Patch Changes
