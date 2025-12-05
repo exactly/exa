@@ -156,7 +156,7 @@ export default function ReceiverSelection() {
                 </Text>
               </Text>
               <Text color="$uiNeutralPlaceholder" caption2 textAlign="justify">
-                Arrival time ≈ 5 min.
+                Arrival time ≈ 1 min.
               </Text>
             </YStack>
             <form.Subscribe selector={({ canSubmit }) => canSubmit}>
