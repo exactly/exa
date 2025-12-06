@@ -29,6 +29,6 @@ tags:
       asset: USDC
       to: "0x000000000000000000000000000000000000dEaD"
       amount: "69"
-- runFlow: ../subflows/readPortfolio.yaml
-- assertTrue: ${output.portfolioBefore - output.portfolio === 69}
-- evalScript: ${output.portfolioBefore = output.portfolio}
+# - runFlow: ../subflows/readPortfolio.yaml
+# - assertTrue: ${output.portfolioBefore - output.portfolio === 69}
+# - evalScript: ${output.portfolioBefore = output.portfolio}

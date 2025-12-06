@@ -5,7 +5,6 @@ import { SvgUri, type UriProps } from "react-native-svg";
 import { styled } from "tamagui";
 
 import AnimatedView from "./AnimatedView";
-import Skeleton from "./Skeleton";
 import View from "./View";
 
 type AssetLogoProperties = ({ external: true } & Parameters<typeof StyledImage>[0]) | ({ external?: false } & UriProps);
@@ -26,7 +25,6 @@ function ProtocolAssetLogo({ ...properties }: UriProps) {
   const [loading, setLoading] = useState(true);
   return (
     <View borderRadius="$r_0" overflow="hidden">
-      {loading && <Skeleton radius="round" height={Number(properties.height)} width={Number(properties.width)} />}
       <AnimatedView
         alignItems="center"
         justifyContent="center"
