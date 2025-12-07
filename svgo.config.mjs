@@ -1,4 +1,4 @@
-/** @type {import('svgo').Config} */
+/** @satisfies {import('svgo').Config} */
 export default {
   plugins: [
     {
