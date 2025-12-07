@@ -6,12 +6,15 @@ import { Vm } from "forge-std/Vm.sol"; // solhint-disable-line no-unused-import
 
 import { LibString } from "solady/utils/LibString.sol";
 
+import { JSON } from "../script/JSON.sol";
+
 abstract contract ForkTest is Test {
   using LibString for address;
   using LibString for uint256;
   using LibString for string;
   using LibString for bytes;
   using stdJson for string;
+  using JSON for string;
 
   ICreate3Factory internal immutable CREATE3_FACTORY;
 
@@ -48,13 +51,7 @@ abstract contract ForkTest is Test {
   function acct(string memory name) internal returns (address addr) {
     addr = address(uint160(uint256(vm.load(msg.sender, keccak256(abi.encode(name))))));
     if (addr == address(0)) addr = vm.envOr(string.concat(name.upper(), "_ADDRESS"), address(0));
-    if (addr == address(0)) {
-      string memory deploy = vm.readFile("deploy.json");
-      string memory key = string.concat(".accounts.", name, ".", block.chainid.toString());
-      addr = deploy.keyExists(key)
-        ? deploy.readAddress(key)
-        : deploy.readAddress(string.concat(".accounts.", name, ".default"));
-    }
+    if (addr == address(0)) addr = vm.readFile("deploy.json").readChainAddress(string.concat(".accounts.", name));
     _label(addr, name);
   }
 
