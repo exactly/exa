@@ -66,7 +66,7 @@ export default new Hono().post(
               v.object({
                 category: v.picklist(["external", "internal"]),
                 asset: v.literal("ETH"),
-                rawContract: v.object({ address: v.optional(v.undefined()) }),
+                rawContract: v.optional(v.object({ address: v.optional(v.undefined()) })),
                 value: v.number(),
               }),
               v.object({
@@ -108,7 +108,7 @@ export default new Hono().post(
     const pokes = new Map<Address, { publicKey: Uint8Array; factory: Address; assets: Set<Address> }>();
     for (const { toAddress: account, rawContract, value, asset: assetSymbol } of transfers) {
       if (!accounts[account]) continue;
-      const asset = rawContract.address ?? ETH;
+      const asset = rawContract?.address ?? ETH;
       const underlying = asset === ETH ? WETH : asset;
       sendPushNotification({
         userId: account,
