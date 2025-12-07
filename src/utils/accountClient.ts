@@ -26,15 +26,19 @@ import {
   custom,
   encodeAbiParameters,
   encodePacked,
+  ethAddress,
   hashMessage,
   hexToBytes,
   maxUint256,
 } from "viem";
+import { anvil } from "viem/chains";
 
 import { login } from "./onesignal";
 import publicClient from "./publicClient";
 import queryClient, { type AuthMethod } from "./queryClient";
 import ownerConfig from "./wagmi/owner";
+
+if (chain.id !== anvil.id && !alchemyGasPolicyId) throw new Error("missing alchemy gas policy");
 
 export default async function createAccountClient({ credentialId, factory, x, y }: Credential) {
   const transport = custom(publicClient);
@@ -93,7 +97,20 @@ export default async function createAccountClient({ credentialId, factory, x, y 
     chain,
     transport,
     account,
-    ...alchemyGasManagerMiddleware(publicClient, { policyId: alchemyGasPolicyId }),
+    ...(alchemyGasPolicyId
+      ? alchemyGasManagerMiddleware(publicClient, { policyId: alchemyGasPolicyId })
+      : {
+          gasEstimator(struct) {
+            struct.preVerificationGas = 1_000_000n;
+            struct.verificationGasLimit = 5_000_000n;
+            struct.callGasLimit = 10_000_000n;
+            return Promise.resolve(struct);
+          },
+          paymasterAndData: {
+            dummyPaymasterAndData: () => ethAddress,
+            paymasterAndData: (struct) => Promise.resolve({ ...struct, paymasterAndData: ethAddress }),
+          },
+        }),
     async customMiddleware(userOp) {
       if ((await userOp.signature) === "0x") {
         // dynamic dummy signature
