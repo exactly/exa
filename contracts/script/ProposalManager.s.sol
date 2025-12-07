@@ -6,6 +6,7 @@ import { Surl } from "surl/Surl.sol";
 
 import { IAuditor, IDebtManager, IInstallmentsRouter, IMarket } from "../src/ExaPlugin.sol";
 import { ProposalManager } from "../src/ProposalManager.sol";
+import { JSON } from "./JSON.sol";
 
 import { BaseScript, stdJson } from "./Base.s.sol";
 
@@ -13,6 +14,7 @@ contract DeployProposalManager is BaseScript {
   using LibString for uint256;
   using LibString for string;
   using stdJson for string;
+  using JSON for string;
   using Surl for string;
 
   ProposalManager public proposalManager;
@@ -63,7 +65,7 @@ contract DeployProposalManager is BaseScript {
       IInstallmentsRouter(protocol("InstallmentsRouter")),
       acct("collector"),
       allowlist,
-      deploy.readUint(".proposalManager.delay")
+      deploy.readChainUint(".proposalManager.delay")
     );
   }
 }

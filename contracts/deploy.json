@@ -36,7 +36,7 @@
   },
   "issuerChecker": { "operationExpiry": 4838400, "prevIssuerWindow": 4838400 },
   "proposalManager": {
-    "delay": 60,
+    "delay": { "default": 60, "31337": 1 },
     "allowlist": {
       "10": {
         "0x078f358208685046a11C85e8ad32895DED33A249": "aOptWBTC",

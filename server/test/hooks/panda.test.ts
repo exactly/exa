@@ -41,6 +41,7 @@ import {
   type WalletClient,
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+import { anvil } from "viem/chains";
 import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
 import database, { cards, credentials, transactions } from "../../database";
@@ -1173,7 +1174,7 @@ describe("concurrency", () => {
     const [spend, spend2, collect] = await promises;
 
     expect(spend.status).toBe(200);
-    expect(spend2.status).toBe(557);
+    expect(spend2.status).toBe(554);
     expect(collect.status).toBe(200);
   });
 
@@ -1258,7 +1259,7 @@ describe("concurrency", () => {
       ]);
 
       await vi.waitUntil(() => getMutex.mock.calls.length > 2, 26_666);
-      vi.advanceTimersByTime(proposalManager.delay * 1000);
+      vi.advanceTimersByTime(proposalManager.delay[anvil.id] * 1000);
 
       const lastCall = getMutex.mock.results.at(-1);
       const mutex = lastCall?.type === "return" ? lastCall.value : undefined;
