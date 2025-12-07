@@ -31,6 +31,7 @@ export default function Settings() {
         <View flexDirection="row" gap="$s3" justifyContent="space-around" alignItems="center">
           <View position="absolute" left={0}>
             <Pressable
+              aria-label="Back"
               onPress={() => {
                 if (navigation.canGoBack()) {
                   navigation.goBack();

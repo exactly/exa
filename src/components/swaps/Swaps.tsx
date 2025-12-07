@@ -385,6 +385,7 @@ export default function Swaps() {
           alignItems="center"
         >
           <Pressable
+            aria-label="Back"
             onPress={() => {
               if (navigation.canGoBack()) {
                 navigation.goBack();

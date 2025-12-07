@@ -59,11 +59,12 @@ export default function ProfileHeader() {
           )}
         </View>
         <View display="flex" flexDirection="row" alignItems="center" gap={16}>
-          <Pressable onPress={toggle} hitSlop={15}>
+          <Pressable aria-label={hidden ? "Show sensitive" : "Hide sensitive"} onPress={toggle} hitSlop={15}>
             {hidden ? <EyeOff color="$uiNeutralSecondary" /> : <Eye color="$uiNeutralSecondary" />}
           </Pressable>
           {count > 0 && (
             <Pressable
+              aria-label="Pending proposals"
               disabled={pendingProposalsFetching}
               onPress={() => {
                 navigation.push("pending-proposals/index");
@@ -75,6 +76,7 @@ export default function ProfileHeader() {
             </Pressable>
           )}
           <Pressable
+            aria-label="Settings"
             onPress={() => {
               navigation.push("settings/index");
             }}

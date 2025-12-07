@@ -54,6 +54,7 @@ export default function ReceiverSelection() {
         <View flexDirection="row" gap={10} justifyContent="space-around" alignItems="center">
           <View position="absolute" left={0}>
             <Pressable
+              aria-label="Back"
               onPress={() => {
                 queryClient.setQueryData(["withdrawal"], { receiver: undefined, market: undefined, amount: 0n });
                 if (navigation.canGoBack()) {
