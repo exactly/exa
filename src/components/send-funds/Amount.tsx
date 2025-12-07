@@ -314,6 +314,7 @@ export default function Amount() {
       <View flex={1}>
         <YStack gap="$s7" paddingBottom="$s9">
           <Pressable
+            aria-label="Close"
             onPress={() => {
               navigation.replace("send-funds", { screen: "index" });
             }}
