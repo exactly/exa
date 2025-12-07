@@ -1,0 +1,5 @@
+appId: app.exactly
+tags:
+  - critical
+---
+- launchApp: { clearState: true, permissions: { all: deny, camera: allow } }

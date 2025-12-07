@@ -469,6 +469,8 @@ importers:
         specifier: ^8.18.1
         version: 8.18.1(bufferutil@4.0.9)(utf-8-validate@5.0.10)
 
+  .maestro: {}
+
   common:
     dependencies:
       '@alchemy/aa-core':
