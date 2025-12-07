@@ -12,7 +12,7 @@ import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { env } from "node:process";
 import { getAddress, type Abi } from "viem";
-import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
+import { anvil, base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
 const easBuild = env.EAS_BUILD_RUNNER === "eas-build";
 
@@ -22,6 +22,13 @@ if (easBuild) {
   execSync(
     "export FOUNDRY_DIR=${FOUNDRY_DIR-$HOME/workingdir} && curl -L https://foundry.paradigm.xyz | bash || true && foundryup -i v1.3.6",
     { stdio: "inherit" },
+  );
+}
+
+if (chainId === anvil.id) {
+  execSync(
+    "pnpm tsx -e 'require(\"./test/anvil\").default({ provide: () => undefined }).then((teardown) => teardown())'",
+    { cwd: "../server", stdio: "inherit" },
   );
 }
 
@@ -98,15 +105,16 @@ export default defineConfig([
           swapper,
           usdc: usdc.address,
           weth: weth.address,
-          ...(chainId !== base.id && {
-            exaAccountFactory:
-              {
-                [optimism.id]: "0x961EbA47650e2198A959Ef5f337E542df5E4F61b",
-              }[chainId] ?? "0x98d3E8B291d9E89C25D8371b7e8fFa8BC32E0aEC",
-          }),
+          ...(chainId !== base.id &&
+            chainId !== anvil.id && {
+              exaAccountFactory:
+                {
+                  [optimism.id]: "0x961EbA47650e2198A959Ef5f337E542df5E4F61b",
+                }[chainId] ?? "0x98d3E8B291d9E89C25D8371b7e8fFa8BC32E0aEC",
+            }),
         },
         {
-          ...(chainId === base.id && { scripts: { exaAccountFactory: "ExaAccountFactory" } }),
+          ...((chainId === base.id || chainId === anvil.id) && { scripts: { exaAccountFactory: "ExaAccountFactory" } }),
           optional: {
             balancerVault: balancerVault?.address,
             flashLoanAdapter: flashLoanAdapter?.address,
@@ -167,11 +175,20 @@ function addresses(
 }
 
 function chain(): Plugin {
+  if (chainId === anvil.id) {
+    return {
+      name: "Chain",
+      run: () => ({
+        content: `import { anvil, type Chain } from "viem/chains"\nconst chain = anvil as Chain\nchain.rpcUrls.alchemy = chain.rpcUrls.default\nexport default chain as Chain`,
+      }),
+    };
+  }
   const importName = {
     [base.id]: "base",
     [baseSepolia.id]: "baseSepolia",
     [optimism.id]: "optimism",
     [optimismSepolia.id]: "optimismSepolia",
+    [anvil.id]: "anvil",
   }[chainId];
   if (!importName) throw new Error("unknown chain");
   return { name: "Chain", run: () => ({ content: `export { ${importName} as default } from "@alchemy/aa-core"` }) };
@@ -181,6 +198,24 @@ function loadDeployment<R extends boolean = true>(
   contract: string,
   required = true as R,
 ): R extends true ? Deployment : Deployment | undefined {
+  if (chainId === anvil.id) {
+    const address =
+      loadBroadcast("Protocol").transactions[
+        {
+          Auditor: 1,
+          Firewall: 37,
+          MarketUSDC: 13,
+          MarketWETH: 21,
+          IntegrationPreviewer: 33,
+          Previewer: 32,
+          RatePreviewer: 34,
+          USDC: 11,
+          WETH: 19,
+        }[contract] ?? Infinity
+      ]?.contractAddress;
+    if (!address && required) throw new Error(`unknown contract: ${contract}`);
+    return { address } as R extends true ? Deployment : Deployment | undefined;
+  }
   const network = {
     [base.id]: "base",
     [baseSepolia.id]: "base-sepolia",
