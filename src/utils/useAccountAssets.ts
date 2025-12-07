@@ -3,6 +3,7 @@ import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { withdrawLimit } from "@exactly/lib";
 import { useQuery } from "@tanstack/react-query";
 import { zeroAddress } from "viem";
+import { anvil } from "viem/chains";
 
 import { getTokenBalances } from "./lifi";
 import useAccount from "./useAccount";
@@ -38,7 +39,7 @@ export default function useAccountAssets(options?: { sortBy?: "usdValue" | "usdc
   const { data: externalAssets, isPending: isExternalAssetsPending } = useQuery({
     queryKey: ["externalAssets", account],
     queryFn: async () => {
-      if (chain.testnet || !account) return [];
+      if (chain.testnet || chain.id === anvil.id || !account) return [];
       const balances = await getTokenBalances(account);
       return balances.filter(
         ({ address }) => markets && !markets.some(({ market }) => address.toLowerCase() === market.toLowerCase()),
