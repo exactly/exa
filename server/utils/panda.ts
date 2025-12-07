@@ -329,7 +329,10 @@ export function signIssuerOp({ account, amount, timestamp }: { account: Address;
 
 const mutexes = new Map<Address, MutexInterface>();
 export function createMutex(address: Address) {
-  const mutex = withTimeout(new Mutex(), proposalManager.delay * 1000);
+  const mutex = withTimeout(
+    new Mutex(),
+    (proposalManager.delay as Record<number, number>)[chain.id] ?? proposalManager.delay.default * 1000,
+  );
   mutexes.set(address, mutex);
   return mutex;
 }

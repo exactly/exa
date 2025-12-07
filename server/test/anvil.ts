@@ -1,4 +1,5 @@
 import { Address } from "@exactly/common/validation";
+import deploy from "@exactly/plugin/deploy.json";
 import { $ } from "execa";
 import { readdir } from "node:fs/promises";
 import { anvil } from "prool/instances";
@@ -123,7 +124,7 @@ export default async function setup({ provide }: TestProject) {
       --unlocked ${bob},${keeper.address} --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
     await Promise.all([
       anvilClient.stopImpersonatingAccount({ address: bob }),
-      anvilClient.mine({ blocks: 1, interval: 10 * 60 }),
+      anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[foundry.id] }),
     ]);
     await $(shell)`forge script test/mocks/BobExecute.s.sol
       --unlocked ${keeper.address} --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
