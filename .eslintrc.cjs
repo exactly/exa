@@ -3,7 +3,15 @@ const { include: nodeFiles } = require("./tsconfig.node.json");
 /** @type {import('eslint').Linter.Config} */
 module.exports = {
   parser: "@typescript-eslint/parser",
-  parserOptions: { project: ["tsconfig.json", "tsconfig.node.json", "server/tsconfig.json", "docs/tsconfig.json"] },
+  parserOptions: {
+    project: [
+      "tsconfig.json",
+      "tsconfig.node.json",
+      "docs/tsconfig.json",
+      "server/tsconfig.json",
+      ".maestro/tsconfig.json",
+    ],
+  },
   settings: { react: { version: "detect" }, "import/resolver": "typescript" },
   extends: [
     "universe",
@@ -36,6 +44,7 @@ module.exports = {
     "unicorn/no-useless-undefined": ["error", { checkArrowFunctionBody: false }], // @typescript-eslint/no-empty-function
     "unicorn/number-literal-case": "off", // incompatible with prettier
     "unicorn/prefer-global-this": "off", // incompatible with react-native
+    "unicorn/prevent-abbreviations": ["error", { allowList: { args: true, e2e: true, params: true } }],
     "unicorn/switch-case-braces": ["error", "avoid"], // consistently avoid braces
   },
   overrides: [
@@ -134,8 +143,30 @@ module.exports = {
       extends: ["plugin:astro/recommended"],
       rules: { "import/no-unresolved": ["error", { ignore: ["astro:*"] }] },
     },
+    {
+      files: [".maestro/**"],
+      env: { node: false, es2021: true },
+      globals: { http: true, output: true },
+      rules: {
+        "@typescript-eslint/consistent-type-definitions": ["error", "type"],
+        "@typescript-eslint/no-redeclare": "off",
+        "no-restricted-syntax": [
+          "error",
+          "FunctionDeclaration[async=true]",
+          "ArrowFunctionExpression[async=true]",
+          "FunctionExpression[async=true]",
+          "MethodDefinition[value.async=true]",
+          "AwaitExpression",
+          "NewExpression[callee.name='Promise']",
+          "CallExpression[callee.object.name='Promise']",
+        ],
+        "no-console": "off",
+        "no-restricted-globals": ["error", "Promise"],
+      },
+    },
   ],
   ignorePatterns: [
+    "!.maestro/",
     ".expo/",
     "build/",
     "coverage/",
