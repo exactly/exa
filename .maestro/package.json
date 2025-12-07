@@ -2,5 +2,63 @@
   "name": "@exactly/e2e",
   "version": "0.0.1",
   "type": "module",
+  "scripts": {
+    "prepare": "nx build e2e",
+    "test": "tsc --pretty ${GITHUB_ACTIONS:+false}",
+    "dev": "nx dev e2e"
+  },
+  "devDependencies": {
+    "@exactly/common": "workspace:^0.0.9",
+    "@noble/curves": "^2.0.1",
+    "@noble/hashes": "^2.0.1",
+    "esbuild": "^0.27.0",
+    "fast-text-encoding": "^1.0.6",
+    "typescript": "^5.8.3",
+    "viem": "^2.40.3"
+  },
+  "nx": {
+    "projectType": "library",
+    "targets": {
+      "build": {
+        "executor": "@nx/esbuild:esbuild",
+        "inputs": [
+          "production",
+          "^production"
+        ],
+        "outputs": [
+          "{options.outputPath}"
+        ],
+        "options": {
+          "minify": true,
+          "thirdParty": true,
+          "outputPath": "dist",
+          "platform": "neutral",
+          "tsConfig": ".maestro/tsconfig.json",
+          "esbuildConfig": ".maestro/esbuild.config.cjs",
+          "main": "src/script/*.ts"
+        }
+      },
+      "dev": {
+        "continuous": true,
+        "executor": "@nx/esbuild:esbuild",
+        "inputs": [
+          "production",
+          "^production"
+        ],
+        "outputs": [
+          "{options.outputPath}"
+        ],
+        "options": {
+          "watch": true,
+          "thirdParty": true,
+          "outputPath": "dist",
+          "platform": "neutral",
+          "tsConfig": ".maestro/tsconfig.json",
+          "esbuildConfig": ".maestro/esbuild.config.cjs",
+          "main": "src/script/*.ts"
+        }
+      }
+    }
+  },
   "private": true
 }
