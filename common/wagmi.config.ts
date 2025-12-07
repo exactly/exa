@@ -1,6 +1,11 @@
 import deploy from "@exactly/plugin/deploy.json" with { type: "json" };
+import Auditor from "@exactly/protocol/deployments/base/Auditor.json" with { type: "json" };
 import Firewall from "@exactly/protocol/deployments/base/Firewall.json" with { type: "json" };
 import FlashLoanAdapter from "@exactly/protocol/deployments/base/FlashLoanAdapter.json" with { type: "json" };
+import IntegrationPreviewer from "@exactly/protocol/deployments/base/IntegrationPreviewer.json" with { type: "json" };
+import Market from "@exactly/protocol/deployments/base/MarketWETH.json" with { type: "json" };
+import Previewer from "@exactly/protocol/deployments/base/Previewer.json" with { type: "json" };
+import RatePreviewer from "@exactly/protocol/deployments/base/RatePreviewer.json" with { type: "json" };
 import { defineConfig, type Plugin } from "@wagmi/cli";
 import { foundry, react } from "@wagmi/cli/plugins";
 import { execSync } from "node:child_process";
@@ -47,12 +52,12 @@ export default defineConfig([
   {
     out: "generated/hooks.ts",
     contracts: [
-      { name: "Auditor", abi: auditor.abi },
-      { name: "IntegrationPreviewer", abi: integrationPreviewer.abi },
+      { name: "Auditor", abi: Auditor.abi as Abi },
+      { name: "IntegrationPreviewer", abi: IntegrationPreviewer.abi as Abi },
       { name: "FlashLoanAdapter", abi: FlashLoanAdapter.abi as Abi },
-      { name: "Market", abi: marketWETH.abi },
-      { name: "Previewer", abi: previewer.abi },
-      { name: "RatePreviewer", abi: ratePreviewer.abi },
+      { name: "Market", abi: Market.abi as Abi },
+      { name: "Previewer", abi: Previewer.abi as Abi },
+      { name: "RatePreviewer", abi: RatePreviewer.abi as Abi },
     ],
     plugins: [
       foundry({
@@ -71,10 +76,10 @@ export default defineConfig([
   {
     out: "generated/chain.ts",
     contracts: [
-      { name: "Auditor", abi: auditor.abi },
+      { name: "Auditor", abi: Auditor.abi as Abi },
       { name: "Firewall", abi: Firewall.abi as Abi },
-      { name: "Market", abi: marketWETH.abi },
-      { name: "Previewer", abi: previewer.abi },
+      { name: "Market", abi: Market.abi as Abi },
+      { name: "Previewer", abi: Previewer.abi as Abi },
     ],
     plugins: [
       addresses(
@@ -201,5 +206,4 @@ function loadBroadcast(script: string) {
 
 interface Deployment {
   address: string;
-  abi: Abi;
 }
