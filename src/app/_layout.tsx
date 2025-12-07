@@ -26,6 +26,7 @@ import React, { useEffect, useLayoutEffect as useClientLayoutEffect } from "reac
 import { initReactI18next } from "react-i18next";
 import { AppState, Platform } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { anvil } from "viem/chains";
 import { WagmiProvider } from "wagmi";
 
 import BDOGroteskDemiBold from "../assets/fonts/BDOGrotesk-DemiBold.otf";
@@ -103,7 +104,7 @@ const useServerFonts = typeof window === "undefined" ? useFonts : () => undefine
 const useServerAssets = typeof window === "undefined" ? useAssets : () => undefined;
 const useLayoutEffect = typeof window === "undefined" ? () => undefined : useClientLayoutEffect;
 const devtools = !!JSON.parse(process.env.EXPO_PUBLIC_DEVTOOLS ?? String(Platform.OS === "web" && __DEV__));
-if (!chain.testnet && typeof window !== "undefined") {
+if (!chain.testnet && chain.id !== anvil.id && typeof window !== "undefined") {
   createConfig({
     integrator: "exa_app",
     apiKey: "4bdb54aa-4f28-4c61-992a-a2fdc87b0a0b.251e33ad-ef5e-40cb-9b0f-52d634b99e8f",
