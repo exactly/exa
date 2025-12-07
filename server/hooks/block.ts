@@ -219,7 +219,7 @@ function scheduleProposal(proposal: v.InferOutput<typeof Proposal>) {
 function scheduleMessage(message: string) {
   const { account, amount, data, id, market, nonce, proposalType, sentryBaggage, sentryTrace, timestamp, unlock } =
     v.parse(Proposal, deserialize(message));
-  setTimeout((Number(unlock) + 10) * 1000 - Date.now())
+  setTimeout(Math.max(0, (Number(unlock) + 10) * 1000 - Date.now()))
     .then(async () => {
       const mutex = mutexes.get(account) ?? createMutex(account);
       await mutex
@@ -361,7 +361,7 @@ function scheduleWithdraw(message: string) {
     Withdraw,
     deserialize(message),
   );
-  setTimeout((Number(unlock) + 10) * 1000 - Date.now())
+  setTimeout(Math.max(0, (Number(unlock) + 10) * 1000 - Date.now()))
     .then(() =>
       continueTrace({ sentryTrace, baggage: sentryBaggage }, () =>
         startSpan({ name: "exa.withdraw", op: "exa.withdraw", forceTransaction: true }, (parent) =>
