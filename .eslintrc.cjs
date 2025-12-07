@@ -21,6 +21,7 @@ module.exports = {
   rules: {
     "@eslint-community/eslint-comments/no-unused-disable": "error",
     "@typescript-eslint/consistent-type-imports": "error",
+    "@typescript-eslint/no-confusing-void-expression": "off",
     "@typescript-eslint/no-import-type-side-effects": "error",
     "@typescript-eslint/no-shadow": "error",
     "@typescript-eslint/restrict-template-expressions": ["error", { allowNumber: true }],
