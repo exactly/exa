@@ -1,4 +1,3 @@
-import { exaPluginAbi } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 import { $ } from "execa";
 import { readdir } from "node:fs/promises";
@@ -177,7 +176,15 @@ export default async function setup({ provide }: TestProject) {
           address: contract,
           functionName: "grantRole",
           args: [keccak256(toHex("KEEPER_ROLE")), address],
-          abi: exaPluginAbi,
+          abi: [
+            {
+              type: "function",
+              name: "grantRole",
+              stateMutability: "nonpayable",
+              inputs: [{ type: "bytes32" }, { type: "address" }],
+              outputs: [],
+            },
+          ],
           account: null,
         });
       }
