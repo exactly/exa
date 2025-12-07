@@ -22,7 +22,12 @@ bracket_spacing = true
 number_underscore = "thousands"
 
 [lint]
-exclude_lints = ["incorrect-shift", "mixed-case-function", "mixed-case-variable", "pascal-case-struct"]
+exclude_lints = [
+  "incorrect-shift",
+  "mixed-case-function",
+  "mixed-case-variable",
+  "pascal-case-struct",
+]
 ignore = ["**/*.t.sol", "**/mocks/**/*.sol"]
 
 [profile.production.fuzz]
@@ -36,6 +41,7 @@ base = "${BASE_RPC_URL}"
 base_sepolia = "${BASE_SEPOLIA_RPC_URL}"
 optimism = "${OPTIMISM_RPC_URL}"
 optimism_sepolia = "${OPTIMISM_SEPOLIA_RPC_URL}"
+anvil = "http://localhost:8545"
 
 [etherscan]
 base = { key = "${ETHERSCAN_KEY}" }
