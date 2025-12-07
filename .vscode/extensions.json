@@ -6,6 +6,7 @@
     "eamodio.gitlens",
     "esbenp.prettier-vscode",
     "expo.vscode-expo-tools",
+    "github.vscode-github-actions",
     "github.vscode-pull-request-github",
     "gruntfuggly.todo-tree",
     "juanblanco.solidity",
