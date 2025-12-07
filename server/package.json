@@ -10,7 +10,7 @@
     "generate:openapi": "tsx script/openapi.ts",
     "db:push": "drizzle-kit push",
     "test": "nx run-many -t test:ts test:vi test:openapi -p server",
-    "test:ts": "tsc --pretty $([ \"$GITHUB_ACTIONS\" = true ] && echo false || echo true)",
+    "test:ts": "tsc --pretty ${GITHUB_ACTIONS:+false}",
     "test:vi": "vitest run",
     "test:openapi": "nx generate:openapi server",
     "spotlight:replay": "for f in node_modules/@exactly/.spotlight/*; do curl --data-binary @$f -H content-type:application/x-sentry-envelope http://localhost:8969/stream; done",
