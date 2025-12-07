@@ -3,3 +3,4 @@ tags:
   - critical
 ---
 - launchApp: { clearState: true, permissions: { all: deny, camera: allow } }
+- runFlow: ../subflows/hideDevtools.yaml
