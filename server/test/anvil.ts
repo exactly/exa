@@ -11,7 +11,7 @@ import type { TestProject } from "vitest/node";
 
 import anvilClient from "./anvilClient";
 
-export default async function setup({ provide }: TestProject) {
+export default async function setup({ provide }: Pick<TestProject, "provide">) {
   const instance = anvil({ codeSizeLimit: 69_000, blockBaseFeePerGas: 1n });
   const initialize = await instance
     .start()
