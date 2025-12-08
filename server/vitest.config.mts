@@ -1,3 +1,4 @@
+import { env } from "node:process";
 import { padHex } from "viem";
 import { defineConfig } from "vitest/config";
 
@@ -5,6 +6,7 @@ export default defineConfig({
   test: {
     globalSetup: ["test/anvil.ts", "test/spotlight.ts"],
     env: {
+      ALCHEMY_ACTIVITY_ID: "activity",
       ALCHEMY_ACTIVITY_KEY: "activity",
       ALCHEMY_BLOCK_KEY: "block",
       ALCHEMY_WEBHOOKS_KEY: "webhooks",
@@ -26,8 +28,10 @@ export default defineConfig({
       POSTGRES_URL: "postgres",
       REDIS_URL: "redis",
       SEGMENT_WRITE_KEY: "segment",
+      ...(env.NODE_ENV === "e2e" && { APP_DOMAIN: "localhost", DEBUG: "exa:*" }),
     },
     coverage: { enabled: true, reporter: ["lcov"] },
     testTimeout: 36_666,
+    ...(env.NODE_ENV === "e2e" && { include: ["test/e2e.ts"], disableConsoleIntercept: true }),
   },
 });
