@@ -17,7 +17,7 @@ import VisaLogoSignature from "../../assets/images/visa-logo-signature.svg";
 import { decrypt } from "../../utils/panda";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
-import { getCard } from "../../utils/server";
+import type { CardDetails as CardDetailsData } from "../../utils/server";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
@@ -28,7 +28,7 @@ export default function CardDetails({ open, onClose }: { open: boolean; onClose:
   const theme = useColorScheme();
   const toast = useToastController();
   const { data: alertShown } = useQuery({ queryKey: ["settings", "alertShown"] });
-  const { data: card, isPending } = useQuery({ queryKey: ["card", "details"], queryFn: getCard });
+  const { data: card, isPending } = useQuery<CardDetailsData>({ queryKey: ["card", "details"] });
   const [details, setDetails] = useState({ pan: "", cvc: "" });
 
   useEffect(() => {

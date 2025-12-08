@@ -9,7 +9,7 @@ import { Platform } from "react-native";
 import { get as assert, create } from "react-native-passkeys";
 import { check, number, parse, pipe, safeParse, ValiError } from "valibot";
 
-import { encryptPIN, session } from "./panda";
+import { decrypt, decryptPIN, encryptPIN, session } from "./panda";
 import queryClient, { APIError, type AuthMethod } from "./queryClient";
 import ownerConfig from "./wagmi/owner";
 
@@ -78,14 +78,39 @@ const api = hc<ExaAPI>(domain === "localhost" ? "http://localhost:3000/api" : `h
   },
 });
 
-export async function getCard() {
+async function getCard() {
   await auth();
   const { id, secret } = await session();
   const response = await api.card.$get({ header: { sessionid: id } });
-  if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
+  if (!response.ok) {
+    const { code } = await response.json();
+    if (response.status !== 403 || code !== "no panda") throw new APIError(response.status, code);
+    return null;
+  }
   const card = await response.json();
   return { ...card, secret };
 }
+queryClient.setQueryDefaults(["card", "details"], { queryFn: getCard });
+export type CardDetails = Awaited<ReturnType<typeof getCard>>;
+
+async function getPIN() {
+  const result = await getCard();
+  if (!result) return null;
+  const { secret, encryptedPan, encryptedCvc, pin } = result;
+  const [pan, cvc, decryptedPIN] = await Promise.all([
+    decrypt(encryptedPan.data, encryptedPan.iv, secret),
+    decrypt(encryptedCvc.data, encryptedCvc.iv, secret),
+    pin ? decryptPIN(pin.data, pin.iv, secret) : Promise.resolve(null),
+  ]);
+  if (!decryptedPIN) {
+    const newPIN = String(Math.floor(Math.random() * 10_000)).padStart(4, "0");
+    await setCardPIN(newPIN);
+    return { ...result, details: { pan, cvc, pin: newPIN } };
+  }
+  return { ...result, details: { pan, cvc, pin: decryptedPIN } };
+}
+queryClient.setQueryDefaults(["card", "pin"], { queryFn: getPIN });
+export type CardWithPIN = Awaited<ReturnType<typeof getPIN>>;
 
 export async function createCard() {
   await auth();
