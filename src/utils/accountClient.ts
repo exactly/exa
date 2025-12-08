@@ -1,11 +1,16 @@
 import { standardExecutor } from "@alchemy/aa-accounts";
 import { alchemyGasManagerMiddleware } from "@alchemy/aa-alchemy";
 import {
+  buildUserOperationFromTx,
+  createBundlerClient,
   createSmartAccountClient,
   deepHexlify,
+  defaultUserOpSigner,
   getEntryPoint,
   resolveProperties,
+  smartAccountClientActions,
   toSmartContractAccount,
+  type UserOperationStruct_v6,
 } from "@alchemy/aa-core";
 import accountInitCode from "@exactly/common/accountInitCode";
 import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
@@ -20,7 +25,6 @@ import { getAccount, signMessage } from "@wagmi/core/actions";
 import { Platform } from "react-native";
 import { get } from "react-native-passkeys";
 import {
-  type Hex,
   bytesToBigInt,
   bytesToHex,
   custom,
@@ -30,9 +34,12 @@ import {
   hashMessage,
   hexToBytes,
   maxUint256,
+  type Hex,
+  type TransactionRequest,
 } from "viem";
 import { anvil } from "viem/chains";
 
+import e2e from "./e2e";
 import { login } from "./onesignal";
 import publicClient from "./publicClient";
 import queryClient, { type AuthMethod } from "./queryClient";
@@ -93,7 +100,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
   });
   setUser({ id: account.address });
   login(account.address);
-  return createSmartAccountClient({
+  const client = createSmartAccountClient({
     chain,
     transport,
     account,
@@ -129,6 +136,56 @@ export default async function createAccountClient({ credentialId, factory, x, y 
       return userOp;
     },
   });
+  return e2e
+    ? (createBundlerClient({
+        chain,
+        // @ts-expect-error -- bad alchemy types
+        account,
+        type: "SmartAccountClient",
+        transport: custom({
+          async request({ method, params }) {
+            switch (method) {
+              case "eth_sendTransaction": {
+                if (!e2e || !Array.isArray(params) || params.length !== 1) throw new Error("type narrowing");
+                const uo = (await resolveProperties(
+                  await defaultUserOpSigner(await buildUserOperationFromTx(client, params[0] as TransactionRequest), {
+                    client,
+                    account: client.account,
+                  }),
+                )) as Required<UserOperationStruct_v6>;
+                const hash = await e2e.writeContract({
+                  address: entryPoint.address,
+                  functionName: "handleOps",
+                  abi: entryPoint.abi,
+                  args: [
+                    [
+                      {
+                        sender: uo.sender as Hex,
+                        nonce: BigInt(uo.nonce),
+                        initCode: uo.initCode as Hex,
+                        callData: uo.callData as Hex,
+                        callGasLimit: BigInt(uo.callGasLimit),
+                        preVerificationGas: BigInt(uo.preVerificationGas),
+                        verificationGasLimit: BigInt(uo.verificationGasLimit),
+                        maxFeePerGas: BigInt(uo.maxFeePerGas),
+                        maxPriorityFeePerGas: BigInt(uo.maxPriorityFeePerGas),
+                        paymasterAndData: uo.paymasterAndData as Hex,
+                        signature: uo.signature as Hex,
+                      },
+                    ],
+                    e2e.account.address,
+                  ],
+                });
+                await publicClient.waitForTransactionReceipt({ hash });
+                return hash;
+              }
+              default:
+                return client.request({ method, params }); // eslint-disable-line @typescript-eslint/no-unsafe-assignment,
+            }
+          },
+        }),
+      }).extend(smartAccountClientActions) as unknown as typeof client)
+    : client;
 }
 
 function wrapSignature(ownerIndex: number, signature: Hex) {
