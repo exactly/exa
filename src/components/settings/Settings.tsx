@@ -1,4 +1,4 @@
-import { ArrowLeft, HelpCircle, LogOut } from "@tamagui/lucide-icons";
+import { ArrowLeft, Check, HelpCircle, LogOut, SendHorizontal } from "@tamagui/lucide-icons";
 import { setStringAsync } from "expo-clipboard";
 import { useNavigation } from "expo-router";
 import React from "react";
@@ -8,6 +8,7 @@ import { useDisconnect } from "wagmi";
 
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import release from "../../generated/release";
+import { useSubmitCoverage } from "../../utils/e2e";
 import { logout as logoutOneSignal } from "../../utils/onesignal";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
@@ -22,9 +23,7 @@ export default function Settings() {
   const { connector } = useAccount();
   const { disconnect } = useDisconnect();
   const { present, logout } = useIntercom();
-  function handleSupport() {
-    present().catch(reportError);
-  }
+  const { mutate: submitCoverage, isSuccess: coverageSuccess, isError: coverageError } = useSubmitCoverage();
   return (
     <SafeView fullScreen tab>
       <View fullScreen padded gap="$s5">
@@ -51,7 +50,11 @@ export default function Settings() {
           <View gap="$s4_5">
             <View borderRadius="$r3" borderWidth={1} borderColor="$borderNeutralSoft">
               <Separator borderColor="$borderNeutralSoft" />
-              <Pressable onPress={handleSupport}>
+              <Pressable
+                onPress={() => {
+                  present().catch(reportError);
+                }}
+              >
                 <XStack justifyContent="space-between" alignItems="center" padding="$s4">
                   <XStack gap="$s3" justifyContent="flex-start" alignItems="center">
                     <HelpCircle color="$backgroundBrand" />
@@ -82,6 +85,27 @@ export default function Settings() {
                     <Text subHeadline color="$uiNeutralPrimary">
                       Logout
                     </Text>
+                  </XStack>
+                </XStack>
+              </Pressable>
+            </View>
+            <View borderRadius="$r3" borderWidth={1} borderColor="$borderNeutralSoft">
+              <Separator borderColor="$borderNeutralSoft" />
+              <Pressable onPress={() => submitCoverage()}>
+                <XStack justifyContent="space-between" alignItems="center" padding="$s4">
+                  <XStack justifyContent="space-between" flex={1}>
+                    <XStack justifyContent="flex-start" alignItems="center" gap="$s3">
+                      <SendHorizontal color="$backgroundBrand" />
+                      <Text subHeadline color="$uiNeutralPrimary">
+                        Submit coverage
+                      </Text>
+                    </XStack>
+                    {(coverageSuccess || coverageError) && (
+                      <Check
+                        accessibilityLabel="Finished"
+                        color={coverageSuccess ? "$backgroundBrand" : "$interactiveBaseErrorDefault"}
+                      />
+                    )}
                   </XStack>
                 </XStack>
               </Pressable>
