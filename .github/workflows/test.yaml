@@ -40,10 +40,11 @@ jobs:
       - uses: nrwl/nx-set-shas@v4 # cspell:ignore nrwl
       - run: pnpm nx affected -t test --outputStyle=stream-without-prefixes --parallel=1
 
-      - uses: codecov/codecov-action@v4
+      - uses: codecov/codecov-action@v5
         if: ${{ !cancelled() }}
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+          flags: github
 
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
