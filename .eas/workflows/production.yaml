@@ -1,0 +1,54 @@
+name: e2e:production
+on: { push: { branches: [main, dan] } }
+defaults: { tools: { node: "24.11.1", pnpm: "9.15.9" } }
+jobs:
+  fingerprint:
+    type: fingerprint
+    environment: development
+
+  ios_get:
+    type: get-build
+    needs: [fingerprint]
+    params:
+      platform: ios
+      profile: e2e:production
+      fingerprint_hash: ${{ needs.fingerprint.outputs.ios_fingerprint_hash }}
+      wait_for_in_progress: true
+
+  ios_build:
+    type: build
+    needs: [ios_get]
+    if: ${{ !needs.ios_get.outputs.build_id }}
+    params: { platform: ios, profile: e2e:production }
+
+  ios_repack:
+    type: repack
+    needs: [ios_get]
+    if: ${{ needs.ios_get.outputs.build_id }}
+    params: { build_id: "${{ needs.ios_get.outputs.build_id }}" }
+
+  ios_e2e:
+    after: [ios_repack, ios_build]
+    needs: [fingerprint]
+    environment: development
+    runs_on: macos-large
+    image: latest
+    env: { CHAIN_ID: "10" }
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - uses: eas/install_maestro
+      - uses: eas/download_build
+        id: download
+        with: { build_id: "${{ needs.ios_build.outputs.build_id || needs.ios_repack.outputs.build_id }}" }
+      - uses: eas/start_ios_simulator
+      - run: xcrun simctl install booted "${{ steps.download.outputs.artifact_path }}"
+      - run: pnpm e2e:maestro -e "EXPO_PUBLIC_E2E_MNEMONIC=${{ env.EXPO_PUBLIC_E2E_MNEMONIC }}"
+      - uses: eas/upload_artifact
+        if: always()
+        with:
+          type: other
+          ignore_error: true
+          path: |
+            ${{ env.HOME }}/.maestro/tests
+            .maestro/screenshots
