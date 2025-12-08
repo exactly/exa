@@ -1,0 +1,72 @@
+name: e2e:local
+on: { workflow_dispatch: {} }
+defaults: { tools: { node: "24.12.0", pnpm: "9.15.9" } }
+jobs:
+  fingerprint:
+    type: fingerprint
+    environment: development
+
+  ios_get:
+    type: get-build
+    needs: [fingerprint]
+    params:
+      platform: ios
+      profile: e2e:local
+      fingerprint_hash: ${{ needs.fingerprint.outputs.ios_fingerprint_hash }}
+      wait_for_in_progress: true
+
+  ios_build:
+    type: build
+    needs: [ios_get]
+    if: ${{ !needs.ios_get.outputs.build_id }}
+    params: { platform: ios, profile: e2e:local }
+
+  ios_repack:
+    type: repack
+    needs: [ios_get]
+    if: ${{ needs.ios_get.outputs.build_id }}
+    params: { build_id: "${{ needs.ios_get.outputs.build_id }}" }
+
+  ios_e2e:
+    after: [ios_repack, ios_build]
+    needs: [fingerprint]
+    environment: development
+    runs_on: macos-large
+    image: latest
+    env: { CHAIN_ID: "31337", NODE_ENV: e2e }
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - uses: eas/install_maestro
+      - name: exa setup
+        run: |
+          pnpm run --filter server e2e > server.log 2>&1 & echo $! > server.pid
+          for i in {1..60}; do
+            curl -f http://localhost:3000/api/auth/authentication > /dev/null 2>&1 && break
+            [ $i -eq 60 ] && cat server.log && exit 1
+            sleep 1
+          done
+      - uses: eas/download_build
+        id: download
+        with: { build_id: "${{ needs.ios_build.outputs.build_id || needs.ios_repack.outputs.build_id }}" }
+      - uses: eas/start_ios_simulator
+      - run: xcrun simctl install booted "${{ steps.download.outputs.artifact_path }}"
+      - run: pnpm e2e:maestro -e "EXPO_PUBLIC_E2E_MNEMONIC=${{ env.EXPO_PUBLIC_E2E_MNEMONIC }}"
+      - name: exa teardown
+        if: always()
+        run: |
+          kill $(cat server.pid) || true
+          while kill -0 $(cat server.pid) 2>/dev/null; do sleep 1; done
+          curl -Os https://uploader.codecov.io/latest/macos/codecov && chmod +x codecov
+          ./codecov -t ${{ env.CODECOV_TOKEN }} -f server/coverage/lcov.info -f server/coverage/app.json -F e2e -n ios --build-url ${{ workflow.url }}
+      - uses: eas/upload_artifact
+        if: always()
+        with:
+          type: other
+          ignore_error: true
+          path: |
+            server.log
+            server/coverage
+            server/node_modules/@exactly/.spotlight
+            ${{ env.HOME }}/.maestro/tests
+            .maestro/screenshots
