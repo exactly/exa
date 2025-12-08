@@ -128,6 +128,7 @@
     "@typescript-eslint/eslint-plugin": "^8.30.1",
     "@typescript-eslint/parser": "^8.30.1",
     "@vitest/eslint-plugin": "1.1.43",
+    "babel-plugin-istanbul": "^7.0.1",
     "babel-plugin-module-resolver": "^5.0.2",
     "babel-preset-expo": "^12.0.11",
     "cspell": "^8.19.2",
