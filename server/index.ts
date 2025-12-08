@@ -2,7 +2,7 @@ import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
-import { captureException, close } from "@sentry/node";
+import { captureException, close as closeSentry } from "@sentry/node";
 import { isoBase64URL } from "@simplewebauthn/server/helpers";
 import { Hono } from "hono";
 import { trimTrailingSlash } from "hono/trailing-slash";
@@ -17,7 +17,7 @@ import panda from "./hooks/panda";
 import persona from "./hooks/persona";
 import androidFingerprints from "./utils/android/fingerprints";
 import appOrigin from "./utils/appOrigin";
-import { closeAndFlush } from "./utils/segment";
+import { closeAndFlush as closeSegment } from "./utils/segment";
 
 const app = new Hono();
 app.use(trimTrailingSlash());
@@ -277,16 +277,30 @@ app.onError((error, c) => {
   return c.json({ code: "unexpected error", legacy: "unexpected error" }, 555 as UnofficialStatusCode);
 });
 
+export default app;
+
 const server = serve(app);
 
-["SIGINT", "SIGTERM"].map((code) =>
-  process.on(code, () =>
+export async function close() {
+  return new Promise((resolve, reject) => {
     server.close((error) => {
-      Promise.allSettled([close(), closeAndFlush()])
+      Promise.allSettled([closeSentry(), closeSegment()])
         .then((results) => {
-          process.exit(error || results.some((result) => result.status === "rejected") ? 1 : 0); // eslint-disable-line n/no-process-exit
+          if (error) reject(error);
+          else if (results.some((result) => result.status === "rejected")) reject(new Error("closing services failed"));
+          else resolve(null);
         })
-        .catch(() => undefined);
-    }),
-  ),
-);
+        .catch(reject);
+    });
+  });
+}
+
+if (!process.env.VITEST) {
+  ["SIGINT", "SIGTERM"].map((code) => {
+    process.on(code, () => {
+      close()
+        .then(() => process.exit(0)) // eslint-disable-line n/no-process-exit
+        .catch(() => process.exit(1)); // eslint-disable-line n/no-process-exit
+    });
+  });
+}

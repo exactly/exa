@@ -9,6 +9,7 @@
     "generate:release": "echo \"module.exports = /** @type {const} */ ('$(git describe --tags --abbrev=7 --match '@exactly/server@*' | sed 's/@exactly\\///')')\" > generated/release.js",
     "generate:openapi": "tsx script/openapi.ts",
     "db:push": "drizzle-kit push",
+    "e2e": "tsx script/e2e.ts",
     "test": "nx run-many -t test:ts test:vi test:openapi -p server",
     "test:ts": "tsc --pretty ${GITHUB_ACTIONS:+false}",
     "test:vi": "vitest run",
@@ -73,6 +74,7 @@
     "prool": "^0.0.24",
     "tsx": "^4.21.0",
     "typescript": "^5.8.3",
+    "vite": "^6.4.1",
     "vitest": "^3.2.4",
     "webauthn-owner-plugin": "exactly/webauthn-owner-plugin#9c0c38b"
   },
@@ -97,6 +99,16 @@
         "outputs": [
           "{projectRoot}/openapi.json"
         ]
+      },
+      "e2e": {
+        "dependsOn": [
+          "prepare",
+          "^prepare"
+        ],
+        "outputs": [
+          "{projectRoot}/coverage"
+        ],
+        "continuous": true
       }
     }
   }

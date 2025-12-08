@@ -5,4 +5,5 @@
 /generated/
 
 .env
+.shutdown
 openapi.json

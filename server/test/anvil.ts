@@ -2,6 +2,7 @@ import { Address } from "@exactly/common/validation";
 import deploy from "@exactly/plugin/deploy.json";
 import { $ } from "execa";
 import { readdir } from "node:fs/promises";
+import { env, stderr, stdout } from "node:process";
 import { anvil } from "prool/instances";
 import { literal, object, parse, tuple } from "valibot";
 import { keccak256, padHex, toBytes, toHex, zeroAddress } from "viem";
@@ -19,7 +20,17 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
     .catch(() => false);
 
   const keeper = privateKeyToAccount(padHex("0x69"));
-  if (initialize) await anvilClient.setBalance({ address: keeper.address, value: 10n ** 24n });
+  if (initialize) {
+    await anvilClient.setBalance({ address: keeper.address, value: 10n ** 24n });
+    if (env.NODE_ENV === "e2e") {
+      instance._internal.process.stderr.on("data", stderr.write.bind(stderr));
+      instance._internal.process.stdout.on("data", (buffer: Uint8Array | string) => {
+        const string = String(buffer);
+        if (string.startsWith("eth_call") || string.startsWith("eth_getStorageAt")) return;
+        stdout.write(string);
+      });
+    }
+  }
 
   const deployer = await anvilClient
     .getAddresses()
@@ -173,7 +184,7 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
 
   if (initialize) {
     const files = await readdir(__dirname, { recursive: true }); // eslint-disable-line unicorn/prefer-module
-    for (const testFile of files.filter((file) => file.endsWith(".test.ts"))) {
+    for (const testFile of files.filter((file) => file.endsWith(".test.ts") || file.endsWith("e2e.ts"))) {
       const address = privateKeyToAddress(keccak256(toBytes(testFile)));
       await anvilClient.setBalance({ address, value: 10n ** 24n });
       for (const contract of [exaPlugin, refunder]) {
