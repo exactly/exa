@@ -8,10 +8,25 @@
       "android": { "image": "latest" },
       "ios": { "image": "latest" }
     },
-    "development": { "extends": "base", "developmentClient": true, "distribution": "internal" },
-    "preview": { "extends": "base", "channel": "preview", "distribution": "internal" },
+    "production": { "extends": "base", "channel": "production" },
     "beta": { "extends": "base", "channel": "beta" },
-    "production": { "extends": "base", "channel": "production" }
+    "e2e:production": {
+      "extends": "base",
+      "environment": "development",
+      "distribution": "internal",
+      "withoutCredentials": true,
+      "env": { "EXPO_PUBLIC_ENV": "e2e", "SENTRY_ALLOW_FAILURE": "true" },
+      "android": { "buildType": "apk" },
+      "ios": { "simulator": true }
+    },
+    "e2e:local": { "extends": "e2e:production", "env": { "APP_DOMAIN": "localhost", "CHAIN_ID": "31337" } },
+    "preview": { "extends": "base", "environment": "preview", "channel": "preview", "distribution": "internal" },
+    "development": {
+      "extends": "base",
+      "environment": "development",
+      "distribution": "internal",
+      "developmentClient": true
+    }
   },
   "submit": {
     "base": {
