@@ -1,15 +1,52 @@
-import type {
-  Address,
-  BlockIdentifier,
-  BlockNumber,
-  BlockTag,
-  ExactPartial,
-  Hash,
-  Hex,
-  Quantity,
-  RpcTransactionReceipt,
-  TransactionRequest,
+import {
+  decodeFunctionResult,
+  encodeFunctionData,
+  type Abi,
+  type Address,
+  type BlockIdentifier,
+  type BlockNumber,
+  type BlockTag,
+  type ContractFunctionArgs,
+  type ContractFunctionName,
+  type ExactPartial,
+  type Hash,
+  type Hex,
+  type Quantity,
+  type ReadContractParameters,
+  type ReadContractReturnType,
+  type RpcTransactionReceipt,
+  type TransactionRequest,
+  type WriteContractParameters,
+  type WriteContractReturnType,
 } from "viem";
+
+export function readContract<
+  const abi extends Abi | readonly unknown[],
+  functionName extends ContractFunctionName<abi, "pure" | "view">,
+  const args extends ContractFunctionArgs<abi, "pure" | "view", functionName>,
+>(parameters: ReadContractParameters<abi, functionName, args>): ReadContractReturnType<abi, functionName, args> {
+  const { address, functionName, abi, args } = parameters as ReadContractParameters;
+  return decodeFunctionResult({
+    functionName,
+    args,
+    abi,
+    data: anvil("eth_call", [{ to: address, data: encodeFunctionData({ functionName, args, abi }) }]),
+  }) as ReadContractReturnType<abi, functionName>;
+}
+
+export function writeContract<
+  const abi extends Abi | readonly unknown[],
+  functionName extends ContractFunctionName<abi, "nonpayable" | "payable">,
+  args extends ContractFunctionArgs<abi, "nonpayable" | "payable", functionName>,
+>(
+  parameters: Pick<WriteContractParameters<abi, functionName, args>, "address" | "functionName" | "abi" | "args">,
+): WriteContractReturnType {
+  const { address, functionName, abi, args } = parameters as Pick<
+    WriteContractParameters,
+    "address" | "functionName" | "abi" | "args"
+  >;
+  return anvil("eth_sendTransaction", [{ to: address, data: encodeFunctionData({ functionName, abi, args }) }]);
+}
 
 declare const output: { id?: number };
 

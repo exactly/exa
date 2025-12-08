@@ -6,3 +6,13 @@ tags:
 - runFlow: ../subflows/hideDevtools.yaml
 - runFlow: ../subflows/signIn.yaml
 - runFlow: ../subflows/readPortfolio.yaml
+- evalScript: ${output.portfolioBefore = output.portfolio}
+- runScript:
+    file: ../dist/mint.js
+    env:
+      asset: USDC
+      to: "0x699F994A39559d9D3C28c11C0e907f7033B47C6e"
+      amount: "420"
+- swipe: { direction: DOWN }
+- runFlow: ../subflows/readPortfolio.yaml
+- assertTrue: ${output.portfolio - output.portfolioBefore === 420}
