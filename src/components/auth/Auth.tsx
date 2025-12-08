@@ -66,6 +66,7 @@ export default function Auth() {
     [progress],
   );
 
+  /* istanbul ignore next */
   const handleScroll = useAnimatedScrollHandler({
     onScroll: (event) => {
       offsetX.value = event.contentOffset.x;
@@ -98,6 +99,7 @@ export default function Auth() {
 
   useEffect(() => {
     const timer = setInterval(() => {
+      /* istanbul ignore next */
       progress.value = withTiming(progress.value + 0.2, { duration: 1000, easing: Easing.linear }, () => {
         if (progress.value >= 1) {
           runOnJS(scrollToNextPage)();

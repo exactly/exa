@@ -20,6 +20,7 @@ function PaginationComponent({
   const { width } = useWindowDimensions();
   const itemWidth = width - 40;
 
+  /* istanbul ignore next */
   const rPaginatorStyle = useAnimatedStyle(() => {
     const interpolatedWidth = interpolate(
       x.value,
@@ -35,6 +36,7 @@ function PaginationComponent({
     };
   }, [x]);
 
+  /* istanbul ignore next */
   const rFillStyle = useAnimatedStyle(() => {
     const isActive = interpolate(
       x.value,

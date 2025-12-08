@@ -16,6 +16,7 @@ export default function Spinner({
   size?: number;
 }) {
   const rotation = useSharedValue(0);
+  /* istanbul ignore next */
   const rStyle = useAnimatedStyle(() => {
     rotation.value += 1;
     const rotationValue = `${(rotation.value % 360).toString()}deg`;

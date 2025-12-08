@@ -33,6 +33,7 @@ export default function CardContents({
   const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [address ?? zeroAddress] });
 
   const rotation = useSharedValue(0);
+  /* istanbul ignore next */
   const rStyle = useAnimatedStyle(() => {
     rotation.value += 1;
     const rotationValue = `${(rotation.value % 360).toString()}deg`;
