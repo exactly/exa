@@ -12,6 +12,7 @@ export default memo(function ListItem({ item, index, x }: { item: Page; index: n
   const aspectRatio = useAspectRatio();
   const { width, height } = useWindowDimensions();
   const itemWidth = Platform.OS === "web" ? height * aspectRatio : width;
+  /* istanbul ignore next */
   const rBackgroundStyle = useAnimatedStyle(() => {
     const animatedScale = interpolate(
       x.value,
@@ -27,6 +28,7 @@ export default memo(function ListItem({ item, index, x }: { item: Page; index: n
     );
     return { transform: [{ scale: animatedScale }], opacity: interpolatedOpacity };
   }, [index, x]);
+  /* istanbul ignore next */
   const rImageStyle = useAnimatedStyle(() => {
     const animatedScale = interpolate(
       x.value,

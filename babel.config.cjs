@@ -4,6 +4,7 @@ module.exports = function config(api) {
   return {
     presets: ["babel-preset-expo"],
     plugins: [
+      ...(process.env.EXPO_PUBLIC_ENV === "e2e" ? ["istanbul"] : []),
       [
         "module-resolver",
         {
