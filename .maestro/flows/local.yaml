@@ -25,3 +25,10 @@ tags:
       amount: "69"
 - runFlow: ../subflows/readPortfolio.yaml
 - assertTrue: ${output.portfolioBefore - output.portfolio === 69}
+- runFlow:
+    when: { visible: Getting Started }
+    commands:
+      - tapOn: View all steps
+      - runFlow: ../subflows/verifyIdentity.yaml
+- swipe: { direction: DOWN }
+- assertNotVisible: Getting Started

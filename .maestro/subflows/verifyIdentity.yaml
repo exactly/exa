@@ -1,0 +1,48 @@
+appId: app.exactly
+---
+- assertVisible: One step left
+- tapOn: Begin verifying
+- assertVisible: I saved my ID with Persona
+- tapOn: Begin verifying
+- tapOn: Select
+- tapOn: Passport
+- runFlow:
+    when: { visible: Couldn't access camera }
+    commands: [{ tapOn: Continue }]
+- tapOn: Take Photo
+- tapOn: Use this photo
+- assertVisible: Address
+- hideKeyboard
+- tapOn: Continue
+- tapOn: Get started
+- repeat:
+    while: { visible: shutter button }
+    commands: [{ tapOn: { text: shutter button, optional: true } }]
+- inputText: test@test.com
+- tapOn: Continue
+- inputText: "12345"
+- tapOn: Continue
+- inputText: "+12125551234"
+- tapOn: Continue
+- inputText: "1234"
+- extendedWaitUntil: { visible: Economic activity }
+- tapOn: Economic activity
+- swipe: { direction: UP, duration: 200, waitToSettleTimeoutMs: 0 } # HACK
+- tapOn: Science
+- swipe: { direction: UP, duration: 200, waitToSettleTimeoutMs: 0 } # HACK
+- tapOn: Travel Usage
+- swipe: { direction: UP, duration: 200, waitToSettleTimeoutMs: 0 } # HACK
+- tapOn: .*US\$.*
+- swipe: { direction: UP, duration: 200, waitToSettleTimeoutMs: 0 } # HACK
+- tapOn: .*US\$.*
+- tapOn: Continue
+- tapOn: Select
+- swipe: { direction: UP, duration: 200, waitToSettleTimeoutMs: 0 } # HACK
+- tapOn: \s*No\s*
+- tapOn: Continue
+- repeat: { times: 6, commands: [{ tapOn: square }] }
+- tapOn: Continue
+- tapOn: Done
+- runScript:
+    file: ../dist/approveKYC.js
+    env: { credentialId: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" }
