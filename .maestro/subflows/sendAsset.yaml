@@ -1,0 +1,21 @@
+appId: app.exactly
+---
+- assertTrue: ${asset && to && amount && !Number.isNaN(Number(amount))}
+- tapOn: Send
+- tapOn: Enter Anvil address
+- inputText: ${to}
+- hideKeyboard
+- tapOn: { text: Next, waitToSettleTimeoutMs: 0 }
+- tapOn: { text: "${asset}", waitToSettleTimeoutMs: 0 }
+- tapOn: ${asset}
+- inputText: ${amount}
+- tapOn: "To:"
+- tapOn: Review
+- tapOn: Send
+- assertVisible: Transaction details
+- runScript:
+    file: ../dist/hookProposals.js
+    env: { account: "0x699F994A39559d9D3C28c11C0e907f7033B47C6e" }
+- tapOn: Close
+- tapOn: Back # HACK return to home
+- swipe: { direction: DOWN }
