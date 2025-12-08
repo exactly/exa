@@ -40,6 +40,16 @@
       },
       "dev": {
         "continuous": true,
+        "dependsOn": [
+          {
+            "projects": "@exactly/server",
+            "target": "e2e"
+          },
+          {
+            "projects": "@exactly/mobile",
+            "target": "ios"
+          }
+        ],
         "executor": "@nx/esbuild:esbuild",
         "inputs": [
           "production",
