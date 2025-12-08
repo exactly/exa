@@ -1,0 +1,4 @@
+appId: app.exactly
+---
+- tapOn: Sign in
+- assertVisible: 0x699F…7C6e
