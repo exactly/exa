@@ -11,7 +11,7 @@ import { zeroAddress } from "viem";
 
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import assetLogos from "../../utils/assetLogos";
-import { getCard } from "../../utils/server";
+import type { CardDetails } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
 import AssetLogo from "../shared/AssetLogo";
 import Text from "../shared/Text";
@@ -20,7 +20,7 @@ export default function CardLimits({ onPress }: { onPress: () => void }) {
   const { t } = useTranslation();
   const { address } = useAccount();
   const navigation = useNavigation<AppNavigationProperties>();
-  const { data: card } = useQuery({ queryKey: ["card", "details"], queryFn: getCard });
+  const { data: card } = useQuery<CardDetails>({ queryKey: ["card", "details"] });
   const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [address ?? zeroAddress] });
   const isCredit = card ? card.mode > 0 : false;
   return (

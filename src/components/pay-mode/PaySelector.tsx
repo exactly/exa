@@ -15,7 +15,7 @@ import ManualRepaymentSheet from "./ManualRepaymentSheet";
 import assetLogos from "../../utils/assetLogos";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
-import { getCard, setCardMode } from "../../utils/server";
+import { setCardMode, type CardDetails } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useInstallments from "../../utils/useInstallments";
@@ -44,23 +44,14 @@ export default function PaySelector() {
   const [manualRepaymentSheetOpen, setManualRepaymentSheetOpen] = useState(false);
   const [pendingInstallment, setPendingInstallment] = useState<number | null>(null);
 
-  const { data: card } = useQuery({
-    queryKey: ["card", "details"],
-    queryFn: getCard,
-    retry: false,
-    gcTime: 0,
-    staleTime: 0,
-  });
+  const { data: card } = useQuery<CardDetails>({ queryKey: ["card", "details"] });
   const { mutateAsync: mutateMode } = useMutation({
     mutationKey: ["card", "mode"],
     mutationFn: setCardMode,
     onMutate: async (newMode) => {
       await queryClient.cancelQueries({ queryKey: ["card", "details"] });
       const previous = queryClient.getQueryData(["card", "details"]);
-      queryClient.setQueryData(["card", "details"], (old: Awaited<ReturnType<typeof getCard>>) => ({
-        ...old,
-        mode: newMode,
-      }));
+      queryClient.setQueryData(["card", "details"], (old: CardDetails) => ({ ...old, mode: newMode }));
       return { previous };
     },
     onError: (error, _, context) => {
@@ -234,7 +225,7 @@ function InstallmentButton({
   assets,
 }: {
   installment: number;
-  cardDetails?: { mode: number };
+  cardDetails?: { mode: number } | null;
   onSelect: (installment: number) => void;
   assets: bigint;
 }) {

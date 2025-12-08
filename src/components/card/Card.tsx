@@ -24,7 +24,14 @@ import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import { createInquiry, KYC_TEMPLATE_ID, resumeInquiry } from "../../utils/persona";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
-import { APIError, getActivity, getCard, createCard, getKYCStatus, setCardStatus } from "../../utils/server";
+import {
+  APIError,
+  getActivity,
+  createCard,
+  getKYCStatus,
+  setCardStatus,
+  type CardDetails as CardDetailsData,
+} from "../../utils/server";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useIntercom from "../../utils/useIntercom";
@@ -64,13 +71,7 @@ export default function Card() {
     data: cardDetails,
     refetch: refetchCard,
     isFetching: isFetchingCard,
-  } = useQuery({
-    queryKey: ["card", "details"],
-    queryFn: getCard,
-    retry: false,
-    gcTime: 0,
-    staleTime: 0,
-  });
+  } = useQuery<CardDetailsData>({ queryKey: ["card", "details"], retry: false, gcTime: 0, staleTime: 0 });
 
   const limit = cardDetails?.limit.amount ? cardDetails.limit.amount / 100 : undefined;
   const weeklyPurchases = purchases

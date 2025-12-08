@@ -28,7 +28,7 @@ import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import { KYC_TEMPLATE_ID, LEGACY_KYC_TEMPLATE_ID } from "../../utils/persona";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
-import { APIError, getActivity, getCard, getKYCStatus } from "../../utils/server";
+import { APIError, getActivity, getKYCStatus, type CardDetails } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
 import usePortfolio from "../../utils/usePortfolio";
 import OverduePayments from "../pay-mode/OverduePayments";
@@ -108,11 +108,7 @@ export default function Home() {
         (error.text === "kyc not found" || error.text === "kyc not started" || error.text === "kyc not approved"),
     },
   });
-  const { data: card } = useQuery({
-    queryKey: ["card", "details"],
-    queryFn: getCard,
-    enabled: !!account && !!bytecode,
-  });
+  const { data: card } = useQuery<CardDetails>({ queryKey: ["card", "details"], enabled: !!account && !!bytecode });
 
   const usdBalance = portfolio.usdBalance;
   const isPending = isPendingActivity || isPendingPreviewer;

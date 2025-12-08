@@ -3,9 +3,8 @@ import React, { useState, useEffect } from "react";
 import { Pressable, StyleSheet } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 
-import { decrypt, decryptPIN } from "../../utils/panda";
 import reportError from "../../utils/reportError";
-import { getCard, setCardPIN } from "../../utils/server";
+import type { CardWithPIN } from "../../utils/server";
 import Button from "../shared/Button";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
@@ -17,33 +16,7 @@ export default function CardPIN({ open, onClose }: { open: boolean; onClose: () 
   const [countdown, setCountdown] = useState(0);
   const [displayPIN, setDisplayPIN] = useState(false);
   const timerReference = React.useRef<NodeJS.Timeout>();
-  const {
-    data: card,
-    isPending,
-    error,
-    refetch,
-  } = useQuery({
-    queryKey: ["card", "pin"],
-    gcTime: 0,
-    staleTime: 0,
-    enabled: open,
-    refetchOnMount: true,
-    queryFn: async () => {
-      const result = await getCard();
-      const { secret, encryptedPan, encryptedCvc, pin } = result;
-      const [pan, cvc, decryptedPIN] = await Promise.all([
-        decrypt(encryptedPan.data, encryptedPan.iv, secret),
-        decrypt(encryptedCvc.data, encryptedCvc.iv, secret),
-        pin ? decryptPIN(pin.data, pin.iv, secret) : Promise.resolve(null),
-      ]);
-      if (!decryptedPIN) {
-        const newPIN = String(Math.floor(Math.random() * 10_000)).padStart(4, "0");
-        await setCardPIN(newPIN);
-        return { ...result, details: { pan, cvc, pin: newPIN } };
-      }
-      return { ...result, details: { pan, cvc, pin: decryptedPIN } };
-    },
-  });
+  const { data: card, isPending, error, refetch } = useQuery<CardWithPIN>({ queryKey: ["card", "pin"], enabled: open });
 
   function startCountdown() {
     setDisplayPIN(true);
