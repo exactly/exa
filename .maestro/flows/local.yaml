@@ -5,3 +5,4 @@ tags:
 - launchApp: { clearState: true, permissions: { all: deny, camera: allow } }
 - runFlow: ../subflows/hideDevtools.yaml
 - runFlow: ../subflows/signIn.yaml
+- runFlow: ../subflows/readPortfolio.yaml
