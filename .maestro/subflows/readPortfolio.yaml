@@ -1,0 +1,6 @@
+appId: app.exactly
+---
+- copyTextFrom:
+    below: Your portfolio
+    text: ^(US)?\$[\s\d,.\xa0]+$
+- evalScript: ${output.portfolio = Number(maestro.copiedText.replace(/\D/g, "")) / 100}
