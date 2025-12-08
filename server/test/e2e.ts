@@ -5,6 +5,7 @@ import "./mocks/deployments";
 import "./mocks/keeper";
 import "./mocks/redis";
 
+import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 
 describe("e2e", () => {
@@ -12,6 +13,12 @@ describe("e2e", () => {
     "runs server",
     async () => {
       const { default: app, close } = await import("../index");
+
+      app.post("/e2e/coverage", async (c) => {
+        mkdirSync("coverage", { recursive: true });
+        writeFileSync("coverage/app.json", JSON.stringify(await c.req.json()));
+        return c.json({ code: "ok" });
+      });
 
       await expect(
         new Promise((resolve) => {
