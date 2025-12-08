@@ -37,6 +37,7 @@ import ThemeProvider from "../components/context/ThemeProvider";
 import Error from "../components/shared/Error";
 import release from "../generated/release";
 import translation from "../i18n/en.json";
+import e2e from "../utils/e2e";
 import publicClient from "../utils/publicClient";
 import queryClient, { persister } from "../utils/queryClient";
 import reportError from "../utils/reportError";
@@ -87,7 +88,7 @@ init({
   release,
   dsn:
     process.env.EXPO_PUBLIC_SENTRY_DSN ??
-    "https://ac8875331e4cecd67dd0a7519a36dfeb@o1351734.ingest.us.sentry.io/4506186349674496",
+    (e2e ? undefined : "https://ac8875331e4cecd67dd0a7519a36dfeb@o1351734.ingest.us.sentry.io/4506186349674496"),
   environment: __DEV__ ? "development" : (channel ?? "production"),
   tracesSampleRate: 1,
   attachStacktrace: true,
@@ -96,9 +97,9 @@ init({
   tracePropagationTargets: [domain],
   enableNativeFramesTracking: !isRunningInExpoGo(),
   enableUserInteractionTracing: true,
-  integrations: [routingInstrumentation, ...(__DEV__ ? [] : [mobileReplayIntegration()]), userFeedback],
-  _experiments: __DEV__ ? undefined : { replaysOnErrorSampleRate: 1, replaysSessionSampleRate: 0.01 },
-  spotlight: __DEV__,
+  integrations: [routingInstrumentation, userFeedback, ...(__DEV__ || e2e ? [] : [mobileReplayIntegration()])],
+  _experiments: __DEV__ || e2e ? undefined : { replaysOnErrorSampleRate: 1, replaysSessionSampleRate: 0.01 },
+  spotlight: __DEV__ || !!e2e,
 });
 const useServerFonts = typeof window === "undefined" ? useFonts : () => undefined;
 const useServerAssets = typeof window === "undefined" ? useAssets : () => undefined;
