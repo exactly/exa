@@ -17,6 +17,8 @@
     "generate:release": "echo \"module.exports = /** @type {const} */ ('$(git describe --tags --abbrev=7 --match '@exactly/mobile@*' | sed 's/@exactly\\///')')\" > src/generated/release.js",
     "generate:version": "echo \"module.exports = /** @type {const} */ ($(git rev-list --count HEAD))\" > src/generated/versionCode.js",
     "eas-build-on-success": "[ \"$EAS_BUILD_PROFILE\" != production ] || sentry-cli releases new --finalize -o exactly -p exa $(node -p 'require(\"./src/generated/release\")')",
+    "e2e:iphone": "maestro start-device --platform=ios --os-version=26 --device-locale=es-419",
+    "e2e:maestro": "maestro test .maestro/flows --include-tags=critical",
     "test": "pnpm run --aggregate-output --reporter-hide-prefix /test:/",
     "test:spell": "cspell --gitignore '**' '.changeset/**' '.cursor/**' '.do/**' '.github/**' '.eslintrc.*'",
     "test:deps": "pnpm audit",
@@ -366,6 +368,34 @@
           "{projectRoot}/generated/versionCode.js"
         ],
         "cache": false
+      },
+      "ios": {
+        "dependsOn": [
+          "prepare",
+          "^prepare"
+        ],
+        "inputs": [
+          "production",
+          "^production"
+        ],
+        "continuous": true
+      },
+      "e2e:ios": {
+        "inputs": [
+          "production",
+          "^production"
+        ],
+        "executor": "nx:run-commands",
+        "options": {
+          "commands": [
+            "rm -rf build/Exa.app build/Exa.tar.gz",
+            "pnpx eas-cli build --platform=ios --profile=e2e --local --output=build/Exa.tar.gz",
+            "open -a Simulator",
+            "tar -xzf build/Exa.tar.gz -C build",
+            "xcrun simctl install booted build/Exa.app"
+          ],
+          "parallel": false
+        }
       }
     }
   },
