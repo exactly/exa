@@ -89,4 +89,42 @@ export function block(
   if (!ok) throw new Error(`${status} ${body}`);
 }
 
+export function persona(referenceId: string, event = "approved") {
+  const payload = JSON.stringify({
+    data: {
+      attributes: {
+        payload: {
+          data: {
+            id: "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2",
+            attributes: {
+              status: event,
+              referenceId,
+              fields: {
+                inputSelect: { value: "Science" },
+                accountPurpose: { value: "Travel Usage" },
+                annualSalary: { value: "30000" },
+                expectedMonthlyVolume: { value: "3000" },
+              },
+            },
+          },
+          included: [
+            { type: "inquiry-session", attributes: { createdAt: new Date().toISOString(), ipAddress: "127.0.0.1" } },
+          ],
+        },
+      },
+    },
+  });
+  const t = Date.now();
+  const { ok, status, body } = http.post("http://localhost:3000/hooks/persona", {
+    headers: {
+      "content-type": "application/json",
+      "persona-signature": `t=${t},v1=${bytesToHex(
+        hmac(sha256, utf8ToBytes("persona"), utf8ToBytes(`${t}.${payload}`)),
+      )}`,
+    },
+    body: payload,
+  });
+  if (!ok) throw new Error(`${status} ${body}`);
+}
+
 export const keeper = publicKeyToAddress(toHex(secp256k1.getPublicKey(keccak256(toBytes("e2e.ts"), "bytes"), false)));
