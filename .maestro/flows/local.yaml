@@ -38,3 +38,4 @@ tags:
       - runFlow: ../subflows/verifyIdentity.yaml
 - swipe: { direction: DOWN }
 - assertNotVisible: Getting Started
+- runFlow: ../subflows/storeCoverage.yaml

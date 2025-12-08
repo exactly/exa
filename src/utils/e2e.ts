@@ -1,4 +1,6 @@
 import chain from "@exactly/common/generated/chain";
+import { useMutation } from "@tanstack/react-query";
+import { Platform } from "react-native";
 import {
   createWalletClient,
   hexToBigInt,
@@ -54,6 +56,20 @@ if (client) {
   };
 }
 
+export function useSubmitCoverage() {
+  return useMutation({
+    mutationFn: () =>
+      client
+        ? fetch(`http://localhost:3000/e2e/coverage?platform=${Platform.OS}`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(__coverage__),
+          })
+        : Promise.resolve(null),
+  });
+}
+
+declare const __coverage__: unknown;
 declare global {
   interface Window {
     ethereum: EIP1193Provider;
