@@ -9,7 +9,8 @@ import reportError from "./reportError";
 import { getKYCLink } from "./server";
 import type { AppNavigationProperties } from "../app/(main)/_layout";
 
-export const environment = __DEV__ ? Environment.SANDBOX : Environment.PRODUCTION;
+export const environment =
+  __DEV__ || process.env.EXPO_PUBLIC_ENV === "e2e" ? Environment.SANDBOX : Environment.PRODUCTION;
 export const KYC_TEMPLATE_ID = "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2";
 export const LEGACY_KYC_TEMPLATE_ID = "itmpl_8uim4FvD5P3kFpKHX37CW817";
 

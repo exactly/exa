@@ -13,7 +13,7 @@ const { enablePrompt, login, logout } = (
           appId && typeof window !== "undefined"
             ? OneSignal.init({
                 appId,
-                allowLocalhostAsSecureOrigin: __DEV__,
+                allowLocalhostAsSecureOrigin: __DEV__ || process.env.EXPO_PUBLIC_ENV === "e2e",
                 notifyButton: {
                   enable: true,
                   prenotify: true,
@@ -61,7 +61,7 @@ const { enablePrompt, login, logout } = (
         if (appId) OneSignal.initialize(appId);
         return {
           enablePrompt: () => {
-            if (appId) OneSignal.InAppMessages.addTrigger("onboard", "1");
+            if (appId && process.env.EXPO_PUBLIC_ENV !== "e2e") OneSignal.InAppMessages.addTrigger("onboard", "1");
           },
           login: (userId: string) => {
             if (appId) OneSignal.login(userId);
