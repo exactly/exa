@@ -3,6 +3,7 @@ import { Platform } from "react-native";
 import type * as OneSignalNative from "react-native-onesignal";
 import type * as OneSignalWeb from "react-onesignal";
 
+import queryClient from "./queryClient";
 import reportError from "./reportError";
 
 const { enablePrompt, login, logout } = (
@@ -58,10 +59,20 @@ const { enablePrompt, login, logout } = (
       }
     : () => {
         const { OneSignal } = require("react-native-onesignal") as typeof OneSignalNative; // eslint-disable-line @typescript-eslint/no-require-imports, unicorn/prefer-module
+        queryClient.setQueryDefaults(["onesignal", "dismiss"], {
+          initialData: 0,
+          gcTime: Infinity,
+          staleTime: Infinity,
+          queryFn: () => queryClient.getQueryData(["onesignal", "dismiss"]),
+        });
         if (appId) OneSignal.initialize(appId);
+        OneSignal.InAppMessages.addEventListener("didDismiss", () => {
+          queryClient.setQueryData(["onesignal", "dismiss"], Date.now());
+        });
         return {
           enablePrompt: () => {
-            if (appId && process.env.EXPO_PUBLIC_ENV !== "e2e") OneSignal.InAppMessages.addTrigger("onboard", "1");
+            const lastDismiss = queryClient.getQueryData<number>(["onesignal", "dismiss"]) ?? 0;
+            if (appId && lastDismiss + DISMISS_EXPIRY < Date.now()) OneSignal.InAppMessages.addTrigger("onboard", "1");
           },
           login: (userId: string) => {
             if (appId) OneSignal.login(userId);
@@ -74,3 +85,5 @@ const { enablePrompt, login, logout } = (
 )();
 
 export { enablePrompt, login, logout };
+
+export const DISMISS_EXPIRY = 30 * 24 * 60 * 60 * 1000;
