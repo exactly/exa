@@ -54,6 +54,8 @@ import {
 
 import database, { cards, credentials, transactions } from "../database/index";
 import keeper from "../utils/keeper";
+import getCardType from "../utils/getCardType";
+import getSourceName from "../utils/getSourceName";
 import { sendPushNotification } from "../utils/onesignal";
 import { collectors, createMutex, getMutex, getUser, headerValidator, signIssuerOp, updateUser } from "../utils/panda";
 import publicClient from "../utils/publicClient";
@@ -239,6 +241,8 @@ export default new Hono().post(
       case "requested": {
         const card = await findCardById(payload.body.spend.cardId);
         const account = v.parse(Address, card.credential.account);
+        const source = await getSourceName(card.credential.id);
+        const cardType = getCardType(card.productId);
         setUser({ id: account });
         const assess = () => {
           return risk({
@@ -281,10 +285,10 @@ export default new Hono().post(
         } catch (error: unknown) {
           if (error === E_TIMEOUT) {
             captureException(error, { level: "fatal", tags: { unhandled: true } });
-            trackAuthorizationRejected(account, payload, card.mode, "mutex-timeout");
+            trackAuthorizationRejected(account, payload, card.mode, "mutex-timeout", source, cardType);
             return c.json({ code: "mutex timeout" }, 554 as UnofficialStatusCode);
           }
-          trackAuthorizationRejected(account, payload, card.mode, "unknown-error");
+          trackAuthorizationRejected(account, payload, card.mode, "unknown-error", source, cardType);
           throw error;
         }
         setContext("mutex", { locked: mutex.isLocked() });
@@ -292,7 +296,7 @@ export default new Hono().post(
         try {
           const { amount, call, transaction } = await prepareCollection(card, payload);
           const authorize = () => {
-            trackTransactionAuthorized(account, payload, card.mode);
+            trackTransactionAuthorized(account, payload, card.mode, source, cardType);
             return c.json({ code: "ok" });
           };
           if (!transaction) {
@@ -357,7 +361,7 @@ export default new Hono().post(
                 ],
                 ...call,
               });
-              trackAuthorizationRejected(account, payload, card.mode, contractError.shortMessage);
+              trackAuthorizationRejected(account, payload, card.mode, contractError.shortMessage, source, cardType);
               captureException(contractError, { contexts: { tx: { call, trace } } });
               if (contractError instanceof BaseError && contractError.cause instanceof ContractFunctionRevertedError) {
                 switch (contractError.cause.data?.errorName) {
@@ -390,11 +394,12 @@ export default new Hono().post(
           mutex.release();
           setContext("mutex", { locked: mutex.isLocked() });
           if (error instanceof PandaError) {
-            error.message !== "tx reverted" && trackAuthorizationRejected(account, payload, card.mode, "panda-error");
+            error.message !== "tx reverted" &&
+              trackAuthorizationRejected(account, payload, card.mode, "panda-error", source, cardType);
             captureException(error, { level: "error", tags: { unhandled: true } });
             return c.json({ code: error.message }, error.statusCode as UnofficialStatusCode);
           }
-          trackAuthorizationRejected(account, payload, card.mode, "unexpected-error");
+          trackAuthorizationRejected(account, payload, card.mode, "unexpected-error", source, cardType);
           captureException(error, { level: "error", tags: { unhandled: true } });
           return c.json({ code: "ouch" }, 569 as UnofficialStatusCode);
         }
@@ -420,7 +425,7 @@ export default new Hono().post(
           const refundAmount = BigInt(Math.round(refundAmountUsd * 1e6));
           const [card, user] = await Promise.all([
             database.query.cards.findFirst({
-              columns: {},
+              columns: { productId: true },
               where: eq(cards.id, payload.body.spend.cardId),
               with: { credential: { columns: { account: true, id: true } } },
             }),
@@ -498,7 +503,13 @@ export default new Hono().post(
                 en: `${refundAmountUsd} USDC from ${payload.body.spend.merchantName.trim()} have been refunded to your account`,
               },
             }).catch((error: unknown) => captureException(error));
-            trackTransactionRefund(account, refundAmountUsd, payload);
+            trackTransactionRefund(
+              account,
+              refundAmountUsd,
+              payload,
+              await getSourceName(card.credential.id),
+              getCardType(card.productId),
+            );
             if (payload.action === "completed" && payload.body.spend.amount < 0) {
               feedback({
                 sessionKey: payload.id,
@@ -529,6 +540,8 @@ export default new Hono().post(
       case "created": {
         const card = await findCardById(payload.body.spend.cardId);
         const account = v.parse(Address, card.credential.account);
+        const source = await getSourceName(card.credential.id);
+        const cardType = getCardType(card.productId);
         setUser({ id: account });
 
         if (payload.body.spend.status === "declined") {
@@ -539,7 +552,7 @@ export default new Hono().post(
           const mutex = getMutex(account);
           mutex?.release();
           setContext("mutex", { locked: mutex?.isLocked() });
-          trackTransactionRejected(account, payload, card.mode);
+          trackTransactionRejected(account, payload, card.mode, source, cardType);
           startSpan({ name: "webhook", op: `panda.webhook.${payload.id}` }, () => publish(payload)).catch(
             (error: unknown) => captureException(error, { level: "error" }),
           );
@@ -730,6 +743,8 @@ function trackTransactionAuthorized(
   account: Address,
   payload: v.InferOutput<typeof Transaction>,
   cardMode: number,
+  source: string,
+  cardType: string,
 ): void {
   track({
     userId: account,
@@ -744,6 +759,8 @@ function trackTransactionAuthorized(
         city: payload.body.spend.merchantCity,
         country: payload.body.spend.merchantCountry,
       },
+      source,
+      cardType,
     },
   });
 }
@@ -753,6 +770,8 @@ function trackAuthorizationRejected(
   payload: v.InferOutput<typeof Transaction>,
   cardMode: number,
   declinedReason: string,
+  source: string,
+  cardType: string,
 ): void {
   track({
     userId: account,
@@ -767,6 +786,8 @@ function trackAuthorizationRejected(
         city: payload.body.spend.merchantCity,
         country: payload.body.spend.merchantCountry,
       },
+      source,
+      cardType,
     },
   });
 }
@@ -775,6 +796,8 @@ function trackTransactionRejected(
   account: Address,
   payload: v.InferOutput<typeof Transaction>,
   cardMode: number,
+  source: string,
+  cardType: string,
 ): void {
   if (payload.action !== "created" && payload.action !== "updated") {
     captureException(new Error("unsupported transaction type"), { contexts: { payload } });
@@ -795,6 +818,8 @@ function trackTransactionRejected(
       },
       updated: payload.action === "updated",
       declinedReason: payload.body.spend.declinedReason,
+      source,
+      cardType,
     },
   });
 }
@@ -803,6 +828,8 @@ function trackTransactionRefund(
   account: Address,
   refundAmountUsd: number,
   payload: v.InferOutput<typeof Transaction>,
+  source: string,
+  cardType: string,
 ): void {
   if (payload.action === "requested") {
     captureException(new Error("unsupported transaction type"), { contexts: { payload } });
@@ -822,6 +849,8 @@ function trackTransactionRefund(
         city: payload.body.spend.merchantCity,
         country: payload.body.spend.merchantCountry,
       },
+      source,
+      cardType,
     },
   });
 }
@@ -977,7 +1006,7 @@ const TransactionPayload = v.object(
 
 async function findCardById(cardId: string) {
   const card = await database.query.cards.findFirst({
-    columns: { mode: true },
+    columns: { mode: true, productId: true },
     where: and(eq(cards.id, cardId), eq(cards.status, "ACTIVE")),
     with: { credential: { columns: { account: true, id: true } } },
   });

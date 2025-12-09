@@ -22,10 +22,10 @@ interface MerchantProperties {
 
 export function track(
   action: Id<
-    | { event: "CardIssued"; properties: { productId: string } }
-    | { event: "CardFrozen" }
-    | { event: "CardUnfrozen" }
-    | { event: "CardDeleted" }
+    | { event: "CardIssued"; properties: { productId: string; source: string; cardType: string } }
+    | { event: "CardFrozen"; properties: { source: string; cardType: string } }
+    | { event: "CardUnfrozen"; properties: { source: string; cardType: string } }
+    | { event: "CardDeleted"; properties: { source: string; cardType: string } }
     | { event: "AccountFunded" }
     | {
         event: "TransactionAuthorized";
@@ -34,6 +34,8 @@ export function track(
           cardMode: number;
           usdAmount: number;
           merchant: MerchantProperties;
+          source: string;
+          cardType: string;
         };
       }
     | {
@@ -43,6 +45,8 @@ export function track(
           type: "reversal" | "refund" | "partial";
           usdAmount: number;
           merchant: MerchantProperties;
+          source: string;
+          cardType: string;
         };
       }
     | {
@@ -54,6 +58,8 @@ export function track(
           merchant: MerchantProperties;
           updated: boolean;
           declinedReason?: string | null;
+          source: string;
+          cardType: string;
         };
       }
     | {
@@ -63,6 +69,8 @@ export function track(
           usdAmount: number;
           merchant: MerchantProperties;
           declinedReason: string;
+          source: string;
+          cardType: string;
         };
       }
   >,
