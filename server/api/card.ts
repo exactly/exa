@@ -29,6 +29,8 @@ import {
 
 import database, { cards, credentials } from "../database";
 import auth from "../middleware/auth";
+import getCardType from "../utils/getCardType";
+import getSourceName from "../utils/getSourceName";
 import { getApplicationStatus } from "../utils/kyc";
 import { sendPushNotification } from "../utils/onesignal";
 import { autoCredit, createCard, getCard, getPIN, getSecrets, getUser, setPIN, updateCard } from "../utils/panda";
@@ -340,6 +342,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
             columns: { account: true, pandaId: true },
             with: {
               cards: { columns: { id: true, status: true }, where: inArray(cards.status, ["ACTIVE", "FROZEN"]) },
+              organization: { columns: { name: true } },
             },
           });
           if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
@@ -379,7 +382,15 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
           await database
             .insert(cards)
             .values([{ id: card.id, credentialId, lastFour: card.last4, mode, productId: SIGNATURE_PRODUCT_ID }]);
-          track({ event: "CardIssued", userId: account, properties: { productId: SIGNATURE_PRODUCT_ID } });
+          track({
+            event: "CardIssued",
+            userId: account,
+            properties: {
+              productId: SIGNATURE_PRODUCT_ID,
+              source: credential.organization?.name ?? "EXA",
+              cardType: getCardType(SIGNATURE_PRODUCT_ID),
+            },
+          });
 
           customer({
             flow: { name: "card.issued", type: "other" },
@@ -397,7 +408,6 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
               },
             },
           }).catch((error: unknown) => captureException(error, { level: "error" }));
-
           if (mode) {
             sendPushNotification({
               userId: account,
@@ -462,12 +472,12 @@ async function encryptPIN(pin: string) {
     secretKeyBase64Buffer,
   );
   const sessionId = secretKeyBase64BufferEncrypted.toString("base64");
-  
+
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv("aes-128-gcm", Buffer.from(secret, "hex"), iv);
   const encrypted = Buffer.concat([cipher.update(data, "utf8"), cipher.final()]);
   const authTag = cipher.getAuthTag();
-  
+
   return {
     data: Buffer.concat([encrypted, authTag]).toString("base64"),
     iv: iv.toString("base64"),
@@ -528,7 +538,10 @@ async function encryptPIN(pin: string) {
             columns: { account: true },
             where: eq(credentials.id, credentialId),
             with: {
-              cards: { columns: { id: true, mode: true, status: true }, where: ne(cards.status, "DELETED") },
+              cards: {
+                columns: { id: true, mode: true, status: true, productId: true },
+                where: ne(cards.status, "DELETED"),
+              },
             },
           });
           if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
@@ -550,16 +563,18 @@ async function encryptPIN(pin: string) {
               const { status } = patch;
               if (card.status === status)
                 return c.json({ code: BadRequestCodes.ALREADY_SET, status, legacy: BadRequestCodes.ALREADY_SET }, 400);
+              const source = await getSourceName(credentialId);
+              const cardType = getCardType(card.productId);
               switch (status) {
                 case "ACTIVE":
-                  track({ userId: account, event: "CardUnfrozen" });
+                  track({ userId: account, event: "CardUnfrozen", properties: { source, cardType } });
                   break;
                 case "DELETED":
                   await updateCard({ id: card.id, status: "canceled" });
-                  track({ userId: account, event: "CardDeleted" });
+                  track({ userId: account, event: "CardDeleted", properties: { source, cardType } });
                   break;
                 case "FROZEN":
-                  track({ userId: account, event: "CardFrozen" });
+                  track({ userId: account, event: "CardFrozen", properties: { source, cardType } });
                   break;
               }
               await database.update(cards).set({ status }).where(eq(cards.id, card.id));

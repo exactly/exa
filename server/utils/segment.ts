@@ -3,6 +3,8 @@ import { Analytics } from "@segment/analytics-node";
 import { captureException } from "@sentry/node";
 import type { Prettify } from "viem";
 
+import type { CardType } from "./getCardType";
+
 if (!process.env.SEGMENT_WRITE_KEY) throw new Error("missing segment write key");
 
 const analytics = new Analytics({ writeKey: process.env.SEGMENT_WRITE_KEY });
@@ -22,10 +24,19 @@ interface MerchantProperties {
 
 export function track(
   action: Id<
-    | { event: "CardIssued"; properties: { productId: string } }
-    | { event: "CardFrozen" }
-    | { event: "CardUnfrozen" }
-    | { event: "CardDeleted" }
+    | {
+        event: "CardIssued";
+        properties: { productId: string; source: string; cardType: CardType };
+      }
+    | {
+        event: "CardFrozen";
+        properties: { source: string; cardType: CardType };
+      }
+    | {
+        event: "CardUnfrozen";
+        properties: { source: string; cardType: CardType };
+      }
+    | { event: "CardDeleted"; properties: { source: string; cardType: CardType } }
     | { event: "AccountFunded" }
     | {
         event: "TransactionAuthorized";
@@ -34,6 +45,8 @@ export function track(
           cardMode: number;
           usdAmount: number;
           merchant: MerchantProperties;
+          source: string;
+          cardType: CardType;
         };
       }
     | {
@@ -43,6 +56,8 @@ export function track(
           type: "reversal" | "refund" | "partial";
           usdAmount: number;
           merchant: MerchantProperties;
+          source: string;
+          cardType: CardType;
         };
       }
     | {
@@ -54,6 +69,8 @@ export function track(
           merchant: MerchantProperties;
           updated: boolean;
           declinedReason?: string | null;
+          source: string;
+          cardType: CardType;
         };
       }
     | {
@@ -63,6 +80,8 @@ export function track(
           usdAmount: number;
           merchant: MerchantProperties;
           declinedReason: string;
+          source: string;
+          cardType: CardType;
         };
       }
   >,
