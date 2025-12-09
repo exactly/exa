@@ -25,9 +25,7 @@ const tabs = [
 
 export default function HomeLayout() {
   useIntercom();
-  useEffect(() => {
-    enablePrompt();
-  }, []);
+  useEffect(() => enablePrompt(), []);
   return (
     <>
       {Platform.OS === "web" && (
