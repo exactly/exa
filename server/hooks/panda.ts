@@ -1240,7 +1240,7 @@ async function publish(payload: v.InferOutput<typeof Payload>, receipt?: Transac
       });
     } catch (error) {
       if (error instanceof Error) {
-        if (error instanceof Error && error.message === "WebhookFailed") {
+        if (error.message === "WebhookFailed") {
           debugWebhook(error.cause);
         } else {
           debugWebhook({ error: error.message, payload: webhookPayload });
