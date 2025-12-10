@@ -8,6 +8,7 @@
     "prepare:generated": "mkdir -p generated",
     "generate:release": "echo \"module.exports = /** @type {const} */ ('$(git describe --tags --abbrev=7 --match '@exactly/server@*' | sed 's/@exactly\\///')')\" > generated/release.js",
     "generate:openapi": "tsx script/openapi.ts",
+    "generate:broadcasts": "[ \"$CHAIN_ID\" != 31337 ] || tsx -e 'require(\"./test/anvil\").default({ provide: () => undefined }).then((teardown) => teardown())'",
     "db:push": "drizzle-kit push",
     "e2e": "tsx script/e2e.ts",
     "test": "nx run-many -t test:ts test:vi test:openapi -p server",
@@ -100,10 +101,47 @@
           "{projectRoot}/openapi.json"
         ]
       },
+      "generate:broadcasts": {
+        "dependsOn": [
+          {
+            "projects": "@exactly/plugin",
+            "target": "build"
+          }
+        ],
+        "inputs": [
+          "{projectRoot}/test/anvil.ts",
+          "^production",
+          {
+            "env": "CHAIN_ID"
+          }
+        ],
+        "outputs": [
+          "{workspaceRoot}/contracts/broadcast/Protocol.s.sol/31337/run-latest.json"
+        ]
+      },
+      "test:vi": {
+        "dependsOn": [
+          "prepare",
+          "^prepare",
+          "^build"
+        ],
+        "inputs": [
+          "default",
+          "^production"
+        ],
+        "outputs": [
+          "{projectRoot}/coverage"
+        ]
+      },
       "e2e": {
         "dependsOn": [
           "prepare",
-          "^prepare"
+          "^prepare",
+          "^build"
+        ],
+        "inputs": [
+          "default",
+          "^production"
         ],
         "outputs": [
           "{projectRoot}/coverage"
