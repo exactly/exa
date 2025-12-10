@@ -17,6 +17,7 @@ import {
   safeParse,
   string,
   transform,
+  union,
 } from "valibot";
 
 import { Address } from "@exactly/common/validation";
@@ -24,7 +25,7 @@ import { Address } from "@exactly/common/validation";
 import database, { credentials } from "../database/index";
 import { createUser } from "../utils/panda";
 import { addCapita, deriveAssociateId } from "../utils/pax";
-import { headerValidator } from "../utils/persona";
+import { addDocument, headerValidator, MANTECA_TEMPLATE_WITH_ID_CLASS, PANDA_TEMPLATE } from "../utils/persona";
 import { customer } from "../utils/sardine";
 import validatorHook from "../utils/validatorHook";
 
@@ -53,103 +54,154 @@ export default new Hono().post(
     object({
       data: object({
         attributes: object({
-          payload: pipe(
-            object({
-              data: object({
-                id: string(),
-                attributes: object({
-                  status: literal("approved"),
-                  referenceId: string(),
-                  emailAddress: string(),
-                  phoneNumber: string(),
-                  birthdate: string(),
-                  nameFirst: string(),
-                  nameMiddle: nullable(string()),
-                  nameLast: string(),
-                  addressStreet1: string(),
-                  addressStreet2: nullable(string()),
-                  addressCity: string(),
-                  addressSubdivision: string(),
-                  addressSubdivisionAbbr: nullable(string()),
-                  addressPostalCode: string(),
-                  fields: pipe(
-                    object({
-                      accountPurpose: object({ value: string() }),
-                      annualSalary: object({ value: nullable(string()) }),
-                      annualSalaryRangesUs150000: optional(object({ value: optional(string()) })),
-                      expectedMonthlyVolume: object({ value: nullable(string()) }),
-                      inputSelect: object({ value: string() }),
-                      monthlyPurchasesRange: optional(object({ value: string() })),
-                      addressCountryCode: object({ value: string() }),
-                      birthdate: object({ value: string() }),
-                      identificationNumber: object({ value: string() }),
-                      nameFirst: object({ value: string() }),
-                      nameLast: object({ value: string() }),
-                      emailAddress: object({ value: string() }),
-                      phoneNumber: optional(object({ value: string() })),
+          payload: union([
+            pipe(
+              object({
+                data: object({
+                  id: string(),
+                  attributes: object({
+                    status: literal("approved"),
+                    referenceId: string(),
+                    emailAddress: string(),
+                    phoneNumber: string(),
+                    birthdate: string(),
+                    nameFirst: string(),
+                    nameMiddle: nullable(string()),
+                    nameLast: string(),
+                    addressStreet1: string(),
+                    addressStreet2: nullable(string()),
+                    addressCity: string(),
+                    addressSubdivision: string(),
+                    addressSubdivisionAbbr: nullable(string()),
+                    addressPostalCode: string(),
+                    fields: pipe(
+                      object({
+                        accountPurpose: object({ value: string() }),
+                        annualSalary: object({ value: nullable(string()) }),
+                        annualSalaryRangesUs150000: optional(object({ value: optional(string()) })),
+                        expectedMonthlyVolume: object({ value: nullable(string()) }),
+                        inputSelect: object({ value: string() }),
+                        monthlyPurchasesRange: optional(object({ value: string() })),
+                        addressCountryCode: object({ value: string() }),
+                        birthdate: object({ value: string() }),
+                        identificationNumber: object({ value: string() }),
+                        nameFirst: object({ value: string() }),
+                        nameLast: object({ value: string() }),
+                        emailAddress: object({ value: string() }),
+                        phoneNumber: optional(object({ value: string() })),
+                        identificationClass: object({ value: string() }),
+                        currentGovernmentId: object({ value: object({ id: string() }) }),
+                        selectedCountryCode: object({ value: string() }),
+                      }),
+                      check(
+                        (fields) => !!fields.annualSalaryRangesUs150000?.value || !!fields.annualSalary.value,
+                        "Either annualSalary or annualSalaryRangesUs150000 must have a value",
+                      ),
+                      check(
+                        (fields) => !!fields.monthlyPurchasesRange?.value || !!fields.expectedMonthlyVolume.value,
+                        "Either monthlyPurchasesRange or expectedMonthlyVolume must have a value",
+                      ),
+                    ),
+                  }),
+                  relationships: object({
+                    inquiryTemplate: object({
+                      data: object({
+                        id: literal(PANDA_TEMPLATE),
+                      }),
                     }),
-                    check(
-                      (fields) => !!fields.annualSalaryRangesUs150000?.value || !!fields.annualSalary.value,
-                      "Either annualSalary or annualSalaryRangesUs150000 must have a value",
-                    ),
-                    check(
-                      (fields) => !!fields.monthlyPurchasesRange?.value || !!fields.expectedMonthlyVolume.value,
-                      "Either monthlyPurchasesRange or expectedMonthlyVolume must have a value",
-                    ),
-                  ),
+                  }),
+                }),
+                included: pipe(
+                  array(looseObject({ type: string() })),
+                  minLength(1),
+                  transform((incl) => {
+                    return incl
+                      .reduce<InferOutput<typeof Session>[]>((sessions, item) => {
+                        const s = safeParse(Session, item);
+                        if (s.success) return [...sessions, s.output];
+                        return sessions;
+                      }, [])
+                      .toSorted((a, b) => a.attributes.createdAt.localeCompare(b.attributes.createdAt));
+                  }),
+                  minLength(1),
+                ),
+              }),
+              transform((payload) => {
+                if (payload.included.length === 0) throw new Error("no valid sessions");
+                const session = payload.included[0];
+                if (!session) throw new Error("no valid session");
+
+                const annualSalary =
+                  payload.data.attributes.fields.annualSalaryRangesUs150000?.value ??
+                  payload.data.attributes.fields.annualSalary.value;
+                const expectedMonthlyVolume =
+                  payload.data.attributes.fields.monthlyPurchasesRange?.value ??
+                  payload.data.attributes.fields.expectedMonthlyVolume.value;
+
+                if (!expectedMonthlyVolume) throw new Error("no monthly volume");
+                if (!annualSalary) throw new Error("no annual salary");
+
+                return {
+                  template: "panda" as const,
+                  ...payload,
+                  session,
+                  annualSalary,
+                  expectedMonthlyVolume,
+                };
+              }),
+            ),
+            pipe(
+              object({
+                data: object({
+                  id: string(),
+                  attributes: object({
+                    status: literal("approved"),
+                    referenceId: string(),
+                    fields: object({
+                      selectedCountryCode: object({ value: string() }),
+                      currentGovernmentId1: object({ value: object({ id: string() }) }),
+                      selectedIdClass1: object({ value: string() }),
+                      identificationNumber: object({ value: string() }),
+                    }),
+                  }),
+                  relationships: object({
+                    inquiryTemplate: object({
+                      data: object({
+                        id: literal(MANTECA_TEMPLATE_WITH_ID_CLASS),
+                      }),
+                    }),
+                  }),
                 }),
               }),
-              included: pipe(
-                array(looseObject({ type: string() })),
-                minLength(1),
-                transform((incl) => {
-                  return incl
-                    .reduce<InferOutput<typeof Session>[]>((sessions, item) => {
-                      const s = safeParse(Session, item);
-                      if (s.success) return [...sessions, s.output];
-                      return sessions;
-                    }, [])
-                    .toSorted((a, b) => a.attributes.createdAt.localeCompare(b.attributes.createdAt));
-                }),
-                minLength(1),
-              ),
-            }),
-            transform((payload) => {
-              if (payload.included.length === 0) throw new Error("no valid sessions");
-              const session = payload.included[0];
-              if (!session) throw new Error("no valid session");
-
-              const annualSalary =
-                payload.data.attributes.fields.annualSalaryRangesUs150000?.value ??
-                payload.data.attributes.fields.annualSalary.value;
-              const expectedMonthlyVolume =
-                payload.data.attributes.fields.monthlyPurchasesRange?.value ??
-                payload.data.attributes.fields.expectedMonthlyVolume.value;
-
-              if (!expectedMonthlyVolume) throw new Error("no monthly volume");
-              if (!annualSalary) throw new Error("no annual salary");
-
-              return {
-                ...payload,
-                session,
-                annualSalary,
-                expectedMonthlyVolume,
-              };
-            }),
-          ),
+              transform((payload) => ({ template: "manteca" as const, ...payload })),
+            ),
+          ]),
         }),
       }),
     }),
     validatorHook({ code: "bad persona", status: 200 }),
   ),
   async (c) => {
+    const payload = c.req.valid("json").data.attributes.payload;
+
+    if (payload.template === "manteca") {
+      getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "persona.inquiry.manteca");
+      await addDocument(payload.data.attributes.referenceId, {
+        id_class: { value: payload.data.attributes.fields.selectedIdClass1.value },
+        id_number: { value: payload.data.attributes.fields.identificationNumber.value },
+        id_issuing_country: { value: payload.data.attributes.fields.selectedCountryCode.value },
+        id_document_id: { value: payload.data.attributes.fields.currentGovernmentId1.value.id },
+      });
+      return c.json({ code: "ok" }, 200);
+    }
+
     getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "persona.inquiry");
     const {
       data: { id: personaShareToken, attributes },
       session,
       annualSalary,
       expectedMonthlyVolume,
-    } = c.req.valid("json").data.attributes.payload;
+    } = payload;
     const { referenceId, fields } = attributes;
 
     const credential = await database.query.credentials.findFirst({
@@ -157,7 +209,7 @@ export default new Hono().post(
       where: eq(credentials.id, referenceId),
     });
     if (!credential) {
-      captureException(new Error("no credential"), { contexts: { credential: { referenceId } } });
+      captureException(new Error("no credential"), { level: "error", contexts: { credential: { referenceId } } });
       getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "persona.inquiry.no-credential");
       return c.json({ code: "no credential" }, 200);
     }
@@ -249,13 +301,22 @@ export default new Hono().post(
         internalId: deriveAssociateId(account.output),
         product: "travel insurance",
       }).catch((error: unknown) => {
-        captureException(error, { extra: { pandaId: id, referenceId } });
+        captureException(error, { level: "error", extra: { pandaId: id, referenceId } });
       });
     } else {
       captureException(new Error("invalid account address"), {
         extra: { pandaId: id, referenceId, account: credential.account },
+        level: "error",
       });
     }
+    addDocument(referenceId, {
+      id_class: { value: fields.identificationClass.value },
+      id_number: { value: fields.identificationNumber.value },
+      id_issuing_country: { value: fields.selectedCountryCode.value },
+      id_document_id: { value: fields.currentGovernmentId.value.id },
+    }).catch((error: unknown) => {
+      captureException(error, { level: "fatal", extra: { referenceId } });
+    });
 
     return c.json({ id }, 200);
   },

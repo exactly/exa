@@ -122,6 +122,17 @@ export function persona(referenceId: string, event = "approved") {
                 birthdate: { value: "1990-01-01" },
                 emailAddress: { value: "test@test.com" },
                 identificationNumber: { value: "123456789" },
+                monthlyPurchasesRange: { value: "3000" },
+                identificationClass: { value: "pp" },
+                currentGovernmentId: { value: { id: "doc_yc294YWhCZi7YKxPnoxCGMmCH111" } },
+                selectedCountryCode: { value: "TW" },
+              },
+            },
+            relationships: {
+              inquiryTemplate: {
+                data: {
+                  id: "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2",
+                },
               },
             },
           },

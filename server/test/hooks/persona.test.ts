@@ -1,10 +1,11 @@
+import "../mocks/pax";
 import "../mocks/persona";
 import "../mocks/sentry";
 
 import { captureException } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
-import { padHex, zeroHash } from "viem";
+import { hexToBytes, padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 
@@ -14,6 +15,7 @@ import database, { credentials } from "../../database";
 import app from "../../hooks/persona";
 import * as panda from "../../utils/panda";
 import * as pax from "../../utils/pax";
+import * as persona from "../../utils/persona";
 import * as sardine from "../../utils/sardine";
 
 const appClient = testClient(app);
@@ -21,7 +23,20 @@ const appClient = testClient(app);
 vi.mock("@sentry/node", { spy: true });
 
 describe("with reference", () => {
-  afterEach(() => vi.resetAllMocks());
+  const referenceId = "hook-persona";
+  const owner = privateKeyToAddress(padHex("0x123"));
+  const factory = inject("ExaAccountFactory");
+  const account = deriveAddress(factory, { x: padHex(owner), y: zeroHash });
+  beforeAll(async () => {
+    await database
+      .insert(credentials)
+      .values([{ id: referenceId, publicKey: new Uint8Array(hexToBytes(owner)), account, factory, pandaId: null }]);
+  });
+
+  afterEach(async () => {
+    vi.resetAllMocks();
+    await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, referenceId));
+  });
 
   it("creates a panda account", async () => {
     vi.spyOn(panda, "createUser").mockResolvedValueOnce({ id: "pandaId" });
@@ -37,13 +52,20 @@ describe("with reference", () => {
             payload: {
               ...personaPayload.json.data.attributes.payload,
               included: [...personaPayload.json.data.attributes.payload.included],
+              data: {
+                ...personaPayload.json.data.attributes.payload.data,
+                attributes: {
+                  ...personaPayload.json.data.attributes.payload.data.attributes,
+                  referenceId,
+                },
+              },
             },
           },
         },
       },
     });
     const p = await database.query.credentials.findFirst({
-      where: eq(credentials.id, "bob"),
+      where: eq(credentials.id, referenceId),
       columns: { pandaId: true },
     });
 
@@ -52,16 +74,16 @@ describe("with reference", () => {
     expect(response.status).toBe(200);
   });
 
-  it("returns 200 if already created", async () => {
-    const createdAccount = "already-created";
-    await database.insert(credentials).values({
-      id: createdAccount,
-      publicKey: new Uint8Array(),
-      account: createdAccount,
-      factory: inject("ExaAccountFactory"),
-      pandaId: "test-id",
+  it("updates persona account documents when creating a panda user", async () => {
+    const id = "panda-id";
+    vi.spyOn(pax, "addCapita").mockResolvedValue({});
+    vi.spyOn(panda, "createUser").mockResolvedValueOnce({ id });
+    vi.spyOn(sardine, "customer").mockResolvedValueOnce({
+      sessionKey: "test-session-123",
+      status: "Success",
+      level: "low",
     });
-
+    vi.spyOn(persona, "addDocument").mockResolvedValueOnce({ data: { id: "doc_123" } });
     const response = await appClient.index.$post({
       ...personaPayload,
       json: {
@@ -76,7 +98,95 @@ describe("with reference", () => {
                 ...personaPayload.json.data.attributes.payload.data,
                 attributes: {
                   ...personaPayload.json.data.attributes.payload.data.attributes,
-                  referenceId: createdAccount,
+                  referenceId,
+                },
+              },
+              included: [...personaPayload.json.data.attributes.payload.included],
+            },
+          },
+        },
+      },
+    });
+    const p = await database.query.credentials.findFirst({
+      where: eq(credentials.id, referenceId),
+      columns: { pandaId: true },
+    });
+
+    expect(p?.pandaId).toBe(id);
+    expect(persona.addDocument).toHaveBeenCalledWith(referenceId, {
+      id_class: { value: "pp" },
+      id_number: { value: "333333333" },
+      id_issuing_country: { value: "TW" },
+      id_document_id: { value: "doc_yc294YWhCZi7YKxPnoxCGMmCH111" },
+    });
+    expect(response.status).toBe(200);
+  });
+
+  it("should return 200 if adding the document to the account fails", async () => {
+    const id = "panda-id";
+    vi.spyOn(pax, "addCapita").mockResolvedValue({});
+    vi.spyOn(panda, "createUser").mockResolvedValueOnce({ id });
+    vi.spyOn(sardine, "customer").mockResolvedValueOnce({
+      sessionKey: "test-session-123",
+      status: "Success",
+      level: "low",
+    });
+    vi.spyOn(persona, "addDocument").mockRejectedValueOnce(new Error("failed to add document"));
+    const response = await appClient.index.$post({
+      ...personaPayload,
+      json: {
+        ...personaPayload.json,
+        data: {
+          ...personaPayload.json.data,
+          attributes: {
+            ...personaPayload.json.data.attributes,
+            payload: {
+              ...personaPayload.json.data.attributes.payload,
+              data: {
+                ...personaPayload.json.data.attributes.payload.data,
+                attributes: {
+                  ...personaPayload.json.data.attributes.payload.data.attributes,
+                  referenceId,
+                },
+              },
+              included: [...personaPayload.json.data.attributes.payload.included],
+            },
+          },
+        },
+      },
+    });
+    const p = await database.query.credentials.findFirst({
+      where: eq(credentials.id, referenceId),
+      columns: { pandaId: true },
+    });
+
+    expect(p?.pandaId).toBe(id);
+    expect(persona.addDocument).toHaveBeenCalledWith(referenceId, {
+      id_class: { value: "pp" },
+      id_number: { value: "333333333" },
+      id_issuing_country: { value: "TW" },
+      id_document_id: { value: "doc_yc294YWhCZi7YKxPnoxCGMmCH111" },
+    });
+    expect(response.status).toBe(200);
+  });
+
+  it("returns 200 if already created", async () => {
+    await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, referenceId));
+    const response = await appClient.index.$post({
+      ...personaPayload,
+      json: {
+        ...personaPayload.json,
+        data: {
+          ...personaPayload.json.data,
+          attributes: {
+            ...personaPayload.json.data.attributes,
+            payload: {
+              ...personaPayload.json.data.attributes.payload,
+              data: {
+                ...personaPayload.json.data.attributes.payload.data,
+                attributes: {
+                  ...personaPayload.json.data.attributes.payload.data.attributes,
+                  referenceId,
                 },
               },
               included: [...personaPayload.json.data.attributes.payload.included],
@@ -147,7 +257,13 @@ describe("with reference", () => {
       await expect(response.json()).resolves.toStrictEqual({
         code: "bad persona",
         legacy: "bad persona",
-        message: ["data/attributes/payload/included Invalid length: Expected >=1 but received 0"],
+        message: [
+          "data/attributes/payload Invalid type: Expected Object but received Object",
+          "included Invalid length: Expected >=1 but received 0",
+          'data/attributes/fields/currentGovernmentId1 Invalid key: Expected "currentGovernmentId1" but received undefined',
+          'data/attributes/fields/selectedIdClass1 Invalid key: Expected "selectedIdClass1" but received undefined',
+          'data/relationships/inquiryTemplate/data/id Invalid type: Expected "itmpl_TjaqJdQYkht17v645zNFUfkaWNan" but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
+        ],
       });
       expect(panda.createUser).not.toHaveBeenCalled();
     });
@@ -190,7 +306,11 @@ describe("with reference", () => {
         code: "bad persona",
         legacy: "bad persona",
         message: [
-          "data/attributes/payload/data/attributes/fields Either annualSalary or annualSalaryRangesUs150000 must have a value",
+          "data/attributes/payload Invalid type: Expected Object but received Object",
+          "data/attributes/fields Either annualSalary or annualSalaryRangesUs150000 must have a value",
+          'data/attributes/fields/currentGovernmentId1 Invalid key: Expected "currentGovernmentId1" but received undefined',
+          'data/attributes/fields/selectedIdClass1 Invalid key: Expected "selectedIdClass1" but received undefined',
+          'data/relationships/inquiryTemplate/data/id Invalid type: Expected "itmpl_TjaqJdQYkht17v645zNFUfkaWNan" but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
         ],
       });
       expect(panda.createUser).not.toHaveBeenCalled();
@@ -234,7 +354,11 @@ describe("with reference", () => {
         code: "bad persona",
         legacy: "bad persona",
         message: [
-          "data/attributes/payload/data/attributes/fields Either monthlyPurchasesRange or expectedMonthlyVolume must have a value",
+          "data/attributes/payload Invalid type: Expected Object but received Object",
+          "data/attributes/fields Either monthlyPurchasesRange or expectedMonthlyVolume must have a value",
+          'data/attributes/fields/currentGovernmentId1 Invalid key: Expected "currentGovernmentId1" but received undefined',
+          'data/attributes/fields/selectedIdClass1 Invalid key: Expected "selectedIdClass1" but received undefined',
+          'data/relationships/inquiryTemplate/data/id Invalid type: Expected "itmpl_TjaqJdQYkht17v645zNFUfkaWNan" but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
         ],
       });
       expect(panda.createUser).not.toHaveBeenCalled();
@@ -255,6 +379,8 @@ describe("persona hook", () => {
       pandaId: null,
     });
   });
+
+  afterEach(() => vi.resetAllMocks());
 
   it("creates panda and pax user on valid inquiry", async () => {
     vi.spyOn(panda, "createUser").mockResolvedValue({ id: "new-panda-id" });
@@ -303,6 +429,41 @@ describe("persona hook", () => {
   });
 });
 
+describe("manteca template", () => {
+  const referenceId = "manteca-ref";
+  beforeAll(async () => {
+    await database.insert(credentials).values({
+      id: referenceId,
+      publicKey: new Uint8Array(),
+      factory: inject("ExaAccountFactory"),
+      account: deriveAddress(inject("ExaAccountFactory"), {
+        x: padHex(privateKeyToAddress(padHex("0x789"))),
+        y: zeroHash,
+      }),
+      pandaId: null,
+    });
+  });
+
+  it("handles manteca template and adds document", async () => {
+    vi.spyOn(persona, "addDocument").mockResolvedValueOnce({ data: { id: "doc_manteca" } });
+
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: mantecaPayload,
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(persona.addDocument).toHaveBeenCalledWith(referenceId, {
+      id_class: { value: "dl" },
+      id_number: { value: "ID12345" },
+      id_issuing_country: { value: "AR" },
+      id_document_id: { value: "doc_gov_123" },
+    });
+    expect(panda.createUser).not.toHaveBeenCalled();
+  });
+});
+
 const validPayload = {
   data: {
     attributes: {
@@ -336,6 +497,17 @@ const validPayload = {
               emailAddress: { value: "john@example.com" },
               phoneNumber: { value: "+1234567890" },
               addressCountryCode: { value: "US" },
+              identificationClass: { value: "pp" },
+              currentGovernmentId: { value: { id: "doc_yc294YWhCZi7YKxPnoxCGMmCH111" } },
+              selectedCountryCode: { value: "TW" },
+            },
+          },
+          relationships: {
+            inquiryTemplate: {
+              data: {
+                type: "inquiry-template",
+                id: "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2",
+              },
             },
           },
         },
@@ -570,7 +742,7 @@ const personaPayload = {
               inquiryTemplate: {
                 data: {
                   type: "inquiry-template",
-                  id: "itmpl_8uim4FvD57CW817", // cspell:ignore itmpl_8uim4FvD57CW817
+                  id: "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2",
                 },
               },
               inquiryTemplateVersion: {
@@ -1237,6 +1409,36 @@ const personaPayload = {
               },
             },
           ],
+        },
+      },
+    },
+  },
+} as const;
+
+const mantecaPayload = {
+  data: {
+    attributes: {
+      payload: {
+        data: {
+          id: "inq_manteca_123",
+          attributes: {
+            status: "approved",
+            referenceId: "manteca-ref",
+            fields: {
+              selectedCountryCode: { value: "AR" },
+              currentGovernmentId1: { value: { id: "doc_gov_123" } },
+              selectedIdClass1: { value: "dl" },
+              identificationNumber: { value: "ID12345" },
+            },
+          },
+          relationships: {
+            inquiryTemplate: {
+              data: {
+                type: "inquiry-template",
+                id: "itmpl_TjaqJdQYkht17v645zNFUfkaWNan",
+              },
+            },
+          },
         },
       },
     },

@@ -1,6 +1,4 @@
 import { captureException, captureMessage } from "@sentry/core";
-import { eq } from "drizzle-orm";
-import { alpha2ToAlpha3 } from "i18n-iso-countries";
 import crypto from "node:crypto";
 import {
   array,
@@ -26,11 +24,7 @@ import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 import chain from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
-import database, { credentials } from "../../database";
-import { getAccount, getDocument, getInquiry } from "../persona";
-
 import type * as common from "./shared";
-import type { IdentificationClasses as PersonaIdentificationClasses } from "../persona";
 
 if (!process.env.BRIDGE_API_URL) throw new Error("missing bridge api url");
 const baseURL = process.env.BRIDGE_API_URL;
@@ -116,144 +110,8 @@ type GetProvider = {
   templateId: string;
 };
 
-export async function getProvider(data: GetProvider): Promise<InferOutput<typeof common.ProviderInfo>> {
-  const currencies: (typeof SupportedCurrency)[number][] = [];
-  const cryptoCurrencies: {
-    cryptoCurrency: (typeof SupportedCrypto)[number];
-    network: (typeof common.CryptoNetwork)[number];
-  }[] = [];
-
-  const supportedChainId = SupportedOnRampChainId[chain.id as (typeof common.SupportedChainId)[number]];
-  if (!supportedChainId) {
-    captureMessage("bridge_not_supported_chain_id", { contexts: { chain }, level: "error" });
-    return { status: "NOT_AVAILABLE", currencies: [], cryptoCurrencies: [], pendingTasks: [] };
-  }
-
-  for (const cryptoRail of SupportedCryptoPaymentRail) {
-    for (const cryptoCurrency of CryptoCurrencyByPaymentRail[cryptoRail]) {
-      cryptoCurrencies.push({ cryptoCurrency, network: CryptoPaymentRailMapping[cryptoRail] });
-    }
-  }
-
-  const pendingTasks: InferOutput<typeof common.PendingTask>[] = [];
-  if (data.customerId) {
-    const bridgeUser = await getCustomer(data.customerId);
-    if (!bridgeUser) throw new Error(ErrorCodes.BAD_BRIDGE_ID);
-    switch (bridgeUser.status) {
-      case "offboarded":
-      case "rejected":
-      case "paused":
-        captureMessage("bridge_user_not_available", { contexts: { bridgeUser }, level: "warning" });
-        return { status: "NOT_AVAILABLE", currencies: [], cryptoCurrencies: [], pendingTasks: [] };
-      case "under_review":
-      case "awaiting_questionnaire":
-      case "awaiting_ubo":
-      case "incomplete":
-      case "not_started":
-        captureMessage("bridge_user_onboarding", { contexts: { bridgeUser }, level: "warning" });
-        return { status: "ONBOARDING", currencies: [], cryptoCurrencies: [], pendingTasks: [] };
-      case "active":
-        break;
-    }
-
-    if (bridgeUser.future_requirements_due?.length) {
-      // TODO handle future requirements
-      captureMessage("bridge_future_requirements_due", { contexts: { bridgeUser }, level: "warning" });
-    }
-
-    if (bridgeUser.requirements_due?.length) {
-      // TODO handle requirements due
-      // ? external_account is only for off-ramp
-      captureMessage("bridge_requirements_due", { contexts: { bridgeUser }, level: "warning" });
-    }
-
-    for (const endorsement of bridgeUser.endorsements) {
-      if (endorsement.status !== "approved") {
-        // TODO handle pending tasks
-        captureMessage("endorsement_not_approved", { contexts: { bridgeUser }, level: "warning" });
-        break;
-      }
-
-      currencies.push(...CurrencyByEndorsement[endorsement.name]);
-
-      if (endorsement.additional_requirements?.length) {
-        // TODO handle additional requirements
-        captureMessage("additional_requirements", { contexts: { bridgeUser }, level: "warning" });
-      }
-
-      if (endorsement.requirements.missing) {
-        captureMessage("requirements_missing", { contexts: { bridgeUser }, level: "warning" });
-      }
-    }
-
-    return { status: "ACTIVE", currencies, cryptoCurrencies, pendingTasks };
-  }
-
-  const [inquiry, personaAccount] = await Promise.all([
-    getInquiry(data.credentialId, data.templateId),
-    getAccount(data.credentialId),
-  ]);
-  if (!personaAccount) throw new Error(ErrorCodes.NO_PERSONA_ACCOUNT);
-  if (!inquiry) throw new Error(ErrorCodes.NO_KYC);
-  if (inquiry.attributes.status !== "approved" && inquiry.attributes.status !== "completed") {
-    throw new Error(ErrorCodes.KYC_NOT_APPROVED);
-  }
-  const countryCode = personaAccount.attributes["country-code"];
-  const identificationClass = inquiry.attributes.fields["identification-class"]?.value;
-  if (!identificationClass) throw new Error(ErrorCodes.NO_IDENTIFICATION_CLASS);
-  const bridgeIdType = idClassToBridge(identificationClass);
-  if (!SupportedIdentificationTypes.includes(bridgeIdType as (typeof SupportedIdentificationTypes)[number])) {
-    throw new Error(ErrorCodes.NOT_SUPPORTED_IDENTIFICATION_CLASS);
-  }
-
-  const postalCode = inquiry.attributes.fields["address-postal-code"]?.value;
-  if (!postalCode) throw new Error(ErrorCodes.NO_POSTAL_CODE);
-  const subdivision =
-    inquiry.attributes.fields["address-subdivision"]?.value ?? personaAccount.attributes["address-subdivision"];
-  if (!subdivision) throw new Error(ErrorCodes.NO_SUBDIVISION);
-  const streetLine1 =
-    inquiry.attributes.fields["address-street-1"]?.value ?? personaAccount.attributes["address-street-1"];
-  if (!streetLine1) throw new Error(ErrorCodes.NO_ADDRESS);
-  const city = inquiry.attributes.fields["address-city"]?.value ?? personaAccount.attributes["address-city"];
-  if (!city) throw new Error(ErrorCodes.NO_CITY);
-  const documentId = inquiry.attributes.fields["current-government-id"]?.value?.id;
-  if (!documentId) throw new Error(ErrorCodes.NO_DOCUMENT_ID);
-
-  if (!countryCode) throw new Error(ErrorCodes.NO_COUNTRY);
-  const country = alpha2ToAlpha3(countryCode);
-  if (!country) throw new Error(ErrorCodes.NO_COUNTRY_ALPHA3);
-
-  if (countryCode === "US" && !personaAccount.attributes["social-security-number"]) {
-    throw new Error(ErrorCodes.NO_SOCIAL_SECURITY_NUMBER);
-  }
-
-  const endorsements: (typeof Endorsements)[number][] = ["base", "sepa"];
-  if (countryCode === "MX") {
-    endorsements.push("spei");
-  }
-  if (countryCode === "BR") {
-    endorsements.push("pix");
-  }
-
-  for (const endorsement of endorsements) {
-    currencies.push(...CurrencyByEndorsement[endorsement]);
-  }
-
-  let bridgeRedirectURL: undefined | URL = undefined;
-  if (data.redirectURL) {
-    bridgeRedirectURL = new URL(data.redirectURL);
-    bridgeRedirectURL.searchParams.set("provider", "bridge" satisfies (typeof common.RampProvider)[number]);
-  }
-
-  pendingTasks.push({
-    type: "TOS_LINK",
-    link: await agreementLink(bridgeRedirectURL?.toString()),
-    displayText: "Terms of Service",
-    currencies,
-    cryptoCurrencies,
-  });
-
-  return { status: "NOT_STARTED", currencies: [], cryptoCurrencies: [], pendingTasks };
+export async function getProvider(_data: GetProvider): Promise<InferOutput<typeof common.ProviderInfo>> {
+  return await Promise.resolve({ status: "NOT_AVAILABLE", currencies: [], cryptoCurrencies: [], pendingTasks: [] });
 }
 
 type Onboarding = {
@@ -263,128 +121,8 @@ type Onboarding = {
   templateId: string;
 };
 
-export async function onboarding(data: Onboarding): Promise<void> {
-  if (data.customerId) {
-    // TODO handle pending tasks
-    throw new Error(ErrorCodes.ALREADY_ONBOARDED);
-  }
-
-  const supportedChainId = SupportedOnRampChainId[chain.id as (typeof common.SupportedChainId)[number]];
-  if (!supportedChainId) {
-    captureMessage("bridge_not_supported_chain_id", { contexts: { chain }, level: "error" });
-    throw new Error(ErrorCodes.NOT_SUPPORTED_CHAIN_ID);
-  }
-
-  const [inquiry, personaAccount] = await Promise.all([
-    getInquiry(data.credentialId, data.templateId),
-    getAccount(data.credentialId),
-  ]);
-  if (!personaAccount) throw new Error(ErrorCodes.NO_PERSONA_ACCOUNT);
-  if (!inquiry) throw new Error(ErrorCodes.NO_KYC);
-  if (inquiry.attributes.status !== "approved" && inquiry.attributes.status !== "completed") {
-    throw new Error(ErrorCodes.KYC_NOT_APPROVED);
-  }
-
-  const countryCode = personaAccount.attributes["country-code"];
-  if (!countryCode) throw new Error(ErrorCodes.NO_COUNTRY);
-  const identificationClass = inquiry.attributes.fields["identification-class"]?.value;
-  if (!identificationClass) throw new Error(ErrorCodes.NO_IDENTIFICATION_CLASS);
-  const bridgeIdType = idClassToBridge(identificationClass);
-  if (!bridgeIdType) throw new Error(ErrorCodes.NOT_FOUND_IDENTIFICATION_CLASS);
-  if (!SupportedIdentificationTypes.includes(bridgeIdType as (typeof SupportedIdentificationTypes)[number])) {
-    throw new Error(ErrorCodes.NOT_SUPPORTED_IDENTIFICATION_CLASS);
-  }
-  const identificationNumber = inquiry.attributes.fields["identification-number"]?.value;
-  if (!identificationNumber) throw new Error(ErrorCodes.NO_IDENTIFICATION_NUMBER);
-
-  const endorsements: (typeof Endorsements)[number][] = ["base", "sepa"];
-
-  if (countryCode === "MX") {
-    endorsements.push("spei");
-  }
-
-  if (countryCode === "BR") {
-    endorsements.push("pix");
-  }
-
-  const postalCode =
-    inquiry.attributes.fields["address-postal-code"]?.value ?? personaAccount.attributes["address-postal-code"];
-  if (!postalCode) throw new Error(ErrorCodes.NO_POSTAL_CODE);
-  const subdivision =
-    inquiry.attributes.fields["address-subdivision"]?.value ?? personaAccount.attributes["address-subdivision"];
-  if (!subdivision) throw new Error(ErrorCodes.NO_SUBDIVISION);
-  const streetLine1 =
-    inquiry.attributes.fields["address-street-1"]?.value ?? personaAccount.attributes["address-street-1"];
-  if (!streetLine1) throw new Error(ErrorCodes.NO_ADDRESS);
-  const streetLine2 =
-    inquiry.attributes.fields["address-street-2"]?.value ?? personaAccount.attributes["address-street-2"];
-  const city = inquiry.attributes.fields["address-city"]?.value ?? personaAccount.attributes["address-city"];
-  if (!city) throw new Error(ErrorCodes.NO_CITY);
-
-  const country = alpha2ToAlpha3(countryCode);
-  if (!country) throw new Error(ErrorCodes.NO_COUNTRY_ALPHA3);
-
-  const documentId = inquiry.attributes.fields["current-government-id"]?.value?.id;
-  if (!documentId) throw new Error(ErrorCodes.NO_DOCUMENT_ID);
-  const identityDocument = await getDocument(documentId);
-  const frontDocumentURL = identityDocument.attributes["front-photo"]?.url;
-  const backDocumentURL = identityDocument.attributes["back-photo"]?.url;
-
-  const [frontFileEncoded, backFileEncoded] = await Promise.all([
-    frontDocumentURL
-      ? fetchAndEncodeFile(frontDocumentURL, identityDocument.attributes["front-photo"]?.filename ?? "front-photo.jpg")
-      : undefined,
-    backDocumentURL
-      ? fetchAndEncodeFile(backDocumentURL, identityDocument.attributes["back-photo"]?.filename ?? "back-photo.jpg")
-      : undefined,
-  ]);
-  if (!frontFileEncoded) throw new Error(ErrorCodes.NO_DOCUMENT_FILE);
-
-  const identifyingInformation: (InferInput<typeof IdentityDocument> | InferInput<typeof TIN>)[] = [
-    {
-      type: bridgeIdType,
-      issuing_country: country,
-      number: identificationNumber,
-      image_front: frontFileEncoded,
-      image_back: backFileEncoded,
-    },
-  ];
-
-  if (countryCode === "US") {
-    const ssn = personaAccount.attributes["social-security-number"];
-    if (!ssn) throw new Error(ErrorCodes.NO_SOCIAL_SECURITY_NUMBER);
-
-    identifyingInformation.push({
-      type: "ssn",
-      number: ssn,
-      issuing_country: "USA",
-    });
-  }
-
-  const customer = await createCustomer({
-    type: "individual",
-    first_name: inquiry.attributes["name-first"],
-    last_name: inquiry.attributes["name-last"],
-    email: inquiry.attributes["email-address"],
-    phone: inquiry.attributes["phone-number"],
-    residential_address: {
-      street_line_1: streetLine1,
-      street_line_2: streetLine2 ?? undefined,
-      postal_code: postalCode,
-      subdivision,
-      country,
-      city,
-    },
-    birth_date: inquiry.attributes.birthdate,
-    signed_agreement_id: data.acceptedTermsId,
-    endorsements,
-    nationality: country,
-    identifying_information: identifyingInformation,
-  });
-
-  // TODO handle user already onboarded
-
-  await database.update(credentials).set({ bridgeId: customer.id }).where(eq(credentials.id, data.credentialId));
+export async function onboarding(_data: Onboarding): Promise<void> {
+  await Promise.reject(new Error("not implemented"));
 }
 
 export async function getDepositDetails(
@@ -526,21 +264,6 @@ const CryptoPaymentRailMapping: Record<
   solana: "SOLANA",
 } as const;
 
-const CryptoCurrencyByPaymentRail: Record<
-  (typeof SupportedCryptoPaymentRail)[number],
-  (typeof SupportedCrypto)[number][]
-> = {
-  tron: ["USDT"],
-  solana: ["USDC"],
-  stellar: ["USDC"],
-  // avalanche_c_chain: [],
-  // arbitrum: [],
-  // ethereum: [],
-  // optimism: [],
-  // polygon: [],
-  // base: [],
-};
-
 const NetworkToCryptoPaymentRail = createReverseMapping(CryptoPaymentRailMapping);
 // #endregion crypto currencies
 
@@ -562,14 +285,6 @@ export const IdentityDocumentType = [
   "national_id",
   "passport",
 ] as const;
-
-const SupportedIdentificationTypes = [
-  "national_id",
-  "passport",
-
-  // TODO for testing, remove
-  "drivers_license",
-] as const satisfies readonly (typeof IdentityDocumentType)[number][];
 
 export const TINType = [
   "drivers_license",
@@ -763,17 +478,6 @@ const TransferState = [
   "refunded",
   "returned",
 ] as const;
-
-const IdClassToBridge: Record<
-  (typeof PersonaIdentificationClasses)[number],
-  (typeof IdentityDocumentType)[number] | undefined
-> = {
-  id: "national_id",
-  pp: "passport",
-  dl: "drivers_license",
-  wp: undefined,
-  rp: undefined,
-};
 
 const Quote = object({ midmarket_rate: string(), buy_rate: string(), sell_rate: string() }); // cspell:ignore midmarket
 
@@ -1064,22 +768,6 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
 
 function generateUUID() {
   return crypto.randomUUID();
-}
-
-async function encodeFile(file: File): Promise<string> {
-  const buffer = await file.arrayBuffer();
-  const base64 = Buffer.from(buffer).toString("base64");
-  const type = file.type === "" ? "image/jpg" : file.type;
-  return `data:${type};base64,${base64}`;
-}
-
-async function fetchAndEncodeFile(url: string, fileName: string): Promise<string> {
-  const file = await fetch(url).then((document) => document.blob());
-  return encodeFile(new File([file], fileName));
-}
-
-function idClassToBridge(idClass: string): (typeof IdentityDocumentType)[number] | undefined {
-  return IdClassToBridge[idClass as keyof typeof IdClassToBridge];
 }
 
 function getDepositDetailsFromVirtualAccount(

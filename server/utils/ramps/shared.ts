@@ -6,6 +6,7 @@ export const Cryptocurrency = ["USDC", "USDT", "ETH", "SOL", "BTC", "DAI", "PYUS
 export const RampProvider = ["manteca", "bridge"] as const;
 
 export const SupportedChainId = [optimism.id, base.id, baseSepolia.id, optimismSepolia.id] as const;
+export const DevelopmentChainIds = [baseSepolia.id, optimismSepolia.id] as const;
 
 export const FiatNetwork = [
   "ARG_FIAT_TRANSFER",

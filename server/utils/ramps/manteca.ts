@@ -8,7 +8,6 @@ import {
   optional,
   parse,
   picklist,
-  safeParse,
   string,
   type BaseIssue,
   type BaseSchema,
@@ -22,10 +21,9 @@ import { Address } from "@exactly/common/validation";
 
 import {
   getAccount,
-  getDocument,
   getInquiry,
   resumeOrCreateMantecaInquiryOTL,
-  type Account,
+  type MantecaCountryCode as CountryCode,
   type IdentificationClasses,
   type Inquiry,
 } from "../persona";
@@ -256,18 +254,17 @@ export async function getProvider(
   if (!mantecaUser) {
     const [inquiry, personaAccount] = await Promise.all([
       getInquiry(credentialId, templateId),
-      getAccount(credentialId),
+      getAccount(credentialId, "manteca"),
     ]);
     if (!inquiry || !personaAccount) throw new Error(ErrorCodes.NO_KYC);
     if (inquiry.attributes.status !== "approved" && inquiry.attributes.status !== "completed") {
       throw new Error(ErrorCodes.KYC_NOT_APPROVED);
     }
-    const documentId = inquiry.attributes.fields["current-government-id"]?.value?.id;
-    if (!documentId) throw new Error(ErrorCodes.NO_DOCUMENT);
+
     const country = personaAccount.attributes["country-code"];
 
     try {
-      validateIdentification(inquiry, personaAccount);
+      validateIdentification(inquiry);
     } catch (error) {
       if (error instanceof Error && Object.values(ErrorCodes).includes(error.message)) {
         switch (error.message) {
@@ -313,89 +310,8 @@ export async function getProvider(
   return { status: "ONBOARDING", currencies, cryptoCurrencies: [], pendingTasks: [] };
 }
 
-export async function mantecaOnboarding(account: string, credentialId: string, templateId: string) {
-  const supportedChainId = SupportedOnRampChainId[chain.id as (typeof shared.SupportedChainId)[number]];
-  if (!supportedChainId) {
-    captureMessage("manteca_not_supported_chain_id", { contexts: { chain }, level: "error" });
-    throw new Error(ErrorCodes.NOT_SUPPORTED_CHAIN_ID);
-  }
-
-  const inquiry = await getInquiry(credentialId, templateId);
-  if (!inquiry) throw new Error(ErrorCodes.NO_KYC);
-  if (inquiry.attributes.status !== "approved" && inquiry.attributes.status !== "completed") {
-    throw new Error(ErrorCodes.KYC_NOT_APPROVED);
-  }
-  const mantecaUser = await getUser(account.replace("0x", ""));
-  if (mantecaUser?.status === "ACTIVE") return;
-  if (mantecaUser?.status === "INACTIVE") throw new Error(ErrorCodes.MANTECA_USER_INACTIVE);
-
-  if (!mantecaUser) {
-    const work = inquiry.attributes.fields["input-select"]?.value;
-    if (!work) throw new Error("no work value");
-
-    const personaAccount = await getAccount(credentialId);
-    if (!personaAccount) throw new Error(ErrorCodes.NO_PERSONA_ACCOUNT);
-
-    const countryCode = personaAccount.attributes["country-code"];
-    if (!countryCode) throw new Error(ErrorCodes.COUNTRY_NOT_ALLOWED);
-    const additionalData = safeParse(MantecaOnboarding, {
-      tin: personaAccount.attributes.fields.tin?.value,
-      gender: personaAccount.attributes.fields.sex_1?.value,
-      termsAccepted: personaAccount.attributes.fields.manteca_t_c?.value,
-      isnotfacta: personaAccount.attributes.fields.isnotfacta?.value, // cspell:ignore isnotfacta
-    });
-    if (!additionalData.success) {
-      captureException(new Error(ErrorCodes.BAD_KYC_ADDITIONAL_DATA), { contexts: { personaAccount } });
-      throw new Error(ErrorCodes.BAD_KYC_ADDITIONAL_DATA);
-    }
-
-    await initiateOnboarding({
-      email: inquiry.attributes["email-address"],
-      legalId: additionalData.output.tin,
-      externalId: account.replace("0x", ""),
-      type: "INDIVIDUAL",
-      exchange: getExchange(countryCode),
-      personalData: {
-        birthDate: inquiry.attributes.birthdate,
-        nationality: getNationality(countryCode),
-        phoneNumber: inquiry.attributes["phone-number"],
-        surname: inquiry.attributes["name-last"],
-        name: inquiry.attributes["name-first"],
-        maritalStatus: "Soltero", // cspell:ignore soltero
-        sex: additionalData.output.gender === "Male" ? "M" : additionalData.output.gender === "Female" ? "F" : "X",
-        isFacta: !additionalData.output.isnotfacta,
-        isPep: false,
-        isFep: false,
-        work,
-      },
-    });
-  }
-
-  const documentId = inquiry.attributes.fields["current-government-id"]?.value?.id;
-  if (!documentId) throw new Error(ErrorCodes.NO_DOCUMENT);
-  const identityDocument = await getDocument(documentId);
-  const frontDocumentURL = identityDocument.attributes["front-photo"]?.url;
-  const backDocumentURL = identityDocument.attributes["back-photo"]?.url;
-
-  const results = await Promise.allSettled([
-    uploadIdentityFile(
-      account.replace("0x", ""),
-      "FRONT",
-      identityDocument.attributes["front-photo"]?.filename ?? "front-photo.jpg",
-      frontDocumentURL,
-    ),
-    uploadIdentityFile(
-      account.replace("0x", ""),
-      "BACK",
-      identityDocument.attributes["back-photo"]?.filename ?? "back-photo.jpg",
-      backDocumentURL,
-    ),
-    acceptTermsAndConditions(account.replace("0x", "")),
-  ]);
-
-  for (const result of results) {
-    result.status === "rejected" && captureException(result.reason, { extra: { account } });
-  }
+export async function mantecaOnboarding(_account: string, _credentialId: string, _templateId: string) {
+  await Promise.reject(new Error("not implemented"));
 }
 // #endregion services
 
@@ -412,7 +328,7 @@ const SupportedOnRampChainId: Record<(typeof shared.SupportedChainId)[number], (
 
 export const MantecaOnboarding = object({
   gender: picklist(["Male", "Female", "Prefer not to say"]),
-  isnotfacta: literal(true),
+  isnotfacta: literal(true), // cspell:ignore isnotfacta
   tin: string(),
   termsAccepted: boolean(),
 });
@@ -619,22 +535,6 @@ export const Exchange = [
   "BOLIVIA",
 ] as const;
 
-export const CountryCode = [
-  "AR",
-  "CL",
-  "BR",
-  "CO",
-  "PA",
-  "CR",
-  "GT",
-  "MX",
-  "PH",
-  "BO",
-
-  // TODO for testing, remove
-  "US",
-] as const;
-
 export const ExchangeByCountry: Record<(typeof CountryCode)[number], (typeof Exchange)[number]> = {
   AR: "ARGENTINA",
   CL: "CHILE",
@@ -801,7 +701,7 @@ export const UserOnboarding = object({
     isFep: boolean(),
     phoneNumber: string(),
     nationality: string(),
-    maritalStatus: picklist(["Soltero"]),
+    maritalStatus: picklist(["Soltero"]), // cspell:ignore Soltero
     address: optional(
       object({
         street: string(),
@@ -853,56 +753,17 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
   return parse(schema, JSON.parse(new TextDecoder().decode(rawBody)));
 }
 
-export function validateIdentification(
-  inquiry: InferOutput<typeof Inquiry>,
-  personaAccount: InferOutput<typeof Account>,
-) {
-  const countryCode = personaAccount.attributes["country-code"];
-  if (!countryCode) throw new Error(ErrorCodes.COUNTRY_NOT_ALLOWED);
-  const allowedIdentificationClasses = allowedCountries.get(countryCode as (typeof CountryCode)[number])?.allowedIds;
-  if (!allowedIdentificationClasses) throw new Error(ErrorCodes.COUNTRY_NOT_ALLOWED);
-  if (inquiry.attributes.status !== "approved" && inquiry.attributes.status !== "completed") {
-    throw new Error(ErrorCodes.KYC_NOT_APPROVED);
-  }
-  const identificationClass = inquiry.attributes.fields["identification-class"]?.value;
-  if (!identificationClass) throw new Error(ErrorCodes.NO_IDENTIFICATION_CLASS);
-  if (!allowedIdentificationClasses.includes(identificationClass as (typeof allowedIdentificationClasses)[number])) {
-    captureMessage("manteca_id_not_allowed", {
-      contexts: { identification: { identificationClass, countryCode } },
-      level: "error",
-    });
-    throw new Error(ErrorCodes.ID_NOT_ALLOWED);
-  }
-
-  const additionalData = safeParse(MantecaOnboarding, {
-    tin: personaAccount.attributes.fields.tin?.value,
-    gender: personaAccount.attributes.fields.sex_1?.value,
-    isnotfacta: personaAccount.attributes.fields.isnotfacta?.value,
-    termsAccepted: personaAccount.attributes.fields.manteca_t_c?.value,
-  });
-  if (!additionalData.success) throw new Error(ErrorCodes.BAD_KYC_ADDITIONAL_DATA);
+export function validateIdentification(_inquiry: InferOutput<typeof Inquiry>) {
+  throw new Error("not implemented");
 }
 
-const getExchange = (countryCode: string): (typeof Exchange)[number] => {
-  const exchange = ExchangeByCountry[countryCode as (typeof CountryCode)[number]];
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-  if (!exchange) throw new Error(`Invalid country: ${countryCode}`);
-  return exchange;
-};
-
-const getSupportedByCountry = (countryCode?: null | string): (typeof MantecaCurrency)[number][] => {
+function getSupportedByCountry(countryCode?: string): (typeof MantecaCurrency)[number][] {
   if (!countryCode) return [];
   const exchange = ExchangeByCountry[countryCode as (typeof CountryCode)[number]];
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (!exchange) return [];
   return CurrenciesByExchange[exchange];
-};
-
-const getNationality = (countryCode: string): string => {
-  const nationality = Nationality[countryCode as (typeof CountryCode)[number]];
-  if (!nationality) throw new Error(`Invalid country: ${countryCode}`);
-  return nationality;
-};
+}
 
 async function forwardFileToURL(sourceURL: string, destinationURL: string): Promise<void> {
   const abort = new AbortController();
