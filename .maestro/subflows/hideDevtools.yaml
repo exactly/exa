@@ -1,7 +1,7 @@
 appId: app.exactly
 ---
 - runFlow:
-    when: { visible: Development servers }
+    when: { true: "${!!JSON.parse(__DEV__ || 'false')}" }
     commands:
       - tapOn: http://localhost:8081
       - extendedWaitUntil: { visible: .*developer menu.*, timeout: 180000 }
