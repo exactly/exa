@@ -369,7 +369,40 @@
         ],
         "cache": false
       },
+      "start": {
+        "dependsOn": [
+          "prepare",
+          "^prepare"
+        ],
+        "inputs": [
+          "default",
+          "^production"
+        ],
+        "continuous": true
+      },
+      "android": {
+        "dependsOn": [
+          "prepare",
+          "^prepare"
+        ],
+        "inputs": [
+          "default",
+          "^production"
+        ],
+        "continuous": true
+      },
       "ios": {
+        "dependsOn": [
+          "prepare",
+          "^prepare"
+        ],
+        "inputs": [
+          "production",
+          "^production"
+        ],
+        "continuous": true
+      },
+      "web": {
         "dependsOn": [
           "prepare",
           "^prepare"
