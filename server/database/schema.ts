@@ -62,6 +62,7 @@ export const sources = pgTable("sources", {
 export const credentialsRelations = relations(credentials, ({ many, one }) => ({
   cards: many(cards),
   source: one(sources, { fields: [credentials.source], references: [sources.id] }),
+  organization: one(organizations, { fields: [credentials.source], references: [organizations.id] }),
 }));
 
 export const cardsRelations = relations(cards, ({ many, one }) => ({
