@@ -141,7 +141,7 @@ export default function CardDetails({ open, onClose }: { open: boolean; onClose:
                           card.productId === PLATINUM_PRODUCT_ID ? "$uiNeutralInverseSecondary" : "$grayscaleLight3"
                         }
                       >
-                        CVV&nbsp;
+                        CVV
                       </Text>
                       <Text
                         headline

@@ -1,0 +1,15 @@
+appId: app.exactly
+---
+- tapOn: Card details
+- runFlow:
+    when: { visible: Accept and enable card }
+    commands:
+      - tapOn: Accept and enable card
+- assertVisible: 4200 0069 4200 0069
+- assertVisible: Expires
+- assertVisible: 12/25
+- assertVisible: CVV
+- assertVisible: "420"
+- assertVisible: TEST USER
+- tapOn: Close
+

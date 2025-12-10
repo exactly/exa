@@ -32,4 +32,9 @@ tags:
       - runFlow: ../subflows/verifyIdentity.yaml
 - swipe: { direction: DOWN }
 - assertNotVisible: Getting Started
+- tapOn: Card
+- runFlow: ../subflows/viewCard.yaml
+- runFlow: ../subflows/freezeCard.yaml
+- runFlow: ../subflows/viewPIN.yaml
+- tapOn: Home
 - runFlow: ../subflows/storeCoverage.yaml

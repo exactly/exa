@@ -1,0 +1,6 @@
+appId: app.exactly
+---
+- tapOn: Freeze card
+- assertVisible: Unfreeze card
+- tapOn: Unfreeze card
+- assertVisible: Freeze card

@@ -1,0 +1,13 @@
+appId: app.exactly
+---
+- tapOn: View PIN number
+- assertVisible: View Exa Card PIN number
+- assertVisible: '^\d(?:\s?\d){3}$'
+- tapOn: Hide PIN
+- assertVisible: '^\*(?:\s?\*){3}$'
+- assertVisible: Show PIN
+- assertNotVisible: Hide PIN
+- tapOn: Show PIN
+- assertVisible: Hide PIN
+- assertNotVisible: Show PIN
+- tapOn: Close

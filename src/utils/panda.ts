@@ -5,7 +5,9 @@ import type Crypto from "react-native-quick-crypto";
 export async function session() {
   if (Platform.OS !== "web") {
     const crypto = require("react-native-quick-crypto") as typeof Crypto; // eslint-disable-line @typescript-eslint/no-require-imports, unicorn/prefer-module
-    const secret = crypto.randomUUID().replaceAll("-", "");
+    const secret = (
+      process.env.EXPO_PUBLIC_ENV === "e2e" ? "000102030405060708090a0b0c0d0e0f" : crypto.randomUUID()
+    ).replaceAll("-", "");
     const secretKeyBase64 = Buffer.from(secret, "hex").toString("base64");
     const secretKeyBase64Buffer = Buffer.from(secretKeyBase64, "utf8");
     const secretKeyBase64BufferEncrypted = crypto.publicEncrypt(
@@ -14,7 +16,9 @@ export async function session() {
     );
     return { id: secretKeyBase64BufferEncrypted.toString("base64"), secret };
   }
-  const secret = window.crypto.randomUUID().replaceAll("-", "");
+  const secret = (
+    process.env.EXPO_PUBLIC_ENV === "e2e" ? "000102030405060708090a0b0c0d0e0f" : window.crypto.randomUUID()
+  ).replaceAll("-", "");
   const secretBytes = [];
   for (let index = 0; index < secret.length; index += 2) {
     secretBytes.push(Number.parseInt(secret.slice(index, index + 2), 16));
