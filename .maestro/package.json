@@ -30,10 +30,15 @@
         ],
         "options": {
           "minify": true,
+          "bundle": true,
           "thirdParty": true,
+          "platform": "neutral",
           "outputPath": "dist",
           "tsConfig": ".maestro/tsconfig.json",
           "esbuildConfig": ".maestro/esbuild.config.cjs",
+          "external": [
+            "isows"
+          ],
           "main": "src/script/*.ts"
         }
       },
@@ -59,10 +64,15 @@
         ],
         "options": {
           "watch": true,
+          "bundle": true,
           "thirdParty": true,
+          "platform": "neutral",
           "outputPath": "dist",
           "tsConfig": ".maestro/tsconfig.json",
           "esbuildConfig": ".maestro/esbuild.config.cjs",
+          "external": [
+            "isows"
+          ],
           "main": "src/script/*.ts"
         }
       }
