@@ -16,7 +16,13 @@
       "cache": true
     },
     "test": {
-      "dependsOn": ["^prepare"],
+      "dependsOn": ["prepare", "^prepare"],
+      "inputs": ["default", "^production"],
+      "outputs": ["{projectRoot}/coverage"],
+      "cache": true
+    },
+    "test:*": {
+      "dependsOn": ["prepare", "^prepare"],
       "inputs": ["default", "^production"],
       "outputs": ["{projectRoot}/coverage"],
       "cache": true
