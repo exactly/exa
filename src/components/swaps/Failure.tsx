@@ -113,7 +113,7 @@ export default function Failure({
                 <Pressable
                   onPress={() => {
                     queryClient.invalidateQueries({ queryKey: ["swap"] }).catch(reportError);
-                    navigation.replace("(home)", { screen: "pay-mode" });
+                    navigation.replace("swaps/index");
                   }}
                 >
                   <Text emphasized footnote color="$uiBrandSecondary">
