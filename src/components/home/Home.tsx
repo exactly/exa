@@ -98,7 +98,11 @@ export default function Home() {
         (error.text === "kyc not found" || error.text === "kyc not started" || error.text === "kyc not approved"),
     },
   });
-  const { data: legacyKYCStatus, refetch: refetchLegacyKYCStatus } = useQuery({
+  const {
+    data: legacyKYCStatus,
+    isFetched: isLegacyKYCFetched,
+    refetch: refetchLegacyKYCStatus,
+  } = useQuery({
     queryKey: ["legacy", "kyc", "status"],
     queryFn: async () => getKYCStatus(LEGACY_KYC_TEMPLATE_ID),
     enabled: isKYCFetched && KYCStatus !== "ok",
@@ -140,16 +144,16 @@ export default function Home() {
           <View flex={1}>
             <YStack backgroundColor="$backgroundSoft" padding="$s4" gap="$s4">
               {markets && healthFactor(markets) < HEALTH_FACTOR_THRESHOLD && <LiquidationAlert />}
-              {(legacyKYCStatus === "ok" && KYCStatus !== "ok") ||
-                (bytecode && !isLatestPlugin && (
-                  <InfoAlert
-                    title="We’re upgrading all Exa Cards by migrating them to a new and improved card issuer. Existing cards will work until May 18th, 2025, and upgrading will be required after this date."
-                    actionText="Start Exa Card upgrade"
-                    onPress={() => {
-                      queryClient.setQueryData(["card-upgrade-open"], true);
-                    }}
-                  />
-                ))}
+              {((isKYCFetched && isLegacyKYCFetched && legacyKYCStatus === "ok" && KYCStatus !== "ok") ||
+                (!!bytecode && !!installedPlugins && !isLatestPlugin)) && (
+                <InfoAlert
+                  title="We’re upgrading all Exa Cards by migrating them to a new and improved card issuer. Existing cards will work until May 18th, 2025, and upgrading will be required after this date."
+                  actionText="Start Exa Card upgrade"
+                  onPress={() => {
+                    queryClient.setQueryData(["card-upgrade-open"], true);
+                  }}
+                />
+              )}
               <YStack gap="$s8">
                 <PortfolioSummary portfolio={portfolio} averageRate={averageRate} />
                 <HomeActions />
