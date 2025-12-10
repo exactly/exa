@@ -17,5 +17,5 @@ appId: app.exactly
     file: ../dist/hookProposals.js
     env: { account: "0x699F994A39559d9D3C28c11C0e907f7033B47C6e" }
 - tapOn: Close
-- tapOn: Back # HACK return to home
+- assertVisible: Your portfolio
 - swipe: { direction: DOWN }
