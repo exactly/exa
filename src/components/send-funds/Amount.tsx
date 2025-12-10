@@ -101,7 +101,14 @@ export default function Amount() {
     query: { enabled: !!external && !!address && !!bytecode && formAmount > 0n },
   });
 
-  const { writeContract, data: hash, isPending: pending, isSuccess: success, isError: error } = useWriteContract();
+  const {
+    writeContract,
+    data: hash,
+    isPending: pending,
+    isSuccess: success,
+    isError: error,
+    reset,
+  } = useWriteContract();
 
   const handleSubmit = useCallback(() => {
     if (market) {
@@ -316,7 +323,7 @@ export default function Amount() {
           <Pressable
             aria-label="Close"
             onPress={() => {
-              navigation.replace("send-funds", { screen: "index" });
+              navigation.replace("(home)", { screen: "index" });
             }}
           >
             <X size={24} color="$uiNeutralPrimary" />
@@ -413,7 +420,7 @@ export default function Amount() {
                   if (!details.external && isLatestPlugin) {
                     navigation.replace("pending-proposals/index");
                   } else {
-                    navigation.replace("send-funds", { screen: "index" });
+                    navigation.replace("(home)", { screen: "index" });
                   }
                 }}
               >
@@ -423,11 +430,7 @@ export default function Amount() {
           )}
           {error && (
             <YStack alignItems="center" gap="$s4">
-              <Pressable
-                onPress={() => {
-                  navigation.replace("send-funds", { screen: "index" });
-                }}
-              >
+              <Pressable onPress={reset}>
                 <Text emphasized footnote color="$uiBrandSecondary">
                   Close
                 </Text>
