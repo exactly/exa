@@ -44,8 +44,8 @@ import View from "../shared/View";
 export interface Swap {
   fromToken?: { token: Token; external: boolean };
   toToken?: { token: Token; external: boolean };
-  fromAmount: bigint;
-  toAmount: bigint;
+  fromAmountInput: string;
+  toAmountInput: string;
   tokenSelectionType: "from" | "to";
   enableSimulations: boolean;
   tokenModalOpen: boolean;
@@ -55,8 +55,8 @@ export interface Swap {
 const defaultSwap: Swap = {
   fromToken: undefined,
   toToken: undefined,
-  fromAmount: 0n,
-  toAmount: 0n,
+  fromAmountInput: "",
+  toAmountInput: "",
   tokenSelectionType: "to",
   enableSimulations: true,
   tokenModalOpen: false,
@@ -80,8 +80,8 @@ export default function Swaps() {
     data: {
       fromToken,
       toToken,
-      fromAmount,
-      toAmount,
+      fromAmountInput,
+      toAmountInput,
       tokenSelectionType,
       enableSimulations,
       tokenModalOpen,
@@ -126,6 +126,16 @@ export default function Swaps() {
 
   const { market: selectedTokenMarket, available: selectedTokenAvailable } = useAsset(getSwapAddress(fromToken));
 
+  const fromAmount = useMemo(
+    () => (fromToken && fromAmountInput ? parseUnits(fromAmountInput, fromToken.token.decimals) : 0n),
+    [fromToken, fromAmountInput],
+  );
+
+  const toAmount = useMemo(
+    () => (toToken && toAmountInput ? parseUnits(toAmountInput, toToken.token.decimals) : 0n),
+    [toToken, toAmountInput],
+  );
+
   const isInsufficientBalance = useMemo(() => {
     if (!fromToken || !toToken) return false;
     return fromAmount > getBalance(fromToken.token);
@@ -153,8 +163,6 @@ export default function Swaps() {
     if (!fromToken || !toToken) return;
     updateSwap((old) => ({
       ...old,
-      fromAmount: 0n,
-      toAmount: 0n,
       fromToken:
         tokenSelectionType === "from"
           ? { token, external: isExternal(token.address) }
@@ -176,15 +184,13 @@ export default function Swaps() {
   };
 
   const debounceReference = useRef<ReturnType<typeof setTimeout>>();
-  const handleAmountChange = (value: bigint, type: "from" | "to") => {
+  const handleAmountChange = (value: string, type: "from" | "to") => {
     if (debounceReference.current) clearTimeout(debounceReference.current);
     debounceReference.current = setTimeout(() => {
-      const token = type === "from" ? fromToken : toToken;
-      if (!token?.token) return;
       updateSwap((old) => ({
         ...old,
-        fromAmount: type === "from" ? value : old.fromAmount,
-        toAmount: type === "to" ? value : old.toAmount,
+        fromAmountInput: type === "from" ? value : old.fromAmountInput,
+        toAmountInput: type === "to" ? value : old.toAmountInput,
       }));
     }, 400);
   };
@@ -238,24 +244,16 @@ export default function Swaps() {
   });
 
   useEffect(() => {
-    if (route) {
-      if (activeInput === "from") {
-        updateSwap((old) => ({ ...old, toAmount: route.toAmount ?? 0n, tool: route.tool ?? "" }));
-      } else {
-        updateSwap((old) => ({ ...old, fromAmount: route.fromAmount ?? 0n, tool: route.tool ?? "" }));
+    if (route && fromToken && toToken) {
+      if (activeInput === "from" && route.toAmount) {
+        const toAmountString = formatUnits(route.toAmount, toToken.token.decimals);
+        updateSwap((old) => ({ ...old, toAmountInput: toAmountString, tool: route.tool ?? "" }));
+      } else if (activeInput === "to" && route.fromAmount) {
+        const fromAmountString = formatUnits(route.fromAmount, fromToken.token.decimals);
+        updateSwap((old) => ({ ...old, fromAmountInput: fromAmountString, tool: route.tool }));
       }
     }
-  }, [activeInput, route, updateSwap]);
-
-  useEffect(() => {
-    if (route) {
-      updateSwap((old) => {
-        return activeInput === "from"
-          ? { ...old, toAmount: route.toAmount ?? 0n, tool: route.tool ?? "" }
-          : { ...old, fromAmount: route.fromAmount ?? 0n, tool: route.tool ?? "" };
-      });
-    }
-  }, [activeInput, route, updateSwap]);
+  }, [activeInput, route, updateSwap, fromToken, toToken]);
 
   const {
     propose: { data: swapPropose },
@@ -413,14 +411,13 @@ export default function Swaps() {
               <YStack gap="$s3_5">
                 {(["from", "to"] as const).map((type) => {
                   const tokenData = type === "from" ? fromToken : toToken;
-                  const amount = type === "from" ? fromAmount : toAmount;
                   const isActive = activeInput === type;
                   return (
                     <TokenInput
                       key={type}
                       label={type === "from" ? "You pay" : "You receive"}
                       token={tokenData?.token}
-                      amount={amount}
+                      amountInput={type === "from" ? fromAmountInput : toAmountInput}
                       balance={getBalance(tokenData?.token)}
                       disabled={type === "to"}
                       isLoading={isTokensLoading || isRouteLoading}
@@ -434,11 +431,11 @@ export default function Swaps() {
                         setActiveInput(type);
                         setAcknowledged(false);
                       }}
-                      onChange={(value: bigint) => {
+                      onChange={(value: string) => {
                         handleAmountChange(value, type);
                         setAcknowledged(false);
                       }}
-                      onUseMax={(value: bigint) => {
+                      onUseMax={(value: string) => {
                         handleAmountChange(value, type);
                         setAcknowledged(false);
                       }}
