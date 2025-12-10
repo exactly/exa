@@ -3,9 +3,9 @@ import { setContext } from "@sentry/core";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import {
   array,
-  nullish,
   type BaseIssue,
   type BaseSchema,
+  type InferOutput,
   flatten,
   literal,
   nullable,
@@ -16,10 +16,11 @@ import {
   safeParse,
   string,
   ValiError,
-  variant,
+  unknown,
 } from "valibot";
 
 import appOrigin from "./appOrigin";
+import type { CountryCode } from "./ramps/manteca";
 
 if (!process.env.PERSONA_API_KEY) throw new Error("missing persona api key");
 if (!process.env.PERSONA_URL) throw new Error("missing persona url");
@@ -27,19 +28,12 @@ if (!process.env.PERSONA_WEBHOOK_SECRET) throw new Error("missing persona webhoo
 
 export const CRYPTOMATE_TEMPLATE = "itmpl_8uim4FvD5P3kFpKHX37CW817";
 export const PANDA_TEMPLATE = "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2";
-export const MANTECA_TEMPLATE = "itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo";
+export const MANTECA_TEMPLATE_EXTRA_FIELDS = "itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo";
+export const MANTECA_TEMPLATE_WITH_ID_CLASS = "itmpl_rQsZej9uirAbHermNgtkqf9GetgX";
 
 const authorization = `Bearer ${process.env.PERSONA_API_KEY}`;
 const baseURL = process.env.PERSONA_URL;
 const webhookSecret = process.env.PERSONA_WEBHOOK_SECRET;
-
-export async function getAccount(referenceId: string) {
-  const { data: accounts } = await request(
-    GetAccountsResponse,
-    `/accounts?page[size]=1&filter[reference-id]=${referenceId}`,
-  );
-  return accounts[0];
-}
 
 export async function getInquiry(referenceId: string, templateId: string) {
   const { data: approvedInquiries } = await request(
@@ -77,7 +71,7 @@ export async function getDocument(documentId: string) {
 export async function resumeOrCreateMantecaInquiryOTL(referenceId: string, redirectURL?: string): Promise<string> {
   const { data: inquiries } = await request(
     GetMantecaInquiryResponse,
-    `/inquiries?page[size]=1&filter[reference-id]=${referenceId}&filter[inquiry-template-id]=${MANTECA_TEMPLATE}&filter[status]=created,pending`,
+    `/inquiries?page[size]=1&filter[reference-id]=${referenceId}&filter[inquiry-template-id]=${MANTECA_TEMPLATE_EXTRA_FIELDS}&filter[status]=created,pending`,
   );
 
   if (inquiries[0]) {
@@ -88,7 +82,10 @@ export async function resumeOrCreateMantecaInquiryOTL(referenceId: string, redir
   // TODO prefill inquiry with known fields
   const { data } = await request(CreateInquiryResponse, `/inquiries`, {
     data: {
-      attributes: { "inquiry-template-id": MANTECA_TEMPLATE, "redirect-uri": `${redirectURL ?? appOrigin}/` },
+      attributes: {
+        "inquiry-template-id": MANTECA_TEMPLATE_EXTRA_FIELDS,
+        "redirect-uri": `${redirectURL ?? appOrigin}/`,
+      },
     },
     meta: { "auto-create-account-reference-id": referenceId },
   });
@@ -138,84 +135,116 @@ export const Documents = object({
 
 export const GetDocumentResponse = object({ data: Documents });
 
-interface AccountCustomFields {
-  isnotfacta?: boolean; // cspell:ignore isnotfacta
-  tin?: string;
-  sex_1?: "Male" | "Female" | "Prefer not to say";
-  manteca_t_c?: boolean;
-}
-
-const AccountFields = object({
+const AccountMantecaFields = object({
   // these are custom fields, if we change the name in the inquiry template we need to update it here
-  isnotfacta: nullish(object({ type: literal("boolean"), value: nullish(boolean()) })),
-  tin: nullish(object({ type: literal("string"), value: nullish(string()) })),
-  sex_1: nullish(object({ type: string(), value: nullish(picklist(["Male", "Female", "Prefer not to say"])) })),
-  manteca_t_c: nullish(object({ type: literal("boolean"), value: nullish(boolean()) })),
-} satisfies Record<keyof AccountCustomFields, unknown>);
+  isnotfacta: object({ type: literal("boolean"), value: boolean() }),
+  tin: object({ type: literal("string"), value: string() }),
+  sex_1: object({ type: string(), value: picklist(["Male", "Female", "Prefer not to say"]) }),
+  manteca_t_c: object({ type: literal("boolean"), value: boolean() }),
+});
 
-export const Account = object({
+const BaseAccountAttributes = object({ "country-code": string() });
+
+const BaseAccount = object({
   id: string(),
   type: literal("account"),
-  attributes: object({
-    "country-code": nullable(string(), "unknown"),
-    "address-street-1": nullable(string()),
-    "address-street-2": nullable(string()),
-    "address-city": nullable(string()),
-    "address-subdivision": nullable(string()),
-    "address-postal-code": nullable(string()),
-    "social-security-number": nullable(string()),
-    fields: AccountFields,
-  }),
+  attributes: BaseAccountAttributes,
 });
 
-const GetAccountsResponse = object({
-  data: array(Account),
+const MantecaAccount = object({
+  ...BaseAccount.entries,
+  attributes: object({ ...BaseAccountAttributes.entries, fields: AccountMantecaFields }),
 });
 
-const InquiryFields = object({
-  // these are custom fields, if we change the name in the inquiry template we need to update it here
-  "input-select": nullish(object({ type: literal("choices"), value: nullish(string()) })),
-  "address-street-1": nullish(object({ type: literal("string"), value: nullish(string()) })),
-  "address-street-2": nullish(object({ type: literal("string"), value: nullish(string()) })),
-  "address-city": nullish(object({ type: literal("string"), value: nullish(string()) })),
-  "address-subdivision": nullish(object({ type: literal("string"), value: nullish(string()) })),
-  "address-postal-code": nullish(object({ type: literal("string"), value: nullish(string()) })),
-  "social-security-number": nullish(object({ type: literal("string"), value: nullish(string()) })),
-  "identification-class": nullish(object({ type: literal("string"), value: nullish(string()) })),
-  "identification-number": nullish(object({ type: literal("string"), value: nullish(string()) })),
-  "current-government-id": nullish(object({ value: nullish(object({ id: nullish(string()) })) })),
-});
+const UnknownAccount = object({ data: array(unknown()) });
+
+const accountScopeSchemas = {
+  basic: object({ data: array(BaseAccount) }),
+  manteca: object({ data: array(MantecaAccount) }),
+  // other: object({ data: array(BasicAccount) }),
+} as const;
+
+export type AccountScope = keyof typeof accountScopeSchemas;
+type AccountResponse<T extends AccountScope> = InferOutput<(typeof accountScopeSchemas)[T]>;
+type AccountOutput<T extends AccountScope> = AccountResponse<T>["data"][number];
+
+export function getAccounts<T extends AccountScope>(referenceId: string, scope: T): Promise<AccountResponse<T>> {
+  return request(accountScopeSchemas[scope], `/accounts?page[size]=1&filter[reference-id]=${referenceId}`);
+}
+
+export async function getAccount<T extends AccountScope>(
+  referenceId: string,
+  scope: T,
+): Promise<AccountOutput<T> | undefined> {
+  const { data } = await getAccounts(referenceId, scope);
+  return data[0];
+}
+
+function getUnknownAccount(referenceId: string) {
+  return request(UnknownAccount, `/accounts?page[size]=1&filter[reference-id]=${referenceId}`);
+}
+
+export async function evaluateScope(referenceId: string, scope: AccountScope): Promise<string | undefined> {
+  const unknownAccount = await getUnknownAccount(referenceId);
+  return evaluateAccount(unknownAccount, scope);
+}
+
+/** Evaluates if the account is valid for the given scope and returns the template id to use if missing */
+function evaluateAccount(unknownAccount: InferOutput<typeof UnknownAccount>, scope: AccountScope): string | undefined {
+  switch (scope) {
+    case "basic": {
+      const result = safeParse(accountScopeSchemas[scope], unknownAccount);
+      if (!result.success) {
+        // TODO only missing fields -> require new inquiry
+        // TODO evaluate errors -> some could require a new inquiry, as default throw an error representing a bug in the schema
+        setContext("validation", { ...result, flatten: flatten(result.issues) });
+        throw new Error(scopeValidationErrors.INVALID_SCOPE_VALIDATION);
+      }
+      // not created
+      if (!result.output.data[0]) return PANDA_TEMPLATE;
+      // created and valid
+      return;
+    }
+    case "manteca": {
+      const basicResult = evaluateAccount(unknownAccount, "basic");
+      // TODO use an unified template for panda + manteca
+      if (basicResult) return basicResult;
+      const result = safeParse(accountScopeSchemas[scope], unknownAccount);
+      if (!result.success) {
+        // TODO only missing fields -> require new inquiry
+        // TODO evaluate errors -> some could require a new inquiry, as default throw an error representing a bug in the schema
+        setContext("validation", { ...result, flatten: flatten(result.issues) });
+        throw new Error(scopeValidationErrors.INVALID_SCOPE_VALIDATION);
+      }
+      // account not created, should be handled by the basic scope
+      if (!result.output.data[0]) throw new Error(scopeValidationErrors.ACCOUNT_NOT_CREATED);
+
+      // TODO validate id class
+      const country = result.output.data[0].attributes["country-code"];
+      const allowedIds = allowedMantecaCountries.get(country as (typeof CountryCode)[number])?.allowedIds;
+      if (!allowedIds) throw new Error(scopeValidationErrors.NOT_SUPPORTED);
+      // TODO get id class from account
+      const userIdClass = "dl";
+      if (!allowedIds.includes(userIdClass)) {
+        return MANTECA_TEMPLATE_WITH_ID_CLASS;
+      }
+
+      // created and valid
+      return;
+    }
+    default: {
+      const exhaustive: never = scope;
+      throw new Error(`unhandled account scope: ${exhaustive as string}`);
+    }
+  }
+}
 
 export const Inquiry = object({
   id: string(),
   type: literal("inquiry"),
-  attributes: variant("status", [
-    object({
-      status: picklist(["completed", "approved"]),
-      "reference-id": string(),
-      "name-first": string(),
-      "name-middle": nullable(string()),
-      "name-last": string(),
-      "email-address": string(),
-      "phone-number": string(),
-      birthdate: string(),
-      fields: InquiryFields,
-    }),
-    object({
-      status: picklist(["created", "pending", "expired", "failed", "needs_review", "declined"]),
-      "reference-id": string(),
-      "name-first": nullable(string()),
-      "name-middle": nullable(string()),
-      "name-last": nullable(string()),
-      "email-address": nullable(string()),
-      "phone-number": nullable(string()),
-    }),
-  ]),
-  relationships: object({
-    documents: nullable(
-      object({ data: nullable(array(object({ id: nullable(string()), type: nullable(string()) }))) }),
-    ),
-    account: nullable(object({ data: nullable(object({ id: nullable(string()), type: nullable(string()) })) })),
+  attributes: object({
+    status: picklist(["created", "pending", "expired", "failed", "needs_review", "declined", "completed", "approved"]),
+    "reference-id": string(),
   }),
 });
 
@@ -226,26 +255,6 @@ const ResumeInquiryResponse = object({
   data: object({
     id: string(),
     type: literal("inquiry"),
-    attributes: object({
-      status: picklist([
-        "created",
-        "pending",
-        "expired",
-        "failed",
-        "needs_review",
-        "declined",
-        "completed",
-        "approved",
-      ]),
-      "reference-id": string(),
-      fields: object({
-        "name-first": object({ type: literal("string"), value: nullable(string()) }),
-        "name-middle": object({ type: literal("string"), value: nullable(string()) }),
-        "name-last": object({ type: literal("string"), value: nullable(string()) }),
-        "email-address": object({ type: literal("string"), value: nullable(string()) }),
-        "phone-number": object({ type: literal("string"), value: nullable(string()) }),
-      }),
-    }),
   }),
   meta: object({ "session-token": string() }),
 });
@@ -289,3 +298,28 @@ export function headerValidator() {
     return isVerified ? undefined : c.text("unauthorized", 401);
   });
 }
+
+const allowedMantecaCountries = new Map<
+  (typeof CountryCode)[number],
+  { allowedIds: (typeof IdentificationClasses)[number][] }
+>([
+  ["AR", { allowedIds: ["id", "pp"] }],
+  ["BR", { allowedIds: ["id", "dl", "pp"] }],
+  // ["CL", { allowedIds: [] }],
+  // ["CO", { allowedIds: ["id", "dl", "pp"] }],
+  // ["PA", { allowedIds: [] }],
+  // ["CR", { allowedIds: [] }],
+  // ["GT", { allowedIds: [] }],
+  // ["MX", { allowedIds: [] }],
+  // ["PH", { allowedIds: [] }],
+  // ["BO", { allowedIds: [] }],
+
+  // TODO for testing, remove
+  ["US", { allowedIds: ["dl"] }],
+]);
+
+export const scopeValidationErrors = {
+  INVALID_SCOPE_VALIDATION: "invalid scope validation",
+  ACCOUNT_NOT_CREATED: "account not created",
+  NOT_SUPPORTED: "not supported",
+} as const;
