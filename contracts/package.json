@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "build": "forge build",
+    "prepare": "[ \"$EAS_BUILD_RUNNER\" != eas-build ] || (export FOUNDRY_DIR=${FOUNDRY_DIR-$HOME/workingdir} && curl -L https://foundry.paradigm.xyz | bash || true && foundryup -i v1.3.6)",
     "snapshot": "FOUNDRY_PROFILE=snapshot forge snapshot --force",
     "test": "nx test:all contracts",
     "test:fmt": "forge fmt --check",
@@ -36,6 +37,13 @@
   },
   "nx": {
     "projectType": "application",
+    "namedInputs": {
+      "production": [
+        "default",
+        "!{projectRoot}/test/**/*",
+        "!{projectRoot}/broadcast/*/31337/**/*"
+      ]
+    },
     "targets": {
       "build": {
         "outputs": [

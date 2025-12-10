@@ -44,6 +44,13 @@
             "env": "EAS_BUILD_RUNNER"
           }
         ],
+        "dependsOn": [
+          "^build",
+          {
+            "projects": "@exactly/server",
+            "target": "generate:broadcasts"
+          }
+        ],
         "outputs": [
           "{projectRoot}/generated"
         ]

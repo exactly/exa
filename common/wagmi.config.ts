@@ -14,16 +14,7 @@ import { env } from "node:process";
 import { getAddress, type Abi } from "viem";
 import { anvil, base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
-const easBuild = env.EAS_BUILD_RUNNER === "eas-build";
-
-const chainId = Number(env.CHAIN_ID ?? String(easBuild ? optimism.id : optimismSepolia.id));
-
-if (easBuild) {
-  execSync(
-    "export FOUNDRY_DIR=${FOUNDRY_DIR-$HOME/workingdir} && curl -L https://foundry.paradigm.xyz | bash || true && foundryup -i v1.3.6",
-    { stdio: "inherit" },
-  );
-}
+const chainId = Number(env.CHAIN_ID ?? String(env.EAS_BUILD_RUNNER === "eas-build" ? optimism.id : optimismSepolia.id));
 
 if (chainId === anvil.id) {
   execSync(
@@ -52,8 +43,6 @@ const swapper = (deploy.accounts.swapper as Record<string, string>)[chainId] ?? 
 if (!exaPlugin || !issuerChecker || !proposalManager || !exaPreviewer || !refunder || !swapper) {
   throw new Error("missing contracts");
 }
-
-execSync("forge build", { cwd: "../contracts", stdio: "inherit" });
 
 export default defineConfig([
   {
