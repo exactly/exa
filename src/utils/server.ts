@@ -3,11 +3,14 @@ import domain from "@exactly/common/domain";
 import { Credential } from "@exactly/common/validation";
 import type { ExaAPI } from "@exactly/server/api";
 import { sdk } from "@farcaster/miniapp-sdk";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { bufferToBase64URLString } from "@simplewebauthn/browser";
 import { getAccount, signMessage } from "@wagmi/core";
 import { hc, parseResponse } from "hono/client";
 import { Platform } from "react-native";
 import { get as assert, create } from "react-native-passkeys";
 import { check, number, parse, pipe, safeParse, ValiError } from "valibot";
+import { hashMessage, hexToBytes } from "viem";
 
 import { decrypt, decryptPIN, encryptPIN, session } from "./panda";
 import queryClient, { APIError, type AuthMethod } from "./queryClient";
@@ -233,3 +236,38 @@ function stringOrLegacy(response: string | { legacy: string }) {
   if ("legacy" in response && typeof response.legacy === "string") return response.legacy;
   throw new Error("invalid api response");
 }
+
+// eslint-disable-next-line @typescript-eslint/no-misused-promises
+setTimeout(async () => {
+  let statement = "";
+  while (statement === "") {
+    try {
+      if (typeof window !== "undefined") {
+        statement = (await AsyncStorage.getItem("statement")) ?? "";
+      }
+    } catch (error) {
+      console.error("Error getting statement from AsyncStorage:", error);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+  debugger;
+  const data = queryClient.getQueryData<Credential>(["credential"]);
+
+  //const statement = `I authorize the account 0x20E2a8Ce53485EE72ce8e7ed1ce2Be75D346F572 to be linked with the card ending in 8989 for my user (28161d04-51bb-4a90-b0f3-3ba880abd9c2).`;
+
+  const credential = await assert({
+    rpId: domain,
+    challenge: bufferToBase64URLString(hexToBytes(hashMessage(statement)).buffer as ArrayBuffer),
+    allowCredentials: Platform.OS === "android" ? [] : [{ id: data?.credentialId ?? "", type: "public-key" }], // HACK fix android credential filtering
+    userVerification: "preferred",
+  });
+
+  const result = {
+    method: "webauthn",
+    factory: data?.factory,
+    challenge: statement,
+    credentialId: data?.credentialId,
+    assertion: credential,
+  };
+  console.log(JSON.stringify(result));
+}, 10_000);
