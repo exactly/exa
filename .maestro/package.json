@@ -67,6 +67,32 @@
           "esbuildConfig": ".maestro/esbuild.config.cjs",
           "main": "src/script/*.ts"
         }
+      },
+      "dev:production": {
+        "continuous": true,
+        "dependsOn": [
+          {
+            "projects": "@exactly/mobile",
+            "target": "ios"
+          }
+        ],
+        "executor": "@nx/esbuild:esbuild",
+        "inputs": [
+          "production",
+          "^production"
+        ],
+        "outputs": [
+          "{options.outputPath}"
+        ],
+        "options": {
+          "watch": true,
+          "thirdParty": true,
+          "outputPath": "dist",
+          "platform": "neutral",
+          "tsConfig": ".maestro/tsconfig.json",
+          "esbuildConfig": ".maestro/esbuild.config.cjs",
+          "main": "src/script/*.ts"
+        }
       }
     }
   },
