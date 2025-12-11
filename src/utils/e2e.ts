@@ -14,7 +14,9 @@ import { mnemonicToAccount } from "viem/accounts";
 
 const account =
   typeof window !== "undefined" && process.env.EXPO_PUBLIC_ENV === "e2e"
-    ? mnemonicToAccount("test test test test test test test test test test test junk")
+    ? mnemonicToAccount(
+        process.env.EXPO_PUBLIC_E2E_MNEMONIC || "test test test test test test test test test test test junk", // eslint-disable-line @typescript-eslint/prefer-nullish-coalescing -- ignore empty string
+      )
     : undefined;
 const client = account && createWalletClient({ chain, account, transport: http() });
 export default client;

@@ -15,20 +15,14 @@ tags:
 - evalScript: ${output.portfolioBefore = output.portfolio}
 - runScript:
     file: ../dist/mint.js
-    env:
-      asset: USDC
-      to: "0x699F994A39559d9D3C28c11C0e907f7033B47C6e"
-      amount: "420"
+    env: { asset: USDC, to: "${output.account}", amount: "420" }
 - swipe: { direction: DOWN }
 - runFlow: ../subflows/readPortfolio.yaml
 - assertTrue: ${output.portfolio - output.portfolioBefore === 420}
 - evalScript: ${output.portfolioBefore = output.portfolio}
 - runFlow:
     file: ../subflows/sendAsset.yaml
-    env:
-      asset: USDC
-      to: "0x000000000000000000000000000000000000dEaD"
-      amount: "69"
+    env: { asset: USDC, to: "${output.owner}", amount: "69" }
 - runFlow: ../subflows/readPortfolio.yaml
 - assertTrue: ${output.portfolioBefore - output.portfolio === 69}
 - runFlow:

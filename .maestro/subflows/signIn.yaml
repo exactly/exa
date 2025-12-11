@@ -1,4 +1,5 @@
 appId: app.exactly
 ---
+- runScript: ../dist/getAccount.js
 - tapOn: Sign in
-- assertVisible: 0x699F…7C6e
+- assertVisible: ${output.account.slice(0, 6)}…${output.account.slice(-4)}

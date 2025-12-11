@@ -45,4 +45,4 @@ appId: app.exactly
 - tapOn: Done
 - runScript:
     file: ../dist/approveKYC.js
-    env: { credentialId: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" }
+    env: { credentialId: "${output.owner}" }
