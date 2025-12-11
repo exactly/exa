@@ -7,6 +7,7 @@ import { FixedLib } from "@exactly/protocol/utils/FixedLib.sol";
 import { Call, IStandardExecutor } from "modular-account-libs/interfaces/IStandardExecutor.sol";
 
 import { LibString } from "solady/utils/LibString.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 import { MockERC20 } from "solmate/src/test/utils/mocks/MockERC20.sol";
 
@@ -22,6 +23,7 @@ import { ProposalManager } from "../../src/ProposalManager.sol";
 import { MockSwapper } from "./MockSwapper.sol";
 
 contract BobScript is BaseScript {
+  using SafeTransferLib for address;
   using OwnersLib for address[];
   using LibString for address;
   using LibString for uint256;
@@ -88,8 +90,8 @@ contract BobScript is BaseScript {
     vm.startBroadcast(acct("keeper"));
     bobAccount = IExaAccount(factory.createAccount(0, owners.toPublicKeys()));
     vm.label(address(bobAccount), "bobAccount");
-    _deal(address(bob), 1 ether);
-    _deal(address(bobAccount), 1 ether);
+    address(bob).safeTransferETH(1 ether);
+    address(bobAccount).safeTransferETH(1 ether);
     exa.mint(address(bobAccount), 666e18);
     usdc.mint(address(bobAccount), 69_420e6);
     bobAccount.poke(exaEXA);
@@ -151,18 +153,6 @@ contract BobScript is BaseScript {
     );
     vm.broadcast(bob);
     IStandardExecutor(address(bobAccount)).executeBatch(calls);
-  }
-
-  function _deal(address account, uint256 amount) internal {
-    vm.deal(account, amount);
-    if (block.chainid == getChain("anvil").chainId) {
-      try vm.activeFork() {
-        vm.rpc(
-          "anvil_setBalance",
-          string.concat('["', account.toHexString(), '","', amount.toHexString(), '"]') // solhint-disable-line quotes
-        );
-      } catch { } // solhint-disable-line no-empty-blocks
-    }
   }
 
   function _issuerOp(uint256 amount, uint256 timestamp) internal view returns (bytes memory signature) {
