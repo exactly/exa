@@ -6,7 +6,7 @@ import { env, stderr, stdout } from "node:process";
 import { anvil } from "prool/instances";
 import { literal, object, parse, tuple } from "valibot";
 import { keccak256, padHex, toBytes, toHex, zeroAddress } from "viem";
-import { privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
+import { mnemonicToAccount, privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
 import { foundry } from "viem/chains";
 import type { TestProject } from "vitest/node";
 
@@ -28,6 +28,12 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
         const string = String(buffer);
         if (string.startsWith("eth_call") || string.startsWith("eth_getStorageAt")) return;
         stdout.write(string);
+      });
+    }
+    if (env.EXPO_PUBLIC_E2E_MNEMONIC) {
+      await anvilClient.setBalance({
+        address: mnemonicToAccount(env.EXPO_PUBLIC_E2E_MNEMONIC).address,
+        value: 10n ** 24n,
       });
     }
   }
