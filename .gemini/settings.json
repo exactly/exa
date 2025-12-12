@@ -1,6 +1,7 @@
 {
   "context": { "fileName": "AGENTS.md" },
   "tools": { "sandbox": true },
+  "general": { "enablePromptCompletion": true, "preferredEditor": "antigravity" },
   "mcpServers": {
     "nx-mcp": {
       "type": "stdio",
