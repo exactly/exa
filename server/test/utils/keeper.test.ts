@@ -153,6 +153,16 @@ describe("fault tolerance", () => {
       { onHash: (hash) => hashes.push(hash) },
     );
 
+    await vi.waitUntil(
+      async () =>
+        (await nonceSource.get({
+          address: keeperClient.account.address,
+          chainId: keeperClient.chain.id,
+          client: keeperClient,
+        })) ===
+        currentNonce + 102,
+    );
+
     await Promise.allSettled(
       Array.from({ length: 20 }, (_, index) =>
         keeper.exaSend(
