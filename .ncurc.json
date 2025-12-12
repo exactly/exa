@@ -39,7 +39,6 @@
     "react-native-reanimated",
     "react-native-safe-area-context",
     "react-native-screens",
-    "sharp-cli",
     "tamagui"
   ]
 }
