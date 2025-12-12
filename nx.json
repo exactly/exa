@@ -3,7 +3,7 @@
   "cli": { "packageManager": "pnpm" },
   "tasksRunnerOptions": { "default": "nx/tasks-runners/default" },
   "namedInputs": {
-    "default": ["{projectRoot}/**/*", "sharedGlobals"],
+    "default": ["{projectRoot}/**/*", "!{projectRoot}/generated/**/*", "sharedGlobals"],
     "production": ["default", "!{projectRoot}/test/**/*"],
     "sharedGlobals": ["{workspaceRoot}/nx.json", "{workspaceRoot}/package.json", "{workspaceRoot}/pnpm-lock.yaml"]
   },
