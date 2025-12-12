@@ -106,7 +106,7 @@ export default function Bridge() {
     );
   }, [chains, ownerAssetsByChain]);
 
-  const previousSourceAddress = useRef<string | undefined>();
+  const previousSourceAddress = useRef<string | undefined>(undefined);
 
   const selectedGroup = assetGroups.find((group) => group.chain.id === selectedSource?.chain);
   const selectedAsset = selectedGroup?.assets.find((asset) => asset.token.address === selectedSource?.address);
