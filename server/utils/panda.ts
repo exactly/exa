@@ -59,7 +59,7 @@ export async function createCard(userId: string, productId: typeof PLATINUM_PROD
       configuration: {
         productId,
         virtualCardArt:
-          baseURL === "https://api-dev.raincards.xyz/v1"
+          baseURL === "https://api-dev.rain.xyz/v1"
             ? "0c515d7eb0a140fa8f938f8242b0780a"
             : {
                 [PLATINUM_PRODUCT_ID]: "81e42f27affd4e328f19651d4f2b438e",
