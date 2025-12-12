@@ -42,7 +42,6 @@ lcov.info
 expo-env.d.ts
 .metro-health-check*
 .DS_Store
-.vercel
 
 # HACK istanbul + reanimated
 valueUnpacker
