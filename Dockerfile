@@ -15,6 +15,7 @@ ENV PATH="$PATH:/root/.local/share/pnpm:/root/.foundry/bin"
 RUN foundryup -i v1.3.6
 WORKDIR /usr/src/app
 COPY . .
+ENV NX_DAEMON=false
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
   pnpm install --frozen-lockfile
 RUN --mount=type=cache,id=nx,target=/usr/src/app/node_modules/.cache/nx \
