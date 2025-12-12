@@ -20,7 +20,11 @@ import type { Credential } from "@exactly/common/validation";
 import { ECDSASigValue } from "@peculiar/asn1-ecc";
 import { AsnParser } from "@peculiar/asn1-schema";
 import { setUser } from "@sentry/react-native";
-import { base64URLStringToBuffer, bufferToBase64URLString } from "@simplewebauthn/browser";
+import {
+  base64URLStringToBuffer,
+  bufferToBase64URLString,
+  type AuthenticatorAssertionResponseJSON,
+} from "@simplewebauthn/browser";
 import { getAccount, signMessage } from "@wagmi/core/actions";
 import { Platform } from "react-native";
 import { get } from "react-native-passkeys";
@@ -71,7 +75,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
           userVerification: "preferred",
         });
         if (!credential) throw new Error("no credential");
-        const response = credential.response;
+        const response: AuthenticatorAssertionResponseJSON = credential.response;
         const clientDataJSON = new TextDecoder().decode(base64URLStringToBuffer(response.clientDataJSON));
         const typeIndex = BigInt(clientDataJSON.indexOf('"type":"'));
         const challengeIndex = BigInt(clientDataJSON.indexOf('"challenge":"'));
