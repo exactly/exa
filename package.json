@@ -19,7 +19,7 @@
     "eas-build-on-success": "[ \"$EAS_BUILD_PROFILE\" != production ] || sentry-cli releases new --finalize -o exactly -p exa $(node -p 'require(\"./src/generated/release\")')",
     "e2e:iphone": "maestro start-device --platform=ios --os-version=26 --device-locale=es-419",
     "e2e:maestro": "maestro test .maestro/flows --include-tags=critical",
-    "test": "pnpm run --aggregate-output --reporter-hide-prefix /test:/",
+    "test": "nx test mobile",
     "test:spell": "cspell --gitignore '**' '.changeset/**' '.cursor/**' '.do/**' '.github/**' '.eslintrc.*'",
     "test:deps": "pnpm audit",
     "test:build": "expo export --platform web",
@@ -429,6 +429,19 @@
           ],
           "parallel": false
         }
+      },
+      "test": {
+        "dependsOn": [
+          "test:spell",
+          "test:deps",
+          "test:build",
+          "test:ts:expo",
+          "test:ts:node",
+          "test:markdown",
+          "test:changeset",
+          "test:eslint"
+        ],
+        "executor": "nx:noop"
       }
     }
   },
