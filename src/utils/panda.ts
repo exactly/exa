@@ -93,7 +93,7 @@ async function encrypt(data: string) {
   const { id: sessionId, secret } = await session();
   const keyBytes = new Uint8Array(Buffer.from(secret, "hex"));
 
-  let iv: Uint8Array;
+  let iv: Uint8Array<ArrayBuffer>;
   let encryptedData: ArrayBuffer;
   if (Platform.OS === "web") {
     iv = window.crypto.getRandomValues(new Uint8Array(16));
