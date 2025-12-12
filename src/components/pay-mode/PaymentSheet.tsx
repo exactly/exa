@@ -14,7 +14,7 @@ import {
 import { useToastController } from "@tamagui/toast";
 import { useQuery } from "@tanstack/react-query";
 import { format, formatDistance, isAfter } from "date-fns";
-import { useNavigation, useLocalSearchParams } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useState } from "react";
 import { Pressable, StyleSheet } from "react-native";
 import { Separator, XStack, YStack } from "tamagui";
@@ -24,7 +24,6 @@ import { zeroAddress } from "viem";
 import { optimismSepolia } from "viem/chains";
 import { useBytecode } from "wagmi";
 
-import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import CalendarImage from "../../assets/images/calendar-rollover.svg";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
@@ -44,7 +43,7 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
   const { presentArticle } = useIntercom();
   const { market: USDCMarket } = useAsset(marketUSDCAddress);
   const { maturity: currentMaturity } = useLocalSearchParams();
-  const navigation = useNavigation<AppNavigationProperties>();
+  const router = useRouter();
   const [rolloverIntroOpen, setRolloverIntroOpen] = useState(false);
   const { success, output: maturity } = safeParse(
     pipe(string(), nonEmpty("no maturity"), digits("bad maturity")),
@@ -144,7 +143,7 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
                     }
                     onClose();
                     queryClient.setQueryData<boolean>(["settings", "rollover-intro-shown"], true);
-                    navigation.navigate("roll-debt", { screen: "index", params: { maturity: maturity.toString() } });
+                    router.navigate({ pathname: "/roll-debt", params: { maturity: maturity.toString() } });
                   }}
                 >
                   <Button.Text>Review refinance details</Button.Text>
@@ -244,7 +243,7 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
                         flex={1}
                         onPress={() => {
                           onClose();
-                          navigation.navigate("pay", { screen: "index", params: { maturity: maturity.toString() } });
+                          router.navigate({ pathname: "/pay", params: { maturity: maturity.toString() } });
                         }}
                       >
                         <Button.Text>Repay</Button.Text>
@@ -269,10 +268,7 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
                             return;
                           }
                           onClose();
-                          navigation.navigate("roll-debt", {
-                            screen: "index",
-                            params: { maturity: maturity.toString() },
-                          });
+                          router.navigate({ pathname: "/roll-debt", params: { maturity: maturity.toString() } });
                         }}
                       >
                         <Button.Text>Rollover</Button.Text>

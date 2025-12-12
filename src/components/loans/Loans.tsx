@@ -1,14 +1,13 @@
 import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { ArrowLeft, CircleHelp } from "@tamagui/lucide-icons";
-import { useNavigation, useLocalSearchParams } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
 import { Pressable, RefreshControl } from "react-native";
 import { ScrollView, useTheme, XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
 
 import CreditLine from "./CreditLine";
-import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAsset from "../../utils/useAsset";
@@ -25,7 +24,7 @@ export default function Loans() {
   const parameters = useLocalSearchParams();
   const { account } = useAsset(marketUSDCAddress);
   const [paySheetOpen, setPaySheetOpen] = useState(false);
-  const navigation = useNavigation<AppNavigationProperties>();
+  const router = useRouter();
   const { refetch, isPending } = useReadPreviewerExactly({ address: previewerAddress, args: [account ?? zeroAddress] });
   const style = { backgroundColor: theme.backgroundSoft.val, margin: -5 };
   return (
@@ -53,10 +52,10 @@ export default function Loans() {
                 <XStack alignItems="center" justifyContent="space-between">
                   <Pressable
                     onPress={() => {
-                      if (navigation.canGoBack()) {
-                        navigation.goBack();
+                      if (router.canGoBack()) {
+                        router.back();
                       } else {
-                        navigation.replace("(home)", { screen: "defi" });
+                        router.replace("/defi");
                       }
                     }}
                   >
@@ -83,7 +82,7 @@ export default function Loans() {
               <CreditLine />
               <UpcomingPayments
                 onSelect={(maturity) => {
-                  navigation.setParams({ ...parameters, maturity: maturity.toString() });
+                  router.setParams({ ...parameters, maturity: maturity.toString() });
                   setPaySheetOpen(true);
                 }}
               />
@@ -98,7 +97,7 @@ export default function Loans() {
               open={paySheetOpen}
               onClose={() => {
                 setPaySheetOpen(false);
-                navigation.setParams({ ...parameters, maturity: undefined });
+                router.setParams({ ...parameters, maturity: undefined });
               }}
             />
           </>
