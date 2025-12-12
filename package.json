@@ -43,7 +43,7 @@
     "@farcaster/frame-sdk": "^0.1.12",
     "@farcaster/miniapp-sdk": "^0.2.1",
     "@farcaster/miniapp-wagmi-connector": "^1.1.0",
-    "@intercom/intercom-react-native": "^8.3.0",
+    "@intercom/intercom-react-native": "^9.4.0",
     "@intercom/messenger-js-sdk": "^0.0.14",
     "@lifi/sdk": "^3.7.7",
     "@peculiar/asn1-ecc": "^2.3.15",
@@ -51,7 +51,7 @@
     "@peculiar/webcrypto": "^1.5.0",
     "@react-native-async-storage/async-storage": "~2.2.0",
     "@sentry/browser": "^9.13.0",
-    "@sentry/react-native": "^6.10.0",
+    "@sentry/react-native": "^7.2.0",
     "@simplewebauthn/browser": "^13.1.0",
     "@tamagui/animations-moti": "1.125.26",
     "@tamagui/config": "1.125.26",
@@ -100,7 +100,7 @@
     "react-native-safe-area-context": "5.6.2",
     "react-native-screens": "~4.16.0",
     "react-native-size-matters": "^0.4.2",
-    "react-native-svg": "^15.11.2",
+    "react-native-svg": "^15.12.1",
     "react-native-worklets": "0.5.1",
     "react-onesignal": "^3.2.2",
     "tamagui": "1.125.26",
@@ -164,9 +164,9 @@
     "prettier": "^3.5.3",
     "react-native-svg-transformer": "^1.5.2",
     "sharp": "^0.34.1",
-    "sharp-cli": "^2.1.1",
+    "sharp-cli": "^5.2.0",
     "svgo": "^3.3.2",
-    "typescript": "^5.8.3",
+    "typescript": "^5.9.3",
     "ws": "^8.18.1"
   },
   "packageManager": "pnpm@9.15.9",
@@ -275,7 +275,6 @@
         "react-native-reanimated",
         "react-native-safe-area-context",
         "react-native-screens",
-        "sharp-cli",
         "tamagui"
       ]
     },
@@ -295,20 +294,8 @@
   "expo": {
     "doctor": {
       "reactNativeDirectoryCheck": {
-        "enabled": true,
-        "exclude": [
-          "@intercom/intercom-react-native",
-          "tamagui"
-        ],
-        "listUnknownPackages": false
+        "enabled": true
       }
-    },
-    "install": {
-      "exclude": [
-        "@sentry/react-native",
-        "react-native-svg",
-        "typescript"
-      ]
     }
   },
   "nx": {
