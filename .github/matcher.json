@@ -45,6 +45,21 @@
           "message": 1
         }
       ]
+    },
+    {
+      "owner": "eslint-stylish",
+      "pattern": [
+        { "regexp": "^\\s*(?:\\x1B\\[\\d+m)?([^\\s].*)$", "file": 1 },
+        {
+          "regexp": "^\\s*(?:\\x1B\\[\\d+m)*\\s+(?:\\x1B\\[\\d+m)*(\\d+):(\\d+)(?:\\x1B\\[\\d+m)*\\s+(?:\\x1B\\[\\d+m)*(error|warning|info)(?:\\x1B\\[\\d+m)*\\s+(.*)\\s\\s+(.*)$",
+          "line": 1,
+          "column": 2,
+          "severity": 3,
+          "message": 4,
+          "code": 5,
+          "loop": true
+        }
+      ]
     }
   ]
 }
