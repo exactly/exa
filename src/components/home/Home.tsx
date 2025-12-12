@@ -167,7 +167,7 @@ export default function Home() {
                   productId={card.productId}
                 />
               )}
-              {card && card.productId === PLATINUM_PRODUCT_ID && (
+              {card?.productId === PLATINUM_PRODUCT_ID && (
                 <VisaSignatureBanner
                   onPress={() => {
                     setVisaSignatureModalOpen(true);
