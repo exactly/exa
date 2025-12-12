@@ -6,14 +6,9 @@ import { useNavigation } from "expo-router";
 import React, { type FC, useCallback, useEffect, useRef, useState } from "react";
 import type { StyleProp, ViewStyle, ViewToken } from "react-native";
 import { Platform } from "react-native";
-import Animated, {
-  runOnJS,
-  useAnimatedScrollHandler,
-  useSharedValue,
-  withTiming,
-  Easing,
-} from "react-native-reanimated";
+import Animated, { useAnimatedScrollHandler, useSharedValue, withTiming, Easing } from "react-native-reanimated";
 import type { SvgProps } from "react-native-svg";
+import { scheduleOnRN } from "react-native-worklets";
 
 import ListItem from "./ListItem";
 import Pagination from "./Pagination";
@@ -102,7 +97,7 @@ export default function Auth() {
       /* istanbul ignore next */
       progress.value = withTiming(progress.value + 0.2, { duration: 1000, easing: Easing.linear }, () => {
         if (progress.value >= 1) {
-          runOnJS(scrollToNextPage)();
+          scheduleOnRN(() => scrollToNextPage());
           progress.value = 0;
         }
       });
