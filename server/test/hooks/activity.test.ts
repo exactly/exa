@@ -79,8 +79,6 @@ describe("address activity", () => {
     const deposit = parseEther("5");
     await anvilClient.setBalance({ address: account, value: deposit });
 
-    const waitForTransactionReceipt = vi.spyOn(publicClient, "waitForTransactionReceipt");
-
     const response = await appClient.index.$post({
       ...activityPayload,
       json: {
@@ -92,7 +90,7 @@ describe("address activity", () => {
       },
     });
 
-    await vi.waitUntil(() => waitForTransactionReceipt.mock.calls.length > 0);
+    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0);
 
     expect(captureException).toHaveBeenCalledWith(
       new WaitForTransactionReceiptTimeoutError({ hash: zeroHash }),
