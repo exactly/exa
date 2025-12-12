@@ -45,7 +45,8 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
           });
     const post = await api.auth.authentication.$post({ json });
     if (!post.ok) throw new APIError(post.status, stringOrLegacy(await post.json()));
-    const { expires } = await post.json();
+    const { expires, intercomToken } = await post.json();
+    queryClient.setQueryData(["intercom", "jwt"], intercomToken);
     return parse(Auth, expires);
   },
   meta: {
@@ -194,7 +195,8 @@ export async function createCredential() {
           }),
   });
   if (!post.ok) throw new APIError(post.status, stringOrLegacy(await post.json()));
-  const { auth: expires, ...passkey } = await post.json();
+  const { auth: expires, intercomToken, ...passkey } = await post.json();
+  queryClient.setQueryData(["intercom", "jwt"], intercomToken);
   await queryClient.setQueryData(["auth"], parse(Auth, expires));
   return parse(Credential, passkey);
 }

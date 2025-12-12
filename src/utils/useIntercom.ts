@@ -8,6 +8,7 @@ import { openBrowserAsync } from "expo-web-browser";
 import { useEffect, useState } from "react";
 import { Platform } from "react-native";
 
+import queryClient from "./queryClient";
 import reportError from "./reportError";
 
 const appId = process.env.EXPO_PUBLIC_INTERCOM_APP_ID;
@@ -18,9 +19,14 @@ const { login, logout, newMessage, present, presentArticle, presentCollection } 
         const { Intercom, showArticle, showSpace, showNewMessage } =
           require("@intercom/messenger-js-sdk") as typeof IntercomWeb; // eslint-disable-line @typescript-eslint/no-require-imports, unicorn/prefer-module
         return {
-          login: (userId: string, credentialId: string) => {
+          login: (userId: string, credentialId: string, jwt: string) => {
             if (!appId) return Promise.resolve(false);
-            Intercom({ app_id: appId, user_id: userId, companies: [{ id: credentialId }] });
+            Intercom({
+              app_id: appId,
+              user_id: userId,
+              companies: [{ id: credentialId }],
+              intercom_user_jwt: jwt,
+            });
             return Promise.resolve(true);
           },
           logout: () => {
@@ -53,14 +59,14 @@ const { login, logout, newMessage, present, presentArticle, presentCollection } 
           Space,
         } = require("@intercom/intercom-react-native") as typeof IntercomNative; // eslint-disable-line @typescript-eslint/no-require-imports, unicorn/prefer-module
         return {
-          login: (userId: string, credentialId: string) =>
+          login: (userId: string, credentialId: string, jwt: string) =>
             appId
-              ? Intercom.loginUserWithUserAttributes({ userId, companies: [{ id: credentialId }] }).catch(
-                  (error: unknown) => {
+              ? Intercom.setUserHash(jwt)
+                  .then(() => Intercom.loginUserWithUserAttributes({ userId, companies: [{ id: credentialId }] }))
+                  .catch((error: unknown) => {
                     reportError(error, { tags: { retry: true } });
                     return Intercom.loginUserWithUserAttributes({ userId });
-                  },
-                )
+                  })
               : Promise.resolve(false),
           logout: () => Intercom.logout(),
           present: () => Intercom.presentSpace(Space.home),
@@ -76,11 +82,22 @@ const { login, logout, newMessage, present, presentArticle, presentCollection } 
 export default function useIntercom() {
   const [loggedIn, setLoggedIn] = useState(false);
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
+  const { data: jwt } = useQuery<string | undefined>({ queryKey: ["intercom", "jwt"] });
   useEffect(() => {
-    if (!credential || loggedIn) return;
-    login(deriveAddress(credential.factory, { x: credential.x, y: credential.y }), credential.credentialId)
-      .then(setLoggedIn)
+    if (!credential || !jwt || loggedIn) return;
+    login(deriveAddress(credential.factory, { x: credential.x, y: credential.y }), credential.credentialId, jwt)
+      .then((value) => {
+        setLoggedIn(value);
+        queryClient.removeQueries({ queryKey: ["intercom", "jwt"], exact: true });
+      })
       .catch(reportError);
-  }, [credential, loggedIn]);
+  }, [credential, jwt, loggedIn]);
   return { loggedIn, present, presentArticle, presentCollection, logout, newMessage };
 }
+
+queryClient.setQueryDefaults(["intercom", "jwt"], {
+  retry: false,
+  staleTime: Infinity,
+  gcTime: Infinity,
+  queryFn: () => queryClient.getQueryData(["intercom", "jwt"]),
+});
