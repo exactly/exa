@@ -318,6 +318,7 @@
         "!{projectRoot}/contracts/**/*",
         "!{projectRoot}/docs/**/*",
         "!{projectRoot}/server/**/*",
+        "!{projectRoot}/src/generated/**/*",
         {
           "env": "APP_DOMAIN"
         },
