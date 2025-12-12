@@ -34,8 +34,8 @@
     "targets": {
       "generate:wagmi": {
         "inputs": [
-          "production",
           "^production",
+          "{projectRoot}/wagmi.config.ts",
           {
             "env": "CHAIN_ID"
           },
