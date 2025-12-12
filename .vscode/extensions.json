@@ -8,6 +8,7 @@
     "expo.vscode-expo-tools",
     "github.vscode-github-actions",
     "github.vscode-pull-request-github",
+    "google.gemini-cli-vscode-ide-companion",
     "gruntfuggly.todo-tree",
     "juanblanco.solidity",
     "redhat.vscode-yaml",
