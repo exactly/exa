@@ -2,7 +2,7 @@ import { sdk } from "@farcaster/miniapp-sdk";
 import { TimeToFullDisplay } from "@sentry/react-native";
 import { Key, User } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigation } from "expo-router";
+import { useRouter } from "expo-router";
 import React, { type FC, useCallback, useEffect, useRef, useState } from "react";
 import type { StyleProp, ViewStyle, ViewToken } from "react-native";
 import { Platform } from "react-native";
@@ -12,7 +12,6 @@ import { scheduleOnRN } from "react-native-worklets";
 
 import ListItem from "./ListItem";
 import Pagination from "./Pagination";
-import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import calendarBlob from "../../assets/images/calendar-blob.svg";
 import calendar from "../../assets/images/calendar.svg";
 import earningsBlob from "../../assets/images/earnings-blob.svg";
@@ -33,7 +32,7 @@ import View from "../shared/View";
 
 export default function Auth() {
   const [activeIndex, setActiveIndex] = useState(0);
-  const navigation = useNavigation<AppNavigationProperties>();
+  const router = useRouter();
 
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
   const [signUpModalOpen, setSignUpModalOpen] = useState(false);
@@ -177,7 +176,7 @@ export default function Auth() {
                   if (isOwnerAvailable) {
                     setSignUpModalOpen(true);
                   } else {
-                    navigation.navigate("(passkeys)/passkeys");
+                    router.push("/passkeys");
                   }
                 }}
               >
@@ -242,7 +241,7 @@ export default function Auth() {
               if (!method) return;
               if (method === "webauthn") {
                 setSignUpModalOpen(false);
-                navigation.navigate("(passkeys)/passkeys");
+                router.push("/passkeys");
                 return;
               }
               signIn({ method });

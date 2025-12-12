@@ -1,14 +1,13 @@
 import { previewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { ArrowLeft, CircleHelp } from "@tamagui/lucide-icons";
-import { useNavigation } from "expo-router";
+import { useRouter } from "expo-router";
 import React from "react";
 import { Pressable, RefreshControl } from "react-native";
 import { ScrollView, useTheme, XStack } from "tamagui";
 import { zeroAddress } from "viem";
 
 import AssetList from "./AssetList";
-import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import { presentArticle } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
@@ -24,7 +23,7 @@ export default function Portfolio() {
   const { address } = useAccount();
   const openBrowser = useOpenBrowser();
   const { averageRate, portfolio } = usePortfolio(address);
-  const navigation = useNavigation<AppNavigationProperties>();
+  const router = useRouter();
   const style = { backgroundColor: theme.backgroundSoft.val, margin: -5 };
 
   const { usdBalance } = portfolio;
@@ -39,10 +38,10 @@ export default function Portfolio() {
       <View padded flexDirection="row" gap={10} paddingBottom="$s4" justifyContent="space-between" alignItems="center">
         <Pressable
           onPress={() => {
-            if (navigation.canGoBack()) {
-              navigation.goBack();
+            if (router.canGoBack()) {
+              router.back();
             } else {
-              navigation.replace("(home)", { screen: "index" });
+              router.replace("/(main)/(home)");
             }
           }}
         >

@@ -2,13 +2,12 @@ import shortenHex from "@exactly/common/shortenHex";
 import { Address } from "@exactly/common/validation";
 import { ArrowLeft, User, UserMinus, UserPlus } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
-import { useLocalSearchParams, useNavigation } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
 import { Alert, Pressable } from "react-native";
 import { Avatar, ScrollView, XStack } from "tamagui";
 import { parse } from "valibot";
 
-import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import queryClient from "../../utils/queryClient";
 import AssetSelector from "../shared/AssetSelector";
 import Button from "../shared/Button";
@@ -17,7 +16,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function AssetSelection() {
-  const navigation = useNavigation<AppNavigationProperties>();
+  const router = useRouter();
   const { receiver: receiverAddress } = useLocalSearchParams();
   const receiver = parse(Address, receiverAddress);
 
@@ -26,10 +25,7 @@ export default function AssetSelection() {
   });
 
   const handleSubmit = (asset: Address, external: boolean) => {
-    navigation.navigate("send-funds", {
-      screen: "amount",
-      params: { receiver, asset, external: String(external) },
-    });
+    router.push({ pathname: "/send-funds/amount", params: { receiver, asset, external: String(external) } });
   };
 
   const hasContact = savedContacts?.find((contact) => contact.address === receiver);
@@ -41,10 +37,10 @@ export default function AssetSelection() {
           <View position="absolute" left={0}>
             <Pressable
               onPress={() => {
-                if (navigation.canGoBack()) {
-                  navigation.goBack();
+                if (router.canGoBack()) {
+                  router.back();
                 } else {
-                  navigation.replace("send-funds", { screen: "index" });
+                  router.replace("/send-funds");
                 }
               }}
             >

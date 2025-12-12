@@ -1,16 +1,15 @@
 import { SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
-import { useNavigation } from "expo-router";
+import { useRouter } from "expo-router";
 import React from "react";
 import { Platform } from "react-native";
 import { XStack, YStack } from "tamagui";
 
 import CardLimits from "./CardLimits";
-import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import SignatureCard from "../../assets/images/card-signature.svg";
 import Card from "../../assets/images/card.svg";
 
 export default function CardStatus({ onInfoPress, productId }: { onInfoPress: () => void; productId: string }) {
-  const navigation = useNavigation<AppNavigationProperties>();
+  const router = useRouter();
   return (
     <XStack
       backgroundColor={productId === SIGNATURE_PRODUCT_ID ? "$grayscaleLight12" : "black"}
@@ -33,7 +32,7 @@ export default function CardStatus({ onInfoPress, productId }: { onInfoPress: ()
         justifyContent="flex-end"
         cursor="pointer"
         onPress={() => {
-          navigation.navigate("(home)", { screen: "card" });
+          router.push("/card");
         }}
       >
         {productId === SIGNATURE_PRODUCT_ID ? (

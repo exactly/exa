@@ -11,7 +11,7 @@ import { WAD } from "@exactly/lib";
 import type { Token } from "@lifi/sdk";
 import { ArrowLeft, Check, CircleHelp, Repeat, TriangleAlert } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigation } from "expo-router";
+import { router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -26,7 +26,6 @@ import TokenSelectModal from "./SelectorModal";
 import Success from "./Success";
 import SwapDetails from "./SwapDetails";
 import TokenInput from "./TokenInput";
-import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import { presentArticle } from "../../utils/intercom";
 import { getAllowTokens, getRoute, getRouteFrom } from "../../utils/lifi";
 import queryClient from "../../utils/queryClient";
@@ -66,7 +65,6 @@ const defaultSwap: Swap = {
 const SLIPPAGE_PERCENT = 5n;
 
 export default function Swaps() {
-  const navigation = useNavigation<AppNavigationProperties>();
   const insets = useSafeAreaInsets();
   const openBrowser = useOpenBrowser();
   const { address: account } = useAccount();
@@ -174,7 +172,7 @@ export default function Swaps() {
     updateSwap((old) => ({ ...old, tokenModalOpen: false }));
   };
 
-  const debounceReference = useRef<ReturnType<typeof setTimeout>>();
+  const debounceReference = useRef<ReturnType<typeof setTimeout>>(null);
   const handleAmountChange = (value: bigint, type: "from" | "to") => {
     if (debounceReference.current) clearTimeout(debounceReference.current);
     debounceReference.current = setTimeout(() => {
@@ -386,10 +384,10 @@ export default function Swaps() {
           <Pressable
             aria-label="Back"
             onPress={() => {
-              if (navigation.canGoBack()) {
-                navigation.goBack();
+              if (router.canGoBack()) {
+                router.back();
               } else {
-                navigation.replace("(home)", { screen: "defi" });
+                router.replace("/(main)/(home)/defi");
               }
             }}
           >
@@ -583,7 +581,7 @@ export default function Swaps() {
         <Pending
           {...properties}
           onClose={() => {
-            onClose(navigation);
+            onClose();
           }}
         />
       );
@@ -592,7 +590,7 @@ export default function Swaps() {
         <Success
           {...properties}
           onClose={() => {
-            onClose(navigation);
+            onClose();
           }}
         />
       );
@@ -600,18 +598,18 @@ export default function Swaps() {
       <Failure
         {...properties}
         onClose={() => {
-          onClose(navigation);
+          onClose();
         }}
       />
     );
   }
 }
 
-function onClose(navigation: AppNavigationProperties) {
-  if (navigation.canGoBack()) {
-    navigation.goBack();
+function onClose() {
+  if (router.canGoBack()) {
+    router.back();
   } else {
-    navigation.replace("(main)");
+    router.replace("/(main)/(home)");
   }
 }
 

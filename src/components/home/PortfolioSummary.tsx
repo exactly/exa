@@ -1,10 +1,9 @@
 import { ChevronRight } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigation } from "expo-router";
+import { useRouter } from "expo-router";
 import React from "react";
 import { XStack, YStack } from "tamagui";
 
-import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import isProcessing from "../../utils/isProcessing";
 import { getActivity } from "../../utils/server";
 import Text from "../shared/Text";
@@ -18,7 +17,7 @@ export default function PortfolioSummary({
   portfolio: { usdBalance: bigint; depositMarkets: { market: string; symbol: string; usdValue: bigint }[] };
 }) {
   const { usdBalance, depositMarkets } = portfolio;
-  const navigation = useNavigation<AppNavigationProperties>();
+  const router = useRouter();
   const { data: country } = useQuery({ queryKey: ["user", "country"] });
 
   const { data: processingBalance } = useQuery({
@@ -38,7 +37,7 @@ export default function PortfolioSummary({
       cursor="pointer"
       hitSlop={20}
       onPress={() => {
-        navigation.navigate("portfolio/index");
+        router.push("/portfolio");
       }}
     >
       <XStack alignItems="center" gap="$s2">
@@ -74,7 +73,7 @@ export default function PortfolioSummary({
           cursor="pointer"
           hitSlop={20}
           onPress={() => {
-            navigation.navigate("(home)", { screen: "activity" });
+            router.push("/activity");
           }}
           gap="$s2"
           alignItems="center"

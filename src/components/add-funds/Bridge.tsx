@@ -7,7 +7,7 @@ import { ArrowLeft, Check, CircleHelp, Clock, Repeat, X } from "@tamagui/lucide-
 import { useToastController } from "@tamagui/toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { switchChain, waitForTransactionReceipt } from "@wagmi/core";
-import { useNavigation } from "expo-router";
+import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable } from "react-native";
 import { ScrollView, Spinner, Square, XStack, YStack } from "tamagui";
@@ -27,7 +27,6 @@ import { useReadContract, useSendCalls, useSendTransaction, useSimulateContract,
 
 import AssetSelectSheet from "./AssetSelectSheet";
 import TokenLogo from "./TokenLogo";
-import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import OptimismImage from "../../assets/images/optimism.svg";
 import { getRouteFrom, getBridgeSources, tokenCorrelation, type RouteFrom, type BridgeSources } from "../../utils/lifi";
 import queryClient from "../../utils/queryClient";
@@ -46,7 +45,7 @@ import View from "../shared/View";
 import TokenInput from "../swaps/TokenInput";
 
 export default function Bridge() {
-  const navigation = useNavigation<AppNavigationProperties>();
+  const router = useRouter();
   const toast = useToastController();
   const openBrowser = useOpenBrowser();
 
@@ -501,7 +500,7 @@ export default function Bridge() {
                   resetBridgeMutation();
                   resetTransferMutation();
                 }
-                navigation.replace("(home)", { screen: "index" });
+                router.replace("/(main)/(home)");
               }}
             >
               <X size={24} color="$uiNeutralPrimary" />
@@ -562,7 +561,7 @@ export default function Bridge() {
                 setBridgePreview(undefined);
                 resetBridgeMutation();
                 resetTransferMutation();
-                navigation.replace("(home)", { screen: "index" });
+                router.replace("/(main)/(home)");
               }}
             >
               <Text emphasized footnote color="$uiBrandSecondary" textAlign="center">
@@ -588,10 +587,10 @@ export default function Bridge() {
         >
           <Pressable
             onPress={() => {
-              if (navigation.canGoBack()) {
-                navigation.goBack();
+              if (router.canGoBack()) {
+                router.back();
               } else {
-                navigation.replace("(home)", { screen: "index" });
+                router.replace("/(main)/(home)");
               }
             }}
           >

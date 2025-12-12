@@ -1,13 +1,12 @@
 import { ArrowRight, Check, X } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { useMutation } from "@tanstack/react-query";
-import { useNavigation } from "expo-router";
+import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import { Platform, Pressable } from "react-native";
 import { SvgUri } from "react-native-svg";
 import { ScrollView, Spinner, XStack, YStack } from "tamagui";
 
-import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import SignatureCard from "../../assets/images/signature-full.svg";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
@@ -22,7 +21,7 @@ const scrollContentContainerStyle = { flexGrow: 1, paddingTop: 50 };
 
 export default function VisaSignatureSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const toast = useToastController();
-  const navigation = useNavigation<AppNavigationProperties>();
+  const router = useRouter();
 
   const [acknowledged, setAcknowledged] = useState(false);
 
@@ -59,8 +58,8 @@ export default function VisaSignatureSheet({ open, onClose }: { open: boolean; o
   const handleSuccess = useCallback(() => {
     reset();
     onClose();
-    navigation.navigate("(home)", { screen: "card" });
-  }, [reset, onClose, navigation]);
+    router.push("/card");
+  }, [reset, onClose, router]);
 
   const handleClose = useCallback(() => {
     if (isSuccess) {

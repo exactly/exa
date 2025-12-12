@@ -93,7 +93,7 @@ init({
   tracesSampleRate: 1,
   attachStacktrace: true,
   attachViewHierarchy: true,
-  autoSessionTracking: true,
+  enableAutoSessionTracking: true,
   tracePropagationTargets: [domain],
   enableNativeFramesTracking: !isRunningInExpoGo(),
   enableUserInteractionTracing: true,
