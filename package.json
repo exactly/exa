@@ -50,7 +50,6 @@
     "@peculiar/asn1-schema": "^2.3.15",
     "@peculiar/webcrypto": "^1.5.0",
     "@react-native-async-storage/async-storage": "~2.2.0",
-    "@react-navigation/bottom-tabs": "^7.0.0",
     "@sentry/browser": "^9.13.0",
     "@sentry/react-native": "^6.10.0",
     "@simplewebauthn/browser": "^13.1.0",
@@ -94,7 +93,7 @@
     "react-i18next": "^15.5.1",
     "react-native": "0.81.5",
     "react-native-onesignal": "^5.2.9",
-    "react-native-passkeys": "cruzdanilo/react-native-passkeys#647efe8",
+    "react-native-passkeys": "^0.4.0",
     "react-native-persona": "2.9.6",
     "react-native-quick-crypto": "^0.7.13",
     "react-native-reanimated": "~4.1.6",
@@ -102,7 +101,6 @@
     "react-native-screens": "~4.16.0",
     "react-native-size-matters": "^0.4.2",
     "react-native-svg": "^15.11.2",
-    "react-native-webview": "^13.13.5",
     "react-native-worklets": "0.5.1",
     "react-onesignal": "^3.2.2",
     "tamagui": "1.125.26",
@@ -243,7 +241,6 @@
         "@openzeppelin/contracts-v4",
         "@openzeppelin/contracts-upgradeable-v4",
         "@react-native-async-storage/async-storage",
-        "@react-navigation/bottom-tabs",
         "@tamagui/animations-moti",
         "@tamagui/babel-plugin",
         "@tamagui/config",
@@ -310,7 +307,6 @@
       "exclude": [
         "@sentry/react-native",
         "react-native-svg",
-        "react-native-webview",
         "typescript"
       ]
     }
