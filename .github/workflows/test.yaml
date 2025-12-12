@@ -39,7 +39,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
       - uses: nrwl/nx-set-shas@v4 # cspell:ignore nrwl
-      - run: pnpm nx affected -t test --outputStyle=stream-without-prefixes --parallel=1
+      - run: pnpm nx affected -t test
 
       - uses: codecov/codecov-action@v5
         if: ${{ !cancelled() }}
