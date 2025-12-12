@@ -1,5 +1,7 @@
 {
   "reject": [
+    "@expo/fingerprint",
+    "@expo/metro-runtime",
     "@openzeppelin/contracts-v4",
     "@openzeppelin/contracts-upgradeable-v4",
     "@react-native-async-storage/async-storage",
@@ -12,10 +14,12 @@
     "@tanstack/react-form",
     "@types/react",
     "account-abstraction",
+    "babel-preset-expo",
     "eslint",
     "eslint-plugin-unicorn",
     "expo-asset",
     "expo-build-properties",
+    "expo-camera",
     "expo-clipboard",
     "expo-dev-client",
     "expo-font",

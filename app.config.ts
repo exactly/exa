@@ -21,12 +21,12 @@ export default {
   scheme: "exactly",
   version: metadata.version,
   orientation: "portrait",
-  newArchEnabled: false,
   android: {
     package: "app.exactly",
     adaptiveIcon: { foregroundImage: "src/assets/icon-adaptive.png", backgroundColor: "#1D1D1D" },
     permissions: ["android.permission.CAMERA"],
     userInterfaceStyle: "automatic",
+    edgeToEdgeEnabled: true,
     versionCode,
     splash: {
       backgroundColor: "#FCFCFC",
@@ -83,6 +83,7 @@ export default {
         ],
       } satisfies FontProps,
     ],
+    "expo-asset",
     "expo-router",
     [
       "@intercom/intercom-react-native",
