@@ -54,7 +54,7 @@ describe("authentication", () => {
     const json = await response.json();
     const authResponse = json as InferOutput<typeof Authentication>;
 
-    assert(authResponse.intercomToken);
+    assert.ok(authResponse.intercomToken);
 
     const payload = decodeJwt(authResponse.intercomToken);
     const nowInSeconds = Math.floor(Date.now() / 1000);

@@ -53,7 +53,7 @@ vi.mock("../utils/panda", async (importOriginal) => ({
   ...(await importOriginal()),
   createUser: vi
     .fn<() => Promise<{ id: string }>>()
-    .mockImplementation(() => Promise.resolve({ id: String(Math.random()) })), // eslint-disable-line @vitest/prefer-mock-promise-shorthand -- random
+    .mockImplementation(() => Promise.resolve({ id: String(Math.random()) })),
 }));
 
 vi.mock("../utils/persona", async (importOriginal) => ({
