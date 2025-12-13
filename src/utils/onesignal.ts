@@ -9,7 +9,7 @@ import reportError from "./reportError";
 const { enablePrompt, login, logout } = (
   Platform.OS === "web"
     ? () => {
-        const { default: OneSignal } = require("react-onesignal") as typeof OneSignalWeb; // eslint-disable-line @typescript-eslint/no-require-imports, unicorn/prefer-module
+        const { default: OneSignal } = require("react-onesignal") as typeof OneSignalWeb; // eslint-disable-line unicorn/prefer-module
         const init =
           appId && typeof window !== "undefined"
             ? OneSignal.init({
@@ -58,7 +58,7 @@ const { enablePrompt, login, logout } = (
         };
       }
     : () => {
-        const { OneSignal } = require("react-native-onesignal") as typeof OneSignalNative; // eslint-disable-line @typescript-eslint/no-require-imports, unicorn/prefer-module
+        const { OneSignal } = require("react-native-onesignal") as typeof OneSignalNative; // eslint-disable-line unicorn/prefer-module
         queryClient.setQueryDefaults(["onesignal", "dismiss"], {
           initialData: 0,
           gcTime: Infinity,
