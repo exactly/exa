@@ -169,7 +169,7 @@ export default function PendingProposals() {
               </YStack>
             )}
             {pendingProposals?.map(({ nonce, proposal }) => {
-              return <ProposalItem key={nonce.toString()} proposal={proposal} />;
+              return <ProposalItem key={String(nonce)} proposal={proposal} />;
             })}
             {mutations.map((mutation, index) => {
               return <MutationItem key={index} mutation={mutation} />;

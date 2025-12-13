@@ -36,7 +36,7 @@ export default function CardContents({
   /* istanbul ignore next */
   const rStyle = useAnimatedStyle(() => {
     rotation.value += 1;
-    const rotationValue = `${(rotation.value % 360).toString()}deg`;
+    const rotationValue = `${String(rotation.value % 360)}deg`;
     return { transform: [{ rotate: rotationValue }] };
   });
   return (

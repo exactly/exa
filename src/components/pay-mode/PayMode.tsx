@@ -52,13 +52,13 @@ export default function PayMode() {
             <View padded gap="$s6">
               <OverduePayments
                 onSelect={(maturity) => {
-                  router.setParams({ ...parameters, maturity: maturity.toString() });
+                  router.setParams({ ...parameters, maturity: String(maturity) });
                   setPaySheetOpen(true);
                 }}
               />
               <UpcomingPayments
                 onSelect={(maturity) => {
-                  router.setParams({ ...parameters, maturity: maturity.toString() });
+                  router.setParams({ ...parameters, maturity: String(maturity) });
                   setPaySheetOpen(true);
                 }}
               />

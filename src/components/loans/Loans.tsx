@@ -82,7 +82,7 @@ export default function Loans() {
               <CreditLine />
               <UpcomingPayments
                 onSelect={(maturity) => {
-                  router.setParams({ ...parameters, maturity: maturity.toString() });
+                  router.setParams({ ...parameters, maturity: String(maturity) });
                   setPaySheetOpen(true);
                 }}
               />

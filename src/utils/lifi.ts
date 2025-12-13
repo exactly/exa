@@ -55,9 +55,9 @@ export async function getRoute(
     integrator: "exa_app",
     fromChain: chain.id,
     toChain: chain.id,
-    fromToken: fromToken.toString(),
-    toToken: toToken.toString(),
-    toAmount: toAmount.toString(),
+    fromToken: String(fromToken),
+    toToken: String(toToken),
+    toAmount: String(toAmount),
     fromAddress: account,
     toAddress: receiver,
     denyExchanges:
@@ -198,7 +198,7 @@ export async function getRouteFrom({
     toChain: toChainId ?? chain.id,
     fromToken: fromTokenAddress,
     toToken: toTokenAddress,
-    fromAmount: fromAmount.toString(),
+    fromAmount: String(fromAmount),
     fromAddress,
     toAddress,
     denyExchanges:

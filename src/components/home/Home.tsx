@@ -177,13 +177,13 @@ export default function Home() {
               <GettingStarted hasFunds={usdBalance > 0n} hasKYC={KYCStatus === "ok"} />
               <OverduePayments
                 onSelect={(maturity) => {
-                  router.setParams({ ...parameters, maturity: maturity.toString() });
+                  router.setParams({ ...parameters, maturity: String(maturity) });
                   setPaySheetOpen(true);
                 }}
               />
               <UpcomingPayments
                 onSelect={(maturity) => {
-                  router.setParams({ ...parameters, maturity: maturity.toString() });
+                  router.setParams({ ...parameters, maturity: String(maturity) });
                   setPaySheetOpen(true);
                 }}
               />

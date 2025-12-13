@@ -63,9 +63,9 @@ export default function RepayAmountSelector({
         setInputValue(maxPositionAssets);
         setMaxReached(true);
       } else {
-        const amount = parseUnits(value.toString(), 6);
+        const amount = parseUnits(String(value), 6);
         onChange(amount);
-        setFieldValue("assetInput", value.toString());
+        setFieldValue("assetInput", String(value));
         setInputValue(amount);
         setMaxReached(false);
       }
