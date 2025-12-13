@@ -29,10 +29,10 @@ import AssetSelectSheet from "./AssetSelectSheet";
 import TokenLogo from "./TokenLogo";
 import OptimismImage from "../../assets/images/optimism.svg";
 import { getRouteFrom, getBridgeSources, tokenCorrelation, type RouteFrom, type BridgeSources } from "../../utils/lifi";
+import openBrowser from "../../utils/openBrowser";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
-import useOpenBrowser from "../../utils/useOpenBrowser";
 import ownerConfig from "../../utils/wagmi/owner";
 import AssetLogo from "../shared/AssetLogo";
 import GradientScrollView from "../shared/GradientScrollView";
@@ -47,7 +47,6 @@ import TokenInput from "../swaps/TokenInput";
 export default function Bridge() {
   const router = useRouter();
   const toast = useToastController();
-  const openBrowser = useOpenBrowser();
 
   const [assetSheetOpen, setAssetSheetOpen] = useState(false);
   const [destinationModalOpen, setDestinationModalOpen] = useState(false);

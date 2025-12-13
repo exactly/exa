@@ -14,16 +14,15 @@ import DisconnectSheet from "./DisconnectSheet";
 import IntroSheet from "./IntroSheet";
 import ExactlyLogo from "../../assets/images/exactly.svg";
 import LiFiLogo from "../../assets/images/lifi.svg";
+import openBrowser from "../../utils/openBrowser";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
-import useOpenBrowser from "../../utils/useOpenBrowser";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 
 export default function DeFi() {
   const theme = useTheme();
-  const openBrowser = useOpenBrowser();
   const router = useRouter();
   const { data: shown } = useQuery<boolean>({ queryKey: ["settings", "defi-intro-shown"] });
   const { data: fundingConnected } = useQuery<boolean>({ queryKey: ["defi", "usdc-funding-connected"] });

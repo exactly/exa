@@ -8,12 +8,11 @@ import { Alert } from "react-native";
 import { Separator, XStack, YStack } from "tamagui";
 
 import OptimismImage from "../../assets/images/optimism.svg";
+import openBrowser from "../../utils/openBrowser";
 import reportError from "../../utils/reportError";
-import useOpenBrowser from "../../utils/useOpenBrowser";
 import Text from "../shared/Text";
 
 export default function TransactionDetails({ hash }: { hash?: string }) {
-  const openBrowser = useOpenBrowser();
   return (
     <YStack gap="$s4">
       <YStack gap="$s4">

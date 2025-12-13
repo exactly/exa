@@ -10,18 +10,17 @@ import OverduePayments from "./OverduePayments";
 import PaySelector from "./PaySelector";
 import PaymentSheet from "./PaymentSheet";
 import UpcomingPayments from "./UpcomingPayments";
+import openBrowser from "../../utils/openBrowser";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAsset from "../../utils/useAsset";
 import useIntercom from "../../utils/useIntercom";
-import useOpenBrowser from "../../utils/useOpenBrowser";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function PayMode() {
   const theme = useTheme();
-  const openBrowser = useOpenBrowser();
   const parameters = useLocalSearchParams();
   const { presentCollection } = useIntercom();
   const { account } = useAsset(marketUSDCAddress);
