@@ -40,6 +40,7 @@ export default defineConfig([
       "@typescript-eslint/no-redeclare": "off", // checked by typescript
       "@typescript-eslint/no-shadow": "error",
       "@typescript-eslint/restrict-template-expressions": ["error", { allowNumber: true }],
+      "exa/prefer-string": "error",
       "import/prefer-default-export": "error",
       "no-console": "warn",
       "no-shadow": "off", // @typescript-eslint/no-shadow
@@ -51,6 +52,28 @@ export default defineConfig([
       "unicorn/number-literal-case": "off", // incompatible with prettier
       "unicorn/prevent-abbreviations": ["error", { allowList: { args: true, e2e: true, params: true, utils: true } }],
       "unicorn/switch-case-braces": ["error", "avoid"], // consistently avoid braces
+    },
+    plugins: {
+      exa: {
+        rules: {
+          "prefer-string": {
+            meta: { type: "suggestion", docs: { description: "`String(x)` over `x.toString()`" }, fixable: "code" },
+            create: (context) => ({
+              CallExpression(node) {
+                if (node.callee.type !== "MemberExpression" || node.callee.property.name !== "toString") return; // eslint-disable-line @typescript-eslint/no-unsafe-member-access
+                if (node.callee.optional || node.callee.computed || node.arguments.length > 0) return; // eslint-disable-line @typescript-eslint/no-unsafe-member-access
+                context.report({
+                  node,
+                  message: "Use `String(value)` instead of `value.toString()`.",
+                  fix: (fixer) =>
+                    // @ts-expect-error -- bad types
+                    fixer.replaceText(node, `String(${context.sourceCode.getText(node.callee.object)})`), // eslint-disable-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+                });
+              },
+            }),
+          },
+        },
+      },
     },
   },
   {
