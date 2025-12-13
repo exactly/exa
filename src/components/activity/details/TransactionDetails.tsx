@@ -10,9 +10,9 @@ import React from "react";
 import { Separator, XStack, YStack } from "tamagui";
 
 import OptimismImage from "../../../assets/images/optimism.svg";
+import openBrowser from "../../../utils/openBrowser";
 import type { ActivityItem } from "../../../utils/queryClient";
 import reportError from "../../../utils/reportError";
-import useOpenBrowser from "../../../utils/useOpenBrowser";
 import Text from "../../shared/Text";
 
 export default function TransactionDetails({
@@ -21,7 +21,6 @@ export default function TransactionDetails({
   source?: CreditActivity | DebitActivity | InstallmentsActivity;
 }) {
   const toast = useToastController();
-  const openBrowser = useOpenBrowser();
   const query = useQuery<ActivityItem>({ queryKey: ["activity", "details"] });
   const item = source ?? query.data;
   return (

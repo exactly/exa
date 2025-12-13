@@ -28,12 +28,12 @@ import SwapDetails from "./SwapDetails";
 import TokenInput from "./TokenInput";
 import { presentArticle } from "../../utils/intercom";
 import { getAllowTokens, getRoute, getRouteFrom } from "../../utils/lifi";
+import openBrowser from "../../utils/openBrowser";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAccountAssets from "../../utils/useAccountAssets";
 import useAsset from "../../utils/useAsset";
-import useOpenBrowser from "../../utils/useOpenBrowser";
 import useSimulateProposal from "../../utils/useSimulateProposal";
 import Button from "../shared/Button";
 import SafeView from "../shared/SafeView";
@@ -66,7 +66,6 @@ const SLIPPAGE_PERCENT = 5n;
 
 export default function Swaps() {
   const insets = useSafeAreaInsets();
-  const openBrowser = useOpenBrowser();
   const { address: account } = useAccount();
   const { externalAssets, protocolAssets } = useAccountAssets();
   const [acknowledged, setAcknowledged] = useState(false);
