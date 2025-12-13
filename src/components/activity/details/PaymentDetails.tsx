@@ -69,9 +69,9 @@ export default function PaymentDetails({ item }: { item: CreditActivity | DebitA
                 &nbsp;
               </Text>
               <Text callout color="$uiNeutralPrimary">
-                {item.mode === 1 && Number(item.usdAmount + item.borrow.fee).toFixed(2)}
+                {item.mode === 1 && (item.usdAmount + item.borrow.fee).toFixed(2)}
                 {item.mode > 1 &&
-                  Number(item.usdAmount / (item as InstallmentsActivity).borrow.installments.length).toFixed(2)}
+                  (item.usdAmount / (item as InstallmentsActivity).borrow.installments.length).toFixed(2)}
                 &nbsp;USDC
               </Text>
             </XStack>
@@ -83,16 +83,14 @@ export default function PaymentDetails({ item }: { item: CreditActivity | DebitA
           </Text>
           <Text callout color="$uiNeutralPrimary">
             {item.mode === 0 &&
-              `${Math.abs(Number(item.usdAmount)).toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC`}
+              `${Math.abs(item.usdAmount).toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC`}
             {item.mode === 1 &&
-              `${Math.abs(Number(item.usdAmount + item.borrow.fee)).toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC`}
+              `${Math.abs(item.usdAmount + item.borrow.fee).toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC`}
             {item.mode > 1 &&
               `${Math.abs(
-                Number(
-                  (item as InstallmentsActivity).borrow.installments.reduce(
-                    (accumulator, installment) => accumulator + installment.fee,
-                    item.usdAmount,
-                  ),
+                (item as InstallmentsActivity).borrow.installments.reduce(
+                  (accumulator, installment) => accumulator + installment.fee,
+                  item.usdAmount,
                 ),
               ).toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC`}
           </Text>

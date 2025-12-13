@@ -55,8 +55,8 @@ export async function getRoute(
     integrator: "exa_app",
     fromChain: chain.id,
     toChain: chain.id,
-    fromToken: String(fromToken),
-    toToken: String(toToken),
+    fromToken,
+    toToken,
     toAmount: String(toAmount),
     fromAddress: account,
     toAddress: receiver,
@@ -67,7 +67,7 @@ export async function getRoute(
         .map(([key]) => key),
   });
   if (!transactionRequest?.to || !transactionRequest.data) throw new Error("missing quote transaction data");
-  const chainId = Number(transactionRequest.chainId ?? chain.id);
+  const chainId = transactionRequest.chainId ?? chain.id;
   const gasLimit = transactionRequest.gasLimit;
   return {
     chainId,
@@ -274,7 +274,7 @@ export async function getBridgeSources(account?: string, protocolSymbols: string
 
     const relevantAssets = assets
       .filter(({ usdValue }) => usdValue > 0)
-      .sort((a, b) => {
+      .toSorted((a, b) => {
         if (b.usdValue !== a.usdValue) return b.usdValue - a.usdValue;
         return a.token.symbol.localeCompare(b.token.symbol);
       });
@@ -289,7 +289,7 @@ export async function getBridgeSources(account?: string, protocolSymbols: string
 
   const chains = [...supportedChains]
     .filter((c) => (usdByChain[c.id] ?? 0) > 0)
-    .sort((a, b) => {
+    .toSorted((a, b) => {
       const bValue = usdByChain[b.id] ?? 0;
       const aValue = usdByChain[a.id] ?? 0;
       if (bValue !== aValue) return bValue - aValue;
