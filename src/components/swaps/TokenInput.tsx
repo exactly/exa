@@ -168,7 +168,7 @@ export default function TokenInput({
                         onFocus={onFocus}
                         disabled={disabled}
                         cursor={disabled ? undefined : "pointer"}
-                        placeholder={token ? formatUnits(amount, token.decimals) : amount.toString()}
+                        placeholder={token ? formatUnits(amount, token.decimals) : String(amount)}
                         color={
                           isDanger ? "$uiErrorSecondary" : isActive ? "$uiNeutralPrimary" : "$uiNeutralPlaceholder"
                         }

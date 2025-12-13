@@ -116,7 +116,7 @@ export default function Auth() {
           onScroll={handleScroll}
           scrollEventThrottle={16}
           data={pages}
-          keyExtractor={(_, index) => index.toString()}
+          keyExtractor={(_, index) => String(index)}
           viewabilityConfig={{ itemVisiblePercentThreshold: 80 }}
           renderItem={renderItem}
           onViewableItemsChanged={onViewableItemsChanged}

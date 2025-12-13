@@ -141,7 +141,7 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
                     }
                     onClose();
                     queryClient.setQueryData<boolean>(["settings", "rollover-intro-shown"], true);
-                    router.navigate({ pathname: "/roll-debt", params: { maturity: maturity.toString() } });
+                    router.navigate({ pathname: "/roll-debt", params: { maturity: String(maturity) } });
                   }}
                 >
                   <Button.Text>Review refinance details</Button.Text>
@@ -238,7 +238,7 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
                       flex={1}
                       onPress={() => {
                         onClose();
-                        router.navigate({ pathname: "/pay", params: { maturity: maturity.toString() } });
+                        router.navigate({ pathname: "/pay", params: { maturity: String(maturity) } });
                       }}
                     >
                       <Button.Text>Repay</Button.Text>
@@ -263,7 +263,7 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
                           return;
                         }
                         onClose();
-                        router.navigate({ pathname: "/roll-debt", params: { maturity: maturity.toString() } });
+                        router.navigate({ pathname: "/roll-debt", params: { maturity: String(maturity) } });
                       }}
                     >
                       <Button.Text>Rollover</Button.Text>
