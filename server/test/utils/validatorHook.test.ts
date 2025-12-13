@@ -48,7 +48,7 @@ describe("validation error hook", () => {
       const hook = validatorHook({ debug: mockDebugger as unknown as Debugger });
 
       const result = safeParse(TestSchema, { invalid: "data" });
-      if (result.success) throw new Error("validation should fail"); // eslint-disable-line @vitest/no-conditional-in-test
+      if (result.success) throw new Error("validation should fail");
       hook(result, mockContext);
 
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -68,7 +68,7 @@ describe("validation error hook", () => {
       const hook = validatorHook();
 
       const result = safeParse(TestSchema, { invalid: "data" });
-      if (result.success) throw new Error("validation should fail"); // eslint-disable-line @vitest/no-conditional-in-test
+      if (result.success) throw new Error("validation should fail");
       hook(result, mockContext);
 
       expect(captureException).toHaveBeenCalledWith(new Error("bad request"), {
@@ -85,7 +85,7 @@ describe("validation error hook", () => {
       const hook = validatorHook({ code: customErrorMessage, status: 401 });
 
       const result = safeParse(TestSchema, { invalid: "data" });
-      if (result.success) throw new Error("validation should fail"); // eslint-disable-line @vitest/no-conditional-in-test
+      if (result.success) throw new Error("validation should fail");
       hook(result, mockContext);
 
       expect(mockContext.json).toHaveBeenCalledWith(
@@ -102,7 +102,7 @@ describe("validation error hook", () => {
       const hook = validatorHook();
 
       const result = safeParse(TestSchema, { invalid: "data" });
-      if (!result.issues) throw new Error("validation should fail"); // eslint-disable-line @vitest/no-conditional-in-test
+      if (!result.issues) throw new Error("validation should fail");
 
       hook(result, mockContext);
 
@@ -120,7 +120,7 @@ describe("validation error hook", () => {
       const hook = validatorHook({ filter: (output: InferOutput<typeof TestSchema>) => output.name === "test" });
 
       const result = safeParse(TestSchema, { name: "test", optional: "data" });
-      if (!result.issues) throw new Error("validation should fail"); // eslint-disable-line @vitest/no-conditional-in-test
+      if (!result.issues) throw new Error("validation should fail");
 
       hook(result, mockContext);
 

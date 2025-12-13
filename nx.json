@@ -2,9 +2,15 @@
   "extends": "nx/presets/npm.json",
   "cli": { "packageManager": "pnpm" },
   "tasksRunnerOptions": { "default": "nx/tasks-runners/default" },
+  "plugins": [{ "plugin": "@nx/eslint/plugin", "options": { "targetName": "test:eslint" } }],
   "namedInputs": {
     "default": ["{projectRoot}/**/*", "!{projectRoot}/generated/**/*", "sharedGlobals"],
-    "production": ["default", "!{projectRoot}/test/**/*"],
+    "production": [
+      "default",
+      "!{projectRoot}/test/**/*",
+      "!{projectRoot}/.eslintrc.json",
+      "!{projectRoot}/eslint.config.mjs"
+    ],
     "sharedGlobals": ["{workspaceRoot}/nx.json", "{workspaceRoot}/package.json", "{workspaceRoot}/pnpm-lock.yaml"]
   },
   "targetDefaults": {

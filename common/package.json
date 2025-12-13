@@ -6,7 +6,9 @@
     "prepare": "nx run-many -t prepare:git generate:wagmi -p common",
     "prepare:git": "git config blame.ignoreRevsFile .git-blame-ignore-revs || true",
     "generate:wagmi": "wagmi generate",
-    "git:unshallow": "git fetch --unshallow || true"
+    "git:unshallow": "git fetch --unshallow || true",
+    "test": "nx test common",
+    "test:ts": "tsc --pretty ${GITHUB_ACTIONS:+false}"
   },
   "engines": {
     "node": ">=24.12.0"
@@ -17,9 +19,30 @@
     "viem": "^2.40.3"
   },
   "devDependencies": {
+    "@eslint-community/eslint-plugin-eslint-comments": "^4.5.0",
+    "@eslint/js": "^9.39.1",
     "@exactly/plugin": "workspace:^1.1.0",
     "@exactly/protocol": "^0.2.22",
-    "@wagmi/cli": "^2.8.0"
+    "@nx/eslint-plugin": "22.1.3",
+    "@tanstack/eslint-plugin-query": "^5.91.2",
+    "@types/eslint-plugin-jsx-a11y": "^6.10.1",
+    "@vitest/eslint-plugin": "^1.5.2",
+    "@wagmi/cli": "^2.8.0",
+    "eslint": "^9.39.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-config-universe": "^15.0.3",
+    "eslint-import-resolver-typescript": "^4.4.4",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-n": "^17.23.1",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-regexp": "^2.10.0",
+    "eslint-plugin-tsdoc": "^0.4.0",
+    "eslint-plugin-unicorn": "^62.0.0",
+    "globals": "^16.5.0",
+    "prettier": "^3.7.4",
+    "typescript-eslint": "^8.49.0"
   },
   "peerDependencies": {
     "wagmi": "^2.18.1"
@@ -56,6 +79,13 @@
       },
       "git:unshallow": {
         "cache": false
+      },
+      "test": {
+        "dependsOn": [
+          "test:eslint",
+          "test:ts"
+        ],
+        "executor": "nx:noop"
       }
     }
   }
