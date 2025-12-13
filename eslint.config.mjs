@@ -9,7 +9,7 @@ export default defineConfig([
   baseConfig,
   reactConfig,
   {
-    languageOptions: { parserOptions: { projectService: { allowDefaultProject: ["*.config.*"] } } },
+    languageOptions: { parserOptions: { projectService: true } },
     rules: {
       "unicorn/prefer-global-this": "off", // incompatible with react-native
       "unicorn/prefer-top-level-await": "off", // unsupported in cjs
