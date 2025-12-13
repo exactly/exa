@@ -540,14 +540,10 @@ export default function Bridge() {
                 </Text>
               </XStack>
               <Text emphasized secondary body textAlign="center">
-                {Number(
+                {(
                   Number(formatUnits(sourceAmount, bridgePreview.sourceToken.decimals)) *
-                    Number(bridgePreview.sourceToken.priceUSD),
-                ).toLocaleString(undefined, {
-                  style: "currency",
-                  currency: "USD",
-                  currencyDisplay: "narrowSymbol",
-                })}
+                  Number(bridgePreview.sourceToken.priceUSD)
+                ).toLocaleString(undefined, { style: "currency", currency: "USD", currencyDisplay: "narrowSymbol" })}
               </Text>
             </YStack>
           </YStack>
