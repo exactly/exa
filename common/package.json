@@ -1,6 +1,6 @@
 {
   "name": "@exactly/common",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "private": true,
   "scripts": {
     "prepare": "nx run-many -t prepare:git generate:wagmi -p common",

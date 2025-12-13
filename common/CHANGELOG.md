@@ -1,5 +1,13 @@
 # @exactly/common
 
+## 0.0.10
+
+### Patch Changes
+
+- [`5d2043e`](https://github.com/exactly/exa/commit/5d2043e2a0cca70c08282c03448ccec24d72486c) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🔧 setup alchemy for base networks
+
+- [`a0cde84`](https://github.com/exactly/exa/commit/a0cde848ffc14a1024f6f6b05e9ab4f81e56960f) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚚 move all wagmi codegen to common
+
 ## 0.0.9
 
 ### Patch Changes
