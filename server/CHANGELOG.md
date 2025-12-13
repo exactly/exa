@@ -1,5 +1,31 @@
 # @exactly/server
 
+## 0.2.43
+
+### Patch Changes
+
+- [`6290089`](https://github.com/exactly/exa/commit/62900893f85b560bba42491c5cd22f224410d9be) Thanks [@nfmelendez](https://github.com/nfmelendez)! - ⬆️ upgrade drizzle kit
+
+- [`a59f6d8`](https://github.com/exactly/exa/commit/a59f6d8d3cc21dca03dab555b200061a6b825ff8) Thanks [@mainqueg](https://github.com/mainqueg)! - 📝 improve api documentation
+
+- [`b8f4e03`](https://github.com/exactly/exa/commit/b8f4e03b6e62d3e69eea6107c0e64bad991f608d) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ⚡️ skip empty alchemy blocks
+
+- [`b9584a6`](https://github.com/exactly/exa/commit/b9584a65cf853898cbb02d0cc9224effdc55e337) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 📝 add cancel card documentation
+
+- [`770ea26`](https://github.com/exactly/exa/commit/770ea262183219603c82c62dba390283cefa25cf) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🩹 handle delayed proposal timeout
+
+- [`571700b`](https://github.com/exactly/exa/commit/571700b4c33d292b418c43ed046344dbe87ba92d) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ create alchemy's activity hook automatically
+
+- [`a0cde84`](https://github.com/exactly/exa/commit/a0cde848ffc14a1024f6f6b05e9ab4f81e56960f) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚚 move all wagmi codegen to common
+
+- [`eaa09f4`](https://github.com/exactly/exa/commit/eaa09f4d09f1c059b7330a1cb71b97483003a3d1) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🔧 setup alchemy for base networks
+
+- [`931b8ae`](https://github.com/exactly/exa/commit/931b8aef2687c29765b80f21a20b9121859bad7c) Thanks [@mainqueg](https://github.com/mainqueg)! - 📝 document card api
+
+- [`abb7a77`](https://github.com/exactly/exa/commit/abb7a77ad52f686e064380c7457a5c09088ccf43) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ create alchemy's block hook automatically
+
+- [`671c06d`](https://github.com/exactly/exa/commit/671c06d9629072c7db70b2574ee2e9f709328470) Thanks [@aguxez](https://github.com/aguxez)! - 🔒 verify intercom identity
+
 ## 0.2.42
 
 ### Patch Changes
