@@ -12,7 +12,7 @@ export default defineConfig([
   baseConfig,
   nodeConfig,
   {
-    languageOptions: { parserOptions: { project: ["tsconfig.json"] } },
+    languageOptions: { parserOptions: { projectService: true } },
     plugins: { drizzle: fixupPluginRules(drizzle) }, // eslint-disable-line @typescript-eslint/no-unsafe-argument -- missing types
     rules: {
       "n/no-missing-import": "off", // handled by bundler

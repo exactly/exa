@@ -11,7 +11,7 @@
     "generate:broadcasts": "[ \"$CHAIN_ID\" != 31337 ] || tsx -e 'require(\"./test/anvil\").default({ provide: () => undefined }).then((teardown) => teardown())'",
     "db:push": "drizzle-kit push",
     "e2e": "tsx script/e2e.ts",
-    "test": "nx run-many -t test:ts test:vi test:openapi -p server",
+    "test": "nx test server",
     "test:ts": "tsc --pretty ${GITHUB_ACTIONS:+false}",
     "test:vi": "vitest run",
     "test:openapi": "nx generate:openapi server",
@@ -123,6 +123,14 @@
         "outputs": [
           "{workspaceRoot}/contracts/broadcast/Protocol.s.sol/31337/run-latest.json"
         ]
+      },
+      "test": {
+        "dependsOn": [
+          "test:ts",
+          "test:vi",
+          "test:openapi"
+        ],
+        "executor": "nx:noop"
       },
       "test:vi": {
         "dependsOn": [

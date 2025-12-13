@@ -9,7 +9,7 @@ import * as schema from "../../database/schema";
 const pglite = new PGlite(undefined, { debug: 0 });
 
 vi.doMock("../../database", async (importOriginal) => {
-  const { pushSchema } = require("drizzle-kit/api") as typeof DrizzleKit; // eslint-disable-line @typescript-eslint/no-require-imports, unicorn/prefer-module
+  const { pushSchema } = require("drizzle-kit/api") as typeof DrizzleKit; // eslint-disable-line unicorn/prefer-module
   const instance = drizzle(pglite, { schema });
   const stdoutWrite = process.stdout.write; // eslint-disable-line @typescript-eslint/unbound-method
   process.stdout.write = () => true;

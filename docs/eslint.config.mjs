@@ -12,7 +12,7 @@ export default defineConfig([
   nodeConfig,
   astro.recommended,
   {
-    languageOptions: { parserOptions: { project: ["tsconfig.json"] } },
+    languageOptions: { parserOptions: { projectService: { allowDefaultProject: ["*.config.*"] } } },
     rules: {
       "import/no-unresolved": ["error", { ignore: ["astro:*"] }],
       "n/no-missing-import": "off", // handled by bundler
