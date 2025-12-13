@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "prepare": "nx build e2e",
-    "test": "tsc --pretty ${GITHUB_ACTIONS:+false}",
+    "test": "nx test e2e",
+    "test:ts": "tsc --pretty ${GITHUB_ACTIONS:+false}",
     "dev": "nx dev e2e"
   },
   "devDependencies": {
@@ -12,6 +13,7 @@
     "@noble/curves": "^2.0.1",
     "@noble/hashes": "^2.0.1",
     "esbuild": "^0.27.0",
+    "eslint": "^9.39.1",
     "fast-text-encoding": "^1.0.6",
     "typescript": "^5.8.3",
     "viem": "^2.40.3"
@@ -93,6 +95,13 @@
           "esbuildConfig": ".maestro/esbuild.config.cjs",
           "main": "src/script/*.ts"
         }
+      },
+      "test": {
+        "dependsOn": [
+          "test:eslint",
+          "test:ts"
+        ],
+        "executor": "nx:noop"
       }
     }
   },

@@ -10,8 +10,6 @@
     "@types/react",
     "account-abstraction",
     "babel-preset-expo",
-    "eslint",
-    "eslint-plugin-unicorn",
     "expo-asset",
     "expo-build-properties",
     "expo-camera",

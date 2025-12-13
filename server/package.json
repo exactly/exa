@@ -59,6 +59,7 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.3.11",
+    "@eslint/compat": "^2.0.0",
     "@exactly/common": "workspace:^0.0.10",
     "@exactly/plugin": "workspace:^1.1.0",
     "@sentry/cli": "^2.57.0",
@@ -69,6 +70,9 @@
     "@vitest/ui": "^3.2.4",
     "@wagmi/core": "^2.22.1",
     "drizzle-kit": "^0.31.8",
+    "eslint": "^9.39.1",
+    "eslint-config-universe": "^15.0.3",
+    "eslint-plugin-drizzle": "^0.2.3",
     "execa": "^9.6.0",
     "ioredis-mock": "^8.13.1",
     "openapi-types": "^12.1.3",

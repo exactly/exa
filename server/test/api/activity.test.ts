@@ -220,7 +220,9 @@ describe.concurrent("authenticated", () => {
             if (cryptomate.success) return cryptomate.output;
             throw new Error("bad test setup");
           }),
-      ).then((results) => results.sort((a, b) => b.timestamp.localeCompare(a.timestamp) || b.id.localeCompare(a.id)));
+      ).then((results) =>
+        results.toSorted((a, b) => b.timestamp.localeCompare(a.timestamp) || b.id.localeCompare(a.id)),
+      );
     });
 
     it("returns the card transaction", async () => {
@@ -242,8 +244,7 @@ describe.concurrent("authenticated", () => {
         { headers: { "test-credential-id": account } },
       );
 
-      expect(captureException).toHaveBeenCalledOnce();
-      expect(captureException).toHaveBeenCalledWith(
+      expect(captureException).toHaveBeenCalledExactlyOnceWith(
         new Error("bad transaction"),
         expect.objectContaining({
           // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
