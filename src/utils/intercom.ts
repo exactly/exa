@@ -10,7 +10,7 @@ export const { login, logout, newMessage, present, presentArticle, presentCollec
   Platform.OS === "web"
     ? () => {
         const { Intercom, showArticle, showSpace, showNewMessage } =
-          require("@intercom/messenger-js-sdk") as typeof IntercomWeb; // eslint-disable-line @typescript-eslint/no-require-imports, unicorn/prefer-module
+          require("@intercom/messenger-js-sdk") as typeof IntercomWeb; // eslint-disable-line unicorn/prefer-module
         return {
           login: (userId: string, token: string) => {
             if (!appId) return Promise.resolve(false);
@@ -45,7 +45,7 @@ export const { login, logout, newMessage, present, presentArticle, presentCollec
           default: Intercom,
           IntercomContent,
           Space,
-        } = require("@intercom/intercom-react-native") as typeof IntercomNative; // eslint-disable-line @typescript-eslint/no-require-imports, unicorn/prefer-module
+        } = require("@intercom/intercom-react-native") as typeof IntercomNative; // eslint-disable-line unicorn/prefer-module
         return {
           login: (userId: string, token: string) =>
             appId
