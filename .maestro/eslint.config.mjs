@@ -6,5 +6,8 @@ import universe from "eslint-config-universe/flat/default.js";
 export default defineConfig([
   universe,
   baseConfig,
-  { rules: { "@typescript-eslint/consistent-type-definitions": ["error", "type"] } },
+  {
+    languageOptions: { parserOptions: { projectService: true } },
+    rules: { "@typescript-eslint/consistent-type-definitions": ["error", "type"] },
+  },
 ]);

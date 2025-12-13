@@ -2,29 +2,32 @@ import js from "@eslint/js";
 // @ts-expect-error -- missing types
 import comments from "@eslint-community/eslint-plugin-eslint-comments/configs";
 import nx from "@nx/eslint-plugin";
-// import vitest from "@vitest/eslint-plugin";
 import { defineConfig, globalIgnores } from "eslint/config";
-// import universe from "eslint-config-universe/flat/default.js";
 import { flatConfigs as importPlugin } from "eslint-plugin-import";
-// import node from "eslint-plugin-n";
+import jsdoc from "eslint-plugin-jsdoc";
+import prettier from "eslint-plugin-prettier/recommended";
+import { configs as regexp } from "eslint-plugin-regexp";
+import tsdoc from "eslint-plugin-tsdoc";
 import unicorn from "eslint-plugin-unicorn";
 import globals from "globals";
-import ts from "typescript-eslint";
+import { configs as ts } from "typescript-eslint";
 
 export default defineConfig([
   globalIgnores(["**/build/", "**/cache/", "**/coverage/", "**/dist/", "**/generated/", "**/out/"]),
-  comments.recommended, // eslint-disable-line @typescript-eslint/no-unsafe-member-access
   js.configs.recommended,
-  ts.configs.strictTypeChecked, // eslint-disable-line import/no-named-as-default-member
-  ts.configs.stylisticTypeChecked, // eslint-disable-line import/no-named-as-default-member
+  ts.strictTypeChecked,
+  ts.stylisticTypeChecked,
   importPlugin.recommended,
   importPlugin.typescript,
   unicorn.configs.recommended,
   nx.configs["flat/base"],
   nx.configs["flat/javascript"],
   nx.configs["flat/typescript"],
+  regexp["flat/recommended"],
+  comments.recommended, // eslint-disable-line @typescript-eslint/no-unsafe-member-access -- missing types
+  { ...prettier, plugins: {} }, // prettier should be included by universe
   {
-    languageOptions: { globals: globals.builtin, parserOptions: { project: ["tsconfig.json"] } },
+    languageOptions: { globals: globals.builtin },
     settings: { "import/resolver": { typescript: true } },
     linterOptions: { reportUnusedDisableDirectives: "error", reportUnusedInlineConfigs: "error" },
     rules: {
@@ -55,4 +58,14 @@ export default defineConfig([
     languageOptions: { globals: { ...globals.commonjs, process: globals.node.process } },
     rules: { "@typescript-eslint/no-require-imports": "off", "unicorn/prefer-module": "off" },
   },
+  {
+    files: ["**/*.js", "**/*.cjs", "**/*.mjs", "**/*.jsx"],
+    ...jsdoc.configs["flat/recommended"],
+    rules: {
+      ...jsdoc.configs["flat/recommended"].rules,
+      "jsdoc/require-param-description": "off",
+      "jsdoc/require-returns": "off",
+    },
+  },
+  { files: ["**/*.ts", "**/*.cts", "**/*.mts", "**/*.tsx"], plugins: { tsdoc }, rules: { "tsdoc/syntax": "error" } },
 ]);
