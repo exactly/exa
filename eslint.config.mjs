@@ -9,8 +9,12 @@ export default defineConfig([
   baseConfig,
   reactConfig,
   {
-    languageOptions: { parserOptions: { projectService: true } },
+    languageOptions: { parserOptions: { projectService: { allowDefaultProject: ["*.config.*"] } } },
     rules: {
+      "no-restricted-imports": [
+        "error",
+        { paths: [{ name: "wagmi", importNames: ["useAccount"], message: "Use `useAccount` from utils." }] },
+      ],
       "unicorn/prefer-global-this": "off", // incompatible with react-native
       "unicorn/prefer-top-level-await": "off", // unsupported in cjs
     },

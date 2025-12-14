@@ -8,5 +8,11 @@ export default defineConfig([
   // @ts-expect-error -- bad types
   security.configs.recommended,
   { rules: { "security/detect-object-injection": "off" } },
-  { files: ["test/**"], plugins: { vitest }, rules: { ...vitest.configs.recommended.rules } },
+  {
+    files: ["test/**"],
+    plugins: { vitest },
+    settings: { vitest: { typecheck: true } },
+    languageOptions: { globals: vitest.environments.env.globals },
+    rules: { ...vitest.configs.recommended.rules },
+  },
 ]);
