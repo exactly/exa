@@ -9,7 +9,7 @@ export default defineConfig([
   baseConfig,
   reactConfig,
   {
-    languageOptions: { parserOptions: { projectService: { allowDefaultProject: ["*.config.*"] } } },
+    languageOptions: { parserOptions: { projectService: { allowDefaultProject: ["*.config.{js,cjs,mjs}"] } } },
     rules: {
       "no-restricted-imports": [
         "error",
