@@ -89,13 +89,7 @@ export default function Activity() {
   );
 }
 
-type ActivityItemType =
-  | { type: "header"; date: string }
-  | {
-      type: "event";
-      event: ActivityEvent;
-      isLast: boolean;
-    };
+type ActivityItemType = { type: "header"; date: string } | { type: "event"; event: ActivityEvent; isLast: boolean };
 
 type ActivityItemProperties = React.ComponentProps<typeof ActivityItem>;
 
