@@ -65,7 +65,7 @@ export default function CardLimits({ onPress }: { onPress: () => void }) {
       >
         <Text
           emphasized
-          footnotes
+          footnote
           textTransform="uppercase"
           color={isCredit ? "$cardCreditText" : "$cardDebitText"}
           maxFontSizeMultiplier={1}

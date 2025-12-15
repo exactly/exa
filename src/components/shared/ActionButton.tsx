@@ -19,7 +19,7 @@ export default function ActionButton({
         isLoading ? (
           <Spinner color={disabled ? "$interactiveOnDisabled" : "$interactiveOnBaseBrandDefault"} />
         ) : (
-          (rest.iconAfter as React.ReactNode)
+          rest.iconAfter
         )
       }
     >
