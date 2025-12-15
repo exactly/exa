@@ -9,11 +9,11 @@ import { padHex, zeroAddress, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 
-import app, { type AppType } from "../../api/pax";
+import app from "../../api/pax";
 import database, { credentials } from "../../database";
 import deriveAssociateId from "../../utils/deriveAssociateId";
 
-const appClient = testClient<AppType>(app);
+const appClient = testClient(app);
 
 describe("/pax GET", () => {
   const bob = privateKeyToAddress(padHex("0xb0b"));

@@ -22,6 +22,7 @@ import {
 } from "valibot";
 
 import database, { credentials } from "../database/index";
+import deriveAssociateId from "../utils/deriveAssociateId";
 import keeper from "../utils/keeper";
 import { createUser } from "../utils/panda";
 import { addCapita } from "../utils/pax";
@@ -235,6 +236,22 @@ export default new Hono().post(
     await database.update(credentials).set({ pandaId: id }).where(eq(credentials.id, referenceId));
 
     getActiveSpan()?.setAttributes({ "exa.pandaId": id });
+    setContext("persona", { inquiryId: personaShareToken, pandaId: id });
+
+    addCapita({
+      birthdate: fields.birthdate.value,
+      document: fields.identificationNumber.value,
+      firstName: fields.nameFirst.value,
+      lastName: fields.nameLast.value,
+      email: fields.emailAddress.value,
+      phone: fields.phoneNumber?.value ?? "",
+      internalId: deriveAssociateId(credential.account),
+      product: "travel insurance",
+    }).catch((error: unknown) => {
+      captureException(error, { extra: { pandaId: id, referenceId } });
+      // We don't fail the request if Pax creation fails, as the core goal (Panda user) succeeded.
+      // We track the error to fix manually or retry.
+    });
 
     if (firewallAddress) {
       keeper

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import deriveAssociateId from "../../utils/deriveAssociateId";
 
-describe("getting associate ID", () => {
+describe("derive associate id", () => {
   it("should return a 7-character string", () => {
     const account = privateKeyToAddress(generatePrivateKey());
     const id = deriveAssociateId(account);
