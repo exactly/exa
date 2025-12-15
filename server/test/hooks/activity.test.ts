@@ -44,7 +44,7 @@ describe("address activity", () => {
 
     await database
       .insert(credentials)
-      .values([{ id: account, publicKey: hexToBytes(owner.address), account, factory: inject("ExaAccountFactory") }]);
+      .values([{ id: account, publicKey: new Uint8Array(hexToBytes(owner.address)), account, factory: inject("ExaAccountFactory") }]);
   });
 
   it("fails with unexpected error", async () => {
@@ -197,7 +197,7 @@ describe("address activity", () => {
         .map((id) =>
           database
             .insert(credentials)
-            .values({ id, publicKey: hexToBytes(id), account: id, factory: inject("ExaAccountFactory") }),
+            .values({ id, publicKey: new Uint8Array(hexToBytes(id)), account: id, factory: inject("ExaAccountFactory") }),
         ),
       ...accounts.map((address) => anvilClient.setBalance({ address, value: parseEther("5") })),
       keeper.writeContract({

@@ -2,7 +2,7 @@ import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
 import { relations } from "drizzle-orm";
 import { customType, integer, jsonb, pgEnum, pgTable, text, uniqueIndex } from "drizzle-orm/pg-core";
 
-const bytea = customType<{ data: Uint8Array; driverData: string }>({ dataType: () => "bytea" });
+const bytea = customType<{ data: Uint8Array<ArrayBuffer>; driverData: string }>({ dataType: () => "bytea" });
 
 export const cardStatus = pgEnum("card_status", ["ACTIVE", "FROZEN", "DELETED"]);
 

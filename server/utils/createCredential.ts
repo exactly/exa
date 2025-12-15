@@ -23,7 +23,7 @@ export default async function createCredential<C extends string>(
   credentialId: C,
   webauthn?: WebAuthnCredential,
 ) {
-  const publicKey = webauthn?.publicKey ?? (isAddress(credentialId) ? hexToBytes(credentialId) : undefined);
+  const publicKey = webauthn?.publicKey ?? (isAddress(credentialId) ? new Uint8Array(hexToBytes(credentialId)) : undefined);
   if (!publicKey) throw new Error("bad credential");
   const { x, y } = decodePublicKey(publicKey);
   const account = deriveAddress(exaAccountFactoryAddress, { x, y });
