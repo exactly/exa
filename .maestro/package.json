@@ -18,8 +18,8 @@
     "esbuild": "^0.27.0",
     "eslint": "^9.39.1",
     "fast-text-encoding": "^1.0.6",
-    "typescript": "^5.8.3",
-    "viem": "^2.40.3"
+    "typescript": "catalog:",
+    "viem": "catalog:"
   },
   "nx": {
     "projectType": "library",

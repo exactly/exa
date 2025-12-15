@@ -54,8 +54,8 @@
     "jose": "^6.1.2",
     "pg": "^8.16.3",
     "redis-semaphore": "^5.6.2",
-    "valibot": "^1.2.0",
-    "viem": "^2.40.3"
+    "valibot": "catalog:",
+    "viem": "catalog:"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.3.11",
@@ -68,7 +68,7 @@
     "@types/pg": "^8.15.5",
     "@vitest/coverage-v8": "^3.2.4",
     "@vitest/ui": "^3.2.4",
-    "@wagmi/core": "^2.22.1",
+    "@wagmi/core": "catalog:",
     "drizzle-kit": "^0.31.8",
     "eslint": "^9.39.1",
     "eslint-config-universe": "^15.0.3",
@@ -79,7 +79,7 @@
     "pkgroll": "^2.20.1",
     "prool": "^0.0.24",
     "tsx": "^4.21.0",
-    "typescript": "^5.8.3",
+    "typescript": "catalog:",
     "vite": "^6.4.1",
     "vitest": "^3.2.4",
     "webauthn-owner-plugin": "exactly/webauthn-owner-plugin#9c0c38b"

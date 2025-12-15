@@ -49,20 +49,20 @@
     "@peculiar/webcrypto": "^1.5.0",
     "@react-native-async-storage/async-storage": "~2.2.0",
     "@react-navigation/bottom-tabs": "^7.4.0",
-    "@sentry/browser": "^9.13.0",
-    "@sentry/react-native": "~7.2.0",
+    "@sentry/browser": "^10.30.0",
+    "@sentry/react-native": "^7.7.0",
     "@simplewebauthn/browser": "^13.1.0",
-    "@tamagui/animations-moti": "^1.140.0",
-    "@tamagui/config": "^1.140.0",
-    "@tamagui/lucide-icons": "^1.140.0",
-    "@tamagui/toast": "^1.140.0",
+    "@tamagui/animations-moti": "^1.141.0",
+    "@tamagui/config": "^1.141.0",
+    "@tamagui/lucide-icons": "^1.141.0",
+    "@tamagui/toast": "^1.141.0",
     "@tanstack/query-async-storage-persister": "^5.74.4",
     "@tanstack/query-persist-client-core": "^5.74.4",
     "@tanstack/react-form": "^1.3.0",
     "@tanstack/react-query": "^5.74.4",
     "@tanstack/react-query-devtools": "^5.74.4",
     "@tanstack/react-query-persist-client": "^5.74.4",
-    "@wagmi/core": "^2.22.1",
+    "@wagmi/core": "catalog:",
     "abitype": "^1.2.0",
     "buffer": "^6.0.3",
     "burnt": "^0.13.0",
@@ -102,11 +102,11 @@
     "react-native-svg": "~15.12.1",
     "react-native-worklets": "0.5.1",
     "react-onesignal": "^3.2.2",
-    "tamagui": "^1.140.0",
+    "tamagui": "^1.141.0",
     "title-case": "^4.3.2",
-    "valibot": "^1.2.0",
-    "viem": "^2.40.3",
-    "wagmi": "^2.18.1"
+    "valibot": "catalog:",
+    "viem": "catalog:",
+    "wagmi": "catalog:"
   },
   "devDependencies": {
     "@babel/core": "^7.26.10",
@@ -121,7 +121,7 @@
     "@nx/js": "22.2.3",
     "@spotlightjs/spotlight": "^4.7.2",
     "@svgr/core": "^8.1.0",
-    "@tamagui/babel-plugin": "^1.140.0",
+    "@tamagui/babel-plugin": "^1.141.0",
     "@types/babel__core": "^7.20.5",
     "@types/fast-text-encoding": "^1.0.3",
     "@types/node": "^24.10.3",
@@ -147,7 +147,7 @@
     "sharp": "^0.34.5",
     "sharp-cli": "^5.2.0",
     "svgo": "^3.3.2",
-    "typescript": "^5.9.3",
+    "typescript": "catalog:",
     "ws": "^8.18.1"
   },
   "packageManager": "pnpm@10.26.0",
@@ -254,6 +254,11 @@
       "reactNativeDirectoryCheck": {
         "enabled": true
       }
+    },
+    "install": {
+      "exclude": [
+        "@sentry/react-native"
+      ]
     }
   },
   "nx": {

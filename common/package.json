@@ -15,8 +15,8 @@
   },
   "dependencies": {
     "@alchemy/aa-core": "^3.19.0",
-    "valibot": "^1.2.0",
-    "viem": "^2.40.3"
+    "valibot": "catalog:",
+    "viem": "catalog:"
   },
   "devDependencies": {
     "@eslint-community/eslint-plugin-eslint-comments": "^4.5.0",
@@ -51,7 +51,7 @@
     "typescript-eslint": "^8.49.0"
   },
   "peerDependencies": {
-    "wagmi": "^2.18.1"
+    "wagmi": "catalog:"
   },
   "peerDependenciesMeta": {
     "wagmi": {
