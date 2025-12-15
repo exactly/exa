@@ -102,7 +102,7 @@ export default function GettingStarted({ hasFunds, hasKYC }: { hasFunds: boolean
             <XStack alignItems="center" gap="$s2">
               {Array.from({ length: 3 }).map((_, index) => (
                 <View
-                  key={index}
+                  key={index} // eslint-disable-line @eslint-react/no-array-index-key
                   backgroundColor={completedSteps > index ? "$interactiveBaseBrandDefault" : "$uiBrandTertiary"}
                   width={24}
                   height={8}

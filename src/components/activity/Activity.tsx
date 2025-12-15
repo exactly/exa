@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import React, { memo, useMemo } from "react";
+import React, { memo, useMemo, type RefObject } from "react";
 import { FlatList, RefreshControl } from "react-native";
 import { styled, useTheme } from "tamagui";
 
@@ -95,8 +95,8 @@ type ActivityItemProperties = React.ComponentProps<typeof ActivityItem>;
 
 const StyledFlatList = styled(FlatList<ActivityItemType>, { backgroundColor: "$backgroundMild" });
 
-export const activityScrollReference = React.createRef<FlatList>();
-export const activityRefreshControlReference = React.createRef<RefreshControl>();
+export const activityScrollReference: RefObject<FlatList | null> = { current: null };
+export const activityRefreshControlReference: RefObject<RefreshControl | null> = { current: null };
 
 const HeaderRow = memo(function HeaderRow({ date }: { date: string }) {
   return (

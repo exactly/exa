@@ -20,7 +20,7 @@ import { ArrowLeft, ChevronRight, Coins } from "@tamagui/lucide-icons";
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { Pressable, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScrollView, Separator, XStack, YStack } from "tamagui";
@@ -64,7 +64,10 @@ export default function Pay() {
   const { market: exaUSDC } = useAsset(marketUSDCAddress);
   const [enableSimulations, setEnableSimulations] = useState(true);
   const [assetSelectionOpen, setAssetSelectionOpen] = useState(false);
-  const [denyExchanges, setDenyExchanges] = useState<Record<string, boolean>>({});
+  const [denyExchanges, addDeniedExchange] = useReducer(
+    (state: Record<string, boolean>, tool: string) => (state[tool] ? state : { ...state, [tool]: true }),
+    {},
+  );
   const [selectedAsset, setSelectedAsset] = useState<{ address?: Address; external: boolean }>({ external: true });
   const [positionAssets, setPositionAssets] = useState(0n);
   const {
@@ -476,8 +479,8 @@ export default function Pay() {
     ) {
       return;
     }
-    setDenyExchanges((state) => ({ ...state, [route.tool]: true }));
-  }, [route?.tool, simulationError]);
+    addDeniedExchange(route.tool);
+  }, [addDeniedExchange, route?.tool, simulationError]);
 
   const isPending = mode === "external" ? isExternalRepaying : isRepaying;
   const isSuccess = mode === "external" ? isExternalRepaySuccess : isRepaySuccess;

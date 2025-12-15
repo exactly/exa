@@ -20,7 +20,7 @@ import View from "../shared/View";
 export default function Settings() {
   const router = useRouter();
   const { connector } = useAccount();
-  const { mutate: disconnect } = useDisconnect();
+  const { mutate: disconnectAccount } = useDisconnect();
   const { mutate: submitCoverage, isSuccess: coverageSuccess, isError: coverageError } = useSubmitCoverage();
   return (
     <SafeView fullScreen tab>
@@ -71,7 +71,7 @@ export default function Settings() {
                       logoutOnesignal();
                       queryClient.clear();
                       queryClient.unmount();
-                      disconnect({ connector });
+                      disconnectAccount({ connector });
                       router.replace("/(auth)");
                     })
                     .catch(reportError);

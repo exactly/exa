@@ -104,8 +104,8 @@ function AssetSection({ title, assets }: { title: string; assets: AssetItem[] })
       <Text emphasized headline color="$uiNeutralPrimary">
         {title}
       </Text>
-      {assets.map((asset, index) => (
-        <AssetRow key={index} asset={asset} />
+      {assets.map((asset) => (
+        <AssetRow key={asset.symbol} asset={asset} />
       ))}
     </YStack>
   );

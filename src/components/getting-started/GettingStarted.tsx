@@ -201,7 +201,7 @@ function StepCounter({ completedSteps }: { completedSteps: number }) {
       <XStack flex={1} gap="$s2">
         {Array.from({ length: 3 }).map((_, index) => (
           <XStack
-            key={index}
+            key={index} // eslint-disable-line @eslint-react/no-array-index-key
             backgroundColor={completedSteps > index ? "$interactiveBaseBrandDefault" : "$uiBrandTertiary"}
             height={8}
             borderRadius="$r_0"

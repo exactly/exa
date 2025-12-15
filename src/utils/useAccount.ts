@@ -1,10 +1,10 @@
 import { getAddress, zeroAddress } from "viem";
-import { useAccount as useWagmiAccount, type UseAccountParameters } from "wagmi"; // eslint-disable-line no-restricted-imports
+import { useConnection, type UseConnectionParameters } from "wagmi";
 
-export default function useAccount(parameters?: UseAccountParameters) {
-  const account = useWagmiAccount(parameters);
-  if (account.address === zeroAddress) return { ...account, address: undefined, isConnected: false };
+export default function useAccount(parameters?: UseConnectionParameters) {
+  const connection = useConnection(parameters);
+  if (connection.address === zeroAddress) return { ...connection, address: undefined, isConnected: false };
   return !parameters?.config && process.env.EXPO_PUBLIC_IMPERSONATE
-    ? { ...account, address: account.address && getAddress(process.env.EXPO_PUBLIC_IMPERSONATE) }
-    : account;
+    ? { ...connection, address: connection.address && getAddress(process.env.EXPO_PUBLIC_IMPERSONATE) }
+    : connection;
 }

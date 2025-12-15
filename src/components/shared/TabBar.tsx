@@ -1,5 +1,4 @@
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
-import type { NavigationRoute } from "@sentry/react-native/dist/js/tracing/reactnavigation";
 import React, { useCallback } from "react";
 import { ToggleGroup } from "tamagui";
 
@@ -11,9 +10,8 @@ import usePendingOperations from "../../utils/usePendingOperations";
 
 export default function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const { count } = usePendingOperations();
-
   const onPress = useCallback(
-    (route: NavigationRoute, focused: boolean) => {
+    (route: BottomTabBarProps["state"]["routes"][number], focused: boolean) => {
       const event = navigation.emit({ type: "tabPress", target: route.key, canPreventDefault: true });
       if (!focused && !event.defaultPrevented) navigation.navigate(route.name, route.params);
     },
