@@ -1,5 +1,3 @@
-import { standardExecutor } from "@alchemy/aa-accounts";
-import { alchemyGasManagerMiddleware } from "@alchemy/aa-alchemy";
 import {
   buildUserOperationFromTx,
   createBundlerClient,
@@ -11,7 +9,9 @@ import {
   smartAccountClientActions,
   toSmartContractAccount,
   type UserOperationStruct_v6,
-} from "@alchemy/aa-core";
+} from "@aa-sdk/core";
+import { alchemyGasManagerMiddleware } from "@account-kit/infra";
+import { standardExecutor } from "@account-kit/smart-contracts";
 import accountInitCode from "@exactly/common/accountInitCode";
 import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
 import domain from "@exactly/common/domain";
@@ -25,7 +25,7 @@ import {
   bufferToBase64URLString,
   type AuthenticatorAssertionResponseJSON,
 } from "@simplewebauthn/browser";
-import { getAccount, signMessage } from "@wagmi/core/actions";
+import { getConnection, signMessage } from "@wagmi/core/actions";
 import { Platform } from "react-native";
 import { get } from "react-native-passkeys";
 import {
@@ -63,7 +63,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
     getDummySignature: () => "0x",
     signUserOperationHash: async (uoHash) => {
       try {
-        if (queryClient.getQueryData<AuthMethod>(["method"]) === "siwe" && getAccount(ownerConfig).address) {
+        if (queryClient.getQueryData<AuthMethod>(["method"]) === "siwe" && getConnection(ownerConfig).address) {
           return wrapSignature(0, await signMessage(ownerConfig, { message: { raw: uoHash } }));
         }
         const credential = await get({
@@ -109,7 +109,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
     transport,
     account,
     ...(alchemyGasPolicyId
-      ? alchemyGasManagerMiddleware(publicClient, { policyId: alchemyGasPolicyId })
+      ? alchemyGasManagerMiddleware(alchemyGasPolicyId)
       : {
           gasEstimator(struct) {
             struct.preVerificationGas = 1_000_000n;
@@ -117,10 +117,8 @@ export default async function createAccountClient({ credentialId, factory, x, y 
             struct.callGasLimit = 10_000_000n;
             return Promise.resolve(struct);
           },
-          paymasterAndData: {
-            dummyPaymasterAndData: () => ethAddress,
-            paymasterAndData: (struct) => Promise.resolve({ ...struct, paymasterAndData: ethAddress }),
-          },
+          dummyPaymasterAndData: (struct) => Promise.resolve({ ...struct, paymasterAndData: ethAddress }),
+          paymasterAndData: (struct) => Promise.resolve({ ...struct, paymasterAndData: ethAddress }),
         }),
     async customMiddleware(userOp) {
       if ((await userOp.signature) === "0x") {

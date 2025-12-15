@@ -1,4 +1,4 @@
-import { optimism } from "@alchemy/aa-core";
+import { optimism } from "@account-kit/infra";
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
@@ -112,7 +112,7 @@ if (!chain.testnet && chain.id !== anvil.id && typeof window !== "undefined") {
     providers: [EVM({ getWalletClient: () => Promise.resolve(publicClient) })],
     rpcUrls: {
       [optimism.id]: [`${optimism.rpcUrls.alchemy?.http[0]}/${alchemyAPIKey}`],
-      [chain.id]: [publicClient.transport.url],
+      [chain.id]: [publicClient.transport.alchemyRpcUrl],
     },
   });
 }

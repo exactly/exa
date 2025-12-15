@@ -1,5 +1,5 @@
-import type { ClientWithAlchemyMethods } from "@alchemy/aa-alchemy";
-import type { SmartAccountClient, SmartContractAccount } from "@alchemy/aa-core";
+import type { SmartAccountClient, SmartContractAccount } from "@aa-sdk/core";
+import type { ClientWithAlchemyMethods } from "@account-kit/infra";
 import chain from "@exactly/common/generated/chain";
 import type { Credential } from "@exactly/common/validation";
 import { type Chain, SwitchChainError, type Transport, getAddress } from "viem";

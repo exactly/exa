@@ -1,4 +1,4 @@
-import type { BatchUserOperationCallData } from "@alchemy/aa-core";
+import type { BatchUserOperationCallData } from "@aa-sdk/core";
 import ProposalType from "@exactly/common/ProposalType";
 import { exaPluginAddress, marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import {
