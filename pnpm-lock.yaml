@@ -373,7 +373,7 @@ importers:
         specifier: ~6.0.20
         version: 6.0.20(expo@54.0.29)
       expo-doctor:
-        specifier: ^1.12.8
+        specifier: ^1.17.13
         version: 1.17.13
       gitmojis:
         specifier: ^3.15.0
