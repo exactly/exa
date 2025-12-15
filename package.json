@@ -23,8 +23,7 @@
     "test:spell": "cspell --gitignore '**' '.changeset/**' '.cursor/**' '.do/**' '.github/**' '.eslintrc.*'",
     "test:deps": "pnpm audit",
     "test:build": "expo export --platform web",
-    "test:ts:expo": "tsc --pretty ${GITHUB_ACTIONS:+false}",
-    "test:ts:node": "tsc -p tsconfig.node.json --pretty ${GITHUB_ACTIONS:+false}",
+    "test:ts": "tsc --pretty ${GITHUB_ACTIONS:+false}",
     "test:markdown": "markdownlint '**/*.md' '**/*.mdx' '.changeset/**/*.md' '.cursor/**/*.mdc' --ignore ios",
     "test:changeset": "changeset status --since origin/main"
   },
@@ -386,8 +385,7 @@
           "test:spell",
           "test:deps",
           "test:build",
-          "test:ts:expo",
-          "test:ts:node",
+          "test:ts",
           "test:markdown",
           "test:changeset",
           "test:eslint"
