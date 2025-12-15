@@ -11,6 +11,7 @@ export default defineConfig([
   {
     languageOptions: { parserOptions: { projectService: { allowDefaultProject: ["*.config.{js,cjs,mjs}"] } } },
     rules: {
+      "@nx/enforce-module-boundaries": ["error", { allow: ["@exactly/server/api/*"] }],
       "no-restricted-imports": [
         "error",
         { paths: [{ name: "wagmi", importNames: ["useAccount"], message: "Use `useAccount` from utils." }] },
