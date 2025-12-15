@@ -1,5 +1,5 @@
 import { getAddress, zeroAddress } from "viem";
-import { useAccount as useWagmiAccount, type UseAccountParameters } from "wagmi";
+import { useAccount as useWagmiAccount, type UseAccountParameters } from "wagmi"; // eslint-disable-line no-restricted-imports
 
 export default function useAccount(parameters?: UseAccountParameters) {
   const account = useWagmiAccount(parameters);
