@@ -100,25 +100,18 @@ export default function Amount() {
     query: { enabled: !!external && !!address && !!bytecode && formAmount > 0n },
   });
 
-  const {
-    writeContract,
-    data: hash,
-    isPending: pending,
-    isSuccess: success,
-    isError: error,
-    reset,
-  } = useWriteContract();
+  const { mutate, data: hash, isPending: pending, isSuccess: success, isError: error, reset } = useWriteContract();
 
   const handleSubmit = useCallback(() => {
     if (market) {
       if (!proposeSimulation) throw new Error("no propose simulation");
-      writeContract(proposeSimulation.request);
+      mutate(proposeSimulation.request);
     } else {
       if (!external) throw new Error("no external asset");
       if (!transferSimulation) throw new Error("no transfer simulation");
-      writeContract(transferSimulation.request);
+      mutate(transferSimulation.request);
     }
-  }, [market, proposeSimulation, writeContract, external, transferSimulation]);
+  }, [market, proposeSimulation, mutate, external, transferSimulation]);
 
   const details: {
     external: boolean;

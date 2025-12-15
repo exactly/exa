@@ -341,7 +341,7 @@ export default function Pay() {
   });
 
   const {
-    writeContract,
+    mutate,
     isPending: isRepaying,
     isSuccess: isRepaySuccess,
     error: writeContractError,
@@ -360,19 +360,19 @@ export default function Pay() {
     switch (mode) {
       case "repay":
         if (!repayPropose) throw new Error("no repay simulation");
-        writeContract(repayPropose.request);
+        mutate(repayPropose.request);
         break;
       case "legacyRepay":
         if (!legacyRepaySimulation) throw new Error("no legacy repay simulation");
-        writeContract(legacyRepaySimulation.request);
+        mutate(legacyRepaySimulation.request);
         break;
       case "crossRepay":
         if (!crossRepayPropose) throw new Error("no cross repay simulation");
-        writeContract(crossRepayPropose.request);
+        mutate(crossRepayPropose.request);
         break;
       case "legacyCrossRepay":
         if (!legacyCrossRepaySimulation) throw new Error("no legacy cross repay simulation");
-        writeContract(legacyCrossRepaySimulation.request);
+        mutate(legacyCrossRepaySimulation.request);
         break;
     }
     setEnableSimulations(false);
@@ -387,7 +387,7 @@ export default function Pay() {
     repayPropose,
     route?.fromAmount,
     withUSDC,
-    writeContract,
+    mutate,
   ]);
 
   const {
@@ -800,7 +800,6 @@ export default function Pay() {
             </YStack>
           </View>
           <AssetSelectionSheet
-            positions={positions}
             onAssetSelected={handleAssetSelect}
             open={assetSelectionOpen}
             onClose={() => {

@@ -339,22 +339,17 @@ export default function Swaps() {
     protocol: isSimulatingSwap,
   }[fromToken?.external ? "external" : "protocol"];
 
-  const {
-    writeContract,
-    isPending: isSwapping,
-    isSuccess: isSwapSuccess,
-    error: writeContractError,
-  } = useWriteContract({});
+  const { mutate, isPending: isSwapping, isSuccess: isSwapSuccess, error: writeContractError } = useWriteContract({});
 
   const handleSwap = useCallback(() => {
     if (!route) return;
     if (fromToken?.external && externalSwap) {
-      writeContract(externalSwap.request);
+      mutate(externalSwap.request);
     } else if (swapPropose) {
-      writeContract(swapPropose.request);
+      mutate(swapPropose.request);
     }
     updateSwap((old) => ({ ...old, enableSimulations: false }));
-  }, [route, fromToken?.external, externalSwap, swapPropose, writeContract, updateSwap]);
+  }, [route, fromToken?.external, externalSwap, swapPropose, mutate, updateSwap]);
 
   const toTokenIsUSDC = toToken?.token.symbol === "USDC";
   const caution =

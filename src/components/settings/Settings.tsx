@@ -20,7 +20,7 @@ import View from "../shared/View";
 export default function Settings() {
   const router = useRouter();
   const { connector } = useAccount();
-  const { disconnect } = useDisconnect();
+  const { mutate: disconnect } = useDisconnect();
   const { mutate: submitCoverage, isSuccess: coverageSuccess, isError: coverageError } = useSubmitCoverage();
   return (
     <SafeView fullScreen tab>

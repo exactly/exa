@@ -242,7 +242,7 @@ function RolloverButton({
   });
 
   const {
-    writeContract,
+    mutate,
     isPending: isProposeRollDebtPending,
     error: proposeRollDebtError,
   } = useWriteContract({
@@ -270,8 +270,8 @@ function RolloverButton({
   const proposeRollDebt = useCallback(() => {
     if (!address) throw new Error("no address");
     if (!proposeSimulation) throw new Error("no propose roll debt simulation");
-    writeContract(proposeSimulation.request);
-  }, [address, proposeSimulation, writeContract]);
+    mutate(proposeSimulation.request);
+  }, [address, proposeSimulation, mutate]);
 
   const hasProposed = pendingProposals?.some(
     ({ proposal }) =>

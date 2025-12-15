@@ -10,19 +10,10 @@ export default function AssetSelectionSheet({
   open,
   onClose,
   onAssetSelected,
-  positions,
 }: {
   open: boolean;
   onClose: () => void;
   onAssetSelected: (market: Address, external: boolean) => void;
-  positions?: {
-    symbol: string;
-    assetName: string;
-    floatingDepositAssets: bigint;
-    decimals: number;
-    usdValue: bigint;
-    market: string;
-  }[];
 }) {
   return (
     <ModalSheet open={open} onClose={onClose}>
@@ -30,7 +21,6 @@ export default function AssetSelectionSheet({
         <View padded paddingTop="$s6" fullScreen flex={1}>
           <AssetSelector
             sortBy="usdcFirst"
-            positions={positions}
             onSubmit={(market, isExternalAsset) => {
               onAssetSelected(market, isExternalAsset);
               onClose();

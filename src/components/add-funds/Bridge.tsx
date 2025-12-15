@@ -63,8 +63,8 @@ export default function Bridge() {
 
   const senderConfig = ownerConfig;
   const { address: senderAddress } = useAccount({ config: senderConfig });
-  const { sendTransactionAsync } = useSendTransaction({ config: senderConfig });
-  const { sendCallsAsync } = useSendCalls({ config: senderConfig });
+  const { mutateAsync: sendTransaction } = useSendTransaction({ config: senderConfig });
+  const { mutateAsync: sendCalls } = useSendCalls({ config: senderConfig });
   const { writeContractAsync: transfer } = useWriteContract({ config: senderConfig });
 
   const protocolSymbols = useMemo(() => {
@@ -307,7 +307,7 @@ export default function Bridge() {
       }
       setBridgeStatus("Submitting bridge transaction...");
       try {
-        await sendCallsAsync({
+        await sendCalls({
           calls: [
             ...(approval ? [{ to: getAddress(selectedSource.address), data: approval }] : []),
             { to: from.to, data: from.data, value: from.value },
@@ -316,10 +316,10 @@ export default function Bridge() {
         setBridgeStatus("Bridge transaction submitted");
       } catch {
         if (approval) {
-          const hash = await sendTransactionAsync({ to: getAddress(selectedSource.address), data: approval });
+          const hash = await sendTransaction({ to: getAddress(selectedSource.address), data: approval });
           await waitForTransactionReceipt(senderConfig, { hash });
         }
-        const hash = await sendTransactionAsync({ to: from.to, data: from.data, value: from.value });
+        const hash = await sendTransaction({ to: from.to, data: from.data, value: from.value });
         await waitForTransactionReceipt(senderConfig, { hash });
         setBridgeStatus("Bridge transaction submitted");
       }
@@ -361,7 +361,7 @@ export default function Bridge() {
       const recipient = getAddress(account);
       let hash: Hex;
       if (isNativeSource) {
-        hash = await sendTransactionAsync({ to: recipient, value: sourceAmount });
+        hash = await sendTransaction({ to: recipient, value: sourceAmount });
       } else {
         if (!transferSimulation) throw new Error("missing transfer simulation");
         hash = await transfer(transferSimulation.request);
