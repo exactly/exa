@@ -79,7 +79,7 @@ export default function Maturity() {
                     const invalid = index + Number(loan?.installments) > MAX_INSTALLMENTS;
                     return (
                       <XStack
-                        key={index}
+                        key={maturity}
                         onPress={() => {
                           if (invalid) return;
                           queryClient.setQueryData(["loan"], (old: Loan) => ({ ...old, maturity }));
