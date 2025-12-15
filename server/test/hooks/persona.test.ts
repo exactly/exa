@@ -1,23 +1,147 @@
-import "../mocks/sentry";
 import "../mocks/database";
-import "../mocks/persona";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import { captureException } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
+import type * as valibot from "valibot";
 import { padHex, zeroAddress, zeroHash } from "viem";
-import { privateKeyToAddress } from "viem/accounts";
+import { privateKeyToAddress, type Address } from "viem/accounts";
 import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 
 import database, { credentials } from "../../database";
 import app from "../../hooks/persona";
 import * as panda from "../../utils/panda";
+import { addCapita } from "../../utils/pax";
+import type * as PersonaUtils from "../../utils/persona";
 import * as sardine from "../../utils/sardine";
 
 const appClient = testClient(app);
 
 vi.mock("@sentry/node", { spy: true });
+vi.mock("../../utils/panda");
+vi.mock("../../utils/pax");
+
+const { mockNoOpMiddleware } = vi.hoisted(() => {
+  return { mockNoOpMiddleware: (_c: unknown, next: () => Promise<void>) => next() };
+});
+
+vi.mock("../../utils/persona", async (importOriginal) => {
+  const actual = await importOriginal<typeof PersonaUtils>();
+  return { ...actual, headerValidator: () => mockNoOpMiddleware };
+});
+vi.mock("valibot", async (importOriginal) => {
+  const actual = await importOriginal<typeof valibot>();
+  return { ...actual, check: actual.check };
+});
+
+describe("persona hook", () => {
+  let account: Address;
+
+  beforeAll(async () => {
+    account = deriveAddress(inject("ExaAccountFactory"), { x: padHex("0xbob"), y: zeroHash });
+
+    await database.insert(credentials).values({
+      id: "persona-ref",
+      publicKey: new Uint8Array(),
+      factory: zeroAddress,
+      account,
+      pandaId: null,
+    });
+  });
+
+  const validPayload = {
+    data: {
+      attributes: {
+        payload: {
+          data: {
+            id: "inq_123",
+            attributes: {
+              status: "approved",
+              referenceId: "persona-ref",
+              emailAddress: "john@example.com",
+              phoneNumber: "+1234567890",
+              birthdate: "1990-01-01",
+              nameFirst: "John",
+              nameMiddle: null,
+              nameLast: "Doe",
+              addressStreet1: "123 Main St",
+              addressStreet2: null,
+              addressCity: "New York",
+              addressSubdivision: "NY",
+              addressSubdivisionAbbr: "NY",
+              addressPostalCode: "10001",
+              fields: {
+                accountPurpose: { value: "business" },
+                addressCountryCode: { value: "US" },
+                annualSalary: { value: "100000" },
+                expectedMonthlyVolume: { value: "1000" },
+                inputSelect: { value: "engineer" },
+                birthdate: { value: "1990-01-01" },
+                identificationNumber: { value: "DOC123" },
+                nameFirst: { value: "John" },
+                nameLast: { value: "Doe" },
+                emailAddress: { value: "john@example.com" },
+                phoneNumber: { value: "+1234567890" },
+              },
+            },
+          },
+          included: [
+            {
+              type: "inquiry-session",
+              attributes: {
+                createdAt: "2023-01-01T00:00:00.000Z",
+                ipAddress: "127.0.0.1",
+              },
+            },
+          ],
+        },
+      },
+    },
+  } as const;
+
+  it("creates panda and pax user on valid inquiry", async () => {
+    vi.mocked(panda.createUser).mockResolvedValue({ id: "new-panda-id" });
+
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: {
+        ...validPayload,
+        data: {
+          ...validPayload.data,
+          attributes: {
+            ...validPayload.data.attributes,
+            payload: {
+              ...validPayload.data.attributes.payload,
+              included: [...validPayload.data.attributes.payload.included],
+            },
+          },
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(panda.createUser).toHaveBeenCalledWith({
+      accountPurpose: "business",
+      annualSalary: "100000",
+      expectedMonthlyVolume: "1000",
+      ipAddress: "127.0.0.1",
+      isTermsOfServiceAccepted: true,
+      occupation: "engineer",
+      personaShareToken: "inq_123",
+    });
+    expect(addCapita).toHaveBeenCalledWith({
+      birthdate: "1990-01-01",
+      document: "DOC123",
+      firstName: "John",
+      lastName: "Doe",
+      email: "john@example.com",
+      phone: "+1234567890",
+      internalId: account,
+      product: "gold",
+    });
+  });
+});
 
 describe("with reference", () => {
   const bob = privateKeyToAddress(padHex("0xb0b"));

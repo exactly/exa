@@ -1,6 +1,6 @@
 import { firewallAbi, firewallAddress } from "@exactly/common/generated/chain";
 import { vValidator } from "@hono/valibot-validator";
-import { captureException, getActiveSpan, SEMANTIC_ATTRIBUTE_SENTRY_OP, setUser } from "@sentry/node";
+import { captureException, getActiveSpan, SEMANTIC_ATTRIBUTE_SENTRY_OP, setContext, setUser } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import type { InferOutput } from "valibot";
@@ -24,6 +24,7 @@ import {
 import database, { credentials } from "../database/index";
 import keeper from "../utils/keeper";
 import { createUser } from "../utils/panda";
+import { addCapita } from "../utils/pax";
 import { headerValidator } from "../utils/persona";
 import { customer } from "../utils/sardine";
 import validatorHook from "../utils/validatorHook";
@@ -79,6 +80,12 @@ export default new Hono().post(
                       inputSelect: object({ value: string() }),
                       monthlyPurchasesRange: optional(object({ value: string() })),
                       addressCountryCode: object({ value: string() }),
+                      birthdate: object({ value: string() }),
+                      identificationNumber: object({ value: string() }),
+                      nameFirst: object({ value: string() }),
+                      nameLast: object({ value: string() }),
+                      emailAddress: object({ value: string() }),
+                      phoneNumber: optional(object({ value: string() })),
                     }),
                     check(
                       (fields) => !!fields.annualSalaryRangesUs150000?.value || !!fields.annualSalary.value,
@@ -237,6 +244,25 @@ export default new Hono().post(
         )
         .catch((error: unknown) => captureException(error, { level: "error" }));
     }
+
+    try {
+      await addCapita({
+        birthdate: fields.birthdate.value,
+        document: fields.identificationNumber.value,
+        firstName: fields.nameFirst.value,
+        lastName: fields.nameLast.value,
+        email: fields.emailAddress.value,
+        phone: fields.phoneNumber?.value ?? "", // Phone is optional in Pax? Assuming empty string if not present, need to verify
+        internalId: credential.account,
+        product: "gold", // TODO: Verify what 'product' should be. Currently hardcoded to 'gold'.
+      });
+    } catch (error) {
+      captureException(error, { extra: { pandaId: id, referenceId } });
+      // We don't fail the request if Pax creation fails, as the core goal (Panda user) succeeded.
+      // We track the error to fix manually or retry.
+    }
+
+    setContext("persona", { inquiryId: personaShareToken, pandaId: id });
 
     return c.json({ id }, 200);
   },
