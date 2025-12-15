@@ -2,8 +2,8 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { csrf } from "hono/csrf";
 
-import activity from "./activity";
 import appOrigin from "../utils/appOrigin";
+import activity from "./activity";
 import authentication from "./auth/authentication";
 import registration from "./auth/registration";
 import card from "./card";

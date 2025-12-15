@@ -1,7 +1,7 @@
-import "../mocks/sentry";
 import "../mocks/auth";
 import "../mocks/database";
 import "../mocks/deployments";
+import "../mocks/sentry";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import chain from "@exactly/common/generated/chain";
@@ -10,7 +10,7 @@ import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import crypto from "node:crypto";
 import type * as v from "valibot";
-import { zeroHash, padHex, zeroAddress, getAddress, sha256 } from "viem";
+import { getAddress, padHex, sha256, zeroAddress, zeroHash } from "viem";
 import { mnemonicToAccount, privateKeyToAddress } from "viem/accounts";
 import { createSiweMessage, generateSiweNonce } from "viem/siwe";
 import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";

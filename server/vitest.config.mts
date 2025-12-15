@@ -24,6 +24,7 @@ export default defineConfig({
       PANDA_API_URL: "https://panda.test",
       PAX_API_KEY: "pax",
       PAX_API_URL: "https://pax.test",
+      PAX_ASSOCIATE_ID_SECRET: "pax",
       PERSONA_API_KEY: "persona",
       PERSONA_URL: "https://persona.test",
       PERSONA_WEBHOOK_SECRET: "persona",

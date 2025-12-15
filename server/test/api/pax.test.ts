@@ -1,25 +1,27 @@
 import "../mocks/auth";
-import "../mocks/database";
 import "../mocks/deployments";
 import "../mocks/sentry";
 
 import deriveAddress from "@exactly/common/deriveAddress";
+import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { padHex, zeroAddress, zeroHash } from "viem";
-import { privateKeyToAddress } from "viem/accounts";
-import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
+import { generatePrivateKey, privateKeyToAddress } from "viem/accounts";
+import { afterAll, afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 
-import app, { type AppType } from "../../api/pax";
-import database, { credentials } from "../../database";
+import app from "../../api/pax";
+import database, { cards, credentials } from "../../database";
 import deriveAssociateId from "../../utils/deriveAssociateId";
 
-const appClient = testClient<AppType>(app);
+const appClient = testClient(app);
 
 describe("/pax GET", () => {
-  const bob = privateKeyToAddress(padHex("0xb0b"));
+  const bob = privateKeyToAddress(generatePrivateKey());
   const account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(bob), y: zeroHash });
 
   beforeAll(async () => {
+    await database.delete(cards).where(eq(cards.credentialId, account));
+    await database.delete(credentials).where(eq(credentials.account, account));
     await database.insert(credentials).values([
       {
         id: account,
@@ -29,6 +31,10 @@ describe("/pax GET", () => {
         pandaId: "pandaId",
       },
     ]);
+  });
+
+  afterAll(async () => {
+    await database.delete(credentials).where(eq(credentials.account, account));
   });
 
   afterEach(() => {
