@@ -108,7 +108,7 @@ export default function TokenInput({
           pointerEvents={canUseMax ? "auto" : "none"}
           opacity={canUseMax ? 1 : 0.4}
           cursor="pointer"
-          pressStyle={{ opacity: 0.85 }} // eslint-disable-line react-native/no-inline-styles
+          pressStyle={{ opacity: 0.85 }}
         >
           <Text emphasized footnote color="$interactiveOnBaseBrandSoft">
             MAX
@@ -143,7 +143,7 @@ export default function TokenInput({
                   {chainLogoUri ? (
                     <Image
                       source={{ uri: chainLogoUri }}
-                      style={{ height: "100%", resizeMode: "cover", width: "100%" }} // eslint-disable-line react-native/no-inline-styles
+                      style={{ height: "100%", resizeMode: "cover", width: "100%" }}
                     />
                   ) : (
                     <OptimismImage width="100%" height="100%" />

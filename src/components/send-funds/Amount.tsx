@@ -184,12 +184,7 @@ export default function Amount() {
               Enter amount
             </Text>
           </View>
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            // eslint-disable-next-line react-native/no-inline-styles
-            contentContainerStyle={{ flexGrow: 1 }}
-            gap="$s5"
-          >
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }} gap="$s5">
             <View flex={1} gap="$s5" paddingBottom="$s5">
               <View gap="$s3">
                 <XStack

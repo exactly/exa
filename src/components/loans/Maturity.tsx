@@ -63,7 +63,6 @@ export default function Maturity() {
       <ScrollView
         backgroundColor="$backgroundMild"
         showsVerticalScrollIndicator={false}
-        // eslint-disable-next-line react-native/no-inline-styles
         contentContainerStyle={{ flexGrow: 1 }}
       >
         <YStack gap="$s4" justifyContent="space-between">

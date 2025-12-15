@@ -65,7 +65,7 @@ function TokenListItem({ token, isSelected, onPress }: TokenListItemProperties) 
         <Image
           source={{ uri: token.logoURI ?? "https://via.placeholder.com/40" }}
           borderRadius={20}
-          style={{ minWidth: 40, minHeight: 40, borderRadius: 99 }} // eslint-disable-line react-native/no-inline-styles
+          style={{ minWidth: 40, minHeight: 40, borderRadius: 99 }}
         />
         <XStack gap="$s2" flex={1} justifyContent="space-between">
           <YStack flex={1}>

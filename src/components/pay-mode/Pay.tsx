@@ -537,7 +537,7 @@ export default function Pay() {
           </View>
           <ScrollView
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ flex: 1, justifyContent: "space-between" }} // eslint-disable-line react-native/no-inline-styles
+            contentContainerStyle={{ flex: 1, justifyContent: "space-between" }}
           >
             <View padded>
               <YStack gap="$s4" paddingTop="$s5">
