@@ -64,7 +64,7 @@ export default function Installments() {
                 <Text primary emphasized body>
                   Select your funding installment plan
                 </Text>
-                {loan?.market && loan.amount && (
+                {loan?.market && loan.amount ? (
                   <InstallmentSelector
                     value={loan.installments ?? 0}
                     onSelect={(installments) => {
@@ -73,14 +73,14 @@ export default function Installments() {
                     totalAmount={loan.amount}
                     market={loan.market}
                   />
-                )}
+                ) : null}
               </YStack>
             </YStack>
           </YStack>
         </YStack>
       </ScrollView>
       <YStack gap="$s4" padding="$s4" backgroundColor="$backgroundSoft">
-        {loan?.installments && <LoanSummary loan={loan} />}
+        {loan?.installments ? <LoanSummary loan={loan} /> : null}
         <Button
           onPress={() => {
             router.push("/loan/maturity");

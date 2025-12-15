@@ -24,8 +24,8 @@ export default function RecentContacts({ onContactPress }: { onContactPress: (ad
         <View gap="$s3_5">
           {recentContacts
             .filter((contact, index, array) => array.findIndex((c) => c.address === contact.address) === index)
-            .map((contact, index) => (
-              <Contact key={index} contact={contact} onContactPress={onContactPress} />
+            .map((contact) => (
+              <Contact key={contact.address} contact={contact} onContactPress={onContactPress} />
             ))}
         </View>
       ) : (

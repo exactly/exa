@@ -568,7 +568,7 @@ export default function Pay() {
                   positionValue={positionValue}
                   repayMarket={repayMarket?.market}
                 />
-                {positionAssets && (
+                {positionAssets ? (
                   <XStack justifyContent="space-between" gap="$s3" alignItems="center">
                     <Text secondary footnote textAlign="left">
                       Subtotal
@@ -588,8 +588,8 @@ export default function Pay() {
                       )}
                     </XStack>
                   </XStack>
-                )}
-                {repayAssets && (
+                ) : null}
+                {repayAssets ? (
                   <XStack justifyContent="space-between" gap="$s3" alignItems="center">
                     {discountOrPenaltyPercentage >= 0 ? (
                       <Text secondary footnote textAlign="left">
@@ -637,8 +637,8 @@ export default function Pay() {
                       </Text>
                     </XStack>
                   </XStack>
-                )}
-                {repayAssets && (
+                ) : null}
+                {repayAssets ? (
                   <>
                     <Separator height={1} borderColor="$borderNeutralSoft" />
                     <XStack justifyContent="space-between" gap="$s3" alignItems="center">
@@ -683,7 +683,7 @@ export default function Pay() {
                       </YStack>
                     </XStack>
                   </>
-                )}
+                ) : null}
               </YStack>
             </View>
           </ScrollView>

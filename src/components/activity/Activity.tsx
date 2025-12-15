@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import React, { memo, useCallback, useMemo } from "react";
-import type { ListRenderItem } from "react-native";
+import React, { memo, useMemo } from "react";
 import { FlatList, RefreshControl } from "react-native";
 import { styled, useTheme } from "tamagui";
 
@@ -48,18 +47,6 @@ export default function Activity() {
 
     return { data: items, stickyHeaderIndices: stickyIndices };
   }, [activity]);
-
-  const renderItem = useCallback<ListRenderItem<ActivityItemType>>(({ item }) => {
-    if (item.type === "header") return <HeaderRow date={item.date} />;
-    return <MemoizedActivityItem item={item.event} isLast={item.isLast} />;
-  }, []);
-
-  const keyExtractor = useCallback(
-    (item: ActivityItemType) => (item.type === "header" ? `header-${item.date}` : `event-${item.event.id}`),
-    [],
-  );
-
-  const style = { backgroundColor: theme.backgroundSoft.val, margin: -5 };
   return (
     <SafeView fullScreen tab backgroundColor="$backgroundSoft">
       <View gap="$s5" flex={1} backgroundColor="$backgroundMild">
@@ -70,7 +57,7 @@ export default function Activity() {
           refreshControl={
             <RefreshControl
               ref={activityRefreshControlReference}
-              style={style}
+              style={{ backgroundColor: theme.backgroundSoft.val, margin: -5 }}
               refreshing={isPending}
               onRefresh={() => {
                 refetch().catch(reportError);
@@ -128,8 +115,18 @@ const HeaderRow = memo(function HeaderRow({ date }: { date: string }) {
 });
 HeaderRow.displayName = "HeaderRow";
 
-const areActivityItemsEqual = (previous: ActivityItemProperties, next: ActivityItemProperties) =>
-  previous.item === next.item && previous.isLast === next.isLast;
+function renderItem({ item }: { item: ActivityItemType }) {
+  if (item.type === "header") return <HeaderRow date={item.date} />;
+  return <MemoizedActivityItem item={item.event} isLast={item.isLast} />;
+}
+
+function areActivityItemsEqual(previous: ActivityItemProperties, next: ActivityItemProperties) {
+  return previous.item === next.item && previous.isLast === next.isLast;
+}
+
+function keyExtractor(item: ActivityItemType) {
+  return item.type === "header" ? `header-${item.date}` : `event-${item.event.id}`;
+}
 
 const MemoizedActivityItem = memo(ActivityItem, areActivityItemsEqual);
 MemoizedActivityItem.displayName = "MemoizedActivityItem";

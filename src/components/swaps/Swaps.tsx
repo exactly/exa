@@ -88,9 +88,9 @@ export default function Swaps() {
     queryFn: () => defaultSwap,
   });
 
-  const updateSwap = useCallback((updater: (old: Swap) => Swap) => {
+  const updateSwap = (updater: (old: Swap) => Swap) => {
     queryClient.setQueryData<Swap>(["swap"], (old) => updater(old ?? defaultSwap));
-  }, []);
+  };
 
   const isExternal = useCallback(
     (address: string) => {

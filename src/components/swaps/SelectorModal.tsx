@@ -156,16 +156,15 @@ export default function TokenSelectModal({
     />
   );
 
-  const skeletonItems = useMemo(
-    () => (
+  const skeletonItems = () => {
+    return (
       <YStack>
         {Array.from({ length: 8 }).map((_, index) => (
           <TokenSkeletonItem key={index} />
         ))}
       </YStack>
-    ),
-    [],
-  );
+    );
+  };
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag heightPercent={85}>
       <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">

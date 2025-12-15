@@ -21,14 +21,6 @@ export default function AssetSelector({
   onSubmit,
   sortBy = "usdValue",
 }: {
-  positions?: {
-    symbol: string;
-    assetName: string;
-    floatingDepositAssets: bigint;
-    decimals: number;
-    usdValue: bigint;
-    market: string;
-  }[];
   onSubmit: (market: Address, isExternalAsset: boolean) => void;
   sortBy?: "usdValue" | "usdcFirst";
 }) {

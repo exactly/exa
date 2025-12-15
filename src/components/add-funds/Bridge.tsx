@@ -855,7 +855,7 @@ export default function Bridge() {
                         2%
                       </Text>
                     </XStack>
-                    {bridgeQuote.estimate.executionDuration && (
+                    {bridgeQuote.estimate.executionDuration ? (
                       <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
                         <Text caption color="$uiNeutralSecondary">
                           Estimated time
@@ -864,7 +864,7 @@ export default function Bridge() {
                           {`~${Math.max(1, Math.round(bridgeQuote.estimate.executionDuration / 60))} min`}
                         </Text>
                       </XStack>
-                    )}
+                    ) : null}
                     {(bridgeQuote.tool ?? bridgeQuote.estimate.tool) && (
                       <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
                         <Text caption color="$uiNeutralSecondary">

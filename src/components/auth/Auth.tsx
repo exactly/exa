@@ -74,13 +74,13 @@ export default function Auth() {
     [offsetX],
   );
 
-  const scrollToNextPage = useCallback(() => {
+  const scrollToNextPage = () => {
     flatListReference.current?.scrollToIndex({
       index: activeIndex < pages.length - 1 ? activeIndex + 1 : 0,
       animated: true,
       viewPosition: 0.5,
     });
-  }, [activeIndex]);
+  };
 
   const { signIn, isPending: loadingAuth } = useAuth(
     () => {
@@ -220,7 +220,7 @@ export default function Auth() {
           setErrorDialogOpen(false);
         }}
       />
-      {isOwnerAvailable && (
+      {isOwnerAvailable ? (
         <>
           <ConnectSheet
             open={signInModalOpen}
@@ -252,7 +252,7 @@ export default function Auth() {
             siweText="Sign up with browser wallet"
           />
         </>
-      )}
+      ) : null}
       <TimeToFullDisplay record />
     </SafeView>
   );

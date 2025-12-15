@@ -165,14 +165,14 @@ export default function CardDetails({ open, onClose }: { open: boolean; onClose:
                   </YStack>
                 </YStack>
               ) : null}
-              {card && alertShown && (
+              {card && alertShown ? (
                 <DismissableAlert
                   text="Manually add your card to Apple Pay & Google Pay to make contactless payments."
                   onDismiss={() => {
                     queryClient.setQueryData(["settings", "alertShown"], false);
                   }}
                 />
-              )}
+              ) : null}
               <Pressable onPress={onClose} style={styles.close} hitSlop={20}>
                 <Text emphasized footnote color="$interactiveTextBrandDefault">
                   Close

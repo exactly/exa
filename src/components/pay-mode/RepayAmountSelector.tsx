@@ -158,7 +158,7 @@ export default function RepayAmountSelector({
             </Text>
           )}
         </YStack>
-        {balancerBalance && positionValue > balancerBalance && (
+        {balancerBalance && positionValue > balancerBalance ? (
           <Text caption color="$uiNeutralPlaceholder">
             Limit&nbsp;
             {(Number(balancerBalanceUSD) / 1e18).toLocaleString(undefined, {
@@ -168,7 +168,7 @@ export default function RepayAmountSelector({
             })}
             &nbsp;per repay. Please split larger amounts into smaller payments.
           </Text>
-        )}
+        ) : null}
       </YStack>
     </YStack>
   );

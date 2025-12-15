@@ -125,9 +125,7 @@ const ButtonText = (properties: ComponentPropsWithoutRef<typeof Text>) => {
       flex={1}
       color={color}
       {...properties}
-    >
-      {properties.children}
-    </Text>
+    />
   );
 };
 
