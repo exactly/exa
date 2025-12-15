@@ -1,3 +1,6 @@
+autoInstallPeers: false
+ignoreWorkspaceRootCheck: true
+includeWorkspaceRoot: true
 packages:
   - "."
   - common
@@ -5,3 +8,11 @@ packages:
   - docs
   - server
   - .maestro
+publicHoistPattern:
+  - "@babel/runtime"
+  - "@react-native/assets-registry"
+  - "@react-native/gradle-plugin"
+  - "@sentry/cli"
+  - expo-asset
+  - expo-modules-autolinking
+  - react-native-web
