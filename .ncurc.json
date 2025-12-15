@@ -2,6 +2,7 @@
   "reject": [
     "@expo/fingerprint",
     "@expo/metro-runtime",
+    "@lifi/sdk",
     "@openzeppelin/contracts-v4",
     "@openzeppelin/contracts-upgradeable-v4",
     "@react-native-async-storage/async-storage",
