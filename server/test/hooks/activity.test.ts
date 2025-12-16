@@ -2,8 +2,8 @@ import "../mocks/sentry";
 import "../mocks/alchemy";
 import "../mocks/database";
 import "../mocks/deployments";
-import "../mocks/onesignal";
 import "../mocks/keeper";
+import "../mocks/onesignal";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import { exaAccountFactoryAbi, previewerAbi } from "@exactly/common/generated/chain";
@@ -27,6 +27,7 @@ import database, { credentials } from "../../database";
 import app from "../../hooks/activity";
 import * as decodePublicKey from "../../utils/decodePublicKey";
 import keeper from "../../utils/keeper";
+import * as onesignal from "../../utils/onesignal";
 import publicClient from "../../utils/publicClient";
 import anvilClient from "../anvilClient";
 
@@ -244,6 +245,30 @@ describe("address activity", () => {
     const deployed = !!(await publicClient.getCode({ address: account }));
 
     expect(deployed).toBe(true);
+    expect(response.status).toBe(200);
+  });
+
+  it("doesn't send a notification for market shares", async () => {
+    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: {
+          ...activityPayload.json.event,
+          activity: [
+            {
+              ...activityPayload.json.event.activity[1],
+              toAddress: account,
+              rawContract: { address: inject("MarketWETH") },
+            },
+          ],
+        },
+      },
+    });
+
+    expect(sendPushNotification).not.toHaveBeenCalledOnce();
     expect(response.status).toBe(200);
   });
 });
