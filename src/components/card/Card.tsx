@@ -245,7 +245,7 @@ export default function Card() {
               <View alignItems="center" gap="$s4" width="100%" backgroundColor="$backgroundSoft" padded>
                 <XStack gap={10} justifyContent="space-between" alignItems="center" width="100%">
                   <Text fontSize={20} fontWeight="bold">
-                    My Exa Card*
+                    My Exa Card
                   </Text>
                   <View display="flex" flexDirection="row" alignItems="center" gap={16}>
                     <Pressable

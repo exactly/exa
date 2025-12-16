@@ -118,7 +118,7 @@ export default function PaySelector() {
           </XStack>
           <Text subHeadline secondary>
             Choose <Text emphasized>Pay Now</Text> to pay from your USDC balance, or Pay Later to split your purchase
-            into up to {MAX_INSTALLMENTS} fixed-rate USDC installments, powered by Exactly Protocol.*
+            into up to {MAX_INSTALLMENTS} fixed-rate USDC installments, powered by Exactly Protocol.
           </Text>
           <XStack alignItems="center" gap="$s4" flex={1} width="100%">
             <Text primary emphasized subHeadline>
