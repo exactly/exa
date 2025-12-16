@@ -1,39 +1,43 @@
 import shortenHex from "@exactly/common/shortenHex";
-import { Address } from "@exactly/common/validation";
+import type { Address } from "@exactly/common/validation";
 import { ArrowRight, User } from "@tamagui/lucide-icons";
-import { useLocalSearchParams } from "expo-router";
 import React from "react";
 import { Pressable } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
-import { parse } from "valibot";
 
 import assetLogos from "../../utils/assetLogos";
-import useAsset from "../../utils/useAsset";
 import AssetLogo from "../shared/AssetLogo";
-import Button from "../shared/Button";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
+import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function ReviewSheet({
-  open,
+  amount,
+  external,
+  isFirstSend,
+  logoURI,
   onClose,
   onSend,
-  details: { amount, usdValue, symbol },
-  canSend,
-  isFirstSend,
+  open,
+  receiver,
+  sendReady,
+  symbol,
+  usdValue,
 }: {
-  open: boolean;
+  amount: string;
+  external: boolean;
+  isFirstSend: boolean;
+  logoURI?: string;
   onClose: () => void;
   onSend: () => void;
-  canSend: boolean;
-  details: { external: boolean; symbol?: string; amount: string; usdValue: string };
-  isFirstSend: boolean;
+  open: boolean;
+  receiver?: Address;
+  sendReady: boolean;
+  symbol?: string;
+  usdValue: string;
 }) {
-  const { asset, receiver } = useLocalSearchParams();
-  const receiverAddress = parse(Address, receiver);
-  const { market, externalAsset } = useAsset(parse(Address, asset));
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
       <ScrollView $platform-web={{ maxHeight: "100vh" }}>
@@ -58,19 +62,18 @@ export default function ReviewSheet({
                 </Text>
                 <XStack alignItems="center" gap="$s3">
                   <AssetLogo
-                    {...(market
+                    {...(external
                       ? {
-                          external: false,
-                          uri: assetLogos[symbol as keyof typeof assetLogos],
-                          width: 40,
-                          height: 40,
-                        }
-                      : {
                           external: true,
-                          source: { uri: externalAsset?.logoURI },
+                          source: { uri: logoURI },
                           width: 40,
                           height: 40,
                           borderRadius: 20,
+                        }
+                      : {
+                          uri: assetLogos[symbol as keyof typeof assetLogos],
+                          width: 40,
+                          height: 40,
                         })}
                   />
                   <YStack flex={1}>
@@ -107,9 +110,9 @@ export default function ReviewSheet({
                   </View>
                   <YStack>
                     <Text title color="$uiNeutralPrimary" fontFamily="$mono">
-                      {shortenHex(receiverAddress, 3, 5)}
+                      {shortenHex(receiver ?? "", 3, 5)}
                     </Text>
-                    {isFirstSend && (
+                    {receiver && isFirstSend && (
                       <Text subHeadline color="$uiNeutralSecondary">
                         First time send
                       </Text>
@@ -119,17 +122,11 @@ export default function ReviewSheet({
               </YStack>
             </YStack>
             <YStack gap="$s5">
-              <Button
-                onPress={onSend}
-                flexBasis={60}
-                contained
-                main
-                spaced
-                fullwidth
-                disabled={!canSend}
-                iconAfter={<ArrowRight color={canSend ? "$interactiveOnBaseBrandDefault" : "$interactiveOnDisabled"} />}
-              >
-                {canSend ? "Send" : "Enter valid address"}
+              <Button primary disabled={!sendReady} onPress={onSend}>
+                <Button.Text>{sendReady ? "Send" : "Simulation failed"}</Button.Text>
+                <Button.Icon>
+                  <ArrowRight size={24} />
+                </Button.Icon>
               </Button>
               <Pressable onPress={onClose}>
                 <Text emphasized footnote color="$interactiveBaseBrandDefault" alignSelf="center">
