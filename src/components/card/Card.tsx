@@ -10,7 +10,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import React, { type RefObject, useState } from "react";
 import { Pressable, RefreshControl } from "react-native";
-import { ScrollView, Separator, Spinner, Square, Switch, useTheme, XStack, YStack } from "tamagui";
+import { ScrollView, Separator, Spinner, Square, Switch, XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
 import { useBytecode } from "wagmi";
 
@@ -44,7 +44,6 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function Card() {
-  const theme = useTheme();
   const toast = useToastController();
   const [displayPIN, setDisplayPIN] = useState(false);
   const router = useRouter();
@@ -214,18 +213,18 @@ export default function Card() {
   });
 
   const displayStatus = isSettingCardStatus ? optimisticCardStatus : cardDetails?.status;
-  const style = { backgroundColor: theme.backgroundSoft.val, margin: -5 };
   return (
     <SafeView fullScreen tab backgroundColor="$backgroundSoft">
       <View fullScreen backgroundColor="$backgroundMild">
+        <View position="absolute" top={0} left={0} right={0} height="50%" backgroundColor="$backgroundSoft" />
         <ScrollView
           ref={cardScrollReference}
-          backgroundColor="$backgroundMild"
+          backgroundColor="transparent"
+          contentContainerStyle={{ backgroundColor: "$backgroundMild" }}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
               ref={cardRefreshControlReference}
-              style={style}
               refreshing={isPending}
               onRefresh={() => {
                 refetchCard().catch(reportError);

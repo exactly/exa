@@ -22,7 +22,15 @@ import Text from "../shared/Text";
 
 registerLocale(require("i18n-iso-countries/langs/en.json") as LocaleData); // eslint-disable-line unicorn/prefer-module
 
-export default function ActivityItem({ item, isLast }: { item: Item; isLast: boolean }) {
+export default function ActivityItem({
+  item,
+  isLast,
+  StackProps,
+}: {
+  item: Item;
+  isLast: boolean;
+  StackProps?: React.ComponentProps<typeof XStack>;
+}) {
   const router = useRouter();
   const { data: country } = useQuery({ queryKey: ["user", "country"] });
   const processing = item.type === "panda" && country === "US" && isProcessing(item.timestamp);
@@ -42,6 +50,8 @@ export default function ActivityItem({ item, isLast }: { item: Item; isLast: boo
           router.push("/activity-details");
         }
       }}
+      backgroundColor="$backgroundMild"
+      {...StackProps}
     >
       <YStack
         width={40}
