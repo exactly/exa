@@ -3,7 +3,7 @@ import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import React, { useState, type RefObject } from "react";
 import { RefreshControl } from "react-native";
-import { ScrollView, useTheme, XStack } from "tamagui";
+import { ScrollView, XStack } from "tamagui";
 import { zeroAddress } from "viem";
 
 import OverduePayments from "./OverduePayments";
@@ -20,24 +20,24 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function PayMode() {
-  const theme = useTheme();
   const parameters = useLocalSearchParams();
   const { account } = useAsset(marketUSDCAddress);
   const [paySheetOpen, setPaySheetOpen] = useState(false);
   const router = useRouter();
   const { refetch, isPending } = useReadPreviewerExactly({ address: previewerAddress, args: [account ?? zeroAddress] });
-  const style = { backgroundColor: theme.backgroundSoft.val, margin: -5 };
   return (
     <SafeView fullScreen tab backgroundColor="$backgroundSoft">
       <View fullScreen backgroundColor="$backgroundMild">
+        <View position="absolute" top={0} left={0} right={0} height="50%" backgroundColor="$backgroundSoft" />
         <ScrollView
           ref={payModeScrollReference}
+          backgroundColor="transparent"
+          contentContainerStyle={{ backgroundColor: "$backgroundMild" }}
           showsVerticalScrollIndicator={false}
           flex={1}
           refreshControl={
             <RefreshControl
               ref={payModeRefreshControlReference}
-              style={style}
               refreshing={isPending}
               onRefresh={() => {
                 refetch().catch(reportError);
