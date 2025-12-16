@@ -4,7 +4,7 @@ import { ArrowLeft, CircleHelp } from "@tamagui/lucide-icons";
 import { useRouter } from "expo-router";
 import React from "react";
 import { Pressable, RefreshControl } from "react-native";
-import { ScrollView, useTheme, XStack } from "tamagui";
+import { ScrollView, XStack } from "tamagui";
 import { zeroAddress } from "viem";
 
 import AssetList from "./AssetList";
@@ -19,11 +19,9 @@ import View from "../shared/View";
 import WeightedRate from "../shared/WeightedRate";
 
 export default function Portfolio() {
-  const theme = useTheme();
   const { address } = useAccount();
   const { averageRate, portfolio } = usePortfolio(address);
   const router = useRouter();
-  const style = { backgroundColor: theme.backgroundSoft.val, margin: -5 };
 
   const { usdBalance } = portfolio;
 
@@ -33,7 +31,8 @@ export default function Portfolio() {
   });
 
   return (
-    <SafeView fullScreen backgroundColor="$backgroundSoft">
+    <SafeView fullScreen backgroundColor="$backgroundMild">
+      <View position="absolute" top={0} left={0} right={0} height="50%" backgroundColor="$backgroundSoft" />
       <View padded flexDirection="row" gap={10} paddingBottom="$s4" justifyContent="space-between" alignItems="center">
         <Pressable
           onPress={() => {
@@ -54,13 +53,12 @@ export default function Portfolio() {
           <CircleHelp color="$uiNeutralPrimary" />
         </Pressable>
       </View>
-
       <ScrollView
-        backgroundColor="$backgroundMild"
+        backgroundColor="transparent"
+        contentContainerStyle={{ backgroundColor: "$backgroundMild" }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            style={style}
             refreshing={isFetchingMarkets}
             onRefresh={() => {
               refetchMarkets().catch(reportError);

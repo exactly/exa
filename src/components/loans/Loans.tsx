@@ -4,7 +4,7 @@ import { ArrowLeft, CircleHelp } from "@tamagui/lucide-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import React, { useState, type RefObject } from "react";
 import { Pressable, RefreshControl } from "react-native";
-import { ScrollView, useTheme, XStack, YStack } from "tamagui";
+import { ScrollView, XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
 
 import CreditLine from "./CreditLine";
@@ -19,13 +19,11 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function Loans() {
-  const theme = useTheme();
   const parameters = useLocalSearchParams();
   const { account } = useAsset(marketUSDCAddress);
   const [paySheetOpen, setPaySheetOpen] = useState(false);
   const router = useRouter();
   const { refetch, isPending } = useReadPreviewerExactly({ address: previewerAddress, args: [account ?? zeroAddress] });
-  const style = { backgroundColor: theme.backgroundSoft.val, margin: -5 };
   return (
     <SafeView fullScreen tab backgroundColor="$backgroundSoft">
       <View fullScreen backgroundColor="$backgroundMild">
@@ -36,7 +34,6 @@ export default function Loans() {
           refreshControl={
             <RefreshControl
               ref={loansRefreshControlReference}
-              style={style}
               refreshing={isPending}
               onRefresh={() => {
                 refetch().catch(reportError);
