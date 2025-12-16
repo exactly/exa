@@ -41,12 +41,13 @@ export default function TokenInput({
   isDanger?: boolean;
   onTokenSelect: () => void;
   onFocus?: () => void;
-  onChange?: (amount: bigint) => void;
-  onUseMax?: (amount: bigint) => void;
+  onChange?: (amount: string) => void;
+  onUseMax?: (amount: string) => void;
   chainLogoUri?: string;
 }) {
-  const { Field, setFieldValue, getFieldValue } = useForm({ defaultValues: { amountInput: "" } });
+  const { Field, setFieldValue } = useForm({ defaultValues: { amountInput: "" } });
 
+  const amountString = token ? formatUnits(amount, token.decimals) : "";
   const valueUSD =
     amount && token ? Number(formatUnits((amount * parseUnits(token.priceUSD, 18)) / WAD, token.decimals)) : 0;
   const balanceUSD =
@@ -57,28 +58,30 @@ export default function TokenInput({
     (value: string) => {
       setFieldValue("amountInput", value);
       if (!token) return;
-      const inputAmount = parseUnits(value.replaceAll(/\D/g, ".").replaceAll(/\.(?=.*\.)/g, ""), token.decimals);
-      onChange?.(inputAmount);
+
+      const normalizedValue = value.replace(",", ".");
+
+      if (normalizedValue === "" || !Number.isNaN(Number(normalizedValue))) {
+        onChange?.(normalizedValue);
+      }
     },
     [setFieldValue, token, onChange],
   );
 
   const useMax = useCallback(() => {
     if (!token) return;
-    setFieldValue("amountInput", formatUnits(balance, token.decimals));
-    onChange?.(balance);
-    onUseMax?.(balance);
+    const maxValue = formatUnits(balance, token.decimals);
+    const normalizedValue = maxValue.replace(",", ".");
+    setFieldValue("amountInput", normalizedValue);
+    onChange?.(normalizedValue);
+    onUseMax?.(normalizedValue);
   }, [balance, onChange, onUseMax, setFieldValue, token]);
 
   useEffect(() => {
-    if (!isActive && token) {
-      setFieldValue("amountInput", amount > 0n ? formatUnits(amount, token.decimals) : getFieldValue("amountInput"));
+    if (!isActive) {
+      setFieldValue("amountInput", amountString);
     }
-  }, [isActive, amount, token, setFieldValue, getFieldValue]);
-
-  useEffect(() => {
-    setFieldValue("amountInput", "");
-  }, [setFieldValue, token]);
+  }, [amountString, setFieldValue, isActive]);
 
   return (
     <YStack
