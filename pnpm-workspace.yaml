@@ -3,7 +3,7 @@ catalog:
   "@aa-sdk/core": &aaSDK ^4.81.3
   "@account-kit/infra": *aaSDK
   "@account-kit/smart-contracts": *aaSDK
-  tamagui: &tamagui ^1.141.0
+  tamagui: &tamagui ^1.141.2
   "@tamagui/animations-moti": *tamagui
   "@tamagui/babel-plugin": *tamagui
   "@tamagui/config": *tamagui
