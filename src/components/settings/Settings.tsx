@@ -10,7 +10,7 @@ import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import release from "../../generated/release";
 import { useSubmitCoverage } from "../../utils/e2e";
 import { present, logout as logoutIntercom } from "../../utils/intercom";
-import { logout as logoutOneSignal } from "../../utils/onesignal";
+import { logout as logoutOnesignal } from "../../utils/onesignal";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
@@ -69,7 +69,7 @@ export default function Settings() {
                   if (!connector) return;
                   Promise.all([queryClient.cancelQueries(), logoutIntercom()])
                     .then(() => {
-                      logoutOneSignal();
+                      logoutOnesignal();
                       queryClient.clear();
                       queryClient.unmount();
                       disconnect({ connector });
