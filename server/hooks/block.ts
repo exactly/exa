@@ -172,13 +172,14 @@ export default new Hono().post(
               "messaging.destination.name": "withdraw",
             },
           },
-          () => {
+          async () => {
             const { "sentry-trace": sentryTrace, baggage: sentryBaggage } = getTraceData();
             withdraw.sentryTrace = sentryTrace;
             withdraw.sentryBaggage = sentryBaggage;
             const message = serialize(withdraw);
-            scheduleWithdraw(message);
-            return redis.zadd("withdraw", Number(event.args.unlock), message);
+            const added = await redis.zadd("withdraw", Number(event.args.unlock), message);
+            if (added) scheduleWithdraw(message);
+            return added;
           },
         );
       }),
@@ -205,13 +206,14 @@ function scheduleProposal(proposal: v.InferOutput<typeof Proposal>) {
         "messaging.message.id": proposal.id,
       },
     },
-    () => {
+    async () => {
       const { "sentry-trace": sentryTrace, baggage: sentryBaggage } = getTraceData();
       proposal.sentryTrace = sentryTrace;
       proposal.sentryBaggage = sentryBaggage;
       const message = serialize(proposal);
-      scheduleMessage(message);
-      return redis.zadd("proposals", Number(proposal.unlock + proposal.nonce), message);
+      const added = await redis.zadd("proposals", Number(proposal.unlock + proposal.nonce), message);
+      if (added) scheduleMessage(message);
+      return added;
     },
   );
 }
