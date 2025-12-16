@@ -1,4 +1,4 @@
-FROM node:22.14.0-slim AS build
+FROM node:24.12.0-slim AS build
 ARG CHAIN_ID="11155420"
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # cspell:ignore libc tlsv
@@ -9,15 +9,16 @@ RUN apt-get update && apt-get install -y ca-certificates curl gcc git jq libc6-d
   curl -fsSL https://foundry.paradigm.xyz | bash && \
   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain none -y
 ENV PATH="$PATH:/root/.local/share/pnpm:/root/.foundry/bin:/root/.cargo/bin"
-RUN foundryup
+RUN foundryup -i v1.3.6
 WORKDIR /usr/local/bin
 RUN curl -L "$(curl -s https://api.github.com/repos/streamingfast/substreams/releases/latest | jq --arg arch "$(uname -m | sed 's/aarch64/arm64/')" -r '.assets[] | select(.browser_download_url | test("linux_" + $arch)) | .browser_download_url')" | tar zxf -
 WORKDIR /usr/src/app
 COPY . .
+ENV NX_DAEMON=false
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store pnpm install --frozen-lockfile
 RUN pnpm run --filter substreams build
 
-FROM ghcr.io/streamingfast/substreams-sink-sql:v4.6.1 AS substreams
+FROM ghcr.io/streamingfast/substreams-sink-sql:v4.11.3 AS substreams
 # hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y dumb-init --no-install-recommends && \
   rm -rf /var/lib/apt/lists/* && \
