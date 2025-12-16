@@ -295,6 +295,26 @@ export default function Card() {
                   width="100%"
                   paddingHorizontal="$s4"
                 >
+                  <XStack
+                    alignItems="center"
+                    paddingVertical="$s4"
+                    justifyContent="space-between"
+                    cursor="pointer"
+                    onPress={() => {
+                      revealCard().catch(reportError);
+                    }}
+                  >
+                    <XStack gap="$s3" justifyContent="flex-start" alignItems="center">
+                      <CreditCard size={24} color="$interactiveBaseBrandDefault" fontWeight="bold" />
+                      <Text subHeadline color="$uiNeutralPrimary">
+                        Card details
+                      </Text>
+                    </XStack>
+                    <ChevronRight color="$uiBrandSecondary" size={24} />
+                  </XStack>
+
+                  <Separator borderColor="$borderNeutralSoft" />
+
                   {cardDetails && (
                     <>
                       <XStack
@@ -341,26 +361,6 @@ export default function Card() {
                       <Separator borderColor="$borderNeutralSoft" />
                     </>
                   )}
-
-                  <XStack
-                    alignItems="center"
-                    paddingVertical="$s4"
-                    justifyContent="space-between"
-                    cursor="pointer"
-                    onPress={() => {
-                      revealCard().catch(reportError);
-                    }}
-                  >
-                    <XStack gap="$s3" justifyContent="flex-start" alignItems="center">
-                      <CreditCard size={24} color="$interactiveBaseBrandDefault" fontWeight="bold" />
-                      <Text subHeadline color="$uiNeutralPrimary">
-                        Card details
-                      </Text>
-                    </XStack>
-                    <ChevronRight color="$uiBrandSecondary" size={24} />
-                  </XStack>
-
-                  <Separator borderColor="$borderNeutralSoft" />
 
                   {cardDetails && (
                     <>
