@@ -11,7 +11,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import React, { useState, type RefObject } from "react";
 import { RefreshControl } from "react-native";
-import { ScrollView, useTheme, YStack } from "tamagui";
+import { ScrollView, YStack } from "tamagui";
 import { zeroAddress } from "viem";
 import { useBytecode } from "wagmi";
 
@@ -43,7 +43,6 @@ import View from "../shared/View";
 const HEALTH_FACTOR_THRESHOLD = (WAD * 11n) / 10n;
 
 export default function Home() {
-  const theme = useTheme();
   const parameters = useLocalSearchParams();
   const router = useRouter();
   const [paySheetOpen, setPaySheetOpen] = useState(false);
@@ -115,18 +114,18 @@ export default function Home() {
 
   const usdBalance = portfolio.usdBalance;
   const isPending = isPendingActivity || isPendingPreviewer;
-  const style = { backgroundColor: theme.backgroundSoft.val, margin: -5 };
   return (
     <SafeView fullScreen tab backgroundColor="$backgroundSoft">
       <View fullScreen backgroundColor="$backgroundMild">
+        <View position="absolute" top={0} left={0} right={0} height="50%" backgroundColor="$backgroundSoft" />
         <ScrollView
           ref={homeScrollReference}
-          backgroundColor="$backgroundMild"
+          backgroundColor="transparent"
+          contentContainerStyle={{ backgroundColor: "$backgroundMild" }}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
               ref={homeRefreshControlReference}
-              style={style}
               refreshing={isPending}
               onRefresh={() => {
                 refetchActivity().catch(reportError);

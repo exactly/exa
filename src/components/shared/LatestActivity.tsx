@@ -57,7 +57,12 @@ export default function LatestActivity({
             </YStack>
           ))}
         {activity?.slice(0, 4).map((item, index, items) => (
-          <ActivityItem key={item.id} item={item} isLast={index === items.length - 1} />
+          <ActivityItem
+            key={item.id}
+            item={item}
+            isLast={index === items.length - 1}
+            StackProps={{ backgroundColor: "transparent" }}
+          />
         ))}
       </YStack>
     </View>
