@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import React, { memo, useMemo, type RefObject } from "react";
 import { FlatList, RefreshControl } from "react-native";
-import { styled, useTheme } from "tamagui";
+import { styled } from "tamagui";
 
 import ActivityItem from "./ActivityItem";
 import Empty from "./Empty";
@@ -19,7 +19,6 @@ import View from "../shared/View";
 type ActivityEvent = Awaited<ReturnType<typeof getActivity>>[number];
 
 export default function Activity() {
-  const theme = useTheme();
   const { data: activity, refetch, isPending } = useQuery({ queryKey: ["activity"], queryFn: () => getActivity() });
   const { queryKey } = useAsset();
 
@@ -47,17 +46,17 @@ export default function Activity() {
 
     return { data: items, stickyHeaderIndices: stickyIndices };
   }, [activity]);
+
   return (
     <SafeView fullScreen tab backgroundColor="$backgroundSoft">
-      <View gap="$s5" flex={1} backgroundColor="$backgroundMild">
+      <View fullScreen gap="$s5" flex={1} backgroundColor={data.length > 0 ? "$backgroundMild" : "$backgroundSoft"}>
+        <View position="absolute" top={0} left={0} right={0} height="50%" backgroundColor="$backgroundSoft" />
         <StyledFlatList
           ref={activityScrollReference}
-          backgroundColor={data.length > 0 ? "$backgroundMild" : "$backgroundSoft"}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
               ref={activityRefreshControlReference}
-              style={{ backgroundColor: theme.backgroundSoft.val, margin: -5 }}
               refreshing={isPending}
               onRefresh={() => {
                 refetch().catch(reportError);
@@ -90,10 +89,9 @@ export default function Activity() {
 }
 
 type ActivityItemType = { type: "header"; date: string } | { type: "event"; event: ActivityEvent; isLast: boolean };
-
 type ActivityItemProperties = React.ComponentProps<typeof ActivityItem>;
 
-const StyledFlatList = styled(FlatList<ActivityItemType>, { backgroundColor: "$backgroundMild" });
+const StyledFlatList = styled(FlatList<ActivityItemType>);
 
 export const activityScrollReference: RefObject<FlatList | null> = { current: null };
 export const activityRefreshControlReference: RefObject<RefreshControl | null> = { current: null };
