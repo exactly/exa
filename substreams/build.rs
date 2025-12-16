@@ -83,13 +83,6 @@ fn main() -> Result<(), Error> {
           )
         }}
 
-        pub fn is_chainlink(address: &[u8]) -> bool {{
-          matches!(
-            address,
-            {}
-          )
-        }}
-
         pub fn is_factory(address: &[u8]) -> bool {{
           matches!(
             address,
@@ -193,14 +186,6 @@ fn main() -> Result<(), Error> {
       match option_env!("CHAIN_ID") {
         Some("10") => vec![""], // FIXME: get op-mainnet plugin addresses
         _ => vec!["5B1e61a7802Dc02Bf55435077aC5FF057d06e4AE"],
-      }
-      .iter()
-      .map(|a| format!("hex!(\"{a}\")"))
-      .collect::<Vec<_>>()
-      .join("\n      | "),
-      match option_env!("CHAIN_ID") {
-        Some("10") => vec!["6817974CA2c354F2FA40d8349b725B5bF81c8338"],
-        _ => vec!["18ad48fc2c215ba5f1fd2a5f283792fca1a3ca36"],
       }
       .iter()
       .map(|a| format!("hex!(\"{a}\")"))

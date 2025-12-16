@@ -1,15 +1,14 @@
 use contracts::{
-  auditor::events as auditor_events, chainlink::events as chainlink_events, factory::events as factory_events,
-  is_auditor, is_factory, is_market, is_plugin, is_proposal_manager, market::events, plugin::events as plugin_events,
+  auditor::events as auditor_events, factory::events as factory_events, is_auditor, is_factory, is_market, is_plugin,
+  is_proposal_manager, market::events, plugin::events as plugin_events,
   proposal_manager::events as proposal_manager_events,
 };
 use proto::exa::{
   events::{
-    AccumulatorAccrual, AnswerUpdated, Borrow, BorrowAtMaturity, CollectorSet, DelaySet,
-    EarningsAccumulatorSmoothFactorSet, ExaAccountInitialized, FixedEarningsUpdate, FlashLoanerSet, FloatingDebtUpdate,
-    InterestRateModelSet, MarketEntered, MarketExited, MarketUpdate, MaxFuturePoolsSet, NewRound, NewTransmission,
-    PluginAllowed, ProposalManagerSet, ProposalNonceSet, Proposed, Repay, RepayAtMaturity, SwapperSet, TargetAllowed,
-    Transfer, TreasurySet,
+    AccumulatorAccrual, Borrow, BorrowAtMaturity, CollectorSet, DelaySet, EarningsAccumulatorSmoothFactorSet,
+    ExaAccountInitialized, FixedEarningsUpdate, FlashLoanerSet, FloatingDebtUpdate, InterestRateModelSet,
+    MarketEntered, MarketExited, MarketUpdate, MaxFuturePoolsSet, PluginAllowed, ProposalManagerSet, ProposalNonceSet,
+    Proposed, Repay, RepayAtMaturity, SwapperSet, TargetAllowed, Transfer, TreasurySet,
   },
   Events,
 };
@@ -343,55 +342,6 @@ pub fn map_blocks(block: Block) -> Result<Events, Error> {
           log_ordinal: log.ordinal(),
         }),
         _ => None,
-      })
-      .collect(),
-    // price tracking
-    answer_updates: block
-      .logs()
-      .filter_map(|log| {
-        match (is_chainlink_aggregator(log.address()), chainlink_events::AnswerUpdated::match_and_decode(log)) {
-          (true, Some(event)) => Some(AnswerUpdated {
-            oracle: log.address().to_vec(),
-            current: event.current.to_string(),
-            round_id: event.round_id.to_u64(),
-            timestamp: event.timestamp.to_u64(),
-            log_ordinal: log.ordinal(),
-          }),
-          _ => None,
-        }
-      })
-      .collect(),
-    new_rounds: block
-      .logs()
-      .filter_map(|log| {
-        match (is_chainlink_aggregator(log.address()), chainlink_events::NewRound::match_and_decode(log)) {
-          (true, Some(event)) => Some(NewRound {
-            oracle: log.address().to_vec(),
-            round_id: event.round_id.to_u64(),
-            started_by: event.started_by.to_vec(),
-            started_at: event.started_at.to_u64(),
-            log_ordinal: log.ordinal(),
-          }),
-          _ => None,
-        }
-      })
-      .collect(),
-    new_transmissions: block
-      .logs()
-      .filter_map(|log| {
-        match (is_chainlink_aggregator(log.address()), chainlink_events::NewTransmission::match_and_decode(log)) {
-          (true, Some(event)) => Some(NewTransmission {
-            oracle: log.address().to_vec(),
-            aggregator_round_id: event.aggregator_round_id.to_u64(),
-            answer: event.answer.to_string(),
-            transmitter: event.transmitter.to_vec(),
-            observations: event.observations.iter().map(|obs| obs.to_string()).collect(),
-            observers: event.observers.to_vec(),
-            raw_report_context: event.raw_report_context.to_vec(),
-            log_ordinal: log.ordinal(),
-          }),
-          _ => None,
-        }
       })
       .collect(),
   })
