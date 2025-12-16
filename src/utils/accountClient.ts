@@ -8,10 +8,12 @@ import {
   resolveProperties,
   smartAccountClientActions,
   toSmartContractAccount,
+  type SmartContractAccount,
   type UserOperationStruct_v6,
 } from "@aa-sdk/core";
 import { alchemyGasManagerMiddleware } from "@account-kit/infra";
-import { standardExecutor } from "@account-kit/smart-contracts";
+// @ts-expect-error deep import to avoid broken dependency
+import { standardExecutor } from "@account-kit/smart-contracts/dist/esm/src/msca/account/standardExecutor"; // cspell:ignore msca
 import accountInitCode from "@exactly/common/accountInitCode";
 import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
 import domain from "@exactly/common/domain";
@@ -100,7 +102,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
     },
     signMessage: () => Promise.reject(new Error("not implemented")),
     signTypedData: () => Promise.reject(new Error("not implemented")),
-    ...standardExecutor,
+    ...(standardExecutor as Pick<SmartContractAccount, "encodeExecute" | "encodeBatchExecute">),
   });
   setUser({ id: account.address });
   login(account.address);

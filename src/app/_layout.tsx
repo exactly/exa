@@ -12,8 +12,7 @@ import {
   wrap,
 } from "@sentry/react-native";
 import { ToastProvider } from "@tamagui/toast";
-// @ts-expect-error hack before metro supports exports
-import { ReactQueryDevtools } from "@tanstack/react-query-devtools/build/modern/production"; // HACK improve after expo 53
+import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { reconnect } from "@wagmi/core";
 import { isRunningInExpoGo } from "expo";
