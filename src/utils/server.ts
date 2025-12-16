@@ -1,4 +1,5 @@
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
+import deriveAddress from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
 import { Credential } from "@exactly/common/validation";
 import type { ExaAPI } from "@exactly/server/api";
@@ -9,6 +10,7 @@ import { Platform } from "react-native";
 import { get as assert, create } from "react-native-passkeys";
 import { check, number, parse, pipe, safeParse, ValiError } from "valibot";
 
+import { login as loginIntercom, logout as logoutIntercom } from "./intercom";
 import { decrypt, decryptPIN, encryptPIN, session } from "./panda";
 import queryClient, { APIError, type AuthMethod } from "./queryClient";
 import ownerConfig from "./wagmi/owner";
@@ -45,7 +47,9 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
           });
     const post = await api.auth.authentication.$post({ json });
     if (!post.ok) throw new APIError(post.status, stringOrLegacy(await post.json()));
-    const { expires } = await post.json();
+    const { expires, intercomToken, factory, x, y } = await post.json();
+    await logoutIntercom();
+    await loginIntercom(deriveAddress(factory, { x, y }), intercomToken);
     return parse(Auth, expires);
   },
   meta: {
@@ -194,9 +198,10 @@ export async function createCredential() {
           }),
   });
   if (!post.ok) throw new APIError(post.status, stringOrLegacy(await post.json()));
-  const { auth: expires, ...passkey } = await post.json();
+  const { auth: expires, intercomToken, ...credential } = await post.json();
+  await loginIntercom(deriveAddress(credential.factory, { x: credential.x, y: credential.y }), intercomToken);
   await queryClient.setQueryData(["auth"], parse(Auth, expires));
-  return parse(Credential, passkey);
+  return parse(Credential, credential);
 }
 
 export async function getActivity(parameters?: NonNullable<Parameters<typeof api.activity.$get>[0]>["query"]) {

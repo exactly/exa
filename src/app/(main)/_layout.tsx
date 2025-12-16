@@ -3,19 +3,14 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Stack, type UnknownOutputParams } from "expo-router";
 import React, { useEffect } from "react";
 
-import { login as loginIntercom } from "../../utils/intercom";
 import { enablePrompt } from "../../utils/onesignal";
-import reportError from "../../utils/reportError";
-import useAccount from "../../utils/useAccount";
 import useBackgroundColor from "../../utils/useBackgroundColor";
 
 export default function AppLayout() {
-  const { address } = useAccount();
   useBackgroundColor();
   useEffect(() => {
     enablePrompt();
-    if (address) loginIntercom(address).catch(reportError);
-  }, [address]);
+  }, []);
   return <Stack screenOptions={{ headerShown: false }} />;
 }
 

@@ -12,9 +12,9 @@ export const { login, logout, newMessage, present, presentArticle, presentCollec
         const { Intercom, showArticle, showSpace, showNewMessage } =
           require("@intercom/messenger-js-sdk") as typeof IntercomWeb; // eslint-disable-line @typescript-eslint/no-require-imports, unicorn/prefer-module
         return {
-          login: (userId: string) => {
+          login: (userId: string, token: string) => {
             if (!appId) return Promise.resolve(false);
-            Intercom({ app_id: appId, user_id: userId });
+            Intercom({ app_id: appId, user_id: userId, intercom_user_jwt: token });
             return Promise.resolve(true);
           },
           logout: () => {
@@ -47,8 +47,10 @@ export const { login, logout, newMessage, present, presentArticle, presentCollec
           Space,
         } = require("@intercom/intercom-react-native") as typeof IntercomNative; // eslint-disable-line @typescript-eslint/no-require-imports, unicorn/prefer-module
         return {
-          login: (userId: string) =>
-            appId ? Intercom.loginUserWithUserAttributes({ userId }) : Promise.resolve(false),
+          login: (userId: string, token: string) =>
+            appId
+              ? Intercom.setUserHash(token).then(() => Intercom.loginUserWithUserAttributes({ userId }))
+              : Promise.resolve(false),
           logout: () => Intercom.logout(),
           present: () => Intercom.presentSpace(Space.home),
           presentArticle: (articleId: string) =>
