@@ -36,7 +36,7 @@ contract BobExecuteScript is BaseScript {
     );
     address[] memory owners = new address[](1);
     owners[0] = vm.addr(0xb0b);
-    bobAccount = IExaAccount(factory.createAccount(0, owners.toPublicKeys()));
+    bobAccount = IExaAccount(factory.getAddress(0, owners.toPublicKeys()));
     vm.label(address(exaPlugin), "ExaPlugin");
     vm.label(address(factory), "ExaAccountFactory");
     vm.label(address(bobAccount), "bobAccount");

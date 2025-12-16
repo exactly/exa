@@ -1,9 +1,11 @@
 {
   "name": "@exactly/substreams",
+  "version": "0.0.1",
   "scripts": {
     "build": "cargo build --release --quiet",
-    "prepare": "tsx $([ -f .env ] && echo --env-file=.env) substreams.ts",
-    "test": "pnpm build && pnpm run --aggregate-output --reporter-hide-prefix /test:/",
+    "prepare": "nx prepare substreams",
+    "generate:manifest": "tsx substreams.ts",
+    "test": "nx test substreams",
     "test:fmt": "cargo fmt --check",
     "test:clippy": "cargo clippy --quiet -- --deny warnings",
     "test:proto": "protolint ."
@@ -18,5 +20,58 @@
     "protolint": "^0.56.4",
     "tsx": "^4.21.0",
     "typescript": "^5.8.3"
+  },
+  "nx": {
+    "projectType": "application",
+    "targets": {
+      "build": {
+        "dependsOn": [
+          {
+            "projects": "@exactly/plugin",
+            "target": "build"
+          }
+        ],
+        "inputs": [
+          "{projectRoot}/.cargo/**",
+          "{projectRoot}/Cargo.lock",
+          "{projectRoot}/Cargo.toml",
+          "{projectRoot}/rust-toolchain.toml",
+          "{projectRoot}/src/**",
+          "{projectRoot}/substreams.yaml",
+          {
+            "env": "CHAIN_ID"
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/target/wasm32-unknown-unknown/release/substreams.wasm"
+        ]
+      },
+      "prepare": {
+        "dependsOn": [
+          "generate:manifest"
+        ],
+        "executor": "nx:noop"
+      },
+      "generate:manifest": {
+        "inputs": [
+          "{projectRoot}/substreams.ts",
+          "{projectRoot}/substreams.yaml.hbs",
+          {
+            "env": "CHAIN_ID"
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/substreams.yaml"
+        ]
+      },
+      "test": {
+        "dependsOn": [
+          "test:clippy",
+          "test:fmt",
+          "test:proto"
+        ],
+        "executor": "nx:noop"
+      }
+    }
   }
 }

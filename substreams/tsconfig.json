@@ -4,7 +4,7 @@
     "target": "ESNext",
     "module": "ESNext",
     "moduleDetection": "force",
-    "moduleResolution": "Node",
+    "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "noUncheckedIndexedAccess": true,
     "verbatimModuleSyntax": true,

@@ -160,6 +160,7 @@ services:
           index_name: logs
     # @endif
     name: server
+    run_command: run ${postgres.DATABASE_URL} substreams.yaml
 workers:
   - envs:
       - key: POSTGRES_URL

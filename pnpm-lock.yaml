@@ -661,7 +661,7 @@ importers:
         version: 4.4.3
       drizzle-orm:
         specifier: ^0.44.6
-        version: 0.44.7(@electric-sql/pglite@0.3.11)(@opentelemetry/api@1.9.0)(@types/pg@8.15.5)(pg@8.16.3)
+        version: 0.44.7(@electric-sql/pglite@0.3.14)(@opentelemetry/api@1.9.0)(@types/pg@8.15.5)(pg@8.16.3)
       graphql:
         specifier: ^16.10.0
         version: 16.10.0
@@ -694,14 +694,20 @@ importers:
         version: 2.40.3(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
     devDependencies:
       '@electric-sql/pglite':
-        specifier: ^0.3.11
-        version: 0.3.11
+        specifier: ^0.3.14
+        version: 0.3.14
+      '@electric-sql/pglite-socket':
+        specifier: ^0.0.19
+        version: 0.0.19(@electric-sql/pglite@0.3.14)
       '@exactly/common':
         specifier: workspace:^0.0.10
         version: link:../common
       '@exactly/plugin':
         specifier: workspace:^1.1.0
         version: link:../contracts
+      '@exactly/substreams':
+        specifier: workspace:^0.0.1
+        version: link:../substreams
       '@sentry/cli':
         specifier: ^2.57.0
         version: 2.57.0
@@ -2002,8 +2008,14 @@ packages:
   '@drizzle-team/brocli@0.10.2':
     resolution: {integrity: sha512-z33Il7l5dKjUgGULTqBsQBQwckHh5AbIuxhdsIxDDiZAzBOrZO6q9ogcWC65kU382AfynTfgNumVcNIjuIua6w==}
 
-  '@electric-sql/pglite@0.3.11':
-    resolution: {integrity: sha512-FJtjnEyez8XgmgyE5Ewmx89TGVN+75ZjykFoExApRIbJBMT4dsbsuZkF/YWLuymGDfGFHDACjvENPMEqg4FoWg==}
+  '@electric-sql/pglite-socket@0.0.19':
+    resolution: {integrity: sha512-9Uq0aXJyfeQMQCk9OiX3dfjdKCKurjGPkhHemDo+sA5QeYPuH48Bxfue4sfA+dBXZGe9cUCjwrnZ351E3wPPIA==}
+    hasBin: true
+    peerDependencies:
+      '@electric-sql/pglite': 0.3.14
+
+  '@electric-sql/pglite@0.3.14':
+    resolution: {integrity: sha512-3DB258dhqdsArOI1fIt7cb9RpUOgcDg5hXWVgVHAeqVQ/qxtFy605QKs4gx6mFq3jWsSPqDN8TgSEsqC3OfV9Q==}
 
   '@emnapi/core@1.4.3':
     resolution: {integrity: sha512-4m62DuCE07lw01soJwPiBGC0nAww0Q+RY70VZ+n49yDIO13yyinhbWCeNnaob0lakDtWQzSdtNWzJeOJt2ma+g==}
@@ -2299,7 +2311,7 @@ packages:
 
   '@expo/bunyan@4.0.1':
     resolution: {integrity: sha512-+Lla7nYSiHZirgK+U/uYzsLv/X+HaJienbD5AKX1UQZHYfWaP+9uuQluRB4GrEVWF0GZ7vEVp/jzaOT9k/SQlg==}
-    engines: {node: '>=0.10.0'}
+    engines: {'0': node >=0.10.0}
 
   '@expo/cli@0.22.26':
     resolution: {integrity: sha512-I689wc8Fn/AX7aUGiwrh3HnssiORMJtR2fpksX+JIe8Cj/EDleblYMSwRPd0025wrwOV9UN1KM/RuEt/QjCS3Q==}
@@ -14575,7 +14587,11 @@ snapshots:
 
   '@drizzle-team/brocli@0.10.2': {}
 
-  '@electric-sql/pglite@0.3.11': {}
+  '@electric-sql/pglite-socket@0.0.19(@electric-sql/pglite@0.3.14)':
+    dependencies:
+      '@electric-sql/pglite': 0.3.14
+
+  '@electric-sql/pglite@0.3.14': {}
 
   '@emnapi/core@1.4.3':
     dependencies:
@@ -21319,9 +21335,9 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  drizzle-orm@0.44.7(@electric-sql/pglite@0.3.11)(@opentelemetry/api@1.9.0)(@types/pg@8.15.5)(pg@8.16.3):
+  drizzle-orm@0.44.7(@electric-sql/pglite@0.3.14)(@opentelemetry/api@1.9.0)(@types/pg@8.15.5)(pg@8.16.3):
     optionalDependencies:
-      '@electric-sql/pglite': 0.3.11
+      '@electric-sql/pglite': 0.3.14
       '@opentelemetry/api': 1.9.0
       '@types/pg': 8.15.5
       pg: 8.16.3

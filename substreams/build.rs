@@ -1,6 +1,7 @@
 use anyhow::{Error, Ok, Result};
 use glob::glob;
 use indoc::indoc;
+use regex::Regex;
 use serde::Deserialize;
 use serde_json::from_str;
 use std::{
@@ -18,63 +19,65 @@ struct Deployment {
 
 fn main() -> Result<(), Error> {
   println!("cargo::rerun-if-changed=proto");
+  println!("cargo::rerun-if-changed=buf.gen.yaml");
   println!("cargo::rerun-if-changed=substreams.yaml");
+  println!("cargo::rerun-if-changed=node_modules/@exactly/plugin/script/ExaAccountFactory.s.sol");
+  println!("cargo::rerun-if-changed=node_modules/@exactly/plugin/script/ExaPlugin.s.sol");
+  println!("cargo::rerun-if-changed=node_modules/@exactly/plugin/script/ProposalManager.s.sol");
+  println!("cargo::rerun-if-changed=node_modules/@exactly/plugin/test/mocks/MockPriceFeed.sol");
+  println!("cargo::rerun-if-changed=node_modules/@exactly/plugin/test/mocks/MockSwapper.sol");
+  println!("cargo::rerun-if-changed=node_modules/@exactly/protocol/contracts/Auditor.sol");
+  println!("cargo::rerun-if-changed=node_modules/@exactly/protocol/contracts/Market.sol");
   println!("cargo::rerun-if-changed=node_modules/@exactly/protocol/deployments");
-  println!("cargo::rerun-if-changed=../contracts/script/ExaAccountFactory.s.sol");
-  println!("cargo::rerun-if-changed=../contracts/script/ExaPlugin.s.sol");
-  println!("cargo::rerun-if-changed=../contracts/script/ProposalManager.s.sol");
-  println!("cargo::rerun-if-changed=../contracts/test/mocks/MockSwapper.sol");
-  println!("cargo::rerun-if-changed=../contracts/test/mocks/MockPriceFeed.sol");
-  println!("cargo::rerun-if-changed=../contracts/node_modules/@exactly/contracts/contracts/Auditor.sol");
-  println!("cargo::rerun-if-changed=../contracts/node_modules/@exactly/contracts/contracts/Market.sol");
+  println!("cargo::rerun-if-env-changed=CHAIN_ID");
 
   create_dir_all("abi")?;
   let contracts = [
     ("auditor", "Auditor"),
+    ("chainlink", "MockPriceFeed"),
     ("factory", "ExaAccountFactory"),
-    ("plugin", "ExaPlugin"),
     ("lifi", "MockSwapper"),
     ("market", "Market"),
-    ("chainlink", "MockPriceFeed"),
+    ("plugin", "ExaPlugin"),
     ("proposal_manager", "ProposalManager"),
   ];
 
-  assert!(Command::new("bash")
-    .arg("-c")
-    .arg("forge build")
-    .current_dir("../contracts")
-    .status()
-    .expect("forge build failed")
-    .success());
+  let factory_address = Regex::new(r"(?i)== return ==\n0: address 0x([\da-f]{40})")?
+    .captures(&String::from_utf8(
+      Command::new("forge")
+        .current_dir("../contracts")
+        .args([
+          "script",
+          "-s",
+          "getAddress()",
+          "script/ExaAccountFactory.s.sol",
+          "--chain",
+          option_env!("CHAIN_ID").unwrap_or("31337"),
+        ])
+        .output()
+        .expect("factory address calculation failed")
+        .stdout,
+    )?)
+    .map(|capture| capture[1].to_string());
 
-  contracts.iter().for_each(|(mod_name, contract_name)| {
+  contracts.iter().try_for_each(|(mod_name, contract_name)| -> Result<()> {
     assert!(Command::new("bash")
       .arg("-c")
       .arg(format!("jq .abi ../contracts/out/{contract_name}.sol/{contract_name}.json > abi/{mod_name}.json"))
       .status()
       .expect("abi extraction failed")
       .success());
-
-    Abigen::new(*contract_name, &format!("abi/{mod_name}.json"))
-      .unwrap()
-      .generate()
-      .unwrap()
-      .write_to_file(format!("src/contracts/{mod_name}.rs"))
-      .unwrap();
-  });
+    Abigen::new(*contract_name, &format!("abi/{mod_name}.json"))?
+      .generate()?
+      .write_to_file(format!("src/contracts/{mod_name}.rs"))?;
+    Ok(())
+  })?;
 
   File::create("src/contracts/mod.rs")?.write_all(
     format!(
       indoc! {"// @generated
         {}
         use substreams::hex;
-
-        pub fn is_market(address: &[u8]) -> bool {{
-          matches!(
-            address,
-            {}
-          )
-        }}
 
         pub fn is_auditor(address: &[u8]) -> bool {{
           matches!(
@@ -89,20 +92,6 @@ fn main() -> Result<(), Error> {
             {}
           )
         }}
-
-        pub fn is_plugin(address: &[u8]) -> bool {{
-          matches!(
-            address,
-            {}
-          )
-        }}
-
-        pub fn is_proposal_manager(address: &[u8]) -> bool {{
-          matches!(
-            address,
-            {}
-          )
-        }}
         
       "},
       contracts
@@ -110,37 +99,24 @@ fn main() -> Result<(), Error> {
         .map(|(mod_name, _)| *mod_name)
         .map(|mod_name| format!("#[allow(clippy::style, clippy::complexity)]\npub mod {mod_name};\n"))
         .collect::<String>(),
-      glob(&format!(
-        "node_modules/@exactly/protocol/deployments/{}/Market*.json",
-        match option_env!("CHAIN_ID") {
-          Some("10") => "optimism",
-          _ => "op-sepolia",
-        }
-      ))?
-      .filter_map(Result::ok)
-      .filter(|path| {
-        !path.to_str().is_some_and(|s| s.contains("_Implementation") || s.contains("_Proxy") || s.contains("Router"))
-      })
-      .map(|path| -> Result<String, Error> {
-        println!("cargo::rerun-if-changed={}", path.display());
-        Ok(format!("hex!(\"{}\")", &from_str::<Deployment>(&read_to_string(&path)?)?.address[2..]))
-      })
-      .collect::<Result<Vec<_>, _>>()?
-      .join("\n      | "),
-      glob(&format!(
-        "node_modules/@exactly/protocol/deployments/{}/Auditor.json",
-        match option_env!("CHAIN_ID") {
-          Some("10") => "optimism",
-          _ => "op-sepolia",
-        }
-      ))?
-      .filter_map(Result::ok)
-      .map(|path| -> Result<String, Error> {
-        println!("cargo::rerun-if-changed={}", path.display());
-        Ok(format!("hex!(\"{}\")", &from_str::<Deployment>(&read_to_string(&path)?)?.address[2..]))
-      })
-      .collect::<Result<Vec<_>, _>>()?
-      .join("\n      | "),
+      if option_env!("CHAIN_ID").is_none() {
+        format!("hex!(\"{}\")", "e7f1725E7734CE288F8367e1Bb143E90bb3F0512")
+      } else {
+        glob(&format!(
+          "node_modules/@exactly/protocol/deployments/{}/Auditor.json",
+          match option_env!("CHAIN_ID") {
+            Some("10") => "optimism",
+            _ => "op-sepolia",
+          }
+        ))?
+        .filter_map(Result::ok)
+        .map(|path| -> Result<String, Error> {
+          println!("cargo::rerun-if-changed={}", path.display());
+          Ok(format!("hex!(\"{}\")", &from_str::<Deployment>(&read_to_string(&path)?)?.address[2..]))
+        })
+        .collect::<Result<Vec<_>, _>>()?
+        .join("\n      | ")
+      },
       match option_env!("CHAIN_ID") {
         Some("10") => vec![
           "8D493AF799162Ac3f273e8918B2842447f702163",
@@ -148,37 +124,7 @@ fn main() -> Result<(), Error> {
           "cbeaAF42Cc39c17e84cBeFe85160995B515A9668",
           "961EbA47650e2198A959Ef5f337E542df5E4F61b",
         ],
-        _ => vec![
-          "9cCab24277a9E6be126Df3A563c90B4eBf6D5e26",
-          "98b3E5C7a039A329a4446A3FACB860C506B28901",
-          "8cA9Bb05f6a9CDf3412d64C25907358686277E5c",
-          "086E2e36a98d266c81E453f0129ec01A34e64cF9",
-          "8D493AF799162Ac3f273e8918B2842447f702163",
-          "b312816855ca94d8fb4Cbea9E63BD6b12353AfBe",
-          "cE820eea73585E62347db9E1DA3aa804Ba7c3863",
-          "5B710958D215F7951ec67e1bb13077F5fBB3a3F1",
-          "Fe619D955F5bfbf810b93315A340eE32d288BB63",
-          "861337355FE34cF70bcC586F276a0151E7F5Beba",
-          "3F62562c6f2aD9A623cb5fceD48053c691F95228",
-          "FC86cc5aE0FbE173fe385114F5F0a9C4Afe60B6F",
-          "98d3E8B291d9E89C25D8371b7e8fFa8BC32E0aEC",
-        ],
-      }
-      .iter()
-      .map(|a| format!("hex!(\"{a}\")"))
-      .collect::<Vec<_>>()
-      .join("\n      | "),
-      match option_env!("CHAIN_ID") {
-        Some("10") => vec![""], // FIXME: get op-mainnet plugin addresses
-        _ => vec!["5B1e61a7802Dc02Bf55435077aC5FF057d06e4AE"],
-      }
-      .iter()
-      .map(|a| format!("hex!(\"{a}\")"))
-      .collect::<Vec<_>>()
-      .join("\n      | "),
-      match option_env!("CHAIN_ID") {
-        Some("10") => vec!["6817974CA2c354F2FA40d8349b725B5bF81c8338"],
-        _ => vec!["18ad48fc2c215ba5f1fd2a5f283792fca1a3ca36"],
+        _ => vec![factory_address.as_deref().unwrap()],
       }
       .iter()
       .map(|a| format!("hex!(\"{a}\")"))
@@ -196,9 +142,8 @@ fn main() -> Result<(), Error> {
     .expect("protogen failed")
     .success());
 
-  assert!(Command::new("bash")
-    .arg("-c")
-    .arg("rustfmt src/{contracts,proto}/**")
+  assert!(Command::new("rustfmt")
+    .args(glob("src/contracts/**/*.rs")?.chain(glob("src/proto/**/*.rs")?).filter_map(Result::ok))
     .status()
     .expect("formatting failed")
     .success());

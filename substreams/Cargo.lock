@@ -268,6 +268,7 @@ dependencies = [
  "num-bigint",
  "prost 0.13.5",
  "prost-types 0.13.5",
+ "regex",
  "serde",
  "serde_json",
  "substreams",

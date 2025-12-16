@@ -31,4 +31,4 @@ COPY --from=build --chown=substreams:substreams /usr/src/app/substreams/target/w
 USER substreams
 # cspell:ignore sslmode
 ENTRYPOINT ["dumb-init", "/app/substreams-sink-sql"]
-CMD ["run", "postgres://postgres:postgres@host.docker.internal:5432/postgres?schemaName=substreams&sslmode=disable", "substreams.yaml"]
+CMD ["run", "postgres://host.docker.internal:5432/postgres?schemaName=substreams&sslmode=disable", "substreams.yaml"]

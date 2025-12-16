@@ -4,6 +4,8 @@
 /drizzle/
 /generated/
 
+firehose-data
+
 .env
 .shutdown
 openapi.json
