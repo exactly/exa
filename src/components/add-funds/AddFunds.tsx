@@ -12,14 +12,13 @@ import { isAddress } from "viem";
 import AddFundsOption from "./AddFundsOption";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import OptimismImage from "../../assets/images/optimism.svg";
+import { presentArticle } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
-import useIntercom from "../../utils/useIntercom";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function AddFunds() {
-  const { presentArticle } = useIntercom();
   const navigation = useNavigation<AppNavigationProperties>();
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const ownerAccount = credential && isAddress(credential.credentialId) ? credential.credentialId : undefined;

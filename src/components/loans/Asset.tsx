@@ -9,10 +9,10 @@ import { zeroAddress } from "viem";
 
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import assetLogos from "../../utils/assetLogos";
+import { presentArticle } from "../../utils/intercom";
 import queryClient, { type Loan } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
-import useIntercom from "../../utils/useIntercom";
 import AssetLogo from "../shared/AssetLogo";
 import Button from "../shared/Button";
 import SafeView from "../shared/SafeView";
@@ -22,7 +22,6 @@ import View from "../shared/View";
 export default function Asset() {
   const navigation = useNavigation<AppNavigationProperties>();
   const { address } = useAccount();
-  const { presentArticle } = useIntercom();
   const [selectedMarket, setSelectedMarket] = useState<string>();
   const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [address ?? zeroAddress] });
   return (

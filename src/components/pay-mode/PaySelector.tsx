@@ -13,13 +13,13 @@ import { formatUnits, parseUnits, zeroAddress } from "viem";
 
 import ManualRepaymentSheet from "./ManualRepaymentSheet";
 import assetLogos from "../../utils/assetLogos";
+import { presentArticle } from "../../utils/intercom";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { setCardMode, type CardDetails } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useInstallments from "../../utils/useInstallments";
-import useIntercom from "../../utils/useIntercom";
 import AssetLogo from "../shared/AssetLogo";
 import Skeleton from "../shared/Skeleton";
 import TamaguiInput from "../shared/TamaguiInput";
@@ -28,7 +28,6 @@ import View from "../shared/View";
 
 export default function PaySelector() {
   const toast = useToastController();
-  const { presentArticle } = useIntercom();
   const [input, setInput] = useState("100");
   const assets = useMemo(() => {
     return parseUnits(input.replaceAll(/\D/g, ".").replaceAll(/\.(?=.*\.)/g, ""), 6);

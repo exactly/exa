@@ -11,9 +11,9 @@ import SupportedAssetsSheet from "./SupportedAssetsSheet";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import OptimismImage from "../../assets/images/optimism.svg";
 import assetLogos from "../../utils/assetLogos";
+import { presentArticle } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
-import useIntercom from "../../utils/useIntercom";
 import AssetLogo from "../shared/AssetLogo";
 import CopyAddressSheet from "../shared/CopyAddressSheet";
 import SafeView from "../shared/SafeView";
@@ -28,7 +28,6 @@ const supportedAssets = Object.entries(assetLogos)
 export default function AddCrypto() {
   const navigation = useNavigation<AppNavigationProperties>();
   const fontScale = PixelRatio.getFontScale();
-  const { presentArticle } = useIntercom();
   const { address } = useAccount();
 
   const [copyAddressShown, setCopyAddressShown] = useState(false);

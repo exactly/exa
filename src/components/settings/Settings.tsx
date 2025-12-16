@@ -9,11 +9,11 @@ import { useDisconnect } from "wagmi";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import release from "../../generated/release";
 import { useSubmitCoverage } from "../../utils/e2e";
+import { present, logout as logoutIntercom } from "../../utils/intercom";
 import { logout as logoutOneSignal } from "../../utils/onesignal";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
-import useIntercom from "../../utils/useIntercom";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
@@ -22,7 +22,6 @@ export default function Settings() {
   const navigation = useNavigation<AppNavigationProperties>();
   const { connector } = useAccount();
   const { disconnect } = useDisconnect();
-  const { present, logout } = useIntercom();
   const { mutate: submitCoverage, isSuccess: coverageSuccess, isError: coverageError } = useSubmitCoverage();
   return (
     <SafeView fullScreen tab>
@@ -68,7 +67,7 @@ export default function Settings() {
               <Pressable
                 onPress={() => {
                   if (!connector) return;
-                  Promise.all([queryClient.cancelQueries(), logout()])
+                  Promise.all([queryClient.cancelQueries(), logoutIntercom()])
                     .then(() => {
                       logoutOneSignal();
                       queryClient.clear();

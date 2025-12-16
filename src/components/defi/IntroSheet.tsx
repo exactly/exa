@@ -4,8 +4,8 @@ import { Pressable } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import Defi from "../../assets/images/defi.svg";
+import { presentArticle } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
-import useIntercom from "../../utils/useIntercom";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
@@ -13,7 +13,6 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function IntroSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { presentArticle } = useIntercom();
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
       <SafeView

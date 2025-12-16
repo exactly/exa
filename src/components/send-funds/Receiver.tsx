@@ -12,9 +12,9 @@ import { safeParse } from "valibot";
 import Contacts from "./Contacts";
 import RecentContacts from "./RecentContacts";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
+import { presentArticle } from "../../utils/intercom";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
-import useIntercom from "../../utils/useIntercom";
 import Button from "../shared/Button";
 import Input from "../shared/Input";
 import SafeView from "../shared/SafeView";
@@ -24,7 +24,6 @@ import View from "../shared/View";
 export default function ReceiverSelection() {
   const navigation = useNavigation<AppNavigationProperties>("/(main)");
   const { receiver } = useLocalSearchParams();
-  const { presentArticle } = useIntercom();
 
   const { data: recentContacts } = useQuery<{ address: Address; ens: string }[] | undefined>({
     queryKey: ["contacts", "recent"],

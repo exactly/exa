@@ -7,11 +7,11 @@ import { ScrollView, YStack } from "tamagui";
 
 import LoanSummary from "./LoanSummary";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
+import { presentArticle } from "../../utils/intercom";
 import type { Loan } from "../../utils/queryClient";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
-import useIntercom from "../../utils/useIntercom";
 import InstallmentSelector from "../shared/InstallmentSelector";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
@@ -20,7 +20,6 @@ import View from "../shared/View";
 
 export default function Installments() {
   const navigation = useNavigation<AppNavigationProperties>();
-  const { presentArticle } = useIntercom();
   const { address } = useAccount();
   const { data: loan } = useQuery<Loan>({ queryKey: ["loan"], enabled: !!address });
   const disabled = !loan?.installments;

@@ -8,11 +8,11 @@ import { ScrollView, XStack, YStack } from "tamagui";
 
 import Step from "./Step";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
+import { presentArticle } from "../../utils/intercom";
 import { createInquiry, KYC_TEMPLATE_ID, resumeInquiry } from "../../utils/persona";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { APIError, getKYCStatus } from "../../utils/server";
-import useIntercom from "../../utils/useIntercom";
 import useOnboardingSteps from "../../utils/useOnboardingSteps";
 import ActionButton from "../shared/ActionButton";
 import SafeView from "../shared/SafeView";
@@ -22,7 +22,6 @@ import View from "../shared/View";
 export default function GettingStarted() {
   const navigation = useNavigation<AppNavigationProperties>();
   const { steps } = useOnboardingSteps();
-  const { presentArticle } = useIntercom();
   return (
     <SafeView fullScreen backgroundColor="$backgroundBrandSoft" paddingBottom={0}>
       <View gap={20} fullScreen>

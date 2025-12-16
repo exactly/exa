@@ -12,12 +12,12 @@ import { ScrollView, Separator, XStack, YStack } from "tamagui";
 import { parse } from "valibot";
 
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
+import { presentArticle } from "../../utils/intercom";
 import type { Loan } from "../../utils/queryClient";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
-import useIntercom from "../../utils/useIntercom";
 import Input from "../shared/Input";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
@@ -27,7 +27,6 @@ import View from "../shared/View";
 export default function Receiver() {
   const navigation = useNavigation<AppNavigationProperties>();
   const toast = useToastController();
-  const { presentArticle } = useIntercom();
   const { address } = useAccount();
   const { data: loan } = useQuery<Loan>({ queryKey: ["loan"], enabled: !!address });
   const { market } = useAsset(loan?.market);

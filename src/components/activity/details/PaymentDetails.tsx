@@ -4,12 +4,11 @@ import React from "react";
 import { Pressable } from "react-native";
 import { Separator, XStack, YStack } from "tamagui";
 
+import { presentArticle } from "../../../utils/intercom";
 import reportError from "../../../utils/reportError";
-import useIntercom from "../../../utils/useIntercom";
 import Text from "../../shared/Text";
 
 export default function PaymentDetails({ item }: { item: CreditActivity | DebitActivity | InstallmentsActivity }) {
-  const { presentArticle } = useIntercom();
   return (
     <YStack gap="$s4">
       <YStack gap="$s4">

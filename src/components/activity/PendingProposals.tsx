@@ -27,10 +27,10 @@ import { extractChain, type Chain } from "viem";
 import * as chains from "viem/chains";
 
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
+import { presentArticle } from "../../utils/intercom";
 import type { RouteFrom } from "../../utils/lifi";
 import reportError from "../../utils/reportError";
 import useAsset from "../../utils/useAsset";
-import useIntercom from "../../utils/useIntercom";
 import usePendingOperations from "../../utils/usePendingOperations";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
@@ -113,7 +113,6 @@ function getProposal(proposal: Proposal): ProposalWithMetadata {
 
 export default function PendingProposals() {
   const navigation = useNavigation<AppNavigationProperties>();
-  const { presentArticle } = useIntercom();
   const {
     count,
     mutations,

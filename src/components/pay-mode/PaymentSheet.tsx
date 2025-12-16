@@ -26,11 +26,11 @@ import { useBytecode } from "wagmi";
 
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import CalendarImage from "../../assets/images/calendar-rollover.svg";
+import { presentArticle } from "../../utils/intercom";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
-import useIntercom from "../../utils/useIntercom";
 import useOpenBrowser from "../../utils/useOpenBrowser";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
@@ -41,7 +41,6 @@ import View from "../shared/View";
 export default function PaymentSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { address } = useAccount();
   const openBrowser = useOpenBrowser();
-  const { presentArticle } = useIntercom();
   const { market: USDCMarket } = useAsset(marketUSDCAddress);
   const { maturity: currentMaturity } = useLocalSearchParams();
   const navigation = useNavigation<AppNavigationProperties>();

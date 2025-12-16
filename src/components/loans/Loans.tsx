@@ -9,10 +9,10 @@ import { zeroAddress } from "viem";
 
 import CreditLine from "./CreditLine";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
+import { presentArticle } from "../../utils/intercom";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAsset from "../../utils/useAsset";
-import useIntercom from "../../utils/useIntercom";
 import PaymentSheet from "../pay-mode/PaymentSheet";
 import UpcomingPayments from "../pay-mode/UpcomingPayments";
 import SafeView from "../shared/SafeView";
@@ -21,7 +21,6 @@ import View from "../shared/View";
 
 export default function Loans() {
   const theme = useTheme();
-  const { presentArticle } = useIntercom();
   const parameters = useLocalSearchParams();
   const { account } = useAsset(marketUSDCAddress);
   const [paySheetOpen, setPaySheetOpen] = useState(false);

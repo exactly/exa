@@ -4,8 +4,8 @@ import { Pressable, StyleSheet } from "react-native";
 import { ScrollView, YStack } from "tamagui";
 
 import SpendingLimit from "./SpendingLimit";
+import { newMessage } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
-import useIntercom from "../../utils/useIntercom";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
@@ -23,10 +23,6 @@ export default function SpendingLimits({
   totalSpent: number;
   limit?: number;
 }) {
-  const { newMessage } = useIntercom();
-  function handleSupport() {
-    newMessage("I want to increase my spending limit").catch(reportError);
-  }
   return (
     <ModalSheet open={open} onClose={onClose}>
       <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
@@ -45,7 +41,12 @@ export default function SpendingLimits({
                 <YStack paddingBottom="$s4">
                   <SpendingLimit title="Weekly" limit={limit} totalSpent={totalSpent} />
                 </YStack>
-                <Button onPress={handleSupport} primary>
+                <Button
+                  onPress={() => {
+                    newMessage("I want to increase my spending limit").catch(reportError);
+                  }}
+                  primary
+                >
                   <Button.Text>Increase spending limit</Button.Text>
                   <Button.Icon>
                     <Plus />

@@ -8,10 +8,10 @@ import { YStack } from "tamagui";
 
 import Progression from "./Progression";
 import type { AppNavigationProperties } from "../../../app/(main)/_layout";
+import { presentArticle } from "../../../utils/intercom";
 import queryClient from "../../../utils/queryClient";
 import reportError from "../../../utils/reportError";
 import { APIError, createCard } from "../../../utils/server";
-import useIntercom from "../../../utils/useIntercom";
 import Button from "../../shared/Button";
 import Spinner from "../../shared/Spinner";
 import Text from "../../shared/Text";
@@ -20,7 +20,6 @@ import View from "../../shared/View";
 export default function ActivateCard() {
   const toast = useToastController();
   const { data: step } = useQuery<number | undefined>({ queryKey: ["card-upgrade"] });
-  const { presentArticle } = useIntercom();
   const navigation = useNavigation<AppNavigationProperties>();
   const { mutateAsync: activateCard, isPending: isActivating } = useMutation({
     retry: (_, error) => error instanceof APIError,

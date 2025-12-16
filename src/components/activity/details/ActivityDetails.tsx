@@ -10,16 +10,15 @@ import ReceivedActivity from "./ReceivedActivity";
 import RepayActivity from "./RepayActivity";
 import SentActivity from "./SentActivity";
 import type { AppNavigationProperties } from "../../../app/(main)/_layout";
+import { present } from "../../../utils/intercom";
 import type { ActivityItem } from "../../../utils/queryClient";
 import reportError from "../../../utils/reportError";
-import useIntercom from "../../../utils/useIntercom";
 import ActionButton from "../../shared/ActionButton";
 import GradientScrollView from "../../shared/GradientScrollView";
 
 export default function ActivityDetails() {
   const navigation = useNavigation<AppNavigationProperties>();
   const { data: item } = useQuery<ActivityItem>({ queryKey: ["activity", "details"] });
-  const { present } = useIntercom();
   if (!item) return null;
   return (
     <GradientScrollView variant="neutral" stickyHeader>

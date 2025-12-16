@@ -3,11 +3,10 @@ import React from "react";
 import { Pressable } from "react-native";
 import { View, Text } from "tamagui";
 
+import { presentArticle } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
-import useIntercom from "../../utils/useIntercom";
 
 export default function LiquidationAlert() {
-  const { presentArticle } = useIntercom();
   return (
     <View
       borderRadius="$r6"

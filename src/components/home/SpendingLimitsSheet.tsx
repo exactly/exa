@@ -3,8 +3,8 @@ import React from "react";
 import { Pressable } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 
+import { presentArticle } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
-import useIntercom from "../../utils/useIntercom";
 import Button from "../shared/Button";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
@@ -12,7 +12,6 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function SpendingLimitsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { presentArticle } = useIntercom();
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
       <ScrollView $platform-web={{ maxHeight: "100vh" }}>

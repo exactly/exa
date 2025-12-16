@@ -9,9 +9,9 @@ import { zeroAddress } from "viem";
 
 import AssetList from "./AssetList";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
+import { presentArticle } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
-import useIntercom from "../../utils/useIntercom";
 import useOpenBrowser from "../../utils/useOpenBrowser";
 import usePortfolio from "../../utils/usePortfolio";
 import SafeView from "../shared/SafeView";
@@ -23,7 +23,6 @@ export default function Portfolio() {
   const theme = useTheme();
   const { address } = useAccount();
   const openBrowser = useOpenBrowser();
-  const { presentArticle } = useIntercom();
   const { averageRate, portfolio } = usePortfolio(address);
   const navigation = useNavigation<AppNavigationProperties>();
   const style = { backgroundColor: theme.backgroundSoft.val, margin: -5 };

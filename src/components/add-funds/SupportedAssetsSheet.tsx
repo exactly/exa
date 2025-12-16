@@ -4,8 +4,8 @@ import React from "react";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import assetLogos from "../../utils/assetLogos";
+import { presentArticle } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
-import useIntercom from "../../utils/useIntercom";
 import AssetLogo from "../shared/AssetLogo";
 import Button from "../shared/Button";
 import ModalSheet from "../shared/ModalSheet";
@@ -18,7 +18,6 @@ const supportedAssets = Object.entries(assetLogos)
   .map(([symbol, image]) => ({ symbol, image }));
 
 export default function SupportedAssetsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { presentArticle } = useIntercom();
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
       <ScrollView $platform-web={{ maxHeight: "100vh" }}>

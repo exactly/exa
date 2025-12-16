@@ -11,11 +11,11 @@ import { ScrollView, XStack, YStack } from "tamagui";
 
 import LoanSummary from "./LoanSummary";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
+import { presentArticle } from "../../utils/intercom";
 import type { Loan } from "../../utils/queryClient";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
-import useIntercom from "../../utils/useIntercom";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
@@ -25,7 +25,6 @@ export default function Maturity() {
   const navigation = useNavigation<AppNavigationProperties>();
   const { t } = useTranslation();
   const { address } = useAccount();
-  const { presentArticle } = useIntercom();
   const { data: loan } = useQuery<Loan>({ queryKey: ["loan"], enabled: !!address });
   const timestamp = Math.floor(Date.now() / 1000);
   const firstMaturity = timestamp - (timestamp % MATURITY_INTERVAL) + MATURITY_INTERVAL;

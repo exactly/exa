@@ -3,7 +3,7 @@ import type { ParamListBase } from "@react-navigation/native";
 import { Boxes, Coins, CreditCard, Home, FileText } from "@tamagui/lucide-icons";
 import { Tabs } from "expo-router";
 import Head from "expo-router/head";
-import React, { useEffect } from "react";
+import React from "react";
 import { FlatList, Platform } from "react-native";
 
 import { activityRefreshControlReference, activityScrollReference } from "../../../components/activity/Activity";
@@ -12,8 +12,6 @@ import { defiRefreshControlReference, defiScrollReference } from "../../../compo
 import { homeRefreshControlReference, homeScrollReference } from "../../../components/home/Home";
 import { payModeRefreshControlReference, payModeScrollReference } from "../../../components/pay-mode/PayMode";
 import TabBar from "../../../components/shared/TabBar";
-import { enablePrompt } from "../../../utils/onesignal";
-import useIntercom from "../../../utils/useIntercom";
 
 const tabs = [
   { name: "index", title: "Home", Icon: Home },
@@ -24,8 +22,6 @@ const tabs = [
 ] as const;
 
 export default function HomeLayout() {
-  useIntercom();
-  useEffect(() => enablePrompt(), []);
   return (
     <>
       {Platform.OS === "web" && (

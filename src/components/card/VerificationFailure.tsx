@@ -4,8 +4,8 @@ import { Pressable } from "react-native";
 import { ScrollView, YStack } from "tamagui";
 
 import VerifyIdentity from "../../assets/images/verify-identity.svg";
+import { present } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
-import useIntercom from "../../utils/useIntercom";
 import Button from "../shared/Button";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
@@ -13,7 +13,6 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function VerificationFailure({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { present } = useIntercom();
   return (
     <ModalSheet open={open} onClose={onClose}>
       <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">

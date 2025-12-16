@@ -23,12 +23,12 @@ import { useBytecode } from "wagmi";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import { accountClient } from "../../utils/alchemyConnector";
 import assetLogos from "../../utils/assetLogos";
+import { presentArticle } from "../../utils/intercom";
 import type { Loan } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useInstallments from "../../utils/useInstallments";
-import useIntercom from "../../utils/useIntercom";
 import AssetLogo from "../shared/AssetLogo";
 import GradientScrollView from "../shared/GradientScrollView";
 import PaymentScheduleSheet from "../shared/PaymentScheduleSheet";
@@ -42,7 +42,6 @@ export default function Review() {
   const navigation = useNavigation<AppNavigationProperties>();
   const { t } = useTranslation();
   const { address } = useAccount();
-  const { presentArticle } = useIntercom();
   const [paymentScheduleShown, setPaymentScheduleShown] = useState(false);
   const { data: loan } = useQuery<Loan>({ queryKey: ["loan"], enabled: !!address });
   const {

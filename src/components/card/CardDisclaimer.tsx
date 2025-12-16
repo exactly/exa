@@ -5,8 +5,8 @@ import { ScrollView, YStack } from "tamagui";
 
 import Blob from "../../assets/images/exa-card-blob.svg";
 import ExaCard from "../../assets/images/exa-card.svg";
+import { presentArticle } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
-import useIntercom from "../../utils/useIntercom";
 import Button from "../shared/Button";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
@@ -22,7 +22,6 @@ export default function CardDisclaimer({
   onClose: () => void;
   onActionPress: () => void;
 }) {
-  const { presentArticle } = useIntercom();
   return (
     <ModalSheet open={open} onClose={onClose}>
       <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
