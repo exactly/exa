@@ -15,7 +15,7 @@ import { useLocalSearchParams, useNavigation } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable } from "react-native";
 import { Avatar, ScrollView, Square, XStack, YStack } from "tamagui";
-import { bigint, check, parse, pipe } from "valibot";
+import { bigint, check, parse, pipe, safeParse } from "valibot";
 import { encodeAbiParameters, erc20Abi, formatUnits, parseUnits, zeroAddress } from "viem";
 import { useBytecode, useSimulateContract, useWriteContract } from "wagmi";
 
@@ -27,11 +27,11 @@ import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import AmountSelector from "../shared/AmountSelector";
 import AssetLogo from "../shared/AssetLogo";
-import Button from "../shared/Button";
 import GradientScrollView from "../shared/GradientScrollView";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
 import ExaSpinner from "../shared/Spinner";
+import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import TransactionDetails from "../shared/TransactionDetails";
 import View from "../shared/View";
@@ -42,10 +42,17 @@ export default function Amount() {
   const [reviewOpen, setReviewOpen] = useState(false);
 
   const { asset: assetAddress, receiver: receiverAddress, amount } = useLocalSearchParams();
-  const withdrawAsset = parse(Address, assetAddress);
-  const withdrawReceiver = parse(Address, receiverAddress);
+  const withdrawAssetParse = safeParse(Address, assetAddress);
+  const withdrawReceiverParse = safeParse(Address, receiverAddress);
+  const withdrawAsset = withdrawAssetParse.success ? withdrawAssetParse.output : undefined;
+  const receiver = withdrawReceiverParse.success ? withdrawReceiverParse.output : undefined;
 
-  const { market, externalAsset: external, available, isFetching } = useAsset(withdrawAsset);
+  const {
+    market,
+    externalAsset: external,
+    available,
+    isFetching,
+  } = useAsset(withdrawAsset ?? parse(Address, zeroAddress));
 
   const form = useForm({ defaultValues: { amount: typeof amount === "string" ? BigInt(amount) : 0n } });
   const formAmount = useStore(form.store, (state) => state.values.amount);
@@ -67,7 +74,7 @@ export default function Amount() {
             market?.market ?? zeroAddress,
             formAmount,
             ProposalType.Withdraw,
-            encodeAbiParameters([{ type: "address" }], [withdrawReceiver]),
+            encodeAbiParameters([{ type: "address" }], [receiver ?? zeroAddress]),
           ],
           query: { enabled: !!market && !!address && !!bytecode && formAmount > 0n },
         }
@@ -88,16 +95,19 @@ export default function Amount() {
               stateMutability: "nonpayable",
             },
           ],
-          args: [withdrawAsset, formAmount, withdrawReceiver],
+          args: [withdrawAsset ?? zeroAddress, formAmount, receiver ?? zeroAddress],
           query: { enabled: !!market && !!address && !!bytecode && formAmount > 0n },
         },
   );
 
   const { data: transferSimulation } = useSimulateContract({
-    address: parse(Address, external?.address ?? zeroAddress),
+    address: (() => {
+      const parsed = safeParse(Address, external?.address);
+      return parsed.success ? parsed.output : parse(Address, zeroAddress);
+    })(),
     abi: erc20Abi,
     functionName: "transfer",
-    args: [withdrawReceiver, formAmount],
+    args: [receiver ?? zeroAddress, formAmount],
     query: { enabled: !!external && !!address && !!bytecode && formAmount > 0n },
   });
 
@@ -110,35 +120,43 @@ export default function Amount() {
     reset,
   } = useWriteContract();
 
+  const sendReady = formAmount > 0n && (market ? !!proposeSimulation : !!external && !!transferSimulation);
+
   const handleSubmit = useCallback(() => {
+    if (!sendReady) return;
     if (market) {
-      if (!proposeSimulation) throw new Error("no propose simulation");
+      if (!proposeSimulation) return;
       writeContract(proposeSimulation.request);
-    } else {
-      if (!external) throw new Error("no external asset");
-      if (!transferSimulation) throw new Error("no transfer simulation");
-      writeContract(transferSimulation.request);
+      return;
     }
-  }, [market, proposeSimulation, writeContract, external, transferSimulation]);
+    if (!transferSimulation) return;
+    writeContract(transferSimulation.request);
+  }, [market, proposeSimulation, sendReady, transferSimulation, writeContract]);
 
   const details: {
-    external: boolean;
-    symbol?: string;
     amount: string;
+    external: boolean;
+    logoURI?: string;
+    symbol?: string;
     usdValue: string;
   } = useMemo(
     () =>
       market
         ? {
-            external: false,
-            symbol: market.symbol.slice(3) === "WETH" ? "ETH" : market.symbol.slice(3),
             amount: formatUnits(formAmount, market.decimals),
+            external: false,
+            logoURI:
+              assetLogos[
+                market.symbol.slice(3) === "WETH" ? "ETH" : (market.symbol.slice(3) as keyof typeof assetLogos)
+              ],
+            symbol: market.symbol.slice(3) === "WETH" ? "ETH" : market.symbol.slice(3),
             usdValue: formatUnits((formAmount * market.usdPrice) / WAD, market.decimals),
           }
         : {
-            external: true,
-            symbol: external?.symbol,
             amount: formatUnits(formAmount, external?.decimals ?? 0),
+            external: true,
+            logoURI: external?.logoURI,
+            symbol: external?.symbol,
             usdValue: formatUnits(
               (formAmount * parseUnits(external?.priceUSD ?? "0", 18)) / WAD,
               external?.decimals ?? 0,
@@ -151,17 +169,43 @@ export default function Amount() {
     queryKey: ["contacts", "recent"],
   });
 
-  const canSend =
-    withdrawReceiver !== parse(Address, zeroAddress) && market ? !!proposeSimulation : !!transferSimulation;
-  const isFirstSend = !recentContacts?.some((contact) => contact.address === withdrawReceiver);
+  const isFirstSend = !recentContacts?.some((contact) => contact.address === receiver);
 
   useEffect(() => {
-    if (success && !recentContacts?.some((contact) => contact.address === withdrawReceiver)) {
+    if (success && receiver && !recentContacts?.some((contact) => contact.address === receiver)) {
       queryClient.setQueryData<{ address: Address; ens: string }[] | undefined>(["contacts", "recent"], (old) =>
-        [{ address: withdrawReceiver, ens: "" }, ...(old ?? [])].slice(0, 3),
+        [{ address: receiver, ens: "" }, ...(old ?? [])].slice(0, 3),
       );
     }
-  }, [success, withdrawReceiver, recentContacts]);
+  }, [success, receiver, recentContacts]);
+
+  if (!receiver || receiver === parse(Address, zeroAddress)) {
+    return (
+      <SafeView fullScreen>
+        <View gap="$s5" fullScreen padded justifyContent="center" alignItems="center">
+          <Text body primary color="$uiNeutralPrimary">
+            Invalid receiver address
+          </Text>
+          <Button
+            dangerSecondary
+            alignSelf="center"
+            onPress={() => {
+              if (navigation.canGoBack()) {
+                navigation.goBack();
+              } else {
+                navigation.replace("send-funds", { screen: "asset" });
+              }
+            }}
+          >
+            <Button.Text>Go back</Button.Text>
+            <Button.Icon>
+              <ArrowLeft size={24} color="$uiNeutralPrimary" />
+            </Button.Icon>
+          </Button>
+        </View>
+      </SafeView>
+    );
+  }
 
   if (!pending && !error && !success) {
     return (
@@ -187,8 +231,7 @@ export default function Amount() {
           </View>
           <ScrollView
             showsVerticalScrollIndicator={false}
-            // eslint-disable-next-line react-native/no-inline-styles
-            contentContainerStyle={{ flexGrow: 1 }}
+            contentContainerStyle={{ flexGrow: 1 }} // eslint-disable-line react-native/no-inline-styles
             gap="$s5"
           >
             <View flex={1} gap="$s5" paddingBottom="$s5">
@@ -207,7 +250,7 @@ export default function Amount() {
                       To:
                     </Text>
                     <Text callout color="$uiNeutralPrimary" fontFamily="$mono">
-                      {shortenHex(withdrawReceiver)}
+                      {shortenHex(receiver)}
                     </Text>
                   </XStack>
                 </XStack>
@@ -279,20 +322,16 @@ export default function Amount() {
               {([isValid, isTouched]) => {
                 return (
                   <Button
-                    contained
-                    main
-                    spaced
+                    primary
                     disabled={!isValid || !isTouched}
-                    iconAfter={
-                      <FilePen
-                        color={isValid && isTouched ? "$interactiveOnBaseBrandDefault" : "$interactiveOnDisabled"}
-                      />
-                    }
                     onPress={() => {
                       setReviewOpen(true);
                     }}
                   >
-                    Review
+                    <Button.Text>Review</Button.Text>
+                    <Button.Icon>
+                      <FilePen size={24} />
+                    </Button.Icon>
                   </Button>
                 );
               }}
@@ -300,7 +339,10 @@ export default function Amount() {
           </ScrollView>
         </View>
         <ReviewSheet
-          open={reviewOpen}
+          amount={details.amount}
+          external={details.external}
+          logoURI={details.logoURI}
+          isFirstSend={isFirstSend}
           onClose={() => {
             setReviewOpen(false);
           }}
@@ -308,9 +350,11 @@ export default function Amount() {
             setReviewOpen(false);
             handleSubmit();
           }}
-          canSend={canSend}
-          details={details}
-          isFirstSend={isFirstSend}
+          open={reviewOpen}
+          receiver={receiver}
+          sendReady={sendReady}
+          symbol={details.symbol}
+          usdValue={details.usdValue}
         />
       </SafeView>
     );
@@ -354,7 +398,7 @@ export default function Amount() {
                 <>
                   Sending to&nbsp;
                   <Text emphasized primary body color="$uiNeutralPrimary">
-                    {shortenHex(withdrawReceiver, 5, 7)}
+                    {shortenHex(receiver, 5, 7)}
                   </Text>
                 </>
               )}
@@ -370,7 +414,7 @@ export default function Amount() {
                 <>
                   Failed&nbsp;
                   <Text emphasized primary body color="$uiNeutralPrimary">
-                    {shortenHex(withdrawReceiver, 3, 5)}
+                    {shortenHex(receiver, 3, 5)}
                   </Text>
                 </>
               )}
