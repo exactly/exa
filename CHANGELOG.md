@@ -1,5 +1,39 @@
 # @exactly/mobile
 
+## 1.0.41
+
+### Patch Changes
+
+- [`edc84df`](https://github.com/exactly/exa/commit/edc84df72a6d981f346c4f23a2beaa392a670714) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚸 remember notifications dismissal
+
+- [`a326162`](https://github.com/exactly/exa/commit/a3261625fb5e6e95f9f543b64da6d5cb59e8761d) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ♿️ add accessibility label to some icon buttons
+
+- [`301e39b`](https://github.com/exactly/exa/commit/301e39b4f0987621705b02d9b559a40dd5910b6b) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🔒 implement intercom user token
+
+- [`742e54d`](https://github.com/exactly/exa/commit/742e54d1459ae7a83f7f9d424aa87a5526946f73) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix send button disabled state
+
+- [`34240a9`](https://github.com/exactly/exa/commit/34240a9c8c8edac3f9b714c4608b8644edfaa15b) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💬 update arrival time text
+
+- [`3b3deb7`](https://github.com/exactly/exa/commit/3b3deb7b06841852a00cad380a847423a829d399) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💬 remove asterisks
+
+- [`30acc21`](https://github.com/exactly/exa/commit/30acc213be0d7f0ceebbd88480d036a6e68d8e02) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 improve card migration layout
+
+- [`a0cde84`](https://github.com/exactly/exa/commit/a0cde848ffc14a1024f6f6b05e9ab4f81e56960f) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚚 move all wagmi codegen to common
+
+- [`4821367`](https://github.com/exactly/exa/commit/4821367df99bac70783398c6c82d22220901fb8d) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix send funds close button behavior
+
+- [`f897834`](https://github.com/exactly/exa/commit/f897834418f364385c722a1e6835275d5d86e1e6) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 change card buttons order
+
+- [`eff3254`](https://github.com/exactly/exa/commit/eff3254459148a1513059f9b25a72851a654c01e) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix card upgrade banner render condition
+
+- [`463f621`](https://github.com/exactly/exa/commit/463f621b516f2b54d27ae488df73bddc77f5523d) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ♻️ refactor intercom
+
+- [`289b4c0`](https://github.com/exactly/exa/commit/289b4c09edde30028f4604318755ac0e2bac29c2) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix swap failure close button behavior
+
+- Updated dependencies [[`9ccbe62`](https://github.com/exactly/exa/commit/9ccbe6216d5f75226c49e1a716aa5d587dc4b60d), [`2faadc9`](https://github.com/exactly/exa/commit/2faadc97b10aa44ae9b8d5937cec085b64c57174), [`ff5c07d`](https://github.com/exactly/exa/commit/ff5c07ddec258c9cde6062f75d76f62cb768b233), [`b8f4e03`](https://github.com/exactly/exa/commit/b8f4e03b6e62d3e69eea6107c0e64bad991f608d), [`248a747`](https://github.com/exactly/exa/commit/248a747215141cb9a902839cc396ad3f76d190fa), [`770ea26`](https://github.com/exactly/exa/commit/770ea262183219603c82c62dba390283cefa25cf), [`5d2043e`](https://github.com/exactly/exa/commit/5d2043e2a0cca70c08282c03448ccec24d72486c), [`571700b`](https://github.com/exactly/exa/commit/571700b4c33d292b418c43ed046344dbe87ba92d), [`a0cde84`](https://github.com/exactly/exa/commit/a0cde848ffc14a1024f6f6b05e9ab4f81e56960f), [`eaa09f4`](https://github.com/exactly/exa/commit/eaa09f4d09f1c059b7330a1cb71b97483003a3d1), [`afb8400`](https://github.com/exactly/exa/commit/afb840059d3daa13ec97a4e49e5bd79b612515f7), [`839f0e2`](https://github.com/exactly/exa/commit/839f0e27835a0f268e8d7a795ba7549387ea6379), [`ba6da13`](https://github.com/exactly/exa/commit/ba6da13b7b8b1f4218162a64a69641e2d5bbf47d), [`abb7a77`](https://github.com/exactly/exa/commit/abb7a77ad52f686e064380c7457a5c09088ccf43), [`079f74f`](https://github.com/exactly/exa/commit/079f74fabd90fe742e1e99187ac3593de029e652)]:
+  - @exactly/server@0.2.43
+  - @exactly/common@0.0.10
+
 ## 1.0.40
 
 ### Patch Changes

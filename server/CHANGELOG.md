@@ -1,5 +1,37 @@
 # @exactly/server
 
+## 0.2.43
+
+### Patch Changes
+
+- [`9ccbe62`](https://github.com/exactly/exa/commit/9ccbe6216d5f75226c49e1a716aa5d587dc4b60d) Thanks [@nfmelendez](https://github.com/nfmelendez)! - ⬆️ upgrade drizzle kit
+
+- [`2faadc9`](https://github.com/exactly/exa/commit/2faadc97b10aa44ae9b8d5937cec085b64c57174) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🧵 fix proposal scheduling race condition
+
+- [`ff5c07d`](https://github.com/exactly/exa/commit/ff5c07ddec258c9cde6062f75d76f62cb768b233) Thanks [@mainqueg](https://github.com/mainqueg)! - 📝 improve api documentation
+
+- [`b8f4e03`](https://github.com/exactly/exa/commit/b8f4e03b6e62d3e69eea6107c0e64bad991f608d) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ⚡️ skip empty alchemy blocks
+
+- [`248a747`](https://github.com/exactly/exa/commit/248a747215141cb9a902839cc396ad3f76d190fa) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 📝 add cancel card documentation
+
+- [`770ea26`](https://github.com/exactly/exa/commit/770ea262183219603c82c62dba390283cefa25cf) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🩹 handle delayed proposal timeout
+
+- [`571700b`](https://github.com/exactly/exa/commit/571700b4c33d292b418c43ed046344dbe87ba92d) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ create alchemy's activity hook automatically
+
+- [`a0cde84`](https://github.com/exactly/exa/commit/a0cde848ffc14a1024f6f6b05e9ab4f81e56960f) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚚 move all wagmi codegen to common
+
+- [`eaa09f4`](https://github.com/exactly/exa/commit/eaa09f4d09f1c059b7330a1cb71b97483003a3d1) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🔧 setup alchemy for base networks
+
+- [`afb8400`](https://github.com/exactly/exa/commit/afb840059d3daa13ec97a4e49e5bd79b612515f7) Thanks [@mainqueg](https://github.com/mainqueg)! - 📝 document card api
+
+- [`839f0e2`](https://github.com/exactly/exa/commit/839f0e27835a0f268e8d7a795ba7549387ea6379) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ⬆️ upgrade sentry
+
+- [`ba6da13`](https://github.com/exactly/exa/commit/ba6da13b7b8b1f4218162a64a69641e2d5bbf47d) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🐛 skip notification for market shares
+
+- [`abb7a77`](https://github.com/exactly/exa/commit/abb7a77ad52f686e064380c7457a5c09088ccf43) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ create alchemy's block hook automatically
+
+- [`079f74f`](https://github.com/exactly/exa/commit/079f74fabd90fe742e1e99187ac3593de029e652) Thanks [@aguxez](https://github.com/aguxez)! - 🔒 verify intercom identity
+
 ## 0.2.42
 
 ### Patch Changes
