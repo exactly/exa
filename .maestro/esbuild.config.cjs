@@ -5,5 +5,5 @@ module.exports = {
   platform: "neutral",
   external: ["isows"],
   mainFields: ["module", "main"],
-  inject: ["src/polyfill.ts"],
+  inject: [`${__dirname}/src/polyfill.ts`],
 };

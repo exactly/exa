@@ -38,8 +38,8 @@
           "thirdParty": true,
           "outputPath": "dist",
           "platform": "neutral",
-          "tsConfig": ".maestro/tsconfig.json",
-          "esbuildConfig": ".maestro/esbuild.config.cjs",
+          "tsConfig": "{projectRoot}/tsconfig.json",
+          "esbuildConfig": "{projectRoot}/esbuild.config.cjs",
           "main": "src/script/*.ts"
         }
       },
@@ -68,8 +68,8 @@
           "thirdParty": true,
           "outputPath": "dist",
           "platform": "neutral",
-          "tsConfig": ".maestro/tsconfig.json",
-          "esbuildConfig": ".maestro/esbuild.config.cjs",
+          "tsConfig": "{projectRoot}/tsconfig.json",
+          "esbuildConfig": "{projectRoot}/esbuild.config.cjs",
           "main": "src/script/*.ts"
         }
       },
@@ -94,8 +94,8 @@
           "thirdParty": true,
           "outputPath": "dist",
           "platform": "neutral",
-          "tsConfig": ".maestro/tsconfig.json",
-          "esbuildConfig": ".maestro/esbuild.config.cjs",
+          "tsConfig": "{projectRoot}/tsconfig.json",
+          "esbuildConfig": "{projectRoot}/esbuild.config.cjs",
           "main": "src/script/*.ts"
         }
       },
