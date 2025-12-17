@@ -7,7 +7,6 @@ on:
         type: string
     secrets:
       DIGITALOCEAN_TOKEN:
-      NX_CLOUD_ACCESS_TOKEN:
 jobs:
   digitalocean:
     runs-on: ubuntu-latest
@@ -18,7 +17,6 @@ jobs:
     env:
       CHAIN_ID: ${{ vars.CHAIN_ID }}
       APP_DOMAIN: ${{ vars.APP_DOMAIN }}
-      NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
     steps:
       - uses: digitalocean/app_action/deploy@v2
         env: { IMAGE_TAG_SERVER: "sha-${{ github.sha }}" }
