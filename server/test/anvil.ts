@@ -60,7 +60,7 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
 
   const protocol = parse(
     Protocol,
-    await import(`@exactly/plugin/broadcast/Protocol.s.sol/${foundry.id}/run-latest.json`),
+    await import("@exactly/plugin/broadcast/Protocol.s.sol/31337/run-latest.json", { with: { type: "json" } }),
   ).transactions;
   const auditor = protocol[1].contractAddress;
   const exa = protocol[3].contractAddress;
@@ -105,7 +105,7 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
           object({ contractName: literal("MockSwapper"), contractAddress: Address }),
         ]),
       }),
-      await import(`@exactly/plugin/broadcast/Mocks.s.sol/${foundry.id}/run-latest.json`),
+      await import("@exactly/plugin/broadcast/Mocks.s.sol/31337/run-latest.json", { with: { type: "json" } }),
     ).transactions[1].contractAddress;
 
     await $(shell)`forge script node_modules/webauthn-owner-plugin/script/Plugin.s.sol --sender ${deployer}
@@ -114,7 +114,7 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
       object({
         transactions: tuple([object({ contractName: literal("WebauthnOwnerPlugin"), contractAddress: Address })]),
       }),
-      await import(`@exactly/plugin/broadcast/Plugin.s.sol/${foundry.id}/run-latest.json`),
+      await import("@exactly/plugin/broadcast/Plugin.s.sol/31337/run-latest.json", { with: { type: "json" } }),
     ).transactions[0].contractAddress;
 
     await $(shell)`forge script test/mocks/Account.s.sol
@@ -149,32 +149,32 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
   }
 
   const [issuerChecker, proposalManager, refunder, exaPreviewer, exaPlugin, exaAccountFactory] = await Promise.all([
-    import(`@exactly/plugin/broadcast/IssuerChecker.s.sol/${foundry.id}/run-latest.json`).then(
+    import("@exactly/plugin/broadcast/IssuerChecker.s.sol/31337/run-latest.json", { with: { type: "json" } }).then(
       (json) =>
         parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), json).transactions[0]
           .contractAddress,
     ),
-    import(`@exactly/plugin/broadcast/ProposalManager.s.sol/${foundry.id}/run-latest.json`).then(
+    import("@exactly/plugin/broadcast/ProposalManager.s.sol/31337/run-latest.json", { with: { type: "json" } }).then(
       (json) =>
         parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), json).transactions[0]
           .contractAddress,
     ),
-    import(`@exactly/plugin/broadcast/Refunder.s.sol/${foundry.id}/run-latest.json`).then(
+    import("@exactly/plugin/broadcast/Refunder.s.sol/31337/run-latest.json", { with: { type: "json" } }).then(
       (json) =>
         parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), json).transactions[0]
           .contractAddress,
     ),
-    import(`@exactly/plugin/broadcast/ExaPreviewer.s.sol/${foundry.id}/run-latest.json`).then(
+    import("@exactly/plugin/broadcast/ExaPreviewer.s.sol/31337/run-latest.json", { with: { type: "json" } }).then(
       (json) =>
         parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), json).transactions[0]
           .contractAddress,
     ),
-    import(`@exactly/plugin/broadcast/ExaPlugin.s.sol/${foundry.id}/run-latest.json`).then(
+    import("@exactly/plugin/broadcast/ExaPlugin.s.sol/31337/run-latest.json", { with: { type: "json" } }).then(
       (json) =>
         parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), json).transactions[0]
           .contractAddress,
     ),
-    import(`@exactly/plugin/broadcast/ExaAccountFactory.s.sol/${foundry.id}/run-latest.json`).then(
+    import("@exactly/plugin/broadcast/ExaAccountFactory.s.sol/31337/run-latest.json", { with: { type: "json" } }).then(
       (json) =>
         parse(
           object({
