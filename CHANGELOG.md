@@ -1,5 +1,11 @@
 # @exactly/mobile
 
+## 1.0.42
+
+### Patch Changes
+
+- [`77fa7c4`](https://github.com/exactly/exa/commit/77fa7c407cad21b27c56c4881464683eb32202a3) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚑 add submit coverage guard
+
 ## 1.0.41
 
 ### Patch Changes
