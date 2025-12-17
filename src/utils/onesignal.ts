@@ -9,7 +9,8 @@ import reportError from "./reportError";
 const { enablePrompt, login, logout } = (
   Platform.OS === "web"
     ? () => {
-        const { default: OneSignal } = require("react-onesignal") as typeof OneSignalWeb; // eslint-disable-line unicorn/prefer-module
+        const OneSignalModule = require("react-onesignal") as typeof OneSignalWeb; // eslint-disable-line unicorn/prefer-module
+        const OneSignal = OneSignalModule.default ?? (OneSignalModule as unknown as typeof OneSignalWeb.default); // eslint-disable-line @typescript-eslint/no-unnecessary-condition
         const init =
           appId && typeof window !== "undefined"
             ? OneSignal.init({
