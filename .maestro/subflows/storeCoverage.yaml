@@ -2,5 +2,5 @@ appId: app.exactly
 ---
 - tapOn: Settings
 - tapOn: Submit coverage
-- assertVisible: Submit coverage Finished
+- assertVisible: Submit coverage, Finished
 - tapOn: Back
