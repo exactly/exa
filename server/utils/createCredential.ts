@@ -3,20 +3,21 @@ import deriveAddress from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
 import { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
-import { captureException, setUser } from "@sentry/core";
+import { setUser } from "@sentry/core";
 import type { WebAuthnCredential } from "@simplewebauthn/server";
 import type { Context } from "hono";
 import { setSignedCookie } from "hono/cookie";
 import { parse } from "valibot";
 import { hexToBytes, isAddress } from "viem";
 
-import { headers as alchemyHeaders } from "./alchemy";
 import authSecret from "./authSecret";
 import decodePublicKey from "./decodePublicKey";
 import { identify } from "./segment";
 import database from "../database";
 import { credentials } from "../database/schema";
 import { webhookId } from "../hooks/activity";
+import { alchemyQueue } from "../queues/alchemyQueue";
+import { AlchemyJob } from "../queues/constants";
 
 export default async function createCredential<C extends string>(
   c: Context,
@@ -48,15 +49,7 @@ export default async function createCredential<C extends string>(
         ? { sameSite: "lax", secure: false }
         : { domain, sameSite: "none", secure: true, partitioned: true }),
     }),
-    fetch("https://dashboard.alchemy.com/api/update-webhook-addresses", {
-      method: "PATCH",
-      headers: alchemyHeaders,
-      body: JSON.stringify({ webhook_id: webhookId, addresses_to_add: [account], addresses_to_remove: [] }),
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);
-      })
-      .catch((error: unknown) => captureException(error)),
+    alchemyQueue.add(AlchemyJob.ADD_SUBSCRIBER, { account, webhookId }),
   ]);
   identify({ userId: account });
   return { credentialId, factory: parse(Address, exaAccountFactoryAddress), x, y, auth: expires.getTime() };
