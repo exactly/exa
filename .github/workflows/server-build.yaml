@@ -3,15 +3,12 @@ on:
   workflow_call:
     inputs:
       environment: { required: true, type: string }
-    secrets:
-      NX_CLOUD_ACCESS_TOKEN:
 jobs:
   docker:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     permissions: { contents: read, packages: write, attestations: write, id-token: write }
     env:
-      NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
       IMAGE: ghcr.io/${{ github.repository }}-${{ inputs.environment }}
     steps:
       - uses: actions/checkout@v4
