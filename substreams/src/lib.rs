@@ -27,19 +27,6 @@ use substreams_ethereum::{pb::eth::v2::Block, Event};
 mod contracts;
 mod proto;
 
-// FIXME: hardcoded values for op-sepolia. get aggregators from price feeds
-pub fn is_chainlink_aggregator(address: &[u8]) -> bool {
-  matches!(
-    address,
-    hex!("96d0CbdA3A58c86f987ba50168802758D5617057") // DAI aggregator
-    | hex!("8a3d029338051B1B35eF06988c5F42eE2fAD81C4") // USDC aggregator
-    | hex!("7345Bb00B785ddE39756426D675C71E50e8aD492") // OP aggregator
-    | hex!("2E7B57987A1E2c7B028fD2183EB21634e260f9cc") // WBTC aggregator
-    | hex!("466A262E70d92eefd641ad508a6D7B3AC67D9949") // ETH aggregator
-    | hex!("6555df705746fdC5531e2A3c2b333a85B588D2e1") // wstETH aggregator
-  )
-}
-
 #[substreams::handlers::map]
 pub fn map_blocks(block: Block) -> Result<Events, Error> {
   Ok(Events {

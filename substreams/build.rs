@@ -141,21 +141,6 @@ fn main() -> Result<(), Error> {
       })
       .collect::<Result<Vec<_>, _>>()?
       .join("\n      | "),
-      // FIXME: get price feed aggregators
-      glob(&format!(
-        "node_modules/@exactly/protocol/deployments/{}/PriceFeed*.json",
-        match option_env!("CHAIN_ID") {
-          Some("10") => "optimism",
-          _ => "op-sepolia",
-        }
-      ))?
-      .filter_map(Result::ok)
-      .map(|path| -> Result<String, Error> {
-        println!("cargo::rerun-if-changed={}", path.display());
-        Ok(format!("hex!(\"{}\")", &from_str::<Deployment>(&read_to_string(&path)?)?.address[2..]))
-      })
-      .collect::<Result<Vec<_>, _>>()?
-      .join("\n      | "),
       match option_env!("CHAIN_ID") {
         Some("10") => vec![
           "8D493AF799162Ac3f273e8918B2842447f702163",
@@ -186,6 +171,14 @@ fn main() -> Result<(), Error> {
       match option_env!("CHAIN_ID") {
         Some("10") => vec![""], // FIXME: get op-mainnet plugin addresses
         _ => vec!["5B1e61a7802Dc02Bf55435077aC5FF057d06e4AE"],
+      }
+      .iter()
+      .map(|a| format!("hex!(\"{a}\")"))
+      .collect::<Vec<_>>()
+      .join("\n      | "),
+      match option_env!("CHAIN_ID") {
+        Some("10") => vec!["6817974CA2c354F2FA40d8349b725B5bF81c8338"],
+        _ => vec!["18ad48fc2c215ba5f1fd2a5f283792fca1a3ca36"],
       }
       .iter()
       .map(|a| format!("hex!(\"{a}\")"))
