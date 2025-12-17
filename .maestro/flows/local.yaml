@@ -9,6 +9,8 @@ tags:
 - tapOn: Not now
 - pressKey: home
 - launchApp: { permissions: { all: deny, camera: allow } }
+- extendedWaitUntil: { visible: http://localhost:8081, timeout: 180000 }
+- tapOn: http://localhost:8081
 - extendedWaitUntil: { visible: Your portfolio, timeout: 180000 }
 - assertNotVisible: Stay updated
 - runFlow: ../subflows/readPortfolio.yaml

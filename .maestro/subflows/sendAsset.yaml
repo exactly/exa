@@ -6,7 +6,9 @@ appId: app.exactly
 - inputText: ${to}
 - hideKeyboard
 - tapOn: { text: Next, waitToSettleTimeoutMs: 0 }
-- tapOn: { text: "${asset}", waitToSettleTimeoutMs: 0 }
+- tapOn:
+    text: ^${asset}, [\s\d,.\xa0]+ available$
+    waitToSettleTimeoutMs: 0
 - tapOn: ${asset}
 - inputText: ${amount}
 - tapOn: "To:"
