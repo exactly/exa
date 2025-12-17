@@ -88,27 +88,29 @@ export default function Settings() {
                 </XStack>
               </Pressable>
             </View>
-            <View borderRadius="$r3" borderWidth={1} borderColor="$borderNeutralSoft">
-              <Separator borderColor="$borderNeutralSoft" />
-              <Pressable onPress={() => submitCoverage()}>
-                <XStack justifyContent="space-between" alignItems="center" padding="$s4">
-                  <XStack justifyContent="space-between" flex={1}>
-                    <XStack justifyContent="flex-start" alignItems="center" gap="$s3">
-                      <SendHorizontal color="$backgroundBrand" />
-                      <Text subHeadline color="$uiNeutralPrimary">
-                        Submit coverage
-                      </Text>
+            {process.env.EXPO_PUBLIC_ENV === "e2e" ? (
+              <View borderRadius="$r3" borderWidth={1} borderColor="$borderNeutralSoft">
+                <Separator borderColor="$borderNeutralSoft" />
+                <Pressable onPress={() => submitCoverage()}>
+                  <XStack justifyContent="space-between" alignItems="center" padding="$s4">
+                    <XStack justifyContent="space-between" flex={1}>
+                      <XStack justifyContent="flex-start" alignItems="center" gap="$s3">
+                        <SendHorizontal color="$backgroundBrand" />
+                        <Text subHeadline color="$uiNeutralPrimary">
+                          Submit coverage
+                        </Text>
+                      </XStack>
+                      {(coverageSuccess || coverageError) && (
+                        <Check
+                          accessibilityLabel="Finished"
+                          color={coverageSuccess ? "$backgroundBrand" : "$interactiveBaseErrorDefault"}
+                        />
+                      )}
                     </XStack>
-                    {(coverageSuccess || coverageError) && (
-                      <Check
-                        accessibilityLabel="Finished"
-                        color={coverageSuccess ? "$backgroundBrand" : "$interactiveBaseErrorDefault"}
-                      />
-                    )}
                   </XStack>
-                </XStack>
-              </Pressable>
-            </View>
+                </Pressable>
+              </View>
+            ) : null}
             <Pressable
               hitSlop={20}
               onPress={() => {
