@@ -27,14 +27,23 @@ export default function AssetSelector({
   const [selectedMarket, setSelectedMarket] = useState<Address | undefined>();
   const { address: account } = useAccount();
   const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [account ?? zeroAddress] });
-  const { accountAssets, externalAssets, isPending: isAccountAssetsPending } = useAccountAssets({ sortBy });
+  const { accountAssets, externalAssets, isPending } = useAccountAssets({ sortBy });
+
   if (accountAssets.length === 0) {
+    if (isPending) {
+      return (
+        <YStack gap="$s2" borderWidth={1} borderRadius="$r3" borderColor="$borderNeutralSeparator" padding="$s3">
+          <AssetSkeleton />
+        </YStack>
+      );
+    }
     return (
       <Text textAlign="center" emphasized footnote color="$uiNeutralSecondary">
         No available assets.
       </Text>
     );
   }
+
   return (
     <YStack gap="$s2" borderWidth={1} borderRadius="$r3" borderColor="$borderNeutralSeparator">
       <ToggleGroup
@@ -47,133 +56,98 @@ export default function AssetSelector({
           const { success, output } = safeParse(Address, value === "" ? selectedMarket : value);
           if (!success) return;
           setSelectedMarket(output);
-          const isExternalAsset = externalAssets.some(({ address }) => address === output);
-          onSubmit(output, isExternalAsset);
+          const isExternal = externalAssets.some(({ address }) => address === output);
+          onSubmit(output, isExternal);
         }}
       >
-        {accountAssets.map((item) => {
-          if (item.type === "external") {
-            const { name, symbol, logoURI, address, amount, priceUSD, decimals, usdValue } = item;
-            return (
-              <ToggleGroup.Item unstyled key={address} value={address} borderWidth={0} cursor="pointer">
-                <View
-                  flexDirection="row"
-                  alignItems="center"
-                  justifyContent="space-between"
-                  paddingVertical={vs(10)}
-                  backgroundColor={selectedMarket === address ? "$interactiveBaseBrandSoftDefault" : "transparent"}
-                  width="100%"
-                  paddingHorizontal="$s4"
-                  borderRadius="$r3"
-                >
-                  <View flexDirection="row" gap={10} alignItems="center" maxWidth="50%">
-                    <Image source={{ uri: logoURI }} width={32} height={32} borderRadius={16} />
-                    <View gap="$s2" alignItems="flex-start" flexShrink={1}>
-                      <Text fontSize={15} fontWeight="bold" color="$uiNeutralPrimary" numberOfLines={1}>
-                        {symbol}
-                      </Text>
-                      <Text fontSize={12} color="$uiNeutralSecondary" numberOfLines={1}>
-                        {name}
-                      </Text>
-                    </View>
-                  </View>
-                  <View gap="$s2" flex={1}>
-                    <View flexDirection="row" alignItems="center" justifyContent="flex-end">
-                      <Text fontSize={15} fontWeight="bold" textAlign="right" color="$uiNeutralPrimary">
-                        {usdValue.toLocaleString(undefined, {
-                          style: "currency",
-                          currency: "USD",
-                          currencyDisplay: "narrowSymbol",
-                        })}
-                      </Text>
-                    </View>
-                    <Text fontSize={12} color="$uiNeutralSecondary" textAlign="right">
-                      {`${(Number(amount ?? 0n) / 10 ** decimals).toLocaleString(undefined, {
-                        minimumFractionDigits: 0,
-                        maximumFractionDigits: Math.min(
-                          8,
-                          Math.max(0, decimals - Math.ceil(Math.log10(Math.max(1, Number(priceUSD) / 1e18)))),
-                        ),
-                      })} ${symbol}`}
-                    </Text>
-                  </View>
-                </View>
-              </ToggleGroup.Item>
+        {accountAssets.map((asset) => {
+          const availableBalance =
+            asset.type === "external"
+              ? Number(asset.amount ?? 0n) / 10 ** asset.decimals
+              : Number(markets ? withdrawLimit(markets, asset.market) : 0n) / 10 ** asset.decimals;
+
+          const usdPrice = asset.type === "external" ? Number(asset.priceUSD) / 1e18 : asset.usdValue / 1e18;
+          const balance = availableBalance.toLocaleString(undefined, {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: Math.min(
+              8,
+              Math.max(0, asset.decimals - Math.ceil(Math.log10(Math.max(1, usdPrice)))),
+            ),
+          });
+
+          const symbol =
+            asset.type === "external" ? asset.symbol : asset.symbol.slice(3) === "WETH" ? "ETH" : asset.symbol.slice(3);
+          const name =
+            asset.type === "external" ? asset.name : asset.assetName === "Wrapped Ether" ? "Ether" : asset.assetName;
+          const logo =
+            asset.type === "external" ? (
+              <Image source={{ uri: asset.logoURI }} width={32} height={32} borderRadius={16} />
+            ) : (
+              <AssetLogo source={{ uri: assetLogos[symbol as keyof typeof assetLogos] }} width={32} height={32} />
             );
-          } else {
-            const { symbol, assetName, decimals, usdValue, market } = item;
-            return (
-              <ToggleGroup.Item
-                unstyled
-                key={market}
-                value={market}
-                borderWidth={0}
-                backgroundColor="transparent"
-                cursor="pointer"
+
+          const isSelected = selectedMarket === (asset.type === "external" ? asset.address : asset.market);
+          return (
+            <ToggleGroup.Item
+              aria-label={`${symbol}, ${balance} available`}
+              aria-describedby="tap to select"
+              unstyled
+              key={asset.type === "external" ? asset.address : asset.market}
+              value={(asset.type === "external" ? asset.address : asset.market) as Address}
+              borderWidth={0}
+              backgroundColor="transparent"
+              cursor="pointer"
+              disablePassStyles
+            >
+              <View
+                flexDirection="row"
+                alignItems="center"
+                justifyContent="space-between"
+                paddingVertical={vs(10)}
+                backgroundColor={isSelected ? "$interactiveBaseBrandSoftDefault" : "transparent"}
+                width="100%"
+                paddingHorizontal="$s4"
+                borderRadius="$r3"
               >
-                <View
-                  flexDirection="row"
-                  alignItems="center"
-                  justifyContent="space-between"
-                  paddingVertical={vs(10)}
-                  backgroundColor={selectedMarket === market ? "$interactiveBaseBrandSoftDefault" : "transparent"}
-                  width="100%"
-                  paddingHorizontal="$s4"
-                  borderRadius="$r3"
-                >
-                  <View flexDirection="row" gap={10} alignItems="center" maxWidth="50%">
-                    <AssetLogo
-                      source={{
-                        uri: assetLogos[
-                          symbol.slice(3) === "WETH" ? "ETH" : (symbol.slice(3) as keyof typeof assetLogos)
-                        ],
-                      }}
-                      width={32}
-                      height={32}
-                    />
-                    <View gap="$s2" alignItems="flex-start" flexShrink={1}>
-                      <Text fontSize={15} fontWeight="bold" color="$uiNeutralPrimary" numberOfLines={1}>
-                        {symbol.slice(3) === "WETH" ? "ETH" : symbol.slice(3)}
-                      </Text>
-                      <Text fontSize={12} color="$uiNeutralSecondary" numberOfLines={1}>
-                        {assetName === "Wrapped Ether" ? "Ether" : assetName}
-                      </Text>
-                    </View>
-                  </View>
-                  <View gap="$s2" flex={1}>
-                    <View flexDirection="row" alignItems="center" justifyContent="flex-end">
-                      <Text fontSize={15} fontWeight="bold" textAlign="right" color="$uiNeutralPrimary">
-                        {usdValue.toLocaleString(undefined, {
-                          style: "currency",
-                          currency: "USD",
-                          currencyDisplay: "narrowSymbol",
-                        })}
-                      </Text>
-                    </View>
-                    <Text fontSize={12} color="$uiNeutralSecondary" textAlign="right">
-                      {`${(Number(markets ? withdrawLimit(markets, market) : 0n) / 10 ** decimals).toLocaleString(
-                        undefined,
-                        {
-                          minimumFractionDigits: 0,
-                          maximumFractionDigits: Math.min(
-                            8,
-                            Math.max(0, decimals - Math.ceil(Math.log10(Math.max(1, usdValue / 1e18)))),
-                          ),
-                        },
-                      )} ${symbol.slice(3) === "WETH" ? "ETH" : symbol.slice(3)}`}
+                <View flexDirection="row" gap={10} alignItems="center" maxWidth="50%">
+                  {logo}
+                  <View gap="$s2" alignItems="flex-start" flexShrink={1}>
+                    <Text fontSize={15} fontWeight="bold" color="$uiNeutralPrimary" numberOfLines={1}>
+                      {symbol}
+                    </Text>
+                    <Text fontSize={12} color="$uiNeutralSecondary" numberOfLines={1}>
+                      {name}
                     </Text>
                   </View>
                 </View>
-              </ToggleGroup.Item>
-            );
-          }
+                <View gap="$s2" flex={1}>
+                  <View flexDirection="row" alignItems="center" justifyContent="flex-end">
+                    <Text fontSize={15} fontWeight="bold" textAlign="right" color="$uiNeutralPrimary">
+                      {asset.usdValue.toLocaleString(undefined, {
+                        style: "currency",
+                        currency: "USD",
+                        currencyDisplay: "narrowSymbol",
+                      })}
+                    </Text>
+                  </View>
+                  <Text fontSize={12} color="$uiNeutralSecondary" textAlign="right">
+                    {`${balance} ${symbol}`}
+                  </Text>
+                </View>
+              </View>
+            </ToggleGroup.Item>
+          );
         })}
-        {isAccountAssetsPending && (
-          <View flexDirection="row" alignItems="center" width="100%">
-            <Skeleton height={50} width="100%" />
-          </View>
-        )}
+        {isPending ? <AssetSkeleton /> : null}
       </ToggleGroup>
     </YStack>
+  );
+}
+
+function AssetSkeleton() {
+  return (
+    <View flexDirection="row" alignItems="center" width="100%">
+      <Skeleton height={50} width="100%" />
+    </View>
   );
 }

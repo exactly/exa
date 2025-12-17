@@ -42,6 +42,7 @@ export default function TabBar({ state, descriptors, navigation }: BottomTabBarP
             <ToggleGroup.Item
               key={route.key}
               borderWidth={0}
+              disablePassStyles
               onPress={() => {
                 onPress(route, focused);
               }}
