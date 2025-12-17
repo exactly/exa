@@ -64,7 +64,7 @@ export default function useAccountAssets(options?: { sortBy?: "usdValue" | "usdc
     type: "external",
   })) as ExternalAsset[];
 
-  const combinedAssets = [...protocol, ...external].toSorted((a, b) => {
+  const combinedAssets = [...protocol, ...external].sort((a, b) => {
     if (options?.sortBy === "usdcFirst") return a.symbol.slice(3) === "USDC" ? -1 : 1;
     return b.usdValue - a.usdValue;
   });

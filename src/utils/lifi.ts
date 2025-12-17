@@ -274,7 +274,7 @@ export async function getBridgeSources(account?: string, protocolSymbols: string
 
     const relevantAssets = assets
       .filter(({ usdValue }) => usdValue > 0)
-      .toSorted((a, b) => {
+      .sort((a, b) => {
         if (b.usdValue !== a.usdValue) return b.usdValue - a.usdValue;
         return a.token.symbol.localeCompare(b.token.symbol);
       });
@@ -289,7 +289,7 @@ export async function getBridgeSources(account?: string, protocolSymbols: string
 
   const chains = [...supportedChains]
     .filter((c) => (usdByChain[c.id] ?? 0) > 0)
-    .toSorted((a, b) => {
+    .sort((a, b) => {
       const bValue = usdByChain[b.id] ?? 0;
       const aValue = usdByChain[a.id] ?? 0;
       if (bValue !== aValue) return bValue - aValue;

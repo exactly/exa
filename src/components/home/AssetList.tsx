@@ -143,7 +143,7 @@ export default function AssetList() {
         };
       })
       .filter(({ amount, symbol }) => (symbol === "USDC.e" ? amount > 0n : true))
-      .toSorted((a, b) => Number(b.usdValue) - Number(a.usdValue)) ?? [];
+      .sort((a, b) => Number(b.usdValue) - Number(a.usdValue)) ?? [];
 
   const externalAssetItems = externalAssets.map(({ symbol, name, logoURI, amount, decimals, usdValue, priceUSD }) => ({
     symbol,

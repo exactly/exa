@@ -16,8 +16,9 @@ export default defineConfig([
         "error",
         { paths: [{ name: "wagmi", importNames: ["useAccount"], message: "Use `useAccount` from utils." }] },
       ],
-      "unicorn/prefer-global-this": "off", // incompatible with react-native
-      "unicorn/prefer-top-level-await": "off", // unsupported in cjs
+      "unicorn/no-array-sort": "off", // unsupported in react-native
+      "unicorn/prefer-global-this": "off", // unsupported in react-native
+      "unicorn/prefer-top-level-await": "off", // unsupported in react-native
     },
   },
 ]);
