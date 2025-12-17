@@ -31,6 +31,7 @@
     "react-dom",
     "react-native",
     "react-native-persona",
+    "react-native-quick-crypto",
     "react-native-reanimated",
     "react-native-safe-area-context",
     "react-native-screens",
