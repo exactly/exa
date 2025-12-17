@@ -71,9 +71,7 @@ export default function HomeLayout() {
                       scrollView.scrollTo({ y: 0, animated: true });
                     }
                   }
-                  if (refreshControl) {
-                    refreshControl.props.onRefresh?.();
-                  }
+                  if (Platform.OS !== "web") refreshControl?.props.onRefresh?.();
                 },
               }}
             />
