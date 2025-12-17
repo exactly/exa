@@ -16,13 +16,6 @@ import { anvil, base, baseSepolia, optimism, optimismSepolia } from "viem/chains
 
 const chainId = Number(env.CHAIN_ID ?? String(env.EAS_BUILD_RUNNER === "eas-build" ? optimism.id : optimismSepolia.id));
 
-if (chainId === anvil.id) {
-  execSync(
-    "pnpm tsx -e 'require(\"./test/anvil\").default({ provide: () => undefined }).then((teardown) => teardown())'",
-    { cwd: "../server", stdio: "inherit" },
-  );
-}
-
 const auditor = loadDeployment("Auditor");
 const marketUSDC = loadDeployment("MarketUSDC");
 const marketWETH = loadDeployment("MarketWETH");
