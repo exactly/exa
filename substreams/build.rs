@@ -26,6 +26,7 @@ fn main() -> Result<(), Error> {
   println!("cargo::rerun-if-changed=node_modules/@exactly/plugin/script/ProposalManager.s.sol");
   println!("cargo::rerun-if-changed=node_modules/@exactly/plugin/test/mocks/MockPriceFeed.sol");
   println!("cargo::rerun-if-changed=node_modules/@exactly/plugin/test/mocks/MockSwapper.sol");
+  println!("cargo::rerun-if-changed=node_modules/@exactly/plugin/node_modules/modular-account/src/account/UpgradeableModularAccount.sol");
   println!("cargo::rerun-if-changed=node_modules/@exactly/protocol/contracts/Auditor.sol");
   println!("cargo::rerun-if-changed=node_modules/@exactly/protocol/contracts/Market.sol");
   println!("cargo::rerun-if-changed=node_modules/@exactly/protocol/deployments");
@@ -33,6 +34,7 @@ fn main() -> Result<(), Error> {
 
   create_dir_all("abi")?;
   let contracts = [
+    ("account", "UpgradeableModularAccount"),
     ("auditor", "Auditor"),
     ("chainlink", "MockPriceFeed"),
     ("factory", "ExaAccountFactory"),

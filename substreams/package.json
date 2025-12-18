@@ -12,6 +12,7 @@
   },
   "devDependencies": {
     "@bufbuild/buf": "^1.61.0",
+    "@exactly/plugin": "workspace:^1.1.0",
     "@exactly/protocol": "^0.2.22",
     "@exactly/server": "workspace:^0.2.42",
     "@types/handlebars-helpers": "^0.5.6",

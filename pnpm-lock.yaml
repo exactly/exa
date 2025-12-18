@@ -768,6 +768,9 @@ importers:
       '@bufbuild/buf':
         specifier: ^1.61.0
         version: 1.61.0
+      '@exactly/plugin':
+        specifier: workspace:^1.1.0
+        version: link:../contracts
       '@exactly/protocol':
         specifier: ^0.2.22
         version: 0.2.22
