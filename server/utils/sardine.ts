@@ -45,6 +45,7 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
   method: "GET" | "POST" | "PUT" | "PATCH" = body === undefined ? "GET" : "POST",
   timeout = 10_000,
 ) {
+  console.log(`[SARDINE] TIME: ${Date.now()} METHOD: ${method} URL: ${url} BODY: ${JSON.stringify(body)}`);
   const response = await fetch(`${baseURL}${url}`, {
     method,
     headers: {
