@@ -11,15 +11,17 @@ import {
   literal,
   nullable,
   boolean,
-  minLength,
   number,
   object,
   picklist,
-  pipe,
   safeParse,
   string,
   ValiError,
   unknown,
+  looseObject,
+  nullish,
+  check,
+  pipe,
 } from "valibot";
 
 import appOrigin from "./appOrigin";
@@ -54,9 +56,80 @@ export async function getInquiry(referenceId: string, templateId: string) {
   return inquiries[0];
 }
 
+export async function getUnknownApprovedInquiry(referenceId: string) {
+  const { data: approvedInquiries } = await request(
+    GetUnknownApprovedInquiryResponse,
+    `/inquiries?page[size]=1&filter[reference-id]=${referenceId}&filter[status]=approved`,
+  );
+  return approvedInquiries[0];
+}
+
 export function resumeInquiry(inquiryId: string) {
   return request(ResumeInquiryResponse, `/inquiries/${inquiryId}/resume`, undefined, "POST");
 }
+
+export function redactAccount(accountId: string) {
+  return request(object({ data: object({ id: string() }) }), `/accounts/${accountId}`, RedactAccount, "PATCH");
+}
+
+export function updateAccount(accountId: string, fields: InferOutput<typeof UpdateAccountFields>) {
+  return request(
+    object({ data: object({ id: string() }) }),
+    `/accounts/${accountId}`,
+    {
+      data: {
+        attributes: {
+          fields,
+        },
+      },
+    },
+    "PATCH",
+  );
+}
+
+export const UpdateAccountFields = object({
+  exa_card_tc: nullable(boolean()),
+  rain_e_sign_consent: nullable(boolean()),
+  privacy__policy: nullable(boolean()),
+  account_opening_disclosure: nullable(boolean()),
+});
+
+const RedactAccount = {
+  data: {
+    attributes: {
+      "country-code": "",
+      "identification-numbers": "",
+      "phone-number": "",
+      "email-address": "",
+      birthdate: "",
+      "name-first": "",
+      "name-middle": "",
+      "name-last": "",
+      "address-street-1": "",
+      "address-street-2": "",
+      "address-city": "",
+      "address-subdivision": "",
+      "address-postal-code": "",
+      "social-security-number": "",
+      fields: {
+        exa_card_tc: "",
+        rain_e_sign_consent: "",
+        privacy__policy: "",
+        account_opening_disclosure: "",
+        address: {
+          street_1: "",
+          street_2: "",
+          city: "",
+          subdivision: "",
+          postal_code: "",
+          country_code: "",
+        },
+        selfie_photo: "",
+        documents: [],
+      },
+    },
+  },
+};
 
 export function createInquiry(referenceId: string, redirectURI?: string) {
   return request(CreateInquiryResponse, "/inquiries", {
@@ -304,7 +377,8 @@ const MantecaAccount = object({
 });
 
 const UnknownAccount = object({
-  data: array(object({ id: string(), type: literal("account"), attributes: unknown() })),
+  data: array(object({ id: string(), attributes: looseObject({ "reference-id": nullable(string()) }) })),
+  links: object({ next: nullable(string()) }),
 });
 
 const accountScopeSchemas = {
@@ -331,6 +405,13 @@ export async function getAccount<T extends AccountScope>(
 
 function getUnknownAccount(referenceId: string) {
   return request(UnknownAccount, `/accounts?page[size]=1&filter[reference-id]=${referenceId}`);
+}
+
+export function getUnknownAccounts(limit = 1, after?: string, referenceId?: string) {
+  return request(
+    UnknownAccount,
+    `/accounts?page[size]=${limit}${after ? `&page[after]=${after}` : ""}${referenceId ? `&filter[reference-id]=${referenceId}` : ""}`,
+  );
 }
 
 export async function getPendingInquiryTemplate(referenceId: string, scope: AccountScope): Promise<string | undefined> {
@@ -405,7 +486,65 @@ export const Inquiry = object({
   attributes: object({
     status: picklist(["created", "pending", "expired", "failed", "needs_review", "declined", "completed", "approved"]),
     "reference-id": string(),
+    "redacted-at": nullable(string()),
   }),
+  relationships: object({
+    "inquiry-template": nullable(object({ data: object({ id: string() }) })),
+  }),
+});
+
+export const UnknownInquiry = object({
+  id: string(),
+  type: literal("inquiry"),
+  attributes: object({
+    status: literal("approved"),
+    "reference-id": string(),
+    "redacted-at": nullable(string()),
+    fields: unknown(),
+  }),
+  relationships: object({
+    "inquiry-template": nullable(object({ data: object({ id: string() }) })),
+  }),
+});
+
+export const PandaInquiryApproved = object({
+  id: string(),
+  type: literal("inquiry"),
+  attributes: object({
+    status: literal("approved"),
+    "reference-id": string(),
+    "redacted-at": nullable(string()),
+    fields: pipe(
+      object({
+        // common
+        "input-checkbox": object({ value: nullable(boolean()) }), // rain e sign consent
+        "new-screen-input-checkbox": object({ value: nullable(boolean()) }), // privacy policy
+        "new-screen-input-checkbox-1": object({ value: nullable(boolean()) }), // info accurate
+        "new-screen-input-checkbox-3": object({ value: nullable(boolean()) }), // unauthorized solicitation
+        "new-screen-2-2-input-checkbox": nullish(object({ value: nullable(boolean()) })), // exa card tc
+
+        // US
+        "new-screen-input-checkbox-4": nullish(object({ value: nullable(boolean()) })), // account opening disclosure
+        "new-screen-input-checkbox-2": object({ value: nullable(boolean()) }), // exa card tc legacy
+
+        "identification-class": object({ value: string() }),
+        "identification-number": object({ value: string() }),
+        "selected-country-code": object({ value: string() }),
+        "current-government-id": object({ value: object({ id: string() }) }),
+      }),
+      check(
+        (fields) => !!fields["new-screen-2-2-input-checkbox"]?.value || !!fields["new-screen-input-checkbox-2"].value,
+        "exa card tc is required, either new-screen-2-2-input-checkbox or new-screen-input-checkbox-2 must be true",
+      ),
+    ),
+  }),
+  relationships: object({
+    "inquiry-template": nullable(object({ data: object({ id: string() }) })),
+  }),
+});
+
+const GetUnknownApprovedInquiryResponse = object({
+  data: array(UnknownInquiry),
 });
 
 const GetInquiriesResponse = object({
