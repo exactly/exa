@@ -17,7 +17,6 @@ import {
   safeParse,
   string,
   ValiError,
-  unknown,
 } from "valibot";
 
 import appOrigin from "./appOrigin";
@@ -50,9 +49,55 @@ export async function getInquiry(referenceId: string, templateId: string) {
   return inquiries[0];
 }
 
+export async function getApprovedInquiry(referenceId: string) {
+  const { data: approvedInquiries } = await request(
+    GetInquiriesResponse,
+    `/inquiries?page[size]=1&filter[reference-id]=${referenceId}&filter[status]=approved`,
+  );
+  return approvedInquiries[0];
+}
+
 export function resumeInquiry(inquiryId: string) {
   return request(ResumeInquiryResponse, `/inquiries/${inquiryId}/resume`, undefined, "POST");
 }
+
+export function redactAccount(accountId: string) {
+  return request(object({ data: object({ id: string() }) }), `/accounts/${accountId}`, RedactAccount, "PATCH");
+}
+
+const RedactAccount = {
+  data: {
+    attributes: {
+      "country-code": "",
+      "identification-numbers": "",
+      "phone-number": "",
+      "email-address": "",
+      birthdate: "",
+      "name-first": "",
+      "name-middle": "",
+      "name-last": "",
+      "address-street-1": "",
+      "address-street-2": "",
+      "address-city": "",
+      "address-subdivision": "",
+      "address-postal-code": "",
+      "social-security-number": "",
+      fields: {
+        exa_card_tc: {
+          value: "",
+        },
+        rain_e_sign_consent: {
+          value: "",
+        },
+        // TODO review persona api error on this field
+        identification_numbers: {
+          type: "array",
+          value: [],
+        },
+      },
+    },
+  },
+};
 
 export function createInquiry(referenceId: string, redirectURI?: string) {
   return request(CreateInquiryResponse, "/inquiries", {
@@ -165,7 +210,10 @@ const MantecaAccount = object({
   attributes: object({ ...BaseAccountAttributes.entries, fields: AccountMantecaFields }),
 });
 
-const UnknownAccount = object({ data: array(unknown()) });
+const UnknownAccount = object({
+  data: array(object({ id: string(), attributes: object({ "reference-id": nullable(string()) }) })),
+  links: object({ next: nullable(string()) }),
+});
 
 const accountScopeSchemas = {
   basic: object({ data: array(BaseAccount) }),
@@ -190,6 +238,13 @@ export async function getAccount<T extends AccountScope>(
 
 function getUnknownAccount(referenceId: string) {
   return request(UnknownAccount, `/accounts?page[size]=1&filter[reference-id]=${referenceId}`);
+}
+
+export function getUnknownAccounts(limit = 1, after?: string, referenceId?: string) {
+  return request(
+    UnknownAccount,
+    `/accounts?page[size]=${limit}${after ? `&page[after]=${after}` : ""}${referenceId ? `&filter[reference-id]=${referenceId}` : ""}`,
+  );
 }
 
 export async function getPendingInquiryTemplate(referenceId: string, scope: AccountScope): Promise<string | undefined> {
@@ -258,6 +313,10 @@ export const Inquiry = object({
   attributes: object({
     status: picklist(["created", "pending", "expired", "failed", "needs_review", "declined", "completed", "approved"]),
     "reference-id": string(),
+    "redacted-at": nullable(string()),
+  }),
+  relationships: object({
+    "inquiry-template": nullable(object({ data: object({ id: string() }) })),
   }),
 });
 
