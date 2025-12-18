@@ -46,7 +46,7 @@ export default function validatorHook<
 }
 
 /** recursively builds human-readable error messages from valibot validation issues */
-function buildIssueMessages(issues: BaseIssue<unknown>[], depth = 0, maxDepth = 5): string[] {
+export function buildIssueMessages(issues: BaseIssue<unknown>[], depth = 0, maxDepth = 5): string[] {
   const messages: string[] = [];
   for (const issue of issues) {
     const pathString = issue.path?.map((pathItem) => pathItem.key).join("/") ?? "";
