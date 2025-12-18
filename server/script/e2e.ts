@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { watch } from "node:fs";
 
-const vitest = spawn("vitest", ["--watch"], {
+const vitest = spawn("vitest", {
   stdio: ["ignore", "inherit", "inherit"],
   env: { ...process.env, NODE_ENV: "e2e" },
   detached: true,

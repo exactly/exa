@@ -240,29 +240,7 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
   provide("USDC", usdc);
   provide("WETH", weth);
 
-  const controller = new AbortController();
-  if (env.NODE_ENV === "test" || env.NODE_ENV === "e2e") {
-    $({ cancelSignal: controller.signal })`fireeth tools poll-rpc-blocks http://localhost:8545 0`.pipe({
-      cancelSignal: controller.signal,
-    })`tsx script/firehose.ts`.pipe({
-      cancelSignal: controller.signal,
-      verbose: env.NODE_ENV === "e2e" ? "full" : undefined,
-    })`fireeth start reader-node-stdin,merger,relayer,substreams-tier1 --advertise-chain-name=anvil --config-file=`.catch(
-      () => process.exit(1), // eslint-disable-line n/no-process-exit, unicorn/no-process-exit
-    );
-
-    // $({
-    //   cancelSignal: controller.signal,
-    //   verbose: env.NODE_ENV === "e2e" ? "full" : undefined,
-    //   env: { SUBSTREAMS_ENDPOINTS_CONFIG_ANVIL: "localhost:10016" },
-    //   cwd: "node_modules/@exactly/substreams",
-    // })`substreams-sink-sql run postgres://localhost:5432/postgres?schemaName=substreams&sslmode=disable substreams.yaml --plaintext`.catch(
-    //   () => process.exit(1), // eslint-disable-line n/no-process-exit, unicorn/no-process-exit -- cspell::ignore sslmode
-    // );
-  }
-
   return async function teardown() {
-    controller.abort();
     await instance.stop();
   };
 }
