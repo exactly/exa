@@ -569,7 +569,6 @@ export default function Pay() {
                   maxPositionAssets={maxPositionAssets}
                   balancerBalance={balancerUSDCBalance}
                   positionValue={positionValue}
-                  repayMarket={repayMarket?.market}
                 />
                 {positionAssets ? (
                   <XStack justifyContent="space-between" gap="$s3" alignItems="center">
