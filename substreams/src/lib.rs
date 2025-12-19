@@ -1,6 +1,8 @@
 #![expect(clippy::not_unsafe_ptr_arg_deref)]
+
 use contracts::factory::events as factory_events;
 use proto::exa::{events::ExaAccountInitialized, Events};
+use serde::Deserialize;
 use substreams::{errors::Error, pb::substreams::Clock, Hex};
 use substreams_database_change::{pb::database::DatabaseChanges, tables::Tables};
 use substreams_ethereum::{pb::eth::v2::Block, Event};
@@ -8,14 +10,23 @@ use substreams_ethereum::{pb::eth::v2::Block, Event};
 mod contracts;
 mod proto;
 
+#[derive(Debug, Deserialize)]
+struct Params {
+  factories: Vec<String>,
+}
+
 #[substreams::handlers::map]
 pub fn map_blocks(params: String, block: Block) -> Result<Events, Error> {
-  let factory = Hex::decode(params).unwrap();
+  let query = serde_qs::from_str::<Params>(params.as_str())?;
+  let factories = query.factories.iter().map(Hex::decode).collect::<Result<Vec<_>, _>>()?;
   Ok(Events {
     exa_account_initialized: block
       .logs()
       .filter_map(|log| {
-        match (log.address() == factory, factory_events::ExaAccountInitialized::match_and_decode(log)) {
+        match (
+          factories.iter().any(|factory| log.address() == factory),
+          factory_events::ExaAccountInitialized::match_and_decode(log),
+        ) {
           (true, Some(event)) => {
             Some(ExaAccountInitialized { address: event.account.to_vec(), log_ordinal: log.ordinal() })
           }

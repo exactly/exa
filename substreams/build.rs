@@ -28,9 +28,7 @@ fn main() -> Result<(), Error> {
   let contracts = [
     ("account", "UpgradeableModularAccount"),
     ("auditor", "Auditor"),
-    ("chainlink", "MockPriceFeed"),
     ("factory", "ExaAccountFactory"),
-    ("lifi", "MockSwapper"),
     ("market", "Market"),
     ("plugin", "ExaPlugin"),
     ("proposal_manager", "ProposalManager"),
