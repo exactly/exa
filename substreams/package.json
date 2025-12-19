@@ -3,8 +3,6 @@
   "version": "0.0.1",
   "scripts": {
     "build": "cargo build --release --quiet",
-    "prepare": "nx prepare substreams",
-    "generate:manifest": "tsx substreams.ts",
     "test": "nx test substreams",
     "test:fmt": "cargo fmt --check",
     "test:clippy": "cargo clippy --quiet -- --deny warnings",
@@ -15,12 +13,7 @@
     "@exactly/plugin": "workspace:^1.1.0",
     "@exactly/protocol": "^0.2.22",
     "@exactly/server": "workspace:^0.2.42",
-    "@types/handlebars-helpers": "^0.5.6",
-    "handlebars": "^4.7.8",
-    "handlebars-helpers": "^0.10.0",
-    "protolint": "^0.56.4",
-    "tsx": "^4.21.0",
-    "typescript": "^5.8.3"
+    "protolint": "^0.56.4"
   },
   "nx": {
     "projectType": "application",
@@ -45,24 +38,6 @@
         ],
         "outputs": [
           "{projectRoot}/target/wasm32-unknown-unknown/release/substreams.wasm"
-        ]
-      },
-      "prepare": {
-        "dependsOn": [
-          "generate:manifest"
-        ],
-        "executor": "nx:noop"
-      },
-      "generate:manifest": {
-        "inputs": [
-          "{projectRoot}/substreams.ts",
-          "{projectRoot}/substreams.yaml.hbs",
-          {
-            "env": "CHAIN_ID"
-          }
-        ],
-        "outputs": [
-          "{projectRoot}/substreams.yaml"
         ]
       },
       "test": {

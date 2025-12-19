@@ -8,56 +8,17 @@ on:
     secrets:
       DIGITALOCEAN_TOKEN:
 jobs:
-  build:
-    environment: ${{ inputs.environment }}
-    permissions:
-      packages: write
-      attestations: write
-      id-token: write
+  digitalocean:
     runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    concurrency: { group: "digitalocean-${{ inputs.environment }}", cancel-in-progress: true }
     env:
-      IMAGE_NAME: ${{ github.repository_owner }}/substreams-${{ inputs.environment }}
+      CHAIN_ID: ${{ vars.CHAIN_ID }}
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          fetch-tags: true
-      - uses: docker/metadata-action@v5
-        id: meta
-        with:
-          images: ghcr.io/${{ env.IMAGE_NAME }}
-          tags: |
-            type=sha
-            type=ref,event=pr
-            type=ref,event=branch
-            type=match,pattern=^(?!@)(.*)$,group=1,event=tag
-            type=match,pattern=@exactly\/substreams@(\d+\.\d+\.\d+.*),group=1
-            type=match,pattern=@exactly\/substreams@(\d+\.\d+),group=1
-            type=match,pattern=@exactly\/substreams@(\d+),group=1
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
-        id: build
-        with:
-          push: true
-          context: .
-          file: substreams/Dockerfile
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            CHAIN_ID=${{ vars.CHAIN_ID }}
-      - uses: actions/attest-build-provenance@v2
-        with:
-          subject-name: ghcr.io/${{ env.IMAGE_NAME }}
-          subject-digest: ${{ steps.build.outputs.digest }}
-          push-to-registry: true
-  
       - uses: digitalocean/app_action/deploy@v2
-        env:
-          IMAGE_DIGEST_SUBSTREAMS: ${{ steps.build.outputs.digest }}
+        env: { IMAGE_TAG_SUBSTREAMS: "sha-${{ github.sha }}" }
         with:
           app_name: ${{ inputs.environment }}
           token: ${{ secrets.DIGITALOCEAN_TOKEN }}
+          print_build_logs: true
+          print_deploy_logs: true

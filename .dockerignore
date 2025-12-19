@@ -16,7 +16,6 @@
 **/substreams/target
 **/substreams/src/contracts
 **/substreams/src/proto
-**/substreams/substreams.yaml
 **/.DS_Store
 **/.env
 **/*.md

@@ -1,5 +1,4 @@
 FROM node:24.12.0-slim AS build
-ARG CHAIN_ID="11155420"
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # cspell:ignore libc tlsv
 # hadolint ignore=DL3008
@@ -30,5 +29,5 @@ COPY --from=build --chown=substreams:substreams /usr/src/app/substreams/node_mod
 COPY --from=build --chown=substreams:substreams /usr/src/app/substreams/target/wasm32-unknown-unknown/release/substreams.wasm target/wasm32-unknown-unknown/release/substreams.wasm
 USER substreams
 # cspell:ignore sslmode
-ENTRYPOINT ["dumb-init", "/app/substreams-sink-sql"]
-CMD ["run", "postgres://host.docker.internal:5432/postgres?schemaName=substreams&sslmode=disable", "substreams.yaml"]
+ENTRYPOINT ["dumb-init", "/app/substreams-sink-sql", "run"]
+CMD ["postgres://host.docker.internal:5432/postgres?schemaName=substreams&sslmode=disable", "substreams.yaml"]

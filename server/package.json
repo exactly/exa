@@ -113,6 +113,9 @@
         ]
       },
       "generate:sql": {
+        "dependsOn": [
+          "prepare:generated"
+        ],
         "inputs": [
           "{projectRoot}/database/schema.ts",
           "{projectRoot}/drizzle.config.ts"
