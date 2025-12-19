@@ -62,7 +62,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
     entryPoint,
     source: "WebauthnAccount" as const,
     getAccountInitCode: () => Promise.resolve(accountInitCode({ factory, x, y })),
-    getDummySignature: () => "0x",
+    getDummySignature: () => DUMMY_SIGNATURE,
     signUserOperationHash: async (uoHash) => {
       try {
         if (queryClient.getQueryData<AuthMethod>(["method"]) === "siwe" && getConnection(ownerConfig).address) {
@@ -123,7 +123,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
           paymasterAndData: (struct) => Promise.resolve({ ...struct, paymasterAndData: ethAddress }),
         }),
     async customMiddleware(userOp) {
-      if ((await userOp.signature) === "0x") {
+      if ((await userOp.signature) === DUMMY_SIGNATURE) {
         // dynamic dummy signature
         userOp.signature = webauthn({
           authenticatorData: "0x49960de5880e8c687434170f6476605b8fe4aeb9a28632c7995cf3ba831d97630500000000",
@@ -197,6 +197,16 @@ function wrapSignature(ownerIndex: number, signature: Hex) {
 }
 
 const P256_N = 0xff_ff_ff_ff_00_00_00_00_ff_ff_ff_ff_ff_ff_ff_ff_bc_e6_fa_ad_a7_17_9e_84_f3_b9_ca_c2_fc_63_25_51n;
+
+const DUMMY_SIGNATURE = webauthn({
+  authenticatorData: "0x49960de5880e8c687434170f6476605b8fe4aeb9a28632c7995cf3ba831d97630500000000",
+  clientDataJSON:
+    '{"type":"webauthn.get","challenge":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA","origin":"https://web.exactly.app","crossOrigin":false}',
+  typeIndex: 1n,
+  challengeIndex: 23n,
+  r: 1n,
+  s: 1n,
+});
 
 function webauthn({
   authenticatorData,
