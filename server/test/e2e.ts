@@ -24,14 +24,14 @@ describe("e2e", () => {
         verbose: "full",
         cancelSignal: controller.signal,
       })`fireeth start reader-node-stdin,merger,relayer,substreams-tier1 --advertise-chain-name=anvil --config-file=`;
-      void $({
-        verbose: "full",
-        cancelSignal: controller.signal,
-        cwd: "node_modules/@exactly/substreams",
-        env: { SUBSTREAMS_ENDPOINTS_CONFIG_ANVIL: "localhost:10016" },
-        // cspell:ignore sslmode
-      })`substreams-sink-sql run postgres://localhost:5432/postgres?schemaName=substreams&sslmode=disable \
-          substreams.yaml --plaintext --batch-block-flush-interval 1 --batch-row-flush-interval 1`;
+      // void $({
+      //   verbose: "full",
+      //   cancelSignal: controller.signal,
+      //   cwd: "node_modules/@exactly/substreams",
+      //   env: { SUBSTREAMS_ENDPOINTS_CONFIG_ANVIL: "localhost:10016" },
+      //   // cspell:ignore sslmode
+      // })`substreams-sink-sql run postgres://localhost:5432/postgres?schemaName=substreams&sslmode=disable \
+      //     substreams.yaml --plaintext --batch-block-flush-interval 1 --batch-row-flush-interval 1`;
 
       const { default: app, close } = await import("../index");
 

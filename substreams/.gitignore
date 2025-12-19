@@ -3,7 +3,6 @@ firehose-data
 src/contracts
 src/proto
 target
-substreams.yaml
 
 *.log
 *.spkg
