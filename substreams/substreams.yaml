@@ -18,11 +18,26 @@ modules:
       - source: sf.ethereum.type.v2.Block
     output:
       type: proto:exa.Events
+  - name: store_exa_accounts
+    kind: store
+    updatePolicy: append
+    valueType: string
+    inputs:
+      - map: map_blocks
+  - name: store_plugin_installed
+    kind: store
+    updatePolicy: set
+    valueType: proto:exa.PluginInstalled
+    inputs:
+      - map: map_blocks
+      - store: store_exa_accounts
   - name: db_out
     kind: map
     inputs:
       - source: sf.substreams.v1.Clock
       - map: map_blocks
+      - store: store_plugin_installed
+        mode: deltas
     output:
       type: proto:sf.substreams.sink.database.v1.DatabaseChanges
 sink:

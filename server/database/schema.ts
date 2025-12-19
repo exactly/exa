@@ -487,3 +487,24 @@ export const targetAllowed = substreams.table(
     index("target_allowed_allowed").on(allowed),
   ],
 );
+
+// PluginInstalled
+
+export const pluginInstalled = substreams.table(
+  "plugin_installed",
+  {
+    plugin: text("plugin").notNull(),
+    account: text("account").notNull(),
+    manifestHash: bytea("manifest_hash").notNull(),
+    block: numeric("block")
+      .references(() => blocks.number)
+      .notNull(),
+    ordinal: numeric("ordinal").notNull(),
+  },
+  ({ plugin, account, manifestHash, block, ordinal }) => [
+    primaryKey({ columns: [plugin, account, manifestHash, block, ordinal] }),
+    index("plugin_installed_plugin").on(plugin),
+    index("plugin_installed_account").on(account),
+    index("plugin_installed_manifest_hash").on(manifestHash),
+  ],
+);

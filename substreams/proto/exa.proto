@@ -4,10 +4,20 @@ package exa;
 
 message Events {
   repeated ExaAccountInitialized exa_account_initialized = 1;
+  repeated PluginInstalled plugin_installed = 2;
 
   message ExaAccountInitialized {
     bytes address = 1;
     // internals
     uint64 log_ordinal = 30;
   }
+
+  message PluginInstalled {
+    bytes plugin = 1;
+    bytes account = 2;
+    bytes manifest_hash = 3;
+    // internals
+    uint64 log_ordinal = 30;
+  }
 }
+// event PluginInstalled(address indexed plugin, bytes32 manifestHash, FunctionReference[] dependencies);
