@@ -2,12 +2,17 @@ syntax = "proto3";
 
 package exa;
 
-message Events {
-  repeated ExaAccountInitialized exa_account_initialized = 1;
+message Accounts {
+  repeated string accounts = 1;
+}
 
-  message ExaAccountInitialized {
-    bytes address = 1;
-    // internals
-    uint64 log_ordinal = 30;
+message AccountEvents {
+  repeated PluginInstalled plugins = 1;
+
+  message PluginInstalled {
+    bytes plugin = 1;
+    bytes account = 2;
+    bytes manifest_hash = 3;
+    uint64 log_ordinal = 4;
   }
 }

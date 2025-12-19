@@ -11,18 +11,31 @@ imports:
   sql: https://github.com/streamingfast/substreams-sink-sql/releases/download/protodefs-v1.0.7/substreams-sink-sql-protodefs-v1.0.7.spkg
 network: anvil
 modules:
-  - name: map_blocks
+  - name: map_exa_accounts
     kind: map
     inputs:
       - params: string
       - source: sf.ethereum.type.v2.Block
     output:
-      type: proto:exa.Events
+      type: proto:exa.Accounts
+  - name: store_exa_accounts
+    kind: store
+    valueType: string
+    updatePolicy: append
+    inputs:
+      - map: map_exa_accounts
+  - name: map_account_events
+    kind: map
+    inputs:
+      - source: sf.ethereum.type.v2.Block
+      - store: store_exa_accounts
+    output:
+      type: proto:exa.AccountEvents
   - name: db_out
     kind: map
     inputs:
       - source: sf.substreams.v1.Clock
-      - map: map_blocks
+      - map: map_account_events
     output:
       type: proto:sf.substreams.sink.database.v1.DatabaseChanges
 sink:
@@ -38,30 +51,30 @@ binaries:
 networks:
   optimism:
     initialBlock:
-      map_blocks: 124_728_176
+      map_exa_accounts: 124_728_176
     params:
-      map_blocks: "
+      map_exa_accounts: "
         factories[]=8D493AF799162Ac3f273e8918B2842447f702163\
         &factories[]=3427a595eD6E05Cc2D8115e28BAd151cB879616e\
         &factories[]=cbeaAF42Cc39c17e84cBeFe85160995B515A9668\
         &factories[]=961EbA47650e2198A959Ef5f337E542df5E4F61b"
   base:
     initialBlock:
-      map_blocks: 38_172_919
+      map_exa_accounts: 38_172_919
     params:
-      map_blocks: factories[]=Ad92a288CE0cc869129cDA518Af2baaf69fFa026
+      map_exa_accounts: factories[]=Ad92a288CE0cc869129cDA518Af2baaf69fFa026
   op-sepolia:
     initialBlock:
-      map_blocks: 26_170_889
+      map_exa_accounts: 26_170_889
     params:
-      map_blocks: factories[]=98d3E8B291d9E89C25D8371b7e8fFa8BC32E0aEC
+      map_exa_accounts: factories[]=98d3E8B291d9E89C25D8371b7e8fFa8BC32E0aEC
   base-sepolia:
     initialBlock:
-      map_blocks: 29_999_489
+      map_exa_accounts: 29_999_489
     params:
-      map_blocks: factories[]=343efd4e2073afc4cbe304b5dd50f8d6480e2dd2
+      map_exa_accounts: factories[]=343efd4e2073afc4cbe304b5dd50f8d6480e2dd2
   anvil:
     initialBlock:
-      map_blocks: 0
+      map_exa_accounts: 0
     params:
-      map_blocks: factories[]=Eb2454D494082f2294Fc5d4Cd67096f13E64306f
+      map_exa_accounts: factories[]=Eb2454D494082f2294Fc5d4Cd67096f13E64306f
