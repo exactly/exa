@@ -10,9 +10,9 @@ use std::{
 use substreams_ethereum::Abigen;
 
 fn main() -> Result<(), Error> {
-  println!("cargo::rerun-if-changed=proto");
   println!("cargo::rerun-if-changed=buf.gen.yaml");
   println!("cargo::rerun-if-changed=substreams.yaml");
+  println!("cargo::rerun-if-changed=proto/exa.proto");
   println!("cargo::rerun-if-changed=node_modules/@exactly/plugin/script/ExaAccountFactory.s.sol");
   println!("cargo::rerun-if-changed=node_modules/@exactly/plugin/script/ExaPlugin.s.sol");
   println!("cargo::rerun-if-changed=node_modules/@exactly/plugin/script/ProposalManager.s.sol");
