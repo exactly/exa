@@ -138,6 +138,13 @@ services:
         scope: RUN_TIME
         type: SECRET
         value: ${{ env.ENCRYPTED_SEGMENT_WRITE_KEY || env.SEGMENT_WRITE_KEY }}
+      - key: SARDINE_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+        value: ${{ env.ENCRYPTED_SARDINE_API_KEY || env.SARDINE_API_KEY }}
+      - key: SARDINE_API_URL
+        scope: RUN_TIME
+        value: ${{ env.SARDINE_API_URL }}
       - key: SENTRY_DSN
         scope: RUN_TIME
         value: ${{ env.SENTRY_DSN }}
