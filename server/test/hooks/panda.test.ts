@@ -178,9 +178,9 @@ describe("card operations", () => {
       });
 
       it("authorizes debit when risk assessment times out", async () => {
-        const error = new Error("timeout");
-        error.name = "TimeoutError";
-        vi.spyOn(sardine, "default").mockRejectedValueOnce(error);
+        const timeoutError = new Error("timeout");
+        timeoutError.name = "TimeoutError";
+        vi.spyOn(sardine, "default").mockRejectedValueOnce(timeoutError);
         await database.insert(cards).values([{ id: "risk-timeout", credentialId: "cred", lastFour: "5678", mode: 0 }]);
 
         const response = await appClient.index.$post({
@@ -304,9 +304,12 @@ describe("card operations", () => {
           },
         });
 
-        expect(captureException).toHaveBeenCalledWith(new Error("high risk authorization"), expect.anything());
+        expect(captureException).toHaveBeenCalledWith(
+          expect.objectContaining({ message: "high risk", name: "PandaError", statusCode: 558 }),
+          expect.anything(),
+        );
 
-        expect(response.status).toBe(200);
+        expect(response.status).toBe(558); // High risk transactions are now declined with status 558
       });
 
       it("alarms high risk verification", async () => {
@@ -333,9 +336,12 @@ describe("card operations", () => {
           },
         });
 
-        expect(captureException).toHaveBeenCalledWith(new Error("high risk verification"), expect.anything());
+        expect(captureException).toHaveBeenCalledWith(
+          expect.objectContaining({ message: "high risk", name: "PandaError", statusCode: 558 }),
+          expect.anything(),
+        );
 
-        expect(response.status).toBe(200);
+        expect(response.status).toBe(558); // High risk verification transactions are now declined with status 558
       });
 
       it("alarms high risk refund", async () => {
@@ -362,9 +368,8 @@ describe("card operations", () => {
           },
         });
 
-        expect(captureException).toHaveBeenCalledWith(new Error("high risk refund"), expect.anything());
-
-        expect(response.status).toBe(200);
+        // Refunds return status 559 directly, not through PandaError
+        expect(response.status).toBe(559);
       });
 
       describe("with drain proposal", () => {
