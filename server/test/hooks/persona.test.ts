@@ -26,6 +26,11 @@ describe("with reference", () => {
   it("creates a panda account", async () => {
     vi.spyOn(panda, "createUser").mockResolvedValueOnce({ id: "pandaId" });
     vi.spyOn(sardine, "customer").mockResolvedValueOnce({ sessionKey: "test", status: "Success", level: "low" });
+    vi.spyOn(sardine, "customer").mockResolvedValueOnce({
+      sessionKey: "test-session-123",
+      status: "Success",
+      level: "low",
+    });
     const response = await appClient.index.$post({
       ...personaPayload,
       json: {

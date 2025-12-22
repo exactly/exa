@@ -31,6 +31,8 @@ process.env.REDIS_URL = "redis";
 process.env.SARDINE_API_KEY = "sardine";
 process.env.SARDINE_API_URL = "https://api.sardine.ai";
 process.env.SEGMENT_WRITE_KEY = "segment";
+process.env.SARDINE_API_KEY = "sardine";
+process.env.SARDINE_API_URL = "https://api.sardine.ai";
 
 /* eslint-disable n/no-process-exit, unicorn/no-process-exit, no-console -- cli */
 import("../api")
