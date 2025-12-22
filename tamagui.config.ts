@@ -251,6 +251,17 @@ const tamagui = createTamagui({
   settings: { ...config.settings, fastSchemeChange: false },
   themes: {
     light: {
+      /* HACK disables tamagui console message about missing theme colors */
+      color: "",
+      background: "",
+      backgroundColor: "",
+      backgroundHover: "",
+      backgroundPress: "",
+      borderColor: "",
+      borderColorFocus: "",
+      borderColorPress: "",
+      outlineColor: "",
+      /* END HACK */
       cardDebitBackground: tokens.color.debitLight1,
       cardDebitInteractive: tokens.color.debitLight9,
       cardDebitText: tokens.color.debitLight12,
@@ -386,6 +397,17 @@ const tamagui = createTamagui({
       borderInformationStrong: tokens.color.feedbackInformationLight6,
     },
     dark: {
+      /* HACK disables tamagui console message about missing theme colors */
+      color: "",
+      background: "",
+      backgroundColor: "",
+      backgroundHover: "",
+      backgroundPress: "",
+      borderColor: "",
+      borderColorFocus: "",
+      borderColorPress: "",
+      outlineColor: "",
+      /* END HACK */
       cardDebitBackground: tokens.color.debitDark1,
       cardDebitInteractive: tokens.color.debitDark9,
       cardDebitText: tokens.color.debitLight12,
