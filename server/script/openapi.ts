@@ -13,21 +13,25 @@ process.env.EXPO_PUBLIC_ALCHEMY_API_KEY = " ";
 process.env.INTERCOM_IDENTITY_KEY = "intercom";
 process.env.ISSUER_PRIVATE_KEY = padHex("0x420");
 process.env.KEEPER_PRIVATE_KEY = padHex("0x420");
+process.env.KYC_API_KEY = "panda";
+process.env.KYC_API_URL = "https://panda.test";
 process.env.MANTECA_API_KEY = "manteca";
 process.env.MANTECA_API_URL = "https://manteca.test";
 process.env.MANTECA_WEBHOOKS_KEY = "manteca";
 process.env.PANDA_API_KEY = "panda";
 process.env.PANDA_API_URL = "https://panda.test";
-process.env.KYC_API_KEY = "panda";
-process.env.KYC_API_URL = "https://panda.test";
+process.env.PAX_API_KEY = "pax";
+process.env.PAX_API_URL = "https://pax.test";
 process.env.PERSONA_API_KEY = "persona";
 process.env.PERSONA_URL = "https://persona.test";
 process.env.PERSONA_WEBHOOK_SECRET = "persona";
 process.env.POSTGRES_URL = "postgres";
 process.env.REDIS_URL = "redis";
-process.env.SEGMENT_WRITE_KEY = "segment";
 process.env.SARDINE_API_KEY = "sardine";
 process.env.SARDINE_API_URL = "https://api.sardine.ai";
+process.env.SEGMENT_WRITE_KEY = "segment";
+process.env.PAX_API_URL = "https://pax.test";
+process.env.PAX_API_KEY = "pax";
 
 /* eslint-disable n/no-process-exit, unicorn/no-process-exit, no-console -- cli */
 import("../api")
