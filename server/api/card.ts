@@ -31,6 +31,7 @@ import database, { cards, credentials } from "../database";
 import auth from "../middleware/auth";
 import { sendPushNotification } from "../utils/onesignal";
 import { autoCredit, createCard, getCard, getPIN, getSecrets, getUser, setPIN, updateCard } from "../utils/panda";
+import { customer } from "../utils/sardine";
 import { track } from "../utils/segment";
 import validatorHook from "../utils/validatorHook";
 
@@ -364,6 +365,24 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
             .insert(cards)
             .values([{ id: card.id, credentialId, lastFour: card.last4, mode, productId: SIGNATURE_PRODUCT_ID }]);
           track({ event: "CardIssued", userId: account, properties: { productId: SIGNATURE_PRODUCT_ID } });
+
+          customer({
+            flow: { name: "card.issued", type: "payment_method_link" },
+            customer: { id: credentialId, type: "customer" },
+            transaction: {
+              id: card.id,
+              paymentMethod: {
+                type: "card",
+                card: {
+                  hash: card.id,
+                  last4: card.last4,
+                  expiryMonth: card.expirationMonth,
+                  expiryYear: card.expirationYear,
+                },
+              },
+            },
+          }).catch((error: unknown) => captureException(error, { level: "error" }));
+
           if (mode) {
             sendPushNotification({
               userId: account,

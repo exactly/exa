@@ -23,6 +23,8 @@ process.env.PERSONA_URL = "https://persona.test";
 process.env.PERSONA_WEBHOOK_SECRET = "persona";
 process.env.POSTGRES_URL = "postgres";
 process.env.REDIS_URL = "redis";
+process.env.SARDINE_API_KEY = "sardine";
+process.env.SARDINE_API_URL = "https://api.sardine.ai";
 process.env.SEGMENT_WRITE_KEY = "segment";
 
 /* eslint-disable n/no-process-exit, unicorn/no-process-exit, no-console -- cli */

@@ -134,6 +134,13 @@ services:
         scope: RUN_TIME
         type: SECRET
         value: ${{ env.ENCRYPTED_REDIS_URL || env.REDIS_URL }}
+      - key: SARDINE_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+        value: ${{ env.ENCRYPTED_SARDINE_API_KEY || env.SARDINE_API_KEY }}
+      - key: SARDINE_API_URL
+        scope: RUN_TIME
+        value: ${{ env.SARDINE_API_URL }}
       - key: SEGMENT_WRITE_KEY
         scope: RUN_TIME
         type: SECRET

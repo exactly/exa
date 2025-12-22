@@ -13,6 +13,7 @@ import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 import database, { credentials } from "../../database";
 import app from "../../hooks/persona";
 import * as panda from "../../utils/panda";
+import * as sardine from "../../utils/sardine";
 
 const appClient = testClient(app);
 
@@ -33,6 +34,11 @@ describe("with reference", () => {
   it("creates a panda account", async () => {
     const id = "panda-id";
     vi.spyOn(panda, "createUser").mockResolvedValueOnce({ id });
+    vi.spyOn(sardine, "customer").mockResolvedValueOnce({
+      sessionKey: "test-session-123",
+      status: "Success",
+      level: "low",
+    });
     const response = await appClient.index.$post({
       ...personaPayload,
       json: {
