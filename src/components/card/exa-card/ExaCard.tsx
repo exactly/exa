@@ -2,24 +2,26 @@ import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
 import { useQuery } from "@tanstack/react-query";
 import React from "react";
 import { Pressable } from "react-native";
-import Animated from "react-native-reanimated";
 import { YStack } from "tamagui";
 
 import CardContents from "./CardContents";
 import type { CardDetails } from "../../../utils/server";
 import View from "../../shared/View";
 
-interface ExaCardProperties {
+export default function ExaCard({
+  disabled = false,
+  revealing,
+  frozen,
+  onPress,
+}: {
   disabled?: boolean;
   revealing: boolean;
   frozen: boolean;
   onPress?: () => void;
-}
-
-export default function ExaCard({ disabled = false, revealing, frozen, onPress }: ExaCardProperties) {
+}) {
   const { data: card } = useQuery<CardDetails>({ queryKey: ["card", "details"] });
   return (
-    <AnimatedYStack width="100%" borderRadius="$r4" borderWidth={0}>
+    <YStack width="100%" borderRadius="$r4" borderWidth={0}>
       <Pressable onPress={onPress}>
         <View
           zIndex={3}
@@ -38,8 +40,6 @@ export default function ExaCard({ disabled = false, revealing, frozen, onPress }
           />
         </View>
       </Pressable>
-    </AnimatedYStack>
+    </YStack>
   );
 }
-
-const AnimatedYStack = Animated.createAnimatedComponent(YStack);
