@@ -1,6 +1,6 @@
 import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
 import { useQuery } from "@tanstack/react-query";
-import React from "react";
+import React, { type ComponentPropsWithoutRef } from "react";
 import { Pressable } from "react-native";
 import Animated from "react-native-reanimated";
 import { YStack } from "tamagui";
@@ -9,14 +9,17 @@ import CardContents from "./CardContents";
 import type { CardDetails } from "../../../utils/server";
 import View from "../../shared/View";
 
-interface ExaCardProperties {
+export default function ExaCard({
+  disabled = false,
+  revealing,
+  frozen,
+  onPress,
+}: {
   disabled?: boolean;
   revealing: boolean;
   frozen: boolean;
   onPress?: () => void;
-}
-
-export default function ExaCard({ disabled = false, revealing, frozen, onPress }: ExaCardProperties) {
+}) {
   const { data: card } = useQuery<CardDetails>({ queryKey: ["card", "details"] });
   return (
     <AnimatedYStack width="100%" borderRadius="$r4" borderWidth={0}>
@@ -42,4 +45,13 @@ export default function ExaCard({ disabled = false, revealing, frozen, onPress }
   );
 }
 
-const AnimatedYStack = Animated.createAnimatedComponent(YStack);
+const YStackWithForwardedReference = ({
+  forwardedRef,
+  ...properties
+}: ComponentPropsWithoutRef<typeof YStack> & {
+  forwardedRef?: React.Ref<React.ComponentRef<typeof YStack> | null>;
+}) => {
+  return <YStack ref={forwardedRef} {...properties} />;
+};
+YStackWithForwardedReference.displayName = "YStackWithForwardedRef";
+const AnimatedYStack = Animated.createAnimatedComponent(YStackWithForwardedReference);
