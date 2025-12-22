@@ -5,6 +5,7 @@ import "../mocks/onesignal";
 import "../mocks/panda";
 import "../mocks/redis";
 import "../mocks/keeper";
+import "../mocks/sardine";
 
 import ProposalType from "@exactly/common/ProposalType";
 import deriveAddress from "@exactly/common/deriveAddress";
@@ -49,6 +50,7 @@ import app from "../../hooks/panda";
 import keeper from "../../utils/keeper";
 import * as pandaUtils from "../../utils/panda";
 import publicClient from "../../utils/publicClient";
+import * as sardine from "../../utils/sardine";
 import traceClient from "../../utils/traceClient";
 import anvilClient from "../anvilClient";
 
@@ -182,6 +184,26 @@ describe("card operations", () => {
         expect(response.status).toBe(200);
       });
 
+      it("authorizes debit when risk assessment times out", async () => {
+        const error = new Error("timeout");
+        error.name = "TimeoutError";
+        vi.spyOn(sardine, "default").mockRejectedValueOnce(error);
+        await database.insert(cards).values([{ id: "risk-timeout", credentialId: "cred", lastFour: "5678", mode: 0 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: { ...authorization.json.body, spend: { ...authorization.json.body.spend, cardId: "risk-timeout" } },
+          },
+        });
+        expect(captureException).toHaveBeenCalledWith(
+          expect.objectContaining({ message: "timeout", name: "TimeoutError" }),
+          expect.anything(),
+        );
+        expect(response.status).toBe(200);
+      });
+
       it("authorizes installments", async () => {
         await database.insert(cards).values([{ id: "inst", credentialId: "cred", lastFour: "5678", mode: 6 }]);
 
@@ -212,7 +234,8 @@ describe("card operations", () => {
       });
 
       it("authorizes negative amount", async () => {
-        const response = await appClient.index.$post({
+        const feedback = vi.spyOn(sardine, "feedback");
+        const authorizationResponse = await appClient.index.$post({
           ...authorization,
           json: {
             ...authorization.json,
@@ -223,7 +246,29 @@ describe("card operations", () => {
           },
         });
 
-        expect(response.status).toBe(200);
+        const confirmationResponse = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "created",
+            body: {
+              ...authorization.json.body,
+              id: "authorization-negative-amount",
+              spend: { ...authorization.json.body.spend, cardId: "card", amount: -100, status: "pending" },
+            },
+          },
+        });
+
+        expect(authorizationResponse.status).toBe(200);
+        expect(confirmationResponse.status).toBe(200);
+        expect(feedback).toHaveBeenCalledWith(
+          expect.objectContaining({
+            kind: "issuing",
+            customer: { id: "cred" },
+            transaction: { id: "authorization-negative-amount" },
+            feedback: { type: "authorization", status: "approved" },
+          }),
+        );
       });
 
       it("fails when tracing", async () => {
@@ -245,6 +290,88 @@ describe("card operations", () => {
           expect.anything(),
         );
         expect(response.status).toBe(550);
+      });
+
+      it("alarms high risk authorization", async () => {
+        vi.spyOn(sardine, "default").mockResolvedValueOnce({
+          status: "Success",
+          level: "high",
+          sessionKey: "123",
+          amlLevel: "high",
+          score: 98,
+          reasonCodes: ["AR01"],
+        });
+        await database.insert(cards).values([{ id: "high-risk", credentialId: "cred", lastFour: "5678", mode: 0 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: { ...authorization.json.body, spend: { ...authorization.json.body.spend, cardId: "high-risk" } },
+          },
+        });
+
+        expect(captureException).toHaveBeenCalledWith(new Error("high risk authorization"), expect.anything());
+
+        expect(response.status).toBe(200);
+      });
+
+      it("alarms high risk verification", async () => {
+        vi.spyOn(sardine, "default").mockResolvedValueOnce({
+          status: "Success",
+          level: "high",
+          sessionKey: "123",
+          amlLevel: "high",
+          score: 98,
+          reasonCodes: ["AR01"],
+        });
+        await database
+          .insert(cards)
+          .values([{ id: "high-risk-verifications", credentialId: "cred", lastFour: "5678", mode: 0 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: {
+              ...authorization.json.body,
+              spend: { ...authorization.json.body.spend, cardId: "high-risk-verifications", amount: 0 },
+            },
+          },
+        });
+
+        expect(captureException).toHaveBeenCalledWith(new Error("high risk verification"), expect.anything());
+
+        expect(response.status).toBe(200);
+      });
+
+      it("alarms high risk refund", async () => {
+        vi.spyOn(sardine, "default").mockResolvedValueOnce({
+          status: "Success",
+          level: "high",
+          sessionKey: "123",
+          amlLevel: "high",
+          score: 98,
+          reasonCodes: ["AR01"],
+        });
+        await database
+          .insert(cards)
+          .values([{ id: "high-risk-refund", credentialId: "cred", lastFour: "5678", mode: 0 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: {
+              ...authorization.json.body,
+              spend: { ...authorization.json.body.spend, cardId: "high-risk-refund", amount: -100 },
+            },
+          },
+        });
+
+        expect(captureException).toHaveBeenCalledWith(new Error("high risk refund"), expect.anything());
+
+        expect(response.status).toBe(200);
       });
 
       describe("with drain proposal", () => {
@@ -412,7 +539,7 @@ describe("card operations", () => {
               body: {
                 spend: {
                   merchantCity: "buenos aires",
-                  merchantCountry: "argentina",
+                  merchantCountry: "AR",
                   merchantName: "99999",
                 },
               },
@@ -1347,7 +1474,7 @@ const authorization = {
         merchantCategory: "food",
         merchantCategoryCode: "FOOD",
         merchantCity: "buenos aires",
-        merchantCountry: "argentina",
+        merchantCountry: "AR",
         merchantName: "99999",
         status: "pending",
         userEmail: "mail@mail.com",
