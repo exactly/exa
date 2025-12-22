@@ -81,11 +81,11 @@ const BaseTransaction = v.object({
     localAmount: v.number(),
     localCurrency: v.pipe(v.string(), v.length(3)),
     merchantCity: v.nullish(v.string()),
-    merchantCountry: v.pipe(v.string(), v.length(2)),
+    merchantCountry: v.string(),
     merchantCategory: v.nullish(v.string()),
     merchantCategoryCode: v.string(),
     merchantName: v.string(),
-    merchantId: v.nullish(v.string()),
+    merchantId: v.optional(v.string()),
     authorizedAt: v.optional(v.pipe(v.string(), v.isoTimestamp())),
     authorizedAmount: v.nullish(v.number()),
     authorizationMethod: v.optional(v.string()),
@@ -118,7 +118,7 @@ const Transaction = v.variant("action", [
         authorizationUpdateAmount: v.number(),
         authorizedAt: v.pipe(v.string(), v.isoTimestamp()),
         status: v.picklist(["declined", "pending", "reversed"]),
-        declinedReason: v.nullish(v.string()),
+        declinedReason: v.optional(v.string()),
         enrichedMerchantIcon: v.nullish(v.string()),
         enrichedMerchantName: v.nullish(v.string()),
         enrichedMerchantCategory: v.nullish(v.string()),
@@ -131,7 +131,6 @@ const Transaction = v.variant("action", [
     action: v.literal("requested"),
     body: v.object({
       ...BaseTransaction.entries,
-      id: v.optional(v.string()),
       spend: v.object({
         ...BaseTransaction.entries.spend.entries,
         authorizedAmount: v.number(),
@@ -181,7 +180,7 @@ const Payload = v.variant("resource", [
         ]),
       }),
       status: v.picklist(["notActivated", "active", "locked", "canceled"]),
-      tokenWallets: v.union([v.array(v.literal("Apple")), v.array(v.literal("Google Pay"))]),
+      tokenWallets: v.nullish(v.union([v.array(v.literal("Apple")), v.array(v.literal("Google Pay"))])),
       type: v.literal("virtual"),
       userId: v.string(),
     }),
@@ -241,20 +240,15 @@ export default new Hono().post(
 
     switch (payload.action) {
       case "requested": {
-        const card = await database.query.cards.findFirst({
-          columns: { mode: true },
-          where: and(eq(cards.id, payload.body.spend.cardId), eq(cards.status, "ACTIVE")),
-          with: { credential: { columns: { account: true, id: true } } },
-        });
-        if (!card) return c.json({ code: "card not found" }, 404);
+        const card = await findCardById(payload.body.spend.cardId);
         const account = v.parse(Address, card.credential.account);
         setUser({ id: account });
         const assess = () => {
           return risk({
-            sessionKey: payload.body.id ?? payload.id,
+            sessionKey: payload.body.id,
             customerId: card.credential.id,
             transaction: {
-              id: payload.body.id ?? payload.id,
+              id: payload.body.id,
               currencyCode: payload.body.spend.localCurrency,
               amount: Math.abs(payload.body.spend.localAmount) / 100,
               type: payload.body.spend.amount < 0 ? "return" : "purchase",
@@ -270,22 +264,19 @@ export default new Hono().post(
             card: { id: payload.body.spend.cardId },
           }).catch((error: unknown) => {
             captureException(error, { level: "error" });
-            return {
-              status: error instanceof Error && error.name === "TimeoutError" ? "timeout" : "error",
-              level: "unknown",
-              score: 0,
-            };
+            if (error instanceof Error && error.name === "TimeoutError") {
+              return { status: "timeout", level: "unknown", score: 0 };
+            }
           });
         };
 
         if (payload.body.spend.amount < 0) {
-          startSpan({ name: "assess risk", op: "tx.risk.refund" }, async (span) => {
-            const assessment = await assess();
-            span.setAttributes({ "exa.level": assessment.level, "exa.score": assessment.score });
-            if (assessment.level === "high" || assessment.level === "very_high") {
-              captureException(new Error("high risk refund"), { level: "error" });
-            }
-          }).catch((error: unknown) => captureException(error, { level: "error" }));
+          const assessment = await assess();
+          getActiveSpan()?.setAttribute("exa.level", assessment?.level);
+          getActiveSpan()?.setAttribute("exa.score", assessment?.score);
+          if (assessment?.level === "high" || assessment?.level === "very_high") {
+            return c.json({ code: "high risk refund" }, 559 as UnofficialStatusCode);
+          }
           return c.json({ code: "ok" });
         }
         const mutex = getMutex(account) ?? createMutex(account);
@@ -309,56 +300,54 @@ export default new Hono().post(
             return c.json({ code: "ok" });
           };
           if (!transaction) {
-            startSpan({ name: "assess risk", op: "tx.risk.verification" }, async (span) => {
-              const assessment = await assess();
-              span.setAttributes({ "exa.level": assessment.level, "exa.score": assessment.score });
-              if (assessment.level === "high" || assessment.level === "very_high") {
-                captureException(new Error("high risk verification"), { level: "error" });
-              }
-            }).catch((error: unknown) => captureException(error, { level: "error" }));
+            const assessment = await assess();
+            getActiveSpan()?.setAttribute("exa.level", assessment?.level);
+            getActiveSpan()?.setAttribute("exa.score", assessment?.score);
+            if (assessment?.level === "high" || assessment?.level === "very_high") {
+              throw new PandaError("high risk", 558 as UnofficialStatusCode);
+            }
             return authorize();
           }
-
-          startSpan({ name: "assess risk", op: "tx.risk.authorization" }, async (span) => {
-            const assessment = await assess();
-            span.setAttributes({ "exa.level": assessment.level, "exa.score": assessment.score });
-            if (assessment.level === "high" || assessment.level === "very_high") {
-              captureException(new Error("high risk authorization"), { level: "error" });
-            }
-          }).catch((error: unknown) => captureException(error, { level: "error" }));
           try {
-            const trace = await startSpan({ name: "debug_traceCall", op: "tx.trace" }, () =>
-              traceClient.traceCall({
-                from: account,
-                to: exaPreviewerAddress,
-                data: transaction.data,
-                stateOverride: [
-                  {
-                    address: exaPluginAddress,
-                    stateDiff: [
-                      {
-                        slot: keccak256(
-                          encodeAbiParameters(
-                            [{ type: "address" }, { type: "bytes32" }],
-                            [
-                              exaPreviewerAddress,
-                              keccak256(
-                                encodeAbiParameters(
-                                  [{ type: "bytes32" }, { type: "uint256" }],
-                                  [keccak256(toBytes("KEEPER_ROLE")), 0n],
+            const [trace, assessment] = await Promise.all([
+              startSpan({ name: "debug_traceCall", op: "tx.trace" }, () =>
+                traceClient.traceCall({
+                  from: account,
+                  to: exaPreviewerAddress,
+                  data: transaction.data,
+                  stateOverride: [
+                    {
+                      address: exaPluginAddress,
+                      stateDiff: [
+                        {
+                          slot: keccak256(
+                            encodeAbiParameters(
+                              [{ type: "address" }, { type: "bytes32" }],
+                              [
+                                exaPreviewerAddress,
+                                keccak256(
+                                  encodeAbiParameters(
+                                    [{ type: "bytes32" }, { type: "uint256" }],
+                                    [keccak256(toBytes("KEEPER_ROLE")), 0n],
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
-                        value: encodeAbiParameters([{ type: "uint256" }], [1n]),
-                      },
-                    ],
-                  },
-                ],
-              }),
-            );
-
+                          value: encodeAbiParameters([{ type: "uint256" }], [1n]),
+                        },
+                      ],
+                    },
+                  ],
+                }),
+              ),
+              startSpan({ name: "assess risk", op: "tx.risk" }, assess),
+            ]);
+            getActiveSpan()?.setAttribute("exa.level", assessment?.level);
+            getActiveSpan()?.setAttribute("exa.score", assessment?.score);
+            if (assessment?.level === "high" || assessment?.level === "very_high") {
+              throw new PandaError("high risk", 558 as UnofficialStatusCode);
+            }
             setContext("tx", { call, trace });
             if (trace.output) {
               const contractError = getContractError(new RawContractError({ data: trace.output }), {
@@ -514,22 +503,20 @@ export default new Hono().post(
               },
             }).catch((error: unknown) => captureException(error));
             trackTransactionRefund(account, refundAmountUsd, payload);
-            if (payload.action === "completed") {
-              if (payload.body.spend.amount < 0) {
-                feedback({
-                  kind: "issuing",
-                  customer: { id: card.credential.id },
-                  transaction: { id: payload.body.id },
-                  feedback: { type: "settlement", status: "refund" },
-                }).catch((error: unknown) => captureException(error, { level: "error" }));
-              } else {
-                feedback({
-                  kind: "issuing",
-                  customer: { id: card.credential.id },
-                  transaction: { id: payload.body.id, amount: payload.body.spend.amount / 100 },
-                  feedback: { type: "settlement", status: "settled" },
-                }).catch((error: unknown) => captureException(error, { level: "error" }));
-              }
+            if (payload.action === "completed" && payload.body.spend.amount < 0) {
+              feedback({
+                kind: "issuing",
+                customer: { id: card.credential.id },
+                transaction: { id: payload.body.id },
+                feedback: { type: "settlement", status: "refund" },
+              }).catch((error: unknown) => captureException(error, { level: "error" }));
+            } else {
+              feedback({
+                kind: "issuing",
+                customer: { id: card.credential.id },
+                transaction: { id: payload.body.id, amount: payload.body.spend.amount / 100 },
+                feedback: { type: "settlement", status: "settled" },
+              }).catch((error: unknown) => captureException(error, { level: "error" }));
             }
             return c.json({ code: "ok" });
           } catch (error: unknown) {
@@ -542,12 +529,6 @@ export default new Hono().post(
         }
       // falls through
       case "created": {
-        if (payload.body.spend.amount < 0) {
-          startSpan({ name: "webhook", op: `panda.webhook.${payload.id}` }, () => publish(payload)).catch(
-            (error: unknown) => captureException(error, { level: "error" }),
-          );
-          return c.json({ code: "ok" });
-        }
         const card = await findCardById(payload.body.spend.cardId);
         const account = v.parse(Address, card.credential.account);
         setUser({ id: account });
@@ -560,7 +541,13 @@ export default new Hono().post(
           const mutex = getMutex(account);
           mutex?.release();
           setContext("mutex", { locked: mutex?.isLocked() });
+
+          handleDeclinedTransaction(account, payload as v.InferOutput<typeof Transaction>, jsonBody);
+
           trackTransactionRejected(account, payload, card.mode);
+          startSpan({ name: "webhook", op: `panda.webhook.${payload.id}` }, () => publish(payload)).catch(
+            (error: unknown) => captureException(error, { level: "error" }),
+          );
           feedback({
             kind: "issuing",
             customer: { id: card.credential.id },
@@ -581,6 +568,9 @@ export default new Hono().post(
             feedback: { type: "authorization", status: "approved" },
           }).catch((error: unknown) => captureException(error, { level: "error" }));
 
+          startSpan({ name: "webhook", op: `panda.webhook.${payload.id}` }, () => publish(payload)).catch(
+            (error: unknown) => captureException(error, { level: "error" }),
+          );
           return c.json({ code: "ok" });
         }
         if (payload.body.spend.status !== "pending" && payload.action !== "completed") return c.json({ code: "ok" });
@@ -606,7 +596,9 @@ export default new Hono().post(
                 },
               })
               .where(and(eq(transactions.id, payload.body.id), eq(transactions.cardId, payload.body.spend.cardId)));
-
+            startSpan({ name: "webhook", op: `panda.webhook.${payload.id}` }, () => publish(payload)).catch(
+              (error: unknown) => captureException(error, { level: "error" }),
+            );
             feedback({
               kind: "issuing",
               customer: { id: card.credential.id },
@@ -691,7 +683,6 @@ export default new Hono().post(
             }
             switch (payload.action) {
               case "created":
-              case "updated":
                 feedback({
                   kind: "issuing",
                   customer: { id: card.credential.id },
@@ -1127,7 +1118,7 @@ const BaseWebhook = v.object({
     localAmount: v.number(),
     localCurrency: v.pipe(v.string(), v.length(3)),
     merchantCity: v.nullish(v.pipe(v.string(), v.trim())),
-    merchantCountry: v.nullish(v.pipe(v.string(), v.trim())),
+    merchantCountry: v.pipe(v.string(), v.trim()),
     merchantCategory: v.nullish(v.pipe(v.string(), v.trim())),
     merchantCategoryCode: v.string(),
     merchantName: v.pipe(v.string(), v.trim()),
@@ -1157,7 +1148,7 @@ const Webhook = v.variant("resource", [
         spend: v.object({
           ...BaseWebhook.entries.spend.entries,
           status: v.picklist(["pending", "declined"]),
-          declinedReason: v.nullish(v.string()),
+          declinedReason: v.optional(v.string()),
         }),
       }),
     }),
@@ -1213,7 +1204,7 @@ const Webhook = v.variant("resource", [
         frequency: v.picklist(["per24HourPeriod", "per7DayPeriod", "per30DayPeriod", "perYearPeriod"]),
       }),
       status: v.picklist(["ACTIVE", "FROZEN", "DELETED"]),
-      tokenWallets: v.union([v.array(v.literal("Apple")), v.array(v.literal("Google Pay"))]),
+      tokenWallets: v.nullish(v.union([v.array(v.literal("Apple")), v.array(v.literal("Google Pay"))])),
     }),
   }),
   v.object({
