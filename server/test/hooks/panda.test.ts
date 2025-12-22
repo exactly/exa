@@ -876,6 +876,61 @@ describe("card operations", () => {
         });
       });
 
+      it("over-captures frozen debit", async () => {
+        const hold = 12;
+        const capture = 18;
+
+        const cardId = "over-capture-frozen-debit";
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        const createResponse = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "created",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: { ...authorization.json.body.spend, amount: hold, cardId, localAmount: hold },
+            },
+          },
+        });
+
+        await database.update(cards).set({ status: "FROZEN" }).where(eq(cards.id, cardId));
+
+        const completeResponse = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "completed",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: {
+                ...authorization.json.body.spend,
+                amount: capture,
+                authorizedAmount: hold,
+                authorizedAt: new Date().toISOString(),
+                postedAt: new Date().toISOString(),
+                cardId,
+                status: "completed",
+              },
+            },
+          },
+        });
+
+        expect(createResponse.status).toBe(200);
+        expect(completeResponse.status).toBe(200);
+
+        const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
+
+        expect(transaction).toMatchObject({
+          hashes: [expect.any(String), expect.any(String)],
+          payload: {
+            bodies: [{ action: "created" }, { action: "completed", body: { spend: { amount: capture } } }],
+          },
+        });
+      });
+
       it("over capture debit", async () => {
         const hold = 25;
         const capture = 30;

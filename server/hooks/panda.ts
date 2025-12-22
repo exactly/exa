@@ -211,7 +211,12 @@ export default new Hono().post(
     switch (payload.action) {
       case "requested": {
         if (payload.body.spend.amount < 0) return c.json({ code: "ok" });
-        const card = await findCardById(payload.body.spend.cardId);
+        const card = await database.query.cards.findFirst({
+          columns: { mode: true },
+          where: and(eq(cards.id, payload.body.spend.cardId), eq(cards.status, "ACTIVE")),
+          with: { credential: { columns: { account: true } } },
+        });
+        if (!card) return c.json({ code: "card not found" }, 404);
         const account = v.parse(Address, card.credential.account);
         setUser({ id: account });
         const mutex = getMutex(account) ?? createMutex(account);
@@ -430,7 +435,13 @@ export default new Hono().post(
       case "created": {
         if (payload.body.spend.amount < 0) return c.json({ code: "ok" });
 
-        const card = await findCardById(payload.body.spend.cardId);
+        const card = await database.query.cards.findFirst({
+          columns: { mode: true },
+          where: eq(cards.id, payload.body.spend.cardId),
+          with: { credential: { columns: { account: true } } },
+        });
+
+        if (!card) return c.json({ code: "card not found" }, 404);
         const account = v.parse(Address, card.credential.account);
         setUser({ id: account });
 
@@ -812,13 +823,3 @@ const TransactionPayload = v.object(
   { bodies: v.array(v.looseObject({ action: v.string() }), "invalid transaction payload") },
   "invalid transaction payload",
 );
-
-async function findCardById(cardId: string) {
-  const card = await database.query.cards.findFirst({
-    columns: { mode: true },
-    where: and(eq(cards.id, cardId), eq(cards.status, "ACTIVE")),
-    with: { credential: { columns: { account: true } } },
-  });
-  if (!card) throw new Error("card not found");
-  return card;
-}
