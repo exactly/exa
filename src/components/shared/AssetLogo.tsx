@@ -1,11 +1,12 @@
 import { Image } from "expo-image";
+import { Platform } from "react-native";
 import { styled } from "tamagui";
 
 export default styled(Image, {
   name: "AssetLogo",
   cachePolicy: "memory-disk",
   contentFit: "contain",
-  transition: "smooth",
+  transition: Platform.OS === "web" ? "smooth" : undefined,
   placeholderContentFit: "cover",
   borderRadius: "$r_0",
 });
