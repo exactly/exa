@@ -3,14 +3,13 @@ import {
   description,
   flatten,
   object,
-  optional,
   pipe,
   safeParse,
   string,
   ValiError,
   type BaseIssue,
   type BaseSchema,
-  type InferInput,
+  type InferInput
 } from "valibot";
 
 if (!process.env.PAX_API_URL) throw new Error("missing pax api url");
@@ -30,7 +29,7 @@ export const CapitaRequest = object({
   birthdate: string(),
   email: string(),
   phone: string(),
-  product: pipe(optional(string()), description("The product name to add the capita to")),
+  product: pipe(string(), description("The product name to add the capita to")),
 });
 
 /**
