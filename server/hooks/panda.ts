@@ -442,6 +442,9 @@ export default new Hono().post(
           const mutex = getMutex(account);
           mutex?.release();
           setContext("mutex", { locked: mutex?.isLocked() });
+
+          await handleDeclinedTransaction(account, payload as v.InferOutput<typeof Transaction>, jsonBody);
+
           trackTransactionRejected(account, payload, card.mode);
           return c.json({ code: "ok" });
         }
@@ -821,4 +824,55 @@ async function findCardById(cardId: string) {
   });
   if (!card) throw new Error("card not found");
   return card;
+}
+
+async function handleDeclinedTransaction(
+  account: string,
+  payload: v.InferOutput<typeof Transaction>,
+  jsonBody: unknown,
+) {
+  if (payload.action === "requested" || payload.action === "completed") return;
+  const { id: txId, spend } = payload.body;
+  if (!txId) return;
+
+  const tx = await database.query.transactions.findFirst({
+    where: and(eq(transactions.id, txId), eq(transactions.cardId, spend.cardId)),
+  });
+  const createdAt = getCreatedAt(payload) ?? new Date().toISOString();
+  const body = { ...(jsonBody as object), createdAt };
+  await (tx
+    ? database
+        .update(transactions)
+        .set({
+          payload: {
+            ...(tx.payload as object),
+            bodies: [...v.parse(TransactionPayload, tx.payload).bodies, body],
+          },
+        })
+        .where(and(eq(transactions.id, txId), eq(transactions.cardId, spend.cardId)))
+    : database.insert(transactions).values([
+        {
+          id: txId,
+          cardId: spend.cardId,
+          // no hash for declined txs
+          hashes: [],
+          payload: {
+            bodies: [body],
+            type: "panda",
+          },
+        },
+      ]));
+
+  const declinedReason = "declinedReason" in spend ? spend.declinedReason : undefined;
+
+  sendPushNotification({
+    userId: account,
+    headings: { en: "Transaction declined" },
+    contents: {
+      en: `${(spend.localAmount / 100).toLocaleString(undefined, {
+        style: "currency",
+        currency: spend.localCurrency,
+      })} at ${spend.merchantName.trim()}.${declinedReason ? ` Reason: ${declinedReason}` : ""}`,
+    },
+  }).catch((error: unknown) => captureException(error, { level: "error" }));
 }
