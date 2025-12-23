@@ -1,12 +1,8 @@
 {
   "context": { "fileName": "AGENTS.md" },
-  "tools": { "sandbox": true },
+  "general": { "enablePromptCompletion": true, "preferredEditor": "antigravity" },
   "mcpServers": {
-    "nx-mcp": {
-      "type": "stdio",
-      "command": "npx",
-      "args": ["nx", "mcp"]
-    }
+    "nx-mcp": { "command": "npx", "args": ["nx", "mcp"] }
   },
   "$schema": "https://raw.githubusercontent.com/google-gemini/gemini-cli/main/schemas/settings.schema.json"
 }
