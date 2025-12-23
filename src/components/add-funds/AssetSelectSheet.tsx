@@ -1,6 +1,6 @@
 import type { Chain, Token } from "@lifi/sdk";
 import { ChevronDown, Search } from "@tamagui/lucide-icons";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { Pressable, type LayoutChangeEvent } from "react-native";
 import { ScrollView, XStack, YStack, styled } from "tamagui";
 import { formatUnits } from "viem";
@@ -50,10 +50,20 @@ export default function AssetSelectSheet({
     [groups],
   );
 
+  const showNetworkFilter = enableNetworkFilter && availableNetworks.length > 0;
+
+  const activeNetworkId = useMemo(() => {
+    if (!open || !showNetworkFilter) return;
+    if (!selectedNetworkId) return;
+    return availableNetworks.some((chain) => chain.id === selectedNetworkId) ? selectedNetworkId : undefined;
+  }, [availableNetworks, open, selectedNetworkId, showNetworkFilter]);
+
+  const searchValue = open ? searchQuery : "";
+  const normalizedQuery = searchValue.trim().toLowerCase();
+
   const filteredGroups = useMemo(() => {
-    const normalizedQuery = searchQuery.trim().toLowerCase();
     return groups
-      .filter((group) => !enableNetworkFilter || !selectedNetworkId || group.chain.id === selectedNetworkId)
+      .filter((group) => !activeNetworkId || group.chain.id === activeNetworkId)
       .map((group) => {
         if (!normalizedQuery) return group;
         const assets = group.assets.filter(({ token }) => {
@@ -67,40 +77,19 @@ export default function AssetSelectSheet({
         return { ...group, assets };
       })
       .filter((group) => group.assets.length > 0);
-  }, [enableNetworkFilter, groups, searchQuery, selectedNetworkId]);
-
-  const showNetworkFilter = enableNetworkFilter && availableNetworks.length > 0;
+  }, [activeNetworkId, groups, normalizedQuery]);
 
   const networkIcons = useMemo(() => {
     if (!showNetworkFilter) return [] as typeof availableNetworks;
-    if (selectedNetworkId) {
-      const selectedChain = availableNetworks.find((chain) => chain.id === selectedNetworkId);
-      const remaining = availableNetworks.filter((chain) => chain.id !== selectedNetworkId);
+    if (activeNetworkId) {
+      const selectedChain = availableNetworks.find((chain) => chain.id === activeNetworkId);
+      const remaining = availableNetworks.filter((chain) => chain.id !== activeNetworkId);
       return [selectedChain, ...remaining].filter(Boolean).slice(0, 4) as typeof availableNetworks;
     }
     return availableNetworks.slice(0, 4);
-  }, [availableNetworks, selectedNetworkId, showNetworkFilter]);
+  }, [activeNetworkId, availableNetworks, showNetworkFilter]);
 
-  useEffect(() => {
-    if (!open) {
-      setSearchQuery("");
-      setNetworkDropdownOpen(false);
-    }
-  }, [open]);
-
-  useEffect(() => {
-    if (!showNetworkFilter) {
-      setNetworkDropdownOpen(false);
-      setSelectedNetworkId(undefined);
-    }
-  }, [showNetworkFilter]);
-
-  useEffect(() => {
-    if (!enableNetworkFilter) return;
-    if (selectedNetworkId && !groups.some((group) => group.chain.id === selectedNetworkId)) {
-      setSelectedNetworkId(undefined);
-    }
-  }, [enableNetworkFilter, groups, selectedNetworkId]);
+  const networkDropdownVisible = showNetworkFilter && networkDropdownOpen;
 
   return (
     <ModalSheet open={open} onClose={onClose} heightPercent={85}>
@@ -124,8 +113,10 @@ export default function AssetSelectSheet({
                   <Search size={18} color="$uiNeutralSecondary" />
                   <SearchInput
                     placeholder="Search tokens"
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
+                    value={searchValue}
+                    onChangeText={(value) => {
+                      setSearchQuery(value);
+                    }}
                     placeholderTextColor="$uiNeutralPlaceholder"
                     autoCapitalize="none"
                     autoCorrect={false}
@@ -170,7 +161,7 @@ export default function AssetSelectSheet({
                   </Pressable>
                 ) : null}
               </XStack>
-              {showNetworkFilter && networkDropdownOpen ? (
+              {networkDropdownVisible ? (
                 <YStack
                   width={searchWidth ?? undefined}
                   paddingHorizontal="$s3"
@@ -198,7 +189,7 @@ export default function AssetSelectSheet({
                         gap="$s3"
                         alignItems="center"
                         padding="$s3"
-                        backgroundColor={selectedNetworkId ? "transparent" : "$interactiveBaseBrandSoftDefault"}
+                        backgroundColor={activeNetworkId ? "transparent" : "$interactiveBaseBrandSoftDefault"}
                         borderRadius="$r2"
                       >
                         <XStack flexWrap="wrap" width={20} gap="$s1" justifyContent="flex-end">
@@ -226,7 +217,7 @@ export default function AssetSelectSheet({
                           alignItems="center"
                           padding="$s3"
                           backgroundColor={
-                            selectedNetworkId === chain.id ? "$interactiveBaseBrandSoftDefault" : "transparent"
+                            activeNetworkId === chain.id ? "$interactiveBaseBrandSoftDefault" : "transparent"
                           }
                           borderRadius="$r2"
                         >
@@ -315,7 +306,7 @@ export default function AssetSelectSheet({
               {filteredGroups.length === 0 && (
                 <View alignItems="center" paddingVertical="$s8">
                   <Text footnote color="$uiNeutralSecondary">
-                    {searchQuery || (showNetworkFilter && selectedNetworkId)
+                    {searchValue || (showNetworkFilter && activeNetworkId)
                       ? "No assets match your filters."
                       : "No assets with balance available to bridge."}
                   </Text>
