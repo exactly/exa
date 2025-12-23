@@ -1,5 +1,13 @@
 # @exactly/server
 
+## 0.2.44
+
+### Patch Changes
+
+- [#594](https://github.com/exactly/exa/pull/594) [`ddc66a8`](https://github.com/exactly/exa/commit/ddc66a83caf37d9c4911b7b2673e7bc65e09f4bc) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ integrate sardine
+
+- [#593](https://github.com/exactly/exa/pull/593) [`566a1f0`](https://github.com/exactly/exa/commit/566a1f0461c365581b7cd1b0fc8cbb2e7f891dca) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚑️ collect regardless of card status
+
 ## 0.2.43
 
 ### Patch Changes
