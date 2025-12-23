@@ -1,12 +1,12 @@
 import shortenHex from "@exactly/common/shortenHex";
 import type { Address } from "@exactly/common/validation";
-import { User2 } from "@tamagui/lucide-icons";
 import { setStringAsync } from "expo-clipboard";
 import React from "react";
 import { Alert } from "react-native";
 import { XStack } from "tamagui";
 
 import reportError from "../../utils/reportError";
+import Blocky from "../shared/Blocky";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
@@ -33,14 +33,8 @@ export default function Contact({
       }}
     >
       <XStack alignItems="center" gap="$s2">
-        <View
-          backgroundColor="$interactiveBaseBrandSoftDefault"
-          padding="$s3_5"
-          borderRadius="$r_0"
-          justifyContent="center"
-          alignItems="center"
-        >
-          <User2 color="$interactiveOnBaseBrandSoft" fontWeight="bold" />
+        <View borderRadius="$r_0" overflow="hidden">
+          <Blocky seed={address} size={8} scale={6} />
         </View>
         {ens ? (
           <Text textAlign="right" subHeadline color="$uiNeutralSecondary">

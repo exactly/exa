@@ -5,8 +5,8 @@ import { setStringAsync } from "expo-clipboard";
 import { useNavigation } from "expo-router";
 import React, { useState } from "react";
 import { Pressable } from "react-native";
-import { Image } from "tamagui";
 
+import Blocky from "./Blocky";
 import CopyAddressSheet from "./CopyAddressSheet";
 import StatusIndicator from "./StatusIndicator";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
@@ -29,27 +29,26 @@ export default function ProfileHeader() {
   function toggle() {
     queryClient.setQueryData(["settings", "sensitive"], !hidden);
   }
-  function copy() {
-    if (!address) return;
-    setStringAsync(address).catch(reportError);
-    setCopyAddressShown(true);
-  }
   return (
     <View padded backgroundColor="$backgroundSoft">
       <View display="flex" flexDirection="row" justifyContent="space-between">
         <View display="flex" flexDirection="row" alignItems="center" gap={8}>
           <View position="relative">
             {isConnected && <StatusIndicator type="online" />}
-            <Image
-              source={{ uri: "https://avatars.githubusercontent.com/u/83888950?s=200&v=4" }}
-              alt="Profile picture"
-              width={32}
-              height={32}
-              borderRadius="$r_0"
-            />
+            {address && (
+              <View borderRadius="$r_0" overflow="hidden">
+                <Blocky seed={address} />
+              </View>
+            )}
           </View>
           {address && (
-            <Pressable onPress={copy} hitSlop={15}>
+            <Pressable
+              hitSlop={15}
+              onPress={() => {
+                setStringAsync(address).catch(reportError);
+                setCopyAddressShown(true);
+              }}
+            >
               <View display="flex" flexDirection="row" alignItems="flex-start">
                 <Text fontSize={17} lineHeight={23} fontFamily="$mono">
                   {hidden ? "0x..." : shortenHex(address)}
