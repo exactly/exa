@@ -1,9 +1,9 @@
+import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { describeRoute } from "hono-openapi";
 import { resolver } from "hono-openapi/valibot";
 import { object, string } from "valibot";
 
-import { eq } from "drizzle-orm";
 import database, { credentials } from "../database";
 import auth from "../middleware/auth";
 import deriveAssociateId from "../utils/deriveAssociateId";
@@ -12,16 +12,16 @@ const AssociateResponse = object({
   associateId: string(),
 });
 
-export default new Hono().get(
-  "/associate",
+const app = new Hono().get(
+  "/",
   auth(),
   describeRoute({
-    summary: "Get associate ID",
-    description: "Get the deterministic associate ID for the authenticated user",
+    summary: "Get associate data",
+    description: "Get the associate data for the authenticated user",
     tags: ["Pax"],
     responses: {
       200: {
-        description: "Associate ID",
+        description: "Associate data",
         content: {
           "application/json": {
             schema: resolver(AssociateResponse),
@@ -45,3 +45,7 @@ export default new Hono().get(
     return c.json({ associateId: deriveAssociateId(credential.account) }, 200);
   },
 );
+
+export default app;
+
+export type AppType = typeof app;
