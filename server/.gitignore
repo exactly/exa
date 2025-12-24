@@ -4,6 +4,7 @@
 /drizzle/
 /generated/
 
+pg-data
 firehose-data
 
 .env

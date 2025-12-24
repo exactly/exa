@@ -59,7 +59,6 @@
     "viem": "^2.40.3"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "^0.3.14",
     "@exactly/common": "workspace:^0.0.10",
     "@exactly/plugin": "workspace:^1.1.0",
     "@exactly/substreams": "workspace:^0.0.1",
@@ -72,10 +71,10 @@
     "@vitest/ui": "^3.2.4",
     "@wagmi/core": "^2.22.1",
     "drizzle-kit": "^0.31.8",
+    "embedded-postgres": "^18.1.0-beta.15",
     "execa": "^9.6.0",
     "ioredis-mock": "^8.13.0",
     "openapi-types": "^12.1.3",
-    "pg-gateway": "^0.3.0-beta.4",
     "pkgroll": "^2.20.1",
     "prool": "^0.0.24",
     "tsx": "^4.21.0",
