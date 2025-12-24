@@ -22,6 +22,7 @@ fn main() -> Result<(), Error> {
   println!("cargo::rerun-if-changed=node_modules/@exactly/protocol/contracts/Auditor.sol");
   println!("cargo::rerun-if-changed=node_modules/@exactly/protocol/contracts/Market.sol");
   println!("cargo::rerun-if-changed=node_modules/@exactly/protocol/deployments");
+  println!("cargo::rerun-if-changed=../server/generated/schema.sql");
   println!("cargo::rerun-if-env-changed=CHAIN_ID");
 
   create_dir_all("abi")?;

@@ -12,7 +12,6 @@
     "@bufbuild/buf": "^1.61.0",
     "@exactly/plugin": "workspace:^1.1.0",
     "@exactly/protocol": "^0.2.22",
-    "@exactly/server": "workspace:^0.2.42",
     "protolint": "^0.56.4"
   },
   "nx": {
@@ -26,7 +25,7 @@
           }
         ],
         "inputs": [
-          "{projectRoot}/.cargo/**",
+          "{projectRoot}/build.rs",
           "{projectRoot}/Cargo.lock",
           "{projectRoot}/Cargo.toml",
           "{projectRoot}/rust-toolchain.toml",

@@ -1,5 +1,4 @@
 import "../mocks/sentry";
-import "../mocks/database";
 import "../mocks/persona";
 
 import deriveAddress from "@exactly/common/deriveAddress";

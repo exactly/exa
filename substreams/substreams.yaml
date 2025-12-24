@@ -8,6 +8,7 @@ protobuf:
   importPaths:
     - proto
 imports:
+  db: https://github.com/streamingfast/substreams-sink-database-changes/releases/download/v3.0.0/substreams-sink-database-changes-v3.0.0.spkg
   sql: https://github.com/streamingfast/substreams-sink-sql/releases/download/protodefs-v1.0.7/substreams-sink-sql-protodefs-v1.0.7.spkg
 network: anvil
 modules:
@@ -20,29 +21,30 @@ modules:
       type: proto:exa.Accounts
   - name: store_exa_accounts
     kind: store
-    valueType: string
-    updatePolicy: append
+    valueType: int64
+    updatePolicy: set
     inputs:
       - map: map_exa_accounts
-  - name: map_account_events
+  - name: map_exa_plugins
     kind: map
     inputs:
       - source: sf.ethereum.type.v2.Block
+      - map: map_exa_accounts
       - store: store_exa_accounts
     output:
-      type: proto:exa.AccountEvents
+      type: proto:exa.Plugins
   - name: db_out
     kind: map
     inputs:
       - source: sf.substreams.v1.Clock
-      - map: map_account_events
+      - map: map_exa_plugins
     output:
       type: proto:sf.substreams.sink.database.v1.DatabaseChanges
 sink:
   module: db_out
   type: sf.substreams.sink.sql.v1.Service
   config:
-    schema: node_modules/@exactly/server/generated/schema.sql
+    schema: ../server/generated/schema.sql
     engine: postgres
 binaries:
   default:

@@ -1,12 +1,13 @@
 #![expect(clippy::not_unsafe_ptr_arg_deref)]
 
-use contracts::{account::events as account_events, factory::events::ExaAccountInitialized};
-use proto::exa::{account_events::PluginInstalled, AccountEvents, Accounts};
+use contracts::{account::events::PluginInstalled, factory::events::ExaAccountInitialized};
+use proto::exa::{plugins::Plugin, Accounts, Plugins};
 use serde::Deserialize;
+use std::collections::HashSet;
 use substreams::{
   errors::Error,
   pb::substreams::Clock,
-  store::{Appender, StoreAppend, StoreGet, StoreGetRaw},
+  store::{StoreGet, StoreGetInt64, StoreNew, StoreSet, StoreSetInt64},
   Hex,
 };
 use substreams_database_change::{pb::database::DatabaseChanges, tables::Tables};
@@ -16,7 +17,7 @@ mod contracts;
 mod proto;
 
 #[derive(Debug, Deserialize)]
-struct Params {
+struct Factories {
   factories: Vec<String>,
 }
 
@@ -25,7 +26,7 @@ pub fn map_exa_accounts(params: String, block: Block) -> Result<Accounts, Error>
   Ok(Accounts {
     accounts: block
       .events::<ExaAccountInitialized>(
-        &serde_qs::from_str::<Params>(&params)?
+        &serde_qs::from_str::<Factories>(&params)?
           .factories
           .iter()
           .map(Hex::decode)
@@ -34,64 +35,46 @@ pub fn map_exa_accounts(params: String, block: Block) -> Result<Accounts, Error>
           .map(Vec::as_slice)
           .collect::<Vec<_>>(),
       )
-      .map(|(event, _)| Hex(&event.account).to_string())
+      .map(|(event, _)| event.account)
       .collect(),
   })
 }
 
 #[substreams::handlers::store]
-pub fn store_exa_accounts(accounts: Accounts, output: StoreAppend<String>) {
-  output.append_all(1, ".", accounts.accounts);
+pub fn store_exa_accounts(new: Accounts, store: StoreSetInt64) {
+  for account in new.accounts {
+    store.set(0, Hex(&account).to_string(), &1);
+  }
 }
 
 #[substreams::handlers::map]
-pub fn map_account_events(block: Block, account_store: StoreGetRaw) -> Result<AccountEvents, Error> {
-  let accounts = account_store
-    .get_last(".")
-    .map(|bytes| -> Result<Vec<_>, Error> {
-      Ok(String::from_utf8(bytes)?.split_terminator(";").map(Hex::decode).collect::<Result<Vec<_>, _>>()?)
-    })
-    .transpose()?
-    .unwrap_or_default();
-  Ok(AccountEvents {
+pub fn map_exa_plugins(block: Block, new: Accounts, accounts: StoreGetInt64) -> Result<Plugins, Error> {
+  let mut seen = HashSet::new();
+  Ok(Plugins {
     plugins: block
       .logs()
       .filter_map(|log| {
-        match (
-          accounts.iter().any(|account| log.address() == account),
-          account_events::PluginInstalled::match_and_decode(log),
-        ) {
-          (true, Some(event)) => Some(PluginInstalled {
-            plugin: event.plugin.to_vec(),
-            account: log.address().to_vec(),
-            manifest_hash: event.manifest_hash.to_vec(),
-            log_ordinal: log.ordinal(),
-          }),
-          _ => None,
-        }
+        let event = PluginInstalled::match_and_decode(log)?;
+        let address = log.address();
+        (if new.accounts.iter().any(|new_account| address == new_account.as_slice()) {
+          !seen.insert(address.to_vec())
+        } else {
+          accounts.get_last(Hex(&address).to_string())? == 1
+        })
+        .then(|| Plugin { address: event.plugin, account: address.to_vec(), ordinal: log.ordinal() })
       })
       .collect(),
   })
 }
 
 #[substreams::handlers::map]
-pub fn db_out(clock: Clock, events: AccountEvents) -> Result<DatabaseChanges, Error> {
+pub fn db_out(clock: Clock, plugins: Plugins) -> Result<DatabaseChanges, Error> {
   let mut tables = Tables::new();
-  for event in events.plugins {
-    tables
-      .create_row(
-        "plugin_installed",
-        [
-          ("plugin", Hex(&event.plugin).to_string()),
-          ("account", Hex(&event.account).to_string()),
-          ("block", clock.number.to_string()),
-          ("ordinal", event.log_ordinal.to_string()),
-        ],
-      )
-      .set("plugin", Hex(&event.plugin).to_string())
-      .set("account", Hex(&event.account).to_string())
-      .set("block", clock.number.to_string())
-      .set("ordinal", event.log_ordinal.to_string());
+  for plugin in plugins.plugins {
+    tables.upsert_row(
+      "exa_plugins",
+      [("address", Hex(&plugin.address).to_string()), ("account", Hex(&plugin.account).to_string())],
+    );
   }
   if tables.all_row_count() > 0 {
     tables
