@@ -1,6 +1,6 @@
 import chain from "@exactly/common/generated/chain";
 import { vValidator } from "@hono/valibot-validator";
-import { setContext } from "@sentry/core";
+import { captureEvent, setContext } from "@sentry/core";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import {
   array,
@@ -11,11 +11,9 @@ import {
   literal,
   nullable,
   boolean,
-  minLength,
   number,
   object,
   picklist,
-  pipe,
   safeParse,
   string,
   ValiError,
@@ -33,7 +31,7 @@ if (!process.env.PERSONA_WEBHOOK_SECRET) throw new Error("missing persona webhoo
 export const CRYPTOMATE_TEMPLATE = "itmpl_8uim4FvD5P3kFpKHX37CW817";
 export const PANDA_TEMPLATE = "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2";
 export const MANTECA_TEMPLATE_EXTRA_FIELDS = "itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo";
-export const MANTECA_TEMPLATE_WITH_ID_CLASS = "itmpl_rQsZej9uirAbHermNgtkqf9GetgX";
+export const MANTECA_TEMPLATE_WITH_ID_CLASS = "itmpl_TjaqJdQYkht17v645zNFUfkaWNan";
 
 const PERSONA_API_VERSION = "2023-01-05";
 
@@ -79,6 +77,45 @@ export function generateOTL(inquiryId: string) {
 export async function getDocument(documentId: string) {
   const { data } = await request(GetDocumentResponse, `/document/government-ids/${documentId}`);
   return data;
+}
+
+export async function addDocument(referenceId: string, identityDocument: InferOutput<typeof IdentityDocument>) {
+  const account = await getAccount(referenceId, "document");
+  if (!account) throw new Error("account not found");
+  const existingDocument = account.attributes.fields.documents.value.find(
+    (document) => document.value.id_document_id.value === identityDocument.id_document_id.value,
+  );
+  if (existingDocument) {
+    captureEvent({ message: "document-already-exists", contexts: { id: existingDocument.value.id_document_id } });
+    return;
+  }
+  return request(
+    object({ data: object({ id: string() }) }),
+    `/accounts/${account.id}`,
+    {
+      data: {
+        attributes: {
+          fields: {
+            documents: [
+              ...account.attributes.fields.documents.value.map((document) => ({
+                id_class: document.value.id_class.value,
+                id_number: document.value.id_number.value,
+                id_issuing_country: document.value.id_issuing_country.value,
+                id_document_id: document.value.id_document_id.value,
+              })),
+              {
+                id_class: identityDocument.id_class.value,
+                id_number: identityDocument.id_number.value,
+                id_issuing_country: identityDocument.id_issuing_country.value,
+                id_document_id: identityDocument.id_document_id.value,
+              },
+            ],
+          },
+        },
+      },
+    },
+    "PATCH",
+  );
 }
 
 export async function resumeOrCreateMantecaInquiryOTL(referenceId: string, redirectURL?: string): Promise<string> {
@@ -161,6 +198,13 @@ const AccountMantecaFields = object({
   manteca_t_c: object({ value: boolean() }),
 });
 
+export const IdentityDocument = object({
+  id_class: object({ value: string() }),
+  id_number: object({ value: string() }),
+  id_issuing_country: object({ value: string() }),
+  id_document_id: object({ value: string() }),
+});
+
 const AccountBasicFields = object({
   name: object({
     value: object({
@@ -188,18 +232,15 @@ const AccountBasicFields = object({
   privacy__policy: object({ value: boolean() }),
   account_opening_disclosure: object({ value: nullable(boolean()) }),
   documents: object({
-    value: pipe(
-      array(
-        object({
-          value: object({
-            id_class: object({ value: string() }),
-            id_number: object({ value: string() }),
-            id_issuing_country: object({ value: string() }),
-            id_document_id: object({ value: string() }),
-          }),
+    value: array(
+      object({
+        value: object({
+          id_class: object({ value: string() }),
+          id_number: object({ value: string() }),
+          id_issuing_country: object({ value: string() }),
+          id_document_id: object({ value: string() }),
         }),
-      ),
-      minLength(1),
+      }),
     ),
   }),
 });
@@ -227,6 +268,16 @@ const BaseAccount = object({
   attributes: BaseAccountAttributes,
 });
 
+const DocumentAccount = object({
+  id: string(),
+  type: literal("account"),
+  attributes: object({
+    fields: object({
+      documents: object({ value: array(object({ value: IdentityDocument })) }),
+    }),
+  }),
+});
+
 const MantecaAccount = object({
   ...BaseAccount.entries,
   attributes: object({
@@ -235,11 +286,14 @@ const MantecaAccount = object({
   }),
 });
 
-const UnknownAccount = object({ data: array(unknown()) });
+const UnknownAccount = object({
+  data: array(object({ id: string(), type: literal("account"), attributes: unknown() })),
+});
 
 const accountScopeSchemas = {
   basic: object({ data: array(BaseAccount) }),
   manteca: object({ data: array(MantecaAccount) }),
+  document: object({ data: array(DocumentAccount) }),
 } as const;
 
 export type AccountScope = keyof typeof accountScopeSchemas;
@@ -273,6 +327,8 @@ function evaluateAccount(
   scope: AccountScope,
 ): typeof PANDA_TEMPLATE | typeof MANTECA_TEMPLATE_EXTRA_FIELDS | typeof MANTECA_TEMPLATE_WITH_ID_CLASS | undefined {
   switch (scope) {
+    case "document":
+      throw new Error("document account scope not supported");
     case "basic": {
       const result = safeParse(accountScopeSchemas[scope], unknownAccount);
       if (!result.success) {
