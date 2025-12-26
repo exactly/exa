@@ -18,13 +18,9 @@ const appClient = testClient(app);
 vi.mock("@sentry/node", { spy: true });
 
 describe("with reference", () => {
-  const bob = privateKeyToAddress(padHex("0xb0b"));
-  const account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(bob), y: zeroHash });
-
-  beforeAll(async () => {
-    await database
-      .insert(credentials)
-      .values([{ id: account, publicKey: new Uint8Array(), account, factory: zeroAddress }]);
+  const account = deriveAddress(inject("ExaAccountFactory"), {
+    x: padHex(privateKeyToAddress(padHex("0xb0b"))),
+    y: zeroHash,
   });
 
   afterEach(() => vi.resetAllMocks());

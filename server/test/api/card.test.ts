@@ -20,20 +20,15 @@ import publicClient from "../../utils/publicClient";
 const appClient = testClient(app);
 
 describe("authenticated", () => {
-  const bob = privateKeyToAddress(padHex("0xb0b"));
-  const account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(bob), y: zeroHash });
+  const account = deriveAddress(inject("ExaAccountFactory"), {
+    x: padHex(privateKeyToAddress(padHex("0xb0b"))),
+    y: zeroHash,
+  });
   const ownerETH = privateKeyToAddress(padHex("0xbeef"));
   const ethAccount = deriveAddress(inject("ExaAccountFactory"), { x: padHex(ownerETH), y: zeroHash });
 
   beforeAll(async () => {
     await database.insert(credentials).values([
-      {
-        id: account,
-        publicKey: new Uint8Array(),
-        account,
-        factory: zeroAddress,
-        pandaId: "2cf0c886-f7c0-40f3-a8cd-3c4ab3997b66",
-      },
       {
         id: ethAccount,
         publicKey: new Uint8Array(),
@@ -321,7 +316,7 @@ const cardTemplate = {
   limit: { amount: 5000, frequency: "per24HourPeriod" },
   status: "active",
   type: "virtual",
-  userId: "2cf0c886-f7c0-40f3-a8cd-3c4ab3997b66",
+  userId: "pandaId",
 } as const;
 
 const panTemplate = {

@@ -1075,15 +1075,8 @@ describe("concurrency", () => {
   let account2: Address;
 
   beforeEach(async () => {
-    owner2 = createWalletClient({
-      chain,
-      transport: http(),
-      account: privateKeyToAccount(generatePrivateKey()),
-    });
-    account2 = deriveAddress(inject("ExaAccountFactory"), {
-      x: padHex(owner2.account.address),
-      y: zeroHash,
-    });
+    owner2 = createWalletClient({ chain, transport: http(), account: privateKeyToAccount(generatePrivateKey()) });
+    account2 = deriveAddress(inject("ExaAccountFactory"), { x: padHex(owner2.account.address), y: zeroHash });
     await Promise.all([
       database
         .insert(credentials)

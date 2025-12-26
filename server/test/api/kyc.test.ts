@@ -5,9 +5,9 @@ import "../mocks/deployments";
 import deriveAddress from "@exactly/common/deriveAddress";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
-import { zeroHash, padHex, zeroAddress } from "viem";
+import { zeroHash, padHex } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
-import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
+import { afterEach, describe, expect, inject, it, vi } from "vitest";
 
 import app from "../../api/kyc";
 import database, { credentials } from "../../database";
@@ -16,19 +16,9 @@ import * as persona from "../../utils/persona";
 const appClient = testClient(app);
 
 describe("authenticated", () => {
-  const bob = privateKeyToAddress(padHex("0xb0b"));
-  const account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(bob), y: zeroHash });
-
-  beforeAll(async () => {
-    await database.insert(credentials).values([
-      {
-        id: account,
-        publicKey: new Uint8Array(),
-        account,
-        factory: zeroAddress,
-        pandaId: "pandaId",
-      },
-    ]);
+  const account = deriveAddress(inject("ExaAccountFactory"), {
+    x: padHex(privateKeyToAddress(padHex("0xb0b"))),
+    y: zeroHash,
   });
 
   afterEach(() => {
