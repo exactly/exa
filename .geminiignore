@@ -11,6 +11,12 @@
 !/android/
 !/ios/
 !generated/
+!*.log
+!*.dump
+!*.heapprofile
+!application_x_sentry_envelope-*.txt
+!lcov.info
+!.clinic/
 
 *.orig.*
 *.jks
