@@ -18,13 +18,14 @@ import {
   safeParse,
   string,
   transform,
+  union,
 } from "valibot";
 
 import database, { credentials } from "../database/index";
 import deriveAssociateId from "../utils/deriveAssociateId";
 import { createUser } from "../utils/panda";
 import { addCapita } from "../utils/pax";
-import { headerValidator } from "../utils/persona";
+import { headerValidator, MANTECA_TEMPLATE_WITH_ID_CLASS, PANDA_TEMPLATE } from "../utils/persona";
 import validatorHook from "../utils/validatorHook";
 
 const Session = pipe(
@@ -43,7 +44,7 @@ const Session = pipe(
   }),
 );
 
-const PandaInquiry = pipe(
+const Panda = pipe(
   object({
     data: object({
       id: string(),
@@ -74,6 +75,13 @@ const PandaInquiry = pipe(
             "Either monthlyPurchasesRange or expectedMonthlyVolume must have a value",
           ),
         ),
+      }),
+      relationships: object({
+        inquiryTemplate: object({
+          data: object({
+            id: literal(PANDA_TEMPLATE),
+          }),
+        }),
       }),
     }),
     included: pipe(
@@ -107,12 +115,31 @@ const PandaInquiry = pipe(
     if (!annualSalary) throw new Error("no annual salary");
 
     return {
+      template: "panda" as const,
       ...payload,
       session,
       annualSalary,
       expectedMonthlyVolume,
     };
   }),
+);
+
+const Manteca = pipe(
+  object({
+    data: object({
+      id: string(),
+      // TODO add attributes for manteca inquiry
+      // attributes: object({}),
+      relationships: object({
+        inquiryTemplate: object({
+          data: object({
+            id: literal(MANTECA_TEMPLATE_WITH_ID_CLASS),
+          }),
+        }),
+      }),
+    }),
+  }),
+  transform((payload) => ({ template: "manteca" as const, ...payload })),
 );
 
 export default new Hono().post(
@@ -123,13 +150,20 @@ export default new Hono().post(
     object({
       data: object({
         attributes: object({
-          payload: PandaInquiry,
+          payload: union([Panda, Manteca]),
         }),
       }),
     }),
     validatorHook({ code: "bad persona", status: 200 }),
   ),
   async (c) => {
+    const payload = c.req.valid("json").data.attributes.payload;
+
+    if (payload.template === "manteca") {
+      // TODO handle manteca inquiry here
+      return c.json({ code: "ok" }, 200);
+    }
+
     getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "persona.inquiry");
     const {
       data: {
@@ -139,7 +173,7 @@ export default new Hono().post(
       session,
       annualSalary,
       expectedMonthlyVolume,
-    } = c.req.valid("json").data.attributes.payload;
+    } = payload;
 
     const credential = await database.query.credentials.findFirst({
       columns: { account: true, pandaId: true },

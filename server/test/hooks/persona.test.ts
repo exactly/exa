@@ -86,6 +86,14 @@ describe("persona hook", () => {
                 phoneNumber: { value: "+1234567890" },
               },
             },
+            relationships: {
+              inquiryTemplate: {
+                data: {
+                  type: "inquiry-template",
+                  id: "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2",
+                },
+              },
+            },
           },
           included: [
             {
@@ -298,7 +306,11 @@ describe("with reference", () => {
       await expect(response.json()).resolves.toStrictEqual({
         code: "bad persona",
         legacy: "bad persona",
-        message: ["data/attributes/payload/included Invalid length: Expected >=1 but received 0"],
+        message: [
+          "data/attributes/payload Invalid type: Expected Object but received Object",
+          "included Invalid length: Expected >=1 but received 0",
+          'data/relationships/inquiryTemplate/data/id Invalid type: Expected "itmpl_rQsZej9uirAbHermNgtkqf9GetgX" but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
+        ],
       });
       expect(panda.createUser).not.toHaveBeenCalled();
     });
@@ -342,7 +354,9 @@ describe("with reference", () => {
         code: "bad persona",
         legacy: "bad persona",
         message: [
-          "data/attributes/payload/data/attributes/fields Either annualSalary or annualSalaryRangesUs150000 must have a value",
+          "data/attributes/payload Invalid type: Expected Object but received Object",
+          "data/attributes/fields Either annualSalary or annualSalaryRangesUs150000 must have a value",
+          'data/relationships/inquiryTemplate/data/id Invalid type: Expected "itmpl_rQsZej9uirAbHermNgtkqf9GetgX" but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
         ],
       });
       expect(panda.createUser).not.toHaveBeenCalled();
@@ -387,7 +401,9 @@ describe("with reference", () => {
         code: "bad persona",
         legacy: "bad persona",
         message: [
-          "data/attributes/payload/data/attributes/fields Either monthlyPurchasesRange or expectedMonthlyVolume must have a value",
+          "data/attributes/payload Invalid type: Expected Object but received Object",
+          "data/attributes/fields Either monthlyPurchasesRange or expectedMonthlyVolume must have a value",
+          'data/relationships/inquiryTemplate/data/id Invalid type: Expected "itmpl_rQsZej9uirAbHermNgtkqf9GetgX" but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
         ],
       });
       expect(panda.createUser).not.toHaveBeenCalled();
@@ -612,7 +628,7 @@ const personaPayload = {
               inquiryTemplate: {
                 data: {
                   type: "inquiry-template",
-                  id: "itmpl_8uim4FvD57CW817", // cspell:ignore itmpl_8uim4FvD57CW817
+                  id: "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2",
                 },
               },
               inquiryTemplateVersion: {
