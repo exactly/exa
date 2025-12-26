@@ -46,6 +46,91 @@ const Session = pipe(
   }),
 );
 
+const PandaInquiry = pipe(
+  object({
+    data: object({
+      id: string(),
+      attributes: object({
+        status: literal("approved"),
+        referenceId: string(),
+        emailAddress: string(),
+        phoneNumber: string(),
+        birthdate: string(),
+        nameFirst: string(),
+        nameMiddle: nullable(string()),
+        nameLast: string(),
+        addressStreet1: string(),
+        addressStreet2: nullable(string()),
+        addressCity: string(),
+        addressSubdivision: string(),
+        addressSubdivisionAbbr: nullable(string()),
+        addressPostalCode: string(),
+        fields: pipe(
+          object({
+            accountPurpose: object({ value: string() }),
+            annualSalary: object({ value: nullable(string()) }),
+            annualSalaryRangesUs150000: optional(object({ value: optional(string()) })),
+            expectedMonthlyVolume: object({ value: nullable(string()) }),
+            inputSelect: object({ value: string() }),
+            monthlyPurchasesRange: optional(object({ value: string() })),
+            addressCountryCode: object({ value: string() }),
+            birthdate: object({ value: string() }),
+            identificationNumber: object({ value: string() }),
+            nameFirst: object({ value: string() }),
+            nameLast: object({ value: string() }),
+            emailAddress: object({ value: string() }),
+            phoneNumber: optional(object({ value: string() })),
+          }),
+          check(
+            (fields) => !!fields.annualSalaryRangesUs150000?.value || !!fields.annualSalary.value,
+            "Either annualSalary or annualSalaryRangesUs150000 must have a value",
+          ),
+          check(
+            (fields) => !!fields.monthlyPurchasesRange?.value || !!fields.expectedMonthlyVolume.value,
+            "Either monthlyPurchasesRange or expectedMonthlyVolume must have a value",
+          ),
+        ),
+      }),
+    }),
+    included: pipe(
+      array(looseObject({ type: string() })),
+      minLength(1),
+      transform((incl) => {
+        return incl
+          .reduce<InferOutput<typeof Session>[]>((sessions, item) => {
+            const s = safeParse(Session, item);
+            if (s.success) return [...sessions, s.output];
+            return sessions;
+          }, [])
+          .sort((a, b) => a.attributes.createdAt.localeCompare(b.attributes.createdAt));
+      }),
+      minLength(1),
+    ),
+  }),
+  transform((payload) => {
+    if (payload.included.length === 0) throw new Error("no valid sessions");
+    const session = payload.included[0];
+    if (!session) throw new Error("no valid session");
+
+    const annualSalary =
+      payload.data.attributes.fields.annualSalaryRangesUs150000?.value ??
+      payload.data.attributes.fields.annualSalary.value;
+    const expectedMonthlyVolume =
+      payload.data.attributes.fields.monthlyPurchasesRange?.value ??
+      payload.data.attributes.fields.expectedMonthlyVolume.value;
+
+    if (!expectedMonthlyVolume) throw new Error("no monthly volume");
+    if (!annualSalary) throw new Error("no annual salary");
+
+    return {
+      ...payload,
+      session,
+      annualSalary,
+      expectedMonthlyVolume,
+    };
+  }),
+);
+
 export default new Hono().post(
   "/",
   headerValidator(),
@@ -54,90 +139,7 @@ export default new Hono().post(
     object({
       data: object({
         attributes: object({
-          payload: pipe(
-            object({
-              data: object({
-                id: string(),
-                attributes: object({
-                  status: literal("approved"),
-                  referenceId: string(),
-                  emailAddress: string(),
-                  phoneNumber: string(),
-                  birthdate: string(),
-                  nameFirst: string(),
-                  nameMiddle: nullable(string()),
-                  nameLast: string(),
-                  addressStreet1: string(),
-                  addressStreet2: nullable(string()),
-                  addressCity: string(),
-                  addressSubdivision: string(),
-                  addressSubdivisionAbbr: nullable(string()),
-                  addressPostalCode: string(),
-                  fields: pipe(
-                    object({
-                      accountPurpose: object({ value: string() }),
-                      annualSalary: object({ value: nullable(string()) }),
-                      annualSalaryRangesUs150000: optional(object({ value: optional(string()) })),
-                      expectedMonthlyVolume: object({ value: nullable(string()) }),
-                      inputSelect: object({ value: string() }),
-                      monthlyPurchasesRange: optional(object({ value: string() })),
-                      addressCountryCode: object({ value: string() }),
-                      birthdate: object({ value: string() }),
-                      identificationNumber: object({ value: string() }),
-                      nameFirst: object({ value: string() }),
-                      nameLast: object({ value: string() }),
-                      emailAddress: object({ value: string() }),
-                      phoneNumber: optional(object({ value: string() })),
-                    }),
-                    check(
-                      (fields) => !!fields.annualSalaryRangesUs150000?.value || !!fields.annualSalary.value,
-                      "Either annualSalary or annualSalaryRangesUs150000 must have a value",
-                    ),
-                    check(
-                      (fields) => !!fields.monthlyPurchasesRange?.value || !!fields.expectedMonthlyVolume.value,
-                      "Either monthlyPurchasesRange or expectedMonthlyVolume must have a value",
-                    ),
-                  ),
-                }),
-              }),
-              included: pipe(
-                array(looseObject({ type: string() })),
-                minLength(1),
-                transform((incl) => {
-                  return incl
-                    .reduce<InferOutput<typeof Session>[]>((sessions, item) => {
-                      const s = safeParse(Session, item);
-                      if (s.success) return [...sessions, s.output];
-                      return sessions;
-                    }, [])
-                    .sort((a, b) => a.attributes.createdAt.localeCompare(b.attributes.createdAt));
-                }),
-                minLength(1),
-              ),
-            }),
-            transform((payload) => {
-              if (payload.included.length === 0) throw new Error("no valid sessions");
-              const session = payload.included[0];
-              if (!session) throw new Error("no valid session");
-
-              const annualSalary =
-                payload.data.attributes.fields.annualSalaryRangesUs150000?.value ??
-                payload.data.attributes.fields.annualSalary.value;
-              const expectedMonthlyVolume =
-                payload.data.attributes.fields.monthlyPurchasesRange?.value ??
-                payload.data.attributes.fields.expectedMonthlyVolume.value;
-
-              if (!expectedMonthlyVolume) throw new Error("no monthly volume");
-              if (!annualSalary) throw new Error("no annual salary");
-
-              return {
-                ...payload,
-                session,
-                annualSalary,
-                expectedMonthlyVolume,
-              };
-            }),
-          ),
+          payload: PandaInquiry,
         }),
       }),
     }),
