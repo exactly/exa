@@ -19,6 +19,7 @@ import {
   safeParse,
   string,
   transform,
+  union,
 } from "valibot";
 
 import database, { credentials } from "../database/index";
@@ -26,7 +27,7 @@ import deriveAssociateId from "../utils/deriveAssociateId";
 import keeper from "../utils/keeper";
 import { createUser } from "../utils/panda";
 import { addCapita } from "../utils/pax";
-import { headerValidator } from "../utils/persona";
+import { addDocument, headerValidator, MANTECA_TEMPLATE_WITH_ID_CLASS, PANDA_TEMPLATE } from "../utils/persona";
 import { customer } from "../utils/sardine";
 import validatorHook from "../utils/validatorHook";
 const Session = pipe(
@@ -45,7 +46,7 @@ const Session = pipe(
   }),
 );
 
-const PandaInquiry = pipe(
+const Panda = pipe(
   object({
     data: object({
       id: string(),
@@ -79,6 +80,9 @@ const PandaInquiry = pipe(
             nameLast: object({ value: string() }),
             emailAddress: object({ value: string() }),
             phoneNumber: optional(object({ value: string() })),
+            identificationClass: object({ value: string() }),
+            currentGovernmentId: object({ value: object({ id: string() }) }),
+            selectedCountryCode: object({ value: string() }),
           }),
           check(
             (fields) => !!fields.annualSalaryRangesUs150000?.value || !!fields.annualSalary.value,
@@ -89,6 +93,13 @@ const PandaInquiry = pipe(
             "Either monthlyPurchasesRange or expectedMonthlyVolume must have a value",
           ),
         ),
+      }),
+      relationships: object({
+        inquiryTemplate: object({
+          data: object({
+            id: literal(PANDA_TEMPLATE),
+          }),
+        }),
       }),
     }),
     included: pipe(
@@ -122,12 +133,39 @@ const PandaInquiry = pipe(
     if (!annualSalary) throw new Error("no annual salary");
 
     return {
+      template: "panda" as const,
       ...payload,
       session,
       annualSalary,
       expectedMonthlyVolume,
     };
   }),
+);
+
+const Manteca = pipe(
+  object({
+    data: object({
+      id: string(),
+      attributes: object({
+        status: literal("approved"),
+        referenceId: string(),
+        fields: object({
+          selectedCountryCode: object({ value: string() }),
+          currentGovernmentId1: object({ value: object({ id: string() }) }),
+          selectedIdClass1: object({ value: string() }),
+          identificationNumber: object({ value: string() }),
+        }),
+      }),
+      relationships: object({
+        inquiryTemplate: object({
+          data: object({
+            id: literal(MANTECA_TEMPLATE_WITH_ID_CLASS),
+          }),
+        }),
+      }),
+    }),
+  }),
+  transform((payload) => ({ template: "manteca" as const, ...payload })),
 );
 
 export default new Hono().post(
@@ -138,20 +176,33 @@ export default new Hono().post(
     object({
       data: object({
         attributes: object({
-          payload: PandaInquiry,
+          payload: union([Panda, Manteca]),
         }),
       }),
     }),
     validatorHook({ code: "bad persona", status: 200 }),
   ),
   async (c) => {
+    const payload = c.req.valid("json").data.attributes.payload;
+
+    if (payload.template === "manteca") {
+      getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "persona.inquiry.manteca");
+      await addDocument(payload.data.attributes.referenceId, {
+        id_class: { value: payload.data.attributes.fields.selectedIdClass1.value },
+        id_number: { value: payload.data.attributes.fields.identificationNumber.value },
+        id_issuing_country: { value: payload.data.attributes.fields.selectedCountryCode.value },
+        id_document_id: { value: payload.data.attributes.fields.currentGovernmentId1.value.id },
+      });
+      return c.json({ code: "ok" }, 200);
+    }
+
     getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "persona.inquiry");
     const {
       data: { id: personaShareToken, attributes },
       session,
       annualSalary,
       expectedMonthlyVolume,
-    } = c.req.valid("json").data.attributes.payload;
+    } = payload;
     const { referenceId, fields } = attributes;
 
     const credential = await database.query.credentials.findFirst({
@@ -279,6 +330,16 @@ export default new Hono().post(
     });
 
     setContext("persona", { inquiryId: personaShareToken, pandaId: id });
+
+    addDocument(referenceId, {
+      id_class: { value: fields.identificationClass.value },
+      id_number: { value: fields.identificationNumber.value },
+      id_issuing_country: { value: fields.selectedCountryCode.value },
+      id_document_id: { value: fields.currentGovernmentId.value.id },
+    }).catch((error: unknown) => {
+      // in case of an error we will need to update the account manually
+      captureException(error, { extra: { referenceId }, level: "fatal" });
+    });
 
     return c.json({ id }, 200);
   },
