@@ -15,7 +15,7 @@ import app from "../../hooks/persona";
 import * as panda from "../../utils/panda";
 import { createUser } from "../../utils/panda";
 import { addCapita, deriveAssociateId } from "../../utils/pax";
-import type * as PersonaUtils from "../../utils/persona";
+import * as PersonaUtils from "../../utils/persona";
 import * as sardine from "../../utils/sardine";
 
 vi.mock("../../utils/panda");
@@ -96,6 +96,98 @@ describe("with reference", () => {
 
     expect(p?.pandaId).toBe(id);
 
+    expect(response.status).toBe(200);
+  });
+
+  it("updates persona account documents when creating a panda user", async () => {
+    const id = "panda-id";
+    await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, account));
+    vi.mocked(addCapita).mockResolvedValueOnce({});
+    vi.spyOn(panda, "createUser").mockResolvedValueOnce({ id });
+    vi.spyOn(sardine, "customer").mockResolvedValueOnce({
+      sessionKey: "test-session-123",
+      status: "Success",
+      level: "low",
+    });
+    vi.spyOn(PersonaUtils, "addDocument").mockResolvedValueOnce({ data: { id: "doc_123" } });
+    const response = await appClient.index.$post({
+      ...personaPayload,
+      json: {
+        ...personaPayload.json,
+        data: {
+          ...personaPayload.json.data,
+          attributes: {
+            ...personaPayload.json.data.attributes,
+            payload: {
+              ...personaPayload.json.data.attributes.payload,
+              data: {
+                ...personaPayload.json.data.attributes.payload.data,
+                attributes: { ...personaPayload.json.data.attributes.payload.data.attributes, referenceId: account },
+              },
+              included: [...personaPayload.json.data.attributes.payload.included],
+            },
+          },
+        },
+      },
+    });
+    const p = await database.query.credentials.findFirst({
+      where: eq(credentials.id, account),
+      columns: { pandaId: true },
+    });
+
+    expect(p?.pandaId).toBe(id);
+    expect(PersonaUtils.addDocument).toHaveBeenCalledWith(account, {
+      id_class: { value: "pp" },
+      id_number: { value: "333333333" },
+      id_issuing_country: { value: "TW" },
+      id_document_id: { value: "doc_yc294YWhCZi7YKxPnoxCGMmCH111" },
+    });
+    expect(response.status).toBe(200);
+  });
+
+  it("should return 200 if adding the document to the account fails", async () => {
+    const id = "panda-id";
+    await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, account));
+    vi.mocked(addCapita).mockResolvedValueOnce({});
+    vi.spyOn(panda, "createUser").mockResolvedValueOnce({ id });
+    vi.spyOn(sardine, "customer").mockResolvedValueOnce({
+      sessionKey: "test-session-123",
+      status: "Success",
+      level: "low",
+    });
+    vi.spyOn(PersonaUtils, "addDocument").mockRejectedValueOnce(new Error("failed to add document"));
+    const response = await appClient.index.$post({
+      ...personaPayload,
+      json: {
+        ...personaPayload.json,
+        data: {
+          ...personaPayload.json.data,
+          attributes: {
+            ...personaPayload.json.data.attributes,
+            payload: {
+              ...personaPayload.json.data.attributes.payload,
+              data: {
+                ...personaPayload.json.data.attributes.payload.data,
+                attributes: { ...personaPayload.json.data.attributes.payload.data.attributes, referenceId: account },
+              },
+              included: [...personaPayload.json.data.attributes.payload.included],
+            },
+          },
+        },
+      },
+    });
+    const p = await database.query.credentials.findFirst({
+      where: eq(credentials.id, account),
+      columns: { pandaId: true },
+    });
+
+    expect(p?.pandaId).toBe(id);
+    expect(PersonaUtils.addDocument).toHaveBeenCalledWith(account, {
+      id_class: { value: "pp" },
+      id_number: { value: "333333333" },
+      id_issuing_country: { value: "TW" },
+      id_document_id: { value: "doc_yc294YWhCZi7YKxPnoxCGMmCH111" },
+    });
     expect(response.status).toBe(200);
   });
 
@@ -203,7 +295,13 @@ describe("with reference", () => {
       await expect(response.json()).resolves.toStrictEqual({
         code: "bad persona",
         legacy: "bad persona",
-        message: ["data/attributes/payload/included Invalid length: Expected >=1 but received 0"],
+        message: [
+          "data/attributes/payload Invalid type: Expected Object but received Object",
+          "included Invalid length: Expected >=1 but received 0",
+          'data/attributes/fields/currentGovernmentId1 Invalid key: Expected "currentGovernmentId1" but received undefined',
+          'data/attributes/fields/selectedIdClass1 Invalid key: Expected "selectedIdClass1" but received undefined',
+          'data/relationships/inquiryTemplate/data/id Invalid type: Expected "itmpl_TjaqJdQYkht17v645zNFUfkaWNan" but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
+        ],
       });
       expect(panda.createUser).not.toHaveBeenCalled();
     });
@@ -247,7 +345,11 @@ describe("with reference", () => {
         code: "bad persona",
         legacy: "bad persona",
         message: [
-          "data/attributes/payload/data/attributes/fields Either annualSalary or annualSalaryRangesUs150000 must have a value",
+          "data/attributes/payload Invalid type: Expected Object but received Object",
+          "data/attributes/fields Either annualSalary or annualSalaryRangesUs150000 must have a value",
+          'data/attributes/fields/currentGovernmentId1 Invalid key: Expected "currentGovernmentId1" but received undefined',
+          'data/attributes/fields/selectedIdClass1 Invalid key: Expected "selectedIdClass1" but received undefined',
+          'data/relationships/inquiryTemplate/data/id Invalid type: Expected "itmpl_TjaqJdQYkht17v645zNFUfkaWNan" but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
         ],
       });
       expect(panda.createUser).not.toHaveBeenCalled();
@@ -292,7 +394,11 @@ describe("with reference", () => {
         code: "bad persona",
         legacy: "bad persona",
         message: [
-          "data/attributes/payload/data/attributes/fields Either monthlyPurchasesRange or expectedMonthlyVolume must have a value",
+          "data/attributes/payload Invalid type: Expected Object but received Object",
+          "data/attributes/fields Either monthlyPurchasesRange or expectedMonthlyVolume must have a value",
+          'data/attributes/fields/currentGovernmentId1 Invalid key: Expected "currentGovernmentId1" but received undefined',
+          'data/attributes/fields/selectedIdClass1 Invalid key: Expected "selectedIdClass1" but received undefined',
+          'data/relationships/inquiryTemplate/data/id Invalid type: Expected "itmpl_TjaqJdQYkht17v645zNFUfkaWNan" but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
         ],
       });
       expect(panda.createUser).not.toHaveBeenCalled();
@@ -391,6 +497,17 @@ const validPayload = {
               emailAddress: { value: "john@example.com" },
               phoneNumber: { value: "+1234567890" },
               addressCountryCode: { value: "US" },
+              identificationClass: { value: "pp" },
+              currentGovernmentId: { value: { id: "doc_yc294YWhCZi7YKxPnoxCGMmCH111" } },
+              selectedCountryCode: { value: "TW" },
+            },
+          },
+          relationships: {
+            inquiryTemplate: {
+              data: {
+                type: "inquiry-template",
+                id: "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2",
+              },
             },
           },
         },
@@ -625,7 +742,7 @@ const personaPayload = {
               inquiryTemplate: {
                 data: {
                   type: "inquiry-template",
-                  id: "itmpl_8uim4FvD57CW817", // cspell:ignore itmpl_8uim4FvD57CW817
+                  id: "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2",
                 },
               },
               inquiryTemplateVersion: {

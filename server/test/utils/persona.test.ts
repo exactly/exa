@@ -206,7 +206,13 @@ describe("with reference", () => {
       await expect(response.json()).resolves.toStrictEqual({
         code: "bad persona",
         legacy: "bad persona",
-        message: ["data/attributes/payload/included Invalid length: Expected >=1 but received 0"],
+        message: [
+          "data/attributes/payload Invalid type: Expected Object but received Object",
+          "included Invalid length: Expected >=1 but received 0",
+          'data/attributes/fields/currentGovernmentId1 Invalid key: Expected "currentGovernmentId1" but received undefined',
+          'data/attributes/fields/selectedIdClass1 Invalid key: Expected "selectedIdClass1" but received undefined',
+          'data/relationships/inquiryTemplate/data/id Invalid type: Expected "itmpl_TjaqJdQYkht17v645zNFUfkaWNan" but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
+        ],
       });
       expect(panda.createUser).not.toHaveBeenCalled();
     });
@@ -250,7 +256,11 @@ describe("with reference", () => {
         code: "bad persona",
         legacy: "bad persona",
         message: [
-          "data/attributes/payload/data/attributes/fields Either annualSalary or annualSalaryRangesUs150000 must have a value",
+          "data/attributes/payload Invalid type: Expected Object but received Object",
+          "data/attributes/fields Either annualSalary or annualSalaryRangesUs150000 must have a value",
+          'data/attributes/fields/currentGovernmentId1 Invalid key: Expected "currentGovernmentId1" but received undefined',
+          'data/attributes/fields/selectedIdClass1 Invalid key: Expected "selectedIdClass1" but received undefined',
+          'data/relationships/inquiryTemplate/data/id Invalid type: Expected "itmpl_TjaqJdQYkht17v645zNFUfkaWNan" but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
         ],
       });
       expect(panda.createUser).not.toHaveBeenCalled();
@@ -295,7 +305,11 @@ describe("with reference", () => {
         code: "bad persona",
         legacy: "bad persona",
         message: [
-          "data/attributes/payload/data/attributes/fields Either monthlyPurchasesRange or expectedMonthlyVolume must have a value",
+          "data/attributes/payload Invalid type: Expected Object but received Object",
+          "data/attributes/fields Either monthlyPurchasesRange or expectedMonthlyVolume must have a value",
+          'data/attributes/fields/currentGovernmentId1 Invalid key: Expected "currentGovernmentId1" but received undefined',
+          'data/attributes/fields/selectedIdClass1 Invalid key: Expected "selectedIdClass1" but received undefined',
+          'data/relationships/inquiryTemplate/data/id Invalid type: Expected "itmpl_TjaqJdQYkht17v645zNFUfkaWNan" but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
         ],
       });
       expect(panda.createUser).not.toHaveBeenCalled();
@@ -700,7 +714,7 @@ const validPayload = {
         data: {
           id: "inq_123",
           attributes: {
-            status: "approved",
+            status: "approved" as const,
             referenceId: "persona-ref",
             emailAddress: "john@example.com",
             phoneNumber: "+1234567890",
@@ -726,6 +740,17 @@ const validPayload = {
               emailAddress: { value: "john@example.com" },
               phoneNumber: { value: "+1234567890" },
               addressCountryCode: { value: "US" },
+              identificationClass: { value: "pp" },
+              currentGovernmentId: { value: { id: "doc_yc294YWhCZi7YKxPnoxCGMmCH111" } },
+              selectedCountryCode: { value: "TW" },
+            },
+          },
+          relationships: {
+            inquiryTemplate: {
+              data: {
+                type: "inquiry-template",
+                id: "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2" as const,
+              },
             },
           },
         },
@@ -741,7 +766,7 @@ const validPayload = {
       },
     },
   },
-} as const;
+};
 
 const personaPayload = {
   header: { "persona-signature": "t=1733865120,v1=debbacfe1b0c5f8797a1d68e8428fba435aa4ca3b5d9a328c3c96ee4d04d84df" },
@@ -762,7 +787,7 @@ const personaPayload = {
             type: "inquiry",
             id: "inq_xzMHQeuAt7KuxVMPNvowpYWJ6eee", // cspell:ignore inq_xzMHQeuAt7KuxVMPNvowpYWJ6eee
             attributes: {
-              status: "approved",
+              status: "approved" as const,
               referenceId: "bob-persona",
               note: null,
               behaviors: {
@@ -817,11 +842,11 @@ const personaPayload = {
                 },
                 annualSalary: {
                   type: "string",
-                  value: null,
+                  value: "100000",
                 },
                 expectedMonthlyVolume: {
                   type: "string",
-                  value: null,
+                  value: "1000",
                 },
                 annualSalaryRangesUs150000: {
                   type: "choices",
@@ -960,7 +985,7 @@ const personaPayload = {
               inquiryTemplate: {
                 data: {
                   type: "inquiry-template",
-                  id: "itmpl_8uim4FvD57CW817", // cspell:ignore itmpl_8uim4FvD57CW817
+                  id: "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2" as const,
                 },
               },
               inquiryTemplateVersion: {
@@ -1631,7 +1656,7 @@ const personaPayload = {
       },
     },
   },
-} as const;
+};
 
 const emptyAccount = {
   data: [
