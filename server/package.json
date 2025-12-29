@@ -98,8 +98,11 @@
         "cache": false
       },
       "generate:openapi": {
+        "dependsOn": [
+          "prepare:generated"
+        ],
         "outputs": [
-          "{projectRoot}/openapi.json"
+          "{projectRoot}/generated/openapi.json"
         ]
       },
       "generate:broadcasts": {

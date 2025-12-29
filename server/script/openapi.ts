@@ -48,7 +48,7 @@ import("../api")
         },
       },
     });
-    await writeFile("openapi.json", JSON.stringify(spec, null, 2));
+    await writeFile("generated/openapi.json", JSON.stringify(spec, null, 2));
     process.exit(0);
   })
   .catch((error: unknown) => {

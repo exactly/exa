@@ -10,7 +10,11 @@ export default defineConfig({
     starlight({
       title: "Exa Docs",
       social: [{ icon: "github", label: "GitHub", href: "https://github.com/exactly/exa" }],
-      plugins: [starlightOpenAPI([{ base: "api", schema: "../server/openapi.json", sidebar: { collapsed: false } }])],
+      plugins: [
+        starlightOpenAPI([
+          { base: "api", schema: "node_modules/@exactly/server/generated/openapi.json", sidebar: { collapsed: false } },
+        ]),
+      ],
       sidebar: openAPISidebarGroups,
     }),
     mermaid(),
