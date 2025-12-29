@@ -83,6 +83,7 @@ export async function getRoute(
     tool,
     estimate,
     toAmount: BigInt(estimate.toAmount),
+    fromAmount: BigInt(estimate.fromAmount),
   };
 }
 
