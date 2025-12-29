@@ -1,0 +1,38 @@
+name: substreams/build
+on: { push: { tags: ["@exactly/substreams@*"] }, workflow_dispatch: {} }
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    permissions: { contents: read, packages: write, attestations: write, id-token: write }
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/substreams
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0, fetch-tags: true }
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=sha,format=long
+            type=ref,event=pr
+            type=ref,event=branch
+            type=match,pattern=^(?!@)(.*)$,group=1,event=tag
+            type=match,pattern=@exactly\/substreams@(\d+\.\d+\.\d+.*),group=1
+            type=match,pattern=@exactly\/substreams@(\d+\.\d+),group=1
+            type=match,pattern=@exactly\/substreams@(\d+),group=1
+      - uses: docker/login-action@v3
+        with: { registry: ghcr.io, username: "${{ github.repository_owner }}", password: "${{ secrets.GITHUB_TOKEN }}" }
+      - uses: docker/build-push-action@v6
+        id: build
+        with:
+          push: true
+          context: .
+          file: substreams/Dockerfile
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
