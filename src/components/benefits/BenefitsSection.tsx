@@ -7,7 +7,6 @@ import { View, XStack } from "tamagui";
 
 import BenefitsCard from "./BenefitCard";
 import BenefitSheet from "./BenefitSheet";
-// cspell:ignore airalo
 import AiraloLogo from "../../assets/images/airalo.svg";
 import PaxLogo from "../../assets/images/pax.svg";
 import VisaLogo from "../../assets/images/visa.svg";
@@ -32,20 +31,19 @@ const BENEFITS: Benefit[] = [
   {
     id: "pax",
     partner: "Pax Assistance",
-    title: "Free 30 days travel insurance",
+    title: "30 days of free travel insurance",
     subtitle: "Travel with peace of mind.",
     description: "Copy your ID and get 30 days of travel insurance for free on Pax Assistance.",
     logo: PaxLogo,
     url: "https://www.paxassistance.com/ar/capitas/exacardcap/",
   },
   {
-    // cspell:ignore airalo
     id: "airalo",
     partner: "Airalo",
     title: "20% OFF on eSims",
     subtitle: "Stay connected everywhere",
     description:
-      "Stay connected around the world. \n\n Activate your eSIM and get online from anywhere — quickly and easily — with 20% off on Airalo when you pay with your Visa Signature Exa Card. \n\n Available in 200+ countries and regions.",
+      "Stay connected around the world. \n\n Activate your eSIM and get online from anywhere with 20% off on Airalo. \n\n Available in 200+ countries and regions.",
     logo: AiraloLogo,
     url: "https://airalo.pxf.io/c/6807698/3734384/15608?p.code=exaapp",
     termsUrl: "https://www.airalo.com/more-info/terms-conditions",
@@ -53,11 +51,11 @@ const BENEFITS: Benefit[] = [
   {
     id: "visa",
     partner: "Visa",
-    title: "Visa Signature",
+    title: "Visa Signature benefits",
     longTitle: "Visa Signature Exa Card benefits",
-    subtitle: "A world of benefits",
+    subtitle: "Access exclusive discounts",
     description:
-      "A world of benefits. \n\n Your Visa Signature Exa Card comes with multiple benefits including access to VIP airport lounges, car rental discounts, travel assistance, and more. \n\n Learn more about all Visa Signature benefits.",
+      "A world of benefits. \n\n Your Visa Signature Exa Card comes with multiple benefits including car rental discounts, travel assistance, and more. \n\n Learn more about all Visa Signature benefits.",
     logo: VisaLogo,
     linkText: "Learn more",
     buttonText: "Go to Visa",

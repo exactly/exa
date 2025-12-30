@@ -236,3 +236,16 @@ function stringOrLegacy(response: string | { legacy: string }) {
   if ("legacy" in response && typeof response.legacy === "string") return response.legacy;
   throw new Error("invalid api response");
 }
+
+export async function getPaxId() {
+  await auth();
+  const response = await api.pax.$get();
+  if (!response.ok) {
+    const { code } = await response.json();
+    throw new APIError(response.status, code);
+  }
+  return response.json();
+}
+
+queryClient.setQueryDefaults(["pax", "id"], { queryFn: getPaxId });
+export type PaxId = Awaited<ReturnType<typeof getPaxId>>;
