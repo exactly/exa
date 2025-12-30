@@ -25,6 +25,7 @@
     "byscore",
     "bytea",
     "chainid",
+    "checkpointing",
     "checksummed",
     "codegen",
     "cosealg",

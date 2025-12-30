@@ -1,6 +1,11 @@
 {
   "context": { "fileName": "AGENTS.md" },
-  "general": { "enablePromptCompletion": true, "preferredEditor": "antigravity", "previewFeatures": true },
+  "general": {
+    "checkpointing": { "enabled": true },
+    "enablePromptCompletion": true,
+    "preferredEditor": "antigravity",
+    "previewFeatures": true
+  },
   "mcpServers": {
     "nx-mcp": { "command": "npx", "args": ["nx", "mcp"] }
   },
