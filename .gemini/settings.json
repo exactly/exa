@@ -6,5 +6,6 @@
   },
   "privacy": { "usageStatisticsEnabled": false },
   "telemetry": { "enabled": false },
+  "tools": { "autoAccept": true, "sandbox": true },
   "$schema": "https://raw.githubusercontent.com/google-gemini/gemini-cli/main/schemas/settings.schema.json"
 }
