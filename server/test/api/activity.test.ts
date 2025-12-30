@@ -242,8 +242,7 @@ describe.concurrent("authenticated", () => {
         { headers: { "test-credential-id": account } },
       );
 
-      expect(captureException).toHaveBeenCalledOnce();
-      expect(captureException).toHaveBeenCalledWith(
+      expect(captureException).toHaveBeenCalledExactlyOnceWith(
         new Error("bad transaction"),
         expect.objectContaining({
           // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
