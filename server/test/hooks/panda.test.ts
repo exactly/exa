@@ -17,7 +17,6 @@ import chain, {
   marketAbi,
   marketUSDCAddress,
   upgradeableModularAccountAbi,
-  usdcAddress,
 } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 import { proposalManager } from "@exactly/plugin/deploy.json";
@@ -78,41 +77,34 @@ describe("validation", () => {
 
 describe("card operations", () => {
   beforeAll(async () => {
-    await publicClient.waitForTransactionReceipt({
-      hash: await keeper.writeContract({
-        address: inject("ExaAccountFactory"),
-        abi: exaAccountFactoryAbi,
-        functionName: "createAccount",
-        args: [0n, [{ x: hexToBigInt(owner.account.address), y: 0n }]],
-      }),
-      confirmations: 0,
-    });
-    await keeper.writeContract({
-      address: inject("USDC"),
-      abi: mockERC20Abi,
-      functionName: "mint",
-      args: [inject("Refunder"), 100_000_000n],
-    });
+    await Promise.all([
+      keeper.exaSend(
+        { name: "create account", op: "exa.account" },
+        {
+          address: inject("ExaAccountFactory"),
+          abi: exaAccountFactoryAbi,
+          functionName: "createAccount",
+          args: [0n, [{ x: hexToBigInt(owner.account.address), y: 0n }]],
+        },
+      ),
+      keeper.exaSend(
+        { name: "mint usdc", op: "tx.mint" },
+        { address: inject("USDC"), abi: mockERC20Abi, functionName: "mint", args: [inject("Refunder"), 100_000_000n] },
+      ),
+    ]);
   });
 
   describe("authorization", () => {
     describe("with collateral", () => {
       beforeAll(async () => {
-        await keeper.writeContract({
-          address: inject("USDC"),
-          abi: mockERC20Abi,
-          functionName: "mint",
-          args: [account, 420_000_000n],
-        });
-        await publicClient.waitForTransactionReceipt({
-          hash: await keeper.writeContract({
-            address: account,
-            abi: exaPluginAbi,
-            functionName: "poke",
-            args: [inject("MarketUSDC")],
-          }),
-          confirmations: 0,
-        });
+        await keeper.exaSend(
+          { name: "mint usdc", op: "tx.mint" },
+          { address: inject("USDC"), abi: mockERC20Abi, functionName: "mint", args: [account, 420_000_000n] },
+        );
+        await keeper.exaSend(
+          { name: "poke", op: "exa.poke" },
+          { address: account, abi: exaPluginAbi, functionName: "poke", args: [inject("MarketUSDC")] },
+        );
       });
 
       afterEach(() => {
@@ -412,21 +404,14 @@ describe("card operations", () => {
   describe("clearing", () => {
     describe("with collateral", () => {
       beforeAll(async () => {
-        await keeper.writeContract({
-          address: inject("USDC"),
-          abi: mockERC20Abi,
-          functionName: "mint",
-          args: [account, 420_000_000n],
-        });
-        await publicClient.waitForTransactionReceipt({
-          hash: await keeper.writeContract({
-            address: account,
-            abi: exaPluginAbi,
-            functionName: "poke",
-            args: [inject("MarketUSDC")],
-          }),
-          confirmations: 0,
-        });
+        await keeper.exaSend(
+          { name: "mint usdc", op: "tx.mint" },
+          { address: inject("USDC"), abi: mockERC20Abi, functionName: "mint", args: [account, 420_000_000n] },
+        );
+        await keeper.exaSend(
+          { name: "poke", op: "exa.poke" },
+          { address: account, abi: exaPluginAbi, functionName: "poke", args: [inject("MarketUSDC")] },
+        );
       });
 
       it("clears debit", async () => {
@@ -719,21 +704,14 @@ describe("card operations", () => {
   describe("refund and reversal", () => {
     describe("with collateral", () => {
       beforeAll(async () => {
-        await keeper.writeContract({
-          address: inject("USDC"),
-          abi: mockERC20Abi,
-          functionName: "mint",
-          args: [account, 420_000_000n],
-        });
-        await publicClient.waitForTransactionReceipt({
-          hash: await keeper.writeContract({
-            address: account,
-            abi: exaPluginAbi,
-            functionName: "poke",
-            args: [inject("MarketUSDC")],
-          }),
-          confirmations: 0,
-        });
+        await keeper.exaSend(
+          { name: "mint usdc", op: "tx.mint" },
+          { address: inject("USDC"), abi: mockERC20Abi, functionName: "mint", args: [account, 420_000_000n] },
+        );
+        await keeper.exaSend(
+          { name: "poke", op: "exa.poke" },
+          { address: account, abi: exaPluginAbi, functionName: "poke", args: [inject("MarketUSDC")] },
+        );
       });
 
       beforeEach(() => {
@@ -931,21 +909,14 @@ describe("card operations", () => {
   describe("capture", () => {
     describe("with collateral", () => {
       beforeAll(async () => {
-        await keeper.writeContract({
-          address: inject("USDC"),
-          abi: mockERC20Abi,
-          functionName: "mint",
-          args: [account, 100_000_000n],
-        });
-        await publicClient.waitForTransactionReceipt({
-          hash: await keeper.writeContract({
-            address: account,
-            abi: exaPluginAbi,
-            functionName: "poke",
-            args: [inject("MarketUSDC")],
-          }),
-          confirmations: 0,
-        });
+        await keeper.exaSend(
+          { name: "mint usdc", op: "tx.mint" },
+          { address: inject("USDC"), abi: mockERC20Abi, functionName: "mint", args: [account, 100_000_000n] },
+        );
+        await keeper.exaSend(
+          { name: "poke", op: "exa.poke" },
+          { address: account, abi: exaPluginAbi, functionName: "poke", args: [inject("MarketUSDC")] },
+        );
       });
 
       afterEach(() => vi.restoreAllMocks());
@@ -1273,12 +1244,7 @@ describe("concurrency", () => {
       Promise.all([
         keeper.exaSend(
           { name: "mint", op: "tx.mint" },
-          {
-            address: usdcAddress,
-            abi: mockERC20Abi,
-            functionName: "mint",
-            args: [account2, 70_000_000n],
-          },
+          { address: inject("USDC"), abi: mockERC20Abi, functionName: "mint", args: [account2, 70_000_000n] },
         ),
         keeper.exaSend(
           { name: "create account", op: "exa.account" },
@@ -1289,25 +1255,12 @@ describe("concurrency", () => {
             args: [0n, [{ x: hexToBigInt(owner2.account.address), y: 0n }]],
           },
         ),
-      ])
-        .then(() =>
-          keeper.writeContract({
-            address: account2,
-            abi: exaPluginAbi,
-            functionName: "poke",
-            args: [marketUSDCAddress],
-          }),
-        )
-        .then(async (hash) => {
-          const { status } = await publicClient.waitForTransactionReceipt({ hash, confirmations: 0 });
-          if (status !== "success") {
-            const trace = await traceClient.traceTransaction(hash);
-            const error = new Error(trace.output);
-            captureException(error, { contexts: { tx: { trace } } });
-            Object.assign(error, { trace });
-            throw error;
-          }
-        }),
+      ]).then(() =>
+        keeper.exaSend(
+          { name: "poke", op: "exa.poke" },
+          { address: account2, abi: exaPluginAbi, functionName: "poke", args: [marketUSDCAddress] },
+        ),
+      ),
     ]);
   });
 

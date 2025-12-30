@@ -16,7 +16,6 @@ import app from "../../api/card";
 import database, { cards, credentials } from "../../database";
 import keeper from "../../utils/keeper";
 import * as panda from "../../utils/panda";
-import publicClient from "../../utils/publicClient";
 
 const appClient = testClient(app);
 
@@ -43,34 +42,26 @@ describe("authenticated", () => {
         pandaId: "2cf0c886-f7c0-40f3-a8cd-3c4ab3997b77",
       },
     ]);
-    await publicClient.waitForTransactionReceipt({
-      hash: await keeper.writeContract({
-        address: inject("ExaAccountFactory"),
-        abi: exaAccountFactoryAbi,
-        functionName: "createAccount",
-        args: [0n, [{ x: hexToBigInt(ownerETH), y: 0n }]],
-      }),
-      confirmations: 0,
-    });
 
-    await publicClient.waitForTransactionReceipt({
-      hash: await keeper.writeContract({
-        address: inject("WETH"),
-        abi: [{ type: "function", name: "mint", inputs: [{ type: "address" }, { type: "uint256" }] }],
-        functionName: "mint",
-        args: [ethAccount, parseEther("1")],
-      }),
-      confirmations: 0,
-    });
-    await publicClient.waitForTransactionReceipt({
-      hash: await keeper.writeContract({
-        address: ethAccount,
-        abi: exaPluginAbi,
-        functionName: "poke",
-        args: [inject("MarketWETH")],
-      }),
-      confirmations: 0,
-    });
+    await Promise.all([
+      keeper.exaSend(
+        { name: "create account", op: "exa.account" },
+        {
+          address: inject("ExaAccountFactory"),
+          abi: exaAccountFactoryAbi,
+          functionName: "createAccount",
+          args: [0n, [{ x: hexToBigInt(ownerETH), y: 0n }]],
+        },
+      ),
+      keeper.exaSend(
+        { name: "mint weth", op: "exa.weth" },
+        { address: inject("WETH"), abi: mockERC20Abi, functionName: "mint", args: [ethAccount, parseEther("1")] },
+      ),
+    ]);
+    await keeper.exaSend(
+      { name: "poke", op: "exa.poke" },
+      { address: ethAccount, abi: exaPluginAbi, functionName: "poke", args: [inject("MarketWETH")] },
+    );
   });
 
   afterEach(async () => {
@@ -345,3 +336,13 @@ const userTemplate = {
   phoneCountryCode: "AR",
   phoneNumber: "1234567890",
 } as const;
+
+const mockERC20Abi = [
+  {
+    type: "function",
+    name: "mint",
+    inputs: [{ type: "address" }, { type: "uint256" }],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+] as const;

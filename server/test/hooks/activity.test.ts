@@ -139,12 +139,10 @@ describe("address activity", () => {
     await anvilClient.setBalance({ address: account, value: eth });
 
     const weth = parseEther("2");
-    await keeper.writeContract({
-      address: inject("WETH"),
-      abi: [{ type: "function", name: "mint", inputs: [{ type: "address" }, { type: "uint256" }] }],
-      functionName: "mint",
-      args: [account, weth],
-    });
+    await keeper.exaSend(
+      { name: "mint", op: "tx.mint" },
+      { address: inject("WETH"), abi: mockERC20Abi, functionName: "mint", args: [account, weth] },
+    );
 
     const waitForTransactionReceipt = vi.spyOn(publicClient, "waitForTransactionReceipt");
 
@@ -200,12 +198,15 @@ describe("address activity", () => {
             .values({ id, publicKey: hexToBytes(id), account: id, factory: inject("ExaAccountFactory") }),
         ),
       ...accounts.map((address) => anvilClient.setBalance({ address, value: parseEther("5") })),
-      keeper.writeContract({
-        address: inject("ExaAccountFactory"),
-        abi: exaAccountFactoryAbi,
-        functionName: "createAccount",
-        args: [0n, [{ x: hexToBigInt(owners[0].address), y: 0n }]],
-      }),
+      keeper.exaSend(
+        { name: "create account", op: "exa.account" },
+        {
+          address: inject("ExaAccountFactory"),
+          abi: exaAccountFactoryAbi,
+          functionName: "createAccount",
+          args: [0n, [{ x: hexToBigInt(owners[0].address), y: 0n }]],
+        },
+      ),
     ]);
 
     const waitForTransactionReceipt = vi.spyOn(publicClient, "waitForTransactionReceipt");
@@ -324,3 +325,13 @@ const activityPayload = {
 vi.mock("@sentry/node", { spy: true });
 
 afterEach(() => vi.resetAllMocks());
+
+const mockERC20Abi = [
+  {
+    type: "function",
+    name: "mint",
+    inputs: [{ type: "address" }, { type: "uint256" }],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+] as const;
