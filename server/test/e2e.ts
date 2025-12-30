@@ -1,11 +1,10 @@
 /// <reference types="vite/client" />
 import "./mocks/sentry";
-import "./mocks/database";
 import "./mocks/deployments";
 import "./mocks/keeper";
 import "./mocks/redis";
 
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdir, writeFile } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
 
 describe("e2e", () => {
@@ -15,25 +14,19 @@ describe("e2e", () => {
       const { default: app, close } = await import("../index");
 
       app.post("/e2e/coverage", async (c) => {
-        mkdirSync("coverage", { recursive: true });
-        writeFileSync("coverage/app.json", JSON.stringify(await c.req.json()));
+        await mkdir("coverage", { recursive: true });
+        await writeFile("coverage/app.json", JSON.stringify(await c.req.json()));
         return c.json({ code: "ok" });
       });
 
       await expect(
         new Promise((resolve) => {
+          const teardown = () => void close().finally(() => resolve(null)); // eslint-disable-line no-void
           app.post("/e2e/shutdown", (c) => {
-            close()
-              .then(resolve)
-              .catch(() => resolve(null));
+            teardown();
             return c.json({ code: "ok" });
           });
-
-          process.once("SIGTERM", () => {
-            close()
-              .then(resolve)
-              .catch(() => resolve(null));
-          });
+          process.once("SIGTERM", teardown);
         }),
       ).resolves.toBeNull();
     },
