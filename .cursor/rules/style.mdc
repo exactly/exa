@@ -39,10 +39,10 @@ this project's naming conventions are heavily influenced by bob nystrom's articl
 
 ## functions
 
-- **use function expressions**: do not use function declarations. function declarations are hoisted, which can make code harder to read and reason about. always use a `const` with a function expression or an arrow function.
-  - ✅ `const greet = function(name) { ... };`
-  - ✅ `const greet = (name) => { ... };`
-  - ❌ `function greet(name) { ... }`
+- **prefer function declarations**: use function declarations for all multi-line functions. use function expressions or arrow functions only if the implementation fits on a single line.
+  - ✅ `function getStatus(user) { ... }`
+  - ✅ `const isActive = (user) => user.active;`
+  - ❌ `const getStatus = (user) => { ... };`
 
 ## global conventions
 
