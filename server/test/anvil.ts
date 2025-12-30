@@ -26,8 +26,21 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
       instance._internal.process.stderr.on("data", stderr.write.bind(stderr));
       instance._internal.process.stdout.on("data", (buffer: Uint8Array | string) => {
         const string = String(buffer);
-        if (string.startsWith("eth_call") || string.startsWith("eth_getStorageAt")) return;
-        stdout.write(string);
+        if (
+          !string.startsWith("eth_blockNumber") &&
+          !string.startsWith("eth_call") &&
+          !string.startsWith("eth_chainId") &&
+          !string.startsWith("eth_feeHistory") &&
+          !string.startsWith("eth_gasPrice") &&
+          !string.startsWith("eth_getAccount") &&
+          !string.startsWith("eth_getAccountInfo") &&
+          !string.startsWith("eth_getBlockByNumber") &&
+          !string.startsWith("eth_getCode") &&
+          !string.startsWith("eth_getStorageAt") &&
+          !string.startsWith("eth_getTransactionReceipt")
+        ) {
+          stdout.write(string);
+        }
       });
     }
     if (env.EXPO_PUBLIC_E2E_MNEMONIC) {
