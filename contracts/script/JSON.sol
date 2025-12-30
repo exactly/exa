@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0
-pragma solidity ^0.8.0; // solhint-disable-line one-contract-per-file
+pragma solidity ^0.8.0;
 
 import { stdJson } from "forge-std/StdJson.sol";
 import { LibString } from "solady/utils/LibString.sol";

@@ -24,7 +24,7 @@ contract DeployExaAccountFactory is BaseScript {
         CREATE3_FACTORY.deploy(
           _salt(IPlugin(exaPlugin)),
           abi.encodePacked(
-            vm.getCode("ExaAccountFactory.sol:ExaAccountFactory"), // solhint-disable-line gas-small-strings
+            vm.getCode("ExaAccountFactory.sol:ExaAccountFactory"),
             abi.encode(admin, ownerPlugin, exaPlugin, ACCOUNT_IMPL, ENTRYPOINT)
           )
         )

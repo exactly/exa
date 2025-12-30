@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity ^0.8.0; // solhint-disable-line one-contract-per-file
+pragma solidity ^0.8.0;
 
 import { ForkTest, stdError } from "./Fork.t.sol";
 
@@ -102,7 +102,6 @@ import { MockSwapper } from "./mocks/MockSwapper.sol";
 import { DeployMocks } from "./mocks/Mocks.s.sol";
 import { DeployProtocol } from "./mocks/Protocol.s.sol";
 
-// solhint-disable-next-line max-states-count
 contract ExaPluginTest is ForkTest {
   using FixedPointMathLib for uint256;
   using OwnersLib for address[];

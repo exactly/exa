@@ -36,7 +36,6 @@ import { MockSwapper } from "./mocks/MockSwapper.sol";
 import { DeployMocks } from "./mocks/Mocks.s.sol";
 import { DeployProtocol } from "./mocks/Protocol.s.sol";
 
-// solhint-disable-next-line max-states-count
 contract ExaPreviewerTest is ForkTest {
   using FixedPointMathLib for uint256;
   using OwnersLib for address[];
