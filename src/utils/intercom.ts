@@ -4,6 +4,8 @@ import type * as IntercomWeb from "@intercom/messenger-js-sdk";
 import { openBrowserAsync } from "expo-web-browser";
 import { Platform } from "react-native";
 
+import reportError from "./reportError";
+
 const appId = process.env.EXPO_PUBLIC_INTERCOM_APP_ID;
 
 export const { login, logout, newMessage, present, presentArticle, presentCollection } = (
@@ -49,7 +51,12 @@ export const { login, logout, newMessage, present, presentArticle, presentCollec
         return {
           login: (userId: string, token: string) =>
             appId
-              ? Intercom.setUserHash(token).then(() => Intercom.loginUserWithUserAttributes({ userId }))
+              ? Intercom.setUserHash(token)
+                  .then(() => Intercom.loginUserWithUserAttributes({ userId }))
+                  .catch((error: unknown) => {
+                    reportError(error);
+                    return false;
+                  })
               : Promise.resolve(false),
           logout: () => Intercom.logout(),
           present: () => Intercom.presentSpace(Space.home),
