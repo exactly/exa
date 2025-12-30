@@ -1,6 +1,6 @@
 {
   "context": { "fileName": "AGENTS.md" },
-  "general": { "enablePromptCompletion": true, "preferredEditor": "antigravity" },
+  "general": { "enablePromptCompletion": true, "preferredEditor": "antigravity", "previewFeatures": true },
   "mcpServers": {
     "nx-mcp": { "command": "npx", "args": ["nx", "mcp"] }
   },
