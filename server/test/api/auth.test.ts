@@ -1,6 +1,7 @@
-import "../../expect";
-import "../../mocks/database";
-import "../../mocks/sentry";
+import "../expect";
+import "../mocks/sentry";
+import "../mocks/database";
+import "../mocks/redis";
 
 import { Address } from "@exactly/common/validation";
 import type * as SimpleWebAuthn from "@simplewebauthn/server";
@@ -12,9 +13,9 @@ import { parse, type InferOutput } from "valibot";
 import { zeroAddress } from "viem";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import app, { type Authentication } from "../../../api/auth/authentication";
-import database, { credentials } from "../../../database";
-import type createCredential from "../../../utils/createCredential";
+import app, { type Authentication } from "../../api/auth/authentication";
+import database, { credentials } from "../../database";
+import type createCredential from "../../utils/createCredential";
 
 const appClient = testClient(app);
 
@@ -34,7 +35,7 @@ describe("authentication", () => {
 
   afterEach(() => vi.clearAllMocks());
 
-  it("returns intercomToken on successful login", async () => {
+  it("returns intercom token on successful login", async () => {
     const response = await appClient.index.$post(
       {
         json: {
@@ -79,7 +80,7 @@ vi.mock("@simplewebauthn/server", async (importOriginal) => {
   };
 });
 
-vi.mock("../../../utils/redis", () => ({
+vi.mock("../../utils/redis", () => ({
   default: {
     get: vi.fn<() => string>().mockResolvedValue("test-challenge"),
     set: vi.fn<() => boolean>().mockResolvedValue(true),
@@ -87,7 +88,7 @@ vi.mock("../../../utils/redis", () => ({
   },
 }));
 
-vi.mock("../../../utils/createCredential", () => ({
+vi.mock("../../utils/createCredential", () => ({
   default: vi.fn<() => ReturnType<typeof createCredential>>().mockResolvedValue({
     credentialId: "dGVzdC1jcmVkLWlk",
     factory: parse(Address, zeroAddress),
