@@ -12,6 +12,13 @@ imports:
   sql: https://github.com/streamingfast/substreams-sink-sql/releases/download/protodefs-v1.0.7/substreams-sink-sql-protodefs-v1.0.7.spkg
 network: anvil
 modules:
+  - name: map_exa_accounts
+    kind: map
+    inputs:
+      - params: string
+      - source: sf.ethereum.type.v2.Block
+    output:
+      type: proto:exa.Accounts
 binaries:
   default:
     type: wasm/rust-v1
