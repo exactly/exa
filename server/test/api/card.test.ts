@@ -2,6 +2,7 @@ import "../mocks/sentry";
 import "../mocks/auth";
 import "../mocks/database";
 import "../mocks/deployments";
+import "../mocks/keeper";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import { exaAccountFactoryAbi, exaPluginAbi } from "@exactly/common/generated/chain";
