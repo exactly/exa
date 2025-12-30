@@ -4,6 +4,8 @@ import type * as IntercomWeb from "@intercom/messenger-js-sdk";
 import { openBrowserAsync } from "expo-web-browser";
 import { Platform } from "react-native";
 
+import reportError from "./reportError";
+
 const appId = process.env.EXPO_PUBLIC_INTERCOM_APP_ID;
 
 export const { login, logout, newMessage, present, presentArticle, presentCollection } = (
@@ -14,8 +16,13 @@ export const { login, logout, newMessage, present, presentArticle, presentCollec
         return {
           login: (userId: string, token: string) => {
             if (!appId) return Promise.resolve(false);
-            Intercom({ app_id: appId, user_id: userId, intercom_user_jwt: token });
-            return Promise.resolve(true);
+            try {
+              Intercom({ app_id: appId, user_id: userId, intercom_user_jwt: token });
+              return Promise.resolve(true);
+            } catch (error: unknown) {
+              reportError(error);
+              return Promise.resolve(false);
+            }
           },
           logout: () => {
             return Promise.resolve(true);
@@ -49,7 +56,13 @@ export const { login, logout, newMessage, present, presentArticle, presentCollec
         return {
           login: (userId: string, token: string) =>
             appId
-              ? Intercom.setUserHash(token).then(() => Intercom.loginUserWithUserAttributes({ userId }))
+              ? Intercom.setUserHash(token)
+                  .then(() => Intercom.loginUserWithUserAttributes({ userId }))
+                  .then(() => true)
+                  .catch((error: unknown) => {
+                    reportError(error);
+                    return false;
+                  })
               : Promise.resolve(false),
           logout: () => Intercom.logout(),
           present: () => Intercom.presentSpace(Space.home),
