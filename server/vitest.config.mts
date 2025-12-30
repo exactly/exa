@@ -4,7 +4,10 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
-    globalSetup: ["test/anvil.ts", "test/spotlight.ts"],
+    globalSetup: ["test/anvil.ts", "test/database.ts", "test/spotlight.ts"],
+    coverage: { enabled: true, reporter: ["lcov"] },
+    testTimeout: 36_666,
+    hookTimeout: 36_666,
     env: {
       ALCHEMY_ACTIVITY_ID: "activity",
       ALCHEMY_ACTIVITY_KEY: "activity",
@@ -25,15 +28,17 @@ export default defineConfig({
       PERSONA_API_KEY: "persona",
       PERSONA_URL: "https://persona.test",
       PERSONA_WEBHOOK_SECRET: "persona",
-      POSTGRES_URL: "postgres",
+      POSTGRES_URL: "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable", // cspell:ignore sslmode
       REDIS_URL: "redis",
       SARDINE_API_KEY: "sardine",
       SARDINE_API_URL: "https://api.sardine.ai",
       SEGMENT_WRITE_KEY: "segment",
       ...(env.NODE_ENV === "e2e" && { APP_DOMAIN: "localhost", DEBUG: "exa:*" }),
     },
-    coverage: { enabled: true, reporter: ["lcov"] },
-    testTimeout: 36_666,
-    ...(env.NODE_ENV === "e2e" && { include: ["test/e2e.ts"], disableConsoleIntercept: true }),
+    ...(env.NODE_ENV === "e2e" && {
+      include: ["test/e2e.ts"],
+      disableConsoleIntercept: true,
+      reporters: [["default", { summary: false }]],
+    }),
   },
 });

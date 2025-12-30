@@ -230,8 +230,9 @@
       "solidity-coverage": "npm:@favware/skip-dependency@1.2.2"
     },
     "patchedDependencies": {
-      "eslint-config-universe": "patches/eslint-config-universe.patch",
       "@lifi/sdk": "patches/@lifi__sdk.patch",
+      "embedded-postgres": "patches/embedded-postgres.patch",
+      "eslint-config-universe": "patches/eslint-config-universe.patch",
       "react-native-svg-transformer": "patches/react-native-svg-transformer.patch"
     },
     "updateConfig": {

@@ -1,6 +1,5 @@
 import "../mocks/sentry";
 import "../mocks/auth";
-import "../mocks/database";
 import "../mocks/deployments";
 import "../mocks/keeper";
 
@@ -21,27 +20,20 @@ import * as panda from "../../utils/panda";
 const appClient = testClient(app);
 
 describe("authenticated", () => {
-  const bob = privateKeyToAddress(padHex("0xb0b"));
-  const account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(bob), y: zeroHash });
-  const ownerETH = privateKeyToAddress(padHex("0xbeef"));
-  const ethAccount = deriveAddress(inject("ExaAccountFactory"), { x: padHex(ownerETH), y: zeroHash });
-
   beforeAll(async () => {
+    const owner = privateKeyToAddress(padHex("0xbeef"));
+    const account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(owner), y: zeroHash });
+    const publicKey = new Uint8Array();
     await database.insert(credentials).values([
-      {
-        id: account,
-        publicKey: new Uint8Array(),
-        account,
-        factory: zeroAddress,
-        pandaId: "2cf0c886-f7c0-40f3-a8cd-3c4ab3997b66",
-      },
-      {
-        id: ethAccount,
-        publicKey: new Uint8Array(),
-        account: ethAccount,
-        factory: zeroAddress,
-        pandaId: "2cf0c886-f7c0-40f3-a8cd-3c4ab3997b77",
-      },
+      { id: "eth", publicKey, account, factory: zeroAddress, pandaId: "eth" },
+      { id: "default", publicKey, account: padHex("0x1", { size: 20 }), factory: zeroAddress, pandaId: "default" },
+      { id: "sig", publicKey, account: padHex("0x2", { size: 20 }), factory: zeroAddress, pandaId: "sig" },
+      { id: "404", publicKey, account: padHex("0x3", { size: 20 }), factory: zeroAddress, pandaId: "404" },
+    ]);
+    await database.insert(cards).values([
+      { id: "default", credentialId: "default", lastFour: "1234" },
+      { id: "sig", credentialId: "sig", lastFour: "1234", productId: SIGNATURE_PRODUCT_ID },
+      { id: "404", credentialId: "404", lastFour: "1234", status: "DELETED" },
     ]);
 
     await Promise.all([
@@ -51,61 +43,43 @@ describe("authenticated", () => {
           address: inject("ExaAccountFactory"),
           abi: exaAccountFactoryAbi,
           functionName: "createAccount",
-          args: [0n, [{ x: hexToBigInt(ownerETH), y: 0n }]],
+          args: [0n, [{ x: hexToBigInt(owner), y: 0n }]],
         },
       ),
       keeper.exaSend(
         { name: "mint weth", op: "exa.weth" },
-        { address: inject("WETH"), abi: mockERC20Abi, functionName: "mint", args: [ethAccount, parseEther("1")] },
+        { address: inject("WETH"), abi: mockERC20Abi, functionName: "mint", args: [account, parseEther("1")] },
       ),
     ]);
     await keeper.exaSend(
       { name: "poke", op: "exa.poke" },
-      { address: ethAccount, abi: exaPluginAbi, functionName: "poke", args: [inject("MarketWETH")] },
+      { address: account, abi: exaPluginAbi, functionName: "poke", args: [inject("MarketWETH")] },
     );
   });
 
-  afterEach(async () => {
-    await database.delete(cards).where(eq(cards.credentialId, account));
-    vi.restoreAllMocks();
-  });
+  afterEach(() => vi.restoreAllMocks());
 
   it("returns 404 card not found", async () => {
     const response = await appClient.index.$get(
       { header: { sessionid: "fakeSession" } },
-      { headers: { "test-credential-id": account } },
+      { headers: { "test-credential-id": "404" } },
     );
 
     expect(response.status).toBe(404);
-    await expect(response.json()).resolves.toStrictEqual({
-      code: "no card",
-      legacy: "card not found",
-    });
+    await expect(response.json()).resolves.toStrictEqual({ code: "no card", legacy: "card not found" });
   });
 
   it("returns 404 card not found when card is deleted", async () => {
-    await database
-      .insert(cards)
-      .values([
-        { id: "543c1771-beae-4f26-b662-44ea48b40dc6", credentialId: account, lastFour: "1234", status: "DELETED" },
-      ]);
-
     const response = await appClient.index.$get(
       { header: { sessionid: "fakeSession" } },
-      { headers: { "test-credential-id": account } },
+      { headers: { "test-credential-id": "404" } },
     );
 
     expect(response.status).toBe(404);
-    await expect(response.json()).resolves.toStrictEqual({
-      code: "no card",
-      legacy: "card not found",
-    });
+    await expect(response.json()).resolves.toStrictEqual({ code: "no card", legacy: "card not found" });
   });
 
   it("returns panda card as default platinum product", async () => {
-    await database
-      .insert(cards)
-      .values([{ id: "543c1771-beae-4f26-b662-44ea48b40dc6", credentialId: account, lastFour: "1234" }]);
     vi.spyOn(panda, "getSecrets").mockResolvedValueOnce(panTemplate);
     vi.spyOn(panda, "getPIN").mockResolvedValueOnce(pinTemplate);
 
@@ -116,7 +90,7 @@ describe("authenticated", () => {
 
     const response = await appClient.index.$get(
       { header: { sessionid: "fakeSession" } },
-      { headers: { "test-credential-id": account } },
+      { headers: { "test-credential-id": "default" } },
     );
     const json = await response.json();
 
@@ -137,14 +111,6 @@ describe("authenticated", () => {
   });
 
   it("returns panda card with signature product id", async () => {
-    await database.insert(cards).values([
-      {
-        id: "543c1771-beae-4f26-b662-44ea48b40dc6",
-        credentialId: account,
-        lastFour: "1234",
-        productId: SIGNATURE_PRODUCT_ID,
-      },
-    ]);
     vi.spyOn(panda, "getSecrets").mockResolvedValueOnce(panTemplate);
     vi.spyOn(panda, "getPIN").mockResolvedValueOnce(pinTemplate);
 
@@ -155,7 +121,7 @@ describe("authenticated", () => {
 
     const response = await appClient.index.$get(
       { header: { sessionid: "fakeSession" } },
-      { headers: { "test-credential-id": account } },
+      { headers: { "test-credential-id": "sig" } },
     );
     const json = await response.json();
 
@@ -206,14 +172,14 @@ describe("authenticated", () => {
   it("creates a panda debit card with signature product id", async () => {
     vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: "createCard" });
 
-    const response = await appClient.index.$post({ header: { "test-credential-id": account } });
+    const response = await appClient.index.$post({ header: { "test-credential-id": "sig" } });
     const json = await response.json();
 
     expect(response.status).toBe(200);
 
     const created = await database.query.cards.findFirst({
       columns: { mode: true },
-      where: eq(cards.credentialId, account),
+      where: eq(cards.credentialId, "sig"),
     });
 
     expect(created?.mode).toBe(0);
@@ -227,23 +193,19 @@ describe("authenticated", () => {
   it("creates a panda credit card with signature product id", async () => {
     vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: "createCreditCard", last4: "1224" });
 
-    const response = await appClient.index.$post({ header: { "test-credential-id": ethAccount } });
+    const response = await appClient.index.$post({ header: { "test-credential-id": "eth" } });
     const json = await response.json();
 
     expect(response.status).toBe(200);
 
     const created = await database.query.cards.findFirst({
       columns: { mode: true },
-      where: eq(cards.credentialId, ethAccount),
+      where: eq(cards.credentialId, "eth"),
     });
 
     expect(created?.mode).toBe(1);
 
-    expect(json).toStrictEqual({
-      status: "ACTIVE",
-      lastFour: "1224",
-      productId: SIGNATURE_PRODUCT_ID,
-    });
+    expect(json).toStrictEqual({ status: "ACTIVE", lastFour: "1224", productId: SIGNATURE_PRODUCT_ID });
   });
 
   it("cancels a card", async () => {
@@ -251,11 +213,11 @@ describe("authenticated", () => {
     vi.spyOn(panda, "createCard").mockResolvedValueOnce(cardResponse);
     vi.spyOn(panda, "updateCard").mockResolvedValueOnce({ ...cardResponse, status: "canceled" });
 
-    const response = await appClient.index.$post({ header: { "test-credential-id": ethAccount } });
+    const response = await appClient.index.$post({ header: { "test-credential-id": "eth" } });
 
     const cancelResponse = await appClient.index.$patch({
       // @ts-expect-error - bad hono patch type
-      header: { "test-credential-id": ethAccount },
+      header: { "test-credential-id": "eth" },
       json: { status: "DELETED" },
     });
 
@@ -264,7 +226,7 @@ describe("authenticated", () => {
 
     const card = await database.query.cards.findFirst({
       columns: { status: true },
-      where: eq(cards.credentialId, ethAccount),
+      where: eq(cards.credentialId, "eth"),
     });
 
     expect(card?.status).toBe("DELETED");
@@ -272,13 +234,13 @@ describe("authenticated", () => {
 
   describe("migration", () => {
     it("creates a panda card having a cm card with upgraded plugin", async () => {
-      await database.insert(cards).values([{ id: "cm", credentialId: account, lastFour: "1234" }]);
+      await database.insert(cards).values([{ id: "cm", credentialId: "default", lastFour: "1234" }]);
 
       vi.spyOn(panda, "getCard").mockRejectedValueOnce(new Error("404 card not found"));
       vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: "migration:cm" });
       vi.spyOn(panda, "isPanda").mockResolvedValueOnce(true);
 
-      const response = await appClient.index.$post({ header: { "test-credential-id": account } });
+      const response = await appClient.index.$post({ header: { "test-credential-id": "default" } });
 
       const created = await database.query.cards.findFirst({ where: eq(cards.id, "migration:cm") });
       const deleted = await database.query.cards.findFirst({ where: eq(cards.id, "cm") });
@@ -289,12 +251,12 @@ describe("authenticated", () => {
     });
 
     it("creates a panda card having a cm card with invalid uuid", async () => {
-      await database.insert(cards).values([{ id: "not-uuid", credentialId: account, lastFour: "1234" }]);
+      await database.insert(cards).values([{ id: "not-uuid", credentialId: "default", lastFour: "1234" }]);
 
       vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: "migration:not-uuid" });
       vi.spyOn(panda, "isPanda").mockResolvedValueOnce(true);
 
-      const response = await appClient.index.$post({ header: { "test-credential-id": account } });
+      const response = await appClient.index.$post({ header: { "test-credential-id": "default" } });
 
       const created = await database.query.cards.findFirst({ where: eq(cards.id, "migration:not-uuid") });
       const deleted = await database.query.cards.findFirst({ where: eq(cards.id, "not-uuid") });
@@ -309,12 +271,12 @@ describe("authenticated", () => {
 const cardTemplate = {
   expirationMonth: "9",
   expirationYear: "2029",
-  id: "543c1771-beae-4f26-b662-44ea48b40dc6",
+  id: "default",
   last4: "7394",
   limit: { amount: 5000, frequency: "per24HourPeriod" },
   status: "active",
   type: "virtual",
-  userId: "2cf0c886-f7c0-40f3-a8cd-3c4ab3997b66",
+  userId: "pandaId",
 } as const;
 
 const panTemplate = {
@@ -331,7 +293,7 @@ const userTemplate = {
   applicationStatus: "approved",
   email: "email@example.com",
   firstName: "First",
-  id: "543c1771-beae-4f26-b662-44ea48b40dc6",
+  id: "default",
   isActive: true,
   lastName: "Last",
   phoneCountryCode: "AR",

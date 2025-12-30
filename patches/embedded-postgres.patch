@@ -1,0 +1,10 @@
+diff --git a/dist/index.js b/dist/index.js
+index bd74c14b7f87a043a73505f042f49ab2150842a4..4777f7cb6c1b89bc9d6409cbc69661573d3b1e2d 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -350,5 +350,4 @@ function gracefulShutdown(done) {
+     });
+ }
+ // Register graceful shutdown function
+-AsyncExitHook(gracefulShutdown);
+ export default EmbeddedPostgres;

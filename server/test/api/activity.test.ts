@@ -1,6 +1,5 @@
 import "../mocks/sentry";
 import "../mocks/auth";
-import "../mocks/database";
 import "../mocks/deployments";
 import "../expect";
 
@@ -9,23 +8,21 @@ import { marketAbi } from "@exactly/common/generated/chain";
 import { captureException } from "@sentry/node";
 import { testClient } from "hono/testing";
 import { safeParse, type InferOutput } from "valibot";
-import { zeroHash, padHex, type Hash, zeroAddress } from "viem";
+import { zeroHash, padHex, type Hash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 
 import app, { CreditActivity, DebitActivity, InstallmentsActivity, PandaActivity } from "../../api/activity";
-import database, { cards, credentials, transactions } from "../../database";
+import database, { cards, transactions } from "../../database";
 import anvilClient from "../anvilClient";
 
 const appClient = testClient(app);
+const account = deriveAddress(inject("ExaAccountFactory"), {
+  x: padHex(privateKeyToAddress(padHex("0xb0b"))),
+  y: zeroHash,
+});
 
 describe.concurrent("validation", () => {
-  beforeAll(async () => {
-    await database
-      .insert(credentials)
-      .values([{ id: "cred", publicKey: new Uint8Array(), account: zeroAddress, factory: zeroAddress }]);
-  });
-
   it("fails with no auth", async () => {
     const response = await appClient.index.$get();
 
@@ -43,7 +40,7 @@ describe.concurrent("validation", () => {
   it("fails with validation error", async () => {
     const response = await appClient.index.$get(
       { query: { include: "bad-include" } },
-      { headers: { "test-credential-id": "cred" } },
+      { headers: { "test-credential-id": "activity" } },
     );
 
     expect(response.status).toBe(400);
@@ -52,7 +49,7 @@ describe.concurrent("validation", () => {
   it("succeeds with valid credential", async () => {
     const response = await appClient.index.$get(
       { query: { include: "card" } },
-      { headers: { "test-credential-id": "cred" } },
+      { headers: { "test-credential-id": "bob" } },
     );
 
     expect(response.status).toBe(200);
@@ -60,22 +57,13 @@ describe.concurrent("validation", () => {
 });
 
 describe.concurrent("authenticated", () => {
-  const bob = privateKeyToAddress(padHex("0xb0b"));
-  const account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(bob), y: zeroHash });
-
-  beforeAll(async () => {
-    await database
-      .insert(credentials)
-      .values([{ id: account, publicKey: new Uint8Array(), account, factory: zeroAddress }]);
-  });
-
   describe.sequential("card", () => {
     let activity: InferOutput<
       typeof DebitActivity | typeof CreditActivity | typeof InstallmentsActivity | typeof PandaActivity
     >[];
 
     beforeAll(async () => {
-      await database.insert(cards).values([{ id: "activity", credentialId: account, lastFour: "1234" }]);
+      await database.insert(cards).values([{ id: "activity", credentialId: "bob", lastFour: "1234" }]);
       const logs = [
         ...(await anvilClient.getContractEvents({
           abi: marketAbi,
@@ -190,7 +178,7 @@ describe.concurrent("authenticated", () => {
     it("returns the card transaction", async () => {
       const response = await appClient.index.$get(
         { query: { include: "card" } },
-        { headers: { "test-credential-id": account } },
+        { headers: { "test-credential-id": "bob" } },
       );
 
       expect(response.status).toBe(200);
@@ -203,7 +191,7 @@ describe.concurrent("authenticated", () => {
         .values([{ id: "bad-transaction", cardId: "activity", hashes: ["0x1"], payload: {} }]);
       const response = await appClient.index.$get(
         { query: { include: "card" } },
-        { headers: { "test-credential-id": account } },
+        { headers: { "test-credential-id": "bob" } },
       );
 
       expect(captureException).toHaveBeenCalledExactlyOnceWith(
@@ -225,7 +213,7 @@ describe.concurrent("authenticated", () => {
     it("returns deposits", async () => {
       const response = await appClient.index.$get(
         { query: { include: "received" } },
-        { headers: { "test-credential-id": account } },
+        { headers: { "test-credential-id": "bob" } },
       );
 
       expect(response.status).toBe(200);
@@ -239,7 +227,7 @@ describe.concurrent("authenticated", () => {
     it("returns repays", async () => {
       const response = await appClient.index.$get(
         { query: { include: "repay" } },
-        { headers: { "test-credential-id": account } },
+        { headers: { "test-credential-id": "bob" } },
       );
 
       expect(response.status).toBe(200);
@@ -257,7 +245,7 @@ describe.concurrent("authenticated", () => {
     it("returns withdraws", async () => {
       const response = await appClient.index.$get(
         { query: { include: "sent" } },
-        { headers: { "test-credential-id": account } },
+        { headers: { "test-credential-id": "bob" } },
       );
 
       expect(response.status).toBe(200);
@@ -285,7 +273,7 @@ describe.concurrent("authenticated", () => {
   });
 
   it("returns everything", async () => {
-    const response = await appClient.index.$get({}, { headers: { "test-credential-id": account } });
+    const response = await appClient.index.$get({}, { headers: { "test-credential-id": "bob" } });
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject(

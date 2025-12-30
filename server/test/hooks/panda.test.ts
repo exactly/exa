@@ -1,5 +1,4 @@
 import "../mocks/sentry";
-import "../mocks/database";
 import "../mocks/deployments";
 import "../mocks/onesignal";
 import "../mocks/panda";

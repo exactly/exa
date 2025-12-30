@@ -1,6 +1,5 @@
 import "../expect";
 import "../mocks/sentry";
-import "../mocks/database";
 import "../mocks/redis";
 
 import { Address } from "@exactly/common/validation";

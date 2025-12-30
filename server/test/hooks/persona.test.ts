@@ -1,14 +1,11 @@
 import "../mocks/sentry";
-import "../mocks/database";
 import "../mocks/persona";
 
-import deriveAddress from "@exactly/common/deriveAddress";
 import { captureException } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
-import { padHex, zeroAddress, zeroHash } from "viem";
-import { privateKeyToAddress } from "viem/accounts";
-import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
+import { zeroAddress } from "viem";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import database, { credentials } from "../../database";
 import app from "../../hooks/persona";
@@ -20,25 +17,11 @@ const appClient = testClient(app);
 vi.mock("@sentry/node", { spy: true });
 
 describe("with reference", () => {
-  const bob = privateKeyToAddress(padHex("0xb0b"));
-  const account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(bob), y: zeroHash });
-
-  beforeAll(async () => {
-    await database
-      .insert(credentials)
-      .values([{ id: account, publicKey: new Uint8Array(), account, factory: zeroAddress }]);
-  });
-
   afterEach(() => vi.resetAllMocks());
 
   it("creates a panda account", async () => {
-    const id = "panda-id";
-    vi.spyOn(panda, "createUser").mockResolvedValueOnce({ id });
-    vi.spyOn(sardine, "customer").mockResolvedValueOnce({
-      sessionKey: "test-session-123",
-      status: "Success",
-      level: "low",
-    });
+    vi.spyOn(panda, "createUser").mockResolvedValueOnce({ id: "pandaId" });
+    vi.spyOn(sardine, "customer").mockResolvedValueOnce({ sessionKey: "test", status: "Success", level: "low" });
     const response = await appClient.index.$post({
       ...personaPayload,
       json: {
@@ -49,10 +32,6 @@ describe("with reference", () => {
             ...personaPayload.json.data.attributes,
             payload: {
               ...personaPayload.json.data.attributes.payload,
-              data: {
-                ...personaPayload.json.data.attributes.payload.data,
-                attributes: { ...personaPayload.json.data.attributes.payload.data.attributes, referenceId: account },
-              },
               included: [...personaPayload.json.data.attributes.payload.included],
             },
           },
@@ -60,11 +39,11 @@ describe("with reference", () => {
       },
     });
     const p = await database.query.credentials.findFirst({
-      where: eq(credentials.id, account),
+      where: eq(credentials.id, "bob"),
       columns: { pandaId: true },
     });
 
-    expect(p?.pandaId).toBe(id);
+    expect(p?.pandaId).toBe("pandaId");
 
     expect(response.status).toBe(200);
   });
@@ -120,13 +99,6 @@ describe("with reference", () => {
             ...personaPayload.json.data.attributes,
             payload: {
               ...personaPayload.json.data.attributes.payload,
-              data: {
-                ...personaPayload.json.data.attributes.payload.data,
-                attributes: {
-                  ...personaPayload.json.data.attributes.payload.data.attributes,
-                  referenceId: account,
-                },
-              },
               included: [...personaPayload.json.data.attributes.payload.included],
             },
           },
@@ -286,7 +258,7 @@ const personaPayload = {
             id: "inq_xzMHQeuAt7KuxVMPNvowpYWJ6eee", // cspell:ignore inq_xzMHQeuAt7KuxVMPNvowpYWJ6eee
             attributes: {
               status: "approved",
-              referenceId: "reference-123",
+              referenceId: "bob",
               note: null,
               behaviors: {
                 requestSpoofAttempts: 0,
