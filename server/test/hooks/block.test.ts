@@ -14,6 +14,7 @@ import chain, {
   proposalManagerAbi,
   upgradeableModularAccountAbi,
 } from "@exactly/common/generated/chain";
+import deploy from "@exactly/plugin/deploy.json";
 import { testClient } from "hono/testing";
 import {
   createWalletClient,
@@ -35,6 +36,7 @@ import {
   type TransactionReceipt,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { anvil } from "viem/chains";
 import { afterEach, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
 import app from "../../hooks/block";
@@ -78,7 +80,7 @@ describe("proposal", () => {
           ),
         ),
       );
-      await anvilClient.mine({ blocks: 1, interval: 10 * 60 });
+      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
       proposals = await getLogs(hashes);
       const unlock = proposals[0]?.args.unlock ?? 0n;
       vi.setSystemTime(new Date(Number(unlock + 10n) * 1000));
@@ -147,7 +149,7 @@ describe("proposal", () => {
   describe("with weth withdraw proposal", () => {
     beforeEach(async () => {
       const hash = await proposeWithdraw(69n, padHex("0x69", { size: 20 }), inject("MarketWETH"));
-      await anvilClient.mine({ blocks: 1, interval: 10 * 60 });
+      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
       proposals = await getLogs([hash]);
       const unlock = proposals[0]?.args.unlock ?? 0n;
       vi.setSystemTime(new Date(Number(unlock + 10n) * 1000));
@@ -190,7 +192,7 @@ describe("proposal", () => {
   describe("with reverting proposals", () => {
     beforeEach(async () => {
       const hash = await proposeWithdraw(maxUint256, padHex("0x69", { size: 20 }));
-      await anvilClient.mine({ blocks: 1, interval: 10 * 60 });
+      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
       proposals = await getLogs([hash]);
       const unlock = proposals[0]?.args.unlock ?? 0n;
       vi.setSystemTime(new Date(Number(unlock + 10n) * 1000));
@@ -248,7 +250,7 @@ describe("proposal", () => {
           args: [inject("MarketUSDC"), 1n, ProposalType.None, "0x"],
         }),
       );
-      await anvilClient.mine({ blocks: 1, interval: 10 * 60 });
+      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
       proposals = await getLogs([hash]);
       const unlock = proposals[0]?.args.unlock ?? 0n;
       vi.setSystemTime(new Date(Number(unlock + 10n) * 1000));
@@ -293,7 +295,7 @@ describe("proposal", () => {
       const hashes = await Promise.all(
         [4000n, 5000n, 6000n, 7000n, 8000n, 9000n].map((v) => proposeWithdraw(v, padHex("0x69", { size: 20 }))),
       );
-      await anvilClient.mine({ blocks: 1, interval: 10 * 60 });
+      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
       proposals = await getLogs(hashes);
       const unlock = proposals[0]?.args.unlock ?? 0n;
       vi.setSystemTime(new Date(Number(unlock + 10n) * 1000));
