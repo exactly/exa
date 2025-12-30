@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.45
+
+### Patch Changes
+
+- [#607](https://github.com/exactly/exa/pull/607) [`a6c130c`](https://github.com/exactly/exa/commit/a6c130c4d596dc354c66aaef460fcf699acf6ae1) Thanks [@nfmelendez](https://github.com/nfmelendez)! - ✨ assess transaction risk
+
 ## 0.2.44
 
 ### Patch Changes

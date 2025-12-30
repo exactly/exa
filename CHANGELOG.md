@@ -1,5 +1,20 @@
 # @exactly/mobile
 
+## 1.0.43
+
+### Patch Changes
+
+- [`98d6493`](https://github.com/exactly/exa/commit/98d6493d34596057b46c3106f433f72bdeaa7e9d) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ implement blockies
+
+- [#608](https://github.com/exactly/exa/pull/608) [`a9d6108`](https://github.com/exactly/exa/commit/a9d6108b05f23d788a462b24be99b5ff36a955a5) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ use blockies as user icons
+
+- [`b5f0979`](https://github.com/exactly/exa/commit/b5f097901fee29d68f5bdbbdb067215332d02d8f) Thanks [@franm91](https://github.com/franm91)! - 🚑 fix cross-repay
+
+- [`b2535c5`](https://github.com/exactly/exa/commit/b2535c5266f6b56a97714fe543355b1bf19a92a4) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ♻️ refactor send funds amount screen
+
+- Updated dependencies [[`a6c130c`](https://github.com/exactly/exa/commit/a6c130c4d596dc354c66aaef460fcf699acf6ae1)]:
+  - @exactly/server@0.2.45
+
 ## 1.0.42
 
 ### Patch Changes
