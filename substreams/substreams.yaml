@@ -25,6 +25,14 @@ modules:
     updatePolicy: set
     inputs:
       - map: map_exa_accounts
+  - name: map_exa_plugins
+    kind: map
+    inputs:
+      - source: sf.ethereum.type.v2.Block
+      - map: map_exa_accounts
+      - store: store_exa_accounts
+    output:
+      type: proto:exa.Plugins
 binaries:
   default:
     type: wasm/rust-v1

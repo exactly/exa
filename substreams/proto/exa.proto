@@ -5,3 +5,13 @@ package exa;
 message Accounts {
   repeated bytes accounts = 1;
 }
+
+message Plugins {
+  repeated Plugin plugins = 1;
+
+  message Plugin {
+    bytes address = 1;
+    bytes account = 2;
+    uint64 ordinal = 3;
+  }
+}
