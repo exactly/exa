@@ -36,7 +36,7 @@ contract BobExecuteScript is BaseScript {
     );
     address[] memory owners = new address[](1);
     owners[0] = vm.addr(0xb0b);
-    bobAccount = IExaAccount(factory.createAccount(0, owners.toPublicKeys()));
+    bobAccount = IExaAccount(factory.getAddress(0, owners.toPublicKeys()));
     vm.label(address(exaPlugin), "ExaPlugin");
     vm.label(address(factory), "ExaAccountFactory");
     vm.label(address(bobAccount), "bobAccount");
@@ -46,10 +46,26 @@ contract BobExecuteScript is BaseScript {
 
   function run() external {
     vm.startBroadcast(acct("keeper"));
+
     bobAccount.executeProposal(0);
     bobAccount.executeProposal(1);
     bobAccount.executeProposal(2);
     bobAccount.executeProposal(3);
+
+    new BatchDeploy(factory, 4);
+
     vm.stopBroadcast();
+  }
+}
+
+contract BatchDeploy {
+  using OwnersLib for address[];
+
+  constructor(ExaAccountFactory factory, uint256 count) {
+    address[] memory owners = new address[](1);
+    for (uint256 i = 0; i < count; ++i) {
+      owners[0] = address(uint160(420 + i));
+      factory.createAccount(0, owners.toPublicKeys());
+    }
   }
 }
