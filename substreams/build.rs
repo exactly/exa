@@ -13,10 +13,11 @@ fn main() -> Result<(), Error> {
   println!("cargo::rerun-if-changed=proto");
   println!("cargo::rerun-if-changed=buf.gen.yaml");
   println!("cargo::rerun-if-changed=substreams.yaml");
-  println!("cargo::rerun-if-changed=node_modules/@exactly/plugin/src/ExaAccountFactory.sol");
+  println!("cargo::rerun-if-changed=node_modules/@exactly/plugin/src");
+  println!("cargo::rerun-if-changed=node_modules/@exactly/plugin/node_modules/modular-account");
 
   create_dir_all("abi")?;
-  let contracts = [("factory", "ExaAccountFactory")];
+  let contracts = [("account", "UpgradeableModularAccount"), ("factory", "ExaAccountFactory")];
 
   contracts.iter().try_for_each(|(mod_name, contract)| -> Result<()> {
     assert!(
