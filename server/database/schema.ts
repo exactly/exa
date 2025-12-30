@@ -1,6 +1,19 @@
 import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
 import { relations } from "drizzle-orm";
-import { customType, integer, jsonb, pgEnum, pgTable, text, uniqueIndex } from "drizzle-orm/pg-core";
+import {
+  bigint,
+  char,
+  customType,
+  integer,
+  jsonb,
+  pgEnum,
+  pgSchema,
+  pgTable,
+  primaryKey,
+  serial,
+  text,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
 
 const bytea = customType<{ data: Uint8Array; driverData: string }>({ dataType: () => "bytea" });
 
@@ -19,7 +32,7 @@ export const credentials = pgTable(
     pandaId: text("panda_id"),
     bridgeId: text("bridge_id"),
   },
-  (table) => [uniqueIndex("account_index").on(table.account)],
+  ({ account }) => [uniqueIndex("account_index").on(account)],
 );
 
 export const cards = pgTable("cards", {
@@ -52,3 +65,35 @@ export const cardsRelations = relations(cards, ({ many, one }) => ({
 export const transactionsRelations = relations(transactions, ({ one }) => ({
   card: one(cards, { fields: [transactions.cardId], references: [cards.id] }),
 }));
+
+export const substreams = pgSchema("substreams");
+
+export const cursors = substreams.table("cursors", {
+  id: text("id").primaryKey(),
+  cursor: text("cursor"),
+  blockNum: bigint("block_num", { mode: "bigint" }),
+  blockId: text("block_id"),
+});
+
+export const substreamsHistory = substreams.table("substreams_history", {
+  id: serial("id").primaryKey(),
+  op: char("op", { length: 1 }),
+  tableName: text("table_name"),
+  pk: text("pk"),
+  prevValue: text("prev_value"),
+  blockNum: bigint("block_num", { mode: "bigint" }),
+});
+
+export const blocks = substreams.table("blocks", {
+  number: bigint("number", { mode: "bigint" }).primaryKey(),
+  timestamp: bigint("timestamp", { mode: "bigint" }).notNull(),
+});
+
+export const exaPlugins = substreams.table(
+  "exa_plugins",
+  {
+    address: text("address").notNull(),
+    account: text("account").notNull(),
+  },
+  ({ address, account }) => [primaryKey({ columns: [address, account] })],
+);
