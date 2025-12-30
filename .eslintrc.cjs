@@ -125,18 +125,7 @@ module.exports = {
         "unicorn/prefer-module": "off",
       },
     },
-    {
-      files: ["server/test/**"],
-      extends: ["plugin:@vitest/legacy-all"],
-      rules: {
-        "@vitest/no-hooks": "off",
-        "@vitest/prefer-expect-assertions": [
-          "warn",
-          { onlyFunctionsWithExpectInLoop: true, onlyFunctionsWithExpectInCallback: true },
-        ],
-        "@vitest/require-top-level-describe": "off",
-      },
-    },
+    { files: ["server/test/**"], extends: ["plugin:@vitest/legacy-recommended"] },
     { files: ["src/**/*+html.tsx"], rules: { "react-native/no-raw-text": "off" } },
     {
       files: ["docs/**"],
