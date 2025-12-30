@@ -156,7 +156,7 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
       anvilClient.stopImpersonatingAccount({ address: bob }),
       anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[foundry.id] }),
     ]);
-    await $(shell)`forge script test/mocks/BobExecute.s.sol
+    await $(shell)`forge script test/mocks/BobExecute.s.sol --tc BobExecuteScript
       --unlocked ${keeper.address} --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
     await anvilClient.stopImpersonatingAccount({ address: keeper.address });
   }
