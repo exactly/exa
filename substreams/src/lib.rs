@@ -5,8 +5,10 @@ use std::collections::HashSet;
 use substreams::{
   Hex,
   errors::Error,
+  pb::substreams::Clock,
   store::{StoreGet, StoreGetInt64, StoreNew, StoreSet, StoreSetInt64},
 };
+use substreams_database_change::{pb::database::DatabaseChanges, tables::Tables};
 use substreams_ethereum::{Event, pb::eth::v2::Block};
 
 use crate::{
@@ -66,4 +68,21 @@ pub fn map_exa_plugins(block: Block, new: Accounts, accounts: StoreGetInt64) -> 
       })
       .collect(),
   })
+}
+
+#[substreams::handlers::map]
+pub fn db_out(clock: Clock, plugins: Plugins) -> Result<DatabaseChanges, Error> {
+  let mut tables = Tables::new();
+  for plugin in plugins.plugins {
+    tables.upsert_row(
+      "exa_plugins",
+      [("address", Hex(&plugin.address).to_string()), ("account", Hex(&plugin.account).to_string())],
+    );
+  }
+  if tables.all_row_count() > 0 {
+    tables
+      .create_row("blocks", clock.number.to_string())
+      .set("timestamp", clock.timestamp.unwrap_or_default().seconds.to_string());
+  }
+  Ok(tables.to_database_changes())
 }
