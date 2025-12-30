@@ -7,7 +7,6 @@ import "../expect";
 import deriveAddress from "@exactly/common/deriveAddress";
 import { marketAbi } from "@exactly/common/generated/chain";
 import { captureException } from "@sentry/node";
-import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { safeParse, type InferOutput } from "valibot";
 import { zeroHash, padHex, type Hash, zeroAddress } from "viem";
@@ -102,126 +101,91 @@ describe.concurrent("authenticated", () => {
           anvilClient.getBlock({ blockNumber }),
         ),
       ).then((blocks) => new Map(blocks.map(({ number, timestamp }) => [number, timestamp])));
-      activity = await Promise.all(
-        logs
-          .reduce((map, { args, transactionHash, blockNumber, eventName }) => {
-            const data = map.get(transactionHash);
-            if (!data) return map.set(transactionHash, { blockNumber, eventName, events: [args] });
-            data.events.push(args);
-            return map;
-          }, new Map<Hash, { blockNumber: bigint; eventName: string; events: (typeof logs)[number]["args"][] }>())
-          .entries()
-          .map(async ([hash, { blockNumber, eventName, events }], index) => {
-            const blockTimestamp = timestamps.get(blockNumber)!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-            const total = events.reduce((sum, { assets }) => sum + assets, 0n);
-            let payload;
-            switch (index) {
-              case 0:
-                payload = {
+      const txs = [
+        ...logs.reduce((m, { args, transactionHash: h, ...v }) => {
+          const d = m.get(h) ?? { ...v, events: [] as (typeof logs)[number]["args"][] };
+          return m.set(h, (d.events.push(args), d));
+        }, new Map<Hash, { blockNumber: bigint; eventName: string; events: (typeof logs)[number]["args"][] }>()),
+      ].map(([hash, { blockNumber, eventName, events }], index) => {
+        const blockTimestamp = timestamps.get(blockNumber)!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
+        const total = events.reduce((sum, { assets }) => sum + assets, 0n);
+        const createdAt = new Date(Number(blockTimestamp) * 1000).toISOString();
+        const { payload, hashes } =
+          index === 0
+            ? {
+                hashes: [hash] as [Hash],
+                payload: {
                   operation_id: String(index),
                   type: "cryptomate",
                   data: {
-                    created_at: new Date(Number(blockTimestamp) * 1000).toISOString(),
+                    created_at: createdAt,
                     bill_amount: Number(total) / 1e6,
                     transaction_amount: (1200 * Number(total)) / 1e6,
                     transaction_currency_code: "ARS",
                     merchant_data: { name: "Merchant", country: "ARG", city: "Buenos Aires", state: "BA" },
                   },
-                };
-                await database
-                  .insert(transactions)
-                  .values({ id: String(index), cardId: "activity", hashes: [hash], payload });
-                break;
-              case 1:
-                payload = {
-                  bodies: [
-                    {
-                      body: {
-                        id: String(index),
-                        type: "spend",
-                        spend: {
-                          ...spendTemplate,
-                          amount: Number(total) / 1e4,
-                          enrichedMerchantIcon: "https://storage.googleapis.com/icon/icon.png",
-                          localAmount: (1200 * Number(total)) / 1e4,
-                        },
-                      },
-                      action: "completed",
-                      resource: "transaction",
-                      createdAt: new Date(Number(blockTimestamp) * 1000).toISOString(),
-                    },
-                  ],
+                },
+              }
+            : {
+                hashes: index === 1 ? ([hash] as [Hash]) : ([hash, zeroHash] as [Hash, Hash]),
+                payload: {
                   type: "panda",
-                };
-                await database
-                  .insert(transactions)
-                  .values({ id: String(index), cardId: "activity", hashes: [hash], payload });
-                break;
-
-              default:
-                payload = {
-                  bodies: [
-                    {
-                      body: {
-                        id: String(index),
-                        type: "spend",
-                        spend: {
-                          ...spendTemplate,
-                          amount: Number(total) / 1e4,
-                          localAmount: (1200 * Number(total)) / 1e4,
-                        },
-                      },
-                      action: "created",
-                      resource: "transaction",
-                      createdAt: new Date(Number(blockTimestamp) * 1000).toISOString(),
-                    },
-                    {
-                      body: {
-                        id: String(index),
-                        type: "spend",
-                        spend: {
-                          ...spendTemplate,
-                          amount: Number(total) / 1e4,
+                  bodies: (index === 1 ? ["completed"] : ["created", "completed"]).map((action) => ({
+                    action,
+                    resource: "transaction",
+                    createdAt,
+                    body: {
+                      id: String(index),
+                      type: "spend",
+                      spend: {
+                        ...spendTemplate,
+                        amount: Number(total) / 1e4,
+                        localAmount: (1200 * Number(total)) / 1e4,
+                        ...(action === "completed" && {
                           enrichedMerchantIcon: "https://storage.googleapis.com/icon/icon.png",
-                          localAmount: (1200 * Number(total)) / 1e4,
-                        },
+                        }),
                       },
-                      action: "completed",
-                      resource: "transaction",
-                      createdAt: new Date(Number(blockTimestamp) * 1000).toISOString(),
                     },
-                  ],
-                  type: "panda",
-                };
+                  })),
+                },
+              };
+        return {
+          id: String(index),
+          cardId: "activity",
+          hashes,
+          payload,
+          hash,
+          blockNumber,
+          eventName,
+          events,
+          blockTimestamp,
+        };
+      });
 
-                await database
-                  .insert(transactions)
-                  .values({ id: String(index), cardId: "activity", hashes: [hash, zeroHash], payload });
-                break;
-            }
+      await database
+        .insert(transactions)
+        .values(txs.map(({ id, cardId, hashes, payload }) => ({ id, cardId, hashes, payload })));
 
-            const tx = await database.query.transactions.findFirst({
-              columns: { hashes: true },
-              where: eq(transactions.id, String(index)),
-            });
-            const panda = safeParse(PandaActivity, {
-              ...(payload as object),
-              hashes: tx?.hashes,
-              borrows: eventName === "Withdraw" ? [null] : [{ blockNumber, events }],
-            });
-            if (panda.success) return panda.output;
-            const eventCount = eventName === "Withdraw" ? 0 : events.length;
-            const cryptomate = safeParse({ 0: DebitActivity, 1: CreditActivity }[eventCount] ?? InstallmentsActivity, {
-              ...(payload as object),
-              hash,
-              events: eventCount > 0 ? events : undefined,
-              blockTimestamp: eventCount > 0 ? blockTimestamp : undefined,
-            });
-            if (cryptomate.success) return cryptomate.output;
-            throw new Error("bad test setup");
-          }),
-      ).then((results) => results.sort((a, b) => b.timestamp.localeCompare(a.timestamp) || b.id.localeCompare(a.id)));
-    });
+      activity = txs
+        .map(({ hashes, payload, hash, blockNumber, eventName, events, blockTimestamp }) => {
+          const panda = safeParse(PandaActivity, {
+            ...(payload as object),
+            hashes,
+            borrows: eventName === "Withdraw" ? [null] : [{ blockNumber, events }],
+          });
+          if (panda.success) return panda.output;
+          const eventCount = eventName === "Withdraw" ? 0 : events.length;
+          const cryptomate = safeParse({ 0: DebitActivity, 1: CreditActivity }[eventCount] ?? InstallmentsActivity, {
+            ...(payload as object),
+            hash,
+            events: eventCount > 0 ? events : undefined,
+            blockTimestamp: eventCount > 0 ? blockTimestamp : undefined,
+          });
+          if (cryptomate.success) return cryptomate.output;
+          throw new Error("bad test setup");
+        })
+        .sort((a, b) => b.timestamp.localeCompare(a.timestamp) || b.id.localeCompare(a.id));
+    }, 66_666);
 
     it("returns the card transaction", async () => {
       const response = await appClient.index.$get(
