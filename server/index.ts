@@ -10,6 +10,7 @@ import type { UnofficialStatusCode } from "hono/utils/http-status";
 
 import appMetadata from "../package.json";
 import api from "./api";
+import database from "./database";
 import activityHook from "./hooks/activity";
 import block from "./hooks/block";
 import manteca from "./hooks/manteca";
@@ -284,7 +285,7 @@ const server = serve(app);
 export async function close() {
   return new Promise((resolve, reject) => {
     server.close((error) => {
-      Promise.allSettled([closeSentry(), closeSegment()])
+      Promise.allSettled([closeSentry(), closeSegment(), database.$client.end()])
         .then((results) => {
           if (error) reject(error);
           else if (results.some((result) => result.status === "rejected")) reject(new Error("closing services failed"));
