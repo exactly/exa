@@ -19,6 +19,12 @@ modules:
       - source: sf.ethereum.type.v2.Block
     output:
       type: proto:exa.Accounts
+  - name: store_exa_accounts
+    kind: store
+    valueType: int64
+    updatePolicy: set
+    inputs:
+      - map: map_exa_accounts
 binaries:
   default:
     type: wasm/rust-v1

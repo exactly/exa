@@ -1,7 +1,11 @@
 #![expect(clippy::not_unsafe_ptr_arg_deref)]
 
 use serde::Deserialize;
-use substreams::{Hex, errors::Error};
+use substreams::{
+  Hex,
+  errors::Error,
+  store::{StoreNew, StoreSet, StoreSetInt64},
+};
 use substreams_ethereum::pb::eth::v2::Block;
 
 use crate::{contracts::factory::events::ExaAccountInitialized, proto::exa::Accounts};
@@ -31,4 +35,11 @@ pub fn map_exa_accounts(params: String, block: Block) -> Result<Accounts, Error>
       .map(|(event, _)| event.account)
       .collect(),
   })
+}
+
+#[substreams::handlers::store]
+pub fn store_exa_accounts(new: Accounts, store: StoreSetInt64) {
+  for account in new.accounts {
+    store.set(0, Hex(&account).to_string(), &1);
+  }
 }
