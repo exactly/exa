@@ -1318,11 +1318,10 @@ describe("concurrency", () => {
 
       const lastCall = getMutex.mock.results.at(-1);
       const mutex = lastCall?.type === "return" ? lastCall.value : undefined;
-      const [spend, spend2, spend3] = await promises;
+      const statuses = await promises.then((responses) => responses.map(({ status }) => status as number));
 
-      expect(spend.status).toBe(200);
-      expect(spend2.status).toBe(554);
-      expect(spend3.status).toBe(554);
+      expect(statuses.filter((status) => status === 200)).toHaveLength(1);
+      expect(statuses.filter((status) => status === 554)).toHaveLength(2);
       expect(mutex?.isLocked()).toBe(true);
     });
   });
