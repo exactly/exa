@@ -31,6 +31,7 @@ import reportError from "../../utils/reportError";
 import { APIError, getActivity, getKYCStatus, type CardDetails } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
 import usePortfolio from "../../utils/usePortfolio";
+import BenefitsSection from "../benefits/BenefitsSection";
 import OverduePayments from "../pay-mode/OverduePayments";
 import PaymentSheet from "../pay-mode/PaymentSheet";
 import UpcomingPayments from "../pay-mode/UpcomingPayments";
@@ -176,6 +177,7 @@ export default function Home() {
                 />
               )}
               <GettingStarted hasFunds={usdBalance > 0n} hasKYC={KYCStatus === "ok"} />
+              {KYCStatus === "ok" && <BenefitsSection />}
               <OverduePayments
                 onSelect={(maturity) => {
                   navigation.setParams({ ...parameters, maturity: maturity.toString() });
