@@ -1,6 +1,6 @@
 import shortenHex from "@exactly/common/shortenHex";
 import { Address } from "@exactly/common/validation";
-import { ArrowLeft, User, UserMinus, UserPlus } from "@tamagui/lucide-icons";
+import { ArrowLeft, UserMinus, UserPlus } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useLocalSearchParams, useNavigation } from "expo-router";
 import React from "react";
@@ -11,6 +11,7 @@ import { parse } from "valibot";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import queryClient from "../../utils/queryClient";
 import AssetSelector from "../shared/AssetSelector";
+import Blocky from "../shared/Blocky";
 import Button from "../shared/Button";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
@@ -67,7 +68,7 @@ export default function AssetSelection() {
             >
               <XStack alignItems="center" gap="$s3" paddingHorizontal="$s1">
                 <Avatar size={32} backgroundColor="$interactiveBaseBrandDefault" borderRadius="$r_0">
-                  <User size={20} color="$interactiveOnBaseBrandDefault" />
+                  <Blocky seed={receiver} />
                 </Avatar>
                 <Text emphasized callout color="$uiNeutralSecondary">
                   To:

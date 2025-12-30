@@ -8,7 +8,7 @@ import {
 import shortenHex from "@exactly/common/shortenHex";
 import { Address } from "@exactly/common/validation";
 import { WAD } from "@exactly/lib";
-import { ArrowLeft, Coins, User, FilePen, Check, X } from "@tamagui/lucide-icons";
+import { ArrowLeft, Coins, FilePen, Check, X } from "@tamagui/lucide-icons";
 import { useForm, useStore } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import { useLocalSearchParams, useNavigation } from "expo-router";
@@ -27,6 +27,7 @@ import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import AmountSelector from "../shared/AmountSelector";
 import AssetLogo from "../shared/AssetLogo";
+import Blocky from "../shared/Blocky";
 import GradientScrollView from "../shared/GradientScrollView";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
@@ -238,9 +239,9 @@ export default function Amount() {
                   justifyContent="space-between"
                 >
                   <XStack alignItems="center" gap="$s3" padding="$s3">
-                    <Avatar size={32} backgroundColor="$interactiveBaseBrandDefault" borderRadius="$r_0">
-                      <User size={20} color="$interactiveOnBaseBrandDefault" />
-                    </Avatar>
+                    <View borderRadius="$r_0" overflow="hidden">
+                      <Blocky seed={receiver} />
+                    </View>
                     <Text emphasized callout color="$uiNeutralSecondary">
                       To:
                     </Text>

@@ -1,12 +1,14 @@
 import shortenHex from "@exactly/common/shortenHex";
 import type { Address } from "@exactly/common/validation";
-import { ArrowRight, User } from "@tamagui/lucide-icons";
+import { ArrowRight } from "@tamagui/lucide-icons";
 import React from "react";
 import { Pressable } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
+import { zeroAddress } from "viem";
 
 import assetLogos from "../../utils/assetLogos";
 import AssetLogo from "../shared/AssetLogo";
+import Blocky from "../shared/Blocky";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
@@ -96,17 +98,8 @@ export default function ReviewSheet({
                   To
                 </Text>
                 <XStack alignItems="center" gap="$s3">
-                  <View
-                    position="relative"
-                    justifyContent="center"
-                    alignItems="center"
-                    width={40}
-                    height={40}
-                    backgroundColor="$backgroundBrand"
-                    borderRadius="$r_0"
-                    padding="$s2"
-                  >
-                    <User color="$uiNeutralPrimary" size={40} />
+                  <View borderRadius="$r_0" overflow="hidden">
+                    <Blocky seed={receiver ?? zeroAddress} scale={5} />
                   </View>
                   <YStack>
                     <Text title color="$uiNeutralPrimary" fontFamily="$mono">
