@@ -4,5 +4,7 @@
   "mcpServers": {
     "nx-mcp": { "command": "npx", "args": ["nx", "mcp"] }
   },
+  "privacy": { "usageStatisticsEnabled": false },
+  "telemetry": { "enabled": false },
   "$schema": "https://raw.githubusercontent.com/google-gemini/gemini-cli/main/schemas/settings.schema.json"
 }
