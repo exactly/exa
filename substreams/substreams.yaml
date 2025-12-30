@@ -24,6 +24,30 @@ binaries:
     type: wasm/rust-v1
     file: target/wasm32-unknown-unknown/release/substreams.wasm
 networks:
+  optimism:
+    initialBlock:
+      map_exa_accounts: 124_728_176
+    params:
+      map_exa_accounts: "
+        factories[]=8D493AF799162Ac3f273e8918B2842447f702163\
+        &factories[]=3427a595eD6E05Cc2D8115e28BAd151cB879616e\
+        &factories[]=cbeaAF42Cc39c17e84cBeFe85160995B515A9668\
+        &factories[]=961EbA47650e2198A959Ef5f337E542df5E4F61b"
+  base:
+    initialBlock:
+      map_exa_accounts: 38_172_919
+    params:
+      map_exa_accounts: factories[]=Ad92a288CE0cc869129cDA518Af2baaf69fFa026
+  op-sepolia:
+    initialBlock:
+      map_exa_accounts: 26_170_889
+    params:
+      map_exa_accounts: factories[]=98d3E8B291d9E89C25D8371b7e8fFa8BC32E0aEC
+  base-sepolia:
+    initialBlock:
+      map_exa_accounts: 29_999_489
+    params:
+      map_exa_accounts: factories[]=343efd4e2073afc4cbe304b5dd50f8d6480e2dd2
   anvil:
     initialBlock:
       map_exa_accounts: 0
