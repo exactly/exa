@@ -51,9 +51,9 @@ describe("fault tolerance", () => {
 
   it("resets nonce when skipped", async () => {
     const waitForTransactionReceipt = publicClient.waitForTransactionReceipt;
-    vi.spyOn(publicClient, "waitForTransactionReceipt").mockImplementation((parameters) =>
-      waitForTransactionReceipt({ ...parameters, timeout: 100 }),
-    );
+    const mockWaitForTransactionReceipt = vi
+      .spyOn(publicClient, "waitForTransactionReceipt")
+      .mockImplementation((parameters) => waitForTransactionReceipt({ ...parameters, timeout: 100 }));
     const hardReset = vi.spyOn(nonceManager, "hardReset");
     const currentNonce = await nonceSource.get({
       address: keeperClient.account.address,
@@ -101,6 +101,7 @@ describe("fault tolerance", () => {
       address: keeper.account.address,
       chainId: keeper.chain.id,
     });
+    mockWaitForTransactionReceipt.mockRestore();
     await expect(
       Promise.all(blockedHashes.map((hash) => publicClient.waitForTransactionReceipt({ hash }))),
     ).resolves.toMatchObject(blockedHashes.map(() => ({ status: "success" })));
