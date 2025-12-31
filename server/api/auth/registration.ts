@@ -337,9 +337,7 @@ export default new Hono()
               expectedChallenge: challenge,
               supportedAlgorithmIDs: [cose.COSEALG.ES256],
             });
-            if (!verified || !registrationInfo) {
-              return c.json({ code: "bad registration", legacy: "bad registration" }, 400);
-            }
+            if (!verified) return c.json({ code: "bad registration", legacy: "bad registration" }, 400);
             const { credential, credentialDeviceType } = registrationInfo;
             if (credential.id !== attestation.id) {
               return c.json({ code: "bad registration", legacy: "bad registration" }, 400);

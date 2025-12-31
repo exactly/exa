@@ -42,34 +42,32 @@ export default function TransactionDetails({ hash }: { hash?: string }) {
           </XStack>
         </XStack>
         {hash && (
-          <>
-            <XStack
-              hitSlop={15}
-              justifyContent="space-between"
-              alignItems="center"
-              onPress={() => {
-                setStringAsync(hash).catch(reportError);
-                Alert.alert("Copied", "The transaction hash has been copied to the clipboard.");
-              }}
-            >
-              <Text emphasized footnote color="$uiNeutralSecondary">
-                Transaction hash
+          <XStack
+            hitSlop={15}
+            justifyContent="space-between"
+            alignItems="center"
+            onPress={() => {
+              setStringAsync(hash).catch(reportError);
+              Alert.alert("Copied", "The transaction hash has been copied to the clipboard.");
+            }}
+          >
+            <Text emphasized footnote color="$uiNeutralSecondary">
+              Transaction hash
+            </Text>
+            <XStack gap="$s2" alignItems="center" cursor="pointer">
+              <Text
+                callout
+                fontFamily="$mono"
+                textDecorationLine="underline"
+                onPress={() => {
+                  openBrowser(`${chain.blockExplorers?.default.url}/tx/${hash}`).catch(reportError);
+                }}
+              >
+                {shortenHex(hash)}
               </Text>
-              <XStack gap="$s2" alignItems="center" cursor="pointer">
-                <Text
-                  callout
-                  fontFamily="$mono"
-                  textDecorationLine="underline"
-                  onPress={() => {
-                    openBrowser(`${chain.blockExplorers?.default.url}/tx/${hash}`).catch(reportError);
-                  }}
-                >
-                  {shortenHex(hash)}
-                </Text>
-                <ExternalLink size={20} color="$uiBrandPrimary" />
-              </XStack>
+              <ExternalLink size={20} color="$uiBrandPrimary" />
             </XStack>
-          </>
+          </XStack>
         )}
         <XStack justifyContent="space-between">
           <Text emphasized footnote color="$uiNeutralSecondary">

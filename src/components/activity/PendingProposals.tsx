@@ -19,14 +19,13 @@ import {
 } from "@tamagui/lucide-icons";
 import type { MutationState } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { useNavigation } from "expo-router";
+import { useRouter } from "expo-router";
 import React from "react";
 import { Pressable, RefreshControl, ScrollView } from "react-native";
 import { XStack, YStack } from "tamagui";
 import { extractChain, type Chain } from "viem";
 import * as chains from "viem/chains";
 
-import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import { presentArticle } from "../../utils/intercom";
 import type { RouteFrom } from "../../utils/lifi";
 import reportError from "../../utils/reportError";
@@ -112,7 +111,7 @@ function getProposal(proposal: Proposal): ProposalWithMetadata {
 }
 
 export default function PendingProposals() {
-  const navigation = useNavigation<AppNavigationProperties>();
+  const router = useRouter();
   const {
     count,
     mutations,
@@ -124,10 +123,10 @@ export default function PendingProposals() {
         <View flexDirection="row" gap={10} paddingBottom="$s4" justifyContent="space-between" alignItems="center">
           <Pressable
             onPress={() => {
-              if (navigation.canGoBack()) {
-                navigation.goBack();
+              if (router.canGoBack()) {
+                router.back();
               } else {
-                navigation.replace("(home)", { screen: "index" });
+                router.replace("/(main)/(home)");
               }
             }}
           >
@@ -169,10 +168,10 @@ export default function PendingProposals() {
               </YStack>
             )}
             {pendingProposals?.map(({ nonce, proposal }) => {
-              return <ProposalItem key={nonce.toString()} proposal={proposal} />;
+              return <ProposalItem key={String(nonce)} proposal={proposal} />;
             })}
-            {mutations.map((mutation, index) => {
-              return <MutationItem key={index} mutation={mutation} />;
+            {mutations.map((mutation) => {
+              return <MutationItem key={mutation.id} mutation={mutation} />;
             })}
           </View>
         </ScrollView>
@@ -264,7 +263,7 @@ function ProposalItem({ proposal }: { proposal: Proposal }) {
   );
 }
 
-function MutationItem({ mutation }: { mutation: MutationState<unknown, Error, RouteFrom> }) {
+function MutationItem({ mutation }: { mutation: MutationState<unknown, Error, RouteFrom> & { id: number } }) {
   const { name: sourceChainName } = extractChain({
     chains: Object.values(chains) as unknown as readonly [Chain, ...Chain[]],
     id: mutation.variables?.chainId ?? 0,

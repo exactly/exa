@@ -1,13 +1,12 @@
 import { ArrowRight, CreditCard } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useNavigation } from "expo-router";
+import { useRouter } from "expo-router";
 import React from "react";
 import { Pressable } from "react-native";
 import { YStack } from "tamagui";
 
 import Progression from "./Progression";
-import type { AppNavigationProperties } from "../../../app/(main)/_layout";
 import { presentArticle } from "../../../utils/intercom";
 import queryClient from "../../../utils/queryClient";
 import reportError from "../../../utils/reportError";
@@ -20,7 +19,7 @@ import View from "../../shared/View";
 export default function ActivateCard() {
   const toast = useToastController();
   const { data: step } = useQuery<number | undefined>({ queryKey: ["card-upgrade"] });
-  const navigation = useNavigation<AppNavigationProperties>();
+  const router = useRouter();
   const { mutateAsync: activateCard, isPending: isActivating } = useMutation({
     retry: (_, error) => error instanceof APIError,
     retryDelay: (failureCount, error) => (error instanceof APIError ? failureCount * 5000 : 1000),
@@ -34,7 +33,7 @@ export default function ActivateCard() {
       await queryClient.refetchQueries({ queryKey: ["card", "details"] });
       await queryClient.setQueryData(["card-upgrade-open"], false);
       await queryClient.resetQueries({ queryKey: ["card-upgrade"] });
-      navigation.replace("(home)", { screen: "card" });
+      router.push("/card");
       queryClient.setQueryData(["card-details-open"], true);
     },
     onError: async (error: Error) => {
@@ -51,7 +50,7 @@ export default function ActivateCard() {
         await queryClient.refetchQueries({ queryKey: ["card", "details"] });
         await queryClient.setQueryData(["card-upgrade-open"], false);
         await queryClient.resetQueries({ queryKey: ["card-upgrade"] });
-        navigation.replace("(home)", { screen: "card" });
+        router.push("/card");
         queryClient.setQueryData(["card-details-open"], true);
         return;
       }
@@ -66,22 +65,20 @@ export default function ActivateCard() {
   return (
     <View fullScreen flex={1} gap="$s6" paddingHorizontal="$s5" paddingTop="$s5">
       {isActivating ? (
-        <>
-          <YStack gap="$s6" justifyContent="center" alignItems="center">
-            <Spinner color="$uiNeutralPrimary" backgroundColor="$backgroundMild" containerSize={52} size={32} />
-            <YStack gap="$s2" justifyContent="center" alignItems="center">
-              <Text emphasized title3 color="$uiNeutralSecondary">
-                Activating your new Exa Card
-              </Text>
-              <Text color="$uiNeutralSecondary" footnote>
-                STEP {(step ?? 0) + 1} OF 3
-              </Text>
-            </YStack>
-            <Text color="$uiNeutralSecondary" subHeadline alignSelf="center" textAlign="center">
-              This may take a moment. Please wait.
+        <YStack gap="$s6" justifyContent="center" alignItems="center">
+          <Spinner color="$uiNeutralPrimary" backgroundColor="$backgroundMild" containerSize={52} size={32} />
+          <YStack gap="$s2" justifyContent="center" alignItems="center">
+            <Text emphasized title3 color="$uiNeutralSecondary">
+              Activating your new Exa Card
+            </Text>
+            <Text color="$uiNeutralSecondary" footnote>
+              STEP {(step ?? 0) + 1} OF 3
             </Text>
           </YStack>
-        </>
+          <Text color="$uiNeutralSecondary" subHeadline alignSelf="center" textAlign="center">
+            This may take a moment. Please wait.
+          </Text>
+        </YStack>
       ) : (
         <>
           <YStack gap="$s4">

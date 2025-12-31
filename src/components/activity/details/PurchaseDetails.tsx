@@ -32,7 +32,7 @@ export default function PurchaseDetails({
             Amount
           </Text>
           <Text callout color="$uiNeutralPrimary">
-            {Math.abs(Number(item.amount)).toLocaleString(undefined, {
+            {Math.abs(item.amount).toLocaleString(undefined, {
               maximumFractionDigits: 8,
               minimumFractionDigits: 0,
             })}
@@ -71,7 +71,7 @@ export default function PurchaseDetails({
             </Text>
             <Text callout color="$uiNeutralPrimary">
               1 USD&nbsp;=&nbsp;
-              {Number(Math.abs(item.amount) / Math.abs(item.usdAmount)).toLocaleString(undefined, {
+              {(Math.abs(item.amount) / Math.abs(item.usdAmount)).toLocaleString(undefined, {
                 maximumFractionDigits: 2,
               })}
               &nbsp;{item.currency}

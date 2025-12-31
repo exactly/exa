@@ -1,4 +1,5 @@
-import domain from "@exactly/common/domain";
+import domain from "./domain";
+
 /* eslint-disable @typescript-eslint/prefer-nullish-coalescing -- ignore empty string */
 export default process.env.EXPO_PUBLIC_PANDA_PUBLIC_KEY ||
   {

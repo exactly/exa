@@ -3,13 +3,12 @@ import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { borrowLimit } from "@exactly/lib";
 import { ArrowRight } from "@tamagui/lucide-icons";
 import { format } from "date-fns";
-import { useNavigation } from "expo-router";
+import { useRouter } from "expo-router";
 import React from "react";
 import { Separator, XStack, YStack } from "tamagui";
 import { formatUnits, zeroAddress } from "viem";
 import { useBytecode } from "wagmi";
 
-import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import assetLogos from "../../utils/assetLogos";
 import queryClient, { type Loan } from "../../utils/queryClient";
 import useAccount from "../../utils/useAccount";
@@ -20,7 +19,7 @@ import Text from "../shared/Text";
 
 export default function CreditLine() {
   const { address } = useAccount();
-  const navigation = useNavigation<AppNavigationProperties>();
+  const router = useRouter();
   const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
   const { data: markets } = useReadPreviewerExactly({
     address: previewerAddress,
@@ -74,7 +73,7 @@ export default function CreditLine() {
                 maturity: undefined,
                 receiver: undefined,
               }));
-              navigation.navigate("loan", { screen: "amount" });
+              router.push("/loan/amount");
             }}
             main
             spaced

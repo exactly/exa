@@ -3,14 +3,13 @@ import shortenHex from "@exactly/common/shortenHex";
 import type { Credential } from "@exactly/common/validation";
 import { ArrowLeft, CircleHelp, Info, Wallet } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigation } from "expo-router";
+import { useRouter } from "expo-router";
 import React from "react";
 import { Pressable } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 import { isAddress } from "viem";
 
 import AddFundsOption from "./AddFundsOption";
-import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import OptimismImage from "../../assets/images/optimism.svg";
 import { presentArticle } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
@@ -19,7 +18,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function AddFunds() {
-  const navigation = useNavigation<AppNavigationProperties>();
+  const router = useRouter();
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const ownerAccount = credential && isAddress(credential.credentialId) ? credential.credentialId : undefined;
   return (
@@ -29,10 +28,10 @@ export default function AddFunds() {
           <XStack flexDirection="row" gap={10} justifyContent="space-between" alignItems="center">
             <Pressable
               onPress={() => {
-                if (navigation.canGoBack()) {
-                  navigation.goBack();
+                if (router.canGoBack()) {
+                  router.back();
                 } else {
-                  navigation.replace("(home)", { screen: "index" });
+                  router.replace("/(main)/(home)");
                 }
               }}
             >
@@ -60,7 +59,7 @@ export default function AddFunds() {
                 ownerAccount ? shortenHex(ownerAccount, 4, 6) : ""
               }
               onPress={() => {
-                navigation.navigate("add-funds", { screen: "bridge" });
+                router.push("/add-funds/bridge");
               }}
             />
             <AddFundsOption
@@ -68,7 +67,7 @@ export default function AddFunds() {
               title="From another wallet"
               subtitle={`On ${chain.name}`}
               onPress={() => {
-                navigation.navigate("add-funds", { screen: "add-crypto" });
+                router.push("/add-funds/add-crypto");
               }}
             />
           </YStack>

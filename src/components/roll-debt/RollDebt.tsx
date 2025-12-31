@@ -9,7 +9,7 @@ import { MATURITY_INTERVAL, WAD } from "@exactly/lib";
 import { ArrowLeft, ArrowRight } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { format } from "date-fns";
-import { useNavigation, useLocalSearchParams } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import React, { useCallback } from "react";
 import { Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -18,7 +18,6 @@ import { nonEmpty, pipe, safeParse, string } from "valibot";
 import { ContractFunctionExecutionError, encodeAbiParameters, zeroAddress } from "viem";
 import { useBytecode, useWriteContract } from "wagmi";
 
-import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import SafeView from "../../components/shared/SafeView";
 import Text from "../../components/shared/Text";
 import View from "../../components/shared/View";
@@ -31,7 +30,7 @@ import Skeleton from "../shared/Skeleton";
 export default function Pay() {
   const { address } = useAccount();
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation<AppNavigationProperties>();
+  const router = useRouter();
   const { market: exaUSDC } = useAsset(marketUSDCAddress);
   const { success, output: repayMaturity } = safeParse(
     pipe(string(), nonEmpty("no maturity")),
@@ -67,10 +66,10 @@ export default function Pay() {
           <View padded position="absolute" left={0}>
             <Pressable
               onPress={() => {
-                if (navigation.canGoBack()) {
-                  navigation.goBack();
+                if (router.canGoBack()) {
+                  router.back();
                 } else {
-                  navigation.replace("(main)");
+                  router.replace("/(main)/(home)");
                 }
               }}
             >
@@ -80,7 +79,7 @@ export default function Pay() {
         </View>
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ flex: 1, justifyContent: "space-between" }} // eslint-disable-line react-native/no-inline-styles
+          contentContainerStyle={{ flex: 1, justifyContent: "space-between" }}
         >
           <View padded>
             <Text emphasized title3 textAlign="left">
@@ -200,7 +199,7 @@ function RolloverButton({
   };
 }) {
   const { address } = useAccount();
-  const navigation = useNavigation<AppNavigationProperties>();
+  const router = useRouter();
   const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
   const toast = useToastController();
 
@@ -243,7 +242,7 @@ function RolloverButton({
   });
 
   const {
-    writeContract,
+    mutate,
     isPending: isProposeRollDebtPending,
     error: proposeRollDebtError,
   } = useWriteContract({
@@ -255,7 +254,7 @@ function RolloverButton({
           burntOptions: { haptic: "success", preset: "done" },
         });
         await refetchPendingProposals();
-        navigation.replace("pending-proposals/index");
+        router.replace("/pending-proposals");
       },
       onError: (error) => {
         toast.show("Rollover failed", {
@@ -271,8 +270,8 @@ function RolloverButton({
   const proposeRollDebt = useCallback(() => {
     if (!address) throw new Error("no address");
     if (!proposeSimulation) throw new Error("no propose roll debt simulation");
-    writeContract(proposeSimulation.request);
-  }, [address, proposeSimulation, writeContract]);
+    mutate(proposeSimulation.request);
+  }, [address, proposeSimulation, mutate]);
 
   const hasProposed = pendingProposals?.some(
     ({ proposal }) =>

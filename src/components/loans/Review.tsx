@@ -1,4 +1,4 @@
-import type { BatchUserOperationCallData } from "@alchemy/aa-core";
+import type { BatchUserOperationCallData } from "@aa-sdk/core";
 import ProposalType from "@exactly/common/ProposalType";
 import { exaPluginAddress, marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import {
@@ -12,7 +12,7 @@ import { MATURITY_INTERVAL, WAD } from "@exactly/lib";
 import { ArrowLeft, ArrowRight, Check, ChevronRight, CircleHelp, X } from "@tamagui/lucide-icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { useNavigation } from "expo-router";
+import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
@@ -20,7 +20,6 @@ import { ScrollView, Separator, Square, XStack, YStack } from "tamagui";
 import { encodeAbiParameters, encodeFunctionData, maxUint256, zeroAddress } from "viem";
 import { useBytecode } from "wagmi";
 
-import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import { accountClient } from "../../utils/alchemyConnector";
 import assetLogos from "../../utils/assetLogos";
 import { presentArticle } from "../../utils/intercom";
@@ -39,7 +38,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function Review() {
-  const navigation = useNavigation<AppNavigationProperties>();
+  const router = useRouter();
   const { t } = useTranslation();
   const { address } = useAccount();
   const [paymentScheduleShown, setPaymentScheduleShown] = useState(false);
@@ -173,11 +172,11 @@ export default function Review() {
         >
           <Pressable
             onPress={() => {
-              if (navigation.canGoBack()) {
-                navigation.goBack();
+              if (router.canGoBack()) {
+                router.back();
                 return;
               }
-              navigation.replace("loan", { screen: "receiver" });
+              router.replace("/loan/receiver");
             }}
           >
             <ArrowLeft size={24} color="$uiNeutralPrimary" />
@@ -193,7 +192,6 @@ export default function Review() {
         <ScrollView
           backgroundColor="$backgroundMild"
           showsVerticalScrollIndicator={false}
-          // eslint-disable-next-line react-native/no-inline-styles
           contentContainerStyle={{ flexGrow: 1 }}
         >
           <YStack padding="$s4" gap="$s4" flex={1} justifyContent="space-between">
@@ -360,11 +358,11 @@ export default function Review() {
         <YStack gap="$s7" paddingBottom="$s9">
           <Pressable
             onPress={() => {
-              if (error && navigation.canGoBack()) {
-                navigation.goBack();
+              if (error && router.canGoBack()) {
+                router.back();
                 return;
               }
-              navigation.replace("(home)", { screen: "loans" });
+              router.replace("/loan");
             }}
           >
             <X size={24} color="$uiNeutralPrimary" />
@@ -414,7 +412,7 @@ export default function Review() {
             <Button
               primary
               onPress={() => {
-                navigation.replace("pending-proposals/index");
+                router.replace("/pending-proposals");
               }}
             >
               <Button.Text>Go to Requests</Button.Text>
@@ -431,11 +429,11 @@ export default function Review() {
             footnote
             color="$uiBrandSecondary"
             onPress={() => {
-              if (error && navigation.canGoBack()) {
-                navigation.goBack();
+              if (error && router.canGoBack()) {
+                router.back();
                 return;
               }
-              navigation.replace("(home)", { screen: "loans" });
+              router.replace("/loan");
             }}
           >
             {error ? "Go back" : "Close"}

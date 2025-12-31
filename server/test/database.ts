@@ -86,7 +86,7 @@ export default async function setup() {
   const account = deriveAddress(factory, { x: padHex(owner), y: zeroHash });
   await database
     .insert(schema.credentials)
-    .values([{ id: "bob", publicKey: hexToBytes(owner), account, factory, pandaId: "pandaId" }]);
+    .values([{ id: "bob", publicKey: new Uint8Array(hexToBytes(owner)), account, factory, pandaId: "pandaId" }]);
   await database.$client.end();
 
   return async function teardown() {

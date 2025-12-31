@@ -1,5 +1,3 @@
-import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
-import type { ParamListBase } from "@react-navigation/native";
 import { Boxes, Coins, CreditCard, Home, FileText } from "@tamagui/lucide-icons";
 import { Tabs } from "expo-router";
 import Head from "expo-router/head";
@@ -84,13 +82,4 @@ export default function HomeLayout() {
       </Tabs>
     </>
   );
-}
-
-export type HomeNavigationProperties = BottomTabNavigationProp<HomeLayoutParameterList>;
-export interface HomeLayoutParameterList extends ParamListBase {
-  index: undefined;
-  card: undefined;
-  "pay-mode": undefined;
-  defi: undefined;
-  activity: undefined;
 }

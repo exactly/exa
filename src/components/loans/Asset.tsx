@@ -1,13 +1,12 @@
 import { previewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { ArrowLeft, ArrowRight, Check, CircleHelp } from "@tamagui/lucide-icons";
-import { useNavigation } from "expo-router";
+import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { Pressable } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
 
-import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import assetLogos from "../../utils/assetLogos";
 import { presentArticle } from "../../utils/intercom";
 import queryClient, { type Loan } from "../../utils/queryClient";
@@ -20,7 +19,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function Asset() {
-  const navigation = useNavigation<AppNavigationProperties>();
+  const router = useRouter();
   const { address } = useAccount();
   const [selectedMarket, setSelectedMarket] = useState<string>();
   const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [address ?? zeroAddress] });
@@ -29,11 +28,11 @@ export default function Asset() {
       <View padded flexDirection="row" gap={10} paddingBottom="$s4" justifyContent="space-between" alignItems="center">
         <Pressable
           onPress={() => {
-            if (navigation.canGoBack()) {
-              navigation.goBack();
+            if (router.canGoBack()) {
+              router.back();
               return;
             }
-            navigation.replace("(home)", { screen: "loans" });
+            router.replace("/loan");
           }}
         >
           <ArrowLeft size={24} color="$uiNeutralPrimary" />
@@ -49,7 +48,6 @@ export default function Asset() {
       <ScrollView
         backgroundColor="$backgroundMild"
         showsVerticalScrollIndicator={false}
-        // eslint-disable-next-line react-native/no-inline-styles
         contentContainerStyle={{ flexGrow: 1 }}
       >
         <YStack padding="$s4" gap="$s4" flex={1} justifyContent="space-between">
@@ -111,7 +109,7 @@ export default function Asset() {
             <Button
               onPress={() => {
                 queryClient.setQueryData(["loan"], (old: Loan) => ({ ...old, market: selectedMarket }));
-                navigation.navigate("loan", { screen: "amount" });
+                router.push("/loan/amount");
               }}
               main
               spaced

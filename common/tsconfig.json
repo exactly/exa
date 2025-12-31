@@ -1,21 +1,19 @@
 {
   "compilerOptions": {
-    "lib": ["ESNext"],
+    "lib": [],
     "target": "ESNext",
     "module": "ESNext",
     "moduleDetection": "force",
-    "moduleResolution": "Node",
-    "allowImportingTsExtensions": true,
+    "moduleResolution": "bundler",
     "noUncheckedIndexedAccess": true,
     "verbatimModuleSyntax": true,
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "checkJs": true,
     "allowJs": true,
+    "checkJs": true,
     "noEmit": true,
     "pretty": true,
     "strict": true
-  },
-  "include": ["./*.config.ts", "./*.config.mjs", "./*.config.cjs", ".eslintrc.cjs", ".maestro/esbuild.config.cjs"]
+  }
 }

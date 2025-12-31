@@ -336,14 +336,15 @@ export async function onboarding(data: Onboarding): Promise<void> {
   ]);
   if (!frontFileEncoded) throw new Error(ErrorCodes.NO_DOCUMENT_FILE);
 
-  const identifyingInformation: (InferInput<typeof IdentityDocument> | InferInput<typeof TIN>)[] = [];
-  identifyingInformation.push({
-    type: bridgeIdType,
-    issuing_country: country,
-    number: identificationNumber,
-    image_front: frontFileEncoded,
-    image_back: backFileEncoded,
-  });
+  const identifyingInformation: (InferInput<typeof IdentityDocument> | InferInput<typeof TIN>)[] = [
+    {
+      type: bridgeIdType,
+      issuing_country: country,
+      number: identificationNumber,
+      image_front: frontFileEncoded,
+      image_back: backFileEncoded,
+    },
+  ];
 
   if (countryCode === "US") {
     const ssn = personaAccount.attributes["social-security-number"];

@@ -63,7 +63,7 @@ const Webhook = object({
   signing_key: string(),
   is_active: boolean(),
 });
-type Webhook = InferOutput<typeof Webhook>; // eslint-disable-line @typescript-eslint/no-redeclare
+type Webhook = InferOutput<typeof Webhook>;
 
 const WebhookResponse = object({ data: Webhook });
 const WebhooksResponse = object({ data: array(Webhook) });

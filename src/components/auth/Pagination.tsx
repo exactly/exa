@@ -73,7 +73,7 @@ export default memo(function Pagination({
       {Array.from({ length }).map((_, index) => {
         return (
           <PaginationComponent
-            key={index}
+            key={index} // eslint-disable-line @eslint-react/no-array-index-key
             index={index}
             x={x}
             progress={progress}

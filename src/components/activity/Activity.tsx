@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import React, { memo, useCallback, useMemo } from "react";
-import type { ListRenderItem } from "react-native";
+import React, { memo, useMemo, type RefObject } from "react";
 import { FlatList, RefreshControl } from "react-native";
 import { styled, useTheme } from "tamagui";
 
@@ -48,18 +47,6 @@ export default function Activity() {
 
     return { data: items, stickyHeaderIndices: stickyIndices };
   }, [activity]);
-
-  const renderItem = useCallback<ListRenderItem<ActivityItemType>>(({ item }) => {
-    if (item.type === "header") return <HeaderRow date={item.date} />;
-    return <MemoizedActivityItem item={item.event} isLast={item.isLast} />;
-  }, []);
-
-  const keyExtractor = useCallback(
-    (item: ActivityItemType) => (item.type === "header" ? `header-${item.date}` : `event-${item.event.id}`),
-    [],
-  );
-
-  const style = { backgroundColor: theme.backgroundSoft.val, margin: -5 };
   return (
     <SafeView fullScreen tab backgroundColor="$backgroundSoft">
       <View gap="$s5" flex={1} backgroundColor="$backgroundMild">
@@ -70,7 +57,7 @@ export default function Activity() {
           refreshControl={
             <RefreshControl
               ref={activityRefreshControlReference}
-              style={style}
+              style={{ backgroundColor: theme.backgroundSoft.val, margin: -5 }}
               refreshing={isPending}
               onRefresh={() => {
                 refetch().catch(reportError);
@@ -102,20 +89,14 @@ export default function Activity() {
   );
 }
 
-type ActivityItemType =
-  | { type: "header"; date: string }
-  | {
-      type: "event";
-      event: ActivityEvent;
-      isLast: boolean;
-    };
+type ActivityItemType = { type: "header"; date: string } | { type: "event"; event: ActivityEvent; isLast: boolean };
 
 type ActivityItemProperties = React.ComponentProps<typeof ActivityItem>;
 
 const StyledFlatList = styled(FlatList<ActivityItemType>, { backgroundColor: "$backgroundMild" });
 
-export const activityScrollReference = React.createRef<FlatList>();
-export const activityRefreshControlReference = React.createRef<RefreshControl>();
+export const activityScrollReference: RefObject<FlatList | null> = { current: null };
+export const activityRefreshControlReference: RefObject<RefreshControl | null> = { current: null };
 
 const HeaderRow = memo(function HeaderRow({ date }: { date: string }) {
   return (
@@ -128,8 +109,18 @@ const HeaderRow = memo(function HeaderRow({ date }: { date: string }) {
 });
 HeaderRow.displayName = "HeaderRow";
 
-const areActivityItemsEqual = (previous: ActivityItemProperties, next: ActivityItemProperties) =>
-  previous.item === next.item && previous.isLast === next.isLast;
+function renderItem({ item }: { item: ActivityItemType }) {
+  if (item.type === "header") return <HeaderRow date={item.date} />;
+  return <MemoizedActivityItem item={item.event} isLast={item.isLast} />;
+}
+
+function areActivityItemsEqual(previous: ActivityItemProperties, next: ActivityItemProperties) {
+  return previous.item === next.item && previous.isLast === next.isLast;
+}
+
+function keyExtractor(item: ActivityItemType) {
+  return item.type === "header" ? `header-${item.date}` : `event-${item.event.id}`;
+}
 
 const MemoizedActivityItem = memo(ActivityItem, areActivityItemsEqual);
 MemoizedActivityItem.displayName = "MemoizedActivityItem";

@@ -16,7 +16,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
-const bytea = customType<{ data: Uint8Array; driverData: string }>({ dataType: () => "bytea" });
+const bytea = customType<{ data: Uint8Array<ArrayBuffer>; driverData: string }>({ dataType: () => "bytea" });
 
 export const cardStatus = pgEnum("card_status", ["ACTIVE", "FROZEN", "DELETED"]);
 

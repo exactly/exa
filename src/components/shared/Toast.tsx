@@ -14,8 +14,8 @@ export default function NotificationToast() {
     <Toast
       key={toast.id}
       duration={toast.duration}
-      enterStyle={{ opacity: 0, scale: 0.5, y: -25 }} // eslint-disable-line react-native/no-inline-styles
-      exitStyle={{ opacity: 0, scale: 1, y: -20 }} // eslint-disable-line react-native/no-inline-styles
+      enterStyle={{ opacity: 0, scale: 0.5, y: -25 }}
+      exitStyle={{ opacity: 0, scale: 1, y: -20 }}
       backgroundColor="$backgroundSoft"
       borderColor={
         type === "success" ? "$borderSuccessSoft" : type === "error" ? "$borderErrorSoft" : "$borderInformationSoft"

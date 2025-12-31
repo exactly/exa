@@ -2,9 +2,9 @@ import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 import deriveAddress from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
 import { Credential } from "@exactly/common/validation";
-import type { ExaAPI } from "@exactly/server/api";
+import type { ExaAPI } from "@exactly/server/api"; // eslint-disable-line @nx/enforce-module-boundaries
 import { sdk } from "@farcaster/miniapp-sdk";
-import { getAccount, signMessage } from "@wagmi/core";
+import { getConnection, signMessage } from "@wagmi/core";
 import { hc } from "hono/client";
 import { Platform } from "react-native";
 import { get as assert, create } from "react-native-passkeys";
@@ -24,7 +24,7 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
     const method = queryClient.getQueryData<AuthMethod>(["method"]);
     const credentialId =
       method === "siwe"
-        ? getAccount(ownerConfig).address
+        ? getConnection(ownerConfig).address
         : queryClient.getQueryData<Credential>(["credential"])?.credentialId;
     if (method === "siwe" && !credentialId) return queryClient.getQueryData<number>(["auth"]) ?? 0;
     const get = await api.auth.authentication.$get({ query: { credentialId } });
@@ -177,7 +177,7 @@ export async function getCredential() {
 
 export async function createCredential() {
   const method = queryClient.getQueryData<AuthMethod>(["method"]);
-  const credentialId = method === "siwe" ? getAccount(ownerConfig).address : undefined;
+  const credentialId = method === "siwe" ? getConnection(ownerConfig).address : undefined;
   if (method === "siwe" && !credentialId) throw new Error("invalid operation");
   const get = await api.auth.registration.$get({ query: { credentialId } });
   const options = await get.json();

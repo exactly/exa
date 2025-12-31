@@ -20,13 +20,10 @@ export default function usePendingOperations() {
     query: { enabled: !!exaAccount && !!bytecode, gcTime: 0, refetchInterval: 30_000 },
   });
 
-  const [bridgeMutation] = useMutationState<MutationState<unknown, Error, RouteFrom>>({
+  const [bridgeMutation] = useMutationState<MutationState<unknown, Error, RouteFrom> & { id: number }>({
     filters: { mutationKey: ["bridge", "execute"], exact: true },
-    select: ({ state }) => {
-      return {
-        ...state,
-        variables: state.variables as RouteFrom,
-      };
+    select: ({ state, mutationId }) => {
+      return { ...state, id: mutationId, variables: state.variables as RouteFrom };
     },
   });
 

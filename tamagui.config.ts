@@ -384,6 +384,15 @@ const tamagui = createTamagui({
       borderInformationSoft: tokens.color.feedbackInformationLight4,
       borderInformationMild: tokens.color.feedbackInformationLight5,
       borderInformationStrong: tokens.color.feedbackInformationLight6,
+      color: "",
+      background: "",
+      backgroundColor: "",
+      backgroundHover: "",
+      backgroundPress: "",
+      borderColor: "",
+      borderColorFocus: "",
+      borderColorPress: "",
+      outlineColor: "",
     },
     dark: {
       cardDebitBackground: tokens.color.debitDark1,
@@ -519,12 +528,21 @@ const tamagui = createTamagui({
       borderInformationSoft: tokens.color.feedbackInformationDark4,
       borderInformationMild: tokens.color.feedbackInformationDark5,
       borderInformationStrong: tokens.color.feedbackInformationDark6,
+      color: "",
+      background: "",
+      backgroundColor: "",
+      backgroundHover: "",
+      backgroundPress: "",
+      borderColor: "",
+      borderColorFocus: "",
+      borderColorPress: "",
+      outlineColor: "",
     },
   },
 });
 
 export type Config = typeof tamagui;
 declare module "tamagui" {
-  interface TamaguiCustomConfig extends Config {}
+  interface TamaguiCustomConfig extends Config {} // eslint-disable-line @typescript-eslint/no-empty-interface
 }
 export default tamagui;

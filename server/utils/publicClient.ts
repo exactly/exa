@@ -5,7 +5,7 @@ import { inspect } from "node:util";
 import { array, object, optional, parse, string, unknown, type InferOutput } from "valibot";
 import { createPublicClient, http } from "viem";
 
-if (!chain.rpcUrls.alchemy?.http[0]) throw new Error("missing alchemy rpc url");
+if (!chain.rpcUrls.alchemy.http[0]) throw new Error("missing alchemy rpc url");
 
 export default createPublicClient({
   chain,
