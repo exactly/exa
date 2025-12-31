@@ -3,6 +3,7 @@ import { Address } from "@exactly/common/validation";
 import { pushSchema } from "drizzle-kit/api";
 import { drizzle } from "drizzle-orm/node-postgres";
 import EmbeddedPostgres from "embedded-postgres";
+import { $ } from "execa";
 import { spawn, type ChildProcess } from "node:child_process";
 import { readFile, rm } from "node:fs/promises";
 import { literal, object, parse, tuple } from "valibot";
@@ -41,8 +42,34 @@ export default async function setup() {
   await Promise.all([
     pushSchema(schema, database as never).then(({ apply }) => apply()),
     waitOn({ resources: ["tcp:localhost:8545"], timeout: 33_333 }),
+    rm("node_modules/@exactly/.firehose", { recursive: true, force: true }),
   ]);
   process.stdout.write = stdoutWrite;
+
+  const controller = new AbortController();
+  /* eslint-disable no-void */
+  void $({
+    cancelSignal: controller.signal,
+    forceKillAfterDelay: 33_333,
+  })`fireeth start reader-node,merger,relayer,substreams-tier1 --advertise-chain-name=anvil --config-file= \
+      --data-dir=node_modules/@exactly/.firehose --reader-node-path=bash --reader-node-arguments=${'-c "\
+        fireeth tools poll-rpc-blocks http://localhost:8545 0 | tsx script/firehose.ts"'}`.catch((error: unknown) => {
+    if (controller.signal.aborted) return;
+    throw error;
+  });
+  await waitOn({ resources: ["tcp:localhost:10016"], timeout: 33_333 });
+  void $({
+    cancelSignal: controller.signal,
+    forceKillAfterDelay: 33_333,
+    cwd: "node_modules/@exactly/substreams",
+    env: { SUBSTREAMS_ENDPOINTS_CONFIG_ANVIL: "localhost:10016" },
+  })`substreams-sink-sql run ${postgresURL}&schemaName=substreams substreams.yaml --plaintext --batch-block-flush-interval 1 --batch-row-flush-interval 0`.catch(
+    (error: unknown) => {
+      if (controller.signal.aborted) return;
+      throw error;
+    },
+  );
+  /* eslint-enable no-void */
 
   const factoryBroadcast = "node_modules/@exactly/plugin/broadcast/ExaAccountFactory.s.sol/31337/run-latest.json";
   await waitOn({ resources: [factoryBroadcast], timeout: 33_333 });
@@ -63,6 +90,7 @@ export default async function setup() {
   await database.$client.end();
 
   return async function teardown() {
+    controller.abort();
     await postgres.stop();
   };
 }
