@@ -701,6 +701,9 @@ importers:
       '@exactly/plugin':
         specifier: workspace:^1.1.0
         version: link:../contracts
+      '@exactly/substreams':
+        specifier: workspace:^0.0.1
+        version: link:../substreams
       '@sentry/cli':
         specifier: ^2.57.0
         version: 2.57.0
