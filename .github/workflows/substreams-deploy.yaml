@@ -1,4 +1,4 @@
-name: server/deploy
+name: substreams/deploy
 on:
   workflow_call:
     inputs:
@@ -10,14 +10,13 @@ on:
 jobs:
   digitalocean:
     runs-on: ubuntu-latest
-    environment: { name: "${{ inputs.environment }}", url: "https://${{ vars.APP_DOMAIN }}" }
+    environment: ${{ inputs.environment }}
     concurrency: { group: "digitalocean-${{ inputs.environment }}", cancel-in-progress: true }
     env:
       CHAIN_ID: ${{ vars.CHAIN_ID }}
-      APP_DOMAIN: ${{ vars.APP_DOMAIN }}
     steps:
       - uses: digitalocean/app_action/deploy@v2
-        env: { IMAGE_TAG_SERVER: "sha-${{ github.sha }}" }
+        env: { IMAGE_TAG_SUBSTREAMS: "sha-${{ github.sha }}" }
         with:
           app_name: ${{ inputs.environment }}
           token: ${{ secrets.DIGITALOCEAN_TOKEN }}

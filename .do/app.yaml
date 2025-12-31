@@ -178,3 +178,25 @@ services:
           index_name: logs
     # @endif
     name: server
+    run_command: run ${postgres.DATABASE_URL} substreams.yaml
+workers:
+  - envs:
+      - key: POSTGRES_URL
+        scope: RUN_TIME
+        value: ${postgres.DATABASE_URL}
+      - key: SUBSTREAMS_API_TOKEN
+        scope: RUN_TIME
+        type: SECRET
+        value: ${{ env.ENCRYPTED_SUBSTREAMS_API_TOKEN || env.SUBSTREAMS_API_TOKEN }}
+      - key: SUBSTREAMS_ENDPOINTS_CONFIG_${{ env.NETWORK }}
+        scope: RUN_TIME
+    image:
+      digest: ${IMAGE_DIGEST_SUBSTREAMS}
+      registry: exactly
+      registry_credentials: ${GHCR_CREDENTIALS}
+      registry_type: GHCR
+      repository: substreams-${ENVIRONMENT}
+    instance_count: 1
+    instance_size_slug: apps-s-1vcpu-0.5gb # cspell:ignore vcpu
+    name: substreams
+    source_dir: /substreams/

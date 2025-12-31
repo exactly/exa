@@ -9,7 +9,6 @@ import chain, {
   marketWETHAddress,
   proposalManagerAbi,
   proposalManagerAddress,
-  upgradeableModularAccountAbi,
 } from "@exactly/common/generated/chain";
 import { Address, Hash, type Hex } from "@exactly/common/validation";
 import { effectiveRate, WAD } from "@exactly/lib";
@@ -46,7 +45,7 @@ import {
 } from "valibot";
 import { decodeFunctionData, zeroHash, type Log } from "viem";
 
-import database, { credentials } from "../database";
+import database, { credentials, exaPlugins } from "../database";
 import auth from "../middleware/auth";
 import { collectors as cryptomateCollectors } from "../utils/cryptomate";
 import { collectors as pandaCollectors } from "../utils/panda";
@@ -92,16 +91,9 @@ export default new Hono().get(
         .readContract({ address: exaPreviewerAddress, functionName: "markets", abi: exaPreviewerAbi })
         .then((p) => new Map<Hex, (typeof p)[number]>(p.map((m) => [m.market.toLowerCase() as Hex, m]))),
       !ignore("repay") || !ignore("sent") || !ignore("received")
-        ? publicClient
-            .getContractEvents({
-              abi: upgradeableModularAccountAbi,
-              eventName: "PluginInstalled",
-              address: account,
-              toBlock: "latest",
-              fromBlock: 0n,
-              strict: true,
-            })
-            .then((logs) => new Set(logs.map(({ args }) => args.plugin.toLowerCase() as Hex)))
+        ? database.query.exaPlugins
+            .findMany({ where: eq(exaPlugins.account, account.slice(2).toLowerCase()) })
+            .then((accountPlugins) => new Set(accountPlugins.map(({ address }) => `0x${address}` as const)))
         : Promise.resolve(forbid(new Set<Hex>())),
     ]);
 
