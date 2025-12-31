@@ -3,14 +3,13 @@ import { MATURITY_INTERVAL } from "@exactly/lib";
 import { ArrowLeft, ArrowRight, Check, CircleHelp } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { useNavigation } from "expo-router";
+import { useRouter } from "expo-router";
 import React, { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import LoanSummary from "./LoanSummary";
-import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import { presentArticle } from "../../utils/intercom";
 import type { Loan } from "../../utils/queryClient";
 import queryClient from "../../utils/queryClient";
@@ -22,7 +21,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function Maturity() {
-  const navigation = useNavigation<AppNavigationProperties>();
+  const router = useRouter();
   const { t } = useTranslation();
   const { address } = useAccount();
   const { data: loan } = useQuery<Loan>({ queryKey: ["loan"], enabled: !!address });
@@ -44,11 +43,11 @@ export default function Maturity() {
         <Pressable
           onPress={() => {
             queryClient.setQueryData(["loan"], (old: Loan) => ({ ...old, maturity: undefined }));
-            if (navigation.canGoBack()) {
-              navigation.goBack();
+            if (router.canGoBack()) {
+              router.back();
               return;
             }
-            navigation.replace("(home)", { screen: "loans" });
+            router.replace("/loan");
           }}
         >
           <ArrowLeft size={24} color="$uiNeutralPrimary" />
@@ -64,7 +63,6 @@ export default function Maturity() {
       <ScrollView
         backgroundColor="$backgroundMild"
         showsVerticalScrollIndicator={false}
-        // eslint-disable-next-line react-native/no-inline-styles
         contentContainerStyle={{ flexGrow: 1 }}
       >
         <YStack gap="$s4" justifyContent="space-between">
@@ -81,7 +79,7 @@ export default function Maturity() {
                     const invalid = index + Number(loan?.installments) > MAX_INSTALLMENTS;
                     return (
                       <XStack
-                        key={index}
+                        key={maturity}
                         onPress={() => {
                           if (invalid) return;
                           queryClient.setQueryData(["loan"], (old: Loan) => ({ ...old, maturity }));
@@ -135,7 +133,7 @@ export default function Maturity() {
         {loan && <LoanSummary loan={loan} />}
         <Button
           onPress={() => {
-            navigation.navigate("loan", { screen: "receiver" });
+            router.push("/loan/receiver");
           }}
           primary
           disabled={disabled}

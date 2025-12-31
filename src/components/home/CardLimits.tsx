@@ -3,13 +3,12 @@ import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { borrowLimit, WAD, withdrawLimit } from "@exactly/lib";
 import { ChevronRight, Info } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigation } from "expo-router";
+import { useRouter } from "expo-router";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
 
-import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import assetLogos from "../../utils/assetLogos";
 import type { CardDetails } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
@@ -19,7 +18,7 @@ import Text from "../shared/Text";
 export default function CardLimits({ onPress }: { onPress: () => void }) {
   const { t } = useTranslation();
   const { address } = useAccount();
-  const navigation = useNavigation<AppNavigationProperties>();
+  const router = useRouter();
   const { data: card } = useQuery<CardDetails>({ queryKey: ["card", "details"] });
   const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [address ?? zeroAddress] });
   const isCredit = card ? card.mode > 0 : false;
@@ -61,7 +60,7 @@ export default function CardLimits({ onPress }: { onPress: () => void }) {
         paddingHorizontal="$s3"
         cursor="pointer"
         onPress={() => {
-          navigation.navigate("(home)", { screen: "pay-mode" });
+          router.push("/pay-mode");
         }}
       >
         <Text

@@ -1,4 +1,4 @@
-import { optimism } from "@alchemy/aa-core";
+import { optimism } from "@account-kit/infra";
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
@@ -12,8 +12,7 @@ import {
   wrap,
 } from "@sentry/react-native";
 import { ToastProvider } from "@tamagui/toast";
-// @ts-expect-error hack before metro supports exports
-import { ReactQueryDevtools } from "@tanstack/react-query-devtools/build/modern/production"; // HACK improve after expo 53
+import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { reconnect } from "@wagmi/core";
 import { isRunningInExpoGo } from "expo";
@@ -93,7 +92,7 @@ init({
   tracesSampleRate: 1,
   attachStacktrace: true,
   attachViewHierarchy: true,
-  autoSessionTracking: true,
+  enableAutoSessionTracking: true,
   tracePropagationTargets: [domain],
   enableNativeFramesTracking: !isRunningInExpoGo(),
   enableUserInteractionTracing: true,
@@ -112,7 +111,7 @@ if (!chain.testnet && chain.id !== anvil.id && typeof window !== "undefined") {
     providers: [EVM({ getWalletClient: () => Promise.resolve(publicClient) })],
     rpcUrls: {
       [optimism.id]: [`${optimism.rpcUrls.alchemy?.http[0]}/${alchemyAPIKey}`],
-      [chain.id]: [publicClient.transport.url],
+      [chain.id]: [publicClient.transport.alchemyRpcUrl],
     },
   });
 }

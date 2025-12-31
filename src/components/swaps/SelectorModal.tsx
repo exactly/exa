@@ -13,40 +13,7 @@ import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-interface TokenSelectModalProperties {
-  open: boolean;
-  tokens: Token[];
-  selectedToken?: Token | null;
-  onSelect: (token: Token) => void;
-  onClose: () => void;
-  isLoading?: boolean;
-  title?: string;
-  withBalanceOnly?: boolean;
-}
-
-interface TokenListItemProperties {
-  token: Token;
-  isSelected: boolean;
-  onPress: () => void;
-}
-
-const formatUSDValue = (value: number) => {
-  return value.toLocaleString(undefined, {
-    style: "currency",
-    currency: "USD",
-    currencyDisplay: "narrowSymbol",
-  });
-};
-
-const formatTokenAmount = (amount: bigint, decimals: number) => {
-  const tokenAmount = Number(amount) / 10 ** decimals;
-  return tokenAmount.toLocaleString(undefined, {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: Math.min(8, Math.max(0, decimals - Math.ceil(Math.log10(Math.max(1, tokenAmount))))),
-  });
-};
-
-function TokenListItem({ token, isSelected, onPress }: TokenListItemProperties) {
+function TokenListItem({ token, isSelected, onPress }: { token: Token; isSelected: boolean; onPress: () => void }) {
   const { accountAssets } = useAccountAssets();
   const matchingAsset = accountAssets.find(
     (asset) =>
@@ -65,7 +32,7 @@ function TokenListItem({ token, isSelected, onPress }: TokenListItemProperties) 
         <Image
           source={{ uri: token.logoURI ?? "https://via.placeholder.com/40" }}
           borderRadius={20}
-          style={{ minWidth: 40, minHeight: 40, borderRadius: 99 }} // eslint-disable-line react-native/no-inline-styles
+          style={{ minWidth: 40, minHeight: 40, borderRadius: 99 }}
         />
         <XStack gap="$s2" flex={1} justifyContent="space-between">
           <YStack flex={1}>
@@ -115,7 +82,16 @@ export default function TokenSelectModal({
   isLoading = false,
   title = "Select Token",
   withBalanceOnly = false,
-}: TokenSelectModalProperties) {
+}: {
+  open: boolean;
+  tokens: Token[];
+  selectedToken?: Token | null;
+  onSelect: (token: Token) => void;
+  onClose: () => void;
+  isLoading?: boolean;
+  title?: string;
+  withBalanceOnly?: boolean;
+}) {
   const [searchQuery, setSearchQuery] = useState("");
   const { accountAssets } = useAccountAssets();
 
@@ -156,16 +132,15 @@ export default function TokenSelectModal({
     />
   );
 
-  const skeletonItems = useMemo(
-    () => (
+  const skeletonItems = () => {
+    return (
       <YStack>
         {Array.from({ length: 8 }).map((_, index) => (
-          <TokenSkeletonItem key={index} />
+          <TokenSkeletonItem key={index} /> // eslint-disable-line @eslint-react/no-array-index-key
         ))}
       </YStack>
-    ),
-    [],
-  );
+    );
+  };
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag heightPercent={85}>
       <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
@@ -225,3 +200,19 @@ export default function TokenSelectModal({
     </ModalSheet>
   );
 }
+
+const formatUSDValue = (value: number) => {
+  return value.toLocaleString(undefined, {
+    style: "currency",
+    currency: "USD",
+    currencyDisplay: "narrowSymbol",
+  });
+};
+
+const formatTokenAmount = (amount: bigint, decimals: number) => {
+  const tokenAmount = Number(amount) / 10 ** decimals;
+  return tokenAmount.toLocaleString(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: Math.min(8, Math.max(0, decimals - Math.ceil(Math.log10(Math.max(1, tokenAmount))))),
+  });
+};

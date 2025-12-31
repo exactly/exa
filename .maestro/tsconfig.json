@@ -10,10 +10,11 @@
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "allowJs": false,
-    "checkJs": false,
+    "allowJs": true,
+    "checkJs": true,
     "noEmit": true,
     "pretty": true,
     "strict": true
-  }
+  },
+  "exclude": ["node_modules", "dist"]
 }

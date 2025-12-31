@@ -1,4 +1,4 @@
-import { mainnet } from "@alchemy/aa-core";
+import { mainnet } from "@account-kit/infra";
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import { parse } from "valibot";
 import { createPublicClient, http } from "viem";

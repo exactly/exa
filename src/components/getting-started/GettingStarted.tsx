@@ -1,13 +1,12 @@
 import type { Credential } from "@exactly/common/validation";
 import { ArrowDownToLine, ArrowLeft, Check, IdCard } from "@tamagui/lucide-icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useNavigation } from "expo-router";
+import { useRouter } from "expo-router";
 import React from "react";
 import { Pressable } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import Step from "./Step";
-import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import { presentArticle } from "../../utils/intercom";
 import { createInquiry, KYC_TEMPLATE_ID, resumeInquiry } from "../../utils/persona";
 import queryClient from "../../utils/queryClient";
@@ -20,7 +19,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function GettingStarted() {
-  const navigation = useNavigation<AppNavigationProperties>();
+  const router = useRouter();
   const { steps } = useOnboardingSteps();
   return (
     <SafeView fullScreen backgroundColor="$backgroundBrandSoft" paddingBottom={0}>
@@ -30,10 +29,10 @@ export default function GettingStarted() {
             <View position="absolute" left={0}>
               <Pressable
                 onPress={() => {
-                  if (navigation.canGoBack()) {
-                    navigation.goBack();
+                  if (router.canGoBack()) {
+                    router.back();
                   } else {
-                    navigation.replace("(home)", { screen: "index" });
+                    router.replace("/(main)/(home)");
                   }
                 }}
               >
@@ -118,7 +117,7 @@ export default function GettingStarted() {
 }
 
 function CurrentStep() {
-  const navigation = useNavigation<AppNavigationProperties>();
+  const router = useRouter();
   const { currentStep, completedSteps } = useOnboardingSteps();
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const { mutateAsync: startKYC } = useMutation({
@@ -129,7 +128,7 @@ function CurrentStep() {
         const result = await getKYCStatus(KYC_TEMPLATE_ID);
         if (result === "ok") return;
         if (typeof result !== "string") {
-          await resumeInquiry(result.inquiryId, result.sessionToken, navigation);
+          await resumeInquiry(result.inquiryId, result.sessionToken);
         }
       } catch (error) {
         if (!(error instanceof APIError)) {
@@ -137,7 +136,7 @@ function CurrentStep() {
           return;
         }
         if (error.text === "kyc required" || error.text === "kyc not found" || error.text === "kyc not started") {
-          await createInquiry(credential, navigation);
+          await createInquiry(credential);
           return;
         }
         reportError(error);
@@ -150,7 +149,7 @@ function CurrentStep() {
   function handleAction() {
     switch (currentStep?.id) {
       case "add-funds":
-        navigation.navigate("add-funds", { screen: "add-crypto" });
+        router.push("/add-funds/add-crypto");
         break;
       case "verify-identity":
         startKYC().catch(reportError);
@@ -202,7 +201,7 @@ function StepCounter({ completedSteps }: { completedSteps: number }) {
       <XStack flex={1} gap="$s2">
         {Array.from({ length: 3 }).map((_, index) => (
           <XStack
-            key={index}
+            key={index} // eslint-disable-line @eslint-react/no-array-index-key
             backgroundColor={completedSteps > index ? "$interactiveBaseBrandDefault" : "$uiBrandTertiary"}
             height={8}
             borderRadius="$r_0"

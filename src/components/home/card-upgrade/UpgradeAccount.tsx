@@ -106,22 +106,20 @@ export default function UpgradeAccount() {
   return (
     <View fullScreen flex={1} gap="$s6" paddingHorizontal="$s5" paddingTop="$s5" backgroundColor="$backgroundSoft">
       {isUpgrading ? (
-        <>
-          <YStack gap="$s6" justifyContent="center" alignItems="center">
-            <Spinner color="$uiNeutralPrimary" backgroundColor="$backgroundMild" containerSize={52} size={32} />
-            <YStack gap="$s2" justifyContent="center" alignItems="center">
-              <Text emphasized title3 color="$uiNeutralSecondary">
-                Updating your account
-              </Text>
-              <Text color="$uiNeutralSecondary" footnote>
-                STEP {(step ?? 0) + 1} OF 3
-              </Text>
-            </YStack>
-            <Text color="$uiNeutralSecondary" subHeadline alignSelf="center" textAlign="center">
-              This may take a moment. Please wait.
+        <YStack gap="$s6" justifyContent="center" alignItems="center">
+          <Spinner color="$uiNeutralPrimary" backgroundColor="$backgroundMild" containerSize={52} size={32} />
+          <YStack gap="$s2" justifyContent="center" alignItems="center">
+            <Text emphasized title3 color="$uiNeutralSecondary">
+              Updating your account
+            </Text>
+            <Text color="$uiNeutralSecondary" footnote>
+              STEP {(step ?? 0) + 1} OF 3
             </Text>
           </YStack>
-        </>
+          <Text color="$uiNeutralSecondary" subHeadline alignSelf="center" textAlign="center">
+            This may take a moment. Please wait.
+          </Text>
+        </YStack>
       ) : (
         <>
           <YStack gap="$s4">

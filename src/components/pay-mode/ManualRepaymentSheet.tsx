@@ -1,5 +1,5 @@
 import { ArrowRight, Check } from "@tamagui/lucide-icons";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { ScrollView, Separator, XStack, YStack } from "tamagui";
 
 import ModalSheet from "../shared/ModalSheet";
@@ -17,12 +17,9 @@ export default function ManualRepaymentSheet({
   onClose: () => void;
   onActionPress: () => void;
 }) {
-  const [acknowledged, setAcknowledged] = useState(false);
-  useEffect(() => {
-    setAcknowledged(!open);
-  }, [open]);
+  const [acknowledged, setAcknowledged] = useState(true);
   return (
-    <ModalSheet open={open} onClose={onClose} disableDrag>
+    <ModalSheet key={open ? "open" : "closed"} open={open} onClose={onClose} disableDrag>
       <SafeView
         paddingTop={0}
         $platform-web={{ paddingBottom: "$s4" }}

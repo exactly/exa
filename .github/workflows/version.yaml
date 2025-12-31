@@ -13,7 +13,7 @@ jobs:
           token: ${{ secrets.RELEASE_GITHUB_TOKEN }}
       - uses: pnpm/action-setup@v4
         with:
-          version: "9.15.9"
+          version: "10.27.0"
           run_install: false
       - uses: actions/setup-node@v4
         with:

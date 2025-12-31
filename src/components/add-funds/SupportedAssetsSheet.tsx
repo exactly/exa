@@ -36,10 +36,10 @@ export default function SupportedAssetsSheet({ open, onClose }: { open: boolean;
               </Text>
             </YStack>
             <XStack justifyContent="center" flexWrap="wrap">
-              {supportedAssets.map((asset, index) => {
+              {supportedAssets.map(({ symbol, image }) => {
                 return (
                   <XStack
-                    key={index}
+                    key={symbol}
                     borderWidth={1}
                     alignItems="center"
                     borderColor="$borderNeutralSoft"
@@ -49,9 +49,9 @@ export default function SupportedAssetsSheet({ open, onClose }: { open: boolean;
                     margin="$s3"
                     gap="$s2"
                   >
-                    <AssetLogo source={{ uri: asset.image }} width={32} height={32} />
+                    <AssetLogo source={{ uri: image }} width={32} height={32} />
                     <Text primary emphasized callout>
-                      {asset.symbol}
+                      {symbol}
                     </Text>
                   </XStack>
                 );

@@ -5,20 +5,19 @@ import {
 } from "@exactly/common/generated/hooks";
 import { ArrowDownToLine, ArrowUpRight } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigation } from "expo-router";
+import { useRouter } from "expo-router";
 import React from "react";
 import { XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
 import { useBytecode, useReadContract } from "wagmi";
 
-import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import type { AuthMethod } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import Button from "../shared/StyledButton";
 
 export default function HomeActions() {
-  const navigation = useNavigation<AppNavigationProperties>("/(main)");
+  const router = useRouter();
   const { address: account } = useAccount();
   const { data: method } = useQuery<AuthMethod>({ queryKey: ["method"] });
   const { data: bytecode } = useBytecode({ address: account ?? zeroAddress, query: { enabled: !!account } });
@@ -52,14 +51,14 @@ export default function HomeActions() {
 
   const handleSend = async () => {
     if (isLatestPlugin) {
-      navigation.navigate("send-funds", { screen: "index" });
+      router.push("/send-funds");
     } else {
       if (isPending) return;
       const { data: proposals } = await fetchProposals();
       if (proposals && proposals[0] > 0n) {
-        navigation.navigate("pending-proposals/index");
+        router.push("/pending-proposals");
       } else {
-        navigation.navigate("send-funds", { screen: "index" });
+        router.push("/send-funds");
       }
     }
   };
@@ -78,10 +77,10 @@ export default function HomeActions() {
                   case "deposit":
                     switch (method) {
                       case "siwe":
-                        navigation.navigate("add-funds", { screen: "index" });
+                        router.push("/add-funds");
                         break;
                       default:
-                        navigation.navigate("add-funds", { screen: "add-crypto" });
+                        router.push("/add-funds/add-crypto");
                         break;
                     }
                     break;

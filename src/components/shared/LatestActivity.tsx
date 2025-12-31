@@ -1,10 +1,9 @@
 import { ChevronRight } from "@tamagui/lucide-icons";
-import { useNavigation } from "expo-router";
+import { useRouter } from "expo-router";
 import React from "react";
 import { Pressable } from "react-native";
 import { XStack, YStack } from "tamagui";
 
-import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import type { getActivity } from "../../utils/server";
 import ActivityItem from "../activity/ActivityItem";
 import Text from "../shared/Text";
@@ -19,7 +18,7 @@ export default function LatestActivity({
   title?: string;
   emptyComponent?: React.ReactNode;
 }) {
-  const navigation = useNavigation<AppNavigationProperties>();
+  const router = useRouter();
   return (
     <View backgroundColor="$backgroundSoft" borderRadius="$r3" gap="$s4">
       <XStack alignItems="center" justifyContent="space-between" paddingHorizontal="$s4" paddingTop="$s4">
@@ -30,7 +29,7 @@ export default function LatestActivity({
           <Pressable
             hitSlop={15}
             onPress={() => {
-              navigation.navigate("activity");
+              router.push("/activity");
             }}
           >
             <XStack gap="$s1" alignItems="center">
@@ -57,9 +56,9 @@ export default function LatestActivity({
               </Text>
             </YStack>
           ))}
-        {activity
-          ?.slice(0, 4)
-          .map((item, index, items) => <ActivityItem key={item.id} item={item} isLast={index === items.length - 1} />)}
+        {activity?.slice(0, 4).map((item, index, items) => (
+          <ActivityItem key={item.id} item={item} isLast={index === items.length - 1} />
+        ))}
       </YStack>
     </View>
   );

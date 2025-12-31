@@ -2,7 +2,7 @@ import { previewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { ArrowLeft, ArrowRight, Check, CircleHelp, TriangleAlert } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigation } from "expo-router";
+import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { Pressable } from "react-native";
 import { Checkbox, ScrollView, XStack, YStack } from "tamagui";
@@ -10,7 +10,6 @@ import { formatUnits, zeroAddress } from "viem";
 import { useBytecode } from "wagmi";
 
 import AmountSelector from "./AmountSelector";
-import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import { presentArticle } from "../../utils/intercom";
 import type { Loan } from "../../utils/queryClient";
 import queryClient from "../../utils/queryClient";
@@ -23,7 +22,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function Amount() {
-  const navigation = useNavigation<AppNavigationProperties>();
+  const router = useRouter();
   const { address } = useAccount();
   const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
   const { data: markets } = useReadPreviewerExactly({
@@ -55,12 +54,12 @@ export default function Amount() {
         <Pressable
           onPress={() => {
             queryClient.setQueryData(["loan"], (old: Loan) => ({ ...old, amount: null }));
-            if (navigation.canGoBack()) {
-              navigation.goBack();
+            if (router.canGoBack()) {
+              router.back();
               return;
             }
             queryClient.resetQueries({ queryKey: ["loan"] }).catch(reportError);
-            navigation.replace("(home)", { screen: "loans" });
+            router.replace("/loan");
           }}
         >
           <ArrowLeft size={24} color="$uiNeutralPrimary" />
@@ -76,7 +75,6 @@ export default function Amount() {
       <ScrollView
         backgroundColor="$backgroundMild"
         showsVerticalScrollIndicator={false}
-        // eslint-disable-next-line react-native/no-inline-styles
         contentContainerStyle={{ flexGrow: 1 }}
       >
         <YStack padding="$s4" gap="$s4" flex={1} justifyContent="space-between">
@@ -153,7 +151,7 @@ export default function Amount() {
             <Button
               onPress={() => {
                 queryClient.setQueryData(["loan"], (old: Loan) => ({ ...old, amount: state.amount }));
-                navigation.navigate("loan", { screen: "installments" });
+                router.push("/loan/installments");
               }}
               primary={!state.warning || !acknowledged}
               dangerSecondary={state.warning && acknowledged}

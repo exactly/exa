@@ -1,9 +1,9 @@
 import { Address } from "@exactly/common/validation";
 import deploy from "@exactly/plugin/deploy.json";
 import { $ } from "execa";
-import { readdir } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { env, stderr, stdout } from "node:process";
-import { anvil } from "prool/instances";
+import { Instance } from "prool";
 import { literal, object, parse, tuple } from "valibot";
 import { keccak256, padHex, toBytes, toHex, zeroAddress } from "viem";
 import { mnemonicToAccount, privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
@@ -13,7 +13,7 @@ import type { TestProject } from "vitest/node";
 import anvilClient from "./anvilClient";
 
 export default async function setup({ provide }: Pick<TestProject, "provide">) {
-  const instance = anvil({ codeSizeLimit: 69_000, blockBaseFeePerGas: 1n });
+  const instance = Instance.anvil({ codeSizeLimit: 69_000, blockBaseFeePerGas: 1n });
   const initialize = await instance
     .start()
     .then(() => true)
@@ -23,23 +23,22 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
   if (initialize) {
     await anvilClient.setBalance({ address: keeper.address, value: 10n ** 24n });
     if (env.NODE_ENV === "e2e") {
-      instance._internal.process.stderr.on("data", stderr.write.bind(stderr));
-      instance._internal.process.stdout.on("data", (buffer: Uint8Array | string) => {
-        const string = String(buffer);
+      instance.on("stderr", (message) => stderr.write(message));
+      instance.on("stdout", (message) => {
         if (
-          !string.startsWith("eth_blockNumber") &&
-          !string.startsWith("eth_call") &&
-          !string.startsWith("eth_chainId") &&
-          !string.startsWith("eth_feeHistory") &&
-          !string.startsWith("eth_gasPrice") &&
-          !string.startsWith("eth_getAccount") &&
-          !string.startsWith("eth_getAccountInfo") &&
-          !string.startsWith("eth_getBlockByNumber") &&
-          !string.startsWith("eth_getCode") &&
-          !string.startsWith("eth_getStorageAt") &&
-          !string.startsWith("eth_getTransactionReceipt")
+          !message.startsWith("eth_blockNumber") &&
+          !message.startsWith("eth_call") &&
+          !message.startsWith("eth_chainId") &&
+          !message.startsWith("eth_feeHistory") &&
+          !message.startsWith("eth_gasPrice") &&
+          !message.startsWith("eth_getAccount") &&
+          !message.startsWith("eth_getAccountInfo") &&
+          !message.startsWith("eth_getBlockByNumber") &&
+          !message.startsWith("eth_getCode") &&
+          !message.startsWith("eth_getStorageAt") &&
+          !message.startsWith("eth_getTransactionReceipt")
         ) {
-          stdout.write(string);
+          stdout.write(message);
         }
       });
     }
@@ -73,7 +72,7 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
 
   const protocol = parse(
     Protocol,
-    await import(`@exactly/plugin/broadcast/Protocol.s.sol/${foundry.id}/run-latest.json`),
+    JSON.parse(await readFile("node_modules/@exactly/plugin/broadcast/Protocol.s.sol/31337/run-latest.json", "utf8")),
   ).transactions;
   const auditor = protocol[1].contractAddress;
   const exa = protocol[3].contractAddress;
@@ -118,7 +117,7 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
           object({ contractName: literal("MockSwapper"), contractAddress: Address }),
         ]),
       }),
-      await import(`@exactly/plugin/broadcast/Mocks.s.sol/${foundry.id}/run-latest.json`),
+      JSON.parse(await readFile("node_modules/@exactly/plugin/broadcast/Mocks.s.sol/31337/run-latest.json", "utf8")),
     ).transactions[1].contractAddress;
 
     await $(shell)`forge script node_modules/webauthn-owner-plugin/script/Plugin.s.sol --sender ${deployer}
@@ -127,7 +126,7 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
       object({
         transactions: tuple([object({ contractName: literal("WebauthnOwnerPlugin"), contractAddress: Address })]),
       }),
-      await import(`@exactly/plugin/broadcast/Plugin.s.sol/${foundry.id}/run-latest.json`),
+      JSON.parse(await readFile("node_modules/@exactly/plugin/broadcast/Plugin.s.sol/31337/run-latest.json", "utf8")),
     ).transactions[0].contractAddress;
 
     await $(shell)`forge script test/mocks/Account.s.sol
@@ -162,33 +161,25 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
   }
 
   const [issuerChecker, proposalManager, refunder, exaPreviewer, exaPlugin, exaAccountFactory] = await Promise.all([
-    import(`@exactly/plugin/broadcast/IssuerChecker.s.sol/${foundry.id}/run-latest.json`).then(
-      (json) =>
-        parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), json).transactions[0]
-          .contractAddress,
-    ),
-    import(`@exactly/plugin/broadcast/ProposalManager.s.sol/${foundry.id}/run-latest.json`).then(
-      (json) =>
-        parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), json).transactions[0]
-          .contractAddress,
-    ),
-    import(`@exactly/plugin/broadcast/Refunder.s.sol/${foundry.id}/run-latest.json`).then(
-      (json) =>
-        parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), json).transactions[0]
-          .contractAddress,
-    ),
-    import(`@exactly/plugin/broadcast/ExaPreviewer.s.sol/${foundry.id}/run-latest.json`).then(
-      (json) =>
-        parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), json).transactions[0]
-          .contractAddress,
-    ),
-    import(`@exactly/plugin/broadcast/ExaPlugin.s.sol/${foundry.id}/run-latest.json`).then(
-      (json) =>
-        parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), json).transactions[0]
-          .contractAddress,
-    ),
-    import(`@exactly/plugin/broadcast/ExaAccountFactory.s.sol/${foundry.id}/run-latest.json`).then(
-      (json) =>
+    readFile("node_modules/@exactly/plugin/broadcast/IssuerChecker.s.sol/31337/run-latest.json", "utf8"),
+    readFile("node_modules/@exactly/plugin/broadcast/ProposalManager.s.sol/31337/run-latest.json", "utf8"),
+    readFile("node_modules/@exactly/plugin/broadcast/Refunder.s.sol/31337/run-latest.json", "utf8"),
+    readFile("node_modules/@exactly/plugin/broadcast/ExaPreviewer.s.sol/31337/run-latest.json", "utf8"),
+    readFile("node_modules/@exactly/plugin/broadcast/ExaPlugin.s.sol/31337/run-latest.json", "utf8"),
+    readFile("node_modules/@exactly/plugin/broadcast/ExaAccountFactory.s.sol/31337/run-latest.json", "utf8"),
+  ]).then(
+    ([issuerChecker_, proposalManager_, refunder_, exaPreviewer_, exaPlugin_, exaAccountFactory_]) =>
+      [
+        parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), JSON.parse(issuerChecker_))
+          .transactions[0].contractAddress,
+        parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), JSON.parse(proposalManager_))
+          .transactions[0].contractAddress,
+        parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), JSON.parse(refunder_))
+          .transactions[0].contractAddress,
+        parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), JSON.parse(exaPreviewer_))
+          .transactions[0].contractAddress,
+        parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), JSON.parse(exaPlugin_))
+          .transactions[0].contractAddress,
         parse(
           object({
             transactions: tuple([
@@ -196,10 +187,10 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
               object({ contractName: literal("ExaAccountFactory"), contractAddress: Address }),
             ]),
           }),
-          json,
+          JSON.parse(exaAccountFactory_),
         ).transactions[1].contractAddress,
-    ),
-  ]);
+      ] as const,
+  );
 
   if (initialize) {
     const files = await readdir(__dirname, { recursive: true }); // eslint-disable-line unicorn/prefer-module

@@ -22,8 +22,8 @@ export default function Contacts({ onContactPress }: { onContactPress: (address:
       </XStack>
       {savedContacts ? (
         <View gap="$s3_5">
-          {savedContacts.map((contact, index) => (
-            <Contact key={index} contact={contact} onContactPress={onContactPress} />
+          {savedContacts.map((contact) => (
+            <Contact key={contact.address} contact={contact} onContactPress={onContactPress} />
           ))}
         </View>
       ) : (

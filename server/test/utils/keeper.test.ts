@@ -202,4 +202,4 @@ vi.mock("node:timers/promises", async (importOriginal) => {
   return { ...original, setTimeout: (...arguments_: unknown[]) => original.setTimeout(500, ...arguments_.slice(1)) };
 });
 
-afterEach(() => vi.resetAllMocks());
+afterEach(() => vi.restoreAllMocks());

@@ -27,7 +27,7 @@ export default function useAsset(address?: Address) {
   const market = useMemo(() => markets?.find(({ market: m }) => m === address), [address, markets]);
   const { data: available } = useQuery({
     initialData: 0n,
-    queryKey: ["available", address, market?.asset, externalAsset, account], // eslint-disable-line @tanstack/query/exhaustive-deps
+    queryKey: ["available", address, market?.asset, externalAsset, account, markets, market],
     queryFn: async () => {
       if (markets && market) {
         return withdrawLimit(markets, market.market);
@@ -42,7 +42,7 @@ export default function useAsset(address?: Address) {
   });
   const { data: borrowAvailable } = useQuery({
     initialData: 0n,
-    queryKey: ["borrowAvailable", address, market?.asset, externalAsset, account], // eslint-disable-line @tanstack/query/exhaustive-deps
+    queryKey: ["borrowAvailable", address, market?.asset, externalAsset, account, markets, market, market?.market],
     queryFn: () => {
       if (markets && market) return borrowLimit(markets, market.market);
       return 0n;

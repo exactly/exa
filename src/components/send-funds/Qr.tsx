@@ -1,7 +1,7 @@
 import { Address } from "@exactly/common/validation";
 import { ArrowLeft, BoxSelect, SwitchCamera } from "@tamagui/lucide-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
-import { useFocusEffect, useNavigation } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useRef, useState } from "react";
 import { Linking, Pressable, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -9,7 +9,6 @@ import { useWindowDimensions, XStack, YStack } from "tamagui";
 import { parse, safeParse } from "valibot";
 import { zeroAddress } from "viem";
 
-import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import reportError from "../../utils/reportError";
 import Button from "../shared/Button";
 import Text from "../shared/Text";
@@ -20,7 +19,7 @@ export default function Qr() {
   const { height, width } = useWindowDimensions();
 
   const cameraReference = useRef<CameraView>(null);
-  const navigation = useNavigation<AppNavigationProperties>("/(main)");
+  const router = useRouter();
 
   const [active, setActive] = useState(true);
   const [cameraFacing, setCameraFacing] = useState<"front" | "back">("back");
@@ -49,10 +48,10 @@ export default function Qr() {
             left="$s4"
             padding="$s3"
             onPress={() => {
-              if (navigation.canGoBack()) {
-                navigation.goBack();
+              if (router.canGoBack()) {
+                router.back();
               } else {
-                navigation.replace("send-funds", { screen: "index" });
+                router.replace("/send-funds");
               }
             }}
             gap="$s2"
@@ -90,10 +89,10 @@ export default function Qr() {
           left="$s4"
           padding="$s3"
           onPress={() => {
-            if (navigation.canGoBack()) {
-              navigation.goBack();
+            if (router.canGoBack()) {
+              router.back();
             } else {
-              navigation.replace("send-funds", { screen: "index" });
+              router.replace("/send-funds");
             }
           }}
           gap="$s2"
@@ -115,7 +114,7 @@ export default function Qr() {
               onPress={() => {
                 requestPermission().catch((error: unknown) => {
                   reportError(error);
-                  navigation.replace("send-funds", { screen: "index" });
+                  router.replace("/send-funds");
                 });
               }}
               outlined
@@ -137,7 +136,7 @@ export default function Qr() {
             const result = safeParse(Address, receiver);
             if (!result.success) return;
             if (result.output === parse(Address, zeroAddress)) return;
-            navigation.popTo("send-funds", { screen: "asset", params: { receiver: result.output } });
+            router.dismissTo({ pathname: "/send-funds/asset", params: { receiver: result.output } });
           }}
           facing={cameraFacing}
           style={styles.cameraView}
@@ -164,10 +163,10 @@ export default function Qr() {
         <Pressable
           hitSlop={15}
           onPress={() => {
-            if (navigation.canGoBack()) {
-              navigation.goBack();
+            if (router.canGoBack()) {
+              router.back();
             } else {
-              navigation.replace("send-funds", { screen: "index" });
+              router.replace("/send-funds");
             }
           }}
         >

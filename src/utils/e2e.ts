@@ -26,7 +26,7 @@ if (client) {
     request: (async ({ method, params }) => {
       switch (method) {
         case "eth_chainId":
-          return chain.id.toString();
+          return String(chain.id);
         case "eth_accounts":
         case "eth_requestAccounts":
           return [account.address];
