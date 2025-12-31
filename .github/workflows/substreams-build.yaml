@@ -1,5 +1,5 @@
 name: substreams/build
-on: { push: { tags: ["@exactly/substreams@*"] }, workflow_dispatch: {} }
+on: { push: { tags: ["@exactly/substreams@*"], branches: [sandbox, substreams] }, workflow_dispatch: {} }
 jobs:
   docker:
     runs-on: ubuntu-latest

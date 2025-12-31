@@ -1,0 +1,24 @@
+name: substreams/deploy
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+    secrets:
+      DIGITALOCEAN_TOKEN:
+jobs:
+  digitalocean:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    concurrency: { group: "digitalocean-${{ inputs.environment }}", cancel-in-progress: true }
+    env:
+      CHAIN_ID: ${{ vars.CHAIN_ID }}
+    steps:
+      - uses: digitalocean/app_action/deploy@v2
+        env: { IMAGE_TAG_SUBSTREAMS: "sha-${{ github.sha }}" }
+        with:
+          app_name: ${{ inputs.environment }}
+          token: ${{ secrets.DIGITALOCEAN_TOKEN }}
+          print_build_logs: true
+          print_deploy_logs: true
