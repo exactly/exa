@@ -252,11 +252,13 @@ export default new Hono().post(
         };
 
         if (payload.body.spend.amount < 0) {
-          const assessment = await assess();
-          getActiveSpan()?.setAttributes({ "exa.level": assessment.level, "exa.score": assessment.score });
-          if (assessment.level === "high" || assessment.level === "very_high") {
-            captureException(new Error("high risk refund"), { level: "error" });
-          }
+          startSpan({ name: "assess risk", op: "tx.risk.refund" }, async (span) => {
+            const assessment = await assess();
+            span.setAttributes({ "exa.level": assessment.level, "exa.score": assessment.score });
+            if (assessment.level === "high" || assessment.level === "very_high") {
+              captureException(new Error("high risk refund"), { level: "error" });
+            }
+          }).catch((error: unknown) => captureException(error, { level: "error" }));
           return c.json({ code: "ok" });
         }
         const mutex = getMutex(account) ?? createMutex(account);
@@ -280,52 +282,56 @@ export default new Hono().post(
             return c.json({ code: "ok" });
           };
           if (!transaction) {
-            const assessment = await assess();
-            getActiveSpan()?.setAttributes({ "exa.level": assessment.level, "exa.score": assessment.score });
-            if (assessment.level === "high" || assessment.level === "very_high") {
-              captureException(new Error("high risk verification"), { level: "error" });
-            }
+            startSpan({ name: "assess risk", op: "tx.risk.verification" }, async (span) => {
+              const assessment = await assess();
+              span.setAttributes({ "exa.level": assessment.level, "exa.score": assessment.score });
+              if (assessment.level === "high" || assessment.level === "very_high") {
+                captureException(new Error("high risk verification"), { level: "error" });
+              }
+            }).catch((error: unknown) => captureException(error, { level: "error" }));
             return authorize();
           }
-          try {
-            const [trace, assessment] = await Promise.all([
-              startSpan({ name: "debug_traceCall", op: "tx.trace" }, () =>
-                traceClient.traceCall({
-                  from: account,
-                  to: exaPreviewerAddress,
-                  data: transaction.data,
-                  stateOverride: [
-                    {
-                      address: exaPluginAddress,
-                      stateDiff: [
-                        {
-                          slot: keccak256(
-                            encodeAbiParameters(
-                              [{ type: "address" }, { type: "bytes32" }],
-                              [
-                                exaPreviewerAddress,
-                                keccak256(
-                                  encodeAbiParameters(
-                                    [{ type: "bytes32" }, { type: "uint256" }],
-                                    [keccak256(toBytes("KEEPER_ROLE")), 0n],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          value: encodeAbiParameters([{ type: "uint256" }], [1n]),
-                        },
-                      ],
-                    },
-                  ],
-                }),
-              ),
-              startSpan({ name: "assess risk", op: "tx.risk" }, assess),
-            ]);
-            getActiveSpan()?.setAttributes({ "exa.level": assessment.level, "exa.score": assessment.score });
+
+          startSpan({ name: "assess risk", op: "tx.risk.authorization" }, async (span) => {
+            const assessment = await assess();
+            span.setAttributes({ "exa.level": assessment.level, "exa.score": assessment.score });
             if (assessment.level === "high" || assessment.level === "very_high") {
               captureException(new Error("high risk authorization"), { level: "error" });
             }
+          }).catch((error: unknown) => captureException(error, { level: "error" }));
+          try {
+            const trace = await startSpan({ name: "debug_traceCall", op: "tx.trace" }, () =>
+              traceClient.traceCall({
+                from: account,
+                to: exaPreviewerAddress,
+                data: transaction.data,
+                stateOverride: [
+                  {
+                    address: exaPluginAddress,
+                    stateDiff: [
+                      {
+                        slot: keccak256(
+                          encodeAbiParameters(
+                            [{ type: "address" }, { type: "bytes32" }],
+                            [
+                              exaPreviewerAddress,
+                              keccak256(
+                                encodeAbiParameters(
+                                  [{ type: "bytes32" }, { type: "uint256" }],
+                                  [keccak256(toBytes("KEEPER_ROLE")), 0n],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        value: encodeAbiParameters([{ type: "uint256" }], [1n]),
+                      },
+                    ],
+                  },
+                ],
+              }),
+            );
+
             setContext("tx", { call, trace });
             if (trace.output) {
               const contractError = getContractError(new RawContractError({ data: trace.output }), {
