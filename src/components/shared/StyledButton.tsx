@@ -1,6 +1,6 @@
 import type { ArrowRight } from "@tamagui/lucide-icons";
 import type React from "react";
-import { cloneElement, isValidElement, useContext, useMemo, type ComponentPropsWithoutRef } from "react";
+import { use, useMemo, type ComponentPropsWithoutRef } from "react";
 import { createStyledContext, Spinner, styled, withStaticProperties, XStack } from "tamagui";
 
 import Text from "./Text";
@@ -105,9 +105,7 @@ const ButtonFrame = styled(XStack, {
 });
 
 const ButtonText = (properties: ComponentPropsWithoutRef<typeof Text>) => {
-  const { primary, secondary, disabled, danger, dangerSecondary, outlined, transparent } = useContext(
-    ButtonContext.context,
-  );
+  const { primary, secondary, disabled, danger, dangerSecondary, outlined, transparent } = use(ButtonContext.context);
   const color = useMemo(() => {
     if (disabled) return "$interactiveOnDisabled";
     if (primary) return "$interactiveOnBaseBrandDefault";
@@ -127,17 +125,15 @@ const ButtonText = (properties: ComponentPropsWithoutRef<typeof Text>) => {
       flex={1}
       color={color}
       {...properties}
-    >
-      {properties.children}
-    </Text>
+    />
   );
 };
 
 const ButtonIcon = (properties: { children: React.ReactElement<ComponentPropsWithoutRef<typeof ArrowRight>> }) => {
-  const element = properties.children;
-  const size = element.props.size ?? "$iconSize.md";
-  const strokeWidth = element.props.strokeWidth ?? "$iconStroke.md";
-  const { primary, secondary, disabled, danger, dangerSecondary, outlined, transparent, loading } = useContext(
+  const { children } = properties;
+  const { size = "$iconSize.md", strokeWidth = "$iconStroke.md", ...iconProperties } = children.props;
+  const IconComponent = children.type as React.ComponentType<ComponentPropsWithoutRef<typeof ArrowRight>>;
+  const { primary, secondary, disabled, danger, dangerSecondary, outlined, transparent, loading } = use(
     ButtonContext.context,
   );
   const color = useMemo(() => {
@@ -150,7 +146,7 @@ const ButtonIcon = (properties: { children: React.ReactElement<ComponentPropsWit
     if (transparent) return "$interactiveBaseBrandDefault";
   }, [primary, secondary, disabled, danger, dangerSecondary, outlined, transparent]);
   if (loading) return <Spinner width={size} height={size} color={color} />;
-  return isValidElement(element) ? cloneElement(element, { size, strokeWidth, color }) : null;
+  return <IconComponent {...iconProperties} size={size} strokeWidth={strokeWidth} color={color} />;
 };
 
 export default withStaticProperties(ButtonFrame, { Props: ButtonContext.Provider, Text: ButtonText, Icon: ButtonIcon });

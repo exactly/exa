@@ -32,7 +32,7 @@ export default function AmountSelector({ onChange }: { onChange: (value: bigint)
         setFieldValue("assetInput", text);
         const assets = parseUnits(text.replaceAll(/\D/g, ".").replaceAll(/\.(?=.*\.)/g, ""), market.decimals);
         const assetsUSD = Number(formatUnits((assets * market.usdPrice) / WAD, market.decimals));
-        setFieldValue("usdInput", assets > 0n ? assetsUSD.toString() : "");
+        setFieldValue("usdInput", assets > 0n ? String(assetsUSD) : "");
         onChange(assets);
         return;
       }
@@ -41,7 +41,7 @@ export default function AmountSelector({ onChange }: { onChange: (value: bigint)
         const assets = parseUnits(text.replaceAll(/\D/g, ".").replaceAll(/\.(?=.*\.)/g, ""), externalAsset.decimals);
         const assetPriceUSD = parseUnits(externalAsset.priceUSD, 18);
         const assetsUSD = Number(formatUnits((assets * assetPriceUSD) / WAD, externalAsset.decimals));
-        setFieldValue("usdInput", assets > 0n ? assetsUSD.toString() : "");
+        setFieldValue("usdInput", assets > 0n ? String(assetsUSD) : "");
         onChange(assets);
       }
     },
@@ -78,7 +78,7 @@ export default function AmountSelector({ onChange }: { onChange: (value: bigint)
       setOverlayShown(true);
       setFieldValue("assetInput", formatUnits(available, market.decimals));
       const assetsUSD = Number(formatUnits((available * market.usdPrice) / WAD, market.decimals));
-      setFieldValue("usdInput", assetsUSD.toString());
+      setFieldValue("usdInput", String(assetsUSD));
       onChange(available);
       return;
     }
@@ -88,7 +88,7 @@ export default function AmountSelector({ onChange }: { onChange: (value: bigint)
       const assetsUSD = Number(
         formatUnits((available * parseUnits(externalAsset.priceUSD, 18)) / WAD, externalAsset.decimals),
       );
-      setFieldValue("usdInput", assetsUSD.toString());
+      setFieldValue("usdInput", String(assetsUSD));
       onChange(available);
     }
   }, [available, market, externalAsset, onChange, setFieldValue]);

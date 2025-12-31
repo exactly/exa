@@ -1,11 +1,10 @@
 import { Key, X } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigation } from "expo-router";
+import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { Pressable, StyleSheet } from "react-native";
 import { XStack } from "tamagui";
 
-import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import PasskeysBlob from "../../assets/images/passkeys-blob.svg";
 import PasskeysImage from "../../assets/images/passkeys.svg";
 import useAuth from "../../utils/useAuth";
@@ -17,7 +16,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function Passkeys() {
-  const navigation = useNavigation<AppNavigationProperties>();
+  const router = useRouter();
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
   const [connectModalOpen, setConnectModalOpen] = useState(false);
   const { data: isOwnerAvailable } = useQuery({ queryKey: ["is-owner-available"] });
@@ -32,10 +31,10 @@ export default function Passkeys() {
         <View position="absolute" right="$s5" zIndex={1}>
           <Pressable
             onPress={() => {
-              if (navigation.canGoBack()) {
-                navigation.goBack();
+              if (router.canGoBack()) {
+                router.back();
               } else {
-                navigation.replace("(auth)");
+                router.replace("/(auth)");
               }
             }}
           >
@@ -98,7 +97,7 @@ export default function Passkeys() {
               <Text
                 cursor="pointer"
                 onPress={() => {
-                  navigation.navigate("(passkeys)/about");
+                  router.push("/(auth)/(passkeys)/about");
                 }}
                 textAlign="center"
                 fontSize={13}
@@ -119,7 +118,7 @@ export default function Passkeys() {
           setErrorDialogOpen(false);
         }}
       />
-      {isOwnerAvailable && (
+      {isOwnerAvailable ? (
         <ConnectSheet
           open={connectModalOpen}
           onClose={(method) => {
@@ -132,7 +131,7 @@ export default function Passkeys() {
           webAuthnText="Sign up with Passkey"
           siweText="Sign up with browser wallet"
         />
-      )}
+      ) : null}
     </SafeView>
   );
 }

@@ -26,6 +26,7 @@
     "index.ts",
     "instrument.cjs",
     "drizzle.config.ts",
+    "eslint.config.mjs",
     "vitest.config.mts"
   ]
 }

@@ -57,7 +57,7 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
       </XStack>
       <YStack gap="$s6">
         {payments.length > 0 ? (
-          payments.map(([maturity, { positionAmount, amount, discount }], index) => {
+          payments.map(([maturity, { amount, discount }]) => {
             const isRepaying = pendingProposals?.some(({ proposal }) => {
               const { proposalType: type, data } = proposal;
               const isRepayProposal =
@@ -79,7 +79,7 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
             const processing = isRepaying || isRollingDebt; //eslint-disable-line @typescript-eslint/prefer-nullish-coalescing
             return (
               <XStack
-                key={index}
+                key={maturity}
                 cursor="pointer"
                 justifyContent="space-between"
                 alignItems="center"

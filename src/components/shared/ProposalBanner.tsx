@@ -1,14 +1,13 @@
 import { ChevronRight } from "@tamagui/lucide-icons";
-import { useNavigation } from "expo-router";
+import { useRouter } from "expo-router";
 import React from "react";
 
-import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import usePendingOperations from "../../utils/usePendingOperations";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
 function ProposalBanner() {
-  const navigation = useNavigation<AppNavigationProperties>();
+  const router = useRouter();
   const { count } = usePendingOperations();
   return count > 0 ? (
     <View
@@ -20,7 +19,7 @@ function ProposalBanner() {
       paddingHorizontal="$s4"
       cursor="pointer"
       onPress={() => {
-        navigation.navigate("pending-proposals/index");
+        router.push("/pending-proposals");
       }}
     >
       <Text emphasized footnote color="$interactiveOnBaseInformationSoft">{`Pending requests → ${count}`}</Text>

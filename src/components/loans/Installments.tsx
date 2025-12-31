@@ -1,12 +1,11 @@
 import { ArrowLeft, ArrowRight, CircleHelp } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigation } from "expo-router";
+import { useRouter } from "expo-router";
 import React, { useEffect } from "react";
 import { Pressable } from "react-native";
 import { ScrollView, YStack } from "tamagui";
 
 import LoanSummary from "./LoanSummary";
-import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import { presentArticle } from "../../utils/intercom";
 import type { Loan } from "../../utils/queryClient";
 import queryClient from "../../utils/queryClient";
@@ -19,7 +18,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function Installments() {
-  const navigation = useNavigation<AppNavigationProperties>();
+  const router = useRouter();
   const { address } = useAccount();
   const { data: loan } = useQuery<Loan>({ queryKey: ["loan"], enabled: !!address });
   const disabled = !loan?.installments;
@@ -36,11 +35,11 @@ export default function Installments() {
       <View padded flexDirection="row" gap={10} paddingBottom="$s4" justifyContent="space-between" alignItems="center">
         <Pressable
           onPress={() => {
-            if (navigation.canGoBack()) {
-              navigation.goBack();
+            if (router.canGoBack()) {
+              router.back();
               return;
             }
-            navigation.replace("loan", { screen: "amount" });
+            router.replace("/loan/amount");
           }}
         >
           <ArrowLeft size={24} color="$uiNeutralPrimary" />
@@ -56,7 +55,6 @@ export default function Installments() {
       <ScrollView
         backgroundColor="$backgroundMild"
         showsVerticalScrollIndicator={false}
-        // eslint-disable-next-line react-native/no-inline-styles
         contentContainerStyle={{ flexGrow: 1 }}
       >
         <YStack padding="$s4" gap="$s4" flex={1} justifyContent="space-between">
@@ -66,7 +64,7 @@ export default function Installments() {
                 <Text primary emphasized body>
                   Select your funding installment plan
                 </Text>
-                {loan?.market && loan.amount && (
+                {loan?.market && loan.amount ? (
                   <InstallmentSelector
                     value={loan.installments ?? 0}
                     onSelect={(installments) => {
@@ -75,17 +73,17 @@ export default function Installments() {
                     totalAmount={loan.amount}
                     market={loan.market}
                   />
-                )}
+                ) : null}
               </YStack>
             </YStack>
           </YStack>
         </YStack>
       </ScrollView>
       <YStack gap="$s4" padding="$s4" backgroundColor="$backgroundSoft">
-        {loan?.installments && <LoanSummary loan={loan} />}
+        {loan?.installments ? <LoanSummary loan={loan} /> : null}
         <Button
           onPress={() => {
-            navigation.navigate("loan", { screen: "maturity" });
+            router.push("/loan/maturity");
           }}
           primary
           disabled={disabled}

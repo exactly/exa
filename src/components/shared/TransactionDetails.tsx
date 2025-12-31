@@ -8,12 +8,11 @@ import { Alert } from "react-native";
 import { Separator, XStack, YStack } from "tamagui";
 
 import OptimismImage from "../../assets/images/optimism.svg";
+import openBrowser from "../../utils/openBrowser";
 import reportError from "../../utils/reportError";
-import useOpenBrowser from "../../utils/useOpenBrowser";
 import Text from "../shared/Text";
 
 export default function TransactionDetails({ hash }: { hash?: string }) {
-  const openBrowser = useOpenBrowser();
   return (
     <YStack gap="$s4">
       <YStack gap="$s4">
@@ -43,34 +42,32 @@ export default function TransactionDetails({ hash }: { hash?: string }) {
           </XStack>
         </XStack>
         {hash && (
-          <>
-            <XStack
-              hitSlop={15}
-              justifyContent="space-between"
-              alignItems="center"
-              onPress={() => {
-                setStringAsync(hash).catch(reportError);
-                Alert.alert("Copied", "The transaction hash has been copied to the clipboard.");
-              }}
-            >
-              <Text emphasized footnote color="$uiNeutralSecondary">
-                Transaction hash
+          <XStack
+            hitSlop={15}
+            justifyContent="space-between"
+            alignItems="center"
+            onPress={() => {
+              setStringAsync(hash).catch(reportError);
+              Alert.alert("Copied", "The transaction hash has been copied to the clipboard.");
+            }}
+          >
+            <Text emphasized footnote color="$uiNeutralSecondary">
+              Transaction hash
+            </Text>
+            <XStack gap="$s2" alignItems="center" cursor="pointer">
+              <Text
+                callout
+                fontFamily="$mono"
+                textDecorationLine="underline"
+                onPress={() => {
+                  openBrowser(`${chain.blockExplorers?.default.url}/tx/${hash}`).catch(reportError);
+                }}
+              >
+                {shortenHex(hash)}
               </Text>
-              <XStack gap="$s2" alignItems="center" cursor="pointer">
-                <Text
-                  callout
-                  fontFamily="$mono"
-                  textDecorationLine="underline"
-                  onPress={() => {
-                    openBrowser(`${chain.blockExplorers?.default.url}/tx/${hash}`).catch(reportError);
-                  }}
-                >
-                  {shortenHex(hash)}
-                </Text>
-                <ExternalLink size={20} color="$uiBrandPrimary" />
-              </XStack>
+              <ExternalLink size={20} color="$uiBrandPrimary" />
             </XStack>
-          </>
+          </XStack>
         )}
         <XStack justifyContent="space-between">
           <Text emphasized footnote color="$uiNeutralSecondary">

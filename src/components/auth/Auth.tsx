@@ -2,22 +2,16 @@ import { sdk } from "@farcaster/miniapp-sdk";
 import { TimeToFullDisplay } from "@sentry/react-native";
 import { Key, User } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigation } from "expo-router";
+import { useRouter } from "expo-router";
 import React, { type FC, useCallback, useEffect, useRef, useState } from "react";
 import type { StyleProp, ViewStyle, ViewToken } from "react-native";
 import { Platform } from "react-native";
-import Animated, {
-  runOnJS,
-  useAnimatedScrollHandler,
-  useSharedValue,
-  withTiming,
-  Easing,
-} from "react-native-reanimated";
+import Animated, { useAnimatedScrollHandler, useSharedValue, withTiming, Easing } from "react-native-reanimated";
 import type { SvgProps } from "react-native-svg";
+import { scheduleOnRN } from "react-native-worklets";
 
 import ListItem from "./ListItem";
 import Pagination from "./Pagination";
-import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import calendarBlob from "../../assets/images/calendar-blob.svg";
 import calendar from "../../assets/images/calendar.svg";
 import earningsBlob from "../../assets/images/earnings-blob.svg";
@@ -38,7 +32,7 @@ import View from "../shared/View";
 
 export default function Auth() {
   const [activeIndex, setActiveIndex] = useState(0);
-  const navigation = useNavigation<AppNavigationProperties>();
+  const router = useRouter();
 
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
   const [signUpModalOpen, setSignUpModalOpen] = useState(false);
@@ -80,13 +74,13 @@ export default function Auth() {
     [offsetX],
   );
 
-  const scrollToNextPage = useCallback(() => {
+  const scrollToNextPage = () => {
     flatListReference.current?.scrollToIndex({
       index: activeIndex < pages.length - 1 ? activeIndex + 1 : 0,
       animated: true,
       viewPosition: 0.5,
     });
-  }, [activeIndex]);
+  };
 
   const { signIn, isPending: loadingAuth } = useAuth(
     () => {
@@ -102,7 +96,7 @@ export default function Auth() {
       /* istanbul ignore next */
       progress.value = withTiming(progress.value + 0.2, { duration: 1000, easing: Easing.linear }, () => {
         if (progress.value >= 1) {
-          runOnJS(scrollToNextPage)();
+          scheduleOnRN(scrollToNextPage);
           progress.value = 0;
         }
       });
@@ -122,7 +116,7 @@ export default function Auth() {
           onScroll={handleScroll}
           scrollEventThrottle={16}
           data={pages}
-          keyExtractor={(_, index) => index.toString()}
+          keyExtractor={(_, index) => String(index)}
           viewabilityConfig={{ itemVisiblePercentThreshold: 80 }}
           renderItem={renderItem}
           onViewableItemsChanged={onViewableItemsChanged}
@@ -182,7 +176,7 @@ export default function Auth() {
                   if (isOwnerAvailable) {
                     setSignUpModalOpen(true);
                   } else {
-                    navigation.navigate("(passkeys)/passkeys");
+                    router.push("/passkeys");
                   }
                 }}
               >
@@ -226,7 +220,7 @@ export default function Auth() {
           setErrorDialogOpen(false);
         }}
       />
-      {isOwnerAvailable && (
+      {isOwnerAvailable ? (
         <>
           <ConnectSheet
             open={signInModalOpen}
@@ -247,7 +241,7 @@ export default function Auth() {
               if (!method) return;
               if (method === "webauthn") {
                 setSignUpModalOpen(false);
-                navigation.navigate("(passkeys)/passkeys");
+                router.push("/passkeys");
                 return;
               }
               signIn({ method });
@@ -258,7 +252,7 @@ export default function Auth() {
             siweText="Sign up with browser wallet"
           />
         </>
-      )}
+      ) : null}
       <TimeToFullDisplay record />
     </SafeView>
   );

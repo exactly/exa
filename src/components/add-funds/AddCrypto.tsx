@@ -2,13 +2,12 @@ import chain from "@exactly/common/generated/chain";
 import shortenHex from "@exactly/common/shortenHex";
 import { AlertTriangle, ArrowLeft, Files, Share as ShareIcon } from "@tamagui/lucide-icons";
 import { setStringAsync } from "expo-clipboard";
-import { useNavigation } from "expo-router";
+import { useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import { PixelRatio, Pressable, Share } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import SupportedAssetsSheet from "./SupportedAssetsSheet";
-import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import OptimismImage from "../../assets/images/optimism.svg";
 import assetLogos from "../../utils/assetLogos";
 import { presentArticle } from "../../utils/intercom";
@@ -26,7 +25,7 @@ const supportedAssets = Object.entries(assetLogos)
   .map(([symbol, image]) => ({ symbol, image }));
 
 export default function AddCrypto() {
-  const navigation = useNavigation<AppNavigationProperties>();
+  const router = useRouter();
   const fontScale = PixelRatio.getFontScale();
   const { address } = useAccount();
 
@@ -51,10 +50,10 @@ export default function AddCrypto() {
             <View position="absolute" left={0}>
               <Pressable
                 onPress={() => {
-                  if (navigation.canGoBack()) {
-                    navigation.goBack();
+                  if (router.canGoBack()) {
+                    router.back();
                   } else {
-                    navigation.replace("(home)", { screen: "index" });
+                    router.replace("/(main)/(home)");
                   }
                 }}
               >
@@ -140,10 +139,10 @@ export default function AddCrypto() {
                   setSupportedAssetsShown(true);
                 }}
               >
-                {supportedAssets.map((asset, index) => {
+                {supportedAssets.map(({ symbol, image }, index) => {
                   return (
-                    <XStack key={index} marginRight={index < supportedAssets.length - 1 ? -12 : 0} zIndex={index}>
-                      <AssetLogo source={{ uri: asset.image }} width={32} height={32} />
+                    <XStack key={symbol} marginRight={index < supportedAssets.length - 1 ? -12 : 0} zIndex={index}>
+                      <AssetLogo source={{ uri: image }} width={32} height={32} />
                     </XStack>
                   );
                 })}

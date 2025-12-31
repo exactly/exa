@@ -41,9 +41,14 @@ describe("address activity", () => {
     account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(owner.address), y: zeroHash });
     vi.spyOn(decodePublicKey, "default").mockImplementation((bytes) => ({ x: padHex(bytesToHex(bytes)), y: zeroHash }));
 
-    await database
-      .insert(credentials)
-      .values([{ id: account, publicKey: hexToBytes(owner.address), account, factory: inject("ExaAccountFactory") }]);
+    await database.insert(credentials).values([
+      {
+        id: account,
+        publicKey: new Uint8Array(hexToBytes(owner.address)),
+        account,
+        factory: inject("ExaAccountFactory"),
+      },
+    ]);
   });
 
   it("fails with unexpected error", async () => {
@@ -117,7 +122,10 @@ describe("address activity", () => {
       },
     });
 
-    await vi.waitUntil(() => waitForTransactionReceipt.mock.settledResults.length >= 2, 26_666);
+    await vi.waitUntil(
+      () => waitForTransactionReceipt.mock.settledResults.filter(({ type }) => type !== "incomplete").length >= 2,
+      26_666,
+    );
 
     const exactly = await publicClient.readContract({
       address: inject("Previewer"),
@@ -163,7 +171,10 @@ describe("address activity", () => {
       },
     });
 
-    await vi.waitUntil(() => waitForTransactionReceipt.mock.settledResults.length >= 2, 26_666);
+    await vi.waitUntil(
+      () => waitForTransactionReceipt.mock.settledResults.filter(({ type }) => type !== "incomplete").length >= 2,
+      26_666,
+    );
 
     const exactly = await publicClient.readContract({
       address: inject("Previewer"),
@@ -189,13 +200,14 @@ describe("address activity", () => {
       deriveAddress(inject("ExaAccountFactory"), { x: padHex(address), y: zeroHash }),
     );
     await Promise.all([
-      ...accounts
-        .slice(1)
-        .map((id) =>
-          database
-            .insert(credentials)
-            .values({ id, publicKey: hexToBytes(id), account: id, factory: inject("ExaAccountFactory") }),
-        ),
+      ...accounts.slice(1).map((id) =>
+        database.insert(credentials).values({
+          id,
+          publicKey: new Uint8Array(hexToBytes(id)),
+          account: id,
+          factory: inject("ExaAccountFactory"),
+        }),
+      ),
       ...accounts.map((address) => anvilClient.setBalance({ address, value: parseEther("5") })),
       keeper.exaSend(
         { name: "create account", op: "exa.account" },
@@ -220,7 +232,10 @@ describe("address activity", () => {
           },
         },
       }),
-      vi.waitUntil(() => waitForTransactionReceipt.mock.settledResults.length >= 5, 26_666),
+      vi.waitUntil(
+        () => waitForTransactionReceipt.mock.settledResults.filter(({ type }) => type !== "incomplete").length >= 5,
+        26_666,
+      ),
     ]);
 
     expect(response.status).toBe(200);
@@ -240,7 +255,10 @@ describe("address activity", () => {
       },
     });
 
-    await vi.waitUntil(() => waitForTransactionReceipt.mock.settledResults.length > 0, 26_666);
+    await vi.waitUntil(
+      () => waitForTransactionReceipt.mock.settledResults.some(({ type }) => type !== "incomplete"),
+      26_666,
+    );
 
     const deployed = !!(await publicClient.getCode({ address: account }));
 
@@ -323,7 +341,10 @@ const activityPayload = {
 
 vi.mock("@sentry/node", { spy: true });
 
-afterEach(() => vi.resetAllMocks());
+afterEach(() => {
+  vi.clearAllMocks();
+  vi.restoreAllMocks();
+});
 
 const mockERC20Abi = [
   {

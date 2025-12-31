@@ -1,12 +1,11 @@
 import { ArrowLeft, Check, HelpCircle, LogOut, SendHorizontal } from "@tamagui/lucide-icons";
 import { setStringAsync } from "expo-clipboard";
-import { useNavigation } from "expo-router";
+import { useRouter } from "expo-router";
 import React from "react";
 import { Alert, Pressable } from "react-native";
 import { ScrollView, Separator, XStack } from "tamagui";
 import { useDisconnect } from "wagmi";
 
-import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import release from "../../generated/release";
 import { useSubmitCoverage } from "../../utils/e2e";
 import { present, logout as logoutIntercom } from "../../utils/intercom";
@@ -19,9 +18,9 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function Settings() {
-  const navigation = useNavigation<AppNavigationProperties>();
+  const router = useRouter();
   const { connector } = useAccount();
-  const { disconnect } = useDisconnect();
+  const { mutate: disconnectAccount } = useDisconnect();
   const { mutate: submitCoverage, isSuccess: coverageSuccess, isError: coverageError } = useSubmitCoverage();
   return (
     <SafeView fullScreen tab>
@@ -31,10 +30,10 @@ export default function Settings() {
             <Pressable
               aria-label="Back"
               onPress={() => {
-                if (navigation.canGoBack()) {
-                  navigation.goBack();
+                if (router.canGoBack()) {
+                  router.back();
                 } else {
-                  navigation.replace("(home)", { screen: "index" });
+                  router.replace("/(main)/(home)");
                 }
               }}
             >
@@ -72,8 +71,8 @@ export default function Settings() {
                       logoutOnesignal();
                       queryClient.clear();
                       queryClient.unmount();
-                      disconnect({ connector });
-                      navigation.replace("(auth)");
+                      disconnectAccount({ connector });
+                      router.replace("/(auth)");
                     })
                     .catch(reportError);
                 }}

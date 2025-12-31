@@ -1,12 +1,11 @@
 import type { Credential } from "@exactly/common/validation";
 import { ArrowRight, ChevronRight, IdCard } from "@tamagui/lucide-icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useNavigation } from "expo-router";
+import { useRouter } from "expo-router";
 import React, { useEffect } from "react";
 import { PixelRatio, Pressable } from "react-native";
 import { Spinner, XStack, YStack } from "tamagui";
 
-import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import { createInquiry, KYC_TEMPLATE_ID, resumeInquiry } from "../../utils/persona";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
@@ -16,7 +15,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function GettingStarted({ hasFunds, hasKYC }: { hasFunds: boolean; hasKYC: boolean }) {
-  const navigation = useNavigation<AppNavigationProperties>();
+  const router = useRouter();
   const { steps, currentStep, completedSteps, setSteps } = useOnboardingSteps();
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const { mutateAsync: startKYC, isPending } = useMutation({
@@ -27,7 +26,7 @@ export default function GettingStarted({ hasFunds, hasKYC }: { hasFunds: boolean
         const result = await getKYCStatus(KYC_TEMPLATE_ID);
         if (result === "ok") return;
         if (typeof result !== "string") {
-          resumeInquiry(result.inquiryId, result.sessionToken, navigation).catch(reportError);
+          resumeInquiry(result.inquiryId, result.sessionToken).catch(reportError);
         }
       } catch (error) {
         if (!(error instanceof APIError)) {
@@ -35,7 +34,7 @@ export default function GettingStarted({ hasFunds, hasKYC }: { hasFunds: boolean
           return;
         }
         if (error.text === "kyc required" || error.text === "kyc not found" || error.text === "kyc not started") {
-          await createInquiry(credential, navigation);
+          await createInquiry(credential);
           return;
         }
         reportError(error);
@@ -49,7 +48,7 @@ export default function GettingStarted({ hasFunds, hasKYC }: { hasFunds: boolean
     if (isPending) return;
     switch (currentStep?.id) {
       case "add-funds":
-        navigation.navigate("add-funds", { screen: "add-crypto" });
+        router.push("/add-funds/add-crypto");
         break;
       case "verify-identity":
         startKYC().catch(reportError);
@@ -80,7 +79,7 @@ export default function GettingStarted({ hasFunds, hasKYC }: { hasFunds: boolean
               hitSlop={15}
               onPress={() => {
                 if (!currentStep) return;
-                navigation.navigate("getting-started");
+                router.push("/getting-started");
               }}
             >
               <Text emphasized footnote color="$interactiveBaseBrandDefault">
@@ -103,7 +102,7 @@ export default function GettingStarted({ hasFunds, hasKYC }: { hasFunds: boolean
             <XStack alignItems="center" gap="$s2">
               {Array.from({ length: 3 }).map((_, index) => (
                 <View
-                  key={index}
+                  key={index} // eslint-disable-line @eslint-react/no-array-index-key
                   backgroundColor={completedSteps > index ? "$interactiveBaseBrandDefault" : "$uiBrandTertiary"}
                   width={24}
                   height={8}

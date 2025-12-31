@@ -8,7 +8,6 @@ import { Hono } from "hono";
 import { trimTrailingSlash } from "hono/trailing-slash";
 import type { UnofficialStatusCode } from "hono/utils/http-status";
 
-import appMetadata from "../package.json";
 import api from "./api";
 import database from "./database";
 import activityHook from "./hooks/activity";
@@ -52,12 +51,12 @@ app.get("/.well-known/farcaster.json", (c) =>
       version: "1",
       homeUrl: appOrigin,
       canonicalDomain: domain,
-      name: appMetadata.title,
-      ogTitle: appMetadata.title,
-      tagline: appMetadata.shortDescription,
-      subtitle: appMetadata.shortDescription,
-      description: appMetadata.description,
-      ogDescription: appMetadata.description,
+      name: "Exa App",
+      ogTitle: "Exa App",
+      tagline: "What finance should be today",
+      subtitle: "What finance should be today",
+      description: "A Card. A Wallet. A DeFi Protocol. All of it together.",
+      ogDescription: "A Card. A Wallet. A DeFi Protocol. All of it together.",
       buttonTitle: "Get your card",
       iconUrl: `${appOrigin}/assets/src/assets/icon.ee8db558f86485a670692d730dc29e85.png`,
       imageUrl: "https://assets.exactly.app/miniapp-image.webp",

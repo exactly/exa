@@ -172,7 +172,7 @@ describe.concurrent("authenticated", () => {
           if (cryptomate.success) return cryptomate.output;
           throw new Error("bad test setup");
         })
-        .sort((a, b) => b.timestamp.localeCompare(a.timestamp) || b.id.localeCompare(a.id));
+        .toSorted((a, b) => b.timestamp.localeCompare(a.timestamp) || b.id.localeCompare(a.id));
     }, 66_666);
 
     it("returns the card transaction", async () => {
@@ -291,7 +291,10 @@ describe.concurrent("authenticated", () => {
 
 vi.mock("@sentry/node", { spy: true });
 
-afterEach(() => vi.resetAllMocks());
+afterEach(() => {
+  vi.clearAllMocks();
+  vi.restoreAllMocks();
+});
 
 const spendTemplate = {
   amount: 1e4,

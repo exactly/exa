@@ -5,13 +5,12 @@ import { useToastController } from "@tamagui/toast";
 import { useForm, useStore } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import { getStringAsync } from "expo-clipboard";
-import { useNavigation } from "expo-router";
+import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { Pressable } from "react-native";
 import { ScrollView, Separator, XStack, YStack } from "tamagui";
 import { parse } from "valibot";
 
-import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import { presentArticle } from "../../utils/intercom";
 import type { Loan } from "../../utils/queryClient";
 import queryClient from "../../utils/queryClient";
@@ -25,7 +24,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function Receiver() {
-  const navigation = useNavigation<AppNavigationProperties>();
+  const router = useRouter();
   const toast = useToastController();
   const { address } = useAccount();
   const { data: loan } = useQuery<Loan>({ queryKey: ["loan"], enabled: !!address });
@@ -40,7 +39,7 @@ export default function Receiver() {
       try {
         const receiver = parse(Address, value.receiver);
         queryClient.setQueryData(["loan"], (old: Loan) => ({ ...old, receiver }));
-        navigation.navigate("loan", { screen: "review" });
+        router.push("/loan/review");
       } catch {
         toast.show("Invalid address", {
           native: true,
@@ -68,11 +67,11 @@ export default function Receiver() {
         <Pressable
           onPress={() => {
             queryClient.setQueryData(["loan"], (old: Loan) => ({ ...old, receiver: undefined }));
-            if (navigation.canGoBack()) {
-              navigation.goBack();
+            if (router.canGoBack()) {
+              router.back();
               return;
             }
-            navigation.replace("loan", { screen: "installments" });
+            router.replace("/loan/installments");
           }}
         >
           <ArrowLeft size={24} color="$uiNeutralPrimary" />
@@ -88,7 +87,6 @@ export default function Receiver() {
       <ScrollView
         backgroundColor="$backgroundMild"
         showsVerticalScrollIndicator={false}
-        // eslint-disable-next-line react-native/no-inline-styles
         contentContainerStyle={{ flexGrow: 1 }}
       >
         <YStack padding="$s4" gap="$s4" flex={1} justifyContent="space-between">

@@ -7,8 +7,8 @@ import type { Credential } from "@exactly/common/validation";
 import { ChevronRight, CircleHelp, CreditCard, DollarSign, Eye, EyeOff, Hash, Snowflake } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useNavigation } from "expo-router";
-import React, { useState } from "react";
+import { useRouter } from "expo-router";
+import React, { type RefObject, useState } from "react";
 import { Pressable, RefreshControl } from "react-native";
 import { ScrollView, Separator, Spinner, Square, Switch, useTheme, XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
@@ -20,8 +20,8 @@ import CardPIN from "./CardPIN";
 import SpendingLimits from "./SpendingLimits";
 import VerificationFailure from "./VerificationFailure";
 import ExaCard from "./exa-card/ExaCard";
-import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import { presentArticle } from "../../utils/intercom";
+import openBrowser from "../../utils/openBrowser";
 import { createInquiry, KYC_TEMPLATE_ID, resumeInquiry } from "../../utils/persona";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
@@ -35,7 +35,6 @@ import {
 } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
-import useOpenBrowser from "../../utils/useOpenBrowser";
 import InfoAlert from "../shared/InfoAlert";
 import LatestActivity from "../shared/LatestActivity";
 import PluginUpgrade from "../shared/PluginUpgrade";
@@ -47,9 +46,8 @@ import View from "../shared/View";
 export default function Card() {
   const theme = useTheme();
   const toast = useToastController();
-  const openBrowser = useOpenBrowser();
   const [displayPIN, setDisplayPIN] = useState(false);
-  const navigation = useNavigation<AppNavigationProperties>();
+  const router = useRouter();
   const [disclaimerShown, setDisclaimerShown] = useState(false);
   const [verificationFailureShown, setVerificationFailureShown] = useState(false);
   const { data: cardDetailsOpen } = useQuery<boolean>({ queryKey: ["card-details-open"] });
@@ -121,7 +119,7 @@ export default function Card() {
     mutationKey: ["card", "reveal"],
     mutationFn: async function handleReveal() {
       if (usdBalance === 0n) {
-        navigation.navigate("getting-started");
+        router.push("/(main)/getting-started");
         return;
       }
       if (isRevealing) return;
@@ -138,7 +136,7 @@ export default function Card() {
           setDisclaimerShown(true);
           return;
         }
-        if (typeof result !== "string") await resumeInquiry(result.inquiryId, result.sessionToken, navigation);
+        if (typeof result !== "string") await resumeInquiry(result.inquiryId, result.sessionToken);
       } catch (error) {
         if (!(error instanceof APIError)) {
           reportError(error);
@@ -150,7 +148,7 @@ export default function Card() {
           return;
         }
         if (text === "kyc required" || text === "kyc not found" || text === "kyc not started") {
-          await createInquiry(credential, navigation);
+          await createInquiry(credential);
         }
         reportError(error);
         toast.show("An error occurred. Please try again later.", {
@@ -275,7 +273,7 @@ export default function Card() {
                     title="Your card is awaiting activation. Follow the steps to enable it."
                     actionText="Get started"
                     onPress={() => {
-                      navigation.navigate("getting-started");
+                      router.push("/(main)/getting-started");
                     }}
                   />
                 )}
@@ -521,5 +519,5 @@ export default function Card() {
   );
 }
 
-export const cardScrollReference = React.createRef<ScrollView>();
-export const cardRefreshControlReference = React.createRef<RefreshControl>();
+export const cardScrollReference: RefObject<ScrollView | null> = { current: null };
+export const cardRefreshControlReference: RefObject<RefreshControl | null> = { current: null };

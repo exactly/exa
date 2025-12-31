@@ -8,12 +8,11 @@ import React from "react";
 import { Alert } from "react-native";
 import { Separator, XStack, YStack } from "tamagui";
 
+import openBrowser from "../../../utils/openBrowser";
 import reportError from "../../../utils/reportError";
-import useOpenBrowser from "../../../utils/useOpenBrowser";
 import Text from "../../shared/Text";
 
 export default function OperationDetails({ item }: { item: CreditActivity | DebitActivity | InstallmentsActivity }) {
-  const openBrowser = useOpenBrowser();
   return (
     <YStack gap="$s4">
       <YStack gap="$s4">
@@ -45,7 +44,7 @@ export default function OperationDetails({ item }: { item: CreditActivity | Debi
             Total
           </Text>
           <Text callout color="$uiNeutralPrimary">
-            {Number(item.usdAmount).toLocaleString(undefined, {
+            {item.usdAmount.toLocaleString(undefined, {
               style: "currency",
               currency: "USD",
               currencyDisplay: "narrowSymbol",
@@ -59,10 +58,9 @@ export default function OperationDetails({ item }: { item: CreditActivity | Debi
               Installments
             </Text>
             <Text emphasized callout color="$uiNeutralPrimary">
-              {item.mode === 1 && `1x ${Number(item.usdAmount + item.borrow.fee).toFixed(2)}`}
+              {item.mode === 1 && `1x ${(item.usdAmount + item.borrow.fee).toFixed(2)}`}
               {item.mode > 1 && `${(item as InstallmentsActivity).borrow.installments.length}x`}&nbsp;
-              {item.mode > 1 &&
-                Number(item.usdAmount / (item as InstallmentsActivity).borrow.installments.length).toFixed(2)}
+              {item.mode > 1 && (item.usdAmount / (item as InstallmentsActivity).borrow.installments.length).toFixed(2)}
               &nbsp;USDC
             </Text>
           </XStack>

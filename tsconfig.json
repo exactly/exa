@@ -14,11 +14,9 @@
   },
   "include": [
     ".expo/types/**/*.ts",
-    "common/**/*.ts",
     "expo-env.d.ts",
     "src/**/*.ts",
     "src/**/*.tsx",
-    "src/index.js",
-    "tamagui.config.ts"
+    "src/index.js"
   ]
 }
