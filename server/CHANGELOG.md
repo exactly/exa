@@ -1,5 +1,13 @@
 # @exactly/server
 
+## 0.2.46
+
+### Patch Changes
+
+- [`22617c5`](https://github.com/exactly/exa/commit/22617c5085f07a87711ed1d1c9b79f573b8e81ae) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🩹 close database pool on teardown
+
+- [#611](https://github.com/exactly/exa/pull/611) [`cbde413`](https://github.com/exactly/exa/commit/cbde413a11735fac8922eee16845af9c0d86ebd6) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🚑️ run risk assessment in the background
+
 ## 0.2.45
 
 ### Patch Changes
