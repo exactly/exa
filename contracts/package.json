@@ -51,6 +51,12 @@
           "{projectRoot}/cache"
         ]
       },
+      "snapshot": {
+        "outputs": [
+          "{projectRoot}/.gas-snapshot"
+        ],
+        "cache": true
+      },
       "test:all": {
         "executor": "nx:run-commands",
         "options": {
@@ -69,6 +75,12 @@
           "test:solhint",
           "test:sizes"
         ]
+      },
+      "test:coverage": {
+        "outputs": [
+          "{projectRoot}/lcov.info"
+        ],
+        "cache": true
       }
     }
   }
