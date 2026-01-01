@@ -7,6 +7,7 @@ import { version } from "../package.json";
 process.env.ALCHEMY_ACTIVITY_ID = "activity";
 process.env.ALCHEMY_WEBHOOKS_KEY = "webhooks";
 process.env.AUTH_SECRET = "auth";
+process.env.PAX_ASSOCIATE_ID_SECRET = "pax";
 process.env.BRIDGE_API_KEY = "bridge";
 process.env.BRIDGE_API_URL = "https://bridge.test";
 process.env.EXPO_PUBLIC_ALCHEMY_API_KEY = " ";
@@ -26,6 +27,8 @@ process.env.REDIS_URL = "redis";
 process.env.SARDINE_API_KEY = "sardine";
 process.env.SARDINE_API_URL = "https://api.sardine.ai";
 process.env.SEGMENT_WRITE_KEY = "segment";
+process.env.PAX_API_URL = "https://pax.test";
+process.env.PAX_API_KEY = "pax";
 
 /* eslint-disable n/no-process-exit, unicorn/no-process-exit, no-console -- cli */
 import("../api")
