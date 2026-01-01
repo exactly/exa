@@ -3,13 +3,14 @@ import { cors } from "hono/cors";
 import { csrf } from "hono/csrf";
 
 import activity from "./activity";
+import appOrigin from "../utils/appOrigin";
 import authentication from "./auth/authentication";
 import registration from "./auth/registration";
 import card from "./card";
 import kyc from "./kyc";
 import onramp from "./onramp";
 import passkey from "./passkey";
-import appOrigin from "../utils/appOrigin";
+import pax from "./pax";
 
 const api = new Hono()
   .use(cors({ origin: [appOrigin, "http://localhost:8081"], credentials: true }))
@@ -24,7 +25,8 @@ const api = new Hono()
   .route("/card", card)
   .route("/kyc", kyc)
   .route("/onramp", onramp)
-  .route("/passkey", passkey);
+  .route("/passkey", passkey)
+  .route("/pax", pax);
 
 export default api;
 export type ExaAPI = typeof api;
