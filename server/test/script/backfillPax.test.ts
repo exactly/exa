@@ -5,6 +5,7 @@ import assert from "node:assert";
 import { zeroAddress } from "viem";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { generatePrivateKey, privateKeyToAddress } from "viem/accounts";
 import database, { cards, credentials } from "../../database/index";
 import backfillPax from "../../script/backfillPax";
 import deriveAssociateId from "../../utils/deriveAssociateId";
@@ -21,8 +22,17 @@ vi.mock("../../utils/persona", async (importOriginal) => {
 });
 
 describe("backfillPax logic", () => {
-  const testAccount = "0x1234567890123456789012345678901234567890";
-  const testCredentialId = "backfill-test-cred";
+  const account1Key = generatePrivateKey();
+  const testAccount = privateKeyToAddress(account1Key);
+
+  const account2Key = generatePrivateKey();
+  const testAccount2 = privateKeyToAddress(account2Key);
+
+  const testCredentialId = `backfill-test-cred-${testAccount}`;
+  const testCredentialId2 = `backfill-test-cred-${testAccount2}`;
+  // use uuid format for Rain cards
+  const testCardId = "11111111-1111-4111-a111-111111111111";
+  const testCardId2 = "22222222-2222-4222-a222-222222222222";
 
   beforeAll(async () => {
     await database.insert(credentials).values({
@@ -37,7 +47,30 @@ describe("backfillPax logic", () => {
       credentialId: testCredentialId,
       lastFour: "1234",
       status: "ACTIVE",
+      productId: "test-rain-product-id",
     });
+
+    // insert user 2
+    await database.insert(credentials).values({
+      id: testCredentialId2,
+      publicKey: new Uint8Array(),
+      factory: zeroAddress,
+      account: testAccount2,
+      pandaId: "test-panda-id-2",
+    });
+    await database.insert(cards).values({
+      id: testCardId2,
+      credentialId: testCredentialId2,
+      lastFour: "5678",
+      status: "ACTIVE",
+      productId: "test-rain-product-id-2",
+    });
+  });
+
+  afterAll(async () => {
+    // cleanup test data
+    await database.delete(cards).where(inArray(cards.id, [testCardId, testCardId2]));
+    await database.delete(credentials).where(inArray(credentials.id, [testCredentialId, testCredentialId2]));
   });
 
   beforeEach(() => {

@@ -1,6 +1,8 @@
+import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
 import { inArray, isNotNull } from "drizzle-orm";
 import { setTimeout } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
+import * as v from "valibot";
 import { padHex } from "viem";
 
 import database, { cards, credentials } from "../database";
@@ -41,6 +43,10 @@ function maskPII(value: string | null | undefined): string {
   return `${value[0]}***${value.at(-1)}`;
 }
 
+function isUUID(id: string): boolean {
+  return v.safeParse(v.pipe(v.string(), v.uuid()), id).success;
+}
+
 export default async function backfillPax(dryRun: boolean, delayMs = 250, skipCount = 0): Promise<BackfillResult[]> {
   // These MUST be set for the script to work
   if (!process.env.POSTGRES_URL) throw new Error("missing POSTGRES_URL");
@@ -57,14 +63,19 @@ export default async function backfillPax(dryRun: boolean, delayMs = 250, skipCo
     where: isNotNull(credentials.pandaId),
     with: {
       cards: {
-        columns: { id: true },
+        columns: { id: true, productId: true },
         where: inArray(cards.status, ["ACTIVE", "FROZEN"]),
       },
     },
   });
 
-  // Filter to only those with cards
-  const usersWithCards = credentialsWithCards.filter((c) => c.cards.length > 0);
+  // Filter to only those with Rain cards (UUID format) and exclude Platinum cards
+  const usersWithCards = credentialsWithCards
+    .map((c) => ({
+      ...c,
+      cards: c.cards.filter((card) => isUUID(card.id) && card.productId !== PLATINUM_PRODUCT_ID),
+    }))
+    .filter((c) => c.cards.length > 0);
 
   // Sort users deterministically by account (wallet address)
   const sortedUsers = usersWithCards.sort((a, b) => a.account.localeCompare(b.account));
