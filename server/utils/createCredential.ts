@@ -8,15 +8,23 @@ import deriveAddress from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
 import { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
+import { setUser } from "@sentry/core";
+import { captureException } from "@sentry/node";
+import type { WebAuthnCredential } from "@simplewebauthn/server";
+import type { Context } from "hono";
+import { setSignedCookie } from "hono/cookie";
+import { parse } from "valibot";
+import { hexToBytes, isAddress } from "viem";
 
-import { updateWebhookAddresses } from "./alchemy";
+import database from "../database";
 import authSecret from "./authSecret";
 import decodePublicKey from "./decodePublicKey";
 import { customer } from "./sardine";
 import { identify } from "./segment";
-import database from "../database";
 import { credentials } from "../database/schema";
 import { webhookId } from "../hooks/activity";
+import { alchemyQueue } from "../queues/alchemyQueue";
+import { AlchemyJob } from "../queues/constants";
 
 import type { WebAuthnCredential } from "@simplewebauthn/server";
 import type { Context } from "hono";
@@ -52,7 +60,9 @@ export default async function createCredential<C extends string>(
         ? { sameSite: "lax", secure: false }
         : { domain, sameSite: "none", secure: true, partitioned: true }),
     }),
-    updateWebhookAddresses(webhookId, [account]).catch((error: unknown) => captureException(error)),
+    alchemyQueue.add(AlchemyJob.ADD_SUBSCRIBER, { account, webhookId }).catch((error: unknown) => {
+      captureException(error);
+    }),
     customer({ flow: { name: "signup", type: "signup" }, customer: { id: credentialId } }).catch((error: unknown) =>
       captureException(error, { level: "error" }),
     ),
