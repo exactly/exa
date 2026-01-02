@@ -15,9 +15,10 @@ import { alchemyGasManagerMiddleware } from "@account-kit/infra";
 // @ts-expect-error deep import to avoid broken dependency
 import { standardExecutor } from "@account-kit/smart-contracts/dist/esm/src/msca/account/standardExecutor"; // cspell:ignore msca
 import accountInitCode from "@exactly/common/accountInitCode";
+import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
 import domain from "@exactly/common/domain";
-import chain from "@exactly/common/generated/chain";
+import chain, { upgradeableModularAccountAbi } from "@exactly/common/generated/chain";
 import type { Credential } from "@exactly/common/validation";
 import { ECDSASigValue } from "@peculiar/asn1-ecc";
 import { AsnParser } from "@peculiar/asn1-schema";
@@ -27,19 +28,27 @@ import {
   bufferToBase64URLString,
   type AuthenticatorAssertionResponseJSON,
 } from "@simplewebauthn/browser";
-import { getConnection, signMessage } from "@wagmi/core/actions";
+import { getCallsStatus, getConnection, sendCalls, sendTransaction, signMessage } from "@wagmi/core/actions";
 import { Platform } from "react-native";
 import { get } from "react-native-passkeys";
 import {
   bytesToBigInt,
   bytesToHex,
+  concat,
   custom,
   encodeAbiParameters,
   encodePacked,
   ethAddress,
   hashMessage,
   hexToBytes,
+  hexToNumber,
+  isHex,
   maxUint256,
+  numberToHex,
+  sliceHex,
+  trim,
+  type Address,
+  type Call,
   type Hex,
   type TransactionRequest,
 } from "viem";
@@ -135,56 +144,128 @@ export default async function createAccountClient({ credentialId, factory, x, y 
       return userOp;
     },
   });
-  return e2e
-    ? (createBundlerClient({
-        chain,
-        // @ts-expect-error -- bad alchemy types
-        account,
-        type: "SmartAccountClient",
-        transport: custom({
-          async request({ method, params }) {
-            switch (method) {
-              case "eth_sendTransaction": {
-                if (!e2e || !Array.isArray(params) || params.length !== 1) throw new Error("type narrowing");
-                const uo = (await resolveProperties(
-                  await defaultUserOpSigner(await buildUserOperationFromTx(client, params[0] as TransactionRequest), {
-                    client,
-                    account: client.account,
-                  }),
-                )) as Required<UserOperationStruct_v6>;
-                const hash = await e2e.writeContract({
-                  address: entryPoint.address,
-                  functionName: "handleOps",
-                  abi: entryPoint.abi,
-                  args: [
-                    [
-                      {
-                        sender: uo.sender as Hex,
-                        nonce: BigInt(uo.nonce),
-                        initCode: uo.initCode as Hex,
-                        callData: uo.callData as Hex,
-                        callGasLimit: BigInt(uo.callGasLimit),
-                        preVerificationGas: BigInt(uo.preVerificationGas),
-                        verificationGasLimit: BigInt(uo.verificationGasLimit),
-                        maxFeePerGas: BigInt(uo.maxFeePerGas),
-                        maxPriorityFeePerGas: BigInt(uo.maxPriorityFeePerGas),
-                        paymasterAndData: uo.paymasterAndData as Hex,
-                        signature: uo.signature as Hex,
-                      },
-                    ],
-                    e2e.account.address,
-                  ],
-                });
-                await publicClient.waitForTransactionReceipt({ hash });
-                return hash;
-              }
-              default:
-                return client.request({ method, params }); // eslint-disable-line @typescript-eslint/no-unsafe-assignment,
+  return createBundlerClient({
+    chain,
+    // @ts-expect-error -- bad alchemy types
+    account,
+    type: "SmartAccountClient",
+    transport: custom({
+      async request({ method, params }) {
+        switch (method) {
+          case "wallet_sendCalls": {
+            if (!Array.isArray(params) || params.length !== 1) throw new Error("bad params");
+            const { calls, from, id } = params[0] as { calls: readonly Call[]; id?: string; from?: Address };
+            if (from && from !== account.address) throw new Error("bad account");
+            if (queryClient.getQueryData<AuthMethod>(["method"]) === "webauthn") {
+              const { hash } = await client.sendUserOperation({
+                uo: calls.map(({ to, data = "0x", value }) => ({ from: account.address, target: to, data, value })),
+              });
+              return { id: concat([hash, numberToHex(chain.id, { size: 32 }), UO_MAGIC_ID]) };
             }
-          },
-        }),
-      }).extend(smartAccountClientActions) as unknown as typeof client)
-    : client;
+            const execute = {
+              to: account.address,
+              functionName: "executeBatch",
+              args: [calls.map(({ to, data = "0x", value = 0n }) => ({ target: to, data, value }))],
+              abi: upgradeableModularAccountAbi,
+            } as const;
+            try {
+              return await sendCalls(ownerConfig, {
+                id,
+                calls: [execute],
+                capabilities: {
+                  paymasterService: {
+                    url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
+                    context: { policyId: alchemyGasPolicyId },
+                  },
+                },
+              });
+            } catch {
+              // TODO filter errors
+              const hash = await sendTransaction(ownerConfig, execute);
+              return { id: concat([hash, numberToHex(chain.id, { size: 32 }), TX_MAGIC_ID]) };
+            }
+          }
+          case "wallet_getCallsStatus": {
+            if (!Array.isArray(params) || params.length !== 1 || typeof params[0] !== "string") throw new Error("bad");
+            if (params[0].endsWith(UO_MAGIC_ID.slice(2)) && isHex(params[0]) && params[0].length === 194) {
+              const receipt = await client.getUserOperationReceipt(sliceHex(params[0], 0, 32));
+              return {
+                version: "2.0.0",
+                id: params[0],
+                atomic: true,
+                receipts: receipt ? [receipt.receipt] : [],
+                status: receipt ? (receipt.success ? 200 : 500) : 100,
+                chainId: hexToNumber(trim(sliceHex(params[0], -64, -32))),
+              };
+            }
+            const result = await getCallsStatus(ownerConfig, { id: params[0] });
+            return { ...result, status: result.statusCode };
+          }
+          case "eth_sendTransaction": {
+            if (!Array.isArray(params) || params.length !== 1) throw new Error("bad params");
+            if (!e2e) {
+              try {
+                const { to, data = "0x", value = 0n } = params[0] as TransactionRequest;
+                const { id } = await sendCalls(ownerConfig, {
+                  calls: [
+                    {
+                      to: account.address,
+                      functionName: "executeBatch",
+                      args: [[{ target: to ?? "0x", data, value }]],
+                      abi: upgradeableModularAccountAbi,
+                    },
+                  ],
+                  capabilities: {
+                    paymasterService: {
+                      url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
+                      context: { policyId: alchemyGasPolicyId },
+                    },
+                  },
+                });
+                return id;
+              } catch {
+                // TODO filter errors
+                return client.request({ method: method as never, params: params as never });
+              }
+            }
+            const uo = (await resolveProperties(
+              await defaultUserOpSigner(await buildUserOperationFromTx(client, params[0] as TransactionRequest), {
+                client,
+                account: client.account,
+              }),
+            )) as Required<UserOperationStruct_v6>;
+            const hash = await e2e.writeContract({
+              address: entryPoint.address,
+              functionName: "handleOps",
+              abi: entryPoint.abi,
+              args: [
+                [
+                  {
+                    sender: uo.sender as Hex,
+                    nonce: BigInt(uo.nonce),
+                    initCode: uo.initCode as Hex,
+                    callData: uo.callData as Hex,
+                    callGasLimit: BigInt(uo.callGasLimit),
+                    preVerificationGas: BigInt(uo.preVerificationGas),
+                    verificationGasLimit: BigInt(uo.verificationGasLimit),
+                    maxFeePerGas: BigInt(uo.maxFeePerGas),
+                    maxPriorityFeePerGas: BigInt(uo.maxPriorityFeePerGas),
+                    paymasterAndData: uo.paymasterAndData as Hex,
+                    signature: uo.signature as Hex,
+                  },
+                ],
+                e2e.account.address,
+              ],
+            });
+            await publicClient.waitForTransactionReceipt({ hash });
+            return hash;
+          }
+          default:
+            return client.request({ method: method as never, params: params as never });
+        }
+      },
+    }),
+  }).extend(smartAccountClientActions) as unknown as typeof client;
 }
 
 function wrapSignature(ownerIndex: number, signature: Hex) {
@@ -202,6 +283,8 @@ function dummySignature(challenge: string) {
   });
 }
 
+const UO_MAGIC_ID = "0x4337433743374337433743374337433743374337433743374337433743374337";
+const TX_MAGIC_ID = "0x5792579257925792579257925792579257925792579257925792579257925792";
 const P256_N = 0xff_ff_ff_ff_00_00_00_00_ff_ff_ff_ff_ff_ff_ff_ff_bc_e6_fa_ad_a7_17_9e_84_f3_b9_ca_c2_fc_63_25_51n;
 const DUMMY_SIGNATURE = dummySignature("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
 
