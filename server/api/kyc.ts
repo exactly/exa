@@ -38,7 +38,7 @@ export default new Hono()
     if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
     if (c.req.valid("query").countryCode) {
       const account = await getAccount(credentialId);
-      if (account) c.header("User-Country", account.attributes["country-code"]);
+      if (account) c.header("User-Country", account.attributes["country-code"] ?? undefined);
     }
     setUser({ id: parse(Address, credential.account) });
     setContext("exa", { credential });
@@ -56,7 +56,7 @@ export default new Hono()
       return c.json({ code: "bad kyc", legacy: "kyc not approved" }, 400);
     }
     const account = await getAccount(credentialId);
-    if (account) c.header("User-Country", account.attributes["country-code"]);
+    if (account) c.header("User-Country", account.attributes["country-code"] ?? undefined);
     return c.json({ code: "ok", legacy: "ok" }, 200);
   })
   .post(
