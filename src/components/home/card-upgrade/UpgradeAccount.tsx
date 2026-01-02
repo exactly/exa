@@ -1,4 +1,6 @@
-import { exaPluginAddress } from "@exactly/common/generated/chain";
+import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
+import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
+import chain, { exaPluginAddress } from "@exactly/common/generated/chain";
 import {
   exaPluginAbi,
   upgradeableModularAccountAbi,
@@ -8,22 +10,24 @@ import {
 import { ArrowUpToLine } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { waitForCallsStatus } from "@wagmi/core/actions";
 import React from "react";
 import { YStack } from "tamagui";
-import { encodeAbiParameters, encodeFunctionData, getAbiItem, keccak256, zeroAddress } from "viem";
-import { useBytecode } from "wagmi";
+import { encodeAbiParameters, getAbiItem, keccak256, zeroAddress } from "viem";
+import { useBytecode, useSendCalls } from "wagmi";
 
 import Progression from "./Progression";
-import { accountClient } from "../../../utils/alchemyConnector";
 import queryClient from "../../../utils/queryClient";
 import reportError from "../../../utils/reportError";
 import useAccount from "../../../utils/useAccount";
+import exa from "../../../utils/wagmi/exa";
 import Button from "../../shared/Button";
 import Spinner from "../../shared/Spinner";
 import Text from "../../shared/Text";
 import View from "../../shared/View";
 
 export default function UpgradeAccount() {
+  const { mutateAsync: mutateSendCalls } = useSendCalls();
   const { address } = useAccount();
   const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
   const { data: installedPlugins, refetch: refetchInstalledPlugins } =
@@ -42,49 +46,44 @@ export default function UpgradeAccount() {
         queryClient.setQueryData(["card-upgrade"], 2);
         return;
       }
-      if (!accountClient) throw new Error("no account client");
       if (!address) throw new Error("no account address");
       if (!installedPlugins?.[0]) throw new Error("no installed plugin");
       if (!pluginManifest) throw new Error("invalid manifest");
-      const executeBatchData = encodeFunctionData({
-        abi: upgradeableModularAccountAbi,
-        functionName: "executeBatch",
-        args: [
-          [
-            {
-              target: address,
-              value: 0n,
-              data: encodeFunctionData({
-                abi: upgradeableModularAccountAbi,
-                functionName: "uninstallPlugin",
-                args: [installedPlugins[0], "0x", "0x"],
-              }),
-            },
-            {
-              target: address,
-              value: 0n,
-              data: encodeFunctionData({
-                abi: upgradeableModularAccountAbi,
-                functionName: "installPlugin",
-                args: [
-                  exaPluginAddress,
-                  keccak256(
-                    encodeAbiParameters(getAbiItem({ abi: exaPluginAbi, name: "pluginManifest" }).outputs, [
-                      pluginManifest,
-                    ]),
-                  ),
-                  "0x",
-                  [],
-                ],
-              }),
-            },
-          ],
+
+      const { id } = await mutateSendCalls({
+        calls: [
+          {
+            to: address,
+            abi: upgradeableModularAccountAbi,
+            functionName: "uninstallPlugin",
+            args: [installedPlugins[0], "0x", "0x"],
+          },
+          {
+            to: address,
+            abi: upgradeableModularAccountAbi,
+            functionName: "installPlugin",
+            args: [
+              exaPluginAddress,
+              keccak256(
+                encodeAbiParameters(getAbiItem({ abi: exaPluginAbi, name: "pluginManifest" }).outputs, [
+                  pluginManifest,
+                ]),
+              ),
+              "0x",
+              [],
+            ],
+          },
         ],
+        capabilities: {
+          paymasterService: {
+            url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
+            context: { policyId: alchemyGasPolicyId },
+          },
+        },
       });
-      const hash = await accountClient.sendUserOperation({
-        uo: { target: address, value: 0n, data: executeBatchData },
-      });
-      await accountClient.waitForUserOperationTransaction(hash);
+
+      const { status } = await waitForCallsStatus(exa, { id });
+      if (status === "failure") throw new Error("failed to upgrade account");
     },
     onSuccess: async () => {
       toast.show("Account upgraded!", {
