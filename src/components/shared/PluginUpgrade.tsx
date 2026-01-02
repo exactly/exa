@@ -1,4 +1,6 @@
-import { exaPluginAddress } from "@exactly/common/generated/chain";
+import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
+import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
+import chain, { exaPluginAddress } from "@exactly/common/generated/chain";
 import {
   exaPluginAbi,
   upgradeableModularAccountAbi,
@@ -7,16 +9,18 @@ import {
   useSimulateUpgradeableModularAccountUninstallPlugin,
 } from "@exactly/common/generated/hooks";
 import { useMutation } from "@tanstack/react-query";
+import { waitForCallsStatus } from "@wagmi/core/actions";
 import React from "react";
-import { encodeAbiParameters, encodeFunctionData, getAbiItem, keccak256, zeroAddress } from "viem";
-import { useBytecode } from "wagmi";
+import { encodeAbiParameters, getAbiItem, keccak256, zeroAddress } from "viem";
+import { useBytecode, useSendCalls } from "wagmi";
 
 import InfoAlert from "./InfoAlert";
-import { accountClient } from "../../utils/alchemyConnector";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
+import exa from "../../utils/wagmi/exa";
 
 export default function PluginUpgrade() {
+  const { mutateAsync: mutateSendCalls } = useSendCalls();
   const { address } = useAccount();
   const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
   const { data: installedPlugins, refetch: refetchInstalledPlugins } =
@@ -31,43 +35,52 @@ export default function PluginUpgrade() {
     args: [installedPlugins?.[0] ?? zeroAddress, "0x", "0x"],
     query: { enabled: !!address && !!installedPlugins && !!bytecode && !isLatestPlugin },
   });
+  const isReady =
+    !!bytecode && !!installedPlugins && !!pluginManifest && !!uninstallPluginSimulation && !isLatestPlugin;
   const { mutateAsync: updatePlugin, isPending: isUpdating } = useMutation({
     mutationFn: async () => {
-      if (!accountClient) throw new Error("no account client");
       if (!address) throw new Error("no account address");
       if (!installedPlugins?.[0]) throw new Error("no installed plugin");
       if (!uninstallPluginSimulation) throw new Error("no uninstall plugin simulation");
       if (!pluginManifest) throw new Error("invalid manifest");
-      const hash = await accountClient.sendUserOperation({
-        uo: [
-          { target: address, value: 0n, data: encodeFunctionData(uninstallPluginSimulation.request) },
+
+      const { id } = await mutateSendCalls({
+        calls: [
+          { to: address, ...uninstallPluginSimulation.request },
           {
-            target: address,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: upgradeableModularAccountAbi,
-              functionName: "installPlugin",
-              args: [
-                exaPluginAddress,
-                keccak256(
-                  encodeAbiParameters(getAbiItem({ abi: exaPluginAbi, name: "pluginManifest" }).outputs, [
-                    pluginManifest,
-                  ]),
-                ),
-                "0x",
-                [],
-              ],
-            }),
+            to: address,
+            abi: upgradeableModularAccountAbi,
+            functionName: "installPlugin",
+            args: [
+              exaPluginAddress,
+              keccak256(
+                encodeAbiParameters(getAbiItem({ abi: exaPluginAbi, name: "pluginManifest" }).outputs, [
+                  pluginManifest,
+                ]),
+              ),
+              "0x",
+              [],
+            ],
           },
         ],
+        capabilities: {
+          paymasterService: {
+            url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
+            context: { policyId: alchemyGasPolicyId },
+          },
+        },
       });
-      return accountClient.waitForUserOperationTransaction(hash);
+      const { status, receipts } = await waitForCallsStatus(exa, { id });
+      if (status === "failure") throw new Error("failed to upgrade plugin");
+      return receipts;
     },
     onSuccess: async () => {
       await refetchInstalledPlugins();
     },
   });
-  if (!bytecode || isLatestPlugin) return null;
+
+  if (!isReady) return null;
+
   return (
     <InfoAlert
       title="An account upgrade is required to access the latest features."

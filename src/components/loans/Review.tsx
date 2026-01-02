@@ -1,6 +1,7 @@
-import type { BatchUserOperationCallData } from "@aa-sdk/core";
 import ProposalType from "@exactly/common/ProposalType";
-import { exaPluginAddress, marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
+import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
+import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
+import chain, { exaPluginAddress, marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import {
   exaPluginAbi,
   upgradeableModularAccountAbi,
@@ -11,16 +12,16 @@ import shortenHex from "@exactly/common/shortenHex";
 import { MATURITY_INTERVAL, WAD } from "@exactly/lib";
 import { ArrowLeft, ArrowRight, Check, ChevronRight, CircleHelp, X } from "@tamagui/lucide-icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { waitForCallsStatus } from "@wagmi/core/actions";
 import { format } from "date-fns";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { ScrollView, Separator, Square, XStack, YStack } from "tamagui";
-import { encodeAbiParameters, encodeFunctionData, maxUint256, zeroAddress } from "viem";
-import { useBytecode } from "wagmi";
+import { encodeAbiParameters, encodeFunctionData, maxUint256, zeroAddress, type Address, type Hex } from "viem";
+import { useBytecode, useSendCalls } from "wagmi";
 
-import { accountClient } from "../../utils/alchemyConnector";
 import assetLogos from "../../utils/assetLogos";
 import { presentArticle } from "../../utils/intercom";
 import type { Loan } from "../../utils/queryClient";
@@ -28,6 +29,7 @@ import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useInstallments from "../../utils/useInstallments";
+import exa from "../../utils/wagmi/exa";
 import AssetLogo from "../shared/AssetLogo";
 import GradientScrollView from "../shared/GradientScrollView";
 import PaymentScheduleSheet from "../shared/PaymentScheduleSheet";
@@ -95,6 +97,7 @@ export default function Review() {
       ? split.installments.reduce((accumulator, current) => accumulator + current, 0n) - (amount ?? 0n)
       : 0n;
 
+  const { mutateAsync: mutateSendCalls } = useSendCalls();
   const {
     mutateAsync: propose,
     isPending: isProposingBorrowInstallments,
@@ -106,8 +109,7 @@ export default function Review() {
       if (!market) throw new Error("no market");
       if (!receiver) throw new Error("no receiver");
       if (!singleInstallment && !split) throw new Error("no installment data");
-      if (!accountClient) throw new Error("no account client");
-      const uo: BatchUserOperationCallData = [];
+      const calls: { to: Address; data: Hex }[] = [];
       for (let index = 0; index < (count ?? 0); index++) {
         const borrowAmount = singleInstallment ? amount : split?.amounts[index];
         const borrowMaturity = BigInt(Number(loan?.maturity) + index * MATURITY_INTERVAL);
@@ -129,10 +131,19 @@ export default function Review() {
             ),
           ],
         });
-        uo.push({ target: address, data });
+        calls.push({ to: address, data });
       }
-      const userOperation = await accountClient.sendUserOperation({ uo });
-      return await accountClient.waitForUserOperationTransaction(userOperation);
+      const { id } = await mutateSendCalls({
+        calls,
+        capabilities: {
+          paymasterService: {
+            context: { policyId: alchemyGasPolicyId },
+            url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
+          },
+        },
+      });
+      const { status } = await waitForCallsStatus(exa, { id });
+      if (status === "failure") throw new Error("failed to submit borrow proposal");
     },
     onError: reportError,
   });
@@ -151,7 +162,8 @@ export default function Review() {
   const processing = isProposingBorrowInstallments;
   const success = isProposingBorrowInstallmentsSuccess;
   const error = !!proposeBorrowInstallmentsError;
-  const disabled = pending;
+  const disabled =
+    pending || !address || !receiver || !market || (!singleInstallment && !split) || (singleInstallment && !borrow);
 
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
     address: address ?? zeroAddress,
