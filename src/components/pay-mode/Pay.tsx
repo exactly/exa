@@ -18,6 +18,7 @@ import { Address } from "@exactly/common/validation";
 import { divWad, fixedRepayAssets, fixedRepayPosition, min, mulWad, WAD } from "@exactly/lib";
 import { ArrowLeft, ChevronRight, Coins } from "@tamagui/lucide-icons";
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
+import { waitForCallsStatus } from "@wagmi/core/actions";
 import { format } from "date-fns";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useReducer, useState } from "react";
@@ -32,8 +33,10 @@ import {
   erc20Abi,
   maxUint256,
   zeroAddress,
+  type Address as ViemAddress,
+  type Hex,
 } from "viem";
-import { useBytecode, useReadContract, useSimulateContract, useWriteContract } from "wagmi";
+import { useBytecode, useReadContract, useSendCalls, useSimulateContract, useWriteContract } from "wagmi";
 
 import AssetSelectionSheet from "./AssetSelectionSheet";
 import RepayAmountSelector from "./RepayAmountSelector";
@@ -41,7 +44,6 @@ import SafeView from "../../components/shared/SafeView";
 import Button from "../../components/shared/StyledButton";
 import Text from "../../components/shared/Text";
 import View from "../../components/shared/View";
-import { accountClient } from "../../utils/alchemyConnector";
 import assetLogos from "../../utils/assetLogos";
 import { getRoute, getRouteFrom } from "../../utils/lifi";
 import queryClient from "../../utils/queryClient";
@@ -50,6 +52,7 @@ import useAccount from "../../utils/useAccount";
 import useAccountAssets from "../../utils/useAccountAssets";
 import useAsset from "../../utils/useAsset";
 import useSimulateProposal from "../../utils/useSimulateProposal";
+import exa from "../../utils/wagmi/exa";
 import AssetLogo from "../shared/AssetLogo";
 import Failure from "../shared/Failure";
 import Pending from "../shared/Pending";
@@ -81,6 +84,7 @@ export default function Pay() {
     amount: 0,
     usdAmount: 0,
   });
+  const { mutateAsync: mutateSendCalls } = useSendCalls();
   const { data: bytecode } = useBytecode({ address: account ?? zeroAddress, query: { enabled: !!account } });
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
     address: account ?? zeroAddress,
@@ -402,7 +406,6 @@ export default function Pay() {
     async mutationFn() {
       if (!account) throw new Error("no account");
       if (!maturity) throw new Error("no maturity");
-      if (!accountClient) throw new Error("no account client");
       if (!externalAsset) throw new Error("no external asset");
       if (!selectedAsset.external) throw new Error("not external asset");
       if (!route) throw new Error("no route");
@@ -413,37 +416,37 @@ export default function Pay() {
         amount: Number(route.fromAmount) / 10 ** externalAsset.decimals,
         usdAmount: (Number(externalAsset.priceUSD) * Number(route.fromAmount)) / 10 ** externalAsset.decimals,
       });
-      const uo = await accountClient.sendUserOperation({
-        uo: [
-          {
-            target: selectedAsset.address ?? zeroAddress,
-            data: encodeFunctionData({
-              abi: erc20Abi,
-              functionName: "approve",
-              args: [swapperAddress, route.fromAmount],
-            }),
-          },
-          { target: swapperAddress, data: route.data },
-          {
-            target: usdcAddress,
-            data: encodeFunctionData({
-              abi: erc20Abi,
-              functionName: "approve",
-              args: [marketUSDCAddress, maxRepay],
-            }),
-          },
-          {
-            target: marketUSDCAddress,
-            data: encodeFunctionData({
-              functionName: "repayAtMaturity",
-              abi: marketAbi,
-              args: [maturity, positionAssets, maxRepay, account],
-            }),
-          },
-        ],
-      });
+      const calls: { to: ViemAddress; data: Hex }[] = [
+        {
+          to: selectedAsset.address ?? zeroAddress,
+          data: encodeFunctionData({
+            abi: erc20Abi,
+            functionName: "approve",
+            args: [swapperAddress, route.fromAmount],
+          }),
+        },
+        { to: swapperAddress, data: route.data },
+        {
+          to: usdcAddress,
+          data: encodeFunctionData({
+            abi: erc20Abi,
+            functionName: "approve",
+            args: [marketUSDCAddress, maxRepay],
+          }),
+        },
+        {
+          to: marketUSDCAddress,
+          data: encodeFunctionData({
+            functionName: "repayAtMaturity",
+            abi: marketAbi,
+            args: [maturity, positionAssets, maxRepay, account],
+          }),
+        },
+      ];
+      const { id } = await mutateSendCalls({ calls });
       setEnableSimulations(false);
-      return await accountClient.waitForUserOperationTransaction(uo);
+      const { status } = await waitForCallsStatus(exa, { id });
+      if (status === "failure") throw new Error("failed to repay with external asset");
     },
     onError(error) {
       reportError(error);
