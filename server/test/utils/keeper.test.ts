@@ -74,18 +74,18 @@ describe("fault tolerance", () => {
     );
 
     const blockedHashes: Hex[] = [];
-    const sendBlocked = await Promise.allSettled([
-      keeper.exaSend(
-        { name: "test transfer", op: "test.transfer" },
-        { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
-        { onHash: (hash) => blockedHashes.push(hash) },
-      ),
-      keeper.exaSend(
-        { name: "test transfer", op: "test.transfer" },
-        { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
-        { onHash: (hash) => blockedHashes.push(hash) },
-      ),
-    ]);
+    const first = keeper.exaSend(
+      { name: "test transfer", op: "test.transfer" },
+      { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+      { onHash: (hash) => blockedHashes.push(hash) },
+    );
+    await vi.waitUntil(() => blockedHashes.length === 1);
+    const second = keeper.exaSend(
+      { name: "test transfer", op: "test.transfer" },
+      { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+      { onHash: (hash) => blockedHashes.push(hash) },
+    );
+    const sendBlocked = await Promise.allSettled([first, second]);
 
     expect(sendBlocked).toMatchObject(
       sendBlocked.map(() => ({ status: "rejected", reason: { name: "WaitForTransactionReceiptTimeoutError" } })),
