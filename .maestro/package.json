@@ -33,23 +33,13 @@
           "thirdParty": true,
           "outputPath": "dist",
           "platform": "neutral",
-          "tsConfig": ".maestro/tsconfig.json",
-          "esbuildConfig": ".maestro/esbuild.config.cjs",
+          "tsConfig": "{projectRoot}/tsconfig.json",
+          "esbuildConfig": "{projectRoot}/esbuild.config.cjs",
           "main": "src/script/*.ts"
         }
       },
       "dev": {
         "continuous": true,
-        "dependsOn": [
-          {
-            "projects": "@exactly/server",
-            "target": "e2e"
-          },
-          {
-            "projects": "@exactly/mobile",
-            "target": "ios"
-          }
-        ],
         "executor": "@nx/esbuild:esbuild",
         "inputs": [
           "production",
@@ -63,34 +53,8 @@
           "thirdParty": true,
           "outputPath": "dist",
           "platform": "neutral",
-          "tsConfig": ".maestro/tsconfig.json",
-          "esbuildConfig": ".maestro/esbuild.config.cjs",
-          "main": "src/script/*.ts"
-        }
-      },
-      "dev:production": {
-        "continuous": true,
-        "dependsOn": [
-          {
-            "projects": "@exactly/mobile",
-            "target": "ios"
-          }
-        ],
-        "executor": "@nx/esbuild:esbuild",
-        "inputs": [
-          "production",
-          "^production"
-        ],
-        "outputs": [
-          "{options.outputPath}"
-        ],
-        "options": {
-          "watch": true,
-          "thirdParty": true,
-          "outputPath": "dist",
-          "platform": "neutral",
-          "tsConfig": ".maestro/tsconfig.json",
-          "esbuildConfig": ".maestro/esbuild.config.cjs",
+          "tsConfig": "{projectRoot}/tsconfig.json",
+          "esbuildConfig": "{projectRoot}/esbuild.config.cjs",
           "main": "src/script/*.ts"
         }
       }
