@@ -422,6 +422,34 @@
         ],
         "continuous": true
       },
+      "e2e:dev:ios": {
+        "continuous": true,
+        "dependsOn": [
+          "prepare",
+          "^prepare",
+          {
+            "projects": "@exactly/server",
+            "target": "e2e"
+          },
+          {
+            "projects": "@exactly/e2e",
+            "target": "dev"
+          }
+        ],
+        "inputs": [
+          "production",
+          "^production"
+        ],
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "expo run:ios",
+          "env": {
+            "APP_DOMAIN": "localhost",
+            "CHAIN_ID": "31337",
+            "EXPO_PUBLIC_ENV": "e2e"
+          }
+        }
+      },
       "e2e:ios": {
         "inputs": [
           "production",
