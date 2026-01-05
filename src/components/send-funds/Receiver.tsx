@@ -77,15 +77,16 @@ export default function ReceiverSelection() {
                   <YStack gap="$s2">
                     <XStack flexDirection="row">
                       <Input
-                        neutral
                         flex={1}
                         placeholder={`Enter ${chain.name} address`}
                         borderColor="$uiNeutralTertiary"
-                        borderRightColor="transparent"
                         borderTopRightRadius={0}
                         borderBottomRightRadius={0}
                         value={value}
                         onChangeText={handleChange}
+                        style={{ borderColor: "$uiNeutralTertiary", borderWidth: 1, fontSize: 15 }}
+                        focusStyle={{ borderColor: "$borderBrandStrong", borderWidth: 1 }}
+                        backgroundColor="$backgroundSoft"
                       />
                       <Button
                         outlined

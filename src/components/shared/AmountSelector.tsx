@@ -3,9 +3,8 @@ import { WAD } from "@exactly/lib";
 import { useForm } from "@tanstack/react-form";
 import { useLocalSearchParams } from "expo-router";
 import React, { useCallback, useRef, useState } from "react";
-import type { TextInput } from "react-native";
-import { StyleSheet } from "react-native";
-import { styled, YStack } from "tamagui";
+import { StyleSheet, type TextInput } from "react-native";
+import { YStack } from "tamagui";
 import { nonEmpty, parse, pipe, string } from "valibot";
 import { formatUnits, parseUnits } from "viem";
 
@@ -16,7 +15,7 @@ import View from "./View";
 import useAsset from "../../utils/useAsset";
 
 export default function AmountSelector({ onChange }: { onChange: (value: bigint) => void }) {
-  const usdInputReference = useRef<TextInput>(null);
+  const usdInputReference = useRef<TextInput | null>(null); // eslint-disable-line @eslint-react/naming-convention/ref-name
   const [overlayShown, setOverlayShown] = useState(false);
 
   const { asset: assetAddress } = useLocalSearchParams();
@@ -105,7 +104,7 @@ export default function AmountSelector({ onChange }: { onChange: (value: bigint)
       <View borderRadius="$r3" gap="$s3" backgroundColor="$backgroundBrandSoft" padding="$s3">
         <Field name="assetInput" validators={{ onChange: pipe(string(), nonEmpty("empty amount")) }}>
           {({ state: { value } }) => (
-            <AmountInput
+            <Input
               onFocus={() => {
                 setOverlayShown(true);
               }}
@@ -113,6 +112,14 @@ export default function AmountSelector({ onChange }: { onChange: (value: bigint)
               placeholder={market?.symbol.slice(3) ?? externalAsset?.symbol ?? ""}
               onChangeText={handleAssetChange}
               value={value}
+              focusStyle={{ borderColor: "$borderBrandStrong", borderWidth: 1 }}
+              backgroundColor="$backgroundSoft"
+              borderRadius="$r2"
+              height={60}
+              textAlign="center"
+              style={{ fontSize: 24 }}
+              borderWidth={0}
+              flex={1}
             />
           )}
         </Field>
@@ -124,7 +131,7 @@ export default function AmountSelector({ onChange }: { onChange: (value: bigint)
                 usdInputReference.current?.focus();
               }}
             >
-              <AmountInput
+              <Input
                 ref={usdInputReference}
                 inputMode="decimal"
                 onChangeText={handleUsdChange}
@@ -133,6 +140,14 @@ export default function AmountSelector({ onChange }: { onChange: (value: bigint)
                 onBlur={() => {
                   setOverlayShown(true);
                 }}
+                focusStyle={{ borderColor: "$borderBrandStrong", borderWidth: 1 }}
+                backgroundColor="$backgroundSoft"
+                borderRadius="$r2"
+                height={60}
+                textAlign="center"
+                style={{ fontSize: 24 }}
+                borderWidth={0}
+                flex={1}
               />
               <View
                 position="absolute"
@@ -163,14 +178,3 @@ export default function AmountSelector({ onChange }: { onChange: (value: bigint)
     </YStack>
   );
 }
-
-const AmountInput = styled(Input, {
-  focusStyle: { borderColor: "$borderBrandStrong", borderWidth: 1 },
-  backgroundColor: "$backgroundSoft",
-  borderRadius: "$r2",
-  height: 60,
-  textAlign: "center",
-  fontSize: 24,
-  borderWidth: 0,
-  flex: 1,
-});

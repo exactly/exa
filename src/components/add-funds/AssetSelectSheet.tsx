@@ -2,7 +2,7 @@ import type { Chain, Token } from "@lifi/sdk";
 import { ChevronDown, Search } from "@tamagui/lucide-icons";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, type LayoutChangeEvent } from "react-native";
-import { ScrollView, XStack, YStack, styled } from "tamagui";
+import { ScrollView, XStack, YStack } from "tamagui";
 import { formatUnits } from "viem";
 
 import ChainLogo from "./ChainLogo";
@@ -122,13 +122,12 @@ export default function AssetSelectSheet({
               >
                 <XStack alignItems="center" gap="$s2" flex={1} paddingHorizontal="$s3">
                   <Search size={18} color="$uiNeutralSecondary" />
-                  <SearchInput
+                  <Input
                     placeholder="Search tokens"
                     value={searchQuery}
                     onChangeText={setSearchQuery}
                     placeholderTextColor="$uiNeutralPlaceholder"
                     autoCapitalize="none"
-                    autoCorrect={false}
                     flex={1}
                     borderWidth={0}
                     borderColor="transparent"
@@ -136,7 +135,8 @@ export default function AssetSelectSheet({
                     padding={0}
                     minHeight={44}
                     color="$uiNeutralPrimary"
-                    fontSize={15}
+                    focusStyle={{ borderColor: "transparent", backgroundColor: "transparent" }}
+                    focusVisibleStyle={{ outlineWidth: 0, borderColor: "transparent", outlineColor: "transparent" }}
                   />
                 </XStack>
                 {showNetworkFilter ? (
@@ -328,8 +328,3 @@ export default function AssetSelectSheet({
     </ModalSheet>
   );
 }
-
-const SearchInput = styled(Input, {
-  focusStyle: { borderColor: "transparent", backgroundColor: "transparent" },
-  focusVisibleStyle: { outlineWidth: 0, borderColor: "transparent", outlineColor: "transparent" },
-});

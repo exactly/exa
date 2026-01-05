@@ -21,8 +21,8 @@ import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useInstallments from "../../utils/useInstallments";
 import AssetLogo from "../shared/AssetLogo";
+import Input from "../shared/Input";
 import Skeleton from "../shared/Skeleton";
-import TamaguiInput from "../shared/TamaguiInput";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
@@ -124,26 +124,37 @@ export default function PaySelector() {
             <Text primary emphasized subHeadline>
               Simulate a purchase of
             </Text>
-            <TamaguiInput borderRadius="$r3" flex={1}>
-              <TamaguiInput.Icon>
-                <Text subHeadline color="$uiNeutralPlaceholder">
-                  USDC
-                </Text>
-              </TamaguiInput.Icon>
-              <TamaguiInput.Input
+            <XStack
+              alignItems="center"
+              backgroundColor="$backgroundSoft"
+              borderColor="$borderNeutralMild"
+              borderRadius="$r2"
+              borderWidth={1}
+              flex={1}
+              focusStyle={{ borderColor: "$borderBrandStrong" }}
+              focusVisibleStyle={{
+                outlineWidth: 0,
+                borderColor: "$borderBrandStrong",
+                outlineColor: "$borderBrandStrong",
+              }}
+              gap="$s2"
+              paddingHorizontal="$s3"
+            >
+              <Text subHeadline color="$uiNeutralPlaceholder" userSelect="none">
+                USDC
+              </Text>
+              <Input
+                borderWidth={0}
+                inputMode="decimal"
                 maxLength={6}
                 numberOfLines={1}
-                inputMode="decimal"
+                onChangeText={setInput}
+                style={{ fontSize: 20, lineHeight: 25, padding: 0, flex: 1 }}
                 textAlign="right"
-                fontSize={20}
-                lineHeight={25}
                 value={input}
                 width="100%"
-                onChangeText={(text) => {
-                  setInput(text);
-                }}
               />
-            </TamaguiInput>
+            </XStack>
           </XStack>
         </YStack>
       </View>
