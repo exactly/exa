@@ -256,6 +256,30 @@ describe.concurrent("authenticated", () => {
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toStrictEqual(activity);
     });
+
+    it("filters by maturity", async () => {
+      expect.hasAssertions();
+
+      const withBorrow = activity.find(
+        (a): a is (typeof activity)[number] & { borrow: { maturity: number } } =>
+          "borrow" in a && "maturity" in a.borrow,
+      );
+
+      expect(withBorrow).toBeDefined();
+
+      const maturity = String(withBorrow && withBorrow.borrow.maturity);
+      const response = await appClient.index.$get(
+        { query: { maturity } },
+        { headers: { "test-credential-id": account } },
+      );
+
+      expect(response.status).toBe(200);
+
+      const json = (await response.json()) as { borrow?: { maturity: number } }[];
+      const hasBorrowWithMaturity = json.some((item) => item.borrow?.maturity === Number(maturity));
+
+      expect(hasBorrowWithMaturity).toBe(true);
+    });
   });
 
   describe("onchain", () => {
