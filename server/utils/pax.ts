@@ -40,8 +40,8 @@ export async function addCapita(data: InferInput<typeof CapitaRequest> & { inter
   return await request(object({}), "/api/capita", data, "POST");
 }
 
-export async function removeCapita(internalId: string): Promise<void> {
-  await request(object({}), `/api/capita/${internalId}`, undefined, "DELETE");
+export async function removeCapita(internalId: string) {
+  return await request(object({}), `/api/capita/${internalId}`, undefined, "DELETE");
 }
 
 async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
@@ -66,21 +66,20 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
   const rawBody = await response.arrayBuffer();
   if (rawBody.byteLength === 0) return {};
 
-  let json: unknown;
   try {
     const text = new TextDecoder().decode(rawBody);
-    json = JSON.parse(text);
+    const json: unknown = JSON.parse(text);
+    const result = safeParse(schema, json);
+
+    if (!result.success) {
+      setContext("validation", { ...result, flatten: flatten(result.issues) });
+      throw new ValiError(result.issues);
+    }
+    return result.output;
   } catch (error) {
     captureException(error);
     throw new Error("failed to parse pax response");
   }
-
-  const result = safeParse(schema, json);
-  if (!result.success) {
-    setContext("validation", { ...result, flatten: flatten(result.issues) });
-    throw new ValiError(result.issues);
-  }
-  return result.output;
 }
 
 export function deriveAssociateId(account: Address): string {

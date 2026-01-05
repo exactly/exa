@@ -1,5 +1,4 @@
-import { Address } from "@exactly/common/validation";
-import { parse } from "valibot";
+import type { Address } from "@exactly/common/validation";
 import { generatePrivateKey, privateKeyToAddress } from "viem/accounts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -16,9 +15,11 @@ describe("pax integration", () => {
     } as Response);
   });
 
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
-  describe("add capita", () => {
+  describe("addCapita", () => {
     it("should call the correct endpoint with correct headers and body", async () => {
       const capitaData = {
         firstName: "Juan",
@@ -30,11 +31,15 @@ describe("pax integration", () => {
         product: "PRODUCT_NAME",
         internalId: "test-id",
       };
+
       await pax.addCapita(capitaData);
 
       expect(fetch).toHaveBeenCalledWith("https://pax.test/api/capita", {
         method: "POST",
-        headers: expect.objectContaining({ "x-api-key": "pax", "content-type": "application/json" }) as unknown,
+        headers: expect.objectContaining({
+          "x-api-key": "pax",
+          "content-type": "application/json",
+        }) as unknown,
         body: JSON.stringify(capitaData),
         signal: expect.any(AbortSignal) as unknown,
       });
@@ -52,6 +57,7 @@ describe("pax integration", () => {
         internalId: "123",
         internalGroupId: "GROUP1",
       };
+
       await pax.addCapita(capitaData);
 
       expect(fetch).toHaveBeenCalledWith("https://pax.test/api/capita", {
@@ -87,11 +93,14 @@ describe("pax integration", () => {
   describe("removeCapita", () => {
     it("should call the DELETE endpoint correctly", async () => {
       const internalId = "test-id-123";
+
       await pax.removeCapita(internalId);
 
       expect(fetch).toHaveBeenCalledWith(`https://pax.test/api/capita/${internalId}`, {
         method: "DELETE",
-        headers: expect.objectContaining({ "x-api-key": "pax" }) as unknown,
+        headers: expect.objectContaining({
+          "x-api-key": "pax",
+        }) as unknown,
         body: undefined,
         signal: expect.any(AbortSignal) as unknown,
       });
@@ -110,28 +119,32 @@ describe("pax integration", () => {
 
   describe("deriveAssociateId", () => {
     it("should return a 10-character string", () => {
-      const id = pax.deriveAssociateId(parse(Address, privateKeyToAddress(generatePrivateKey())));
+      const account = privateKeyToAddress(generatePrivateKey());
+      const id = pax.deriveAssociateId(account as Address);
 
       expect(id).toHaveLength(10);
     });
 
     it("should be deterministic", () => {
-      const account = parse(Address, privateKeyToAddress(generatePrivateKey()));
-      const id1 = pax.deriveAssociateId(account);
-      const id2 = pax.deriveAssociateId(account);
+      const account = privateKeyToAddress(generatePrivateKey());
+      const id1 = pax.deriveAssociateId(account as Address);
+      const id2 = pax.deriveAssociateId(account as Address);
 
       expect(id1).toBe(id2);
     });
 
     it("should return different IDs for different accounts", () => {
-      const id1 = pax.deriveAssociateId(parse(Address, privateKeyToAddress(generatePrivateKey())));
-      const id2 = pax.deriveAssociateId(parse(Address, privateKeyToAddress(generatePrivateKey())));
+      const account1 = privateKeyToAddress(generatePrivateKey());
+      const account2 = privateKeyToAddress(generatePrivateKey());
+      const id1 = pax.deriveAssociateId(account1 as Address);
+      const id2 = pax.deriveAssociateId(account2 as Address);
 
       expect(id1).not.toBe(id2);
     });
 
     it("should be alphanumeric (base36)", () => {
-      const id = pax.deriveAssociateId(parse(Address, privateKeyToAddress(generatePrivateKey())));
+      const account = privateKeyToAddress(generatePrivateKey());
+      const id = pax.deriveAssociateId(account as Address);
 
       expect(id).toMatch(/^[0-9a-z]+$/);
     });

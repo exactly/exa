@@ -4,6 +4,7 @@ import { csrf } from "hono/csrf";
 
 import appOrigin from "../utils/appOrigin";
 import activity from "./activity";
+import appOrigin from "../utils/appOrigin";
 import authentication from "./auth/authentication";
 import registration from "./auth/registration";
 import card from "./card";
@@ -27,9 +28,8 @@ const api = new Hono()
   .route("/kyc", kyc)
   .route("/onramp", onramp)
   .route("/passkey", passkey)
-  .route("/passkey", passkey)
-  .route("/webhook", webhook)
-  .route("/pax", pax);
+  .route("/pax", pax)
+  .route("/webhook", webhook);
 
 export default api;
 export type ExaAPI = typeof api;

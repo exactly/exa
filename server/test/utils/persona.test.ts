@@ -6,8 +6,8 @@ import deriveAddress from "@exactly/common/deriveAddress";
 import { captureException } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
-import { padHex, zeroHash } from "viem";
-import { privateKeyToAddress } from "viem/accounts";
+import { padHex, zeroAddress, zeroHash } from "viem";
+import { generatePrivateKey, privateKeyToAddress } from "viem/accounts";
 import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 
 import database, { credentials } from "../../database";
@@ -39,6 +39,15 @@ vi.mock("../../utils/persona", async (importOriginal) => {
 const appClient = testClient(app);
 
 describe("with reference", () => {
+  const bob = privateKeyToAddress(padHex("0xb0b"));
+  const account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(bob), y: zeroHash });
+
+  beforeAll(async () => {
+    await database
+      .insert(credentials)
+      .values([{ id: account, publicKey: new Uint8Array(), account, factory: zeroAddress }]);
+  });
+
   afterEach(() => vi.resetAllMocks());
 
   it("creates a panda account", async () => {
@@ -85,7 +94,7 @@ describe("with reference", () => {
       columns: { pandaId: true },
     });
 
-    expect(p?.pandaId).toBe("pandaId");
+    expect(p?.pandaId).toBe(id);
 
     expect(response.status).toBe(200);
   });
@@ -96,7 +105,7 @@ describe("with reference", () => {
       id: createdAccount,
       publicKey: new Uint8Array(),
       account: createdAccount,
-      factory: inject("ExaAccountFactory"),
+      factory: zeroAddress,
       pandaId: "test-id",
     });
 
@@ -141,6 +150,13 @@ describe("with reference", () => {
             ...personaPayload.json.data.attributes,
             payload: {
               ...personaPayload.json.data.attributes.payload,
+              data: {
+                ...personaPayload.json.data.attributes.payload.data,
+                attributes: {
+                  ...personaPayload.json.data.attributes.payload.data.attributes,
+                  referenceId: account,
+                },
+              },
               included: [...personaPayload.json.data.attributes.payload.included],
             },
           },
@@ -149,7 +165,8 @@ describe("with reference", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(
+    expect(captureException).toHaveBeenCalledOnce();
+    expect(captureException).toHaveBeenCalledWith(
       expect.objectContaining({ message: "no credential" }),
       expect.anything(),
     );
@@ -177,7 +194,8 @@ describe("with reference", () => {
         },
       });
 
-      expect(captureException).toHaveBeenCalledExactlyOnceWith(
+      expect(captureException).toHaveBeenCalledOnce();
+      expect(captureException).toHaveBeenCalledWith(
         expect.objectContaining({ message: "bad persona" }),
         expect.anything(),
       );
@@ -219,7 +237,8 @@ describe("with reference", () => {
         },
       });
 
-      expect(captureException).toHaveBeenCalledExactlyOnceWith(
+      expect(captureException).toHaveBeenCalledOnce();
+      expect(captureException).toHaveBeenCalledWith(
         expect.objectContaining({ message: "bad persona" }),
         expect.anything(),
       );
@@ -263,7 +282,8 @@ describe("with reference", () => {
         },
       });
 
-      expect(captureException).toHaveBeenCalledExactlyOnceWith(
+      expect(captureException).toHaveBeenCalledOnce();
+      expect(captureException).toHaveBeenCalledWith(
         expect.objectContaining({ message: "bad persona" }),
         expect.anything(),
       );

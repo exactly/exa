@@ -1,4 +1,5 @@
 import { firewallAbi, firewallAddress } from "@exactly/common/generated/chain";
+import { Address } from "@exactly/common/validation";
 import { vValidator } from "@hono/valibot-validator";
 import { captureException, getActiveSpan, SEMANTIC_ATTRIBUTE_SENTRY_OP, setContext, setUser } from "@sentry/node";
 import { eq } from "drizzle-orm";
@@ -15,6 +16,7 @@ import {
   nullable,
   object,
   optional,
+  parse,
   pipe,
   safeParse,
   string,
@@ -233,6 +235,7 @@ export default new Hono().post(
 
     await database.update(credentials).set({ pandaId: id }).where(eq(credentials.id, referenceId));
 
+    const associateId = deriveAssociateId(parse(Address, credential.account));
     getActiveSpan()?.setAttributes({ "exa.pandaId": id });
     setContext("persona", { inquiryId: personaShareToken, pandaId: id });
 
