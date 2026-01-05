@@ -68,9 +68,12 @@ export default function PaymentDetails({ item }: { item: CreditActivity | DebitA
                 &nbsp;
               </Text>
               <Text callout color="$uiNeutralPrimary">
-                {item.mode === 1 && Number(item.usdAmount + item.borrow.fee).toFixed(2)}
+                {item.mode === 1 && (item.usdAmount + item.borrow.fee).toFixed(2)}
                 {item.mode > 1 &&
-                  Number(item.usdAmount / (item as InstallmentsActivity).borrow.installments.length).toFixed(2)}
+                  (
+                    (item.usdAmount + (item as InstallmentsActivity).borrow.fee) /
+                    (item as InstallmentsActivity).borrow.installments.length
+                  ).toFixed(2)}
                 &nbsp;USDC
               </Text>
             </XStack>
