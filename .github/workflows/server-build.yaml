@@ -3,6 +3,8 @@ on:
   workflow_call:
     inputs:
       environment: { required: true, type: string }
+    secrets:
+      SENTRY_AUTH_TOKEN:
 jobs:
   docker:
     runs-on: ubuntu-latest
@@ -43,3 +45,18 @@ jobs:
           subject-name: ${{ env.IMAGE }}
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
+      - run: | # cspell:ignore imageid
+          docker create --name extract ${{ steps.build.outputs.imageid }}
+          docker cp extract:/prod/server/dist ./server/dist
+          docker cp extract:/prod/server/generated/release.js ./server/generated/release.js
+          docker rm extract
+          echo "release=$(node -e 'console.log(require(`./server/generated/release`))')" >> $GITHUB_OUTPUT
+        id: extract
+      - uses: getsentry/action-release@v3 # cspell:ignore getsentry
+        env: { SENTRY_ORG: exactly, SENTRY_PROJECT: server, SENTRY_AUTH_TOKEN: "${{ secrets.SENTRY_AUTH_TOKEN }}" }
+        with:
+          environment: ${{ inputs.environment }}
+          release: ${{ steps.extract.outputs.release }}
+          finalize: ${{ inputs.environment == 'production' }}
+          sourcemaps: server/dist
+          inject: false

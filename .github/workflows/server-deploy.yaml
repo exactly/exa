@@ -25,22 +25,3 @@ jobs:
           token: ${{ secrets.DIGITALOCEAN_TOKEN }}
           print_build_logs: true
           print_deploy_logs: true
-      - uses: actions/checkout@v4
-        with: { fetch-depth: 0, fetch-tags: true }
-      - uses: pnpm/action-setup@v4
-        with: { version: "9.15.9", run_install: false }
-      - uses: actions/setup-node@v4
-        with: { node-version: ">=22.14.0", cache: pnpm }
-      - uses: foundry-rs/foundry-toolchain@v1
-        with: { version: v1.3.6 }
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm nx build server
-      - run: echo "release=$(node -e 'console.log(require(`./server/generated/release`))')" >> $GITHUB_OUTPUT
-        id: release
-      - uses: getsentry/action-release@v3 # cspell:ignore getsentry
-        env: { SENTRY_ORG: exactly, SENTRY_PROJECT: server, SENTRY_AUTH_TOKEN: "${{ secrets.SENTRY_AUTH_TOKEN }}" }
-        with:
-          environment: ${{ inputs.environment }}
-          release: ${{ steps.release.outputs.release }}
-          finalize: ${{ inputs.environment == 'production' }}
-          sourcemaps: server/dist
