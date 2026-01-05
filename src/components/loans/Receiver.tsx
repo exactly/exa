@@ -165,7 +165,6 @@ export default function Receiver() {
                       return (
                         <XStack alignItems="center">
                           <Input
-                            neutral
                             flex={1}
                             placeholder="Enter receiver address"
                             borderColor="$uiNeutralTertiary"
@@ -173,7 +172,7 @@ export default function Receiver() {
                             borderTopRightRadius={0}
                             borderBottomRightRadius={0}
                             value={value}
-                            onChangeText={handleChange}
+                            onChange={({ target }) => handleChange((target as { value?: string }).value ?? "")}
                           />
                           <Button
                             outlined
