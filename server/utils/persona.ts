@@ -3,13 +3,11 @@ import { setContext } from "@sentry/core";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import {
   array,
-  nullish,
-  type BaseIssue,
-  type BaseSchema,
+  boolean,
   flatten,
   literal,
   nullable,
-  boolean,
+  nullish,
   number,
   object,
   picklist,
@@ -17,6 +15,8 @@ import {
   string,
   ValiError,
   variant,
+  type BaseIssue,
+  type BaseSchema,
 } from "valibot";
 
 import appOrigin from "./appOrigin";

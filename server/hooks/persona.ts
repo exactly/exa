@@ -1,6 +1,7 @@
 import { firewallAbi, firewallAddress } from "@exactly/common/generated/chain";
+import { Address } from "@exactly/common/validation";
 import { vValidator } from "@hono/valibot-validator";
-import { captureException, getActiveSpan, SEMANTIC_ATTRIBUTE_SENTRY_OP, setUser } from "@sentry/node";
+import { captureException, getActiveSpan, SEMANTIC_ATTRIBUTE_SENTRY_OP, setContext, setUser } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import type { InferOutput } from "valibot";
@@ -15,6 +16,7 @@ import {
   nullable,
   object,
   optional,
+  parse,
   pipe,
   safeParse,
   string,
@@ -24,6 +26,7 @@ import {
 import database, { credentials } from "../database/index";
 import keeper from "../utils/keeper";
 import { createUser } from "../utils/panda";
+import { addCapita, deriveAssociateId } from "../utils/pax";
 import { headerValidator } from "../utils/persona";
 import { customer } from "../utils/sardine";
 import validatorHook from "../utils/validatorHook";
@@ -79,6 +82,12 @@ export default new Hono().post(
                       inputSelect: object({ value: string() }),
                       monthlyPurchasesRange: optional(object({ value: string() })),
                       addressCountryCode: object({ value: string() }),
+                      birthdate: object({ value: string() }),
+                      identificationNumber: object({ value: string() }),
+                      nameFirst: object({ value: string() }),
+                      nameLast: object({ value: string() }),
+                      emailAddress: object({ value: string() }),
+                      phoneNumber: optional(object({ value: string() })),
                     }),
                     check(
                       (fields) => !!fields.annualSalaryRangesUs150000?.value || !!fields.annualSalary.value,
@@ -227,7 +236,24 @@ export default new Hono().post(
 
     await database.update(credentials).set({ pandaId: id }).where(eq(credentials.id, referenceId));
 
+    const associateId = deriveAssociateId(parse(Address, credential.account));
     getActiveSpan()?.setAttributes({ "exa.pandaId": id });
+    setContext("persona", { inquiryId: personaShareToken, pandaId: id });
+
+    const capitaPayload = {
+      birthdate: attributes.birthdate,
+      document: fields.identificationNumber.value,
+      firstName: attributes.nameFirst,
+      lastName: attributes.nameLast,
+      email: attributes.emailAddress,
+      phone: attributes.phoneNumber,
+      internalId: associateId,
+      product: "travel insurance",
+    };
+    setContext("pax", { payload: capitaPayload });
+    addCapita(capitaPayload).catch((error: unknown) => {
+      captureException(error, { extra: { pandaId: id, referenceId } });
+    });
 
     if (firewallAddress) {
       keeper

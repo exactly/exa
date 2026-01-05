@@ -25,10 +25,10 @@ import {
 } from "valibot";
 import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
+import database, { credentials } from "../../database";
 import type { IdentificationClasses as PersonaIdentificationClasses } from "../persona";
 import { getAccount, getDocument, getInquiry } from "../persona";
 import type * as common from "./shared";
-import database, { credentials } from "../../database";
 
 if (!process.env.BRIDGE_API_URL) throw new Error("missing bridge api url");
 const baseURL = process.env.BRIDGE_API_URL;

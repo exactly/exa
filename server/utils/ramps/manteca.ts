@@ -17,15 +17,15 @@ import {
   type InferInput,
   type InferOutput,
 } from "valibot";
-import { optimism, base, baseSepolia, optimismSepolia } from "viem/chains";
+import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
 import {
   getAccount,
   getDocument,
   getInquiry,
   resumeOrCreateMantecaInquiryOTL,
-  type IdentificationClasses,
   type Account,
+  type IdentificationClasses,
   type Inquiry,
 } from "../persona";
 import type * as shared from "./shared";
