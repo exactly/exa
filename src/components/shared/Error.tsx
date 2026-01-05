@@ -9,11 +9,10 @@ import SafeView from "./SafeView";
 import Text from "./Text";
 import View from "./View";
 import ErrorImage from "../../assets/images/error.svg";
+import openBrowser from "../../utils/openBrowser";
 import reportError from "../../utils/reportError";
-import useOpenBrowser from "../../utils/useOpenBrowser";
 
 export default function Error({ resetError }: { resetError: () => void }) {
-  const openBrowser = useOpenBrowser();
   return (
     <SafeView fullScreen gap="$s4" padded backgroundColor="$backgroundSoft">
       <YStack flex={1} paddingHorizontal="$s6" gap="$s7">

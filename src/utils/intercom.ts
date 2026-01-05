@@ -1,9 +1,8 @@
-import { sdk } from "@farcaster/miniapp-sdk";
 import type * as IntercomNative from "@intercom/intercom-react-native";
 import type * as IntercomWeb from "@intercom/messenger-js-sdk";
-import { openBrowserAsync } from "expo-web-browser";
 import { Platform } from "react-native";
 
+import openBrowser from "./openBrowser";
 import reportError from "./reportError";
 
 const appId = process.env.EXPO_PUBLIC_INTERCOM_APP_ID;
@@ -36,9 +35,7 @@ export const { login, logout, newMessage, present, presentArticle, presentCollec
             return Promise.resolve(true);
           },
           presentCollection: async (collectionId: string) => {
-            await ((await sdk.isInMiniApp())
-              ? sdk.actions.openUrl(`https://intercom.help/exa-app/en/collections/${collectionId}`)
-              : openBrowserAsync(`https://intercom.help/exa-app/en/collections/${collectionId}`));
+            await openBrowser(`https://intercom.help/exa-app/en/collections/${collectionId}`);
             return true;
           },
           newMessage: (message: string) => {

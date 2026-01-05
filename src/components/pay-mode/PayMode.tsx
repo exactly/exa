@@ -12,17 +12,16 @@ import PaymentSheet from "./PaymentSheet";
 import UpcomingPayments from "./UpcomingPayments";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import { presentCollection } from "../../utils/intercom";
+import openBrowser from "../../utils/openBrowser";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAsset from "../../utils/useAsset";
-import useOpenBrowser from "../../utils/useOpenBrowser";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function PayMode() {
   const theme = useTheme();
-  const openBrowser = useOpenBrowser();
   const parameters = useLocalSearchParams();
   const { account } = useAsset(marketUSDCAddress);
   const [paySheetOpen, setPaySheetOpen] = useState(false);

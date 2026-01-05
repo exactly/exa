@@ -22,6 +22,7 @@ import VerificationFailure from "./VerificationFailure";
 import ExaCard from "./exa-card/ExaCard";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import { presentArticle } from "../../utils/intercom";
+import openBrowser from "../../utils/openBrowser";
 import { createInquiry, KYC_TEMPLATE_ID, resumeInquiry } from "../../utils/persona";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
@@ -35,7 +36,6 @@ import {
 } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
-import useOpenBrowser from "../../utils/useOpenBrowser";
 import InfoAlert from "../shared/InfoAlert";
 import LatestActivity from "../shared/LatestActivity";
 import PluginUpgrade from "../shared/PluginUpgrade";
@@ -47,7 +47,6 @@ import View from "../shared/View";
 export default function Card() {
   const theme = useTheme();
   const toast = useToastController();
-  const openBrowser = useOpenBrowser();
   const [displayPIN, setDisplayPIN] = useState(false);
   const navigation = useNavigation<AppNavigationProperties>();
   const [disclaimerShown, setDisclaimerShown] = useState(false);

@@ -2,12 +2,11 @@ import React from "react";
 import { XStack } from "tamagui";
 
 import { presentCollection } from "../../utils/intercom";
+import openBrowser from "../../utils/openBrowser";
 import reportError from "../../utils/reportError";
-import useOpenBrowser from "../../utils/useOpenBrowser";
 import Text from "../shared/Text";
 
 export default function HomeDisclaimer() {
-  const openBrowser = useOpenBrowser();
   return (
     <XStack gap="$s4" alignItems="flex-start" paddingTop="$s3" flexWrap="wrap">
       <Text caption2 color="$interactiveOnDisabled" textAlign="justify">

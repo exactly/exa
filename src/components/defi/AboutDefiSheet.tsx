@@ -2,8 +2,8 @@ import { X } from "@tamagui/lucide-icons";
 import React from "react";
 import { ScrollView, YStack } from "tamagui";
 
+import openBrowser from "../../utils/openBrowser";
 import reportError from "../../utils/reportError";
-import useOpenBrowser from "../../utils/useOpenBrowser";
 import Button from "../shared/Button";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
@@ -11,7 +11,6 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function AboutDefiSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const openBrowser = useOpenBrowser();
   return (
     <ModalSheet open={open} onClose={onClose}>
       <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
