@@ -1,5 +1,11 @@
 # @exactly/mobile
 
+## 1.0.44
+
+### Patch Changes
+
+- [#613](https://github.com/exactly/exa/pull/613) [`facf0ec`](https://github.com/exactly/exa/commit/facf0ec3ee6ce2c955ddb8fde3aeafc64b46fc9d) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 handle intercom login errors
+
 ## 1.0.43
 
 ### Patch Changes
