@@ -4,6 +4,7 @@ import { nonceSource, keeperClient } from "../mocks/keeper"; // eslint-disable-l
 
 import { auditorAbi } from "@exactly/common/generated/chain";
 import { captureException } from "@sentry/node";
+import { setImmediate } from "node:timers/promises";
 import type * as timers from "node:timers/promises";
 import type { Hex } from "viem";
 import { afterEach, describe, expect, inject, it, vi } from "vitest";
@@ -129,15 +130,29 @@ describe("fault tolerance", () => {
       { onHash: (hash) => hashes.push(hash) },
     );
 
-    const sendBlocked = await Promise.allSettled(
-      Array.from({ length: 100 }, (_, index) =>
+    const first = keeper.exaSend(
+      { name: "test transfer 0", op: "test.transfer[0]" },
+      { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+      { onHash: (hash) => hashes.push(hash) },
+    );
+    await setImmediate();
+    const second = keeper.exaSend(
+      { name: "test transfer 1", op: "test.transfer[1]" },
+      { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+      { onHash: (hash) => hashes.push(hash) },
+    );
+    await setImmediate();
+    const sendBlocked = await Promise.allSettled([
+      first,
+      second,
+      ...Array.from({ length: 98 }, (_, index) =>
         keeper.exaSend(
-          { name: `test transfer ${index}`, op: `test.transfer[${index}]` },
+          { name: `test transfer ${index + 2}`, op: `test.transfer[${index + 2}]` },
           { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
           { onHash: (hash) => hashes.push(hash) },
         ),
       ),
-    );
+    ]);
 
     expect(sendBlocked).toMatchObject(
       sendBlocked.map(() => ({
