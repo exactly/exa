@@ -2,7 +2,7 @@ import { marketUSDCAddress } from "@exactly/common/generated/chain";
 import type { Hex } from "@exactly/common/validation";
 import { useForm } from "@tanstack/react-form";
 import React, { useCallback, useEffect, useState } from "react";
-import { Separator, Slider, styled, XStack, YStack } from "tamagui";
+import { Separator, Slider, XStack, YStack } from "tamagui";
 import { nonEmpty, pipe, string } from "valibot";
 import { formatUnits, parseUnits } from "viem";
 
@@ -109,19 +109,24 @@ export default function RepayAmountSelector({
                   height={60}
                 >
                   <AssetLogo source={{ uri: assetLogos.USDC }} width={32} height={32} />
-                  <AmountInput
+                  <Input
+                    alignSelf="center"
+                    backgroundColor="$backgroundSoft"
+                    borderBottomLeftRadius={0}
+                    borderBottomRightRadius={0}
+                    borderWidth={0}
+                    color="$uiNeutralPrimary"
+                    cursor="pointer"
+                    flex={1}
                     height="auto"
                     inputMode="decimal"
+                    onBlur={() => setFocused(false)}
                     onChangeText={handleAmountChange}
+                    onFocus={() => setFocused(true)}
                     placeholder="0"
-                    onFocus={() => {
-                      setFocused(true);
-                    }}
-                    onBlur={() => {
-                      setFocused(false);
-                    }}
+                    style={{ fontSize: 34, fontWeight: 400, letterSpacing: -0.2 }}
+                    textAlign="center"
                     value={value}
-                    color="$uiNeutralPrimary"
                   />
                 </XStack>
               );
@@ -149,6 +154,8 @@ export default function RepayAmountSelector({
                 backgroundColor="$uiBrandSecondary"
                 borderColor="$borderBrandStrong"
                 hitSlop={100}
+                hoverStyle={{ backgroundColor: "$uiBrandSecondary" }}
+                pressStyle={{ backgroundColor: "$uiBrandSecondary" }}
               />
             </Slider>
           )}
@@ -173,16 +180,3 @@ export default function RepayAmountSelector({
     </YStack>
   );
 }
-
-const AmountInput = styled(Input, {
-  alignSelf: "center",
-  borderWidth: 0,
-  fontSize: 34,
-  fontWeight: 400,
-  letterSpacing: -0.2,
-  cursor: "pointer",
-  textAlign: "center",
-  backgroundColor: "$backgroundSoft",
-  borderBottomLeftRadius: 0,
-  borderBottomRightRadius: 0,
-});

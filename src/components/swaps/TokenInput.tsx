@@ -172,15 +172,16 @@ export default function TokenInput({
                         color={
                           isDanger ? "$uiErrorSecondary" : isActive ? "$uiNeutralPrimary" : "$uiNeutralPlaceholder"
                         }
-                        fontFamily="BDOGrotesk-Regular"
-                        padding={0}
-                        unstyled
-                        fontSize={28}
-                        fontWeight="bold"
-                        lineHeight={34}
-                        letterSpacing={-0.2}
+                        style={{
+                          fontFamily: "BDOGrotesk-Regular",
+                          fontSize: 28,
+                          fontWeight: "bold",
+                          lineHeight: 34,
+                          letterSpacing: -0.2,
+                        }}
                         textAlign="left"
                         inputMode="decimal"
+                        borderColor="transparent"
                         numberOfLines={1}
                         flex={1}
                         width="100%"

@@ -81,7 +81,7 @@ export default function TokenSelectModal({
   onSelect,
   onClose,
   isLoading = false,
-  title = "Select Token",
+  title = "Select token",
   withBalanceOnly = false,
 }: {
   open: boolean;
@@ -129,7 +129,6 @@ export default function TokenSelectModal({
           </View>
           <View paddingBottom="$s4" flexDirection="row">
             <Input
-              neutral
               flex={1}
               placeholder="Search by token name or address"
               placeholderTextColor="$interactiveTextDisabled"

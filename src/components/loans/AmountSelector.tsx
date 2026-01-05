@@ -1,7 +1,7 @@
 import type { Hex } from "@exactly/common/validation";
 import { useForm } from "@tanstack/react-form";
 import React, { useCallback, useState } from "react";
-import { Separator, styled, XStack, YStack } from "tamagui";
+import { Separator, XStack, YStack } from "tamagui";
 import { nonEmpty, pipe, string } from "valibot";
 import { formatUnits, parseUnits } from "viem";
 
@@ -90,7 +90,7 @@ export default function AmountSelector({
                     width={32}
                     height={32}
                   />
-                  <AmountInput
+                  <Input
                     height="auto"
                     inputMode="decimal"
                     onChangeText={handleAmountChange}
@@ -103,6 +103,15 @@ export default function AmountSelector({
                     }}
                     value={value}
                     color={highAmount ? "$interactiveBaseErrorDefault" : "$uiNeutralPrimary"}
+                    alignSelf="center"
+                    borderWidth={0}
+                    style={{ fontSize: 34, fontWeight: 400, letterSpacing: -0.2 }}
+                    cursor="pointer"
+                    textAlign="center"
+                    backgroundColor="$backgroundSoft"
+                    borderBottomLeftRadius={0}
+                    borderBottomRightRadius={0}
+                    flex={1}
                   />
                 </XStack>
               );
@@ -168,15 +177,3 @@ export default function AmountSelector({
     </YStack>
   );
 }
-const AmountInput = styled(Input, {
-  alignSelf: "center",
-  borderWidth: 0,
-  fontSize: 34,
-  fontWeight: 400,
-  letterSpacing: -0.2,
-  cursor: "pointer",
-  textAlign: "center",
-  backgroundColor: "$backgroundSoft",
-  borderBottomLeftRadius: 0,
-  borderBottomRightRadius: 0,
-});

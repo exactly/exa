@@ -165,7 +165,6 @@ export default function Receiver() {
                       return (
                         <XStack alignItems="center">
                           <Input
-                            neutral
                             flex={1}
                             placeholder="Enter receiver address"
                             borderColor="$uiNeutralTertiary"
