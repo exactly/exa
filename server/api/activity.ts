@@ -504,7 +504,7 @@ export const InstallmentsActivity = pipe(
               events.reduce((sum, { assets }) => sum + assets, 0n),
               Number(events[0]!.maturity), // eslint-disable-line @typescript-eslint/no-non-null-assertion
               events.map(({ assets, fee }) => assets + fee),
-              events.map((borrow) => fixedRate(borrow.maturity, borrow.assets, borrow.fee, timestamp)),
+              events.map(({ maturity, assets, fee }) => fixedRate(maturity, assets, fee, timestamp)),
               Number(timestamp),
             ),
           ) / 1e18,
