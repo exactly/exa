@@ -104,7 +104,7 @@ export default function Bridge() {
     );
   }, [chains, ownerAssetsByChain]);
 
-  const previousSourceAddress = useRef<string | undefined>(undefined);
+  const previousSourceAddressRef = useRef<string | undefined>(undefined);
 
   const selectedGroup = assetGroups.find((group) => group.chain.id === selectedSource?.chain);
   const selectedAsset = selectedGroup?.assets.find((asset) => asset.token.address === selectedSource?.address);
@@ -458,12 +458,12 @@ export default function Bridge() {
   useEffect(() => {
     if (!sourceTokenAddress) {
       if (selectedDestinationAddress !== undefined) setSelectedDestinationAddress(undefined);
-      previousSourceAddress.current = undefined;
+      previousSourceAddressRef.current = undefined;
       return;
     }
 
-    if (previousSourceAddress.current === sourceTokenAddress && destinationToken) {
-      previousSourceAddress.current = sourceTokenAddress;
+    if (previousSourceAddressRef.current === sourceTokenAddress && destinationToken) {
+      previousSourceAddressRef.current = sourceTokenAddress;
       return;
     }
 
@@ -478,7 +478,7 @@ export default function Bridge() {
       setSelectedDestinationAddress(nextAddress);
     }
 
-    previousSourceAddress.current = sourceTokenAddress;
+    previousSourceAddressRef.current = sourceTokenAddress;
   }, [destinationToken, destinationTokens, selectedDestinationAddress, sourceTokenAddress, sourceTokenSymbol]);
 
   if (processing) {

@@ -18,7 +18,7 @@ export default function Qr() {
   const { top, bottom } = useSafeAreaInsets();
   const { height, width } = useWindowDimensions();
 
-  const cameraReference = useRef<CameraView>(null);
+  const cameraRef = useRef<CameraView>(null);
   const router = useRouter();
 
   const [active, setActive] = useState(true);
@@ -130,7 +130,7 @@ export default function Qr() {
     <View fullScreen backgroundColor="$backgroundSoft">
       {active && (
         <CameraView
-          ref={cameraReference}
+          ref={cameraRef}
           barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
           onBarcodeScanned={({ data: receiver }) => {
             const result = safeParse(Address, receiver);
