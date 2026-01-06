@@ -181,7 +181,7 @@ const Payload = v.variant("resource", [
         ]),
       }),
       status: v.picklist(["notActivated", "active", "locked", "canceled"]),
-      tokenWallets: v.union([v.array(v.literal("Apple")), v.array(v.literal("Google Pay"))]),
+      tokenWallets: v.nullish(v.union([v.array(v.literal("Apple")), v.array(v.literal("Google Pay"))])),
       type: v.literal("virtual"),
       userId: v.string(),
     }),
@@ -1212,7 +1212,7 @@ const Webhook = v.variant("resource", [
         frequency: v.picklist(["per24HourPeriod", "per7DayPeriod", "per30DayPeriod", "perYearPeriod"]),
       }),
       status: v.picklist(["ACTIVE", "FROZEN", "DELETED"]),
-      tokenWallets: v.union([v.array(v.literal("Apple")), v.array(v.literal("Google Pay"))]),
+      tokenWallets: v.nullish(v.union([v.array(v.literal("Apple")), v.array(v.literal("Google Pay"))])),
     }),
   }),
   v.object({
