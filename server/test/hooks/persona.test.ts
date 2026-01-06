@@ -4,8 +4,7 @@ import "../mocks/persona";
 import { captureException } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
-import { zeroAddress } from "viem";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, inject, it, vi } from "vitest";
 
 import database, { credentials } from "../../database";
 import app from "../../hooks/persona";
@@ -54,7 +53,7 @@ describe("with reference", () => {
       id: createdAccount,
       publicKey: new Uint8Array(),
       account: createdAccount,
-      factory: zeroAddress,
+      factory: inject("ExaAccountFactory"),
       pandaId: "test-id",
     });
 

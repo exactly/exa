@@ -10,7 +10,7 @@ import { decodeJwt } from "jose";
 import assert from "node:assert";
 import { parse, type InferOutput } from "valibot";
 import { zeroAddress } from "viem";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 
 import app, { type Authentication } from "../../api/auth/authentication";
 import database, { credentials } from "../../database";
@@ -25,7 +25,7 @@ describe("authentication", () => {
         id: "dGVzdC1jcmVkLWlk",
         publicKey: new Uint8Array(),
         account: zeroAddress,
-        factory: zeroAddress,
+        factory: parse(Address, inject("ExaAccountFactory")),
         counter: 0,
         transports: [],
       },
@@ -90,7 +90,7 @@ vi.mock("../../utils/redis", () => ({
 vi.mock("../../utils/createCredential", () => ({
   default: vi.fn<() => ReturnType<typeof createCredential>>().mockResolvedValue({
     credentialId: "dGVzdC1jcmVkLWlk",
-    factory: parse(Address, zeroAddress),
+    factory: parse(Address, inject("ExaAccountFactory")),
     x: "0x",
     y: "0x",
     auth: Date.now() + 1000,

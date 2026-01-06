@@ -8,7 +8,7 @@ import { exaAccountFactoryAbi, exaPluginAbi } from "@exactly/common/generated/ch
 import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
-import { zeroHash, padHex, zeroAddress, hexToBigInt, parseEther } from "viem";
+import { zeroHash, padHex, hexToBigInt, parseEther } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 
@@ -25,10 +25,28 @@ describe("authenticated", () => {
     const account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(owner), y: zeroHash });
     const publicKey = new Uint8Array();
     await database.insert(credentials).values([
-      { id: "eth", publicKey, account, factory: zeroAddress, pandaId: "eth" },
-      { id: "default", publicKey, account: padHex("0x1", { size: 20 }), factory: zeroAddress, pandaId: "default" },
-      { id: "sig", publicKey, account: padHex("0x2", { size: 20 }), factory: zeroAddress, pandaId: "sig" },
-      { id: "404", publicKey, account: padHex("0x3", { size: 20 }), factory: zeroAddress, pandaId: "404" },
+      { id: "eth", publicKey, account, factory: inject("ExaAccountFactory"), pandaId: "eth" },
+      {
+        id: "default",
+        publicKey,
+        account: padHex("0x1", { size: 20 }),
+        factory: inject("ExaAccountFactory"),
+        pandaId: "default",
+      },
+      {
+        id: "sig",
+        publicKey,
+        account: padHex("0x2", { size: 20 }),
+        factory: inject("ExaAccountFactory"),
+        pandaId: "sig",
+      },
+      {
+        id: "404",
+        publicKey,
+        account: padHex("0x3", { size: 20 }),
+        factory: inject("ExaAccountFactory"),
+        pandaId: "404",
+      },
     ]);
     await database.insert(cards).values([
       { id: "default", credentialId: "default", lastFour: "1234" },
@@ -152,7 +170,7 @@ describe("authenticated", () => {
         id: foo,
         publicKey: new Uint8Array(),
         account: foo,
-        factory: zeroAddress,
+        factory: inject("ExaAccountFactory"),
       },
     ]);
     await database.insert(cards).values([{ id: `card-${foo}`, credentialId: foo, lastFour: "4567" }]);
