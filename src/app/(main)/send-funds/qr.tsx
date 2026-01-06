@@ -1,1 +1,1 @@
-export { default } from "../../../components/send-funds/Qr";
+export { default } from "../../../components/send-funds/QR";

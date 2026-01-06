@@ -14,7 +14,7 @@ import Button from "../shared/Button";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-export default function Qr() {
+export default function QR() {
   const { top, bottom } = useSafeAreaInsets();
   const { height, width } = useWindowDimensions();
 
