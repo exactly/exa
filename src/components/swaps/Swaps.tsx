@@ -171,10 +171,10 @@ export default function Swaps() {
     updateSwap((old) => ({ ...old, tokenModalOpen: false }));
   };
 
-  const debounceReference = useRef<ReturnType<typeof setTimeout>>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
   const handleAmountChange = (value: bigint, type: "from" | "to") => {
-    if (debounceReference.current) clearTimeout(debounceReference.current);
-    debounceReference.current = setTimeout(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
       const token = type === "from" ? fromToken : toToken;
       if (!token?.token) return;
       updateSwap((old) => ({

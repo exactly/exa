@@ -25,14 +25,12 @@ const StyledText = styled(TamaguiText, {
   } as const,
 });
 
-const TextComponent = ({
-  ref: reference,
-  children,
-  sensitive,
-  ...rest
-}: ComponentPropsWithoutRef<typeof StyledText> & { sensitive?: boolean } & {
-  ref?: React.RefObject<React.ComponentRef<typeof StyledText> | null>;
-}) => {
+type TextProperties = ComponentPropsWithoutRef<typeof StyledText> & {
+  sensitive?: boolean;
+  ref?: React.Ref<React.ComponentRef<typeof StyledText>>;
+};
+
+const TextComponent = ({ ref: reference, children, sensitive, ...rest }: TextProperties) => {
   const { data: hidden } = useQuery<boolean>({ queryKey: ["settings", "sensitive"] });
   return (
     <StyledText ref={reference} {...rest}>

@@ -15,16 +15,16 @@ import View from "../shared/View";
 export default function CardPIN({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [countdown, setCountdown] = useState(0);
   const [displayPIN, setDisplayPIN] = useState(false);
-  const timerReference = useRef<ReturnType<typeof setInterval>>(undefined);
+  const timerRef = useRef<ReturnType<typeof setInterval>>(undefined);
   const { data: card, isPending, error, refetch } = useQuery<CardWithPIN>({ queryKey: ["card", "pin"], enabled: open });
 
   function startCountdown() {
     setDisplayPIN(true);
     setCountdown(5);
-    timerReference.current = setInterval(() => {
+    timerRef.current = setInterval(() => {
       setCountdown((previous) => {
         if (previous <= 1) {
-          clearInterval(timerReference.current);
+          clearInterval(timerRef.current);
           setDisplayPIN(false);
           return 0;
         }
@@ -34,7 +34,7 @@ export default function CardPIN({ open, onClose }: { open: boolean; onClose: () 
   }
 
   function stopCountdown() {
-    clearInterval(timerReference.current);
+    clearInterval(timerRef.current);
     setDisplayPIN(false);
     setCountdown(0);
   }
@@ -48,7 +48,7 @@ export default function CardPIN({ open, onClose }: { open: boolean; onClose: () 
     if (open && card?.details.pin) startCountdown();
     else stopCountdown();
     return () => {
-      clearInterval(timerReference.current);
+      clearInterval(timerRef.current);
     };
   }, [open, card]);
   return (

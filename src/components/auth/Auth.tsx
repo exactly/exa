@@ -38,7 +38,7 @@ export default function Auth() {
   const [signUpModalOpen, setSignUpModalOpen] = useState(false);
   const [signInModalOpen, setSignInModalOpen] = useState(false);
 
-  const flatListReference = useRef<Animated.FlatList<Page>>(null);
+  const flatListRef = useRef<Animated.FlatList<Page>>(null);
   const offsetX = useSharedValue(0);
   const progress = useSharedValue(0);
 
@@ -74,14 +74,6 @@ export default function Auth() {
     [offsetX],
   );
 
-  const scrollToNextPage = () => {
-    flatListReference.current?.scrollToIndex({
-      index: activeIndex < pages.length - 1 ? activeIndex + 1 : 0,
-      animated: true,
-      viewPosition: 0.5,
-    });
-  };
-
   const { signIn, isPending: loadingAuth } = useAuth(
     () => {
       setErrorDialogOpen(true);
@@ -92,6 +84,14 @@ export default function Auth() {
   );
 
   useEffect(() => {
+    function scrollToNextPage() {
+      flatListRef.current?.scrollToIndex({
+        index: activeIndex < pages.length - 1 ? activeIndex + 1 : 0,
+        animated: true,
+        viewPosition: 0.5,
+      });
+    }
+
     const timer = setInterval(() => {
       /* istanbul ignore next */
       progress.value = withTiming(progress.value + 0.2, { duration: 1000, easing: Easing.linear }, () => {
@@ -104,7 +104,7 @@ export default function Auth() {
     return () => {
       clearInterval(timer);
     };
-  }, [activeIndex, progress, scrollToNextPage]);
+  }, [activeIndex, progress]);
 
   const loading = loadingAuth || loadingContext;
 
@@ -112,7 +112,7 @@ export default function Auth() {
     <SafeView fullScreen backgroundColor="$backgroundSoft">
       <View flexGrow={1} justifyContent="center" flexShrink={1}>
         <Animated.FlatList
-          ref={flatListReference}
+          ref={flatListRef}
           onScroll={handleScroll}
           scrollEventThrottle={16}
           data={pages}
