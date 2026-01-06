@@ -50,7 +50,10 @@ export default defineConfig([
       "unicorn/no-null": "off", // part of multiple apis
       "unicorn/no-useless-undefined": ["error", { checkArrowFunctionBody: false }], // @typescript-eslint/no-empty-function
       "unicorn/number-literal-case": "off", // incompatible with prettier
-      "unicorn/prevent-abbreviations": ["error", { allowList: { args: true, e2e: true, params: true, utils: true } }],
+      "unicorn/prevent-abbreviations": [
+        "error",
+        { allowList: { args: true, e2e: true, params: true, utils: true, Ref: true } },
+      ],
       "unicorn/switch-case-braces": ["error", "avoid"], // consistently avoid braces
     },
     plugins: {
