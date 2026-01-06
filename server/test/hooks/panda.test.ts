@@ -1626,7 +1626,7 @@ describe("webhooks", () => {
     expect(createHmac("sha256", secret).update(parse(string(), options?.body)).digest("hex")).toBe(headers.Signature);
   });
 
-  it("forwards card updated", async () => {
+  it("forwards card updated active", async () => {
     const mockFetch = vi.spyOn(global, "fetch").mockResolvedValueOnce({
       ok: true,
       status: 200,
@@ -1643,6 +1643,33 @@ describe("webhooks", () => {
           ...cardUpdated.json.body,
           userId: webhookAccount,
           tokenWallets: ["Apple"],
+        },
+      },
+    });
+
+    await vi.waitUntil(() => mockFetch.mock.calls.length > 0, 10_000);
+    const options = mockFetch.mock.calls.find(([url]) => url === "https://exa.test")?.[1];
+    const headers = parse(object({ Signature: string() }), options?.headers);
+
+    expect(createHmac("sha256", secret).update(parse(string(), options?.body)).digest("hex")).toBe(headers.Signature);
+  });
+
+  it("forwards card updated canceled", async () => {
+    const mockFetch = vi.spyOn(global, "fetch").mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json() {
+        return Promise.resolve({});
+      },
+    } as Response);
+
+    await appClient.index.$post({
+      ...cardCanceled,
+      json: {
+        ...cardCanceled.json,
+        body: {
+          ...cardCanceled.json.body,
+          userId: webhookAccount,
         },
       },
     });
@@ -1731,6 +1758,25 @@ const cardUpdated = {
       expirationMonth: "11",
       expirationYear: "2029",
       tokenWallets: ["Apple"],
+    },
+  },
+} as const;
+
+const cardCanceled = {
+  header: { signature: "panda-signature" },
+  json: {
+    id: "31740000-bd68-40c8-a400-5a0131f58800",
+    resource: "card",
+    action: "updated",
+    body: {
+      id: "f3d8a9c2-4e7b-4a1c-9f2e-8d5c6b3a7e9f",
+      userId: "a1b2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
+      type: "virtual",
+      status: "canceled",
+      limit: { amount: 1_000_000, frequency: "per7DayPeriod" },
+      last4: "7392",
+      expirationMonth: "11",
+      expirationYear: "2029",
     },
   },
 } as const;
