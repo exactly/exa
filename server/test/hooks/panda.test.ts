@@ -6,18 +6,6 @@ import "../mocks/redis";
 import "../mocks/sardine";
 import "../mocks/sentry";
 
-import ProposalType from "@exactly/common/ProposalType";
-import deriveAddress from "@exactly/common/deriveAddress";
-import chain, {
-  auditorAbi,
-  exaAccountFactoryAbi,
-  exaPluginAbi,
-  issuerCheckerAbi,
-  marketAbi,
-  upgradeableModularAccountAbi,
-} from "@exactly/common/generated/chain";
-import { Address } from "@exactly/common/validation";
-import { proposalManager } from "@exactly/plugin/deploy.json";
 import { captureException } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
@@ -42,6 +30,19 @@ import {
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { anvil } from "viem/chains";
 import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
+
+import deriveAddress from "@exactly/common/deriveAddress";
+import chain, {
+  auditorAbi,
+  exaAccountFactoryAbi,
+  exaPluginAbi,
+  issuerCheckerAbi,
+  marketAbi,
+  upgradeableModularAccountAbi,
+} from "@exactly/common/generated/chain";
+import ProposalType from "@exactly/common/ProposalType";
+import { Address } from "@exactly/common/validation";
+import { proposalManager } from "@exactly/plugin/deploy.json";
 
 import database, { cards, credentials, sources, transactions } from "../../database";
 import app from "../../hooks/panda";
@@ -1457,9 +1458,9 @@ describe("webhooks", () => {
 
   it("forwards transaction created", async () => {
     const cardId = `${webhookAccount}-card`;
-    const fetch = global.fetch;
+    const fetch = globalThis.fetch;
     let publish = false;
-    const mockFetch = vi.spyOn(global, "fetch").mockImplementation(async (url, init) => {
+    const mockFetch = vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
       if (url === "https://exa.test") {
         publish = true;
         return { ok: true, status: 200 } as Response;
@@ -1492,12 +1493,12 @@ describe("webhooks", () => {
   });
 
   it("forwards transaction updated", async () => {
-    vi.spyOn(pandaUtils, "getUser").mockResolvedValue(userResponseTemplate);
+    vi.spyOn(panda, "getUser").mockResolvedValue(userResponseTemplate);
     const cardId = `${webhookAccount}-card`;
 
-    const fetch = global.fetch;
+    const fetch = globalThis.fetch;
     let publish = false;
-    const mockFetch = vi.spyOn(global, "fetch").mockImplementation(async (url, init) => {
+    const mockFetch = vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
       if (url === "https://exa.test") {
         publish = true;
         return { ok: true, status: 200 } as Response;
@@ -1532,12 +1533,12 @@ describe("webhooks", () => {
   });
 
   it("forwards transaction completed", async () => {
-    vi.spyOn(pandaUtils, "getUser").mockResolvedValue(userResponseTemplate);
+    vi.spyOn(panda, "getUser").mockResolvedValue(userResponseTemplate);
     const cardId = `${webhookAccount}-card`;
 
-    const fetch = global.fetch;
+    const fetch = globalThis.fetch;
     let publishCounter = 0;
-    const mockFetch = vi.spyOn(global, "fetch").mockImplementation(async (url, init) => {
+    const mockFetch = vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
       if (url === "https://exa.test") {
         publishCounter++;
         return { ok: true, status: 200 } as Response;
@@ -1589,8 +1590,8 @@ describe("webhooks", () => {
     expect(createHmac("sha256", secret).update(parse(string(), options?.body)).digest("hex")).toBe(headers.Signature);
   });
 
-  it("forwards card updated", async () => {
-    const mockFetch = vi.spyOn(global, "fetch").mockResolvedValueOnce({
+  it("forwards card updated active", async () => {
+    const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
       ok: true,
       status: 200,
       json() {
@@ -1617,8 +1618,35 @@ describe("webhooks", () => {
     expect(createHmac("sha256", secret).update(parse(string(), options?.body)).digest("hex")).toBe(headers.Signature);
   });
 
+  it("forwards card updated canceled", async () => {
+    const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json() {
+        return Promise.resolve({});
+      },
+    } as Response);
+
+    await appClient.index.$post({
+      ...cardCanceled,
+      json: {
+        ...cardCanceled.json,
+        body: {
+          ...cardCanceled.json.body,
+          userId: webhookAccount,
+        },
+      },
+    });
+
+    await vi.waitUntil(() => mockFetch.mock.calls.length > 0, 10_000);
+    const options = mockFetch.mock.calls.find(([url]) => url === "https://exa.test")?.[1];
+    const headers = parse(object({ Signature: string() }), options?.headers);
+
+    expect(createHmac("sha256", secret).update(parse(string(), options?.body)).digest("hex")).toBe(headers.Signature);
+  });
+
   it("forwards user updated", async () => {
-    const mockFetch = vi.spyOn(global, "fetch").mockResolvedValueOnce({
+    const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
       ok: true,
       status: 200,
       json() {
@@ -1694,6 +1722,25 @@ const cardUpdated = {
       expirationMonth: "11",
       expirationYear: "2029",
       tokenWallets: ["Apple"],
+    },
+  },
+} as const;
+
+const cardCanceled = {
+  header: { signature: "panda-signature" },
+  json: {
+    id: "31740000-bd68-40c8-a400-5a0131f58800",
+    resource: "card",
+    action: "updated",
+    body: {
+      id: "f3d8a9c2-4e7b-4a1c-9f2e-8d5c6b3a7e9f",
+      userId: "a1b2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
+      type: "virtual",
+      status: "canceled",
+      limit: { amount: 1_000_000, frequency: "per7DayPeriod" },
+      last4: "7392",
+      expirationMonth: "11",
+      expirationYear: "2029",
     },
   },
 } as const;
