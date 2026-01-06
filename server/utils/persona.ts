@@ -110,7 +110,10 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
     signal: AbortSignal.timeout(timeout),
   });
   if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);
-  const result = safeParse(schema, await response.json());
+  const json = await response.json();
+  // // @ts-expect-error
+  // console.log("JSON", json.data[0].attributes);
+  const result = safeParse(schema, json);
   if (!result.success) {
     setContext("validation", { ...result, flatten: flatten(result.issues) });
     throw new ValiError(result.issues);
@@ -185,16 +188,22 @@ const GetAccountsResponse = object({
 
 const InquiryFields = object({
   // these are custom fields, if we change the name in the inquiry template we need to update it here
-  "input-select": nullish(object({ type: literal("choices"), value: nullish(string()) })),
-  "address-street-1": nullish(object({ type: literal("string"), value: nullish(string()) })),
-  "address-street-2": nullish(object({ type: literal("string"), value: nullish(string()) })),
-  "address-city": nullish(object({ type: literal("string"), value: nullish(string()) })),
-  "address-subdivision": nullish(object({ type: literal("string"), value: nullish(string()) })),
-  "address-postal-code": nullish(object({ type: literal("string"), value: nullish(string()) })),
-  "social-security-number": nullish(object({ type: literal("string"), value: nullish(string()) })),
-  "identification-class": nullish(object({ type: literal("string"), value: nullish(string()) })),
-  "identification-number": nullish(object({ type: literal("string"), value: nullish(string()) })),
-  "current-government-id": nullish(object({ value: nullish(object({ id: nullish(string()) })) })),
+  // "input-select": nullish(object({ type: literal("choices"), value: nullish(string()) })),
+  // "address-street-1": nullish(object({ type: literal("string"), value: nullish(string()) })),
+  // "address-street-2": nullish(object({ type: literal("string"), value: nullish(string()) })),
+  // "address-city": nullish(object({ type: literal("string"), value: nullish(string()) })),
+  // "address-subdivision": nullish(object({ type: literal("string"), value: nullish(string()) })),
+  // "address-postal-code": nullish(object({ type: literal("string"), value: nullish(string()) })),
+  // "social-security-number": nullish(object({ type: literal("string"), value: nullish(string()) })),
+  // "identification-class": nullish(object({ type: literal("string"), value: nullish(string()) })),
+  // "identification-number": nullish(object({ type: literal("string"), value: nullish(string()) })),
+  // "current-government-id": nullish(object({ value: nullish(object({ id: nullish(string()) })) })),
+  name_first: nullish(object({ type: literal("string"), value: nullish(string()) })),
+  name_last: nullish(object({ type: literal("string"), value: nullish(string()) })),
+  birthdate: nullish(object({ type: literal("date"), value: nullish(string()) })),
+  email_address: nullish(object({ type: literal("string"), value: nullish(string()) })),
+  phone_number: nullish(object({ type: literal("string"), value: nullish(string()) })),
+  identification_number: nullish(object({ type: literal("string"), value: nullish(string()) })),
 });
 
 export const Inquiry = object({
@@ -203,13 +212,13 @@ export const Inquiry = object({
   attributes: variant("status", [
     object({
       status: picklist(["completed", "approved"]),
-      "reference-id": string(),
-      "name-first": string(),
-      "name-middle": nullable(string()),
-      "name-last": string(),
-      "email-address": string(),
-      "phone-number": string(),
-      birthdate: string(),
+      // "reference-id": string(),
+      // "name-first": string(),
+      // "name-middle": nullable(string()),
+      // "name-last": string(),
+      // "email-address": string(),
+      // "phone-number": string(),
+      // birthdate: string(),
       fields: InquiryFields,
     }),
     object({
