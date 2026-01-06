@@ -1,4 +1,4 @@
-appId: app.exactly
+appId: ${APP_ID ?? "app.exactly"}
 ---
 - assertTrue: ${asset && to && amount && !Number.isNaN(Number(amount))}
 - tapOn: Send

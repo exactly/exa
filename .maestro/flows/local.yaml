@@ -1,16 +1,21 @@
-appId: app.exactly
+appId: ${APP_ID ?? "app.exactly"}
 tags:
   - critical
 ---
 - launchApp: { clearState: true, permissions: { all: deny, camera: allow } }
 - runFlow: ../subflows/hideDevtools.yaml
-- runFlow: ../subflows/signIn.yaml
-- assertVisible: Stay updated
-- tapOn: Not now
-- pressKey: home
-- launchApp: { permissions: { all: deny, camera: allow } }
-- extendedWaitUntil: { visible: Your portfolio, timeout: 180000 }
-- assertNotVisible: Stay updated
+- runScript: ../dist/getAccount.js
+- tapOn: Sign in
+- runFlow:
+    when: { true: "${maestro.platform != 'web'}" }
+    commands:
+      - assertVisible: Stay updated
+      - tapOn: Not now
+      - pressKey: home
+      - launchApp: { permissions: { all: deny, camera: allow } }
+      - extendedWaitUntil: { visible: Your portfolio, timeout: 180000 }
+      - assertNotVisible: Stay updated
+- assertVisible: ${output.account.slice(0, 6)}…${output.account.slice(-4)}
 - runFlow: ../subflows/readPortfolio.yaml
 - evalScript: ${output.portfolioBefore = output.portfolio}
 - runScript:
@@ -26,10 +31,11 @@ tags:
 - runFlow: ../subflows/readPortfolio.yaml
 - assertTrue: ${output.portfolioBefore - output.portfolio === 69}
 - runFlow:
-    when: { visible: Getting Started }
+    when: { visible: Getting Started, platform: ios } # TODO android
     commands:
       - tapOn: View all steps
+      - tapOn: Begin verifying
       - runFlow: ../subflows/verifyIdentity.yaml
-- swipe: { direction: DOWN }
-- assertNotVisible: Getting Started
+      - swipe: { direction: DOWN }
+      - assertNotVisible: Getting Started
 - runFlow: ../subflows/storeCoverage.yaml

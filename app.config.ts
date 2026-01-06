@@ -64,6 +64,7 @@ export default {
         android: {
           packagingOptions: { pickFirst: ["**/libcrypto.so"] },
           extraMavenRepos: ["https://sdk.withpersona.com/android/releases"],
+          usesCleartextTraffic: env.APP_DOMAIN === "localhost",
         },
       } satisfies BuildPropertiesConfig,
     ],

@@ -1,43 +1,105 @@
-appId: app.exactly
+appId: ${APP_ID ?? "app.exactly"}
 ---
-- assertVisible: One step left
-- tapOn: Begin verifying
-- assertVisible: I saved my ID with Persona
+- assertVisible: We need some information to help us confirm your identity.
 - tapOn: Begin verifying
 - tapOn: Select
 - tapOn: Passport
 - runFlow:
-    when: { visible: Couldn't access camera }
-    commands: [{ tapOn: Continue }]
-- tapOn: Take Photo
+    when: { platform: ios }
+    commands:
+      - runFlow:
+          when: { visible: Couldn't access camera }
+          commands: [{ tapOn: Continue }]
+- tapOn: "${maestro.platform == 'android' ? 'take picture' : 'Take Photo'}"
 - tapOn: Use this photo
 - assertVisible: Address
+- runFlow: { when: { platform: ios }, commands: [hideKeyboard] }
+- scrollUntilVisible: { element: Continue }
+- tapOn: Continue
+- assertVisible: Let's make sure you’re you
+- tapOn: Get started
+- assertVisible: Center yourself on the screen
+- tapOn: "${maestro.platform == 'android' ? 'take picture' : 'shutter button'}"
+- runFlow: # HACK
+    when: { platform: ios }
+    commands: 
+      - tapOn: Sandbox debug menu
+      - waitForAnimationToEnd
+      - tapOn: { point: "50%, 50%" }
+- assertVisible: Look slightly left
+- tapOn: "${maestro.platform == 'android' ? 'take picture' : 'shutter button'}"
+- runFlow: # HACK
+    when: { platform: ios }
+    commands: 
+      - tapOn: Sandbox debug menu
+      - waitForAnimationToEnd
+      - tapOn: { point: "50%, 50%" }
+- assertVisible: Look slightly right
+- tapOn: "${maestro.platform == 'android' ? 'take picture' : 'shutter button'}"
+- assertVisible: What is your email address?
+- runFlow: { when: { platform: android }, commands: [{ tapOn: Email address }] }
+- inputText: test@test.com
 - hideKeyboard
 - tapOn: Continue
-- tapOn: Get started
-- repeat:
-    while: { visible: shutter button }
-    commands: [{ tapOn: { text: shutter button, optional: true } }]
-- inputText: test@test.com
-- tapOn: Continue
+- assertVisible: Confirm your email address
+- runFlow:
+    when: { platform: android }
+    commands: [{ tapOn: Confirmation Code }]
 - inputText: "12345"
+- hideKeyboard
 - tapOn: Continue
+- assertVisible: What is your phone number?
+- runFlow: # HACK
+    when: { platform: android }
+    commands: [{ tapOn: Continue }, { tapOn: Error }]
+- runFlow: # HACK
+    when: { platform: ios }
+    commands: [{ tapOn: { id: input_phone_number } }]
 - inputText: "+12125551234"
+- hideKeyboard
 - tapOn: Continue
+- assertVisible: Confirm your phone number
+- runFlow: { when: { platform: android }, commands: [{ tapOn: { id: first } }] } # HACK
 - inputText: "1234"
+- hideKeyboard
 - extendedWaitUntil: { visible: Economic activity }
 - tapOn: Economic activity
-- swipe: { direction: UP, duration: 200, waitToSettleTimeoutMs: 0 } # HACK
+- runFlow:
+    when: { platform: ios }
+    commands:
+      - swipe: { direction: UP, duration: 200, waitToSettleTimeoutMs: 0 } # HACK
 - tapOn: Science
-- swipe: { direction: UP, duration: 200, waitToSettleTimeoutMs: 0 } # HACK
+- runFlow:
+    when: { platform: android }
+    commands: [{ tapOn: Account purpose }]
+- runFlow:
+    when: { platform: ios }
+    commands:
+      - swipe: { direction: UP, duration: 200, waitToSettleTimeoutMs: 0 } # HACK
 - tapOn: Travel Usage
-- swipe: { direction: UP, duration: 200, waitToSettleTimeoutMs: 0 } # HACK
+- runFlow:
+    when: { platform: android }
+    commands: [{ tapOn: Annual salary }]
+- runFlow:
+    when: { platform: ios }
+    commands:
+      - swipe: { direction: UP, duration: 200, waitToSettleTimeoutMs: 0 } # HACK
 - tapOn: .*US\$.*
-- swipe: { direction: UP, duration: 200, waitToSettleTimeoutMs: 0 } # HACK
+- runFlow:
+    when: { platform: android }
+    commands: [{ tapOn: Expected monthly volume in purchases }]
+- runFlow:
+    when: { platform: ios }
+    commands:
+      - swipe: { direction: UP, duration: 200, waitToSettleTimeoutMs: 0 } # HACK
 - tapOn: .*US\$.*
 - tapOn: Continue
+- assertVisible: Do you engage in any of the following activities?
 - tapOn: Select
-- swipe: { direction: UP, duration: 200, waitToSettleTimeoutMs: 0 } # HACK
+- runFlow:
+    when: { platform: ios }
+    commands:
+      - swipe: { direction: UP, duration: 200, waitToSettleTimeoutMs: 0 } # HACK
 - tapOn: \s*No\s*
 - tapOn: Continue
 - repeat: { times: 6, commands: [{ tapOn: square }] }
