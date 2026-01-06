@@ -59,7 +59,9 @@ const account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(owner.acc
 beforeAll(async () => {
   await Promise.all([
     database.transaction(async (tx) => {
-      await tx.insert(credentials).values([{ id: "cred", publicKey: new Uint8Array(), account, factory: zeroAddress }]);
+      await tx
+        .insert(credentials)
+        .values([{ id: "cred", publicKey: new Uint8Array(), account, factory: inject("ExaAccountFactory") }]);
       await tx.insert(cards).values([{ id: "card", credentialId: "cred", lastFour: "1234" }]);
     }),
     anvilClient.setBalance({ address: owner.account.address, value: 10n ** 24n }),
@@ -1236,7 +1238,9 @@ describe("concurrency", () => {
       database.transaction(async (tx) => {
         await tx
           .insert(credentials)
-          .values([{ id: account2, publicKey: new Uint8Array(), account: account2, factory: zeroAddress }]);
+          .values([
+            { id: account2, publicKey: new Uint8Array(), account: account2, factory: inject("ExaAccountFactory") },
+          ]);
         await tx.insert(cards).values([{ id: `${account2}-card`, credentialId: account2, lastFour: "1234", mode: 0 }]);
       }),
       anvilClient.setBalance({ address: owner2.account.address, value: 10n ** 24n }),
