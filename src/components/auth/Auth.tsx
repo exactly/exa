@@ -38,7 +38,7 @@ export default function Auth() {
   const [signUpModalOpen, setSignUpModalOpen] = useState(false);
   const [signInModalOpen, setSignInModalOpen] = useState(false);
 
-  const flatListReference = useRef<Animated.FlatList<Page>>(null);
+  const flatListRef = useRef<Animated.FlatList<Page>>(null);
   const offsetX = useSharedValue(0);
   const progress = useSharedValue(0);
 
@@ -75,7 +75,7 @@ export default function Auth() {
   );
 
   const scrollToNextPage = () => {
-    flatListReference.current?.scrollToIndex({
+    flatListRef.current?.scrollToIndex({
       index: activeIndex < pages.length - 1 ? activeIndex + 1 : 0,
       animated: true,
       viewPosition: 0.5,
@@ -112,7 +112,7 @@ export default function Auth() {
     <SafeView fullScreen backgroundColor="$backgroundSoft">
       <View flexGrow={1} justifyContent="center" flexShrink={1}>
         <Animated.FlatList
-          ref={flatListReference}
+          ref={flatListRef}
           onScroll={handleScroll}
           scrollEventThrottle={16}
           data={pages}
