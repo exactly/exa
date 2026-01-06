@@ -46,10 +46,16 @@ function renderIcon(options: {
     const column = index % size;
     const fill = item === 1 ? color : spotColor;
     pixels.push(
-      <Rect key={`cell-${index}`} x={column * scale} y={row * scale} width={scale} height={scale} fill={fill} />,
+      <Rect
+        key={`cell-${index}`}
+        transform={[{ translateX: column * scale }, { translateY: row * scale }]}
+        width={scale}
+        height={scale}
+        fill={fill}
+      />,
     );
   }
-  return [<Rect key="background" x={0} y={0} width={size * scale} height={size * scale} fill={bgcolor} />, ...pixels];
+  return [<Rect key="background" width={size * scale} height={size * scale} fill={bgcolor} />, ...pixels];
 }
 
 function buildOptions(options: {
