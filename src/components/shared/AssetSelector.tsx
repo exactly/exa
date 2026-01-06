@@ -3,7 +3,6 @@ import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { Address } from "@exactly/common/validation";
 import { withdrawLimit } from "@exactly/lib";
 import React, { useState } from "react";
-import { Image } from "react-native";
 import { vs } from "react-native-size-matters";
 import { ToggleGroup, YStack } from "tamagui";
 import { safeParse } from "valibot";
@@ -79,13 +78,6 @@ export default function AssetSelector({
             asset.type === "external" ? asset.symbol : asset.symbol.slice(3) === "WETH" ? "ETH" : asset.symbol.slice(3);
           const name =
             asset.type === "external" ? asset.name : asset.assetName === "Wrapped Ether" ? "Ether" : asset.assetName;
-          const logo =
-            asset.type === "external" ? (
-              <Image source={{ uri: asset.logoURI }} width={32} height={32} borderRadius={16} />
-            ) : (
-              <AssetLogo source={{ uri: assetLogos[symbol as keyof typeof assetLogos] }} width={32} height={32} />
-            );
-
           const isSelected = selectedMarket === (asset.type === "external" ? asset.address : asset.market);
           return (
             <ToggleGroup.Item
@@ -110,7 +102,14 @@ export default function AssetSelector({
                 borderRadius="$r3"
               >
                 <View flexDirection="row" gap={10} alignItems="center" maxWidth="50%">
-                  {logo}
+                  <AssetLogo
+                    source={{
+                      uri: asset.type === "external" ? asset.logoURI : assetLogos[symbol as keyof typeof assetLogos],
+                    }}
+                    width={32}
+                    height={32}
+                    borderRadius={16}
+                  />
                   <View gap="$s2" alignItems="flex-start" flexShrink={1}>
                     <Text fontSize={15} fontWeight="bold" color="$uiNeutralPrimary" numberOfLines={1}>
                       {symbol}
