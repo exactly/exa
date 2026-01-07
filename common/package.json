@@ -41,6 +41,12 @@
           },
           {
             "env": "EAS_BUILD_RUNNER"
+          },
+          {
+            "dependentTasksOutputFiles": "out/**/*.json"
+          },
+          {
+            "dependentTasksOutputFiles": "broadcast/*/31337/*.json"
           }
         ],
         "dependsOn": [

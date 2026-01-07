@@ -34,6 +34,9 @@
           "{projectRoot}/substreams.yaml",
           {
             "env": "CHAIN_ID"
+          },
+          {
+            "dependentTasksOutputFiles": "out/**/*.json"
           }
         ],
         "outputs": [

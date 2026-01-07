@@ -140,6 +140,9 @@
           "^production",
           {
             "env": "CHAIN_ID"
+          },
+          {
+            "dependentTasksOutputFiles": "out/**/*.json"
           }
         ],
         "outputs": [
