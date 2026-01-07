@@ -5,6 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
+  '@modelcontextprotocol/sdk': ^1.25.2
   '@tanstack/react-form@0.19.5': ^0.42.1
   '@valibot/to-json-schema': ^1.3.0
   '@wagmi/core': ^2.22.1
@@ -2465,11 +2466,17 @@ packages:
   '@hono/mcp@0.1.5':
     resolution: {integrity: sha512-q6Yurx9VUwVEpqnwVXtzIYaq4kgQgWWq9lYLM7NFS2W0sg1RzL+RdKh6jO4/dGyvBLKrahPd2v+NC6rr0XWBvQ==}
     peerDependencies:
-      '@modelcontextprotocol/sdk': ^1.12.0
+      '@modelcontextprotocol/sdk': ^1.25.2
       hono: '>=4.0.0'
 
   '@hono/node-server@1.19.5':
     resolution: {integrity: sha512-iBuhh+uaaggeAuf+TftcjZyWh2GEgZcVGXkNtskLVoWaXhnJtC5HLHrU8W1KHDoucqO1MswwglmkWLFyiDn4WQ==}
+    engines: {node: '>=18.14.1'}
+    peerDependencies:
+      hono: ^4
+
+  '@hono/node-server@1.19.7':
+    resolution: {integrity: sha512-vUcD0uauS7EU2caukW8z5lJKtoGMokxNbJtBiwHgpqxEXokaHCBkQUmCHhjFB1VUTWdqj25QoMkMKzgjq+uhrw==}
     engines: {node: '>=18.14.1'}
     peerDependencies:
       hono: ^4
@@ -2757,8 +2764,8 @@ packages:
   '@microsoft/tsdoc@0.15.1':
     resolution: {integrity: sha512-4aErSrCR/On/e5G2hDP0wjooqDdauzEbIq8hIkIe5pXV0rtWJZvdCEKL0ykZxex+IxIwBp0eGeV48hQN07dXtw==}
 
-  '@modelcontextprotocol/sdk@1.24.3':
-    resolution: {integrity: sha512-YgSHW29fuzKKAHTGe9zjNoo+yF8KaQPzDC2W9Pv41E7/57IfY+AMGJ/aDFlgTLcVVELoggKE4syABCE75u3NCw==}
+  '@modelcontextprotocol/sdk@1.25.2':
+    resolution: {integrity: sha512-LZFeo4F9M5qOhC/Uc1aQSrBHxMrvxett+9KLHt7OhcExtoiRN9DKgbZffMP/nxjutWDQpfMDfP3nkHI4X9ijww==}
     engines: {node: '>=18'}
     peerDependencies:
       '@cfworker/json-schema': ^4.1.1
@@ -15009,12 +15016,16 @@ snapshots:
 
   '@hexagon/base64@1.1.28': {}
 
-  '@hono/mcp@0.1.5(@modelcontextprotocol/sdk@1.24.3)(hono@4.10.3)':
+  '@hono/mcp@0.1.5(@modelcontextprotocol/sdk@1.25.2(hono@4.10.3))(hono@4.10.3)':
     dependencies:
-      '@modelcontextprotocol/sdk': 1.24.3
+      '@modelcontextprotocol/sdk': 1.25.2(hono@4.10.3)
       hono: 4.10.3
 
   '@hono/node-server@1.19.5(hono@4.10.3)':
+    dependencies:
+      hono: 4.10.3
+
+  '@hono/node-server@1.19.7(hono@4.10.3)':
     dependencies:
       hono: 4.10.3
 
@@ -15361,8 +15372,9 @@ snapshots:
 
   '@microsoft/tsdoc@0.15.1': {}
 
-  '@modelcontextprotocol/sdk@1.24.3':
+  '@modelcontextprotocol/sdk@1.25.2(hono@4.10.3)':
     dependencies:
+      '@hono/node-server': 1.19.7(hono@4.10.3)
       ajv: 8.17.1
       ajv-formats: 3.0.1
       content-type: 1.0.5
@@ -15373,11 +15385,13 @@ snapshots:
       express: 5.2.1
       express-rate-limit: 7.5.1(express@5.2.1)
       jose: 6.1.3
+      json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
       raw-body: 3.0.2
       zod: 4.1.13
       zod-to-json-schema: 3.25.0(zod@4.1.13)
     transitivePeerDependencies:
+      - hono
       - supports-color
 
   '@motionone/animation@10.18.0':
@@ -16879,10 +16893,10 @@ snapshots:
 
   '@spotlightjs/spotlight@4.7.2':
     dependencies:
-      '@hono/mcp': 0.1.5(@modelcontextprotocol/sdk@1.24.3)(hono@4.10.3)
+      '@hono/mcp': 0.1.5(@modelcontextprotocol/sdk@1.25.2(hono@4.10.3))(hono@4.10.3)
       '@hono/node-server': 1.19.5(hono@4.10.3)
       '@jridgewell/trace-mapping': 0.3.31
-      '@modelcontextprotocol/sdk': 1.24.3
+      '@modelcontextprotocol/sdk': 1.25.2(hono@4.10.3)
       '@sentry/core': 10.30.0
       '@sentry/electron': 7.4.0
       '@sentry/node': 10.30.0
@@ -19634,7 +19648,7 @@ snapshots:
       bytes: 3.1.2
       content-type: 1.0.5
       debug: 4.4.3
-      http-errors: 2.0.0
+      http-errors: 2.0.1
       iconv-lite: 0.7.0
       on-finished: 2.4.1
       qs: 6.14.1
@@ -21835,7 +21849,7 @@ snapshots:
       etag: 1.8.1
       finalhandler: 2.1.1
       fresh: 2.0.0
-      http-errors: 2.0.0
+      http-errors: 2.0.1
       merge-descriptors: 2.0.0
       mime-types: 3.0.2
       on-finished: 2.4.1
@@ -21847,7 +21861,7 @@ snapshots:
       router: 2.2.0
       send: 1.2.0
       serve-static: 2.2.0
-      statuses: 2.0.1
+      statuses: 2.0.2
       type-is: 2.0.1
       vary: 1.1.2
     transitivePeerDependencies:
@@ -22000,7 +22014,7 @@ snapshots:
       escape-html: 1.0.3
       on-finished: 2.4.1
       parseurl: 1.3.3
-      statuses: 2.0.1
+      statuses: 2.0.2
     transitivePeerDependencies:
       - supports-color
 
@@ -26235,12 +26249,12 @@ snapshots:
       escape-html: 1.0.3
       etag: 1.8.1
       fresh: 2.0.0
-      http-errors: 2.0.0
+      http-errors: 2.0.1
       mime-types: 3.0.2
       ms: 2.1.3
       on-finished: 2.4.1
       range-parser: 1.2.1
-      statuses: 2.0.1
+      statuses: 2.0.2
     transitivePeerDependencies:
       - supports-color
 
