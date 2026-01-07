@@ -11,6 +11,7 @@ tags:
     commands:
       - assertVisible: Stay updated
       - tapOn: Not now
+      - swipe: { direction: DOWN }
       - pressKey: home
       - launchApp: { permissions: { all: deny, camera: allow } }
       - extendedWaitUntil: { visible: Your portfolio, timeout: 180000 }
