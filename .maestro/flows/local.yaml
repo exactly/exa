@@ -31,7 +31,7 @@ tags:
 - runFlow: ../subflows/readPortfolio.yaml
 - assertTrue: ${output.portfolioBefore - output.portfolio === 69}
 - runFlow:
-    when: { visible: Getting Started, platform: ios } # TODO android
+    when: { visible: Getting Started }
     commands:
       - tapOn: View all steps
       - tapOn: Begin verifying

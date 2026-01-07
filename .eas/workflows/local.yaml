@@ -57,15 +57,11 @@ jobs:
         id: download
         with: { build_id: "${{ needs.android_build.outputs.build_id || needs.android_repack.outputs.build_id }}" }
       - uses: eas/start_android_emulator
-      - run: adb wait-for-device shell 'while [ -z "$(getprop sys.boot_completed)" ]; do sleep 1; done'
-      - run: |
-          adb reverse tcp:3000 tcp:3000
-          adb reverse tcp:8545 tcp:8545
-          adb reverse tcp:8969 tcp:8969
-          echo "=== adb reverse list ==="
-          adb reverse --list
-          echo "=== server still running? ==="
-          curl -sf http://localhost:3000/api/auth/authentication && echo "server ok" || echo "server not responding"
+        with:
+          device_identifier: small_phone
+          system_image_package: system-images;android-28;google_apis;x86_64
+      - run: adb wait-for-device
+      - run: adb reverse tcp:3000 tcp:3000 && adb reverse tcp:8545 tcp:8545 && adb reverse tcp:8969 tcp:8969
       - run: adb install "${{ steps.download.outputs.artifact_path }}"
       - run: pnpm e2e:maestro -e "EXPO_PUBLIC_E2E_MNEMONIC=${{ env.EXPO_PUBLIC_E2E_MNEMONIC }}"
       - name: exa teardown
