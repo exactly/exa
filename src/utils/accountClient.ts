@@ -169,7 +169,16 @@ export default async function createAccountClient({ credentialId, factory, x, y 
               abi: upgradeableModularAccountAbi,
             } as const;
             try {
-              return await sendCalls(ownerConfig, { id, calls: [execute] });
+              return await sendCalls(ownerConfig, {
+                id,
+                calls: [execute],
+                capabilities: {
+                  paymasterService: {
+                    url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
+                    context: { policyId: alchemyGasPolicyId },
+                  },
+                },
+              });
             } catch {
               // TODO filter errors
               const hash = await sendTransaction(ownerConfig, execute);
@@ -206,7 +215,12 @@ export default async function createAccountClient({ credentialId, factory, x, y 
                       abi: upgradeableModularAccountAbi,
                     },
                   ],
-                  capabilities: { paymasterService: { url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}` } },
+                  capabilities: {
+                    paymasterService: {
+                      url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
+                      context: { policyId: alchemyGasPolicyId },
+                    },
+                  },
                 });
                 return id;
               } catch {

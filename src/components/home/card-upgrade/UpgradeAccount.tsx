@@ -1,4 +1,6 @@
-import { exaPluginAddress } from "@exactly/common/generated/chain";
+import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
+import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
+import chain, { exaPluginAddress } from "@exactly/common/generated/chain";
 import {
   exaPluginAbi,
   upgradeableModularAccountAbi,
@@ -72,6 +74,12 @@ export default function UpgradeAccount() {
             ],
           },
         ],
+        capabilities: {
+          paymasterService: {
+            url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
+            context: { policyId: alchemyGasPolicyId },
+          },
+        },
       });
 
       const { status } = await waitForCallsStatus(exa, { id });

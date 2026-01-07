@@ -1,3 +1,5 @@
+import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
+import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
 import chain, { previewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import shortenHex from "@exactly/common/shortenHex";
@@ -312,6 +314,12 @@ export default function Bridge() {
             ...(approval ? [{ to: getAddress(selectedSource.address), data: approval }] : []),
             { to: from.to, data: from.data, value: from.value },
           ],
+          capabilities: {
+            paymasterService: {
+              url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
+              context: { policyId: alchemyGasPolicyId },
+            },
+          },
         });
         setBridgeStatus("Bridge transaction submitted");
       } catch {

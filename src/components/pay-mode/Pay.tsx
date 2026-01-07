@@ -1,5 +1,7 @@
 import ProposalType from "@exactly/common/ProposalType";
-import {
+import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
+import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
+import chain, {
   balancerVaultAddress,
   exaPluginAddress,
   marketUSDCAddress,
@@ -429,6 +431,12 @@ export default function Pay() {
             args: [maturity, positionAssets, maxRepay, account],
           },
         ],
+        capabilities: {
+          paymasterService: {
+            url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
+            context: { policyId: alchemyGasPolicyId },
+          },
+        },
       });
       setEnableSimulations(false);
       const { status } = await waitForCallsStatus(exa, { id });

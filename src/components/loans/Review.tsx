@@ -1,5 +1,7 @@
 import ProposalType from "@exactly/common/ProposalType";
-import { exaPluginAddress, marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
+import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
+import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
+import chain, { exaPluginAddress, marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import {
   exaPluginAbi,
   upgradeableModularAccountAbi,
@@ -131,7 +133,15 @@ export default function Review() {
         });
         calls.push({ to: address, data });
       }
-      const { id } = await mutateSendCalls({ calls });
+      const { id } = await mutateSendCalls({
+        calls,
+        capabilities: {
+          paymasterService: {
+            context: { policyId: alchemyGasPolicyId },
+            url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
+          },
+        },
+      });
       const { status } = await waitForCallsStatus(exa, { id });
       if (status === "failure") throw new Error("failed to submit borrow proposal");
     },
