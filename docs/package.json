@@ -34,6 +34,13 @@
             "projects": "@exactly/server",
             "target": "generate:openapi"
           }
+        ],
+        "inputs": [
+          "production",
+          "^production",
+          {
+            "dependentTasksOutputFiles": "server/generated/openapi.json"
+          }
         ]
       }
     }
