@@ -4,6 +4,7 @@ import type { ExpoConfig } from "expo/config";
 import type { PluginConfigType as BuildPropertiesConfig } from "expo-build-properties/build/pluginConfig";
 import type withCamera from "expo-camera/plugin/build/withCamera";
 import type { FontProps } from "expo-font/plugin/build/withFonts";
+import { env } from "node:process";
 import type * as OneSignalPlugin from "onesignal-expo-plugin/types/types";
 
 import metadata from "./package.json";
@@ -11,9 +12,9 @@ import versionCode from "./src/generated/versionCode.js";
 
 const { Mode } = require("onesignal-expo-plugin/build/types/types") as typeof OneSignalPlugin; // eslint-disable-line @typescript-eslint/no-require-imports, unicorn/prefer-module
 
-if (process.env.APP_DOMAIN) process.env.EXPO_PUBLIC_DOMAIN ??= process.env.APP_DOMAIN;
-if (process.env.EAS_BUILD_RUNNER === "eas-build") process.env.EXPO_PUBLIC_DOMAIN ??= "web.exactly.app";
-process.env.EXPO_PUBLIC_INTERCOM_APP_ID ??= "eknd6y0s"; // cspell:ignore eknd6y0s
+if (env.EAS_BUILD_RUNNER === "eas-build") env.APP_DOMAIN ??= "web.exactly.app";
+if (env.APP_DOMAIN) env.EXPO_PUBLIC_DOMAIN = env.APP_DOMAIN;
+env.EXPO_PUBLIC_INTERCOM_APP_ID ??= "eknd6y0s"; // cspell:ignore eknd6y0s
 
 export default {
   name: "Exa",
@@ -38,7 +39,7 @@ export default {
   ios: {
     icon: "src/assets/icon.png",
     bundleIdentifier: "app.exactly",
-    associatedDomains: [`webcredentials:${process.env.EXPO_PUBLIC_DOMAIN ?? "sandbox.exactly.app"}`],
+    associatedDomains: [`webcredentials:${env.APP_DOMAIN ?? "sandbox.exactly.app"}`],
     supportsTablet: false,
     buildNumber: String(versionCode),
     infoPlist: {
@@ -87,7 +88,7 @@ export default {
     [
       "@intercom/intercom-react-native",
       {
-        appId: process.env.EXPO_PUBLIC_INTERCOM_APP_ID,
+        appId: env.EXPO_PUBLIC_INTERCOM_APP_ID,
         androidApiKey: "android_sdk-d602d62cbdb9e8e0a6f426db847ddc74d2e26090",
         iosApiKey: "ios_sdk-ad6831098d9c2d69bd98e92a5ad7a4f030472a92",
       } satisfies IntercomPluginProps,
@@ -99,7 +100,7 @@ export default {
     [
       "onesignal-expo-plugin",
       {
-        mode: process.env.NODE_ENV === "production" ? Mode.Prod : Mode.Dev,
+        mode: env.NODE_ENV === "production" ? Mode.Prod : Mode.Dev,
         smallIcons: ["src/assets/notifications_default.png"],
         largeIcons: ["src/assets/notifications_default_large.png"],
       } satisfies OneSignalPlugin.OneSignalPluginProps,
