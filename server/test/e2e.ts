@@ -4,6 +4,7 @@ import "./mocks/deployments";
 import "./mocks/keeper";
 import "./mocks/redis";
 
+import type * as sentry from "@sentry/node";
 import { mkdir, writeFile } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
 
@@ -53,3 +54,14 @@ vi.mock("../utils/persona", async (importOriginal) => ({
   ...(await importOriginal()),
   getInquiry: vi.fn<() => Promise<void>>().mockResolvedValue(),
 }));
+
+vi.mock("@sentry/node", async (importOriginal) => {
+  const { captureException, ...original } = await importOriginal<typeof sentry>();
+  return {
+    ...original,
+    captureException(...args: Parameters<typeof sentry.captureException>) {
+      console.log(...args); // eslint-disable-line no-console
+      return captureException(...args);
+    },
+  };
+});
