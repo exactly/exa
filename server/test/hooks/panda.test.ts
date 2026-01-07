@@ -1,10 +1,10 @@
-import "../mocks/sentry";
 import "../mocks/deployments";
+import "../mocks/keeper";
 import "../mocks/onesignal";
 import "../mocks/panda";
 import "../mocks/redis";
-import "../mocks/keeper";
 import "../mocks/sardine";
+import "../mocks/sentry";
 
 import ProposalType from "@exactly/common/ProposalType";
 import deriveAddress from "@exactly/common/deriveAddress";
@@ -1310,6 +1310,95 @@ describe("concurrency", () => {
     expect(mutex?.isLocked()).toBe(false);
     expect(spendAuthorization.status).toBe(200);
     expect(collectSpendAuthorization.status).toBe(200);
+  });
+
+  // TODO: Enable once UI has proper designs to handle declined transactions in activity
+  it.todo("inserts declined transaction with empty hashes", async () => {
+    const cardId = `${account2}-card`;
+    const txId = "declined-tx-insert";
+
+    const response = await appClient.index.$post({
+      ...authorization,
+      json: {
+        ...authorization.json,
+        action: "created",
+        body: {
+          ...authorization.json.body,
+          id: txId,
+          spend: {
+            ...authorization.json.body.spend,
+            amount: 500,
+            cardId,
+            status: "declined",
+            declinedReason: "insufficient_funds",
+          },
+        },
+      },
+    });
+
+    const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, txId) });
+
+    expect(response.status).toBe(200);
+    expect(transaction).toMatchObject({
+      id: txId,
+      cardId,
+      hashes: [],
+      payload: {
+        type: "panda",
+        bodies: [{ action: "created", body: { spend: { status: "declined" } } }],
+      },
+    });
+  });
+
+  // TODO: Enable once UI has proper designs to handle declined transactions in activity
+  it.todo("appends body to existing transaction when declined", async () => {
+    const cardId = `${account2}-card`;
+    const txId = "declined-tx-update";
+
+    // First create a pending transaction
+    await appClient.index.$post({
+      ...authorization,
+      json: {
+        ...authorization.json,
+        action: "created",
+        body: {
+          ...authorization.json.body,
+          id: txId,
+          spend: { ...authorization.json.body.spend, amount: 600, cardId },
+        },
+      },
+    });
+
+    // Then update it as declined
+    const response = await appClient.index.$post({
+      ...authorization,
+      json: {
+        ...authorization.json,
+        action: "updated",
+        body: {
+          ...authorization.json.body,
+          id: txId,
+          spend: {
+            ...authorization.json.body.spend,
+            amount: 600,
+            authorizationUpdateAmount: 0,
+            authorizedAt: new Date().toISOString(),
+            cardId,
+            status: "declined",
+            declinedReason: "merchant_blocked",
+          },
+        },
+      },
+    });
+
+    const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, txId) });
+
+    expect(response.status).toBe(200);
+    expect(transaction?.hashes).toHaveLength(1);
+    expect(transaction?.payload).toMatchObject({
+      type: "panda",
+      bodies: [{ action: "created" }, { action: "updated", body: { spend: { status: "declined" } } }],
+    });
   });
 
   describe("with fake timers", () => {
