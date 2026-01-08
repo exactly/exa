@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import React, { useState, useEffect, useRef } from "react";
-import { Pressable, StyleSheet } from "react-native";
+import { Pressable } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import reportError from "../../utils/reportError";
@@ -13,44 +13,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function CardPIN({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [countdown, setCountdown] = useState(0);
-  const [displayPIN, setDisplayPIN] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setInterval>>(undefined);
   const { data: card, isPending, error, refetch } = useQuery<CardWithPIN>({ queryKey: ["card", "pin"], enabled: open });
-
-  function startCountdown() {
-    setDisplayPIN(true);
-    setCountdown(5);
-    timerRef.current = setInterval(() => {
-      setCountdown((previous) => {
-        if (previous <= 1) {
-          clearInterval(timerRef.current);
-          setDisplayPIN(false);
-          return 0;
-        }
-        return previous - 1;
-      });
-    }, 1000);
-  }
-
-  function stopCountdown() {
-    clearInterval(timerRef.current);
-    setDisplayPIN(false);
-    setCountdown(0);
-  }
-
-  function handlePinToggle() {
-    if (displayPIN) stopCountdown();
-    else startCountdown();
-  }
-
-  useEffect(() => {
-    if (open && card?.details.pin) startCountdown();
-    else stopCountdown();
-    return () => {
-      clearInterval(timerRef.current);
-    };
-  }, [open, card]);
   return (
     <ModalSheet open={open} onClose={onClose}>
       <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
@@ -66,44 +29,18 @@ export default function CardPIN({ open, onClose }: { open: boolean; onClose: () 
                     Your card&apos;s PIN may be required to confirm transactions and ensure security.
                   </Text>
                 </YStack>
-                {isPending || !card?.details.pin ? (
+                {isPending ? (
                   <Skeleton width="100%" height={100} />
                 ) : (
-                  <YStack gap="$s4">
-                    {!error && card.details.pin ? (
-                      <XStack flexWrap="wrap" justifyContent="center" gap="$s5">
-                        {Array.from({ length: card.details.pin.length }).map((_, index) => (
-                          <Text
-                            fontSize={48}
-                            fontFamily="$mono"
-                            key={index} // eslint-disable-line @eslint-react/no-array-index-key
-                          >
-                            {displayPIN ? card.details.pin[index] : "*"}
-                          </Text>
-                        ))}
-                      </XStack>
-                    ) : (
-                      <Text fontSize={48} fontFamily="$mono">
-                        N/A
-                      </Text>
-                    )}
-                    <Button
-                      main
-                      spaced
-                      onPress={() => {
-                        if (error) {
-                          refetch().catch(reportError);
-                          return;
-                        }
-                        handlePinToggle();
-                      }}
-                    >
-                      {error ? "Retry" : displayPIN ? "Hide PIN" : "Show PIN"}
-                      {`${!error && displayPIN && countdown > 0 ? countdown : " "}`}
-                    </Button>
-                  </YStack>
+                  <Countdown
+                    pin={card?.details.pin}
+                    error={error}
+                    onRetry={() => {
+                      refetch().catch(reportError);
+                    }}
+                  />
                 )}
-                <Pressable onPress={onClose} style={styles.close} hitSlop={20}>
+                <Pressable onPress={onClose} style={{ alignSelf: "center" }} hitSlop={20}>
                   <Text emphasized footnote color="$interactiveTextBrandDefault">
                     Close
                   </Text>
@@ -117,4 +54,74 @@ export default function CardPIN({ open, onClose }: { open: boolean; onClose: () 
   );
 }
 
-const styles = StyleSheet.create({ close: { alignSelf: "center" } });
+function Countdown({ pin, error, onRetry }: { pin?: string; error: unknown; onRetry: () => void }) {
+  const [displayPIN, setDisplayPIN] = useState(true);
+  const [countdown, setCountdown] = useState(5);
+  const timerRef = useRef<ReturnType<typeof setInterval>>(undefined);
+
+  function startTimer() {
+    clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      setCountdown((previous) => {
+        if (previous <= 1) {
+          clearInterval(timerRef.current);
+          setDisplayPIN(false);
+          return 0;
+        }
+        return previous - 1;
+      });
+    }, 1000);
+  }
+
+  useEffect(() => {
+    startTimer();
+    return () => {
+      clearInterval(timerRef.current);
+    };
+  }, []);
+
+  function handleToggle() {
+    if (displayPIN) {
+      clearInterval(timerRef.current);
+      setDisplayPIN(false);
+      setCountdown(0);
+    } else {
+      setDisplayPIN(true);
+      setCountdown(5);
+      startTimer();
+    }
+  }
+
+  return (
+    <YStack gap="$s4">
+      {!error && pin ? (
+        <XStack flexWrap="wrap" justifyContent="center" gap="$s5">
+          {Array.from({ length: pin.length }).map((_, index) => (
+            // eslint-disable-next-line @eslint-react/no-array-index-key
+            <Text fontSize={48} fontFamily="$mono" key={index}>
+              {displayPIN ? pin[index] : "*"}
+            </Text>
+          ))}
+        </XStack>
+      ) : (
+        <Text fontSize={48} fontFamily="$mono">
+          N/A
+        </Text>
+      )}
+      <Button
+        main
+        spaced
+        onPress={() => {
+          if (error) {
+            onRetry();
+            return;
+          }
+          handleToggle();
+        }}
+      >
+        {error ? "Retry" : displayPIN ? "Hide PIN" : "Show PIN"}
+        {`${!error && displayPIN && countdown > 0 ? countdown : " "}`}
+      </Button>
+    </YStack>
+  );
+}
