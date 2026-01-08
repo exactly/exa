@@ -48,6 +48,7 @@ jobs:
       - run: | # cspell:ignore imageid
           docker create --name extract ${{ steps.build.outputs.imageid }}
           docker cp extract:/prod/server/dist ./server/dist
+          mkdir -p ./server/generated
           docker cp extract:/prod/server/generated/release.js ./server/generated/release.js
           docker rm extract
           echo "release=$(node -e 'console.log(require(`./server/generated/release`))')" >> $GITHUB_OUTPUT
