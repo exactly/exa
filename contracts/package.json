@@ -76,11 +76,31 @@
           "test:sizes"
         ]
       },
+      "test:sizes": {
+        "outputs": [
+          "{projectRoot}/out",
+          "{projectRoot}/cache"
+        ]
+      },
+      "test:gas": {
+        "outputs": [
+          "{projectRoot}/out",
+          "{projectRoot}/cache",
+          "{projectRoot}/.gas-snapshot"
+        ]
+      },
+      "test:slither": {
+        "outputs": [
+          "{projectRoot}/out",
+          "{projectRoot}/cache"
+        ]
+      },
       "test:coverage": {
         "outputs": [
+          "{projectRoot}/out",
+          "{projectRoot}/cache",
           "{projectRoot}/lcov.info"
-        ],
-        "cache": true
+        ]
       }
     }
   }
