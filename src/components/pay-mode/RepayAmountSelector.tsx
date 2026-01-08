@@ -1,88 +1,88 @@
-import { marketUSDCAddress } from "@exactly/common/generated/chain";
-import type { Hex } from "@exactly/common/validation";
-import { useForm } from "@tanstack/react-form";
-import React, { useCallback, useEffect, useState } from "react";
+import { min } from "@exactly/lib";
+import React, { useCallback, useMemo, useState } from "react";
 import { Separator, Slider, XStack, YStack } from "tamagui";
-import { nonEmpty, pipe, string } from "valibot";
 import { formatUnits, parseUnits } from "viem";
 
 import assetLogos from "../../utils/assetLogos";
-import useAsset from "../../utils/useAsset";
 import AssetLogo from "../shared/AssetLogo";
 import Input from "../shared/Input";
 import Text from "../shared/Text";
 
 export default function RepayAmountSelector({
+  value,
   onChange,
-  maxPositionAssets,
+  maxRepayInput,
+  totalPositionRepay,
   balancerBalance,
   positionValue,
-  repayMarket,
 }: {
+  value: bigint;
   onChange: (value: bigint) => void;
-  maxPositionAssets: bigint;
-  balancerBalance?: bigint;
+  maxRepayInput: bigint;
+  totalPositionRepay: bigint;
+  balancerBalance: bigint;
   positionValue: bigint;
-  repayMarket?: Hex;
 }) {
-  const { market: exaUSDC } = useAsset(marketUSDCAddress);
-  const { Field, setFieldValue } = useForm({ defaultValues: { assetInput: "" } });
   const [focused, setFocused] = useState(false);
-  const [inputValue, setInputValue] = useState(0n);
-  const [maxReached, setMaxReached] = useState(false);
+  const [editingValue, setEditingValue] = useState<string | undefined>();
 
-  const balancerBalanceUSD =
-    balancerBalance && exaUSDC ? (balancerBalance * exaUSDC.usdPrice) / 10n ** BigInt(exaUSDC.decimals) : 0n;
+  const displayValue = editingValue ?? formatUnits(value, 6);
+  const canPayFullDebt = maxRepayInput >= totalPositionRepay && totalPositionRepay > 0n;
+  const effectiveMax = canPayFullDebt ? totalPositionRepay : maxRepayInput;
+  const clampedValue = min(value, effectiveMax);
+  const maxReached = clampedValue >= effectiveMax && effectiveMax > 0n;
+
+  const sliderStep = useMemo(() => {
+    const maxValue = Number(totalPositionRepay) / 1e6;
+    const step = maxValue / 100;
+    return Math.max(0.01, Math.round(step * 100) / 100);
+  }, [totalPositionRepay]);
 
   const handleAmountChange = useCallback(
-    (value: string) => {
-      const formattedValue = value.replaceAll(/\D/g, ".").replaceAll(/\.(?=.*\.)/g, "");
+    (input: string) => {
+      const formattedValue = input
+        .replaceAll(",", ".")
+        .replaceAll(/[^\d.]/g, "")
+        .replaceAll(/\.(?=.*\.)/g, "");
+
+      setEditingValue(formattedValue);
+
+      if (!formattedValue || !Number.isFinite(Number(formattedValue)) || Number(formattedValue) < 0) {
+        onChange(0n);
+        return;
+      }
+
       const inputAmount = parseUnits(formattedValue, 6);
 
-      if (inputAmount > maxPositionAssets) {
-        onChange(maxPositionAssets);
-        setFieldValue("assetInput", formatUnits(maxPositionAssets, 6));
-        setInputValue(maxPositionAssets);
-        setMaxReached(true);
+      if (inputAmount > effectiveMax) {
+        onChange(effectiveMax);
+        setEditingValue(formatUnits(effectiveMax, 6));
       } else {
         onChange(inputAmount);
-        setFieldValue("assetInput", formattedValue);
-        setInputValue(inputAmount);
-        setMaxReached(false);
       }
     },
-    [setFieldValue, onChange, maxPositionAssets],
+    [onChange, effectiveMax],
   );
 
   const handleSliderChange = useCallback(
     (values: number[]) => {
-      const value = Number(values[0]);
-      if (value > Number(maxPositionAssets) / 10 ** 6) {
-        onChange(maxPositionAssets);
-        setFieldValue("assetInput", formatUnits(maxPositionAssets, 6));
-        setInputValue(maxPositionAssets);
-        setMaxReached(true);
+      if (values[0] === undefined) return;
+      const sliderValue = Math.round(values[0] * 1e6) / 1e6;
+      setEditingValue(undefined);
+      if (sliderValue >= Number(effectiveMax) / 1e6) {
+        onChange(effectiveMax);
       } else {
-        const amount = parseUnits(String(value), 6);
-        onChange(amount);
-        setFieldValue("assetInput", String(value));
-        setInputValue(amount);
-        setMaxReached(false);
+        const sliderAmount = parseUnits(sliderValue.toFixed(6), 6);
+        onChange(sliderAmount);
       }
     },
-    [onChange, setFieldValue, maxPositionAssets],
+    [onChange, effectiveMax],
   );
 
-  useEffect(() => {
-    if (inputValue > maxPositionAssets) {
-      onChange(maxPositionAssets);
-      setFieldValue("assetInput", formatUnits(maxPositionAssets, 6));
-      setInputValue(maxPositionAssets);
-      setMaxReached(true);
-    } else {
-      setMaxReached(false);
-    }
-  }, [repayMarket, setFieldValue, onChange, inputValue, maxPositionAssets]);
+  const handleMaxPress = useCallback(() => {
+    setEditingValue(undefined);
+    onChange(effectiveMax);
+  }, [onChange, effectiveMax]);
 
   return (
     <YStack
@@ -93,89 +93,90 @@ export default function RepayAmountSelector({
       paddingBottom="$s3"
       paddingHorizontal="$s4"
     >
+      <XStack justifyContent="flex-end" alignItems="center">
+        <Text emphasized subHeadline color="$uiBrandSecondary" onPress={handleMaxPress} cursor="pointer">
+          Max
+        </Text>
+      </XStack>
       <YStack gap="$s4">
         <YStack maxWidth="80%" minWidth="60%" alignSelf="center">
-          <Field name="assetInput" validators={{ onChange: pipe(string(), nonEmpty("empty amount")) }}>
-            {({ state: { value } }) => {
-              return (
-                <XStack
-                  justifyContent="center"
-                  alignSelf="center"
-                  alignItems="center"
-                  hitSlop={15}
-                  flexShrink={1}
-                  gap="$s2"
-                  maxWidth="80%"
-                  height={60}
-                >
-                  <AssetLogo source={{ uri: assetLogos.USDC }} width={32} height={32} />
-                  <Input
-                    alignSelf="center"
-                    backgroundColor="$backgroundSoft"
-                    borderBottomLeftRadius={0}
-                    borderBottomRightRadius={0}
-                    borderWidth={0}
-                    color="$uiNeutralPrimary"
-                    cursor="pointer"
-                    flex={1}
-                    height="auto"
-                    inputMode="decimal"
-                    onBlur={() => setFocused(false)}
-                    onChangeText={handleAmountChange}
-                    onFocus={() => setFocused(true)}
-                    placeholder="0"
-                    style={{ fontSize: 34, fontWeight: 400, letterSpacing: -0.2 }}
-                    textAlign="center"
-                    value={value}
-                  />
-                </XStack>
-              );
-            }}
-          </Field>
+          <XStack
+            justifyContent="center"
+            alignSelf="center"
+            alignItems="center"
+            hitSlop={15}
+            flexShrink={1}
+            gap="$s2"
+            maxWidth="80%"
+            height={60}
+          >
+            <AssetLogo source={{ uri: assetLogos.USDC }} width={32} height={32} />
+            <Input
+              alignSelf="center"
+              backgroundColor="$backgroundSoft"
+              borderBottomLeftRadius={0}
+              borderBottomRightRadius={0}
+              borderWidth={0}
+              color="$uiNeutralPrimary"
+              cursor="pointer"
+              flex={1}
+              height="auto"
+              inputMode="decimal"
+              onBlur={() => {
+                setFocused(false);
+                const cleanValue = value > 0n ? String(Number(formatUnits(value, 6))) : "";
+                setEditingValue(cleanValue || undefined);
+              }}
+              onChangeText={handleAmountChange}
+              onFocus={() => setFocused(true)}
+              placeholder="0"
+              style={{ fontSize: 34, fontWeight: 400, letterSpacing: -0.2 }}
+              textAlign="center"
+              value={displayValue}
+            />
+          </XStack>
           <Separator height={1} borderColor={focused ? "$borderBrandStrong" : "$borderNeutralSoft"} />
         </YStack>
         <YStack justifyContent="space-between" flexWrap="wrap" alignItems="flex-start" gap="$s3">
-          {exaUSDC && (
-            <Slider
-              onValueChange={handleSliderChange}
-              value={[Number(inputValue) / 10 ** exaUSDC.decimals]}
-              width="100%"
-              min={0}
-              max={Number(positionValue) / 10 ** exaUSDC.decimals}
-              step={0.1}
-            >
-              <Slider.Track backgroundColor={maxReached ? "$interactiveBaseErrorSoftDefault" : "$backgroundBrandMild"}>
-                <Slider.TrackActive backgroundColor="$uiBrandSecondary" />
-              </Slider.Track>
-              <Slider.Thumb
-                circular
-                index={0}
-                size={20}
-                backgroundColor="$uiBrandSecondary"
-                borderColor="$borderBrandStrong"
-                hitSlop={100}
-                hoverStyle={{ backgroundColor: "$uiBrandSecondary" }}
-                pressStyle={{ backgroundColor: "$uiBrandSecondary" }}
-              />
-            </Slider>
-          )}
+          <Slider
+            onValueChange={handleSliderChange}
+            value={[Number(clampedValue) / 1e6]}
+            width="100%"
+            min={0}
+            max={Number(totalPositionRepay) / 1e6}
+            step={sliderStep}
+          >
+            <Slider.Track backgroundColor="$backgroundBrandMild">
+              <Slider.TrackActive backgroundColor="$uiBrandSecondary" />
+            </Slider.Track>
+            <Slider.Thumb
+              circular
+              index={0}
+              size={20}
+              backgroundColor="$uiBrandSecondary"
+              borderColor="$borderBrandStrong"
+              hitSlop={100}
+              hoverStyle={{ backgroundColor: "$uiBrandSecondary" }}
+              pressStyle={{ backgroundColor: "$uiBrandSecondary" }}
+            />
+          </Slider>
           {maxReached && (
-            <Text caption color="$interactiveBaseErrorDefault">
-              Maximum balance reached
+            <Text caption color="$uiNeutralSecondary">
+              {canPayFullDebt ? "Full repayment selected." : "Maximum amount selected."}
             </Text>
           )}
         </YStack>
-        {balancerBalance && positionValue > balancerBalance ? (
+        {positionValue > balancerBalance && (
           <Text caption color="$uiNeutralPlaceholder">
             Limit&nbsp;
-            {(Number(balancerBalanceUSD) / 1e18).toLocaleString(undefined, {
+            {(Number(balancerBalance) / 1e6).toLocaleString(undefined, {
               style: "currency",
               currency: "USD",
               currencyDisplay: "narrowSymbol",
             })}
             &nbsp;per repay. Please split larger amounts into smaller payments.
           </Text>
-        ) : null}
+        )}
       </YStack>
     </YStack>
   );
