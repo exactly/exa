@@ -11,6 +11,7 @@ jobs:
       pages: write
       id-token: write
     runs-on: ubuntu-latest
+    env: { NX_DAEMON: false }
     steps:
       - uses: actions/checkout@v4
         with:
@@ -29,7 +30,7 @@ jobs:
           version: v1.3.6
       - uses: actions/cache@v4
         with:
-          path: node_modules/.cache/nx
+          path: .nx/cache
           key: nx-${{ runner.os }}-${{ github.sha }}
           restore-keys: nx-${{ runner.os }}-
       - run: pnpm install --frozen-lockfile

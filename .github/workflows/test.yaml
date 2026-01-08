@@ -6,6 +6,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     env:
+      NX_DAEMON: false
       OPTIMISM_RPC_URL: ${{ secrets.OPTIMISM_RPC_URL }}
     steps:
       - uses: actions/checkout@v4
@@ -30,7 +31,7 @@ jobs:
           cache-dependency-path: contracts/requirements.txt
       - uses: actions/cache@v4
         with:
-          path: node_modules/.cache/nx
+          path: .nx/cache
           key: nx-${{ runner.os }}-${{ github.sha }}
           restore-keys: nx-${{ runner.os }}-
       - run: pip install -r contracts/requirements.txt

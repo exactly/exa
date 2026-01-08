@@ -43,7 +43,7 @@ jobs:
           token: ${{ secrets.EXPO_TOKEN }}
       - uses: actions/cache@v4
         with:
-          path: node_modules/.cache/nx
+          path: .nx/cache
           key: nx-${{ runner.os }}-${{ github.sha }}
           restore-keys: nx-${{ runner.os }}-
       - run: pnpm install --frozen-lockfile
