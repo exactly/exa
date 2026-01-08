@@ -17,7 +17,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function ProfileHeader() {
-  const { address, isConnected } = useAccount();
+  const { address } = useAccount();
   const [copyAddressShown, setCopyAddressShown] = useState(false);
   const router = useRouter();
   const {
@@ -33,7 +33,6 @@ export default function ProfileHeader() {
       <View display="flex" flexDirection="row" justifyContent="space-between">
         <View display="flex" flexDirection="row" alignItems="center" gap={8}>
           <View position="relative">
-            {isConnected && <StatusIndicator type="online" />}
             {address && (
               <View borderRadius="$r_0" overflow="hidden">
                 <Blocky seed={address} />
