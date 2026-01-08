@@ -17,15 +17,15 @@ import {
   type InferInput,
   type InferOutput,
 } from "valibot";
-import { optimism, base, baseSepolia, optimismSepolia } from "viem/chains";
+import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
 import {
   getAccount,
   getDocument,
   getInquiry,
   resumeOrCreateMantecaInquiryOTL,
-  type IdentificationClasses,
   type Account,
+  type IdentificationClasses,
   type Inquiry,
 } from "../persona";
 import type * as shared from "./shared";
@@ -333,6 +333,9 @@ export async function mantecaOnboarding(account: string, credentialId: string, t
 
     const personaAccount = await getAccount(credentialId);
     if (!personaAccount) throw new Error(ErrorCodes.NO_PERSONA_ACCOUNT);
+
+    const countryCode = personaAccount.attributes["country-code"];
+    if (!countryCode) throw new Error(ErrorCodes.COUNTRY_NOT_ALLOWED);
     const additionalData = safeParse(MantecaOnboarding, {
       tin: personaAccount.attributes.fields.tin?.value,
       gender: personaAccount.attributes.fields.sex_1?.value,
@@ -349,10 +352,10 @@ export async function mantecaOnboarding(account: string, credentialId: string, t
       legalId: additionalData.output.tin,
       externalId: account.replace("0x", ""),
       type: "INDIVIDUAL",
-      exchange: getExchange(personaAccount.attributes["country-code"]),
+      exchange: getExchange(countryCode),
       personalData: {
         birthDate: inquiry.attributes.birthdate,
-        nationality: getNationality(personaAccount.attributes["country-code"]),
+        nationality: getNationality(countryCode),
         phoneNumber: inquiry.attributes["phone-number"],
         surname: inquiry.attributes["name-last"],
         name: inquiry.attributes["name-first"],
@@ -853,6 +856,7 @@ export function validateIdentification(
   personaAccount: InferOutput<typeof Account>,
 ) {
   const countryCode = personaAccount.attributes["country-code"];
+  if (!countryCode) throw new Error(ErrorCodes.COUNTRY_NOT_ALLOWED);
   const allowedIdentificationClasses = allowedCountries.get(countryCode as (typeof CountryCode)[number])?.allowedIds;
   if (!allowedIdentificationClasses) throw new Error(ErrorCodes.COUNTRY_NOT_ALLOWED);
   if (inquiry.attributes.status !== "approved" && inquiry.attributes.status !== "completed") {
@@ -884,7 +888,7 @@ const getExchange = (countryCode: string): (typeof Exchange)[number] => {
   return exchange;
 };
 
-const getSupportedByCountry = (countryCode?: string): (typeof MantecaCurrency)[number][] => {
+const getSupportedByCountry = (countryCode?: string | null): (typeof MantecaCurrency)[number][] => {
   if (!countryCode) return [];
   const exchange = ExchangeByCountry[countryCode as (typeof CountryCode)[number]];
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition

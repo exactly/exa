@@ -217,6 +217,7 @@ export async function getProvider(data: GetProvider): Promise<InferOutput<typeof
   const documentId = inquiry.attributes.fields["current-government-id"]?.value?.id;
   if (!documentId) throw new Error(ErrorCodes.NO_DOCUMENT_ID);
 
+  if (!countryCode) throw new Error(ErrorCodes.NO_COUNTRY);
   const country = alpha2ToAlpha3(countryCode);
   if (!country) throw new Error(ErrorCodes.NO_COUNTRY_ALPHA3);
 
@@ -283,6 +284,7 @@ export async function onboarding(data: Onboarding): Promise<void> {
   }
 
   const countryCode = personaAccount.attributes["country-code"];
+  if (!countryCode) throw new Error(ErrorCodes.NO_COUNTRY);
   const identificationClass = inquiry.attributes.fields["identification-class"]?.value;
   if (!identificationClass) throw new Error(ErrorCodes.NO_IDENTIFICATION_CLASS);
   const bridgeIdType = idClassToBridge(identificationClass);

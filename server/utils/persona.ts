@@ -3,13 +3,11 @@ import { setContext } from "@sentry/core";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import {
   array,
-  nullish,
-  type BaseIssue,
-  type BaseSchema,
+  boolean,
   flatten,
   literal,
   nullable,
-  boolean,
+  nullish,
   number,
   object,
   picklist,
@@ -17,6 +15,8 @@ import {
   string,
   ValiError,
   variant,
+  type BaseIssue,
+  type BaseSchema,
 } from "valibot";
 
 import appOrigin from "./appOrigin";
@@ -143,6 +143,7 @@ interface AccountCustomFields {
   tin?: string;
   sex_1?: "Male" | "Female" | "Prefer not to say";
   manteca_t_c?: boolean;
+  address?: { value?: { country_code?: { value?: string } } };
 }
 
 const AccountFields = object({
@@ -151,13 +152,19 @@ const AccountFields = object({
   tin: nullish(object({ type: literal("string"), value: nullish(string()) })),
   sex_1: nullish(object({ type: string(), value: nullish(picklist(["Male", "Female", "Prefer not to say"])) })),
   manteca_t_c: nullish(object({ type: literal("boolean"), value: nullish(boolean()) })),
+  address: nullish(
+    object({
+      type: literal("hash"),
+      value: nullish(object({ country_code: nullish(object({ type: literal("string"), value: nullish(string()) })) })),
+    }),
+  ),
 } satisfies Record<keyof AccountCustomFields, unknown>);
 
 export const Account = object({
   id: string(),
   type: literal("account"),
   attributes: object({
-    "country-code": nullable(string(), "unknown"),
+    "country-code": nullable(string()),
     "address-street-1": nullable(string()),
     "address-street-2": nullable(string()),
     "address-city": nullable(string()),

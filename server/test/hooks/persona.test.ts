@@ -1,14 +1,18 @@
 import "../mocks/sentry";
 import "../mocks/persona";
 
+import deriveAddress from "@exactly/common/deriveAddress";
 import { captureException } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
-import { afterEach, describe, expect, inject, it, vi } from "vitest";
+import { padHex, zeroHash } from "viem";
+import { privateKeyToAddress } from "viem/accounts";
+import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 
 import database, { credentials } from "../../database";
 import app from "../../hooks/persona";
 import * as panda from "../../utils/panda";
+import * as pax from "../../utils/pax";
 import * as sardine from "../../utils/sardine";
 
 const appClient = testClient(app);
@@ -236,6 +240,117 @@ describe("with reference", () => {
     });
   });
 });
+
+describe("persona hook", () => {
+  beforeAll(async () => {
+    await database.insert(credentials).values({
+      id: "persona-ref",
+      publicKey: new Uint8Array(),
+      factory: inject("ExaAccountFactory"),
+      account: deriveAddress(inject("ExaAccountFactory"), {
+        x: padHex(privateKeyToAddress(padHex("0x420"))),
+        y: zeroHash,
+      }),
+      pandaId: null,
+    });
+  });
+
+  it("creates panda and pax user on valid inquiry", async () => {
+    vi.spyOn(panda, "createUser").mockResolvedValue({ id: "new-panda-id" });
+    vi.spyOn(pax, "addCapita").mockResolvedValue({});
+    vi.spyOn(sardine, "customer").mockResolvedValueOnce({ sessionKey: "test", status: "Success", level: "low" });
+
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: {
+        ...validPayload,
+        data: {
+          ...validPayload.data,
+          attributes: {
+            ...validPayload.data.attributes,
+            payload: {
+              ...validPayload.data.attributes.payload,
+              included: [...validPayload.data.attributes.payload.included],
+            },
+          },
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(panda.createUser).toHaveBeenCalledWith({
+      accountPurpose: "business",
+      annualSalary: "100000",
+      expectedMonthlyVolume: "1000",
+      ipAddress: "127.0.0.1",
+      isTermsOfServiceAccepted: true,
+      occupation: "engineer",
+      personaShareToken: "inq_123",
+    });
+    expect(pax.addCapita).toHaveBeenCalledWith({
+      birthdate: "1990-01-01",
+      document: "DOC123",
+      firstName: "John",
+      lastName: "Doe",
+      email: "john@example.com",
+      phone: "+1234567890",
+      internalId: pax.deriveAssociateId(
+        deriveAddress(inject("ExaAccountFactory"), { x: padHex(privateKeyToAddress(padHex("0x420"))), y: zeroHash }),
+      ),
+      product: "travel insurance",
+    });
+  });
+});
+
+const validPayload = {
+  data: {
+    attributes: {
+      payload: {
+        data: {
+          id: "inq_123",
+          attributes: {
+            status: "approved",
+            referenceId: "persona-ref",
+            emailAddress: "john@example.com",
+            phoneNumber: "+1234567890",
+            birthdate: "1990-01-01",
+            nameFirst: "John",
+            nameMiddle: null,
+            nameLast: "Doe",
+            addressStreet1: "123 Main St",
+            addressStreet2: null,
+            addressCity: "New York",
+            addressSubdivision: "NY",
+            addressSubdivisionAbbr: "NY",
+            addressPostalCode: "10001",
+            fields: {
+              accountPurpose: { value: "business" },
+              annualSalary: { value: "100000" },
+              expectedMonthlyVolume: { value: "1000" },
+              inputSelect: { value: "engineer" },
+              birthdate: { value: "1990-01-01" },
+              identificationNumber: { value: "DOC123" },
+              nameFirst: { value: "John" },
+              nameLast: { value: "Doe" },
+              emailAddress: { value: "john@example.com" },
+              phoneNumber: { value: "+1234567890" },
+              addressCountryCode: { value: "US" },
+            },
+          },
+        },
+        included: [
+          {
+            type: "inquiry-session",
+            attributes: {
+              createdAt: "2023-01-01T00:00:00.000Z",
+              ipAddress: "127.0.0.1",
+            },
+          },
+        ],
+      },
+    },
+  },
+} as const;
 
 const personaPayload = {
   header: { "persona-signature": "t=1733865120,v1=debbacfe1b0c5f8797a1d68e8428fba435aa4ca3b5d9a328c3c96ee4d04d84df" },

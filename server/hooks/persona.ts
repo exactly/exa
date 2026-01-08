@@ -1,5 +1,6 @@
+import { Address } from "@exactly/common/validation";
 import { vValidator } from "@hono/valibot-validator";
-import { captureException, getActiveSpan, SEMANTIC_ATTRIBUTE_SENTRY_OP, setUser } from "@sentry/node";
+import { captureException, getActiveSpan, SEMANTIC_ATTRIBUTE_SENTRY_OP, setContext, setUser } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import type { InferOutput } from "valibot";
@@ -22,6 +23,7 @@ import {
 
 import database, { credentials } from "../database/index";
 import { createUser } from "../utils/panda";
+import { addCapita, deriveAssociateId } from "../utils/pax";
 import { headerValidator } from "../utils/persona";
 import { customer } from "../utils/sardine";
 import validatorHook from "../utils/validatorHook";
@@ -77,6 +79,12 @@ export default new Hono().post(
                       inputSelect: object({ value: string() }),
                       monthlyPurchasesRange: optional(object({ value: string() })),
                       addressCountryCode: object({ value: string() }),
+                      birthdate: object({ value: string() }),
+                      identificationNumber: object({ value: string() }),
+                      nameFirst: object({ value: string() }),
+                      nameLast: object({ value: string() }),
+                      emailAddress: object({ value: string() }),
+                      phoneNumber: optional(object({ value: string() })),
                     }),
                     check(
                       (fields) => !!fields.annualSalaryRangesUs150000?.value || !!fields.annualSalary.value,
@@ -225,6 +233,27 @@ export default new Hono().post(
     await database.update(credentials).set({ pandaId: id }).where(eq(credentials.id, referenceId));
 
     getActiveSpan()?.setAttributes({ "exa.pandaId": id });
+    setContext("persona", { inquiryId: personaShareToken, pandaId: id });
+
+    const account = safeParse(Address, credential.account);
+    if (account.success) {
+      addCapita({
+        birthdate: fields.birthdate.value,
+        document: fields.identificationNumber.value,
+        firstName: fields.nameFirst.value,
+        lastName: fields.nameLast.value,
+        email: fields.emailAddress.value,
+        phone: fields.phoneNumber?.value ?? "",
+        internalId: deriveAssociateId(account.output),
+        product: "travel insurance",
+      }).catch((error: unknown) => {
+        captureException(error, { extra: { pandaId: id, referenceId } });
+      });
+    } else {
+      captureException(new Error("invalid account address"), {
+        extra: { pandaId: id, referenceId, account: credential.account },
+      });
+    }
 
     return c.json({ id }, 200);
   },
