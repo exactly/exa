@@ -10,7 +10,7 @@
     "test:fmt": "forge fmt --check",
     "test:gas": "FOUNDRY_PROFILE=snapshot forge snapshot --force --check",
     "test:solhint": "solhint --max-warnings 0 '**/*.sol'",
-    "test:slither": "slither .",
+    "test:slither": "slither . --skip-clean",
     "test:coverage": "forge coverage --report lcov",
     "test:sizes": "forge build --sizes --skip test --skip script"
   },
