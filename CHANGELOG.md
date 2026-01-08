@@ -1,5 +1,14 @@
 # @exactly/mobile
 
+## 1.0.45
+
+### Patch Changes
+
+- [#617](https://github.com/exactly/exa/pull/617) [`b3153b8`](https://github.com/exactly/exa/commit/b3153b8ae245cc70a31b9c6ebcc9e60423e0245a) Thanks [@itofarina](https://github.com/itofarina)! - 🐛 include installments fee in payment details
+
+- Updated dependencies [[`bfd960c`](https://github.com/exactly/exa/commit/bfd960ce67ea03c30301b451aef2a6d1f53807fa)]:
+  - @exactly/server@0.2.47
+
 ## 1.0.44
 
 ### Patch Changes

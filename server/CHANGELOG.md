@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.47
+
+### Patch Changes
+
+- [#612](https://github.com/exactly/exa/pull/612) [`bfd960c`](https://github.com/exactly/exa/commit/bfd960ce67ea03c30301b451aef2a6d1f53807fa) Thanks [@aguxez](https://github.com/aguxez)! - ✨ support pax assistance
+
 ## 0.2.46
 
 ### Patch Changes
