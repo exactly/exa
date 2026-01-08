@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.48
+
+### Patch Changes
+
+- [`61f48cf`](https://github.com/exactly/exa/commit/61f48cf116bc158a6993519a86eb8b56541fc13b) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 👷 fix docker image extraction script
+
 ## 0.2.47
 
 ### Patch Changes
