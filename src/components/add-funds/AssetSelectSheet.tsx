@@ -1,11 +1,10 @@
 import type { Chain, Token } from "@lifi/sdk";
-import { ChevronDown, Search } from "@tamagui/lucide-icons";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Pressable, type LayoutChangeEvent } from "react-native";
+import { Search } from "@tamagui/lucide-icons";
+import React, { useCallback, useMemo, useState } from "react";
+import { Pressable } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 import { formatUnits } from "viem";
 
-import ChainLogo from "./ChainLogo";
 import TokenLogo from "./TokenLogo";
 import Input from "../shared/Input";
 import ModalSheet from "../shared/ModalSheet";
@@ -20,7 +19,6 @@ export default function AssetSelectSheet({
   onSelect,
   onClose,
   hideBalances = false,
-  enableNetworkFilter = false,
   label = "Select asset",
 }: {
   open: boolean;
@@ -32,28 +30,13 @@ export default function AssetSelectSheet({
   onSelect: (chainId: number, token: Token) => void;
   onClose: () => void;
   hideBalances?: boolean;
-  enableNetworkFilter?: boolean;
   label?: string;
 }) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedNetworkId, setSelectedNetworkId] = useState<number | undefined>();
-  const [networkDropdownOpen, setNetworkDropdownOpen] = useState(false);
-  const [searchWidth, setSearchWidth] = useState<number | undefined>();
-
-  const handleSearchLayout = useCallback((event: LayoutChangeEvent) => {
-    const width = event.nativeEvent.layout.width;
-    setSearchWidth((previous) => (previous === width ? previous : width));
-  }, []);
-
-  const availableNetworks = useMemo(
-    () => groups.filter((group) => group.assets.length > 0).map((group) => group.chain),
-    [groups],
-  );
 
   const filteredGroups = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
     return groups
-      .filter((group) => !enableNetworkFilter || !selectedNetworkId || group.chain.id === selectedNetworkId)
       .map((group) => {
         if (!normalizedQuery) return group;
         const assets = group.assets.filter(({ token }) => {
@@ -67,181 +50,49 @@ export default function AssetSelectSheet({
         return { ...group, assets };
       })
       .filter((group) => group.assets.length > 0);
-  }, [enableNetworkFilter, groups, searchQuery, selectedNetworkId]);
+  }, [groups, searchQuery]);
 
-  const showNetworkFilter = enableNetworkFilter && availableNetworks.length > 0;
-
-  const networkIcons = useMemo(() => {
-    if (!showNetworkFilter) return [] as typeof availableNetworks;
-    if (selectedNetworkId) {
-      const selectedChain = availableNetworks.find((chain) => chain.id === selectedNetworkId);
-      const remaining = availableNetworks.filter((chain) => chain.id !== selectedNetworkId);
-      return [selectedChain, ...remaining].filter(Boolean).slice(0, 4) as typeof availableNetworks;
-    }
-    return availableNetworks.slice(0, 4);
-  }, [availableNetworks, selectedNetworkId, showNetworkFilter]);
-
-  useEffect(() => {
-    if (!open) {
-      setSearchQuery("");
-      setNetworkDropdownOpen(false);
-    }
-  }, [open]);
-
-  useEffect(() => {
-    if (!showNetworkFilter) {
-      setNetworkDropdownOpen(false);
-      setSelectedNetworkId(undefined);
-    }
-  }, [showNetworkFilter]);
-
-  useEffect(() => {
-    if (!enableNetworkFilter) return;
-    if (selectedNetworkId && !groups.some((group) => group.chain.id === selectedNetworkId)) {
-      setSelectedNetworkId(undefined);
-    }
-  }, [enableNetworkFilter, groups, selectedNetworkId]);
+  const handleClose = useCallback(() => {
+    setSearchQuery("");
+    onClose();
+  }, [onClose]);
 
   return (
-    <ModalSheet open={open} onClose={onClose} heightPercent={85}>
+    <ModalSheet open={open} onClose={handleClose} heightPercent={85}>
       <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
         <View padded paddingTop="$s4" paddingBottom={0} flex={1} gap="$s4_5">
           <Text fontSize={15} fontWeight="bold" textAlign="center">
             {label}
           </Text>
-          <YStack gap="$s2">
-            <View position="relative" width="100%" onLayout={handleSearchLayout}>
-              <XStack
-                borderColor="$uiNeutralTertiary"
-                width="100%"
-                borderWidth="1"
-                borderRadius="$r3"
-                backgroundColor="$backgroundSoft"
-                overflow="hidden"
-                alignItems="center"
-              >
-                <XStack alignItems="center" gap="$s2" flex={1} paddingHorizontal="$s3">
-                  <Search size={18} color="$uiNeutralSecondary" />
-                  <Input
-                    placeholder="Search tokens"
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                    placeholderTextColor="$uiNeutralPlaceholder"
-                    autoCapitalize="none"
-                    flex={1}
-                    borderWidth={0}
-                    borderColor="transparent"
-                    backgroundColor="transparent"
-                    padding={0}
-                    minHeight={44}
-                    color="$uiNeutralPrimary"
-                    focusStyle={{ borderColor: "transparent", backgroundColor: "transparent" }}
-                    focusVisibleStyle={{ outlineWidth: 0, borderColor: "transparent", outlineColor: "transparent" }}
-                  />
-                </XStack>
-                {showNetworkFilter ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => {
-                      setNetworkDropdownOpen((value) => !value);
-                    }}
-                  >
-                    <XStack
-                      alignItems="center"
-                      gap="$s2"
-                      paddingHorizontal="$s2_5"
-                      paddingVertical="$s2"
-                      borderLeftWidth={1}
-                      borderLeftColor="$borderNeutralSoft"
-                      backgroundColor="$backgroundSoft"
-                      height="100%"
-                    >
-                      <XStack flexWrap="wrap" width={36} gap="$s1" justifyContent="flex-end">
-                        {networkIcons.map((chain) => (
-                          <ChainLogo key={chain.id} chainData={chain} size={12} />
-                        ))}
-                      </XStack>
-                      <ChevronDown
-                        size={16}
-                        color="$uiNeutralSecondary"
-                        style={{ transform: [{ rotate: networkDropdownOpen ? "180deg" : "0deg" }] }}
-                      />
-                    </XStack>
-                  </Pressable>
-                ) : null}
-              </XStack>
-              {showNetworkFilter && networkDropdownOpen ? (
-                <YStack
-                  width={searchWidth ?? undefined}
-                  paddingHorizontal="$s3"
-                  paddingVertical="$s3"
-                  position="absolute"
-                  top="100%"
-                  right={0}
-                  marginTop="$s2"
-                  borderWidth={1}
-                  borderColor="$borderNeutralSoft"
-                  borderRadius="$r3"
-                  overflow="hidden"
-                  backgroundColor="$backgroundSoft"
-                  zIndex={10}
-                  elevation={12}
-                >
-                  <Pressable
-                    onPress={() => {
-                      setSelectedNetworkId(undefined);
-                      setNetworkDropdownOpen(false);
-                    }}
-                  >
-                    <View>
-                      <XStack
-                        gap="$s3"
-                        alignItems="center"
-                        padding="$s3"
-                        backgroundColor={selectedNetworkId ? "transparent" : "$interactiveBaseBrandSoftDefault"}
-                        borderRadius="$r2"
-                      >
-                        <XStack flexWrap="wrap" width={20} gap="$s1" justifyContent="flex-end">
-                          {networkIcons.map((chain) => (
-                            <ChainLogo key={chain.id} chainData={chain} size={8} />
-                          ))}
-                        </XStack>
-                        <Text footnote color="$uiNeutralPrimary">
-                          All networks
-                        </Text>
-                      </XStack>
-                    </View>
-                  </Pressable>
-                  {availableNetworks.map((chain) => (
-                    <Pressable
-                      key={chain.id}
-                      onPress={() => {
-                        setSelectedNetworkId(chain.id);
-                        setNetworkDropdownOpen(false);
-                      }}
-                    >
-                      <View>
-                        <XStack
-                          gap="$s3"
-                          alignItems="center"
-                          padding="$s3"
-                          backgroundColor={
-                            selectedNetworkId === chain.id ? "$interactiveBaseBrandSoftDefault" : "transparent"
-                          }
-                          borderRadius="$r2"
-                        >
-                          <ChainLogo chainData={chain} size={20} />
-                          <Text footnote color="$uiNeutralPrimary">
-                            {chain.name}
-                          </Text>
-                        </XStack>
-                      </View>
-                    </Pressable>
-                  ))}
-                </YStack>
-              ) : null}
-            </View>
-          </YStack>
+          <XStack
+            borderColor="$uiNeutralTertiary"
+            width="100%"
+            borderWidth={1}
+            borderRadius="$r3"
+            backgroundColor="$backgroundSoft"
+            overflow="hidden"
+            alignItems="center"
+          >
+            <XStack alignItems="center" gap="$s2" flex={1} paddingHorizontal="$s3">
+              <Search size={18} color="$uiNeutralSecondary" />
+              <Input
+                placeholder="Search tokens"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholderTextColor="$uiNeutralPlaceholder"
+                autoCapitalize="none"
+                flex={1}
+                borderWidth={0}
+                borderColor="transparent"
+                backgroundColor="transparent"
+                padding={0}
+                minHeight={44}
+                color="$uiNeutralPrimary"
+                focusStyle={{ borderColor: "transparent", backgroundColor: "transparent" }}
+                focusVisibleStyle={{ outlineWidth: 0, borderColor: "transparent", outlineColor: "transparent" }}
+              />
+            </XStack>
+          </XStack>
           <ScrollView flex={1} showsVerticalScrollIndicator={false}>
             <YStack paddingBottom="$s6" gap="$s4">
               {filteredGroups.map((group) => (
@@ -259,7 +110,7 @@ export default function AssetSelectSheet({
                           key={`${group.chain.id}:${token.address}`}
                           onPress={() => {
                             onSelect(group.chain.id, token);
-                            onClose();
+                            handleClose();
                           }}
                         >
                           <XStack
@@ -315,9 +166,7 @@ export default function AssetSelectSheet({
               {filteredGroups.length === 0 && (
                 <View alignItems="center" paddingVertical="$s8">
                   <Text footnote color="$uiNeutralSecondary">
-                    {searchQuery || (showNetworkFilter && selectedNetworkId)
-                      ? "No assets match your filters."
-                      : "No assets with balance available to bridge."}
+                    {searchQuery ? "No assets match your filters." : "No assets with balance available to bridge."}
                   </Text>
                 </View>
               )}
