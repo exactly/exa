@@ -357,6 +357,7 @@ export default function Bridge() {
       if (!senderAddress || !selectedSource || !account) throw new Error("missing transfer context");
       if (!isSameChain) throw new Error("transfer mutation invoked for different chains");
 
+      await switchChain(senderConfig, { chainId: selectedSource.chain });
       setBridgeStatus("Submitting transfer transaction...");
       const recipient = getAddress(account);
       let hash: Hex;
