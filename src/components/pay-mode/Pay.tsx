@@ -5,6 +5,7 @@ import chain, {
   balancerVaultAddress,
   exaPluginAddress,
   marketUSDCAddress,
+  proposalManagerAddress,
   swapperAddress,
   usdcAddress,
   integrationPreviewerAddress,
@@ -14,6 +15,7 @@ import {
   integrationPreviewerAbi,
   marketAbi,
   upgradeableModularAccountAbi,
+  useReadProposalManagerDelay,
   useReadUpgradeableModularAccountGetInstalledPlugins,
 } from "@exactly/common/generated/hooks";
 import { Address } from "@exactly/common/validation";
@@ -28,7 +30,7 @@ import { Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScrollView, Separator, XStack, YStack } from "tamagui";
 import { digits, parse, pipe, safeParse, string, transform, nonEmpty } from "valibot";
-import { ContractFunctionExecutionError, ContractFunctionRevertedError, erc20Abi, maxUint256, zeroAddress } from "viem";
+import { ContractFunctionExecutionError, ContractFunctionRevertedError, erc20Abi, zeroAddress } from "viem";
 import { useBytecode, useReadContract, useSendCalls, useSimulateContract, useWriteContract } from "wagmi";
 
 import AssetSelectionSheet from "./AssetSelectionSheet";
@@ -65,7 +67,7 @@ export default function Pay() {
     {},
   );
   const [selectedAsset, setSelectedAsset] = useState<{ address?: Address; external: boolean }>({ external: true });
-  const [positionAssets, setPositionAssets] = useState(0n);
+  const [selectedRepayAssets, setSelectedRepayAssets] = useState<bigint | undefined>();
   const {
     markets,
     externalAsset,
@@ -114,20 +116,17 @@ export default function Pay() {
     query: { enabled: !!account && !!bytecode && !!maturity },
   });
 
-  const repayAssets = fixedRepaySnapshot
-    ? fixedRepayAssets(fixedRepaySnapshot, Number(maturity ?? 0n), positionAssets)
-    : undefined;
+  const { data: proposalDelay, isLoading: isProposalDelayLoading } = useReadProposalManagerDelay({
+    address: proposalManagerAddress,
+  });
+  const simulationTimestamp =
+    proposalDelay === undefined ? undefined : Math.floor(Date.now() / 1000) + Number(proposalDelay);
 
   const borrow = exaUSDC?.fixedBorrowPositions.find((b) => b.maturity === maturity);
   const previewValueUSD =
     borrow && exaUSDC ? (borrow.previewValue * exaUSDC.usdPrice) / 10n ** BigInt(exaUSDC.decimals) : 0n;
 
   const positionValue = borrow ? borrow.position.principal + borrow.position.fee : 0n;
-
-  const discountOrPenalty = repayAssets ? divWad(repayAssets, positionAssets) : 0n;
-  const discountRatio = WAD - discountOrPenalty;
-  const scaledRatioAsBigInt = (discountRatio * 10n ** 8n) / WAD;
-  const discountOrPenaltyPercentage = Number(scaledRatioAsBigInt) / Number(10n ** 8n);
 
   const positions = markets
     ?.map((market) => ({
@@ -140,7 +139,7 @@ export default function Pay() {
   const repayMarketAvailable =
     repayMarket && selectedAsset.address && !selectedAsset.external ? repayMarket.floatingDepositAssets : 0n;
 
-  const { data: balancerUSDCBalance = maxUint256 } = useReadContract({
+  const { data: balancerUSDCBalance } = useReadContract({
     address: usdcAddress,
     abi: erc20Abi,
     functionName: "balanceOf",
@@ -200,29 +199,26 @@ export default function Pay() {
   });
 
   const availableForRepayment = useMemo(() => ((routeFrom?.toAmount ?? 0n) * 97n) / 100n, [routeFrom?.toAmount]);
-  const maxPositionAssets = useMemo(() => {
-    const availableUSDC = repayMarket?.market === exaUSDC?.market ? repayMarketAvailable : availableForRepayment;
 
-    return balancerUSDCBalance && fixedRepaySnapshot && maturity && availableUSDC
-      ? min(
-          fixedRepayPosition(
-            fixedRepaySnapshot,
-            Number(maturity),
-            divWad(min(balancerUSDCBalance, availableUSDC), slippage),
-          ),
-          positionValue,
-        )
+  const availableUSDC = repayMarket?.market === exaUSDC?.market ? repayMarketAvailable : availableForRepayment;
+  const effectiveAvailable = balancerUSDCBalance ? min(balancerUSDCBalance, availableUSDC) : availableUSDC;
+
+  const repayAssetsForFullDebt =
+    fixedRepaySnapshot && simulationTimestamp && positionValue > 0n
+      ? fixedRepayAssets(fixedRepaySnapshot, Number(maturity ?? 0n), positionValue, simulationTimestamp)
+      : undefined;
+
+  const maxRepayInput = repayAssetsForFullDebt ? min(effectiveAvailable, repayAssetsForFullDebt) : 0n;
+
+  const repayAssets = selectedRepayAssets ?? maxRepayInput;
+
+  const positionAssets =
+    fixedRepaySnapshot && repayAssets && simulationTimestamp && positionValue > 0n
+      ? fixedRepayPosition(fixedRepaySnapshot, Number(maturity ?? 0n), repayAssets, simulationTimestamp)
       : 0n;
-  }, [
-    repayMarket?.market,
-    exaUSDC?.market,
-    repayMarketAvailable,
-    availableForRepayment,
-    balancerUSDCBalance,
-    fixedRepaySnapshot,
-    maturity,
-    positionValue,
-  ]);
+
+  const discountOrPenalty = repayAssets && positionAssets ? divWad(repayAssets, positionAssets) : 0n;
+  const discountOrPenaltyPercentage = Number(((WAD - discountOrPenalty) * 10n ** 8n) / WAD) / Number(10n ** 8n);
 
   const maxRepay = borrow ? (repayAssets ? mulWad(repayAssets, slippage) : undefined) : 0n;
   const {
@@ -497,15 +493,15 @@ export default function Pay() {
 
   const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
   const disabled =
-    isSimulating || !!simulationError || (selectedAsset.external && !route) || positionAssets > maxPositionAssets;
+    isSimulating || !!simulationError || (selectedAsset.external && !route) || repayAssets > maxRepayInput;
   const loading = isSimulating || isPending || (selectedAsset.external && isRoutePending);
 
   const symbol =
     repayMarket?.symbol.slice(3) === "WETH" ? "ETH" : (repayMarket?.symbol.slice(3) ?? externalAsset?.symbol);
 
   const handleButtonText = () => {
-    if (positionAssets === 0n) return "Enter amount";
-    if (simulationError || positionAssets > maxPositionAssets) return "Cannot proceed";
+    if (repayAssets === 0n) return "Enter amount";
+    if (simulationError || repayAssets > maxRepayInput) return "Cannot proceed";
     if (loading) return "Please wait...";
     return "Confirm payment";
   };
@@ -557,17 +553,22 @@ export default function Pay() {
                 </XStack>
                 <XStack justifyContent="space-between" gap="$s3" alignItems="center">
                   <Text secondary footnote textAlign="left">
-                    Enter amount:
+                    Enter amount
                   </Text>
                 </XStack>
 
-                <RepayAmountSelector
-                  onChange={setPositionAssets}
-                  maxPositionAssets={maxPositionAssets}
-                  balancerBalance={balancerUSDCBalance}
-                  positionValue={positionValue}
-                  repayMarket={repayMarket?.market}
-                />
+                {isProposalDelayLoading ? (
+                  <Skeleton height={180} width="100%" />
+                ) : (
+                  <RepayAmountSelector
+                    value={repayAssets}
+                    onChange={setSelectedRepayAssets}
+                    maxRepayInput={maxRepayInput}
+                    totalPositionRepay={repayAssetsForFullDebt ?? 0n}
+                    balancerBalance={balancerUSDCBalance}
+                    positionValue={positionValue}
+                  />
+                )}
                 {positionAssets ? (
                   <XStack justifyContent="space-between" gap="$s3" alignItems="center">
                     <Text secondary footnote textAlign="left">
