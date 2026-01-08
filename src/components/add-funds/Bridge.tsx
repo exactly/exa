@@ -104,10 +104,29 @@ export default function Bridge() {
     );
   }, [chains, ownerAssetsByChain]);
 
-  const previousSourceAddressRef = useRef<string | undefined>(undefined);
+  const previousSourceRef = useRef<string | undefined>(undefined);
 
-  const selectedGroup = assetGroups.find((group) => group.chain.id === selectedSource?.chain);
-  const selectedAsset = selectedGroup?.assets.find((asset) => asset.token.address === selectedSource?.address);
+  const effectiveSource = useMemo(() => {
+    if (assetGroups.length === 0) return;
+    const isValid =
+      !!selectedSource &&
+      assetGroups.some(
+        (group) =>
+          group.chain.id === selectedSource.chain &&
+          group.assets.some((asset) => asset.token.address === selectedSource.address),
+      );
+    if (isValid) return selectedSource;
+    const defaultGroup = bridge?.defaultChainId
+      ? assetGroups.find((group) => group.chain.id === bridge.defaultChainId)
+      : undefined;
+    const defaultAsset = defaultGroup?.assets.find((asset) => asset.token.address === bridge?.defaultTokenAddress);
+    const group = defaultAsset ? defaultGroup : assetGroups[0];
+    const asset = defaultAsset ?? assetGroups[0]?.assets[0];
+    if (group && asset) return { chain: group.chain.id, address: asset.token.address };
+  }, [assetGroups, selectedSource, bridge?.defaultChainId, bridge?.defaultTokenAddress]);
+
+  const selectedGroup = assetGroups.find((group) => group.chain.id === effectiveSource?.chain);
+  const selectedAsset = selectedGroup?.assets.find((asset) => asset.token.address === effectiveSource?.address);
 
   const sourceToken = selectedAsset?.token;
   const sourceBalance = selectedAsset?.balance ?? 0n;
@@ -115,12 +134,30 @@ export default function Bridge() {
   const sourceTokenSymbol = sourceToken?.symbol;
 
   const insufficientBalance = sourceAmount > sourceBalance;
-  const isSameChain = selectedSource?.chain === chain.id;
-  const isNativeSource = selectedSource?.address === zeroAddress;
+  const isSameChain = effectiveSource?.chain === chain.id;
+  const isNativeSource = effectiveSource?.address === zeroAddress;
 
   const destinationTokens = useMemo(() => bridge?.tokensByChain[chain.id] ?? [], [bridge?.tokensByChain]);
   const destinationBalances = useMemo(() => bridge?.balancesByChain[chain.id] ?? [], [bridge?.balancesByChain]);
-  const destinationToken = destinationTokens.find((token) => token.address === selectedDestinationAddress);
+
+  const effectiveDestinationAddress = useMemo(() => {
+    if (!sourceTokenAddress) return;
+    if (previousSourceRef.current === sourceTokenAddress && selectedDestinationAddress) {
+      return selectedDestinationAddress;
+    }
+    const correlatedSymbol = sourceTokenSymbol && tokenCorrelation[sourceTokenSymbol as keyof typeof tokenCorrelation];
+    const correlatedToken = correlatedSymbol
+      ? destinationTokens.find((token) => token.symbol === correlatedSymbol)
+      : undefined;
+    const nextToken = correlatedToken ?? destinationTokens.find((token) => token.symbol === "USDC");
+    return nextToken?.address ?? selectedDestinationAddress;
+  }, [sourceTokenAddress, sourceTokenSymbol, selectedDestinationAddress, destinationTokens]);
+
+  useEffect(() => {
+    previousSourceRef.current = sourceTokenAddress;
+  }, [sourceTokenAddress]);
+
+  const destinationToken = destinationTokens.find((token) => token.address === effectiveDestinationAddress);
   const destinationBalance = destinationToken
     ? (destinationBalances.find((item) => item.address === destinationToken.address)?.amount ?? 0n)
     : 0n;
@@ -151,7 +188,7 @@ export default function Bridge() {
   const bridgeQuoteEnabled =
     !!senderAddress &&
     !!account &&
-    !!selectedSource &&
+    !!effectiveSource &&
     !!sourceToken &&
     !!destinationToken &&
     sourceAmount > 0n &&
@@ -168,22 +205,17 @@ export default function Bridge() {
       "quote",
       senderAddress,
       account,
-      selectedSource?.chain,
-      selectedSource?.address,
-      destinationToken?.address,
-      chain.id,
-      selectedSource,
+      effectiveSource,
       sourceToken,
       destinationToken,
       sourceAmount,
-      sourceToken?.address,
       isSameChain,
     ],
     queryFn: () => {
       if (
         !senderAddress ||
         !account ||
-        !selectedSource ||
+        !effectiveSource ||
         !sourceToken ||
         !destinationToken ||
         sourceAmount === 0n ||
@@ -191,7 +223,7 @@ export default function Bridge() {
       )
         throw new Error("invalid bridge parameters");
       return getRouteFrom({
-        fromChainId: selectedSource.chain,
+        fromChainId: effectiveSource.chain,
         toChainId: chain.id,
         fromTokenAddress: sourceToken.address,
         toTokenAddress: destinationToken.address,
@@ -211,7 +243,6 @@ export default function Bridge() {
     !isNativeSource &&
     !!senderAddress &&
     !!account &&
-    !!selectedSource.address &&
     !!sourceToken &&
     sourceAmount > 0n &&
     !insufficientBalance;
@@ -222,8 +253,8 @@ export default function Bridge() {
     isPending: isSimulatingTransfer,
   } = useSimulateContract({
     config: senderConfig,
-    chainId: transferSimulationEnabled ? selectedSource.chain : undefined,
-    address: transferSimulationEnabled ? getAddress(selectedSource.address) : undefined,
+    chainId: transferSimulationEnabled ? effectiveSource.chain : undefined,
+    address: transferSimulationEnabled ? getAddress(effectiveSource.address) : undefined,
     abi: erc20Abi,
     functionName: "transfer",
     args: transferSimulationEnabled ? ([getAddress(account), sourceAmount] as const) : undefined,
@@ -231,7 +262,7 @@ export default function Bridge() {
   });
 
   const approvalTokenAddress =
-    selectedSource?.address && isAddress(selectedSource.address) ? selectedSource.address : undefined;
+    effectiveSource?.address && isAddress(effectiveSource.address) ? effectiveSource.address : undefined;
   const approvalSpenderAddress = bridgeQuote?.estimate.approvalAddress;
   const approvalChainId = bridgeQuote?.chainId;
 
@@ -267,7 +298,7 @@ export default function Bridge() {
       setBridgePreview({ sourceToken, sourceAmount: BigInt(route.estimate.fromAmount) });
     },
     mutationFn: async (from) => {
-      if (!senderAddress || !selectedSource || !account) throw new Error("missing bridge context");
+      if (!senderAddress || !effectiveSource || !account) throw new Error("missing bridge context");
       if (isSameChain) throw new Error("invalid bridge context");
 
       setBridgeStatus(`Switching to ${selectedGroup?.chain.name ?? `Chain ${from.chainId}`}...`);
@@ -277,9 +308,9 @@ export default function Bridge() {
       const requiresApproval =
         !!spender &&
         spender !== zeroAddress &&
-        selectedSource.address !== zeroAddress &&
+        effectiveSource.address !== zeroAddress &&
         isAddress(spender) &&
-        isAddress(selectedSource.address);
+        isAddress(effectiveSource.address);
 
       let approval: Hex | undefined;
       let currentAllowance = allowanceData;
@@ -309,14 +340,15 @@ export default function Bridge() {
       try {
         await sendCallsTx({
           calls: [
-            ...(approval ? [{ to: getAddress(selectedSource.address), data: approval }] : []),
+            ...(approval ? [{ to: getAddress(effectiveSource.address), data: approval }] : []),
             { to: from.to, data: from.data, value: from.value },
           ],
         });
         setBridgeStatus("Bridge transaction submitted");
-      } catch {
+      } catch (error) {
+        reportError(error);
         if (approval) {
-          const hash = await sendTx({ to: getAddress(selectedSource.address), data: approval });
+          const hash = await sendTx({ to: getAddress(effectiveSource.address), data: approval });
           await waitForTransactionReceipt(senderConfig, { hash });
         }
         const hash = await sendTx({ to: from.to, data: from.data, value: from.value });
@@ -354,10 +386,10 @@ export default function Bridge() {
       setBridgePreview({ sourceToken, sourceAmount });
     },
     mutationFn: async () => {
-      if (!senderAddress || !selectedSource || !account) throw new Error("missing transfer context");
+      if (!senderAddress || !effectiveSource || !account) throw new Error("missing transfer context");
       if (!isSameChain) throw new Error("transfer mutation invoked for different chains");
 
-      await switchChain(senderConfig, { chainId: selectedSource.chain });
+      await switchChain(senderConfig, { chainId: effectiveSource.chain });
       setBridgeStatus("Submitting transfer transaction...");
       const recipient = getAddress(account);
       let hash: Hex;
@@ -419,75 +451,16 @@ export default function Bridge() {
           ? "Fetching best route..."
           : undefined;
 
-  useEffect(() => {
-    if (assetGroups.length === 0) {
-      setSelectedSource(undefined);
-      return;
-    }
-
-    if (
-      !!selectedSource &&
-      assetGroups.some(
-        (group) =>
-          group.chain.id === selectedSource.chain &&
-          group.assets.some((asset) => asset.token.address === selectedSource.address),
-      )
-    ) {
-      return;
-    }
-
-    const defaultChainId = bridge?.defaultChainId;
-    const defaultTokenAddress = bridge?.defaultTokenAddress;
-
-    const defaultGroup =
-      defaultChainId && defaultTokenAddress
-        ? assetGroups.find((group) => group.chain.id === defaultChainId)
-        : undefined;
-    const defaultAsset = defaultGroup?.assets.find((asset) => asset.token.address === defaultTokenAddress);
-
-    const resolvedGroup = defaultAsset ? defaultGroup : assetGroups[0];
-    const fallbackAsset = defaultAsset ?? assetGroups[0]?.assets[0];
-
-    if (!resolvedGroup || !fallbackAsset) {
-      setSelectedSource(undefined);
-      return;
-    }
-
-    setSelectedSource({ chain: resolvedGroup.chain.id, address: fallbackAsset.token.address });
-  }, [assetGroups, bridge?.defaultChainId, bridge?.defaultTokenAddress, selectedSource]);
-
-  useEffect(() => {
-    if (!sourceTokenAddress) {
-      if (selectedDestinationAddress !== undefined) setSelectedDestinationAddress(undefined);
-      previousSourceAddressRef.current = undefined;
-      return;
-    }
-
-    if (previousSourceAddressRef.current === sourceTokenAddress && destinationToken) {
-      previousSourceAddressRef.current = sourceTokenAddress;
-      return;
-    }
-
-    const correlatedSymbol = sourceTokenSymbol && tokenCorrelation[sourceTokenSymbol as keyof typeof tokenCorrelation];
-    const correlatedToken = correlatedSymbol
-      ? destinationTokens.find((token) => token.symbol === correlatedSymbol)
-      : undefined;
-    const nextToken = correlatedToken ?? destinationTokens.find((token) => token.symbol === "USDC");
-    const nextAddress = nextToken?.address;
-
-    if (nextAddress !== selectedDestinationAddress) {
-      setSelectedDestinationAddress(nextAddress);
-    }
-
-    previousSourceAddressRef.current = sourceTokenAddress;
-  }, [destinationToken, destinationTokens, selectedDestinationAddress, sourceTokenAddress, sourceTokenSymbol]);
-
   if (processing) {
     const isPending = isBridging || isTransferring;
     const isSuccess = isBridgeSuccess || isTransferSuccess;
     const isError = isBridgeError || isTransferError;
     const isTransfer = isTransferring || isTransferSuccess || isTransferError;
     const label = isTransfer ? "Transfer" : "Bridge";
+
+    const amount = Number(formatUnits(bridgePreview.sourceAmount, bridgePreview.sourceToken.decimals));
+    const price = Number(bridgePreview.sourceToken.priceUSD);
+    const usdValue = Number.isNaN(amount) || Number.isNaN(price) ? 0 : amount * price;
     return (
       <GradientScrollView variant={isError ? "error" : isSuccess ? "success" : "neutral"}>
         <View flex={1}>
@@ -541,10 +514,11 @@ export default function Bridge() {
                 </Text>
               </XStack>
               <Text emphasized secondary body textAlign="center">
-                {(
-                  Number(formatUnits(sourceAmount, bridgePreview.sourceToken.decimals)) *
-                  Number(bridgePreview.sourceToken.priceUSD)
-                ).toLocaleString(undefined, { style: "currency", currency: "USD", currencyDisplay: "narrowSymbol" })}
+                {usdValue.toLocaleString(undefined, {
+                  style: "currency",
+                  currency: "USD",
+                  currencyDisplay: "narrowSymbol",
+                })}
               </Text>
             </YStack>
           </YStack>
@@ -797,7 +771,7 @@ export default function Bridge() {
                         Source network
                       </Text>
                       <Text caption color="$uiNeutralPrimary" textAlign="right" flexShrink={1}>
-                        {selectedGroup?.chain.name ?? (selectedSource?.chain ? `Chain ${selectedSource.chain}` : "—")}
+                        {selectedGroup?.chain.name ?? (effectiveSource?.chain ? `Chain ${effectiveSource.chain}` : "—")}
                       </Text>
                     </XStack>
                     <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
@@ -961,7 +935,7 @@ export default function Bridge() {
             setAssetSheetOpen(false);
           }}
           groups={assetGroups}
-          selected={selectedSource}
+          selected={effectiveSource}
           onSelect={(chainId, token) => {
             setSourceAmount(0n);
             setSelectedSource({ chain: chainId, address: token.address });
