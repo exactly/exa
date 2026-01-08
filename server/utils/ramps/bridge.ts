@@ -25,10 +25,10 @@ import {
 } from "valibot";
 import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
+import database, { credentials } from "../../database";
 import type { IdentificationClasses as PersonaIdentificationClasses } from "../persona";
 import { getAccount, getDocument, getInquiry } from "../persona";
 import type * as common from "./shared";
-import database, { credentials } from "../../database";
 
 if (!process.env.BRIDGE_API_URL) throw new Error("missing bridge api url");
 const baseURL = process.env.BRIDGE_API_URL;
@@ -217,6 +217,7 @@ export async function getProvider(data: GetProvider): Promise<InferOutput<typeof
   const documentId = inquiry.attributes.fields["current-government-id"]?.value?.id;
   if (!documentId) throw new Error(ErrorCodes.NO_DOCUMENT_ID);
 
+  if (!countryCode) throw new Error(ErrorCodes.NO_COUNTRY);
   const country = alpha2ToAlpha3(countryCode);
   if (!country) throw new Error(ErrorCodes.NO_COUNTRY_ALPHA3);
 
@@ -317,6 +318,7 @@ export async function onboarding(data: Onboarding): Promise<void> {
   const city = inquiry.attributes.fields["address-city"]?.value ?? personaAccount.attributes["address-city"];
   if (!city) throw new Error(ErrorCodes.NO_CITY);
 
+  if (!countryCode) throw new Error(ErrorCodes.NO_COUNTRY);
   const country = alpha2ToAlpha3(countryCode);
   if (!country) throw new Error(ErrorCodes.NO_COUNTRY_ALPHA3);
 

@@ -1,26 +1,61 @@
-import "../mocks/sentry";
 import "../mocks/persona";
+import "../mocks/sentry";
 
+import deriveAddress from "@exactly/common/deriveAddress";
 import { captureException } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
-import { afterEach, describe, expect, inject, it, vi } from "vitest";
+import { padHex, zeroAddress, zeroHash } from "viem";
+import { generatePrivateKey, privateKeyToAddress } from "viem/accounts";
+import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 
 import database, { credentials } from "../../database";
 import app from "../../hooks/persona";
 import * as panda from "../../utils/panda";
+import { createUser } from "../../utils/panda";
+import { addCapita, deriveAssociateId } from "../../utils/pax";
+import type * as PersonaUtils from "../../utils/persona";
 import * as sardine from "../../utils/sardine";
 
-const appClient = testClient(app);
-
+vi.mock("../../utils/panda");
+vi.mock("../../utils/pax");
 vi.mock("@sentry/node", { spy: true });
+
+const { mockNoOpMiddleware } = vi.hoisted(() => {
+  return {
+    mockNoOpMiddleware: (_c: unknown, next: () => Promise<void>) => next(),
+  };
+});
+
+vi.mock("../../utils/persona", async (importOriginal) => {
+  const actual = await importOriginal<typeof PersonaUtils>();
+  return {
+    ...actual,
+    headerValidator: () => mockNoOpMiddleware,
+  };
+});
+
+const appClient = testClient(app);
 
 describe("with reference", () => {
   afterEach(() => vi.resetAllMocks());
 
   it("creates a panda account", async () => {
-    vi.spyOn(panda, "createUser").mockResolvedValueOnce({ id: "pandaId" });
-    vi.spyOn(sardine, "customer").mockResolvedValueOnce({ sessionKey: "test", status: "Success", level: "low" });
+    const id = privateKeyToAddress(generatePrivateKey());
+    vi.mocked(addCapita).mockResolvedValue({});
+    await database.insert(credentials).values({
+      id,
+      publicKey: new Uint8Array(),
+      account: id,
+      factory: zeroAddress,
+      pandaId: null,
+    });
+    vi.spyOn(panda, "createUser").mockResolvedValueOnce({ id: "panda-id" });
+    vi.spyOn(sardine, "customer").mockResolvedValueOnce({
+      sessionKey: "test-session-123",
+      status: "Success",
+      level: "low",
+    });
     const response = await appClient.index.$post({
       ...personaPayload,
       json: {
@@ -31,6 +66,13 @@ describe("with reference", () => {
             ...personaPayload.json.data.attributes,
             payload: {
               ...personaPayload.json.data.attributes.payload,
+              data: {
+                ...personaPayload.json.data.attributes.payload.data,
+                attributes: {
+                  ...personaPayload.json.data.attributes.payload.data.attributes,
+                  referenceId: id,
+                },
+              },
               included: [...personaPayload.json.data.attributes.payload.included],
             },
           },
@@ -38,11 +80,11 @@ describe("with reference", () => {
       },
     });
     const p = await database.query.credentials.findFirst({
-      where: eq(credentials.id, "bob"),
+      where: eq(credentials.id, id),
       columns: { pandaId: true },
     });
 
-    expect(p?.pandaId).toBe("pandaId");
+    expect(p?.pandaId).toBe("panda-id");
 
     expect(response.status).toBe(200);
   });
@@ -237,6 +279,114 @@ describe("with reference", () => {
   });
 });
 
+describe("persona hook", () => {
+  const bob = privateKeyToAddress(padHex("0xb0c"));
+  const account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(bob), y: zeroHash });
+
+  beforeAll(async () => {
+    await database.insert(credentials).values({
+      id: "persona-ref",
+      publicKey: new Uint8Array(),
+      factory: zeroAddress,
+      account,
+      pandaId: null,
+    });
+  });
+
+  it("creates panda and pax user on valid inquiry", async () => {
+    vi.mocked(createUser).mockResolvedValue({ id: "new-panda-id" });
+    vi.mocked(addCapita).mockResolvedValue({});
+
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: {
+        ...validPayload,
+        data: {
+          ...validPayload.data,
+          attributes: {
+            ...validPayload.data.attributes,
+            payload: {
+              ...validPayload.data.attributes.payload,
+              included: [...validPayload.data.attributes.payload.included],
+            },
+          },
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(createUser).toHaveBeenCalledWith({
+      accountPurpose: "business",
+      annualSalary: "100000",
+      expectedMonthlyVolume: "1000",
+      ipAddress: "127.0.0.1",
+      isTermsOfServiceAccepted: true,
+      occupation: "engineer",
+      personaShareToken: "inq_123",
+    });
+    expect(addCapita).toHaveBeenCalledWith({
+      birthdate: "1990-01-01",
+      document: "DOC123",
+      firstName: "John",
+      lastName: "Doe",
+      email: "john@example.com",
+      phone: "+1234567890",
+      internalId: deriveAssociateId(account),
+      product: "travel insurance",
+    });
+  });
+});
+
+const validPayload = {
+  data: {
+    attributes: {
+      payload: {
+        data: {
+          id: "inq_123",
+          attributes: {
+            status: "approved",
+            referenceId: "persona-ref",
+            emailAddress: "john@example.com",
+            phoneNumber: "+1234567890",
+            birthdate: "1990-01-01",
+            nameFirst: "John",
+            nameMiddle: null,
+            nameLast: "Doe",
+            addressStreet1: "123 Main St",
+            addressStreet2: null,
+            addressCity: "New York",
+            addressSubdivision: "NY",
+            addressSubdivisionAbbr: "NY",
+            addressPostalCode: "10001",
+            fields: {
+              accountPurpose: { value: "business" },
+              annualSalary: { value: "100000" },
+              expectedMonthlyVolume: { value: "1000" },
+              inputSelect: { value: "engineer" },
+              birthdate: { value: "1990-01-01" },
+              identificationNumber: { value: "DOC123" },
+              nameFirst: { value: "John" },
+              nameLast: { value: "Doe" },
+              emailAddress: { value: "john@example.com" },
+              phoneNumber: { value: "+1234567890" },
+              addressCountryCode: { value: "US" },
+            },
+          },
+        },
+        included: [
+          {
+            type: "inquiry-session",
+            attributes: {
+              createdAt: "2023-01-01T00:00:00.000Z",
+              ipAddress: "127.0.0.1",
+            },
+          },
+        ],
+      },
+    },
+  },
+} as const;
+
 const personaPayload = {
   header: { "persona-signature": "t=1733865120,v1=debbacfe1b0c5f8797a1d68e8428fba435aa4ca3b5d9a328c3c96ee4d04d84df" },
   json: {
@@ -257,7 +407,7 @@ const personaPayload = {
             id: "inq_xzMHQeuAt7KuxVMPNvowpYWJ6eee", // cspell:ignore inq_xzMHQeuAt7KuxVMPNvowpYWJ6eee
             attributes: {
               status: "approved",
-              referenceId: "bob",
+              referenceId: "bob-persona",
               note: null,
               behaviors: {
                 requestSpoofAttempts: 0,

@@ -1,10 +1,13 @@
-import "../mocks/sentry";
 import "../mocks/auth";
 import "../mocks/deployments";
+import "../mocks/sentry";
 
+import deriveAddress from "@exactly/common/deriveAddress";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { padHex, zeroAddress, zeroHash } from "viem";
+import { generatePrivateKey, privateKeyToAddress } from "viem/accounts";
+import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 
 import app from "../../api/kyc";
 import database, { credentials } from "../../database";
@@ -13,10 +16,23 @@ import * as persona from "../../utils/persona";
 const appClient = testClient(app);
 
 describe("authenticated", () => {
+  const bob = privateKeyToAddress(generatePrivateKey());
+  const account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(bob), y: zeroHash });
+
+  beforeAll(async () => {
+    await database.insert(credentials).values({
+      id: account,
+      publicKey: new Uint8Array(),
+      account,
+      factory: zeroAddress,
+      pandaId: "pandaId",
+    });
+  });
+
   afterEach(() => vi.restoreAllMocks());
 
   it("returns ok kyc approved with country code", async () => {
-    await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, "bob"));
+    await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, account));
     const getInquiry = vi.spyOn(persona, "getInquiry");
     const getAccount = vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
       ...personaTemplate,
@@ -35,7 +51,7 @@ describe("authenticated", () => {
 
     const response = await appClient.index.$get(
       { query: { countryCode: "true" } },
-      { headers: { "test-credential-id": "bob", SessionID: "fakeSession" } },
+      { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
     );
 
     expect(getAccount).toHaveBeenCalledOnce();
@@ -46,13 +62,13 @@ describe("authenticated", () => {
   });
 
   it("returns ok kyc approved when panda id is present", async () => {
-    await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, "bob"));
+    await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, account));
     const getInquiry = vi.spyOn(persona, "getInquiry");
     const getAccount = vi.spyOn(persona, "getAccount");
 
     const response = await appClient.index.$get(
       { query: {} },
-      { headers: { "test-credential-id": "bob", SessionID: "fakeSession" } },
+      { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
     );
 
     expect(getAccount).not.toHaveBeenCalled();
@@ -62,7 +78,7 @@ describe("authenticated", () => {
   });
 
   it("returns ok kyc approved without template", async () => {
-    await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "bob"));
+    await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, account));
     const getInquiry = vi.spyOn(persona, "getInquiry").mockResolvedValueOnce(personaTemplate);
     const getAccount = vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
       ...personaTemplate,
@@ -81,10 +97,10 @@ describe("authenticated", () => {
 
     const response = await appClient.index.$get(
       { query: {} },
-      { headers: { "test-credential-id": "bob", SessionID: "fakeSession" } },
+      { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
     );
 
-    expect(getInquiry).toHaveBeenCalledWith("bob", "itmpl_8uim4FvD5P3kFpKHX37CW817");
+    expect(getInquiry).toHaveBeenCalledWith(account, "itmpl_8uim4FvD5P3kFpKHX37CW817");
     expect(getAccount).toHaveBeenCalledOnce();
     await expect(response.json()).resolves.toStrictEqual({ code: "ok", legacy: "ok" });
     expect(response.headers.get("User-Country")).toBe("AR");
@@ -101,10 +117,10 @@ describe("authenticated", () => {
 
     const response = await appClient.index.$get(
       { query: { templateId } },
-      { headers: { "test-credential-id": "bob", SessionID: "fakeSession" } },
+      { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
     );
 
-    expect(getInquiry).toHaveBeenCalledWith("bob", templateId);
+    expect(getInquiry).toHaveBeenCalledWith(account, templateId);
     expect(resumeInquiry).toHaveBeenCalledWith(resumeTemplate.data.id);
     await expect(response.json()).resolves.toStrictEqual({
       inquiryId: resumeTemplate.data.id,
@@ -125,11 +141,11 @@ describe("authenticated", () => {
 
     const response = await appClient.index.$post(
       { json: {} },
-      { headers: { "test-credential-id": "bob", SessionID: "fakeSession" } },
+      { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
     );
 
-    expect(getInquiry).toHaveBeenCalledWith("bob", persona.CRYPTOMATE_TEMPLATE);
-    expect(createInquiry).toHaveBeenCalledWith("bob", undefined);
+    expect(getInquiry).toHaveBeenCalledWith(account, persona.CRYPTOMATE_TEMPLATE);
+    expect(createInquiry).toHaveBeenCalledWith(account, undefined);
     expect(generateOTL).toHaveBeenCalledWith(resumeTemplate.data.id);
     await expect(response.json()).resolves.toStrictEqual({ otl, legacy: otl });
     expect(response.status).toBe(200);
@@ -149,10 +165,10 @@ describe("authenticated", () => {
     });
     const response = await appClient.index.$post(
       { json: { templateId } },
-      { headers: { "test-credential-id": "bob", SessionID: "fakeSession" } },
+      { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
     );
 
-    expect(getInquiry).toHaveBeenCalledWith("bob", templateId);
+    expect(getInquiry).toHaveBeenCalledWith(account, templateId);
     expect(generateOTL).toHaveBeenCalledWith(resumeTemplate.data.id);
     await expect(response.json()).resolves.toStrictEqual({ otl, legacy: otl });
     expect(response.status).toBe(200);
