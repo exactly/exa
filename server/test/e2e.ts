@@ -1,8 +1,10 @@
 /// <reference types="vite/client" />
 import "./mocks/sentry";
+import "./mocks/alchemy";
 import "./mocks/deployments";
 import "./mocks/keeper";
 import "./mocks/redis";
+import "./mocks/sardine";
 
 import type * as sentry from "@sentry/node";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -34,14 +36,6 @@ describe("e2e", () => {
     Infinity,
   );
 });
-
-vi.mock("../utils/alchemy", async (importOriginal) => ({
-  ...(await importOriginal()),
-  findWebhook: vi.fn<() => Promise<void>>().mockResolvedValue(),
-  createWebhook: vi
-    .fn<() => Promise<{ id: string; signing_key: string }>>()
-    .mockResolvedValue({ id: "123", signing_key: "123" }),
-}));
 
 vi.mock("../utils/panda", async (importOriginal) => ({
   ...(await importOriginal()),
