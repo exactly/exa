@@ -1,4 +1,5 @@
 import chain from "@exactly/common/generated/chain";
+import type { Address } from "@exactly/common/validation";
 import { validator } from "hono/validator";
 import { array, boolean, object, parse, picklist, string, type InferOutput } from "valibot";
 import { withRetry } from "viem";
@@ -53,6 +54,16 @@ export async function createWebhook(
   });
   if (!create.ok) throw new Error(`${create.status} ${await create.text()}`);
   return parse(WebhookResponse, await create.json()).data;
+}
+
+export async function updateWebhookAddresses(id: string | undefined, add: Address[], remove: Address[] = []) {
+  if (!id) return;
+  const update = await fetch("https://dashboard.alchemy.com/api/update-webhook-addresses", {
+    headers,
+    method: "PATCH",
+    body: JSON.stringify({ webhook_id: id, addresses_to_add: add, addresses_to_remove: remove }),
+  });
+  if (!update.ok) throw new Error(`${update.status} ${await update.text()}`);
 }
 
 const Webhook = object({

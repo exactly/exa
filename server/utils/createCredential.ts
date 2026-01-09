@@ -10,7 +10,7 @@ import { setSignedCookie } from "hono/cookie";
 import { parse } from "valibot";
 import { hexToBytes, isAddress } from "viem";
 
-import { headers as alchemyHeaders } from "./alchemy";
+import { updateWebhookAddresses } from "./alchemy";
 import authSecret from "./authSecret";
 import decodePublicKey from "./decodePublicKey";
 import { customer } from "./sardine";
@@ -49,15 +49,7 @@ export default async function createCredential<C extends string>(
         ? { sameSite: "lax", secure: false }
         : { domain, sameSite: "none", secure: true, partitioned: true }),
     }),
-    fetch("https://dashboard.alchemy.com/api/update-webhook-addresses", {
-      method: "PATCH",
-      headers: alchemyHeaders,
-      body: JSON.stringify({ webhook_id: webhookId, addresses_to_add: [account], addresses_to_remove: [] }),
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);
-      })
-      .catch((error: unknown) => captureException(error)),
+    updateWebhookAddresses(webhookId, [account]).catch((error: unknown) => captureException(error)),
     customer({ flow: { name: "signup", type: "signup" }, customer: { id: credentialId } }).catch((error: unknown) =>
       captureException(error, { level: "error" }),
     ),
