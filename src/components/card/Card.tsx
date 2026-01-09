@@ -336,24 +336,28 @@ export default function Card() {
                             {displayStatus === "FROZEN" ? "Unfreeze card" : "Freeze card"}
                           </Text>
                         </XStack>
-                        <Switch
-                          scale={0.9}
-                          margin={0}
-                          padding={0}
-                          pointerEvents="none"
-                          checked={displayStatus === "FROZEN"}
-                          backgroundColor="$backgroundMild"
-                          borderColor="$borderNeutralSoft"
-                        >
-                          <Switch.Thumb
+                        <XStack alignItems="center" justifyContent="center" height={24}>
+                          <Switch
+                            scale={0.9}
+                            margin={0}
+                            padding={0}
+                            pointerEvents="none"
                             checked={displayStatus === "FROZEN"}
-                            shadowColor="$uiNeutralSecondary"
-                            animation="moderate"
-                            backgroundColor={
-                              displayStatus === "ACTIVE" ? "$interactiveDisabled" : "$interactiveBaseBrandDefault"
-                            }
-                          />
-                        </Switch>
+                            backgroundColor="$backgroundMild"
+                            borderColor="$borderNeutralSoft"
+                            height={24}
+                            width={60}
+                          >
+                            <Switch.Thumb
+                              checked={displayStatus === "FROZEN"}
+                              shadowColor="$uiNeutralSecondary"
+                              animation="moderate"
+                              backgroundColor={
+                                displayStatus === "ACTIVE" ? "$interactiveDisabled" : "$interactiveBaseBrandDefault"
+                              }
+                            />
+                          </Switch>
+                        </XStack>
                       </XStack>
                       <Separator borderColor="$borderNeutralSoft" />
                     </>
