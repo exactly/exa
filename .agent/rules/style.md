@@ -2,6 +2,7 @@
 always_on: true
 alwaysApply: true
 applyTo: "**"
+paths: "**"
 trigger: always_on
 ---
 # style guide
