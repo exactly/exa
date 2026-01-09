@@ -62,6 +62,7 @@
     "viem": "^2.40.3"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.3.11",
     "@exactly/common": "workspace:^0.0.10",
     "@exactly/plugin": "workspace:^1.1.0",
     "@exactly/substreams": "workspace:^0.0.1",

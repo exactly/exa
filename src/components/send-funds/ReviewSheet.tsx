@@ -66,15 +66,15 @@ export default function ReviewSheet({
                   <AssetLogo
                     {...(external
                       ? {
+                          source: { uri: logoURI },
+                          width: 40,
+                          height: 40,
+                        }
+                      : {
                           source: { uri: assetLogos[symbol as keyof typeof assetLogos] },
                           width: 40,
                           height: 40,
                           borderRadius: 20,
-                        }
-                      : {
-                          source: { uri: externalAsset?.logoURI },
-                          width: 40,
-                          height: 40,
                         })}
                   />
                   <YStack flex={1}>

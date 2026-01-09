@@ -9,7 +9,7 @@ import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import crypto from "node:crypto";
-import { zeroHash, padHex, zeroAddress, hexToBigInt, parseEther } from "viem";
+import { zeroHash, padHex, hexToBigInt, parseEther, type Address } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 
@@ -22,9 +22,11 @@ import * as panda from "../../utils/panda";
 const appClient = testClient(app);
 
 describe("authenticated", () => {
+  let account: Address;
+
   beforeAll(async () => {
     const owner = privateKeyToAddress(padHex("0xbeef"));
-    const account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(owner), y: zeroHash });
+    account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(owner), y: zeroHash });
     const publicKey = new Uint8Array();
     await database.insert(credentials).values([
       { id: "eth", publicKey, account, factory: inject("ExaAccountFactory"), pandaId: "eth" },

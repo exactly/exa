@@ -165,8 +165,7 @@ describe("with reference", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(captureException).toHaveBeenCalledOnce();
-    expect(captureException).toHaveBeenCalledWith(
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ message: "no credential" }),
       expect.anything(),
     );
@@ -194,8 +193,7 @@ describe("with reference", () => {
         },
       });
 
-      expect(captureException).toHaveBeenCalledOnce();
-      expect(captureException).toHaveBeenCalledWith(
+      expect(captureException).toHaveBeenCalledExactlyOnceWith(
         expect.objectContaining({ message: "bad persona" }),
         expect.anything(),
       );
@@ -237,8 +235,7 @@ describe("with reference", () => {
         },
       });
 
-      expect(captureException).toHaveBeenCalledOnce();
-      expect(captureException).toHaveBeenCalledWith(
+      expect(captureException).toHaveBeenCalledExactlyOnceWith(
         expect.objectContaining({ message: "bad persona" }),
         expect.anything(),
       );
@@ -282,8 +279,7 @@ describe("with reference", () => {
         },
       });
 
-      expect(captureException).toHaveBeenCalledOnce();
-      expect(captureException).toHaveBeenCalledWith(
+      expect(captureException).toHaveBeenCalledExactlyOnceWith(
         expect.objectContaining({ message: "bad persona" }),
         expect.anything(),
       );

@@ -25,7 +25,7 @@ describe("fault tolerance", () => {
     );
 
     expect(captureException).toHaveBeenCalledWith(new Error("send"), expect.objectContaining({ level: "error" }));
-    expect(onHash).toHaveBeenCalledOnce();
+    expect(onHash).toHaveBeenCalledTimes(1);
     expect(receipt?.status).toBe("success");
     expect(sendRawTransaction).toHaveBeenCalledTimes(2);
   });
@@ -46,7 +46,7 @@ describe("fault tolerance", () => {
         { onHash },
       ),
     ).rejects.toThrow("Timed out while waiting for transaction");
-    expect(onHash).toHaveBeenCalledOnce();
+    expect(onHash).toHaveBeenCalledTimes(1);
     expect(sendRawTransaction).toHaveBeenCalledTimes(3);
   });
 

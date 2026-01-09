@@ -11,7 +11,7 @@ import type { Benefit } from "./BenefitsSection";
 import queryClient, { type EmbeddingContext } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import type { PaxId } from "../../utils/server";
-import useOpenBrowser from "../../utils/useOpenBrowser";
+import openBrowser from "../../utils/openBrowser";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
@@ -26,7 +26,6 @@ interface BenefitSheetProperties {
 
 export default function BenefitSheet({ benefit, open, onClose }: BenefitSheetProperties) {
   const toast = useToastController();
-  const openBrowser = useOpenBrowser();
 
   const { data: paxData } = useQuery<PaxId>({
     queryKey: ["pax", "id"],

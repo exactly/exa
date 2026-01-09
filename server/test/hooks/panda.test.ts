@@ -279,7 +279,7 @@ describe("card operations", () => {
           },
         });
 
-        expect(trace).toHaveBeenCalledOnce();
+        expect(trace).toHaveBeenCalledTimes(1);
         expect(captureException).toHaveBeenCalledWith(
           expect.objectContaining({ name: "ContractFunctionExecutionError", functionName: "collectCredit" }),
           expect.anything(),

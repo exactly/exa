@@ -56,7 +56,7 @@ describe("authenticated", () => {
       { headers: { "test-credential-id": "bob", SessionID: "fakeSession" } },
     );
 
-    expect(getAccount).toHaveBeenCalledOnce();
+    expect(getAccount).toHaveBeenCalledTimes(1);
     expect(getInquiry).not.toHaveBeenCalled();
     await expect(response.json()).resolves.toStrictEqual({ code: "ok", legacy: "ok" });
     expect(response.headers.get("User-Country")).toBe("AR");
@@ -103,7 +103,7 @@ describe("authenticated", () => {
     );
 
     expect(getInquiry).toHaveBeenCalledWith("bob", "itmpl_8uim4FvD5P3kFpKHX37CW817");
-    expect(getAccount).toHaveBeenCalledOnce();
+    expect(getAccount).toHaveBeenCalledTimes(1);
     await expect(response.json()).resolves.toStrictEqual({ code: "ok", legacy: "ok" });
     expect(response.headers.get("User-Country")).toBe("AR");
     expect(response.status).toBe(200);

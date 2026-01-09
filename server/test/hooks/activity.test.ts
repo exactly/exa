@@ -268,7 +268,7 @@ describe("address activity", () => {
       },
     });
 
-    expect(sendPushNotification).not.toHaveBeenCalledOnce();
+    expect(sendPushNotification).not.toHaveBeenCalledTimes(1);
     expect(response.status).toBe(200);
   });
 });
