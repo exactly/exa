@@ -1,3 +1,4 @@
+import { firewallAbi, firewallAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 import { vValidator } from "@hono/valibot-validator";
 import { captureException, getActiveSpan, SEMANTIC_ATTRIBUTE_SENTRY_OP, setContext, setUser } from "@sentry/node";
@@ -22,6 +23,7 @@ import {
 } from "valibot";
 
 import database, { credentials } from "../database/index";
+import allowerPromise from "../utils/allower";
 import { createUser } from "../utils/panda";
 import { addCapita, deriveAssociateId } from "../utils/pax";
 import { headerValidator } from "../utils/persona";
@@ -253,6 +255,16 @@ export default new Hono().post(
       captureException(new Error("invalid account address"), {
         extra: { pandaId: id, referenceId, account: credential.account },
       });
+    }
+
+    if (firewallAddress) {
+      const allower = await allowerPromise;
+      allower
+        .exaSend(
+          { name: "exa.firewall", op: "exa.firewall", attributes: { account: credential.account, personaShareToken } },
+          { address: firewallAddress, functionName: "allow", args: [credential.account, true], abi: firewallAbi },
+        )
+        .catch((error: unknown) => captureException(error, { level: "error" }));
     }
 
     return c.json({ id }, 200);

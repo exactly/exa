@@ -81,6 +81,24 @@ services:
       - key: DEBUG
         scope: RUN_TIME
         value: ${{ env.DEBUG }}
+      - key: GCP_KMS_KEY_NAME
+        scope: RUN_TIME
+        value: keeper
+      - key: GCP_KMS_KEY_RING
+        scope: RUN_TIME
+        value: op-tx-signing
+      - key: GCP_KMS_KEY_VERSION
+        scope: RUN_TIME
+        value: "1"
+      - key: GCP_KMS_LOCATION
+        scope: RUN_TIME
+        value: us-west2
+      - key: GCP_KMS_PROJECT_ID
+        scope: RUN_TIME
+        value: ${{ env.GCP_KMS_PROJECT_ID }}
+      - key: GOOGLE_APPLICATION_CREDENTIALS
+        scope: RUN_TIME
+        value: /tmp/gcp-service-account.json
       - key: INTERCOM_IDENTITY_KEY
         scope: RUN_TIME
         type: SECRET

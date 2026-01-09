@@ -1,3 +1,5 @@
+import "./utils/initGCP";
+
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
 import { serve } from "@hono/node-server";
