@@ -64,6 +64,7 @@ export default {
           targetSdkVersion: 35,
           packagingOptions: { pickFirst: ["**/libcrypto.so"] },
           extraMavenRepos: ["https://sdk.withpersona.com/android/releases"],
+          usesCleartextTraffic: env.APP_DOMAIN === "localhost",
         },
         ios: { deploymentTarget: "15.1" },
       } satisfies BuildPropertiesConfig,
