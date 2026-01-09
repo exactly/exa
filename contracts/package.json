@@ -6,7 +6,7 @@
     "build": "forge build",
     "prepare": "[ \"$EAS_BUILD_RUNNER\" != eas-build ] || (export FOUNDRY_DIR=${FOUNDRY_DIR-$HOME/workingdir} && curl -L https://foundry.paradigm.xyz | bash || true && foundryup -i v1.3.6)",
     "snapshot": "FOUNDRY_PROFILE=snapshot forge snapshot --force",
-    "test": "nx test:all contracts",
+    "test": "nx test contracts",
     "test:fmt": "forge fmt --check",
     "test:gas": "FOUNDRY_PROFILE=snapshot forge snapshot --force --check",
     "test:solhint": "solhint --max-warnings 0 '**/*.sol'",
@@ -46,6 +46,7 @@
     },
     "targets": {
       "build": {
+        "parallelism": false,
         "outputs": [
           "{projectRoot}/out",
           "{projectRoot}/cache"
@@ -57,32 +58,26 @@
         ],
         "cache": true
       },
-      "test:all": {
-        "executor": "nx:run-commands",
-        "options": {
-          "commands": [
-            "nx test:parallel contracts",
-            "nx test:gas contracts",
-            "nx test:slither contracts",
-            "nx test:coverage contracts"
-          ],
-          "parallel": false
-        }
-      },
-      "test:parallel": {
+      "test": {
         "dependsOn": [
           "test:fmt",
           "test:solhint",
-          "test:sizes"
-        ]
+          "test:sizes",
+          "test:gas",
+          "test:slither",
+          "test:coverage"
+        ],
+        "executor": "nx:noop"
       },
       "test:sizes": {
+        "parallelism": false,
         "outputs": [
           "{projectRoot}/out",
           "{projectRoot}/cache"
         ]
       },
       "test:gas": {
+        "parallelism": false,
         "outputs": [
           "{projectRoot}/out",
           "{projectRoot}/cache",
@@ -90,12 +85,14 @@
         ]
       },
       "test:slither": {
+        "parallelism": false,
         "outputs": [
           "{projectRoot}/out",
           "{projectRoot}/cache"
         ]
       },
       "test:coverage": {
+        "parallelism": false,
         "outputs": [
           "{projectRoot}/out",
           "{projectRoot}/cache",
