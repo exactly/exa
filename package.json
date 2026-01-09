@@ -11,7 +11,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "build": "expo export --platform web --no-minify --source-maps",
-    "prepare": "nx run-many -t generate:expo generate:release generate:version -p mobile",
+    "prepare": "nx prepare mobile",
     "prepare:generated": "mkdir -p src/generated",
     "generate:expo": "expo customize tsconfig.json",
     "generate:release": "echo \"module.exports = /** @type {const} */ ('$(git describe --tags --abbrev=7 --match '@exactly/mobile@*' | sed 's/@exactly\\///')')\" > src/generated/release.js",
@@ -343,6 +343,14 @@
       ]
     },
     "targets": {
+      "prepare": {
+        "dependsOn": [
+          "generate:expo",
+          "generate:release",
+          "generate:version"
+        ],
+        "executor": "nx:noop"
+      },
       "generate:expo": {
         "dependsOn": [
           "generate:version"

@@ -32,6 +32,13 @@
   "nx": {
     "projectType": "library",
     "targets": {
+      "prepare": {
+        "dependsOn": [
+          "prepare:git",
+          "generate:wagmi"
+        ],
+        "executor": "nx:noop"
+      },
       "generate:wagmi": {
         "inputs": [
           "^production",

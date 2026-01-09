@@ -40,6 +40,10 @@
       },
       "dev": {
         "continuous": true,
+        "dependsOn": [
+          "^prepare",
+          "^build"
+        ],
         "executor": "@nx/esbuild:esbuild",
         "inputs": [
           "production",
