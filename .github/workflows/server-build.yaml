@@ -37,6 +37,8 @@ jobs:
           file: server/Dockerfile
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           build-args: |
             CHAIN_ID=${{ vars.CHAIN_ID }}
             APP_DOMAIN=${{ vars.APP_DOMAIN }}
