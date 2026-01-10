@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@openzeppelin/contracts": "^5.4.0",
-    "modular-account": "alchemyplatform/modular-account#c81e712",
+    "modular-account": "alchemyplatform/modular-account#c81e7122eb46e13447afa3f2e0d2537cf2792beb",
     "modular-account-libs": "erc6900/modular-account-libs#v0.7.1",
     "solady": "^0.1.26",
     "webauthn-owner-plugin": "exactly/webauthn-owner-plugin#9c0c38b",
@@ -28,12 +28,12 @@
     "@openzeppelin/contracts-upgradeable": "^5.4.0",
     "@openzeppelin/contracts-v4": "npm:@openzeppelin/contracts@^4.9.6",
     "account-abstraction": "eth-infinitism/account-abstraction#v0.6.0",
-    "forge-std": "foundry-rs/forge-std#v1.10.0",
-    "fresh-crypto-lib": "rdubois-crypto/FreshCryptoLib#fd2a0e6",
-    "solhint": "^6.0.1",
+    "forge-std": "foundry-rs/forge-std#v1.14.0",
+    "fresh-crypto-lib": "rdubois-crypto/FreshCryptoLib#fd2a0e6e64609ade0b0c165e4d66de8106a70db6",
+    "solhint": "^6.0.2",
     "solmate": "transmissions11/solmate#v7",
     "surl": "memester-xyz/surl",
-    "typescript": "^5.8.3"
+    "typescript": "catalog:"
   },
   "nx": {
     "projectType": "application",

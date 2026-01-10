@@ -19,7 +19,7 @@ vi.mock("../../utils/keeper", async (importOriginal) => {
     ...original,
     default: createWalletClient({
       chain,
-      transport: http(`${chain.rpcUrls.alchemy?.http[0]}/${alchemyAPIKey}`),
+      transport: http(`${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`),
       account: privateKeyToAccount(
         keccak256(toBytes(path.relative(path.resolve(__dirname, ".."), expect.getState().testPath ?? ""))), // eslint-disable-line unicorn/prefer-module
         { nonceManager: original.default.account.nonceManager },

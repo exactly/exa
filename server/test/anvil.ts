@@ -3,7 +3,7 @@ import deploy from "@exactly/plugin/deploy.json";
 import { $ } from "execa";
 import { readdir } from "node:fs/promises";
 import { env, stderr, stdout } from "node:process";
-import { anvil } from "prool/instances";
+import { Instance } from "prool";
 import { literal, object, parse, tuple } from "valibot";
 import { keccak256, padHex, toBytes, toHex, zeroAddress } from "viem";
 import { mnemonicToAccount, privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
@@ -13,7 +13,7 @@ import type { TestProject } from "vitest/node";
 import anvilClient from "./anvilClient";
 
 export default async function setup({ provide }: Pick<TestProject, "provide">) {
-  const instance = anvil({ codeSizeLimit: 69_000, blockBaseFeePerGas: 1n });
+  const instance = Instance.anvil({ codeSizeLimit: 69_000, blockBaseFeePerGas: 1n });
   const initialize = await instance
     .start()
     .then(() => true)
@@ -23,23 +23,22 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
   if (initialize) {
     await anvilClient.setBalance({ address: keeper.address, value: 10n ** 24n });
     if (env.NODE_ENV === "e2e") {
-      instance._internal.process.stderr.on("data", stderr.write.bind(stderr));
-      instance._internal.process.stdout.on("data", (buffer: Uint8Array | string) => {
-        const string = String(buffer);
+      instance.on("stderr", (message) => stderr.write(message));
+      instance.on("stdout", (message) => {
         if (
-          !string.startsWith("eth_blockNumber") &&
-          !string.startsWith("eth_call") &&
-          !string.startsWith("eth_chainId") &&
-          !string.startsWith("eth_feeHistory") &&
-          !string.startsWith("eth_gasPrice") &&
-          !string.startsWith("eth_getAccount") &&
-          !string.startsWith("eth_getAccountInfo") &&
-          !string.startsWith("eth_getBlockByNumber") &&
-          !string.startsWith("eth_getCode") &&
-          !string.startsWith("eth_getStorageAt") &&
-          !string.startsWith("eth_getTransactionReceipt")
+          !message.startsWith("eth_blockNumber") &&
+          !message.startsWith("eth_call") &&
+          !message.startsWith("eth_chainId") &&
+          !message.startsWith("eth_feeHistory") &&
+          !message.startsWith("eth_gasPrice") &&
+          !message.startsWith("eth_getAccount") &&
+          !message.startsWith("eth_getAccountInfo") &&
+          !message.startsWith("eth_getBlockByNumber") &&
+          !message.startsWith("eth_getCode") &&
+          !message.startsWith("eth_getStorageAt") &&
+          !message.startsWith("eth_getTransactionReceipt")
         ) {
-          stdout.write(string);
+          stdout.write(message);
         }
       });
     }

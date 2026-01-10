@@ -1,5 +1,3 @@
-import type { ParamListBase } from "@react-navigation/native";
-import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Stack } from "expo-router";
 import React from "react";
 
@@ -14,11 +12,4 @@ export default function AddFundsLayout() {
       <Stack.Screen name="bridge" />
     </Stack>
   );
-}
-
-export type AddFundsNavigationProperties = NativeStackNavigationProp<AddFundsParameterList>;
-export interface AddFundsParameterList extends ParamListBase {
-  index: undefined;
-  "add-crypto": undefined;
-  bridge: undefined;
 }

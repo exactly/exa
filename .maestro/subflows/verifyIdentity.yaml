@@ -12,7 +12,9 @@ appId: app.exactly
 - tapOn: Take Photo
 - tapOn: Use this photo
 - assertVisible: Address
-- hideKeyboard
+- runFlow: # HACK
+    when: { platform: ios }
+    commands: [{ tapOn: Address }]
 - tapOn: Continue
 - tapOn: Get started
 - repeat:
@@ -22,22 +24,17 @@ appId: app.exactly
 - tapOn: Continue
 - inputText: "12345"
 - tapOn: Continue
-- inputText: "+12125551234"
+- inputText: "999999999"
 - tapOn: Continue
 - inputText: "1234"
 - extendedWaitUntil: { visible: Economic activity }
 - tapOn: Economic activity
-- swipe: { direction: UP, duration: 200, waitToSettleTimeoutMs: 0 } # HACK
 - tapOn: Science
-- swipe: { direction: UP, duration: 200, waitToSettleTimeoutMs: 0 } # HACK
 - tapOn: Travel Usage
-- swipe: { direction: UP, duration: 200, waitToSettleTimeoutMs: 0 } # HACK
 - tapOn: .*US\$.*
-- swipe: { direction: UP, duration: 200, waitToSettleTimeoutMs: 0 } # HACK
 - tapOn: .*US\$.*
 - tapOn: Continue
 - tapOn: Select
-- swipe: { direction: UP, duration: 200, waitToSettleTimeoutMs: 0 } # HACK
 - tapOn: \s*No\s*
 - tapOn: Continue
 - repeat: { times: 6, commands: [{ tapOn: square }] }

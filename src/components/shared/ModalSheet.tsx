@@ -1,6 +1,10 @@
 import React from "react";
 import { Platform } from "react-native";
-import { Sheet } from "tamagui";
+import { Sheet, Stack } from "tamagui";
+
+const WebSheetPortalContainer = function ({ children }: { children: React.ReactNode }) {
+  return <Stack className="sheet-portal">{children}</Stack>;
+};
 
 const ModalSheet = function ({
   open,
@@ -31,7 +35,7 @@ const ModalSheet = function ({
       zIndex={100_000}
       disableDrag={disableDrag}
       modal
-      portalProps={Platform.OS === "web" ? { className: "sheet-portal" } : undefined}
+      containerComponent={Platform.OS === "web" ? WebSheetPortalContainer : React.Fragment}
     >
       <Sheet.Overlay
         backgroundColor="#00000090"

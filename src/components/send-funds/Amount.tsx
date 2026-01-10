@@ -11,7 +11,7 @@ import { WAD } from "@exactly/lib";
 import { ArrowLeft, Coins, FilePen, Check, X } from "@tamagui/lucide-icons";
 import { useForm, useStore } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
-import { useLocalSearchParams, useNavigation } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable } from "react-native";
 import { Avatar, ScrollView, Square, XStack, YStack } from "tamagui";
@@ -20,7 +20,6 @@ import { encodeAbiParameters, erc20Abi, formatUnits, parseUnits, zeroAddress as 
 import { useBytecode, useSimulateContract, useWriteContract } from "wagmi";
 
 import ReviewSheet from "./ReviewSheet";
-import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import assetLogos from "../../utils/assetLogos";
 import queryClient from "../../utils/queryClient";
 import useAccount from "../../utils/useAccount";
@@ -38,7 +37,7 @@ import TransactionDetails from "../shared/TransactionDetails";
 import View from "../shared/View";
 
 export default function Amount() {
-  const navigation = useNavigation<AppNavigationProperties>();
+  const router = useRouter();
   const { address } = useAccount();
   const [reviewOpen, setReviewOpen] = useState(false);
 
@@ -110,14 +109,7 @@ export default function Amount() {
     query: { enabled: !!external && !!address && !!bytecode && formAmount > 0n },
   });
 
-  const {
-    writeContract,
-    data: hash,
-    isPending: pending,
-    isSuccess: success,
-    isError: error,
-    reset,
-  } = useWriteContract();
+  const { mutate, data: hash, isPending: pending, isSuccess: success, isError: error, reset } = useWriteContract();
 
   const sendReady = useMemo(
     () => formAmount > 0n && (market ? !!proposeSimulation : !!external && !!transferSimulation),
@@ -127,11 +119,11 @@ export default function Amount() {
   const handleSubmit = useCallback(() => {
     if (!sendReady) return;
     if (proposeSimulation) {
-      writeContract(proposeSimulation.request);
+      mutate(proposeSimulation.request);
     } else if (transferSimulation) {
-      writeContract(transferSimulation.request);
+      mutate(transferSimulation.request);
     }
-  }, [proposeSimulation, sendReady, transferSimulation, writeContract]);
+  }, [proposeSimulation, sendReady, transferSimulation, mutate]);
 
   const details: {
     amount: string;
@@ -186,10 +178,10 @@ export default function Amount() {
             dangerSecondary
             alignSelf="center"
             onPress={() => {
-              if (navigation.canGoBack()) {
-                navigation.goBack();
+              if (router.canGoBack()) {
+                router.back();
               } else {
-                navigation.replace("send-funds", { screen: "asset" });
+                router.replace("/send-funds/asset");
               }
             }}
           >
@@ -211,10 +203,10 @@ export default function Amount() {
             <View position="absolute" left={0}>
               <Pressable
                 onPress={() => {
-                  if (navigation.canGoBack()) {
-                    navigation.goBack();
+                  if (router.canGoBack()) {
+                    router.back();
                   } else {
-                    navigation.replace("send-funds", { screen: "asset" });
+                    router.replace("/send-funds/asset");
                   }
                 }}
               >
@@ -363,7 +355,7 @@ export default function Amount() {
           <Pressable
             aria-label="Close"
             onPress={() => {
-              navigation.replace("(home)", { screen: "index" });
+              router.replace("/(main)/(home)");
             }}
           >
             <X size={24} color="$uiNeutralPrimary" />
@@ -458,9 +450,9 @@ export default function Amount() {
                 cursor="pointer"
                 onPress={() => {
                   if (!details.external && isLatestPlugin) {
-                    navigation.replace("pending-proposals/index");
+                    router.replace("/pending-proposals");
                   } else {
-                    navigation.replace("(home)", { screen: "index" });
+                    router.replace("/(main)/(home)");
                   }
                 }}
               >

@@ -29,7 +29,7 @@ import {
 
 import { captureRequests, Request } from "./publicClient";
 
-if (!chain.rpcUrls.alchemy?.http[0]) throw new Error("missing alchemy rpc url");
+if (!chain.rpcUrls.alchemy.http[0]) throw new Error("missing alchemy rpc url");
 
 export default createPublicClient({
   chain,

@@ -2,14 +2,13 @@ import shortenHex from "@exactly/common/shortenHex";
 import { Eye, EyeOff, Settings, ClockArrowUp } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import { setStringAsync } from "expo-clipboard";
-import { useNavigation } from "expo-router";
+import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { Pressable } from "react-native";
 
 import Blocky from "./Blocky";
 import CopyAddressSheet from "./CopyAddressSheet";
 import StatusIndicator from "./StatusIndicator";
-import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
@@ -20,7 +19,7 @@ import View from "../shared/View";
 export default function ProfileHeader() {
   const { address, isConnected } = useAccount();
   const [copyAddressShown, setCopyAddressShown] = useState(false);
-  const navigation = useNavigation<AppNavigationProperties>("/(main)");
+  const router = useRouter();
   const {
     count,
     proposals: { isFetching: pendingProposalsFetching },
@@ -66,7 +65,7 @@ export default function ProfileHeader() {
               aria-label="Pending proposals"
               disabled={pendingProposalsFetching}
               onPress={() => {
-                navigation.push("pending-proposals/index");
+                router.push("/pending-proposals");
               }}
               hitSlop={15}
             >
@@ -77,7 +76,7 @@ export default function ProfileHeader() {
           <Pressable
             aria-label="Settings"
             onPress={() => {
-              navigation.push("settings/index");
+              router.push("/settings");
             }}
             hitSlop={15}
           >

@@ -163,7 +163,7 @@ function chain(): Plugin {
     return {
       name: "Chain",
       run: () => ({
-        content: `import { anvil, type Chain } from "viem/chains"\nconst chain = anvil as Chain\nchain.rpcUrls.alchemy = chain.rpcUrls.default\nexport default chain as Chain`,
+        content: `import { anvil, type Chain } from "viem/chains"\nconst chain = anvil as Chain\nchain.rpcUrls.alchemy = chain.rpcUrls.default\nexport default chain as Chain & { rpcUrls: { alchemy: { http: readonly [string] } } }`,
       }),
     };
   }
@@ -175,7 +175,14 @@ function chain(): Plugin {
     [anvil.id]: "anvil",
   }[chainId];
   if (!importName) throw new Error("unknown chain");
-  return { name: "Chain", run: () => ({ content: `export { ${importName} as default } from "@alchemy/aa-core"` }) };
+  return {
+    name: "Chain",
+    run: () => ({
+      content: `import { ${importName} } from '@account-kit/infra'
+import { type Chain } from "viem/chains"
+export default ${importName} as Chain & { rpcUrls: { alchemy: { http: readonly [string] } } }`,
+    }),
+  };
 }
 
 function loadDeployment<R extends boolean = true>(
