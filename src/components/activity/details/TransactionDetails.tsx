@@ -51,7 +51,7 @@ export default function TransactionDetails({
             <OptimismImage height={20} width={20} />
           </XStack>
         </XStack>
-        {item && item.type === "sent" && (
+        {item?.type === "sent" && (
           <XStack justifyContent="space-between">
             <Text emphasized footnote color="$uiNeutralSecondary">
               To

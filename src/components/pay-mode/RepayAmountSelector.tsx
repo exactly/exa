@@ -63,9 +63,9 @@ export default function RepayAmountSelector({
         setInputValue(maxPositionAssets);
         setMaxReached(true);
       } else {
-        const amount = parseUnits(value.toString(), 6);
+        const amount = parseUnits(String(value), 6);
         onChange(amount);
-        setFieldValue("assetInput", value.toString());
+        setFieldValue("assetInput", String(value));
         setInputValue(amount);
         setMaxReached(false);
       }
@@ -158,7 +158,7 @@ export default function RepayAmountSelector({
             </Text>
           )}
         </YStack>
-        {balancerBalance && positionValue > balancerBalance && (
+        {balancerBalance && positionValue > balancerBalance ? (
           <Text caption color="$uiNeutralPlaceholder">
             Limit&nbsp;
             {(Number(balancerBalanceUSD) / 1e18).toLocaleString(undefined, {
@@ -168,7 +168,7 @@ export default function RepayAmountSelector({
             })}
             &nbsp;per repay. Please split larger amounts into smaller payments.
           </Text>
-        )}
+        ) : null}
       </YStack>
     </YStack>
   );

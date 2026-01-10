@@ -130,7 +130,7 @@ describe("proposal", () => {
       expect(anotherWithdrawReceipt).toBeDefined();
 
       expect(
-        withdrawReceipt && withdrawReceipt.type === "fulfilled"
+        withdrawReceipt?.type === "fulfilled"
           ? usdcToAddress(
               withdrawReceipt.value,
               decodeAbiParameters([{ name: "receiver", type: "address" }], withdraw.args.data)[0],
@@ -139,7 +139,7 @@ describe("proposal", () => {
       ).toBe(withdraw.args.amount);
 
       expect(
-        anotherWithdrawReceipt && anotherWithdrawReceipt.type === "fulfilled"
+        anotherWithdrawReceipt?.type === "fulfilled"
           ? usdcToAddress(
               anotherWithdrawReceipt.value,
               decodeAbiParameters([{ name: "receiver", type: "address" }], anotherWithdraw.args.data)[0],
@@ -237,7 +237,7 @@ describe("proposal", () => {
       await vi.waitUntil(() => waitForTransactionReceipt.mock.settledResults.some(({ type }) => type !== "incomplete"));
       const withdrawReceipt = waitForTransactionReceipt.mock.settledResults[0];
       const newNonce =
-        withdrawReceipt && withdrawReceipt.type === "fulfilled" && withdrawReceipt.value.logs.length === 1
+        withdrawReceipt?.type === "fulfilled" && withdrawReceipt.value.logs.length === 1
           ? withdrawReceipt.value.logs.map(({ topics, data }) =>
               decodeEventLog({ abi: proposalManagerAbi, eventName: "ProposalNonceSet", topics, data }),
             )[0]?.args.nonce
@@ -352,7 +352,7 @@ describe("proposal", () => {
       expect(idleProposalReceipt).toBeDefined();
 
       expect(
-        withdrawReceipt && withdrawReceipt.type === "fulfilled"
+        withdrawReceipt?.type === "fulfilled"
           ? usdcToAddress(
               withdrawReceipt.value,
               decodeAbiParameters([{ name: "receiver", type: "address" }], withdraw.args.data)[0],
@@ -361,7 +361,7 @@ describe("proposal", () => {
       ).toBe(withdraw.args.amount);
 
       expect(
-        idleProposalReceipt && idleProposalReceipt.type === "fulfilled"
+        idleProposalReceipt?.type === "fulfilled"
           ? usdcToAddress(
               idleProposalReceipt.value,
               decodeAbiParameters([{ name: "receiver", type: "address" }], idle.args.data)[0],

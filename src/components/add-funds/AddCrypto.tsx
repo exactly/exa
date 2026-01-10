@@ -139,10 +139,10 @@ export default function AddCrypto() {
                   setSupportedAssetsShown(true);
                 }}
               >
-                {supportedAssets.map((asset, index) => {
+                {supportedAssets.map(({ symbol, image }, index) => {
                   return (
-                    <XStack key={index} marginRight={index < supportedAssets.length - 1 ? -12 : 0} zIndex={index}>
-                      <AssetLogo source={{ uri: asset.image }} width={32} height={32} />
+                    <XStack key={symbol} marginRight={index < supportedAssets.length - 1 ? -12 : 0} zIndex={index}>
+                      <AssetLogo source={{ uri: image }} width={32} height={32} />
                     </XStack>
                   );
                 })}

@@ -52,7 +52,7 @@ export default function PaymentScheduleSheet({
                 {Array.from({ length: loan?.installments ?? 0 }).map((_, index) => {
                   const maturity = Number(loan?.maturity) + index * MATURITY_INTERVAL;
                   return (
-                    <XStack key={index} gap="$s2" alignItems="center" justifyContent="space-between">
+                    <XStack key={maturity} gap="$s2" alignItems="center" justifyContent="space-between">
                       <XStack gap="$s3" alignItems="center">
                         <Text emphasized title3>
                           {index + 1}

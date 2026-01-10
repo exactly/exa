@@ -8,7 +8,7 @@ import { ChevronRight, CircleHelp, CreditCard, DollarSign, Eye, EyeOff, Hash, Sn
 import { useToastController } from "@tamagui/toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { type RefObject, useState } from "react";
 import { Pressable, RefreshControl } from "react-native";
 import { ScrollView, Separator, Spinner, Square, Switch, useTheme, XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
@@ -519,5 +519,5 @@ export default function Card() {
   );
 }
 
-export const cardScrollReference = React.createRef<ScrollView>();
-export const cardRefreshControlReference = React.createRef<RefreshControl>();
+export const cardScrollReference: RefObject<ScrollView | null> = { current: null };
+export const cardRefreshControlReference: RefObject<RefreshControl | null> = { current: null };

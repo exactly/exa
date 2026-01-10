@@ -1,7 +1,7 @@
 import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, type RefObject } from "react";
 import { RefreshControl } from "react-native";
 import { ScrollView, useTheme, XStack } from "tamagui";
 import { zeroAddress } from "viem";
@@ -105,5 +105,5 @@ export default function PayMode() {
   );
 }
 
-export const payModeScrollReference = React.createRef<ScrollView>();
-export const payModeRefreshControlReference = React.createRef<RefreshControl>();
+export const payModeScrollReference: RefObject<ScrollView | null> = { current: null };
+export const payModeRefreshControlReference: RefObject<RefreshControl | null> = { current: null };

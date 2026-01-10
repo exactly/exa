@@ -87,7 +87,6 @@ export default function Receiver() {
       <ScrollView
         backgroundColor="$backgroundMild"
         showsVerticalScrollIndicator={false}
-        // eslint-disable-next-line react-native/no-inline-styles
         contentContainerStyle={{ flexGrow: 1 }}
       >
         <YStack padding="$s4" gap="$s4" flex={1} justifyContent="space-between">

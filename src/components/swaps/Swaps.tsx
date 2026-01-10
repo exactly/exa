@@ -12,7 +12,7 @@ import type { Token } from "@lifi/sdk";
 import { ArrowLeft, Check, CircleHelp, Repeat, TriangleAlert } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Checkbox, ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
@@ -88,9 +88,9 @@ export default function Swaps() {
     queryFn: () => defaultSwap,
   });
 
-  const updateSwap = useCallback((updater: (old: Swap) => Swap) => {
+  const updateSwap = (updater: (old: Swap) => Swap) => {
     queryClient.setQueryData<Swap>(["swap"], (old) => updater(old ?? defaultSwap));
-  }, []);
+  };
 
   const isExternal = useCallback(
     (address: string) => {
@@ -615,4 +615,4 @@ function getExchangeRate(fromToken: Token, toToken: Token, fromAmount: bigint, t
   return Number(formatUnits(toAmount, toToken.decimals)) / Number(formatUnits(fromAmount, fromToken.decimals));
 }
 
-export const swapsScrollReference = React.createRef<ScrollView>();
+export const swapsScrollReference: RefObject<ScrollView | null> = { current: null };

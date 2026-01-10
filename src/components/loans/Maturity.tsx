@@ -63,7 +63,6 @@ export default function Maturity() {
       <ScrollView
         backgroundColor="$backgroundMild"
         showsVerticalScrollIndicator={false}
-        // eslint-disable-next-line react-native/no-inline-styles
         contentContainerStyle={{ flexGrow: 1 }}
       >
         <YStack gap="$s4" justifyContent="space-between">
@@ -80,7 +79,7 @@ export default function Maturity() {
                     const invalid = index + Number(loan?.installments) > MAX_INSTALLMENTS;
                     return (
                       <XStack
-                        key={index}
+                        key={maturity}
                         onPress={() => {
                           if (invalid) return;
                           queryClient.setQueryData(["loan"], (old: Loan) => ({ ...old, maturity }));

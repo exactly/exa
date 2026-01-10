@@ -9,7 +9,7 @@ import { healthFactor, WAD } from "@exactly/lib";
 import { TimeToFullDisplay } from "@sentry/react-native";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, type RefObject } from "react";
 import { RefreshControl } from "react-native";
 import { ScrollView, useTheme, YStack } from "tamagui";
 import { zeroAddress } from "viem";
@@ -167,7 +167,7 @@ export default function Home() {
                   productId={card.productId}
                 />
               )}
-              {card && card.productId === PLATINUM_PRODUCT_ID && (
+              {card?.productId === PLATINUM_PRODUCT_ID && (
                 <VisaSignatureBanner
                   onPress={() => {
                     setVisaSignatureModalOpen(true);
@@ -224,5 +224,5 @@ export default function Home() {
   );
 }
 
-export const homeScrollReference = React.createRef<ScrollView>();
-export const homeRefreshControlReference = React.createRef<RefreshControl>();
+export const homeScrollReference: RefObject<ScrollView | null> = { current: null };
+export const homeRefreshControlReference: RefObject<RefreshControl | null> = { current: null };

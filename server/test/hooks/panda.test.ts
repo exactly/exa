@@ -46,7 +46,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } fr
 import database, { cards, credentials, transactions } from "../../database";
 import app from "../../hooks/panda";
 import keeper from "../../utils/keeper";
-import * as pandaUtils from "../../utils/panda";
+import * as panda from "../../utils/panda";
 import publicClient from "../../utils/publicClient";
 import * as sardine from "../../utils/sardine";
 import traceClient from "../../utils/traceClient";
@@ -108,9 +108,7 @@ describe("card operations", () => {
         );
       });
 
-      afterEach(() => {
-        pandaUtils.getMutex(account)?.release();
-      });
+      afterEach(() => panda.getMutex(account)?.release());
 
       it("fails with InsufficientAccountLiquidity", async () => {
         const currentFunds = await publicClient
@@ -716,7 +714,7 @@ describe("card operations", () => {
       });
 
       beforeEach(() => {
-        vi.spyOn(pandaUtils, "getUser").mockResolvedValue(userResponseTemplate);
+        vi.spyOn(panda, "getUser").mockResolvedValue(userResponseTemplate);
       });
 
       afterEach(() => vi.restoreAllMocks());
@@ -1089,7 +1087,7 @@ describe("card operations", () => {
         const hold = 80;
         const capture = 40;
         const cardId = "partial-capture-debit";
-        vi.spyOn(pandaUtils, "getUser").mockResolvedValue(userResponseTemplate);
+        vi.spyOn(panda, "getUser").mockResolvedValue(userResponseTemplate);
         await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
         const createResponse = await appClient.index.$post({
           ...authorization,
@@ -1177,7 +1175,7 @@ describe("card operations", () => {
       });
 
       it("force capture fraud", async () => {
-        const updateUser = vi.spyOn(pandaUtils, "updateUser").mockResolvedValue(userResponseTemplate);
+        const updateUser = vi.spyOn(panda, "updateUser").mockResolvedValue(userResponseTemplate);
         const currentFunds = await publicClient
           .readContract({
             address: inject("MarketUSDC"),
@@ -1314,7 +1312,7 @@ describe("concurrency", () => {
   });
 
   it("releases mutex when authorization is declined", async () => {
-    const getMutex = vi.spyOn(pandaUtils, "getMutex");
+    const getMutex = vi.spyOn(panda, "getMutex");
     const cardId = `${account2}-card`;
     const spendAuthorization = await appClient.index.$post({
       ...authorization,
@@ -1355,7 +1353,7 @@ describe("concurrency", () => {
     afterEach(() => vi.useRealTimers());
 
     it("mutex timeout", async () => {
-      const getMutex = vi.spyOn(pandaUtils, "getMutex");
+      const getMutex = vi.spyOn(panda, "getMutex");
       const cardId = `${account2}-card`;
       const promises = Promise.all([
         appClient.index.$post({

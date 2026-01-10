@@ -11,7 +11,7 @@ import type * as OneSignalPlugin from "onesignal-expo-plugin/types/types";
 import metadata from "./package.json";
 import versionCode from "./src/generated/versionCode.js";
 
-const { Mode } = require("onesignal-expo-plugin/build/types/types") as typeof OneSignalPlugin; // eslint-disable-line @typescript-eslint/no-require-imports, unicorn/prefer-module
+const { Mode } = require("onesignal-expo-plugin/build/types/types") as typeof OneSignalPlugin; // eslint-disable-line unicorn/prefer-module
 
 if (env.EAS_BUILD_RUNNER === "eas-build") env.APP_DOMAIN ??= "web.exactly.app";
 if (env.APP_DOMAIN) env.EXPO_PUBLIC_DOMAIN = env.APP_DOMAIN;

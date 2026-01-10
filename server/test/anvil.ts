@@ -1,7 +1,7 @@
 import { Address } from "@exactly/common/validation";
 import deploy from "@exactly/plugin/deploy.json";
 import { $ } from "execa";
-import { readdir } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { env, stderr, stdout } from "node:process";
 import { Instance } from "prool";
 import { literal, object, parse, tuple } from "valibot";
@@ -72,7 +72,7 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
 
   const protocol = parse(
     Protocol,
-    await import(`@exactly/plugin/broadcast/Protocol.s.sol/${foundry.id}/run-latest.json`),
+    JSON.parse(await readFile("node_modules/@exactly/plugin/broadcast/Protocol.s.sol/31337/run-latest.json", "utf8")),
   ).transactions;
   const auditor = protocol[1].contractAddress;
   const exa = protocol[3].contractAddress;
@@ -117,7 +117,7 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
           object({ contractName: literal("MockSwapper"), contractAddress: Address }),
         ]),
       }),
-      await import(`@exactly/plugin/broadcast/Mocks.s.sol/${foundry.id}/run-latest.json`),
+      JSON.parse(await readFile("node_modules/@exactly/plugin/broadcast/Mocks.s.sol/31337/run-latest.json", "utf8")),
     ).transactions[1].contractAddress;
 
     await $(shell)`forge script node_modules/webauthn-owner-plugin/script/Plugin.s.sol --sender ${deployer}
@@ -126,7 +126,7 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
       object({
         transactions: tuple([object({ contractName: literal("WebauthnOwnerPlugin"), contractAddress: Address })]),
       }),
-      await import(`@exactly/plugin/broadcast/Plugin.s.sol/${foundry.id}/run-latest.json`),
+      JSON.parse(await readFile("node_modules/@exactly/plugin/broadcast/Plugin.s.sol/31337/run-latest.json", "utf8")),
     ).transactions[0].contractAddress;
 
     await $(shell)`forge script test/mocks/Account.s.sol
@@ -161,33 +161,25 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
   }
 
   const [issuerChecker, proposalManager, refunder, exaPreviewer, exaPlugin, exaAccountFactory] = await Promise.all([
-    import(`@exactly/plugin/broadcast/IssuerChecker.s.sol/${foundry.id}/run-latest.json`).then(
-      (json) =>
-        parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), json).transactions[0]
-          .contractAddress,
-    ),
-    import(`@exactly/plugin/broadcast/ProposalManager.s.sol/${foundry.id}/run-latest.json`).then(
-      (json) =>
-        parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), json).transactions[0]
-          .contractAddress,
-    ),
-    import(`@exactly/plugin/broadcast/Refunder.s.sol/${foundry.id}/run-latest.json`).then(
-      (json) =>
-        parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), json).transactions[0]
-          .contractAddress,
-    ),
-    import(`@exactly/plugin/broadcast/ExaPreviewer.s.sol/${foundry.id}/run-latest.json`).then(
-      (json) =>
-        parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), json).transactions[0]
-          .contractAddress,
-    ),
-    import(`@exactly/plugin/broadcast/ExaPlugin.s.sol/${foundry.id}/run-latest.json`).then(
-      (json) =>
-        parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), json).transactions[0]
-          .contractAddress,
-    ),
-    import(`@exactly/plugin/broadcast/ExaAccountFactory.s.sol/${foundry.id}/run-latest.json`).then(
-      (json) =>
+    readFile("node_modules/@exactly/plugin/broadcast/IssuerChecker.s.sol/31337/run-latest.json", "utf8"),
+    readFile("node_modules/@exactly/plugin/broadcast/ProposalManager.s.sol/31337/run-latest.json", "utf8"),
+    readFile("node_modules/@exactly/plugin/broadcast/Refunder.s.sol/31337/run-latest.json", "utf8"),
+    readFile("node_modules/@exactly/plugin/broadcast/ExaPreviewer.s.sol/31337/run-latest.json", "utf8"),
+    readFile("node_modules/@exactly/plugin/broadcast/ExaPlugin.s.sol/31337/run-latest.json", "utf8"),
+    readFile("node_modules/@exactly/plugin/broadcast/ExaAccountFactory.s.sol/31337/run-latest.json", "utf8"),
+  ]).then(
+    ([issuerChecker_, proposalManager_, refunder_, exaPreviewer_, exaPlugin_, exaAccountFactory_]) =>
+      [
+        parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), JSON.parse(issuerChecker_))
+          .transactions[0].contractAddress,
+        parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), JSON.parse(proposalManager_))
+          .transactions[0].contractAddress,
+        parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), JSON.parse(refunder_))
+          .transactions[0].contractAddress,
+        parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), JSON.parse(exaPreviewer_))
+          .transactions[0].contractAddress,
+        parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), JSON.parse(exaPlugin_))
+          .transactions[0].contractAddress,
         parse(
           object({
             transactions: tuple([
@@ -195,10 +187,10 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
               object({ contractName: literal("ExaAccountFactory"), contractAddress: Address }),
             ]),
           }),
-          json,
+          JSON.parse(exaAccountFactory_),
         ).transactions[1].contractAddress,
-    ),
-  ]);
+      ] as const,
+  );
 
   if (initialize) {
     const files = await readdir(__dirname, { recursive: true }); // eslint-disable-line unicorn/prefer-module

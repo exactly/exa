@@ -36,7 +36,7 @@
     "typescript": "catalog:"
   },
   "nx": {
-    "projectType": "application",
+    "projectType": "library",
     "namedInputs": {
       "production": [
         "default",

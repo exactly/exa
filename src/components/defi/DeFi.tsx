@@ -1,7 +1,7 @@
 import { CircleHelp, Link } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, type RefObject } from "react";
 import type { RefreshControl } from "react-native";
 import { Pressable } from "react-native";
 import { ScrollView, useTheme, XStack, YStack } from "tamagui";
@@ -289,5 +289,5 @@ function DeFiServiceButton({
   );
 }
 
-export const defiScrollReference = React.createRef<ScrollView>();
-export const defiRefreshControlReference = React.createRef<RefreshControl>();
+export const defiScrollReference: RefObject<ScrollView | null> = { current: null };
+export const defiRefreshControlReference: RefObject<RefreshControl | null> = { current: null };

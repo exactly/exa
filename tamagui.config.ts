@@ -543,6 +543,6 @@ const tamagui = createTamagui({
 
 export type Config = typeof tamagui;
 declare module "tamagui" {
-  interface TamaguiCustomConfig extends Config {}
+  interface TamaguiCustomConfig extends Config {} // eslint-disable-line @typescript-eslint/no-empty-interface
 }
 export default tamagui;

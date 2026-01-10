@@ -4,7 +4,7 @@ import type Crypto from "react-native-quick-crypto";
 
 export async function session() {
   if (Platform.OS !== "web") {
-    const crypto = require("react-native-quick-crypto") as typeof Crypto; // eslint-disable-line @typescript-eslint/no-require-imports, unicorn/prefer-module
+    const crypto = require("react-native-quick-crypto") as typeof Crypto; // eslint-disable-line unicorn/prefer-module
     const secret = crypto.randomUUID().replaceAll("-", "");
     const secretKeyBase64 = Buffer.from(secret, "hex").toString("base64");
     const secretKeyBase64Buffer = Buffer.from(secretKeyBase64, "utf8");
@@ -66,7 +66,7 @@ export async function decrypt(base64Secret: string, base64Iv: string, secretKey:
   }
 
   if (Platform.OS !== "web") {
-    const crypto = require("react-native-quick-crypto") as typeof Crypto; // eslint-disable-line @typescript-eslint/no-require-imports, unicorn/prefer-module
+    const crypto = require("react-native-quick-crypto") as typeof Crypto; // eslint-disable-line unicorn/prefer-module
     const secret = Buffer.from(base64Secret, "base64");
     const iv = Buffer.from(base64Iv, "base64");
     const decipher = crypto.createDecipheriv("aes-128-gcm", Buffer.from(secretKey, "hex"), iv);
@@ -100,7 +100,7 @@ async function encrypt(data: string) {
     const key = await window.crypto.subtle.importKey("raw", keyBytes, { name: "AES-GCM" }, false, ["encrypt"]);
     encryptedData = await window.crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(data));
   } else {
-    const crypto = require("react-native-quick-crypto") as typeof Crypto; // eslint-disable-line @typescript-eslint/no-require-imports, unicorn/prefer-module
+    const crypto = require("react-native-quick-crypto") as typeof Crypto; // eslint-disable-line unicorn/prefer-module
     iv = crypto.randomBytes(16);
     const key = await crypto.subtle.importKey("raw", keyBytes, { name: "AES-GCM" }, false, ["encrypt"]);
     encryptedData = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(data));
