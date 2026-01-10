@@ -2,7 +2,7 @@ import { ArrowRight, Check, X } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
 import { Platform, Pressable } from "react-native";
 import { SvgUri } from "react-native-svg";
 import { ScrollView, Spinner, XStack, YStack } from "tamagui";
@@ -23,7 +23,7 @@ export default function VisaSignatureSheet({ open, onClose }: { open: boolean; o
   const toast = useToastController();
   const router = useRouter();
 
-  const [acknowledged, setAcknowledged] = useState(false);
+  const [acknowledged, setAcknowledged] = useState(true);
 
   const {
     mutateAsync: upgradeCard,
@@ -51,33 +51,24 @@ export default function VisaSignatureSheet({ open, onClose }: { open: boolean; o
     },
   });
 
-  const handleUpgrade = useCallback(async () => {
-    await upgradeCard("DELETED");
-  }, [upgradeCard]);
-
-  const handleSuccess = useCallback(() => {
+  const onSuccess = useCallback(() => {
     reset();
     onClose();
     router.push("/card");
   }, [reset, onClose, router]);
 
-  const handleClose = useCallback(() => {
+  const close = useCallback(() => {
     if (isSuccess) {
-      handleSuccess();
+      onSuccess();
       return;
     }
     onClose();
-  }, [isSuccess, handleSuccess, onClose]);
-
-  useEffect(() => {
-    setAcknowledged(!open);
-  }, [open, reset]);
-
+  }, [isSuccess, onSuccess, onClose]);
   return (
-    <ModalSheet open={open} onClose={handleClose} disableDrag heightPercent={90}>
+    <ModalSheet key={open ? "open" : "closed"} open={open} onClose={close} disableDrag heightPercent={90}>
       <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4" backgroundColor="black">
         <View position="absolute" top="$s5" right="$s5" zIndex={100_000}>
-          <Pressable onPress={handleClose} hitSlop={15}>
+          <Pressable onPress={close} hitSlop={15}>
             <X size={25} color="$uiNeutralSecondary" />
           </Pressable>
         </View>
@@ -152,7 +143,7 @@ export default function VisaSignatureSheet({ open, onClose }: { open: boolean; o
                       disabled={!acknowledged || isPending}
                       onPress={() => {
                         if (!acknowledged) return;
-                        handleUpgrade().catch(reportError);
+                        upgradeCard("DELETED").catch(reportError);
                       }}
                     >
                       <Button.Text>Upgrade Exa Card</Button.Text>
@@ -161,20 +152,14 @@ export default function VisaSignatureSheet({ open, onClose }: { open: boolean; o
                       </Button.Icon>
                     </Button>
                   </YStack>
-                  <Text
-                    onPress={handleClose}
-                    color="$interactiveBaseBrandDefault"
-                    emphasized
-                    footnote
-                    alignSelf="center"
-                  >
+                  <Text onPress={close} color="$interactiveBaseBrandDefault" emphasized footnote alignSelf="center">
                     I&apos;ll upgrade later
                   </Text>
                 </YStack>
               </>
             )}
             {isPending && <Pending />}
-            {isSuccess && <Success onPress={handleSuccess} />}
+            {isSuccess && <Success onPress={onSuccess} />}
           </YStack>
         </ScrollView>
       </SafeView>

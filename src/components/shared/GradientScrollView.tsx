@@ -39,7 +39,6 @@ export default function GradientScrollView({
         showsVerticalScrollIndicator={false}
         stickyHeaderIndices={stickyHeader ? [0] : undefined}
         stickyHeaderHiddenOnScroll={stickyHeader}
-        // eslint-disable-next-line react-native/no-inline-styles
         contentContainerStyle={{
           flexGrow: 1,
           flexDirection: "column",

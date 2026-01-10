@@ -118,7 +118,7 @@ export default function Passkeys() {
           setErrorDialogOpen(false);
         }}
       />
-      {isOwnerAvailable && (
+      {isOwnerAvailable ? (
         <ConnectSheet
           open={connectModalOpen}
           onClose={(method) => {
@@ -131,7 +131,7 @@ export default function Passkeys() {
           webAuthnText="Sign up with Passkey"
           siweText="Sign up with browser wallet"
         />
-      )}
+      ) : null}
     </SafeView>
   );
 }

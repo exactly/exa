@@ -2,7 +2,7 @@ import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/c
 import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { ArrowLeft, CircleHelp } from "@tamagui/lucide-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, type RefObject } from "react";
 import { Pressable, RefreshControl } from "react-native";
 import { ScrollView, useTheme, XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
@@ -106,5 +106,5 @@ export default function Loans() {
   );
 }
 
-export const loansScrollReference = React.createRef<ScrollView>();
-export const loansRefreshControlReference = React.createRef<RefreshControl>();
+export const loansScrollReference: RefObject<ScrollView | null> = { current: null };
+export const loansRefreshControlReference: RefObject<RefreshControl | null> = { current: null };

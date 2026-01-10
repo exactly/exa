@@ -20,7 +20,7 @@ import queryClient, { type ActivityItem as Item } from "../../utils/queryClient"
 import Image from "../shared/Image";
 import Text from "../shared/Text";
 
-registerLocale(require("i18n-iso-countries/langs/en.json") as LocaleData); // eslint-disable-line @typescript-eslint/no-require-imports, unicorn/prefer-module
+registerLocale(require("i18n-iso-countries/langs/en.json") as LocaleData); // eslint-disable-line unicorn/prefer-module
 
 export default function ActivityItem({ item, isLast }: { item: Item; isLast: boolean }) {
   const router = useRouter();

@@ -29,7 +29,7 @@ export default function SentActivity({ item }: { item: Omit<WithdrawActivity, "b
             </Text>
           </Text>
           <Text title primary color="$uiErrorSecondary">
-            {Number(usdAmount).toLocaleString(undefined, {
+            {usdAmount.toLocaleString(undefined, {
               style: "currency",
               currency: "USD",
               currencyDisplay: "narrowSymbol",
@@ -37,7 +37,7 @@ export default function SentActivity({ item }: { item: Omit<WithdrawActivity, "b
           </Text>
           <XStack gap="$s3" alignItems="center">
             <Text emphasized subHeadline color="$uiNeutralSecondary">
-              {Number(amount).toLocaleString(undefined, { maximumFractionDigits: 8, minimumFractionDigits: 0 })}
+              {amount.toLocaleString(undefined, { maximumFractionDigits: 8, minimumFractionDigits: 0 })}
               &nbsp;
               {currency}
             </Text>

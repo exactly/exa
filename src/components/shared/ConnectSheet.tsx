@@ -68,7 +68,7 @@ export default function ConnectSheet({
                   {webAuthnText}
                 </Button>
               )}
-              {isOwnerAvailable && (
+              {isOwnerAvailable ? (
                 <Button
                   onPress={() => {
                     onClose("siwe");
@@ -83,7 +83,7 @@ export default function ConnectSheet({
                 >
                   {siweText}
                 </Button>
-              )}
+              ) : null}
             </YStack>
           </YStack>
         </SafeView>

@@ -9,7 +9,6 @@ export default function SpendingLimit({
   limit,
   totalSpent,
 }: {
-  amount?: number;
   title: string;
   limit?: number;
   totalSpent: number;
@@ -59,14 +58,14 @@ export default function SpendingLimit({
       </XStack>
       <XStack flexDirection="row" flex={1} height={8} alignItems="center" justifyContent="space-between">
         <View width="100%" height={8} borderRadius="$r_0" backgroundColor="$backgroundBrandMild">
-          {limit && (
+          {limit ? (
             <View
               width={`${(totalSpent / limit) * 100}%`}
               height={8}
               borderRadius="$r_0"
               backgroundColor="$uiBrandSecondary"
             />
-          )}
+          ) : null}
         </View>
       </XStack>
     </YStack>

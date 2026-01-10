@@ -47,7 +47,7 @@ export default function CardActivity({
             </Text>
           </Text>
           <Text title primary color={refund ? "$uiSuccessSecondary" : "$uiNeutralPrimary"}>
-            {Math.abs(Number(item.usdAmount)).toLocaleString(undefined, {
+            {Math.abs(item.usdAmount).toLocaleString(undefined, {
               style: "currency",
               currency: "USD",
               currencyDisplay: "narrowSymbol",
@@ -61,8 +61,8 @@ export default function CardActivity({
       <YStack gap="$s7">
         {item.type === "panda" ? (
           <>
-            {item.operations.map((operation, index) => (
-              <YStack key={index} gap="$s7">
+            {item.operations.map((operation) => (
+              <YStack key={operation.id} gap="$s7">
                 <PurchaseDetails item={operation} />
                 {item.usdAmount > 0 && <PaymentDetails item={operation} />}
               </YStack>

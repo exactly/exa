@@ -69,10 +69,7 @@ export default function ReceiverSelection() {
             Send to
           </Text>
         </View>
-        <ScrollView
-          // eslint-disable-next-line react-native/no-inline-styles
-          contentContainerStyle={{ flexGrow: 1 }}
-        >
+        <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
           <YStack flex={1} justifyContent="space-between">
             <YStack gap="$s5">
               <form.Field name="receiver" validators={{ onChange: Address }}>

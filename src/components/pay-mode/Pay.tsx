@@ -20,7 +20,7 @@ import { ArrowLeft, ChevronRight, Coins } from "@tamagui/lucide-icons";
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScrollView, Separator, XStack, YStack } from "tamagui";
@@ -64,7 +64,10 @@ export default function Pay() {
   const { market: exaUSDC } = useAsset(marketUSDCAddress);
   const [enableSimulations, setEnableSimulations] = useState(true);
   const [assetSelectionOpen, setAssetSelectionOpen] = useState(false);
-  const [denyExchanges, setDenyExchanges] = useState<Record<string, boolean>>({});
+  const [denyExchanges, addDeniedExchange] = useReducer(
+    (state: Record<string, boolean>, tool: string) => (state[tool] ? state : { ...state, [tool]: true }),
+    {},
+  );
   const [selectedAsset, setSelectedAsset] = useState<{ address?: Address; external: boolean }>({ external: true });
   const [positionAssets, setPositionAssets] = useState(0n);
   const {
@@ -476,8 +479,8 @@ export default function Pay() {
     ) {
       return;
     }
-    setDenyExchanges((state) => ({ ...state, [route.tool]: true }));
-  }, [route?.tool, simulationError]);
+    addDeniedExchange(route.tool);
+  }, [addDeniedExchange, route?.tool, simulationError]);
 
   const isPending = mode === "external" ? isExternalRepaying : isRepaying;
   const isSuccess = mode === "external" ? isExternalRepaySuccess : isRepaySuccess;
@@ -537,7 +540,7 @@ export default function Pay() {
           </View>
           <ScrollView
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ flex: 1, justifyContent: "space-between" }} // eslint-disable-line react-native/no-inline-styles
+            contentContainerStyle={{ flex: 1, justifyContent: "space-between" }}
           >
             <View padded>
               <YStack gap="$s4" paddingTop="$s5">
@@ -568,7 +571,7 @@ export default function Pay() {
                   positionValue={positionValue}
                   repayMarket={repayMarket?.market}
                 />
-                {positionAssets && (
+                {positionAssets ? (
                   <XStack justifyContent="space-between" gap="$s3" alignItems="center">
                     <Text secondary footnote textAlign="left">
                       Subtotal
@@ -588,8 +591,8 @@ export default function Pay() {
                       )}
                     </XStack>
                   </XStack>
-                )}
-                {repayAssets && (
+                ) : null}
+                {repayAssets ? (
                   <XStack justifyContent="space-between" gap="$s3" alignItems="center">
                     {discountOrPenaltyPercentage >= 0 ? (
                       <Text secondary footnote textAlign="left">
@@ -637,8 +640,8 @@ export default function Pay() {
                       </Text>
                     </XStack>
                   </XStack>
-                )}
-                {repayAssets && (
+                ) : null}
+                {repayAssets ? (
                   <>
                     <Separator height={1} borderColor="$borderNeutralSoft" />
                     <XStack justifyContent="space-between" gap="$s3" alignItems="center">
@@ -683,7 +686,7 @@ export default function Pay() {
                       </YStack>
                     </XStack>
                   </>
-                )}
+                ) : null}
               </YStack>
             </View>
           </ScrollView>
@@ -804,7 +807,6 @@ export default function Pay() {
             </YStack>
           </View>
           <AssetSelectionSheet
-            positions={positions}
             onAssetSelected={handleAssetSelect}
             open={assetSelectionOpen}
             onClose={() => {

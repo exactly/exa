@@ -24,7 +24,7 @@ export default function ReceivedActivity({ item }: { item: Omit<DepositActivity,
             Received
           </Text>
           <Text title primary color="$uiSuccessSecondary">
-            {Number(usdAmount).toLocaleString(undefined, {
+            {usdAmount.toLocaleString(undefined, {
               style: "currency",
               currency: "USD",
               currencyDisplay: "narrowSymbol",
@@ -32,7 +32,7 @@ export default function ReceivedActivity({ item }: { item: Omit<DepositActivity,
           </Text>
           <XStack gap="$s3" alignItems="center">
             <Text emphasized subHeadline color="$uiNeutralSecondary">
-              {Number(amount).toLocaleString(undefined, { maximumFractionDigits: 8, minimumFractionDigits: 0 })}
+              {amount.toLocaleString(undefined, { maximumFractionDigits: 8, minimumFractionDigits: 0 })}
               &nbsp;
               {currency}
             </Text>
