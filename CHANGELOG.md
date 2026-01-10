@@ -1,5 +1,14 @@
 # @exactly/mobile
 
+## 1.0.46
+
+### Patch Changes
+
+- [#629](https://github.com/exactly/exa/pull/629) [`3dfcac5`](https://github.com/exactly/exa/commit/3dfcac555a8b6981802c758da512e75bb5918372) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ⚡️ implement asset logo caching
+
+- Updated dependencies []:
+  - @exactly/server@0.2.48
+
 ## 1.0.45
 
 ### Patch Changes
