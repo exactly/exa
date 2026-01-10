@@ -107,7 +107,7 @@ export default new Hono().post(
                       if (s.success) return [...sessions, s.output];
                       return sessions;
                     }, [])
-                    .sort((a, b) => a.attributes.createdAt.localeCompare(b.attributes.createdAt));
+                    .toSorted((a, b) => a.attributes.createdAt.localeCompare(b.attributes.createdAt));
                 }),
                 minLength(1),
               ),

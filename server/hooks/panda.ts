@@ -923,7 +923,7 @@ function usdcTransfersToCollectors({ calls, logs }: CallFrame): TransferLog[] {
         log.topics[2] !== undefined &&
         collectorTopics.has(log.topics[2]),
     ) ?? []),
-    ...(calls?.flatMap(usdcTransfersToCollectors) ?? []),
+    ...(calls?.flatMap((call) => usdcTransfersToCollectors(call)) ?? []),
   ];
 }
 

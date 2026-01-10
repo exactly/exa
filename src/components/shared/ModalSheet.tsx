@@ -40,8 +40,8 @@ export default function ModalSheet({
       <Sheet.Overlay
         backgroundColor="#00000090"
         animation="quicker"
-        enterStyle={{ opacity: 0 }} // eslint-disable-line react-native/no-inline-styles
-        exitStyle={{ opacity: 0 }} // eslint-disable-line react-native/no-inline-styles
+        enterStyle={{ opacity: 0 }}
+        exitStyle={{ opacity: 0 }}
       />
       <Sheet.Frame>{children}</Sheet.Frame>
     </Sheet>

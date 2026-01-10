@@ -289,7 +289,7 @@ export default new Hono().get(
         }),
       ]
         .filter(<T>(value: T | undefined): value is T => value !== undefined)
-        .sort((a, b) => b.timestamp.localeCompare(a.timestamp) || b.id.localeCompare(a.id)),
+        .toSorted((a, b) => b.timestamp.localeCompare(a.timestamp) || b.id.localeCompare(a.id)),
       200,
     );
   },
@@ -580,7 +580,6 @@ function forbid<T extends object>(value: T) {
   });
 }
 
-/* eslint-disable @typescript-eslint/no-redeclare */
 export type CreditActivity = InferOutput<typeof CreditActivity>;
 export type DebitActivity = InferOutput<typeof DebitActivity>;
 export type DepositActivity = InferOutput<typeof DepositActivity>;
@@ -589,4 +588,3 @@ export type OnchainActivity = InferOutput<typeof OnchainActivity>;
 export type PandaActivity = InferOutput<typeof PandaActivity>;
 export type RepayActivity = InferOutput<typeof RepayActivity>;
 export type WithdrawActivity = InferOutput<typeof WithdrawActivity>;
-/* eslint-enable @typescript-eslint/no-redeclare */

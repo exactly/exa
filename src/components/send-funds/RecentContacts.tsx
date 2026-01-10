@@ -1,7 +1,7 @@
 import type { Address } from "@exactly/common/validation";
 import { TimerReset } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
-import React from "react";
+import React, { useMemo } from "react";
 import { XStack, YStack } from "tamagui";
 
 import Contact from "./Contact";
@@ -9,9 +9,18 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function RecentContacts({ onContactPress }: { onContactPress: (address: Address) => void }) {
-  const { data: recentContacts } = useQuery<{ address: Address; ens: string; lastUsed: Date }[] | undefined>({
+  const { data } = useQuery<{ address: Address; ens: string; lastUsed: Date }[] | undefined>({
     queryKey: ["contacts", "recent"],
   });
+  const contacts = useMemo(() => {
+    if (!data) return;
+    const seen = new Set<Address>();
+    return data.filter((contact) => {
+      if (seen.has(contact.address)) return false;
+      seen.add(contact.address);
+      return true;
+    });
+  }, [data]);
   return (
     <YStack gap="$s5">
       <XStack gap="$s2" alignItems="center">
@@ -20,13 +29,11 @@ export default function RecentContacts({ onContactPress }: { onContactPress: (ad
           Recent
         </Text>
       </XStack>
-      {recentContacts ? (
+      {contacts ? (
         <View gap="$s3_5">
-          {recentContacts
-            .filter((contact, index, array) => array.findIndex((c) => c.address === contact.address) === index)
-            .map((contact, index) => (
-              <Contact key={index} contact={contact} onContactPress={onContactPress} />
-            ))}
+          {contacts.map((contact) => (
+            <Contact key={contact.address} contact={contact} onContactPress={onContactPress} />
+          ))}
         </View>
       ) : (
         <View margin="$s2" borderRadius="$r3" backgroundColor="$uiNeutralTertiary" padding="$s3_5" alignSelf="center">

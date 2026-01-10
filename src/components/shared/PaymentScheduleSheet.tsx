@@ -48,32 +48,35 @@ export default function PaymentScheduleSheet({
                 Unlike monthly payments, our installments are due every 4 weeks, which means payments are aligned with a
                 28-day cycle rather than the calendar month.
               </Text>
-              <YStack gap="$s5">
-                {Array.from({ length: loan?.installments ?? 0 }).map((_, index) => {
-                  const maturity = Number(loan?.maturity) + index * MATURITY_INTERVAL;
-                  return (
-                    <XStack key={index} gap="$s2" alignItems="center" justifyContent="space-between">
-                      <XStack gap="$s3" alignItems="center">
-                        <Text emphasized title3>
-                          {index + 1}
-                        </Text>
-                        <AssetLogo
-                          source={{ uri: symbol ? assetLogos[symbol as keyof typeof assetLogos] : undefined }}
-                          width={16}
-                          height={16}
-                        />
-                        <Text title3 color="$uiNeutralPrimary">
-                          {(Number(installmentsAmount) / 1e6).toLocaleString(undefined, {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}
-                        </Text>
+
+              {loan?.installments && loan.maturity && market ? (
+                <YStack gap="$s5">
+                  {Array.from({ length: loan.installments }).map((_, index) => {
+                    const maturity = Number(loan.maturity) + index * MATURITY_INTERVAL;
+                    return (
+                      <XStack key={maturity} gap="$s2" alignItems="center" justifyContent="space-between">
+                        <XStack gap="$s3" alignItems="center">
+                          <Text emphasized title3>
+                            {index + 1}
+                          </Text>
+                          <AssetLogo
+                            source={{ uri: symbol ? assetLogos[symbol as keyof typeof assetLogos] : undefined }}
+                            width={16}
+                            height={16}
+                          />
+                          <Text title3 color="$uiNeutralPrimary">
+                            {(Number(installmentsAmount) / 10 ** market.decimals).toLocaleString(undefined, {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}
+                          </Text>
+                        </XStack>
+                        <Text title3>{format(new Date(maturity * 1000), "MMM d, yyyy")}</Text>
                       </XStack>
-                      <Text title3>{format(new Date(maturity * 1000), "MMM d, yyyy")}</Text>
-                    </XStack>
-                  );
-                })}
-              </YStack>
+                    );
+                  })}
+                </YStack>
+              ) : null}
             </YStack>
             <YStack gap="$s5">
               <Button onPress={onClose} primary>

@@ -49,7 +49,6 @@ export default function Failure({
           <ScrollView
             showsVerticalScrollIndicator={false}
             stickyHeaderIndices={[0]}
-            // eslint-disable-next-line react-native/no-inline-styles
             contentContainerStyle={{
               flexGrow: 1,
               flexDirection: "column",

@@ -51,7 +51,7 @@ export default function TransactionDetails({
             <OptimismImage height={20} width={20} />
           </XStack>
         </XStack>
-        {item && item.type === "sent" && (
+        {item?.type === "sent" && (
           <XStack justifyContent="space-between">
             <Text emphasized footnote color="$uiNeutralSecondary">
               To
@@ -107,7 +107,9 @@ export default function TransactionDetails({
                 color="$uiNeutralPrimary"
                 cursor="pointer"
                 onPress={() => {
-                  openBrowser(`${chain.blockExplorers?.default.url}/tx/${item.transactionHash}`).catch(reportError);
+                  const explorerUrl = chain.blockExplorers?.default.url;
+                  if (!explorerUrl) return;
+                  openBrowser(`${explorerUrl}/tx/${item.transactionHash}`).catch(reportError);
                 }}
               >
                 {shortenHex(item.transactionHash)}
@@ -115,7 +117,9 @@ export default function TransactionDetails({
               <XStack
                 cursor="pointer"
                 onPress={() => {
-                  setStringAsync(`${chain.blockExplorers?.default.url}/tx/${item.transactionHash}`).catch(reportError);
+                  const explorerUrl = chain.blockExplorers?.default.url;
+                  if (!explorerUrl) return;
+                  setStringAsync(`${explorerUrl}/tx/${item.transactionHash}`).catch(reportError);
                   toast.show("Link copied!", { native: true, duration: 1000, burntOptions: { haptic: "success" } });
                 }}
               >

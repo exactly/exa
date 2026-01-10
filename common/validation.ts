@@ -32,10 +32,8 @@ export const Credential = pipe(
   title("WebAuthn passkey metadata"),
 );
 
-/* eslint-disable @typescript-eslint/no-redeclare */
 export type Address = InferOutput<typeof Address>;
 export type Base64URL = InferOutput<typeof Base64URL>;
 export type Hash = InferOutput<typeof Hash>;
 export type Hex = InferOutput<typeof Hex>;
 export type Credential = InferOutput<typeof Credential>;
-/* eslint-enable @typescript-eslint/no-redeclare */

@@ -1,5 +1,5 @@
 import { ArrowRight, Check, Info, X } from "@tamagui/lucide-icons";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { Pressable } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 
@@ -28,11 +28,6 @@ export default function ConnectionSheet({
   onActionPress: () => void;
 }) {
   const [acknowledged, setAcknowledged] = useState(true);
-
-  useEffect(() => {
-    setAcknowledged(true);
-  }, [open]);
-
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
       <SafeView

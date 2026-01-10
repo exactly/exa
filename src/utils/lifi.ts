@@ -55,9 +55,9 @@ export async function getRoute(
     integrator: "exa_app",
     fromChain: chain.id,
     toChain: chain.id,
-    fromToken: fromToken.toString(),
-    toToken: toToken.toString(),
-    toAmount: toAmount.toString(),
+    fromToken,
+    toToken,
+    toAmount: String(toAmount),
     fromAddress: account,
     toAddress: receiver,
     denyExchanges:
@@ -67,7 +67,7 @@ export async function getRoute(
         .map(([key]) => key),
   });
   if (!transactionRequest?.to || !transactionRequest.data) throw new Error("missing quote transaction data");
-  const chainId = Number(transactionRequest.chainId ?? chain.id);
+  const chainId = transactionRequest.chainId ?? chain.id;
   const gasLimit = transactionRequest.gasLimit;
   return {
     chainId,
@@ -199,7 +199,7 @@ export async function getRouteFrom({
     toChain: toChainId ?? chain.id,
     fromToken: fromTokenAddress,
     toToken: toTokenAddress,
-    fromAmount: fromAmount.toString(),
+    fromAmount: String(fromAmount),
     fromAddress,
     toAddress,
     denyExchanges:
@@ -209,7 +209,7 @@ export async function getRouteFrom({
         .map(([key]) => key),
   });
   if (!transactionRequest?.to || !transactionRequest.data) throw new Error("missing quote transaction data");
-  const chainId = Number(transactionRequest.chainId ?? fromChainId);
+  const chainId = transactionRequest.chainId ?? fromChainId ?? chain.id;
   const gasLimit = transactionRequest.gasLimit;
   return {
     chainId,

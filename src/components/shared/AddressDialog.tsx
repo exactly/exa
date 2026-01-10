@@ -1,7 +1,6 @@
 import chain from "@exactly/common/generated/chain";
 import { Copy } from "@tamagui/lucide-icons";
 import React from "react";
-import { Platform } from "react-native";
 import { AlertDialog, XStack, YStack } from "tamagui";
 
 import Button from "./Button";
@@ -22,24 +21,22 @@ export default function AddressDialog({
   const aspectRatio = useAspectRatio();
   return (
     <AlertDialog open={open}>
-      <AlertDialog.Portal
-        style={Platform.OS === "web" ? { aspectRatio, justifySelf: "center" } : undefined} // eslint-disable-line react-native/no-inline-styles
-      >
+      <AlertDialog.Portal $platform-web={{ aspectRatio, justifySelf: "center" }}>
         <AlertDialog.Overlay
           onPress={onClose}
           key="overlay"
           backgroundColor="black"
           opacity={0.5}
           animation="quicker"
-          enterStyle={{ opacity: 0 }} // eslint-disable-line react-native/no-inline-styles
-          exitStyle={{ opacity: 0 }} // eslint-disable-line react-native/no-inline-styles
+          enterStyle={{ opacity: 0 }}
+          exitStyle={{ opacity: 0 }}
         />
         <AlertDialog.Content
-          style={Platform.OS === "web" ? { backgroundColor: "transparent" } : undefined} // eslint-disable-line react-native/no-inline-styles, react-native/no-color-literals
+          $platform-web={{ backgroundColor: "transparent" }}
           key="content"
           animation={["quicker", { opacity: { overshootClamping: true } }]}
-          enterStyle={{ x: 0, y: -20, opacity: 0, scale: 0.9 }} // eslint-disable-line react-native/no-inline-styles
-          exitStyle={{ x: 0, y: 10, opacity: 0, scale: 0.95 }} // eslint-disable-line react-native/no-inline-styles
+          enterStyle={{ x: 0, y: -20, opacity: 0, scale: 0.9 }}
+          exitStyle={{ x: 0, y: 10, opacity: 0, scale: 0.95 }}
           x={0}
           y={0}
           scale={1}

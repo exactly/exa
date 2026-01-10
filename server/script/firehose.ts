@@ -11,7 +11,7 @@ class ProtoCursor {
   }
 
   readVarint() {
-    let result = BigInt(0);
+    let result = 0n;
     let shift = 0n;
     let byte = 0;
 
@@ -128,7 +128,7 @@ readline
         try {
           const buffer = Buffer.from(payloadBase64!, "base64"); // eslint-disable-line @typescript-eslint/no-non-null-assertion
           const ts = extractTimestamp(buffer);
-          const timestamp = ts === null ? "0" : ts.toString();
+          const timestamp = ts === null ? "0" : String(ts);
           const patch = Buffer.from([0x08, 0x03]); // 0x08 = field 1, wire 0. 0x03 = value 3.
           const newBuffer = Buffer.concat([buffer, patch]);
           const newPayload = newBuffer.toString("base64");

@@ -5,17 +5,15 @@ import { XStack, YStack } from "tamagui";
 import Text from "../../shared/Text";
 import View from "../../shared/View";
 
-const steps = Array.from({ length: 3 }, (_, index) => index);
-
 export default function Progression() {
   const { data: step } = useQuery<number | undefined>({ queryKey: ["card-upgrade"] });
-  const remainingSteps = steps.length - (step ?? 0);
+  const remainingSteps = Math.max(0, 3 - (step ?? 0));
   return (
     <YStack gap="$s3_5">
       <XStack width="100%" justifyContent="space-between" gap="$s2">
-        {steps.map((_, index) => (
+        {Array.from({ length: 3 }).map((_, index) => (
           <View
-            key={index}
+            key={index} // eslint-disable-line @eslint-react/no-array-index-key
             flex={1}
             height={8}
             backgroundColor={index > (step ?? 0) - 1 ? "$uiBrandTertiary" : "$uiBrandSecondary"}

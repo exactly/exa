@@ -168,10 +168,10 @@ export default function PendingProposals() {
               </YStack>
             )}
             {pendingProposals?.map(({ nonce, proposal }) => {
-              return <ProposalItem key={nonce.toString()} proposal={proposal} />;
+              return <ProposalItem key={String(nonce)} proposal={proposal} />;
             })}
-            {mutations.map((mutation, index) => {
-              return <MutationItem key={index} mutation={mutation} />;
+            {mutations.map((mutation) => {
+              return <MutationItem key={mutation.id} mutation={mutation} />;
             })}
           </View>
         </ScrollView>
@@ -263,7 +263,7 @@ function ProposalItem({ proposal }: { proposal: Proposal }) {
   );
 }
 
-function MutationItem({ mutation }: { mutation: MutationState<unknown, Error, RouteFrom> }) {
+function MutationItem({ mutation }: { mutation: MutationState<unknown, Error, RouteFrom> & { id: number } }) {
   const { name: sourceChainName } = extractChain({
     chains: Object.values(chains) as unknown as readonly [Chain, ...Chain[]],
     id: mutation.variables?.chainId ?? 0,

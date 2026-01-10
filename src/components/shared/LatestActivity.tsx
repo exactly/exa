@@ -56,9 +56,9 @@ export default function LatestActivity({
               </Text>
             </YStack>
           ))}
-        {activity
-          ?.slice(0, 4)
-          .map((item, index, items) => <ActivityItem key={item.id} item={item} isLast={index === items.length - 1} />)}
+        {activity?.slice(0, 4).map((item, index, items) => (
+          <ActivityItem key={item.id} item={item} isLast={index === items.length - 1} />
+        ))}
       </YStack>
     </View>
   );

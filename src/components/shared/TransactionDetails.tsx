@@ -42,34 +42,40 @@ export default function TransactionDetails({ hash }: { hash?: string }) {
           </XStack>
         </XStack>
         {hash && (
-          <>
+          <XStack
+            hitSlop={15}
+            justifyContent="space-between"
+            alignItems="center"
+            cursor="pointer"
+            onPress={() => {
+              setStringAsync(hash)
+                .then(() => Alert.alert("Copied", "The transaction hash has been copied to the clipboard."))
+                .catch((error: unknown) => {
+                  reportError(error);
+                  Alert.alert("Error", "Failed to copy the transaction hash to the clipboard.");
+                });
+            }}
+          >
+            <Text emphasized footnote color="$uiNeutralSecondary">
+              Transaction hash
+            </Text>
             <XStack
-              hitSlop={15}
-              justifyContent="space-between"
+              gap="$s2"
               alignItems="center"
-              onPress={() => {
-                setStringAsync(hash).catch(reportError);
-                Alert.alert("Copied", "The transaction hash has been copied to the clipboard.");
+              cursor="pointer"
+              onPress={(event) => {
+                event.stopPropagation();
+                const explorerUrl = chain.blockExplorers?.default.url;
+                if (!explorerUrl) return;
+                openBrowser(`${explorerUrl}/tx/${hash}`).catch(reportError);
               }}
             >
-              <Text emphasized footnote color="$uiNeutralSecondary">
-                Transaction hash
+              <Text callout fontFamily="$mono" textDecorationLine="underline">
+                {shortenHex(hash)}
               </Text>
-              <XStack gap="$s2" alignItems="center" cursor="pointer">
-                <Text
-                  callout
-                  fontFamily="$mono"
-                  textDecorationLine="underline"
-                  onPress={() => {
-                    openBrowser(`${chain.blockExplorers?.default.url}/tx/${hash}`).catch(reportError);
-                  }}
-                >
-                  {shortenHex(hash)}
-                </Text>
-                <ExternalLink size={20} color="$uiBrandPrimary" />
-              </XStack>
+              <ExternalLink size={20} color="$uiBrandPrimary" />
             </XStack>
-          </>
+          </XStack>
         )}
         <XStack justifyContent="space-between">
           <Text emphasized footnote color="$uiNeutralSecondary">

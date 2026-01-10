@@ -1,39 +1,33 @@
 import { sdk } from "@farcaster/miniapp-sdk";
 import { useQuery } from "@tanstack/react-query";
-import React, { useLayoutEffect as useClientLayoutEffect, useState } from "react";
+import React from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { ViewProperties } from "./View";
 import View from "./View";
 import reportError from "../../utils/reportError";
 
-const useLayoutEffect = typeof window === "undefined" ? () => undefined : useClientLayoutEffect;
-
 export default function SafeView({ children, ...rest }: ViewProperties) {
-  const { top, bottom, left, right } = useSafeAreaInsets();
+  const deviceInsets = useSafeAreaInsets();
   const { data: isMiniApp } = useQuery({ queryKey: ["is-miniapp"] });
-  const [insets, setInsets] = useState<{ top: number; bottom: number; left: number; right: number }>({
-    top,
-    bottom,
-    left,
-    right,
+  const { data: miniAppInsets } = useQuery({
+    queryKey: ["miniapp-insets"],
+    queryFn: async () => {
+      try {
+        const { client } = await sdk.context;
+        return client.safeAreaInsets ?? null;
+      } catch (error) {
+        reportError(error);
+        return null;
+      }
+    },
+    enabled: !!isMiniApp,
+    staleTime: Infinity,
+    retry: false,
   });
-  useLayoutEffect(() => {
-    if (isMiniApp) {
-      sdk.context
-        .then(({ client: { safeAreaInsets } }) => {
-          setInsets({
-            top: safeAreaInsets?.top ?? top,
-            bottom: safeAreaInsets?.bottom ?? bottom,
-            left: safeAreaInsets?.left ?? left,
-            right: safeAreaInsets?.right ?? right,
-          });
-        })
-        .catch(reportError);
-    } else {
-      setInsets({ top, bottom, left, right });
-    }
-  }, [bottom, left, right, top, isMiniApp]);
+
+  const insets = isMiniApp && miniAppInsets ? miniAppInsets : deviceInsets;
+
   return (
     <View
       paddingTop={insets.top}

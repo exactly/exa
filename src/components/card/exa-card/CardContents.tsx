@@ -36,7 +36,7 @@ export default function CardContents({
   /* istanbul ignore next */
   const rStyle = useAnimatedStyle(() => {
     rotation.value += 1;
-    const rotationValue = `${(rotation.value % 360).toString()}deg`;
+    const rotationValue = `${rotation.value % 360}deg`;
     return { transform: [{ rotate: rotationValue }] };
   });
   return (
@@ -63,8 +63,8 @@ export default function CardContents({
               <View
                 key="credit"
                 animation="moderate"
-                enterStyle={{ opacity: 0, transform: [{ translateX: -100 }] }} // eslint-disable-line react-native/no-inline-styles
-                exitStyle={{ opacity: 0, transform: [{ translateX: -100 }] }} // eslint-disable-line react-native/no-inline-styles
+                enterStyle={{ opacity: 0, transform: [{ translateX: -100 }] }}
+                exitStyle={{ opacity: 0, transform: [{ translateX: -100 }] }}
                 transform={[{ translateX: 0 }]}
               >
                 <Text sensitive color="white" title maxFontSizeMultiplier={1} numberOfLines={1}>
@@ -92,8 +92,8 @@ export default function CardContents({
               <View
                 key="debit"
                 animation="moderate"
-                enterStyle={{ opacity: 0, transform: [{ translateX: 100 }] }} // eslint-disable-line react-native/no-inline-styles
-                exitStyle={{ opacity: 0, transform: [{ translateX: 100 }] }} // eslint-disable-line react-native/no-inline-styles
+                enterStyle={{ opacity: 0, transform: [{ translateX: 100 }] }}
+                exitStyle={{ opacity: 0, transform: [{ translateX: 100 }] }}
                 transform={[{ translateX: 0 }]}
               >
                 <Text sensitive color="white" title maxFontSizeMultiplier={1} numberOfLines={1}>

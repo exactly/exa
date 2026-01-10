@@ -155,7 +155,9 @@ export default new Hono().post(
     await Promise.all([
       ...proposalsByAccount
         .values()
-        .flatMap((ps) => ps.sort((a, b) => Number(a.nonce - b.nonce)).map((proposal) => scheduleProposal(proposal))),
+        .flatMap((ps) =>
+          ps.toSorted((a, b) => Number(a.nonce - b.nonce)).map((proposal) => scheduleProposal(proposal)),
+        ),
       ...oldWithdraws.map(async (event) => {
         const withdraw = v.parse(Withdraw, { ...event.args, timestamp });
         return startSpan(
@@ -293,7 +295,7 @@ function scheduleMessage(message: string) {
                           userId: account,
                           headings: { en: "Withdraw completed" },
                           contents: {
-                            en: `${formatUnits(BigInt(amount), decimals)} ${symbol.slice(3)} sent to ${ensName ?? shortenHex(receiver)}`,
+                            en: `${formatUnits(amount, decimals)} ${symbol.slice(3)} sent to ${ensName ?? shortenHex(receiver)}`,
                           },
                         }),
                       )
@@ -491,7 +493,7 @@ findWebhook(({ webhook_type, webhook_url }) => webhook_type === "GRAPHQL" && web
     logs(
       filter: {
         addresses: ${JSON.stringify(
-          [...new Set([...currentAddresses, exaPluginAddress, proposalManagerAddress])].sort(),
+          [...new Set([...currentAddresses, exaPluginAddress, proposalManagerAddress])].toSorted(),
         )}
         topics: [
           [

@@ -1,6 +1,6 @@
 import { Skeleton } from "moti/skeleton";
 import React from "react";
-import { View, XStack, YStack } from "tamagui";
+import { XStack, YStack } from "tamagui";
 
 import Text from "../shared/Text";
 
@@ -9,15 +9,18 @@ export default function SpendingLimit({
   limit,
   totalSpent,
 }: {
-  amount?: number;
   title: string;
   limit?: number;
   totalSpent: number;
 }) {
+  const percent =
+    limit !== undefined && Number.isFinite(limit) && limit > 0
+      ? Math.max(0, Math.min(100, (totalSpent / limit) * 100))
+      : undefined;
   return (
     <YStack justifyContent="flex-start" paddingHorizontal="$s3">
-      <XStack flexDirection="row" flex={1} height={46} alignItems="center" justifyContent="space-between">
-        <View flexDirection="row" gap={5} alignItems="center">
+      <XStack flex={1} height={46} alignItems="center" justifyContent="space-between">
+        <XStack gap={5} alignItems="center">
           <Text emphasized callout>
             {title}
           </Text>
@@ -36,8 +39,8 @@ export default function SpendingLimit({
           ) : (
             <Skeleton width={100} height={16} />
           )}
-        </View>
-        <View flexDirection="row" gap={5} alignItems="center">
+        </XStack>
+        <XStack gap={5} alignItems="center">
           {limit ? (
             <>
               <Text callout sensitive color="$uiBrandSecondary">
@@ -55,19 +58,14 @@ export default function SpendingLimit({
           ) : (
             <Skeleton width={100} height={16} />
           )}
-        </View>
+        </XStack>
       </XStack>
-      <XStack flexDirection="row" flex={1} height={8} alignItems="center" justifyContent="space-between">
-        <View width="100%" height={8} borderRadius="$r_0" backgroundColor="$backgroundBrandMild">
-          {limit && (
-            <View
-              width={`${(totalSpent / limit) * 100}%`}
-              height={8}
-              borderRadius="$r_0"
-              backgroundColor="$uiBrandSecondary"
-            />
+      <XStack flex={1} height="$s3" alignItems="center" justifyContent="space-between">
+        <XStack width="100%" height="$s3" borderRadius="$r_0" backgroundColor="$backgroundBrandMild">
+          {percent === undefined ? null : (
+            <XStack width={`${percent}%`} height="$s3" borderRadius="$r_0" backgroundColor="$uiBrandSecondary" />
           )}
-        </View>
+        </XStack>
       </XStack>
     </YStack>
   );

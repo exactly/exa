@@ -129,7 +129,7 @@ export default function AmountSelector({
             const danger = selected && index === 3;
             return (
               <XStack
-                key={index}
+                key={percentage}
                 borderWidth={1}
                 borderRadius="$r_0"
                 alignItems="center"

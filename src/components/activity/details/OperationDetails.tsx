@@ -44,7 +44,7 @@ export default function OperationDetails({ item }: { item: CreditActivity | Debi
             Total
           </Text>
           <Text callout color="$uiNeutralPrimary">
-            {Number(item.usdAmount).toLocaleString(undefined, {
+            {item.usdAmount.toLocaleString(undefined, {
               style: "currency",
               currency: "USD",
               currencyDisplay: "narrowSymbol",
@@ -58,10 +58,9 @@ export default function OperationDetails({ item }: { item: CreditActivity | Debi
               Installments
             </Text>
             <Text emphasized callout color="$uiNeutralPrimary">
-              {item.mode === 1 && `1x ${Number(item.usdAmount + item.borrow.fee).toFixed(2)}`}
+              {item.mode === 1 && `1x ${(item.usdAmount + item.borrow.fee).toFixed(2)}`}
               {item.mode > 1 && `${(item as InstallmentsActivity).borrow.installments.length}x`}&nbsp;
-              {item.mode > 1 &&
-                Number(item.usdAmount / (item as InstallmentsActivity).borrow.installments.length).toFixed(2)}
+              {item.mode > 1 && (item.usdAmount / (item as InstallmentsActivity).borrow.installments.length).toFixed(2)}
               &nbsp;USDC
             </Text>
           </XStack>
@@ -123,7 +122,9 @@ export default function OperationDetails({ item }: { item: CreditActivity | Debi
             alignItems="center"
             gap="$s3"
             onPress={() => {
-              openBrowser(`${chain.blockExplorers?.default.url}/tx/${item.transactionHash}`).catch(reportError);
+              const explorerUrl = chain.blockExplorers?.default.url;
+              if (!explorerUrl) return;
+              openBrowser(`${explorerUrl}/tx/${item.transactionHash}`).catch(reportError);
             }}
           >
             <Text textDecorationLine="underline" callout color="$uiNeutralPrimary">

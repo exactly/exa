@@ -3,6 +3,7 @@ import { Search } from "@tamagui/lucide-icons";
 import React, { useState, useMemo } from "react";
 import { FlatList, Image, Pressable } from "react-native";
 import { XStack, YStack, ButtonIcon } from "tamagui";
+import { formatUnits } from "viem";
 
 import useAccountAssets from "../../utils/useAccountAssets";
 import Button from "../shared/Button";
@@ -13,40 +14,7 @@ import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-interface TokenSelectModalProperties {
-  open: boolean;
-  tokens: Token[];
-  selectedToken?: Token | null;
-  onSelect: (token: Token) => void;
-  onClose: () => void;
-  isLoading?: boolean;
-  title?: string;
-  withBalanceOnly?: boolean;
-}
-
-interface TokenListItemProperties {
-  token: Token;
-  isSelected: boolean;
-  onPress: () => void;
-}
-
-const formatUSDValue = (value: number) => {
-  return value.toLocaleString(undefined, {
-    style: "currency",
-    currency: "USD",
-    currencyDisplay: "narrowSymbol",
-  });
-};
-
-const formatTokenAmount = (amount: bigint, decimals: number) => {
-  const tokenAmount = Number(amount) / 10 ** decimals;
-  return tokenAmount.toLocaleString(undefined, {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: Math.min(8, Math.max(0, decimals - Math.ceil(Math.log10(Math.max(1, tokenAmount))))),
-  });
-};
-
-function TokenListItem({ token, isSelected, onPress }: TokenListItemProperties) {
+function TokenListItem({ token, isSelected, onPress }: { token: Token; isSelected: boolean; onPress: () => void }) {
   const { accountAssets } = useAccountAssets();
   const matchingAsset = accountAssets.find(
     (asset) =>
@@ -65,7 +33,7 @@ function TokenListItem({ token, isSelected, onPress }: TokenListItemProperties) 
         <Image
           source={{ uri: token.logoURI ?? "https://via.placeholder.com/40" }}
           borderRadius={20}
-          style={{ minWidth: 40, minHeight: 40, borderRadius: 99 }} // eslint-disable-line react-native/no-inline-styles
+          style={{ minWidth: 40, minHeight: 40, borderRadius: 99 }}
         />
         <XStack gap="$s2" flex={1} justifyContent="space-between">
           <YStack flex={1}>
@@ -115,7 +83,16 @@ export default function TokenSelectModal({
   isLoading = false,
   title = "Select Token",
   withBalanceOnly = false,
-}: TokenSelectModalProperties) {
+}: {
+  open: boolean;
+  tokens: Token[];
+  selectedToken?: Token | null;
+  onSelect: (token: Token) => void;
+  onClose: () => void;
+  isLoading?: boolean;
+  title?: string;
+  withBalanceOnly?: boolean;
+}) {
   const [searchQuery, setSearchQuery] = useState("");
   const { accountAssets } = useAccountAssets();
 
@@ -141,31 +118,6 @@ export default function TokenSelectModal({
     });
   }, [searchQuery, tokens, withBalanceOnly, accountAssets]);
 
-  const handleTokenSelect = (token: Token) => {
-    onSelect(token);
-    setSearchQuery("");
-  };
-
-  const renderTokenItem = ({ item }: { item: Token }) => (
-    <TokenListItem
-      token={item}
-      isSelected={selectedToken?.address === item.address}
-      onPress={() => {
-        handleTokenSelect(item);
-      }}
-    />
-  );
-
-  const skeletonItems = useMemo(
-    () => (
-      <YStack>
-        {Array.from({ length: 8 }).map((_, index) => (
-          <TokenSkeletonItem key={index} />
-        ))}
-      </YStack>
-    ),
-    [],
-  );
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag heightPercent={85}>
       <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
@@ -202,11 +154,20 @@ export default function TokenSelectModal({
           </View>
           <View flex={1}>
             {isLoading ? (
-              skeletonItems
+              <SkeletonItems />
             ) : (
               <FlatList
                 data={filteredTokens}
-                renderItem={renderTokenItem}
+                renderItem={({ item }) => (
+                  <TokenListItem
+                    token={item}
+                    isSelected={selectedToken?.address === item.address}
+                    onPress={() => {
+                      onSelect(item);
+                      setSearchQuery("");
+                    }}
+                  />
+                )}
                 keyExtractor={(item) => item.address}
                 showsVerticalScrollIndicator={false}
                 ItemSeparatorComponent={() => <View height={1} />}
@@ -224,4 +185,31 @@ export default function TokenSelectModal({
       </SafeView>
     </ModalSheet>
   );
+}
+
+function SkeletonItems() {
+  return (
+    <YStack>
+      {Array.from({ length: 8 }).map((_, index) => (
+        <TokenSkeletonItem key={index} /> // eslint-disable-line @eslint-react/no-array-index-key
+      ))}
+    </YStack>
+  );
+}
+
+function formatUSDValue(value: number) {
+  return value.toLocaleString(undefined, {
+    style: "currency",
+    currency: "USD",
+    currencyDisplay: "narrowSymbol",
+  });
+}
+
+function formatTokenAmount(amount: bigint, decimals: number) {
+  const tokenAmount = Number(formatUnits(amount, decimals));
+  if (tokenAmount === 0) return "0";
+  return tokenAmount.toLocaleString(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: Math.min(8, Math.max(0, decimals - Math.ceil(Math.log10(tokenAmount)))),
+  });
 }

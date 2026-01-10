@@ -100,8 +100,8 @@ function AssetSection({ title, assets }: { title: string; assets: AssetItem[] })
       <Text emphasized headline color="$uiNeutralPrimary">
         {title}
       </Text>
-      {assets.map((asset, index) => (
-        <AssetRow key={index} asset={asset} />
+      {assets.map((asset) => (
+        <AssetRow key={asset.symbol} asset={asset} />
       ))}
     </YStack>
   );
@@ -147,7 +147,7 @@ export default function AssetList() {
     logoURI,
     amount: amount ?? 0n,
     decimals,
-    usdValue: parseUnits(usdValue.toString(), 18),
+    usdValue: parseUnits(String(usdValue), 18),
     usdPrice: parseUnits(priceUSD, 18),
   }));
 
