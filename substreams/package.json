@@ -51,6 +51,7 @@
       },
       "test:clippy": {
         "dependsOn": [
+          "build",
           "prepare",
           "^prepare",
           "^build",
