@@ -1,5 +1,3 @@
-import type { ParamListBase } from "@react-navigation/native";
-import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Stack } from "expo-router";
 import React from "react";
 
@@ -15,12 +13,4 @@ export default function SendFundsLayout() {
       <Stack.Screen name="amount" />
     </Stack>
   );
-}
-
-export type SendFundsNavigationProperties = NativeStackNavigationProp<SendFundsParameterList>;
-export interface SendFundsParameterList extends ParamListBase {
-  index: undefined;
-  qr: undefined;
-  asset: undefined;
-  amount: undefined;
 }

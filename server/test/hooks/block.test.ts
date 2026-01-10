@@ -118,7 +118,10 @@ describe("proposal", () => {
             },
           },
         }),
-        vi.waitUntil(() => waitForTransactionReceipt.mock.settledResults.length >= 2, 26_666),
+        vi.waitUntil(
+          () => waitForTransactionReceipt.mock.settledResults.filter(({ type }) => type !== "incomplete").length >= 2,
+          26_666,
+        ),
       ]);
 
       const [withdrawReceipt, anotherWithdrawReceipt] = waitForTransactionReceipt.mock.settledResults;
@@ -175,7 +178,10 @@ describe("proposal", () => {
             },
           },
         }),
-        vi.waitUntil(() => waitForTransactionReceipt.mock.settledResults.length > 0, 26_666),
+        vi.waitUntil(
+          () => waitForTransactionReceipt.mock.settledResults.some(({ type }) => type !== "incomplete"),
+          26_666,
+        ),
       ]);
 
       await expect(
@@ -228,7 +234,7 @@ describe("proposal", () => {
         },
       });
 
-      await vi.waitUntil(() => waitForTransactionReceipt.mock.settledResults.length > 0);
+      await vi.waitUntil(() => waitForTransactionReceipt.mock.settledResults.some(({ type }) => type !== "incomplete"));
       const withdrawReceipt = waitForTransactionReceipt.mock.settledResults[0];
       const newNonce =
         withdrawReceipt && withdrawReceipt.type === "fulfilled" && withdrawReceipt.value.logs.length === 1
@@ -276,7 +282,10 @@ describe("proposal", () => {
             },
           },
         }),
-        vi.waitUntil(() => waitForTransactionReceipt.mock.settledResults.length > 0, 6666),
+        vi.waitUntil(
+          () => waitForTransactionReceipt.mock.settledResults.some(({ type }) => type !== "incomplete"),
+          6666,
+        ),
       ]);
 
       await expect(
@@ -330,7 +339,10 @@ describe("proposal", () => {
             },
           },
         }),
-        vi.waitUntil(() => waitForTransactionReceipt.mock.settledResults.length >= 5, 26_666),
+        vi.waitUntil(
+          () => waitForTransactionReceipt.mock.settledResults.filter(({ type }) => type !== "incomplete").length >= 5,
+          26_666,
+        ),
       ]);
 
       const withdrawReceipt = waitForTransactionReceipt.mock.settledResults[3];
@@ -426,3 +438,5 @@ async function getLogs(hashes: Hex[]) {
     strict: true,
   });
 }
+
+afterEach(() => vi.restoreAllMocks());

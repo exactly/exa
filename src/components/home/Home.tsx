@@ -8,7 +8,7 @@ import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
 import { healthFactor, WAD } from "@exactly/lib";
 import { TimeToFullDisplay } from "@sentry/react-native";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigation, useLocalSearchParams } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
 import { RefreshControl } from "react-native";
 import { ScrollView, useTheme, YStack } from "tamagui";
@@ -24,7 +24,6 @@ import SpendingLimitsSheet from "./SpendingLimitsSheet";
 import VisaSignatureBanner from "./VisaSignatureBanner";
 import VisaSignatureModal from "./VisaSignatureSheet";
 import CardUpgradeSheet from "./card-upgrade/CardUpgradeSheet";
-import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import { KYC_TEMPLATE_ID, LEGACY_KYC_TEMPLATE_ID } from "../../utils/persona";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
@@ -46,7 +45,7 @@ const HEALTH_FACTOR_THRESHOLD = (WAD * 11n) / 10n;
 export default function Home() {
   const theme = useTheme();
   const parameters = useLocalSearchParams();
-  const navigation = useNavigation<AppNavigationProperties>();
+  const router = useRouter();
   const [paySheetOpen, setPaySheetOpen] = useState(false);
   const [spendingLimitsInfoSheetOpen, setSpendingLimitsInfoSheetOpen] = useState(false);
   const [visaSignatureModalOpen, setVisaSignatureModalOpen] = useState(false);
@@ -178,13 +177,13 @@ export default function Home() {
               <GettingStarted hasFunds={usdBalance > 0n} hasKYC={KYCStatus === "ok"} />
               <OverduePayments
                 onSelect={(maturity) => {
-                  navigation.setParams({ ...parameters, maturity: maturity.toString() });
+                  router.setParams({ ...parameters, maturity: String(maturity) });
                   setPaySheetOpen(true);
                 }}
               />
               <UpcomingPayments
                 onSelect={(maturity) => {
-                  navigation.setParams({ ...parameters, maturity: maturity.toString() });
+                  router.setParams({ ...parameters, maturity: String(maturity) });
                   setPaySheetOpen(true);
                 }}
               />
@@ -196,7 +195,7 @@ export default function Home() {
             open={paySheetOpen}
             onClose={() => {
               setPaySheetOpen(false);
-              navigation.setParams({ ...parameters, maturity: undefined });
+              router.setParams({ ...parameters, maturity: undefined });
             }}
           />
           <CardUpgradeSheet

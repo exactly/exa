@@ -24,6 +24,15 @@ module.exports = {
       new RegExp(path.join(__dirname, "public/")),
       new RegExp(path.join(__dirname, "server/")),
     ],
+    resolveRequest: (context, moduleName, platform) => {
+      if (moduleName === "tslib") return context.resolveRequest(context, "tslib/tslib.es6.js", platform);
+      try {
+        return context.resolveRequest(context, moduleName, platform);
+      } catch (error) {
+        if (moduleName.endsWith(".js")) return context.resolveRequest(context, moduleName.slice(0, -3), platform);
+        throw error;
+      }
+    },
   },
   transformer: {
     ...config.transformer,

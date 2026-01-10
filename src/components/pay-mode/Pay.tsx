@@ -19,7 +19,7 @@ import { divWad, fixedRepayAssets, fixedRepayPosition, min, mulWad, WAD } from "
 import { ArrowLeft, ChevronRight, Coins } from "@tamagui/lucide-icons";
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { useNavigation, useLocalSearchParams } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -37,7 +37,6 @@ import { useBytecode, useReadContract, useSimulateContract, useWriteContract } f
 
 import AssetSelectionSheet from "./AssetSelectionSheet";
 import RepayAmountSelector from "./RepayAmountSelector";
-import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import SafeView from "../../components/shared/SafeView";
 import Button from "../../components/shared/StyledButton";
 import Text from "../../components/shared/Text";
@@ -60,7 +59,7 @@ import Success from "../shared/Success";
 export default function Pay() {
   const insets = useSafeAreaInsets();
   const { address: account } = useAccount();
-  const navigation = useNavigation<AppNavigationProperties>();
+  const router = useRouter();
   const { accountAssets } = useAccountAssets({ sortBy: "usdcFirst" });
   const { market: exaUSDC } = useAsset(marketUSDCAddress);
   const [enableSimulations, setEnableSimulations] = useState(true);
@@ -342,7 +341,7 @@ export default function Pay() {
   });
 
   const {
-    writeContract,
+    mutate,
     isPending: isRepaying,
     isSuccess: isRepaySuccess,
     error: writeContractError,
@@ -361,19 +360,19 @@ export default function Pay() {
     switch (mode) {
       case "repay":
         if (!repayPropose) throw new Error("no repay simulation");
-        writeContract(repayPropose.request);
+        mutate(repayPropose.request);
         break;
       case "legacyRepay":
         if (!legacyRepaySimulation) throw new Error("no legacy repay simulation");
-        writeContract(legacyRepaySimulation.request);
+        mutate(legacyRepaySimulation.request);
         break;
       case "crossRepay":
         if (!crossRepayPropose) throw new Error("no cross repay simulation");
-        writeContract(crossRepayPropose.request);
+        mutate(crossRepayPropose.request);
         break;
       case "legacyCrossRepay":
         if (!legacyCrossRepaySimulation) throw new Error("no legacy cross repay simulation");
-        writeContract(legacyCrossRepaySimulation.request);
+        mutate(legacyCrossRepaySimulation.request);
         break;
     }
     setEnableSimulations(false);
@@ -388,7 +387,7 @@ export default function Pay() {
     repayPropose,
     route?.fromAmount,
     withUSDC,
-    writeContract,
+    mutate,
   ]);
 
   const {
@@ -520,10 +519,10 @@ export default function Pay() {
             <View padded position="absolute" left={0}>
               <Pressable
                 onPress={() => {
-                  if (navigation.canGoBack()) {
-                    navigation.goBack();
+                  if (router.canGoBack()) {
+                    router.back();
                   } else {
-                    navigation.replace("(main)");
+                    router.replace("/(main)/(home)");
                   }
                 }}
               >
@@ -824,10 +823,10 @@ export default function Pay() {
         currency={symbol}
         selectedAsset={selectedAsset.address}
         onClose={() => {
-          if (navigation.canGoBack()) {
-            navigation.goBack();
+          if (router.canGoBack()) {
+            router.back();
           } else {
-            navigation.replace("(main)");
+            router.replace("/(main)/(home)");
           }
         }}
       />
@@ -841,7 +840,7 @@ export default function Pay() {
         currency={symbol}
         selectedAsset={selectedAsset.address}
         onClose={() => {
-          navigation.replace(isLatestPlugin ? "pending-proposals/index" : "(main)");
+          router.replace(isLatestPlugin ? "/pending-proposals" : "/(main)/(home)");
         }}
       />
     );
@@ -854,10 +853,10 @@ export default function Pay() {
         currency={symbol}
         selectedAsset={selectedAsset.address}
         onClose={() => {
-          if (navigation.canGoBack()) {
-            navigation.goBack();
+          if (router.canGoBack()) {
+            router.back();
           } else {
-            navigation.replace("(main)");
+            router.replace("/(main)/(home)");
           }
         }}
       />

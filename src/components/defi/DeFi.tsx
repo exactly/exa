@@ -1,6 +1,6 @@
 import { CircleHelp, Link } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigation } from "expo-router";
+import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import type { RefreshControl } from "react-native";
 import { Pressable } from "react-native";
@@ -12,7 +12,6 @@ import AboutDefiSheet from "./AboutDefiSheet";
 import ConnectionSheet from "./ConnectionSheet";
 import DisconnectSheet from "./DisconnectSheet";
 import IntroSheet from "./IntroSheet";
-import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import ExactlyLogo from "../../assets/images/exactly.svg";
 import LiFiLogo from "../../assets/images/lifi.svg";
 import openBrowser from "../../utils/openBrowser";
@@ -24,7 +23,7 @@ import Text from "../shared/Text";
 
 export default function DeFi() {
   const theme = useTheme();
-  const navigation = useNavigation<AppNavigationProperties>();
+  const router = useRouter();
   const { data: shown } = useQuery<boolean>({ queryKey: ["settings", "defi-intro-shown"] });
   const { data: fundingConnected } = useQuery<boolean>({ queryKey: ["defi", "usdc-funding-connected"] });
   const { data: lifiConnected } = useQuery<boolean>({ queryKey: ["defi", "lifi-connected"] });
@@ -57,7 +56,7 @@ export default function DeFi() {
             connected={fundingConnected ?? false}
             onPress={() => {
               if (fundingConnected) {
-                navigation.navigate("loan", { screen: "index" });
+                router.push("/loan");
               } else {
                 setFundingSheetOpen(true);
               }
@@ -74,7 +73,7 @@ export default function DeFi() {
               connected={lifiConnected ?? false}
               onPress={() => {
                 if (lifiConnected) {
-                  navigation.navigate("swaps/index");
+                  router.push("/swaps");
                 } else {
                   setLifiSheetOpen(true);
                 }
@@ -140,7 +139,7 @@ export default function DeFi() {
         onActionPress={() => {
           setFundingSheetOpen(false);
           queryClient.setQueryData(["defi", "usdc-funding-connected"], true);
-          navigation.navigate("loan", { screen: "index" });
+          router.push("/loan");
         }}
       />
       <ConnectionSheet
@@ -185,7 +184,7 @@ export default function DeFi() {
         onActionPress={() => {
           setLifiSheetOpen(false);
           queryClient.setQueryData(["defi", "lifi-connected"], true);
-          navigation.navigate("swaps/index");
+          router.push("/swaps");
         }}
       />
       <DisconnectSheet

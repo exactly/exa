@@ -3,7 +3,7 @@ import { Address } from "@exactly/common/validation";
 import { ArrowLeft, ArrowRight, QrCode } from "@tamagui/lucide-icons";
 import { useForm } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
-import { useLocalSearchParams, useNavigation } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
 import { Pressable } from "react-native";
 import { ButtonIcon, ScrollView, Separator, XStack, YStack } from "tamagui";
@@ -11,7 +11,6 @@ import { safeParse } from "valibot";
 
 import Contacts from "./Contacts";
 import RecentContacts from "./RecentContacts";
-import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import { presentArticle } from "../../utils/intercom";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
@@ -22,7 +21,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function ReceiverSelection() {
-  const navigation = useNavigation<AppNavigationProperties>("/(main)");
+  const router = useRouter();
   const { receiver } = useLocalSearchParams();
 
   const { data: recentContacts } = useQuery<{ address: Address; ens: string }[] | undefined>({
@@ -36,7 +35,7 @@ export default function ReceiverSelection() {
   const form = useForm({
     defaultValues: { receiver: typeof receiver === "string" ? receiver : undefined },
     onSubmit: ({ value }) => {
-      navigation.navigate("send-funds", { screen: "asset", params: { receiver: String(value.receiver) } });
+      router.push({ pathname: "/send-funds/asset", params: { receiver: String(value.receiver) } });
     },
   });
 
@@ -56,10 +55,10 @@ export default function ReceiverSelection() {
               aria-label="Back"
               onPress={() => {
                 queryClient.setQueryData(["withdrawal"], { receiver: undefined, market: undefined, amount: 0n });
-                if (navigation.canGoBack()) {
-                  navigation.goBack();
+                if (router.canGoBack()) {
+                  router.back();
                 } else {
-                  navigation.replace("(home)", { screen: "index" });
+                  router.replace("/(main)/(home)");
                 }
               }}
             >
@@ -98,7 +97,7 @@ export default function ReceiverSelection() {
                         borderBottomLeftRadius={0}
                         borderLeftWidth={0}
                         onPress={() => {
-                          navigation.navigate("send-funds", { screen: "qr" });
+                          router.push("/send-funds/qr");
                         }}
                       >
                         <ButtonIcon>

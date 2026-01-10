@@ -25,7 +25,8 @@
     "test/**/*.ts",
     "index.ts",
     "instrument.cjs",
-    "drizzle.config.ts",
-    "vitest.config.mts"
+    "*.config.ts",
+    "*.config.mjs",
+    "*.config.mts"
   ]
 }

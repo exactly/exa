@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Pressable, StyleSheet } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 
@@ -15,7 +15,7 @@ import View from "../shared/View";
 export default function CardPIN({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [countdown, setCountdown] = useState(0);
   const [displayPIN, setDisplayPIN] = useState(false);
-  const timerReference = React.useRef<NodeJS.Timeout>();
+  const timerReference = useRef<ReturnType<typeof setInterval>>(undefined);
   const { data: card, isPending, error, refetch } = useQuery<CardWithPIN>({ queryKey: ["card", "pin"], enabled: open });
 
   function startCountdown() {
@@ -73,7 +73,7 @@ export default function CardPIN({ open, onClose }: { open: boolean; onClose: () 
                     {!error && card.details.pin ? (
                       <XStack flexWrap="wrap" justifyContent="center" gap="$s5">
                         {Array.from({ length: card.details.pin.length }).map((_, index) => (
-                          <Text fontSize={48} fontFamily="$mono" key={index}>
+                          <Text fontSize={48} fontFamily="$mono" key={card.details.pin[index]}>
                             {displayPIN ? card.details.pin[index] : "*"}
                           </Text>
                         ))}

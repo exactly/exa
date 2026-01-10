@@ -31,7 +31,7 @@ import nonceManager from "./nonceManager";
 import publicClient, { captureRequests, Requests } from "./publicClient";
 import traceClient from "./traceClient";
 
-if (!chain.rpcUrls.alchemy?.http[0]) throw new Error("missing alchemy rpc url");
+if (!chain.rpcUrls.alchemy.http[0]) throw new Error("missing alchemy rpc url");
 
 export default createWalletClient({
   chain,
