@@ -71,7 +71,7 @@ export async function decrypt(base64Secret: string, base64Iv: string, secretKey:
     const iv = Buffer.from(base64Iv, "base64");
     const decipher = crypto.createDecipheriv("aes-128-gcm", Buffer.from(secretKey, "hex"), iv);
     decipher.setAutoPadding(false);
-    decipher.setAuthTag(secret.subarray(-16));
+    decipher.setAuthTag(secret.subarray(-16) as never); // bad buffer type
     return Buffer.concat([decipher.update(secret.subarray(0, -16)), decipher.final()]).toString("utf8");
   }
 
@@ -93,7 +93,7 @@ async function encrypt(data: string) {
   const { id: sessionId, secret } = await session();
   const keyBytes = new Uint8Array(Buffer.from(secret, "hex"));
 
-  let iv: Uint8Array;
+  let iv: Uint8Array<ArrayBuffer>;
   let encryptedData: ArrayBuffer;
   if (Platform.OS === "web") {
     iv = window.crypto.getRandomValues(new Uint8Array(16));

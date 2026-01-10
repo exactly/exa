@@ -14,7 +14,7 @@ import {
 import { useToastController } from "@tamagui/toast";
 import { useQuery } from "@tanstack/react-query";
 import { format, formatDistance, isAfter } from "date-fns";
-import { useNavigation, useLocalSearchParams } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useState } from "react";
 import { Pressable, StyleSheet } from "react-native";
 import { Separator, XStack, YStack } from "tamagui";
@@ -24,7 +24,6 @@ import { zeroAddress } from "viem";
 import { optimismSepolia } from "viem/chains";
 import { useBytecode } from "wagmi";
 
-import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import CalendarImage from "../../assets/images/calendar-rollover.svg";
 import { presentArticle } from "../../utils/intercom";
 import openBrowser from "../../utils/openBrowser";
@@ -42,7 +41,7 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
   const { address } = useAccount();
   const { market: USDCMarket } = useAsset(marketUSDCAddress);
   const { maturity: currentMaturity } = useLocalSearchParams();
-  const navigation = useNavigation<AppNavigationProperties>();
+  const router = useRouter();
   const [rolloverIntroOpen, setRolloverIntroOpen] = useState(false);
   const { success, output: maturity } = safeParse(
     pipe(string(), nonEmpty("no maturity"), digits("bad maturity")),
@@ -142,7 +141,7 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
                     }
                     onClose();
                     queryClient.setQueryData<boolean>(["settings", "rollover-intro-shown"], true);
-                    navigation.navigate("roll-debt", { screen: "index", params: { maturity: maturity.toString() } });
+                    router.navigate({ pathname: "/roll-debt", params: { maturity } });
                   }}
                 >
                   <Button.Text>Review refinance details</Button.Text>
@@ -154,152 +153,135 @@ export default function PaymentSheet({ open, onClose }: { open: boolean; onClose
             </View>
           </>
         ) : (
-          <>
-            <View padded paddingTop="$s6" fullScreen flex={1}>
-              <>
-                <View gap="$s5">
-                  <XStack alignItems="center" justifyContent="center" gap="$s3">
-                    <Text
-                      secondary
-                      textAlign="center"
-                      emphasized
-                      subHeadline
-                      color={
-                        isAfter(new Date(Number(maturity) * 1000), new Date())
-                          ? "$uiNeutralSecondary"
-                          : "$uiErrorSecondary"
+          <View padded paddingTop="$s6" fullScreen flex={1}>
+            <View gap="$s5">
+              <XStack alignItems="center" justifyContent="center" gap="$s3">
+                <Text
+                  secondary
+                  textAlign="center"
+                  emphasized
+                  subHeadline
+                  color={
+                    isAfter(new Date(Number(maturity) * 1000), new Date()) ? "$uiNeutralSecondary" : "$uiErrorSecondary"
+                  }
+                >
+                  {titleCase(
+                    isAfter(new Date(Number(maturity) * 1000), new Date())
+                      ? `Due in ${formatDistance(new Date(), new Date(Number(maturity) * 1000))}`
+                      : `${formatDistance(new Date(Number(maturity) * 1000), new Date())} past due`,
+                  )}
+                  <Text secondary textAlign="center" emphasized subHeadline color="$uiNeutralSecondary">
+                    &nbsp;-&nbsp;{format(new Date(Number(maturity) * 1000), "MMM dd, yyyy")}
+                  </Text>
+                </Text>
+                <Pressable
+                  onPress={() => {
+                    presentArticle("10245778").catch(reportError);
+                  }}
+                  hitSlop={15}
+                >
+                  <Info size={16} color="$uiNeutralPrimary" />
+                </Pressable>
+              </XStack>
+              <View flexDirection="column" justifyContent="center" alignItems="center" gap="$s4">
+                <Text
+                  sensitive
+                  textAlign="center"
+                  fontFamily="$mono"
+                  fontSize={40}
+                  overflow="hidden"
+                  color={
+                    isAfter(new Date(Number(maturity) * 1000), new Date()) ? "$uiNeutralPrimary" : "$uiErrorSecondary"
+                  }
+                >
+                  {(Number(previewValue) / 1e18).toLocaleString(undefined, {
+                    style: "currency",
+                    currency: "USD",
+                    currencyDisplay: "narrowSymbol",
+                  })}
+                </Text>
+                {discount >= 0 && (
+                  <Text sensitive body strikeThrough color="$uiNeutralSecondary">
+                    {(Number(positionValue) / 1e18).toLocaleString(undefined, {
+                      style: "currency",
+                      currency: "USD",
+                      currencyDisplay: "narrowSymbol",
+                    })}
+                  </Text>
+                )}
+                {!hidden && (
+                  <Text
+                    pill
+                    caption2
+                    padding="$s2"
+                    backgroundColor={
+                      discount >= 0 ? "$interactiveBaseSuccessSoftDefault" : "$interactiveBaseErrorSoftDefault"
+                    }
+                    color={discount >= 0 ? "$uiSuccessSecondary" : "$uiErrorSecondary"}
+                  >
+                    {discount >= 0 ? "PAY NOW AND SAVE " : "DAILY PENALTIES "}
+                    {(discount >= 0 ? discount : discount * -1).toLocaleString(undefined, {
+                      style: "percent",
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </Text>
+                )}
+              </View>
+              <YStack gap={10} alignItems="center" paddingVertical={10} flex={1}>
+                <XStack justifyContent="space-between" width="100%" gap={10}>
+                  <Button
+                    primary
+                    flex={1}
+                    onPress={() => {
+                      onClose();
+                      router.navigate({ pathname: "/pay", params: { maturity } });
+                    }}
+                  >
+                    <Button.Text>Repay</Button.Text>
+                    <Button.Icon>
+                      <Coins color="$interactiveOnBaseBrandDefault" strokeWidth={2.5} />
+                    </Button.Icon>
+                  </Button>
+                  <Button
+                    secondary
+                    flex={1}
+                    onPress={() => {
+                      if (!rolloverIntroShown) {
+                        setRolloverIntroOpen(true);
+                        return;
                       }
-                    >
-                      {titleCase(
-                        isAfter(new Date(Number(maturity) * 1000), new Date())
-                          ? `Due in ${formatDistance(new Date(), new Date(Number(maturity) * 1000))}`
-                          : `${formatDistance(new Date(Number(maturity) * 1000), new Date())} past due`,
-                      )}
-                      <Text secondary textAlign="center" emphasized subHeadline color="$uiNeutralSecondary">
-                        &nbsp;-&nbsp;{format(new Date(Number(maturity) * 1000), "MMM dd, yyyy")}
-                      </Text>
-                    </Text>
-                    <Pressable
-                      onPress={() => {
-                        presentArticle("10245778").catch(reportError);
-                      }}
-                      hitSlop={15}
-                    >
-                      <Info size={16} color="$uiNeutralPrimary" />
-                    </Pressable>
-                  </XStack>
-                  <View flexDirection="column" justifyContent="center" alignItems="center" gap="$s4">
-                    <Text
-                      sensitive
-                      textAlign="center"
-                      fontFamily="$mono"
-                      fontSize={40}
-                      overflow="hidden"
-                      color={
-                        isAfter(new Date(Number(maturity) * 1000), new Date())
-                          ? "$uiNeutralPrimary"
-                          : "$uiErrorSecondary"
+                      if (!isLatestPlugin) {
+                        toast.show("Upgrade account to rollover", {
+                          native: true,
+                          duration: 1000,
+                          burntOptions: { haptic: "error", preset: "error" },
+                        });
+                        return;
                       }
-                    >
-                      {(Number(previewValue) / 1e18).toLocaleString(undefined, {
-                        style: "currency",
-                        currency: "USD",
-                        currencyDisplay: "narrowSymbol",
-                      })}
-                    </Text>
-                    {discount >= 0 && (
-                      <Text sensitive body strikeThrough color="$uiNeutralSecondary">
-                        {(Number(positionValue) / 1e18).toLocaleString(undefined, {
-                          style: "currency",
-                          currency: "USD",
-                          currencyDisplay: "narrowSymbol",
-                        })}
-                      </Text>
-                    )}
-                    {!hidden && (
-                      <Text
-                        pill
-                        caption2
-                        padding="$s2"
-                        backgroundColor={
-                          discount >= 0 ? "$interactiveBaseSuccessSoftDefault" : "$interactiveBaseErrorSoftDefault"
-                        }
-                        color={discount >= 0 ? "$uiSuccessSecondary" : "$uiErrorSecondary"}
-                      >
-                        {discount >= 0 ? "PAY NOW AND SAVE " : "DAILY PENALTIES "}
-                        {(discount >= 0 ? discount : discount * -1).toLocaleString(undefined, {
-                          style: "percent",
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
-                      </Text>
-                    )}
-                  </View>
-                  <YStack gap={10} alignItems="center" paddingVertical={10} flex={1}>
-                    <XStack justifyContent="space-between" width="100%" gap={10}>
-                      <Button
-                        primary
-                        flex={1}
-                        onPress={() => {
-                          onClose();
-                          navigation.navigate("pay", { screen: "index", params: { maturity: maturity.toString() } });
-                        }}
-                      >
-                        <Button.Text>Repay</Button.Text>
-                        <Button.Icon>
-                          <Coins color="$interactiveOnBaseBrandDefault" strokeWidth={2.5} />
-                        </Button.Icon>
-                      </Button>
-                      <Button
-                        secondary
-                        flex={1}
-                        onPress={() => {
-                          if (!rolloverIntroShown) {
-                            setRolloverIntroOpen(true);
-                            return;
-                          }
-                          if (!isLatestPlugin) {
-                            toast.show("Upgrade account to rollover", {
-                              native: true,
-                              duration: 1000,
-                              burntOptions: { haptic: "error", preset: "error" },
-                            });
-                            return;
-                          }
-                          onClose();
-                          navigation.navigate("roll-debt", {
-                            screen: "index",
-                            params: { maturity: maturity.toString() },
-                          });
-                        }}
-                      >
-                        <Button.Text>Rollover</Button.Text>
-                        <Button.Icon>
-                          <RefreshCw color="$interactiveOnBaseBrandSoft" strokeWidth={2.5} />
-                        </Button.Icon>
-                      </Button>
-                    </XStack>
-                    <XStack flex={1} width="100%">
-                      <Button
-                        onPress={handleStatement}
-                        outlined
-                        minHeight={46}
-                        borderColor="$borderNeutralSoft"
-                        flex={1}
-                      >
-                        <Button.Text emphasized footnote textTransform="uppercase">
-                          View Statement
-                        </Button.Text>
-                        <Button.Icon>
-                          <ChevronRight color="$interactiveOnBaseBrandSoft" strokeWidth={2.5} />
-                        </Button.Icon>
-                      </Button>
-                    </XStack>
-                  </YStack>
-                </View>
-              </>
+                      onClose();
+                      router.navigate({ pathname: "/roll-debt", params: { maturity } });
+                    }}
+                  >
+                    <Button.Text>Rollover</Button.Text>
+                    <Button.Icon>
+                      <RefreshCw color="$interactiveOnBaseBrandSoft" strokeWidth={2.5} />
+                    </Button.Icon>
+                  </Button>
+                </XStack>
+                <XStack flex={1} width="100%">
+                  <Button onPress={handleStatement} outlined minHeight={46} borderColor="$borderNeutralSoft" flex={1}>
+                    <Button.Text emphasized footnote textTransform="uppercase">
+                      View Statement
+                    </Button.Text>
+                    <Button.Icon>
+                      <ChevronRight color="$interactiveOnBaseBrandSoft" strokeWidth={2.5} />
+                    </Button.Icon>
+                  </Button>
+                </XStack>
+              </YStack>
             </View>
-          </>
+          </View>
         )}
       </SafeView>
     </ModalSheet>

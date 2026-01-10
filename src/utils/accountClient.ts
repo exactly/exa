@@ -1,5 +1,3 @@
-import { standardExecutor } from "@alchemy/aa-accounts";
-import { alchemyGasManagerMiddleware } from "@alchemy/aa-alchemy";
 import {
   buildUserOperationFromTx,
   createBundlerClient,
@@ -10,8 +8,12 @@ import {
   resolveProperties,
   smartAccountClientActions,
   toSmartContractAccount,
+  type SmartContractAccount,
   type UserOperationStruct_v6,
-} from "@alchemy/aa-core";
+} from "@aa-sdk/core";
+import { alchemyGasManagerMiddleware } from "@account-kit/infra";
+// @ts-expect-error deep import to avoid broken dependency
+import { standardExecutor } from "@account-kit/smart-contracts/dist/esm/src/msca/account/standardExecutor"; // cspell:ignore msca
 import accountInitCode from "@exactly/common/accountInitCode";
 import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
 import domain from "@exactly/common/domain";
@@ -20,8 +22,12 @@ import type { Credential } from "@exactly/common/validation";
 import { ECDSASigValue } from "@peculiar/asn1-ecc";
 import { AsnParser } from "@peculiar/asn1-schema";
 import { setUser } from "@sentry/react-native";
-import { base64URLStringToBuffer, bufferToBase64URLString } from "@simplewebauthn/browser";
-import { getAccount, signMessage } from "@wagmi/core/actions";
+import {
+  base64URLStringToBuffer,
+  bufferToBase64URLString,
+  type AuthenticatorAssertionResponseJSON,
+} from "@simplewebauthn/browser";
+import { getConnection, signMessage } from "@wagmi/core/actions";
 import { Platform } from "react-native";
 import { get } from "react-native-passkeys";
 import {
@@ -56,10 +62,10 @@ export default async function createAccountClient({ credentialId, factory, x, y 
     entryPoint,
     source: "WebauthnAccount" as const,
     getAccountInitCode: () => Promise.resolve(accountInitCode({ factory, x, y })),
-    getDummySignature: () => "0x",
+    getDummySignature: () => DUMMY_SIGNATURE,
     signUserOperationHash: async (uoHash) => {
       try {
-        if (queryClient.getQueryData<AuthMethod>(["method"]) === "siwe" && getAccount(ownerConfig).address) {
+        if (queryClient.getQueryData<AuthMethod>(["method"]) === "siwe" && getConnection(ownerConfig).address) {
           return wrapSignature(0, await signMessage(ownerConfig, { message: { raw: uoHash } }));
         }
         const credential = await get({
@@ -71,7 +77,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
           userVerification: "preferred",
         });
         if (!credential) throw new Error("no credential");
-        const response = credential.response;
+        const response: AuthenticatorAssertionResponseJSON = credential.response;
         const clientDataJSON = new TextDecoder().decode(base64URLStringToBuffer(response.clientDataJSON));
         const typeIndex = BigInt(clientDataJSON.indexOf('"type":"'));
         const challengeIndex = BigInt(clientDataJSON.indexOf('"challenge":"'));
@@ -96,7 +102,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
     },
     signMessage: () => Promise.reject(new Error("not implemented")),
     signTypedData: () => Promise.reject(new Error("not implemented")),
-    ...standardExecutor,
+    ...(standardExecutor as Pick<SmartContractAccount, "encodeExecute" | "encodeBatchExecute">),
   });
   setUser({ id: account.address });
   login(account.address);
@@ -105,7 +111,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
     transport,
     account,
     ...(alchemyGasPolicyId
-      ? alchemyGasManagerMiddleware(publicClient, { policyId: alchemyGasPolicyId })
+      ? alchemyGasManagerMiddleware(alchemyGasPolicyId)
       : {
           gasEstimator(struct) {
             struct.preVerificationGas = 1_000_000n;
@@ -113,25 +119,18 @@ export default async function createAccountClient({ credentialId, factory, x, y 
             struct.callGasLimit = 10_000_000n;
             return Promise.resolve(struct);
           },
-          paymasterAndData: {
-            dummyPaymasterAndData: () => ethAddress,
-            paymasterAndData: (struct) => Promise.resolve({ ...struct, paymasterAndData: ethAddress }),
-          },
+          dummyPaymasterAndData: (struct) => Promise.resolve({ ...struct, paymasterAndData: ethAddress }),
+          paymasterAndData: (struct) => Promise.resolve({ ...struct, paymasterAndData: ethAddress }),
         }),
     async customMiddleware(userOp) {
-      if ((await userOp.signature) === "0x") {
+      if ((await userOp.signature) === DUMMY_SIGNATURE) {
         // dynamic dummy signature
-        userOp.signature = webauthn({
-          authenticatorData: "0x49960de5880e8c687434170f6476605b8fe4aeb9a28632c7995cf3ba831d97630500000000",
-          clientDataJSON: `{"type":"webauthn.get","challenge":"${bufferToBase64URLString(
+        userOp.signature = dummySignature(
+          bufferToBase64URLString(
             hexToBytes(hashMessage({ raw: deepHexlify(await resolveProperties(userOp)) as Hex }), { size: 32 })
               .buffer as ArrayBuffer,
-          )}","origin":"https://web.exactly.app","crossOrigin":false}`,
-          typeIndex: 1n,
-          challengeIndex: 23n,
-          r: maxUint256,
-          s: P256_N / 2n,
-        });
+          ),
+        );
       }
       return userOp;
     },
@@ -192,7 +191,19 @@ function wrapSignature(ownerIndex: number, signature: Hex) {
   return encodePacked(["uint8", "bytes"], [ownerIndex, signature]);
 }
 
+function dummySignature(challenge: string) {
+  return webauthn({
+    authenticatorData: "0x49960de5880e8c687434170f6476605b8fe4aeb9a28632c7995cf3ba831d97630500000000",
+    clientDataJSON: `{"type":"webauthn.get","challenge":"${challenge}","origin":"https://web.exactly.app","crossOrigin":false}`,
+    typeIndex: 1n,
+    challengeIndex: 23n,
+    r: maxUint256,
+    s: P256_N / 2n,
+  });
+}
+
 const P256_N = 0xff_ff_ff_ff_00_00_00_00_ff_ff_ff_ff_ff_ff_ff_ff_bc_e6_fa_ad_a7_17_9e_84_f3_b9_ca_c2_fc_63_25_51n;
+const DUMMY_SIGNATURE = dummySignature("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
 
 function webauthn({
   authenticatorData,

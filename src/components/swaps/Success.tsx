@@ -1,13 +1,12 @@
 import type { Token } from "@lifi/sdk";
 import { ArrowDown, ArrowRight, X } from "@tamagui/lucide-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useNavigation } from "expo-router";
+import { useRouter } from "expo-router";
 import React from "react";
 import { Pressable, Image } from "react-native";
 import { ScrollView, Square, styled, useTheme, XStack, YStack } from "tamagui";
 import { formatUnits } from "viem";
 
-import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import Button from "../shared/Button";
@@ -35,7 +34,7 @@ export default function Success({
   onClose: () => void;
 }) {
   const theme = useTheme();
-  const navigation = useNavigation<AppNavigationProperties>();
+  const router = useRouter();
   return (
     <View fullScreen backgroundColor="$backgroundSoft">
       <StyledGradient
@@ -114,7 +113,7 @@ export default function Success({
                 <Button
                   onPress={() => {
                     queryClient.invalidateQueries({ queryKey: ["swap"] }).catch(reportError);
-                    navigation.navigate("pending-proposals/index");
+                    router.push("/pending-proposals");
                   }}
                   contained
                   main
@@ -127,7 +126,7 @@ export default function Success({
                 <Pressable
                   onPress={() => {
                     queryClient.invalidateQueries({ queryKey: ["swap"] }).catch(reportError);
-                    navigation.replace("(home)", { screen: "index" });
+                    router.replace("/(main)/(home)");
                   }}
                 >
                   <Text emphasized footnote color="$uiBrandSecondary">

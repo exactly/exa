@@ -7,7 +7,7 @@ import { ArrowLeft, Check, CircleHelp, Clock, Repeat, X } from "@tamagui/lucide-
 import { useToastController } from "@tamagui/toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { switchChain, waitForTransactionReceipt } from "@wagmi/core";
-import { useNavigation } from "expo-router";
+import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable } from "react-native";
 import { ScrollView, Spinner, Square, XStack, YStack } from "tamagui";
@@ -27,7 +27,6 @@ import { useReadContract, useSendCalls, useSendTransaction, useSimulateContract,
 
 import AssetSelectSheet from "./AssetSelectSheet";
 import TokenLogo from "./TokenLogo";
-import type { AppNavigationProperties } from "../../app/(main)/_layout";
 import OptimismImage from "../../assets/images/optimism.svg";
 import { getRouteFrom, getBridgeSources, tokenCorrelation, type RouteFrom, type BridgeSources } from "../../utils/lifi";
 import openBrowser from "../../utils/openBrowser";
@@ -46,7 +45,7 @@ import View from "../shared/View";
 import TokenInput from "../swaps/TokenInput";
 
 export default function Bridge() {
-  const navigation = useNavigation<AppNavigationProperties>();
+  const router = useRouter();
   const toast = useToastController();
 
   const [assetSheetOpen, setAssetSheetOpen] = useState(false);
@@ -64,9 +63,9 @@ export default function Bridge() {
 
   const senderConfig = ownerConfig;
   const { address: senderAddress } = useAccount({ config: senderConfig });
-  const { sendTransactionAsync } = useSendTransaction({ config: senderConfig });
-  const { sendCallsAsync } = useSendCalls({ config: senderConfig });
-  const { writeContractAsync: transfer } = useWriteContract({ config: senderConfig });
+  const { mutateAsync: sendTx } = useSendTransaction({ config: senderConfig });
+  const { mutateAsync: sendCallsTx } = useSendCalls({ config: senderConfig });
+  const { mutateAsync: transfer } = useWriteContract({ config: senderConfig });
 
   const protocolSymbols = useMemo(() => {
     if (!markets) return [];
@@ -308,7 +307,7 @@ export default function Bridge() {
       }
       setBridgeStatus("Submitting bridge transaction...");
       try {
-        await sendCallsAsync({
+        await sendCallsTx({
           calls: [
             ...(approval ? [{ to: getAddress(selectedSource.address), data: approval }] : []),
             { to: from.to, data: from.data, value: from.value },
@@ -317,10 +316,10 @@ export default function Bridge() {
         setBridgeStatus("Bridge transaction submitted");
       } catch {
         if (approval) {
-          const hash = await sendTransactionAsync({ to: getAddress(selectedSource.address), data: approval });
+          const hash = await sendTx({ to: getAddress(selectedSource.address), data: approval });
           await waitForTransactionReceipt(senderConfig, { hash });
         }
-        const hash = await sendTransactionAsync({ to: from.to, data: from.data, value: from.value });
+        const hash = await sendTx({ to: from.to, data: from.data, value: from.value });
         await waitForTransactionReceipt(senderConfig, { hash });
         setBridgeStatus("Bridge transaction submitted");
       }
@@ -362,7 +361,7 @@ export default function Bridge() {
       const recipient = getAddress(account);
       let hash: Hex;
       if (isNativeSource) {
-        hash = await sendTransactionAsync({ to: recipient, value: sourceAmount });
+        hash = await sendTx({ to: recipient, value: sourceAmount });
       } else {
         if (!transferSimulation) throw new Error("missing transfer simulation");
         hash = await transfer(transferSimulation.request);
@@ -500,7 +499,7 @@ export default function Bridge() {
                   resetBridgeMutation();
                   resetTransferMutation();
                 }
-                navigation.replace("(home)", { screen: "index" });
+                router.replace("/(main)/(home)");
               }}
             >
               <X size={24} color="$uiNeutralPrimary" />
@@ -561,7 +560,7 @@ export default function Bridge() {
                 setBridgePreview(undefined);
                 resetBridgeMutation();
                 resetTransferMutation();
-                navigation.replace("(home)", { screen: "index" });
+                router.replace("/(main)/(home)");
               }}
             >
               <Text emphasized footnote color="$uiBrandSecondary" textAlign="center">
@@ -587,10 +586,10 @@ export default function Bridge() {
         >
           <Pressable
             onPress={() => {
-              if (navigation.canGoBack()) {
-                navigation.goBack();
+              if (router.canGoBack()) {
+                router.back();
               } else {
-                navigation.replace("(home)", { screen: "index" });
+                router.replace("/(main)/(home)");
               }
             }}
           >

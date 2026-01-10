@@ -1,8 +1,12 @@
 import React from "react";
 import { Platform } from "react-native";
-import { Sheet } from "tamagui";
+import { Sheet, Stack } from "tamagui";
 
-const ModalSheet = function ({
+function WebSheetPortalContainer({ children }: { children: React.ReactNode }) {
+  return <Stack className="sheet-portal">{children}</Stack>;
+}
+
+export default function ModalSheet({
   open,
   onClose,
   children,
@@ -31,7 +35,7 @@ const ModalSheet = function ({
       zIndex={100_000}
       disableDrag={disableDrag}
       modal
-      portalProps={Platform.OS === "web" ? { className: "sheet-portal" } : undefined}
+      containerComponent={Platform.OS === "web" ? WebSheetPortalContainer : React.Fragment}
     >
       <Sheet.Overlay
         backgroundColor="#00000090"
@@ -42,6 +46,4 @@ const ModalSheet = function ({
       <Sheet.Frame>{children}</Sheet.Frame>
     </Sheet>
   );
-};
-
-export default ModalSheet;
+}

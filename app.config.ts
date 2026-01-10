@@ -1,6 +1,7 @@
-import type { IntercomPluginProps } from "@intercom/intercom-react-native/lib/typescript/expo-plugins/@types";
+import type { IntercomPluginProps } from "@intercom/intercom-react-native/lib/typescript/module/expo-plugins/@types";
 import type { withSentry } from "@sentry/react-native/expo";
 import type { ExpoConfig } from "expo/config";
+import { AndroidConfig, type ConfigPlugin, withAndroidManifest } from "expo/config-plugins";
 import type { PluginConfigType as BuildPropertiesConfig } from "expo-build-properties/build/pluginConfig";
 import type withCamera from "expo-camera/plugin/build/withCamera";
 import type { FontProps } from "expo-font/plugin/build/withFonts";
@@ -22,12 +23,12 @@ export default {
   scheme: "exactly",
   version: metadata.version,
   orientation: "portrait",
-  newArchEnabled: false,
   android: {
     package: "app.exactly",
     adaptiveIcon: { foregroundImage: "src/assets/icon-adaptive.png", backgroundColor: "#1D1D1D" },
     permissions: ["android.permission.CAMERA"],
     userInterfaceStyle: "automatic",
+    edgeToEdgeEnabled: true,
     versionCode,
     splash: {
       backgroundColor: "#FCFCFC",
@@ -61,12 +62,10 @@ export default {
       "expo-build-properties",
       {
         android: {
-          targetSdkVersion: 35,
           packagingOptions: { pickFirst: ["**/libcrypto.so"] },
           extraMavenRepos: ["https://sdk.withpersona.com/android/releases"],
           usesCleartextTraffic: env.APP_DOMAIN === "localhost",
         },
-        ios: { deploymentTarget: "15.1" },
       } satisfies BuildPropertiesConfig,
     ],
     [
@@ -85,6 +84,7 @@ export default {
         ],
       } satisfies FontProps,
     ],
+    "expo-asset",
     "expo-router",
     [
       "@intercom/intercom-react-native",
@@ -106,6 +106,27 @@ export default {
         largeIcons: ["src/assets/notifications_default_large.png"],
       } satisfies OneSignalPlugin.OneSignalPluginProps,
     ],
+    // @ts-expect-error inline plugin
+    ((config) =>
+      withAndroidManifest(config, (configWithManifest) => {
+        const manifest = configWithManifest.modResults;
+        manifest.manifest.$["xmlns:tools"] ??= "http://schemas.android.com/tools";
+        const mainApplication = AndroidConfig.Manifest.getMainApplication(manifest);
+        if (!mainApplication) return configWithManifest;
+        const META_NAME = "com.google.mlkit.vision.DEPENDENCIES"; // cspell:ignore mlkit
+        mainApplication["meta-data"] =
+          mainApplication["meta-data"]?.filter(({ $ }) => $["android:name"] !== META_NAME) ?? [];
+        mainApplication["meta-data"].push({
+          $: {
+            "android:name": META_NAME,
+            "android:value": "ocr,face,barcode,barcode_ui",
+            // @ts-expect-error xmlns:tools
+            "tools:replace": "android:value",
+          },
+        });
+        configWithManifest.modResults = manifest;
+        return configWithManifest;
+      })) satisfies ConfigPlugin,
   ],
   experiments: { typedRoutes: true },
   extra: { eas: { projectId: "06bc0158-d23b-430b-a7e8-802df03c450b" } },

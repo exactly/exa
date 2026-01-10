@@ -1,3 +1,21 @@
+autoInstallPeers: false
+catalog:
+  "@aa-sdk/core": &aaSDK ^4.82.0
+  "@account-kit/infra": *aaSDK
+  "@account-kit/smart-contracts": *aaSDK
+  tamagui: &tamagui ^1.144.1
+  "@tamagui/animations-moti": *tamagui
+  "@tamagui/babel-plugin": *tamagui
+  "@tamagui/config": *tamagui
+  "@tamagui/lucide-icons": *tamagui
+  "@tamagui/toast": *tamagui
+  "@wagmi/core": ^3.2.2
+  typescript: ^5.9.3
+  valibot: ^1.2.0
+  viem: ^2.44.1
+  wagmi: ^3.3.2
+ignoreWorkspaceRootCheck: true
+includeWorkspaceRoot: true
 packages:
   - "."
   - common
@@ -6,3 +24,11 @@ packages:
   - server
   - substreams
   - .maestro
+publicHoistPattern:
+  - "@babel/runtime"
+  - "@react-native/assets-registry"
+  - "@react-native/gradle-plugin"
+  - "@sentry/cli"
+  - expo-asset
+  - expo-modules-autolinking
+  - react-native-web

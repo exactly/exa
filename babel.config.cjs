@@ -2,7 +2,7 @@
 module.exports = function config(api) {
   /** @type {(ever: boolean) => void} */ (/** @type {unknown} */ (api.cache))(true);
   return {
-    presets: ["babel-preset-expo"],
+    presets: [["babel-preset-expo", { unstable_transformImportMeta: true }]],
     plugins: [
       ...(process.env.EXPO_PUBLIC_ENV === "e2e" ? ["istanbul"] : []),
       [
@@ -14,6 +14,12 @@ module.exports = function config(api) {
             "@wagmi/core/codegen": "@wagmi/core/dist/esm/exports/codegen",
             "hono/client": "hono/dist/client",
             "jose/jwt/decode": "jose/dist/browser/util/decode_jwt",
+            "^jose$": "jose/dist/browser/index.js",
+            "^zustand$": "zustand/index.js",
+            "zustand/middleware": "zustand/middleware.js",
+            "zustand/vanilla": "zustand/vanilla.js",
+            "zustand/shallow": "zustand/shallow.js",
+            "zustand/traditional": "zustand/traditional.js",
           },
         },
       ],

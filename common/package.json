@@ -3,26 +3,55 @@
   "version": "0.0.10",
   "private": true,
   "scripts": {
-    "prepare": "nx run-many -t prepare:git generate:wagmi -p common",
+    "prepare": "nx prepare common",
     "prepare:git": "git config blame.ignoreRevsFile .git-blame-ignore-revs || true",
     "generate:wagmi": "wagmi generate",
-    "git:unshallow": "git fetch --unshallow || true"
+    "git:unshallow": "git fetch --unshallow || true",
+    "test": "nx test common",
+    "test:ts": "tsc --pretty ${GITHUB_ACTIONS:+false}"
   },
   "engines": {
     "node": "~24.12.0"
   },
   "dependencies": {
-    "@alchemy/aa-core": "^3.19.0",
-    "valibot": "^1.2.0",
-    "viem": "^2.40.3"
+    "@account-kit/infra": "catalog:",
+    "valibot": "catalog:",
+    "viem": "catalog:"
   },
   "devDependencies": {
+    "@eslint-community/eslint-plugin-eslint-comments": "^4.5.0",
+    "@eslint/js": "^9.39.2",
+    "@eslint-react/eslint-plugin": "^2.5.5",
     "@exactly/plugin": "workspace:^1.1.0",
     "@exactly/protocol": "^0.2.22",
-    "@wagmi/cli": "^2.8.0"
+    "@nx/eslint-plugin": "^22.3.3",
+    "@tanstack/eslint-plugin-query": "^5.91.2",
+    "@types/eslint-plugin-jsx-a11y": "^6.10.1",
+    "@types/eslint-plugin-security": "^3.0.0",
+    "@vitest/eslint-plugin": "^1.6.6",
+    "@wagmi/cli": "^2.8.0",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-config-universe": "^15.0.3",
+    "eslint-import-resolver-typescript": "^4.4.4",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-jsdoc": "^62.0.0",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-n": "^17.23.1",
+    "eslint-plugin-prettier": "^5.5.4",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-regexp": "^2.10.0",
+    "eslint-plugin-security": "^3.0.1",
+    "eslint-plugin-tsdoc": "^0.5.0",
+    "eslint-plugin-unicorn": "^62.0.0",
+    "globals": "^17.0.0",
+    "prettier": "^3.7.4",
+    "prettier-plugin-organize-imports": "^4.3.0",
+    "typescript-eslint": "^8.52.0"
   },
   "peerDependencies": {
-    "wagmi": "^2.18.1"
+    "wagmi": "catalog:"
   },
   "peerDependenciesMeta": {
     "wagmi": {
@@ -69,6 +98,13 @@
       },
       "git:unshallow": {
         "cache": false
+      },
+      "test": {
+        "dependsOn": [
+          "test:eslint",
+          "test:ts"
+        ],
+        "executor": "nx:noop"
       }
     }
   }

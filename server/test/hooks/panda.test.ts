@@ -1510,4 +1510,7 @@ const userResponseTemplate = {
 
 vi.mock("@sentry/node", { spy: true });
 
-afterEach(() => vi.resetAllMocks());
+afterEach(() => {
+  vi.clearAllMocks();
+  vi.restoreAllMocks();
+});

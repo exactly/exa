@@ -291,7 +291,10 @@ describe.concurrent("authenticated", () => {
 
 vi.mock("@sentry/node", { spy: true });
 
-afterEach(() => vi.resetAllMocks());
+afterEach(() => {
+  vi.clearAllMocks();
+  vi.restoreAllMocks();
+});
 
 const spendTemplate = {
   amount: 1e4,

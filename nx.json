@@ -2,15 +2,17 @@
   "extends": "nx/presets/npm.json",
   "cli": { "packageManager": "pnpm" },
   "tasksRunnerOptions": { "default": "nx/tasks-runners/default" },
+  "plugins": [{ "plugin": "@nx/eslint/plugin", "options": { "targetName": "test:eslint" } }],
   "namedInputs": {
     "default": ["{projectRoot}/**/*", "!{projectRoot}/generated/**/*", "sharedGlobals"],
-    "production": ["default", "!{projectRoot}/test/**/*"],
+    "production": ["default", "!{projectRoot}/test/**/*", "!{projectRoot}/eslint.config.mjs"],
     "sharedGlobals": ["{workspaceRoot}/nx.json", "{workspaceRoot}/package.json", "{workspaceRoot}/pnpm-lock.yaml"]
   },
   "targetDefaults": {
     "generate:*": { "inputs": ["production", "^production"], "cache": true },
     "test": { "dependsOn": ["prepare", "^prepare"], "cache": true },
     "test:*": { "dependsOn": ["prepare", "^prepare"], "cache": true },
+    "test:eslint": { "options": { "max-warnings": 0 } },
     "build": {
       "dependsOn": ["^prepare"],
       "inputs": ["production", "^production"],

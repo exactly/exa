@@ -2,7 +2,7 @@ import chain from "@exactly/common/generated/chain";
 import type { Credential } from "@exactly/common/validation";
 import { useToastController } from "@tamagui/toast";
 import { useMutation } from "@tanstack/react-query";
-import { getAccount } from "@wagmi/core";
+import { getConnection } from "@wagmi/core";
 import { UserRejectedRequestError } from "viem";
 import { base } from "viem/chains";
 import { useConnect } from "wagmi";
@@ -15,12 +15,12 @@ import ownerConfig, { getConnector as getOwnerConnector } from "./wagmi/owner";
 
 export default function useAuth(onDomainError: () => void, onSuccess?: (credential: Credential) => unknown) {
   const toast = useToastController();
-  const { connectAsync: connectExa } = useConnect();
-  const { connectAsync: connectOwner } = useConnect({ config: ownerConfig });
+  const { mutateAsync: connectExa } = useConnect();
+  const { mutateAsync: connectOwner } = useConnect({ config: ownerConfig });
   const { mutate: signIn, ...mutation } = useMutation({
     mutationFn: async ({ method, register }: { method: AuthMethod; register?: boolean }) => {
       queryClient.setQueryData(["method"], chain.id === base.id ? "siwe" : method);
-      if (method === "siwe" && getAccount(ownerConfig).isDisconnected) {
+      if (method === "siwe" && getConnection(ownerConfig).isDisconnected) {
         await connectOwner({ connector: await getOwnerConnector() });
       }
       const credential = method === "siwe" || !register ? await getCredential() : await createCredential();
