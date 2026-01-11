@@ -13,6 +13,7 @@ tags:
 - assertNotVisible: Stay updated
 - runFlow: ../subflows/readPortfolio.yaml
 - evalScript: ${output.portfolioBefore = output.portfolio}
+- runScript: ../dist/getAccount.js
 - runScript:
     file: ../dist/mint.js
     env: { asset: USDC, to: "${output.account}", amount: "420" }
@@ -20,6 +21,7 @@ tags:
 - runFlow: ../subflows/readPortfolio.yaml
 - assertTrue: ${output.portfolio - output.portfolioBefore === 420}
 - evalScript: ${output.portfolioBefore = output.portfolio}
+- runScript: ../dist/getAccount.js
 - runFlow:
     file: ../subflows/sendAsset.yaml
     env: { asset: USDC, to: "${output.owner}", amount: "69" }

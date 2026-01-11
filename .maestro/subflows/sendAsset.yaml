@@ -13,6 +13,7 @@ appId: app.exactly
 - tapOn: Review
 - tapOn: Send
 - assertVisible: Transaction details
+- runScript: ../dist/getAccount.js
 - runScript:
     file: ../dist/hookProposals.js
     env: { account: "${output.account}" }

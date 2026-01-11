@@ -43,6 +43,7 @@ appId: app.exactly
 - repeat: { times: 6, commands: [{ tapOn: square }] }
 - tapOn: Continue
 - tapOn: Done
+- runScript: ../dist/getAccount.js
 - runScript:
     file: ../dist/approveKYC.js
     env: { credentialId: "${output.owner}" }
