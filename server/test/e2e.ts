@@ -3,6 +3,7 @@ import "./mocks/sentry";
 import "./mocks/alchemy";
 import "./mocks/deployments";
 import "./mocks/keeper";
+import "./mocks/onesignal";
 import "./mocks/redis";
 import "./mocks/sardine";
 
