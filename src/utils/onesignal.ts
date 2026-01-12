@@ -1,7 +1,7 @@
 import appId from "@exactly/common/onesignalAppId";
 import { Platform } from "react-native";
 import type * as OneSignalNative from "react-native-onesignal";
-import type * as OneSignalWeb from "react-onesignal";
+import type OneSignalWeb from "react-onesignal";
 
 import queryClient from "./queryClient";
 import reportError from "./reportError";
@@ -9,7 +9,7 @@ import reportError from "./reportError";
 const { enablePrompt, login, logout } = (
   Platform.OS === "web"
     ? () => {
-        const { default: OneSignal } = require("react-onesignal") as typeof OneSignalWeb; // eslint-disable-line unicorn/prefer-module
+        const OneSignal = require("react-onesignal") as typeof OneSignalWeb; // eslint-disable-line unicorn/prefer-module
         const init =
           appId && typeof window !== "undefined"
             ? OneSignal.init({
