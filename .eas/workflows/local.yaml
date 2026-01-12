@@ -56,9 +56,81 @@ jobs:
       - uses: eas/download_build
         id: download
         with: { build_id: "${{ needs.ios_build.outputs.build_id || needs.ios_repack.outputs.build_id }}" }
+      - name: install metal toolchain
+        run: |
+          if xcodebuild -showComponent metalToolchain >/dev/null 2>&1; then
+            echo "metal toolchain already installed"
+          else
+            echo "downloading metal toolchain..."
+            xcodebuild -downloadComponent metalToolchain
+          fi
+      - name: attempt gpu/metal workarounds
+        run: |
+          # check if any gpu is discoverable
+          system_profiler SPDisplaysDataType || true
+
+          # try to enable metal hud (might trigger metal initialization)
+          launchctl setenv MTL_HUD_ENABLED 1 || true
+
+          # set metal debug layer (might provide fallback behavior)
+          launchctl setenv MTL_DEBUG_LAYER 1 || true
+
+          # attempt to set simulator gpu preference
+          defaults write com.apple.CoreSimulator GpuResourcePreference -string "prefer-discrete" || true
+          defaults write com.apple.iphonesimulator GraphicsOverride -int 0 || true
+
+          # restart simulator services to pick up changes
+          killall -9 com.apple.CoreSimulator.CoreSimulatorService 2>/dev/null || true
       - uses: eas/start_ios_simulator
+      - name: diagnostics
+        run: |
+          echo "=== macOS and Xcode ==="
+          sw_vers
+          xcodebuild -version
+
+          echo "=== Hardware ==="
+          system_profiler SPHardwareDataType
+
+          echo "=== Camera ==="
+          system_profiler SPCameraDataType || echo "no camera data"
+
+          echo "=== Display/GPU ==="
+          system_profiler SPDisplaysDataType || echo "no display data"
+
+          echo "=== Window Server ==="
+          /usr/sbin/system_profiler SPDisplaysDataType 2>&1 | head -50
+          pgrep -l WindowServer || echo "no WindowServer process"
+          echo "DISPLAY=$DISPLAY"
+
+          echo "=== CoreMediaIO Plugins ==="
+          ls -la /Library/CoreMediaIO/Plug-Ins/DAL/ 2>/dev/null || echo "no DAL plugins directory"
+          ls -la ~/Library/CoreMediaIO/Plug-Ins/DAL/ 2>/dev/null || echo "no user DAL plugins directory"
+
+          echo "=== Simulator Info ==="
+          xcrun simctl list devices booted
+          xcrun simctl getenv booted SIMULATOR_CAPABILITIES || echo "no SIMULATOR_CAPABILITIES"
+
+          echo "=== Metal Support ==="
+          system_profiler SPDisplaysDataType | grep -i metal || echo "no metal info"
+
+          echo "=== Environment ==="
+          env | grep -i -E "(display|gpu|metal|render|screen|window|camera|video)" || echo "no relevant env vars"
+
+          echo "=== Simulator Device Info ==="
+          xcrun simctl spawn booted launchctl getenv SIMULATOR_DEVICE_NAME || true
+          xcrun simctl spawn booted launchctl getenv SIMULATOR_RUNTIME_VERSION || true
+
+          echo "=== AVFoundation Check (host) ==="
+          system_profiler -json SPCameraDataType 2>/dev/null | head -100 || echo "no json camera data"
       - run: xcrun simctl install booted "${{ steps.download.outputs.artifact_path }}"
+      - run: xcrun simctl privacy booted grant camera app.exactly
+      - run: xcrun simctl spawn booted log stream --predicate 'subsystem contains "app.exactly" or process == "Exa"' > simulator.log 2>&1 &
       - run: pnpm e2e:maestro -e "EXPO_PUBLIC_E2E_MNEMONIC=${{ env.EXPO_PUBLIC_E2E_MNEMONIC }}"
+      - name: collect simulator logs
+        if: always()
+        run: |
+          pkill -f "log stream" || true
+          xcrun simctl diagnose -b --no-archive --output=simulator-diagnose || true
       - name: exa teardown
         if: always()
         run: |
@@ -73,6 +145,8 @@ jobs:
           ignore_error: true
           path: |
             server.log
+            simulator.log
+            simulator-diagnose
             server/coverage
             server/node_modules/@exactly/.spotlight
             ${{ env.HOME }}/.maestro/tests
