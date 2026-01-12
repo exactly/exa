@@ -300,3 +300,14 @@ export async function close() {
     });
   });
 }
+
+if (!process.env.VITEST) {
+  scheduleMaturityChecks().catch((error: unknown) => captureException(error));
+  ["SIGINT", "SIGTERM"].map((code) => {
+    process.on(code, () => {
+      close()
+        .then(() => process.exit(0)) // eslint-disable-line n/no-process-exit
+        .catch(() => process.exit(1)); // eslint-disable-line n/no-process-exit
+    });
+  });
+}

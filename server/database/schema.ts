@@ -1,5 +1,5 @@
 import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   bigint,
   char,
@@ -33,6 +33,20 @@ export const credentials = pgTable(
     bridgeId: text("bridge_id"),
   },
   ({ account }) => [uniqueIndex("account_index").on(account)],
+);
+
+export const notificationHistory = pgTable(
+  "notification_history",
+  {
+    id: serial("id").primaryKey(),
+    account: text("account").notNull(),
+    maturity: bigint("maturity", { mode: "bigint" }).notNull(),
+    window: text("window", { enum: ["24h", "1h"] }).notNull(),
+    sentAt: bigint("sent_at", { mode: "bigint" })
+      .notNull()
+      .default(sql`extract(epoch from now())`),
+  },
+  ({ account, maturity, window }) => [uniqueIndex("notification_history_unique_index").on(account, maturity, window)],
 );
 
 export const cards = pgTable("cards", {
