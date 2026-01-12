@@ -1,7 +1,8 @@
 import { ArrowRight } from "@tamagui/lucide-icons";
 import React from "react";
-import { XStack, YStack, Image } from "tamagui";
+import { XStack, YStack } from "tamagui";
 
+import Image from "../shared/Image";
 import Text from "../shared/Text";
 
 export default function VisaSignatureBanner({ onPress }: { onPress: () => void }) {

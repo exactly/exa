@@ -1,11 +1,12 @@
 import type { Token } from "@lifi/sdk";
 import { Search } from "@tamagui/lucide-icons";
 import React, { useState, useMemo } from "react";
-import { FlatList, Image, Pressable } from "react-native";
+import { FlatList, Pressable } from "react-native";
 import { XStack, YStack, ButtonIcon } from "tamagui";
 import { formatUnits } from "viem";
 
 import useAccountAssets from "../../utils/useAccountAssets";
+import AssetLogo from "../shared/AssetLogo";
 import Button from "../shared/Button";
 import Input from "../shared/Input";
 import ModalSheet from "../shared/ModalSheet";
@@ -30,11 +31,7 @@ function TokenListItem({ token, isSelected, onPress }: { token: Token; isSelecte
         backgroundColor={isSelected ? "$interactiveBaseBrandSoftDefault" : "transparent"}
         borderRadius="$r3"
       >
-        <Image
-          source={{ uri: token.logoURI ?? "https://via.placeholder.com/40" }}
-          borderRadius={20}
-          style={{ minWidth: 40, minHeight: 40, borderRadius: 99 }}
-        />
+        <AssetLogo source={{ uri: token.logoURI ?? "https://via.placeholder.com/40" }} width={40} height={40} />
         <XStack gap="$s2" flex={1} justifyContent="space-between">
           <YStack flex={1}>
             <Text emphasized subHeadline textAlign="left">

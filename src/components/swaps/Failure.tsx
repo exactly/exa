@@ -3,12 +3,13 @@ import { ArrowDown, X } from "@tamagui/lucide-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React from "react";
-import { Pressable, Image } from "react-native";
+import { Pressable } from "react-native";
 import { ScrollView, Square, styled, useTheme, XStack, YStack } from "tamagui";
 import { formatUnits } from "viem";
 
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
+import AssetLogo from "../shared/AssetLogo";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
@@ -84,7 +85,7 @@ export default function Failure({
                     <Text emphasized secondary subHeadline>
                       {fromToken.symbol}
                     </Text>
-                    <Image source={{ uri: fromToken.logoURI }} width={16} height={16} borderRadius={20} />
+                    <AssetLogo source={{ uri: fromToken.logoURI }} width={16} height={16} />
                   </XStack>
                   <ArrowDown size={24} color="$uiNeutralPrimary" />
                   <Text title primary color="$uiNeutralPrimary">
@@ -101,7 +102,7 @@ export default function Failure({
                     <Text emphasized secondary subHeadline>
                       {toToken.symbol}
                     </Text>
-                    <Image source={{ uri: toToken.logoURI }} width={16} height={16} borderRadius={20} />
+                    <AssetLogo source={{ uri: toToken.logoURI }} width={16} height={16} />
                   </XStack>
                 </YStack>
               </YStack>

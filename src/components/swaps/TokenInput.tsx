@@ -2,13 +2,13 @@ import { WAD } from "@exactly/lib";
 import type { Token } from "@lifi/sdk";
 import { useForm } from "@tanstack/react-form";
 import React, { useCallback, useEffect } from "react";
-import { Image } from "react-native";
 import { XStack, YStack } from "tamagui";
 import { pipe, string, nonEmpty } from "valibot";
 import { formatUnits, parseUnits } from "viem";
 
 import OptimismImage from "../../assets/images/optimism.svg";
 import AssetLogo from "../shared/AssetLogo";
+import Image from "../shared/Image";
 import Input from "../shared/Input";
 import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
@@ -141,10 +141,7 @@ export default function TokenInput({
                   overflow="hidden"
                 >
                   {chainLogoUri ? (
-                    <Image
-                      source={{ uri: chainLogoUri }}
-                      style={{ height: "100%", resizeMode: "cover", width: "100%" }}
-                    />
+                    <Image source={{ uri: chainLogoUri }} width="100%" height="100%" contentFit="cover" />
                   ) : (
                     <OptimismImage width="100%" height="100%" />
                   )}

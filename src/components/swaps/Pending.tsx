@@ -2,10 +2,11 @@ import type { Token } from "@lifi/sdk";
 import { ArrowDown, X } from "@tamagui/lucide-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
-import { Image, Pressable } from "react-native";
+import { Pressable } from "react-native";
 import { ScrollView, Square, styled, useTheme, XStack, YStack } from "tamagui";
 import { formatUnits } from "viem";
 
+import AssetLogo from "../shared/AssetLogo";
 import SafeView from "../shared/SafeView";
 import ExaSpinner from "../shared/Spinner";
 import Text from "../shared/Text";
@@ -29,7 +30,6 @@ export default function Pending({
   onClose: () => void;
 }) {
   const theme = useTheme();
-
   return (
     <View fullScreen backgroundColor="$backgroundSoft">
       <StyledGradient
@@ -75,7 +75,7 @@ export default function Pending({
                     })}
                   </Text>
                   <XStack gap="$s2" alignItems="center">
-                    <Image source={{ uri: fromToken.logoURI }} width={16} height={16} borderRadius={20} />
+                    <AssetLogo source={{ uri: fromToken.logoURI }} width={16} height={16} />
                     <Text emphasized secondary subHeadline>
                       {Number(formatUnits(fromAmount, fromToken.decimals)).toFixed(8)}
                     </Text>
@@ -89,7 +89,7 @@ export default function Pending({
                     })}
                   </Text>
                   <XStack gap="$s2" alignItems="center">
-                    <Image source={{ uri: toToken.logoURI }} width={16} height={16} borderRadius={20} />
+                    <AssetLogo source={{ uri: toToken.logoURI }} width={16} height={16} />
                     <Text emphasized secondary subHeadline>
                       {Number(formatUnits(toAmount, toToken.decimals)).toFixed(8)}
                     </Text>

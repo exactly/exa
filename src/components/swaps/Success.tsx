@@ -3,12 +3,13 @@ import { ArrowDown, ArrowRight, X } from "@tamagui/lucide-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React from "react";
-import { Pressable, Image } from "react-native";
+import { Pressable } from "react-native";
 import { ScrollView, Square, styled, useTheme, XStack, YStack } from "tamagui";
 import { formatUnits } from "viem";
 
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
+import AssetLogo from "../shared/AssetLogo";
 import Button from "../shared/Button";
 import SafeView from "../shared/SafeView";
 import ExaSpinner from "../shared/Spinner";
@@ -84,7 +85,7 @@ export default function Success({
                     })}
                   </Text>
                   <XStack gap="$s2" alignItems="center">
-                    <Image source={{ uri: fromToken.logoURI }} width={16} height={16} borderRadius={20} />
+                    <AssetLogo source={{ uri: fromToken.logoURI }} width={16} height={16} />
                     <Text emphasized secondary subHeadline>
                       {Number(formatUnits(fromAmount, fromToken.decimals)).toFixed(8)}
                     </Text>
@@ -98,7 +99,7 @@ export default function Success({
                     })}
                   </Text>
                   <XStack gap="$s2" alignItems="center">
-                    <Image source={{ uri: toToken.logoURI }} width={16} height={16} borderRadius={20} />
+                    <AssetLogo source={{ uri: toToken.logoURI }} width={16} height={16} />
                     <Text emphasized secondary subHeadline>
                       {Number(formatUnits(toAmount, toToken.decimals)).toFixed(8)}
                     </Text>
