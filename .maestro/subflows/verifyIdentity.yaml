@@ -21,23 +21,11 @@ appId: ${APP_ID ?? "app.exactly"}
 - assertVisible: Let's make sure you’re you
 - tapOn: Get started
 - assertVisible: Center yourself on the screen
-- tapOn: "${maestro.platform == 'android' ? 'take picture' : 'shutter button'}"
-- runFlow: # HACK
-    when: { platform: ios }
-    commands:
-      - tapOn: Sandbox debug menu
-      - waitForAnimationToEnd
-      - tapOn: { point: "50%, 50%" }
+- tapOn: { below: Auto capture on, enabled: true }
 - assertVisible: Look slightly left
-- tapOn: "${maestro.platform == 'android' ? 'take picture' : 'shutter button'}"
-- runFlow: # HACK
-    when: { platform: ios }
-    commands:
-      - tapOn: Sandbox debug menu
-      - waitForAnimationToEnd
-      - tapOn: { point: "50%, 50%" }
+- tapOn: { below: Auto capture on, enabled: true }
 - assertVisible: Look slightly right
-- tapOn: "${maestro.platform == 'android' ? 'take picture' : 'shutter button'}"
+- tapOn: { below: Auto capture on, enabled: true }
 - assertVisible: What is your email address?
 - runFlow: { when: { platform: android }, commands: [{ tapOn: Email address }] }
 - inputText: test@test.com
