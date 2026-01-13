@@ -1,4 +1,4 @@
-appId: app.exactly
+appId: ${APP_ID ?? "app.exactly"}
 tags:
   - critical
 ---
@@ -6,12 +6,15 @@ tags:
 - runFlow: ../subflows/hideDevtools.yaml
 - runScript: ../dist/getAccount.js
 - tapOn: Sign in
-- assertVisible: Stay updated
-- tapOn: Not now
-- pressKey: home
-- launchApp: { permissions: { all: deny, camera: allow } }
-- extendedWaitUntil: { visible: Your portfolio, timeout: 180000 }
-- assertNotVisible: Stay updated
+- runFlow:
+    when: { true: "${maestro.platform != 'web'}" }
+    commands:
+      - assertVisible: Stay updated
+      - tapOn: Not now
+      - pressKey: home
+      - launchApp: { permissions: { all: deny, camera: allow } }
+      - extendedWaitUntil: { visible: Your portfolio, timeout: 180000 }
+      - assertNotVisible: Stay updated
 - assertVisible: ${output.account.slice(0, 6)}…${output.account.slice(-4)}
 - runFlow: ../subflows/readPortfolio.yaml
 - evalScript: ${output.portfolioBefore = output.portfolio}
@@ -33,7 +36,8 @@ tags:
     when: { visible: Getting Started }
     commands:
       - tapOn: View all steps
+      - tapOn: Begin verifying
       - runFlow: ../subflows/verifyIdentity.yaml
-- swipe: { direction: DOWN }
-- assertNotVisible: Getting Started
+      - swipe: { direction: DOWN }
+      - assertNotVisible: Getting Started
 - runFlow: ../subflows/storeCoverage.yaml

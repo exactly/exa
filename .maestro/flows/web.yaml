@@ -1,0 +1,3 @@
+url: http://localhost:8081
+---
+- runFlow: { file: ./local.yaml, env: { APP_ID: http://localhost:8081 } }

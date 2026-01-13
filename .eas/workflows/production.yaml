@@ -42,13 +42,23 @@ jobs:
         id: download
         with: { build_id: "${{ needs.ios_build.outputs.build_id || needs.ios_repack.outputs.build_id }}" }
       - uses: eas/start_ios_simulator
-      - run: xcrun simctl install booted "${{ steps.download.outputs.artifact_path }}"
+      - name: prepare device
+        run: |
+          xcrun simctl install booted "${{ steps.download.outputs.artifact_path }}"
+          xcrun simctl spawn booted log stream --predicate 'subsystem contains "app.exactly" or process == "Exa"' > simulator.log 2>&1 &
       - run: maestro test .maestro/flows --include-tags=production -e "EXPO_PUBLIC_E2E_MNEMONIC=${{ env.EXPO_PUBLIC_E2E_MNEMONIC }}"
+      - name: exa teardown
+        if: always()
+        run: |
+          pkill -f "log stream" || true # cspell:ignore pkill
+          xcrun simctl diagnose -b --no-archive --output=simulator-diagnose || true
       - uses: eas/upload_artifact
         if: always()
         with:
           type: other
           ignore_error: true
           path: |
+            simulator.log
+            simulator-diagnose
             ${{ env.HOME }}/.maestro/tests
             .maestro/screenshots

@@ -1,32 +1,67 @@
-appId: app.exactly
+appId: ${APP_ID ?? "app.exactly"}
 ---
-- assertVisible: One step left
-- tapOn: Begin verifying
-- assertVisible: I saved my ID with Persona
+- assertVisible: We need some information to help us confirm your identity.
 - tapOn: Begin verifying
 - tapOn: Select
 - tapOn: Passport
 - runFlow:
-    when: { visible: Couldn't access camera }
-    commands: [{ tapOn: Continue }]
-- tapOn: Take Photo
+    when: { platform: ios }
+    commands:
+      - runFlow:
+          when: { visible: Couldn't access camera }
+          commands: [{ tapOn: Continue }]
+- tapOn: "${maestro.platform == 'android' ? 'take picture' : 'Take Photo'}"
 - tapOn: Use this photo
 - assertVisible: Address
 - runFlow: # HACK
     when: { platform: ios }
     commands: [{ tapOn: Address }]
+- scrollUntilVisible: { element: Continue }
 - tapOn: Continue
+- assertVisible: Let's make sure you’re you
 - tapOn: Get started
-- repeat:
-    while: { visible: shutter button }
-    commands: [{ tapOn: { text: shutter button, optional: true } }]
+- assertVisible: Center yourself on the screen
+- tapOn: "${maestro.platform == 'android' ? 'take picture' : 'shutter button'}"
+- runFlow: # HACK
+    when: { platform: ios }
+    commands:
+      - tapOn: Sandbox debug menu
+      - waitForAnimationToEnd
+      - tapOn: { point: "50%, 50%" }
+- assertVisible: Look slightly left
+- tapOn: "${maestro.platform == 'android' ? 'take picture' : 'shutter button'}"
+- runFlow: # HACK
+    when: { platform: ios }
+    commands:
+      - tapOn: Sandbox debug menu
+      - waitForAnimationToEnd
+      - tapOn: { point: "50%, 50%" }
+- assertVisible: Look slightly right
+- tapOn: "${maestro.platform == 'android' ? 'take picture' : 'shutter button'}"
+- assertVisible: What is your email address?
+- runFlow: { when: { platform: android }, commands: [{ tapOn: Email address }] }
 - inputText: test@test.com
+- hideKeyboard
 - tapOn: Continue
+- assertVisible: Confirm your email address
+- runFlow:
+    when: { platform: android }
+    commands: [{ tapOn: Confirmation Code }]
 - inputText: "12345"
+- hideKeyboard
 - tapOn: Continue
-- inputText: "999999999"
+- assertVisible: What is your phone number?
+- tapOn: { id: textinput_prefix_text } # cspell:ignore textinput
+- scrollUntilVisible: { element: 🇦🇷 Argentina +54 }
+- tapOn: 🇦🇷 Argentina +54
+- tapOn: { containsChild: { containsChild: { id: textinput_prefix_text } } } # cspell:ignore textinput
+- inputText: "1199999999"
+- hideKeyboard
 - tapOn: Continue
+- assertVisible: Confirm your phone number
+- runFlow: { when: { platform: android }, commands: [{ tapOn: { id: first } }] } # HACK
 - inputText: "1234"
+- hideKeyboard
 - extendedWaitUntil: { visible: Economic activity }
 - tapOn: Economic activity
 - tapOn: Science
@@ -34,6 +69,7 @@ appId: app.exactly
 - tapOn: .*US\$.*
 - tapOn: .*US\$.*
 - tapOn: Continue
+- assertVisible: Do you engage in any of the following activities?
 - tapOn: Select
 - tapOn: \s*No\s*
 - tapOn: Continue
