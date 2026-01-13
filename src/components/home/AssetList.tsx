@@ -147,7 +147,7 @@ export default function AssetList() {
     logoURI,
     amount: amount ?? 0n,
     decimals,
-    usdValue: parseUnits(String(usdValue), 18),
+    usdValue: parseUnits(usdValue.toFixed(18), 18),
     usdPrice: parseUnits(priceUSD, 18),
   }));
 
