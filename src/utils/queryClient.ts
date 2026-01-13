@@ -20,7 +20,6 @@ const queryClient = new QueryClient({
       if (error instanceof APIError) {
         if (error.code === 401 && error.text === "unauthorized") return;
         if (query.queryKey[0] === "card" && query.queryKey[1] === "details") {
-          if (error.text === "card not found") return;
           if (error.text === "kyc required") return;
           if (error.text === "kyc not approved") return;
         }
