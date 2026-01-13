@@ -88,8 +88,9 @@ async function getCard() {
   const response = await api.card.$get({ header: { sessionid: id } });
   if (!response.ok) {
     const { code } = await response.json();
-    if (response.status !== 403 || code !== "no panda") throw new APIError(response.status, code);
-    return null;
+    if (response.status === 404 && code === "no card") return null;
+    if (response.status === 403 && code === "no panda") return null;
+    throw new APIError(response.status, code);
   }
   const card = await response.json();
   return { ...card, secret };

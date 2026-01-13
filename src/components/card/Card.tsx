@@ -129,9 +129,9 @@ export default function Card() {
       if (isRevealing) return;
       if (!credential) return;
       try {
-        const { isSuccess, error } = await refetchCard();
+        const { data, error } = await refetchCard();
         if (error && error instanceof APIError && error.code === 500) throw error;
-        if (isSuccess) {
+        if (data) {
           queryClient.setQueryData(["card-details-open"], true);
           return;
         }
