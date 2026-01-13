@@ -49,8 +49,9 @@ jobs:
           subject-name: ${{ env.IMAGE }}
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
-      - run: | # cspell:ignore imageid
-          docker create --name extract ${{ steps.build.outputs.imageid }}
+      - run: |
+          docker pull ${{ env.IMAGE }}@${{ steps.build.outputs.digest }}
+          docker create --name extract ${{ env.IMAGE }}@${{ steps.build.outputs.digest }}
           docker cp extract:/prod/server/dist ./server/dist
           mkdir -p ./server/generated
           docker cp extract:/prod/server/generated/release.js ./server/generated/release.js
