@@ -349,6 +349,9 @@ importers:
       '@changesets/types':
         specifier: ^6.1.0
         version: 6.1.0
+      '@cspell/dict-es-es':
+        specifier: ^3.0.8
+        version: 3.0.8
       '@expo/fingerprint':
         specifier: ^0.15.4
         version: 0.15.4
@@ -1844,6 +1847,9 @@ packages:
 
   '@cspell/dict-en_us@4.4.27':
     resolution: {integrity: sha512-0y4vH2i5cFmi8sxkc4OlD2IlnqDznOtKczm4h6jA288g5VVrm3bhkYK6vcB8b0CoRKtYWKet4VEmHBP1yI+Qfw==}
+
+  '@cspell/dict-es-es@3.0.8':
+    resolution: {integrity: sha512-tj4zYKYWtAFc+JWtJo0DxLAve7I0UJM5+6we3hvLyzQlhGCBF41cTihPa/cbLHUkTD6PkrVGf1hgOKuSR9hkMQ==}
 
   '@cspell/dict-filetypes@3.0.15':
     resolution: {integrity: sha512-uDMeqYlLlK476w/muEFQGBy9BdQWS0mQ7BJiy/iQv5XUWZxE2O54ZQd9nW8GyQMzAgoyg5SG4hf9l039Qt66oA==}
@@ -14604,6 +14610,8 @@ snapshots:
   '@cspell/dict-en-gb-mit@3.1.16': {}
 
   '@cspell/dict-en_us@4.4.27': {}
+
+  '@cspell/dict-es-es@3.0.8': {}
 
   '@cspell/dict-filetypes@3.0.15': {}
 
