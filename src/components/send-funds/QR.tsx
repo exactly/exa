@@ -2,7 +2,7 @@ import { Address } from "@exactly/common/validation";
 import { ArrowLeft, BoxSelect, SwitchCamera } from "@tamagui/lucide-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useState } from "react";
 import { Linking, Pressable, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useWindowDimensions, XStack, YStack } from "tamagui";
@@ -18,7 +18,6 @@ export default function QR() {
   const { top, bottom } = useSafeAreaInsets();
   const { height, width } = useWindowDimensions();
 
-  const cameraRef = useRef<CameraView>(null);
   const router = useRouter();
 
   const [active, setActive] = useState(true);
@@ -130,7 +129,6 @@ export default function QR() {
     <View fullScreen backgroundColor="$backgroundSoft">
       {active && (
         <CameraView
-          ref={cameraRef}
           barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
           onBarcodeScanned={({ data: receiver }) => {
             const result = safeParse(Address, receiver);
