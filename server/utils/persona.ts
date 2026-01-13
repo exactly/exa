@@ -312,7 +312,10 @@ function getUnknownAccount(referenceId: string) {
   return request(UnknownAccount, `/accounts?page[size]=1&filter[reference-id]=${referenceId}`);
 }
 
-export async function getPendingInquiryTemplate(referenceId: string, scope: AccountScope): Promise<string | undefined> {
+export async function getPendingInquiryTemplate(
+  referenceId: string,
+  scope: AccountScope,
+): Promise<Awaited<ReturnType<typeof evaluateAccount>>> {
   const unknownAccount = await getUnknownAccount(referenceId);
   return evaluateAccount(unknownAccount, scope);
 }
@@ -443,36 +446,40 @@ export function isMissingOrNull<TInput>(issue: BaseIssue<TInput>): boolean {
   return issue.issues?.every((subIssue) => isMissingOrNull(subIssue)) ?? false;
 }
 
-export const MantecaCountryCode = [
-  "AR",
-  "CL",
-  "BR",
-  "CO",
-  "PA",
-  "CR",
-  "GT",
-  "MX",
-  "PH",
-  "BO",
+export const MantecaCountryCode = ["AR", "CL", "BR", "CO", "PA", "CR", "GT", "MX", "PH", "BO"] as const;
 
-  // TODO for testing, remove
-  "US",
-] as const;
-
-type DevelopmentChain = (typeof DevelopmentChainIds)[number];
 type IdClass = (typeof IdentificationClasses)[number];
 type Country = (typeof MantecaCountryCode)[number];
 type Allowed = { allowedIds: readonly IdClass[] };
 const allowedMantecaCountries = new Map<Country, Allowed>([
   ["AR", { allowedIds: ["id", "pp"] }],
-  ["BR", { allowedIds: ["id", "dl", "pp"] }],
-  ...(DevelopmentChainIds.includes(chain.id as DevelopmentChain)
-    ? ([["US", { allowedIds: ["dl"] }]] as const)
-    : ([] as const)),
+  ["BR", { allowedIds: ["id", "pp", "dl"] }],
 ] satisfies (readonly [Country, Allowed])[]);
 
+function isDevelopment(): boolean {
+  return DevelopmentChainIds.includes(chain.id as (typeof DevelopmentChainIds)[number]);
+}
+
 export function getAllowedMantecaIds(country: string): readonly IdClass[] | undefined {
-  return allowedMantecaCountries.get(country as Country)?.allowedIds;
+  if (isDevelopment()) {
+    return allowedMantecaCountries.get(country as Country)?.allowedIds ?? { US: ["dl"] as const }[country];
+  }
+  const result = safeParse(picklist(MantecaCountryCode), country);
+  if (!result.success) return undefined;
+  return allowedMantecaCountries.get(result.output)?.allowedIds;
+}
+
+export function getDocumentForManteca(
+  documents: InferOutput<typeof AccountBasicFields>["documents"]["value"],
+  country: string,
+): InferOutput<typeof IdentityDocument> | undefined {
+  const allowedIds = getAllowedMantecaIds(country);
+  if (!allowedIds) return undefined;
+  for (const idClass of allowedIds) {
+    const document = documents.find((id) => id.value.id_class.value === idClass);
+    if (document) return document.value;
+  }
+  return undefined;
 }
 
 export const scopeValidationErrors = {

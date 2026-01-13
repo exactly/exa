@@ -23,6 +23,7 @@ import {
   getPendingInquiryTemplate,
   PANDA_TEMPLATE,
   resumeInquiry,
+  scopeValidationErrors,
 } from "../utils/persona";
 import publicClient from "../utils/publicClient";
 import validatorHook from "../utils/validatorHook";
@@ -39,7 +40,7 @@ export default new Hono()
       object({
         templateId: optional(picklist([CRYPTOMATE_TEMPLATE, PANDA_TEMPLATE])), // TODO remove this after deprecate templateId query parameter
         countryCode: optional(literal("true")),
-        scope: optional(picklist(["basic"])),
+        scope: optional(picklist(["basic", "manteca"])),
       }),
       validatorHook(),
     ),
@@ -58,7 +59,6 @@ export default new Hono()
       setUser({ id: account });
       setContext("exa", { credential });
 
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
       if (scope === "basic" && credential.pandaId) {
         if (c.req.valid("query").countryCode) {
           const personaAccount = await getAccount(credentialId, scope).catch((error: unknown) => {
@@ -95,8 +95,25 @@ export default new Hono()
         return c.json({ code: "legacy kyc", legacy: "legacy kyc" }, 200);
       }
 
-      const inquiryTemplateId = await getPendingInquiryTemplate(credentialId, scope);
-      if (!inquiryTemplateId) return c.json({ code: "ok", legacy: "ok" }, 200);
+      let inquiryTemplateId: Awaited<ReturnType<typeof getPendingInquiryTemplate>>;
+      try {
+        inquiryTemplateId = await getPendingInquiryTemplate(credentialId, scope);
+      } catch (error: unknown) {
+        if (error instanceof Error && error.message === scopeValidationErrors.NOT_SUPPORTED) {
+          return c.json({ code: "not supported" }, 400);
+        }
+        throw error;
+      }
+      if (!inquiryTemplateId) {
+        if (c.req.valid("query").countryCode) {
+          const personaAccount = await getAccount(credentialId, scope).catch((error: unknown) => {
+            captureException(error, { level: "error", contexts: { details: { credentialId, scope } } });
+          });
+          const countryCode = personaAccount?.attributes["country-code"];
+          countryCode && c.header("User-Country", countryCode);
+        }
+        return c.json({ code: "ok", legacy: "ok" }, 200);
+      }
       const inquiry = await getInquiry(credentialId, inquiryTemplateId);
       if (!inquiry) return c.json({ code: "not started", legacy: "kyc not started" }, 400);
       switch (inquiry.attributes.status) {
@@ -128,7 +145,7 @@ export default new Hono()
       "json",
       object({
         redirectURI: optional(string()),
-        scope: optional(picklist(["basic"])),
+        scope: optional(picklist(["basic", "manteca"])),
         templateId: optional(string()), // TODO remove this after deprecate templateId query parameter
       }),
       validatorHook({ debug }),
@@ -146,7 +163,15 @@ export default new Hono()
       setUser({ id: parse(Address, credential.account) });
       setContext("exa", { credential });
 
-      const inquiryTemplateId = await getPendingInquiryTemplate(credentialId, scope);
+      let inquiryTemplateId: Awaited<ReturnType<typeof getPendingInquiryTemplate>>;
+      try {
+        inquiryTemplateId = await getPendingInquiryTemplate(credentialId, scope);
+      } catch (error: unknown) {
+        if (error instanceof Error && error.message === scopeValidationErrors.NOT_SUPPORTED) {
+          return c.json({ code: "not supported" }, 400);
+        }
+        throw error;
+      }
       if (!inquiryTemplateId) {
         return c.json({ code: "already approved", legacy: "kyc already approved" }, 400);
       }

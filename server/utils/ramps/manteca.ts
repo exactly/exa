@@ -2,12 +2,12 @@ import { captureException, captureMessage } from "@sentry/core";
 import {
   array,
   boolean,
-  literal,
   number,
   object,
   optional,
   parse,
   picklist,
+  safeParse,
   string,
   type BaseIssue,
   type BaseSchema,
@@ -19,16 +19,8 @@ import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 import chain from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
-import {
-  getAccount,
-  getInquiry,
-  resumeOrCreateMantecaInquiryOTL,
-  type MantecaCountryCode as CountryCode,
-  type IdentificationClasses,
-  type Inquiry,
-} from "../persona";
-
-import type * as shared from "./shared";
+import * as shared from "./shared";
+import { getAccount, getDocument, getDocumentForManteca, MantecaCountryCode } from "../persona";
 
 if (!process.env.MANTECA_API_URL) throw new Error("missing manteca api url");
 const baseURL = process.env.MANTECA_API_URL;
@@ -37,8 +29,9 @@ if (!process.env.MANTECA_API_KEY) throw new Error("missing manteca api key");
 const apiKey = process.env.MANTECA_API_KEY;
 
 // #region services
-export async function getUser(userId: string): Promise<InferInput<typeof UserResponse> | null> {
-  return await request(UserResponse, `/crypto/v2/users/${userId}`).catch((error: unknown) => {
+export async function getUser(account: Address): Promise<InferInput<typeof UserResponse> | null> {
+  const externalId = account.replace("0x", "");
+  return await request(UserResponse, `/crypto/v2/users/${externalId}`).catch((error: unknown) => {
     if (error instanceof Error && error.message.includes(MantecaApiErrorCodes.USER_NOT_FOUND)) return null;
     throw error;
   });
@@ -59,11 +52,7 @@ export async function uploadIdentityFile(
     UploadIdentityFileResponse,
     "/crypto/v2/onboarding-actions/upload-identity-image",
     {},
-    {
-      userAnyId,
-      fileName,
-      side,
-    },
+    { userAnyId, fileName, side },
     "POST",
   );
   await forwardFileToURL(documentURL, presignedURL);
@@ -77,32 +66,18 @@ export async function balances(userAnyId: string) {
   return await request(BalancesResponse, `/crypto/v2/user-balances/${userAnyId}`, {}, undefined, "GET");
 }
 
-export async function getQuote(coinPair: string): Promise<InferOutput<typeof shared.QuoteResponse>> {
+export async function getQuote(coinPair: string): Promise<InferOutput<typeof shared.QuoteResponse> | undefined> {
   const quote = await request(QuoteResponse, `/crypto/v2/prices/direct/${coinPair}`, {}, undefined, "GET").catch(
     (error: unknown) => {
-      captureException(error);
+      captureException(error, { level: "error" });
     },
   );
   if (!quote) return;
-  return {
-    buyRate: quote.buy,
-    sellRate: quote.sell,
-  };
+  return { buyRate: quote.buy, sellRate: quote.sell };
 }
 
 export async function lockPrice(side: "BUY" | "SELL", asset: string, against: string, userAnyId: string) {
-  return await request(
-    PriceLockResponse,
-    `/crypto/v2/price-locks`,
-    {},
-    {
-      side,
-      asset,
-      against,
-      userAnyId,
-    },
-    "POST",
-  );
+  return await request(PriceLockResponse, `/crypto/v2/price-locks`, {}, { side, asset, against, userAnyId }, "POST");
 }
 
 export async function createOnRampSynthetic(order: InferInput<typeof OnRampSynthetic>) {
@@ -167,7 +142,7 @@ export function getDepositDetails(
     case "BRL-BRAZIL":
       return [
         {
-          pixKey: "100d6f24-c507-43a1-935c-ba3fb9d1c16d",
+          pixKey: "100d6f24-c507-43a1-935c-ba3fb9d1c16d", // gitleaks:allow public PIX deposit key; not a credential
           network: "PIX",
           fee: "0.0",
           estimatedProcessingTime: "300",
@@ -201,14 +176,14 @@ export async function convertBalanceToUsdc(userNumberId: string, against: string
   });
 }
 
-export async function withdrawBalance(userNumberId: string, asset: string, address: string) {
+export async function withdrawBalance(userNumberId: string, asset: string, address: Address) {
   const userBalances = await balances(userNumberId);
   const assetBalance = userBalances.balance[asset as keyof typeof userBalances.balance];
   if (!assetBalance) throw new Error("asset balance not found");
 
   const supportedChainId = SupportedOnRampChainId[chain.id as (typeof shared.SupportedChainId)[number]];
   if (!supportedChainId) {
-    captureMessage("manteca_not_supported_chain_id", { contexts: { chain }, level: "error" });
+    captureMessage("manteca_not_supported_chain_id", { level: "error", contexts: { chain } });
     throw new Error(ErrorCodes.NOT_SUPPORTED_CHAIN_ID);
   }
 
@@ -216,102 +191,118 @@ export async function withdrawBalance(userNumberId: string, asset: string, addre
     userAnyId: userNumberId,
     asset,
     amount: assetBalance,
-    destination: {
-      address,
-      network: supportedChainId,
-    },
+    destination: { address, network: supportedChainId },
   });
 }
 
 export async function getProvider(
-  account: string,
-  credentialId: string,
-  templateId: string,
+  account: Address,
   countryCode?: string,
-  redirectURL?: string,
-): Promise<{
-  cryptoCurrencies: {
-    cryptoCurrency: (typeof shared.Cryptocurrency)[number];
-    network: (typeof shared.CryptoNetwork)[number];
-  }[];
-  currencies: string[];
-  pendingTasks: InferOutput<typeof shared.PendingTask>[];
-  status: "ACTIVE" | "MISSING_INFORMATION" | "NOT_AVAILABLE" | "NOT_STARTED" | "ONBOARDING";
-}> {
-  const allowedCountry = countryCode && allowedCountries.get(countryCode as (typeof CountryCode)[number]);
-  if (countryCode && !allowedCountry) {
-    return { status: "NOT_AVAILABLE", currencies: [], cryptoCurrencies: [], pendingTasks: [] };
-  }
-
+): Promise<InferOutput<typeof shared.ProviderInfo>> {
   const supportedChainId = SupportedOnRampChainId[chain.id as (typeof shared.SupportedChainId)[number]];
   if (!supportedChainId) {
-    captureMessage("manteca_not_supported_chain_id", { contexts: { chain }, level: "error" });
-    return { status: "NOT_AVAILABLE", currencies: [], cryptoCurrencies: [], pendingTasks: [] };
+    captureMessage("manteca_not_supported_chain_id", { level: "error", contexts: { chain } });
+    return { onramp: { currencies: [], cryptoCurrencies: [] }, status: "NOT_AVAILABLE" };
   }
 
   const currencies = getSupportedByCountry(countryCode);
-  const mantecaUser = await getUser(account.replace("0x", ""));
+  const mantecaUser = await getUser(account);
   if (!mantecaUser) {
-    const [inquiry, personaAccount] = await Promise.all([
-      getInquiry(credentialId, templateId),
-      getAccount(credentialId, "manteca"),
-    ]);
-    if (!inquiry || !personaAccount) throw new Error(ErrorCodes.NO_KYC);
-    if (inquiry.attributes.status !== "approved" && inquiry.attributes.status !== "completed") {
-      throw new Error(ErrorCodes.KYC_NOT_APPROVED);
-    }
-
-    const country = personaAccount.attributes["country-code"];
-
-    try {
-      validateIdentification(inquiry);
-    } catch (error) {
-      if (error instanceof Error && Object.values(ErrorCodes).includes(error.message)) {
-        switch (error.message) {
-          case ErrorCodes.COUNTRY_NOT_ALLOWED:
-          case ErrorCodes.ID_NOT_ALLOWED:
-            return { status: "NOT_AVAILABLE", currencies: [], cryptoCurrencies: [], pendingTasks: [] };
-          case ErrorCodes.BAD_KYC_ADDITIONAL_DATA: {
-            let mantecaRedirectURL: undefined | URL = undefined;
-            if (redirectURL) {
-              mantecaRedirectURL = new URL(redirectURL);
-              mantecaRedirectURL.searchParams.set("provider", "manteca" satisfies (typeof shared.RampProvider)[number]);
-            }
-            const inquiryTask: InferOutput<typeof shared.PendingTask> = {
-              type: "INQUIRY",
-              link: await resumeOrCreateMantecaInquiryOTL(credentialId, mantecaRedirectURL?.toString()),
-              displayText: "We need more information to complete your KYC",
-              currencies: getSupportedByCountry(country),
-              cryptoCurrencies: [],
-            };
-            return { status: "MISSING_INFORMATION", currencies, cryptoCurrencies: [], pendingTasks: [inquiryTask] };
-          }
-        }
-        captureException(error, { contexts: { inquiry } });
-      }
-      throw error;
-    }
-    return { status: "NOT_STARTED", currencies, cryptoCurrencies: [], pendingTasks: [] };
+    return { onramp: { currencies, cryptoCurrencies: [] }, status: "NOT_STARTED" };
   }
   if (mantecaUser.status === "ACTIVE") {
     const exchange = mantecaUser.exchange;
-    return { status: "ACTIVE", currencies: CurrenciesByExchange[exchange], cryptoCurrencies: [], pendingTasks: [] };
+    return { onramp: { currencies: CurrenciesByExchange[exchange], cryptoCurrencies: [] }, status: "ACTIVE" };
   }
   if (mantecaUser.status === "INACTIVE") {
-    return { status: "NOT_AVAILABLE", currencies: [], cryptoCurrencies: [], pendingTasks: [] };
+    return { onramp: { currencies: [], cryptoCurrencies: [] }, status: "NOT_AVAILABLE" };
   }
   const hasPendingTasks = Object.values(mantecaUser.onboarding).some(
     (task) => task.required && task.status === "PENDING",
   );
   if (hasPendingTasks) {
-    captureException(new Error("has pending tasks"), { contexts: { mantecaUser } });
-    return { status: "ONBOARDING", currencies, cryptoCurrencies: [], pendingTasks: [] };
+    captureException(new Error("has pending tasks"), { level: "warning", contexts: { mantecaUser } });
+    return { onramp: { currencies, cryptoCurrencies: [] }, status: "NOT_STARTED" };
   }
-  return { status: "ONBOARDING", currencies, cryptoCurrencies: [], pendingTasks: [] };
+  return { onramp: { currencies, cryptoCurrencies: [] }, status: "ONBOARDING" };
 }
 
-export async function mantecaOnboarding(_account: string, _credentialId: string, _templateId: string) {
-  await Promise.reject(new Error("not implemented"));
+export async function mantecaOnboarding(account: Address, credentialId: string) {
+  const externalId = account.replace("0x", "");
+  const supportedChainId = SupportedOnRampChainId[chain.id as (typeof shared.SupportedChainId)[number]];
+  if (!supportedChainId) {
+    captureMessage("manteca_not_supported_chain_id", { level: "error", contexts: { chain } });
+    throw new Error(ErrorCodes.NOT_SUPPORTED_CHAIN_ID);
+  }
+
+  const mantecaUser = await getUser(account);
+  if (mantecaUser?.status === "ACTIVE") return;
+  if (mantecaUser?.status === "INACTIVE") throw new Error(ErrorCodes.MANTECA_USER_INACTIVE);
+  const personaAccount = await getAccount(credentialId, "manteca");
+  if (!personaAccount) throw new Error(ErrorCodes.NO_PERSONA_ACCOUNT);
+  const countryCode = personaAccount.attributes["country-code"];
+
+  const identityDocument = getDocumentForManteca(personaAccount.attributes.fields.documents.value, countryCode);
+  if (!identityDocument) {
+    captureException(new Error("no identity document"), {
+      level: "error",
+      contexts: { details: { account, credentialId } },
+    });
+    throw new Error(ErrorCodes.NO_DOCUMENT);
+  }
+
+  if (!mantecaUser) {
+    await initiateOnboarding({
+      email: personaAccount.attributes["email-address"],
+      legalId: personaAccount.attributes.fields.tin.value,
+      externalId,
+      type: "INDIVIDUAL",
+      exchange: getExchange(countryCode),
+      personalData: {
+        birthDate: personaAccount.attributes.fields.birthdate.value,
+        nationality: getNationality(countryCode),
+        phoneNumber: personaAccount.attributes.fields.phone_number.value,
+        surname: personaAccount.attributes.fields.name.value.last.value,
+        name: personaAccount.attributes.fields.name.value.first.value,
+        maritalStatus: "Soltero", // cspell:ignore soltero
+        sex:
+          personaAccount.attributes.fields.sex_1.value === "Male"
+            ? "M"
+            : personaAccount.attributes.fields.sex_1.value === "Female"
+              ? "F"
+              : "X",
+        isFacta: !personaAccount.attributes.fields.isnotfacta.value, // cspell:ignore isnotfacta
+        isPep: false,
+        isFep: false,
+        work: personaAccount.attributes.fields.economic_activity.value,
+      },
+    });
+  }
+
+  const document = await getDocument(identityDocument.id_document_id.value);
+  const frontDocumentURL = document.attributes["front-photo"]?.url;
+  if (!frontDocumentURL) throw new Error("front document URL not found");
+  const backDocumentURL = document.attributes["back-photo"]?.url;
+
+  const results = await Promise.allSettled([
+    uploadIdentityFile(
+      externalId,
+      "FRONT",
+      document.attributes["front-photo"]?.filename ?? "front-photo.jpg",
+      frontDocumentURL,
+    ),
+    uploadIdentityFile(
+      externalId,
+      "BACK",
+      document.attributes["back-photo"]?.filename ?? "back-photo.jpg",
+      backDocumentURL,
+    ),
+    acceptTermsAndConditions(externalId),
+  ]);
+
+  for (const result of results) {
+    result.status === "rejected" && captureException(result.reason, { level: "error", extra: { account } });
+  }
 }
 // #endregion services
 
@@ -326,22 +317,12 @@ const SupportedOnRampChainId: Record<(typeof shared.SupportedChainId)[number], (
     [optimismSepolia.id]: "OPTIMISM",
   } as const;
 
-export const MantecaOnboarding = object({
-  gender: picklist(["Male", "Female", "Prefer not to say"]),
-  isnotfacta: literal(true), // cspell:ignore isnotfacta
-  tin: string(),
-  termsAccepted: boolean(),
-});
-
 export const WithdrawStatus = ["PENDING", "EXECUTED", "CANCELLED"] as const;
 export const Withdraw = object({
   userAnyId: string(),
   asset: string(),
   amount: string(),
-  destination: object({
-    address: Address,
-    network: picklist(Networks),
-  }),
+  destination: object({ address: Address, network: picklist(Networks) }),
 });
 
 export const WithdrawResponse = object({
@@ -459,12 +440,7 @@ export const QrPaymentResponse = object({
   creationTime: string(),
 });
 
-export const QuoteResponse = object({
-  ticker: string(),
-  timestamp: string(),
-  buy: string(),
-  sell: string(),
-});
+export const QuoteResponse = object({ ticker: string(), timestamp: string(), buy: string(), sell: string() });
 
 export const LimitType = ["EXCHANGE", "REMITTANCE"] as const;
 export const LimitsResponse = array(
@@ -500,7 +476,7 @@ export const BalancesResponse = object({
   updatedAt: string(),
 });
 
-const onboardingTaskStatus = ["PENDING", "COMPLETED"] as const;
+const onboardingTaskStatus = ["PENDING", "COMPLETED", "IN_PROGRESS"] as const;
 const OnboardingTaskInfo = optional(
   object({
     required: boolean(),
@@ -535,7 +511,9 @@ export const Exchange = [
   "BOLIVIA",
 ] as const;
 
-export const ExchangeByCountry: Record<(typeof CountryCode)[number], (typeof Exchange)[number]> = {
+type CountryCode = (typeof MantecaCountryCode)[number];
+
+export const ExchangeByCountry: Record<CountryCode, (typeof Exchange)[number]> = {
   AR: "ARGENTINA",
   CL: "CHILE",
   BR: "BRAZIL",
@@ -546,13 +524,10 @@ export const ExchangeByCountry: Record<(typeof CountryCode)[number], (typeof Exc
   MX: "MEXICO",
   PH: "PHILIPPINES",
   BO: "BOLIVIA",
-
-  // TODO for testing, remove
-  US: "ARGENTINA",
 };
 
 // TODO replace with i8n lib
-export const Nationality: Record<(typeof CountryCode)[number], string> = {
+export const Nationality: Record<CountryCode, string> = {
   AR: "Argentina",
   CL: "Chile",
   BR: "Brasil",
@@ -563,9 +538,6 @@ export const Nationality: Record<(typeof CountryCode)[number], string> = {
   MX: "México", // cspell:ignore México
   PH: "Filipinas", // cspell:ignore Filipinas
   BO: "Bolivia",
-
-  // TODO for testing, remove
-  US: "Argentina",
 };
 
 export const MantecaCurrency = [
@@ -595,25 +567,6 @@ export const CurrenciesByExchange: Record<(typeof Exchange)[number], (typeof Man
   BOLIVIA: ["BOB"],
 };
 
-export const allowedCountries = new Map<
-  (typeof CountryCode)[number],
-  { allowedIds: (typeof IdentificationClasses)[number][] }
->([
-  ["AR", { allowedIds: ["id", "pp"] }],
-  ["BR", { allowedIds: ["id", "dl", "pp"] }],
-  // ["CL", { allowedIds: [] }],
-  // ["CO", { allowedIds: ["id", "dl", "pp"] }],
-  // ["PA", { allowedIds: [] }],
-  // ["CR", { allowedIds: [] }],
-  // ["GT", { allowedIds: [] }],
-  // ["MX", { allowedIds: [] }],
-  // ["PH", { allowedIds: [] }],
-  // ["BO", { allowedIds: [] }],
-
-  // TODO for testing, remove
-  ["US", { allowedIds: ["dl"] }],
-]);
-
 export const NewUserResponse = object({
   user: object({
     id: string(),
@@ -627,47 +580,6 @@ export const NewUserResponse = object({
     creationTime: string(),
     updatedAt: string(),
   }),
-  person: optional(
-    object({
-      legalId: optional(string()),
-      email: optional(string()),
-      flags: object({
-        isDead: boolean(),
-        isPEP: boolean(),
-        isFACTA: boolean(),
-        isFEP: boolean(),
-      }),
-      personalData: optional(
-        object({
-          name: optional(string()),
-          surname: optional(string()),
-          sex: optional(string()),
-          work: optional(string()),
-          birthDate: optional(string()),
-          phoneNumber: optional(string()),
-          nationality: optional(string()),
-          maritalStatus: optional(string()),
-          cleanName: optional(string()),
-          address: optional(
-            object({
-              postalCode: optional(string()),
-              locality: optional(string()),
-              province: optional(string()),
-              street: optional(string()),
-              floor: optional(string()),
-              numeration: optional(string()),
-            }),
-          ),
-          document: optional(
-            object({
-              type: optional(string()),
-              id: optional(string()),
-            }),
-          ),
-        }),
-      ),
-    }),
-  ),
 });
 
 export const UserStatus = ["ONBOARDING", "ACTIVE", "INACTIVE"] as const;
@@ -721,9 +633,7 @@ export const UploadIdentityFile = object({
   fileName: string(),
 });
 
-export const UploadIdentityFileResponse = object({
-  url: string(),
-});
+export const UploadIdentityFileResponse = object({ url: string() });
 // #endregion schemas
 
 // #region utils
@@ -753,16 +663,30 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
   return parse(schema, JSON.parse(new TextDecoder().decode(rawBody)));
 }
 
-export function validateIdentification(_inquiry: InferOutput<typeof Inquiry>) {
-  throw new Error("not implemented");
+function isDevelopment(): boolean {
+  return shared.DevelopmentChainIds.includes(chain.id as (typeof shared.DevelopmentChainIds)[number]);
 }
 
 function getSupportedByCountry(countryCode?: string): (typeof MantecaCurrency)[number][] {
   if (!countryCode) return [];
-  const exchange = ExchangeByCountry[countryCode as (typeof CountryCode)[number]];
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-  if (!exchange) return [];
-  return CurrenciesByExchange[exchange];
+  if (isDevelopment()) return CurrenciesByExchange.ARGENTINA;
+  const result = safeParse(picklist(MantecaCountryCode), countryCode);
+  if (!result.success) return [];
+  return CurrenciesByExchange[ExchangeByCountry[result.output]];
+}
+
+function getExchange(countryCode: string): (typeof Exchange)[number] {
+  if (isDevelopment()) return "ARGENTINA";
+  const result = safeParse(picklist(MantecaCountryCode), countryCode);
+  if (!result.success) throw new Error(`Invalid country: ${countryCode}`);
+  return ExchangeByCountry[result.output];
+}
+
+function getNationality(countryCode: string): string {
+  if (isDevelopment()) return "Argentina";
+  const result = safeParse(picklist(MantecaCountryCode), countryCode);
+  if (!result.success) throw new Error(`Invalid country: ${countryCode}`);
+  return Nationality[result.output];
 }
 
 async function forwardFileToURL(sourceURL: string, destinationURL: string): Promise<void> {
@@ -772,10 +696,7 @@ async function forwardFileToURL(sourceURL: string, destinationURL: string): Prom
   }, 10_000);
 
   try {
-    const source = await fetch(sourceURL, {
-      headers: { "accept-encoding": "identity" },
-      signal: abort.signal,
-    });
+    const source = await fetch(sourceURL, { headers: { "accept-encoding": "identity" }, signal: abort.signal });
     if (!source.ok || !source.body) throw new Error(`Source fetch failed: ${source.status} ${source.statusText}`);
     const sourceContentType = source.headers.get("content-type") ?? "application/octet-stream";
     const sourceContentLength = source.headers.get("content-length");
@@ -794,7 +715,7 @@ async function forwardFileToURL(sourceURL: string, destinationURL: string): Prom
     });
 
     if (!destination.ok) {
-      const errorText = await safeText(destination);
+      const errorText = await destination.text().catch(() => "no error text");
       throw new Error(
         `Destination upload failed: ${destination.status} ${destination.statusText}${
           errorText ? ` – ${errorText}` : ""
@@ -806,31 +727,15 @@ async function forwardFileToURL(sourceURL: string, destinationURL: string): Prom
   }
 }
 
-async function safeText(response: Response): Promise<string> {
-  return await response.text().catch(() => "no error text");
-}
-
 // #endregion utils
 
 export const ErrorCodes = {
-  MULTIPLE_IDENTIFICATION_NUMBERS: "multiple identification numbers",
-  NO_IDENTIFICATION_NUMBER: "no identification number",
-  NO_IDENTIFICATION_CLASS: "no identification class",
-  BAD_KYC_ADDITIONAL_DATA: "bad kyc additional data",
-  NOT_SUPPORTED_CURRENCY: "not supported currency",
   NOT_SUPPORTED_CHAIN_ID: "not supported chain id",
+  NOT_SUPPORTED_CURRENCY: "not supported currency",
   MANTECA_USER_INACTIVE: "manteca user inactive",
-  COUNTRY_NOT_ALLOWED: "country not allowed",
-  MULTIPLE_DOCUMENTS: "multiple documents",
-  NO_PERSONA_ACCOUNT: "no persona account",
   INVALID_ORDER_SIZE: "invalid order size",
-  KYC_NOT_APPROVED: "kyc not approved",
-  BAD_MANTECA_KYC: "bad manteca kyc",
-  ID_NOT_ALLOWED: "id not allowed",
-  NO_NON_FACTA: "no non facta",
+  NO_PERSONA_ACCOUNT: "no persona account",
   NO_DOCUMENT: "no document",
-  NO_GENDER: "no gender",
-  NO_KYC: "no kyc",
 };
 
 const MantecaApiErrorCodes = {

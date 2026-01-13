@@ -107,18 +107,16 @@ type GetProvider = {
   credentialId: string;
   customerId?: null | string;
   redirectURL?: string;
-  templateId: string;
 };
 
 export async function getProvider(_data: GetProvider): Promise<InferOutput<typeof common.ProviderInfo>> {
-  return await Promise.resolve({ status: "NOT_AVAILABLE", currencies: [], cryptoCurrencies: [], pendingTasks: [] });
+  return await Promise.resolve({ status: "NOT_AVAILABLE", onramp: { currencies: [], cryptoCurrencies: [] } });
 }
 
 type Onboarding = {
   acceptedTermsId: string;
   credentialId: string;
   customerId: null | string;
-  templateId: string;
 };
 
 export async function onboarding(_data: Onboarding): Promise<void> {

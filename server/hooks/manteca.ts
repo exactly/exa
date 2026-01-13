@@ -1,5 +1,5 @@
 import { vValidator } from "@hono/valibot-validator";
-import { captureEvent, captureException } from "@sentry/core";
+import { captureEvent, captureException, setUser } from "@sentry/core";
 import createDebug from "debug";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
@@ -12,6 +12,7 @@ import {
   object,
   picklist,
   pipe,
+  safeParse,
   string,
   transform,
   unknown,
@@ -50,103 +51,91 @@ const DepositDetectedData = object({
   network: string(),
 });
 
-const OrderStatusUpdateData = object({
-  id: string(),
-  against: string(),
-  asset: string(),
-  assetAmount: string(),
-  effectivePrice: string(),
-  exchange: string(),
-  feeInfo: object({ companyProfit: string(), custodyFee: string(), platformFee: string(), totalFee: string() }),
-  status: picklist(OrderStatus),
-  userExternalId: string(),
-  userNumberId: string(),
-});
-
-const WithdrawStatusUpdateData = object({
-  id: string(),
-  asset: string(),
-  amount: string(),
-  userExternalId: string(),
-  status: picklist(WithdrawStatus),
-  userNumberId: string(),
-  destination: Address,
-});
-
-const UserOnboardingUpdateData = pipe(
-  object({
-    updatedTasks: array(string()),
-    user: object({
-      email: string(),
-      id: string(),
-      numberId: string(),
-      externalId: string(),
-      exchange: string(),
-      status: picklist(UserStatus),
-    }),
-  }),
-  transform((data) => ({ ...data, userExternalId: data.user.externalId })),
-);
-
-const PaymentRefundData = object({
-  amount: string(),
-  asset: string(),
-  network: string(),
-  partial: boolean(),
-  paymentNumberId: string(),
-  refundReason: string(),
-  refundedAt: string(),
-  userId: string(),
-  userNumberId: string(),
-});
-
-const ComplianceNoticeData = variant("type", [
-  object({
-    type: literal("CLOSE_TO_OPERATION_LIMIT"),
-    exchange: string(),
-    legalId: string(),
-    message: string(),
-    payload: object({
-      limit: number(),
-      operatedAmount: number(),
-      timeframe: string(),
-    }),
-  }),
-  object({
-    type: literal("OPERATION_LIMIT_UPDATED"),
-    exchange: string(),
-    message: string(),
-    payload: object({
-      expirationTime: string(),
-      limitAction: string(),
-      timeframe: string(),
-      updateReason: string(),
-    }),
-  }),
-]);
-
-const SystemNoticeData = unknown();
-
 const Payload = variant("event", [
-  object({
-    event: literal("DEPOSIT_DETECTED"),
-    data: DepositDetectedData,
-  }),
+  object({ event: literal("DEPOSIT_DETECTED"), data: DepositDetectedData }),
   object({
     event: literal("USER_ONBOARDING_UPDATE"),
-    data: UserOnboardingUpdateData,
+    data: pipe(
+      object({
+        updatedTasks: array(string()),
+        user: object({
+          email: string(),
+          id: string(),
+          numberId: string(),
+          externalId: string(),
+          exchange: string(),
+          status: picklist(UserStatus),
+        }),
+      }),
+      transform((data) => ({ ...data, userExternalId: data.user.externalId })),
+    ),
   }),
+  object({ event: literal("USER_STATUS_UPDATE"), data: unknown() }),
   object({
     event: literal("WITHDRAW_STATUS_UPDATE"),
-    data: WithdrawStatusUpdateData,
+    data: object({
+      id: string(),
+      asset: string(),
+      amount: string(),
+      userExternalId: string(),
+      status: picklist(WithdrawStatus),
+      userNumberId: string(),
+      destination: Address,
+    }),
   }),
   object({
     event: literal("ORDER_STATUS_UPDATE"),
-    data: OrderStatusUpdateData,
+    data: object({
+      id: string(),
+      against: string(),
+      asset: string(),
+      assetAmount: string(),
+      effectivePrice: string(),
+      exchange: string(),
+      feeInfo: object({ companyProfit: string(), custodyFee: string(), platformFee: string(), totalFee: string() }),
+      status: picklist(OrderStatus),
+      userExternalId: string(),
+      userNumberId: string(),
+    }),
   }),
-  object({ event: literal("COMPLIANCE_NOTICE"), data: ComplianceNoticeData }),
-  object({ event: literal("PAYMENT_REFUND"), data: PaymentRefundData }),
-  object({ event: literal("SYSTEM_NOTICE"), data: SystemNoticeData }),
+  object({
+    event: literal("COMPLIANCE_NOTICE"),
+    data: variant("type", [
+      object({
+        type: literal("CLOSE_TO_OPERATION_LIMIT"),
+        exchange: string(),
+        legalId: string(),
+        message: string(),
+        payload: object({ limit: number(), operatedAmount: number(), timeframe: string() }),
+      }),
+      object({
+        type: literal("OPERATION_LIMIT_UPDATED"),
+        exchange: string(),
+        message: string(),
+        payload: object({
+          expirationTime: string(),
+          limitAction: string(),
+          timeframe: string(),
+          updateReason: string(),
+        }),
+      }),
+    ]),
+  }),
+  object({
+    event: literal("PAYMENT_REFUND"),
+    data: object({
+      amount: string(),
+      asset: string(),
+      network: string(),
+      partial: boolean(),
+      paymentNumberId: string(),
+      refundReason: string(),
+      refundedAt: string(),
+      userId: string(),
+      userNumberId: string(),
+    }),
+  }),
+  object({ event: literal("SYSTEM_NOTICE"), data: unknown() }),
 ]);
 
 export default new Hono().post(
@@ -156,90 +145,111 @@ export default new Hono().post(
   async (c) => {
     const payload = c.req.valid("json");
 
+    if (payload.event === "USER_STATUS_UPDATE") {
+      return c.json({ code: "deprecated" }, 200);
+    }
+
     if (payload.event === "SYSTEM_NOTICE") {
-      captureEvent({ message: "MANTECA SYSTEM NOTICE", contexts: { payload } });
-      return c.json({ code: "ok" });
+      captureEvent({ message: "MANTECA SYSTEM NOTICE" });
+      return c.json({ code: "ok" }, 200);
     }
 
     if (payload.event === "COMPLIANCE_NOTICE") {
       // TODO evaluate send a push notification
-      captureEvent({ message: "MANTECA COMPLIANCE NOTICE", contexts: { payload } });
-      return c.json({ code: "ok" });
+      captureEvent({ message: "MANTECA COMPLIANCE NOTICE" });
+      return c.json({ code: "ok" }, 200);
     }
 
     if (payload.event === "PAYMENT_REFUND") {
       // TODO retrieve the userExternalId from manteca to continue with the flow
-      captureEvent({ message: "MANTECA PAYMENT REFUND", contexts: { payload } });
-      return c.json({ code: "ok" });
+      captureEvent({ message: "MANTECA PAYMENT REFUND" });
+      return c.json({ code: "ok" }, 200);
     }
 
-    const user = await database.query.credentials.findFirst({
+    const rawAccount = `0x${payload.data.userExternalId}`;
+    const result = safeParse(Address, rawAccount);
+    if (!result.success) {
+      captureException(new Error("invalid account address"), { level: "error", contexts: { details: { rawAccount } } });
+      return c.json({ code: "invalid account address" }, 200);
+    }
+    const account = result.output;
+    setUser({ id: account });
+
+    const credential = await database.query.credentials.findFirst({
       columns: { account: true },
-      where: eq(credentials.account, `0x${payload.data.userExternalId}`),
+      where: eq(credentials.account, account),
     });
-    if (!user) {
-      captureException(new Error("user not found"), { contexts: { payload } });
-      return c.json({ code: "user not found", status: 200 });
+    if (!credential) {
+      captureException(new Error("credential not found"), { level: "error", contexts: { details: { account } } });
+      return c.json({ code: "credential not found" }, 200);
     }
 
     switch (payload.event) {
       case "DEPOSIT_DETECTED":
-        await handleDepositDetected(payload.data, user.account);
-        return c.json({ code: "ok" });
+        await handleDepositDetected(payload.data, account);
+        return c.json({ code: "ok" }, 200);
       case "ORDER_STATUS_UPDATE":
         if (payload.data.status === "CANCELLED") {
-          captureException(new Error("order cancelled"), { contexts: { payload } });
+          captureException(new Error("order cancelled"), { level: "error", contexts: { details: { account } } });
           await convertBalanceToUsdc(payload.data.userNumberId, payload.data.against);
-          return c.json({ code: "ok" });
+          return c.json({ code: "ok" }, 200);
         }
         if (payload.data.status === "COMPLETED") {
-          await withdrawBalance(payload.data.userNumberId, payload.data.asset, user.account);
-          return c.json({ code: "ok" });
+          await withdrawBalance(payload.data.userNumberId, payload.data.asset, account);
+          return c.json({ code: "ok" }, 200);
         }
-        return c.json({ code: "ok" });
+        return c.json({ code: "ok" }, 200);
       case "WITHDRAW_STATUS_UPDATE":
         if (payload.data.status === "CANCELLED") {
-          await withdrawBalance(payload.data.userNumberId, payload.data.asset, user.account);
-          return c.json({ code: "ok" });
+          await withdrawBalance(payload.data.userNumberId, payload.data.asset, account);
+          return c.json({ code: "ok" }, 200);
         }
-        return c.json({ code: "ok" });
+        return c.json({ code: "ok" }, 200);
       case "USER_ONBOARDING_UPDATE":
         if (payload.data.user.status === "ACTIVE") {
           sendPushNotification({
-            userId: user.account,
+            userId: credential.account,
             headings: { en: "Fiat onramp activated" },
             contents: { en: "Your fiat onramp account has been activated" },
-          }).catch((error: unknown) => captureException(error));
+          }).catch((error: unknown) => captureException(error, { level: "error" }));
         }
-        return c.json({ code: "ok" });
+        return c.json({ code: "ok" }, 200);
       default:
-        return c.json({ code: "ok" });
+        return c.json({ code: "ok" }, 200);
     }
   },
 );
 
-async function handleDepositDetected(data: InferInput<typeof DepositDetectedData>, userAccount: string) {
-  switch (data.asset) {
-    case "USDC": // qr payments
-      // TODO
+async function handleDepositDetected(data: InferInput<typeof DepositDetectedData>, account: Address) {
+  switch (rampDirection(data.asset)) {
+    case "offramp":
       break;
-    default: // onramp
+    case "onramp":
       await convertBalanceToUsdc(data.userNumberId, data.asset)
         .then(() => {
           sendPushNotification({
-            userId: userAccount,
+            userId: account,
             headings: { en: "Deposited funds" },
             contents: { en: `${data.amount} ${data.asset} deposited` },
-          }).catch((error: unknown) => captureException(error));
+          }).catch((error: unknown) => captureException(error, { level: "error" }));
         })
         .catch((error: unknown) => {
           if (error instanceof Error && error.message.includes(ErrorCodes.INVALID_ORDER_SIZE)) {
             // TODO send a push notification to the user
-            captureEvent({ message: "MANTECA INVALID ORDER SIZE", contexts: { data } });
+            captureEvent({ message: "MANTECA INVALID ORDER SIZE", level: "error", contexts: { data } });
             return;
           }
           throw error;
         });
+  }
+}
+
+function rampDirection(asset: string): "offramp" | "onramp" {
+  switch (asset) {
+    case "USDC":
+      return "offramp";
+    default:
+      return "onramp";
   }
 }
 

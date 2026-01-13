@@ -1,6 +1,8 @@
 {
   "language": "en",
-  "import": ["@cspell/dict-es-es/cspell-ext.json"],
+  "import": [
+    "@cspell/dict-es-es/cspell-ext.json"
+  ],
   "ignorePaths": [
     "*.svg",
     "*.local.yaml",
@@ -101,6 +103,7 @@
     "nfmelendez",
     "nomiclabs",
     "nystrom",
+    "offramp",
     "oneline",
     "onesignal",
     "opengraph",

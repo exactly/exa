@@ -301,6 +301,56 @@ describe("evaluateAccount", () => {
   });
 });
 
+describe("get document for manteca", () => {
+  it("returns undefined when no document is found", () => {
+    const result = persona.getDocumentForManteca([], "US");
+
+    expect(result).toBeUndefined();
+  });
+
+  it("returns document when found and id class is allowed", () => {
+    const document = {
+      id_class: { value: "id" },
+      id_number: { value: "1234567890" },
+      id_issuing_country: { value: "AR" },
+      id_document_id: { value: "1234567890" },
+    };
+    const result = persona.getDocumentForManteca([{ value: document }], "AR");
+
+    expect(result).toBe(document);
+  });
+
+  it("returns undefined when id class is not allowed", () => {
+    const document = {
+      id_class: { value: "dl" },
+      id_number: { value: "1234567890" },
+      id_issuing_country: { value: "AR" },
+      id_document_id: { value: "1234567890" },
+    };
+    const result = persona.getDocumentForManteca([{ value: document }], "AR");
+
+    expect(result).toBeUndefined();
+  });
+
+  it("returns document by id class priority when multiple documents are found", () => {
+    const document1 = {
+      id_class: { value: "id" },
+      id_number: { value: "1234567890" },
+      id_issuing_country: { value: "AR" },
+      id_document_id: { value: "1234567890" },
+    };
+    const document2 = {
+      id_class: { value: "pp" },
+      id_number: { value: "1234567890" },
+      id_issuing_country: { value: "AR" },
+      id_document_id: { value: "1234567890" },
+    };
+    const result = persona.getDocumentForManteca([{ value: document2 }, { value: document1 }], "AR");
+
+    expect(result).toBe(document1);
+  });
+});
+
 const emptyAccount = {
   data: [
     {
