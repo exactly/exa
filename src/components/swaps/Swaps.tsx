@@ -88,10 +88,6 @@ export default function Swaps() {
     queryFn: () => defaultSwap,
   });
 
-  const updateSwap = (updater: (old: Swap) => Swap) => {
-    queryClient.setQueryData<Swap>(["swap"], (old) => updater(old ?? defaultSwap));
-  };
-
   const isExternal = useCallback(
     (address: string) => {
       if (!markets) return false;
@@ -139,11 +135,7 @@ export default function Swaps() {
         }));
       }
     }
-  }, [fromToken, isExternal, markets, toToken, tokens, updateSwap]);
-
-  const handleSelectToken = (type: "from" | "to") => {
-    updateSwap((old) => ({ ...old, tokenSelectionType: type, tokenModalOpen: true }));
-  };
+  }, [fromToken, isExternal, markets, toToken, tokens]);
 
   const handleTokenSelect = (token: Token) => {
     if (!fromToken || !toToken) return;
@@ -165,10 +157,6 @@ export default function Swaps() {
             : toToken,
       tokenModalOpen: false,
     }));
-  };
-
-  const handleCloseTokenModal = () => {
-    updateSwap((old) => ({ ...old, tokenModalOpen: false }));
   };
 
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
@@ -241,7 +229,7 @@ export default function Swaps() {
         updateSwap((old) => ({ ...old, fromAmount: route.fromAmount ?? 0n, tool: route.tool ?? "" }));
       }
     }
-  }, [activeInput, route, updateSwap]);
+  }, [activeInput, route]);
 
   useEffect(() => {
     if (route) {
@@ -251,7 +239,7 @@ export default function Swaps() {
           : { ...old, fromAmount: route.fromAmount ?? 0n, tool: route.tool ?? "" };
       });
     }
-  }, [activeInput, route, updateSwap]);
+  }, [activeInput, route]);
 
   const {
     propose: { data: swapPropose },
@@ -349,7 +337,7 @@ export default function Swaps() {
       mutate(swapPropose.request);
     }
     updateSwap((old) => ({ ...old, enableSimulations: false }));
-  }, [route, fromToken?.external, externalSwap, swapPropose, mutate, updateSwap]);
+  }, [route, fromToken?.external, externalSwap, swapPropose, mutate]);
 
   const toTokenIsUSDC = toToken?.token.symbol === "USDC";
   const caution =
@@ -418,7 +406,7 @@ export default function Swaps() {
                       isActive={isActive}
                       isDanger={type === "from" && showWarning}
                       onTokenSelect={() => {
-                        handleSelectToken(type);
+                        updateSwap((old) => ({ ...old, tokenSelectionType: type, tokenModalOpen: true }));
                         setAcknowledged(false);
                       }}
                       onFocus={() => {
@@ -550,7 +538,7 @@ export default function Swaps() {
           tokens={tokens ?? []}
           selectedToken={tokenSelectionType === "from" ? fromToken?.token : toToken?.token}
           onSelect={handleTokenSelect}
-          onClose={handleCloseTokenModal}
+          onClose={() => updateSwap((old) => ({ ...old, tokenModalOpen: false }))}
           isLoading={isTokensLoading}
           title={tokenSelectionType === "from" ? "Select token to pay" : "Select token to receive"}
         />
@@ -613,6 +601,10 @@ function aboveThreshold(amount: bigint, available: bigint, threshold: number, de
 
 function getExchangeRate(fromToken: Token, toToken: Token, fromAmount: bigint, toAmount: bigint) {
   return Number(formatUnits(toAmount, toToken.decimals)) / Number(formatUnits(fromAmount, fromToken.decimals));
+}
+
+function updateSwap(updater: (old: Swap) => Swap) {
+  queryClient.setQueryData<Swap>(["swap"], (old) => updater(old ?? defaultSwap));
 }
 
 export const swapsScrollReference: RefObject<ScrollView | null> = { current: null };
