@@ -65,7 +65,7 @@ export default function AssetSelector({
               ? Number(asset.amount ?? 0n) / 10 ** asset.decimals
               : Number(markets ? withdrawLimit(markets, asset.market) : 0n) / 10 ** asset.decimals;
 
-          const usdPrice = asset.type === "external" ? Number(asset.priceUSD) / 1e18 : asset.usdValue / 1e18;
+          const usdPrice = asset.type === "external" ? Number(asset.priceUSD) : Number(asset.usdPrice) / 1e18;
           const balance = availableBalance.toLocaleString(undefined, {
             minimumFractionDigits: 0,
             maximumFractionDigits: Math.min(

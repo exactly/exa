@@ -15,6 +15,7 @@ export interface ProtocolAsset {
   assetName: string;
   floatingDepositAssets: bigint;
   decimals: number;
+  usdPrice: bigint;
   usdValue: number;
   market: `0x${string}`;
 }
