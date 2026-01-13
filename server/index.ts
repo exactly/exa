@@ -28,9 +28,9 @@ app.route("/api", api);
 
 app.route("/hooks/activity", activityHook);
 app.route("/hooks/block", block);
+app.route("/hooks/manteca", manteca);
 app.route("/hooks/panda", panda);
 app.route("/hooks/persona", persona);
-app.route("/hooks/manteca", manteca);
 
 app.get("/.well-known/apple-app-site-association", (c) =>
   c.json({ webcredentials: { apps: ["665NDX7LBZ.app.exactly"] } }),

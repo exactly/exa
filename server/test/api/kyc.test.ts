@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, inject, it, vi } from "vitest"
 import app from "../../api/kyc";
 import database, { credentials } from "../../database";
 import * as persona from "../../utils/persona";
+import { scopeValidationErrors } from "../../utils/persona";
 import publicClient from "../../utils/publicClient";
 
 const appClient = testClient(app);
@@ -706,6 +707,336 @@ describe("authenticated", () => {
     });
   });
 
+  describe("manteca scope", () => {
+    describe("getting kyc", () => {
+      it("returns ok when account has all manteca fields", async () => {
+        await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "bob"));
+        const getPendingInquiryTemplate = vi
+          .spyOn(persona, "getPendingInquiryTemplate")
+          .mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
+
+        const response = await appClient.index.$get(
+          { query: { scope: "manteca" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(getPendingInquiryTemplate).toHaveBeenCalledWith("bob", "manteca");
+        await expect(response.json()).resolves.toStrictEqual({ code: "ok", legacy: "ok" });
+        expect(response.status).toBe(200);
+      });
+
+      it("returns ok when account has all manteca fields and country code", async () => {
+        await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "bob"));
+        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(mantecaAccount as persona.AccountOutput<"manteca">);
+        const getPendingInquiryTemplate = vi
+          .spyOn(persona, "getPendingInquiryTemplate")
+          .mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
+
+        const response = await appClient.index.$get(
+          { query: { scope: "manteca", countryCode: "true" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(getPendingInquiryTemplate).toHaveBeenCalledWith("bob", "manteca");
+        await expect(response.json()).resolves.toStrictEqual({ code: "ok", legacy: "ok" });
+        expect(response.headers.get("User-Country")).toBe("AR");
+        expect(response.status).toBe(200);
+      });
+
+      it("returns not supported when country is not allowed for manteca", async () => {
+        await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "bob"));
+        vi.spyOn(persona, "getPendingInquiryTemplate").mockRejectedValueOnce(
+          new Error(scopeValidationErrors.NOT_SUPPORTED),
+        );
+
+        const response = await appClient.index.$get(
+          { query: { scope: "manteca" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        await expect(response.json()).resolves.toStrictEqual({ code: "not supported" });
+        expect(response.status).toBe(400);
+      });
+
+      it("returns not started when manteca extra fields inquiry is not found", async () => {
+        await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "bob"));
+        const getPendingInquiryTemplate = vi
+          .spyOn(persona, "getPendingInquiryTemplate")
+          .mockResolvedValueOnce(persona.MANTECA_TEMPLATE_EXTRA_FIELDS);
+        const getInquiry = vi.spyOn(persona, "getInquiry").mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
+
+        const response = await appClient.index.$get(
+          { query: { scope: "manteca" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(getPendingInquiryTemplate).toHaveBeenCalledWith("bob", "manteca");
+        expect(getInquiry).toHaveBeenCalledWith("bob", persona.MANTECA_TEMPLATE_EXTRA_FIELDS);
+        await expect(response.json()).resolves.toStrictEqual({ code: "not started", legacy: "kyc not started" });
+        expect(response.status).toBe(400);
+      });
+
+      it("returns not started when manteca with id class inquiry is not found", async () => {
+        await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "bob"));
+        const getPendingInquiryTemplate = vi
+          .spyOn(persona, "getPendingInquiryTemplate")
+          .mockResolvedValueOnce(persona.MANTECA_TEMPLATE_WITH_ID_CLASS);
+        const getInquiry = vi.spyOn(persona, "getInquiry").mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
+
+        const response = await appClient.index.$get(
+          { query: { scope: "manteca" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(getPendingInquiryTemplate).toHaveBeenCalledWith("bob", "manteca");
+        expect(getInquiry).toHaveBeenCalledWith("bob", persona.MANTECA_TEMPLATE_WITH_ID_CLASS);
+        await expect(response.json()).resolves.toStrictEqual({ code: "not started", legacy: "kyc not started" });
+        expect(response.status).toBe(400);
+      });
+
+      it("returns ok and sends sentry error when manteca inquiry is approved but account not updated", async () => {
+        await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "bob"));
+        const getPendingInquiryTemplate = vi
+          .spyOn(persona, "getPendingInquiryTemplate")
+          .mockResolvedValueOnce(persona.MANTECA_TEMPLATE_EXTRA_FIELDS);
+        vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({
+          ...personaTemplate,
+          attributes: { ...personaTemplate.attributes, status: "approved" },
+        });
+
+        const response = await appClient.index.$get(
+          { query: { scope: "manteca" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(getPendingInquiryTemplate).toHaveBeenCalledWith("bob", "manteca");
+        await expect(response.json()).resolves.toStrictEqual({ code: "ok", legacy: "ok" });
+        expect(response.status).toBe(200);
+        expect(captureException).toHaveBeenCalledWith(new Error("inquiry approved but account not updated"), {
+          level: "error",
+          contexts: { inquiry: { templateId: persona.MANTECA_TEMPLATE_EXTRA_FIELDS, referenceId: "bob" } },
+        });
+      });
+
+      it("returns not started when manteca inquiry is pending", async () => {
+        await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "bob"));
+        const getPendingInquiryTemplate = vi
+          .spyOn(persona, "getPendingInquiryTemplate")
+          .mockResolvedValueOnce(persona.MANTECA_TEMPLATE_EXTRA_FIELDS);
+        vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({
+          ...personaTemplate,
+          attributes: { ...personaTemplate.attributes, status: "pending" },
+        });
+
+        const response = await appClient.index.$get(
+          { query: { scope: "manteca" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(getPendingInquiryTemplate).toHaveBeenCalledWith("bob", "manteca");
+        await expect(response.json()).resolves.toStrictEqual({ code: "not started", legacy: "kyc not started" });
+        expect(response.status).toBe(400);
+      });
+
+      it("returns bad kyc when manteca inquiry failed", async () => {
+        await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "bob"));
+        const getPendingInquiryTemplate = vi
+          .spyOn(persona, "getPendingInquiryTemplate")
+          .mockResolvedValueOnce(persona.MANTECA_TEMPLATE_EXTRA_FIELDS);
+        vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({
+          ...personaTemplate,
+          attributes: { ...personaTemplate.attributes, status: "failed" },
+        });
+
+        const response = await appClient.index.$get(
+          { query: { scope: "manteca" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(getPendingInquiryTemplate).toHaveBeenCalledWith("bob", "manteca");
+        await expect(response.json()).resolves.toStrictEqual({ code: "bad kyc", legacy: "kyc not approved" });
+        expect(response.status).toBe(400);
+      });
+    });
+
+    describe("posting kyc", () => {
+      it("returns already approved when account has all manteca fields", async () => {
+        await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "bob"));
+        const getPendingInquiryTemplate = vi
+          .spyOn(persona, "getPendingInquiryTemplate")
+          .mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
+
+        const response = await appClient.index.$post(
+          { json: { scope: "manteca" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(getPendingInquiryTemplate).toHaveBeenCalledWith("bob", "manteca");
+        await expect(response.json()).resolves.toStrictEqual({
+          code: "already approved",
+          legacy: "kyc already approved",
+        });
+        expect(response.status).toBe(400);
+      });
+
+      it("returns otl and session token when creating manteca extra fields inquiry", async () => {
+        await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "bob"));
+
+        const otl = "https://new-manteca-url.com";
+        const sessionToken = "manteca-session-token";
+
+        vi.spyOn(persona, "getInquiry").mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
+        vi.spyOn(persona, "generateOTL").mockResolvedValueOnce({
+          ...OTLTemplate,
+          meta: { ...OTLTemplate.meta, "one-time-link": otl },
+        });
+        vi.spyOn(persona, "resumeInquiry").mockResolvedValueOnce({
+          ...resumeTemplate,
+          meta: { ...resumeTemplate.meta, "session-token": sessionToken },
+        });
+
+        const getPendingInquiryTemplate = vi
+          .spyOn(persona, "getPendingInquiryTemplate")
+          .mockResolvedValueOnce(persona.MANTECA_TEMPLATE_EXTRA_FIELDS);
+        const createInquiry = vi.spyOn(persona, "createInquiry").mockResolvedValueOnce(inquiry);
+
+        const response = await appClient.index.$post(
+          { json: { scope: "manteca" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(getPendingInquiryTemplate).toHaveBeenCalledWith("bob", "manteca");
+        expect(createInquiry).toHaveBeenCalledWith("bob", persona.MANTECA_TEMPLATE_EXTRA_FIELDS, undefined);
+        await expect(response.json()).resolves.toStrictEqual({
+          otl,
+          sessionToken,
+          legacy: otl,
+          inquiryId: resumeTemplate.data.id,
+        });
+        expect(response.status).toBe(200);
+      });
+
+      it("returns otl and session token when creating manteca with id class inquiry", async () => {
+        await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "bob"));
+
+        const otl = "https://new-manteca-id-url.com";
+        const sessionToken = "manteca-id-session-token";
+
+        vi.spyOn(persona, "getInquiry").mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
+        vi.spyOn(persona, "generateOTL").mockResolvedValueOnce({
+          ...OTLTemplate,
+          meta: { ...OTLTemplate.meta, "one-time-link": otl },
+        });
+        vi.spyOn(persona, "resumeInquiry").mockResolvedValueOnce({
+          ...resumeTemplate,
+          meta: { ...resumeTemplate.meta, "session-token": sessionToken },
+        });
+
+        const getPendingInquiryTemplate = vi
+          .spyOn(persona, "getPendingInquiryTemplate")
+          .mockResolvedValueOnce(persona.MANTECA_TEMPLATE_WITH_ID_CLASS);
+        const createInquiry = vi.spyOn(persona, "createInquiry").mockResolvedValueOnce(inquiry);
+
+        const response = await appClient.index.$post(
+          { json: { scope: "manteca" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(getPendingInquiryTemplate).toHaveBeenCalledWith("bob", "manteca");
+        expect(createInquiry).toHaveBeenCalledWith("bob", persona.MANTECA_TEMPLATE_WITH_ID_CLASS, undefined);
+        await expect(response.json()).resolves.toStrictEqual({
+          otl,
+          sessionToken,
+          legacy: otl,
+          inquiryId: resumeTemplate.data.id,
+        });
+        expect(response.status).toBe(200);
+      });
+
+      it("returns otl and session token when resuming pending manteca inquiry", async () => {
+        const otl = "https://resume-manteca-url.com";
+        const sessionToken = "resume-manteca-session-token";
+
+        vi.spyOn(persona, "generateOTL").mockResolvedValueOnce({
+          ...OTLTemplate,
+          meta: { ...OTLTemplate.meta, "one-time-link": otl },
+        });
+        vi.spyOn(persona, "resumeInquiry").mockResolvedValueOnce({
+          ...resumeTemplate,
+          meta: { ...resumeTemplate.meta, "session-token": sessionToken },
+        });
+        const getPendingInquiryTemplate = vi
+          .spyOn(persona, "getPendingInquiryTemplate")
+          .mockResolvedValueOnce(persona.MANTECA_TEMPLATE_EXTRA_FIELDS);
+        const getInquiry = vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({
+          ...personaTemplate,
+          attributes: { ...personaTemplate.attributes, status: "pending" },
+        });
+
+        const response = await appClient.index.$post(
+          { json: { scope: "manteca" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(getPendingInquiryTemplate).toHaveBeenCalledWith("bob", "manteca");
+        expect(getInquiry).toHaveBeenCalledWith("bob", persona.MANTECA_TEMPLATE_EXTRA_FIELDS);
+        await expect(response.json()).resolves.toStrictEqual({
+          otl,
+          sessionToken,
+          legacy: otl,
+          inquiryId: resumeTemplate.data.id,
+        });
+        expect(response.status).toBe(200);
+      });
+
+      it("returns failed when manteca inquiry failed", async () => {
+        const getPendingInquiryTemplate = vi
+          .spyOn(persona, "getPendingInquiryTemplate")
+          .mockResolvedValueOnce(persona.MANTECA_TEMPLATE_EXTRA_FIELDS);
+        const getInquiry = vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({
+          ...personaTemplate,
+          attributes: { ...personaTemplate.attributes, status: "failed" },
+        });
+
+        const response = await appClient.index.$post(
+          { json: { scope: "manteca" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(getPendingInquiryTemplate).toHaveBeenCalledWith("bob", "manteca");
+        expect(getInquiry).toHaveBeenCalledWith("bob", persona.MANTECA_TEMPLATE_EXTRA_FIELDS);
+        await expect(response.json()).resolves.toStrictEqual({ code: "failed", legacy: "kyc failed" });
+        expect(response.status).toBe(400);
+      });
+
+      it("returns already approved and sends sentry error when manteca inquiry is approved but account not updated", async () => {
+        const getPendingInquiryTemplate = vi
+          .spyOn(persona, "getPendingInquiryTemplate")
+          .mockResolvedValueOnce(persona.MANTECA_TEMPLATE_EXTRA_FIELDS);
+        vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({
+          ...personaTemplate,
+          attributes: { ...personaTemplate.attributes, status: "approved" },
+        });
+
+        const response = await appClient.index.$post(
+          { json: { scope: "manteca" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(getPendingInquiryTemplate).toHaveBeenCalledWith("bob", "manteca");
+        await expect(response.json()).resolves.toStrictEqual({
+          code: "already approved",
+          legacy: "kyc already approved",
+        });
+        expect(response.status).toBe(400);
+        expect(captureException).toHaveBeenCalledWith(new Error("inquiry approved but account not updated"), {
+          level: "error",
+          contexts: { inquiry: { templateId: persona.MANTECA_TEMPLATE_EXTRA_FIELDS, referenceId: "bob" } },
+        });
+      });
+    });
+  });
+
   describe("legacy kyc flow", () => {
     it("returns ok kyc approved with country code", async () => {
       await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, "bob"));
@@ -1047,6 +1378,20 @@ const basicAccount = {
           "updated-at": "2025-12-11T00:00:00.000Z",
         },
       ],
+    },
+  },
+};
+
+const mantecaAccount = {
+  ...basicAccount,
+  attributes: {
+    ...basicAccount.attributes,
+    fields: {
+      ...basicAccount.attributes.fields,
+      tin: { type: "string", value: "12345678" },
+      manteca_t_c: { type: "boolean", value: true },
+      sex_1: { type: "string", value: "Male" },
+      isnotfacta: { type: "boolean", value: true },
     },
   },
 };

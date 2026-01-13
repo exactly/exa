@@ -24,8 +24,6 @@ export const CryptoNetwork = ["TRON", "SOLANA", "STELLAR"] as const;
 
 export type OnRampNetworkType = (typeof CryptoNetwork)[number] | (typeof FiatNetwork)[number];
 
-export const ProviderStatus = ["NOT_STARTED", "ACTIVE", "ONBOARDING", "NOT_AVAILABLE", "MISSING_INFORMATION"] as const;
-
 export const DepositDetails = variant("network", [
   object({
     network: literal("ARG_FIAT_TRANSFER" satisfies OnRampNetworkType),
@@ -105,12 +103,7 @@ export const DepositDetails = variant("network", [
   }),
 ]);
 
-export const QuoteResponse = optional(
-  object({
-    buyRate: string(),
-    sellRate: string(),
-  }),
-);
+export const QuoteResponse = optional(object({ buyRate: string(), sellRate: string() }));
 
 export const PendingTask = variant("type", [
   object({
@@ -130,8 +123,9 @@ export const PendingTask = variant("type", [
 ]);
 
 export const ProviderInfo = object({
-  status: picklist(ProviderStatus),
-  currencies: array(string()),
-  cryptoCurrencies: array(object({ cryptoCurrency: picklist(Cryptocurrency), network: picklist(CryptoNetwork) })),
-  pendingTasks: optional(array(PendingTask)),
+  onramp: object({
+    currencies: array(string()),
+    cryptoCurrencies: array(object({ cryptoCurrency: picklist(Cryptocurrency), network: picklist(CryptoNetwork) })),
+  }),
+  status: picklist(["NOT_STARTED", "ACTIVE", "ONBOARDING", "NOT_AVAILABLE"]),
 });

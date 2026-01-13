@@ -7,9 +7,9 @@ import authentication from "./auth/authentication";
 import registration from "./auth/registration";
 import card from "./card";
 import kyc from "./kyc";
-import onramp from "./onramp";
 import passkey from "./passkey";
 import pax from "./pax";
+import ramp from "./ramp";
 import appOrigin from "../utils/appOrigin";
 
 const api = new Hono()
@@ -24,9 +24,9 @@ const api = new Hono()
   .route("/activity", activity)
   .route("/card", card)
   .route("/kyc", kyc)
-  .route("/onramp", onramp)
   .route("/passkey", passkey)
-  .route("/pax", pax);
+  .route("/pax", pax)
+  .route("/ramp", ramp);
 
 export default api;
 export type ExaAPI = typeof api;
