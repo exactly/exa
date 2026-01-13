@@ -61,7 +61,7 @@ export default function LatestActivity({
             key={item.id}
             item={item}
             isLast={index === items.length - 1}
-            StackProps={{ backgroundColor: "transparent" }}
+            stackProps={{ backgroundColor: "transparent" }}
           />
         ))}
       </YStack>

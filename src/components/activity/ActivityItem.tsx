@@ -25,11 +25,11 @@ registerLocale(require("i18n-iso-countries/langs/en.json") as LocaleData); // es
 export default function ActivityItem({
   item,
   isLast,
-  StackProps,
+  stackProps,
 }: {
   item: Item;
   isLast: boolean;
-  StackProps?: React.ComponentProps<typeof XStack>;
+  stackProps?: React.ComponentProps<typeof XStack>;
 }) {
   const router = useRouter();
   const { data: country } = useQuery({ queryKey: ["user", "country"] });
@@ -51,7 +51,7 @@ export default function ActivityItem({
         }
       }}
       backgroundColor="$backgroundMild"
-      {...StackProps}
+      {...stackProps}
     >
       <YStack
         width={40}
