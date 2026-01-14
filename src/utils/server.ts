@@ -3,7 +3,7 @@ import { get as assert, create } from "react-native-passkeys";
 
 import { sdk } from "@farcaster/miniapp-sdk";
 import { getConnection, signMessage } from "@wagmi/core";
-import { hc } from "hono/client";
+import { hc, parseResponse, type InferResponseType } from "hono/client";
 import { check, number, object, parse, pipe, safeParse, string, ValiError } from "valibot";
 import { UserRejectedRequestError } from "viem";
 
@@ -228,13 +228,31 @@ export async function createCredential() {
   return parse(Credential, credential);
 }
 
-export async function getActivity(parameters?: NonNullable<Parameters<typeof api.activity.$get>[0]>["query"]) {
+export async function getActivity(
+  parameters: NonNullable<NonNullable<Parameters<typeof api.activity.$get>[0]>["query"]> & {
+    maturity: NonNullable<NonNullable<NonNullable<Parameters<typeof api.activity.$get>[0]>["query"]>["maturity"]>;
+  },
+  accept: "application/pdf",
+): Promise<Uint8Array>;
+export async function getActivity(
+  parameters?: NonNullable<Parameters<typeof api.activity.$get>[0]>["query"],
+): Promise<Exclude<InferResponseType<typeof api.activity.$get, 200>, string | Uint8Array>>;
+export async function getActivity(
+  parameters?: NonNullable<Parameters<typeof api.activity.$get>[0]>["query"],
+  accept?: "application/pdf",
+): Promise<Exclude<InferResponseType<typeof api.activity.$get, 200>, string | Uint8Array> | Uint8Array> {
   await auth();
-  const response = await api.activity.$get(
-    parameters?.include === undefined ? undefined : { query: { include: parameters.include } },
-  );
+  const response = await api.activity.$get(parameters === undefined ? undefined : { query: parameters }, {
+    headers: { accept: accept ?? "application/json" },
+  });
   if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
-  return response.json();
+  if (accept === "application/pdf") {
+    if (!response.headers.get("content-type")?.startsWith("application/pdf")) throw new Error("bad activity response");
+    return new Uint8Array(await response.arrayBuffer());
+  }
+  const activity = await parseResponse(response);
+  if (typeof activity === "string" || activity instanceof Uint8Array) throw new Error("bad activity response");
+  return activity;
 }
 
 let authenticating: Promise<void> | undefined;

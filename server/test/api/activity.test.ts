@@ -5,11 +5,12 @@ import "../mocks/deployments";
 import "../mocks/sentry";
 
 import { captureException } from "@sentry/node";
+import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { safeParse, type InferOutput } from "valibot";
 import { padHex, zeroHash, type Hash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
-import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
+import { afterEach, assert, beforeAll, describe, expect, inject, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import { marketAbi } from "@exactly/common/generated/chain";
@@ -63,19 +64,23 @@ describe.concurrent("authenticated", () => {
     let activity: InferOutput<
       typeof CreditActivity | typeof DebitActivity | typeof InstallmentsActivity | typeof PandaActivity
     >[];
+    let maturity: string;
 
     beforeAll(async () => {
       await database.insert(cards).values([{ id: "activity", credentialId: "bob", lastFour: "1234" }]);
+      const borrows = await anvilClient.getContractEvents({
+        abi: marketAbi,
+        eventName: "BorrowAtMaturity",
+        address: [inject("MarketEXA"), inject("MarketUSDC"), inject("MarketWETH")],
+        args: { borrower: account },
+        toBlock: "latest",
+        fromBlock: 0n,
+        strict: true,
+      });
+      assert(borrows[0], "expected at least one BorrowAtMaturity event");
+      maturity = String(borrows[0].args.maturity);
       const logs = [
-        ...(await anvilClient.getContractEvents({
-          abi: marketAbi,
-          eventName: "BorrowAtMaturity",
-          address: [inject("MarketEXA"), inject("MarketUSDC"), inject("MarketWETH")],
-          args: { borrower: account },
-          toBlock: "latest",
-          fromBlock: 0n,
-          strict: true,
-        })),
+        ...borrows,
         ...(await anvilClient.getContractEvents({
           abi: marketAbi,
           eventName: "Withdraw",
@@ -209,6 +214,106 @@ describe.concurrent("authenticated", () => {
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toStrictEqual(activity);
     });
+
+    it("filters by maturity", async () => {
+      expect.hasAssertions();
+      const response = await appClient.index.$get(
+        { query: { maturity } },
+        { headers: { "test-credential-id": "bob" } },
+      );
+
+      expect(response.status).toBe(200);
+
+      const json = (await response.json()) as { borrow?: { maturity: number } }[];
+      expect(json.every((item) => !item.borrow || item.borrow.maturity === Number(maturity))).toBe(true);
+    });
+
+    it("returns statement pdf", async () => {
+      expect.hasAssertions();
+      const response = await appClient.index.$get(
+        { query: { maturity } },
+        { headers: { "test-credential-id": "bob", accept: "application/pdf" } },
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toBe("application/pdf");
+      const body = await response.arrayBuffer();
+      expect(body.byteLength).toBeGreaterThan(0);
+    });
+
+    it("returns statement pdf for combined accept header", async () => {
+      expect.hasAssertions();
+      const response = await appClient.index.$get(
+        { query: { maturity } },
+        { headers: { "test-credential-id": "bob", accept: "application/pdf, */*" } },
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toBe("application/pdf");
+      const body = await response.arrayBuffer();
+      expect(body.byteLength).toBeGreaterThan(0);
+    });
+
+    it("returns json when pdf quality is zero", async () => {
+      expect.hasAssertions();
+      const response = await appClient.index.$get(
+        { query: { maturity } },
+        { headers: { "test-credential-id": "bob", accept: "application/json, application/pdf;q=0" } },
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toContain("application/json");
+      expect(Array.isArray(await response.json())).toBe(true);
+    });
+
+    it("scopes maturity transaction lookup to user cards", async () => {
+      expect.hasAssertions();
+      const [before, credentials] = await Promise.all([
+        appClient.index.$get({ query: { include: "card", maturity } }, { headers: { "test-credential-id": "bob" } }),
+        database.query.credentials.findMany({ columns: { id: true } }),
+      ]);
+      const otherCredential = credentials.find(({ id }) => id !== "bob");
+      assert(otherCredential, "expected another credential");
+      const borrows = await anvilClient.getContractEvents({
+        abi: marketAbi,
+        eventName: "BorrowAtMaturity",
+        address: inject("MarketUSDC"),
+        args: { borrower: account },
+        toBlock: "latest",
+        fromBlock: 0n,
+        strict: true,
+      });
+      const borrowHashes = new Set(
+        borrows
+          .filter(({ args: { maturity: eventMaturity } }) => eventMaturity === BigInt(maturity))
+          .map(({ transactionHash }) => transactionHash),
+      );
+      const transactionsByHash = await database.query.transactions.findMany({
+        columns: { hashes: true, payload: true },
+      });
+      const source = transactionsByHash.find(({ hashes }) => hashes.some((hash) => borrowHashes.has(hash as Hash)));
+      assert(source, "expected source transaction");
+
+      const leak = {
+        cardId: `leak-card-${Date.now()}`,
+        transactionId: `leak-transaction-${Date.now()}`,
+      };
+      try {
+        await database.insert(cards).values([{ id: leak.cardId, credentialId: otherCredential.id, lastFour: "0000" }]);
+        await database
+          .insert(transactions)
+          .values([{ id: leak.transactionId, cardId: leak.cardId, hashes: source.hashes, payload: source.payload }]);
+        const baseline = (await before.json()) as unknown[];
+        const after = await appClient.index.$get(
+          { query: { include: "card", maturity } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+        expect((await after.json()) as unknown[]).toHaveLength(baseline.length);
+      } finally {
+        await database.delete(transactions).where(eq(transactions.id, leak.transactionId));
+        await database.delete(cards).where(eq(cards.id, leak.cardId));
+      }
+    });
   });
 
   describe("onchain", () => {
@@ -224,6 +329,29 @@ describe.concurrent("authenticated", () => {
         { type: "received", currency: "USDC", amount: 69_420, usdAmount: 69_420 },
         { type: "received", currency: "EXA", amount: 666, usdAmount: 3330 },
       ]);
+    });
+
+    it("keeps received events deduplicated when maturity is provided", async () => {
+      expect.hasAssertions();
+      const repays = await anvilClient.getContractEvents({
+        abi: marketAbi,
+        eventName: "RepayAtMaturity",
+        address: [inject("MarketEXA"), inject("MarketUSDC"), inject("MarketWETH")],
+        args: { borrower: account },
+        toBlock: "latest",
+        fromBlock: 0n,
+        strict: true,
+      });
+      assert(repays[0], "expected at least one RepayAtMaturity event");
+      const response = await appClient.index.$get(
+        { query: { include: "received", maturity: String(repays[0].args.maturity) } },
+        { headers: { "test-credential-id": "bob" } },
+      );
+      expect(response.status).toBe(200);
+
+      const repayHashes = new Set(repays.map(({ transactionHash }) => transactionHash));
+      const received = (await response.json()) as { transactionHash: Hash; type: "received" }[];
+      expect(received.every(({ transactionHash }) => !repayHashes.has(transactionHash))).toBe(true);
     });
 
     it("returns repays", async () => {

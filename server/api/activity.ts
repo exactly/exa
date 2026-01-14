@@ -1,11 +1,15 @@
+import { renderToBuffer } from "@react-pdf/renderer";
+
 import { captureException, setUser } from "@sentry/node";
-import { eq } from "drizzle-orm";
+import { and, arrayOverlaps, eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
+import { accepts } from "hono/accepts";
 import { validator as vValidator } from "hono-openapi/valibot";
 import {
   array,
   bigint,
   boolean,
+  digits,
   intersect,
   isoTimestamp,
   length,
@@ -47,11 +51,12 @@ import { decodeWithdraw } from "@exactly/common/ProposalType";
 import { Address, Hash, type Hex } from "@exactly/common/validation";
 import { effectiveRate, WAD } from "@exactly/lib";
 
-import database, { credentials } from "../database";
+import database, { cards, credentials, transactions as transactionsSchema } from "../database";
 import auth from "../middleware/auth";
 import { collectors as cryptomateCollectors } from "../utils/cryptomate";
 import { collectors as pandaCollectors } from "../utils/panda";
 import publicClient from "../utils/publicClient";
+import Statement from "../utils/Statement";
 import validatorHook from "../utils/validatorHook";
 
 const ActivityTypes = picklist(["card", "received", "repay", "sent"]);
@@ -63,11 +68,18 @@ export default new Hono().get(
   auth(),
   vValidator(
     "query",
-    optional(object({ include: optional(union([ActivityTypes, array(ActivityTypes)])) }), {}),
+    optional(
+      object({
+        include: optional(union([ActivityTypes, array(ActivityTypes)])),
+        maturity: optional(pipe(string(), digits(), transform(Number))),
+      }),
+      {},
+    ),
     validatorHook(),
   ),
   async (c) => {
-    const { include } = c.req.valid("query");
+    const { include, maturity } = c.req.valid("query");
+    if (maturity !== undefined && maturity > 864e10) return c.json({ code: "invalid maturity" }, 400);
     function ignore(type: InferInput<typeof ActivityTypes>) {
       return include && (Array.isArray(include) ? !include.includes(type) : include !== type);
     }
@@ -80,7 +92,7 @@ export default new Hono().get(
         cards: {
           columns: {},
           with: { transactions: { columns: { hashes: true, payload: true } } },
-          limit: ignore("card") ? 0 : undefined,
+          limit: ignore("card") || maturity !== undefined ? 0 : undefined,
         },
       },
     });
@@ -155,9 +167,14 @@ export default new Hono().get(
       ignore("repay")
         ? []
         : repayPromise.then((logs) =>
-            logs.map((log) =>
-              parse(RepayActivity, { ...log, market: market(log.address) } satisfies InferInput<typeof RepayActivity>),
-            ),
+            logs
+              .filter(({ args }) => maturity === undefined || Number(args.maturity) === maturity)
+              .map((log) =>
+                parse(RepayActivity, {
+                  ...log,
+                  market: market(log.address),
+                } satisfies InferInput<typeof RepayActivity>),
+              ),
           ),
       ignore("sent")
         ? []
@@ -245,54 +262,275 @@ export default new Hono().get(
       ].map((blockNumber) => publicClient.getBlock({ blockNumber })),
     );
     const timestamps = new Map(blocks.map(({ number: block, timestamp }) => [block, timestamp]));
-
-    return c.json(
-      [
-        ...credential.cards.flatMap(({ transactions }) =>
-          transactions.map(({ hashes, payload }) => {
-            const panda = safeParse(PandaActivity, {
-              ...(payload as object),
-              hashes,
-              borrows: hashes.map((h) => {
-                const b = borrows?.get(h as Hash);
-                if (!b) return null;
-                return {
-                  events: b.events,
-                  timestamp: b.blockNumber && timestamps.get(b.blockNumber),
-                };
-              }),
+    let statementCards: string[] = [];
+    let cardPurchases: typeof credential.cards;
+    if (!ignore("card") && maturity !== undefined && borrows) {
+      const hashes = borrows
+        .entries()
+        .filter(([_, { events }]) => events.some(({ maturity: m }) => Number(m) === maturity))
+        .map(([hash]) => hash)
+        .toArray();
+      const userCards = await database.query.cards
+        .findMany({ columns: { id: true }, where: eq(cards.credentialId, credentialId) })
+        .then((rows) => rows.map(({ id }) => id));
+      const statementTransactions =
+        hashes.length === 0 || userCards.length === 0
+          ? []
+          : await database.query.transactions.findMany({
+              where: and(
+                arrayOverlaps(transactionsSchema.hashes, hashes),
+                inArray(transactionsSchema.cardId, userCards),
+              ),
+              columns: { cardId: true, hashes: true, payload: true },
             });
-            if (panda.success) return panda.output;
+      statementCards = [...new Set(statementTransactions.map(({ cardId }) => cardId))];
+      cardPurchases = [{ transactions: statementTransactions }];
+    } else {
+      cardPurchases = credential.cards;
+    }
 
-            if (hashes.length !== 1) throw new Error("cryptomate transactions need to have only one hash");
-            const hash = hashes[0];
-            const borrow = borrows?.get(hash as Hash);
-            const cryptomate = safeParse(
-              { 0: DebitActivity, 1: CreditActivity }[borrow?.events.length ?? 0] ?? InstallmentsActivity,
-              {
-                ...(payload as object),
-                hash,
-                events: borrow?.events,
-                blockTimestamp: borrow?.blockNumber && timestamps.get(borrow.blockNumber),
-              },
-            );
-            if (cryptomate.success) return cryptomate.output;
-            captureException(new Error("bad transaction"), { level: "error", contexts: { cryptomate, panda } });
-          }),
-        ),
-        ...[...deposits, ...repays, ...withdraws].map(({ blockNumber, ...event }) => {
-          const timestamp = timestamps.get(blockNumber);
-          if (timestamp) return { ...event, timestamp: new Date(Number(timestamp) * 1000).toISOString() };
-          captureException(new Error("block not found"), {
-            level: "error",
-            contexts: { event: { ...event, timestamp } },
+    const accept = accepts(c, {
+      header: "Accept",
+      supports: maturity === undefined ? ["application/json"] : ["application/json", "application/pdf"],
+      default: "application/json",
+    });
+    const pdf = accept === "application/pdf";
+
+    const response = [
+      ...cardPurchases.flatMap(({ transactions }) =>
+        transactions.map(({ hashes, payload }) => {
+          const panda = safeParse(PandaActivity, {
+            ...(payload as object),
+            hashes,
+            borrows: hashes.map((h) => {
+              const b = borrows?.get(h as Hash);
+              if (!b) return null;
+              const filtered =
+                maturity === undefined ? b.events : b.events.filter(({ maturity: m }) => Number(m) === maturity);
+              if (filtered.length === 0) return null;
+              return {
+                events: maturity !== undefined && b.events.length > 1 ? b.events : filtered,
+                timestamp: b.blockNumber && timestamps.get(b.blockNumber),
+              };
+            }),
           });
+          if (panda.success) {
+            if (maturity === undefined || pdf) return panda.output;
+            const operations: typeof panda.output.operations = [];
+            for (const operation of panda.output.operations) {
+              if (!("borrow" in operation)) continue;
+              const { borrow } = operation;
+              if (!("installments" in borrow)) {
+                const event = borrows?.get(operation.transactionHash)?.events[0];
+                if (event && Number(event.maturity) === maturity) operations.push(operation);
+                continue;
+              }
+              const raw = borrows?.get(operation.transactionHash)?.events;
+              if (!raw) continue;
+              const sorted = raw.toSorted((a, b) => Number(a.maturity) - Number(b.maturity));
+              const installments = sorted.flatMap((event, n) => {
+                const installment = borrow.installments[n];
+                if (Number(event.maturity) !== maturity || !installment) return [];
+                return [installment];
+              });
+              if (installments.length === 0) continue;
+              const usdAmount = raw.reduce(
+                (sum, { assets, maturity: m }) => (Number(m) === maturity ? sum + Number(assets) / 1e6 : sum),
+                0,
+              );
+              const exchangeRate = operation.usdAmount === 0 ? 1 : operation.amount / operation.usdAmount;
+              operations.push({
+                ...operation,
+                amount: usdAmount * exchangeRate,
+                borrow: {
+                  ...operation.borrow,
+                  fee: installments.reduce((sum, { fee }) => sum + fee, 0),
+                  rate: installments.reduce((sum, { rate }) => sum + rate, 0) / installments.length,
+                  installments,
+                },
+                usdAmount,
+              });
+            }
+            if (operations.length === 0) return;
+            return {
+              ...panda.output,
+              amount: operations.reduce((sum, { amount }) => sum + amount, 0),
+              operations,
+              usdAmount: operations.reduce((sum, { usdAmount }) => sum + usdAmount, 0),
+            };
+          }
+
+          if (hashes.length !== 1) throw new Error("cryptomate transactions need to have only one hash");
+          const hash = hashes[0];
+          const borrow = borrows?.get(hash as Hash);
+          const filtered =
+            maturity === undefined || !borrow
+              ? borrow?.events
+              : borrow.events.filter(({ maturity: m }) => Number(m) === maturity);
+          if (maturity !== undefined && borrow && filtered?.length === 0) return;
+          const events = !borrow || maturity === undefined || borrow.events.length <= 1 ? filtered : borrow.events;
+          const cryptomate = safeParse(
+            { 0: DebitActivity, 1: CreditActivity }[events?.length ?? 0] ?? InstallmentsActivity,
+            {
+              ...(payload as object),
+              hash,
+              events,
+              blockTimestamp: borrow?.blockNumber && timestamps.get(borrow.blockNumber),
+            },
+          );
+          if (cryptomate.success) {
+            if (maturity === undefined || pdf) return cryptomate.output;
+            if (!borrow) return;
+            if (borrow.events.length <= 1) return cryptomate.output;
+            if (!("borrow" in cryptomate.output) || !("installments" in cryptomate.output.borrow))
+              return cryptomate.output;
+            const { borrow: outputBorrow } = cryptomate.output;
+            const sortedEvents = borrow.events.toSorted((a, b) => Number(a.maturity) - Number(b.maturity));
+            const installments = sortedEvents.flatMap((event, n) => {
+              const installment = outputBorrow.installments[n];
+              if (Number(event.maturity) !== maturity || !installment) return [];
+              return [installment];
+            });
+            if (installments.length === 0) return;
+            const usdAmount = borrow.events.reduce(
+              (sum, { assets, maturity: m }) => (Number(m) === maturity ? sum + Number(assets) / 1e6 : sum),
+              0,
+            );
+            const exchangeRate =
+              cryptomate.output.usdAmount === 0 ? 1 : cryptomate.output.amount / cryptomate.output.usdAmount;
+            return {
+              ...cryptomate.output,
+              amount: usdAmount * exchangeRate,
+              borrow: {
+                ...outputBorrow,
+                fee: installments.reduce((sum, { fee }) => sum + fee, 0),
+                rate: installments.reduce((sum, { rate }) => sum + rate, 0) / installments.length,
+                installments,
+              },
+              usdAmount,
+            };
+          }
+          captureException(new Error("bad transaction"), { level: "error", contexts: { cryptomate, panda } });
         }),
-      ]
-        .filter(<T>(value: T | undefined): value is T => value !== undefined)
-        .toSorted((a, b) => b.timestamp.localeCompare(a.timestamp) || b.id.localeCompare(a.id)),
-      200,
-    );
+      ),
+      ...[...deposits, ...repays, ...withdraws].map(({ blockNumber, ...event }) => {
+        const timestamp = timestamps.get(blockNumber);
+        if (timestamp) return { ...event, timestamp: new Date(Number(timestamp) * 1000).toISOString() };
+        captureException(new Error("block not found"), {
+          level: "error",
+          contexts: { event: { ...event, timestamp } },
+        });
+      }),
+    ]
+      .filter(<T>(value: T | undefined): value is T => value !== undefined)
+      .toSorted((a, b) => b.timestamp.localeCompare(a.timestamp) || b.id.localeCompare(a.id));
+
+    if (maturity !== undefined && pdf) {
+      if (statementCards.length > 1) return c.json({ code: "multiple cards" }, 400);
+      const statementCurrency = market(marketUSDCAddress).symbol;
+      const card =
+        statementCards.length === 0
+          ? undefined
+          : await database.query.cards.findFirst({
+              columns: { lastFour: true },
+              where: and(eq(cards.credentialId, credentialId), inArray(cards.id, statementCards)),
+            });
+      const statement = {
+        maturity,
+        lastFour: card?.lastFour ?? "",
+        data: response.flatMap((item): Parameters<typeof Statement>[0]["data"] => {
+          if (item.type === "panda") {
+            const installments = item.operations
+              .reduce((accumulator, operation) => {
+                if ("borrow" in operation) {
+                  if ("installments" in operation.borrow) {
+                    const events = borrows?.get(operation.transactionHash)?.events;
+                    if (!events) return accumulator;
+                    const sortedInstallments = events.toSorted((a, b) => Number(a.maturity) - Number(b.maturity));
+                    for (const [n, installment] of sortedInstallments.entries()) {
+                      if (Number(installment.maturity) !== maturity) continue;
+                      const progress = `${n + 1}/${sortedInstallments.length}`;
+                      const status = accumulator.get(progress) ?? {
+                        current: n + 1,
+                        total: sortedInstallments.length,
+                        amount: 0,
+                      };
+                      status.amount += Number(installment.assets + installment.fee) / 1e6;
+                      accumulator.set(progress, status);
+                    }
+                  } else {
+                    const installment = borrows?.get(operation.transactionHash)?.events[0];
+                    if (!installment || Number(installment.maturity) !== maturity) return accumulator;
+                    const status = accumulator.get("1/1") ?? { current: 1, total: 1, amount: 0 };
+                    status.amount += Number(installment.assets + installment.fee) / 1e6;
+                    accumulator.set("1/1", status);
+                  }
+                }
+                return accumulator;
+              }, new Map<string, { amount: number; current: number; total: number }>())
+              .values()
+              .toArray();
+            if (installments.length === 0) return [];
+            return [
+              {
+                id: item.id,
+                timestamp: item.timestamp,
+                description: `${item.merchant.name}${item.merchant.city ? `, ${item.merchant.city}` : ""}`,
+                installments,
+              },
+            ];
+          }
+          if (item.type === "card" && "borrow" in item) {
+            if ("installments" in item.borrow) {
+              const events = borrows?.get(item.transactionHash)?.events;
+              if (!events) return [];
+              const sortedEvents = events.toSorted((a, b) => Number(a.maturity) - Number(b.maturity));
+              const installments = sortedEvents.flatMap((borrow, n, all) =>
+                Number(borrow.maturity) === maturity
+                  ? [{ amount: Number(borrow.assets + borrow.fee) / 1e6, current: n + 1, total: all.length }]
+                  : [],
+              );
+              if (installments.length === 0) return [];
+              return [
+                {
+                  id: item.id,
+                  timestamp: item.timestamp,
+                  description: `${item.merchant.name}${item.merchant.city ? `, ${item.merchant.city}` : ""}`,
+                  installments,
+                },
+              ];
+            }
+            const borrow = borrows?.get(item.transactionHash)?.events[0];
+            if (!borrow || Number(borrow.maturity) !== maturity) return [];
+            return [
+              {
+                id: item.id,
+                timestamp: item.timestamp,
+                description: `${item.merchant.name}${item.merchant.city ? `, ${item.merchant.city}` : ""}`,
+                installments: [{ amount: Number(borrow.assets + borrow.fee) / 1e6, current: 1, total: 1 }],
+              },
+            ];
+          }
+          if (item.type === "repay") {
+            if (item.currency !== statementCurrency) return [];
+            return [
+              {
+                id: item.id,
+                timestamp: item.timestamp,
+                currency: item.currency,
+                positionAmount: item.positionAmount,
+                amount: item.amount,
+              },
+            ];
+          }
+          return [];
+        }),
+      };
+      return c.body(new Uint8Array(await renderToBuffer(Statement(statement))), 200, {
+        "content-type": "application/pdf",
+      });
+    }
+    return c.json(response, 200);
   },
 );
 
@@ -418,6 +656,7 @@ const CardActivity = pipe(
 
 function transformBorrow(borrow: InferOutput<typeof Borrow>, timestamp: bigint) {
   return {
+    maturity: Number(borrow.maturity),
     fee: Number(borrow.fee) / 1e6,
     rate: Number(fixedRate(borrow.maturity, borrow.assets, borrow.fee, timestamp)) / 1e18,
   };
@@ -534,7 +773,7 @@ function transformActivity({
 }: InferOutput<typeof OnchainActivity>) {
   const baseUnit = 10 ** decimals;
   return {
-    id: `${chain.id}:${String(blockNumber)}:${transactionIndex}:${logIndex}`,
+    id: `${chain.id}:${blockNumber}:${transactionIndex}:${logIndex}`,
     currency: symbol,
     amount: Number(value) / baseUnit,
     usdAmount: Number((value * usdPrice) / WAD) / baseUnit,
