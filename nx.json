@@ -12,7 +12,7 @@
     "generate:*": { "inputs": ["production", "^production"], "cache": true },
     "test": { "dependsOn": ["prepare", "^prepare"], "cache": true },
     "test:*": { "dependsOn": ["prepare", "^prepare"], "cache": true },
-    "test:eslint": { "options": { "max-warnings": 0 } },
+    "test:eslint": { "dependsOn": ["prepare", "^prepare"], "options": { "max-warnings": 0 } },
     "build": {
       "dependsOn": ["^prepare"],
       "inputs": ["production", "^production"],
