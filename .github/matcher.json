@@ -25,7 +25,12 @@
     },
     {
       "owner": "pnpm-audit",
-      "pattern": [{ "regexp": "^│\\s(low|moderate|high|critical)\\s*│\\s(.+?)\\s*│$", "message": 2 }]
+      "pattern": [
+        {
+          "regexp": "^(?:\\x1B\\[[\\d;]*m)*│(?:\\x1B\\[[\\d;]*m)*\\s(?:\\x1B\\[[\\d;]*m)*(low|moderate|high|critical)(?:\\x1B\\[[\\d;]*m)*\\s*(?:\\x1B\\[[\\d;]*m)*│(?:\\x1B\\[[\\d;]*m)*\\s(?:\\x1B\\[[\\d;]*m)*(.+?)(?:\\x1B\\[[\\d;]*m)*\\s*(?:\\x1B\\[[\\d;]*m)*│(?:\\x1B\\[[\\d;]*m)*$",
+          "message": 2
+        }
+      ]
     },
     {
       "owner": "forge-fmt",
