@@ -209,6 +209,27 @@ describe.concurrent("authenticated", () => {
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toStrictEqual(activity);
     });
+
+    it("returns statement pdf", async () => {
+      expect.hasAssertions();
+
+      const withBorrow = activity.find(
+        (a): a is (typeof activity)[number] & { borrow: { maturity: number } } =>
+          "borrow" in a && "maturity" in a.borrow,
+      );
+      expect(withBorrow).toBeDefined();
+
+      const maturity = String(withBorrow && withBorrow.borrow.maturity);
+      const response = await appClient.index.$get(
+        { query: { maturity } },
+        { headers: { "test-credential-id": "bob", accept: "application/pdf" } },
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toBe("application/pdf");
+      const body = await response.arrayBuffer();
+      expect(body.byteLength).toBeGreaterThan(0);
+    });
   });
 
   describe("onchain", () => {
