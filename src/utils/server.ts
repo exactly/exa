@@ -3,7 +3,7 @@ import { get as assert, create } from "react-native-passkeys";
 
 import { sdk } from "@farcaster/miniapp-sdk";
 import { getConnection, signMessage } from "@wagmi/core";
-import { hc } from "hono/client";
+import { hc, parseResponse } from "hono/client";
 import { check, number, parse, pipe, safeParse, ValiError } from "valibot";
 
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
@@ -216,8 +216,8 @@ export async function getActivity(parameters?: NonNullable<Parameters<typeof api
   const response = await api.activity.$get(
     parameters?.include === undefined ? undefined : { query: { include: parameters.include } },
   );
-  if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
-  return response.json();
+  const parsed = await parseResponse(response);
+  return Array.isArray(parsed) ? parsed : [];
 }
 
 export async function auth() {
