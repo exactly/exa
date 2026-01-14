@@ -6,9 +6,18 @@ appId: ${APP_ID ?? "app.exactly"}
 - inputText: ${to}
 - hideKeyboard
 - tapOn: { text: Next, waitToSettleTimeoutMs: 0 }
-- tapOn:
-    text: ^${asset}, [\s\d,.\xa0]+ available$
-    waitToSettleTimeoutMs: 0
+- runFlow:
+    when: { true: "${maestro.platform != 'web'}" }
+    commands:
+      - tapOn:
+          text: ^${asset}, [\s\d,.\xa0]+ available$
+          waitToSettleTimeoutMs: 0
+- runFlow: # HACK https://github.com/mobile-dev-inc/Maestro/issues/2914
+    when: { platform: web }
+    commands:
+      - tapOn:
+          id: ^${asset}, [\s\d,.\xa0]+ available$
+          waitToSettleTimeoutMs: 0
 - tapOn: ${asset}
 - inputText: ${amount}
 - tapOn: "To:"
@@ -19,6 +28,17 @@ appId: ${APP_ID ?? "app.exactly"}
 - runScript:
     file: ../dist/hookProposals.js
     env: { account: "${output.account}" }
-- tapOn: Close
+- runFlow:
+    when: { true: "${maestro.platform != 'web'}" }
+    commands: [{ tapOn: Close }]
+- runFlow: # HACK https://github.com/mobile-dev-inc/Maestro/issues/2914
+    when: { platform: web }
+    commands: [{ tapOn: { id: Close } }]
 - assertVisible: Your portfolio
-- swipe: { direction: DOWN }
+- runFlow:
+    when: { true: "${maestro.platform != 'web'}" }
+    commands:
+      - swipe: { direction: DOWN }
+- runFlow: # HACK
+    when: { platform: web }
+    commands: [{ tapOn: Activity }, { tapOn: Card }, { tapOn: Home }]

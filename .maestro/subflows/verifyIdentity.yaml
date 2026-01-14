@@ -1,5 +1,8 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
+- runFlow:
+    when: { true: "${maestro.platform != 'web'}" }
+    commands:
 - assertVisible: We need some information to help us confirm your identity.
 - tapOn: Begin verifying
 - tapOn: Select
