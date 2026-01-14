@@ -1,5 +1,6 @@
 {
   "language": "en",
+  "import": ["@cspell/dict-es-es/cspell-ext.json"],
   "ignorePaths": [
     "*.svg",
     "*.local.yaml",
@@ -166,6 +167,22 @@
     "zeppelinos",
     "zrange",
     "zrem"
+  ],
+  "overrides": [
+    {
+      "filename": "src/i18n/es.json",
+      "language": "en,es",
+      "words": [
+        "autocustodia",
+        "biométrica",
+        "cripto",
+        "migrándolas",
+        "montos",
+        "refinancia",
+        "refinanciamiento",
+        "refinanciar"
+      ]
+    }
   ],
   "ignoreRegExpList": [
     "\\bitmpl_\\w+\\b",
