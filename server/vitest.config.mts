@@ -31,7 +31,7 @@ export default defineConfig({
       PERSONA_API_KEY: "persona",
       PERSONA_URL: "https://persona.test",
       PERSONA_WEBHOOK_SECRET: "persona",
-      POSTGRES_URL: "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable", // cspell:ignore sslmode
+      POSTGRES_URL: "postgres://postgres:postgres@localhost:8432/postgres?sslmode=disable", // cspell:ignore sslmode
       REDIS_URL: "redis",
       SARDINE_API_KEY: "sardine",
       SARDINE_API_URL: "https://api.sardine.ai",
