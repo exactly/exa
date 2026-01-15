@@ -16,7 +16,7 @@ import * as schema from "../database/schema";
 export default async function setup() {
   const databaseDir = "node_modules/@exactly/.postgres"; // eslint-disable-line unicorn/prevent-abbreviations
   await rm(databaseDir, { recursive: true, force: true });
-  const postgres = new EmbeddedPostgres({ databaseDir, password: "postgres", onLog: () => null });
+  const postgres = new EmbeddedPostgres({ databaseDir, port: 8432, password: "postgres", onLog: () => null });
   await postgres.initialise(); // cspell:ignore initialise
   await postgres.start();
   spawn(
@@ -34,8 +34,8 @@ export default async function setup() {
     { detached: true, stdio: ["pipe", "ignore", "ignore"] },
   ).unref();
 
-  await waitOn({ resources: ["tcp:localhost:5432"], timeout: 33_333 });
-  const postgresURL = "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable"; // cspell:ignore sslmode
+  await waitOn({ resources: ["tcp:localhost:8432"], timeout: 33_333 });
+  const postgresURL = "postgres://postgres:postgres@localhost:8432/postgres?sslmode=disable"; // cspell:ignore sslmode
   const stdoutWrite = process.stdout.write; // eslint-disable-line @typescript-eslint/unbound-method
   const database = drizzle(postgresURL, { schema });
   process.stdout.write = () => true;
