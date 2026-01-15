@@ -1,5 +1,4 @@
 import js from "@eslint/js";
-// @ts-expect-error -- missing types
 import comments from "@eslint-community/eslint-plugin-eslint-comments/configs";
 import nx from "@nx/eslint-plugin";
 import { defineConfig, globalIgnores } from "eslint/config";
@@ -21,10 +20,12 @@ export default defineConfig([
   importPlugin.typescript,
   unicorn.configs.recommended,
   nx.configs["flat/base"],
+  // @ts-expect-error bad config types
   nx.configs["flat/javascript"],
+  // @ts-expect-error bad config types
   nx.configs["flat/typescript"],
   regexp["flat/recommended"],
-  comments.recommended, // eslint-disable-line @typescript-eslint/no-unsafe-member-access -- missing types
+  comments.recommended,
   { ...prettier, plugins: {} }, // prettier should be included by universe
   {
     languageOptions: { globals: globals.builtin },
@@ -93,5 +94,6 @@ export default defineConfig([
       "jsdoc/require-returns": "off",
     },
   },
+  // @ts-expect-error bad config types
   { files: ["**/*.ts", "**/*.cts", "**/*.mts", "**/*.tsx"], plugins: { tsdoc }, rules: { "tsdoc/syntax": "error" } },
 ]);

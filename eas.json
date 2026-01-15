@@ -3,7 +3,7 @@
   "build": {
     "base": {
       "resourceClass": "large",
-      "node": "24.12.0",
+      "node": "24.13.0",
       "pnpm": "10.28.0",
       "android": { "image": "latest" },
       "ios": { "image": "latest" }

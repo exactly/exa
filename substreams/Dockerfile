@@ -1,4 +1,4 @@
-FROM node:24.12.0-slim AS build
+FROM node:24.13.0-slim AS build
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # cspell:ignore libc tlsv
 # hadolint ignore=DL3008
