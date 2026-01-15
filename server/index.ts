@@ -15,6 +15,7 @@ import block from "./hooks/block";
 import manteca from "./hooks/manteca";
 import panda from "./hooks/panda";
 import persona from "./hooks/persona";
+import { alchemyWorker } from "./queues/alchemyQueue";
 import androidFingerprints from "./utils/android/fingerprints";
 import appOrigin from "./utils/appOrigin";
 import { closeAndFlush as closeSegment } from "./utils/segment";
@@ -284,23 +285,18 @@ const server = serve(app);
 export async function close() {
   return new Promise((resolve, reject) => {
     server.close((error) => {
-      Promise.allSettled([closeSentry(), closeSegment(), database.$client.end()])
+      Promise.allSettled([
+        closeSentry(),
+        closeSegment(),
+        database.$client.end(),
+        alchemyWorker?.close() ?? Promise.resolve(),
+      ])
         .then((results) => {
           if (error) reject(error);
           else if (results.some((result) => result.status === "rejected")) reject(new Error("closing services failed"));
           else resolve(null);
         })
         .catch(reject);
-    });
-  });
-}
-
-if (!process.env.VITEST) {
-  ["SIGINT", "SIGTERM"].map((code) => {
-    process.on(code, () => {
-      close()
-        .then(() => process.exit(0)) // eslint-disable-line n/no-process-exit
-        .catch(() => process.exit(1)); // eslint-disable-line n/no-process-exit
     });
   });
 }
