@@ -78,6 +78,7 @@
     "expo-insights": "~0.10.8",
     "expo-linear-gradient": "~15.0.8",
     "expo-linking": "~8.0.10",
+    "expo-local-authentication": "~17.0.8",
     "expo-localization": "~17.0.8",
     "expo-router": "~6.0.19",
     "expo-status-bar": "~3.0.9",
