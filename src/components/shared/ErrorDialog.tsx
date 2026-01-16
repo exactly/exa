@@ -3,9 +3,9 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { AlertDialog, XStack, YStack } from "tamagui";
 
+import useAspectRatio from "../../utils/useAspectRatio";
 import Button from "./Button";
 import Text from "./Text";
-import useAspectRatio from "../../utils/useAspectRatio";
 
 export default function ErrorDialog({
   open,

@@ -5,9 +5,9 @@ import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { XStack, YStack } from "tamagui";
 
-import Contact from "./Contact";
 import Text from "../shared/Text";
 import View from "../shared/View";
+import Contact from "./Contact";
 
 export default function RecentContacts({ onContactPress }: { onContactPress: (address: Address) => void }) {
   const { data } = useQuery<{ address: Address; ens: string; lastUsed: Date }[] | undefined>({

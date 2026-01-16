@@ -4,11 +4,11 @@ import React from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { AlertDialog, XStack, YStack } from "tamagui";
 
+import OptimismImage from "../../assets/images/optimism.svg";
+import useAspectRatio from "../../utils/useAspectRatio";
 import Button from "./Button";
 import Text from "./Text";
 import View from "./View";
-import OptimismImage from "../../assets/images/optimism.svg";
-import useAspectRatio from "../../utils/useAspectRatio";
 
 export default function AddressDialog({
   open,

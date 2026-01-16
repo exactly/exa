@@ -10,15 +10,15 @@ import { Square, XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
 import { useBytecode } from "wagmi";
 
-import GradientScrollView from "./GradientScrollView";
-import SafeView from "./SafeView";
-import View from "./View";
 import assetLogos from "../../utils/assetLogos";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import AssetLogo from "../shared/AssetLogo";
 import Text from "../shared/Text";
 import TransactionDetails from "../shared/TransactionDetails";
+import GradientScrollView from "./GradientScrollView";
+import SafeView from "./SafeView";
+import View from "./View";
 
 export default function Success({
   amount,

@@ -7,13 +7,13 @@ import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { Square, XStack, YStack } from "tamagui";
 
-import GradientScrollView from "./GradientScrollView";
-import SafeView from "./SafeView";
 import assetLogos from "../../utils/assetLogos";
 import useAsset from "../../utils/useAsset";
 import AssetLogo from "../shared/AssetLogo";
 import Text from "../shared/Text";
 import View from "../shared/View";
+import GradientScrollView from "./GradientScrollView";
+import SafeView from "./SafeView";
 
 export default function Failure({
   amount,

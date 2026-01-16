@@ -857,7 +857,6 @@
 ### Major Changes
 
 - [`e123e4a`](https://github.com/exactly/exa/commit/e123e4a35f4e764b9c44895df8bad40e51af4ce0) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🔖 exa app v1 featuring:
-
   - seamless account access with passkeys
   - protocol debt repayment
   - debt rollover to next maturity

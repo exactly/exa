@@ -4,9 +4,9 @@ import React from "react";
 import { Pressable } from "react-native";
 import { YStack } from "tamagui";
 
-import CardContents from "./CardContents";
 import type { CardDetails } from "../../../utils/server";
 import View from "../../shared/View";
+import CardContents from "./CardContents";
 
 export default function ExaCard({
   disabled = false,

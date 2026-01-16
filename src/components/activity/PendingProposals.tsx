@@ -9,11 +9,11 @@ import chain from "@exactly/common/generated/chain";
 import shortenHex from "@exactly/common/shortenHex";
 import {
   ArrowLeft,
+  ArrowLeftRight,
+  ArrowUpRight,
   CircleHelp,
   Coins,
   RefreshCw,
-  ArrowLeftRight,
-  ArrowUpRight,
   SearchSlash,
   Shuffle,
 } from "@tamagui/lucide-icons";

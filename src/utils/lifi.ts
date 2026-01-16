@@ -14,8 +14,8 @@ import {
   type TokenAmount,
 } from "@lifi/sdk";
 import { parse } from "valibot";
-import { encodeFunctionData, formatUnits } from "viem";
 import type { Address } from "viem";
+import { encodeFunctionData, formatUnits } from "viem";
 import { anvil } from "viem/chains";
 
 import publicClient from "./publicClient";

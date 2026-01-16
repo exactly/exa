@@ -7,7 +7,6 @@ import { Trans, useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { YStack } from "tamagui";
 
-import Progression from "./Progression";
 import { presentArticle } from "../../../utils/intercom";
 import queryClient from "../../../utils/queryClient";
 import reportError from "../../../utils/reportError";
@@ -16,6 +15,7 @@ import Button from "../../shared/Button";
 import Spinner from "../../shared/Spinner";
 import Text from "../../shared/Text";
 import View from "../../shared/View";
+import Progression from "./Progression";
 
 export default function ActivateCard() {
   const toast = useToastController();

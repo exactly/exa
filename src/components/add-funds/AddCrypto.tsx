@@ -8,7 +8,6 @@ import { useTranslation } from "react-i18next";
 import { PixelRatio, Pressable, Share } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 
-import SupportedAssetsSheet from "./SupportedAssetsSheet";
 import OptimismImage from "../../assets/images/optimism.svg";
 import assetLogos from "../../utils/assetLogos";
 import { presentArticle } from "../../utils/intercom";
@@ -20,6 +19,7 @@ import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
+import SupportedAssetsSheet from "./SupportedAssetsSheet";
 
 const supportedAssets = Object.entries(assetLogos)
   .filter(([symbol]) => symbol !== "USDC.e" && symbol !== "DAI")

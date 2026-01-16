@@ -1,10 +1,10 @@
-import "../mocks/sentry";
 import "../mocks/deployments";
+import "../mocks/keeper";
 import "../mocks/onesignal";
 import "../mocks/panda";
 import "../mocks/redis";
-import "../mocks/keeper";
 import "../mocks/sardine";
+import "../mocks/sentry";
 
 import ProposalType from "@exactly/common/ProposalType";
 import deriveAddress from "@exactly/common/deriveAddress";

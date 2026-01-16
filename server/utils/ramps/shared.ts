@@ -1,5 +1,5 @@
 import { array, literal, object, optional, picklist, string, variant } from "valibot";
-import { optimism, base, baseSepolia, optimismSepolia } from "viem/chains";
+import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
 export const Currency = ["ARS", "USD", "CLP", "BRL", "COP", "PUSD", "CRC", "GTQ", "MXN", "PHP", "BOB", "EUR"] as const;
 export const Cryptocurrency = ["USDC", "USDT", "ETH", "SOL", "BTC", "DAI", "PYUSD", "USDP"] as const; // cspell:ignore usdp

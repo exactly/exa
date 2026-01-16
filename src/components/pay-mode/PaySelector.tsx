@@ -2,7 +2,7 @@ import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
 import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerExactly, useReadPreviewerPreviewBorrowAtMaturity } from "@exactly/common/generated/hooks";
 import { borrowLimit, WAD, withdrawLimit } from "@exactly/lib";
-import { CircleHelp, Check } from "@tamagui/lucide-icons";
+import { Check, CircleHelp } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import React, { useMemo, useState } from "react";
@@ -11,7 +11,6 @@ import { Pressable, StyleSheet } from "react-native";
 import { XStack, YStack } from "tamagui";
 import { formatUnits, parseUnits, zeroAddress } from "viem";
 
-import ManualRepaymentSheet from "./ManualRepaymentSheet";
 import assetLogos from "../../utils/assetLogos";
 import { presentArticle } from "../../utils/intercom";
 import queryClient from "../../utils/queryClient";
@@ -25,6 +24,7 @@ import Input from "../shared/Input";
 import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 import View from "../shared/View";
+import ManualRepaymentSheet from "./ManualRepaymentSheet";
 
 export default function PaySelector() {
   const toast = useToastController();

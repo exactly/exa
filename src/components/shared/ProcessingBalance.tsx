@@ -3,9 +3,9 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { XStack } from "tamagui";
 
-import Text from "./Text";
 import isProcessing from "../../utils/isProcessing";
 import { getActivity } from "../../utils/server";
+import Text from "./Text";
 
 export default function ProcessingBalance() {
   const {

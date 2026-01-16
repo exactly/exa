@@ -5,9 +5,9 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { XStack, YStack } from "tamagui";
 
-import Contact from "./Contact";
 import Text from "../shared/Text";
 import View from "../shared/View";
+import Contact from "./Contact";
 
 export default function Contacts({ onContactPress }: { onContactPress: (address: Address) => void }) {
   const { t } = useTranslation();

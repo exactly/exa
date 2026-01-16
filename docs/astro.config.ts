@@ -1,6 +1,6 @@
 import starlight from "@astrojs/starlight";
-import { defineConfig } from "astro/config";
 import mermaid from "astro-mermaid";
+import { defineConfig } from "astro/config";
 import starlightOpenAPI, { openAPISidebarGroups } from "starlight-openapi";
 
 export default defineConfig({

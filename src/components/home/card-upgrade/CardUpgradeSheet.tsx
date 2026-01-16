@@ -4,14 +4,14 @@ import React from "react";
 import { Pressable } from "react-native";
 import { ScrollView } from "tamagui";
 
-import ActivateCard from "./ActivateCard";
-import Intro from "./Intro";
-import UpgradeAccount from "./UpgradeAccount";
-import VerifyIdentity from "./VerifyIdentity";
 import queryClient from "../../../utils/queryClient";
 import ModalSheet from "../../shared/ModalSheet";
 import SafeView from "../../shared/SafeView";
 import View from "../../shared/View";
+import ActivateCard from "./ActivateCard";
+import Intro from "./Intro";
+import UpgradeAccount from "./UpgradeAccount";
+import VerifyIdentity from "./VerifyIdentity";
 
 export default function CardUpgradeSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { data: step } = useQuery<number | undefined>({ queryKey: ["card-upgrade"] });

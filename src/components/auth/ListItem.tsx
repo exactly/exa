@@ -4,9 +4,9 @@ import type { SharedValue } from "react-native-reanimated";
 import { Extrapolation, interpolate, useAnimatedStyle } from "react-native-reanimated";
 import { View, useWindowDimensions } from "tamagui";
 
-import type { Page } from "./Auth";
 import useAspectRatio from "../../utils/useAspectRatio";
 import AnimatedView from "../shared/AnimatedView";
+import type { Page } from "./Auth";
 
 export default memo(function ListItem({ item, index, x }: { item: Page; index: number; x: SharedValue<number> }) {
   const aspectRatio = useAspectRatio();

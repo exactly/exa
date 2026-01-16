@@ -1,11 +1,11 @@
-import "../mocks/sentry";
 import "../mocks/deployments";
-import { nonceSource, keeperClient } from "../mocks/keeper"; // eslint-disable-line import/order
+import { keeperClient, nonceSource } from "../mocks/keeper"; // eslint-disable-line import/order
+import "../mocks/sentry";
 
 import { auditorAbi } from "@exactly/common/generated/chain";
 import { captureException } from "@sentry/node";
-import { setImmediate } from "node:timers/promises";
 import type * as timers from "node:timers/promises";
+import { setImmediate } from "node:timers/promises";
 import type { Hex } from "viem";
 import { afterEach, describe, expect, inject, it, vi } from "vitest";
 

@@ -5,6 +5,7 @@ applyTo: "**"
 paths: "**"
 trigger: always_on
 ---
+
 # General Guidelines for working with Nx
 
 - When running tasks (for example build, lint, test, e2e, etc.), always prefer running the task through `nx` (i.e. `nx run`, `nx run-many`, `nx affected`) instead of using the underlying tooling directly

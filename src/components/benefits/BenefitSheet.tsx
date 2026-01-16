@@ -5,9 +5,8 @@ import { setStringAsync } from "expo-clipboard";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
-import { YStack, XStack, Spinner, ScrollView } from "tamagui";
+import { ScrollView, Spinner, XStack, YStack } from "tamagui";
 
-import type { Benefit } from "./BenefitsSection";
 import openBrowser from "../../utils/openBrowser";
 import reportError from "../../utils/reportError";
 import type { PaxId } from "../../utils/server";
@@ -16,6 +15,7 @@ import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
+import type { Benefit } from "./BenefitsSection";
 
 interface BenefitSheetProperties {
   benefit: Benefit | undefined;

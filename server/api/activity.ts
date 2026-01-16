@@ -21,8 +21,6 @@ import {
   array,
   bigint,
   boolean,
-  type InferInput,
-  type InferOutput,
   intersect,
   isoTimestamp,
   length,
@@ -43,6 +41,8 @@ import {
   undefined_,
   union,
   variant,
+  type InferInput,
+  type InferOutput,
 } from "valibot";
 import { decodeFunctionData, zeroHash, type Log } from "viem";
 

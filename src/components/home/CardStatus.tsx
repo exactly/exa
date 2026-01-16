@@ -4,9 +4,9 @@ import React from "react";
 import { Platform } from "react-native";
 import { XStack, YStack } from "tamagui";
 
-import CardLimits from "./CardLimits";
 import SignatureCard from "../../assets/images/card-signature.svg";
 import Card from "../../assets/images/card.svg";
+import CardLimits from "./CardLimits";
 
 export default function CardStatus({ onInfoPress, productId }: { onInfoPress: () => void; productId: string }) {
   const router = useRouter();

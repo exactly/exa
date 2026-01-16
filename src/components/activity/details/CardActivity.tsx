@@ -5,12 +5,12 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { Square, XStack, YStack } from "tamagui";
 
-import PaymentDetails from "./PaymentDetails";
-import PurchaseDetails from "./PurchaseDetails";
-import TransactionDetails from "./TransactionDetails";
 import isProcessing from "../../../utils/isProcessing";
 import Image from "../../shared/Image";
 import Text from "../../shared/Text";
+import PaymentDetails from "./PaymentDetails";
+import PurchaseDetails from "./PurchaseDetails";
+import TransactionDetails from "./TransactionDetails";
 
 export default function CardActivity({
   item,

@@ -1,13 +1,13 @@
-import js from "@eslint/js";
 import comments from "@eslint-community/eslint-plugin-eslint-comments/configs";
+import js from "@eslint/js";
 import nx from "@nx/eslint-plugin";
-import { defineConfig, globalIgnores } from "eslint/config";
 import { flatConfigs as importPlugin } from "eslint-plugin-import";
 import jsdoc from "eslint-plugin-jsdoc";
 import prettier from "eslint-plugin-prettier/recommended";
 import { configs as regexp } from "eslint-plugin-regexp";
 import tsdoc from "eslint-plugin-tsdoc";
 import unicorn from "eslint-plugin-unicorn";
+import { defineConfig, globalIgnores } from "eslint/config";
 import globals from "globals";
 import { configs as ts } from "typescript-eslint";
 

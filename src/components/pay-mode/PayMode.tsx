@@ -1,16 +1,12 @@
 import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState, type RefObject } from "react";
 import { Trans } from "react-i18next";
 import { RefreshControl } from "react-native";
 import { ScrollView, XStack } from "tamagui";
 import { zeroAddress } from "viem";
 
-import OverduePayments from "./OverduePayments";
-import PaySelector from "./PaySelector";
-import PaymentSheet from "./PaymentSheet";
-import UpcomingPayments from "./UpcomingPayments";
 import { presentCollection } from "../../utils/intercom";
 import openBrowser from "../../utils/openBrowser";
 import queryClient from "../../utils/queryClient";
@@ -19,6 +15,10 @@ import useAsset from "../../utils/useAsset";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
+import OverduePayments from "./OverduePayments";
+import PaySelector from "./PaySelector";
+import PaymentSheet from "./PaymentSheet";
+import UpcomingPayments from "./UpcomingPayments";
 
 export default function PayMode() {
   const parameters = useLocalSearchParams();

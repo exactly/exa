@@ -1,10 +1,10 @@
 import type { IntercomPluginProps } from "@intercom/intercom-react-native/lib/typescript/module/expo-plugins/@types";
 import type { withSentry } from "@sentry/react-native/expo";
-import type { ExpoConfig } from "expo/config";
-import { AndroidConfig, type ConfigPlugin, withAndroidManifest } from "expo/config-plugins";
 import type { PluginConfigType as BuildPropertiesConfig } from "expo-build-properties/build/pluginConfig";
 import type withCamera from "expo-camera/plugin/build/withCamera";
 import type { FontProps } from "expo-font/plugin/build/withFonts";
+import type { ExpoConfig } from "expo/config";
+import { AndroidConfig, type ConfigPlugin, withAndroidManifest } from "expo/config-plugins";
 import { env } from "node:process";
 import type * as OneSignalPlugin from "onesignal-expo-plugin/types/types";
 

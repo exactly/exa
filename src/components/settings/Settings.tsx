@@ -9,7 +9,7 @@ import { useDisconnect } from "wagmi";
 
 import release from "../../generated/release";
 import { useSubmitCoverage } from "../../utils/e2e";
-import { present, logout as logoutIntercom } from "../../utils/intercom";
+import { logout as logoutIntercom, present } from "../../utils/intercom";
 import { logout as logoutOnesignal } from "../../utils/onesignal";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";

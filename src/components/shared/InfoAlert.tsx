@@ -1,7 +1,7 @@
 import { ChevronRight, Info } from "@tamagui/lucide-icons";
 import React from "react";
 import { Pressable } from "react-native";
-import { View, Text, Spinner, XStack } from "tamagui";
+import { Spinner, Text, View, XStack } from "tamagui";
 
 export default function InfoAlert({
   title,

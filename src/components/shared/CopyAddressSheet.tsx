@@ -4,14 +4,14 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { ScrollView, XStack, YStack } from "tamagui";
 
-import AssetLogo from "./AssetLogo";
-import ModalSheet from "./ModalSheet";
 import OptimismImage from "../../assets/images/optimism.svg";
 import assetLogos from "../../utils/assetLogos";
 import useAccount from "../../utils/useAccount";
 import Button from "../shared/Button";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
+import AssetLogo from "./AssetLogo";
+import ModalSheet from "./ModalSheet";
 
 const supportedAssets = Object.entries(assetLogos)
   .filter(([symbol]) => symbol !== "USDC.e" && symbol !== "DAI")

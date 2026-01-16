@@ -1,4 +1,4 @@
-import { IdCard, ArrowUpToLine, CreditCard } from "@tamagui/lucide-icons";
+import { ArrowUpToLine, CreditCard, IdCard } from "@tamagui/lucide-icons";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { StyleSheet } from "react-native";

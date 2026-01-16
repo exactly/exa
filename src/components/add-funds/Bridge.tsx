@@ -14,23 +14,21 @@ import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { ScrollView, Spinner, Square, XStack, YStack } from "tamagui";
 import {
+  TransactionExecutionError,
+  UserRejectedRequestError,
   encodeFunctionData,
   erc20Abi,
   formatUnits,
+  getAddress,
   isAddress,
   parseUnits,
-  type Hex,
-  UserRejectedRequestError,
   zeroAddress,
-  TransactionExecutionError,
-  getAddress,
+  type Hex,
 } from "viem";
 import { useReadContract, useSendCalls, useSendTransaction, useSimulateContract, useWriteContract } from "wagmi";
 
-import AssetSelectSheet from "./AssetSelectSheet";
-import TokenLogo from "./TokenLogo";
 import OptimismImage from "../../assets/images/optimism.svg";
-import { getRouteFrom, getBridgeSources, tokenCorrelation, type RouteFrom, type BridgeSources } from "../../utils/lifi";
+import { getBridgeSources, getRouteFrom, tokenCorrelation, type BridgeSources, type RouteFrom } from "../../utils/lifi";
 import openBrowser from "../../utils/openBrowser";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
@@ -45,6 +43,8 @@ import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 import TokenInput from "../swaps/TokenInput";
+import AssetSelectSheet from "./AssetSelectSheet";
+import TokenLogo from "./TokenLogo";
 
 export default function Bridge() {
   const router = useRouter();

@@ -8,7 +8,6 @@ import { Pressable, RefreshControl } from "react-native";
 import { ScrollView, XStack } from "tamagui";
 import { zeroAddress } from "viem";
 
-import AssetList from "./AssetList";
 import { presentArticle } from "../../utils/intercom";
 import openBrowser from "../../utils/openBrowser";
 import reportError from "../../utils/reportError";
@@ -18,6 +17,7 @@ import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
 import WeightedRate from "../shared/WeightedRate";
+import AssetList from "./AssetList";
 
 export default function Portfolio() {
   const { address } = useAccount();

@@ -5,11 +5,11 @@ import React from "react";
 import { ScrollView, YStack } from "tamagui";
 import { base } from "viem/chains";
 
+import type { AuthMethod } from "../../utils/queryClient";
 import Button from "./Button";
 import ModalSheet from "./ModalSheet";
 import SafeView from "./SafeView";
 import Text from "./Text";
-import type { AuthMethod } from "../../utils/queryClient";
 
 export default function ConnectSheet({
   open,

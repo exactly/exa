@@ -1,14 +1,13 @@
 import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { ArrowLeft, CircleHelp } from "@tamagui/lucide-icons";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, RefreshControl } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
 
-import CreditLine from "./CreditLine";
 import { presentArticle } from "../../utils/intercom";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
@@ -18,6 +17,7 @@ import UpcomingPayments from "../pay-mode/UpcomingPayments";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
+import CreditLine from "./CreditLine";
 
 export default function Loans() {
   const { t } = useTranslation();

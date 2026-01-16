@@ -5,6 +5,7 @@ applyTo: "**"
 paths: "**"
 trigger: always_on
 ---
+
 # exa development environment rules
 
 ## philosophy

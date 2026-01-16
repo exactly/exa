@@ -10,13 +10,13 @@ import { Pressable } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 import { isAddress } from "viem";
 
-import AddFundsOption from "./AddFundsOption";
 import OptimismImage from "../../assets/images/optimism.svg";
 import { presentArticle } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
+import AddFundsOption from "./AddFundsOption";
 
 export default function AddFunds() {
   const router = useRouter();

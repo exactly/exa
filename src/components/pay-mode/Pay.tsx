@@ -4,11 +4,11 @@ import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
 import chain, {
   balancerVaultAddress,
   exaPluginAddress,
+  integrationPreviewerAddress,
   marketUSDCAddress,
   proposalManagerAddress,
   swapperAddress,
   usdcAddress,
-  integrationPreviewerAddress,
 } from "@exactly/common/generated/chain";
 import {
   auditorAbi,
@@ -23,18 +23,16 @@ import { divWad, fixedRepayAssets, fixedRepayPosition, min, mulWad, WAD } from "
 import { ArrowLeft, ChevronRight, Coins } from "@tamagui/lucide-icons";
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { waitForCallsStatus } from "@wagmi/core/actions";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScrollView, Separator, XStack, YStack } from "tamagui";
-import { digits, parse, pipe, safeParse, string, transform, nonEmpty } from "valibot";
+import { digits, nonEmpty, parse, pipe, safeParse, string, transform } from "valibot";
 import { ContractFunctionExecutionError, ContractFunctionRevertedError, erc20Abi, zeroAddress } from "viem";
 import { useBytecode, useReadContract, useSendCalls, useSimulateContract, useWriteContract } from "wagmi";
 
-import AssetSelectionSheet from "./AssetSelectionSheet";
-import RepayAmountSelector from "./RepayAmountSelector";
 import SafeView from "../../components/shared/SafeView";
 import Button from "../../components/shared/StyledButton";
 import Text from "../../components/shared/Text";
@@ -53,6 +51,8 @@ import Failure from "../shared/Failure";
 import Pending from "../shared/Pending";
 import Skeleton from "../shared/Skeleton";
 import Success from "../shared/Success";
+import AssetSelectionSheet from "./AssetSelectionSheet";
+import RepayAmountSelector from "./RepayAmountSelector";
 
 export default function Pay() {
   const insets = useSafeAreaInsets();

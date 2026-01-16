@@ -9,10 +9,6 @@ import { ScrollView, useTheme, XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
 import { useBytecode } from "wagmi";
 
-import AboutDefiSheet from "./AboutDefiSheet";
-import ConnectionSheet from "./ConnectionSheet";
-import DisconnectSheet from "./DisconnectSheet";
-import IntroSheet from "./IntroSheet";
 import ExactlyLogo from "../../assets/images/exactly.svg";
 import LiFiLogo from "../../assets/images/lifi.svg";
 import openBrowser from "../../utils/openBrowser";
@@ -21,6 +17,10 @@ import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
+import AboutDefiSheet from "./AboutDefiSheet";
+import ConnectionSheet from "./ConnectionSheet";
+import DisconnectSheet from "./DisconnectSheet";
+import IntroSheet from "./IntroSheet";
 
 export default function DeFi() {
   const theme = useTheme();

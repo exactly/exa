@@ -15,10 +15,10 @@ import { useTranslation } from "react-i18next";
 import { encodeAbiParameters, getAbiItem, keccak256, zeroAddress } from "viem";
 import { useBytecode, useSendCalls } from "wagmi";
 
-import InfoAlert from "./InfoAlert";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import exa from "../../utils/wagmi/exa";
+import InfoAlert from "./InfoAlert";
 
 export default function PluginUpgrade() {
   const { t } = useTranslation();

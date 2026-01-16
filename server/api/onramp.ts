@@ -19,25 +19,25 @@ import database, { credentials } from "../database";
 import auth from "../middleware/auth";
 import { PANDA_TEMPLATE } from "../utils/persona";
 import {
-  getDepositDetails as getBridgeDepositDetails,
   SupportedCurrency as BridgeCurrency,
-  getCustomer as getBridgeCustomer,
-  getProvider as getBridgeProvider,
-  onboarding as bridgeOnboarding,
-  getQuote as getBridgeQuote,
   ErrorCodes as BridgeErrorCodes,
+  onboarding as bridgeOnboarding,
   getCryptoDepositDetails as getBridgeCryptoDepositDetails,
+  getCustomer as getBridgeCustomer,
+  getDepositDetails as getBridgeDepositDetails,
+  getProvider as getBridgeProvider,
+  getQuote as getBridgeQuote,
   SupportedCrypto as SupportedBridgeCrypto,
 } from "../utils/ramps/bridge";
 import {
-  getProvider as getMantecaProvider,
-  ErrorCodes as MantecaErrorCodes,
   getDepositDetails as getMantecaDepositDetails,
   getLimits as getMantecaLimits,
+  getProvider as getMantecaProvider,
   getQuote as getMantecaQuote,
   getUser as getMantecaUser,
-  mantecaOnboarding,
   MantecaCurrency,
+  ErrorCodes as MantecaErrorCodes,
+  mantecaOnboarding,
 } from "../utils/ramps/manteca";
 import { CryptoNetwork, type DepositDetails, type ProviderInfo, type RampProvider } from "../utils/ramps/shared";
 import validatorHook from "../utils/validatorHook";

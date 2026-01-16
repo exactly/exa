@@ -24,11 +24,11 @@ import database, { credentials } from "../database";
 import { sendPushNotification } from "../utils/onesignal";
 import {
   convertBalanceToUsdc,
+  ErrorCodes,
   OrderStatus,
+  UserStatus,
   withdrawBalance,
   WithdrawStatus,
-  UserStatus,
-  ErrorCodes,
 } from "../utils/ramps/manteca";
 import validatorHook from "../utils/validatorHook";
 import verifySignature from "../utils/verifySignature";

@@ -5,6 +5,7 @@ applyTo: "**"
 paths: "**"
 trigger: always_on
 ---
+
 # git & versioning rules
 
 this file defines the mandatory commit message standard for the exa monorepo. it is based on a modified version of [gitmoji](mdc:https:/gitmoji.dev).
@@ -62,7 +63,7 @@ the scope provides context for the change.
 selecting the correct gitmoji is critical for maintaining a clean and scannable git history.
 
 - **scan the list**: before committing, review the [gitmoji guide](mdc:https:/gitmoji.dev) to find the emoji that most accurately represents your change.
-- **be precise**: don't just pick a generic emoji. choose the one that best communicates the *intent* of the commit. for example:
+- **be precise**: don't just pick a generic emoji. choose the one that best communicates the _intent_ of the commit. for example:
   - ✨ for introducing a new feature.
   - 🐛 for fixing a bug.
   - ♻️ for refactoring code.

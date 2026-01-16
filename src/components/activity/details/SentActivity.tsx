@@ -5,10 +5,10 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { Square, XStack, YStack } from "tamagui";
 
-import TransactionDetails from "./TransactionDetails";
 import assetLogos from "../../../utils/assetLogos";
 import AssetLogo from "../../shared/AssetLogo";
 import Text from "../../shared/Text";
+import TransactionDetails from "./TransactionDetails";
 
 export default function SentActivity({ item }: { item: Omit<WithdrawActivity, "blockNumber"> }) {
   const { amount, usdAmount, currency } = item;

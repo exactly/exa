@@ -1,5 +1,5 @@
-import "../mocks/sentry";
 import "../mocks/persona";
+import "../mocks/sentry";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import { captureException } from "@sentry/node";

@@ -17,7 +17,6 @@ import { YStack } from "tamagui";
 import { encodeAbiParameters, getAbiItem, keccak256, zeroAddress } from "viem";
 import { useBytecode, useSendCalls } from "wagmi";
 
-import Progression from "./Progression";
 import queryClient from "../../../utils/queryClient";
 import reportError from "../../../utils/reportError";
 import useAccount from "../../../utils/useAccount";
@@ -26,6 +25,7 @@ import Button from "../../shared/Button";
 import Spinner from "../../shared/Spinner";
 import Text from "../../shared/Text";
 import View from "../../shared/View";
+import Progression from "./Progression";
 
 export default function UpgradeAccount() {
   const { mutateAsync: mutateSendCalls } = useSendCalls();

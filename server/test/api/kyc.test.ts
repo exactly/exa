@@ -1,6 +1,6 @@
-import "../mocks/sentry";
 import "../mocks/auth";
 import "../mocks/deployments";
+import "../mocks/sentry";
 
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";

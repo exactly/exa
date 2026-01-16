@@ -7,12 +7,10 @@ import React, { type FC, useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next";
 import type { StyleProp, ViewStyle, ViewToken } from "react-native";
 import { Platform } from "react-native";
-import Animated, { useAnimatedScrollHandler, useSharedValue, withTiming, Easing } from "react-native-reanimated";
+import Animated, { Easing, useAnimatedScrollHandler, useSharedValue, withTiming } from "react-native-reanimated";
 import type { SvgProps } from "react-native-svg";
 import { scheduleOnRN } from "react-native-worklets";
 
-import ListItem from "./ListItem";
-import Pagination from "./Pagination";
 import calendarBlob from "../../assets/images/calendar-blob.svg";
 import calendar from "../../assets/images/calendar.svg";
 import earningsBlob from "../../assets/images/earnings-blob.svg";
@@ -30,6 +28,8 @@ import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
+import ListItem from "./ListItem";
+import Pagination from "./Pagination";
 
 export default function Auth() {
   const router = useRouter();

@@ -8,19 +8,13 @@ import { ChevronRight, CircleHelp, CreditCard, DollarSign, Eye, EyeOff, Hash, Sn
 import { useToastController } from "@tamagui/toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
-import React, { type RefObject, useState } from "react";
+import React, { useState, type RefObject } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { Pressable, RefreshControl } from "react-native";
 import { ScrollView, Separator, Spinner, Square, Switch, XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
 import { useBytecode } from "wagmi";
 
-import CardDetails from "./CardDetails";
-import CardDisclaimer from "./CardDisclaimer";
-import CardPIN from "./CardPIN";
-import SpendingLimits from "./SpendingLimits";
-import VerificationFailure from "./VerificationFailure";
-import ExaCard from "./exa-card/ExaCard";
 import { presentArticle } from "../../utils/intercom";
 import openBrowser from "../../utils/openBrowser";
 import { createInquiry, KYC_TEMPLATE_ID, resumeInquiry } from "../../utils/persona";
@@ -28,8 +22,8 @@ import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import {
   APIError,
-  getActivity,
   createCard,
+  getActivity,
   getKYCStatus,
   setCardStatus,
   type CardDetails as CardDetailsData,
@@ -43,6 +37,12 @@ import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 import View from "../shared/View";
+import CardDetails from "./CardDetails";
+import CardDisclaimer from "./CardDisclaimer";
+import CardPIN from "./CardPIN";
+import SpendingLimits from "./SpendingLimits";
+import VerificationFailure from "./VerificationFailure";
+import ExaCard from "./exa-card/ExaCard";
 
 export default function Card() {
   const toast = useToastController();

@@ -9,11 +9,11 @@ import { YStack } from "tamagui";
 import { nonEmpty, parse, pipe, string } from "valibot";
 import { formatUnits, parseUnits } from "viem";
 
+import useAsset from "../../utils/useAsset";
 import Button from "./Button";
 import Input from "./Input";
 import Text from "./Text";
 import View from "./View";
-import useAsset from "../../utils/useAsset";
 
 export default function AmountSelector({ onChange }: { onChange: (value: bigint) => void }) {
   const {

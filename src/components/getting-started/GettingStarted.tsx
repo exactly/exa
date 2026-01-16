@@ -7,7 +7,6 @@ import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 
-import Step from "./Step";
 import { presentArticle } from "../../utils/intercom";
 import { createInquiry, KYC_TEMPLATE_ID, resumeInquiry } from "../../utils/persona";
 import queryClient from "../../utils/queryClient";
@@ -18,6 +17,7 @@ import ActionButton from "../shared/ActionButton";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
+import Step from "./Step";
 
 export default function GettingStarted() {
   const { t } = useTranslation();

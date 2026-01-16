@@ -1,4 +1,4 @@
-import { Boxes, Coins, CreditCard, Home, FileText } from "@tamagui/lucide-icons";
+import { Boxes, Coins, CreditCard, FileText, Home } from "@tamagui/lucide-icons";
 import { Tabs } from "expo-router";
 import Head from "expo-router/head";
 import React from "react";

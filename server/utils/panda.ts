@@ -14,8 +14,6 @@ import { vValidator } from "@hono/valibot-validator";
 import { Mutex, withTimeout, type MutexInterface } from "async-mutex";
 import { eq } from "drizzle-orm";
 import {
-  type BaseIssue,
-  type BaseSchema,
   boolean,
   length,
   literal,
@@ -29,14 +27,16 @@ import {
   pipe,
   string,
   transform,
+  type BaseIssue,
+  type BaseSchema,
 } from "valibot";
 import { BaseError, ContractFunctionZeroDataError } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { base, optimism } from "viem/chains";
 
 import database, { credentials } from "../database";
-import verifySignature from "./verifySignature";
 import publicClient from "../utils/publicClient";
+import verifySignature from "./verifySignature";
 
 const plugin = exaPluginAddress.toLowerCase();
 

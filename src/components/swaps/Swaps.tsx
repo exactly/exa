@@ -21,12 +21,6 @@ import { parse } from "valibot";
 import { formatUnits, parseUnits, zeroAddress } from "viem";
 import { useSimulateContract, useWriteContract } from "wagmi";
 
-import Failure from "./Failure";
-import Pending from "./Pending";
-import TokenSelectModal from "./SelectorModal";
-import Success from "./Success";
-import SwapDetails from "./SwapDetails";
-import TokenInput from "./TokenInput";
 import { presentArticle } from "../../utils/intercom";
 import { getAllowTokens, getRoute, getRouteFrom } from "../../utils/lifi";
 import openBrowser from "../../utils/openBrowser";
@@ -40,6 +34,12 @@ import Button from "../shared/Button";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
+import Failure from "./Failure";
+import Pending from "./Pending";
+import TokenSelectModal from "./SelectorModal";
+import Success from "./Success";
+import SwapDetails from "./SwapDetails";
+import TokenInput from "./TokenInput";
 
 export interface Swap {
   fromToken?: { token: Token; external: boolean };

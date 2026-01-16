@@ -6,12 +6,12 @@ import { Pressable } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 import { formatUnits } from "viem";
 
-import TokenLogo from "./TokenLogo";
 import Input from "../shared/Input";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
+import TokenLogo from "./TokenLogo";
 
 export default function AssetSelectSheet({
   open,

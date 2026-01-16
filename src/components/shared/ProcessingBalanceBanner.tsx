@@ -2,10 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import Text from "./Text";
-import View from "./View";
 import isProcessing from "../../utils/isProcessing";
 import { getActivity } from "../../utils/server";
+import Text from "./Text";
+import View from "./View";
 
 export default function ProcessingBalanceBanner() {
   const {

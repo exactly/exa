@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 
-import SpendingLimit from "./SpendingLimit";
 import { newMessage } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
 import ModalSheet from "../shared/ModalSheet";
@@ -12,6 +11,7 @@ import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
+import SpendingLimit from "./SpendingLimit";
 
 export default function SpendingLimits({
   open,

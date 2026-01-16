@@ -1,7 +1,7 @@
 import vitest from "@vitest/eslint-plugin";
-import { defineConfig } from "eslint/config";
 import node from "eslint-plugin-n";
 import security from "eslint-plugin-security";
+import { defineConfig } from "eslint/config";
 
 export default defineConfig([
   node.configs["flat/recommended"],

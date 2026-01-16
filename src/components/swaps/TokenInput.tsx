@@ -4,7 +4,7 @@ import { useForm } from "@tanstack/react-form";
 import React, { useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { XStack, YStack } from "tamagui";
-import { pipe, string, nonEmpty } from "valibot";
+import { nonEmpty, pipe, string } from "valibot";
 import { formatUnits, parseUnits } from "viem";
 
 import OptimismImage from "../../assets/images/optimism.svg";

@@ -2,11 +2,11 @@ import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import React, { useCallback } from "react";
 import { ToggleGroup } from "tamagui";
 
+import usePendingOperations from "../../utils/usePendingOperations";
 import SafeView from "./SafeView";
 import StatusIndicator from "./StatusIndicator";
 import Text from "./Text";
 import View from "./View";
-import usePendingOperations from "../../utils/usePendingOperations";
 
 export default function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const { count } = usePendingOperations();

@@ -2,10 +2,10 @@ import { ChevronRight } from "@tamagui/lucide-icons";
 import React, { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import { YStack, XStack } from "tamagui";
+import { XStack, YStack } from "tamagui";
 
-import type { Benefit } from "./BenefitsSection";
 import Text from "../shared/Text";
+import type { Benefit } from "./BenefitsSection";
 
 interface BenefitCardProperties {
   benefit: Benefit;

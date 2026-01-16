@@ -1,9 +1,9 @@
 import type { Token } from "@lifi/sdk";
 import { Search } from "@tamagui/lucide-icons";
-import React, { useState, useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FlatList, Pressable } from "react-native";
-import { XStack, YStack, ButtonIcon } from "tamagui";
+import { ButtonIcon, XStack, YStack } from "tamagui";
 import { formatUnits } from "viem";
 
 import useAccountAssets from "../../utils/useAccountAssets";

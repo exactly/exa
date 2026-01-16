@@ -4,8 +4,8 @@ import { WAD } from "@exactly/lib";
 import {
   ArrowRight,
   Calendar,
-  CirclePercent,
   ChevronRight,
+  CirclePercent,
   Coins,
   Info,
   RefreshCw,
@@ -15,7 +15,7 @@ import { useToastController } from "@tamagui/toast";
 import { useQuery } from "@tanstack/react-query";
 import { formatDistance, isAfter } from "date-fns";
 import { enUS, es } from "date-fns/locale";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, StyleSheet } from "react-native";

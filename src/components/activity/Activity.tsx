@@ -5,8 +5,6 @@ import { useTranslation } from "react-i18next";
 import { FlatList, RefreshControl } from "react-native";
 import { styled, useTheme } from "tamagui";
 
-import ActivityItem from "./ActivityItem";
-import Empty from "./Empty";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { getActivity } from "../../utils/server";
@@ -16,6 +14,8 @@ import ProposalBanner from "../shared/ProposalBanner";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
+import ActivityItem from "./ActivityItem";
+import Empty from "./Empty";
 
 type ActivityEvent = Awaited<ReturnType<typeof getActivity>>[number];
 

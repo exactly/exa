@@ -10,8 +10,6 @@ import { Pressable } from "react-native";
 import { ButtonIcon, ScrollView, Separator, XStack, YStack } from "tamagui";
 import { safeParse } from "valibot";
 
-import Contacts from "./Contacts";
-import RecentContacts from "./RecentContacts";
 import { presentArticle } from "../../utils/intercom";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
@@ -20,6 +18,8 @@ import Input from "../shared/Input";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
+import Contacts from "./Contacts";
+import RecentContacts from "./RecentContacts";
 
 export default function ReceiverSelection() {
   const router = useRouter();

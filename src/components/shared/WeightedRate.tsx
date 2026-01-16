@@ -4,9 +4,9 @@ import { useTranslation } from "react-i18next";
 import type { GestureResponderEvent } from "react-native";
 import { XStack } from "tamagui";
 
+import assetLogos from "../../utils/assetLogos";
 import AssetLogo from "./AssetLogo";
 import Text from "./Text";
-import assetLogos from "../../utils/assetLogos";
 
 export default function WeightedRate({
   averageRate,

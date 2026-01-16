@@ -9,13 +9,13 @@ import { ToggleGroup, YStack } from "tamagui";
 import { safeParse } from "valibot";
 import { zeroAddress } from "viem";
 
-import AssetLogo from "./AssetLogo";
-import Skeleton from "./Skeleton";
 import assetLogos from "../../utils/assetLogos";
 import useAccount from "../../utils/useAccount";
 import useAccountAssets from "../../utils/useAccountAssets";
 import Text from "../shared/Text";
 import View from "../shared/View";
+import AssetLogo from "./AssetLogo";
+import Skeleton from "./Skeleton";
 
 export default function AssetSelector({
   onSubmit,

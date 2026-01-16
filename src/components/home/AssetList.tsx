@@ -5,7 +5,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { vs } from "react-native-size-matters";
 import { XStack, YStack } from "tamagui";
-import { zeroAddress, parseUnits } from "viem";
+import { parseUnits, zeroAddress } from "viem";
 
 import assetLogos from "../../utils/assetLogos";
 import useAccount from "../../utils/useAccount";

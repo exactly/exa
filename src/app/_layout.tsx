@@ -22,7 +22,7 @@ import { getLocales } from "expo-localization";
 import { SplashScreen, Stack, useNavigationContainerRef } from "expo-router";
 import { channel, checkForUpdateAsync, fetchUpdateAsync, reloadAsync } from "expo-updates";
 import { use as configI18n } from "i18next";
-import React, { useEffect, useLayoutEffect as useClientLayoutEffect } from "react";
+import React, { useLayoutEffect as useClientLayoutEffect, useEffect } from "react";
 import { initReactI18next } from "react-i18next";
 import { AppState, Platform } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";

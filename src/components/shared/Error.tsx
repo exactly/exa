@@ -5,13 +5,13 @@ import { Trans, useTranslation } from "react-i18next";
 import { Pressable, StyleSheet } from "react-native";
 import { YStack } from "tamagui";
 
+import ErrorImage from "../../assets/images/error.svg";
+import openBrowser from "../../utils/openBrowser";
+import reportError from "../../utils/reportError";
 import Button from "./Button";
 import SafeView from "./SafeView";
 import Text from "./Text";
 import View from "./View";
-import ErrorImage from "../../assets/images/error.svg";
-import openBrowser from "../../utils/openBrowser";
-import reportError from "../../utils/reportError";
 
 export default function Error({ resetError }: { resetError: () => void }) {
   const { t } = useTranslation();

@@ -1,14 +1,14 @@
-import "../mocks/sentry";
+import "../expect";
 import "../mocks/auth";
 import "../mocks/deployments";
-import "../expect";
+import "../mocks/sentry";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import { marketAbi } from "@exactly/common/generated/chain";
 import { captureException } from "@sentry/node";
 import { testClient } from "hono/testing";
 import { safeParse, type InferOutput } from "valibot";
-import { zeroHash, padHex, type Hash } from "viem";
+import { padHex, zeroHash, type Hash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 

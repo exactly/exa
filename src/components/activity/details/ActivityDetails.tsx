@@ -6,15 +6,15 @@ import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { XStack } from "tamagui";
 
-import CardActivity from "./CardActivity";
-import ReceivedActivity from "./ReceivedActivity";
-import RepayActivity from "./RepayActivity";
-import SentActivity from "./SentActivity";
 import { present } from "../../../utils/intercom";
 import type { ActivityItem } from "../../../utils/queryClient";
 import reportError from "../../../utils/reportError";
 import ActionButton from "../../shared/ActionButton";
 import GradientScrollView from "../../shared/GradientScrollView";
+import CardActivity from "./CardActivity";
+import ReceivedActivity from "./ReceivedActivity";
+import RepayActivity from "./RepayActivity";
+import SentActivity from "./SentActivity";
 
 export default function ActivityDetails() {
   const router = useRouter();

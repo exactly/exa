@@ -1,5 +1,5 @@
 import shortenHex from "@exactly/common/shortenHex";
-import { Eye, EyeOff, Settings, ClockArrowUp } from "@tamagui/lucide-icons";
+import { ClockArrowUp, Eye, EyeOff, Settings } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 import { setStringAsync } from "expo-clipboard";
 import { useRouter } from "expo-router";
@@ -7,15 +7,15 @@ import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 
-import Blocky from "./Blocky";
-import CopyAddressSheet from "./CopyAddressSheet";
-import StatusIndicator from "./StatusIndicator";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import usePendingOperations from "../../utils/usePendingOperations";
 import Text from "../shared/Text";
 import View from "../shared/View";
+import Blocky from "./Blocky";
+import CopyAddressSheet from "./CopyAddressSheet";
+import StatusIndicator from "./StatusIndicator";
 
 export default function ProfileHeader() {
   const { t } = useTranslation();

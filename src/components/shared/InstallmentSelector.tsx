@@ -8,12 +8,12 @@ import { useTranslation } from "react-i18next";
 import { XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
 
-import AssetLogo from "./AssetLogo";
-import Skeleton from "./Skeleton";
-import Text from "./Text";
 import assetLogos from "../../utils/assetLogos";
 import useAsset from "../../utils/useAsset";
 import useInstallments from "../../utils/useInstallments";
+import AssetLogo from "./AssetLogo";
+import Skeleton from "./Skeleton";
+import Text from "./Text";
 
 export default function InstallmentSelector({
   value,

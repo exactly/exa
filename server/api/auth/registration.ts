@@ -12,9 +12,9 @@ import {
 } from "@simplewebauthn/server";
 import { cose } from "@simplewebauthn/server/helpers";
 import { Hono, type Env } from "hono";
-import { setCookie } from "hono/cookie";
 import { describeRoute } from "hono-openapi";
 import { resolver, validator as vValidator } from "hono-openapi/valibot";
+import { setCookie } from "hono/cookie";
 import {
   any,
   array,
@@ -35,7 +35,6 @@ import {
 } from "valibot";
 import { createSiweMessage, generateSiweNonce, parseSiweMessage, validateSiweMessage } from "viem/siwe";
 
-import { Authentication } from "./authentication";
 import androidOrigins from "../../utils/android/origins";
 import appOrigin from "../../utils/appOrigin";
 import createCredential from "../../utils/createCredential";
@@ -43,6 +42,7 @@ import getIntercomToken from "../../utils/intercom";
 import publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
 import validatorHook from "../../utils/validatorHook";
+import { Authentication } from "./authentication";
 
 const Cookie = object({
   session_id: pipe(Base64URL, title("Session identifier"), description("HTTP-only cookie.")),

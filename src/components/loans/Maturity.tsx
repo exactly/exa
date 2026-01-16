@@ -8,7 +8,6 @@ import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 
-import LoanSummary from "./LoanSummary";
 import { presentArticle } from "../../utils/intercom";
 import type { Loan } from "../../utils/queryClient";
 import queryClient from "../../utils/queryClient";
@@ -18,6 +17,7 @@ import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
+import LoanSummary from "./LoanSummary";
 
 export default function Maturity() {
   const router = useRouter();

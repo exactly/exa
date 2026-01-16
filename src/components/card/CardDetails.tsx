@@ -8,7 +8,6 @@ import { useTranslation } from "react-i18next";
 import { Pressable, useColorScheme } from "react-native";
 import { ScrollView, XStack, YStack } from "tamagui";
 
-import DismissableAlert from "./DismissableAlert";
 import ExaLogoDark from "../../assets/images/exa-logo-dark.svg";
 import ExaLogoLight from "../../assets/images/exa-logo-light.svg";
 import ExaLogoSignature from "../../assets/images/exa-logo-signature.svg";
@@ -24,6 +23,7 @@ import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 import View from "../shared/View";
+import DismissableAlert from "./DismissableAlert";
 
 export default function CardDetails({ open, onClose }: { open: boolean; onClose: () => void }) {
   const theme = useColorScheme();

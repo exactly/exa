@@ -10,14 +10,14 @@ import { setSignedCookie } from "hono/cookie";
 import { parse } from "valibot";
 import { hexToBytes, isAddress } from "viem";
 
+import database from "../database";
+import { credentials } from "../database/schema";
+import { webhookId } from "../hooks/activity";
 import { updateWebhookAddresses } from "./alchemy";
 import authSecret from "./authSecret";
 import decodePublicKey from "./decodePublicKey";
 import { customer } from "./sardine";
 import { identify } from "./segment";
-import database from "../database";
-import { credentials } from "../database/schema";
-import { webhookId } from "../hooks/activity";
 
 export default async function createCredential<C extends string>(
   c: Context,

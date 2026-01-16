@@ -1,9 +1,9 @@
 import { type InferOutput, brand, check, custom, object, pipe, regex, string, title, transform } from "valibot";
 import {
   type Address as ViemAddress,
-  checksumAddress,
   type Hash as ViemHash,
   type Hex as ViemHex,
+  checksumAddress,
   isAddress,
   isHash,
   isHex,

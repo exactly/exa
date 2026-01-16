@@ -10,7 +10,6 @@ import { Checkbox, ScrollView, XStack, YStack } from "tamagui";
 import { formatUnits, zeroAddress } from "viem";
 import { useBytecode } from "wagmi";
 
-import AmountSelector from "./AmountSelector";
 import { presentArticle } from "../../utils/intercom";
 import type { Loan } from "../../utils/queryClient";
 import queryClient from "../../utils/queryClient";
@@ -21,6 +20,7 @@ import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
+import AmountSelector from "./AmountSelector";
 
 export default function Amount() {
   const router = useRouter();

@@ -1,6 +1,6 @@
 import "../expect";
-import "../mocks/sentry";
 import "../mocks/redis";
+import "../mocks/sentry";
 
 import { Address } from "@exactly/common/validation";
 import type * as SimpleWebAuthn from "@simplewebauthn/server";

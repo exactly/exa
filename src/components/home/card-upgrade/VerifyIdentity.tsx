@@ -6,7 +6,6 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { Spinner, YStack } from "tamagui";
 
-import Progression from "./Progression";
 import { createInquiry, KYC_TEMPLATE_ID, resumeInquiry } from "../../../utils/persona";
 import queryClient from "../../../utils/queryClient";
 import reportError from "../../../utils/reportError";
@@ -14,6 +13,7 @@ import { APIError, getKYCStatus } from "../../../utils/server";
 import Button from "../../shared/Button";
 import Text from "../../shared/Text";
 import View from "../../shared/View";
+import Progression from "./Progression";
 
 export default function VerifyIdentity() {
   const toast = useToastController();

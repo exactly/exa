@@ -3,9 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import React from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import reportError from "../../utils/reportError";
 import type { ViewProperties } from "./View";
 import View from "./View";
-import reportError from "../../utils/reportError";
 
 export default function SafeView({ children, ...rest }: ViewProperties) {
   const deviceInsets = useSafeAreaInsets();

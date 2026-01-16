@@ -8,7 +8,7 @@ import {
 import shortenHex from "@exactly/common/shortenHex";
 import { Address } from "@exactly/common/validation";
 import { WAD } from "@exactly/lib";
-import { ArrowLeft, Coins, FilePen, Check, X } from "@tamagui/lucide-icons";
+import { ArrowLeft, Check, Coins, FilePen, X } from "@tamagui/lucide-icons";
 import { useForm, useStore } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -20,7 +20,6 @@ import { bigint, check, parse, pipe, safeParse } from "valibot";
 import { encodeAbiParameters, erc20Abi, formatUnits, parseUnits, zeroAddress as viemZeroAddress } from "viem";
 import { useBytecode, useSimulateContract, useWriteContract } from "wagmi";
 
-import ReviewSheet from "./ReviewSheet";
 import assetLogos from "../../utils/assetLogos";
 import queryClient from "../../utils/queryClient";
 import useAccount from "../../utils/useAccount";
@@ -36,6 +35,7 @@ import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import TransactionDetails from "../shared/TransactionDetails";
 import View from "../shared/View";
+import ReviewSheet from "./ReviewSheet";
 
 export default function Amount() {
   const router = useRouter();
