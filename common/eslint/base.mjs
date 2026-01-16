@@ -4,6 +4,8 @@ import nx from "@nx/eslint-plugin";
 import { defineConfig, globalIgnores } from "eslint/config";
 import { flatConfigs as importPlugin } from "eslint-plugin-import";
 import jsdoc from "eslint-plugin-jsdoc";
+import perfectionist from "eslint-plugin-perfectionist";
+import { Alphabet } from "eslint-plugin-perfectionist/alphabet";
 import prettier from "eslint-plugin-prettier/recommended";
 import { configs as regexp } from "eslint-plugin-regexp";
 import tsdoc from "eslint-plugin-tsdoc";
@@ -35,6 +37,7 @@ export default defineConfig([
       "@eslint-community/eslint-comments/no-unused-disable": "error",
       "@nx/dependency-checks": "error",
       "@nx/enforce-module-boundaries": "error",
+      "@typescript-eslint/consistent-type-definitions": ["error", "type"],
       "@typescript-eslint/consistent-type-imports": "error",
       "@typescript-eslint/no-confusing-void-expression": "off",
       "@typescript-eslint/no-import-type-side-effects": "error",
@@ -42,8 +45,45 @@ export default defineConfig([
       "@typescript-eslint/no-shadow": "error",
       "@typescript-eslint/restrict-template-expressions": ["error", { allowNumber: true }],
       "exa/prefer-string": "error",
+      "import/order": "off", // handled by perfectionist
       "import/prefer-default-export": "error",
       "no-console": "warn",
+      "perfectionist/sort-imports": [
+        "error",
+        {
+          type: "custom",
+          alphabet: Alphabet.generateRecommendedAlphabet()
+            .sortByNaturalSort()
+            .placeCharacterBefore({ characterBefore: "/", characterAfter: "-" })
+            .getCharacters(),
+          newlinesBetween: 1,
+          groups: [
+            "side-effect",
+            "mocks",
+            "react",
+            "expo",
+            "tamagui",
+            ["builtin", "external"],
+            "internal",
+            ["parent", "sibling", "index"],
+            "type",
+          ],
+          customGroups: [
+            { groupName: "mocks", elementNamePattern: String.raw`.*(/mocks/|\bmock\b).*` },
+            { groupName: "react", elementNamePattern: "^react(-.*)?$|^@react(-.*)?/.*" },
+            { groupName: "expo", elementNamePattern: "^expo(-.*)?$|^@expo/.*" },
+            { groupName: "tamagui", elementNamePattern: "^tamagui$|^@tamagui/.*" },
+          ],
+          internalPattern: ["^@exactly/.*"],
+        },
+      ],
+      "perfectionist/sort-named-imports": ["error", { type: "natural", groups: ["import", "type-import"] }],
+      "perfectionist/sort-named-exports": ["error", { type: "natural", groups: ["export", "type-export"] }],
+      "perfectionist/sort-interfaces": ["error", { type: "natural", partitionByNewLine: true }],
+      "perfectionist/sort-object-types": ["error", { type: "natural", partitionByNewLine: true }],
+      "perfectionist/sort-union-types": ["error", { type: "natural" }],
+      "perfectionist/sort-intersection-types": ["error", { type: "natural" }],
+      "perfectionist/sort-enums": ["error", { type: "natural", partitionByNewLine: true }],
       "no-shadow": "off", // @typescript-eslint/no-shadow
       "unicorn/filename-case": "off", // use default export name
       "unicorn/no-array-reduce": "off",
@@ -58,6 +98,7 @@ export default defineConfig([
       "unicorn/switch-case-braces": ["error", "avoid"], // consistently avoid braces
     },
     plugins: {
+      perfectionist,
       exa: {
         rules: {
           "prefer-string": {
