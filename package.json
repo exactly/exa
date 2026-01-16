@@ -152,7 +152,6 @@
     "prettier": "^3.8.0",
     "prettier-plugin-organize-imports": "^4.3.0",
     "react-native-svg-transformer": "^1.5.2",
-    "sharp": "^0.34.5",
     "sharp-cli": "^5.2.0",
     "svgo": "^4.0.0",
     "typescript": "catalog:"

@@ -32,3 +32,4 @@ publicHoistPattern:
   - expo-asset
   - expo-modules-autolinking
   - react-native-web
+  - sharp
