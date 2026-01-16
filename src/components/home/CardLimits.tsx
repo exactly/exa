@@ -1,19 +1,24 @@
+import React from "react";
+import { useTranslation } from "react-i18next";
+
+import { useRouter } from "expo-router";
+
+import { ChevronRight, Info } from "@tamagui/lucide-icons";
+import { XStack, YStack } from "tamagui";
+
+import { useQuery } from "@tanstack/react-query";
+import { zeroAddress } from "viem";
+
 import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { borrowLimit, WAD, withdrawLimit } from "@exactly/lib";
-import { ChevronRight, Info } from "@tamagui/lucide-icons";
-import { useQuery } from "@tanstack/react-query";
-import { useRouter } from "expo-router";
-import React from "react";
-import { useTranslation } from "react-i18next";
-import { XStack, YStack } from "tamagui";
-import { zeroAddress } from "viem";
 
 import assetLogos from "../../utils/assetLogos";
-import type { CardDetails } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
 import AssetLogo from "../shared/AssetLogo";
 import Text from "../shared/Text";
+
+import type { CardDetails } from "../../utils/server";
 
 export default function CardLimits({ onPress }: { onPress: () => void }) {
   const {

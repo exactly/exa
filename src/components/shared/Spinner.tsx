@@ -1,6 +1,7 @@
-import { Loader } from "@tamagui/lucide-icons";
 import React from "react";
 import { useAnimatedStyle, useSharedValue } from "react-native-reanimated";
+
+import { Loader } from "@tamagui/lucide-icons";
 
 import AnimatedView from "./AnimatedView";
 
@@ -10,8 +11,8 @@ export default function Spinner({
   containerSize = 88,
   size = 56,
 }: {
-  color?: string;
   backgroundColor?: string;
+  color?: string;
   containerSize?: number;
   size?: number;
 }) {

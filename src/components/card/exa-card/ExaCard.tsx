@@ -1,12 +1,16 @@
-import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
-import { useQuery } from "@tanstack/react-query";
 import React from "react";
 import { Pressable } from "react-native";
+
 import { YStack } from "tamagui";
 
+import { useQuery } from "@tanstack/react-query";
+
+import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
+
 import CardContents from "./CardContents";
-import type { CardDetails } from "../../../utils/server";
 import View from "../../shared/View";
+
+import type { CardDetails } from "../../../utils/server";
 
 export default function ExaCard({
   disabled = false,
@@ -15,9 +19,9 @@ export default function ExaCard({
   onPress,
 }: {
   disabled?: boolean;
-  revealing: boolean;
   frozen: boolean;
   onPress?: () => void;
+  revealing: boolean;
 }) {
   const { data: card } = useQuery<CardDetails>({ queryKey: ["card", "details"] });
   return (

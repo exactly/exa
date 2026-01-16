@@ -1,8 +1,10 @@
-import chain from "@exactly/common/generated/chain";
-import { CheckCircle, X } from "@tamagui/lucide-icons";
 import React from "react";
 import { useTranslation } from "react-i18next";
+
+import { CheckCircle, X } from "@tamagui/lucide-icons";
 import { ScrollView, XStack, YStack } from "tamagui";
+
+import chain from "@exactly/common/generated/chain";
 
 import AssetLogo from "./AssetLogo";
 import ModalSheet from "./ModalSheet";
@@ -17,7 +19,7 @@ const supportedAssets = Object.entries(assetLogos)
   .filter(([symbol]) => symbol !== "USDC.e" && symbol !== "DAI")
   .map(([symbol, image]) => ({ symbol, image }));
 
-export default function CopyAddressSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+export default function CopyAddressSheet({ open, onClose }: { onClose: () => void; open: boolean }) {
   const { address } = useAccount();
   const { t } = useTranslation();
   return (

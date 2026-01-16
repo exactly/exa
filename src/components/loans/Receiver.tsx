@@ -1,19 +1,22 @@
-import chain from "@exactly/common/generated/chain";
-import { Address } from "@exactly/common/validation";
-import { ArrowLeft, ArrowRight, Check, CircleHelp, ClipboardPaste, TriangleAlert } from "@tamagui/lucide-icons";
-import { useToastController } from "@tamagui/toast";
-import { useForm, useStore } from "@tanstack/react-form";
-import { useQuery } from "@tanstack/react-query";
-import { getStringAsync } from "expo-clipboard";
-import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
+
+import { getStringAsync } from "expo-clipboard";
+import { useRouter } from "expo-router";
+
+import { ArrowLeft, ArrowRight, Check, CircleHelp, ClipboardPaste, TriangleAlert } from "@tamagui/lucide-icons";
+import { useToastController } from "@tamagui/toast";
 import { ScrollView, Separator, XStack, YStack } from "tamagui";
+
+import { useForm, useStore } from "@tanstack/react-form";
+import { useQuery } from "@tanstack/react-query";
 import { parse } from "valibot";
 
+import chain from "@exactly/common/generated/chain";
+import { Address } from "@exactly/common/validation";
+
 import { presentArticle } from "../../utils/intercom";
-import type { Loan } from "../../utils/queryClient";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
@@ -24,6 +27,8 @@ import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
+import type { Loan } from "../../utils/queryClient";
+
 export default function Receiver() {
   const router = useRouter();
   const { t } = useTranslation();
@@ -33,7 +38,7 @@ export default function Receiver() {
   const { market } = useAsset(loan?.market);
   const symbol = market?.symbol.slice(3) === "WETH" ? "ETH" : market?.symbol.slice(3);
 
-  const [receiverType, setReceiverType] = useState<"internal" | "external">("internal");
+  const [receiverType, setReceiverType] = useState<"external" | "internal">("internal");
 
   const form = useForm({
     defaultValues: { receiver: address ?? "" },

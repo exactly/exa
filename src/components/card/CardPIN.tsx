@@ -1,11 +1,12 @@
-import { useQuery } from "@tanstack/react-query";
-import React, { useState, useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
+
 import { ScrollView, XStack, YStack } from "tamagui";
 
+import { useQuery } from "@tanstack/react-query";
+
 import reportError from "../../utils/reportError";
-import type { CardWithPIN } from "../../utils/server";
 import Button from "../shared/Button";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
@@ -13,7 +14,9 @@ import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-export default function CardPIN({ open, onClose }: { open: boolean; onClose: () => void }) {
+import type { CardWithPIN } from "../../utils/server";
+
+export default function CardPIN({ open, onClose }: { onClose: () => void; open: boolean }) {
   const { t } = useTranslation();
   const { data: card, isPending, error, refetch } = useQuery<CardWithPIN>({ queryKey: ["card", "pin"], enabled: open });
   return (
@@ -58,7 +61,7 @@ export default function CardPIN({ open, onClose }: { open: boolean; onClose: () 
   );
 }
 
-function Countdown({ pin, error, onRetry }: { pin?: string; error: unknown; onRetry: () => void }) {
+function Countdown({ pin, error, onRetry }: { error: unknown; onRetry: () => void; pin?: string }) {
   const { t } = useTranslation();
   const [displayPIN, setDisplayPIN] = useState(true);
   const [countdown, setCountdown] = useState(5);

@@ -1,13 +1,14 @@
-import { Address } from "@exactly/common/validation";
 import { parse } from "valibot";
 import { generatePrivateKey, privateKeyToAddress } from "viem/accounts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { Address } from "@exactly/common/validation";
 
 import * as pax from "../../utils/pax";
 
 describe("pax integration", () => {
   beforeEach(() => {
-    vi.spyOn(global, "fetch").mockResolvedValue({
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,
       status: 200,
       json: () => Promise.resolve({}),
@@ -63,7 +64,7 @@ describe("pax integration", () => {
     });
 
     it("should throw an error on API failure", async () => {
-      vi.spyOn(global, "fetch").mockResolvedValueOnce({
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
         ok: false,
         status: 400,
         text: () => Promise.resolve("Bad Request"),
@@ -98,7 +99,7 @@ describe("pax integration", () => {
     });
 
     it("should throw on error", async () => {
-      vi.spyOn(global, "fetch").mockResolvedValueOnce({
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
         ok: false,
         status: 404,
         text: () => Promise.resolve("Not Found"),

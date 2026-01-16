@@ -1,6 +1,3 @@
-import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
-import { SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
-import { Address } from "@exactly/common/validation";
 import { captureException, setContext, setUser } from "@sentry/node";
 import { Mutex } from "async-mutex";
 import { eq, inArray, ne } from "drizzle-orm";
@@ -13,12 +10,12 @@ import {
   maxValue,
   metadata,
   minValue,
+  nullable,
   number,
   object,
   parse,
   picklist,
   pipe,
-  nullable,
   strictObject,
   string,
   transform,
@@ -26,6 +23,10 @@ import {
   uuid,
   type InferOutput,
 } from "valibot";
+
+import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
+import { SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
+import { Address } from "@exactly/common/validation";
 
 import database, { cards, credentials } from "../database";
 import auth from "../middleware/auth";

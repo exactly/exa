@@ -39,11 +39,11 @@ export function writeContract<
   functionName extends ContractFunctionName<abi, "nonpayable" | "payable">,
   args extends ContractFunctionArgs<abi, "nonpayable" | "payable", functionName>,
 >(
-  parameters: Pick<WriteContractParameters<abi, functionName, args>, "address" | "functionName" | "abi" | "args">,
+  parameters: Pick<WriteContractParameters<abi, functionName, args>, "abi" | "address" | "args" | "functionName">,
 ): WriteContractReturnType {
   const { address, functionName, abi, args } = parameters as Pick<
     WriteContractParameters,
-    "address" | "functionName" | "abi" | "args"
+    "abi" | "address" | "args" | "functionName"
   >;
   return anvil("eth_sendTransaction", [{ to: address, data: encodeFunctionData({ functionName, abi, args }) }]);
 }
@@ -56,11 +56,11 @@ export default function anvil(
 ): Hex;
 export default function anvil(
   method: "eth_getBalance",
-  params: readonly [account: Address, block: BlockNumber<number> | BlockTag | BlockIdentifier],
+  params: readonly [account: Address, block: BlockIdentifier | BlockNumber<number> | BlockTag],
 ): `0x${string}`;
 export default function anvil(
   method: "eth_getTransactionCount",
-  params: readonly [account: Address, block: BlockNumber<number> | BlockTag | BlockIdentifier],
+  params: readonly [account: Address, block: BlockIdentifier | BlockNumber<number> | BlockTag],
 ): Quantity;
 export default function anvil(
   method: "eth_getTransactionReceipt",

@@ -1,7 +1,8 @@
-import chain from "@exactly/common/generated/chain";
-import { Address } from "@exactly/common/validation";
 import * as v from "valibot";
 import { optimism } from "viem/chains";
+
+import chain from "@exactly/common/generated/chain";
+import { Address } from "@exactly/common/validation";
 
 // eslint-disable-next-line import/prefer-default-export
 export const collectors: Address[] = (

@@ -1,6 +1,7 @@
-import { PowerOff } from "@tamagui/lucide-icons";
 import React from "react";
 import { useTranslation } from "react-i18next";
+
+import { PowerOff } from "@tamagui/lucide-icons";
 import { ScrollView, YStack } from "tamagui";
 
 import ModalSheet from "../shared/ModalSheet";
@@ -15,10 +16,10 @@ export default function DisconnectSheet({
   name,
   onActionPress,
 }: {
-  open: boolean;
-  onClose: () => void;
   name: string;
   onActionPress: () => void;
+  onClose: () => void;
+  open: boolean;
 }) {
   const { t } = useTranslation();
   return (

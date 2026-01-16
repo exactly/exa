@@ -1,9 +1,10 @@
-import type * as IntercomNative from "@intercom/intercom-react-native";
-import type * as IntercomWeb from "@intercom/messenger-js-sdk";
 import { Platform } from "react-native";
 
 import openBrowser from "./openBrowser";
 import reportError from "./reportError";
+
+import type * as IntercomNative from "@intercom/intercom-react-native";
+import type * as IntercomWeb from "@intercom/messenger-js-sdk";
 
 const appId = process.env.EXPO_PUBLIC_INTERCOM_APP_ID;
 

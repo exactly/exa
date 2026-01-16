@@ -1,4 +1,4 @@
-import { type Address, concatHex, encodeFunctionData, type Hash, hexToBigInt } from "viem";
+import { concatHex, encodeFunctionData, hexToBigInt, type Address, type Hash } from "viem";
 
 import { exaAccountFactoryAbi } from "./generated/chain";
 

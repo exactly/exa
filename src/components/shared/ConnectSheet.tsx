@@ -1,14 +1,18 @@
-import chain from "@exactly/common/generated/chain";
-import { Fingerprint, Wallet } from "@tamagui/lucide-icons";
-import { useQuery } from "@tanstack/react-query";
 import React from "react";
+
+import { Fingerprint, Wallet } from "@tamagui/lucide-icons";
 import { ScrollView, YStack } from "tamagui";
+
+import { useQuery } from "@tanstack/react-query";
 import { base } from "viem/chains";
+
+import chain from "@exactly/common/generated/chain";
 
 import Button from "./Button";
 import ModalSheet from "./ModalSheet";
 import SafeView from "./SafeView";
 import Text from "./Text";
+
 import type { AuthMethod } from "../../utils/queryClient";
 
 export default function ConnectSheet({
@@ -19,12 +23,12 @@ export default function ConnectSheet({
   webAuthnText,
   siweText,
 }: {
-  open: boolean;
-  onClose: (method?: AuthMethod) => void;
-  title: string;
   description: string;
-  webAuthnText: string;
+  onClose: (method?: AuthMethod) => void;
+  open: boolean;
   siweText: string;
+  title: string;
+  webAuthnText: string;
 }) {
   const { data: isOwnerAvailable } = useQuery({ queryKey: ["is-owner-available"] });
   return (

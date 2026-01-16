@@ -1,12 +1,14 @@
-import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
-import { previewerAddress } from "@exactly/common/generated/chain";
-import { useReadPreviewerPreviewBorrowAtMaturity } from "@exactly/common/generated/hooks";
-import type { Hex } from "@exactly/common/validation";
-import { Check } from "@tamagui/lucide-icons";
 import React from "react";
 import { useTranslation } from "react-i18next";
+
+import { Check } from "@tamagui/lucide-icons";
 import { XStack, YStack } from "tamagui";
+
 import { zeroAddress } from "viem";
+
+import { previewerAddress } from "@exactly/common/generated/chain";
+import { useReadPreviewerPreviewBorrowAtMaturity } from "@exactly/common/generated/hooks";
+import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
 
 import AssetLogo from "./AssetLogo";
 import Skeleton from "./Skeleton";
@@ -15,16 +17,18 @@ import assetLogos from "../../utils/assetLogos";
 import useAsset from "../../utils/useAsset";
 import useInstallments from "../../utils/useInstallments";
 
+import type { Hex } from "@exactly/common/validation";
+
 export default function InstallmentSelector({
   value,
   onSelect,
   market,
   totalAmount,
 }: {
-  value: number;
-  onSelect: (installments: number) => void;
   market: Hex;
+  onSelect: (installments: number) => void;
   totalAmount: bigint;
+  value: number;
 }) {
   const { market: assetMarket, account } = useAsset(market);
   return (
@@ -52,12 +56,12 @@ function Installment({
   onSelect,
   selected,
 }: {
+  account: Awaited<ReturnType<typeof useAsset>>["account"];
   installment: number;
   market: Awaited<ReturnType<typeof useAsset>>["market"];
-  account: Awaited<ReturnType<typeof useAsset>>["account"];
-  totalAmount: bigint;
   onSelect: (value: number) => void;
   selected: boolean;
+  totalAmount: bigint;
 }) {
   const {
     t,

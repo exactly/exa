@@ -1,14 +1,16 @@
-import { ArrowLeft, ArrowRight, CircleHelp } from "@tamagui/lucide-icons";
-import { useQuery } from "@tanstack/react-query";
-import { useRouter } from "expo-router";
 import React, { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
+
+import { useRouter } from "expo-router";
+
+import { ArrowLeft, ArrowRight, CircleHelp } from "@tamagui/lucide-icons";
 import { ScrollView, YStack } from "tamagui";
+
+import { useQuery } from "@tanstack/react-query";
 
 import LoanSummary from "./LoanSummary";
 import { presentArticle } from "../../utils/intercom";
-import type { Loan } from "../../utils/queryClient";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
@@ -17,6 +19,8 @@ import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
+
+import type { Loan } from "../../utils/queryClient";
 
 export default function Installments() {
   const router = useRouter();

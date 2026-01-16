@@ -1,19 +1,23 @@
-import chain from "@exactly/common/generated/chain";
-import type { Credential } from "@exactly/common/validation";
+import { useTranslation } from "react-i18next";
+
 import { useToastController } from "@tamagui/toast";
+
 import { useMutation } from "@tanstack/react-query";
 import { getConnection } from "@wagmi/core";
-import type { TFunction } from "i18next";
-import { useTranslation } from "react-i18next";
 import { UserRejectedRequestError } from "viem";
 import { base } from "viem/chains";
 import { useConnect } from "wagmi";
+
+import chain from "@exactly/common/generated/chain";
 
 import alchemyConnector from "./alchemyConnector";
 import queryClient, { type AuthMethod } from "./queryClient";
 import reportError from "./reportError";
 import { APIError, createCredential, getCredential } from "./server";
 import ownerConfig, { getConnector as getOwnerConnector } from "./wagmi/owner";
+
+import type { Credential } from "@exactly/common/validation";
+import type { TFunction } from "i18next";
 
 export default function useAuth(onDomainError: () => void, onSuccess?: (credential: Credential) => unknown) {
   const { t } = useTranslation();

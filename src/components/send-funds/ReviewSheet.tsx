@@ -1,11 +1,13 @@
-import shortenHex from "@exactly/common/shortenHex";
-import type { Address } from "@exactly/common/validation";
-import { ArrowRight } from "@tamagui/lucide-icons";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
+
+import { ArrowRight } from "@tamagui/lucide-icons";
 import { ScrollView, XStack, YStack } from "tamagui";
+
 import { zeroAddress } from "viem";
+
+import shortenHex from "@exactly/common/shortenHex";
 
 import assetLogos from "../../utils/assetLogos";
 import AssetLogo from "../shared/AssetLogo";
@@ -15,6 +17,8 @@ import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
+
+import type { Address } from "@exactly/common/validation";
 
 export default function ReviewSheet({
   amount,

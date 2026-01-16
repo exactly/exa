@@ -1,9 +1,11 @@
-import * as Sentry from "@sentry/react-native";
-import { File } from "@tamagui/lucide-icons";
 import React from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { Pressable, StyleSheet } from "react-native";
+
+import { File } from "@tamagui/lucide-icons";
 import { YStack } from "tamagui";
+
+import * as Sentry from "@sentry/react-native";
 
 import Button from "./Button";
 import SafeView from "./SafeView";

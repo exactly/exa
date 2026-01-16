@@ -1,6 +1,7 @@
+import React from "react";
+
 import { Info as InfoIcon } from "@tamagui/lucide-icons";
 import { Toast, useToastState } from "@tamagui/toast";
-import React from "react";
 import { XStack } from "tamagui";
 
 import Text from "./Text";
@@ -8,7 +9,7 @@ import View from "./View";
 
 export default function NotificationToast() {
   const toast = useToastState();
-  const type = toast?.customData?.type as "info" | "success" | "error" | undefined;
+  const type = toast?.customData?.type as "error" | "info" | "success" | undefined;
   if (!toast || toast.isHandledNatively) return null;
   return (
     <Toast

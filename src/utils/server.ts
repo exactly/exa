@@ -1,19 +1,22 @@
+import { Platform } from "react-native";
+import { get as assert, create } from "react-native-passkeys";
+
+import { sdk } from "@farcaster/miniapp-sdk";
+import { getConnection, signMessage } from "@wagmi/core";
+import { hc } from "hono/client";
+import { check, number, parse, pipe, safeParse, ValiError } from "valibot";
+
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 import deriveAddress from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
 import { Credential } from "@exactly/common/validation";
-import type { ExaAPI } from "@exactly/server/api"; // eslint-disable-line @nx/enforce-module-boundaries
-import { sdk } from "@farcaster/miniapp-sdk";
-import { getConnection, signMessage } from "@wagmi/core";
-import { hc } from "hono/client";
-import { Platform } from "react-native";
-import { get as assert, create } from "react-native-passkeys";
-import { check, number, parse, pipe, safeParse, ValiError } from "valibot";
 
 import { login as loginIntercom, logout as logoutIntercom } from "./intercom";
 import { decrypt, decryptPIN, encryptPIN, session } from "./panda";
 import queryClient, { APIError, type AuthMethod } from "./queryClient";
 import ownerConfig from "./wagmi/owner";
+
+import type { ExaAPI } from "@exactly/server/api"; // eslint-disable-line @nx/enforce-module-boundaries
 
 queryClient.setQueryDefaults<number | undefined>(["auth"], {
   retry: false,
@@ -73,7 +76,7 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
 
 const api = hc<ExaAPI>(domain === "localhost" ? "http://localhost:3000/api" : `https://${domain}/api`, {
   init: { credentials: "include" },
-  fetch: async (input: string | Request | URL, init?: RequestInit) => {
+  fetch: async (input: Request | string | URL, init?: RequestInit) => {
     if (!(await sdk.isInMiniApp())) return fetch(input, init);
     const { client } = await sdk.context;
     const headers = new Headers(init?.headers);
@@ -124,7 +127,7 @@ export async function createCard() {
   return response.json();
 }
 
-export async function setCardStatus(status: "ACTIVE" | "FROZEN" | "DELETED") {
+export async function setCardStatus(status: "ACTIVE" | "DELETED" | "FROZEN") {
   await auth();
   const response = await api.card.$patch({ json: { status } });
   if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));

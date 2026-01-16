@@ -1,9 +1,10 @@
-import type { Token } from "@lifi/sdk";
-import { Search } from "@tamagui/lucide-icons";
-import React, { useState, useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FlatList, Pressable } from "react-native";
-import { XStack, YStack, ButtonIcon } from "tamagui";
+
+import { Search } from "@tamagui/lucide-icons";
+import { ButtonIcon, XStack, YStack } from "tamagui";
+
 import { formatUnits } from "viem";
 
 import useAccountAssets from "../../utils/useAccountAssets";
@@ -16,16 +17,18 @@ import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
+import type { Token } from "@lifi/sdk";
+
 function TokenListItem({
   token,
   isSelected,
   onPress,
   language,
 }: {
-  token: Token;
   isSelected: boolean;
-  onPress: () => void;
   language: string;
+  onPress: () => void;
+  token: Token;
 }) {
   const { accountAssets } = useAccountAssets();
   const matchingAsset = accountAssets.find(
@@ -92,13 +95,13 @@ export default function TokenSelectModal({
   title,
   withBalanceOnly = false,
 }: {
-  open: boolean;
-  tokens: Token[];
-  selectedToken?: Token | null;
-  onSelect: (token: Token) => void;
-  onClose: () => void;
   isLoading?: boolean;
+  onClose: () => void;
+  onSelect: (token: Token) => void;
+  open: boolean;
+  selectedToken?: null | Token;
   title?: string;
+  tokens: Token[];
   withBalanceOnly?: boolean;
 }) {
   const [searchQuery, setSearchQuery] = useState("");

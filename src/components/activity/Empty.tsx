@@ -1,6 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { StyleSheet } from "react-native";
+
 import { YStack } from "tamagui";
 
 import EmptyActivity from "../../assets/images/activity-empty.svg";

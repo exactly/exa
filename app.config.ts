@@ -1,15 +1,17 @@
-import type { IntercomPluginProps } from "@intercom/intercom-react-native/lib/typescript/module/expo-plugins/@types";
-import type { withSentry } from "@sentry/react-native/expo";
-import type { ExpoConfig } from "expo/config";
-import { AndroidConfig, type ConfigPlugin, withAndroidManifest } from "expo/config-plugins";
 import type { PluginConfigType as BuildPropertiesConfig } from "expo-build-properties/build/pluginConfig";
 import type withCamera from "expo-camera/plugin/build/withCamera";
 import type { FontProps } from "expo-font/plugin/build/withFonts";
+
+import { AndroidConfig, withAndroidManifest, type ConfigPlugin } from "expo/config-plugins";
 import { env } from "node:process";
-import type * as OneSignalPlugin from "onesignal-expo-plugin/types/types";
 
 import metadata from "./package.json";
 import versionCode from "./src/generated/versionCode.js";
+
+import type { IntercomPluginProps } from "@intercom/intercom-react-native/lib/typescript/module/expo-plugins/@types";
+import type { withSentry } from "@sentry/react-native/expo";
+import type { ExpoConfig } from "expo/config";
+import type * as OneSignalPlugin from "onesignal-expo-plugin/types/types";
 
 const { Mode } = require("onesignal-expo-plugin/build/types/types") as typeof OneSignalPlugin; // eslint-disable-line unicorn/prefer-module
 

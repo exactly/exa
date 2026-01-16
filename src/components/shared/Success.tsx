@@ -1,14 +1,16 @@
-import { exaPluginAddress, marketUSDCAddress } from "@exactly/common/generated/chain";
-import { useReadUpgradeableModularAccountGetInstalledPlugins } from "@exactly/common/generated/hooks";
-import type { Hex } from "@exactly/common/validation";
-import { Check, X } from "@tamagui/lucide-icons";
-import { isAfter } from "date-fns";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
+
+import { Check, X } from "@tamagui/lucide-icons";
 import { Square, XStack, YStack } from "tamagui";
+
+import { isAfter } from "date-fns";
 import { zeroAddress } from "viem";
 import { useBytecode } from "wagmi";
+
+import { exaPluginAddress, marketUSDCAddress } from "@exactly/common/generated/chain";
+import { useReadUpgradeableModularAccountGetInstalledPlugins } from "@exactly/common/generated/hooks";
 
 import GradientScrollView from "./GradientScrollView";
 import SafeView from "./SafeView";
@@ -20,6 +22,8 @@ import AssetLogo from "../shared/AssetLogo";
 import Text from "../shared/Text";
 import TransactionDetails from "../shared/TransactionDetails";
 
+import type { Hex } from "@exactly/common/validation";
+
 export default function Success({
   amount,
   repayAssets,
@@ -29,11 +33,11 @@ export default function Success({
   onClose,
 }: {
   amount: number;
-  repayAssets: bigint;
   currency?: string;
   maturity: bigint;
-  selectedAsset?: Hex;
   onClose: () => void;
+  repayAssets: bigint;
+  selectedAsset?: Hex;
 }) {
   const {
     t,

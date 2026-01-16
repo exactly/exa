@@ -1,4 +1,18 @@
-import ProposalType from "@exactly/common/ProposalType";
+import React, { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { Trans, useTranslation } from "react-i18next";
+import { Pressable } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { router } from "expo-router";
+
+import { ArrowLeft, Check, CircleHelp, Repeat, TriangleAlert } from "@tamagui/lucide-icons";
+import { Checkbox, ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
+
+import { useQuery } from "@tanstack/react-query";
+import { parse } from "valibot";
+import { formatUnits, parseUnits, zeroAddress } from "viem";
+import { useSimulateContract, useWriteContract } from "wagmi";
+
 import { previewerAddress } from "@exactly/common/generated/chain";
 import {
   auditorAbi,
@@ -6,20 +20,9 @@ import {
   upgradeableModularAccountAbi,
   useReadPreviewerExactly,
 } from "@exactly/common/generated/hooks";
+import ProposalType from "@exactly/common/ProposalType";
 import { Address } from "@exactly/common/validation";
 import { WAD } from "@exactly/lib";
-import type { Token } from "@lifi/sdk";
-import { ArrowLeft, Check, CircleHelp, Repeat, TriangleAlert } from "@tamagui/lucide-icons";
-import { useQuery } from "@tanstack/react-query";
-import { router } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { Trans, useTranslation } from "react-i18next";
-import { Pressable } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Checkbox, ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
-import { parse } from "valibot";
-import { formatUnits, parseUnits, zeroAddress } from "viem";
-import { useSimulateContract, useWriteContract } from "wagmi";
 
 import Failure from "./Failure";
 import Pending from "./Pending";
@@ -41,16 +44,18 @@ import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-export interface Swap {
-  fromToken?: { token: Token; external: boolean };
-  toToken?: { token: Token; external: boolean };
-  fromAmount: bigint;
-  toAmount: bigint;
-  tokenSelectionType: "from" | "to";
+import type { Token } from "@lifi/sdk";
+
+export type Swap = {
   enableSimulations: boolean;
+  fromAmount: bigint;
+  fromToken?: { external: boolean; token: Token };
+  toAmount: bigint;
   tokenModalOpen: boolean;
+  tokenSelectionType: "from" | "to";
   tool: string;
-}
+  toToken?: { external: boolean; token: Token };
+};
 
 const defaultSwap: Swap = {
   fromToken: undefined,
@@ -99,7 +104,7 @@ export default function Swaps() {
   );
 
   const getSwapAddress = useCallback(
-    (token: { external: boolean; token: Token } | undefined) => {
+    (token: undefined | { external: boolean; token: Token }) => {
       if (!token) return;
       if (token.external) return parse(Address, token.token.address);
       return protocolAssets.find((a) => a.asset === token.token.address)?.market ?? zeroAddress;
@@ -614,4 +619,4 @@ function updateSwap(updater: (old: Swap) => Swap) {
   queryClient.setQueryData<Swap>(["swap"], (old) => updater(old ?? defaultSwap));
 }
 
-export const swapsScrollReference: RefObject<ScrollView | null> = { current: null };
+export const swapsScrollReference: RefObject<null | ScrollView> = { current: null };

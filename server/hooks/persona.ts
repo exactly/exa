@@ -1,9 +1,7 @@
-import { Address } from "@exactly/common/validation";
 import { vValidator } from "@hono/valibot-validator";
 import { captureException, getActiveSpan, SEMANTIC_ATTRIBUTE_SENTRY_OP, setContext, setUser } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
-import type { InferOutput } from "valibot";
 import {
   array,
   check,
@@ -21,12 +19,16 @@ import {
   transform,
 } from "valibot";
 
+import { Address } from "@exactly/common/validation";
+
 import database, { credentials } from "../database/index";
 import { createUser } from "../utils/panda";
 import { addCapita, deriveAssociateId } from "../utils/pax";
 import { headerValidator } from "../utils/persona";
 import { customer } from "../utils/sardine";
 import validatorHook from "../utils/validatorHook";
+
+import type { InferOutput } from "valibot";
 const Session = pipe(
   object({
     type: literal("inquiry-session"),

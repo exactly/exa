@@ -517,7 +517,6 @@
 ### Minor Changes
 
 - [`2144644`](https://github.com/exactly/exa/commit/21446448bb6fd9e09594082999aff347f046ffe8) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🔖 exa server v0.1 featuring:
-
   - passkey registration and login
   - account deployment and pokes
   - activity listing with details

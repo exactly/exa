@@ -1,5 +1,3 @@
-import deriveAddress from "@exactly/common/deriveAddress";
-import { Address } from "@exactly/common/validation";
 import { pushSchema } from "drizzle-kit/api";
 import { drizzle } from "drizzle-orm/node-postgres";
 import EmbeddedPostgres from "embedded-postgres";
@@ -10,6 +8,9 @@ import { literal, object, parse, tuple } from "valibot";
 import { hexToBytes, padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import waitOn from "wait-on";
+
+import deriveAddress from "@exactly/common/deriveAddress";
+import { Address } from "@exactly/common/validation";
 
 import * as schema from "../database/schema";
 

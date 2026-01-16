@@ -1,11 +1,14 @@
-import { previewerAddress, ratePreviewerAddress } from "@exactly/common/generated/chain";
-import { useReadPreviewerExactly, useReadRatePreviewerSnapshot } from "@exactly/common/generated/hooks";
-import { floatingDepositRates } from "@exactly/lib";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { vs } from "react-native-size-matters";
+
 import { XStack, YStack } from "tamagui";
-import { zeroAddress, parseUnits } from "viem";
+
+import { parseUnits, zeroAddress } from "viem";
+
+import { previewerAddress, ratePreviewerAddress } from "@exactly/common/generated/chain";
+import { useReadPreviewerExactly, useReadRatePreviewerSnapshot } from "@exactly/common/generated/hooks";
+import { floatingDepositRates } from "@exactly/lib";
 
 import assetLogos from "../../utils/assetLogos";
 import useAccount from "../../utils/useAccount";
@@ -14,17 +17,17 @@ import AssetLogo from "../shared/AssetLogo";
 import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 
-interface AssetItem {
-  symbol: string;
+type AssetItem = {
+  amount: bigint;
+  assetName?: string;
+  decimals: number;
   logoURI?: string;
   market?: string;
-  assetName?: string;
-  amount: bigint;
-  decimals: number;
+  rate?: bigint;
+  symbol: string;
   usdPrice: bigint;
   usdValue: bigint;
-  rate?: bigint;
-}
+};
 
 function AssetRow({ asset }: { asset: AssetItem }) {
   const {
@@ -98,7 +101,7 @@ function AssetRow({ asset }: { asset: AssetItem }) {
   );
 }
 
-function AssetSection({ title, assets }: { title: string; assets: AssetItem[] }) {
+function AssetSection({ title, assets }: { assets: AssetItem[]; title: string }) {
   if (assets.length === 0) return null;
   return (
     <YStack backgroundColor="$backgroundSoft" borderRadius="$r3" padding="$s4" gap="$s2_5">

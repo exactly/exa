@@ -1,6 +1,8 @@
-import { StatusBar } from "expo-status-bar";
 import React, { type ReactNode } from "react";
 import { useColorScheme } from "react-native";
+
+import { StatusBar } from "expo-status-bar";
+
 import { TamaguiProvider } from "tamagui";
 
 import tamagui from "../../../tamagui.config";

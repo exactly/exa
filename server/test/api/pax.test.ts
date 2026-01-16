@@ -2,11 +2,12 @@ import "../mocks/auth";
 import "../mocks/deployments";
 import "../mocks/sentry";
 
-import deriveAddress from "@exactly/common/deriveAddress";
 import { testClient } from "hono/testing";
 import { padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { afterEach, describe, expect, inject, it, vi } from "vitest";
+
+import deriveAddress from "@exactly/common/deriveAddress";
 
 import app from "../../api/pax";
 import { deriveAssociateId } from "../../utils/pax";

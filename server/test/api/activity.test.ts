@@ -1,16 +1,18 @@
-import "../mocks/sentry";
-import "../mocks/auth";
-import "../mocks/deployments";
 import "../expect";
 
-import deriveAddress from "@exactly/common/deriveAddress";
-import { marketAbi } from "@exactly/common/generated/chain";
+import "../mocks/auth";
+import "../mocks/deployments";
+import "../mocks/sentry";
+
 import { captureException } from "@sentry/node";
 import { testClient } from "hono/testing";
 import { safeParse, type InferOutput } from "valibot";
-import { zeroHash, padHex, type Hash } from "viem";
+import { padHex, zeroHash, type Hash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
+
+import deriveAddress from "@exactly/common/deriveAddress";
+import { marketAbi } from "@exactly/common/generated/chain";
 
 import app, { CreditActivity, DebitActivity, InstallmentsActivity, PandaActivity } from "../../api/activity";
 import database, { cards, transactions } from "../../database";
@@ -59,7 +61,7 @@ describe.concurrent("validation", () => {
 describe.concurrent("authenticated", () => {
   describe.sequential("card", () => {
     let activity: InferOutput<
-      typeof DebitActivity | typeof CreditActivity | typeof InstallmentsActivity | typeof PandaActivity
+      typeof CreditActivity | typeof DebitActivity | typeof InstallmentsActivity | typeof PandaActivity
     >[];
 
     beforeAll(async () => {

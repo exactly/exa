@@ -1,16 +1,18 @@
-import chain from "@exactly/common/generated/chain";
-import type { Address } from "@exactly/common/validation";
 import { validator } from "hono/validator";
 import { array, boolean, object, parse, picklist, string, type InferOutput } from "valibot";
 import { withRetry } from "viem";
 import { anvil, base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
+import chain from "@exactly/common/generated/chain";
+
 import verifySignature from "./verifySignature";
+
+import type { Address } from "@exactly/common/validation";
 
 if (!process.env.ALCHEMY_WEBHOOKS_KEY) throw new Error("missing alchemy webhooks key");
 export const headers = { "Content-Type": "application/json", "X-Alchemy-Token": process.env.ALCHEMY_WEBHOOKS_KEY };
 
-export function headerValidator(signingKeys: Set<string> | (() => Set<string>)) {
+export function headerValidator(signingKeys: (() => Set<string>) | Set<string>) {
   return validator("header", async ({ "x-alchemy-signature": signature }, c) => {
     for (const signingKey of typeof signingKeys === "function" ? signingKeys() : signingKeys) {
       const payload = await c.req.arrayBuffer();
@@ -42,9 +44,9 @@ export async function findWebhook(predicate: (webhook: Webhook) => unknown) {
 }
 
 export async function createWebhook(
-  options: { webhook_url: string; network?: never } & (
-    | { webhook_type: "ADDRESS_ACTIVITY"; addresses: string[] }
-    | { webhook_type: "GRAPHQL"; graphql_query: { skip_empty_messages: true; query: string } }
+  options: { network?: never; webhook_url: string } & (
+    | { addresses: string[]; webhook_type: "ADDRESS_ACTIVITY" }
+    | { graphql_query: { query: string; skip_empty_messages: true }; webhook_type: "GRAPHQL" }
   ),
 ) {
   const create = await fetch("https://dashboard.alchemy.com/api/create-webhook", {

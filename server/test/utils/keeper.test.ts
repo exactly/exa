@@ -1,17 +1,19 @@
-import "../mocks/sentry";
 import "../mocks/deployments";
-import { nonceSource, keeperClient } from "../mocks/keeper"; // eslint-disable-line import/order
+import { keeperClient, nonceSource } from "../mocks/keeper";
+import "../mocks/sentry";
 
-import { auditorAbi } from "@exactly/common/generated/chain";
 import { captureException } from "@sentry/node";
 import { setImmediate } from "node:timers/promises";
-import type * as timers from "node:timers/promises";
-import type { Hex } from "viem";
 import { afterEach, describe, expect, inject, it, vi } from "vitest";
+
+import { auditorAbi } from "@exactly/common/generated/chain";
 
 import keeper from "../../utils/keeper";
 import nonceManager from "../../utils/nonceManager";
 import publicClient from "../../utils/publicClient";
+
+import type * as timers from "node:timers/promises";
+import type { Hex } from "viem";
 
 describe("fault tolerance", () => {
   it("recovers if transaction is missing", async () => {

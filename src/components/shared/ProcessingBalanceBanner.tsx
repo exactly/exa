@@ -1,6 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
 import React from "react";
 import { useTranslation } from "react-i18next";
+
+import { useQuery } from "@tanstack/react-query";
 
 import Text from "./Text";
 import View from "./View";

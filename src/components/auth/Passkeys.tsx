@@ -1,10 +1,13 @@
-import { Key, X } from "@tamagui/lucide-icons";
-import { useQuery } from "@tanstack/react-query";
-import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { Pressable, StyleSheet } from "react-native";
+
+import { useRouter } from "expo-router";
+
+import { Key, X } from "@tamagui/lucide-icons";
 import { XStack } from "tamagui";
+
+import { useQuery } from "@tanstack/react-query";
 
 import PasskeysBlob from "../../assets/images/passkeys-blob.svg";
 import PasskeysImage from "../../assets/images/passkeys.svg";

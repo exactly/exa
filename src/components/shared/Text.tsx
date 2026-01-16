@@ -1,6 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
 import React, { type ComponentPropsWithoutRef } from "react";
-import { Text as TamaguiText, styled } from "tamagui";
+
+import { styled, Text as TamaguiText } from "tamagui";
+
+import { useQuery } from "@tanstack/react-query";
 
 const StyledText = styled(TamaguiText, {
   defaultVariants: { primary: true },
@@ -26,8 +28,8 @@ const StyledText = styled(TamaguiText, {
 });
 
 type TextProperties = ComponentPropsWithoutRef<typeof StyledText> & {
-  sensitive?: boolean;
   ref?: React.Ref<React.ComponentRef<typeof StyledText>>;
+  sensitive?: boolean;
 };
 
 const TextComponent = ({ ref: reference, children, sensitive, ...rest }: TextProperties) => {

@@ -1,11 +1,13 @@
-import { marketUSDCAddress } from "@exactly/common/generated/chain";
-import type { Hex } from "@exactly/common/validation";
-import { X } from "@tamagui/lucide-icons";
-import { isAfter } from "date-fns";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
+
+import { X } from "@tamagui/lucide-icons";
 import { Square, XStack, YStack } from "tamagui";
+
+import { isAfter } from "date-fns";
+
+import { marketUSDCAddress } from "@exactly/common/generated/chain";
 
 import GradientScrollView from "./GradientScrollView";
 import assetLogos from "../../utils/assetLogos";
@@ -14,6 +16,8 @@ import AssetLogo from "../shared/AssetLogo";
 import ExaSpinner from "../shared/Spinner";
 import Text from "../shared/Text";
 import View from "../shared/View";
+
+import type { Hex } from "@exactly/common/validation";
 
 export default function Pending({
   amount,
@@ -24,11 +28,11 @@ export default function Pending({
   onClose,
 }: {
   amount: number;
-  repayAssets: bigint;
   currency?: string;
   maturity: bigint;
-  selectedAsset?: Hex;
   onClose: () => void;
+  repayAssets: bigint;
+  selectedAsset?: Hex;
 }) {
   const {
     t,

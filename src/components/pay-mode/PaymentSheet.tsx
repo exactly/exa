@@ -1,29 +1,33 @@
-import chain, { exaPluginAddress, marketUSDCAddress } from "@exactly/common/generated/chain";
-import { useReadUpgradeableModularAccountGetInstalledPlugins } from "@exactly/common/generated/hooks";
-import { WAD } from "@exactly/lib";
+import React, { useCallback, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { Pressable, StyleSheet } from "react-native";
+
+import { useLocalSearchParams, useRouter } from "expo-router";
+
 import {
   ArrowRight,
   Calendar,
-  CirclePercent,
   ChevronRight,
+  CirclePercent,
   Coins,
   Info,
   RefreshCw,
   Siren,
 } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
+import { Separator, XStack, YStack } from "tamagui";
+
 import { useQuery } from "@tanstack/react-query";
 import { formatDistance, isAfter } from "date-fns";
 import { enUS, es } from "date-fns/locale";
-import { useRouter, useLocalSearchParams } from "expo-router";
-import React, { useCallback, useState } from "react";
-import { useTranslation } from "react-i18next";
-import { Pressable, StyleSheet } from "react-native";
-import { Separator, XStack, YStack } from "tamagui";
 import { digits, nonEmpty, pipe, safeParse, string } from "valibot";
 import { zeroAddress } from "viem";
 import { optimismSepolia } from "viem/chains";
 import { useBytecode } from "wagmi";
+
+import chain, { exaPluginAddress, marketUSDCAddress } from "@exactly/common/generated/chain";
+import { useReadUpgradeableModularAccountGetInstalledPlugins } from "@exactly/common/generated/hooks";
+import { WAD } from "@exactly/lib";
 
 import CalendarImage from "../../assets/images/calendar-rollover.svg";
 import { presentArticle } from "../../utils/intercom";
@@ -38,7 +42,7 @@ import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-export default function PaymentSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+export default function PaymentSheet({ open, onClose }: { onClose: () => void; open: boolean }) {
   const { address } = useAccount();
   const { market: USDCMarket } = useAsset(marketUSDCAddress);
   const { maturity: currentMaturity } = useLocalSearchParams();

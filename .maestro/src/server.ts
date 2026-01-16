@@ -48,11 +48,11 @@ export function activity(asset: Address, toAddress: Address, value: number, hash
 export function block(
   account: Address,
   proposals: {
-    nonce: bigint;
-    market: Address;
-    proposalType: number;
     amount: bigint;
     data: Hex;
+    market: Address;
+    nonce: bigint;
+    proposalType: number;
     unlock: bigint;
   }[],
 ) {

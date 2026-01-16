@@ -1,8 +1,3 @@
-import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
-import deriveAddress from "@exactly/common/deriveAddress";
-import domain from "@exactly/common/domain";
-import chain from "@exactly/common/generated/chain";
-import { Address, Base64URL, Hex } from "@exactly/common/validation";
 import { captureException, setContext } from "@sentry/node";
 import {
   generateRegistrationOptions,
@@ -34,6 +29,12 @@ import {
   type InferOutput,
 } from "valibot";
 import { createSiweMessage, generateSiweNonce, parseSiweMessage, validateSiweMessage } from "viem/siwe";
+
+import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
+import deriveAddress from "@exactly/common/deriveAddress";
+import domain from "@exactly/common/domain";
+import chain from "@exactly/common/generated/chain";
+import { Address, Base64URL, Hex } from "@exactly/common/validation";
 
 import { Authentication } from "./authentication";
 import androidOrigins from "../../utils/android/origins";
@@ -304,7 +305,7 @@ export default new Hono()
       const challenge = await redis.get(sessionId);
       if (!challenge) return c.json({ code: "no registration", legacy: "no registration" }, 400);
 
-      let webauthn: WebAuthnCredential | undefined;
+      let webauthn: undefined | WebAuthnCredential;
       try {
         switch (attestation.method) {
           case "siwe": {

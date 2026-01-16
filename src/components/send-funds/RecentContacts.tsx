@@ -1,16 +1,19 @@
-import type { Address } from "@exactly/common/validation";
-import { TimerReset } from "@tamagui/lucide-icons";
-import { useQuery } from "@tanstack/react-query";
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
+
+import { TimerReset } from "@tamagui/lucide-icons";
 import { XStack, YStack } from "tamagui";
+
+import { useQuery } from "@tanstack/react-query";
 
 import Contact from "./Contact";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
+import type { Address } from "@exactly/common/validation";
+
 export default function RecentContacts({ onContactPress }: { onContactPress: (address: Address) => void }) {
-  const { data } = useQuery<{ address: Address; ens: string; lastUsed: Date }[] | undefined>({
+  const { data } = useQuery<undefined | { address: Address; ens: string; lastUsed: Date }[]>({
     queryKey: ["contacts", "recent"],
   });
   const { t } = useTranslation();

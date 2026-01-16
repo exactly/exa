@@ -1,9 +1,10 @@
-import type { CreditActivity, DebitActivity, InstallmentsActivity, PandaActivity } from "@exactly/server/api/activity";
-import { ClockAlert, Import, ShoppingCart } from "@tamagui/lucide-icons";
-import { useQuery } from "@tanstack/react-query";
 import React from "react";
 import { useTranslation } from "react-i18next";
+
+import { ClockAlert, Import, ShoppingCart } from "@tamagui/lucide-icons";
 import { Square, XStack, YStack } from "tamagui";
+
+import { useQuery } from "@tanstack/react-query";
 
 import PaymentDetails from "./PaymentDetails";
 import PurchaseDetails from "./PurchaseDetails";
@@ -11,6 +12,8 @@ import TransactionDetails from "./TransactionDetails";
 import isProcessing from "../../../utils/isProcessing";
 import Image from "../../shared/Image";
 import Text from "../../shared/Text";
+
+import type { CreditActivity, DebitActivity, InstallmentsActivity, PandaActivity } from "@exactly/server/api/activity";
 
 export default function CardActivity({
   item,

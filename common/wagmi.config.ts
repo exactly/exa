@@ -1,3 +1,11 @@
+import { defineConfig, type Plugin } from "@wagmi/cli";
+import { foundry, foundryDefaultExcludes, react } from "@wagmi/cli/plugins";
+import { execSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { env } from "node:process";
+import { getAddress, type Abi } from "viem";
+import { anvil, base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
+
 import deploy from "@exactly/plugin/deploy.json" with { type: "json" };
 import Auditor from "@exactly/protocol/deployments/base/Auditor.json" with { type: "json" };
 import Firewall from "@exactly/protocol/deployments/base/Firewall.json" with { type: "json" };
@@ -6,13 +14,6 @@ import IntegrationPreviewer from "@exactly/protocol/deployments/base/Integration
 import Market from "@exactly/protocol/deployments/base/MarketWETH.json" with { type: "json" };
 import Previewer from "@exactly/protocol/deployments/base/Previewer.json" with { type: "json" };
 import RatePreviewer from "@exactly/protocol/deployments/base/RatePreviewer.json" with { type: "json" };
-import { defineConfig, type Plugin } from "@wagmi/cli";
-import { foundry, foundryDefaultExcludes, react } from "@wagmi/cli/plugins";
-import { execSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { env } from "node:process";
-import { getAddress, type Abi } from "viem";
-import { anvil, base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
 const chainId = Number(env.CHAIN_ID ?? String(env.EAS_BUILD_RUNNER === "eas-build" ? optimism.id : optimismSepolia.id));
 
@@ -127,7 +128,7 @@ export default defineConfig([
 
 function addresses(
   contracts: Record<string, string>,
-  { scripts, optional }: { scripts?: Record<string, string>; optional?: Record<string, string | undefined> } = {},
+  { scripts, optional }: { optional?: Record<string, string | undefined>; scripts?: Record<string, string> } = {},
 ): Plugin {
   return {
     name: "Addresses",
@@ -230,6 +231,6 @@ function loadBroadcast(script: string) {
   ) as { transactions: { contractAddress: string }[] };
 }
 
-interface Deployment {
+type Deployment = {
   address: string;
-}
+};

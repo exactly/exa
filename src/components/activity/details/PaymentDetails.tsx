@@ -1,13 +1,15 @@
-import type { CreditActivity, DebitActivity, InstallmentsActivity } from "@exactly/server/api/activity";
-import { CalendarClock, CircleHelp, CreditCard } from "@tamagui/lucide-icons";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
+
+import { CalendarClock, CircleHelp, CreditCard } from "@tamagui/lucide-icons";
 import { Separator, XStack, YStack } from "tamagui";
 
 import { presentArticle } from "../../../utils/intercom";
 import reportError from "../../../utils/reportError";
 import Text from "../../shared/Text";
+
+import type { CreditActivity, DebitActivity, InstallmentsActivity } from "@exactly/server/api/activity";
 
 export default function PaymentDetails({ item }: { item: CreditActivity | DebitActivity | InstallmentsActivity }) {
   const {

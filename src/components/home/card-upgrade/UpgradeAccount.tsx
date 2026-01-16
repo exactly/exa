@@ -1,3 +1,15 @@
+import React from "react";
+import { useTranslation } from "react-i18next";
+
+import { ArrowUpToLine } from "@tamagui/lucide-icons";
+import { useToastController } from "@tamagui/toast";
+import { YStack } from "tamagui";
+
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { waitForCallsStatus } from "@wagmi/core/actions";
+import { encodeAbiParameters, getAbiItem, keccak256, zeroAddress } from "viem";
+import { useBytecode, useSendCalls } from "wagmi";
+
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
 import chain, { exaPluginAddress } from "@exactly/common/generated/chain";
@@ -7,15 +19,6 @@ import {
   useReadExaPluginPluginManifest,
   useReadUpgradeableModularAccountGetInstalledPlugins,
 } from "@exactly/common/generated/hooks";
-import { ArrowUpToLine } from "@tamagui/lucide-icons";
-import { useToastController } from "@tamagui/toast";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { waitForCallsStatus } from "@wagmi/core/actions";
-import React from "react";
-import { useTranslation } from "react-i18next";
-import { YStack } from "tamagui";
-import { encodeAbiParameters, getAbiItem, keccak256, zeroAddress } from "viem";
-import { useBytecode, useSendCalls } from "wagmi";
 
 import Progression from "./Progression";
 import queryClient from "../../../utils/queryClient";

@@ -1,10 +1,11 @@
-import type { Credential } from "@exactly/common/validation";
-import { IdCard } from "@tamagui/lucide-icons";
-import { useToastController } from "@tamagui/toast";
-import { useMutation, useQuery } from "@tanstack/react-query";
 import React from "react";
 import { useTranslation } from "react-i18next";
+
+import { IdCard } from "@tamagui/lucide-icons";
+import { useToastController } from "@tamagui/toast";
 import { Spinner, YStack } from "tamagui";
+
+import { useMutation, useQuery } from "@tanstack/react-query";
 
 import Progression from "./Progression";
 import { createInquiry, KYC_TEMPLATE_ID, resumeInquiry } from "../../../utils/persona";
@@ -14,6 +15,8 @@ import { APIError, getKYCStatus } from "../../../utils/server";
 import Button from "../../shared/Button";
 import Text from "../../shared/Text";
 import View from "../../shared/View";
+
+import type { Credential } from "@exactly/common/validation";
 
 export default function VerifyIdentity() {
   const toast = useToastController();

@@ -1,4 +1,3 @@
-import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
 import { relations } from "drizzle-orm";
 import {
   bigint,
@@ -14,6 +13,8 @@ import {
   text,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+
+import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
 
 const bytea = customType<{ data: Uint8Array<ArrayBuffer>; driverData: string }>({ dataType: () => "bytea" });
 

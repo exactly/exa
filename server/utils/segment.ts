@@ -1,6 +1,7 @@
-import type { Address } from "@exactly/common/validation";
 import { Analytics } from "@segment/analytics-node";
 import { captureException } from "@sentry/node";
+
+import type { Address } from "@exactly/common/validation";
 import type { Prettify } from "viem";
 
 if (!process.env.SEGMENT_WRITE_KEY) throw new Error("missing segment write key");
@@ -8,61 +9,61 @@ if (!process.env.SEGMENT_WRITE_KEY) throw new Error("missing segment write key")
 const analytics = new Analytics({ writeKey: process.env.SEGMENT_WRITE_KEY });
 
 export function identify(
-  user: Prettify<{ userId: Address } & Omit<Parameters<typeof analytics.identify>[0], "userId">>,
+  user: Prettify<Omit<Parameters<typeof analytics.identify>[0], "userId"> & { userId: Address }>,
 ) {
   analytics.identify(user);
 }
 
-interface MerchantProperties {
-  category?: string | null;
+type MerchantProperties = {
+  category?: null | string;
+  city?: null | string;
+  country?: null | string;
   name: string;
-  city?: string | null;
-  country?: string | null;
-}
+};
 
 export function track(
   action: Id<
-    | { event: "CardIssued"; properties: { productId: string } }
-    | { event: "CardFrozen" }
-    | { event: "CardUnfrozen" }
-    | { event: "CardDeleted" }
     | { event: "AccountFunded" }
+    | {
+        event: "AuthorizationRejected";
+        properties: {
+          cardMode: number;
+          declinedReason: string;
+          merchant: MerchantProperties;
+          usdAmount: number;
+        };
+      }
+    | { event: "CardDeleted" }
+    | { event: "CardFrozen" }
+    | { event: "CardIssued"; properties: { productId: string } }
+    | { event: "CardUnfrozen" }
     | {
         event: "TransactionAuthorized";
         properties: {
-          type: "panda";
           cardMode: number;
-          usdAmount: number;
           merchant: MerchantProperties;
+          type: "panda";
+          usdAmount: number;
         };
       }
     | {
         event: "TransactionRefund";
         properties: {
           id: string;
-          type: "reversal" | "refund" | "partial";
-          usdAmount: number;
           merchant: MerchantProperties;
+          type: "partial" | "refund" | "reversal";
+          usdAmount: number;
         };
       }
     | {
         event: "TransactionRejected";
         properties: {
-          id: string;
           cardMode: number;
-          usdAmount: number;
+          declinedReason?: null | string;
+          id: string;
           merchant: MerchantProperties;
           updated: boolean;
-          declinedReason?: string | null;
-        };
-      }
-    | {
-        event: "AuthorizationRejected";
-        properties: {
-          cardMode: number;
           usdAmount: number;
-          merchant: MerchantProperties;
-          declinedReason: string;
         };
       }
   >,
@@ -80,4 +81,4 @@ export function closeAndFlush() {
 
 analytics.on("error", (error) => captureException(error, { level: "error" }));
 
-type Id<T> = Prettify<{ userId: Address } & T>;
+type Id<T> = Prettify<T & { userId: Address }>;

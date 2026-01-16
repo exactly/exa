@@ -100,7 +100,7 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
   schema: BaseSchema<TInput, TOutput, TIssue>,
   url: `/${string}`,
   body?: unknown,
-  method: "GET" | "POST" | "PUT" | "PATCH" = body === undefined ? "GET" : "POST",
+  method: "GET" | "PATCH" | "POST" | "PUT" = body === undefined ? "GET" : "POST",
   timeout = 10_000,
 ) {
   const response = await fetch(`${baseURL}${url}`, {
@@ -138,13 +138,13 @@ export const Documents = object({
 
 export const GetDocumentResponse = object({ data: Documents });
 
-interface AccountCustomFields {
-  isnotfacta?: boolean; // cspell:ignore isnotfacta
-  tin?: string;
-  sex_1?: "Male" | "Female" | "Prefer not to say";
-  manteca_t_c?: boolean;
+type AccountCustomFields = {
   address?: { value?: { country_code?: { value?: string } } };
-}
+  isnotfacta?: boolean; // cspell:ignore isnotfacta
+  manteca_t_c?: boolean;
+  sex_1?: "Female" | "Male" | "Prefer not to say";
+  tin?: string;
+};
 
 const AccountFields = object({
   // these are custom fields, if we change the name in the inquiry template we need to update it here

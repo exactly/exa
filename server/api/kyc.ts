@@ -1,10 +1,11 @@
-import { Address } from "@exactly/common/validation";
 import { setContext, setUser } from "@sentry/node";
 import createDebug from "debug";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { validator as vValidator } from "hono-openapi/valibot";
 import { literal, object, optional, parse, string } from "valibot";
+
+import { Address } from "@exactly/common/validation";
 
 import database, { credentials } from "../database/index";
 import auth from "../middleware/auth";

@@ -1,9 +1,11 @@
-import { Boxes, Coins, CreditCard, Home, FileText } from "@tamagui/lucide-icons";
-import { Tabs } from "expo-router";
-import Head from "expo-router/head";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { FlatList, Platform } from "react-native";
+
+import { Tabs } from "expo-router";
+import Head from "expo-router/head";
+
+import { Boxes, Coins, CreditCard, FileText, Home } from "@tamagui/lucide-icons";
 
 import { activityRefreshControlReference, activityScrollReference } from "../../../components/activity/Activity";
 import { cardRefreshControlReference, cardScrollReference } from "../../../components/card/Card";

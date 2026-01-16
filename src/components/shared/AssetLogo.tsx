@@ -1,5 +1,7 @@
-import { Image } from "expo-image";
 import { Platform } from "react-native";
+
+import { Image } from "expo-image";
+
 import { styled } from "tamagui";
 
 import reportError from "../../utils/reportError";

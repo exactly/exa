@@ -1,20 +1,24 @@
-import { ArrowLeft, Headphones } from "@tamagui/lucide-icons";
-import { useQuery } from "@tanstack/react-query";
-import { useRouter } from "expo-router";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
+
+import { useRouter } from "expo-router";
+
+import { ArrowLeft, Headphones } from "@tamagui/lucide-icons";
 import { XStack } from "tamagui";
+
+import { useQuery } from "@tanstack/react-query";
 
 import CardActivity from "./CardActivity";
 import ReceivedActivity from "./ReceivedActivity";
 import RepayActivity from "./RepayActivity";
 import SentActivity from "./SentActivity";
 import { present } from "../../../utils/intercom";
-import type { ActivityItem } from "../../../utils/queryClient";
 import reportError from "../../../utils/reportError";
 import ActionButton from "../../shared/ActionButton";
 import GradientScrollView from "../../shared/GradientScrollView";
+
+import type { ActivityItem } from "../../../utils/queryClient";
 
 export default function ActivityDetails() {
   const router = useRouter();

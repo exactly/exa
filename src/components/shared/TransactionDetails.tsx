@@ -1,12 +1,16 @@
-import chain from "@exactly/common/generated/chain";
-import shortenHex from "@exactly/common/shortenHex";
-import { ExternalLink } from "@tamagui/lucide-icons";
-import { format } from "date-fns";
-import { setStringAsync } from "expo-clipboard";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Alert } from "react-native";
+
+import { setStringAsync } from "expo-clipboard";
+
+import { ExternalLink } from "@tamagui/lucide-icons";
 import { Separator, XStack, YStack } from "tamagui";
+
+import { format } from "date-fns";
+
+import chain from "@exactly/common/generated/chain";
+import shortenHex from "@exactly/common/shortenHex";
 
 import OptimismImage from "../../assets/images/optimism.svg";
 import openBrowser from "../../utils/openBrowser";

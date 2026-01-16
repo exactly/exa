@@ -1,7 +1,8 @@
-import { ArrowRight, Info, X } from "@tamagui/lucide-icons";
 import React from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
+
+import { ArrowRight, Info, X } from "@tamagui/lucide-icons";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import Defi from "../../assets/images/defi.svg";
@@ -13,7 +14,7 @@ import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-export default function IntroSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+export default function IntroSheet({ open, onClose }: { onClose: () => void; open: boolean }) {
   const { t } = useTranslation();
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>

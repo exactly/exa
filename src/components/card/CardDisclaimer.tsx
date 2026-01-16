@@ -1,7 +1,8 @@
-import { ArrowRight, X } from "@tamagui/lucide-icons";
 import React from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { Pressable, StyleSheet } from "react-native";
+
+import { ArrowRight, X } from "@tamagui/lucide-icons";
 import { ScrollView, YStack } from "tamagui";
 
 import Blob from "../../assets/images/exa-card-blob.svg";
@@ -19,9 +20,9 @@ export default function CardDisclaimer({
   onClose,
   onActionPress,
 }: {
-  open: boolean;
-  onClose: () => void;
   onActionPress: () => void;
+  onClose: () => void;
+  open: boolean;
 }) {
   const { t } = useTranslation();
   return (

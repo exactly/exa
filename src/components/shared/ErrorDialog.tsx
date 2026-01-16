@@ -1,6 +1,7 @@
-import { X } from "@tamagui/lucide-icons";
 import React from "react";
 import { useTranslation } from "react-i18next";
+
+import { X } from "@tamagui/lucide-icons";
 import { AlertDialog, XStack, YStack } from "tamagui";
 
 import Button from "./Button";
@@ -13,10 +14,10 @@ export default function ErrorDialog({
   description,
   onClose,
 }: {
-  open: boolean;
-  title: string;
   description: string;
   onClose: () => void;
+  open: boolean;
+  title: string;
 }) {
   const { t } = useTranslation();
   const aspectRatio = useAspectRatio();

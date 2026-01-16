@@ -1,8 +1,3 @@
-import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
-import deriveAddress from "@exactly/common/deriveAddress";
-import domain from "@exactly/common/domain";
-import chain from "@exactly/common/generated/chain";
-import { Address, Base64URL, Credential, Hex } from "@exactly/common/validation";
 import { captureException, setContext, setUser } from "@sentry/node";
 import {
   generateAuthenticationOptions,
@@ -37,6 +32,12 @@ import {
 } from "valibot";
 import { isAddress } from "viem";
 import { createSiweMessage, generateSiweNonce, parseSiweMessage, validateSiweMessage } from "viem/siwe";
+
+import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
+import deriveAddress from "@exactly/common/deriveAddress";
+import domain from "@exactly/common/domain";
+import chain from "@exactly/common/generated/chain";
+import { Address, Base64URL, Credential, Hex } from "@exactly/common/validation";
 
 import database, { credentials } from "../../database";
 import androidOrigins from "../../utils/android/origins";

@@ -1,8 +1,9 @@
 import { getSignedCookie } from "hono/cookie";
 import { createMiddleware } from "hono/factory";
-import type { BlankInput, Env, Input } from "hono/types";
 
 import authSecret from "../utils/authSecret";
+
+import type { BlankInput, Env, Input } from "hono/types";
 
 export default function auth<E extends Env = Env, P extends string = string, I extends Input = BlankInput>() {
   return createMiddleware<E, P, I & { out: { cookie: { credentialId: string } } }>(async (c, next) => {

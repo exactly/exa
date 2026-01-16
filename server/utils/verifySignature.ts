@@ -1,10 +1,10 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-export interface VerifySignature {
+export type VerifySignature = {
+  payload: ArrayBuffer;
   signature: string | undefined;
   signingKey: string;
-  payload: ArrayBuffer;
-}
+};
 
 export default function verifySignature({ signature, signingKey, payload }: VerifySignature): boolean {
   if (!signature) return false;

@@ -1,7 +1,9 @@
-import { X } from "@tamagui/lucide-icons";
-import { useRouter } from "expo-router";
 import React from "react";
 import { useTranslation } from "react-i18next";
+
+import { useRouter } from "expo-router";
+
+import { X } from "@tamagui/lucide-icons";
 import { ScrollView } from "tamagui";
 
 import Button from "../shared/Button";

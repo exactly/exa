@@ -1,4 +1,3 @@
-import type { Address } from "@exactly/common/validation";
 import { captureException, setContext } from "@sentry/node";
 import {
   description,
@@ -14,6 +13,8 @@ import {
   type InferInput,
 } from "valibot";
 import { encodePacked, keccak256 } from "viem";
+
+import type { Address } from "@exactly/common/validation";
 
 if (!process.env.PAX_API_URL) throw new Error("missing pax api url");
 const baseURL = process.env.PAX_API_URL;
@@ -48,7 +49,7 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
   schema: BaseSchema<TInput, TOutput, TIssue>,
   url: string,
   body?: unknown,
-  method: "GET" | "POST" | "PUT" | "DELETE" = body === undefined ? "GET" : "POST",
+  method: "DELETE" | "GET" | "POST" | "PUT" = body === undefined ? "GET" : "POST",
   timeout = 10_000,
 ) {
   const response = await fetch(`${baseURL}${url}`, {

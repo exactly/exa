@@ -1,17 +1,22 @@
-import chain from "@exactly/common/generated/chain";
-import shortenHex from "@exactly/common/shortenHex";
-import type { CreditActivity, DebitActivity, InstallmentsActivity } from "@exactly/server/api/activity";
-import { CalendarClock, CreditCard, SquareArrowOutUpRight } from "@tamagui/lucide-icons";
-import { format } from "date-fns";
-import { setStringAsync } from "expo-clipboard";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Alert } from "react-native";
+
+import { setStringAsync } from "expo-clipboard";
+
+import { CalendarClock, CreditCard, SquareArrowOutUpRight } from "@tamagui/lucide-icons";
 import { Separator, XStack, YStack } from "tamagui";
+
+import { format } from "date-fns";
+
+import chain from "@exactly/common/generated/chain";
+import shortenHex from "@exactly/common/shortenHex";
 
 import openBrowser from "../../../utils/openBrowser";
 import reportError from "../../../utils/reportError";
 import Text from "../../shared/Text";
+
+import type { CreditActivity, DebitActivity, InstallmentsActivity } from "@exactly/server/api/activity";
 
 export default function OperationDetails({ item }: { item: CreditActivity | DebitActivity | InstallmentsActivity }) {
   const {

@@ -1,10 +1,12 @@
-import chain from "@exactly/common/generated/chain";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
 import { sdk } from "@farcaster/miniapp-sdk";
 import { farcasterMiniApp as miniAppConnector } from "@farcaster/miniapp-wagmi-connector";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { http } from "viem";
 import * as chains from "viem/chains";
 import { createConfig, createStorage, custom, injected } from "wagmi";
+
+import chain from "@exactly/common/generated/chain";
 
 import publicClient from "../publicClient";
 

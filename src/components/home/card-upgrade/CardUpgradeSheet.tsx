@@ -1,8 +1,10 @@
-import { X } from "@tamagui/lucide-icons";
-import { useQuery } from "@tanstack/react-query";
 import React from "react";
 import { Pressable } from "react-native";
+
+import { X } from "@tamagui/lucide-icons";
 import { ScrollView } from "tamagui";
+
+import { useQuery } from "@tanstack/react-query";
 
 import ActivateCard from "./ActivateCard";
 import Intro from "./Intro";
@@ -13,7 +15,7 @@ import ModalSheet from "../../shared/ModalSheet";
 import SafeView from "../../shared/SafeView";
 import View from "../../shared/View";
 
-export default function CardUpgradeSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+export default function CardUpgradeSheet({ open, onClose }: { onClose: () => void; open: boolean }) {
   const { data: step } = useQuery<number | undefined>({ queryKey: ["card-upgrade"] });
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>

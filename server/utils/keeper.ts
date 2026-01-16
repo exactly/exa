@@ -1,6 +1,3 @@
-import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
-import chain from "@exactly/common/generated/chain";
-import { Hash } from "@exactly/common/validation";
 import { SPAN_STATUS_ERROR, SPAN_STATUS_OK } from "@sentry/core";
 import { captureException, startSpan, withScope } from "@sentry/node";
 import { setTimeout } from "node:timers/promises";
@@ -27,6 +24,10 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
+import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
+import chain from "@exactly/common/generated/chain";
+import { Hash } from "@exactly/common/validation";
+
 import nonceManager from "./nonceManager";
 import publicClient, { captureRequests, Requests } from "./publicClient";
 import traceClient from "./traceClient";
@@ -52,11 +53,11 @@ export default createWalletClient({
 export function extender(keeper: WalletClient<HttpTransport, typeof chain, PrivateKeyAccount>) {
   return {
     exaSend: async (
-      spanOptions: Prettify<{ name: string; op: string } & Omit<Parameters<typeof startSpan>[0], "name" | "op">>,
-      call: Prettify<Pick<WriteContractParameters, "address" | "functionName" | "args" | "abi">>,
+      spanOptions: Prettify<Omit<Parameters<typeof startSpan>[0], "name" | "op"> & { name: string; op: string }>,
+      call: Prettify<Pick<WriteContractParameters, "abi" | "address" | "args" | "functionName">>,
       options?: {
+        ignore?: ((reason: string) => MaybePromise<boolean | TransactionReceipt | undefined>) | string[];
         onHash?: (hash: Hash) => MaybePromise<unknown>;
-        ignore?: string[] | ((reason: string) => MaybePromise<TransactionReceipt | boolean | undefined>);
       },
     ) =>
       withScope((scope) =>

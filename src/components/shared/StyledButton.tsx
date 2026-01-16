@@ -1,19 +1,20 @@
-import type { ArrowRight } from "@tamagui/lucide-icons";
 import type React from "react";
 import { use, useMemo, type ComponentPropsWithoutRef } from "react";
+
+import type { ArrowRight } from "@tamagui/lucide-icons";
 import { createStyledContext, Spinner, styled, withStaticProperties, XStack } from "tamagui";
 
 import Text from "./Text";
 
 const ButtonContext = createStyledContext<{
-  primary?: boolean;
-  secondary?: boolean;
-  disabled?: boolean;
   danger?: boolean;
   dangerSecondary?: boolean;
-  outlined?: boolean;
-  transparent?: boolean;
+  disabled?: boolean;
   loading?: boolean;
+  outlined?: boolean;
+  primary?: boolean;
+  secondary?: boolean;
+  transparent?: boolean;
 }>({
   primary: false,
   secondary: false,

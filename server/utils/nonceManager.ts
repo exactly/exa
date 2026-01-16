@@ -1,6 +1,7 @@
 import { startSpan } from "@sentry/node";
-import type { Address, CreateNonceManagerParameters, NonceManager } from "viem";
 import { getTransactionCount } from "viem/actions";
+
+import type { Address, CreateNonceManagerParameters, NonceManager } from "viem";
 
 class LruMap<value = unknown> extends Map<string, value> {
   maxSize: number;

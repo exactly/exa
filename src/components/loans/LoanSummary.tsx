@@ -1,20 +1,24 @@
-import { previewerAddress } from "@exactly/common/generated/chain";
-import { useReadPreviewerPreviewBorrowAtMaturity } from "@exactly/common/generated/hooks";
-import { MATURITY_INTERVAL, WAD } from "@exactly/lib";
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
+
 import { XStack, YStack } from "tamagui";
+
 import { zeroAddress } from "viem";
 import { useBytecode } from "wagmi";
 
+import { previewerAddress } from "@exactly/common/generated/chain";
+import { useReadPreviewerPreviewBorrowAtMaturity } from "@exactly/common/generated/hooks";
+import { MATURITY_INTERVAL, WAD } from "@exactly/lib";
+
 import assetLogos from "../../utils/assetLogos";
-import type { Loan } from "../../utils/queryClient";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useInstallments from "../../utils/useInstallments";
 import AssetLogo from "../shared/AssetLogo";
 import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
+
+import type { Loan } from "../../utils/queryClient";
 
 export default function LoanSummary({ loan }: { loan: Loan }) {
   const {

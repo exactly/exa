@@ -1,9 +1,10 @@
-import type { Chain, Token } from "@lifi/sdk";
-import { Search } from "@tamagui/lucide-icons";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
+
+import { Search } from "@tamagui/lucide-icons";
 import { ScrollView, XStack, YStack } from "tamagui";
+
 import { formatUnits } from "viem";
 
 import TokenLogo from "./TokenLogo";
@@ -12,6 +13,8 @@ import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
+
+import type { Chain, Token } from "@lifi/sdk";
 
 export default function AssetSelectSheet({
   open,
@@ -22,16 +25,16 @@ export default function AssetSelectSheet({
   hideBalances = false,
   label,
 }: {
-  open: boolean;
   groups: {
-    chain: Pick<Chain, "id" | "name" | "logoURI">;
-    assets: { token: Token; balance: bigint; usdValue: number }[];
+    assets: { balance: bigint; token: Token; usdValue: number }[];
+    chain: Pick<Chain, "id" | "logoURI" | "name">;
   }[];
-  selected?: { chain: number; address: string };
-  onSelect: (chainId: number, token: Token) => void;
-  onClose: () => void;
   hideBalances?: boolean;
   label?: string;
+  onClose: () => void;
+  onSelect: (chainId: number, token: Token) => void;
+  open: boolean;
+  selected?: { address: string; chain: number };
 }) {
   const {
     t,

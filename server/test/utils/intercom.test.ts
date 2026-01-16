@@ -1,6 +1,6 @@
 import { decodeJwt } from "jose";
-import { privateKeyToAccount, generatePrivateKey, type Address } from "viem/accounts";
-import { assert, describe, expect, it, beforeEach } from "vitest";
+import { generatePrivateKey, privateKeyToAccount, type Address } from "viem/accounts";
+import { assert, beforeEach, describe, expect, it } from "vitest";
 
 import getIntercomToken from "../../utils/intercom";
 

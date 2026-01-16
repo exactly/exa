@@ -1,5 +1,3 @@
-import { Address } from "@exactly/common/validation";
-import deploy from "@exactly/plugin/deploy.json";
 import { $ } from "execa";
 import { readdir, readFile } from "node:fs/promises";
 import { env, stderr, stdout } from "node:process";
@@ -8,9 +6,13 @@ import { literal, object, parse, tuple } from "valibot";
 import { keccak256, padHex, toBytes, toHex, zeroAddress } from "viem";
 import { mnemonicToAccount, privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
 import { foundry } from "viem/chains";
-import type { TestProject } from "vitest/node";
+
+import { Address } from "@exactly/common/validation";
+import deploy from "@exactly/plugin/deploy.json";
 
 import anvilClient from "./anvilClient";
+
+import type { TestProject } from "vitest/node";
 
 export default async function setup({ provide }: Pick<TestProject, "provide">) {
   const instance = Instance.anvil({ codeSizeLimit: 69_000, blockBaseFeePerGas: 1n });
@@ -298,13 +300,14 @@ const Protocol = object({
 });
 
 declare module "vitest" {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- module augmentation requires interface merging
   export interface ProvidedContext {
     Auditor: Address;
     Balancer2Vault: Address;
-    ExaPreviewer: Address;
     EXA: Address;
     ExaAccountFactory: Address;
     ExaPlugin: Address;
+    ExaPreviewer: Address;
     Firewall: Address;
     InstallmentsRouter: Address;
     IntegrationPreviewer: Address;
@@ -312,8 +315,8 @@ declare module "vitest" {
     MarketEXA: Address;
     MarketUSDC: Address;
     MarketWETH: Address;
-    ProposalManager: Address;
     Previewer: Address;
+    ProposalManager: Address;
     RatePreviewer: Address;
     Refunder: Address;
     USDC: Address;

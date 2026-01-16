@@ -5,6 +5,7 @@ applyTo: "**"
 paths: "**"
 trigger: always_on
 ---
+
 # style guide
 
 ## guiding principles
@@ -56,7 +57,7 @@ a core principle is specific capitalization for different contexts. this must be
 - **referring to code in prose:** when discussing a code concept (like a variable or function name) in a sentence, use regular lowercase words. the correctly-cased identifier itself must only appear inside backticks.
   - ✅ `for boolean props, the name should indicate a positive condition (e.g., \`isActive\`).`
   - ❌ `for boolean props, the name should be isActive.`
-- **code examples:** any identifier inside backticks (`` ` ``) or a code fence (```` ``` ````) is considered code, not prose. it must strictly follow the casing rules defined in this file.
+- **code examples:** any identifier inside backticks (`` ` ``) or a code fence (` ``` `) is considered code, not prose. it must strictly follow the casing rules defined in this file.
 - **code comments:** all code comments must be lowercase.
 - **user-facing documentation (`docs/`):** use proper sentence case.
 - **changeset summaries:** use a lowercase sentence in the imperative present tense. (e.g., `implement x feature for y.`).
@@ -159,7 +160,7 @@ the project employs a highly strict and comprehensive eslint configuration to au
 ### comments
 
 - **strongly avoid comments**: prefer self-documenting code. good code with clear naming and structure rarely needs comments.
-- **explain the "why", not the "what"**: if a comment is strictly necessary, it should explain *why* the code is written a certain way, not *what* the code is doing.
+- **explain the "why", not the "what"**: if a comment is strictly necessary, it should explain _why_ the code is written a certain way, not _what_ the code is doing.
 - **lowercase**: all code comments must be written in lowercase. the single exception is for special comment tags.
 - **special tags**: for tracking work, use an uppercase tag followed by a single space and a lowercase comment. always include a reference to a ticket or issue if available.
   - ✅ `// TODO an explanation of the work to be done`
@@ -172,4 +173,3 @@ the project employs a highly strict and comprehensive eslint configuration to au
 - **adopt, do not replace**: your primary role is to adopt and enforce the project's established conventions. never replace a core convention (e.g., the `gitmoji` commit format) with a different one (e.g., `conventional commits`), even if you believe it is superior.
 - **respect the style guide**: you must follow all rules within the `.mdc` files for any code, documentation, or rules you write. this includes meta-rules like the "lowercase prose" convention for all internal documentation, including the rules themselves.
 - **understand the intent**: do not interpret rules in the most literal way possible. understand the spirit and goal behind them. for example, a rule for "concise" messages implies front-loading keywords and removing filler words, not just meeting a character count.
-

@@ -1,13 +1,17 @@
-import { Address } from "@exactly/common/validation";
-import { WAD } from "@exactly/lib";
-import { useForm } from "@tanstack/react-form";
-import { useLocalSearchParams } from "expo-router";
 import React, { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { StyleSheet, type TextInput } from "react-native";
+
+import { useLocalSearchParams } from "expo-router";
+
 import { YStack } from "tamagui";
+
+import { useForm } from "@tanstack/react-form";
 import { nonEmpty, parse, pipe, string } from "valibot";
 import { formatUnits, parseUnits } from "viem";
+
+import { Address } from "@exactly/common/validation";
+import { WAD } from "@exactly/lib";
 
 import Button from "./Button";
 import Input from "./Input";
@@ -20,7 +24,7 @@ export default function AmountSelector({ onChange }: { onChange: (value: bigint)
     t,
     i18n: { language },
   } = useTranslation();
-  const usdInputReference = useRef<TextInput | null>(null); // eslint-disable-line @eslint-react/naming-convention/ref-name
+  const usdInputReference = useRef<null | TextInput>(null); // eslint-disable-line @eslint-react/naming-convention/ref-name
   const [overlayShown, setOverlayShown] = useState(false);
 
   const { asset: assetAddress } = useLocalSearchParams();

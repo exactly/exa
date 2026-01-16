@@ -1,14 +1,18 @@
-import chain from "@exactly/common/generated/chain";
-import { Address } from "@exactly/common/validation";
-import { ArrowLeft, ArrowRight, QrCode } from "@tamagui/lucide-icons";
-import { useForm } from "@tanstack/react-form";
-import { useQuery } from "@tanstack/react-query";
-import { useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
+
+import { useLocalSearchParams, useRouter } from "expo-router";
+
+import { ArrowLeft, ArrowRight, QrCode } from "@tamagui/lucide-icons";
 import { ButtonIcon, ScrollView, Separator, XStack, YStack } from "tamagui";
+
+import { useForm } from "@tanstack/react-form";
+import { useQuery } from "@tanstack/react-query";
 import { safeParse } from "valibot";
+
+import chain from "@exactly/common/generated/chain";
+import { Address } from "@exactly/common/validation";
 
 import Contacts from "./Contacts";
 import RecentContacts from "./RecentContacts";
@@ -26,11 +30,11 @@ export default function ReceiverSelection() {
   const { receiver } = useLocalSearchParams();
   const { t } = useTranslation();
 
-  const { data: recentContacts } = useQuery<{ address: Address; ens: string }[] | undefined>({
+  const { data: recentContacts } = useQuery<undefined | { address: Address; ens: string }[]>({
     queryKey: ["contacts", "recent"],
   });
 
-  const { data: savedContacts } = useQuery<{ address: Address; ens: string }[] | undefined>({
+  const { data: savedContacts } = useQuery<undefined | { address: Address; ens: string }[]>({
     queryKey: ["contacts", "saved"],
   });
 

@@ -1,4 +1,5 @@
 import "./utils/polyfill";
+
 import "expo-router/entry";
 
 import chain from "@exactly/common/generated/chain";

@@ -1,5 +1,3 @@
-import chain from "@exactly/common/generated/chain";
-import { Address } from "@exactly/common/validation";
 import { captureException, captureMessage } from "@sentry/core";
 import { eq } from "drizzle-orm";
 import { alpha2ToAlpha3 } from "i18n-iso-countries";
@@ -25,10 +23,14 @@ import {
 } from "valibot";
 import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
-import type { IdentificationClasses as PersonaIdentificationClasses } from "../persona";
-import { getAccount, getDocument, getInquiry } from "../persona";
-import type * as common from "./shared";
+import chain from "@exactly/common/generated/chain";
+import { Address } from "@exactly/common/validation";
+
 import database, { credentials } from "../../database";
+import { getAccount, getDocument, getInquiry } from "../persona";
+
+import type * as common from "./shared";
+import type { IdentificationClasses as PersonaIdentificationClasses } from "../persona";
 
 if (!process.env.BRIDGE_API_URL) throw new Error("missing bridge api url");
 const baseURL = process.env.BRIDGE_API_URL;
@@ -106,13 +108,13 @@ export async function getLiquidationAddresses(customerId: string) {
   return await request(LiquidationAddresses, `/customers/${customerId}/liquidation_addresses`);
 }
 
-interface GetProvider {
-  credentialId: string;
-  templateId: string;
-  customerId?: string | null;
+type GetProvider = {
   countryCode?: string;
+  credentialId: string;
+  customerId?: null | string;
   redirectURL?: string;
-}
+  templateId: string;
+};
 
 export async function getProvider(data: GetProvider): Promise<InferOutput<typeof common.ProviderInfo>> {
   const currencies: (typeof SupportedCurrency)[number][] = [];
@@ -237,7 +239,7 @@ export async function getProvider(data: GetProvider): Promise<InferOutput<typeof
     currencies.push(...CurrencyByEndorsement[endorsement]);
   }
 
-  let bridgeRedirectURL: URL | undefined = undefined;
+  let bridgeRedirectURL: undefined | URL = undefined;
   if (data.redirectURL) {
     bridgeRedirectURL = new URL(data.redirectURL);
     bridgeRedirectURL.searchParams.set("provider", "bridge" satisfies (typeof common.RampProvider)[number]);
@@ -254,12 +256,12 @@ export async function getProvider(data: GetProvider): Promise<InferOutput<typeof
   return { status: "NOT_STARTED", currencies: [], cryptoCurrencies: [], pendingTasks };
 }
 
-interface Onboarding {
-  credentialId: string;
-  customerId: string | null;
-  templateId: string;
+type Onboarding = {
   acceptedTermsId: string;
-}
+  credentialId: string;
+  customerId: null | string;
+  templateId: string;
+};
 
 export async function onboarding(data: Onboarding): Promise<void> {
   if (data.customerId) {
@@ -1037,7 +1039,7 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
   url: `/${string}`,
   headers = {},
   body?: unknown,
-  method: "GET" | "POST" | "PUT" | "PATCH" = body === undefined ? "GET" : "POST",
+  method: "GET" | "PATCH" | "POST" | "PUT" = body === undefined ? "GET" : "POST",
   timeout = 10_000,
 ) {
   const payload = {

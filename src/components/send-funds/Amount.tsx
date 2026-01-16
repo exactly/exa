@@ -1,24 +1,28 @@
-import ProposalType from "@exactly/common/ProposalType";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { Pressable } from "react-native";
+
+import { useLocalSearchParams, useRouter } from "expo-router";
+
+import { ArrowLeft, Check, Coins, FilePen, X } from "@tamagui/lucide-icons";
+import { Avatar, ScrollView, Square, XStack, YStack } from "tamagui";
+
+import { useForm, useStore } from "@tanstack/react-form";
+import { useQuery } from "@tanstack/react-query";
+import { bigint, check, parse, pipe, safeParse } from "valibot";
+import { encodeAbiParameters, erc20Abi, formatUnits, parseUnits, zeroAddress as viemZeroAddress } from "viem";
+import { useBytecode, useSimulateContract, useWriteContract } from "wagmi";
+
 import { exaPluginAddress } from "@exactly/common/generated/chain";
 import {
   exaPluginAbi,
   upgradeableModularAccountAbi,
   useReadUpgradeableModularAccountGetInstalledPlugins,
 } from "@exactly/common/generated/hooks";
+import ProposalType from "@exactly/common/ProposalType";
 import shortenHex from "@exactly/common/shortenHex";
 import { Address } from "@exactly/common/validation";
 import { WAD } from "@exactly/lib";
-import { ArrowLeft, Coins, FilePen, Check, X } from "@tamagui/lucide-icons";
-import { useForm, useStore } from "@tanstack/react-form";
-import { useQuery } from "@tanstack/react-query";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useTranslation } from "react-i18next";
-import { Pressable } from "react-native";
-import { Avatar, ScrollView, Square, XStack, YStack } from "tamagui";
-import { bigint, check, parse, pipe, safeParse } from "valibot";
-import { encodeAbiParameters, erc20Abi, formatUnits, parseUnits, zeroAddress as viemZeroAddress } from "viem";
-import { useBytecode, useSimulateContract, useWriteContract } from "wagmi";
 
 import ReviewSheet from "./ReviewSheet";
 import assetLogos from "../../utils/assetLogos";
@@ -156,7 +160,7 @@ export default function Amount() {
     };
   }, [external, market, formAmount]);
 
-  const { data: recentContacts } = useQuery<{ address: Address; ens: string }[] | undefined>({
+  const { data: recentContacts } = useQuery<undefined | { address: Address; ens: string }[]>({
     queryKey: ["contacts", "recent"],
   });
 
@@ -164,7 +168,7 @@ export default function Amount() {
 
   useEffect(() => {
     if (success && receiver && !recentContacts?.some((contact) => contact.address === receiver)) {
-      queryClient.setQueryData<{ address: Address; ens: string }[] | undefined>(["contacts", "recent"], (old) =>
+      queryClient.setQueryData<undefined | { address: Address; ens: string }[]>(["contacts", "recent"], (old) =>
         [{ address: receiver, ens: "" }, ...(old ?? [])].slice(0, 3),
       );
     }

@@ -1,11 +1,15 @@
-import shortenHex from "@exactly/common/shortenHex";
-import { Eye, EyeOff, Settings, ClockArrowUp } from "@tamagui/lucide-icons";
-import { useQuery } from "@tanstack/react-query";
-import { setStringAsync } from "expo-clipboard";
-import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
+
+import { setStringAsync } from "expo-clipboard";
+import { useRouter } from "expo-router";
+
+import { ClockArrowUp, Eye, EyeOff, Settings } from "@tamagui/lucide-icons";
+
+import { useQuery } from "@tanstack/react-query";
+
+import shortenHex from "@exactly/common/shortenHex";
 
 import Blocky from "./Blocky";
 import CopyAddressSheet from "./CopyAddressSheet";

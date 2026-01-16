@@ -1,6 +1,8 @@
+import { useEffect } from "react";
+
 import { useNavigation } from "expo-router";
 import { setBackgroundColorAsync } from "expo-system-ui";
-import { useEffect } from "react";
+
 import { useTheme } from "tamagui";
 
 import reportError from "./reportError";

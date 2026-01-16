@@ -2,6 +2,7 @@ import React, { memo } from "react";
 import { StyleSheet } from "react-native";
 import type { SharedValue } from "react-native-reanimated";
 import { Extrapolation, interpolate, useAnimatedStyle } from "react-native-reanimated";
+
 import { useTheme, useWindowDimensions, View } from "tamagui";
 
 import AnimatedView from "../shared/AnimatedView";
@@ -12,10 +13,10 @@ function PaginationComponent({
   progress,
   activeColor,
 }: {
-  index: number;
-  x: SharedValue<number>;
-  progress: SharedValue<number>;
   activeColor: string;
+  index: number;
+  progress: SharedValue<number>;
+  x: SharedValue<number>;
 }) {
   const { width } = useWindowDimensions();
   const itemWidth = width - 40;
@@ -64,8 +65,8 @@ export default memo(function Pagination({
   progress,
 }: {
   length: number;
-  x: SharedValue<number>;
   progress: SharedValue<number>;
+  x: SharedValue<number>;
 }) {
   const theme = useTheme();
   return (

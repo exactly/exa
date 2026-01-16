@@ -1,20 +1,3 @@
-import MIN_BORROW_INTERVAL from "@exactly/common/MIN_BORROW_INTERVAL";
-import {
-  auditorAbi,
-  exaPluginAbi,
-  exaPluginAddress,
-  exaPreviewerAbi,
-  exaPreviewerAddress,
-  issuerCheckerAbi,
-  marketAbi,
-  proposalManagerAbi,
-  refunderAbi,
-  refunderAddress,
-  upgradeableModularAccountAbi,
-  usdcAddress,
-} from "@exactly/common/generated/chain";
-import { Address, type Hash, type Hex } from "@exactly/common/validation";
-import { MATURITY_INTERVAL, splitInstallments } from "@exactly/lib";
 import { vValidator } from "@hono/valibot-validator";
 import {
   captureException,
@@ -29,7 +12,6 @@ import { E_TIMEOUT } from "async-mutex";
 import createDebug from "debug";
 import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
-import type { UnofficialStatusCode } from "hono/utils/http-status";
 import * as v from "valibot";
 import {
   BaseError,
@@ -48,6 +30,24 @@ import {
   zeroHash,
 } from "viem";
 
+import {
+  auditorAbi,
+  exaPluginAbi,
+  exaPluginAddress,
+  exaPreviewerAbi,
+  exaPreviewerAddress,
+  issuerCheckerAbi,
+  marketAbi,
+  proposalManagerAbi,
+  refunderAbi,
+  refunderAddress,
+  upgradeableModularAccountAbi,
+  usdcAddress,
+} from "@exactly/common/generated/chain";
+import MIN_BORROW_INTERVAL from "@exactly/common/MIN_BORROW_INTERVAL";
+import { Address, type Hash, type Hex } from "@exactly/common/validation";
+import { MATURITY_INTERVAL, splitInstallments } from "@exactly/lib";
+
 import database, { cards, credentials, transactions } from "../database/index";
 import keeper from "../utils/keeper";
 import { sendPushNotification } from "../utils/onesignal";
@@ -57,6 +57,8 @@ import risk, { feedback } from "../utils/sardine";
 import { track } from "../utils/segment";
 import traceClient, { type CallFrame } from "../utils/traceClient";
 import validatorHook from "../utils/validatorHook";
+
+import type { UnofficialStatusCode } from "hono/utils/http-status";
 
 const debug = createDebug("exa:panda");
 Object.assign(debug, { inspectOpts: { depth: undefined } });
@@ -813,7 +815,7 @@ function getCreatedAt(payload: v.InferOutput<typeof Transaction>): string | unde
 }
 
 async function prepareCollection(
-  card: { mode: number; credential: { account: string } },
+  card: { credential: { account: string }; mode: number },
   payload: v.InferOutput<typeof Transaction>,
 ) {
   const account = v.parse(Address, card.credential.account);
@@ -927,12 +929,12 @@ function usdcTransfersToCollectors({ calls, logs }: CallFrame): TransferLog[] {
   ];
 }
 
-interface TransferLog {
+type TransferLog = {
   address: Hex;
-  topics: [Hash, Hash, Hash];
   data: Hex;
   position: Hex;
-}
+  topics: [Hash, Hash, Hash];
+};
 
 class PandaError extends Error {
   constructor(

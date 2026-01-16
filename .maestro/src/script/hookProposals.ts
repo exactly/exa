@@ -1,5 +1,6 @@
-import { proposalManagerAbi, proposalManagerAddress } from "@exactly/common/generated/chain";
 import { isHex } from "viem/utils";
+
+import { proposalManagerAbi, proposalManagerAddress } from "@exactly/common/generated/chain";
 
 import anvil, { readContract } from "../anvil";
 import { block } from "../server";

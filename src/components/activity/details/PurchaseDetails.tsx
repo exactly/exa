@@ -1,16 +1,21 @@
-import shortenHex from "@exactly/common/shortenHex";
-import type { CreditActivity, DebitActivity, InstallmentsActivity, PandaActivity } from "@exactly/server/api/activity";
-import { Copy } from "@tamagui/lucide-icons";
-import { useToastController } from "@tamagui/toast";
-import { format } from "date-fns";
-import { setStringAsync } from "expo-clipboard";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
+
+import { setStringAsync } from "expo-clipboard";
+
+import { Copy } from "@tamagui/lucide-icons";
+import { useToastController } from "@tamagui/toast";
 import { Separator, XStack, YStack } from "tamagui";
+
+import { format } from "date-fns";
+
+import shortenHex from "@exactly/common/shortenHex";
 
 import reportError from "../../../utils/reportError";
 import Text from "../../shared/Text";
+
+import type { CreditActivity, DebitActivity, InstallmentsActivity, PandaActivity } from "@exactly/server/api/activity";
 
 export default function PurchaseDetails({
   item,

@@ -1,8 +1,10 @@
-import { ArrowRight } from "@tamagui/lucide-icons";
-import { useRouter } from "expo-router";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { StyleSheet } from "react-native";
+
+import { useRouter } from "expo-router";
+
+import { ArrowRight } from "@tamagui/lucide-icons";
 
 import AccountCreatedBlob from "../../assets/images/account-created-blob.svg";
 import AccountCreatedImage from "../../assets/images/account-created.svg";

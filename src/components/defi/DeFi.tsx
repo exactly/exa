@@ -1,11 +1,14 @@
-import { CircleHelp, Link } from "@tamagui/lucide-icons";
-import { useQuery } from "@tanstack/react-query";
-import { useRouter } from "expo-router";
 import React, { useState, type RefObject } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import type { RefreshControl } from "react-native";
 import { Pressable } from "react-native";
+
+import { useRouter } from "expo-router";
+
+import { CircleHelp, Link } from "@tamagui/lucide-icons";
 import { ScrollView, useTheme, XStack, YStack } from "tamagui";
+
+import { useQuery } from "@tanstack/react-query";
 import { zeroAddress } from "viem";
 import { useBytecode } from "wagmi";
 
@@ -236,12 +239,12 @@ function DeFiServiceButton({
   onPress,
   onActionPress,
 }: {
-  title: string;
-  description: string;
   connected: boolean;
+  description: string;
   icon: React.ReactNode;
-  onPress: () => void;
   onActionPress: () => void;
+  onPress: () => void;
+  title: string;
 }) {
   const { t } = useTranslation();
   return (
@@ -305,5 +308,5 @@ function DeFiServiceButton({
   );
 }
 
-export const defiScrollReference: RefObject<ScrollView | null> = { current: null };
-export const defiRefreshControlReference: RefObject<RefreshControl | null> = { current: null };
+export const defiScrollReference: RefObject<null | ScrollView> = { current: null };
+export const defiRefreshControlReference: RefObject<null | RefreshControl> = { current: null };

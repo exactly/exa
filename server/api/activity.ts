@@ -1,18 +1,3 @@
-import { decodeWithdraw } from "@exactly/common/ProposalType";
-import fixedRate from "@exactly/common/fixedRate";
-import chain, {
-  exaPluginAbi,
-  exaPreviewerAbi,
-  exaPreviewerAddress,
-  marketAbi,
-  marketUSDCAddress,
-  marketWETHAddress,
-  proposalManagerAbi,
-  proposalManagerAddress,
-  upgradeableModularAccountAbi,
-} from "@exactly/common/generated/chain";
-import { Address, Hash, type Hex } from "@exactly/common/validation";
-import { effectiveRate, WAD } from "@exactly/lib";
 import { captureException, setUser } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
@@ -21,8 +6,6 @@ import {
   array,
   bigint,
   boolean,
-  type InferInput,
-  type InferOutput,
   intersect,
   isoTimestamp,
   length,
@@ -43,8 +26,26 @@ import {
   undefined_,
   union,
   variant,
+  type InferInput,
+  type InferOutput,
 } from "valibot";
 import { decodeFunctionData, zeroHash, type Log } from "viem";
+
+import fixedRate from "@exactly/common/fixedRate";
+import chain, {
+  exaPluginAbi,
+  exaPreviewerAbi,
+  exaPreviewerAddress,
+  marketAbi,
+  marketUSDCAddress,
+  marketWETHAddress,
+  proposalManagerAbi,
+  proposalManagerAddress,
+  upgradeableModularAccountAbi,
+} from "@exactly/common/generated/chain";
+import { decodeWithdraw } from "@exactly/common/ProposalType";
+import { Address, Hash, type Hex } from "@exactly/common/validation";
+import { effectiveRate, WAD } from "@exactly/lib";
 
 import database, { credentials } from "../database";
 import auth from "../middleware/auth";
@@ -323,9 +324,9 @@ export const PandaActivity = pipe(
     });
 
     const flow = operations.reduce<{
+      completed: (typeof operations)[number] | undefined;
       created: (typeof operations)[number] | undefined;
       updates: (typeof operations)[number][];
-      completed: (typeof operations)[number] | undefined;
     }>(
       (f, operation) => {
         if (operation.action === "updated") f.updates.push(operation);

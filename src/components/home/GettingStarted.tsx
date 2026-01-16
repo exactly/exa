@@ -1,11 +1,13 @@
-import type { Credential } from "@exactly/common/validation";
-import { ArrowRight, ChevronRight, IdCard } from "@tamagui/lucide-icons";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { useRouter } from "expo-router";
 import React, { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { PixelRatio, Pressable } from "react-native";
+
+import { useRouter } from "expo-router";
+
+import { ArrowRight, ChevronRight, IdCard } from "@tamagui/lucide-icons";
 import { Spinner, XStack, YStack } from "tamagui";
+
+import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { createInquiry, KYC_TEMPLATE_ID, resumeInquiry } from "../../utils/persona";
 import queryClient from "../../utils/queryClient";
@@ -14,6 +16,8 @@ import { APIError, getKYCStatus } from "../../utils/server";
 import useOnboardingSteps from "../../utils/useOnboardingSteps";
 import Text from "../shared/Text";
 import View from "../shared/View";
+
+import type { Credential } from "@exactly/common/validation";
 
 export default function GettingStarted({ hasFunds, hasKYC }: { hasFunds: boolean; hasKYC: boolean }) {
   const router = useRouter();

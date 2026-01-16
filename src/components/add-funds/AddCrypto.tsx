@@ -1,12 +1,15 @@
-import chain from "@exactly/common/generated/chain";
-import shortenHex from "@exactly/common/shortenHex";
-import { AlertTriangle, ArrowLeft, Files, Share as ShareIcon } from "@tamagui/lucide-icons";
-import { setStringAsync } from "expo-clipboard";
-import { useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PixelRatio, Pressable, Share } from "react-native";
+
+import { setStringAsync } from "expo-clipboard";
+import { useRouter } from "expo-router";
+
+import { AlertTriangle, ArrowLeft, Files, Share as ShareIcon } from "@tamagui/lucide-icons";
 import { ScrollView, XStack, YStack } from "tamagui";
+
+import chain from "@exactly/common/generated/chain";
+import shortenHex from "@exactly/common/shortenHex";
 
 import SupportedAssetsSheet from "./SupportedAssetsSheet";
 import OptimismImage from "../../assets/images/optimism.svg";

@@ -1,6 +1,6 @@
-import chain from "@exactly/common/generated/chain";
-import { useMutation } from "@tanstack/react-query";
 import { Platform } from "react-native";
+
+import { useMutation } from "@tanstack/react-query";
 import {
   createWalletClient,
   hexToBigInt,
@@ -11,6 +11,8 @@ import {
   type WalletSendCallsParameters,
 } from "viem";
 import { mnemonicToAccount } from "viem/accounts";
+
+import chain from "@exactly/common/generated/chain";
 
 const account =
   typeof window !== "undefined" && process.env.EXPO_PUBLIC_ENV === "e2e"
@@ -73,6 +75,7 @@ export function useSubmitCoverage() {
 
 declare const __coverage__: unknown;
 declare global {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-definitions
   interface Window {
     ethereum: EIP1193Provider;
   }

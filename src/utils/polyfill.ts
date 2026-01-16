@@ -1,6 +1,7 @@
+import "fast-text-encoding";
+
 import type * as crypto from "@peculiar/webcrypto";
 import type * as buffer from "buffer"; // eslint-disable-line unicorn/prefer-node-protocol -- polyfill module
-import "fast-text-encoding";
 
 /* eslint-disable @typescript-eslint/no-unnecessary-condition */
 

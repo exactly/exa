@@ -1,13 +1,15 @@
-import type { DepositActivity } from "@exactly/server/api/activity";
-import { ArrowDownToLine } from "@tamagui/lucide-icons";
 import React from "react";
 import { useTranslation } from "react-i18next";
+
+import { ArrowDownToLine } from "@tamagui/lucide-icons";
 import { Square, XStack, YStack } from "tamagui";
 
 import TransactionDetails from "./TransactionDetails";
 import assetLogos from "../../../utils/assetLogos";
 import AssetLogo from "../../shared/AssetLogo";
 import Text from "../../shared/Text";
+
+import type { DepositActivity } from "@exactly/server/api/activity";
 
 export default function ReceivedActivity({ item }: { item: Omit<DepositActivity, "blockNumber"> }) {
   const { amount, usdAmount, currency } = item;

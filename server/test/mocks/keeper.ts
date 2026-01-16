@@ -1,10 +1,11 @@
-import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
-import chain from "@exactly/common/generated/chain";
 import path from "node:path";
 import { createWalletClient, http, keccak256, toBytes, type NonceManagerSource } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { getTransactionCount } from "viem/actions";
 import { expect, vi } from "vitest";
+
+import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
+import chain from "@exactly/common/generated/chain";
 
 import type * as keeper from "../../utils/keeper";
 import type * as nonceManager from "../../utils/nonceManager";

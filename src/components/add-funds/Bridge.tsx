@@ -1,36 +1,38 @@
-import chain, { previewerAddress } from "@exactly/common/generated/chain";
-import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
-import shortenHex from "@exactly/common/shortenHex";
-import { WAD } from "@exactly/lib";
-import type { Chain, Token } from "@lifi/sdk";
-import { ArrowLeft, Check, CircleHelp, Clock, Repeat, X } from "@tamagui/lucide-icons";
-import { useToastController } from "@tamagui/toast";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { switchChain, waitForTransactionReceipt } from "@wagmi/core";
-import { useRouter } from "expo-router";
-import type { TFunction } from "i18next";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
+
+import { useRouter } from "expo-router";
+
+import { ArrowLeft, Check, CircleHelp, Clock, Repeat, X } from "@tamagui/lucide-icons";
+import { useToastController } from "@tamagui/toast";
 import { ScrollView, Spinner, Square, XStack, YStack } from "tamagui";
+
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { switchChain, waitForTransactionReceipt } from "@wagmi/core";
 import {
   encodeFunctionData,
   erc20Abi,
   formatUnits,
+  getAddress,
   isAddress,
   parseUnits,
-  type Hex,
+  TransactionExecutionError,
   UserRejectedRequestError,
   zeroAddress,
-  TransactionExecutionError,
-  getAddress,
+  type Hex,
 } from "viem";
 import { useReadContract, useSendCalls, useSendTransaction, useSimulateContract, useWriteContract } from "wagmi";
+
+import chain, { previewerAddress } from "@exactly/common/generated/chain";
+import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
+import shortenHex from "@exactly/common/shortenHex";
+import { WAD } from "@exactly/lib";
 
 import AssetSelectSheet from "./AssetSelectSheet";
 import TokenLogo from "./TokenLogo";
 import OptimismImage from "../../assets/images/optimism.svg";
-import { getRouteFrom, getBridgeSources, tokenCorrelation, type RouteFrom, type BridgeSources } from "../../utils/lifi";
+import { getBridgeSources, getRouteFrom, tokenCorrelation, type BridgeSources, type RouteFrom } from "../../utils/lifi";
 import openBrowser from "../../utils/openBrowser";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
@@ -46,6 +48,9 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 import TokenInput from "../swaps/TokenInput";
 
+import type { Chain, Token } from "@lifi/sdk";
+import type { TFunction } from "i18next";
+
 export default function Bridge() {
   const router = useRouter();
   const toast = useToastController();
@@ -60,12 +65,12 @@ export default function Bridge() {
   const { address: account } = useAccount();
   const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [zeroAddress] });
 
-  const [selectedSource, setSelectedSource] = useState<{ chain: number; address: string } | undefined>();
+  const [selectedSource, setSelectedSource] = useState<undefined | { address: string; chain: number }>();
   const [selectedDestinationAddress, setSelectedDestinationAddress] = useState<string | undefined>();
   const [sourceAmount, setSourceAmount] = useState<bigint>(0n);
 
   const [bridgeStatus, setBridgeStatus] = useState<string | undefined>();
-  const [bridgePreview, setBridgePreview] = useState<{ sourceToken: Token; sourceAmount: bigint } | undefined>();
+  const [bridgePreview, setBridgePreview] = useState<undefined | { sourceAmount: bigint; sourceToken: Token }>();
 
   const senderConfig = ownerConfig;
   const { address: senderAddress } = useAccount({ config: senderConfig });
@@ -100,7 +105,7 @@ export default function Bridge() {
 
   const assetGroups = useMemo(() => {
     if (!chains) return [];
-    return chains.reduce<{ chain: Chain; assets: { token: Token; balance: bigint; usdValue: number }[] }[]>(
+    return chains.reduce<{ assets: { balance: bigint; token: Token; usdValue: number }[]; chain: Chain }[]>(
       (accumulator, chainItem) => {
         const assets = ownerAssetsByChain?.[chainItem.id] ?? [];
         if (assets.length > 0) accumulator.push({ chain: chainItem, assets });
@@ -171,7 +176,7 @@ export default function Bridge() {
   const destinationAssetGroups = useMemo(() => {
     if (destinationTokens.length === 0) return [];
     const chainMatch = chains?.find((item) => item.id === chain.id);
-    const chainData: Pick<Chain, "id" | "name" | "logoURI"> = chainMatch ?? {
+    const chainData: Pick<Chain, "id" | "logoURI" | "name"> = chainMatch ?? {
       id: chain.id,
       name: chain.name,
       logoURI: undefined,

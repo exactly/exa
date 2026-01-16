@@ -1,10 +1,8 @@
 import "../expect";
-import "../mocks/sentry";
-import "../mocks/redis";
 
-import { Address } from "@exactly/common/validation";
-import type * as SimpleWebAuthn from "@simplewebauthn/server";
-import type * as SimpleWebAuthnHelpers from "@simplewebauthn/server/helpers";
+import "../mocks/redis";
+import "../mocks/sentry";
+
 import { testClient } from "hono/testing";
 import { decodeJwt } from "jose";
 import assert from "node:assert";
@@ -12,9 +10,14 @@ import { parse, type InferOutput } from "valibot";
 import { zeroAddress } from "viem";
 import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 
+import { Address } from "@exactly/common/validation";
+
 import app, { type Authentication } from "../../api/auth/authentication";
 import database, { credentials } from "../../database";
+
 import type createCredential from "../../utils/createCredential";
+import type * as SimpleWebAuthn from "@simplewebauthn/server";
+import type * as SimpleWebAuthnHelpers from "@simplewebauthn/server/helpers";
 
 const appClient = testClient(app);
 
@@ -71,7 +74,7 @@ vi.mock("@simplewebauthn/server", async (importOriginal) => {
   return {
     ...actual,
     verifyAuthenticationResponse: vi
-      .fn<() => Promise<{ verified: boolean; authenticationInfo: { credentialID: string; newCounter: number } }>>()
+      .fn<() => Promise<{ authenticationInfo: { credentialID: string; newCounter: number }; verified: boolean }>>()
       .mockResolvedValue({
         verified: true,
         authenticationInfo: { credentialID: "dGVzdC1jcmVkLWlk", newCounter: 1 },

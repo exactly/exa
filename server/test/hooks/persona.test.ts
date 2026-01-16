@@ -1,13 +1,14 @@
-import "../mocks/sentry";
 import "../mocks/persona";
+import "../mocks/sentry";
 
-import deriveAddress from "@exactly/common/deriveAddress";
 import { captureException } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
+
+import deriveAddress from "@exactly/common/deriveAddress";
 
 import database, { credentials } from "../../database";
 import app from "../../hooks/persona";

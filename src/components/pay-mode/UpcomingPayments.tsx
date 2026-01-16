@@ -1,18 +1,21 @@
+import React from "react";
+import { useTranslation } from "react-i18next";
+
+import { ChevronRight } from "@tamagui/lucide-icons";
+import { XStack, YStack } from "tamagui";
+
+import { isBefore } from "date-fns";
+import { zeroAddress } from "viem";
+import { useBytecode } from "wagmi";
+
+import { exaPreviewerAddress, marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
+import { useReadExaPreviewerPendingProposals, useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import ProposalType, {
   decodeCrossRepayAtMaturity,
   decodeRepayAtMaturity,
   decodeRollDebt,
 } from "@exactly/common/ProposalType";
-import { exaPreviewerAddress, marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
-import { useReadExaPreviewerPendingProposals, useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { WAD } from "@exactly/lib";
-import { ChevronRight } from "@tamagui/lucide-icons";
-import { isBefore } from "date-fns";
-import React from "react";
-import { useTranslation } from "react-i18next";
-import { XStack, YStack } from "tamagui";
-import { zeroAddress } from "viem";
-import { useBytecode } from "wagmi";
 
 import assetLogos from "../../utils/assetLogos";
 import useAccount from "../../utils/useAccount";
@@ -38,7 +41,7 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
     query: { enabled: !!address && !!bytecode, refetchInterval: 30_000 },
   });
   const exaUSDC = markets?.find(({ market }) => market === marketUSDCAddress);
-  const duePayments = new Map<bigint, { positionAmount: bigint; amount: bigint; discount: number }>();
+  const duePayments = new Map<bigint, { amount: bigint; discount: number; positionAmount: bigint }>();
   if (markets) {
     for (const { fixedBorrowPositions } of markets) {
       for (const { maturity, previewValue, position } of fixedBorrowPositions) {

@@ -1,9 +1,12 @@
-import { ChevronRight } from "@tamagui/lucide-icons";
-import { useQuery } from "@tanstack/react-query";
-import { useRouter } from "expo-router";
 import React from "react";
 import { useTranslation } from "react-i18next";
+
+import { useRouter } from "expo-router";
+
+import { ChevronRight } from "@tamagui/lucide-icons";
 import { XStack, YStack } from "tamagui";
+
+import { useQuery } from "@tanstack/react-query";
 
 import isProcessing from "../../utils/isProcessing";
 import { getActivity } from "../../utils/server";
@@ -15,7 +18,7 @@ export default function PortfolioSummary({
   portfolio,
 }: {
   averageRate: bigint;
-  portfolio: { usdBalance: bigint; depositMarkets: { market: string; symbol: string; usdValue: bigint }[] };
+  portfolio: { depositMarkets: { market: string; symbol: string; usdValue: bigint }[]; usdBalance: bigint };
 }) {
   const { usdBalance, depositMarkets } = portfolio;
   const router = useRouter();

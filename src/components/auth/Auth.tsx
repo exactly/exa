@@ -1,15 +1,18 @@
-import { sdk } from "@farcaster/miniapp-sdk";
-import { TimeToFullDisplay } from "@sentry/react-native";
-import { Key, User } from "@tamagui/lucide-icons";
-import { useQuery } from "@tanstack/react-query";
-import { useRouter } from "expo-router";
-import React, { type FC, useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState, type FC } from "react";
 import { useTranslation } from "react-i18next";
 import type { StyleProp, ViewStyle, ViewToken } from "react-native";
 import { Platform } from "react-native";
-import Animated, { useAnimatedScrollHandler, useSharedValue, withTiming, Easing } from "react-native-reanimated";
+import Animated, { Easing, useAnimatedScrollHandler, useSharedValue, withTiming } from "react-native-reanimated";
 import type { SvgProps } from "react-native-svg";
 import { scheduleOnRN } from "react-native-worklets";
+
+import { useRouter } from "expo-router";
+
+import { Key, User } from "@tamagui/lucide-icons";
+
+import { sdk } from "@farcaster/miniapp-sdk";
+import { TimeToFullDisplay } from "@sentry/react-native";
+import { useQuery } from "@tanstack/react-query";
 
 import ListItem from "./ListItem";
 import Pagination from "./Pagination";
@@ -21,7 +24,6 @@ import exaCardBlob from "../../assets/images/exa-card-blob.svg";
 import exaCard from "../../assets/images/exa-card.svg";
 import qrCodeBlob from "../../assets/images/qr-code-blob.svg";
 import qrCode from "../../assets/images/qr-code.svg";
-import type { EmbeddingContext } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAuth from "../../utils/useAuth";
 import ConnectSheet from "../shared/ConnectSheet";
@@ -30,6 +32,8 @@ import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
+
+import type { EmbeddingContext } from "../../utils/queryClient";
 
 export default function Auth() {
   const router = useRouter();
@@ -69,7 +73,7 @@ export default function Auth() {
   });
 
   const renderItem = useCallback(
-    ({ item, index }: { item: Page; index: number }) => {
+    ({ item, index }: { index: number; item: Page }) => {
       return <ListItem item={item} index={index} x={offsetX} />;
     },
     [offsetX],
@@ -261,12 +265,12 @@ export default function Auth() {
   );
 }
 
-export interface Page {
-  title: string;
-  image: FC<SvgProps>;
+export type Page = {
   backgroundImage: FC<SvgProps>;
   disabled?: boolean;
-}
+  image: FC<SvgProps>;
+  title: string;
+};
 
 const containerStyle: StyleProp<ViewStyle> = {
   justifyContent: Platform.OS === "web" ? undefined : "center",

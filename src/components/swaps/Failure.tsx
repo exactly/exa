@@ -1,11 +1,13 @@
-import type { Token } from "@lifi/sdk";
-import { ArrowDown, X } from "@tamagui/lucide-icons";
-import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
+
+import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
+
+import { ArrowDown, X } from "@tamagui/lucide-icons";
 import { ScrollView, Square, styled, useTheme, XStack, YStack } from "tamagui";
+
 import { formatUnits } from "viem";
 
 import queryClient from "../../utils/queryClient";
@@ -14,6 +16,8 @@ import AssetLogo from "../shared/AssetLogo";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
+
+import type { Token } from "@lifi/sdk";
 
 export default function Failure({
   fromUsdAmount,
@@ -24,13 +28,13 @@ export default function Failure({
   toToken,
   onClose,
 }: {
-  fromUsdAmount: number;
   fromAmount: bigint;
   fromToken: Token;
-  toUsdAmount: number;
+  fromUsdAmount: number;
+  onClose: () => void;
   toAmount: bigint;
   toToken: Token;
-  onClose: () => void;
+  toUsdAmount: number;
 }) {
   const theme = useTheme();
   const router = useRouter();

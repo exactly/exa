@@ -1,11 +1,13 @@
-import type { Token } from "@lifi/sdk";
-import { ArrowDown, ArrowRight, X } from "@tamagui/lucide-icons";
-import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
 import React from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
+
+import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
+
+import { ArrowDown, ArrowRight, X } from "@tamagui/lucide-icons";
 import { ScrollView, Square, styled, useTheme, XStack, YStack } from "tamagui";
+
 import { formatUnits } from "viem";
 
 import queryClient from "../../utils/queryClient";
@@ -18,6 +20,8 @@ import Text from "../shared/Text";
 import TransactionDetails from "../shared/TransactionDetails";
 import View from "../shared/View";
 
+import type { Token } from "@lifi/sdk";
+
 export default function Success({
   fromUsdAmount,
   fromAmount,
@@ -27,13 +31,13 @@ export default function Success({
   toToken,
   onClose,
 }: {
-  fromUsdAmount: number;
   fromAmount: bigint;
   fromToken: Token;
-  toUsdAmount: number;
+  fromUsdAmount: number;
+  onClose: () => void;
   toAmount: bigint;
   toToken: Token;
-  onClose: () => void;
+  toUsdAmount: number;
 }) {
   const theme = useTheme();
   const router = useRouter();

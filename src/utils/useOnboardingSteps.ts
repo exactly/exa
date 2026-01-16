@@ -1,11 +1,12 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, type Dispatch, type SetStateAction } from "react";
 
-interface Step {
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+
+type Step = {
+  completed: boolean;
   id: string;
   title: string;
-  completed: boolean;
-}
+};
 
 const initialSteps: Step[] = [
   { id: "create-account", title: "Create account", completed: true },

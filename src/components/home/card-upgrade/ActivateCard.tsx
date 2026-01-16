@@ -1,11 +1,14 @@
-import { ArrowRight, CreditCard } from "@tamagui/lucide-icons";
-import { useToastController } from "@tamagui/toast";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { useRouter } from "expo-router";
 import React from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
+
+import { useRouter } from "expo-router";
+
+import { ArrowRight, CreditCard } from "@tamagui/lucide-icons";
+import { useToastController } from "@tamagui/toast";
 import { YStack } from "tamagui";
+
+import { useMutation, useQuery } from "@tanstack/react-query";
 
 import Progression from "./Progression";
 import { presentArticle } from "../../../utils/intercom";

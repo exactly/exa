@@ -1,5 +1,3 @@
-import chain from "@exactly/common/generated/chain";
-import { Address } from "@exactly/common/validation";
 import { captureException, captureMessage } from "@sentry/core";
 import {
   array,
@@ -19,6 +17,9 @@ import {
 } from "valibot";
 import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
+import chain from "@exactly/common/generated/chain";
+import { Address } from "@exactly/common/validation";
+
 import {
   getAccount,
   getDocument,
@@ -28,6 +29,7 @@ import {
   type IdentificationClasses,
   type Inquiry,
 } from "../persona";
+
 import type * as shared from "./shared";
 
 if (!process.env.MANTECA_API_URL) throw new Error("missing manteca api url");
@@ -50,9 +52,9 @@ export async function initiateOnboarding(user: InferInput<typeof UserOnboarding>
 
 export async function uploadIdentityFile(
   userAnyId: string,
-  side: "FRONT" | "BACK",
+  side: "BACK" | "FRONT",
   fileName: string,
-  documentURL?: string | null,
+  documentURL?: null | string,
 ): Promise<void> {
   if (!documentURL) return;
   const { url: presignedURL } = await request(
@@ -230,13 +232,13 @@ export async function getProvider(
   countryCode?: string,
   redirectURL?: string,
 ): Promise<{
-  status: "NOT_STARTED" | "ACTIVE" | "ONBOARDING" | "NOT_AVAILABLE" | "MISSING_INFORMATION";
-  currencies: string[];
   cryptoCurrencies: {
     cryptoCurrency: (typeof shared.Cryptocurrency)[number];
     network: (typeof shared.CryptoNetwork)[number];
   }[];
+  currencies: string[];
   pendingTasks: InferOutput<typeof shared.PendingTask>[];
+  status: "ACTIVE" | "MISSING_INFORMATION" | "NOT_AVAILABLE" | "NOT_STARTED" | "ONBOARDING";
 }> {
   const allowedCountry = countryCode && allowedCountries.get(countryCode as (typeof CountryCode)[number]);
   if (countryCode && !allowedCountry) {
@@ -273,7 +275,7 @@ export async function getProvider(
           case ErrorCodes.ID_NOT_ALLOWED:
             return { status: "NOT_AVAILABLE", currencies: [], cryptoCurrencies: [], pendingTasks: [] };
           case ErrorCodes.BAD_KYC_ADDITIONAL_DATA: {
-            let mantecaRedirectURL: URL | undefined = undefined;
+            let mantecaRedirectURL: undefined | URL = undefined;
             if (redirectURL) {
               mantecaRedirectURL = new URL(redirectURL);
               mantecaRedirectURL.searchParams.set("provider", "manteca" satisfies (typeof shared.RampProvider)[number]);
@@ -830,7 +832,7 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
   url: `/${string}`,
   headers = {},
   body?: unknown,
-  method: "GET" | "POST" | "PUT" | "PATCH" = body === undefined ? "GET" : "POST",
+  method: "GET" | "PATCH" | "POST" | "PUT" = body === undefined ? "GET" : "POST",
   timeout = 10_000,
 ) {
   const response = await fetch(`${baseURL}${url}`, {
@@ -888,7 +890,7 @@ const getExchange = (countryCode: string): (typeof Exchange)[number] => {
   return exchange;
 };
 
-const getSupportedByCountry = (countryCode?: string | null): (typeof MantecaCurrency)[number][] => {
+const getSupportedByCountry = (countryCode?: null | string): (typeof MantecaCurrency)[number][] => {
   if (!countryCode) return [];
   const exchange = ExchangeByCountry[countryCode as (typeof CountryCode)[number]];
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition

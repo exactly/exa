@@ -1,5 +1,6 @@
 import React from "react";
 import { Platform } from "react-native";
+
 import { Sheet, Stack } from "tamagui";
 
 function WebSheetPortalContainer({ children }: { children: React.ReactNode }) {
@@ -13,11 +14,11 @@ export default function ModalSheet({
   heightPercent,
   disableDrag = true,
 }: {
-  open: boolean;
-  onClose: () => void;
   children: React.ReactNode;
-  heightPercent?: number;
   disableDrag?: boolean;
+  heightPercent?: number;
+  onClose: () => void;
+  open: boolean;
 }) {
   return (
     <Sheet

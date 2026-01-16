@@ -1,13 +1,17 @@
-import domain from "@exactly/common/domain";
-import type { Credential } from "@exactly/common/validation";
-import { sdk } from "@farcaster/miniapp-sdk";
-import { router } from "expo-router";
 import { Platform } from "react-native";
 import type { Environment } from "react-native-persona";
+
+import { router } from "expo-router";
+
+import { sdk } from "@farcaster/miniapp-sdk";
+
+import domain from "@exactly/common/domain";
 
 import queryClient, { type EmbeddingContext } from "./queryClient";
 import reportError from "./reportError";
 import { getKYCLink } from "./server";
+
+import type { Credential } from "@exactly/common/validation";
 
 export const environment = (__DEV__ || process.env.EXPO_PUBLIC_ENV === "e2e" ? "sandbox" : "production") as Environment;
 export const KYC_TEMPLATE_ID = "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2";
@@ -76,7 +80,7 @@ export async function resumeInquiry(inquiryId: string, sessionToken: string) {
 }
 
 async function getRedirectURI() {
-  const miniappContext = (await sdk.context) as unknown as { client: { appUrl?: string } } | undefined;
+  const miniappContext = (await sdk.context) as unknown as undefined | { client: { appUrl?: string } };
   if (miniappContext?.client.appUrl) return miniappContext.client.appUrl;
   switch (queryClient.getQueryData<EmbeddingContext>(["embedding-context"])) {
     case "farcaster-web":

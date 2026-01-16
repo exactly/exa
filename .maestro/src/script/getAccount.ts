@@ -1,7 +1,8 @@
-import deriveAddress from "@exactly/common/deriveAddress";
-import { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 import { padHex, zeroHash, type Address } from "viem";
 import { mnemonicToAccount } from "viem/accounts";
+
+import deriveAddress from "@exactly/common/deriveAddress";
+import { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 
 declare const EXPO_PUBLIC_E2E_MNEMONIC: string | undefined;
 declare const output: { account: Address; owner: Address };

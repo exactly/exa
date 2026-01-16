@@ -1,3 +1,6 @@
+import { Platform } from "react-native";
+import { get } from "react-native-passkeys";
+
 import {
   buildUserOperationFromTx,
   createBundlerClient,
@@ -14,12 +17,6 @@ import {
 import { alchemyGasManagerMiddleware } from "@account-kit/infra";
 // @ts-expect-error deep import to avoid broken dependency
 import { standardExecutor } from "@account-kit/smart-contracts/dist/esm/src/msca/account/standardExecutor"; // cspell:ignore msca
-import accountInitCode from "@exactly/common/accountInitCode";
-import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
-import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
-import domain from "@exactly/common/domain";
-import chain, { upgradeableModularAccountAbi } from "@exactly/common/generated/chain";
-import type { Credential } from "@exactly/common/validation";
 import { ECDSASigValue } from "@peculiar/asn1-ecc";
 import { AsnParser } from "@peculiar/asn1-schema";
 import { setUser } from "@sentry/react-native";
@@ -29,8 +26,6 @@ import {
   type AuthenticatorAssertionResponseJSON,
 } from "@simplewebauthn/browser";
 import { getCallsStatus, getConnection, sendCalls, sendTransaction, signMessage } from "@wagmi/core/actions";
-import { Platform } from "react-native";
-import { get } from "react-native-passkeys";
 import {
   bytesToBigInt,
   bytesToHex,
@@ -54,11 +49,19 @@ import {
 } from "viem";
 import { anvil } from "viem/chains";
 
+import accountInitCode from "@exactly/common/accountInitCode";
+import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
+import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
+import domain from "@exactly/common/domain";
+import chain, { upgradeableModularAccountAbi } from "@exactly/common/generated/chain";
+
 import e2e from "./e2e";
 import { login } from "./onesignal";
 import publicClient from "./publicClient";
 import queryClient, { type AuthMethod } from "./queryClient";
 import ownerConfig from "./wagmi/owner";
+
+import type { Credential } from "@exactly/common/validation";
 
 if (chain.id !== anvil.id && !alchemyGasPolicyId) throw new Error("missing alchemy gas policy");
 
@@ -111,7 +114,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
     },
     signMessage: () => Promise.reject(new Error("not implemented")),
     signTypedData: () => Promise.reject(new Error("not implemented")),
-    ...(standardExecutor as Pick<SmartContractAccount, "encodeExecute" | "encodeBatchExecute">),
+    ...(standardExecutor as Pick<SmartContractAccount, "encodeBatchExecute" | "encodeExecute">),
   });
   setUser({ id: account.address });
   login(account.address);
@@ -154,7 +157,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
         switch (method) {
           case "wallet_sendCalls": {
             if (!Array.isArray(params) || params.length !== 1) throw new Error("bad params");
-            const { calls, from, id } = params[0] as { calls: readonly Call[]; id?: string; from?: Address };
+            const { calls, from, id } = params[0] as { calls: readonly Call[]; from?: Address; id?: string };
             if (from && from !== account.address) throw new Error("bad account");
             if (queryClient.getQueryData<AuthMethod>(["method"]) === "webauthn") {
               const { hash } = await client.sendUserOperation({
@@ -297,11 +300,11 @@ function webauthn({
   s,
 }: {
   authenticatorData: Hex;
-  clientDataJSON: string;
   challengeIndex: bigint;
-  typeIndex: bigint;
+  clientDataJSON: string;
   r: bigint;
   s: bigint;
+  typeIndex: bigint;
 }) {
   return wrapSignature(
     0,

@@ -1,13 +1,16 @@
+import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { vs } from "react-native-size-matters";
+
+import { ToggleGroup, YStack } from "tamagui";
+
+import { safeParse } from "valibot";
+import { zeroAddress } from "viem";
+
 import { previewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { Address } from "@exactly/common/validation";
 import { withdrawLimit } from "@exactly/lib";
-import React, { useState } from "react";
-import { useTranslation } from "react-i18next";
-import { vs } from "react-native-size-matters";
-import { ToggleGroup, YStack } from "tamagui";
-import { safeParse } from "valibot";
-import { zeroAddress } from "viem";
 
 import AssetLogo from "./AssetLogo";
 import Skeleton from "./Skeleton";
@@ -22,7 +25,7 @@ export default function AssetSelector({
   sortBy = "usdValue",
 }: {
   onSubmit: (market: Address, isExternalAsset: boolean) => void;
-  sortBy?: "usdValue" | "usdcFirst";
+  sortBy?: "usdcFirst" | "usdValue";
 }) {
   const {
     t,

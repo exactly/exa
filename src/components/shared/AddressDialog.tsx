@@ -1,8 +1,10 @@
-import chain from "@exactly/common/generated/chain";
-import { Copy } from "@tamagui/lucide-icons";
 import React from "react";
 import { Trans, useTranslation } from "react-i18next";
+
+import { Copy } from "@tamagui/lucide-icons";
 import { AlertDialog, XStack, YStack } from "tamagui";
+
+import chain from "@exactly/common/generated/chain";
 
 import Button from "./Button";
 import Text from "./Text";
@@ -15,9 +17,9 @@ export default function AddressDialog({
   onActionPress,
   onClose,
 }: {
-  open: boolean;
   onActionPress: () => void;
   onClose: () => void;
+  open: boolean;
 }) {
   const { t } = useTranslation();
   const aspectRatio = useAspectRatio();

@@ -1,13 +1,15 @@
-import type { RepayActivity as RepayActivityType } from "@exactly/server/api/activity";
-import { ArrowUpFromLine } from "@tamagui/lucide-icons";
 import React from "react";
 import { useTranslation } from "react-i18next";
+
+import { ArrowUpFromLine } from "@tamagui/lucide-icons";
 import { Square, XStack, YStack } from "tamagui";
 
 import TransactionDetails from "./TransactionDetails";
 import assetLogos from "../../../utils/assetLogos";
 import AssetLogo from "../../shared/AssetLogo";
 import Text from "../../shared/Text";
+
+import type { RepayActivity as RepayActivityType } from "@exactly/server/api/activity";
 
 export default function RepayActivity({ item }: { item: Omit<RepayActivityType, "blockNumber"> }) {
   const { amount, usdAmount, currency } = item;

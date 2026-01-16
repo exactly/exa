@@ -1,7 +1,8 @@
-import { Plus } from "@tamagui/lucide-icons";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
+
+import { Plus } from "@tamagui/lucide-icons";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import SpendingLimit from "./SpendingLimit";
@@ -19,10 +20,10 @@ export default function SpendingLimits({
   totalSpent,
   limit,
 }: {
-  open: boolean;
-  onClose: () => void;
-  totalSpent: number;
   limit?: number;
+  onClose: () => void;
+  open: boolean;
+  totalSpent: number;
 }) {
   const { t } = useTranslation();
   return (

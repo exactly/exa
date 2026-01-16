@@ -1,14 +1,17 @@
-import chain from "@exactly/common/generated/chain";
-import shortenHex from "@exactly/common/shortenHex";
-import type { Credential } from "@exactly/common/validation";
-import { ArrowLeft, CircleHelp, Info, Wallet } from "@tamagui/lucide-icons";
-import { useQuery } from "@tanstack/react-query";
-import { useRouter } from "expo-router";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
+
+import { useRouter } from "expo-router";
+
+import { ArrowLeft, CircleHelp, Info, Wallet } from "@tamagui/lucide-icons";
 import { ScrollView, XStack, YStack } from "tamagui";
+
+import { useQuery } from "@tanstack/react-query";
 import { isAddress } from "viem";
+
+import chain from "@exactly/common/generated/chain";
+import shortenHex from "@exactly/common/shortenHex";
 
 import AddFundsOption from "./AddFundsOption";
 import OptimismImage from "../../assets/images/optimism.svg";
@@ -17,6 +20,8 @@ import reportError from "../../utils/reportError";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
+
+import type { Credential } from "@exactly/common/validation";
 
 export default function AddFunds() {
   const router = useRouter();

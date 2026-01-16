@@ -1,28 +1,32 @@
-import { MATURITY_INTERVAL } from "@exactly/lib";
-import { X } from "@tamagui/lucide-icons";
-import { useQuery } from "@tanstack/react-query";
 import React from "react";
 import { useTranslation } from "react-i18next";
+
+import { X } from "@tamagui/lucide-icons";
 import { ScrollView, XStack, YStack } from "tamagui";
+
+import { useQuery } from "@tanstack/react-query";
+
+import { MATURITY_INTERVAL } from "@exactly/lib";
 
 import AssetLogo from "./AssetLogo";
 import ModalSheet from "./ModalSheet";
 import assetLogos from "../../utils/assetLogos";
-import type { Loan } from "../../utils/queryClient";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 
+import type { Loan } from "../../utils/queryClient";
+
 export default function PaymentScheduleSheet({
   open,
   onClose,
   installmentsAmount,
 }: {
-  open: boolean;
-  onClose: () => void;
   installmentsAmount: bigint;
+  onClose: () => void;
+  open: boolean;
 }) {
   const { address } = useAccount();
   const { data: loan } = useQuery<Loan>({ queryKey: ["loan"], enabled: !!address });

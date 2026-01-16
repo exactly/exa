@@ -1,5 +1,6 @@
-import { ChevronRight } from "@tamagui/lucide-icons";
 import React from "react";
+
+import { ChevronRight } from "@tamagui/lucide-icons";
 import { XStack, YStack } from "tamagui";
 
 import Text from "../shared/Text";
@@ -12,9 +13,9 @@ export default function AddFundsOption({
   onPress,
 }: {
   icon: React.ReactElement;
-  title: string;
-  subtitle: string;
   onPress: () => void;
+  subtitle: string;
+  title: string;
 }) {
   return (
     <YStack

@@ -1,12 +1,15 @@
-import { ArrowRight, Check, X } from "@tamagui/lucide-icons";
-import { useToastController } from "@tamagui/toast";
-import { useMutation } from "@tanstack/react-query";
-import { useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Platform, Pressable } from "react-native";
 import { SvgUri } from "react-native-svg";
+
+import { useRouter } from "expo-router";
+
+import { ArrowRight, Check, X } from "@tamagui/lucide-icons";
+import { useToastController } from "@tamagui/toast";
 import { ScrollView, Spinner, XStack, YStack } from "tamagui";
+
+import { useMutation } from "@tanstack/react-query";
 
 import SignatureCard from "../../assets/images/signature-full.svg";
 import queryClient from "../../utils/queryClient";
@@ -20,7 +23,7 @@ import View from "../shared/View";
 
 const scrollContentContainerStyle = { flexGrow: 1, paddingTop: 50 };
 
-export default function VisaSignatureSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+export default function VisaSignatureSheet({ open, onClose }: { onClose: () => void; open: boolean }) {
   const { t } = useTranslation();
   const toast = useToastController();
   const router = useRouter();

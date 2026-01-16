@@ -1,19 +1,19 @@
 export declare global {
   const http: {
-    get: (url: string) => { body: string };
-    post: (url: string, init: { headers?: HeadersInit } & Body) => Response;
-    put: (url: string, init: { headers?: HeadersInit } & Body) => Response;
     delete: (url: string, init: { headers?: HeadersInit }) => Response;
+    get: (url: string) => { body: string };
+    post: (url: string, init: Body & { headers?: HeadersInit }) => Response;
+    put: (url: string, init: Body & { headers?: HeadersInit }) => Response;
     request: (
       url: string,
-      init: {
+      init: Body & { headers?: HeadersInit } & {
         method: "CONNECT" | "DELETE" | "GET" | "HEAD" | "OPTIONS" | "PATCH" | "POST" | "PUT" | "TRACE";
-      } & { headers?: HeadersInit } & Body,
+      },
     ) => Response;
   };
 }
 
 export type Body =
   | { body?: string }
-  | { multipartForm?: { uploadType: string; data: { filePath: string; mediaType?: string } } };
-export type Response = { ok: boolean; status: number; body: string; headers: Headers };
+  | { multipartForm?: { data: { filePath: string; mediaType?: string }; uploadType: string } };
+export type Response = { body: string; headers: Headers; ok: boolean; status: number };

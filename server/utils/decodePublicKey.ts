@@ -8,7 +8,7 @@ export default function decodePublicKey<T>(
 ): { x: T; y: T };
 export default function decodePublicKey<T>(
   bytes: Uint8Array<ArrayBuffer>,
-  decoder: (input: Uint8Array) => T | Hex = bytesToHex,
+  decoder: (input: Uint8Array) => Hex | T = bytesToHex,
 ) {
   if (bytes.length === 20) {
     return { x: decoder(padBytes(bytes, { size: 32, dir: "left" })), y: decoder(new Uint8Array(32)) };

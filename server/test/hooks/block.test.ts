@@ -1,20 +1,9 @@
-import "../mocks/sentry";
 import "../mocks/alchemy";
+import "../mocks/deployments";
 import "../mocks/onesignal";
 import "../mocks/redis";
-import "../mocks/deployments";
+import "../mocks/sentry";
 
-import ProposalType from "@exactly/common/ProposalType";
-import deriveAddress from "@exactly/common/deriveAddress";
-import chain, {
-  auditorAbi,
-  exaPluginAbi,
-  issuerCheckerAbi,
-  marketAbi,
-  proposalManagerAbi,
-  upgradeableModularAccountAbi,
-} from "@exactly/common/generated/chain";
-import deploy from "@exactly/plugin/deploy.json";
 import { testClient } from "hono/testing";
 import {
   createWalletClient,
@@ -38,6 +27,18 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import { anvil } from "viem/chains";
 import { afterEach, beforeEach, describe, expect, inject, it, vi } from "vitest";
+
+import deriveAddress from "@exactly/common/deriveAddress";
+import chain, {
+  auditorAbi,
+  exaPluginAbi,
+  issuerCheckerAbi,
+  marketAbi,
+  proposalManagerAbi,
+  upgradeableModularAccountAbi,
+} from "@exactly/common/generated/chain";
+import ProposalType from "@exactly/common/ProposalType";
+import deploy from "@exactly/plugin/deploy.json";
 
 import app from "../../hooks/block";
 import publicClient from "../../utils/publicClient";

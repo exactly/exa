@@ -1,20 +1,25 @@
-import chain from "@exactly/common/generated/chain";
-import shortenHex from "@exactly/common/shortenHex";
-import type { CreditActivity, DebitActivity, InstallmentsActivity } from "@exactly/server/api/activity";
-import { Copy } from "@tamagui/lucide-icons";
-import { useToastController } from "@tamagui/toast";
-import { useQuery } from "@tanstack/react-query";
-import { format } from "date-fns";
-import { setStringAsync } from "expo-clipboard";
 import React from "react";
 import { useTranslation } from "react-i18next";
+
+import { setStringAsync } from "expo-clipboard";
+
+import { Copy } from "@tamagui/lucide-icons";
+import { useToastController } from "@tamagui/toast";
 import { Separator, XStack, YStack } from "tamagui";
+
+import { useQuery } from "@tanstack/react-query";
+import { format } from "date-fns";
+
+import chain from "@exactly/common/generated/chain";
+import shortenHex from "@exactly/common/shortenHex";
 
 import OptimismImage from "../../../assets/images/optimism.svg";
 import openBrowser from "../../../utils/openBrowser";
-import type { ActivityItem } from "../../../utils/queryClient";
 import reportError from "../../../utils/reportError";
 import Text from "../../shared/Text";
+
+import type { ActivityItem } from "../../../utils/queryClient";
+import type { CreditActivity, DebitActivity, InstallmentsActivity } from "@exactly/server/api/activity";
 
 export default function TransactionDetails({
   source,

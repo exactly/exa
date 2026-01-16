@@ -1,6 +1,7 @@
-import pem from "@exactly/common/pandaCertificate";
 import { Platform } from "react-native";
 import type Crypto from "react-native-quick-crypto";
+
+import pem from "@exactly/common/pandaCertificate";
 
 export async function session() {
   if (Platform.OS !== "web") {

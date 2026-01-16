@@ -1,5 +1,5 @@
 import { parse } from "valibot";
-import { encodeAbiParameters, encodePacked, keccak256, slice, type Address as ViemAddress, type Hash } from "viem";
+import { encodeAbiParameters, encodePacked, keccak256, slice, type Hash, type Address as ViemAddress } from "viem";
 
 import { Address } from "./validation";
 

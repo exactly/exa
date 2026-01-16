@@ -1,12 +1,16 @@
-import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
-import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
-import { ArrowLeft, CircleHelp } from "@tamagui/lucide-icons";
-import { useRouter, useLocalSearchParams } from "expo-router";
 import React, { useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, RefreshControl } from "react-native";
+
+import { useLocalSearchParams, useRouter } from "expo-router";
+
+import { ArrowLeft, CircleHelp } from "@tamagui/lucide-icons";
 import { ScrollView, XStack, YStack } from "tamagui";
+
 import { zeroAddress } from "viem";
+
+import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
+import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 
 import CreditLine from "./CreditLine";
 import { presentArticle } from "../../utils/intercom";
@@ -107,5 +111,5 @@ export default function Loans() {
   );
 }
 
-export const loansScrollReference: RefObject<ScrollView | null> = { current: null };
-export const loansRefreshControlReference: RefObject<RefreshControl | null> = { current: null };
+export const loansScrollReference: RefObject<null | ScrollView> = { current: null };
+export const loansRefreshControlReference: RefObject<null | RefreshControl> = { current: null };

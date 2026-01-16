@@ -1,14 +1,17 @@
-import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
-import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
-import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
-import { borrowLimit, withdrawLimit } from "@exactly/lib";
-import { Loader, LockKeyhole, Snowflake } from "@tamagui/lucide-icons";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Platform } from "react-native";
 import { useAnimatedStyle, useSharedValue } from "react-native-reanimated";
+
+import { Loader, LockKeyhole, Snowflake } from "@tamagui/lucide-icons";
 import { AnimatePresence, XStack, YStack } from "tamagui";
+
 import { zeroAddress } from "viem";
+
+import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
+import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
+import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
+import { borrowLimit, withdrawLimit } from "@exactly/lib";
 
 import SignatureCard from "../../../assets/images/card-signature.svg";
 import Card from "../../../assets/images/card.svg";
@@ -24,11 +27,11 @@ export default function CardContents({
   revealing,
   productId,
 }: {
-  isCredit: boolean;
   disabled: boolean;
   frozen: boolean;
-  revealing: boolean;
+  isCredit: boolean;
   productId?: string;
+  revealing: boolean;
 }) {
   const { address } = useAccount();
   const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [address ?? zeroAddress] });

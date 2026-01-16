@@ -1,7 +1,9 @@
-import { useQuery } from "@tanstack/react-query";
 import React from "react";
 import { useTranslation } from "react-i18next";
+
 import { XStack, YStack } from "tamagui";
+
+import { useQuery } from "@tanstack/react-query";
 
 import Text from "../../shared/Text";
 import View from "../../shared/View";

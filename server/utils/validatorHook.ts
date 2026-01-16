@@ -1,9 +1,10 @@
 import { captureException, setContext } from "@sentry/node";
+import { flatten } from "valibot";
+
 import type createDebug from "debug";
 import type { Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import type { BaseSchema, BaseIssue, SafeParseResult } from "valibot";
-import { flatten } from "valibot";
+import type { BaseIssue, BaseSchema, SafeParseResult } from "valibot";
 
 export default function validatorHook<
   TInput = unknown,

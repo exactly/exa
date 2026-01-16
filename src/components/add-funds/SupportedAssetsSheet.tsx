@@ -1,8 +1,10 @@
-import chain from "@exactly/common/generated/chain";
-import { AlertTriangle, X } from "@tamagui/lucide-icons";
 import React from "react";
 import { Trans, useTranslation } from "react-i18next";
+
+import { AlertTriangle, X } from "@tamagui/lucide-icons";
 import { ScrollView, XStack, YStack } from "tamagui";
+
+import chain from "@exactly/common/generated/chain";
 
 import assetLogos from "../../utils/assetLogos";
 import { presentArticle } from "../../utils/intercom";
@@ -18,7 +20,7 @@ const supportedAssets = Object.entries(assetLogos)
   .filter(([symbol]) => symbol !== "USDC.e" && symbol !== "DAI")
   .map(([symbol, image]) => ({ symbol, image }));
 
-export default function SupportedAssetsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+export default function SupportedAssetsSheet({ open, onClose }: { onClose: () => void; open: boolean }) {
   const { t } = useTranslation();
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>

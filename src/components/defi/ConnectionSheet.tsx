@@ -1,6 +1,7 @@
-import { ArrowRight, Check, Info, X } from "@tamagui/lucide-icons";
 import React, { useState } from "react";
 import { Pressable } from "react-native";
+
+import { ArrowRight, Check, Info, X } from "@tamagui/lucide-icons";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import Connect from "../../assets/images/connect.svg";
@@ -19,13 +20,13 @@ export default function ConnectionSheet({
   actionText,
   onActionPress,
 }: {
-  open: boolean;
-  onClose: () => void;
-  title: string;
-  disclaimer: React.ReactNode;
-  terms: React.ReactNode;
   actionText: string;
+  disclaimer: React.ReactNode;
   onActionPress: () => void;
+  onClose: () => void;
+  open: boolean;
+  terms: React.ReactNode;
+  title: string;
 }) {
   const [acknowledged, setAcknowledged] = useState(true);
   return (

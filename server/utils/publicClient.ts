@@ -1,9 +1,10 @@
-import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
-import chain from "@exactly/common/generated/chain";
 import { getActiveSpan } from "@sentry/node";
 import { inspect } from "node:util";
 import { array, object, optional, parse, string, unknown, type InferOutput } from "valibot";
 import { createPublicClient, http } from "viem";
+
+import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
+import chain from "@exactly/common/generated/chain";
 
 if (!chain.rpcUrls.alchemy.http[0]) throw new Error("missing alchemy rpc url");
 

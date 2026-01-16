@@ -2,13 +2,15 @@ import React, { memo } from "react";
 import { Platform, StyleSheet } from "react-native";
 import type { SharedValue } from "react-native-reanimated";
 import { Extrapolation, interpolate, useAnimatedStyle } from "react-native-reanimated";
-import { View, useWindowDimensions } from "tamagui";
 
-import type { Page } from "./Auth";
+import { useWindowDimensions, View } from "tamagui";
+
 import useAspectRatio from "../../utils/useAspectRatio";
 import AnimatedView from "../shared/AnimatedView";
 
-export default memo(function ListItem({ item, index, x }: { item: Page; index: number; x: SharedValue<number> }) {
+import type { Page } from "./Auth";
+
+export default memo(function ListItem({ item, index, x }: { index: number; item: Page; x: SharedValue<number> }) {
   const aspectRatio = useAspectRatio();
   const { width, height } = useWindowDimensions();
   const itemWidth = Platform.OS === "web" ? height * aspectRatio : width;

@@ -1,9 +1,11 @@
-import { useQuery } from "@tanstack/react-query";
-import { format } from "date-fns";
 import React, { memo, useMemo, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { FlatList, RefreshControl } from "react-native";
+
 import { styled, useTheme } from "tamagui";
+
+import { useQuery } from "@tanstack/react-query";
+import { format } from "date-fns";
 
 import ActivityItem from "./ActivityItem";
 import Empty from "./Empty";
@@ -96,13 +98,13 @@ export default function Activity() {
   );
 }
 
-type ActivityItemType = { type: "header"; date: string } | { type: "event"; event: ActivityEvent; isLast: boolean };
+type ActivityItemType = { date: string; type: "header" } | { event: ActivityEvent; isLast: boolean; type: "event" };
 type ActivityItemProperties = React.ComponentProps<typeof ActivityItem>;
 
 const StyledFlatList = styled(FlatList<ActivityItemType>);
 
 export const activityScrollReference: RefObject<FlatList | null> = { current: null };
-export const activityRefreshControlReference: RefObject<RefreshControl | null> = { current: null };
+export const activityRefreshControlReference: RefObject<null | RefreshControl> = { current: null };
 
 const HeaderRow = memo(function HeaderRow({ date }: { date: string }) {
   return (

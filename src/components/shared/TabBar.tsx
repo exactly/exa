@@ -1,5 +1,6 @@
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import React, { useCallback } from "react";
+
 import { ToggleGroup } from "tamagui";
 
 import SafeView from "./SafeView";

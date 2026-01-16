@@ -1,15 +1,19 @@
-import shortenHex from "@exactly/common/shortenHex";
-import type { Address } from "@exactly/common/validation";
-import { setStringAsync } from "expo-clipboard";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Alert } from "react-native";
+
+import { setStringAsync } from "expo-clipboard";
+
 import { XStack } from "tamagui";
+
+import shortenHex from "@exactly/common/shortenHex";
 
 import reportError from "../../utils/reportError";
 import Blocky from "../shared/Blocky";
 import Text from "../shared/Text";
 import View from "../shared/View";
+
+import type { Address } from "@exactly/common/validation";
 
 export default function Contact({
   contact: { address, ens },

@@ -1,11 +1,13 @@
-import type { Credential } from "@exactly/common/validation";
-import { ArrowDownToLine, ArrowLeft, Check, IdCard } from "@tamagui/lucide-icons";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { useRouter } from "expo-router";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
+
+import { useRouter } from "expo-router";
+
+import { ArrowDownToLine, ArrowLeft, Check, IdCard } from "@tamagui/lucide-icons";
 import { ScrollView, XStack, YStack } from "tamagui";
+
+import { useMutation, useQuery } from "@tanstack/react-query";
 
 import Step from "./Step";
 import { presentArticle } from "../../utils/intercom";
@@ -18,6 +20,8 @@ import ActionButton from "../shared/ActionButton";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
+
+import type { Credential } from "@exactly/common/validation";
 
 export default function GettingStarted() {
   const { t } = useTranslation();

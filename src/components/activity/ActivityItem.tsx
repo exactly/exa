@@ -1,3 +1,8 @@
+import React from "react";
+import { useTranslation } from "react-i18next";
+
+import { useRouter } from "expo-router";
+
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
@@ -7,20 +12,19 @@ import {
   ShoppingCart,
   SquareDashed,
 } from "@tamagui/lucide-icons";
+import { XStack, YStack } from "tamagui";
+
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { useRouter } from "expo-router";
 import { getName, registerLocale, type LocaleData } from "i18n-iso-countries/index";
-import type { TFunction } from "i18next";
-import React from "react";
-import { useTranslation } from "react-i18next";
-import { XStack, YStack } from "tamagui";
 import { titleCase } from "title-case";
 
 import isProcessing from "../../utils/isProcessing";
 import queryClient, { type ActivityItem as Item } from "../../utils/queryClient";
 import Image from "../shared/Image";
 import Text from "../shared/Text";
+
+import type { TFunction } from "i18next";
 
 registerLocale(require("i18n-iso-countries/langs/en.json") as LocaleData); // eslint-disable-line unicorn/prefer-module
 
@@ -29,8 +33,8 @@ export default function ActivityItem({
   isLast,
   stackProps,
 }: {
-  item: Item;
   isLast: boolean;
+  item: Item;
   stackProps?: React.ComponentProps<typeof XStack>;
 }) {
   const router = useRouter();

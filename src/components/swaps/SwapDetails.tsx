@@ -1,9 +1,11 @@
-import type { Token } from "@lifi/sdk";
 import React from "react";
 import { useTranslation } from "react-i18next";
+
 import { XStack, YStack } from "tamagui";
 
 import Text from "../shared/Text";
+
+import type { Token } from "@lifi/sdk";
 
 export default function SwapDetails({
   exchange,
@@ -13,9 +15,9 @@ export default function SwapDetails({
   toToken,
 }: {
   exchange: string;
-  slippage: bigint;
   exchangeRate: number;
   fromToken: Token;
+  slippage: bigint;
   toToken: Token;
 }) {
   const {

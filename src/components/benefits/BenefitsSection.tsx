@@ -2,7 +2,8 @@ import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Platform, useWindowDimensions } from "react-native";
 import Carousel from "react-native-reanimated-carousel";
-import { XStack, View } from "tamagui";
+
+import { View, XStack } from "tamagui";
 
 import BenefitCard from "./BenefitCard";
 import BenefitSheet from "./BenefitSheet";

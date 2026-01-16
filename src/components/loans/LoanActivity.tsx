@@ -1,5 +1,6 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
+
 import { XStack, YStack } from "tamagui";
 
 import Text from "../shared/Text";

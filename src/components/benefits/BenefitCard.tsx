@@ -1,16 +1,18 @@
-import { ChevronRight } from "@tamagui/lucide-icons";
 import React, { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import { YStack, XStack } from "tamagui";
 
-import type { Benefit } from "./BenefitsSection";
+import { ChevronRight } from "@tamagui/lucide-icons";
+import { XStack, YStack } from "tamagui";
+
 import Text from "../shared/Text";
 
-interface BenefitCardProperties {
+import type { Benefit } from "./BenefitsSection";
+
+type BenefitCardProperties = {
   benefit: Benefit;
   onPress: () => void;
-}
+};
 
 export default memo(function BenefitCard({ benefit, onPress }: BenefitCardProperties) {
   const { t } = useTranslation();

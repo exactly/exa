@@ -1,6 +1,8 @@
-import chain from "@exactly/common/generated/chain";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+
 import { createConfig, createStorage, custom } from "wagmi";
+
+import chain from "@exactly/common/generated/chain";
 
 import alchemyConnector from "../alchemyConnector";
 import publicClient from "../publicClient";

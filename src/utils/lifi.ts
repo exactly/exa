@@ -1,5 +1,3 @@
-import chain, { mockSwapperAbi, swapperAddress } from "@exactly/common/generated/chain";
-import { Address as AddressSchema, Hex } from "@exactly/common/validation";
 import {
   ChainType,
   config,
@@ -15,10 +13,14 @@ import {
 } from "@lifi/sdk";
 import { parse } from "valibot";
 import { encodeFunctionData, formatUnits } from "viem";
-import type { Address } from "viem";
 import { anvil } from "viem/chains";
 
+import chain, { mockSwapperAbi, swapperAddress } from "@exactly/common/generated/chain";
+import { Address as AddressSchema, Hex } from "@exactly/common/validation";
+
 import publicClient from "./publicClient";
+
+import type { Address } from "viem";
 
 export async function getRoute(
   fromToken: Hex,
@@ -157,19 +159,19 @@ export async function getAllowTokens() {
   return [exa, ...allowTokens];
 }
 
-export interface RouteFrom {
+export type RouteFrom = {
   chainId: number;
-  to: Address;
   data: Hex;
-  value: bigint;
+  estimate: Estimate;
   gas?: bigint;
   gasPrice?: bigint;
   maxFeePerGas?: bigint;
   maxPriorityFeePerGas?: bigint;
-  tool?: string;
-  estimate: Estimate;
+  to: Address;
   toAmount: bigint;
-}
+  tool?: string;
+  value: bigint;
+};
 
 export async function getRouteFrom({
   fromChainId,
@@ -181,14 +183,14 @@ export async function getRouteFrom({
   toAddress,
   denyExchanges,
 }: {
-  fromChainId?: number;
-  toChainId?: number;
-  fromTokenAddress: string;
-  toTokenAddress: string;
-  fromAmount: bigint;
-  fromAddress: Address;
-  toAddress: Address;
   denyExchanges?: Record<string, boolean>;
+  fromAddress: Address;
+  fromAmount: bigint;
+  fromChainId?: number;
+  fromTokenAddress: string;
+  toAddress: Address;
+  toChainId?: number;
+  toTokenAddress: string;
 }): Promise<RouteFrom> {
   config.set({ integrator: "exa_app", userId: fromAddress });
   const { estimate, transactionRequest, tool } = await getQuote({
@@ -228,16 +230,16 @@ export async function getRouteFrom({
   };
 }
 
-export interface BridgeSources {
-  chains: ExtendedChain[];
-  tokensByChain: Record<number, Token[]>;
+export type BridgeSources = {
   balancesByChain: Record<number, TokenAmount[]>;
-  usdByChain: Record<number, number>;
-  usdByToken: Record<string, number>;
-  ownerAssetsByChain: Record<number, { token: Token; balance: bigint; usdValue: number }[]>;
+  chains: ExtendedChain[];
   defaultChainId?: number;
   defaultTokenAddress?: string;
-}
+  ownerAssetsByChain: Record<number, { balance: bigint; token: Token; usdValue: number }[]>;
+  tokensByChain: Record<number, Token[]>;
+  usdByChain: Record<number, number>;
+  usdByToken: Record<string, number>;
+};
 
 export async function getBridgeSources(account?: string, protocolSymbols: string[] = []): Promise<BridgeSources> {
   if (!account) throw new Error("account is required");
@@ -250,7 +252,7 @@ export async function getBridgeSources(account?: string, protocolSymbols: string
   const usdByChain: Record<number, number> = {};
   const usdByToken: Record<string, number> = {};
   const tokensByChain: Record<number, Token[]> = {};
-  const ownerAssetsByChain: Record<number, { token: Token; balance: bigint; usdValue: number }[]> = {};
+  const ownerAssetsByChain: Record<number, { balance: bigint; token: Token; usdValue: number }[]> = {};
 
   for (const id of chainIds) {
     const chainTokens = supportedTokens[id] ?? [];

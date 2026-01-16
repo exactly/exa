@@ -1,24 +1,11 @@
-import "../mocks/sentry";
 import "../mocks/deployments";
+import "../mocks/keeper";
 import "../mocks/onesignal";
 import "../mocks/panda";
 import "../mocks/redis";
-import "../mocks/keeper";
 import "../mocks/sardine";
+import "../mocks/sentry";
 
-import ProposalType from "@exactly/common/ProposalType";
-import deriveAddress from "@exactly/common/deriveAddress";
-import chain, {
-  auditorAbi,
-  exaAccountFactoryAbi,
-  exaPluginAbi,
-  issuerCheckerAbi,
-  marketAbi,
-  marketUSDCAddress,
-  upgradeableModularAccountAbi,
-} from "@exactly/common/generated/chain";
-import { Address } from "@exactly/common/validation";
-import { proposalManager } from "@exactly/plugin/deploy.json";
 import { captureException } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
@@ -42,6 +29,20 @@ import {
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { anvil } from "viem/chains";
 import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
+
+import deriveAddress from "@exactly/common/deriveAddress";
+import chain, {
+  auditorAbi,
+  exaAccountFactoryAbi,
+  exaPluginAbi,
+  issuerCheckerAbi,
+  marketAbi,
+  marketUSDCAddress,
+  upgradeableModularAccountAbi,
+} from "@exactly/common/generated/chain";
+import ProposalType from "@exactly/common/ProposalType";
+import { Address } from "@exactly/common/validation";
+import { proposalManager } from "@exactly/plugin/deploy.json";
 
 import database, { cards, credentials, transactions } from "../../database";
 import app from "../../hooks/panda";

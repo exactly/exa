@@ -1,6 +1,7 @@
-import { X } from "@tamagui/lucide-icons";
 import React from "react";
 import { useTranslation } from "react-i18next";
+
+import { X } from "@tamagui/lucide-icons";
 import { ScrollView, YStack } from "tamagui";
 
 import openBrowser from "../../utils/openBrowser";
@@ -11,7 +12,7 @@ import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-export default function AboutDefiSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+export default function AboutDefiSheet({ open, onClose }: { onClose: () => void; open: boolean }) {
   const { t } = useTranslation();
   return (
     <ModalSheet open={open} onClose={onClose}>

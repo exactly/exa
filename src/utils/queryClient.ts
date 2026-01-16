@@ -1,15 +1,17 @@
-import { sdk } from "@farcaster/miniapp-sdk";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+
+import { sdk } from "@farcaster/miniapp-sdk";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import { persistQueryClientRestore, persistQueryClientSubscribe } from "@tanstack/query-persist-client-core";
 import { QueryCache, QueryClient } from "@tanstack/react-query";
-import type { Address } from "viem";
 import { deserialize, serialize } from "wagmi";
 import { hashFn, structuralSharing } from "wagmi/query";
 
 import reportError from "./reportError";
-import type { getActivity } from "./server";
 import { isAvailable as isOwnerAvailable } from "./wagmi/owner";
+
+import type { getActivity } from "./server";
+import type { Address } from "viem";
 
 export const persister = createAsyncStoragePersister({ serialize, deserialize, storage: AsyncStorage });
 const queryClient = new QueryClient({
@@ -220,22 +222,22 @@ queryClient.setQueryDefaults(["legacy", "kyc", "status"], { staleTime: 5 * 60_00
 export type AuthMethod = "siwe" | "webauthn";
 export type EmbeddingContext =
   | "base"
+  | "e2e"
   | "farcaster"
   | "farcaster-web"
   | "metamask"
   | "phantom"
   | "unknown"
-  | "e2e"
   | null;
 export type ActivityItem = Awaited<ReturnType<typeof getActivity>>[number];
 
-export interface Loan {
-  market?: Address;
+export type Loan = {
   amount?: bigint;
   installments?: number;
+  market?: Address;
   maturity?: bigint;
   receiver?: Address;
-}
+};
 
 export default queryClient;
 
@@ -251,6 +253,7 @@ export class APIError extends Error {
 }
 
 declare module "@tanstack/react-query" {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- module augmentation requires interface merging
   interface Register {
     queryMeta: { suppressError?: (error: unknown) => boolean | undefined };
   }

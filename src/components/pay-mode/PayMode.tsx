@@ -1,15 +1,19 @@
-import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
-import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
-import { useRouter, useLocalSearchParams } from "expo-router";
 import React, { useState, type RefObject } from "react";
 import { Trans } from "react-i18next";
 import { RefreshControl } from "react-native";
+
+import { useLocalSearchParams, useRouter } from "expo-router";
+
 import { ScrollView, XStack } from "tamagui";
+
 import { zeroAddress } from "viem";
 
+import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
+import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
+
 import OverduePayments from "./OverduePayments";
-import PaySelector from "./PaySelector";
 import PaymentSheet from "./PaymentSheet";
+import PaySelector from "./PaySelector";
 import UpcomingPayments from "./UpcomingPayments";
 import { presentCollection } from "../../utils/intercom";
 import openBrowser from "../../utils/openBrowser";
@@ -108,5 +112,5 @@ export default function PayMode() {
   );
 }
 
-export const payModeScrollReference: RefObject<ScrollView | null> = { current: null };
-export const payModeRefreshControlReference: RefObject<RefreshControl | null> = { current: null };
+export const payModeScrollReference: RefObject<null | ScrollView> = { current: null };
+export const payModeRefreshControlReference: RefObject<null | RefreshControl> = { current: null };

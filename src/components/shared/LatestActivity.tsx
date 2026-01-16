@@ -1,14 +1,17 @@
-import { ChevronRight } from "@tamagui/lucide-icons";
-import { useRouter } from "expo-router";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
+
+import { useRouter } from "expo-router";
+
+import { ChevronRight } from "@tamagui/lucide-icons";
 import { XStack, YStack } from "tamagui";
 
-import type { getActivity } from "../../utils/server";
 import ActivityItem from "../activity/ActivityItem";
 import Text from "../shared/Text";
 import View from "../shared/View";
+
+import type { getActivity } from "../../utils/server";
 
 export default function LatestActivity({
   activity,
@@ -16,8 +19,8 @@ export default function LatestActivity({
   emptyComponent,
 }: {
   activity?: Awaited<ReturnType<typeof getActivity>>;
-  title?: string;
   emptyComponent?: React.ReactNode;
+  title?: string;
 }) {
   const router = useRouter();
   const { t } = useTranslation();

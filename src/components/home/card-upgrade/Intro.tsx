@@ -1,7 +1,8 @@
-import { IdCard, ArrowUpToLine, CreditCard } from "@tamagui/lucide-icons";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { StyleSheet } from "react-native";
+
+import { ArrowUpToLine, CreditCard, IdCard } from "@tamagui/lucide-icons";
 import { XStack, YStack } from "tamagui";
 
 import ExaCard from "../../../assets/images/exa-card.svg";

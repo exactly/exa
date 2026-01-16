@@ -1,5 +1,7 @@
-import { LinearGradient } from "expo-linear-gradient";
 import React, { useMemo } from "react";
+
+import { LinearGradient } from "expo-linear-gradient";
+
 import { ScrollView, styled, useTheme } from "tamagui";
 
 import SafeView from "./SafeView";
@@ -10,8 +12,8 @@ export default function GradientScrollView({
   stickyHeader = false,
 }: {
   children: React.ReactNode;
-  variant?: "error" | "success" | "info" | "neutral";
   stickyHeader?: boolean;
+  variant?: "error" | "info" | "neutral" | "success";
 }) {
   const theme = useTheme();
   const config = VARIANTS[variant];

@@ -1,7 +1,8 @@
-import appId from "@exactly/common/onesignalAppId";
 import { Platform } from "react-native";
 import type * as OneSignalNative from "react-native-onesignal";
 import type OneSignalWeb from "react-onesignal";
+
+import appId from "@exactly/common/onesignalAppId";
 
 import queryClient from "./queryClient";
 import reportError from "./reportError";

@@ -1,10 +1,12 @@
-import type { Token } from "@lifi/sdk";
-import { ArrowDown, X } from "@tamagui/lucide-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
+
+import { LinearGradient } from "expo-linear-gradient";
+
+import { ArrowDown, X } from "@tamagui/lucide-icons";
 import { ScrollView, Square, styled, useTheme, XStack, YStack } from "tamagui";
+
 import { formatUnits } from "viem";
 
 import AssetLogo from "../shared/AssetLogo";
@@ -12,6 +14,8 @@ import SafeView from "../shared/SafeView";
 import ExaSpinner from "../shared/Spinner";
 import Text from "../shared/Text";
 import View from "../shared/View";
+
+import type { Token } from "@lifi/sdk";
 
 export default function Pending({
   fromUsdAmount,
@@ -22,13 +26,13 @@ export default function Pending({
   toToken,
   onClose,
 }: {
-  fromUsdAmount: number;
   fromAmount: bigint;
   fromToken: Token;
-  toUsdAmount: number;
+  fromUsdAmount: number;
+  onClose: () => void;
   toAmount: bigint;
   toToken: Token;
-  onClose: () => void;
+  toUsdAmount: number;
 }) {
   const theme = useTheme();
   const {

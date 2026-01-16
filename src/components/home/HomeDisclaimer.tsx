@@ -1,5 +1,6 @@
 import React from "react";
 import { Trans } from "react-i18next";
+
 import { XStack } from "tamagui";
 
 import { presentCollection } from "../../utils/intercom";
@@ -42,7 +43,7 @@ export default function HomeDisclaimer() {
   );
 }
 
-function DisclaimerLink({ onPress, children }: { onPress: () => void; children?: React.ReactNode }) {
+function DisclaimerLink({ onPress, children }: { children?: React.ReactNode; onPress: () => void }) {
   return (
     <Text cursor="pointer" caption2 color="$interactiveOnDisabled" textDecorationLine="underline" onPress={onPress}>
       {children}

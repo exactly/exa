@@ -1,11 +1,13 @@
-import { sdk } from "@farcaster/miniapp-sdk";
-import { useQuery } from "@tanstack/react-query";
 import React from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import type { ViewProperties } from "./View";
+import { sdk } from "@farcaster/miniapp-sdk";
+import { useQuery } from "@tanstack/react-query";
+
 import View from "./View";
 import reportError from "../../utils/reportError";
+
+import type { ViewProperties } from "./View";
 
 export default function SafeView({ children, ...rest }: ViewProperties) {
   const deviceInsets = useSafeAreaInsets();

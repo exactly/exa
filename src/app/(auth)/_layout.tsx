@@ -1,13 +1,16 @@
-import type { Credential } from "@exactly/common/validation";
-import { sdk } from "@farcaster/miniapp-sdk";
-import { useQuery } from "@tanstack/react-query";
-import { SplashScreen, Stack, useFocusEffect, useRouter } from "expo-router";
-import Head from "expo-router/head";
 import React, { useCallback, useEffect } from "react";
 import { Platform } from "react-native";
 
+import { SplashScreen, Stack, useFocusEffect, useRouter } from "expo-router";
+import Head from "expo-router/head";
+
+import { sdk } from "@farcaster/miniapp-sdk";
+import { useQuery } from "@tanstack/react-query";
+
 import reportError from "../../utils/reportError";
 import useBackgroundColor from "../../utils/useBackgroundColor";
+
+import type { Credential } from "@exactly/common/validation";
 
 export default function OnboardingLayout() {
   useBackgroundColor();

@@ -1,4 +1,17 @@
-import ProposalType from "@exactly/common/ProposalType";
+import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { Pressable } from "react-native";
+
+import { useRouter } from "expo-router";
+
+import { ArrowLeft, ArrowRight, Check, ChevronRight, CircleHelp, X } from "@tamagui/lucide-icons";
+import { ScrollView, Separator, Square, XStack, YStack } from "tamagui";
+
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { waitForCallsStatus } from "@wagmi/core/actions";
+import { encodeAbiParameters, encodeFunctionData, maxUint256, zeroAddress, type Address, type Hex } from "viem";
+import { useBytecode, useSendCalls } from "wagmi";
+
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
 import chain, { exaPluginAddress, marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
@@ -8,22 +21,12 @@ import {
   useReadPreviewerPreviewBorrowAtMaturity,
   useReadUpgradeableModularAccountGetInstalledPlugins,
 } from "@exactly/common/generated/hooks";
+import ProposalType from "@exactly/common/ProposalType";
 import shortenHex from "@exactly/common/shortenHex";
 import { MATURITY_INTERVAL, WAD } from "@exactly/lib";
-import { ArrowLeft, ArrowRight, Check, ChevronRight, CircleHelp, X } from "@tamagui/lucide-icons";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { waitForCallsStatus } from "@wagmi/core/actions";
-import { useRouter } from "expo-router";
-import React, { useState } from "react";
-import { useTranslation } from "react-i18next";
-import { Pressable } from "react-native";
-import { ScrollView, Separator, Square, XStack, YStack } from "tamagui";
-import { encodeAbiParameters, encodeFunctionData, maxUint256, zeroAddress, type Address, type Hex } from "viem";
-import { useBytecode, useSendCalls } from "wagmi";
 
 import assetLogos from "../../utils/assetLogos";
 import { presentArticle } from "../../utils/intercom";
-import type { Loan } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
@@ -37,6 +40,8 @@ import ExaSpinner from "../shared/Spinner";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
+
+import type { Loan } from "../../utils/queryClient";
 
 export default function Review() {
   const router = useRouter();
@@ -111,7 +116,7 @@ export default function Review() {
       if (!market) throw new Error("no market");
       if (!receiver) throw new Error("no receiver");
       if (!singleInstallment && !split) throw new Error("no installment data");
-      const calls: { to: Address; data: Hex }[] = [];
+      const calls: { data: Hex; to: Address }[] = [];
       for (let index = 0; index < (count ?? 0); index++) {
         const borrowAmount = singleInstallment ? amount : split?.amounts[index];
         const borrowMaturity = BigInt(Number(loan?.maturity) + index * MATURITY_INTERVAL);

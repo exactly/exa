@@ -1,4 +1,3 @@
-import { Address } from "@exactly/common/validation";
 import { vValidator } from "@hono/valibot-validator";
 import { captureEvent, captureException } from "@sentry/core";
 import createDebug from "debug";
@@ -20,15 +19,17 @@ import {
   type InferInput,
 } from "valibot";
 
+import { Address } from "@exactly/common/validation";
+
 import database, { credentials } from "../database";
 import { sendPushNotification } from "../utils/onesignal";
 import {
   convertBalanceToUsdc,
+  ErrorCodes,
   OrderStatus,
+  UserStatus,
   withdrawBalance,
   WithdrawStatus,
-  UserStatus,
-  ErrorCodes,
 } from "../utils/ramps/manteca";
 import validatorHook from "../utils/validatorHook";
 import verifySignature from "../utils/verifySignature";
@@ -242,7 +243,7 @@ async function handleDepositDetected(data: InferInput<typeof DepositDetectedData
   }
 }
 
-function headerValidator(signingKeys: Set<string> | (() => Set<string>)) {
+function headerValidator(signingKeys: (() => Set<string>) | Set<string>) {
   return validator("header", async ({ "md-webhook-signature": signature }, c) => {
     for (const signingKey of typeof signingKeys === "function" ? signingKeys() : signingKeys) {
       const payload = await c.req.arrayBuffer();

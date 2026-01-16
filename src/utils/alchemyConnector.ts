@@ -1,20 +1,22 @@
-import type { SmartAccountClient, SmartContractAccount } from "@aa-sdk/core";
-import type { ClientWithAlchemyMethods } from "@account-kit/infra";
-import chain from "@exactly/common/generated/chain";
-import type { Credential } from "@exactly/common/validation";
-import { type Chain, SwitchChainError, type Transport, getAddress } from "viem";
+import { getAddress, SwitchChainError, type Chain, type Transport } from "viem";
 import { ChainNotConfiguredError, createConnector } from "wagmi";
+
+import chain from "@exactly/common/generated/chain";
 
 import createAccountClient from "./accountClient";
 import publicClient from "./publicClient";
 import queryClient from "./queryClient";
 import reportError from "./reportError";
 
+import type { SmartAccountClient, SmartContractAccount } from "@aa-sdk/core";
+import type { ClientWithAlchemyMethods } from "@account-kit/infra";
+import type { Credential } from "@exactly/common/validation";
+
 export let accountClient:
   | SmartAccountClient<Transport, Chain, SmartContractAccount<"WebauthnAccount", "0.6.0">>
   | undefined;
 
-export default createConnector<SmartAccountClient | ClientWithAlchemyMethods>(({ emitter }) => ({
+export default createConnector<ClientWithAlchemyMethods | SmartAccountClient>(({ emitter }) => ({
   id: "alchemy" as const,
   name: "Alchemy" as const,
   type: "alchemy" as const,

@@ -1,7 +1,8 @@
-import { CircleDollarSign, Coins } from "@tamagui/lucide-icons";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
+
+import { CircleDollarSign, Coins } from "@tamagui/lucide-icons";
 import { styled, Switch } from "tamagui";
 
 import Text from "../shared/Text";

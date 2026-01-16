@@ -1,4 +1,3 @@
-import type { Address } from "@exactly/common/validation";
 import React from "react";
 
 import AssetSelector from "../shared/AssetSelector";
@@ -6,14 +5,16 @@ import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import View from "../shared/View";
 
+import type { Address } from "@exactly/common/validation";
+
 export default function AssetSelectionSheet({
   open,
   onClose,
   onAssetSelected,
 }: {
-  open: boolean;
-  onClose: () => void;
   onAssetSelected: (market: Address, external: boolean) => void;
+  onClose: () => void;
+  open: boolean;
 }) {
   return (
     <ModalSheet open={open} onClose={onClose}>

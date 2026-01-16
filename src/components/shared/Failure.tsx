@@ -1,11 +1,13 @@
-import { marketUSDCAddress } from "@exactly/common/generated/chain";
-import type { Hex } from "@exactly/common/validation";
-import { X } from "@tamagui/lucide-icons";
-import { isAfter } from "date-fns";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
+
+import { X } from "@tamagui/lucide-icons";
 import { Square, XStack, YStack } from "tamagui";
+
+import { isAfter } from "date-fns";
+
+import { marketUSDCAddress } from "@exactly/common/generated/chain";
 
 import GradientScrollView from "./GradientScrollView";
 import SafeView from "./SafeView";
@@ -14,6 +16,8 @@ import useAsset from "../../utils/useAsset";
 import AssetLogo from "../shared/AssetLogo";
 import Text from "../shared/Text";
 import View from "../shared/View";
+
+import type { Hex } from "@exactly/common/validation";
 
 export default function Failure({
   amount,
@@ -24,11 +28,11 @@ export default function Failure({
   onClose,
 }: {
   amount: number;
-  repayAssets: bigint;
   currency?: string;
   maturity: bigint;
-  selectedAsset?: Hex;
   onClose: () => void;
+  repayAssets: bigint;
+  selectedAsset?: Hex;
 }) {
   const { externalAsset } = useAsset(selectedAsset);
   const {

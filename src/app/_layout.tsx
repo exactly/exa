@@ -1,7 +1,18 @@
+import React, { useLayoutEffect as useClientLayoutEffect, useEffect } from "react";
+import { initReactI18next } from "react-i18next";
+import { AppState, Platform } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+
+import { isRunningInExpoGo } from "expo";
+import { useAssets } from "expo-asset";
+import { useFonts, type FontSource } from "expo-font";
+import { getLocales } from "expo-localization";
+import { SplashScreen, Stack, useNavigationContainerRef } from "expo-router";
+import { channel, checkForUpdateAsync, fetchUpdateAsync, reloadAsync } from "expo-updates";
+
+import { ToastProvider } from "@tamagui/toast";
+
 import { optimism } from "@account-kit/infra";
-import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
-import domain from "@exactly/common/domain";
-import chain from "@exactly/common/generated/chain";
 import { createConfig, EVM } from "@lifi/sdk";
 import {
   ErrorBoundary,
@@ -11,23 +22,16 @@ import {
   reactNavigationIntegration,
   wrap,
 } from "@sentry/react-native";
-import { ToastProvider } from "@tamagui/toast";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { reconnect } from "@wagmi/core";
-import { isRunningInExpoGo } from "expo";
-import { useAssets } from "expo-asset";
-import { type FontSource, useFonts } from "expo-font";
-import { getLocales } from "expo-localization";
-import { SplashScreen, Stack, useNavigationContainerRef } from "expo-router";
-import { channel, checkForUpdateAsync, fetchUpdateAsync, reloadAsync } from "expo-updates";
 import { use as configI18n } from "i18next";
-import React, { useEffect, useLayoutEffect as useClientLayoutEffect } from "react";
-import { initReactI18next } from "react-i18next";
-import { AppState, Platform } from "react-native";
-import { SafeAreaProvider } from "react-native-safe-area-context";
 import { anvil } from "viem/chains";
 import { WagmiProvider } from "wagmi";
+
+import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
+import domain from "@exactly/common/domain";
+import chain from "@exactly/common/generated/chain";
 
 import BDOGroteskDemiBold from "../assets/fonts/BDOGrotesk-DemiBold.otf";
 import BDOGroteskRegular from "../assets/fonts/BDOGrotesk-Regular.otf";

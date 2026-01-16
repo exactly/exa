@@ -1,22 +1,26 @@
-import ProposalType from "@exactly/common/ProposalType";
+import React, { useCallback } from "react";
+import { useTranslation } from "react-i18next";
+import { Pressable } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { useLocalSearchParams, useRouter } from "expo-router";
+
+import { ArrowLeft, ArrowRight } from "@tamagui/lucide-icons";
+import { useToastController } from "@tamagui/toast";
+import { ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
+
+import { nonEmpty, pipe, safeParse, string } from "valibot";
+import { ContractFunctionExecutionError, encodeAbiParameters, zeroAddress } from "viem";
+import { useBytecode, useWriteContract } from "wagmi";
+
 import { exaPreviewerAddress, marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import {
   useReadExaPreviewerPendingProposals,
   useReadPreviewerPreviewBorrowAtMaturity,
   useSimulateExaPluginPropose,
 } from "@exactly/common/generated/hooks";
+import ProposalType from "@exactly/common/ProposalType";
 import { MATURITY_INTERVAL, WAD } from "@exactly/lib";
-import { ArrowLeft, ArrowRight } from "@tamagui/lucide-icons";
-import { useToastController } from "@tamagui/toast";
-import { useRouter, useLocalSearchParams } from "expo-router";
-import React, { useCallback } from "react";
-import { useTranslation } from "react-i18next";
-import { Pressable } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
-import { nonEmpty, pipe, safeParse, string } from "valibot";
-import { ContractFunctionExecutionError, encodeAbiParameters, zeroAddress } from "viem";
-import { useBytecode, useWriteContract } from "wagmi";
 
 import SafeView from "../../components/shared/SafeView";
 import Text from "../../components/shared/Text";
@@ -220,13 +224,13 @@ function RolloverButton({
   borrowMaturity,
   borrow,
 }: {
-  repayMaturity: bigint;
-  borrowMaturity: bigint;
   borrow: {
     maturity: bigint;
+    position: { fee: bigint; principal: bigint };
     previewValue: bigint;
-    position: { principal: bigint; fee: bigint };
   };
+  borrowMaturity: bigint;
+  repayMaturity: bigint;
 }) {
   const { t } = useTranslation();
   const { address } = useAccount();

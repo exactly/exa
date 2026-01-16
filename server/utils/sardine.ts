@@ -1,10 +1,7 @@
-import domain from "@exactly/common/domain";
 import crypto from "node:crypto";
 import {
   array,
   boolean,
-  type BaseIssue,
-  type BaseSchema,
   length,
   literal,
   maxLength,
@@ -15,11 +12,15 @@ import {
   picklist,
   pipe,
   string,
-  type InferInput,
-  variant,
   toUpperCase,
   transform,
+  variant,
+  type BaseIssue,
+  type BaseSchema,
+  type InferInput,
 } from "valibot";
+
+import domain from "@exactly/common/domain";
 
 if (!process.env.SARDINE_API_KEY) throw new Error("missing sardine api key");
 if (!process.env.SARDINE_API_URL) throw new Error("missing sardine api url");
@@ -42,7 +43,7 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
   url: `/${string}`,
   headers = {},
   body?: unknown,
-  method: "GET" | "POST" | "PUT" | "PATCH" = body === undefined ? "GET" : "POST",
+  method: "GET" | "PATCH" | "POST" | "PUT" = body === undefined ? "GET" : "POST",
   timeout = 10_000,
 ) {
   const response = await fetch(`${baseURL}${url}`, {

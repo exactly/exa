@@ -1,11 +1,13 @@
-import { WAD } from "@exactly/lib";
-import type { Token } from "@lifi/sdk";
-import { useForm } from "@tanstack/react-form";
 import React, { useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
+
 import { XStack, YStack } from "tamagui";
-import { pipe, string, nonEmpty } from "valibot";
+
+import { useForm } from "@tanstack/react-form";
+import { nonEmpty, pipe, string } from "valibot";
 import { formatUnits, parseUnits } from "viem";
+
+import { WAD } from "@exactly/lib";
 
 import OptimismImage from "../../assets/images/optimism.svg";
 import AssetLogo from "../shared/AssetLogo";
@@ -14,6 +16,8 @@ import Input from "../shared/Input";
 import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 import View from "../shared/View";
+
+import type { Token } from "@lifi/sdk";
 
 export default function TokenInput({
   label,
@@ -31,20 +35,20 @@ export default function TokenInput({
   onUseMax,
   chainLogoUri,
 }: {
-  label: string;
-  subLabel?: string;
-  token?: Token;
   amount: bigint;
   balance: bigint;
+  chainLogoUri?: string;
   disabled?: boolean;
-  isLoading?: boolean;
   isActive: boolean;
   isDanger?: boolean;
-  onTokenSelect: () => void;
-  onFocus?: () => void;
+  isLoading?: boolean;
+  label: string;
   onChange?: (amount: bigint) => void;
+  onFocus?: () => void;
+  onTokenSelect: () => void;
   onUseMax?: (amount: bigint) => void;
-  chainLogoUri?: string;
+  subLabel?: string;
+  token?: Token;
 }) {
   const { Field, setFieldValue, getFieldValue } = useForm({ defaultValues: { amountInput: "" } });
   const {

@@ -1,12 +1,12 @@
 import type { ViewProps } from "tamagui";
 import { styled, View } from "tamagui";
 
-export interface ViewProperties extends ViewProps {
-  padded?: boolean;
+export type ViewProperties = ViewProps & {
   fullScreen?: boolean;
-  tab?: boolean;
+  padded?: boolean;
   smallPadding?: boolean;
-}
+  tab?: boolean;
+};
 
 export default styled(View, {
   variants: {

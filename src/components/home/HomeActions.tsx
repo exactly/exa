@@ -1,21 +1,26 @@
+import React, { useMemo } from "react";
+import { useTranslation } from "react-i18next";
+
+import { useRouter } from "expo-router";
+
+import { ArrowDownToLine, ArrowUpRight } from "@tamagui/lucide-icons";
+import { XStack, YStack } from "tamagui";
+
+import { useQuery } from "@tanstack/react-query";
+import { zeroAddress } from "viem";
+import { useBytecode, useReadContract } from "wagmi";
+
 import { exaPluginAddress } from "@exactly/common/generated/chain";
 import {
   upgradeableModularAccountAbi,
   useReadUpgradeableModularAccountGetInstalledPlugins,
 } from "@exactly/common/generated/hooks";
-import { ArrowDownToLine, ArrowUpRight } from "@tamagui/lucide-icons";
-import { useQuery } from "@tanstack/react-query";
-import { useRouter } from "expo-router";
-import React, { useMemo } from "react";
-import { useTranslation } from "react-i18next";
-import { XStack, YStack } from "tamagui";
-import { zeroAddress } from "viem";
-import { useBytecode, useReadContract } from "wagmi";
 
-import type { AuthMethod } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import Button from "../shared/StyledButton";
+
+import type { AuthMethod } from "../../utils/queryClient";
 
 export default function HomeActions() {
   const router = useRouter();

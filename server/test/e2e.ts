@@ -1,5 +1,4 @@
 /// <reference types="vite/client" />
-import "./mocks/sentry";
 import "./mocks/alchemy";
 import "./mocks/deployments";
 import "./mocks/keeper";
@@ -7,10 +6,12 @@ import "./mocks/onesignal";
 import "./mocks/pax";
 import "./mocks/redis";
 import "./mocks/sardine";
+import "./mocks/sentry";
 
-import type * as sentry from "@sentry/node";
 import { mkdir, writeFile } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
+
+import type * as sentry from "@sentry/node";
 
 describe("e2e", () => {
   it(

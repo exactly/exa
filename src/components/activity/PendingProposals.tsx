@@ -1,3 +1,25 @@
+import React from "react";
+import { useTranslation } from "react-i18next";
+import { Pressable, RefreshControl, ScrollView } from "react-native";
+
+import { useRouter } from "expo-router";
+
+import {
+  ArrowLeft,
+  ArrowLeftRight,
+  ArrowUpRight,
+  CircleHelp,
+  Coins,
+  RefreshCw,
+  SearchSlash,
+  Shuffle,
+} from "@tamagui/lucide-icons";
+import { XStack, YStack } from "tamagui";
+
+import { extractChain, type Chain } from "viem";
+import * as chains from "viem/chains";
+
+import chain from "@exactly/common/generated/chain";
 import ProposalType, {
   decodeBorrowAtMaturity,
   decodeCrossRepayAtMaturity,
@@ -5,30 +27,9 @@ import ProposalType, {
   decodeRollDebt,
   decodeWithdraw,
 } from "@exactly/common/ProposalType";
-import chain from "@exactly/common/generated/chain";
 import shortenHex from "@exactly/common/shortenHex";
-import {
-  ArrowLeft,
-  CircleHelp,
-  Coins,
-  RefreshCw,
-  ArrowLeftRight,
-  ArrowUpRight,
-  SearchSlash,
-  Shuffle,
-} from "@tamagui/lucide-icons";
-import type { MutationState } from "@tanstack/react-query";
-import { useRouter } from "expo-router";
-import type { TFunction } from "i18next";
-import React from "react";
-import { useTranslation } from "react-i18next";
-import { Pressable, RefreshControl, ScrollView } from "react-native";
-import { XStack, YStack } from "tamagui";
-import { extractChain, type Chain } from "viem";
-import * as chains from "viem/chains";
 
 import { presentArticle } from "../../utils/intercom";
-import type { RouteFrom } from "../../utils/lifi";
 import reportError from "../../utils/reportError";
 import useAsset from "../../utils/useAsset";
 import usePendingOperations from "../../utils/usePendingOperations";
@@ -36,23 +37,27 @@ import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-interface Proposal {
+import type { RouteFrom } from "../../utils/lifi";
+import type { MutationState } from "@tanstack/react-query";
+import type { TFunction } from "i18next";
+
+type Proposal = {
   amount: bigint;
-  market: `0x${string}`;
-  timestamp: bigint;
-  proposalType: ProposalType;
   data: `0x${string}`;
-}
+  market: `0x${string}`;
+  proposalType: ProposalType;
+  timestamp: bigint;
+};
 
 type ProposalWithMetadata = Proposal & {
-  label: string;
-  icon: React.ReactNode;
   decoded?:
     | ReturnType<typeof decodeBorrowAtMaturity>
-    | ReturnType<typeof decodeRepayAtMaturity>
     | ReturnType<typeof decodeCrossRepayAtMaturity>
+    | ReturnType<typeof decodeRepayAtMaturity>
     | ReturnType<typeof decodeRollDebt>
     | { receiver: ReturnType<typeof decodeWithdraw> };
+  icon: React.ReactNode;
+  label: string;
 };
 
 function getProposalLabel(proposalType: ProposalType, t: TFunction): string {

@@ -1,4 +1,20 @@
-import ProposalType from "@exactly/common/ProposalType";
+import { useMemo } from "react";
+
+import {
+  bytesToHex,
+  encodeAbiParameters,
+  hexToBigInt,
+  hexToBytes,
+  keccak256,
+  toBytes,
+  zeroAddress,
+  type Address,
+  type BlockOverrides,
+  type Hex,
+  type StateOverride,
+} from "viem";
+import { useBytecode, useSimulateContract } from "wagmi";
+
 import {
   exaPluginAddress,
   exaPreviewerAddress,
@@ -15,21 +31,7 @@ import {
   useReadProposalManagerDelay,
   useReadProposalManagerQueueNonces,
 } from "@exactly/common/generated/hooks";
-import { useMemo } from "react";
-import {
-  bytesToHex,
-  encodeAbiParameters,
-  hexToBigInt,
-  hexToBytes,
-  keccak256,
-  toBytes,
-  zeroAddress,
-  type Address,
-  type BlockOverrides,
-  type Hex,
-  type StateOverride,
-} from "viem";
-import { useBytecode, useSimulateContract } from "wagmi";
+import ProposalType from "@exactly/common/ProposalType";
 
 export default function useSimulateProposal({
   account,
@@ -40,43 +42,43 @@ export default function useSimulateProposal({
 }: {
   account: Address | undefined;
   amount: bigint | undefined;
-  market: Address | undefined;
   enabled?: boolean;
+  market: Address | undefined;
 } & (
   | {
-      proposalType: typeof ProposalType.BorrowAtMaturity;
+      assetOut: Address | undefined;
+      minAmountOut: bigint | undefined;
+      proposalType: typeof ProposalType.Swap;
+      route: Hex | undefined;
+    }
+  | {
+      borrowMaturity: bigint | undefined;
+      maxRepayAssets: bigint | undefined;
+      percentage: bigint | undefined;
+      proposalType: typeof ProposalType.RollDebt;
+      repayMaturity: bigint | undefined;
+    }
+  | {
       maturity: bigint | undefined;
       maxAssets: bigint | undefined;
+      proposalType: typeof ProposalType.BorrowAtMaturity;
       receiver: Address | undefined;
     }
   | {
+      maturity: bigint | undefined;
+      maxRepay: bigint | undefined;
+      positionAssets: bigint | undefined;
       proposalType: typeof ProposalType.CrossRepayAtMaturity;
+      route: Hex | undefined;
+    }
+  | {
       maturity: bigint | undefined;
       positionAssets: bigint | undefined;
-      maxRepay: bigint | undefined;
-      route: Hex | undefined;
+      proposalType: typeof ProposalType.RepayAtMaturity;
     }
   | {
       proposalType: typeof ProposalType.Redeem;
       receiver: Address | undefined;
-    }
-  | {
-      proposalType: typeof ProposalType.RepayAtMaturity;
-      maturity: bigint | undefined;
-      positionAssets: bigint | undefined;
-    }
-  | {
-      proposalType: typeof ProposalType.RollDebt;
-      repayMaturity: bigint | undefined;
-      borrowMaturity: bigint | undefined;
-      maxRepayAssets: bigint | undefined;
-      percentage: bigint | undefined;
-    }
-  | {
-      proposalType: typeof ProposalType.Swap;
-      assetOut: Address | undefined;
-      minAmountOut: bigint | undefined;
-      route: Hex | undefined;
     }
   | {
       proposalType: typeof ProposalType.Withdraw;

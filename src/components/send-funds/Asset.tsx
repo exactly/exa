@@ -1,13 +1,17 @@
-import shortenHex from "@exactly/common/shortenHex";
-import { Address } from "@exactly/common/validation";
-import { ArrowLeft, UserMinus, UserPlus } from "@tamagui/lucide-icons";
-import { useQuery } from "@tanstack/react-query";
-import { useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Alert, Pressable } from "react-native";
+
+import { useLocalSearchParams, useRouter } from "expo-router";
+
+import { ArrowLeft, UserMinus, UserPlus } from "@tamagui/lucide-icons";
 import { Avatar, ScrollView, XStack } from "tamagui";
+
+import { useQuery } from "@tanstack/react-query";
 import { parse } from "valibot";
+
+import shortenHex from "@exactly/common/shortenHex";
+import { Address } from "@exactly/common/validation";
 
 import queryClient from "../../utils/queryClient";
 import AssetSelector from "../shared/AssetSelector";
@@ -23,7 +27,7 @@ export default function AssetSelection() {
   const receiver = parse(Address, receiverAddress);
   const { t } = useTranslation();
 
-  const { data: savedContacts } = useQuery<{ address: Address; ens: string }[] | undefined>({
+  const { data: savedContacts } = useQuery<undefined | { address: Address; ens: string }[]>({
     queryKey: ["contacts", "saved"],
   });
 
@@ -79,7 +83,7 @@ export default function AssetSelection() {
                 backgroundColor={hasContact ? "$interactiveBaseErrorSoftDefault" : "$interactiveBaseBrandSoftDefault"}
                 padding="$s3_5"
                 onPress={() => {
-                  queryClient.setQueryData<{ name: string; address: Address; ens: string }[] | undefined>(
+                  queryClient.setQueryData<undefined | { address: Address; ens: string; name: string }[]>(
                     ["contacts", "saved"],
                     (old) => {
                       if (hasContact) {

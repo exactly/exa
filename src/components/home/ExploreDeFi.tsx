@@ -1,8 +1,10 @@
-import { ArrowRight, XCircle } from "@tamagui/lucide-icons";
-import { useRouter } from "expo-router";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Platform } from "react-native";
+
+import { useRouter } from "expo-router";
+
+import { ArrowRight, XCircle } from "@tamagui/lucide-icons";
 import { XStack, YStack } from "tamagui";
 
 import DeFiBanner from "../../assets/images/defi-banner.svg";

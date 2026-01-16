@@ -1,6 +1,8 @@
-import domain from "@exactly/common/domain";
-import { ScrollViewStyleReset } from "expo-router/html";
 import React, { type ReactNode } from "react";
+
+import { ScrollViewStyleReset } from "expo-router/html";
+
+import domain from "@exactly/common/domain";
 
 import appMetadata from "../../package.json";
 

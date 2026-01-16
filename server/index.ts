@@ -1,12 +1,12 @@
-import domain from "@exactly/common/domain";
-import chain from "@exactly/common/generated/chain";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { captureException, close as closeSentry } from "@sentry/node";
 import { isoBase64URL } from "@simplewebauthn/server/helpers";
 import { Hono } from "hono";
 import { trimTrailingSlash } from "hono/trailing-slash";
-import type { UnofficialStatusCode } from "hono/utils/http-status";
+
+import domain from "@exactly/common/domain";
+import chain from "@exactly/common/generated/chain";
 
 import api from "./api";
 import database from "./database";
@@ -18,6 +18,8 @@ import persona from "./hooks/persona";
 import androidFingerprints from "./utils/android/fingerprints";
 import appOrigin from "./utils/appOrigin";
 import { closeAndFlush as closeSegment } from "./utils/segment";
+
+import type { UnofficialStatusCode } from "hono/utils/http-status";
 
 const app = new Hono();
 app.use(trimTrailingSlash());

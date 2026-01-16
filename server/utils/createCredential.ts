@@ -1,14 +1,13 @@
+import { captureException, setUser } from "@sentry/core";
+import { setSignedCookie } from "hono/cookie";
+import { parse } from "valibot";
+import { hexToBytes, isAddress } from "viem";
+
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 import deriveAddress from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
 import { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
-import { captureException, setUser } from "@sentry/core";
-import type { WebAuthnCredential } from "@simplewebauthn/server";
-import type { Context } from "hono";
-import { setSignedCookie } from "hono/cookie";
-import { parse } from "valibot";
-import { hexToBytes, isAddress } from "viem";
 
 import { updateWebhookAddresses } from "./alchemy";
 import authSecret from "./authSecret";
@@ -18,6 +17,9 @@ import { identify } from "./segment";
 import database from "../database";
 import { credentials } from "../database/schema";
 import { webhookId } from "../hooks/activity";
+
+import type { WebAuthnCredential } from "@simplewebauthn/server";
+import type { Context } from "hono";
 
 export default async function createCredential<C extends string>(
   c: Context,

@@ -1,6 +1,7 @@
-import { Check } from "@tamagui/lucide-icons";
 import React from "react";
 import { Pressable } from "react-native";
+
+import { Check } from "@tamagui/lucide-icons";
 import { XStack, YStack } from "tamagui";
 
 import Text from "../shared/Text";
@@ -14,12 +15,12 @@ export default function Step({
   onPress,
   completed,
 }: {
-  title: string;
+  action: string;
+  completed: boolean;
   description: string;
   icon: React.ReactNode;
-  action: string;
   onPress: () => void;
-  completed: boolean;
+  title: string;
 }) {
   if (completed) {
     return (

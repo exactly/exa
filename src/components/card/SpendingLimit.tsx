@@ -1,7 +1,9 @@
-import { Skeleton } from "moti/skeleton";
 import React from "react";
 import { useTranslation } from "react-i18next";
+
 import { XStack, YStack } from "tamagui";
+
+import { Skeleton } from "moti/skeleton";
 
 import Text from "../shared/Text";
 
@@ -10,8 +12,8 @@ export default function SpendingLimit({
   limit,
   totalSpent,
 }: {
-  title: string;
   limit?: number;
+  title: string;
   totalSpent: number;
 }) {
   const {

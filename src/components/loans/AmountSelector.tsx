@@ -1,7 +1,8 @@
-import type { Hex } from "@exactly/common/validation";
-import { useForm } from "@tanstack/react-form";
 import React, { useCallback, useState } from "react";
+
 import { Separator, XStack, YStack } from "tamagui";
+
+import { useForm } from "@tanstack/react-form";
 import { nonEmpty, pipe, string } from "valibot";
 import { formatUnits, parseUnits } from "viem";
 
@@ -11,12 +12,14 @@ import AssetLogo from "../shared/AssetLogo";
 import Input from "../shared/Input";
 import Text from "../shared/Text";
 
+import type { Hex } from "@exactly/common/validation";
+
 export default function AmountSelector({
   onChange,
   market,
 }: {
-  onChange: (value: bigint, highAmount: boolean) => void;
   market: Hex;
+  onChange: (value: bigint, highAmount: boolean) => void;
 }) {
   const { market: selectedMarket, borrowAvailable } = useAsset(market);
   const { Field, setFieldValue, getFieldValue } = useForm({ defaultValues: { assetInput: "" } });

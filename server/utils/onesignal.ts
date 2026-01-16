@@ -1,5 +1,6 @@
-import appId from "@exactly/common/onesignalAppId";
 import { createConfiguration, DefaultApi, Notification } from "@onesignal/node-onesignal";
+
+import appId from "@exactly/common/onesignalAppId";
 
 const client = new DefaultApi(createConfiguration({ restApiKey: process.env.ONESIGNAL_API_KEY }));
 
@@ -9,9 +10,9 @@ export async function sendPushNotification({
   headings,
   contents,
 }: {
-  userId: string;
-  headings: NonNullable<Notification["headings"]>;
   contents: NonNullable<Notification["contents"]>;
+  headings: NonNullable<Notification["headings"]>;
+  userId: string;
 }) {
   if (!appId) return;
 

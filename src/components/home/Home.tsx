@@ -1,3 +1,16 @@
+import React, { useState, type RefObject } from "react";
+import { useTranslation } from "react-i18next";
+import { RefreshControl } from "react-native";
+
+import { useLocalSearchParams, useRouter } from "expo-router";
+
+import { ScrollView, YStack } from "tamagui";
+
+import { TimeToFullDisplay } from "@sentry/react-native";
+import { useQuery } from "@tanstack/react-query";
+import { zeroAddress } from "viem";
+import { useBytecode } from "wagmi";
+
 import { exaPluginAddress, exaPreviewerAddress, previewerAddress } from "@exactly/common/generated/chain";
 import {
   useReadExaPreviewerPendingProposals,
@@ -6,16 +19,8 @@ import {
 } from "@exactly/common/generated/hooks";
 import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
 import { healthFactor, WAD } from "@exactly/lib";
-import { TimeToFullDisplay } from "@sentry/react-native";
-import { useQuery } from "@tanstack/react-query";
-import { useRouter, useLocalSearchParams } from "expo-router";
-import React, { useState, type RefObject } from "react";
-import { useTranslation } from "react-i18next";
-import { RefreshControl } from "react-native";
-import { ScrollView, YStack } from "tamagui";
-import { zeroAddress } from "viem";
-import { useBytecode } from "wagmi";
 
+import CardUpgradeSheet from "./card-upgrade/CardUpgradeSheet";
 import CardStatus from "./CardStatus";
 import GettingStarted from "./GettingStarted";
 import HomeActions from "./HomeActions";
@@ -24,7 +29,6 @@ import PortfolioSummary from "./PortfolioSummary";
 import SpendingLimitsSheet from "./SpendingLimitsSheet";
 import VisaSignatureBanner from "./VisaSignatureBanner";
 import VisaSignatureModal from "./VisaSignatureSheet";
-import CardUpgradeSheet from "./card-upgrade/CardUpgradeSheet";
 import { KYC_TEMPLATE_ID, LEGACY_KYC_TEMPLATE_ID } from "../../utils/persona";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
@@ -239,5 +243,5 @@ export default function Home() {
   );
 }
 
-export const homeScrollReference: RefObject<ScrollView | null> = { current: null };
-export const homeRefreshControlReference: RefObject<RefreshControl | null> = { current: null };
+export const homeScrollReference: RefObject<null | ScrollView> = { current: null };
+export const homeRefreshControlReference: RefObject<null | RefreshControl> = { current: null };

@@ -9,12 +9,12 @@ export default function Blocky({
   size = 8,
   scale = 4,
 }: {
-  seed: string;
-  color?: string;
   bgcolor?: string;
-  spotColor?: string;
-  size?: number;
+  color?: string;
   scale?: number;
+  seed: string;
+  size?: number;
+  spotColor?: string;
 }) {
   const resolvedSize = normalizeInteger(size, 8);
   const resolvedScale = normalizeInteger(scale, 4);
@@ -29,12 +29,12 @@ export default function Blocky({
 }
 
 function renderIcon(options: {
-  seed: string;
-  color?: string;
   bgcolor?: string;
-  spotColor?: string;
-  size: number;
+  color?: string;
   scale: number;
+  seed: string;
+  size: number;
+  spotColor?: string;
 }) {
   const { size, scale, color, bgcolor, spotColor, rand } = buildOptions(options);
   const imageData = createImageData(size, rand);
@@ -59,20 +59,20 @@ function renderIcon(options: {
 }
 
 function buildOptions(options: {
-  seed?: string;
-  color?: string;
   bgcolor?: string;
-  spotColor?: string;
-  size?: number;
+  color?: string;
   scale?: number;
+  seed?: string;
+  size?: number;
+  spotColor?: string;
 }): {
-  seed: string;
-  color: string;
   bgcolor: string;
-  spotColor: string;
-  size: number;
-  scale: number;
+  color: string;
   rand: () => number;
+  scale: number;
+  seed: string;
+  size: number;
+  spotColor: string;
 } {
   const seed = (options.seed ?? Math.floor(Math.random() * 10 ** 16).toString(16)).toLowerCase();
   const rand = createRng(seed);

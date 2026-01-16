@@ -1,21 +1,7 @@
-import chain, {
-  exaAccountFactoryAddress,
-  exaPluginAddress,
-  issuerCheckerAddress,
-  marketUSDCAddress,
-  previewerAbi,
-  previewerAddress,
-  upgradeableModularAccountAbi,
-} from "@exactly/common/generated/chain";
-import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
-import { Address, Hash } from "@exactly/common/validation";
-import { proposalManager } from "@exactly/plugin/deploy.json";
 import { vValidator } from "@hono/valibot-validator";
 import { Mutex, withTimeout, type MutexInterface } from "async-mutex";
 import { eq } from "drizzle-orm";
 import {
-  type BaseIssue,
-  type BaseSchema,
   boolean,
   length,
   literal,
@@ -29,13 +15,28 @@ import {
   pipe,
   string,
   transform,
+  type BaseIssue,
+  type BaseSchema,
 } from "valibot";
 import { BaseError, ContractFunctionZeroDataError } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { base, optimism } from "viem/chains";
 
-import database, { credentials } from "../database";
+import chain, {
+  exaAccountFactoryAddress,
+  exaPluginAddress,
+  issuerCheckerAddress,
+  marketUSDCAddress,
+  previewerAbi,
+  previewerAddress,
+  upgradeableModularAccountAbi,
+} from "@exactly/common/generated/chain";
+import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
+import { Address, Hash } from "@exactly/common/validation";
+import { proposalManager } from "@exactly/plugin/deploy.json";
+
 import verifySignature from "./verifySignature";
+import database, { credentials } from "../database";
 import publicClient from "../utils/publicClient";
 
 const plugin = exaPluginAddress.toLowerCase();
@@ -72,8 +73,8 @@ export async function createUser(user: {
   accountPurpose: string;
   annualSalary: string;
   expectedMonthlyVolume: string;
-  isTermsOfServiceAccepted: true;
   ipAddress: string;
+  isTermsOfServiceAccepted: true;
   occupation: string;
   personaShareToken: string;
 }) {
@@ -81,22 +82,22 @@ export async function createUser(user: {
 }
 
 export async function updateUser(user: {
-  id: string;
+  address?: {
+    city: string;
+    country?: string;
+    countryCode: string;
+    line1: string;
+    line2?: string;
+    postalCode: string;
+    region: string;
+  };
   email?: string;
   firstName?: string;
+  id: string;
   isActive?: boolean;
   lastName?: string;
   phoneCountryCode?: string;
   phoneNumber?: string;
-  address?: {
-    line1: string;
-    line2?: string;
-    city: string;
-    region: string;
-    postalCode: string;
-    countryCode: string;
-    country?: string;
-  };
 }) {
   return await request(UserResponse, `/issuing/users/${user.id}`, {}, user, "PATCH");
 }
@@ -110,22 +111,22 @@ export async function getCard(cardId: string) {
 }
 
 export async function updateCard(card: {
-  id: string;
-  status?: "active" | "canceled" | "locked" | "notActivated";
-  limit?: {
-    amount: number;
-    frequency: "per24HourPeriod" | "per7DayPeriod" | "per30DayPeriod" | "perYearPeriod";
-  };
   billing?: {
+    city: string;
+    country?: string;
+    countryCode: string;
     line1: string;
     line2?: string;
-    city: string;
-    region: string;
     postalCode: string;
-    countryCode: string;
-    country?: string;
+    region: string;
   };
   configuration?: { virtualCardArt: string };
+  id: string;
+  limit?: {
+    amount: number;
+    frequency: "per7DayPeriod" | "per24HourPeriod" | "per30DayPeriod" | "perYearPeriod";
+  };
+  status?: "active" | "canceled" | "locked" | "notActivated";
 }) {
   return await request(CardResponse, `/issuing/cards/${card.id}`, {}, card, "PATCH");
 }
@@ -160,7 +161,7 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
   url: `/${string}`,
   headers = {},
   body?: unknown,
-  method: "GET" | "POST" | "PUT" | "PATCH" = body === undefined ? "GET" : "POST",
+  method: "GET" | "PATCH" | "POST" | "PUT" = body === undefined ? "GET" : "POST",
   timeout = 10_000,
 ) {
   const response = await fetch(`${baseURL}${url}`, {

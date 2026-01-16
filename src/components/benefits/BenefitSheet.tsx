@@ -1,27 +1,31 @@
-import { Copy, ExternalLink, X } from "@tamagui/lucide-icons";
-import { useToastController } from "@tamagui/toast";
-import { useQuery } from "@tanstack/react-query";
-import { setStringAsync } from "expo-clipboard";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
-import { YStack, XStack, Spinner, ScrollView } from "tamagui";
 
-import type { Benefit } from "./BenefitsSection";
+import { setStringAsync } from "expo-clipboard";
+
+import { Copy, ExternalLink, X } from "@tamagui/lucide-icons";
+import { useToastController } from "@tamagui/toast";
+import { ScrollView, Spinner, XStack, YStack } from "tamagui";
+
+import { useQuery } from "@tanstack/react-query";
+
 import openBrowser from "../../utils/openBrowser";
 import reportError from "../../utils/reportError";
-import type { PaxId } from "../../utils/server";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-interface BenefitSheetProperties {
+import type { Benefit } from "./BenefitsSection";
+import type { PaxId } from "../../utils/server";
+
+type BenefitSheetProperties = {
   benefit: Benefit | undefined;
-  open: boolean;
   onClose: () => void;
-}
+  open: boolean;
+};
 
 export default function BenefitSheet({ benefit, open, onClose }: BenefitSheetProperties) {
   const { t } = useTranslation();

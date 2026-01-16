@@ -1,7 +1,9 @@
-import { ChevronRight } from "@tamagui/lucide-icons";
-import { useRouter } from "expo-router";
 import React from "react";
 import { useTranslation } from "react-i18next";
+
+import { useRouter } from "expo-router";
+
+import { ChevronRight } from "@tamagui/lucide-icons";
 
 import usePendingOperations from "../../utils/usePendingOperations";
 import Text from "../shared/Text";

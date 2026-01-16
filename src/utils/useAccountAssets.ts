@@ -1,38 +1,39 @@
-import chain, { previewerAddress } from "@exactly/common/generated/chain";
-import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
-import { withdrawLimit } from "@exactly/lib";
 import { useQuery } from "@tanstack/react-query";
 import { zeroAddress } from "viem";
 import { anvil } from "viem/chains";
 
+import chain, { previewerAddress } from "@exactly/common/generated/chain";
+import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
+import { withdrawLimit } from "@exactly/lib";
+
 import { getTokenBalances } from "./lifi";
 import useAccount from "./useAccount";
 
-export interface ProtocolAsset {
+export type ProtocolAsset = {
   asset: string;
-  type: "protocol";
-  symbol: string;
   assetName: string;
-  floatingDepositAssets: bigint;
   decimals: number;
+  floatingDepositAssets: bigint;
+  market: `0x${string}`;
+  symbol: string;
+  type: "protocol";
   usdPrice: bigint;
   usdValue: number;
-  market: `0x${string}`;
-}
+};
 
-export interface ExternalAsset {
-  type: "external";
-  name: string;
-  symbol: string;
-  logoURI?: string;
+export type ExternalAsset = {
   address: string;
   amount?: bigint;
-  priceUSD: string;
   decimals: number;
+  logoURI?: string;
+  name: string;
+  priceUSD: string;
+  symbol: string;
+  type: "external";
   usdValue: number;
-}
+};
 
-export default function useAccountAssets(options?: { sortBy?: "usdValue" | "usdcFirst" }) {
+export default function useAccountAssets(options?: { sortBy?: "usdcFirst" | "usdValue" }) {
   const { address: account } = useAccount();
 
   const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [account ?? zeroAddress] });

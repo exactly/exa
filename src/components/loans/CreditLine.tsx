@@ -1,13 +1,17 @@
+import React from "react";
+import { useTranslation } from "react-i18next";
+
+import { useRouter } from "expo-router";
+
+import { ArrowRight } from "@tamagui/lucide-icons";
+import { Separator, XStack, YStack } from "tamagui";
+
+import { formatUnits, zeroAddress } from "viem";
+import { useBytecode } from "wagmi";
+
 import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { borrowLimit } from "@exactly/lib";
-import { ArrowRight } from "@tamagui/lucide-icons";
-import { useRouter } from "expo-router";
-import React from "react";
-import { useTranslation } from "react-i18next";
-import { Separator, XStack, YStack } from "tamagui";
-import { formatUnits, zeroAddress } from "viem";
-import { useBytecode } from "wagmi";
 
 import assetLogos from "../../utils/assetLogos";
 import queryClient, { type Loan } from "../../utils/queryClient";

@@ -1,14 +1,3 @@
-import {
-  auditorAbi,
-  exaAccountFactoryAbi,
-  exaPluginAbi,
-  exaPreviewerAbi,
-  exaPreviewerAddress,
-  marketAbi,
-  upgradeableModularAccountAbi,
-  wethAddress,
-} from "@exactly/common/generated/chain";
-import { Address, Hash } from "@exactly/common/validation";
 import { vValidator } from "@hono/valibot-validator";
 import { SPAN_STATUS_ERROR, SPAN_STATUS_OK, type SpanStatus } from "@sentry/core";
 import {
@@ -26,6 +15,18 @@ import { eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import * as v from "valibot";
 import { bytesToBigInt, withRetry } from "viem";
+
+import {
+  auditorAbi,
+  exaAccountFactoryAbi,
+  exaPluginAbi,
+  exaPreviewerAbi,
+  exaPreviewerAddress,
+  marketAbi,
+  upgradeableModularAccountAbi,
+  wethAddress,
+} from "@exactly/common/generated/chain";
+import { Address, Hash } from "@exactly/common/validation";
 
 import database, { cards, credentials } from "../database";
 import { createWebhook, findWebhook, headerValidator, network } from "../utils/alchemy";
@@ -106,7 +107,7 @@ export default new Hono().post(
       .readContract({ address: exaPreviewerAddress, functionName: "assets", abi: exaPreviewerAbi })
       .then((p) => new Map<Address, Address>(p.map((m) => [v.parse(Address, m.asset), v.parse(Address, m.market)])));
     const markets = new Set(marketsByAsset.values());
-    const pokes = new Map<Address, { publicKey: Uint8Array<ArrayBuffer>; factory: Address; assets: Set<Address> }>();
+    const pokes = new Map<Address, { assets: Set<Address>; factory: Address; publicKey: Uint8Array<ArrayBuffer> }>();
     for (const { toAddress: account, rawContract, value, asset: assetSymbol } of transfers) {
       if (!accounts[account]) continue;
       if (rawContract?.address && markets.has(rawContract.address)) continue;

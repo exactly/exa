@@ -1,9 +1,10 @@
-import { Address } from "@exactly/common/validation";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { describeRoute } from "hono-openapi";
 import { resolver } from "hono-openapi/valibot";
 import { object, safeParse, string } from "valibot";
+
+import { Address } from "@exactly/common/validation";
 
 import database, { credentials } from "../database";
 import auth from "../middleware/auth";

@@ -1,12 +1,13 @@
-import { Info, X } from "@tamagui/lucide-icons";
 import React from "react";
 import { Pressable } from "react-native";
+
+import { Info, X } from "@tamagui/lucide-icons";
 import { XStack } from "tamagui";
 
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-export default function DismissableAlert({ text, onDismiss }: { text: string; onDismiss: () => void }) {
+export default function DismissableAlert({ text, onDismiss }: { onDismiss: () => void; text: string }) {
   return (
     <XStack
       borderRadius="$r3"

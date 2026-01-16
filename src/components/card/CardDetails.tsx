@@ -1,12 +1,16 @@
-import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
-import { Copy } from "@tamagui/lucide-icons";
-import { useToastController } from "@tamagui/toast";
-import { useQuery } from "@tanstack/react-query";
-import { setStringAsync } from "expo-clipboard";
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, useColorScheme } from "react-native";
+
+import { setStringAsync } from "expo-clipboard";
+
+import { Copy } from "@tamagui/lucide-icons";
+import { useToastController } from "@tamagui/toast";
 import { ScrollView, XStack, YStack } from "tamagui";
+
+import { useQuery } from "@tanstack/react-query";
+
+import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 
 import DismissableAlert from "./DismissableAlert";
 import ExaLogoDark from "../../assets/images/exa-logo-dark.svg";
@@ -18,14 +22,15 @@ import VisaLogoSignature from "../../assets/images/visa-logo-signature.svg";
 import { decrypt } from "../../utils/panda";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
-import type { CardDetails as CardDetailsData } from "../../utils/server";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-export default function CardDetails({ open, onClose }: { open: boolean; onClose: () => void }) {
+import type { CardDetails as CardDetailsData } from "../../utils/server";
+
+export default function CardDetails({ open, onClose }: { onClose: () => void; open: boolean }) {
   const theme = useColorScheme();
   const toast = useToastController();
   const { t } = useTranslation();

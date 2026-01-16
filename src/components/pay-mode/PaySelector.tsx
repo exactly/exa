@@ -1,15 +1,18 @@
-import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
-import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
-import { useReadPreviewerExactly, useReadPreviewerPreviewBorrowAtMaturity } from "@exactly/common/generated/hooks";
-import { borrowLimit, WAD, withdrawLimit } from "@exactly/lib";
-import { CircleHelp, Check } from "@tamagui/lucide-icons";
-import { useToastController } from "@tamagui/toast";
-import { useMutation, useQuery } from "@tanstack/react-query";
 import React, { useMemo, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { Pressable, StyleSheet } from "react-native";
+
+import { Check, CircleHelp } from "@tamagui/lucide-icons";
+import { useToastController } from "@tamagui/toast";
 import { XStack, YStack } from "tamagui";
+
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { formatUnits, parseUnits, zeroAddress } from "viem";
+
+import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
+import { useReadPreviewerExactly, useReadPreviewerPreviewBorrowAtMaturity } from "@exactly/common/generated/hooks";
+import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
+import { borrowLimit, WAD, withdrawLimit } from "@exactly/lib";
 
 import ManualRepaymentSheet from "./ManualRepaymentSheet";
 import assetLogos from "../../utils/assetLogos";
@@ -46,7 +49,7 @@ export default function PaySelector() {
 
   const { data: manualRepaymentAcknowledged } = useQuery<boolean>({ queryKey: ["manual-repayment-acknowledged"] });
   const [manualRepaymentSheetOpen, setManualRepaymentSheetOpen] = useState(false);
-  const [pendingInstallment, setPendingInstallment] = useState<number | null>(null);
+  const [pendingInstallment, setPendingInstallment] = useState<null | number>(null);
 
   const { data: card } = useQuery<CardDetails>({ queryKey: ["card", "details"] });
   const { mutateAsync: mutateMode } = useMutation({
@@ -249,10 +252,10 @@ function InstallmentButton({
   onSelect,
   assets,
 }: {
-  installment: number;
-  cardDetails?: { mode: number } | null;
-  onSelect: (installment: number) => void;
   assets: bigint;
+  cardDetails?: null | { mode: number };
+  installment: number;
+  onSelect: (installment: number) => void;
 }) {
   const {
     t,

@@ -1,14 +1,18 @@
-import { Address } from "@exactly/common/validation";
-import { ArrowLeft, BoxSelect, SwitchCamera } from "@tamagui/lucide-icons";
-import { CameraView, useCameraPermissions } from "expo-camera";
-import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Linking, Pressable, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { CameraView, useCameraPermissions } from "expo-camera";
+import { useFocusEffect, useRouter } from "expo-router";
+
+import { ArrowLeft, BoxSelect, SwitchCamera } from "@tamagui/lucide-icons";
 import { useWindowDimensions, XStack, YStack } from "tamagui";
+
 import { parse, safeParse } from "valibot";
 import { zeroAddress } from "viem";
+
+import { Address } from "@exactly/common/validation";
 
 import reportError from "../../utils/reportError";
 import Button from "../shared/Button";
@@ -22,7 +26,7 @@ export default function QR() {
   const router = useRouter();
 
   const [active, setActive] = useState(true);
-  const [cameraFacing, setCameraFacing] = useState<"front" | "back">("back");
+  const [cameraFacing, setCameraFacing] = useState<"back" | "front">("back");
   const [permission, requestPermission] = useCameraPermissions();
   const { t } = useTranslation();
 

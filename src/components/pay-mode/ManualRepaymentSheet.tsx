@@ -1,6 +1,7 @@
-import { ArrowRight, Check } from "@tamagui/lucide-icons";
 import React, { useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
+
+import { ArrowRight, Check } from "@tamagui/lucide-icons";
 import { ScrollView, Separator, XStack, YStack } from "tamagui";
 
 import ModalSheet from "../shared/ModalSheet";
@@ -15,9 +16,9 @@ export default function ManualRepaymentSheet({
   onActionPress,
   penaltyRate,
 }: {
-  open: boolean;
-  onClose: () => void;
   onActionPress: () => void;
+  onClose: () => void;
+  open: boolean;
   penaltyRate?: bigint;
 }) {
   const {

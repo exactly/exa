@@ -1,5 +1,6 @@
-import { Stack } from "expo-router";
 import React, { useEffect } from "react";
+
+import { Stack } from "expo-router";
 
 import { enablePrompt } from "../../utils/onesignal";
 import useBackgroundColor from "../../utils/useBackgroundColor";

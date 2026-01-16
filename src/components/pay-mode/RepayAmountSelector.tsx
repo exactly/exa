@@ -1,8 +1,11 @@
-import { min } from "@exactly/lib";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+
 import { Separator, Slider, XStack, YStack } from "tamagui";
+
 import { formatUnits, parseUnits } from "viem";
+
+import { min } from "@exactly/lib";
 
 import assetLogos from "../../utils/assetLogos";
 import AssetLogo from "../shared/AssetLogo";
@@ -17,12 +20,12 @@ export default function RepayAmountSelector({
   balancerBalance,
   positionValue,
 }: {
-  value: bigint;
-  onChange: (value: bigint) => void;
-  maxRepayInput: bigint;
-  totalPositionRepay: bigint;
   balancerBalance: bigint | undefined;
+  maxRepayInput: bigint;
+  onChange: (value: bigint) => void;
   positionValue: bigint;
+  totalPositionRepay: bigint;
+  value: bigint;
 }) {
   const {
     t,

@@ -1,12 +1,16 @@
-import { previewerAddress } from "@exactly/common/generated/chain";
-import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
-import { ArrowLeft, ArrowRight, Check, CircleHelp } from "@tamagui/lucide-icons";
-import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
+
+import { useRouter } from "expo-router";
+
+import { ArrowLeft, ArrowRight, Check, CircleHelp } from "@tamagui/lucide-icons";
 import { ScrollView, XStack, YStack } from "tamagui";
+
 import { zeroAddress } from "viem";
+
+import { previewerAddress } from "@exactly/common/generated/chain";
+import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 
 import assetLogos from "../../utils/assetLogos";
 import { presentArticle } from "../../utils/intercom";

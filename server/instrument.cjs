@@ -1,6 +1,7 @@
-const domain = require("@exactly/common/domain");
 const { consoleLoggingIntegration, extraErrorDataIntegration, init } = require("@sentry/node");
 const { nodeProfilingIntegration } = require("@sentry/profiling-node");
+
+const domain = require("@exactly/common/domain");
 
 const development = !process.env.APP_DOMAIN || process.env.APP_DOMAIN === "localhost";
 

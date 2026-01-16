@@ -1,31 +1,32 @@
-import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
-import chain from "@exactly/common/generated/chain";
 import { parse } from "valibot";
 import {
   AccountStateConflictError,
   BaseError,
-  type BlockNumber,
-  type BlockTag,
-  type CallParameters,
   createPublicClient,
-  type FormattedTransactionRequest,
   formatTransactionRequest,
-  type Hash,
-  type Hex,
   http,
   InvalidAddressError,
   isAddress,
   numberToHex,
+  rpcSchema,
+  StateAssignmentConflictError,
+  type BlockNumber,
+  type BlockTag,
+  type CallParameters,
+  type FormattedTransactionRequest,
+  type Hash,
+  type Hex,
   type RpcAccountStateOverride,
   type RpcBlockOverrides,
-  rpcSchema,
   type RpcStateMapping,
   type RpcStateOverride,
   type RpcTransactionRequest,
-  StateAssignmentConflictError,
   type StateMapping,
   type StateOverride,
 } from "viem";
+
+import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
+import chain from "@exactly/common/generated/chain";
 
 import { captureRequests, Request } from "./publicClient";
 
@@ -64,40 +65,40 @@ export default createPublicClient({
     }),
 }));
 
-export interface CallFrame {
-  type: "CALL" | "CREATE" | "STATICCALL" | "DELEGATECALL";
+export type CallFrame = {
+  calls?: CallFrame[];
+  error?: string;
   from: string;
-  to: string;
-  value?: Hex;
   gas: Hex;
   gasUsed: Hex;
   input: Hex;
-  output?: Hex;
-  error?: string;
-  revertReason?: string;
-  calls?: CallFrame[];
   logs?: {
     address: Hex;
-    topics?: [] | [signature: Hash, ...args: Hash[]];
     data?: Hex;
     position: Hex;
+    topics?: [] | [signature: Hash, ...args: Hash[]];
   }[];
-}
+  output?: Hex;
+  revertReason?: string;
+  to: string;
+  type: "CALL" | "CREATE" | "DELEGATECALL" | "STATICCALL";
+  value?: Hex;
+};
 
 export type RpcSchema = [
   {
     Method: "debug_traceCall";
     Parameters:
-      | [transaction: RpcTransactionRequest]
-      | [transaction: RpcTransactionRequest, block: BlockNumber | BlockTag]
       | [
           transaction: RpcTransactionRequest,
           block: BlockNumber | BlockTag,
-          (
+          { blockOverrides?: RpcBlockOverrides; stateOverrides?: RpcStateOverride; txIndex?: number } & (
             | { tracer: "callTracer"; tracerConfig: { onlyTopCall?: boolean; withLog?: boolean } }
             | { tracer: "prestateTracer"; tracerConfig: { diffMode?: boolean } }
-          ) & { stateOverrides?: RpcStateOverride; blockOverrides?: RpcBlockOverrides; txIndex?: number },
-        ];
+          ),
+        ]
+      | [transaction: RpcTransactionRequest, block: BlockNumber | BlockTag]
+      | [transaction: RpcTransactionRequest];
     ReturnType: CallFrame;
   },
   {
@@ -152,7 +153,7 @@ function serializeStateMapping(stateMapping?: StateMapping) {
   }, {});
 }
 export class InvalidBytesLengthError extends BaseError {
-  constructor({ size, targetSize, type }: { size: number; targetSize: number; type: "hex" | "bytes" }) {
+  constructor({ size, targetSize, type }: { size: number; targetSize: number; type: "bytes" | "hex" }) {
     super(
       `${type.charAt(0).toUpperCase()}${type
         .slice(1)

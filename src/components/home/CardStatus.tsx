@@ -1,8 +1,11 @@
-import { SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
-import { useRouter } from "expo-router";
 import React from "react";
 import { Platform } from "react-native";
+
+import { useRouter } from "expo-router";
+
 import { XStack, YStack } from "tamagui";
+
+import { SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 
 import CardLimits from "./CardLimits";
 import SignatureCard from "../../assets/images/card-signature.svg";

@@ -1,14 +1,17 @@
-import { exaPreviewerAddress } from "@exactly/common/generated/chain";
-import { useReadExaPreviewerPendingProposals } from "@exactly/common/generated/hooks";
-import type { MutationState } from "@tanstack/react-query";
-import { useMutationState } from "@tanstack/react-query";
 import { useMemo } from "react";
+
+import { useMutationState } from "@tanstack/react-query";
 import { zeroAddress } from "viem";
 import { useBytecode } from "wagmi";
 
-import type { RouteFrom } from "./lifi";
+import { exaPreviewerAddress } from "@exactly/common/generated/chain";
+import { useReadExaPreviewerPendingProposals } from "@exactly/common/generated/hooks";
+
 import useAccount from "./useAccount";
 import exa from "./wagmi/exa";
+
+import type { RouteFrom } from "./lifi";
+import type { MutationState } from "@tanstack/react-query";
 
 export default function usePendingOperations() {
   const { address: exaAccount } = useAccount({ config: exa });
