@@ -121,7 +121,7 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
     USDC.forceApprove(address(EXA_USDC), type(uint256).max);
   }
 
-  // slither-disable-next-line calls-loop
+  // slither-disable-next-line calls-loop,reentrancy-balance -- protected by nonReentrant and minAmountOut check
   function swap(IERC20 assetIn, IERC20 assetOut, uint256 maxAmountIn, uint256 minAmountOut, bytes memory route)
     public
     nonReentrant
@@ -749,6 +749,7 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
     swap(IERC20(proposal.market.asset()), data.assetOut, proposal.amount, data.minAmountOut, data.route);
   }
 
+  // slither-disable-next-line reentrancy-balance -- protected by nonReentrant and minAmountOut check
   function _swap(IERC20 assetIn, IERC20 assetOut, uint256 maxAmountIn, uint256 minAmountOut, bytes memory route)
     internal
     nonReentrant

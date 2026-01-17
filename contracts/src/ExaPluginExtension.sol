@@ -96,6 +96,7 @@ contract ExaPluginExtension {
     }
   }
 
+  // slither-disable-next-line reentrancy-balance -- protected by flash loan guard and minAmountOut check
   function _swap(
     address account,
     IERC20 assetIn,
