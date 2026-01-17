@@ -76,6 +76,7 @@
     "inheritdoc",
     "initializable",
     "interactable",
+    "ioredis",
     "isows",
     "itofarina",
     "IWETH",

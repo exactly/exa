@@ -10,6 +10,7 @@ catalog:
   "@tamagui/lucide-icons": *tamagui
   "@tamagui/toast": *tamagui
   "@wagmi/core": ^3.2.2
+  ioredis: ^5.9.2
   typescript: ^5.9.3
   valibot: ^1.2.0
   viem: ^2.44.4
