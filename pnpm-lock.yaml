@@ -360,6 +360,9 @@ importers:
       '@cspell/dict-es-es':
         specifier: ^3.0.8
         version: 3.0.8
+      '@eslint/mcp':
+        specifier: ^0.2.0
+        version: 0.2.0(hono@4.11.4)
       '@expo/fingerprint':
         specifier: ^0.15.4
         version: 0.15.4
@@ -2643,6 +2646,11 @@ packages:
   '@eslint/markdown@7.5.1':
     resolution: {integrity: sha512-R8uZemG9dKTbru/DQRPblbJyXpObwKzo8rv1KYGGuPUPtjM4LXBYM9q5CIZAComzZupws3tWbDwam5AFpPLyJQ==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+
+  '@eslint/mcp@0.2.0':
+    resolution: {integrity: sha512-2/S0dRZhLd+CgDJjP1fKtQnGRwW4LbuEMBO6PggGbVBJap4NdIru9RVdf0R96P5pYvC9PPxhqDwKthZ+5fMkAg==}
+    engines: {node: ^20.19.0 || ^22.13.0 || >=24}
+    hasBin: true
 
   '@eslint/object-schema@2.1.7':
     resolution: {integrity: sha512-VtAOaymWVfZcmZbp6E2mympDIHvyjXs/12LqWYjVw6qjrfF+VK+fyG33kChz3nnK+SU5/NeHOqrTEHS8sXO3OA==}
@@ -15114,6 +15122,17 @@ snapshots:
       micromark-extension-gfm: 3.0.0
       micromark-util-normalize-identifier: 2.0.1
     transitivePeerDependencies:
+      - supports-color
+
+  '@eslint/mcp@0.2.0(hono@4.11.4)':
+    dependencies:
+      '@modelcontextprotocol/sdk': 1.25.2(hono@4.11.4)
+      eslint: 9.39.2
+      zod: 3.25.76
+    transitivePeerDependencies:
+      - '@cfworker/json-schema'
+      - hono
+      - jiti
       - supports-color
 
   '@eslint/object-schema@2.1.7': {}
