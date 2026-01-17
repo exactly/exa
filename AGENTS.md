@@ -4,6 +4,8 @@
 
 ## core philosophy
 
+this codebase will outlive you. every shortcut becomes someone else's burden. every hack compounds into technical debt that slows the whole team down. you are not just writing code. you are shaping the future of this project. the patterns you establish will be copied. the corners you cut will be cut again. fight entropy. leave the codebase better than you found it.
+
 - **strictness**: high. follow linter/formatter (eslint, prettier, solhint) strictly. no `any` type.
 - **environment**: zero config local dev. no `.env` files. mock all external services.
 - **prose style**: **all internal documentation and commit messages must be lowercase**.
