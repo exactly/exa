@@ -1,6 +1,6 @@
 name: e2e:local
 on: { workflow_dispatch: {} }
-defaults: { tools: { node: "24.13.0", pnpm: "10.28.0" } }
+defaults: { tools: { node: "24.13.0", pnpm: "10.28.1" } }
 jobs:
   fingerprint:
     type: fingerprint

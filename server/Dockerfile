@@ -9,7 +9,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y ca-certificates curl git rsync unzip --no-install-recommends && \
   rm -rf /var/lib/apt/lists/* && \
-  curl -fsSL https://get.pnpm.io/install.sh | env PNPM_VERSION=10.28.0 bash && \
+  curl -fsSL https://get.pnpm.io/install.sh | env PNPM_VERSION=10.28.1 bash && \
   curl -fsSL https://foundry.paradigm.xyz | bash
 ENV PATH="$PATH:/root/.local/share/pnpm:/root/.foundry/bin"
 RUN foundryup -i v1.3.6
