@@ -67,13 +67,9 @@ export default function HTML({ children }: { children: ReactNode }) {
               visibility: hidden;
             }
 
-            .sheet-portal {
-              position: fixed;
-              inset: 0;
-              display: grid;
-              place-items: end center;
-              pointer-events: none;
-              justify-self: center;
+            .sheet-frame {
+              max-width: min(100vw, calc(100dvh * 9 / 16));
+              margin: 0 auto;
             }
             /* #endregion */
 
@@ -84,15 +80,10 @@ export default function HTML({ children }: { children: ReactNode }) {
                 height: 100dvh;
                 aspect-ratio: auto;
               }
-              .sheet-portal {
-                width: 100vw;
-                height: 100dvh;
-              }
             }
 
             @media (hover: none) and (pointer: coarse) and (min-width: 768px) {
-              #root,
-              .sheet-portal {
+              #root {
                 aspect-ratio: 9 / 16;
                 width: min(100vw, calc(100dvh * 9 / 16));
                 height: min(100dvh, calc(100vw * 16 / 9));
@@ -100,8 +91,7 @@ export default function HTML({ children }: { children: ReactNode }) {
             }
 
             @media (pointer: fine) and (min-aspect-ratio: 9/16) {
-              #root,
-              .sheet-portal {
+              #root {
                 aspect-ratio: 9 / 16;
                 width: min(100vw, calc(100dvh * 9 / 16));
                 height: min(100dvh, calc(100vw * 16 / 9));
@@ -109,8 +99,7 @@ export default function HTML({ children }: { children: ReactNode }) {
             }
 
             @media (pointer: fine) and (max-aspect-ratio: 9/16) {
-              #root,
-              .sheet-portal {
+              #root {
                 width: 100vw;
                 height: 100dvh;
               }
