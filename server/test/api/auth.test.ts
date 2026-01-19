@@ -19,6 +19,7 @@ import app, { type Authentication } from "../../api/auth/authentication";
 import database, { credentials } from "../../database";
 import * as publicClient from "../../utils/publicClient";
 
+import type * as AlchemyQueue from "../../queues/alchemyQueue";
 import type * as SimpleWebAuthn from "@simplewebauthn/server";
 import type * as SimpleWebAuthnHelpers from "@simplewebauthn/server/helpers";
 import type * as ViemSiwe from "viem/siwe";
@@ -169,6 +170,11 @@ vi.mock("@simplewebauthn/server/helpers", async (importOriginal) => {
     ),
     cose: { ...original.cose, isCOSEPublicKeyEC2: () => true, COSEKEYS: { x: -2, y: -3 } },
   };
+});
+
+vi.mock("../../queues/alchemyQueue", async (importOriginal) => {
+  const actual = await importOriginal<typeof AlchemyQueue>();
+  return { ...actual, getAlchemyQueue: vi.fn(() => ({ add: vi.fn().mockResolvedValue({}) })) };
 });
 
 vi.mock("viem/siwe", async (importOriginal) => {
