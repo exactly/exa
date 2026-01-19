@@ -1,4 +1,4 @@
-import React, { useState, type RefObject } from "react";
+import React, { useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { Pressable, RefreshControl } from "react-native";
 
@@ -39,6 +39,7 @@ import {
 } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
+import useTabPress from "../../utils/useTabPress";
 import InfoAlert from "../shared/InfoAlert";
 import LatestActivity from "../shared/LatestActivity";
 import PluginUpgrade from "../shared/PluginUpgrade";
@@ -67,7 +68,7 @@ export default function Card() {
   const {
     data: purchases,
     refetch: refetchPurchases,
-    isPending,
+    isFetching: isFetchingPurchases,
   } = useQuery({
     queryKey: ["activity", "card"],
     queryFn: () => getActivity({ include: "card" }),
@@ -89,9 +90,13 @@ export default function Card() {
     : [];
   const totalSpent = weeklyPurchases.reduce((accumulator, item) => accumulator + item.usdAmount, 0);
 
-  const { queryKey } = useAsset(marketUSDCAddress);
+  const { queryKey, isFetching: isFetchingAsset } = useAsset(marketUSDCAddress);
   const { address } = useAccount();
-  const { data: KYCStatus, refetch: refetchKYCStatus } = useQuery({
+  const {
+    data: KYCStatus,
+    refetch: refetchKYCStatus,
+    isFetching: isFetchingKYC,
+  } = useQuery({
     queryKey: ["kyc", "status"],
     queryFn: async () => getKYCStatus(KYC_TEMPLATE_ID),
     meta: {
@@ -101,12 +106,17 @@ export default function Card() {
     },
   });
   const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
-  const { refetch: refetchInstalledPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
-    address: address ?? zeroAddress,
-    query: { enabled: !!address && !!bytecode },
-  });
+  const { refetch: refetchInstalledPlugins, isFetching: isFetchingPlugins } =
+    useReadUpgradeableModularAccountGetInstalledPlugins({
+      address: address ?? zeroAddress,
+      query: { enabled: !!address && !!bytecode },
+    });
 
-  const { data: markets, refetch: refetchMarkets } = useReadPreviewerExactly({
+  const {
+    data: markets,
+    refetch: refetchMarkets,
+    isFetching: isFetchingMarkets,
+  } = useReadPreviewerExactly({
     address: previewerAddress,
     args: [address ?? zeroAddress],
   });
@@ -119,6 +129,23 @@ export default function Card() {
       }
     }
   }
+
+  const isRefreshing =
+    isFetchingCard || isFetchingPurchases || isFetchingMarkets || isFetchingKYC || isFetchingPlugins || isFetchingAsset;
+
+  const scrollRef = useRef<ScrollView>(null);
+  const refresh = () => {
+    refetchCard().catch(reportError);
+    refetchPurchases().catch(reportError);
+    refetchMarkets().catch(reportError);
+    refetchKYCStatus().catch(reportError);
+    refetchInstalledPlugins().catch(reportError);
+    queryClient.refetchQueries({ queryKey }).catch(reportError);
+  };
+  useTabPress("card", () => {
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+    refresh();
+  });
 
   const {
     mutateAsync: revealCard,
@@ -228,24 +255,11 @@ export default function Card() {
       <View fullScreen backgroundColor="$backgroundMild">
         <View position="absolute" top={0} left={0} right={0} height="50%" backgroundColor="$backgroundSoft" />
         <ScrollView
-          ref={cardScrollReference}
+          ref={scrollRef}
           backgroundColor="transparent"
           contentContainerStyle={{ backgroundColor: "$backgroundMild" }}
           showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              ref={cardRefreshControlReference}
-              refreshing={isPending}
-              onRefresh={() => {
-                refetchCard().catch(reportError);
-                refetchPurchases().catch(reportError);
-                refetchMarkets().catch(reportError);
-                refetchKYCStatus().catch(reportError);
-                refetchInstalledPlugins().catch(reportError);
-                queryClient.refetchQueries({ queryKey }).catch(reportError);
-              }}
-            />
-          }
+          refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={refresh} />}
         >
           <View fullScreen>
             <View flex={1}>
@@ -520,6 +534,3 @@ export default function Card() {
     </SafeView>
   );
 }
-
-export const cardScrollReference: RefObject<null | ScrollView> = { current: null };
-export const cardRefreshControlReference: RefObject<null | RefreshControl> = { current: null };

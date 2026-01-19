@@ -1,8 +1,8 @@
-import React, { memo, useMemo, type RefObject } from "react";
+import React, { memo, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { FlatList, RefreshControl } from "react-native";
 
-import { styled, useTheme } from "tamagui";
+import { useTheme } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -13,6 +13,7 @@ import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { getActivity } from "../../utils/server";
 import useAsset from "../../utils/useAsset";
+import useTabPress from "../../utils/useTabPress";
 import ProcessingBalanceBanner from "../shared/ProcessingBalanceBanner";
 import ProposalBanner from "../shared/ProposalBanner";
 import SafeView from "../shared/SafeView";
@@ -52,28 +53,30 @@ export default function Activity() {
     return { data: items, stickyHeaderIndices: stickyIndices };
   }, [activity]);
 
+  const listRef = useRef<FlatList<ActivityItemType>>(null);
+  const refresh = () => {
+    refetch().catch(reportError);
+    queryClient.refetchQueries({ queryKey }).catch(reportError);
+  };
+  useTabPress("activity", () => {
+    if (data.length > 0) listRef.current?.scrollToIndex({ index: 0, animated: true });
+    refresh();
+  });
+
   return (
     <SafeView fullScreen tab backgroundColor="$backgroundSoft">
       <View fullScreen gap="$s5" flex={1} backgroundColor={data.length > 0 ? "$backgroundMild" : "$backgroundSoft"}>
         <View position="absolute" top={0} left={0} right={0} height="50%" backgroundColor="$backgroundSoft" />
-        <StyledFlatList
-          ref={activityScrollReference}
+        <FlatList<ActivityItemType>
+          ref={listRef}
           style={{ flex: 1 }}
+          onScrollToIndexFailed={() => undefined}
           contentContainerStyle={{
             flexGrow: 1,
             backgroundColor: data.length > 0 ? theme.backgroundMild.val : theme.backgroundSoft.val,
           }}
           showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              ref={activityRefreshControlReference}
-              refreshing={isPending}
-              onRefresh={() => {
-                refetch().catch(reportError);
-                queryClient.refetchQueries({ queryKey }).catch(reportError);
-              }}
-            />
-          }
+          refreshControl={<RefreshControl refreshing={isPending} onRefresh={refresh} />}
           ListHeaderComponent={
             <>
               <View padded gap="$s5" backgroundColor="$backgroundSoft">
@@ -91,7 +94,7 @@ export default function Activity() {
           data={data}
           renderItem={renderItem}
           keyExtractor={keyExtractor}
-          stickyHeaderIndices={stickyHeaderIndices}
+          stickyHeaderIndices={stickyHeaderIndices.map((index) => index + 1)}
         />
       </View>
     </SafeView>
@@ -100,11 +103,6 @@ export default function Activity() {
 
 type ActivityItemType = { date: string; type: "header" } | { event: ActivityEvent; isLast: boolean; type: "event" };
 type ActivityItemProperties = React.ComponentProps<typeof ActivityItem>;
-
-const StyledFlatList = styled(FlatList<ActivityItemType>);
-
-export const activityScrollReference: RefObject<FlatList | null> = { current: null };
-export const activityRefreshControlReference: RefObject<null | RefreshControl> = { current: null };
 
 const HeaderRow = memo(function HeaderRow({ date }: { date: string }) {
   return (

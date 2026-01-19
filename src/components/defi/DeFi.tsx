@@ -1,6 +1,5 @@
-import React, { useState, type RefObject } from "react";
+import React, { useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import type { RefreshControl } from "react-native";
 import { Pressable } from "react-native";
 
 import { useRouter } from "expo-router";
@@ -22,6 +21,7 @@ import openBrowser from "../../utils/openBrowser";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
+import useTabPress from "../../utils/useTabPress";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 
@@ -39,9 +39,11 @@ export default function DeFi() {
   const [lifiSheetOpen, setLifiSheetOpen] = useState(false);
   const [disconnectLifi, setDisconnectLifi] = useState(false);
   const [disconnectFunding, setDisconnectFunding] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
+  useTabPress("defi", () => scrollRef.current?.scrollTo({ y: 0, animated: true }));
   return (
     <SafeView fullScreen tab backgroundColor="$backgroundSoft">
-      <ScrollView ref={defiScrollReference} showsVerticalScrollIndicator={false} flex={1}>
+      <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} flex={1}>
         <YStack gap="$s4_5" paddingHorizontal="$s4" paddingVertical="$s3">
           <XStack justifyContent="space-between" alignItems="center">
             <Text emphasized title3>
@@ -307,6 +309,3 @@ function DeFiServiceButton({
     </XStack>
   );
 }
-
-export const defiScrollReference: RefObject<null | ScrollView> = { current: null };
-export const defiRefreshControlReference: RefObject<null | RefreshControl> = { current: null };

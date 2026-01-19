@@ -1,4 +1,4 @@
-import React, { useState, type RefObject } from "react";
+import React, { useRef, useState } from "react";
 import { Trans } from "react-i18next";
 import { RefreshControl } from "react-native";
 
@@ -20,6 +20,7 @@ import openBrowser from "../../utils/openBrowser";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAsset from "../../utils/useAsset";
+import useTabPress from "../../utils/useTabPress";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
@@ -30,26 +31,28 @@ export default function PayMode() {
   const [paySheetOpen, setPaySheetOpen] = useState(false);
   const router = useRouter();
   const { refetch, isPending } = useReadPreviewerExactly({ address: previewerAddress, args: [account ?? zeroAddress] });
+
+  const scrollRef = useRef<ScrollView>(null);
+  const refresh = () => {
+    refetch().catch(reportError);
+    queryClient.refetchQueries({ queryKey: ["activity"] }).catch(reportError);
+  };
+  useTabPress("pay-mode", () => {
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+    refresh();
+  });
+
   return (
     <SafeView fullScreen tab backgroundColor="$backgroundSoft">
       <View fullScreen backgroundColor="$backgroundMild">
         <View position="absolute" top={0} left={0} right={0} height="50%" backgroundColor="$backgroundSoft" />
         <ScrollView
-          ref={payModeScrollReference}
+          ref={scrollRef}
           backgroundColor="transparent"
           contentContainerStyle={{ backgroundColor: "$backgroundMild" }}
           showsVerticalScrollIndicator={false}
           flex={1}
-          refreshControl={
-            <RefreshControl
-              ref={payModeRefreshControlReference}
-              refreshing={isPending}
-              onRefresh={() => {
-                refetch().catch(reportError);
-                queryClient.refetchQueries({ queryKey: ["activity"] }).catch(reportError);
-              }}
-            />
-          }
+          refreshControl={<RefreshControl refreshing={isPending} onRefresh={refresh} />}
         >
           <>
             <PaySelector />
@@ -111,6 +114,3 @@ export default function PayMode() {
     </SafeView>
   );
 }
-
-export const payModeScrollReference: RefObject<null | ScrollView> = { current: null };
-export const payModeRefreshControlReference: RefObject<null | RefreshControl> = { current: null };

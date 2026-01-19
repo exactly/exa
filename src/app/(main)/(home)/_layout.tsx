@@ -1,18 +1,14 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { FlatList, Platform } from "react-native";
+import { Platform } from "react-native";
 
 import { Tabs } from "expo-router";
 import Head from "expo-router/head";
 
 import { Boxes, Coins, CreditCard, FileText, Home } from "@tamagui/lucide-icons";
 
-import { activityRefreshControlReference, activityScrollReference } from "../../../components/activity/Activity";
-import { cardRefreshControlReference, cardScrollReference } from "../../../components/card/Card";
-import { defiRefreshControlReference, defiScrollReference } from "../../../components/defi/DeFi";
-import { homeRefreshControlReference, homeScrollReference } from "../../../components/home/Home";
-import { payModeRefreshControlReference, payModeScrollReference } from "../../../components/pay-mode/PayMode";
 import TabBar from "../../../components/shared/TabBar";
+import { emitTabPress } from "../../../utils/useTabPress";
 
 const tabs = [
   { name: "index", title: "Home", Icon: Home },
@@ -39,45 +35,7 @@ export default function HomeLayout() {
               key={name}
               name={name}
               options={{ title: t(title), tabBarIcon: ({ color }) => <Icon size={24} color={color} /> }}
-              listeners={{
-                tabPress: () => {
-                  let scrollView;
-                  let refreshControl;
-                  switch (name) {
-                    case "index":
-                      scrollView = homeScrollReference.current;
-                      refreshControl = homeRefreshControlReference.current;
-                      break;
-                    case "card":
-                      scrollView = cardScrollReference.current;
-                      refreshControl = cardRefreshControlReference.current;
-                      break;
-                    case "pay-mode":
-                      scrollView = payModeScrollReference.current;
-                      refreshControl = payModeRefreshControlReference.current;
-                      break;
-                    case "defi":
-                      scrollView = defiScrollReference.current;
-                      refreshControl = defiRefreshControlReference.current;
-                      break;
-                    case "activity":
-                      scrollView = activityScrollReference.current;
-                      refreshControl = activityRefreshControlReference.current;
-                      break;
-                    default:
-                      return;
-                  }
-                  if (scrollView) {
-                    if (scrollView instanceof FlatList) {
-                      if (!scrollView.props.data?.length) return;
-                      scrollView.scrollToIndex({ index: 0, animated: true });
-                    } else {
-                      scrollView.scrollTo({ y: 0, animated: true });
-                    }
-                  }
-                  if (Platform.OS !== "web") refreshControl?.props.onRefresh?.();
-                },
-              }}
+              listeners={{ tabPress: () => emitTabPress(name) }}
             />
           );
         })}

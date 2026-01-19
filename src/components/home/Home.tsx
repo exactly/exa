@@ -1,4 +1,4 @@
-import React, { useState, type RefObject } from "react";
+import React, { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { RefreshControl } from "react-native";
 
@@ -35,6 +35,7 @@ import reportError from "../../utils/reportError";
 import { APIError, getActivity, getKYCStatus, type CardDetails } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
 import usePortfolio from "../../utils/usePortfolio";
+import useTabPress from "../../utils/useTabPress";
 import BenefitsSection from "../benefits/BenefitsSection";
 import OverduePayments from "../pay-mode/OverduePayments";
 import PaymentSheet from "../pay-mode/PaymentSheet";
@@ -122,6 +123,20 @@ export default function Home() {
   });
   const { data: card } = useQuery<CardDetails>({ queryKey: ["card", "details"], enabled: !!account && !!bytecode });
 
+  const scrollRef = useRef<ScrollView>(null);
+  const refresh = () => {
+    refetchActivity().catch(reportError);
+    refetchBytecode().catch(reportError);
+    refetchMarkets().catch(reportError);
+    refetchKYCStatus().catch(reportError);
+    refetchLegacyKYCStatus().catch(reportError);
+    refetchPendingProposals().catch(reportError);
+  };
+  useTabPress("index", () => {
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+    refresh();
+  });
+
   const usdBalance = portfolio.usdBalance;
   const isPending = isPendingActivity || isPendingPreviewer;
   return (
@@ -129,24 +144,11 @@ export default function Home() {
       <View fullScreen backgroundColor="$backgroundMild">
         <View position="absolute" top={0} left={0} right={0} height="50%" backgroundColor="$backgroundSoft" />
         <ScrollView
-          ref={homeScrollReference}
+          ref={scrollRef}
           backgroundColor="transparent"
           contentContainerStyle={{ backgroundColor: "$backgroundMild" }}
           showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              ref={homeRefreshControlReference}
-              refreshing={isPending}
-              onRefresh={() => {
-                refetchActivity().catch(reportError);
-                refetchBytecode().catch(reportError);
-                refetchMarkets().catch(reportError);
-                refetchKYCStatus().catch(reportError);
-                refetchLegacyKYCStatus().catch(reportError);
-                refetchPendingProposals().catch(reportError);
-              }}
-            />
-          }
+          refreshControl={<RefreshControl refreshing={isPending} onRefresh={refresh} />}
         >
           <ProfileHeader />
           <View flex={1}>
@@ -242,6 +244,3 @@ export default function Home() {
     </SafeView>
   );
 }
-
-export const homeScrollReference: RefObject<null | ScrollView> = { current: null };
-export const homeRefreshControlReference: RefObject<null | RefreshControl> = { current: null };
