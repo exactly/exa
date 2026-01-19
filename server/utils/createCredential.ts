@@ -9,7 +9,6 @@ import domain from "@exactly/common/domain";
 import { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
-import { updateWebhookAddresses } from "./alchemy";
 import authSecret from "./authSecret";
 import decodePublicKey from "./decodePublicKey";
 import { customer } from "./sardine";
@@ -17,9 +16,22 @@ import { identify } from "./segment";
 import database from "../database";
 import { credentials } from "../database/schema";
 import { webhookId } from "../hooks/activity";
+import { getAlchemyQueue } from "../queues/alchemyQueue";
+import { AlchemyJob } from "../queues/constants";
 
 import type { WebAuthnCredential } from "@simplewebauthn/server";
 import type { Context } from "hono";
+
+/**
+ * error thrown when alchemy webhook is not yet initialized.
+ * signals that credential creation should be retried after webhook setup completes.
+ */
+export class WebhookNotReadyError extends Error {
+  constructor() {
+    super("alchemy webhook not initialized yet, retry credential creation");
+    this.name = "WebhookNotReadyError";
+  }
+}
 
 export default async function createCredential<C extends string>(
   c: Context,
@@ -33,6 +45,10 @@ export default async function createCredential<C extends string>(
   const account = deriveAddress(exaAccountFactoryAddress, { x, y });
 
   setUser({ id: account });
+  if (!webhookId) {
+    throw new WebhookNotReadyError();
+  }
+
   const expires = new Date(Date.now() + AUTH_EXPIRY);
   await database.insert(credentials).values([
     {
@@ -45,6 +61,7 @@ export default async function createCredential<C extends string>(
       source: options?.source,
     },
   ]);
+
   await Promise.all([
     setSignedCookie(c, "credential_id", credentialId, authSecret, {
       expires,
@@ -53,7 +70,14 @@ export default async function createCredential<C extends string>(
         ? { sameSite: "lax", secure: false }
         : { domain, sameSite: "none", secure: true, partitioned: true }),
     }),
-    updateWebhookAddresses(webhookId, [account]).catch((error: unknown) => captureException(error)),
+    getAlchemyQueue()
+      .add(AlchemyJob.ADD_SUBSCRIBER, { account, webhookId })
+      .catch((error: unknown) =>
+        captureException(error, {
+          level: "error",
+          extra: { job: AlchemyJob.ADD_SUBSCRIBER, account, webhookId, credentialId },
+        }),
+      ),
     customer({
       flow: { name: "signup", type: "signup" },
       customer: {
