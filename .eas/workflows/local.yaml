@@ -57,15 +57,20 @@ jobs:
         id: download
         with: { build_id: "${{ needs.ios_build.outputs.build_id || needs.ios_repack.outputs.build_id }}" }
       - uses: eas/start_ios_simulator
-      - run: xcrun simctl install booted "${{ steps.download.outputs.artifact_path }}"
+      - name: prepare device
+        run: |
+          xcrun simctl install booted "${{ steps.download.outputs.artifact_path }}"
+          xcrun simctl spawn booted log stream --predicate 'subsystem contains "app.exactly" or process == "Exa"' > simulator.log 2>&1 &
       - run: pnpm e2e:maestro -e "EXPO_PUBLIC_E2E_MNEMONIC=${{ env.EXPO_PUBLIC_E2E_MNEMONIC }}"
       - name: exa teardown
         if: always()
-        run: |
+        run: | # cspell:ignore pkill
           curl -X POST http://localhost:3000/e2e/shutdown || true
           for i in {1..60}; do [ -f server/coverage/lcov.info ] && break; sleep 1; done
           curl -Os https://uploader.codecov.io/latest/macos/codecov && chmod +x codecov
           ./codecov -t ${{ env.CODECOV_TOKEN }} -f server/coverage/lcov.info -f server/coverage/app.json -F e2e -n ios --build-url ${{ workflow.url }}
+          pkill -f "log stream" || true
+          xcrun simctl diagnose -b --no-archive --output=simulator-diagnose || true
       - uses: eas/upload_artifact
         if: always()
         with:
@@ -75,5 +80,7 @@ jobs:
             server.log
             server/coverage
             server/node_modules/@exactly/.spotlight
+            simulator.log
+            simulator-diagnose
             ${{ env.HOME }}/.maestro/tests
             .maestro/screenshots
