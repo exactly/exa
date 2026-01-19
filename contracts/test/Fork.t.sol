@@ -60,13 +60,17 @@ abstract contract ForkTest is Test {
   }
 
   function protocol(string memory name, bool required) internal returns (address addr) {
+    return protocol(name, required, block.chainid);
+  }
+
+  function protocol(string memory name, bool required, uint256 chainid) internal returns (address addr) {
     addr = address(uint160(uint256(vm.load(msg.sender, keccak256(abi.encode(name))))));
     if (addr == address(0)) addr = vm.envOr(string.concat("PROTOCOL_", name.upper(), "_ADDRESS"), address(0));
     if (addr == address(0)) {
       try vm.readFile(
         string.concat(
           "node_modules/@exactly/protocol/deployments/",
-          block.chainid == 11_155_420 ? "op-sepolia" : getChain(block.chainid).chainAlias.replace("_", "-"),
+          chainid == 11_155_420 ? "op-sepolia" : getChain(chainid).chainAlias.replace("_", "-"),
           "/",
           name,
           ".json"
