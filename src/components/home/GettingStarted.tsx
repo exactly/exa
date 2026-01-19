@@ -7,49 +7,16 @@ import { useRouter } from "expo-router";
 import { ArrowRight, ChevronRight, IdCard } from "@tamagui/lucide-icons";
 import { Spinner, XStack, YStack } from "tamagui";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
-
-import { createInquiry, KYC_TEMPLATE_ID, resumeInquiry } from "../../utils/persona";
-import queryClient from "../../utils/queryClient";
-import reportError from "../../utils/reportError";
-import { APIError, getKYCStatus } from "../../utils/server";
+import useBeginKYC from "../../utils/useBeginKYC";
 import useOnboardingSteps from "../../utils/useOnboardingSteps";
 import Text from "../shared/Text";
 import View from "../shared/View";
-
-import type { Credential } from "@exactly/common/validation";
 
 export default function GettingStarted({ isDeployed, hasKYC }: { hasKYC: boolean; isDeployed: boolean }) {
   const router = useRouter();
   const { t } = useTranslation();
   const { currentStep, completedSteps, setSteps } = useOnboardingSteps();
-  const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
-  const { mutateAsync: startKYC, isPending } = useMutation({
-    mutationKey: ["kyc"],
-    mutationFn: async () => {
-      if (!credential) throw new Error("missing credential");
-      try {
-        const result = await getKYCStatus(KYC_TEMPLATE_ID);
-        if (result === "ok") return;
-        if (typeof result !== "string") {
-          resumeInquiry(result.inquiryId, result.sessionToken).catch(reportError);
-        }
-      } catch (error) {
-        if (!(error instanceof APIError)) {
-          reportError(error);
-          return;
-        }
-        if (error.text === "kyc required" || error.text === "kyc not found" || error.text === "kyc not started") {
-          await createInquiry(credential);
-          return;
-        }
-        reportError(error);
-      }
-    },
-    onSettled: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["kyc", "status"] });
-    },
-  });
+  const { mutate: beginKYC, isPending } = useBeginKYC();
   function handleStepPress() {
     if (isPending) return;
     switch (currentStep?.id) {
@@ -57,7 +24,7 @@ export default function GettingStarted({ isDeployed, hasKYC }: { hasKYC: boolean
         router.push("/add-funds/add-crypto");
         break;
       case "verify-identity":
-        startKYC().catch(reportError);
+        beginKYC();
         break;
     }
   }

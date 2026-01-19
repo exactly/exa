@@ -7,21 +7,15 @@ import { useRouter } from "expo-router";
 import { ArrowDownToLine, ArrowLeft, Check, IdCard } from "@tamagui/lucide-icons";
 import { ScrollView, XStack, YStack } from "tamagui";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
-
 import Step from "./Step";
 import { presentArticle } from "../../utils/intercom";
-import { createInquiry, KYC_TEMPLATE_ID, resumeInquiry } from "../../utils/persona";
-import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
-import { APIError, getKYCStatus } from "../../utils/server";
+import useBeginKYC from "../../utils/useBeginKYC";
 import useOnboardingSteps from "../../utils/useOnboardingSteps";
 import ActionButton from "../shared/ActionButton";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
-
-import type { Credential } from "@exactly/common/validation";
 
 export default function GettingStarted() {
   const { t } = useTranslation();
@@ -127,40 +121,14 @@ function CurrentStep() {
   const { t } = useTranslation();
   const router = useRouter();
   const { currentStep, completedSteps } = useOnboardingSteps();
-  const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
-  const { mutateAsync: startKYC } = useMutation({
-    mutationKey: ["kyc"],
-    mutationFn: async () => {
-      if (!credential) throw new Error("missing credential");
-      try {
-        const result = await getKYCStatus(KYC_TEMPLATE_ID);
-        if (result === "ok") return;
-        if (typeof result !== "string") {
-          await resumeInquiry(result.inquiryId, result.sessionToken);
-        }
-      } catch (error) {
-        if (!(error instanceof APIError)) {
-          reportError(error);
-          return;
-        }
-        if (error.text === "kyc required" || error.text === "kyc not found" || error.text === "kyc not started") {
-          await createInquiry(credential);
-          return;
-        }
-        reportError(error);
-      }
-    },
-    onSettled: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["kyc", "status"] });
-    },
-  });
+  const { mutate: beginKYC } = useBeginKYC();
   function handleAction() {
     switch (currentStep?.id) {
       case "add-funds":
         router.push("/add-funds/add-crypto");
         break;
       case "verify-identity":
-        startKYC().catch(reportError);
+        beginKYC();
         break;
     }
   }

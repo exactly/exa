@@ -148,22 +148,25 @@ export async function setCardPIN(pin: string) {
   if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
 }
 
-export async function getKYCLink(templateId: string, redirectURI?: string) {
+export async function getKYCTokens(scope: "basic" = "basic", redirectURI?: string) {
   await auth();
-  const response = await api.kyc.$post({ json: { templateId, redirectURI } });
-  if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
-  return stringOrLegacy(await response.json());
+  const response = await api.kyc.$post({ json: { scope, redirectURI } });
+  if (!response.ok) {
+    const { code } = await response.json();
+    throw new APIError(response.status, code);
+  }
+  return response.json();
 }
 
-export async function getKYCStatus(templateId: string) {
+export async function getKYCStatus(scope: "basic" = "basic") {
   await auth();
-  const response = await api.kyc.$get({ query: { templateId } });
+  const response = await api.kyc.$get({ query: { scope } });
   queryClient.setQueryData(["user", "country"], response.headers.get("User-Country"));
-  if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
-  const result = await response.json();
-  return typeof result === "string" || "legacy" in result
-    ? stringOrLegacy(result as string | { legacy: string })
-    : result;
+  if (!response.ok) {
+    const { code } = await response.json();
+    throw new APIError(response.status, code);
+  }
+  return response.json();
 }
 
 export async function getCredential() {

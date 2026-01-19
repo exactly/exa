@@ -5,10 +5,10 @@ import { IdCard } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { Spinner, YStack } from "tamagui";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 
 import Progression from "./Progression";
-import { createInquiry, KYC_TEMPLATE_ID, resumeInquiry } from "../../../utils/persona";
+import { startKYC } from "../../../utils/persona";
 import queryClient from "../../../utils/queryClient";
 import reportError from "../../../utils/reportError";
 import { APIError, getKYCStatus } from "../../../utils/server";
@@ -16,41 +16,32 @@ import Button from "../../shared/Button";
 import Text from "../../shared/Text";
 import View from "../../shared/View";
 
-import type { Credential } from "@exactly/common/validation";
-
 export default function VerifyIdentity() {
   const toast = useToastController();
   const { t } = useTranslation();
-  const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
-  const { mutateAsync: startKYC, isPending } = useMutation({
+  const { mutate: beginKYC, isPending } = useMutation({
     mutationKey: ["kyc"],
-    mutationFn: async () => {
-      if (!credential) throw new Error("missing credential");
+    async mutationFn() {
       try {
-        const result = await getKYCStatus(KYC_TEMPLATE_ID);
-        if (result === "ok") {
+        const status = await getKYCStatus();
+        if ("code" in status && (status.code === "ok" || status.code === "legacy kyc")) {
           queryClient.setQueryData(["card-upgrade"], 1);
           return;
         }
-        if (typeof result !== "string") {
-          await resumeInquiry(result.inquiryId, result.sessionToken);
-        }
       } catch (error) {
         if (!(error instanceof APIError)) {
-          reportError(error);
-          return;
+          throw error;
         }
-        if (error.text === "kyc required" || error.text === "kyc not found" || error.text === "kyc not started") {
-          await createInquiry(credential);
-          return;
+        if (error.text !== "not started" && error.text !== "no kyc") {
+          throw error;
         }
-        reportError(error);
       }
+      await startKYC();
     },
-    onSettled: async () => {
+    async onSettled() {
       await queryClient.invalidateQueries({ queryKey: ["kyc", "status"] });
     },
-    onError: (error) => {
+    onError(error) {
       toast.show(t("Error verifying identity"), {
         native: true,
         duration: 1000,
@@ -79,7 +70,7 @@ export default function VerifyIdentity() {
         <Button
           disabled={isPending}
           onPress={() => {
-            startKYC().catch(reportError);
+            beginKYC();
           }}
           flexBasis={60}
           contained
