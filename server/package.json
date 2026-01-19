@@ -155,6 +155,7 @@
       },
       "test": {
         "dependsOn": [
+          "test:eslint",
           "test:ts",
           "test:vi",
           "test:openapi"
