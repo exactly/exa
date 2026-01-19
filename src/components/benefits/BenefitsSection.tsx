@@ -19,7 +19,7 @@ const BENEFITS = [
     partner: "Pax Assistance",
     title: "30 days of free travel insurance",
     subtitle: "Travel with peace of mind.",
-    description: "Copy your ID and get 30 days of travel insurance for free on Pax Assistance.",
+    descriptions: ["Copy your ID and get 30 days of travel insurance for free on Pax Assistance."],
     logo: PaxLogo,
     url: "https://www.paxassistance.com/ar/capitas/exacardcap/",
   },
@@ -28,8 +28,11 @@ const BENEFITS = [
     partner: "Airalo",
     title: "20% OFF on eSims",
     subtitle: "Stay connected everywhere",
-    description:
-      "Stay connected around the world. \n\nActivate your eSIM and get online from anywhere with 20% off on Airalo. \n\nAvailable in 200+ countries and regions.",
+    descriptions: [
+      "Stay connected around the world.",
+      "Activate your eSIM and get online from anywhere with 20% off on Airalo.",
+      "Available in 200+ countries and regions.",
+    ],
     logo: AiraloLogo,
     url: "https://airalo.pxf.io/c/6807698/3734384/15608?p.code=exaapp",
     termsURL: "https://www.airalo.com/more-info/terms-conditions",
@@ -40,8 +43,11 @@ const BENEFITS = [
     title: "Visa Signature benefits",
     longTitle: "Visa Signature Exa Card benefits",
     subtitle: "Access exclusive discounts",
-    description:
-      "A world of benefits. \n\nYour Visa Signature Exa Card comes with multiple benefits including car rental discounts, travel assistance, and more. \n\nLearn more about all Visa Signature benefits.",
+    descriptions: [
+      "A world of benefits.",
+      "Your Visa Signature Exa Card comes with multiple benefits including car rental discounts, travel assistance, and more.",
+      "Learn more about all Visa Signature benefits.",
+    ],
     logo: VisaLogo,
     linkText: "Learn more",
     buttonText: "Go to Visa",

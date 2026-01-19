@@ -72,10 +72,13 @@ export default function BenefitSheet({ benefit, open, onClose }: BenefitSheetPro
               <Text emphasized title>
                 {t(benefit.longTitle ?? benefit.title)}
               </Text>
-              <Text subHeadline secondary>
-                {t(benefit.description)}
-              </Text>
-
+              <YStack gap="$s4">
+                {benefit.descriptions.map((description) => (
+                  <Text key={description} subHeadline secondary>
+                    {t(description)}
+                  </Text>
+                ))}
+              </YStack>
               {benefit.id === "pax" && (
                 <Pressable
                   disabled={!paxData || isPaxError}

@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useRouter } from "expo-router";
 
 import { X } from "@tamagui/lucide-icons";
-import { ScrollView } from "tamagui";
+import { ScrollView, YStack } from "tamagui";
 
 import Button from "../shared/Button";
 import SafeView from "../shared/SafeView";
@@ -46,31 +46,21 @@ export default function PasskeysAbout() {
                     )}
                   </Text>
                 </View>
-                <View gap="$s5">
+                <YStack gap="$s5">
                   <Text fontSize={17} fontWeight="bold" textAlign="left">
                     {t("Passkeys advantages")}
                   </Text>
-                  <Text fontSize={16} color="$uiNeutralSecondary" textAlign="left">
-                    <Text color="$uiNeutralSecondary" fontWeight="bold">
-                      {`${t("Strong credentials.")}   `}
-                    </Text>
-                    {t("\n\nEvery passkey is strong. They're never guessable, reused, or weak.")}
-                  </Text>
-                  <Text fontSize={16} color="$uiNeutralSecondary" textAlign="left">
-                    <Text color="$uiNeutralSecondary" fontWeight="bold">
-                      {`${t("Safe from server leaks.")}   `}
-                    </Text>
-                    {t("\n\nBecause servers only keep public keys, servers are less valuable targets for hackers.")}
-                  </Text>
-                  <Text fontSize={16} color="$uiNeutralSecondary" textAlign="left">
-                    <Text color="$uiNeutralSecondary" fontWeight="bold">
-                      {`${t("Safe from phishing.")}   `}
-                    </Text>
-                    {t(
-                      "\n\nPasskeys are intrinsically linked with the app or website they were created for, so people can never be tricked into using their passkey to sign in to a fraudulent app or website.",
-                    )}
-                  </Text>
-                </View>
+                  {advantages.map(({ title, body }) => (
+                    <YStack key={title} gap="$s4">
+                      <Text callout emphasized secondary>
+                        {t(title)}
+                      </Text>
+                      <Text callout secondary>
+                        {t(body)}
+                      </Text>
+                    </YStack>
+                  ))}
+                </YStack>
               </View>
             </ScrollView>
             <Button
@@ -95,3 +85,15 @@ export default function PasskeysAbout() {
     </SafeView>
   );
 }
+
+const advantages = [
+  { title: "Strong credentials.", body: "Every passkey is strong. They're never guessable, reused, or weak." },
+  {
+    title: "Safe from server leaks.",
+    body: "Because servers only keep public keys, servers are less valuable targets for hackers.",
+  },
+  {
+    title: "Safe from phishing.",
+    body: "Passkeys are intrinsically linked with the app or website they were created for, so people can never be tricked into using their passkey to sign in to a fraudulent app or website.",
+  },
+];
