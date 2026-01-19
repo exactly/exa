@@ -40,10 +40,10 @@ import { Address, Base64URL, Hex } from "@exactly/common/validation";
 import { Authentication } from "./authentication";
 import androidOrigins from "../../utils/android/origins";
 import appOrigin from "../../utils/appOrigin";
-import createCredential from "../../utils/createCredential";
+import createCredential, { WebhookNotReadyError } from "../../utils/createCredential";
 import getIntercomToken from "../../utils/intercom";
 import publicClient from "../../utils/publicClient";
-import redis from "../../utils/redis";
+import { requestRedis as redis } from "../../utils/redis";
 import validatorHook from "../../utils/validatorHook";
 
 const Cookie = object({
@@ -361,16 +361,25 @@ export default new Hono()
         await redis.del(sessionId);
       }
 
-      const result = await createCredential(c, attestation.id, { webauthn, source: c.req.header("Client-Fid") });
-      const account = deriveAddress(result.factory, { x: result.x, y: result.y });
-      const intercomToken = await getIntercomToken(account, new Date(Date.now() + AUTH_EXPIRY));
-      return c.json(
-        {
-          ...result,
-          intercomToken,
-        } satisfies InferOutput<typeof Authentication>,
-        200,
-      );
+      try {
+        const result = await createCredential(c, attestation.id, { webauthn, source: c.req.header("Client-Fid") });
+        const account = deriveAddress(result.factory, { x: result.x, y: result.y });
+        const intercomToken = await getIntercomToken(account, new Date(Date.now() + AUTH_EXPIRY));
+        return c.json(
+          {
+            ...result,
+            intercomToken,
+          } satisfies InferOutput<typeof Authentication>,
+          200,
+        );
+      } catch (error) {
+        if (error instanceof WebhookNotReadyError) {
+          // cspell:ignore retriable
+          captureException(error, { level: "warning", tags: { retriable: true } });
+          return c.json({ code: "service unavailable", legacy: "service temporarily unavailable, please retry" }, 503);
+        }
+        throw error;
+      }
     },
   );
 
