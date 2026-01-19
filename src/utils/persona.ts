@@ -9,57 +9,24 @@ import domain from "@exactly/common/domain";
 
 import queryClient, { type EmbeddingContext } from "./queryClient";
 import reportError from "./reportError";
-import { getKYCLink } from "./server";
-
-import type { Credential } from "@exactly/common/validation";
+import { getKYCTokens } from "./server";
 
 export const environment = (__DEV__ || process.env.EXPO_PUBLIC_ENV === "e2e" ? "sandbox" : "production") as Environment;
-export const KYC_TEMPLATE_ID = "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2";
-export const LEGACY_KYC_TEMPLATE_ID = "itmpl_8uim4FvD5P3kFpKHX37CW817";
 
-export async function createInquiry(credential: Credential) {
+export async function startKYC() {
+  const { otl: oneTimeLink, inquiryId, sessionToken } = await getKYCTokens("basic", await getRedirectURI());
+
   if (Platform.OS === "web") {
-    const url = await getKYCLink(KYC_TEMPLATE_ID, await getRedirectURI());
-    const embeddingContext = queryClient.getQueryData<EmbeddingContext>(["embedding-context"]);
-    if (embeddingContext && !embeddingContext.endsWith("-web")) {
-      window.location.replace(url);
-      return;
-    }
-    window.open(url);
-    return;
-  }
-
-  const { Inquiry } = await import("react-native-persona");
-  Inquiry.fromTemplate(KYC_TEMPLATE_ID)
-    .environment(environment)
-    .referenceId(credential.credentialId)
-    .onCanceled(() => {
-      queryClient.invalidateQueries({ queryKey: ["kyc", "status"] }).catch(reportError);
-      router.replace("/(main)/(home)");
-    })
-    .onComplete(() => {
-      queryClient.invalidateQueries({ queryKey: ["kyc", "status"] }).catch(reportError);
-      queryClient.setQueryData(["card-upgrade"], 1);
-      router.replace("/(main)/(home)");
-    })
-    .onError((error) => reportError(error))
-    .build()
-    .start();
-}
-
-export async function resumeInquiry(inquiryId: string, sessionToken: string) {
-  if (Platform.OS === "web") {
-    const url = await getKYCLink(KYC_TEMPLATE_ID);
     if (await sdk.isInMiniApp()) {
-      await sdk.actions.openUrl(url);
+      await sdk.actions.openUrl(oneTimeLink);
       return;
     }
     const embeddingContext = queryClient.getQueryData<EmbeddingContext>(["embedding-context"]);
     if (embeddingContext && !embeddingContext.endsWith("-web")) {
-      window.location.replace(url);
+      window.location.replace(oneTimeLink);
       return;
     }
-    window.open(url);
+    window.open(oneTimeLink, "_blank", "noopener,noreferrer"); // cspell:ignore noopener noreferrer
     return;
   }
 
@@ -75,6 +42,7 @@ export async function resumeInquiry(inquiryId: string, sessionToken: string) {
       queryClient.setQueryData(["card-upgrade"], 1);
       router.replace("/(main)/(home)");
     })
+    .onError((error) => reportError(error))
     .build()
     .start();
 }

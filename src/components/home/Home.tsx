@@ -29,7 +29,6 @@ import PortfolioSummary from "./PortfolioSummary";
 import SpendingLimitsSheet from "./SpendingLimitsSheet";
 import VisaSignatureBanner from "./VisaSignatureBanner";
 import VisaSignatureModal from "./VisaSignatureSheet";
-import { KYC_TEMPLATE_ID, LEGACY_KYC_TEMPLATE_ID } from "../../utils/persona";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { APIError, getActivity, getKYCStatus, type CardDetails } from "../../utils/server";
@@ -100,27 +99,17 @@ export default function Home() {
     refetch: refetchKYCStatus,
   } = useQuery({
     queryKey: ["kyc", "status"],
-    queryFn: async () => getKYCStatus(KYC_TEMPLATE_ID),
+    queryFn: async () => getKYCStatus(),
     meta: {
       suppressError: (error) =>
         error instanceof APIError &&
-        (error.text === "kyc not found" || error.text === "kyc not started" || error.text === "kyc not approved"),
+        (error.text === "no kyc" || error.text === "not started" || error.text === "bad kyc"),
     },
   });
-  const {
-    data: legacyKYCStatus,
-    isFetched: isLegacyKYCFetched,
-    refetch: refetchLegacyKYCStatus,
-  } = useQuery({
-    queryKey: ["legacy", "kyc", "status"],
-    queryFn: async () => getKYCStatus(LEGACY_KYC_TEMPLATE_ID),
-    enabled: isKYCFetched && KYCStatus !== "ok",
-    meta: {
-      suppressError: (error) =>
-        error instanceof APIError &&
-        (error.text === "kyc not found" || error.text === "kyc not started" || error.text === "kyc not approved"),
-    },
-  });
+  const needsMigration = Boolean(KYCStatus && "code" in KYCStatus && KYCStatus.code === "legacy kyc");
+  const isKYCApproved = Boolean(
+    KYCStatus && "code" in KYCStatus && (KYCStatus.code === "ok" || KYCStatus.code === "legacy kyc"),
+  );
   const { data: card } = useQuery<CardDetails>({ queryKey: ["card", "details"], enabled: !!account && !!bytecode });
 
   const scrollRef = useRef<ScrollView>(null);
@@ -129,7 +118,6 @@ export default function Home() {
     refetchBytecode().catch(reportError);
     refetchMarkets().catch(reportError);
     refetchKYCStatus().catch(reportError);
-    refetchLegacyKYCStatus().catch(reportError);
     refetchPendingProposals().catch(reportError);
   };
   useTabPress("index", () => {
@@ -138,6 +126,8 @@ export default function Home() {
   });
 
   const isPending = isPendingActivity || isPendingPreviewer;
+  const showKycMigration = isKYCFetched && needsMigration;
+  const showPluginOutdated = !!bytecode && !!installedPlugins && !isLatestPlugin;
   return (
     <SafeView fullScreen tab backgroundColor="$backgroundSoft">
       <View fullScreen backgroundColor="$backgroundMild">
@@ -153,8 +143,7 @@ export default function Home() {
           <View flex={1}>
             <YStack backgroundColor="$backgroundSoft" padding="$s4" gap="$s4">
               {markets && healthFactor(markets) < HEALTH_FACTOR_THRESHOLD && <LiquidationAlert />}
-              {((isKYCFetched && isLegacyKYCFetched && legacyKYCStatus === "ok" && KYCStatus !== "ok") ||
-                (!!bytecode && !!installedPlugins && !isLatestPlugin)) && (
+              {(showKycMigration || showPluginOutdated) && (
                 <InfoAlert
                   title={t(
                     "We're upgrading all Exa Cards by migrating them to a new and improved card issuer. Existing cards will work until {{deadline}}, and upgrading will be required after this date.",
@@ -193,8 +182,8 @@ export default function Home() {
                   }}
                 />
               )}
-              <GettingStarted isDeployed={!!bytecode} hasKYC={KYCStatus === "ok"} />
-              {KYCStatus === "ok" && <BenefitsSection />}
+              <GettingStarted isDeployed={!!bytecode} hasKYC={isKYCApproved} />
+              {isKYCApproved && <BenefitsSection />}
               <OverduePayments
                 onSelect={(maturity) => {
                   router.setParams({ ...parameters, maturity: String(maturity) });

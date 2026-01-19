@@ -26,7 +26,7 @@ import SpendingLimits from "./SpendingLimits";
 import VerificationFailure from "./VerificationFailure";
 import { presentArticle } from "../../utils/intercom";
 import openBrowser from "../../utils/openBrowser";
-import { createInquiry, KYC_TEMPLATE_ID, resumeInquiry } from "../../utils/persona";
+import { startKYC } from "../../utils/persona";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import {
@@ -98,13 +98,16 @@ export default function Card() {
     isFetching: isFetchingKYC,
   } = useQuery({
     queryKey: ["kyc", "status"],
-    queryFn: async () => getKYCStatus(KYC_TEMPLATE_ID),
+    queryFn: async () => getKYCStatus(),
     meta: {
       suppressError: (error) =>
         error instanceof APIError &&
-        (error.text === "kyc not found" || error.text === "kyc not started" || error.text === "kyc not approved"),
+        (error.text === "no kyc" || error.text === "not started" || error.text === "bad kyc"),
     },
   });
+  const isKYCApproved = Boolean(
+    KYCStatus && "code" in KYCStatus && (KYCStatus.code === "ok" || KYCStatus.code === "legacy kyc"),
+  );
   const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
   const { refetch: refetchInstalledPlugins, isFetching: isFetchingPlugins } =
     useReadUpgradeableModularAccountGetInstalledPlugins({
@@ -159,7 +162,6 @@ export default function Card() {
         return;
       }
       if (isRevealing) return;
-      if (!credential) return;
       try {
         const { data, error } = await refetchCard();
         if (error && error instanceof APIError && error.code === 500) throw error;
@@ -167,31 +169,40 @@ export default function Card() {
           queryClient.setQueryData(["card-details-open"], true);
           return;
         }
-        const result = await getKYCStatus(KYC_TEMPLATE_ID);
-        if (result === "ok") {
+        const status = await getKYCStatus();
+        if ("code" in status && (status.code === "ok" || status.code === "legacy kyc")) {
           setDisclaimerShown(true);
           return;
         }
-        if (typeof result !== "string") await resumeInquiry(result.inquiryId, result.sessionToken);
       } catch (error) {
         if (!(error instanceof APIError)) {
           reportError(error);
           return;
         }
         const { text } = error;
-        if (text === "kyc not approved") {
+        if (text === "bad kyc") {
           setVerificationFailureShown(true);
           return;
         }
-        if (text === "kyc required" || text === "kyc not found" || text === "kyc not started") {
-          await createInquiry(credential);
+        if (text !== "not started" && text !== "no kyc") {
+          reportError(error);
+          toast.show(t("An error occurred. Please try again later."), {
+            native: true,
+            duration: 1000,
+            burntOptions: { haptic: "error", preset: "error" },
+          });
+          return;
         }
-        reportError(error);
+      }
+      try {
+        await startKYC();
+      } catch (error) {
         toast.show(t("An error occurred. Please try again later."), {
           native: true,
           duration: 1000,
           burntOptions: { haptic: "error", preset: "error" },
         });
+        reportError(error);
       }
     },
   });
@@ -291,7 +302,7 @@ export default function Card() {
                     </Pressable>
                   </View>
                 </XStack>
-                {(usdBalance === 0n || KYCStatus !== "ok") && (
+                {(usdBalance === 0n || !isKYCApproved) && (
                   <InfoAlert
                     title={t("Your card is awaiting activation. Follow the steps to enable it.")}
                     actionText={t("Get started")}

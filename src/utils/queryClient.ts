@@ -23,7 +23,7 @@ const queryClient = new QueryClient({
         if (error.code === 401 && error.text === "unauthorized") return;
         if (query.queryKey[0] === "card" && query.queryKey[1] === "details") {
           if (error.text === "kyc required") return;
-          if (error.text === "kyc not approved") return;
+          if (error.text === "bad kyc") return;
         }
       }
       reportError(error);
@@ -224,7 +224,6 @@ queryClient.setQueryDefaults<EmbeddingContext>(["embedding-context"], {
   },
 });
 queryClient.setQueryDefaults(["kyc", "status"], { staleTime: 5 * 60_000, gcTime: 60 * 60_000 });
-queryClient.setQueryDefaults(["legacy", "kyc", "status"], { staleTime: 5 * 60_000, gcTime: 60 * 60_000 });
 
 export type AuthMethod = "siwe" | "webauthn";
 export type EmbeddingContext =
