@@ -59,7 +59,12 @@ configI18n(initReactI18next)
       (typeof navigator === "undefined" ? undefined : navigator.language.split("-")[0]) ??
       "en",
   })
-  .init({ fallbackLng: "en", nsSeparator: false, resources: { en: { translation: en }, es: { translation: es } } })
+  .init({
+    fallbackLng: "en",
+    keySeparator: false,
+    nsSeparator: false,
+    resources: { en: { translation: en }, es: { translation: es } },
+  })
   .catch(reportError);
 
 export { ErrorBoundary } from "expo-router";
