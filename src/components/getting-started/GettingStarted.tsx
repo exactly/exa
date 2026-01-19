@@ -34,6 +34,7 @@ export default function GettingStarted() {
           <View flexDirection="row" gap={10} justifyContent="space-around" alignItems="center">
             <View position="absolute" left={0}>
               <Pressable
+                aria-label={t("Back")}
                 onPress={() => {
                   if (router.canGoBack()) {
                     router.back();
