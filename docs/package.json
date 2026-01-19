@@ -5,6 +5,8 @@
   "scripts": {
     "prepare": "nx generate:astro docs",
     "generate:astro": "astro sync",
+    "test": "nx test docs",
+    "test:ts": "tsc --pretty ${GITHUB_ACTIONS:+false}",
     "dev": "astro dev",
     "start": "astro dev",
     "build": "astro build",
@@ -49,6 +51,13 @@
             "dependentTasksOutputFiles": "server/generated/openapi.json"
           }
         ]
+      },
+      "test": {
+        "dependsOn": [
+          "test:eslint",
+          "test:ts"
+        ],
+        "executor": "nx:noop"
       }
     }
   }
