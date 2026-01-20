@@ -147,13 +147,14 @@ vi.mock("@simplewebauthn/server", async (importOriginal) => {
   };
 });
 
-vi.mock("../../utils/redis", () => ({
-  default: {
+vi.mock("../../utils/redis", () => {
+  const redis = {
     get: vi.fn<() => string>().mockResolvedValue("test-challenge"),
     set: vi.fn<() => boolean>().mockResolvedValue(true),
     del: vi.fn<() => boolean>().mockResolvedValue(true),
-  },
-}));
+  };
+  return { default: redis, requestRedis: redis };
+});
 
 vi.mock("@simplewebauthn/server/helpers", async (importOriginal) => {
   const original = await importOriginal<typeof SimpleWebAuthnHelpers>();

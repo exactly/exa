@@ -21,10 +21,6 @@ import { AlchemyJob, getAlchemyQueue } from "../queues/alchemyQueue";
 import type { WebAuthnCredential } from "@simplewebauthn/server";
 import type { Context } from "hono";
 
-/**
- * error thrown when alchemy webhook is not yet initialized.
- * signals that credential creation should be retried after webhook setup completes.
- */
 export class WebhookNotReadyError extends Error {
   constructor() {
     super("alchemy webhook not initialized yet, retry credential creation");
