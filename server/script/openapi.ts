@@ -11,6 +11,7 @@ process.env.AUTH_SECRET = zeroHash;
 process.env.BRIDGE_API_KEY = "bridge";
 process.env.BRIDGE_API_URL = "https://bridge.test";
 process.env.EXPO_PUBLIC_ALCHEMY_API_KEY = " ";
+process.env.GCP_BASE64_JSON = "WlhsS01HVllRbXhKYW05blNXNU9iR051V25CWk1sWm1XVmRPYW1JelZuVmtRMG81UTJjOVBRbz0K";
 process.env.INTERCOM_IDENTITY_KEY = "intercom";
 process.env.ISSUER_PRIVATE_KEY = padHex("0x420");
 process.env.KEEPER_PRIVATE_KEY = padHex("0x420");
