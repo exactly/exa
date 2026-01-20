@@ -1,5 +1,68 @@
 # @exactly/mobile
 
+## 1.1.0
+
+### Minor Changes
+
+- [#631](https://github.com/exactly/exa/pull/631) [`12563e6`](https://github.com/exactly/exa/commit/12563e6284aa62c51969ad973e8ac6baaea215e8) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ⬆️ major upgrades:
+  - expo 52 → 54 with new architecture defaults
+  - react 18.3.1 → 19.1.0, react-native 0.76.9 → 0.81.5
+  - wagmi 2 → 3 with `@account-kit/*` replacing `@alchemy/aa-*`
+  - tamagui 1.125.26 → 1.144.1 via pnpm catalog
+  - @sentry/react-native 6 → 7
+  - eslint migrated to flat config with per-project `eslint.config.mjs`
+  - latest react-native-passkeys, now from npm (removed git fork dependency)
+  - removed deprecated components
+  - migrate from deprecated wagmi functions
+
+### Patch Changes
+
+- [#635](https://github.com/exactly/exa/pull/635) [`a213eac`](https://github.com/exactly/exa/commit/a213eac3a6f83d5f4b9c5943e3e01d94ae155bb2) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix card 404 error handling
+
+- [#634](https://github.com/exactly/exa/pull/634) [`4269f4f`](https://github.com/exactly/exa/commit/4269f4f31b44f7abb99df3402fb32830d982a275) Thanks [@franm91](https://github.com/franm91)! - ✨ add benefits section
+
+- [#635](https://github.com/exactly/exa/pull/635) [`82131fc`](https://github.com/exactly/exa/commit/82131fc505a68c255a48c13375e526389430a474) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🌐 add english pluralization
+
+- [#633](https://github.com/exactly/exa/pull/633) [`b43570b`](https://github.com/exactly/exa/commit/b43570b26334693c82f7fbb8a9ea6b1c06477c8f) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ♻️ replace user operations with eip-5792 calls
+
+- [#634](https://github.com/exactly/exa/pull/634) [`0ddaccd`](https://github.com/exactly/exa/commit/0ddaccdf4fe18ac79df6491a331cac6efe86399e) Thanks [@franm91](https://github.com/franm91)! - ➕ install carousel and gesture handler
+
+- [#629](https://github.com/exactly/exa/pull/629) [`3dfcac5`](https://github.com/exactly/exa/commit/3dfcac555a8b6981802c758da512e75bb5918372) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ⚡️ implement asset logo caching
+
+- [#633](https://github.com/exactly/exa/pull/633) [`52b1872`](https://github.com/exactly/exa/commit/52b1872ce6904bfdc473c45385f3657091b3ebb9) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 💄 fix scroll view styling
+
+- [#635](https://github.com/exactly/exa/pull/635) [`183b2c8`](https://github.com/exactly/exa/commit/183b2c8b408177ae5020607319f078d5c2fe1ee6) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ enable language detector
+
+- [#633](https://github.com/exactly/exa/pull/633) [`721996b`](https://github.com/exactly/exa/commit/721996b98cad4f66ca314ba404cc5a5285bae265) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 fix parse units scientific notation crash
+
+- [#633](https://github.com/exactly/exa/pull/633) [`6d50a19`](https://github.com/exactly/exa/commit/6d50a191f5ee13adf8130ba867261a7c35f6de5e) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚸 improve browser opening across platforms
+
+- [#633](https://github.com/exactly/exa/pull/633) [`cb8fbda`](https://github.com/exactly/exa/commit/cb8fbda5db30af7d062b767db8c3d9c5a644d9a0) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ♿️ improve asset selector accessibility
+
+- [#658](https://github.com/exactly/exa/pull/658) [`78b718f`](https://github.com/exactly/exa/commit/78b718fbc3a73f29e9305bdc50308ede00cb14ad) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🌐 normalize usd display
+
+- [#633](https://github.com/exactly/exa/pull/633) [`49d0378`](https://github.com/exactly/exa/commit/49d0378897fe79bba326710b2961f3d4b2557650) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ⚡️ prefer expo image
+
+- [#633](https://github.com/exactly/exa/pull/633) [`f324725`](https://github.com/exactly/exa/commit/f324725f3f381f8552bb7d2b7e5763539b275a73) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ support eip-5792 in account client
+
+- [#635](https://github.com/exactly/exa/pull/635) [`df97fa2`](https://github.com/exactly/exa/commit/df97fa2eef9c3b57aa006bb759d3c2705557ed3a) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ translate components
+
+- [#656](https://github.com/exactly/exa/pull/656) [`0009eb3`](https://github.com/exactly/exa/commit/0009eb31a8666f20f0d8a4892de2355b9c5a4f6a) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 send intercom token
+
+- [#655](https://github.com/exactly/exa/pull/655) [`d4c1c5f`](https://github.com/exactly/exa/commit/d4c1c5f5df7c9dee4d3ce9738a773571224b3dc0) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ implement refresh on tab press
+
+- [#633](https://github.com/exactly/exa/pull/633) [`8a67e30`](https://github.com/exactly/exa/commit/8a67e30b2b7127b227ed7930e564ae6f5a9de6e5) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 switch chain on transfer
+
+- [#633](https://github.com/exactly/exa/pull/633) [`d390381`](https://github.com/exactly/exa/commit/d390381a86eea52dc7f383228a2fd91343cffa69) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 💄 fix card switch height
+
+- [#633](https://github.com/exactly/exa/pull/633) [`1bf1360`](https://github.com/exactly/exa/commit/1bf1360b1da2e6918ef7a91afe4479af2da4ed83) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🔥 remove connection indicator
+
+- [#635](https://github.com/exactly/exa/pull/635) [`89c7179`](https://github.com/exactly/exa/commit/89c7179995a401ab7ecfde1c1d3413bd0cf94204) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🌐 add spanish translations
+
+- Updated dependencies [[`12563e6`](https://github.com/exactly/exa/commit/12563e6284aa62c51969ad973e8ac6baaea215e8), [`12563e6`](https://github.com/exactly/exa/commit/12563e6284aa62c51969ad973e8ac6baaea215e8)]:
+  - @exactly/common@0.0.11
+  - @exactly/server@0.2.49
+
 ## 1.0.45
 
 ### Patch Changes
@@ -857,7 +920,6 @@
 ### Major Changes
 
 - [`e123e4a`](https://github.com/exactly/exa/commit/e123e4a35f4e764b9c44895df8bad40e51af4ce0) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🔖 exa app v1 featuring:
-
   - seamless account access with passkeys
   - protocol debt repayment
   - debt rollover to next maturity

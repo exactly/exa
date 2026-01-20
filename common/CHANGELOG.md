@@ -1,5 +1,15 @@
 # @exactly/common
 
+## 0.0.11
+
+### Patch Changes
+
+- [#631](https://github.com/exactly/exa/pull/631) [`12563e6`](https://github.com/exactly/exa/commit/12563e6284aa62c51969ad973e8ac6baaea215e8) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ⬆️ centralize eslint flat config, upgrade account-kit
+  - new shared eslint flat configs in `eslint/`:
+    - `base.mjs`: core config with typescript-eslint strict-type-checked, unicorn, regexp, import, nx, prettier, jsdoc/tsdoc
+    - `node.mjs`: node.js config with eslint-plugin-n, security, vitest
+    - `react.mjs`: react config with @eslint-react strict-type-checked, tanstack-query, jsx-a11y
+
 ## 0.0.10
 
 ### Patch Changes
