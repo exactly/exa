@@ -1,46 +1,85 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
-- assertVisible: One step left
-- tapOn: Begin verifying
-- assertVisible: I saved my ID with Persona
-- tapOn: Begin verifying
-- tapOn: Select
-- tapOn: Passport
+- assertVisible: Begin verifying
 - runFlow:
-    when: { visible: Couldn't access camera }
-    commands: [{ tapOn: Continue }]
-- tapOn: Take Photo
-- tapOn: Use this photo
-- assertVisible: Address
-- runFlow: # HACK
-    when: { platform: ios }
-    commands: [{ tapOn: Address }]
-- tapOn: Continue
-- tapOn: Get started
-- repeat:
-    while: { visible: shutter button }
-    commands: [{ tapOn: { text: shutter button, optional: true } }]
-- inputText: test@test.com
-- tapOn: Continue
-- inputText: "12345"
-- tapOn: Continue
-- inputText: "999999999"
-- tapOn: Continue
-- inputText: "1234"
-- extendedWaitUntil: { visible: Economic activity }
-- tapOn: Economic activity
-- tapOn: Science
-- tapOn: Travel Usage
-- tapOn: .*US\$.*
-- tapOn: .*US\$.*
-- tapOn: Continue
-- tapOn: Select
-- tapOn: \s*No\s*
-- tapOn: Continue
-- repeat: { times: 6, commands: [{ tapOn: square }] }
-- tapOn: Continue
-- tapOn: Done
+    when: { true: false } # HACK
+    commands:
+      - tapOn: Begin verifying
+      - assertVisible: We need some information to help us confirm your identity.
+      - tapOn: Begin verifying
+      - tapOn: Select
+      - tapOn: Passport
+      - runFlow:
+          when: { platform: ios }
+          commands:
+            - runFlow:
+                when: { visible: Couldn't access camera }
+                commands: [{ tapOn: Continue }]
+      - tapOn: "${maestro.platform == 'android' ? 'take picture' : 'Take Photo'}"
+      - tapOn: Use this photo
+      - assertVisible: Address
+      - runFlow: # HACK
+          when: { platform: ios }
+          commands: [{ tapOn: Address }]
+      - scrollUntilVisible: { element: Continue }
+      - tapOn: Continue
+      - assertVisible: Let's make sure you’re you
+      - tapOn: Get started
+      - assertVisible: Center yourself on the screen
+      - tapOn: { below: Auto capture on, enabled: true }
+      - assertVisible: Look slightly left
+      - tapOn: { below: Auto capture on, enabled: true }
+      - assertVisible: Look slightly right
+      - tapOn: { below: Auto capture on, enabled: true }
+      - assertVisible: What is your email address?
+      - runFlow:
+          when: { platform: android }
+          commands: [{ tapOn: Email address }]
+      - inputText: test@test.com
+      - hideKeyboard
+      - tapOn: Continue
+      - assertVisible: Confirm your email address
+      - runFlow:
+          when: { platform: android }
+          commands: [{ tapOn: Confirmation Code }]
+      - inputText: "12345"
+      - hideKeyboard
+      - tapOn: Continue
+      - assertVisible: What is your phone number?
+      - tapOn: { id: textinput_prefix_text } # cspell:ignore textinput
+      - scrollUntilVisible: { element: 🇦🇷 Argentina +54 }
+      - tapOn: 🇦🇷 Argentina +54
+      - tapOn:
+          containsChild: { containsChild: { id: textinput_prefix_text } } # cspell:ignore textinput
+      - inputText: "1199999999"
+      - hideKeyboard
+      - tapOn: Continue
+      - assertVisible: Confirm your phone number
+      - runFlow: # HACK
+          when: { platform: android }
+          commands: [{ tapOn: { id: first } }]
+      - inputText: "1234"
+      - hideKeyboard
+      - extendedWaitUntil: { visible: Economic activity }
+      - tapOn: Economic activity
+      - tapOn: Science
+      - tapOn: Travel Usage
+      - tapOn: .*US\$.*
+      - tapOn: .*US\$.*
+      - tapOn: Continue
+      - assertVisible: Do you engage in any of the following activities?
+      - tapOn: Select
+      - tapOn: \s*No\s*
+      - tapOn: Continue
+      - repeat: { times: 6, commands: [{ tapOn: square }] }
+      - tapOn: Continue
+      - tapOn: Done
 - runScript: ../dist/getAccount.js
 - runScript:
     file: ../dist/approveKYC.js
     env: { credentialId: "${output.owner}" }
+- runFlow:
+    when: { true: "${maestro.platform != 'web'}" }
+    commands: [{ tapOn: Back }]
+- runFlow: { when: { platform: web }, commands: [{ tapOn: { id: Back } }] }
+- tapOn: Home

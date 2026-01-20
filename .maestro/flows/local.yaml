@@ -6,12 +6,15 @@ tags:
 - runFlow: ../subflows/hideDevtools.yaml
 - runScript: ../dist/getAccount.js
 - tapOn: Sign in
-- assertVisible: Stay updated
-- tapOn: Not now
-- pressKey: home
-- launchApp: { permissions: { all: deny, camera: allow } }
-- extendedWaitUntil: { visible: Your portfolio, timeout: 180000 }
-- assertNotVisible: Stay updated
+- runFlow:
+    when: { true: "${maestro.platform != 'web'}" }
+    commands:
+      - assertVisible: Stay updated
+      - tapOn: Not now
+      - pressKey: home
+      - launchApp: { permissions: { all: deny, camera: allow } }
+      - extendedWaitUntil: { visible: Your portfolio, timeout: 180000 }
+      - assertNotVisible: Stay updated
 - assertVisible: ${output.account.slice(0, 6)}…${output.account.slice(-4)}
 - runFlow: ../subflows/readPortfolio.yaml
 - evalScript: ${output.portfolioBefore = output.portfolio}
@@ -19,7 +22,7 @@ tags:
 - runScript:
     file: ../dist/mint.js
     env: { asset: USDC, to: "${output.account}", amount: "420" }
-- swipe: { direction: DOWN }
+- tapOn: Home
 - runFlow: ../subflows/readPortfolio.yaml
 - assertTrue: ${output.portfolio - output.portfolioBefore === 420}
 - evalScript: ${output.portfolioBefore = output.portfolio}
@@ -27,6 +30,7 @@ tags:
 - runFlow:
     file: ../subflows/sendAsset.yaml
     env: { asset: USDC, to: "${output.owner}", amount: "69" }
+- repeat: { while: { visible: Pending proposals }, commands: [{ tapOn: Home }] }
 - runFlow: ../subflows/readPortfolio.yaml
 - assertTrue: ${output.portfolioBefore - output.portfolio === 69}
 - runFlow:
@@ -34,6 +38,5 @@ tags:
     commands:
       - tapOn: View all steps
       - runFlow: ../subflows/verifyIdentity.yaml
-- swipe: { direction: DOWN }
-- assertNotVisible: Getting Started
+      - assertNotVisible: Getting Started
 - runFlow: ../subflows/storeCoverage.yaml

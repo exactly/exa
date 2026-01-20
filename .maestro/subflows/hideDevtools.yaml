@@ -2,9 +2,10 @@ appId: ${APP_ID ?? "app.exactly"}
 ---
 - runFlow:
     when: { true: "${!!JSON.parse(__DEV__ || 'false')}" }
+    env: { devServer: "http://${maestro.platform === 'android' ? '10.0.2.2' : 'localhost'}:8081" }
     commands:
-      - extendedWaitUntil: { visible: http://localhost:8081, timeout: 180000 }
-      - tapOn: http://localhost:8081
+      - extendedWaitUntil: { visible: "${devServer}", timeout: 180000 }
+      - tapOn: ${devServer}
       - extendedWaitUntil: { visible: .*developer menu.*, timeout: 180000 }
       - tapOn: Continue
       - swipe: { direction: DOWN, duration: 200, waitToSettleTimeoutMs: 0 }
