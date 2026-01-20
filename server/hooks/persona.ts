@@ -2,7 +2,6 @@ import { vValidator } from "@hono/valibot-validator";
 import { captureException, getActiveSpan, SEMANTIC_ATTRIBUTE_SENTRY_OP, setContext, setUser } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
-import * as v from "valibot";
 import {
   array,
   check,
@@ -21,9 +20,11 @@ import {
   union,
 } from "valibot";
 
+import { firewallAbi, firewallAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
 import database, { credentials } from "../database/index";
+import allower from "../utils/allower";
 import { createUser } from "../utils/panda";
 import { addCapita, deriveAssociateId } from "../utils/pax";
 import {
@@ -281,6 +282,19 @@ export default new Hono().post(
       if (risk.level === "very_high") return c.json({ code: "very high risk" }, 200);
     }
 
+    if (firewallAddress) {
+      try {
+        const allowerClient = await allower();
+        await allowerClient.exaSend(
+          { name: "exa.firewall", op: "exa.firewall", attributes: { account: credential.account, personaShareToken } },
+          { address: firewallAddress, functionName: "allow", args: [credential.account, true], abi: firewallAbi },
+        );
+      } catch (error: unknown) {
+        captureException(error, { level: "error" });
+        return c.json({ code: "firewall error" }, 500);
+      }
+    }
+
     // TODO implement error handling to return 200 if event should not be retried
     const { id } = await createUser({
       accountPurpose: fields.accountPurpose.value,
@@ -296,13 +310,6 @@ export default new Hono().post(
 
     getActiveSpan()?.setAttributes({ "exa.pandaId": id });
     setContext("persona", { inquiryId: personaShareToken, pandaId: id });
-
-    Promise.resolve()
-      .then(async () => {
-        const accountAddress = v.parse(Address, credential.account);
-        await pokeAccountAssets(accountAddress, { ignore: [`NotAllowed(${accountAddress})`] });
-      })
-      .catch((error: unknown) => captureException(error));
 
     const accountParsed = safeParse(Address, credential.account);
     if (accountParsed.success) {
@@ -323,6 +330,15 @@ export default new Hono().post(
         extra: { pandaId: id, referenceId, account: credential.account },
         level: "error",
       });
+    }
+
+    if (accountParsed.success) {
+      pokeAccountAssets(accountParsed.output, {
+        notification: {
+          headings: { en: "Account assets updated" },
+          contents: { en: "Your account assets have been processed and are ready for earning" },
+        },
+      }).catch(captureException);
     }
     addDocument(referenceId, {
       id_class: { value: fields.identificationClass.value },
