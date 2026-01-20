@@ -1,6 +1,6 @@
 {
   "name": "@exactly/server",
-  "version": "0.2.48",
+  "version": "0.2.49",
   "private": true,
   "scripts": {
     "build": "pkgroll --sourcemap --src . && sentry-cli sourcemaps inject -o exactly -p server dist",
@@ -60,9 +60,9 @@
   },
   "devDependencies": {
     "@eslint/compat": "^2.0.1",
-    "@exactly/common": "workspace:^0.0.10",
+    "@exactly/common": "workspace:^0.0.11",
     "@exactly/plugin": "workspace:^1.1.0",
-    "@exactly/substreams": "workspace:^0.0.1",
+    "@exactly/substreams": "workspace:^0.1.0",
     "@sentry/cli": "^3.1.0",
     "@types/ioredis-mock": "^8.2.6",
     "@types/node": "^25.0.9",

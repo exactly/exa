@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.49
+
+### Patch Changes
+
+- [#631](https://github.com/exactly/exa/pull/631) [`12563e6`](https://github.com/exactly/exa/commit/12563e6284aa62c51969ad973e8ac6baaea215e8) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ⬆️ new eslint config, upgrade vitest, account-kit, and other dependencies
+
 ## 0.2.48
 
 ### Patch Changes

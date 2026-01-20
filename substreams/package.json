@@ -1,6 +1,6 @@
 {
   "name": "@exactly/substreams",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "scripts": {
     "build": "cargo build --release --quiet",
     "rustup": "rustup show",
