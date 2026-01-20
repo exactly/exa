@@ -1,4 +1,4 @@
-appId: app.exactly
+appId: ${APP_ID ?? "app.exactly"}
 ---
 - assertVisible: One step left
 - tapOn: Begin verifying
