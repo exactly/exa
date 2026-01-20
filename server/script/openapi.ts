@@ -29,6 +29,11 @@ process.env.REDIS_URL = "redis";
 process.env.SARDINE_API_KEY = "sardine";
 process.env.SARDINE_API_URL = "https://api.sardine.ai";
 process.env.SEGMENT_WRITE_KEY = "segment";
+process.env.GCP_BASE64_JSON = "base64String==";
+process.env.GOOGLE_APPLICATION_CREDENTIALS = "path/to/credentials.json";
+process.env.GCP_KMS_KEY_RING = "op-sepolia";
+process.env.GCP_KMS_KEY_VERSION = "1";
+process.env.GCP_PROJECT_ID = "exa-dev";
 
 /* eslint-disable n/no-process-exit, unicorn/no-process-exit, no-console -- cli */
 import("../api")
