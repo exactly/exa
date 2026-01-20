@@ -2,7 +2,6 @@ import { vValidator } from "@hono/valibot-validator";
 import { captureException, getActiveSpan, SEMANTIC_ATTRIBUTE_SENTRY_OP, setContext, setUser } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
-import * as v from "valibot";
 import {
   array,
   check,
@@ -14,6 +13,7 @@ import {
   nullable,
   object,
   optional,
+  parse,
   pipe,
   safeParse,
   string,
@@ -21,22 +21,28 @@ import {
   union,
 } from "valibot";
 
+import { firewallAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
 import database, { credentials } from "../database/index";
+import allower from "../utils/allower";
+import keeper from "../utils/keeper";
 import { createUser } from "../utils/panda";
 import { addCapita, deriveAssociateId } from "../utils/pax";
-import {
-  addDocument,
-  headerValidator,
-  MANTECA_TEMPLATE_WITH_ID_CLASS,
-  PANDA_TEMPLATE,
-  pokeAccountAssets,
-} from "../utils/persona";
+import { addDocument, headerValidator, MANTECA_TEMPLATE_WITH_ID_CLASS, PANDA_TEMPLATE } from "../utils/persona";
 import { customer } from "../utils/sardine";
 import validatorHook from "../utils/validatorHook";
 
 import type { InferOutput } from "valibot";
+
+let allowerPromise: ReturnType<typeof allower> | undefined;
+function getAllower() {
+  allowerPromise ??= allower().catch((error: unknown) => {
+    allowerPromise = undefined;
+    throw error;
+  });
+  return allowerPromise;
+}
 
 const Session = pipe(
   object({
@@ -279,6 +285,17 @@ export default new Hono().post(
     if (risk) {
       getActiveSpan()?.setAttributes({ "exa.risk": risk.level, "exa.score": risk.customer?.score });
       if (risk.level === "very_high") return c.json({ code: "very high risk" }, 200);
+    }
+
+    if (firewallAddress) {
+      try {
+        const allowerClient = await getAllower();
+        const account = parse(Address, credential.account);
+        await allowerClient.allow(account, { ignore: [`AlreadyAllowed(${account})`] });
+      } catch (error: unknown) {
+        captureException(error, { level: "error" });
+        return c.json({ code: "firewall error" }, 500);
+      }
     }
 
     // TODO implement error handling to return 200 if event should not be retried
