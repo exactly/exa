@@ -1,3 +1,5 @@
+import "./utils/initGCP";
+
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { captureException, close as closeSentry } from "@sentry/node";

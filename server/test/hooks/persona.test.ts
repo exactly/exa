@@ -19,6 +19,11 @@ import * as sardine from "../../utils/sardine";
 const appClient = testClient(app);
 
 vi.mock("@sentry/node", { spy: true });
+vi.mock("../../utils/allower", () => ({
+  default: Promise.resolve({
+    exaSend: vi.fn().mockResolvedValue({}),
+  }),
+}));
 
 describe("with reference", () => {
   afterEach(() => vi.resetAllMocks());

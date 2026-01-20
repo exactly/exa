@@ -23,7 +23,7 @@ import { firewallAbi, firewallAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
 import database, { credentials } from "../database/index";
-import keeper from "../utils/keeper";
+import allowerPromise from "../utils/allower";
 import { createUser } from "../utils/panda";
 import { addCapita, deriveAssociateId } from "../utils/pax";
 import { headerValidator } from "../utils/persona";
@@ -260,7 +260,8 @@ export default new Hono().post(
     }
 
     if (firewallAddress) {
-      keeper
+      const allower = await allowerPromise;
+      allower
         .exaSend(
           { name: "exa.firewall", op: "exa.firewall", attributes: { account: credential.account, personaShareToken } },
           { address: firewallAddress, functionName: "allow", args: [credential.account, true], abi: firewallAbi },
