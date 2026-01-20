@@ -1,7 +1,9 @@
+import { KeyManagementServiceClient } from "@google-cloud/kms";
 import { SPAN_STATUS_ERROR, SPAN_STATUS_OK } from "@sentry/core";
 import { captureException, startSpan, withScope } from "@sentry/node";
+import { gcpHsmToAccount } from "@valora/viem-account-hsm-gcp";
 import { setTimeout } from "node:timers/promises";
-import { parse, safeParse } from "valibot";
+import { parse, pipe, regex, safeParse, string } from "valibot";
 import {
   createWalletClient,
   encodeFunctionData,
@@ -13,9 +15,9 @@ import {
   WaitForTransactionReceiptTimeoutError,
   withRetry,
   type Chain,
+  type LocalAccount,
   type MaybePromise,
   type Prettify,
-  type PrivateKeyAccount,
   type PublicActions,
   type TransactionReceipt,
   type Transport,
@@ -25,10 +27,11 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
-import chain from "@exactly/common/generated/chain";
+import chain, { firewallAbi, firewallAddress } from "@exactly/common/generated/chain";
 import revertReason from "@exactly/common/revertReason";
 import { Address, Hash } from "@exactly/common/validation";
 
+import { GOOGLE_APPLICATION_CREDENTIALS, hasCredentials, initializeGcpCredentials, isRetryableKmsError } from "./gcp";
 import nonceManager from "./nonceManager";
 import defaultPublicClient, { captureRequests, Requests } from "./publicClient";
 import revertFingerprint from "./revertFingerprint";
@@ -53,7 +56,7 @@ export default createWalletClient({
 }).extend(extender);
 
 export function extender(
-  keeper: WalletClient<Transport, Chain, PrivateKeyAccount>,
+  keeper: WalletClient<Transport, Chain, LocalAccount>,
   {
     publicClient = defaultPublicClient,
     traceClient = defaultTraceClient,
@@ -218,4 +221,56 @@ export function extender(
         }),
       ),
   };
+}
+
+let allowerPromise: ReturnType<typeof buildAllower> | undefined;
+export function allower() {
+  return (allowerPromise ??= buildAllower().catch((error: unknown) => {
+    allowerPromise = undefined;
+    throw error;
+  }));
+}
+
+async function buildAllower() {
+  const projectId = parse(pipe(string(), regex(/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/)), process.env.GCP_PROJECT_ID, {
+    message: "invalid GCP_PROJECT_ID",
+  });
+  const keyRing = parse(string(), process.env.GCP_KMS_KEY_RING, { message: "invalid GCP_KMS_KEY_RING" });
+  const version = parse(pipe(string(), regex(/^\d+$/)), process.env.GCP_KMS_KEY_VERSION, {
+    message: "invalid GCP_KMS_KEY_VERSION",
+  });
+  await initializeGcpCredentials();
+  if (!(await hasCredentials())) throw new Error(`gcp credentials missing at ${GOOGLE_APPLICATION_CREDENTIALS}`);
+  const signer = await withRetry(
+    () =>
+      gcpHsmToAccount({
+        hsmKeyVersion: `projects/${projectId}/locations/us-west2/keyRings/${keyRing}/cryptoKeys/allower/cryptoKeyVersions/${version}`,
+        kmsClient: new KeyManagementServiceClient({ keyFilename: GOOGLE_APPLICATION_CREDENTIALS }),
+      }),
+    { delay: 2000, retryCount: 3, shouldRetry: ({ error }) => isRetryableKmsError(error) },
+  );
+  signer.nonceManager = nonceManager;
+  return createWalletClient({
+    chain,
+    transport: http(`${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`, {
+      batch: true,
+      async onFetchRequest(request) {
+        captureRequests(parse(Requests, await request.json()));
+      },
+    }),
+    account: signer,
+  }).extend((client) => {
+    const base = extender(client);
+    return {
+      ...base,
+      allow: (account: Address, options?: { ignore?: string[] }) => {
+        if (!firewallAddress) throw new Error("firewall address not configured");
+        return base.exaSend(
+          { name: "firewall.allow", op: "exa.firewall", attributes: { account } },
+          { address: firewallAddress, functionName: "allow", args: [account, true], abi: firewallAbi },
+          options?.ignore ? { ignore: options.ignore } : undefined,
+        );
+      },
+    };
+  });
 }
