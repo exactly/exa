@@ -105,10 +105,9 @@ export default function Settings() {
                         </Text>
                       </XStack>
                       {(coverageSuccess || coverageError) && (
-                        <Check
-                          accessibilityLabel={t("Finished")}
-                          color={coverageSuccess ? "$backgroundBrand" : "$interactiveBaseErrorDefault"}
-                        />
+                        <Pressable aria-label={t("Finished")}>
+                          <Check color={coverageSuccess ? "$backgroundBrand" : "$interactiveBaseErrorDefault"} />
+                        </Pressable>
                       )}
                     </XStack>
                   </XStack>
