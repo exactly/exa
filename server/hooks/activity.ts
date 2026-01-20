@@ -232,7 +232,7 @@ export default new Hono().post(
                                       args: [marketsByAsset.get(asset)!], // eslint-disable-line @typescript-eslint/no-non-null-assertion
                                     }),
                               },
-                              { ignore: ["NoBalance()"] },
+                              { ignore: ["NoBalance()", `NotAllowed(${account})`] },
                             )
                             .then((receipt) => {
                               if (receipt) return receipt;

@@ -1,3 +1,5 @@
+import "../mocks/deployments";
+import "../mocks/keeper";
 import "../mocks/pax";
 import "../mocks/persona";
 import "../mocks/sentry";
