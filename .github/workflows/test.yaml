@@ -43,7 +43,7 @@ jobs:
       - run: echo ::add-matcher::.github/matcher.json
       - run: pnpm install --frozen-lockfile
       - uses: nrwl/nx-set-shas@v4 # cspell:ignore nrwl
-      - run: pnpm nx affected -t test
+      - run: pnpm nx run-many -t test
 
       - uses: codecov/codecov-action@v5
         if: ${{ !cancelled() }}
