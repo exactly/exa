@@ -13,17 +13,20 @@ import {
   nullable,
   object,
   optional,
+  parse,
   pipe,
   safeParse,
   string,
   transform,
   union,
 } from "valibot";
+import { withRetry } from "viem";
 
-import { firewallAbi, firewallAddress } from "@exactly/common/generated/chain";
+import { firewallAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
 import database, { credentials } from "../database/index";
+import allower from "../utils/allower";
 import keeper from "../utils/keeper";
 import { createUser } from "../utils/panda";
 import { addCapita, deriveAssociateId } from "../utils/pax";
@@ -32,6 +35,15 @@ import { customer } from "../utils/sardine";
 import validatorHook from "../utils/validatorHook";
 
 import type { InferOutput } from "valibot";
+
+let allowerPromise: ReturnType<typeof allower> | undefined;
+function getAllower() {
+  allowerPromise ??= allower().catch((error: unknown) => {
+    allowerPromise = undefined;
+    throw error;
+  });
+  return allowerPromise;
+}
 
 const Session = pipe(
   object({
@@ -276,6 +288,40 @@ export default new Hono().post(
       if (risk.level === "very_high") return c.json({ code: "very high risk" }, 200);
     }
 
+    const account = parse(Address, credential.account);
+    if (firewallAddress) {
+      try {
+        await getAllower().then((client) => client.allow(account, { ignore: [`AlreadyAllowed(${account})`] }));
+      } catch (error: unknown) {
+        captureException(error, { level: "error" });
+        return c.json({ code: "firewall error" }, 500);
+      }
+      withRetry(
+        () =>
+          keeper.poke(account, {
+            notification: {
+              headings: { en: "Account assets updated" },
+              contents: { en: "Your funds are ready to use" },
+            },
+          }),
+        {
+          retryCount: 10,
+          delay: ({ count }) => Math.trunc(1 << count) * 500,
+        },
+      ).catch((error: unknown) => captureException(error, { level: "error" }));
+    }
+
+    addCapita({
+      birthdate: fields.birthdate.value,
+      document: fields.identificationNumber.value,
+      firstName: fields.nameFirst.value,
+      lastName: fields.nameLast.value,
+      email: fields.emailAddress.value,
+      phone: fields.phoneNumber?.value ?? "",
+      internalId: deriveAssociateId(account),
+      product: "travel insurance",
+    }).catch((error: unknown) => captureException(error, { level: "error", extra: { pandaId: id, referenceId } }));
+
     // TODO implement error handling to return 200 if event should not be retried
     const { id } = await createUser({
       accountPurpose: fields.accountPurpose.value,
@@ -292,43 +338,6 @@ export default new Hono().post(
     getActiveSpan()?.setAttributes({ "exa.pandaId": id });
     setContext("persona", { inquiryId: personaShareToken, pandaId: id });
 
-    const account = safeParse(Address, credential.account);
-    if (account.success) {
-      addCapita({
-        birthdate: fields.birthdate.value,
-        document: fields.identificationNumber.value,
-        firstName: fields.nameFirst.value,
-        lastName: fields.nameLast.value,
-        email: fields.emailAddress.value,
-        phone: fields.phoneNumber?.value ?? "",
-        internalId: deriveAssociateId(account.output),
-        product: "travel insurance",
-      }).catch((error: unknown) => {
-        captureException(error, { level: "error", extra: { pandaId: id, referenceId } });
-      });
-      keeper
-        .poke(account.output, {
-          notification: {
-            headings: { en: "Account assets updated" },
-            contents: { en: "Your funds are ready to use" },
-          },
-        })
-        .catch((error: unknown) => captureException(error, { level: "error" }));
-    } else {
-      captureException(new Error("invalid account address"), {
-        extra: { pandaId: id, referenceId, account: credential.account },
-        level: "error",
-      });
-    }
-
-    if (firewallAddress) {
-      keeper
-        .exaSend(
-          { name: "exa.firewall", op: "exa.firewall", attributes: { account: credential.account, personaShareToken } },
-          { address: firewallAddress, functionName: "allow", args: [credential.account, true], abi: firewallAbi },
-        )
-        .catch((error: unknown) => captureException(error, { level: "error" }));
-    }
     addDocument(referenceId, {
       id_class: { value: fields.identificationClass.value },
       id_number: { value: fields.identificationNumber.value },
