@@ -160,10 +160,10 @@ export default new Hono().post(
                   await pokeAccountAssets(account, { ignore: [`NotAllowed(${account})`] }).catch((error: unknown) =>
                     captureException(error),
                   );
-                  autoCredit(account)
-                    .then(async (auto) => {
-                      span.setAttribute("exa.autoCredit", auto);
-                      if (!auto) return;
+                  try {
+                    const auto = await autoCredit(account);
+                    span.setAttribute("exa.autoCredit", auto);
+                    if (auto) {
                       const credential = await database.query.credentials.findFirst({
                         where: eq(credentials.account, account),
                         columns: {},
@@ -174,20 +174,25 @@ export default new Hono().post(
                           },
                         },
                       });
-                      if (!credential || credential.cards.length === 0) return;
-                      const card = credential.cards[0];
-                      span.setAttribute("exa.card", card?.id);
-                      if (card?.mode !== 0) return;
-                      await database.update(cards).set({ mode: 1 }).where(eq(cards.id, card.id));
-                      span.setAttribute("exa.mode", 1);
-                      sendPushNotification({
-                        userId: account,
-                        headings: { en: "Card mode changed" },
-                        contents: { en: "Credit mode activated" },
-                      }).catch((error: unknown) => captureException(error));
-                    })
-                    .catch((error: unknown) => captureException(error));
-                  span.setStatus({ code: SPAN_STATUS_OK });
+                      if (credential && credential.cards.length > 0) {
+                        const card = credential.cards[0];
+                        span.setAttribute("exa.card", card?.id);
+                        if (card?.mode === 0) {
+                          await database.update(cards).set({ mode: 1 }).where(eq(cards.id, card.id));
+                          span.setAttribute("exa.mode", 1);
+                          sendPushNotification({
+                            userId: account,
+                            headings: { en: "Card mode changed" },
+                            contents: { en: "Credit mode activated" },
+                          }).catch((error: unknown) => captureException(error));
+                        }
+                      }
+                    }
+                    span.setStatus({ code: SPAN_STATUS_OK });
+                  } catch (error: unknown) {
+                    captureException(error);
+                    span.setStatus({ code: SPAN_STATUS_ERROR, message: "autoCredit_failed" });
+                  }
                 },
               ),
             ),

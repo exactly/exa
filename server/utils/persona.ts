@@ -1,6 +1,7 @@
 import { vValidator } from "@hono/valibot-validator";
 import { captureEvent, captureException, setContext } from "@sentry/core";
 import { createHmac, timingSafeEqual } from "node:crypto";
+import * as v from "valibot";
 import {
   array,
   boolean,
@@ -17,7 +18,6 @@ import {
   type BaseSchema,
   type InferOutput,
 } from "valibot";
-import * as v from "valibot";
 import { erc20Abi, withRetry } from "viem";
 
 import chain, {
@@ -33,6 +33,7 @@ import { Address } from "@exactly/common/validation";
 
 import appOrigin from "./appOrigin";
 import keeper from "./keeper";
+import { sendPushNotification } from "./onesignal";
 import publicClient from "./publicClient";
 import { DevelopmentChainIds } from "./ramps/shared";
 
@@ -51,9 +52,11 @@ const authorization = `Bearer ${process.env.PERSONA_API_KEY}`;
 const baseURL = process.env.PERSONA_URL;
 const webhookSecret = process.env.PERSONA_WEBHOOK_SECRET;
 
-export async function pokeAccountAssets(accountAddress: Address, options?: { ignore?: string[] }) {
+export async function pokeAccountAssets(
+  accountAddress: Address,
+  options?: { ignore?: string[]; notification?: { contents: { en: string }; headings: { en: string } } },
+) {
   const combinedAccountAbi = [...exaPluginAbi, ...upgradeableModularAccountAbi, ...auditorAbi, ...marketAbi];
-
   const marketsByAsset = await withRetry(
     () => publicClient.readContract({ address: exaPreviewerAddress, functionName: "assets", abi: exaPreviewerAbi }),
     {
@@ -81,18 +84,25 @@ export async function pokeAccountAssets(accountAddress: Address, options?: { ign
     }),
     Promise.all(
       [...marketsByAsset.entries()].map(async ([asset, market]) => {
-        try {
-          const balance = await publicClient.readContract({
-            address: asset,
-            functionName: "balanceOf",
-            args: [accountAddress],
-            abi: erc20Abi,
-          });
-          return { asset, market, balance };
-        } catch (error) {
-          captureException(error, { level: "error" });
-          return { asset, market, balance: 0n };
+        const maxAttempts = 3;
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+          try {
+            const balance = await publicClient.readContract({
+              address: asset,
+              functionName: "balanceOf",
+              args: [accountAddress],
+              abi: erc20Abi,
+            });
+            return { asset, market, balance };
+          } catch (error) {
+            captureException(error, { level: "error" });
+            if (attempt === maxAttempts) {
+              return { asset, market, balance: 0n };
+            }
+            await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
+          }
         }
+        return { asset, market, balance: 0n };
       }),
     ),
   ]);
@@ -148,6 +158,16 @@ export async function pokeAccountAssets(accountAddress: Address, options?: { ign
   const results = await Promise.allSettled(pokePromises);
   for (const result of results) {
     if (result.status === "rejected") captureException(result.reason);
+  }
+
+  const successCount = results.filter((result) => result.status === "fulfilled").length;
+
+  if (options?.notification && successCount > 0) {
+    sendPushNotification({
+      userId: accountAddress,
+      headings: options.notification.headings,
+      contents: options.notification.contents,
+    }).catch((error: unknown) => captureException(error));
   }
 }
 
