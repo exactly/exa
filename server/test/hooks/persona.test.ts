@@ -24,6 +24,11 @@ import * as sardine from "../../utils/sardine";
 const appClient = testClient(app);
 
 vi.mock("@sentry/node", { spy: true });
+vi.mock("../../utils/allower", () => ({
+  default: Promise.resolve({
+    exaSend: vi.fn().mockResolvedValue({}),
+  }),
+}));
 
 describe("with reference", () => {
   const referenceId = "hook-persona";
@@ -492,9 +497,6 @@ describe("persona hook", () => {
         abi: expect.any(Array) as unknown[],
         functionName: "pokeETH",
       },
-      {
-        ignore: [`NotAllowed(${account})`],
-      },
     );
     expect(exaSendSpy).toHaveBeenNthCalledWith(
       2,
@@ -508,9 +510,6 @@ describe("persona hook", () => {
         abi: expect.any(Array) as unknown[],
         functionName: "poke",
         args: ["0xABcdEFABcdEFabcdEfAbCdefabcdeFABcDEFabCD"],
-      },
-      {
-        ignore: [`NotAllowed(${account})`],
       },
     );
   });
@@ -567,9 +566,6 @@ describe("persona hook", () => {
         address: account,
         abi: expect.any(Array) as unknown[],
         functionName: "pokeETH",
-      },
-      {
-        ignore: [`NotAllowed(${account})`],
       },
     );
   });
@@ -632,9 +628,6 @@ describe("persona hook", () => {
         abi: expect.any(Array) as unknown[],
         functionName: "pokeETH",
       },
-      {
-        ignore: [`NotAllowed(${account})`],
-      },
     );
     expect(exaSendSpy).toHaveBeenCalledWith(
       {
@@ -647,9 +640,6 @@ describe("persona hook", () => {
         abi: expect.any(Array) as unknown[],
         functionName: "poke",
         args: ["0xABcdEFABcdEFabcdEfAbCdefabcdeFABcDEFabCD"],
-      },
-      {
-        ignore: [`NotAllowed(${account})`],
       },
     );
   });

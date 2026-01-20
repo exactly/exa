@@ -25,7 +25,7 @@ import { firewallAbi, firewallAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
 import database, { credentials } from "../database/index";
-import keeper from "../utils/keeper";
+import allowerPromise from "../utils/allower";
 import { createUser } from "../utils/panda";
 import { addCapita, deriveAssociateId } from "../utils/pax";
 import {
@@ -299,13 +299,6 @@ export default new Hono().post(
     getActiveSpan()?.setAttributes({ "exa.pandaId": id });
     setContext("persona", { inquiryId: personaShareToken, pandaId: id });
 
-    Promise.resolve()
-      .then(async () => {
-        const accountAddress = v.parse(Address, credential.account);
-        await pokeAccountAssets(accountAddress, { ignore: [`NotAllowed(${accountAddress})`] });
-      })
-      .catch((error: unknown) => captureException(error));
-
     const accountParsed = safeParse(Address, credential.account);
     if (accountParsed.success) {
       addCapita({
@@ -328,13 +321,21 @@ export default new Hono().post(
     }
 
     if (firewallAddress) {
-      keeper
+      const allower = await allowerPromise;
+      await allower
         .exaSend(
           { name: "exa.firewall", op: "exa.firewall", attributes: { account: credential.account, personaShareToken } },
           { address: firewallAddress, functionName: "allow", args: [credential.account, true], abi: firewallAbi },
         )
         .catch((error: unknown) => captureException(error, { level: "error" }));
     }
+
+    Promise.resolve()
+      .then(async () => {
+        const accountAddress = v.parse(Address, credential.account);
+        await pokeAccountAssets(accountAddress);
+      })
+      .catch((error: unknown) => captureException(error));
     addDocument(referenceId, {
       id_class: { value: fields.identificationClass.value },
       id_number: { value: fields.identificationNumber.value },
