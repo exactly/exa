@@ -98,6 +98,44 @@ describe("address activity", () => {
     expect(response.status).toBe(200);
   });
 
+  it("ignores poke revert when account is not allowed", async () => {
+    const revertAbi = [{ type: "error", name: "NotAllowed", inputs: [{ name: "account", type: "address" }] }] as const;
+    const notAllowed = new BaseError("test", {
+      cause: new ContractFunctionRevertedError({
+        abi: revertAbi,
+        data: encodeErrorResult({ abi: revertAbi, errorName: "NotAllowed", args: [account] }),
+        functionName: "pokeETH",
+      }),
+    });
+    vi.spyOn(publicClient, "simulateContract").mockRejectedValueOnce(notAllowed);
+
+    const deposit = parseEther("5");
+    await anvilClient.setBalance({ address: account, value: deposit });
+
+    const [response, market] = await Promise.all([
+      appClient.index.$post({
+        ...activityPayload,
+        json: {
+          ...activityPayload.json,
+          event: {
+            ...activityPayload.json.event,
+            activity: [{ ...activityPayload.json.event.activity[0], toAddress: account }],
+          },
+        },
+      }),
+      waitForWETHMarket(account, deposit),
+    ]);
+
+    expect(market.floatingDepositAssets).toBe(deposit);
+    expect(market.isCollateral).toBe(true);
+    expect(captureException).not.toHaveBeenCalledWith(notAllowed, expect.anything());
+    expect(
+      vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "warning")),
+    ).toHaveLength(0);
+    expect(setUser).toHaveBeenCalledWith({ id: account });
+    expect(response.status).toBe(200);
+  });
+
   it("fails with unexpected error", async () => {
     const chain = NETWORKS.get("ANVIL");
     if (!chain) throw new Error("missing anvil");
