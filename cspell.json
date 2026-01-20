@@ -155,6 +155,7 @@
     "valibot",
     "valierror",
     "valkey",
+    "valora",
     "viem",
     "viewability",
     "wagmi",
@@ -190,9 +191,5 @@
       ]
     }
   ],
-  "ignoreRegExpList": [
-    "\\bitmpl_\\w+\\b",
-    "\\b(w|stat)?aBas\\w+\\b",
-    "\\baOpt\\w+\\b"
-  ]
+  "ignoreRegExpList": ["\\bitmpl_\\w+\\b", "\\b(w|stat)?aBas\\w+\\b", "\\baOpt\\w+\\b"]
 }
