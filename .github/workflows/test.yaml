@@ -10,20 +10,13 @@ jobs:
       OPTIMISM_RPC_URL: ${{ secrets.OPTIMISM_RPC_URL }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          fetch-tags: true
+        with: { fetch-depth: 0, fetch-tags: true }
       - uses: pnpm/action-setup@v4
-        with:
-          version: "10.28.1"
-          run_install: false
+        with: { version: "10.28.1", run_install: false }
       - uses: actions/setup-node@v4
-        with:
-          node-version: "^24.13.0"
-          cache: pnpm
+        with: { node-version: "^24.13.0", cache: pnpm }
       - uses: foundry-rs/foundry-toolchain@v1
-        with:
-          version: v1.3.6
+        with: { version: v1.3.6 }
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -49,11 +42,77 @@ jobs:
         if: ${{ !cancelled() }}
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          flags: github
+          name: test
 
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
         with:
           name: server-events
           path: server/node_modules/@exactly/.spotlight
+          include-hidden-files: true
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NX_DAEMON: false
+      CHAIN_ID: "31337"
+      EXPO_PUBLIC_E2E_MNEMONIC: ${{ secrets.EXPO_PUBLIC_E2E_MNEMONIC }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0, fetch-tags: true }
+      - uses: pnpm/action-setup@v4
+        with: { version: "10.28.1", run_install: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: "^24.13.0", cache: pnpm }
+      - uses: foundry-rs/foundry-toolchain@v1
+        with: { version: v1.3.6 }
+      - uses: actions/cache@v4
+        with:
+          path: .nx/cache
+          key: nx-${{ runner.os }}-${{ github.sha }}
+          restore-keys: nx-${{ runner.os }}-
+      - uses: actions/setup-java@v4
+        with: { distribution: zulu, java-version: "17" }
+      - run: |
+          mkdir -p $HOME/.local/bin && cd $HOME/.local/bin
+          for repo in firehose-ethereum substreams substreams-sink-sql; do
+            curl -L "$(curl -s https://api.github.com/repos/streamingfast/$repo/releases/latest | jq --arg arch "$(uname -m | sed 's/aarch64/arm64/')" -r '.assets[] | select(.browser_download_url | test("linux_" + $arch)) | .browser_download_url')" | tar zxf -
+              done
+          curl -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> $GITHUB_PATH
+      - run: pnpm install --frozen-lockfile
+      - run: |
+          pnpm nx run-many -t build -p mobile e2e
+          pnpm nx generate:app server
+          pnpm nx e2e server > server.log 2>&1 &
+          for i in {1..180}; do
+            curl -f http://localhost:3000/api/auth/authentication > /dev/null 2>&1 && break
+            [ $i -eq 180 ] && cat server.log && exit 1
+            sleep 1
+          done
+          CHROME_LOG_FILE=$PWD/chrome.log xvfb-run maestro test .maestro/flows/web.yaml -e "APP_ID=http://localhost:3000"
+        env: { APP_DOMAIN: localhost, EXPO_PUBLIC_ENV: e2e }
+      - if: always()
+        run: |
+          curl -X POST http://localhost:3000/e2e/shutdown || true
+          for i in {1..60}; do [ -f server/coverage/lcov.info ] && break; sleep 1; done
+      - uses: codecov/codecov-action@v5
+        if: ${{ !cancelled() }}
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: e2e
+          name: web
+          files: server/coverage/lcov.info,server/coverage/app.json
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: e2e-artifacts
+          path: |
+            chrome.log
+            server.log
+            server/coverage
+            server/node_modules/@exactly/.spotlight
+            ~/.maestro/tests
+            .maestro/screenshots
           include-hidden-files: true
