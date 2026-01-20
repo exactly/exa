@@ -203,11 +203,15 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
   for (const testFile of files.filter((file) => file.endsWith(".test.ts") || file.endsWith("e2e.ts"))) {
     const address = privateKeyToAddress(keccak256(toBytes(testFile)));
     await anvilClient.setBalance({ address, value: 10n ** 24n });
-    for (const contract of [exaPlugin, refunder]) {
+    for (const [contract, role] of [
+      [exaPlugin, "KEEPER_ROLE"],
+      [refunder, "KEEPER_ROLE"],
+      [firewall, "ALLOWER_ROLE"],
+    ] as const) {
       await anvilClient.writeContract({
         address: contract,
         functionName: "grantRole",
-        args: [keccak256(toHex("KEEPER_ROLE")), address],
+        args: [keccak256(toHex(role)), address],
         abi: [
           {
             type: "function",
