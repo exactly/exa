@@ -1,9 +1,10 @@
 import { startSpan } from "@sentry/node";
-import type { Job } from "bullmq";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { type AlchemyJobData, processor } from "../../queues/alchemyQueue";
+import { processor, type AlchemyJobData } from "../../queues/alchemyQueue";
 import { AlchemyJob } from "../../queues/constants";
+
+import type { Job } from "bullmq";
 
 // Mock dependencies
 vi.mock("../../utils/alchemy", () => ({
@@ -25,7 +26,7 @@ vi.mock("@sentry/node", () => ({
 }));
 
 // Mock global fetch
-vi.spyOn(global, "fetch").mockResolvedValue({
+vi.spyOn(globalThis, "fetch").mockResolvedValue({
   ok: true,
   json: () => Promise.resolve({}),
   text: () => Promise.resolve(""),

@@ -1,4 +1,4 @@
-import { Page, Text, View, Document, StyleSheet } from "@react-pdf/renderer";
+import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 import React from "react";
 
 const styles = StyleSheet.create({
@@ -75,35 +75,35 @@ const styles = StyleSheet.create({
 });
 
 const Statement = (statement: {
-  maturity: number;
-  lastFour: string;
   data: (
-    | { installments: { current: number; total: number; amount: number }[]; timestamp: string; description: string }
     | {
-        timestamp: string;
-        positionAmount: number;
         amount: number;
         discount: number;
+        positionAmount: number;
+        timestamp: string;
       }
+    | { description: string; installments: { amount: number; current: number; total: number }[]; timestamp: string }
   )[];
+  lastFour: string;
+  maturity: number;
 }) => {
   const repayments = statement.data.filter(
     (
       item,
     ): item is {
-      timestamp: string;
-      positionAmount: number;
       amount: number;
       discount: number;
+      positionAmount: number;
+      timestamp: string;
     } => "positionAmount" in item,
   );
   const purchases = statement.data.filter(
     (
       item,
     ): item is {
-      installments: { current: number; total: number; amount: number }[];
-      timestamp: string;
       description: string;
+      installments: { amount: number; current: number; total: number }[];
+      timestamp: string;
     } => "description" in item,
   );
   return (

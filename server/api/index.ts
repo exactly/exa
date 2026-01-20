@@ -2,7 +2,6 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { csrf } from "hono/csrf";
 
-import appOrigin from "../utils/appOrigin";
 import activity from "./activity";
 import authentication from "./auth/authentication";
 import registration from "./auth/registration";
@@ -12,6 +11,7 @@ import onramp from "./onramp";
 import passkey from "./passkey";
 import pax from "./pax";
 import webhook from "./webhook";
+import appOrigin from "../utils/appOrigin";
 
 const api = new Hono()
   .use(cors({ origin: [appOrigin, "http://localhost:8081"], credentials: true }))

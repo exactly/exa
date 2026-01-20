@@ -59,7 +59,6 @@ export function extender(keeper: WalletClient<HttpTransport, typeof chain, Priva
         ignore?: ((reason: string) => MaybePromise<boolean | TransactionReceipt | undefined>) | string[];
         onHash?: (hash: Hash) => MaybePromise<unknown>;
         onReceipt?: (hash: TransactionReceipt) => MaybePromise<unknown>;
-        ignore?: string[] | ((reason: string) => MaybePromise<TransactionReceipt | boolean | undefined>);
       },
     ) =>
       withScope((scope) =>

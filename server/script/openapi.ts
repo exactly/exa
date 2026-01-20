@@ -31,6 +31,7 @@ process.env.REDIS_URL = "redis://127.0.0.1:6379";
 process.env.DISABLE_WORKERS = "true";
 process.env.SARDINE_API_KEY = "sardine";
 process.env.SARDINE_API_URL = "https://api.sardine.ai";
+process.env.SEGMENT_WRITE_KEY = "segment";
 
 /* eslint-disable n/no-process-exit, unicorn/no-process-exit, no-console -- cli */
 import("../api")

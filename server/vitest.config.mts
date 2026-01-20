@@ -36,6 +36,7 @@ export default defineConfig({
       SARDINE_API_KEY: "sardine",
       SARDINE_API_URL: "https://api.sardine.ai",
       SEGMENT_WRITE_KEY: "segment",
+      DISABLE_WORKERS: "true",
       ...(env.NODE_ENV === "e2e" && { APP_DOMAIN: "localhost", DEBUG: "exa:*" }),
     },
     ...(env.NODE_ENV === "e2e" && {

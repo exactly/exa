@@ -6,7 +6,7 @@ import * as schema from "./schema";
 
 if (!env.POSTGRES_URL) throw new Error("missing postgres url");
 
-const database = drizzle(process.env.POSTGRES_URL, { schema });
+const database = drizzle(env.POSTGRES_URL, { schema });
 
 export default database;
 

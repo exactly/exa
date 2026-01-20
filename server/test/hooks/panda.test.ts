@@ -6,18 +6,6 @@ import "../mocks/redis";
 import "../mocks/sardine";
 import "../mocks/sentry";
 
-import ProposalType from "@exactly/common/ProposalType";
-import deriveAddress from "@exactly/common/deriveAddress";
-import chain, {
-  auditorAbi,
-  exaAccountFactoryAbi,
-  exaPluginAbi,
-  issuerCheckerAbi,
-  marketAbi,
-  upgradeableModularAccountAbi,
-} from "@exactly/common/generated/chain";
-import { Address } from "@exactly/common/validation";
-import { proposalManager } from "@exactly/plugin/deploy.json";
 import { captureException } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
@@ -42,6 +30,19 @@ import {
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { anvil } from "viem/chains";
 import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
+
+import deriveAddress from "@exactly/common/deriveAddress";
+import chain, {
+  auditorAbi,
+  exaAccountFactoryAbi,
+  exaPluginAbi,
+  issuerCheckerAbi,
+  marketAbi,
+  upgradeableModularAccountAbi,
+} from "@exactly/common/generated/chain";
+import ProposalType from "@exactly/common/ProposalType";
+import { Address } from "@exactly/common/validation";
+import { proposalManager } from "@exactly/plugin/deploy.json";
 
 import database, { cards, credentials, sources, transactions } from "../../database";
 import app from "../../hooks/panda";
@@ -1541,9 +1542,9 @@ describe("webhooks", () => {
 
   it("forwards transaction created", async () => {
     const cardId = `${webhookAccount}-card`;
-    const fetch = global.fetch;
+    const fetch = globalThis.fetch;
     let publish = false;
-    const mockFetch = vi.spyOn(global, "fetch").mockImplementation(async (url, init) => {
+    const mockFetch = vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
       if (url === "https://exa.test") {
         publish = true;
         return { ok: true, status: 200 } as Response;
@@ -1576,12 +1577,12 @@ describe("webhooks", () => {
   });
 
   it("forwards transaction updated", async () => {
-    vi.spyOn(pandaUtils, "getUser").mockResolvedValue(userResponseTemplate);
+    vi.spyOn(panda, "getUser").mockResolvedValue(userResponseTemplate);
     const cardId = `${webhookAccount}-card`;
 
-    const fetch = global.fetch;
+    const fetch = globalThis.fetch;
     let publish = false;
-    const mockFetch = vi.spyOn(global, "fetch").mockImplementation(async (url, init) => {
+    const mockFetch = vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
       if (url === "https://exa.test") {
         publish = true;
         return { ok: true, status: 200 } as Response;
@@ -1616,12 +1617,12 @@ describe("webhooks", () => {
   });
 
   it("forwards transaction completed", async () => {
-    vi.spyOn(pandaUtils, "getUser").mockResolvedValue(userResponseTemplate);
+    vi.spyOn(panda, "getUser").mockResolvedValue(userResponseTemplate);
     const cardId = `${webhookAccount}-card`;
 
-    const fetch = global.fetch;
+    const fetch = globalThis.fetch;
     let publishCounter = 0;
-    const mockFetch = vi.spyOn(global, "fetch").mockImplementation(async (url, init) => {
+    const mockFetch = vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
       if (url === "https://exa.test") {
         publishCounter++;
         return { ok: true, status: 200 } as Response;
@@ -1674,7 +1675,7 @@ describe("webhooks", () => {
   });
 
   it("forwards card updated active", async () => {
-    const mockFetch = vi.spyOn(global, "fetch").mockResolvedValueOnce({
+    const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
       ok: true,
       status: 200,
       json() {
@@ -1702,7 +1703,7 @@ describe("webhooks", () => {
   });
 
   it("forwards card updated canceled", async () => {
-    const mockFetch = vi.spyOn(global, "fetch").mockResolvedValueOnce({
+    const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
       ok: true,
       status: 200,
       json() {
@@ -1729,7 +1730,7 @@ describe("webhooks", () => {
   });
 
   it("forwards user updated", async () => {
-    const mockFetch = vi.spyOn(global, "fetch").mockResolvedValueOnce({
+    const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
       ok: true,
       status: 200,
       json() {

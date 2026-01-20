@@ -1,11 +1,13 @@
-import "../mocks/sentry";
 import "../mocks/database";
-import chain from "@exactly/common/generated/chain";
+import "../mocks/sentry";
+
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { mnemonicToAccount } from "viem/accounts";
 import { createSiweMessage } from "viem/siwe";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
+
+import chain from "@exactly/common/generated/chain";
 
 import app from "../../api/webhook";
 import database, { sources } from "../../database";

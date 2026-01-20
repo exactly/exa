@@ -1,4 +1,5 @@
-import { captureException, setUser } from "@sentry/core";
+import { setUser } from "@sentry/core";
+import { captureException } from "@sentry/node";
 import { setSignedCookie } from "hono/cookie";
 import { parse } from "valibot";
 import { hexToBytes, isAddress } from "viem";
@@ -8,19 +9,12 @@ import deriveAddress from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
 import { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
-import { setUser } from "@sentry/core";
-import { captureException } from "@sentry/node";
-import type { WebAuthnCredential } from "@simplewebauthn/server";
-import type { Context } from "hono";
-import { setSignedCookie } from "hono/cookie";
-import { parse } from "valibot";
-import { hexToBytes, isAddress } from "viem";
 
-import database from "../database";
 import authSecret from "./authSecret";
 import decodePublicKey from "./decodePublicKey";
 import { customer } from "./sardine";
 import { identify } from "./segment";
+import database from "../database";
 import { credentials } from "../database/schema";
 import { webhookId } from "../hooks/activity";
 import { alchemyQueue } from "../queues/alchemyQueue";

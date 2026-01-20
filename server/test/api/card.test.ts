@@ -6,7 +6,7 @@ import "../mocks/sentry";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import crypto from "node:crypto";
-import { hexToBigInt, padHex, parseEther, zeroHash } from "viem";
+import { hexToBigInt, padHex, parseEther, zeroAddress, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 
@@ -23,9 +23,11 @@ import * as panda from "../../utils/panda";
 const appClient = testClient(app);
 
 describe("authenticated", () => {
+  let account: `0x${string}`;
+
   beforeAll(async () => {
     const owner = privateKeyToAddress(padHex("0xbeef"));
-    const account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(owner), y: zeroHash });
+    account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(owner), y: zeroHash });
     const publicKey = new Uint8Array();
     await database.insert(credentials).values([
       { id: "eth", publicKey, account, factory: inject("ExaAccountFactory"), pandaId: "eth" },

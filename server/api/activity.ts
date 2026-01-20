@@ -1,58 +1,60 @@
-import { decodeWithdraw } from "@exactly/common/ProposalType";
-import fixedRate from "@exactly/common/fixedRate";
-import chain, {
-    exaPluginAbi,
-    exaPreviewerAbi,
-    exaPreviewerAddress,
-    marketAbi,
-    marketUSDCAddress,
-    marketWETHAddress,
-    proposalManagerAbi,
-    proposalManagerAddress,
-    upgradeableModularAccountAbi,
-} from "@exactly/common/generated/chain";
-import { Address, Hash, type Hex } from "@exactly/common/validation";
-import { effectiveRate, WAD } from "@exactly/lib";
 import { renderToBuffer } from "@react-pdf/renderer";
+
 import { captureException, setUser } from "@sentry/node";
 import { and, arrayOverlaps, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { validator as vValidator } from "hono-openapi/valibot";
 import {
-    array,
-    bigint,
-    boolean,
-    intersect,
-    isoTimestamp,
-    length,
-    literal,
-    looseObject,
-    minLength,
-    nullable,
-    nullish,
-    number,
-    object,
-    optional,
-    parse,
-    picklist,
-    pipe,
-    safeParse,
-    string,
-    transform,
-    undefined_,
-    union,
-    variant,
-    type InferInput,
-    type InferOutput,
+  array,
+  bigint,
+  boolean,
+  intersect,
+  isoTimestamp,
+  length,
+  literal,
+  looseObject,
+  minLength,
+  nullable,
+  nullish,
+  number,
+  object,
+  optional,
+  parse,
+  picklist,
+  pipe,
+  safeParse,
+  string,
+  transform,
+  undefined_,
+  union,
+  variant,
+  type InferInput,
+  type InferOutput,
 } from "valibot";
 import { decodeFunctionData, zeroHash, type Log } from "viem";
 
+import fixedRate from "@exactly/common/fixedRate";
+import chain, {
+  exaPluginAbi,
+  exaPreviewerAbi,
+  exaPreviewerAddress,
+  marketAbi,
+  marketUSDCAddress,
+  marketWETHAddress,
+  proposalManagerAbi,
+  proposalManagerAddress,
+  upgradeableModularAccountAbi,
+} from "@exactly/common/generated/chain";
+import { decodeWithdraw } from "@exactly/common/ProposalType";
+import { Address, Hash, type Hex } from "@exactly/common/validation";
+import { effectiveRate, WAD } from "@exactly/lib";
+
 import database, { cards, credentials, transactions as transactionsSchema } from "../database";
 import auth from "../middleware/auth";
-import Statement from "../utils/Statement";
 import { collectors as cryptomateCollectors } from "../utils/cryptomate";
 import { collectors as pandaCollectors } from "../utils/panda";
 import publicClient from "../utils/publicClient";
+import Statement from "../utils/Statement";
 import validatorHook from "../utils/validatorHook";
 
 const ActivityTypes = picklist(["card", "received", "repay", "sent"]);
@@ -351,7 +353,7 @@ export default new Hono().get(
                       }
                     }
                     return accumulator;
-                  }, new Map<string, { current: number; total: number; amount: number }>())
+                  }, new Map<string, { amount: number; current: number; total: number }>())
                   .values()
                   .toArray(),
               };
@@ -673,7 +675,6 @@ function toArrayBuffer(buffer: ArrayBufferLike) {
   throw new Error("unsupported buffer type");
 }
 
-/* eslint-disable @typescript-eslint/no-redeclare */
 export type CreditActivity = InferOutput<typeof CreditActivity>;
 export type DebitActivity = InferOutput<typeof DebitActivity>;
 export type DepositActivity = InferOutput<typeof DepositActivity>;
@@ -682,4 +683,3 @@ export type OnchainActivity = InferOutput<typeof OnchainActivity>;
 export type PandaActivity = InferOutput<typeof PandaActivity>;
 export type RepayActivity = InferOutput<typeof RepayActivity>;
 export type WithdrawActivity = InferOutput<typeof WithdrawActivity>;
-/* eslint-enable @typescript-eslint/no-redeclare */

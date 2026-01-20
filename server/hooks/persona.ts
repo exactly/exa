@@ -1,4 +1,3 @@
-import { firewallAbi, firewallAddress } from "@exactly/common/generated/chain";
 import { vValidator } from "@hono/valibot-validator";
 import { captureException, getActiveSpan, SEMANTIC_ATTRIBUTE_SENTRY_OP, setContext, setUser } from "@sentry/node";
 import { eq } from "drizzle-orm";
@@ -20,6 +19,7 @@ import {
   transform,
 } from "valibot";
 
+import { firewallAbi, firewallAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
 import database, { credentials } from "../database/index";

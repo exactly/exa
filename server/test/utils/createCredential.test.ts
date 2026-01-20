@@ -1,10 +1,11 @@
 import { captureException } from "@sentry/node";
-import type { Context } from "hono";
-import { type Mock, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 
 import { alchemyQueue } from "../../queues/alchemyQueue";
 import { AlchemyJob } from "../../queues/constants";
 import createCredential from "../../utils/createCredential";
+
+import type { Context } from "hono";
 
 // Mock dependencies
 vi.mock("../../queues/alchemyQueue", () => ({
@@ -43,7 +44,7 @@ vi.mock("../../hooks/activity", () => ({
 }));
 
 // Mock global fetch to avoid actual network calls
-vi.spyOn(global, "fetch").mockResolvedValue({
+vi.spyOn(globalThis, "fetch").mockResolvedValue({
   ok: true,
   json: () => Promise.resolve({}),
   text: () => Promise.resolve(""),

@@ -1,6 +1,3 @@
-import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
-import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
-import { Address } from "@exactly/common/validation";
 import { captureException, setContext, setUser } from "@sentry/node";
 import { Mutex } from "async-mutex";
 import { eq, inArray, ne } from "drizzle-orm";
@@ -28,7 +25,7 @@ import {
 } from "valibot";
 
 import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
-import { SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
+import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import { Address } from "@exactly/common/validation";
 
 import database, { cards, credentials } from "../database";

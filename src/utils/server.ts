@@ -1,20 +1,19 @@
-import { Platform } from "react-native";
-import { get as assert, create } from "react-native-passkeys";
-
-import { hc, parseResponse } from "hono/client";
-import { check, number, parse, pipe, safeParse, ValiError } from "valibot";
-
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 import deriveAddress from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
 import { Credential } from "@exactly/common/validation";
+import type { ExaAPI } from "@exactly/server/api"; // eslint-disable-line @nx/enforce-module-boundaries
+import { sdk } from "@farcaster/miniapp-sdk";
+import { getConnection, signMessage } from "@wagmi/core/actions";
+import { hc, parseResponse } from "hono/client";
+import { Platform } from "react-native";
+import { get as assert, create } from "react-native-passkeys";
+import { check, number, parse, pipe, safeParse, ValiError } from "valibot";
 
 import { login as loginIntercom, logout as logoutIntercom } from "./intercom";
 import { decrypt, decryptPIN, encryptPIN, session } from "./panda";
 import queryClient, { APIError, type AuthMethod } from "./queryClient";
 import ownerConfig from "./wagmi/owner";
-
-import type { ExaAPI } from "@exactly/server/api"; // eslint-disable-line @nx/enforce-module-boundaries
 
 queryClient.setQueryDefaults<number | undefined>(["auth"], {
   retry: false,
@@ -210,7 +209,8 @@ export async function getActivity(parameters?: NonNullable<Parameters<typeof api
   await auth();
   const response = await api.activity.$get(
     parameters?.include === undefined ? undefined : { query: { include: parameters.include } },
-    const parsed = await parseResponse(response);
+  );
+  const parsed = await parseResponse(response);
   return Array.isArray(parsed) ? parsed : [];
 }
 

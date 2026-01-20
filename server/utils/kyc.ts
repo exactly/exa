@@ -1,7 +1,8 @@
-import { Address, Hex } from "@exactly/common/validation";
 import * as v from "valibot";
 
-import { baseURL, key as api_key } from "./panda";
+import { Address, Hex } from "@exactly/common/validation";
+
+import { key as api_key, baseURL } from "./panda";
 
 export async function submitApplication(payload: v.InferInput<typeof SubmitApplicationRequest>, encrypted = false) {
   return request(
@@ -136,7 +137,7 @@ async function request<TInput, TOutput, TIssue extends v.BaseIssue<unknown>>(
   url: `/${string}`,
   headers = {},
   body?: unknown,
-  method: "GET" | "POST" | "PUT" | "PATCH" = body === undefined ? "GET" : "POST",
+  method: "GET" | "PATCH" | "POST" | "PUT" = body === undefined ? "GET" : "POST",
   timeout = 10_000,
 ) {
   const response = await fetch(`${baseURL}${url}`, {

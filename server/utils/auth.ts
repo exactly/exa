@@ -1,14 +1,15 @@
-import domain from "@exactly/common/domain";
-import chain from "@exactly/common/generated/chain";
-import { Address, Hex } from "@exactly/common/validation";
 import { captureException } from "@sentry/core";
 import { betterAuth } from "better-auth";
-import { siwe, organization } from "better-auth/plugins";
+import { organization, siwe } from "better-auth/plugins";
 import { createAccessControl } from "better-auth/plugins/access";
-import { defaultStatements, adminAc, ownerAc, memberAc } from "better-auth/plugins/organization/access";
+import { adminAc, defaultStatements, memberAc, ownerAc } from "better-auth/plugins/organization/access";
 import { parse } from "valibot";
 import { verifyMessage } from "viem";
 import { generateSiweNonce } from "viem/siwe";
+
+import domain from "@exactly/common/domain";
+import chain from "@exactly/common/generated/chain";
+import { Address, Hex } from "@exactly/common/validation";
 
 import authSecret from "./authSecret";
 import { authAdapter } from "../database/index";

@@ -1,21 +1,3 @@
-import MIN_BORROW_INTERVAL from "@exactly/common/MIN_BORROW_INTERVAL";
-import domain from "@exactly/common/domain";
-import {
-  auditorAbi,
-  exaPluginAbi,
-  exaPluginAddress,
-  exaPreviewerAbi,
-  exaPreviewerAddress,
-  issuerCheckerAbi,
-  marketAbi,
-  proposalManagerAbi,
-  refunderAbi,
-  refunderAddress,
-  upgradeableModularAccountAbi,
-  usdcAddress,
-} from "@exactly/common/generated/chain";
-import { Address, type Hash, type Hex } from "@exactly/common/validation";
-import { MATURITY_INTERVAL, splitInstallments } from "@exactly/lib";
 import { vValidator } from "@hono/valibot-validator";
 import {
   captureException,
@@ -30,7 +12,6 @@ import { E_TIMEOUT } from "async-mutex";
 import createDebug from "debug";
 import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
-import type { UnofficialStatusCode } from "hono/utils/http-status";
 import { createHmac } from "node:crypto";
 import * as v from "valibot";
 import {
@@ -52,6 +33,7 @@ import {
   type TransactionReceipt,
 } from "viem";
 
+import domain from "@exactly/common/domain";
 import {
   auditorAbi,
   exaPluginAbi,
@@ -1003,7 +985,7 @@ function handleDeclinedTransaction(account: string, payload: v.InferOutput<typeo
   // });
   // const createdAt = getCreatedAt(payload) ?? new Date().toISOString();
   // const body = { ...(jsonBody as object), createdAt };
-  // TODO: Enable once UI has proper designs to handle decined transactions in activity
+  // TODO: Enable once UI has proper designs to handle declined transactions in activity
   // await (tx
   //   ? database
   //       .update(transactions)
@@ -1050,7 +1032,7 @@ async function findCardById(cardId: string) {
 
 async function publish(payload: v.InferOutput<typeof Payload>, receipt?: TransactionReceipt) {
   if (payload.resource === "transaction" && payload.action === "requested") return;
-  if (receipt && receipt.status === "reverted") return;
+  if (receipt?.status === "reverted") return;
 
   async function sendWebhook(webhookPayload: v.InferOutput<typeof Webhook>, url: string, secret: string) {
     try {

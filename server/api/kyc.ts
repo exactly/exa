@@ -1,14 +1,15 @@
-import chain from "@exactly/common/generated/chain";
-import { Address } from "@exactly/common/validation";
 import { setContext, setUser } from "@sentry/node";
 import createDebug from "debug";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { describeRoute } from "hono-openapi";
 import { resolver, validator as vValidator } from "hono-openapi/valibot";
-import { object, parse, optional, string, pipe, metadata, union, array, literal, picklist } from "valibot";
+import { array, literal, metadata, object, optional, parse, picklist, pipe, string, union } from "valibot";
 import { sha256, verifyMessage } from "viem";
 import { parseSiweMessage } from "viem/siwe";
+
+import chain from "@exactly/common/generated/chain";
+import { Address } from "@exactly/common/validation";
 
 import database, { credentials, walletAddresses } from "../database/index";
 import auth from "../middleware/auth";
@@ -16,9 +17,9 @@ import {
   SubmitApplicationRequest as Application,
   UpdateApplicationRequest as ApplicationUpdate,
   getApplicationStatus,
+  KycError,
   submitApplication,
   updateApplication,
-  KycError,
 } from "../utils/kyc";
 import {
   createInquiry,

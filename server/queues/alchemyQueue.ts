@@ -8,12 +8,12 @@ import { headers } from "../utils/alchemy";
 /**
  * Interface representing the data payload for Alchemy background jobs.
  */
-export interface AlchemyJobData {
+export type AlchemyJobData = {
   /** The likely Ethereum address of the account to subscribe. */
   account: string;
   /** The Alchemy webhook ID to update. */
   webhookId: string;
-}
+};
 
 const connection = process.env.REDIS_URL
   ? new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: null })

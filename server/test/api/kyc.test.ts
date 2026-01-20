@@ -2,14 +2,15 @@ import "../mocks/auth";
 import "../mocks/deployments";
 import "../mocks/sentry";
 
-import chain from "@exactly/common/generated/chain";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import crypto from "node:crypto";
-import { getAddress, sha256 } from "viem";
-import { mnemonicToAccount } from "viem/accounts";
+import { getAddress, padHex, sha256, zeroAddress, zeroHash } from "viem";
+import { mnemonicToAccount, privateKeyToAddress } from "viem/accounts";
 import { createSiweMessage, generateSiweNonce } from "viem/siwe";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+
+import chain from "@exactly/common/generated/chain";
 
 import app from "../../api/kyc";
 import database, { credentials, organizations, sources } from "../../database";
@@ -17,6 +18,8 @@ import auth from "../../utils/auth";
 import * as kyc from "../../utils/kyc";
 import * as panda from "../../utils/panda";
 import * as persona from "../../utils/persona";
+
+import type * as v from "valibot";
 
 const appClient = testClient(app);
 
@@ -169,6 +172,7 @@ describe("authenticated", () => {
   describe("application", () => {
     describe("with organization", () => {
       const owner = mnemonicToAccount("test test test test test test test test test test test kyc");
+      const account = owner.address;
       const ownerHeaders: Headers = new Headers();
       const outsider = mnemonicToAccount("test test test test test test test test test test test bob");
       const outsiderHeaders: Headers = new Headers();
@@ -321,7 +325,7 @@ describe("authenticated", () => {
           };
 
           await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, account));
-          const mockFetch = vi.spyOn(global, "fetch").mockResolvedValueOnce({
+          const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
             ok: true,
             status: 200,
             arrayBuffer: () =>
@@ -490,7 +494,7 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
             };
 
             await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, account));
-            const mockFetch = vi.spyOn(global, "fetch").mockResolvedValueOnce({
+            const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
               ok: true,
               status: 200,
               arrayBuffer: () =>
@@ -581,7 +585,7 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
 
       describe("update", () => {
         it("returns ok when kyc is started", async () => {
-          const mockFetch = vi.spyOn(global, "fetch").mockResolvedValueOnce({
+          const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
             ok: true,
             status: 200,
             arrayBuffer: () => Promise.resolve(new TextEncoder().encode("{}").buffer),
