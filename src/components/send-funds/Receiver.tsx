@@ -142,7 +142,7 @@ export default function ReceiverSelection() {
                   )}
                 </ScrollView>
               )}
-              <Text color="$uiNeutralPlaceholder" fontSize={13} lineHeight={16} textAlign="justify">
+              <Text color="$uiNeutralPlaceholder" fontSize={13} textAlign="justify">
                 {t(
                   "Make sure that the receiving address is compatible with {{chain}} network. Sending assets on other networks may result in irreversible loss of funds.",
                   { chain: chain.name },
@@ -150,7 +150,6 @@ export default function ReceiverSelection() {
                 <Text
                   color="$uiBrandSecondary"
                   fontSize={13}
-                  lineHeight={16}
                   fontWeight="bold"
                   cursor="pointer"
                   onPress={() => {

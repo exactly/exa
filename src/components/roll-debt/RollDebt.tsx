@@ -110,13 +110,11 @@ export default function Pay() {
                   </Text>
                 </YStack>
                 <Text primary title3 textAlign="right">
-                  {(Number(previewValue) / 1e18).toLocaleString(language, {
-                    style: "currency",
-                    currency: "USD",
-                    currencyDisplay: "narrowSymbol",
+                  {`$${(Number(previewValue) / 1e18).toLocaleString(language, {
+                    style: "decimal",
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
-                  })}
+                  })}`}
                 </Text>
               </XStack>
               {borrowPreview ? (
@@ -143,13 +141,11 @@ export default function Pay() {
                     </Text>
                   </YStack>
                   <Text primary title3 textAlign="right">
-                    {(Number(rolloverPreviewValue - previewValue) / 1e18).toLocaleString(language, {
-                      style: "currency",
-                      currency: "USD",
-                      currencyDisplay: "narrowSymbol",
+                    {`$${(Number(rolloverPreviewValue - previewValue) / 1e18).toLocaleString(language, {
+                      style: "decimal",
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
-                    })}
+                    })}`}
                   </Text>
                 </XStack>
               ) : (
@@ -171,13 +167,11 @@ export default function Pay() {
                   </Text>
                 </YStack>
                 <Text primary title3 textAlign="right">
-                  {(Number(existingDebtPreviewValue) / 1e18).toLocaleString(language, {
-                    style: "currency",
-                    currency: "USD",
-                    currencyDisplay: "narrowSymbol",
+                  {`$${(Number(existingDebtPreviewValue) / 1e18).toLocaleString(language, {
+                    style: "decimal",
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
-                  })}
+                  })}`}
                 </Text>
               </XStack>
               <Separator height={1} borderColor="$borderNeutralSoft" paddingVertical="$s2" />
@@ -195,13 +189,11 @@ export default function Pay() {
                   </Text>
                 </YStack>
                 <Text title color="$uiBrandSecondary" textAlign="right">
-                  {(Number(existingDebtPreviewValue + rolloverPreviewValue) / 1e18).toLocaleString(language, {
-                    style: "currency",
-                    currency: "USD",
-                    currencyDisplay: "narrowSymbol",
+                  {`$${(Number(existingDebtPreviewValue + rolloverPreviewValue) / 1e18).toLocaleString(language, {
+                    style: "decimal",
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
-                  })}
+                  })}`}
                 </Text>
               </XStack>
             </YStack>

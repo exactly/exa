@@ -530,11 +530,7 @@ export default function Bridge() {
                 </Text>
               </XStack>
               <Text emphasized secondary body textAlign="center">
-                {usdValue.toLocaleString(language, {
-                  style: "currency",
-                  currency: "USD",
-                  currencyDisplay: "narrowSymbol",
-                })}
+                {`$${usdValue.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
               </Text>
             </YStack>
           </YStack>
@@ -730,30 +726,30 @@ export default function Bridge() {
                                   <Skeleton height={16} width={100} />
                                 ) : (
                                   <Text callout color="$uiNeutralPlaceholder">
-                                    {`≈${Number(
+                                    {`≈$${Number(
                                       formatUnits(
                                         (toAmount * parseUnits(destinationToken.priceUSD, 18)) / WAD,
                                         destinationToken.decimals,
                                       ),
                                     ).toLocaleString(language, {
-                                      style: "currency",
-                                      currency: "USD",
-                                      currencyDisplay: "narrowSymbol",
+                                      style: "decimal",
+                                      minimumFractionDigits: 2,
+                                      maximumFractionDigits: 2,
                                     })}`}
                                   </Text>
                                 )}
                                 <Text footnote color="$uiNeutralSecondary" textAlign="right">
                                   {t("Balance: {{value}}", {
-                                    value: Number(
+                                    value: `$${Number(
                                       formatUnits(
                                         (destinationBalance * parseUnits(destinationToken.priceUSD, 18)) / WAD,
                                         destinationToken.decimals,
                                       ),
                                     ).toLocaleString(language, {
-                                      style: "currency",
-                                      currency: "USD",
-                                      currencyDisplay: "narrowSymbol",
-                                    }),
+                                      style: "decimal",
+                                      minimumFractionDigits: 2,
+                                      maximumFractionDigits: 2,
+                                    })}`,
                                   })}
                                 </Text>
                               </XStack>

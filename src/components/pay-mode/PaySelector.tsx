@@ -160,7 +160,7 @@ export default function PaySelector() {
                 maxLength={6}
                 numberOfLines={1}
                 onChangeText={setInput}
-                style={{ fontSize: 20, lineHeight: 25, padding: 0, flex: 1 }}
+                style={{ fontSize: 20, padding: 0, flex: 1 }}
                 textAlign="right"
                 value={input}
                 width="100%"

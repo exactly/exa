@@ -276,11 +276,7 @@ function ProposalItem({ proposal }: { proposal: Proposal }) {
         </YStack>
         <YStack alignItems="flex-end">
           <Text primary emphasized subHeadline numberOfLines={1}>
-            {(Number(usdValue) / 1e18).toLocaleString(language, {
-              style: "currency",
-              currency: "USD",
-              currencyDisplay: "narrowSymbol",
-            })}
+            {`$${(Number(usdValue) / 1e18).toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           </Text>
           {rendersAmount ? (
             <Text secondary footnote maxFontSizeMultiplier={1} numberOfLines={1}>

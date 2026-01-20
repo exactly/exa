@@ -84,12 +84,11 @@ export default function ReviewSheet({
                       {amount} {symbol}
                     </Text>
                     <Text subHeadline color="$uiNeutralSecondary">
-                      {Number(usdValue).toLocaleString(language, {
-                        style: "currency",
-                        currency: "USD",
+                      {`$${Number(usdValue).toLocaleString(language, {
+                        style: "decimal",
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2,
-                      })}
+                      })}`}
                     </Text>
                   </YStack>
                 </XStack>

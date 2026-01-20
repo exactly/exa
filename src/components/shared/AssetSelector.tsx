@@ -129,11 +129,7 @@ export default function AssetSelector({
                 <View gap="$s2" flex={1}>
                   <View flexDirection="row" alignItems="center" justifyContent="flex-end">
                     <Text fontSize={15} fontWeight="bold" textAlign="right" color="$uiNeutralPrimary">
-                      {asset.usdValue.toLocaleString(language, {
-                        style: "currency",
-                        currency: "USD",
-                        currencyDisplay: "narrowSymbol",
-                      })}
+                      {`$${asset.usdValue.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                     </Text>
                   </View>
                   <Text fontSize={12} color="$uiNeutralSecondary" textAlign="right">

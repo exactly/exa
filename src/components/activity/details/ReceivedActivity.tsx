@@ -30,11 +30,7 @@ export default function ReceivedActivity({ item }: { item: Omit<DepositActivity,
             {t("Received")}
           </Text>
           <Text title primary color="$uiSuccessSecondary">
-            {usdAmount.toLocaleString(language, {
-              style: "currency",
-              currency: "USD",
-              currencyDisplay: "narrowSymbol",
-            })}
+            {`$${usdAmount.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           </Text>
           <XStack gap="$s3" alignItems="center">
             <Text emphasized subHeadline color="$uiNeutralSecondary">

@@ -44,12 +44,12 @@ export default function CardLimits({ onPress }: { onPress: () => void }) {
             maxFontSizeMultiplier={1}
             color="white"
           >
-            {(markets
+            {`$${(markets
               ? Number(
                   isCredit ? borrowLimit(markets, marketUSDCAddress) : withdrawLimit(markets, marketUSDCAddress, WAD),
                 ) / 1e6
               : 0
-            ).toLocaleString(language, { style: "currency", currency: "USD", currencyDisplay: "narrowSymbol" })}
+            ).toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           </Text>
         </XStack>
         <XStack justifyContent="center" alignItems="center" gap="$s2" hitSlop={15} onPress={onPress} cursor="pointer">

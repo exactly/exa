@@ -182,7 +182,6 @@ export default function TokenInput({
                           fontFamily: "BDOGrotesk-Regular",
                           fontSize: 28,
                           fontWeight: "bold",
-                          lineHeight: 34,
                           letterSpacing: -0.2,
                         }}
                         textAlign="left"
@@ -202,21 +201,17 @@ export default function TokenInput({
                     </View>
                   ) : (
                     <Text callout color="$uiNeutralPlaceholder">
-                      {`${valueUSD > 0 ? "≈" : ""}${valueUSD.toLocaleString(language, {
-                        style: "currency",
-                        currency: "USD",
-                        currencyDisplay: "narrowSymbol",
+                      {`${valueUSD > 0 ? "≈" : ""}$${valueUSD.toLocaleString(language, {
+                        style: "decimal",
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
                       })}`}
                     </Text>
                   )}
                   {token ? (
                     <Text footnote color="$uiNeutralSecondary">
                       {t("Balance: {{value}}", {
-                        value: balanceUSD.toLocaleString(language, {
-                          style: "currency",
-                          currency: "USD",
-                          currencyDisplay: "narrowSymbol",
-                        }),
+                        value: `$${balanceUSD.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
                       })}
                     </Text>
                   ) : null}

@@ -213,11 +213,7 @@ function SkeletonItems() {
 }
 
 function formatUSDValue(value: number, language: string) {
-  return value.toLocaleString(language, {
-    style: "currency",
-    currency: "USD",
-    currencyDisplay: "narrowSymbol",
-  });
+  return `$${value.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function formatTokenAmount(amount: bigint, decimals: number, language: string) {

@@ -64,13 +64,8 @@ export default function PortfolioSummary({
         adjustsFontSizeToFit
         fontFamily="$mono"
         fontSize={40}
-        lineHeight={40}
       >
-        {(Number(usdBalance) / 1e18).toLocaleString(language, {
-          style: "currency",
-          currency: "USD",
-          currencyDisplay: "narrowSymbol",
-        })}
+        {`$${(Number(usdBalance) / 1e18).toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
       </Text>
       {processingBalance ? (
         <XStack
@@ -88,11 +83,7 @@ export default function PortfolioSummary({
         >
           <Text emphasized subHeadline secondary>
             {t("Processing balance {{amount}}", {
-              amount: processingBalance.toLocaleString(language, {
-                style: "currency",
-                currency: "USD",
-                currencyDisplay: "narrowSymbol",
-              }),
+              amount: `$${processingBalance.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
             })}
           </Text>
           <ChevronRight size={16} color="$uiNeutralSecondary" />

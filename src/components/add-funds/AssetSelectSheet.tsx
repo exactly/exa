@@ -144,11 +144,7 @@ export default function AssetSelectSheet({
                             {!hideBalances && (
                               <YStack alignItems="flex-end" gap="$s1">
                                 <Text callout color="$uiNeutralPrimary">
-                                  {usdValue.toLocaleString(language, {
-                                    style: "currency",
-                                    currency: "USD",
-                                    currencyDisplay: "narrowSymbol",
-                                  })}
+                                  {`$${usdValue.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                                 </Text>
                                 <Text footnote color="$uiNeutralSecondary">
                                   {`${Number(formatUnits(balance, token.decimals)).toLocaleString(language, {

@@ -43,7 +43,7 @@ export default function LiquidationAlert() {
           }}
         >
           <View flexDirection="row" gap={2} alignItems="center">
-            <Text color="$interactiveOnBaseErrorSoft" fontSize={15} lineHeight={18} fontWeight="bold">
+            <Text color="$interactiveOnBaseErrorSoft" fontSize={15} fontWeight="bold">
               {t("Learn more")}
             </Text>
             <ChevronRight size={14} color="$interactiveOnBaseErrorSoft" fontWeight="bold" />

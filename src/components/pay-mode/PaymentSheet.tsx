@@ -220,19 +220,11 @@ export default function PaymentSheet({ open, onClose }: { onClose: () => void; o
                   overflow="hidden"
                   color={isUpcoming ? "$uiNeutralPrimary" : "$uiErrorSecondary"}
                 >
-                  {(Number(previewValue) / 1e18).toLocaleString(language, {
-                    style: "currency",
-                    currency: "USD",
-                    currencyDisplay: "narrowSymbol",
-                  })}
+                  {`$${(Number(previewValue) / 1e18).toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                 </Text>
                 {discount >= 0 && (
                   <Text sensitive body strikeThrough color="$uiNeutralSecondary">
-                    {(Number(positionValue) / 1e18).toLocaleString(language, {
-                      style: "currency",
-                      currency: "USD",
-                      currencyDisplay: "narrowSymbol",
-                    })}
+                    {`$${(Number(positionValue) / 1e18).toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                   </Text>
                 )}
                 {!hidden && (

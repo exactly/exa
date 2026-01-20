@@ -77,11 +77,7 @@ export default function Failure({
                     {t("Failed")}
                   </Text>
                   <Text title primary color="$uiNeutralPrimary">
-                    {fromUsdAmount.toLocaleString(language, {
-                      style: "currency",
-                      currency: "USD",
-                      currencyDisplay: "narrowSymbol",
-                    })}
+                    {`$${fromUsdAmount.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                   </Text>
                   <XStack gap="$s2" alignItems="center">
                     <Text emphasized secondary subHeadline>
@@ -94,11 +90,7 @@ export default function Failure({
                   </XStack>
                   <ArrowDown size={24} color="$uiNeutralPrimary" />
                   <Text title primary color="$uiNeutralPrimary">
-                    {toUsdAmount.toLocaleString(language, {
-                      style: "currency",
-                      currency: "USD",
-                      currencyDisplay: "narrowSymbol",
-                    })}
+                    {`$${toUsdAmount.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                   </Text>
                   <XStack gap="$s2" alignItems="center">
                     <Text emphasized secondary subHeadline>

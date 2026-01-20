@@ -30,11 +30,7 @@ export default function ProcessingBalance() {
     <XStack cursor="pointer">
       <Text emphasized subHeadline secondary>
         {t("Processing balance {{amount}}", {
-          amount: processingBalance.toLocaleString(language, {
-            style: "currency",
-            currency: "USD",
-            currencyDisplay: "narrowSymbol",
-          }),
+          amount: `$${processingBalance.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
         })}
       </Text>
     </XStack>

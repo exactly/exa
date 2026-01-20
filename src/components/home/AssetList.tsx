@@ -44,11 +44,7 @@ function AssetRow({ asset }: { asset: AssetItem }) {
             {symbol}
           </Text>
           <Text caption color="$uiNeutralSecondary" numberOfLines={1}>
-            {(Number(usdPrice) / 1e18).toLocaleString(language, {
-              style: "currency",
-              currency: "USD",
-              currencyDisplay: "narrowSymbol",
-            })}
+            {`$${(Number(usdPrice) / 1e18).toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           </Text>
         </YStack>
       </XStack>
@@ -81,11 +77,7 @@ function AssetRow({ asset }: { asset: AssetItem }) {
       </YStack>
       <YStack gap={5} flex={1} $platform-web={{ flexBasis: 1 / 3 }}>
         <Text sensitive emphasized subHeadline numberOfLines={1} adjustsFontSizeToFit textAlign="right">
-          {(Number(usdValue) / 1e18).toLocaleString(language, {
-            style: "currency",
-            currency: "USD",
-            currencyDisplay: "narrowSymbol",
-          })}
+          {`$${(Number(usdValue) / 1e18).toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
         </Text>
         <Text caption color="$uiNeutralSecondary" textAlign="right">
           {(Number(amount) / 10 ** decimals).toLocaleString(language, {

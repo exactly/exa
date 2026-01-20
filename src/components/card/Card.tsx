@@ -430,13 +430,11 @@ export default function Card() {
                     <XStack alignItems="center">
                       {limit ? (
                         <>
-                          <Text caption emphasized color="$uiBrandSecondary" lineHeight={24}>
-                            {(limit - totalSpent).toLocaleString(language, {
-                              style: "currency",
-                              currency: "USD",
-                              currencyDisplay: "narrowSymbol",
+                          <Text caption emphasized color="$uiBrandSecondary">
+                            {`$${(limit - totalSpent).toLocaleString(language, {
+                              style: "decimal",
                               maximumFractionDigits: 0,
-                            })}
+                            })}`}
                           </Text>
                           <ChevronRight color="$uiBrandSecondary" size={24} />
                         </>

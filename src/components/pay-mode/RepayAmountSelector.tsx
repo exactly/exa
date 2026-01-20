@@ -177,11 +177,7 @@ export default function RepayAmountSelector({
         {balancerBalance !== undefined && positionValue > balancerBalance && (
           <Text caption color="$uiNeutralPlaceholder">
             {t("Limit {{amount}} per repay. Please split larger amounts into smaller payments.", {
-              amount: (Number(balancerBalance) / 1e6).toLocaleString(language, {
-                style: "currency",
-                currency: "USD",
-                currencyDisplay: "narrowSymbol",
-              }),
+              amount: `$${(Number(balancerBalance) / 1e6).toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
             })}
           </Text>
         )}

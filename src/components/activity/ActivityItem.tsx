@@ -110,12 +110,11 @@ export default function ActivityItem({
             <YStack gap="$s2">
               <XStack alignItems="center" justifyContent="flex-end">
                 <Text sensitive emphasized subHeadline textAlign="right">
-                  {Math.abs(item.usdAmount).toLocaleString(language, {
-                    style: "currency",
-                    currency: "USD",
+                  {`$${Math.abs(item.usdAmount).toLocaleString(language, {
+                    style: "decimal",
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
-                  })}
+                  })}`}
                 </Text>
               </XStack>
               {"amount" in item && item.amount ? (

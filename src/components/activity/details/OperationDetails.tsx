@@ -54,11 +54,7 @@ export default function OperationDetails({ item }: { item: CreditActivity | Debi
             {t("Total")}
           </Text>
           <Text callout color="$uiNeutralPrimary">
-            {item.usdAmount.toLocaleString(language, {
-              style: "currency",
-              currency: "USD",
-              currencyDisplay: "narrowSymbol",
-            })}
+            {`$${item.usdAmount.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           </Text>
         </XStack>
 

@@ -94,11 +94,7 @@ export default function Portfolio() {
             numberOfLines={1}
             adjustsFontSizeToFit
           >
-            {(Number(usdBalance) / 1e18).toLocaleString(language, {
-              style: "currency",
-              currency: "USD",
-              currencyDisplay: "narrowSymbol",
-            })}
+            {`$${(Number(usdBalance) / 1e18).toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           </Text>
           {usdBalance > 0n ? (
             <WeightedRate

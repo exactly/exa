@@ -55,11 +55,7 @@ export default function CardActivity({
             </Text>
           </Text>
           <Text title primary color={refund ? "$uiSuccessSecondary" : "$uiNeutralPrimary"}>
-            {Math.abs(item.usdAmount).toLocaleString(language, {
-              style: "currency",
-              currency: "USD",
-              currencyDisplay: "narrowSymbol",
-            })}
+            {`$${Math.abs(item.usdAmount).toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           </Text>
           <Text secondary body>
             {item.merchant.name}

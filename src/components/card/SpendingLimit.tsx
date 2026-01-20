@@ -36,12 +36,7 @@ export default function SpendingLimit({
           </Text>
           {limit ? (
             <Text callout sensitive color="$uiNeutralSecondary">
-              {limit.toLocaleString(language, {
-                style: "currency",
-                currency: "USD",
-                currencyDisplay: "narrowSymbol",
-                maximumFractionDigits: 0,
-              })}
+              {`$${limit.toLocaleString(language, { style: "decimal", maximumFractionDigits: 0 })}`}
             </Text>
           ) : (
             <Skeleton width={100} height={16} />
@@ -51,12 +46,10 @@ export default function SpendingLimit({
           {limit ? (
             <Text callout sensitive color="$uiBrandSecondary">
               {t("{{amount}} left", {
-                amount: (limit - totalSpent).toLocaleString(language, {
-                  style: "currency",
-                  currency: "USD",
-                  currencyDisplay: "narrowSymbol",
+                amount: `$${(limit - totalSpent).toLocaleString(language, {
+                  style: "decimal",
                   maximumFractionDigits: 0,
-                }),
+                })}`,
               })}
             </Text>
           ) : (

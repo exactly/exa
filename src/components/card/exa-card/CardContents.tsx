@@ -76,11 +76,11 @@ export default function CardContents({
                 transform={[{ translateX: 0 }]}
               >
                 <Text sensitive color="white" title maxFontSizeMultiplier={1} numberOfLines={1}>
-                  {(markets ? Number(borrowLimit(markets, marketUSDCAddress)) / 1e6 : 0).toLocaleString(language, {
-                    style: "currency",
-                    currency: "USD",
-                    currencyDisplay: "narrowSymbol",
-                  })}
+                  {`$${(markets ? Number(borrowLimit(markets, marketUSDCAddress)) / 1e6 : 0).toLocaleString(language, {
+                    style: "decimal",
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}`}
                 </Text>
                 <View>
                   <Text color="white" emphasized caption maxFontSizeMultiplier={1} textTransform="uppercase">
@@ -97,11 +97,14 @@ export default function CardContents({
                 transform={[{ translateX: 0 }]}
               >
                 <Text sensitive color="white" title maxFontSizeMultiplier={1} numberOfLines={1}>
-                  {(markets ? Number(withdrawLimit(markets, marketUSDCAddress)) / 1e6 : 0).toLocaleString(language, {
-                    style: "currency",
-                    currency: "USD",
-                    currencyDisplay: "narrowSymbol",
-                  })}
+                  {`$${(markets ? Number(withdrawLimit(markets, marketUSDCAddress)) / 1e6 : 0).toLocaleString(
+                    language,
+                    {
+                      style: "decimal",
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    },
+                  )}`}
                 </Text>
                 <View>
                   <Text color="white" emphasized caption maxFontSizeMultiplier={1} textTransform="uppercase">

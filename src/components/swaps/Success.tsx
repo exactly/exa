@@ -87,11 +87,7 @@ export default function Success({
                     />
                   </Text>
                   <Text title primary color="$uiNeutralPrimary">
-                    {fromUsdAmount.toLocaleString(language, {
-                      style: "currency",
-                      currency: "USD",
-                      currencyDisplay: "narrowSymbol",
-                    })}
+                    {`$${fromUsdAmount.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                   </Text>
                   <XStack gap="$s2" alignItems="center">
                     <AssetLogo source={{ uri: fromToken.logoURI }} width={16} height={16} />
@@ -101,11 +97,7 @@ export default function Success({
                   </XStack>
                   <ArrowDown size={24} color="$interactiveBaseBrandDefault" />
                   <Text title primary color="$uiNeutralPrimary">
-                    {toUsdAmount.toLocaleString(language, {
-                      style: "currency",
-                      currency: "USD",
-                      currencyDisplay: "narrowSymbol",
-                    })}
+                    {`$${toUsdAmount.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                   </Text>
                   <XStack gap="$s2" alignItems="center">
                     <AssetLogo source={{ uri: toToken.logoURI }} width={16} height={16} />

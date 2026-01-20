@@ -171,13 +171,11 @@ export default function AmountSelector({ onChange }: { onChange: (value: bigint)
                 flex={1}
               >
                 <Text emphasized textAlign="center" fontSize={24}>
-                  {Number(value.replaceAll(/\D/g, ".").replaceAll(/\.(?=.*\.)/g, "")).toLocaleString(language, {
-                    style: "currency",
-                    currency: "USD",
-                    currencyDisplay: "narrowSymbol",
+                  {`$${Number(value.replaceAll(/\D/g, ".").replaceAll(/\.(?=.*\.)/g, "")).toLocaleString(language, {
+                    style: "decimal",
                     minimumFractionDigits: 0,
                     maximumFractionDigits: 2,
-                  })}
+                  })}`}
                 </Text>
               </View>
             </View>
