@@ -81,6 +81,19 @@ services:
       - key: DEBUG
         scope: RUN_TIME
         value: ${{ env.DEBUG }}
+      - key: GCP_KMS_KEY_RING
+        scope: RUN_TIME
+        value: ${{ env.GCP_KMS_KEY_RING }}
+      - key: GCP_KMS_KEY_VERSION
+        scope: RUN_TIME
+        value: ${{ env.GCP_KMS_KEY_VERSION }}
+      - key: GCP_PROJECT_ID
+        scope: RUN_TIME
+        value: ${{ env.GCP_PROJECT_ID }}
+      - key: GCP_BASE64_JSON
+        scope: RUN_TIME
+        type: SECRET
+        value: ${{ env.ENCRYPTED_GCP_BASE64_JSON || env.GCP_BASE64_JSON }}
       - key: INTERCOM_IDENTITY_KEY
         scope: RUN_TIME
         type: SECRET

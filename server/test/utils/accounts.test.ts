@@ -13,8 +13,8 @@ import { keeper } from "../../utils/accounts";
 import nonceManager from "../../utils/nonceManager";
 import publicClient from "../../utils/publicClient";
 
-import type * as sentry from "@sentry/node";
 import type { Hash, Hex } from "@exactly/common/validation";
+import type * as sentry from "@sentry/node";
 import type * as timers from "node:timers/promises";
 
 describe("fault tolerance", () => {
