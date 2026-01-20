@@ -1,5 +1,5 @@
 name: e2e:local
-on: { workflow_dispatch: {} }
+on: { push: { branches: ["main"] }, pull_request: {}, workflow_dispatch: {} }
 defaults: { tools: { node: "24.13.0", pnpm: "10.28.1" } }
 jobs:
   fingerprint:
