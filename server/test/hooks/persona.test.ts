@@ -24,6 +24,22 @@ import * as sardine from "../../utils/sardine";
 const appClient = testClient(app);
 
 vi.mock("@sentry/node", { spy: true });
+const mockAllow = vi.fn().mockResolvedValue({});
+
+vi.mock("../../utils/allower", () => ({
+  default: vi.fn(() =>
+    Promise.resolve({
+      allow: mockAllow,
+    }),
+  ),
+}));
+vi.mock("@exactly/common/generated/chain", async () => {
+  const actual = await vi.importActual("@exactly/common/generated/chain");
+  return {
+    ...actual,
+    firewallAddress: "0x1234567890123456789012345678901234567890",
+  };
+});
 
 describe("with reference", () => {
   const referenceId = "hook-persona";
@@ -633,8 +649,38 @@ describe("persona hook", () => {
       () => {
         expect(exaSendSpy).not.toHaveBeenCalled();
       },
-      { timeout: 500, interval: 50 },
+      { timeout: 100, interval: 20 },
     );
+  });
+
+  it("returns error when firewall call fails", async () => {
+    vi.spyOn(panda, "createUser").mockResolvedValue({ id: "new-panda-id" });
+    vi.spyOn(pax, "addCapita").mockResolvedValue({});
+    vi.spyOn(sardine, "customer").mockResolvedValueOnce({ sessionKey: "test", status: "Success", level: "low" });
+
+    mockAllow.mockRejectedValueOnce(new Error("Firewall error"));
+
+    const response = await appClient.index.$post({
+      header: {
+        "persona-signature": "t=1733865120,v1=debbacfe1b0c5f8797a1d68e8428fba435aa4ca3b5d9a328c3c96ee4d04d84df",
+      },
+      json: {
+        ...validPayload,
+        data: {
+          ...validPayload.data,
+          attributes: {
+            ...validPayload.data.attributes,
+            payload: {
+              ...validPayload.data.attributes.payload,
+              included: [...validPayload.data.attributes.payload.included],
+            },
+          },
+        },
+      },
+    });
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ code: "firewall error" });
   });
 });
 
