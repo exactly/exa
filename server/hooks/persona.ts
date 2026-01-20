@@ -13,6 +13,7 @@ import {
   nullable,
   object,
   optional,
+  parse,
   pipe,
   safeParse,
   string,
@@ -20,10 +21,11 @@ import {
   union,
 } from "valibot";
 
-import { firewallAbi, firewallAddress } from "@exactly/common/generated/chain";
+import { firewallAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
 import database, { credentials } from "../database/index";
+import allower from "../utils/allower";
 import keeper from "../utils/keeper";
 import { createUser } from "../utils/panda";
 import { addCapita, deriveAssociateId } from "../utils/pax";
@@ -32,6 +34,15 @@ import { customer } from "../utils/sardine";
 import validatorHook from "../utils/validatorHook";
 
 import type { InferOutput } from "valibot";
+
+let allowerPromise: ReturnType<typeof allower> | undefined;
+function getAllower() {
+  allowerPromise ??= allower().catch((error: unknown) => {
+    allowerPromise = undefined;
+    throw error;
+  });
+  return allowerPromise;
+}
 
 const Session = pipe(
   object({
@@ -276,6 +287,17 @@ export default new Hono().post(
       if (risk.level === "very_high") return c.json({ code: "very high risk" }, 200);
     }
 
+    if (firewallAddress) {
+      try {
+        const allowerClient = await getAllower();
+        const account = parse(Address, credential.account);
+        await allowerClient.allow(account, { ignore: [`AlreadyAllowed(${account})`] });
+      } catch (error: unknown) {
+        captureException(error, { level: "error" });
+        return c.json({ code: "firewall error" }, 500);
+      }
+    }
+
     // TODO implement error handling to return 200 if event should not be retried
     const { id } = await createUser({
       accountPurpose: fields.accountPurpose.value,
@@ -321,14 +343,6 @@ export default new Hono().post(
       });
     }
 
-    if (firewallAddress) {
-      keeper
-        .exaSend(
-          { name: "exa.firewall", op: "exa.firewall", attributes: { account: credential.account, personaShareToken } },
-          { address: firewallAddress, functionName: "allow", args: [credential.account, true], abi: firewallAbi },
-        )
-        .catch((error: unknown) => captureException(error, { level: "error" }));
-    }
     addDocument(referenceId, {
       id_class: { value: fields.identificationClass.value },
       id_number: { value: fields.identificationNumber.value },
