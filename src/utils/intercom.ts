@@ -54,7 +54,7 @@ export const { login, logout, newMessage, present, presentArticle, presentCollec
         return {
           login: (userId: string, token: string) =>
             appId
-              ? Intercom.setUserHash(token)
+              ? Intercom.setUserJwt(token)
                   .then(() => Intercom.loginUserWithUserAttributes({ userId }))
                   .then(() => true)
                   .catch((error: unknown) => {
