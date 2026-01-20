@@ -20,6 +20,7 @@ vi.mock("../../utils/accounts", async (importOriginal) => {
   const original = await importOriginal<typeof accounts>();
   return {
     ...original,
+    allower: vi.fn(() => Promise.resolve({ allow: vi.fn().mockResolvedValue({}) })),
     keeper: createWalletClient({
       chain,
       transport: http(`${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`),
