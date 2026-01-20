@@ -153,6 +153,26 @@
           "{workspaceRoot}/contracts/broadcast/*/31337/run-latest.json"
         ]
       },
+      "generate:app": {
+        "dependsOn": [
+          {
+            "projects": "@exactly/mobile",
+            "target": "build"
+          }
+        ],
+        "inputs": [
+          {
+            "dependentTasksOutputFiles": "dist"
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/app"
+        ],
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "rm -rf server/app && cp -r dist server/app"
+        }
+      },
       "test": {
         "dependsOn": [
           "test:eslint",
