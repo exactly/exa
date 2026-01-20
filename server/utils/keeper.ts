@@ -15,9 +15,9 @@ import {
   WaitForTransactionReceiptTimeoutError,
   withRetry,
   type HttpTransport,
+  type LocalAccount,
   type MaybePromise,
   type Prettify,
-  type PrivateKeyAccount,
   type TransactionReceipt,
   type WalletClient,
   type WriteContractParameters,
@@ -50,7 +50,7 @@ export default createWalletClient({
   ),
 }).extend(extender);
 
-export function extender(keeper: WalletClient<HttpTransport, typeof chain, PrivateKeyAccount>) {
+export function extender(keeper: WalletClient<HttpTransport, typeof chain, LocalAccount>) {
   return {
     exaSend: async (
       spanOptions: Prettify<Omit<Parameters<typeof startSpan>[0], "name" | "op"> & { name: string; op: string }>,
