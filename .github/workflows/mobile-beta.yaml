@@ -4,25 +4,7 @@ on:
     branches: [beta]
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 jobs:
-  condition:
-    runs-on: ubuntu-latest
-    outputs:
-      mobile: ${{ steps.release.outputs.mobile }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          fetch-tags: true
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "^24.13.0"
-      - run: npx @changesets/cli status --since ${{ github.event.before }} --output changesets.json
-      - run: echo "mobile=$(jq 'any(.releases[].name; . == "@exactly/mobile")' changesets.json)" >> $GITHUB_OUTPUT
-        id: release
-  beta:
-    needs: condition
-    if: needs.condition.outputs.mobile == 'true'
+  expo:
     uses: ./.github/workflows/mobile-expo.yaml
+    with: { profile: beta }
     secrets: inherit
-    with:
-      profile: beta
