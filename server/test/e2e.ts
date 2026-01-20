@@ -8,6 +8,7 @@ import "./mocks/redis";
 import "./mocks/sardine";
 import "./mocks/sentry";
 
+import { cors } from "hono/cors";
 import { mkdir, writeFile } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
 
@@ -19,6 +20,7 @@ describe("e2e", () => {
     async () => {
       const { default: app, close } = await import("../index");
 
+      app.use("/e2e/*", cors());
       app.post("/e2e/coverage", async (c) => {
         await mkdir("coverage", { recursive: true });
         await writeFile("coverage/app.json", JSON.stringify(await c.req.json()));
