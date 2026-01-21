@@ -23,6 +23,7 @@ import {
 import { Address } from "@exactly/common/validation";
 
 import database, { credentials } from "../database/index";
+import keeper from "../utils/keeper";
 import { createUser } from "../utils/panda";
 import { addCapita, deriveAssociateId } from "../utils/pax";
 import { addDocument, headerValidator, MANTECA_TEMPLATE_WITH_ID_CLASS, PANDA_TEMPLATE } from "../utils/persona";
@@ -30,6 +31,7 @@ import { customer } from "../utils/sardine";
 import validatorHook from "../utils/validatorHook";
 
 import type { InferOutput } from "valibot";
+
 const Session = pipe(
   object({
     type: literal("inquiry-session"),
@@ -303,6 +305,14 @@ export default new Hono().post(
       }).catch((error: unknown) => {
         captureException(error, { level: "error", extra: { pandaId: id, referenceId } });
       });
+      keeper
+        .poke(account.output, {
+          notification: {
+            headings: { en: "Account assets updated" },
+            contents: { en: "Your funds are ready to use" },
+          },
+        })
+        .catch((error: unknown) => captureException(error, { level: "error" }));
     } else {
       captureException(new Error("invalid account address"), {
         extra: { pandaId: id, referenceId, account: credential.account },
