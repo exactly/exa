@@ -16,6 +16,7 @@ import {
   number,
   object,
   optional,
+  parse,
   picklist,
   pipe,
   safeParse,
@@ -23,10 +24,23 @@ import {
   transform,
   union,
 } from "valibot";
+import { erc20Abi } from "viem";
 
+import {
+  auditorAbi,
+  exaPluginAbi,
+  exaPreviewerAbi,
+  exaPreviewerAddress,
+  marketAbi,
+  upgradeableModularAccountAbi,
+  wethAddress,
+} from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
 import database, { cards, credentials } from "../database/index";
+import t from "../i18n";
+import keeper from "../utils/keeper";
+import { sendPushNotification } from "../utils/onesignal";
 import { createUser, updateCard } from "../utils/panda";
 import { addCapita, deriveAssociateId } from "../utils/pax";
 import {
@@ -42,10 +56,12 @@ import {
   PANDA_TEMPLATE,
   updateCardLimit,
 } from "../utils/persona";
+import publicClient from "../utils/publicClient";
 import { customer } from "../utils/sardine";
 import validatorHook from "../utils/validatorHook";
 
 import type { InferOutput } from "valibot";
+
 const Session = pipe(
   object({
     type: literal("inquiry-session"),
@@ -416,6 +432,7 @@ export default new Hono().post(
       }).catch((error: unknown) => {
         captureException(error, { level: "error", extra: { pandaId: id, referenceId } });
       });
+      poke(account.output).catch((error: unknown) => captureException(error, { level: "error" }));
     } else {
       captureException(new Error("invalid account address"), {
         extra: { pandaId: id, referenceId, account: credential.account },
@@ -434,3 +451,66 @@ export default new Hono().post(
     return c.json({ id }, 200);
   },
 );
+
+async function poke(account: Address) {
+  const ETH = parse(Address, "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
+  const WETH = parse(Address, wethAddress);
+  const combinedAccountAbi = [...exaPluginAbi, ...upgradeableModularAccountAbi, ...auditorAbi, ...marketAbi];
+  const marketsByAsset = await publicClient
+    .readContract({ address: exaPreviewerAddress, functionName: "assets", abi: exaPreviewerAbi })
+    .then((p) => new Map<Address, Address>(p.map((m) => [parse(Address, m.asset), parse(Address, m.market)])));
+  const settled = await Promise.allSettled([
+    publicClient
+      .getBalance({ address: account })
+      .then((balance): { asset: Address; balance: bigint; market: Address | null } => ({
+        asset: ETH,
+        market: null,
+        balance,
+      })),
+    ...[...marketsByAsset.entries()].map(async ([asset, market]) => ({
+      asset,
+      market,
+      balance: await publicClient.readContract({
+        address: asset,
+        functionName: "balanceOf",
+        args: [account],
+        abi: erc20Abi,
+      }),
+    })),
+  ]).then((s) =>
+    s.flatMap((result) => {
+      if (result.status === "rejected") {
+        captureException(result.reason, { level: "error" });
+        return [];
+      }
+      return [result.value];
+    }),
+  );
+  const hasETH = settled.some((r) => r.asset === ETH && r.balance > 0n);
+  const assetsToPoke = settled.filter(({ asset, balance }) => balance > 0n && !(hasETH && asset === WETH));
+  const pokes = await Promise.allSettled(
+    assetsToPoke.map(({ asset, market }) =>
+      keeper.exaSend(
+        { name: "poke account", op: "exa.poke", attributes: { account, asset } },
+        asset === ETH
+          ? { address: account, abi: combinedAccountAbi, functionName: "pokeETH" }
+          : { address: account, abi: combinedAccountAbi, functionName: "poke", args: [market] },
+      ),
+    ),
+  ).then((r) =>
+    r.flatMap((result) => {
+      if (result.status === "rejected") {
+        captureException(result.reason, { level: "error" });
+        return [];
+      }
+      return result.value ?? [];
+    }),
+  );
+  if (pokes.length > 0) {
+    sendPushNotification({
+      userId: account,
+      headings: t("Account assets updated"),
+      contents: t("Your funds are ready to use"),
+    }).catch((error: unknown) => captureException(error, { level: "error" }));
+  }
+}
