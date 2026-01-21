@@ -166,7 +166,7 @@
       "glob@11.0.3": "^11.1.0",
       "ioredis": "catalog:",
       "semver@7.3.2": "^7.5.2",
-      "tar": "^7.5.3",
+      "tar": "^7.5.4",
       "tmp@0.0.33": "^0.2.4",
       "typescript@5.8.3": "catalog:",
       "unicorn-magic@0.3.0": "^0.2.0",
