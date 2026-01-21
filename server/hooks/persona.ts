@@ -2,6 +2,7 @@ import { vValidator } from "@hono/valibot-validator";
 import { captureException, getActiveSpan, SEMANTIC_ATTRIBUTE_SENTRY_OP, setContext, setUser } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
+import * as v from "valibot";
 import {
   array,
   check,
@@ -27,11 +28,18 @@ import database, { credentials } from "../database/index";
 import keeper from "../utils/keeper";
 import { createUser } from "../utils/panda";
 import { addCapita, deriveAssociateId } from "../utils/pax";
-import { addDocument, headerValidator, MANTECA_TEMPLATE_WITH_ID_CLASS, PANDA_TEMPLATE } from "../utils/persona";
+import {
+  addDocument,
+  headerValidator,
+  MANTECA_TEMPLATE_WITH_ID_CLASS,
+  PANDA_TEMPLATE,
+  pokeAccountAssets,
+} from "../utils/persona";
 import { customer } from "../utils/sardine";
 import validatorHook from "../utils/validatorHook";
 
 import type { InferOutput } from "valibot";
+
 const Session = pipe(
   object({
     type: literal("inquiry-session"),
@@ -291,8 +299,15 @@ export default new Hono().post(
     getActiveSpan()?.setAttributes({ "exa.pandaId": id });
     setContext("persona", { inquiryId: personaShareToken, pandaId: id });
 
-    const account = safeParse(Address, credential.account);
-    if (account.success) {
+    Promise.resolve()
+      .then(async () => {
+        const accountAddress = v.parse(Address, credential.account);
+        await pokeAccountAssets(accountAddress, { ignore: [`NotAllowed(${accountAddress})`] });
+      })
+      .catch((error: unknown) => captureException(error));
+
+    const accountParsed = safeParse(Address, credential.account);
+    if (accountParsed.success) {
       addCapita({
         birthdate: fields.birthdate.value,
         document: fields.identificationNumber.value,
@@ -300,7 +315,7 @@ export default new Hono().post(
         lastName: fields.nameLast.value,
         email: fields.emailAddress.value,
         phone: fields.phoneNumber?.value ?? "",
-        internalId: deriveAssociateId(account.output),
+        internalId: deriveAssociateId(accountParsed.output),
         product: "travel insurance",
       }).catch((error: unknown) => {
         captureException(error, { level: "error", extra: { pandaId: id, referenceId } });
