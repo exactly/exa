@@ -32,6 +32,7 @@ import { customer } from "../utils/sardine";
 import validatorHook from "../utils/validatorHook";
 
 import type { InferOutput } from "valibot";
+
 const Session = pipe(
   object({
     type: literal("inquiry-session"),
@@ -305,6 +306,14 @@ export default new Hono().post(
       }).catch((error: unknown) => {
         captureException(error, { level: "error", extra: { pandaId: id, referenceId } });
       });
+      keeper
+        .poke(account.output, {
+          notification: {
+            headings: { en: "Account assets updated" },
+            contents: { en: "Your funds are ready to use" },
+          },
+        })
+        .catch((error: unknown) => captureException(error, { level: "error" }));
     } else {
       captureException(new Error("invalid account address"), {
         extra: { pandaId: id, referenceId, account: credential.account },
