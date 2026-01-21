@@ -14,8 +14,8 @@ import nonceManager from "../../utils/nonceManager";
 import publicClient from "../../utils/publicClient";
 
 import type * as sentry from "@sentry/node";
+import type { Hash, Hex } from "@exactly/common/validation";
 import type * as timers from "node:timers/promises";
-import type { Hex } from "viem";
 
 describe("fault tolerance", () => {
   it("recovers if transaction is missing", async () => {
@@ -87,13 +87,13 @@ describe("fault tolerance", () => {
     const first = keeper.exaSend(
       { name: "test transfer", op: "test.transfer" },
       { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
-      { onHash: (hash) => blockedHashes.push(hash) },
+      { onHash: (hash: Hash) => blockedHashes.push(hash) },
     );
     await vi.waitUntil(() => blockedHashes.length === 1);
     const second = keeper.exaSend(
       { name: "test transfer", op: "test.transfer" },
       { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
-      { onHash: (hash) => blockedHashes.push(hash) },
+      { onHash: (hash: Hash) => blockedHashes.push(hash) },
     );
     const sendBlocked = await Promise.allSettled([first, second]);
 
@@ -133,7 +133,7 @@ describe("fault tolerance", () => {
     await keeper.exaSend(
       { name: "test transfer", op: "test.transfer" },
       { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
-      { onHash: (hash) => hashes.push(hash) },
+      { onHash: (hash: Hash) => hashes.push(hash) },
     );
 
     const mockWaitForTransactionReceipt = vi
@@ -143,13 +143,13 @@ describe("fault tolerance", () => {
     const first = keeper.exaSend(
       { name: "test transfer 0", op: "test.transfer[0]" },
       { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
-      { onHash: (hash) => hashes.push(hash) },
+      { onHash: (hash: Hash) => hashes.push(hash) },
     );
     await setImmediate();
     const second = keeper.exaSend(
       { name: "test transfer 1", op: "test.transfer[1]" },
       { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
-      { onHash: (hash) => hashes.push(hash) },
+      { onHash: (hash: Hash) => hashes.push(hash) },
     );
     await setImmediate();
     const sendBlocked = await Promise.allSettled([
@@ -159,7 +159,7 @@ describe("fault tolerance", () => {
         keeper.exaSend(
           { name: `test transfer ${index + 2}`, op: `test.transfer[${index + 2}]` },
           { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
-          { onHash: (hash) => hashes.push(hash) },
+          { onHash: (hash: Hash) => hashes.push(hash) },
         ),
       ),
     ]);
@@ -176,7 +176,7 @@ describe("fault tolerance", () => {
     await keeper.exaSend(
       { name: "test transfer", op: "test.transfer" },
       { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
-      { onHash: (hash) => hashes.push(hash) },
+      { onHash: (hash: Hash) => hashes.push(hash) },
     );
 
     await vi.waitUntil(
@@ -194,7 +194,7 @@ describe("fault tolerance", () => {
         keeper.exaSend(
           { name: `test transfer ${index}`, op: `test.transfer[${index}]` },
           { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
-          { onHash: (hash) => hashes.push(hash) },
+          { onHash: (hash: Hash) => hashes.push(hash) },
         ),
       ),
     );
