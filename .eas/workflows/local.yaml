@@ -7,6 +7,93 @@ jobs:
     environment: development
     env: { APP_DOMAIN: localhost, CHAIN_ID: "31337" }
 
+  android_get:
+    type: get-build
+    needs: [fingerprint]
+    params:
+      platform: android
+      profile: e2e:local
+      fingerprint_hash: ${{ needs.fingerprint.outputs.android_fingerprint_hash }}
+      wait_for_in_progress: true
+
+  android_build:
+    type: build
+    needs: [android_get]
+    if: ${{ !needs.android_get.outputs.build_id }}
+    params: { platform: android, profile: e2e:local }
+
+  android_repack:
+    type: repack
+    needs: [android_get]
+    if: ${{ needs.android_get.outputs.build_id }}
+    params: { build_id: "${{ needs.android_get.outputs.build_id }}" }
+
+  android_e2e:
+    after: [android_repack, android_build]
+    needs: [fingerprint]
+    environment: development
+    runs_on: linux-large-nested-virtualization
+    image: latest
+    env: { CHAIN_ID: "31337" }
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - uses: eas/install_maestro
+      - name: exa setup
+        run: | # cspell:ignore tlsv1.2
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --profile minimal --default-toolchain none -y && . $HOME/.cargo/env
+          mkdir -p $HOME/workingdir/bin && cd $HOME/workingdir/bin
+          for repo in firehose-ethereum substreams substreams-sink-sql; do
+            curl -L "$(curl -s https://api.github.com/repos/streamingfast/$repo/releases/latest | jq --arg arch "$(uname -m | sed 's/aarch64/arm64/')" -r '.assets[] | select(.browser_download_url | test("linux_" + $arch)) | .browser_download_url')" | tar zxf -
+          done
+          cd $HOME/workingdir/build
+          pnpm nx e2e server > server.log 2>&1 &
+          for i in {1..60}; do
+            curl -f http://localhost:3000/api/auth/authentication > /dev/null 2>&1 && break
+            [ $i -eq 60 ] && cat server.log && exit 1
+            sleep 1
+          done
+      - uses: eas/download_build
+        id: download
+        with: { build_id: "${{ needs.android_build.outputs.build_id || needs.android_repack.outputs.build_id }}" }
+      - name: start emulator # cspell:ignore avdmanager getprop logcat setsid swiftshader
+        run: |
+          avdmanager -s create avd -n e2e -k "system-images;android-32;google_apis;x86_64" --force
+          printf '%s\n' "hw.ramSize=2048" "vm.heapSize=512" "hw.camera.front=emulated" "hw.camera.back=emulated" >> $HOME/.android/avd/e2e.avd/config.ini
+          setsid $ANDROID_HOME/emulator/emulator -avd e2e -no-snapshot -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -memory 2048 -cores 2 > emulator-process.log 2>&1 &
+          adb wait-for-device
+          adb shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
+          until adb shell settings put global window_animation_scale 0 2>/dev/null; do sleep 1; done
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+          adb reverse tcp:3000 tcp:3000 && adb reverse tcp:8545 tcp:8545 && adb reverse tcp:8969 tcp:8969
+          adb install "${{ steps.download.outputs.artifact_path }}"
+          adb logcat -v time > emulator.log 2>&1 &
+      - run: pnpm e2e:maestro -e "EXPO_PUBLIC_E2E_MNEMONIC=${{ env.EXPO_PUBLIC_E2E_MNEMONIC }}"
+      - name: exa teardown
+        if: always()
+        run: | # cspell:ignore pkill bugreport
+          curl -X POST http://localhost:3000/e2e/shutdown || true
+          for i in {1..60}; do [ -f server/coverage/lcov.info ] && break; sleep 1; done
+          curl -Os https://uploader.codecov.io/latest/linux/codecov && chmod +x codecov
+          ./codecov -t ${{ env.CODECOV_TOKEN }} -f server/coverage/lcov.info -f server/coverage/app.json -F e2e -n android --build-url ${{ workflow.url }}
+          pkill -f "adb logcat" || true
+          timeout 60 adb bugreport emulator-bugreport || true
+      - uses: eas/upload_artifact
+        if: always()
+        with:
+          type: other
+          ignore_error: true
+          path: |
+            server.log
+            server/coverage
+            server/node_modules/@exactly/.spotlight
+            emulator.log
+            emulator-process.log
+            emulator-bugreport.zip
+            ${{ env.HOME }}/.maestro/tests
+            .maestro/screenshots
+
   ios_get:
     type: get-build
     needs: [fingerprint]
