@@ -221,9 +221,8 @@ export async function auth() {
   if (queryClient.isFetching({ queryKey: ["auth"] })) return;
   const { success, output } = safeParse(Auth, queryClient.getQueryData<number | undefined>(["auth"]));
   if (!success) {
-    await (typeof output === "number"
-      ? queryClient.refetchQueries({ queryKey: ["auth"] })
-      : queryClient.fetchQuery({ queryKey: ["auth"] }));
+    const options = { ...queryClient.getQueryDefaults(["auth"]), queryKey: ["auth"] as const };
+    await (typeof output === "number" ? queryClient.refetchQueries(options) : queryClient.fetchQuery(options));
   }
 }
 
