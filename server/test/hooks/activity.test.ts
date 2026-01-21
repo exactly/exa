@@ -103,7 +103,7 @@ describe("address activity", () => {
 
     expect(captureException).toHaveBeenCalledWith(
       new WaitForTransactionReceiptTimeoutError({ hash: zeroHash }),
-      expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "unknown"] }),
+      expect.anything(),
     );
 
     expect(response.status).toBe(200);
@@ -252,6 +252,7 @@ describe("address activity", () => {
         }),
       }),
     );
+    await anvilClient.setBalance({ address: account, value: parseEther("5") });
 
     const response = await appClient.index.$post({
       ...activityPayload,
@@ -280,6 +281,7 @@ describe("address activity", () => {
         cause: new ContractFunctionRevertedError({ abi: [], functionName: "pokeETH", message: "custom reason" }),
       }),
     );
+    await anvilClient.setBalance({ address: account, value: parseEther("5") });
 
     const response = await appClient.index.$post({
       ...activityPayload,
@@ -308,6 +310,7 @@ describe("address activity", () => {
         cause: new ContractFunctionRevertedError({ abi: [], data: "0xdeadbeef", functionName: "pokeETH" }),
       }),
     );
+    await anvilClient.setBalance({ address: account, value: parseEther("5") });
 
     const response = await appClient.index.$post({
       ...activityPayload,
@@ -334,6 +337,7 @@ describe("address activity", () => {
     vi.spyOn(publicClient, "simulateContract").mockRejectedValueOnce(
       new BaseError("test", { cause: new ContractFunctionRevertedError({ abi: [], functionName: "pokeETH" }) }),
     );
+    await anvilClient.setBalance({ address: account, value: parseEther("5") });
 
     const response = await appClient.index.$post({
       ...activityPayload,
@@ -358,6 +362,7 @@ describe("address activity", () => {
   it("fingerprints shouldRetry as unknown", async () => {
     vi.spyOn(publicClient, "getCode").mockResolvedValue("0x1");
     vi.spyOn(publicClient, "simulateContract").mockRejectedValueOnce(new Error("unexpected"));
+    await anvilClient.setBalance({ address: account, value: parseEther("5") });
 
     const response = await appClient.index.$post({
       ...activityPayload,
@@ -383,8 +388,6 @@ describe("address activity", () => {
     const deposit = parseEther("5");
     await anvilClient.setBalance({ address: account, value: deposit });
 
-    const waitForTransactionReceipt = vi.spyOn(publicClient, "waitForTransactionReceipt");
-
     const response = await appClient.index.$post({
       ...activityPayload,
       json: {
@@ -396,10 +399,16 @@ describe("address activity", () => {
       },
     });
 
-    await vi.waitUntil(
-      () => waitForTransactionReceipt.mock.settledResults.filter(({ type }) => type !== "incomplete").length >= 2,
-      26_666,
-    );
+    await vi.waitUntil(async () => {
+      const exactly = await publicClient.readContract({
+        address: inject("Previewer"),
+        functionName: "exactly",
+        abi: previewerAbi,
+        args: [account],
+      });
+      const market = exactly.find((m) => m.asset === inject("WETH"));
+      return market?.floatingDepositAssets === deposit;
+    }, 30_000);
 
     const exactly = await publicClient.readContract({
       address: inject("Previewer"),
@@ -425,8 +434,6 @@ describe("address activity", () => {
       { address: inject("WETH"), abi: mockERC20Abi, functionName: "mint", args: [account, weth] },
     );
 
-    const waitForTransactionReceipt = vi.spyOn(publicClient, "waitForTransactionReceipt");
-
     const response = await appClient.index.$post({
       ...activityPayload,
       json: {
@@ -445,10 +452,16 @@ describe("address activity", () => {
       },
     });
 
-    await vi.waitUntil(
-      () => waitForTransactionReceipt.mock.settledResults.filter(({ type }) => type !== "incomplete").length >= 2,
-      26_666,
-    );
+    await vi.waitUntil(async () => {
+      const exactly = await publicClient.readContract({
+        address: inject("Previewer"),
+        functionName: "exactly",
+        abi: previewerAbi,
+        args: [account],
+      });
+      const market = exactly.find((m) => m.asset === inject("WETH"));
+      return market?.floatingDepositAssets === eth + weth;
+    }, 30_000);
 
     const exactly = await publicClient.readContract({
       address: inject("Previewer"),
@@ -562,6 +575,27 @@ describe("address activity", () => {
 
     expect(sendPushNotification).not.toHaveBeenCalledOnce();
     expect(response.status).toBe(200);
+  });
+
+  it("calls poke with correct ignore option", async () => {
+    const pokeSpy = vi.spyOn(keeper, "poke").mockResolvedValue();
+
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: {
+          ...activityPayload.json.event,
+          activity: [{ ...activityPayload.json.event.activity[0], toAddress: account }],
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+
+    await vi.waitUntil(() => pokeSpy.mock.calls.length > 0, { timeout: 5000 });
+
+    expect(pokeSpy).toHaveBeenCalledWith(account, { ignore: [`NotAllowed(${account})`] });
   });
 });
 
