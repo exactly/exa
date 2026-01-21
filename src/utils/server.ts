@@ -219,10 +219,9 @@ export async function getActivity(parameters?: NonNullable<Parameters<typeof api
 
 export async function auth() {
   if (queryClient.isFetching({ queryKey: ["auth"] })) return;
-  const { success, output } = safeParse(Auth, queryClient.getQueryData<number | undefined>(["auth"]));
+  const { success } = safeParse(Auth, queryClient.getQueryData<number | undefined>(["auth"]));
   if (!success) {
-    const options = { ...queryClient.getQueryDefaults(["auth"]), queryKey: ["auth"] };
-    await (typeof output === "number" ? queryClient.refetchQueries(options) : queryClient.fetchQuery(options));
+    await queryClient.fetchQuery({ ...queryClient.getQueryDefaults(["auth"]), queryKey: ["auth"], staleTime: 0 });
   }
 }
 
