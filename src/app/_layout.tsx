@@ -1,3 +1,5 @@
+import "../utils/onesignal";
+
 import React, { useLayoutEffect as useClientLayoutEffect, useEffect } from "react";
 import { initReactI18next } from "react-i18next";
 import { AppState, Platform } from "react-native";
