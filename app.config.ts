@@ -17,7 +17,7 @@ const { Mode } = require("onesignal-expo-plugin/build/types/types") as typeof On
 
 if (env.EAS_BUILD_RUNNER === "eas-build") env.APP_DOMAIN ??= "web.exactly.app";
 if (env.APP_DOMAIN) env.EXPO_PUBLIC_DOMAIN = env.APP_DOMAIN;
-env.EXPO_PUBLIC_INTERCOM_APP_ID ??= "eknd6y0s"; // cspell:ignore eknd6y0s
+env.EXPO_PUBLIC_INTERCOM_APP_ID ??= env.APP_DOMAIN === "web.exactly.app" ? "eknd6y0s" : "pxd0wo85"; // cspell:ignore eknd6y0s
 
 export default {
   name: "Exa",
