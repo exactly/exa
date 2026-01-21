@@ -5,17 +5,22 @@ import "../mocks/sentry";
 import { captureException } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
-import { hexToBytes, padHex, zeroHash } from "viem";
+import { getAddress, hexToBytes, padHex, parseEther, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { afterAll, afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
+import { wethAddress } from "@exactly/common/generated/chain";
 
 import database, { cards, credentials } from "../../database";
 import app from "../../hooks/persona";
+import t from "../../i18n";
+import keeper from "../../utils/keeper";
+import * as onesignal from "../../utils/onesignal";
 import * as panda from "../../utils/panda";
 import * as pax from "../../utils/pax";
 import * as persona from "../../utils/persona";
+import publicClient from "../../utils/publicClient";
 import * as sardine from "../../utils/sardine";
 
 const appClient = testClient(app);
@@ -397,16 +402,25 @@ describe("persona hook", () => {
     });
   });
 
-  afterEach(() => vi.resetAllMocks());
+  afterEach(async () => {
+    await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "persona-ref"));
+    vi.restoreAllMocks();
+  });
 
   it("creates panda and pax user on valid inquiry", async () => {
+    vi.spyOn(keeper, "exaSend").mockResolvedValue({} as never);
+    vi.spyOn(publicClient, "readContract").mockResolvedValue([]);
+    vi.spyOn(publicClient, "getBalance").mockResolvedValue(0n);
     vi.spyOn(panda, "createUser").mockResolvedValue({ id: "new-panda-id" });
     vi.spyOn(pax, "addCapita").mockResolvedValue({});
+    vi.spyOn(persona, "addDocument").mockResolvedValueOnce({ data: { id: "doc_123" } });
     vi.spyOn(sardine, "customer").mockResolvedValueOnce({ sessionKey: "test", status: "Success", level: "low" });
     vi.spyOn(persona, "addDocument").mockResolvedValueOnce({ data: { id: "doc_123" } });
 
     const response = await appClient.index.$post({
-      header: { "persona-signature": "t=1,v1=sha256" },
+      header: {
+        "persona-signature": "t=1733865120,v1=debbacfe1b0c5f8797a1d68e8428fba435aa4ca3b5d9a328c3c96ee4d04d84df",
+      },
       json: {
         ...validPayload,
         data: {
@@ -445,6 +459,254 @@ describe("persona hook", () => {
       product: "travel insurance",
     });
   });
+
+  it("pokes assets when balances are positive", async () => {
+    const account = deriveAddress(inject("ExaAccountFactory"), {
+      x: padHex(privateKeyToAddress(padHex("0x420"))),
+      y: zeroHash,
+    });
+    const exaSendSpy = vi.spyOn(keeper, "exaSend").mockResolvedValue({} as never);
+    const sendPushNotificationSpy = vi.spyOn(onesignal, "sendPushNotification").mockResolvedValue({} as never);
+
+    vi.spyOn(publicClient, "readContract")
+      .mockResolvedValueOnce([
+        { asset: "0x1234567890123456789012345678901234567890", market: "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd" },
+      ])
+      .mockResolvedValueOnce(parseEther("2"));
+
+    vi.spyOn(publicClient, "getBalance").mockResolvedValue(parseEther("1"));
+
+    vi.spyOn(panda, "createUser").mockResolvedValue({ id: "new-panda-id" });
+    vi.spyOn(pax, "addCapita").mockResolvedValue({});
+    vi.spyOn(persona, "addDocument").mockResolvedValueOnce({ data: { id: "doc_123" } });
+    vi.spyOn(sardine, "customer").mockResolvedValueOnce({ sessionKey: "test", status: "Success", level: "low" });
+
+    const response = await appClient.index.$post({
+      header: {
+        "persona-signature": "t=1733865120,v1=debbacfe1b0c5f8797a1d68e8428fba435aa4ca3b5d9a328c3c96ee4d04d84df",
+      },
+      json: {
+        ...validPayload,
+        data: {
+          ...validPayload.data,
+          attributes: {
+            ...validPayload.data.attributes,
+            payload: {
+              ...validPayload.data.attributes.payload,
+              included: [...validPayload.data.attributes.payload.included],
+            },
+          },
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+
+    await vi.waitUntil(() => exaSendSpy.mock.calls.filter(([options]) => options.op === "exa.poke").length === 2, {
+      timeout: 5000,
+    });
+
+    expect(exaSendSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        op: "exa.poke",
+        attributes: { account, asset: getAddress("0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee") },
+      }),
+      expect.objectContaining({ address: account, functionName: "pokeETH" }),
+    );
+    expect(exaSendSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        op: "exa.poke",
+        attributes: { account, asset: getAddress("0x1234567890123456789012345678901234567890") },
+      }),
+      expect.objectContaining({
+        address: account,
+        functionName: "poke",
+        args: [getAddress("0xabcdefabcdefabcdefabcdefabcdefabcdefabcd")],
+      }),
+    );
+    expect(sendPushNotificationSpy).toHaveBeenCalledWith({
+      userId: account,
+      headings: t("Account assets updated"),
+      contents: t("Your funds are ready to use"),
+    });
+  });
+
+  it("pokes only eth when balance is positive", async () => {
+    const account = deriveAddress(inject("ExaAccountFactory"), {
+      x: padHex(privateKeyToAddress(padHex("0x420"))),
+      y: zeroHash,
+    });
+    const exaSendSpy = vi.spyOn(keeper, "exaSend").mockResolvedValue({} as never);
+    const sendPushNotificationSpy = vi.spyOn(onesignal, "sendPushNotification").mockResolvedValue({} as never);
+
+    vi.spyOn(publicClient, "readContract")
+      .mockResolvedValueOnce([{ asset: wethAddress, market: "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd" }])
+      .mockResolvedValueOnce(0n);
+
+    vi.spyOn(publicClient, "getBalance").mockResolvedValue(parseEther("1"));
+
+    vi.spyOn(panda, "createUser").mockResolvedValue({ id: "new-panda-id" });
+    vi.spyOn(pax, "addCapita").mockResolvedValue({});
+    vi.spyOn(persona, "addDocument").mockResolvedValueOnce({ data: { id: "doc_123" } });
+    vi.spyOn(sardine, "customer").mockResolvedValueOnce({ sessionKey: "test", status: "Success", level: "low" });
+
+    const response = await appClient.index.$post({
+      header: {
+        "persona-signature": "t=1733865120,v1=debbacfe1b0c5f8797a1d68e8428fba435aa4ca3b5d9a328c3c96ee4d04d84df",
+      },
+      json: {
+        ...validPayload,
+        data: {
+          ...validPayload.data,
+          attributes: {
+            ...validPayload.data.attributes,
+            payload: {
+              ...validPayload.data.attributes.payload,
+              included: [...validPayload.data.attributes.payload.included],
+            },
+          },
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+
+    await vi.waitUntil(() => exaSendSpy.mock.calls.some(([options]) => options.op === "exa.poke"), { timeout: 5000 });
+
+    expect(exaSendSpy.mock.calls.filter(([options]) => options.op === "exa.poke")).toHaveLength(1);
+    expect(exaSendSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        op: "exa.poke",
+        attributes: { account, asset: getAddress("0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee") },
+      }),
+      expect.objectContaining({ address: account, functionName: "pokeETH" }),
+    );
+    expect(sendPushNotificationSpy).toHaveBeenCalledWith({
+      userId: account,
+      headings: t("Account assets updated"),
+      contents: t("Your funds are ready to use"),
+    });
+  });
+
+  it("skips weth when eth balance is positive", async () => {
+    const account = deriveAddress(inject("ExaAccountFactory"), {
+      x: padHex(privateKeyToAddress(padHex("0x420"))),
+      y: zeroHash,
+    });
+    const exaSendSpy = vi.spyOn(keeper, "exaSend").mockResolvedValue({} as never);
+    const sendPushNotificationSpy = vi.spyOn(onesignal, "sendPushNotification").mockResolvedValue({} as never);
+
+    vi.spyOn(publicClient, "readContract")
+      .mockResolvedValueOnce([
+        { asset: wethAddress, market: "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd" },
+        { asset: "0x1234567890123456789012345678901234567890", market: "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd" },
+      ])
+      .mockResolvedValueOnce(parseEther("5"))
+      .mockResolvedValueOnce(parseEther("2"));
+
+    vi.spyOn(publicClient, "getBalance").mockResolvedValue(parseEther("1"));
+
+    vi.spyOn(panda, "createUser").mockResolvedValue({ id: "new-panda-id" });
+    vi.spyOn(pax, "addCapita").mockResolvedValue({});
+    vi.spyOn(persona, "addDocument").mockResolvedValueOnce({ data: { id: "doc_123" } });
+    vi.spyOn(sardine, "customer").mockResolvedValueOnce({ sessionKey: "test", status: "Success", level: "low" });
+
+    const response = await appClient.index.$post({
+      header: {
+        "persona-signature": "t=1733865120,v1=debbacfe1b0c5f8797a1d68e8428fba435aa4ca3b5d9a328c3c96ee4d04d84df",
+      },
+      json: {
+        ...validPayload,
+        data: {
+          ...validPayload.data,
+          attributes: {
+            ...validPayload.data.attributes,
+            payload: {
+              ...validPayload.data.attributes.payload,
+              included: [...validPayload.data.attributes.payload.included],
+            },
+          },
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+
+    await vi.waitUntil(() => exaSendSpy.mock.calls.filter(([options]) => options.op === "exa.poke").length === 2, {
+      timeout: 5000,
+    });
+
+    expect(exaSendSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        op: "exa.poke",
+        attributes: { account, asset: getAddress("0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee") },
+      }),
+      expect.objectContaining({ address: account, functionName: "pokeETH" }),
+    );
+    expect(exaSendSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        op: "exa.poke",
+        attributes: { account, asset: getAddress("0x1234567890123456789012345678901234567890") },
+      }),
+      expect.objectContaining({
+        address: account,
+        functionName: "poke",
+        args: [getAddress("0xabcdefabcdefabcdefabcdefabcdefabcdefabcd")],
+      }),
+    );
+    expect(exaSendSpy.mock.calls.some(([options]) => options.attributes?.asset === wethAddress)).toBe(false);
+    expect(sendPushNotificationSpy).toHaveBeenCalledWith({
+      userId: account,
+      headings: t("Account assets updated"),
+      contents: t("Your funds are ready to use"),
+    });
+  });
+
+  it("does not poke when balances are zero", async () => {
+    const exaSendSpy = vi.spyOn(keeper, "exaSend").mockResolvedValue({} as never);
+
+    const readContractSpy = vi.spyOn(publicClient, "readContract");
+    readContractSpy
+      .mockResolvedValueOnce([
+        { asset: "0x1234567890123456789012345678901234567890", market: "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd" },
+      ])
+      .mockResolvedValueOnce(0n);
+
+    vi.spyOn(publicClient, "getBalance").mockResolvedValue(0n);
+
+    vi.spyOn(panda, "createUser").mockResolvedValue({ id: "new-panda-id" });
+    vi.spyOn(pax, "addCapita").mockResolvedValue({});
+    vi.spyOn(persona, "addDocument").mockResolvedValueOnce({ data: { id: "doc_123" } });
+    vi.spyOn(sardine, "customer").mockResolvedValueOnce({ sessionKey: "test", status: "Success", level: "low" });
+
+    const response = await appClient.index.$post({
+      header: {
+        "persona-signature": "t=1733865120,v1=debbacfe1b0c5f8797a1d68e8428fba435aa4ca3b5d9a328c3c96ee4d04d84df",
+      },
+      json: {
+        ...validPayload,
+        data: {
+          ...validPayload.data,
+          attributes: {
+            ...validPayload.data.attributes,
+            payload: {
+              ...validPayload.data.attributes.payload,
+              included: [...validPayload.data.attributes.payload.included],
+            },
+          },
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+
+    await vi.waitFor(
+      () => {
+        expect(exaSendSpy).not.toHaveBeenCalledWith(expect.objectContaining({ op: "exa.poke" }), expect.anything());
+      },
+      { timeout: 500, interval: 50 },
+    );
+  });
 });
 
 describe("manteca template", () => {
@@ -464,6 +726,7 @@ describe("manteca template", () => {
 
   it("handles manteca template and adds document", async () => {
     vi.spyOn(persona, "addDocument").mockResolvedValueOnce({ data: { id: "doc_manteca" } });
+    vi.spyOn(panda, "createUser").mockResolvedValue({ id: "should-not-be-called" });
 
     const response = await appClient.index.$post({
       header: { "persona-signature": "t=1,v1=sha256" },

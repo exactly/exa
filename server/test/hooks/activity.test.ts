@@ -321,6 +321,7 @@ describe("address activity", () => {
         }),
       }),
     );
+    await anvilClient.setBalance({ address: account, value: parseEther("5") });
 
     const response = await appClient.index.$post({
       ...activityPayload,
@@ -352,6 +353,7 @@ describe("address activity", () => {
         cause: new ContractFunctionRevertedError({ abi: [], functionName: "pokeETH", message: "custom reason" }),
       }),
     );
+    await anvilClient.setBalance({ address: account, value: parseEther("5") });
 
     const response = await appClient.index.$post({
       ...activityPayload,
@@ -383,6 +385,7 @@ describe("address activity", () => {
         cause: new ContractFunctionRevertedError({ abi: [], data: "0xdeadbeef", functionName: "pokeETH" }),
       }),
     );
+    await anvilClient.setBalance({ address: account, value: parseEther("5") });
 
     const response = await appClient.index.$post({
       ...activityPayload,
@@ -412,6 +415,7 @@ describe("address activity", () => {
     vi.spyOn(publicClient, "simulateContract").mockRejectedValueOnce(
       new BaseError("test", { cause: new ContractFunctionRevertedError({ abi: [], functionName: "pokeETH" }) }),
     );
+    await anvilClient.setBalance({ address: account, value: parseEther("5") });
 
     const response = await appClient.index.$post({
       ...activityPayload,
@@ -439,6 +443,7 @@ describe("address activity", () => {
 
   it("fingerprints shouldRetry as unknown", async () => {
     vi.spyOn(publicClient, "simulateContract").mockRejectedValueOnce(new Error("unexpected"));
+    await anvilClient.setBalance({ address: account, value: parseEther("5") });
 
     const response = await appClient.index.$post({
       ...activityPayload,
