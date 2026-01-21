@@ -1,5 +1,5 @@
 import { vValidator } from "@hono/valibot-validator";
-import { captureEvent, setContext } from "@sentry/core";
+import { captureEvent, captureException, setContext } from "@sentry/core";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import {
   array,
@@ -17,10 +17,23 @@ import {
   type BaseSchema,
   type InferOutput,
 } from "valibot";
+import * as v from "valibot";
+import { erc20Abi, withRetry } from "viem";
 
-import chain from "@exactly/common/generated/chain";
+import chain, {
+  auditorAbi,
+  exaPluginAbi,
+  exaPreviewerAbi,
+  exaPreviewerAddress,
+  marketAbi,
+  upgradeableModularAccountAbi,
+  wethAddress,
+} from "@exactly/common/generated/chain";
+import { Address } from "@exactly/common/validation";
 
 import appOrigin from "./appOrigin";
+import keeper from "./keeper";
+import publicClient from "./publicClient";
 import { DevelopmentChainIds } from "./ramps/shared";
 
 if (!process.env.PERSONA_API_KEY) throw new Error("missing persona api key");
@@ -37,6 +50,106 @@ const PERSONA_API_VERSION = "2023-01-05";
 const authorization = `Bearer ${process.env.PERSONA_API_KEY}`;
 const baseURL = process.env.PERSONA_URL;
 const webhookSecret = process.env.PERSONA_WEBHOOK_SECRET;
+
+export async function pokeAccountAssets(accountAddress: Address, options?: { ignore?: string[] }) {
+  const combinedAccountAbi = [...exaPluginAbi, ...upgradeableModularAccountAbi, ...auditorAbi, ...marketAbi];
+
+  const marketsByAsset = await withRetry(
+    () => publicClient.readContract({ address: exaPreviewerAddress, functionName: "assets", abi: exaPreviewerAbi }),
+    {
+      delay: 2000,
+      retryCount: 5,
+      shouldRetry: ({ error }) => {
+        captureException(error, { level: "error" });
+        return true;
+      },
+    },
+  ).then((p) => new Map<Address, Address>(p.map((m) => [v.parse(Address, m.asset), v.parse(Address, m.market)])));
+  const WETH = v.parse(Address, wethAddress);
+  const ETH = v.parse(Address, "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
+
+  const assetsToPoke: { asset: Address; market: Address | null }[] = [];
+
+  const [ethBalance, assetBalances] = await Promise.all([
+    withRetry(() => publicClient.getBalance({ address: accountAddress }), {
+      delay: 2000,
+      retryCount: 5,
+      shouldRetry: ({ error }) => {
+        captureException(error, { level: "error" });
+        return true;
+      },
+    }),
+    Promise.all(
+      [...marketsByAsset.entries()].map(async ([asset, market]) => {
+        try {
+          const balance = await publicClient.readContract({
+            address: asset,
+            functionName: "balanceOf",
+            args: [accountAddress],
+            abi: erc20Abi,
+          });
+          return { asset, market, balance };
+        } catch (error) {
+          captureException(error, { level: "error" });
+          return { asset, market, balance: 0n };
+        }
+      }),
+    ),
+  ]);
+
+  const hasETH = ethBalance > 0n;
+
+  if (hasETH) {
+    assetsToPoke.push({ asset: ETH, market: null });
+  }
+
+  for (const { asset, market, balance } of assetBalances) {
+    if (hasETH && asset === WETH) continue;
+
+    if (balance > 0n) {
+      assetsToPoke.push({ asset, market });
+    }
+  }
+
+  const pokePromises = assetsToPoke.map(({ asset, market }) =>
+    withRetry(
+      () =>
+        keeper.exaSend(
+          {
+            name: "poke account",
+            op: "exa.poke",
+            attributes: { account: accountAddress, asset },
+          },
+          asset === ETH
+            ? {
+                address: accountAddress,
+                abi: combinedAccountAbi,
+                functionName: "pokeETH",
+              }
+            : {
+                address: accountAddress,
+                abi: combinedAccountAbi,
+                functionName: "poke",
+                args: [market],
+              },
+          ...(options?.ignore ? [{ ignore: options.ignore }] : []),
+        ),
+      {
+        delay: 2000,
+        retryCount: 5,
+        shouldRetry: ({ error }) => {
+          captureException(error, { level: "error" });
+          return true;
+        },
+      },
+    ),
+  );
+
+  const results = await Promise.allSettled(pokePromises);
+  for (const result of results) {
+    if (result.status === "rejected") captureException(result.reason);
+  }
+}
 
 export async function getInquiry(referenceId: string, templateId: string) {
   const { data: approvedInquiries } = await request(

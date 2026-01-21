@@ -58,7 +58,7 @@ export function startKYC() {
             handleCancel();
             resolve();
           },
-          onError: (error) => {
+          onError: (error: unknown) => {
             signal.removeEventListener("abort", onAbort);
             client.destroy();
             reportError(error);
