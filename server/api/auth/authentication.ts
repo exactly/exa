@@ -14,6 +14,7 @@ import {
   array,
   description,
   literal,
+  maxLength,
   metadata,
   nullable,
   number,
@@ -246,6 +247,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
       Cookie,
       validatorHook({ code: "bad session" }),
     ),
+    vValidator("header", optional(object({ "Client-Fid": optional(pipe(string(), maxLength(36))) }))),
     vValidator(
       "json",
       variant("method", [
@@ -323,7 +325,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
         ) {
           return c.json({ code: "bad authentication", legacy: "bad authentication" }, 400);
         }
-        const result = await createCredential(c, assertion.id);
+        const result = await createCredential(c, assertion.id, { source: c.req.header("Client-Fid") });
         const account = deriveAddress(result.factory, { x: result.x, y: result.y });
         const intercomToken = await getIntercomToken(account, result.auth);
         return c.json(

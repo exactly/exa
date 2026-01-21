@@ -24,10 +24,10 @@ import type { Context } from "hono";
 export default async function createCredential<C extends string>(
   c: Context,
   credentialId: C,
-  webauthn?: WebAuthnCredential,
+  options?: { source?: string; webauthn?: WebAuthnCredential },
 ) {
   const publicKey =
-    webauthn?.publicKey ?? (isAddress(credentialId) ? new Uint8Array(hexToBytes(credentialId)) : undefined);
+    options?.webauthn?.publicKey ?? (isAddress(credentialId) ? new Uint8Array(hexToBytes(credentialId)) : undefined);
   if (!publicKey) throw new Error("bad credential");
   const { x, y } = decodePublicKey(publicKey);
   const account = deriveAddress(exaAccountFactoryAddress, { x, y });
@@ -40,8 +40,9 @@ export default async function createCredential<C extends string>(
       id: credentialId,
       publicKey,
       factory: exaAccountFactoryAddress,
-      transports: webauthn?.transports,
-      counter: webauthn?.counter,
+      transports: options?.webauthn?.transports,
+      counter: options?.webauthn?.counter,
+      source: options?.source,
     },
   ]);
   await Promise.all([
@@ -53,9 +54,13 @@ export default async function createCredential<C extends string>(
         : { domain, sameSite: "none", secure: true, partitioned: true }),
     }),
     updateWebhookAddresses(webhookId, [account]).catch((error: unknown) => captureException(error)),
-    customer({ flow: { name: "signup", type: "signup" }, customer: { id: credentialId } }).catch((error: unknown) =>
-      captureException(error, { level: "error" }),
-    ),
+    customer({
+      flow: { name: "signup", type: "signup" },
+      customer: {
+        id: credentialId,
+        tags: [{ name: "source", value: options?.source ?? "EXA", type: "string" }],
+      },
+    }).catch((error: unknown) => captureException(error, { level: "error" })),
   ]);
   identify({ userId: account });
   return { credentialId, factory: parse(Address, exaAccountFactoryAddress), x, y, auth: expires.getTime() };

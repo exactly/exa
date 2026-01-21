@@ -16,6 +16,7 @@ import {
   boolean,
   description,
   literal,
+  maxLength,
   nullish,
   number,
   object,
@@ -251,6 +252,7 @@ export default new Hono()
       Cookie,
       validatorHook({ code: "bad session" }),
     ),
+    vValidator("header", optional(object({ "Client-Fid": optional(pipe(string(), maxLength(36))) }))),
     vValidator(
       "json",
       variant("method", [
@@ -356,7 +358,7 @@ export default new Hono()
         await redis.del(sessionId);
       }
 
-      const result = await createCredential(c, attestation.id, webauthn);
+      const result = await createCredential(c, attestation.id, { webauthn, source: c.req.header("Client-Fid") });
       const account = deriveAddress(result.factory, { x: result.x, y: result.y });
       const intercomToken = await getIntercomToken(account, new Date(Date.now() + AUTH_EXPIRY));
       return c.json(
