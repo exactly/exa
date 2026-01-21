@@ -1,4 +1,5 @@
 {
+  "Account assets updated": "Activos de cuenta actualizados",
   "Card mode": "Modo de pago",
   "Card mode changed": "Modo de pago actualizado",
   "Card purchase": "Compra con tarjeta",
@@ -12,6 +13,7 @@
   "Transaction at {{merchantName}} for {{amount}} rejected: {{reason}}": "Transacción en {{merchantName}} por {{amount}} rechazada: {{reason}}",
   "Withdraw completed": "Retiro completado",
   "Your fiat onramp account has been activated": "Tu cuenta para depositar dinero fiat ha sido activada",
+  "Your funds are ready to use": "Tus fondos están listos para usar",
   "frozen card": "tarjeta bloqueada",
   "insufficient funds": "fondos insuficientes",
   "merchant blocked": "comercio bloqueado",
