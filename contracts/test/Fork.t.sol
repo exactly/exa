@@ -70,7 +70,9 @@ abstract contract ForkTest is Test {
       try vm.readFile(
         string.concat(
           "node_modules/@exactly/protocol/deployments/",
-          chainid == 11_155_420 ? "op-sepolia" : getChain(chainid).chainAlias.replace("_", "-"),
+          chainid == 1
+            ? "ethereum"
+            : chainid == 11_155_420 ? "op-sepolia" : getChain(chainid).chainAlias.replace("_", "-"),
           "/",
           name,
           ".json"
