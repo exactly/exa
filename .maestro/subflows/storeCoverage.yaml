@@ -6,7 +6,10 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow: { when: { platform: web }, commands: [{ tapOn: { id: Settings } }] }
 - tapOn: Submit coverage
 - runFlow:
-    when: { true: "${maestro.platform != 'web'}" }
+    when: { platform: android }
+    commands: [{ assertVisible: Finished }, { tapOn: Back }]
+- runFlow:
+    when: { platform: ios }
     commands: [{ assertVisible: "Submit coverage, Finished" }, { tapOn: Back }]
 - runFlow:
     when: { platform: web }
