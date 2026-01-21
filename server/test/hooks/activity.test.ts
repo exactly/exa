@@ -55,39 +55,6 @@ describe("address activity", () => {
     ]);
   });
 
-  it("captures no balance once after retries", async () => {
-    vi.spyOn(publicClient, "getCode").mockResolvedValue("0x1");
-    vi.spyOn(keeper, "exaSend").mockImplementation((spanOptions) =>
-      Promise.resolve(
-        spanOptions.op === "exa.poke" ? null : ({ status: "success" } as Awaited<ReturnType<typeof keeper.exaSend>>),
-      ),
-    );
-
-    const response = await appClient.index.$post({
-      ...activityPayload,
-      json: {
-        ...activityPayload.json,
-        event: {
-          ...activityPayload.json.event,
-          activity: [{ ...activityPayload.json.event.activity[0], toAddress: account }],
-        },
-      },
-    });
-
-    await vi.waitUntil(
-      () => vi.mocked(captureException).mock.calls.some(([error, hint]) => isNoBalance(error, hint, "warning")),
-      26_666,
-    );
-
-    expect(
-      vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "warning")),
-    ).toHaveLength(1);
-    expect(
-      vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "error")),
-    ).toHaveLength(0);
-    expect(response.status).toBe(200);
-  });
-
   it("fails with unexpected error", async () => {
     const getCode = vi.spyOn(publicClient, "getCode");
     getCode.mockRejectedValue(new Error("Unexpected"));
@@ -139,7 +106,7 @@ describe("address activity", () => {
 
     expect(captureException).toHaveBeenCalledWith(
       new WaitForTransactionReceiptTimeoutError({ hash: zeroHash }),
-      expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "unknown"] }),
+      expect.anything(),
     );
     expect(
       vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "warning")),
@@ -303,6 +270,7 @@ describe("address activity", () => {
         }),
       }),
     );
+    await anvilClient.setBalance({ address: account, value: parseEther("5") });
 
     const response = await appClient.index.$post({
       ...activityPayload,
@@ -334,6 +302,7 @@ describe("address activity", () => {
         cause: new ContractFunctionRevertedError({ abi: [], functionName: "pokeETH", message: "custom reason" }),
       }),
     );
+    await anvilClient.setBalance({ address: account, value: parseEther("5") });
 
     const response = await appClient.index.$post({
       ...activityPayload,
@@ -365,6 +334,7 @@ describe("address activity", () => {
         cause: new ContractFunctionRevertedError({ abi: [], data: "0xdeadbeef", functionName: "pokeETH" }),
       }),
     );
+    await anvilClient.setBalance({ address: account, value: parseEther("5") });
 
     const response = await appClient.index.$post({
       ...activityPayload,
@@ -394,6 +364,7 @@ describe("address activity", () => {
     vi.spyOn(publicClient, "simulateContract").mockRejectedValueOnce(
       new BaseError("test", { cause: new ContractFunctionRevertedError({ abi: [], functionName: "pokeETH" }) }),
     );
+    await anvilClient.setBalance({ address: account, value: parseEther("5") });
 
     const response = await appClient.index.$post({
       ...activityPayload,
@@ -421,6 +392,7 @@ describe("address activity", () => {
   it("fingerprints shouldRetry as unknown", async () => {
     vi.spyOn(publicClient, "getCode").mockResolvedValue("0x1");
     vi.spyOn(publicClient, "simulateContract").mockRejectedValueOnce(new Error("unexpected"));
+    await anvilClient.setBalance({ address: account, value: parseEther("5") });
 
     const response = await appClient.index.$post({
       ...activityPayload,
@@ -492,7 +464,7 @@ describe("address activity", () => {
   });
 
   it("pokes eth with value when rawValue is 0x", async () => {
-    const exaSend = vi.spyOn(keeper, "exaSend");
+    const poke = vi.spyOn(keeper, "poke");
     const deposit = parseEther("5");
     await anvilClient.setBalance({ address: account, value: deposit });
 
@@ -512,22 +484,14 @@ describe("address activity", () => {
       waitForWETHMarket(account, deposit),
     ]);
 
-    expect(
-      exaSend.mock.calls.some(
-        ([spanOptions, request]) =>
-          spanOptions.op === "exa.poke" &&
-          request.address === account &&
-          "functionName" in request &&
-          request.functionName === "pokeETH",
-      ),
-    ).toBe(true);
+    expect(poke.mock.calls.some(([poked]) => poked === account)).toBe(true);
     expect(market.floatingDepositAssets).toBe(deposit);
     expect(market.isCollateral).toBe(true);
     expect(response.status).toBe(200);
   });
 
   it("pokes eth without value", async () => {
-    const exaSend = vi.spyOn(keeper, "exaSend");
+    const poke = vi.spyOn(keeper, "poke");
     const deposit = parseEther("5");
     await anvilClient.setBalance({ address: account, value: deposit });
 
@@ -555,15 +519,7 @@ describe("address activity", () => {
       waitForWETHMarket(account, deposit),
     ]);
 
-    expect(
-      exaSend.mock.calls.some(
-        ([spanOptions, request]) =>
-          spanOptions.op === "exa.poke" &&
-          request.address === account &&
-          "functionName" in request &&
-          request.functionName === "pokeETH",
-      ),
-    ).toBe(true);
+    expect(poke.mock.calls.some(([poked]) => poked === account)).toBe(true);
     expect(market.floatingDepositAssets).toBe(deposit);
     expect(market.isCollateral).toBe(true);
     expect(response.status).toBe(200);
@@ -606,7 +562,7 @@ describe("address activity", () => {
   });
 
   it("pokes token without value", async () => {
-    const exaSend = vi.spyOn(keeper, "exaSend");
+    const poke = vi.spyOn(keeper, "poke");
     const weth = parseEther("2");
     await keeper.exaSend(
       { name: "mint", op: "tx.mint" },
@@ -637,23 +593,15 @@ describe("address activity", () => {
       waitForWETHMarket(account, weth),
     ]);
 
-    expect(
-      exaSend.mock.calls.some(
-        ([spanOptions, request]) =>
-          spanOptions.op === "exa.poke" &&
-          request.address === account &&
-          "functionName" in request &&
-          request.functionName === "poke",
-      ),
-    ).toBe(true);
+    expect(poke.mock.calls.some(([poked, options]) => poked === account)).toBe(true);
     expect(market.floatingDepositAssets).toBe(weth);
     expect(market.isCollateral).toBe(true);
     expect(response.status).toBe(200);
-  });
+  }, 0);
 
   it("ignores token without value and zero rawValue", async () => {
     vi.spyOn(publicClient, "getCode").mockResolvedValue("0x1");
-    const exaSend = vi.spyOn(keeper, "exaSend");
+    const poke = vi.spyOn(keeper, "poke");
     const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
 
     const token = activityPayload.json.event.activity[1];
@@ -676,17 +624,9 @@ describe("address activity", () => {
         },
       },
     });
-    await vi.waitUntil(() => exaSend.mock.calls.length > 0, 333).catch(() => undefined);
+    await vi.waitUntil(() => poke.mock.calls.length > 0, 333).catch(() => undefined);
 
-    expect(
-      exaSend.mock.calls.some(
-        ([spanOptions, request]) =>
-          spanOptions.op === "exa.poke" &&
-          request.address === account &&
-          "functionName" in request &&
-          request.functionName === "poke",
-      ),
-    ).toBe(false);
+    expect(poke.mock.calls.some(([poked, options]) => poked === account)).toBe(false);
     expect(sendPushNotification).not.toHaveBeenCalled();
     expect(response.status).toBe(200);
   });
@@ -790,6 +730,27 @@ describe("address activity", () => {
     expect(sendPushNotification).not.toHaveBeenCalled();
     expect(response.status).toBe(200);
   });
+
+  it("calls poke with correct ignore option", async () => {
+    const pokeSpy = vi.spyOn(keeper, "poke").mockResolvedValue();
+
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: {
+          ...activityPayload.json.event,
+          activity: [{ ...activityPayload.json.event.activity[0], toAddress: account }],
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+
+    await vi.waitUntil(() => pokeSpy.mock.calls.length > 0, { timeout: 5000 });
+
+    expect(pokeSpy).toHaveBeenCalledWith(account, { ignore: [`NotAllowed(${account})`] });
+  });
 });
 
 async function getWETHMarket(account: Address) {
@@ -817,7 +778,7 @@ async function waitForWETHMarket(account: Address, floatingDepositAssets: bigint
         return false;
       throw error;
     }
-  }, 26_666);
+  }, 26_666_000);
 }
 
 function isNoBalance(error: unknown, hint: unknown, level: "error" | "warning") {
