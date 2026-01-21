@@ -33,8 +33,15 @@ const queryClient = new QueryClient({
 });
 
 if (typeof window !== "undefined") {
-  persistQueryClientRestore({ queryClient, persister, maxAge: Infinity }).catch(reportError);
-  persistQueryClientSubscribe({ queryClient, persister });
+  persistQueryClientRestore({ queryClient, persister, maxAge: 30 * 24 * 60 * 60_000 }).catch(reportError);
+  persistQueryClientSubscribe({
+    queryClient,
+    persister,
+    dehydrateOptions: {
+      shouldDehydrateQuery: (query: { queryKey: readonly unknown[] }) =>
+        query.queryKey[0] !== "activity" && query.queryKey[0] !== "externalAssets",
+    },
+  });
 }
 
 queryClient.setQueryDefaults(["credential"], {
