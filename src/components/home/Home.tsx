@@ -137,7 +137,6 @@ export default function Home() {
     refresh();
   });
 
-  const usdBalance = portfolio.usdBalance;
   const isPending = isPendingActivity || isPendingPreviewer;
   return (
     <SafeView fullScreen tab backgroundColor="$backgroundSoft">
@@ -194,7 +193,7 @@ export default function Home() {
                   }}
                 />
               )}
-              <GettingStarted hasFunds={usdBalance > 0n} hasKYC={KYCStatus === "ok"} />
+              <GettingStarted isDeployed={!!bytecode} hasKYC={KYCStatus === "ok"} />
               {KYCStatus === "ok" && <BenefitsSection />}
               <OverduePayments
                 onSelect={(maturity) => {

@@ -19,7 +19,7 @@ import View from "../shared/View";
 
 import type { Credential } from "@exactly/common/validation";
 
-export default function GettingStarted({ hasFunds, hasKYC }: { hasFunds: boolean; hasKYC: boolean }) {
+export default function GettingStarted({ isDeployed, hasKYC }: { hasKYC: boolean; isDeployed: boolean }) {
   const router = useRouter();
   const { t } = useTranslation();
   const { currentStep, completedSteps, setSteps } = useOnboardingSteps();
@@ -64,14 +64,14 @@ export default function GettingStarted({ hasFunds, hasKYC }: { hasFunds: boolean
   useEffect(() => {
     setSteps((previous) =>
       previous.map((step) => {
-        if (step.id === "add-funds" && hasFunds) return { ...step, completed: true };
+        if (step.id === "add-funds" && isDeployed) return { ...step, completed: true };
         if (step.id === "verify-identity" && hasKYC) return { ...step, completed: true };
         return step;
       }),
     );
-  }, [hasFunds, hasKYC, setSteps]);
+  }, [hasKYC, isDeployed, setSteps]);
 
-  if (hasFunds && hasKYC) return null;
+  if (hasKYC && isDeployed) return null;
 
   const activeStepTitle = currentStep ? t(currentStep.title) : "";
 
