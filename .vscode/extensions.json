@@ -1,6 +1,7 @@
 {
   "recommendations": [
     "astro-build.astro-vscode",
+    "coderabbit.coderabbit-vscode",
     "davidanson.vscode-markdownlint",
     "dbaeumer.vscode-eslint",
     "drblury.protobuf-vsc",
