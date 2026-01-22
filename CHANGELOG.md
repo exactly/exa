@@ -1,5 +1,20 @@
 # @exactly/mobile
 
+## 1.1.1
+
+### Patch Changes
+
+- [#664](https://github.com/exactly/exa/pull/664) [`10d080c`](https://github.com/exactly/exa/commit/10d080cf15f7b06f2c2ca8515689ebca3d8d810e) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix android crash on cold start
+
+- [#665](https://github.com/exactly/exa/pull/665) [`baedce6`](https://github.com/exactly/exa/commit/baedce6f9d56b8eb9cd7863a736a948f5735368f) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix auth query options
+
+- [#661](https://github.com/exactly/exa/pull/661) [`e6d232a`](https://github.com/exactly/exa/commit/e6d232a10a91b4249f5cc1002ffe780639f9f57d) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🍱 fix android notification icons
+
+- [#664](https://github.com/exactly/exa/pull/664) [`c36243c`](https://github.com/exactly/exa/commit/c36243ca0a64012c4a3b2ca05fcb58cf71e5ce5f) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix missing auth query function error
+
+- Updated dependencies [[`5fbd8d9`](https://github.com/exactly/exa/commit/5fbd8d90d5a17d454c44cfd5d66e0b865cf353ed)]:
+  - @exactly/server@0.2.50
+
 ## 1.1.0
 
 ### Minor Changes

@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.50
+
+### Patch Changes
+
+- [#637](https://github.com/exactly/exa/pull/637) [`5fbd8d9`](https://github.com/exactly/exa/commit/5fbd8d90d5a17d454c44cfd5d66e0b865cf353ed) Thanks [@mainqueg](https://github.com/mainqueg)! - ♻️ support multiple kyc inquiry templates
+
 ## 0.2.49
 
 ### Patch Changes
