@@ -1,5 +1,11 @@
 # @exactly/mobile
 
+## 1.0.47
+
+### Patch Changes
+
+- [#675](https://github.com/exactly/exa/pull/675) [`5345152`](https://github.com/exactly/exa/commit/5345152bcc907c245650ebe083594d8f21155bc7) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🦖 force update modal on intercom
+
 ## 1.0.46
 
 ### Patch Changes
