@@ -32,6 +32,7 @@ export const credentials = pgTable(
     kycId: text("kyc_id"),
     pandaId: text("panda_id"),
     bridgeId: text("bridge_id"),
+    source: text("source"),
   },
   ({ account }) => [uniqueIndex("account_index").on(account)],
 );
