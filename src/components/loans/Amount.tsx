@@ -97,7 +97,8 @@ export default function Amount() {
                 {markets && market && loan?.market && (
                   <XStack alignItems="center" gap="$s2">
                     <Text footnote color="$uiNeutralPlaceholder">
-                      {t("Available funding:")}{" "}
+                      {t("Available funding")}
+                      {": "}
                       {Number(formatUnits(borrowAvailable, market.decimals)).toLocaleString(language, {
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2,
