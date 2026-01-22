@@ -1,6 +1,8 @@
 import "../mocks/auth";
 import "../mocks/deployments";
 import "../mocks/keeper";
+import "../mocks/pax";
+import "../mocks/persona";
 import "../mocks/sentry";
 
 import { eq } from "drizzle-orm";
@@ -17,6 +19,8 @@ import app from "../../api/card";
 import database, { cards, credentials } from "../../database";
 import keeper from "../../utils/keeper";
 import * as panda from "../../utils/panda";
+import * as pax from "../../utils/pax";
+import * as persona from "../../utils/persona";
 
 const appClient = testClient(app);
 
@@ -76,7 +80,7 @@ describe("authenticated", () => {
     );
   });
 
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => vi.resetAllMocks());
 
   it("returns 404 card not found", async () => {
     const response = await appClient.index.$get(
@@ -225,6 +229,238 @@ describe("authenticated", () => {
     expect(created?.mode).toBe(1);
 
     expect(json).toStrictEqual({ status: "ACTIVE", lastFour: "1224", productId: SIGNATURE_PRODUCT_ID });
+  });
+
+  it("adds user to pax when signature card is issued (upgrade from platinum)", async () => {
+    const testCredentialId = "pax-test";
+    const testAccount = padHex("0x999", { size: 20 });
+    await database.insert(credentials).values({
+      id: testCredentialId,
+      publicKey: new Uint8Array(),
+      account: testAccount,
+      factory: inject("ExaAccountFactory"),
+      pandaId: "pax-test-panda",
+    });
+
+    await database.insert(cards).values({
+      id: "old-platinum-card",
+      credentialId: testCredentialId,
+      lastFour: "0000",
+      status: "DELETED",
+      productId: PLATINUM_PRODUCT_ID,
+    });
+
+    const deletedCard = await database.query.cards.findFirst({
+      where: eq(cards.id, "old-platinum-card"),
+    });
+    expect(deletedCard?.status).toBe("DELETED");
+    expect(deletedCard?.productId).toBe(PLATINUM_PRODUCT_ID);
+
+    const mockAccount = {
+      id: "acc_123",
+      type: "account" as const,
+      attributes: {
+        "name-first": "John",
+        "name-middle": null,
+        "name-last": "Doe",
+        birthdate: "1990-01-01",
+        "email-address": "john@example.com",
+        "phone-number": "+1234567890",
+        "country-code": "US",
+        "address-street-1": "123 Main St",
+        "address-street-2": null,
+        "address-city": "New York",
+        "address-subdivision": "NY",
+        "address-postal-code": "10001",
+        "social-security-number": null,
+        fields: {
+          name: {
+            value: {
+              first: { value: "John" },
+              middle: { value: null },
+              last: { value: "Doe" },
+            },
+          },
+          address: {
+            value: {
+              street_1: { value: "123 Main St" },
+              street_2: { value: null },
+              city: { value: "New York" },
+              subdivision: { value: "NY" },
+              postal_code: { value: "10001" },
+            },
+          },
+          documents: {
+            value: [
+              {
+                value: {
+                  id_class: { value: "dl" },
+                  id_number: { value: "DOC123456" },
+                  id_issuing_country: { value: "US" },
+                  id_document_id: { value: "doc_id_123" },
+                },
+              },
+            ],
+          },
+        },
+      },
+    };
+
+    vi.spyOn(persona, "getAccount").mockResolvedValueOnce(mockAccount);
+    vi.spyOn(pax, "addCapita").mockResolvedValueOnce({});
+    vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: "pax-card", last4: "5555" });
+
+    const response = await appClient.index.$post({ header: { "test-credential-id": testCredentialId } });
+
+    expect(response.status).toBe(200);
+
+    await vi.waitFor(() => {
+      expect(pax.addCapita).toHaveBeenCalledWith({
+        firstName: "John",
+        lastName: "Doe",
+        birthdate: "1990-01-01",
+        document: "DOC123456",
+        email: "john@example.com",
+        phone: "+1234567890",
+        internalId: expect.stringMatching(/.+/) as string,
+        product: "travel insurance",
+      });
+    });
+
+    expect(persona.getAccount).toHaveBeenCalledWith(testCredentialId, "basic");
+  });
+
+  it("does not add user to pax for new signature card (no upgrade)", async () => {
+    const testCredentialId = "new-user-test";
+    await database.insert(credentials).values({
+      id: testCredentialId,
+      publicKey: new Uint8Array(),
+      account: padHex("0x888", { size: 20 }),
+      factory: inject("ExaAccountFactory"),
+      pandaId: "new-user-panda",
+    });
+
+    vi.spyOn(pax, "addCapita").mockResolvedValueOnce({});
+    vi.spyOn(panda, "createCard").mockResolvedValueOnce({
+      ...cardTemplate,
+      id: "new-user-card",
+      last4: "8888",
+    });
+
+    const response = await appClient.index.$post({ header: { "test-credential-id": testCredentialId } });
+
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    expect(json).toStrictEqual({ status: "ACTIVE", lastFour: "8888", productId: SIGNATURE_PRODUCT_ID });
+
+    expect(pax.addCapita).not.toHaveBeenCalled();
+  });
+
+  it("handles pax api error during signature card creation", async () => {
+    const testCredentialId = "pax-error-test";
+    await database.insert(credentials).values({
+      id: testCredentialId,
+      publicKey: new Uint8Array(),
+      account: padHex("0x777", { size: 20 }),
+      factory: inject("ExaAccountFactory"),
+      pandaId: "pax-error-panda",
+    });
+
+    await database.insert(cards).values({
+      id: "old-platinum-error",
+      credentialId: testCredentialId,
+      lastFour: "0001",
+      status: "DELETED",
+      productId: PLATINUM_PRODUCT_ID,
+    });
+
+    const mockAccount = {
+      id: "acc_456",
+      type: "account" as const,
+      attributes: {
+        "name-first": "Jane",
+        "name-middle": null,
+        "name-last": "Smith",
+        birthdate: "1985-05-15",
+        "email-address": "jane@example.com",
+        "phone-number": "+9876543210",
+        "country-code": "US",
+        "address-street-1": "456 Oak Ave",
+        "address-street-2": null,
+        "address-city": "Boston",
+        "address-subdivision": "MA",
+        "address-postal-code": "02101",
+        "social-security-number": null,
+        fields: {
+          name: {
+            value: {
+              first: { value: "Jane" },
+              middle: { value: null },
+              last: { value: "Smith" },
+            },
+          },
+          address: {
+            value: {
+              street_1: { value: "456 Oak Ave" },
+              street_2: { value: null },
+              city: { value: "Boston" },
+              subdivision: { value: "MA" },
+              postal_code: { value: "02101" },
+            },
+          },
+          documents: {
+            value: [
+              {
+                value: {
+                  id_class: { value: "passport" },
+                  id_number: { value: "ABC987654" },
+                  id_issuing_country: { value: "US" },
+                  id_document_id: { value: "doc_id_456" },
+                },
+              },
+            ],
+          },
+        },
+      },
+    };
+
+    vi.spyOn(persona, "getAccount").mockResolvedValueOnce(mockAccount);
+    vi.spyOn(pax, "addCapita").mockRejectedValueOnce(new Error("pax api error"));
+    vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: "error-card", last4: "6666" });
+
+    const response = await appClient.index.$post({ header: { "test-credential-id": testCredentialId } });
+
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    expect(json).toStrictEqual({ status: "ACTIVE", lastFour: "6666", productId: SIGNATURE_PRODUCT_ID });
+  });
+
+  it("handles missing persona account during signature card creation", async () => {
+    const testCredentialId = "no-account-test";
+    await database.insert(credentials).values({
+      id: testCredentialId,
+      publicKey: new Uint8Array(),
+      account: padHex("0x666", { size: 20 }),
+      factory: inject("ExaAccountFactory"),
+      pandaId: "no-account-panda",
+    });
+
+    await database.insert(cards).values({
+      id: "old-platinum-card-no-account",
+      credentialId: testCredentialId,
+      lastFour: "0000",
+      status: "DELETED",
+      productId: PLATINUM_PRODUCT_ID,
+    });
+
+    vi.spyOn(pax, "addCapita").mockResolvedValueOnce({});
+    vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: "no-account-card", last4: "7777" });
+
+    const response = await appClient.index.$post({ header: { "test-credential-id": testCredentialId } });
+
+    expect(response.status).toBe(200);
+
+    expect(pax.addCapita).not.toHaveBeenCalled();
   });
 
   it("cancels a card", async () => {

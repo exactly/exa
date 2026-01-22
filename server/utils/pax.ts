@@ -1,17 +1,5 @@
 import { captureException, setContext } from "@sentry/node";
-import {
-  description,
-  email,
-  flatten,
-  object,
-  pipe,
-  safeParse,
-  string,
-  ValiError,
-  type BaseIssue,
-  type BaseSchema,
-  type InferInput,
-} from "valibot";
+import { flatten, object, safeParse, ValiError, type BaseIssue, type BaseSchema } from "valibot";
 import { encodePacked, keccak256 } from "viem";
 
 import type { Address } from "@exactly/common/validation";
@@ -27,17 +15,16 @@ const associateIdSecret = process.env.PAX_ASSOCIATE_ID_KEY;
 
 const ASSOCIATE_ID_LENGTH = 10;
 
-export const CapitaRequest = object({
-  firstName: string(),
-  lastName: string(),
-  document: string(),
-  birthdate: string(),
-  email: pipe(string(), email()),
-  phone: string(),
-  product: pipe(string(), description("the product name to add the capita to")),
-});
-
-export async function addCapita(data: InferInput<typeof CapitaRequest> & { internalId: string }) {
+export async function addCapita(data: {
+  birthdate: string;
+  document: string;
+  email: string;
+  firstName: string;
+  internalId: string;
+  lastName: string;
+  phone: string;
+  product: string;
+}) {
   return await request(object({}), "/api/capita", data, "POST");
 }
 
