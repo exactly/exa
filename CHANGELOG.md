@@ -1,5 +1,11 @@
 # @exactly/mobile
 
+## 1.0.46
+
+### Patch Changes
+
+- [#671](https://github.com/exactly/exa/pull/671) [`9f46c8c`](https://github.com/exactly/exa/commit/9f46c8c899815860a4e9f5cd9bfea83bcb230370) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🦖 implement app update ui
+
 ## 1.0.45
 
 ### Patch Changes
