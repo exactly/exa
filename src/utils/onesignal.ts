@@ -4,7 +4,7 @@ import type OneSignalWeb from "react-onesignal";
 
 import appId from "@exactly/common/onesignalAppId";
 
-import queryClient from "./queryClient";
+import queryClient, { hydrated, persist } from "./queryClient";
 import reportError from "./reportError";
 
 const { enablePrompt, login, logout } = (
@@ -69,11 +69,19 @@ const { enablePrompt, login, logout } = (
         if (appId) OneSignal.initialize(appId);
         OneSignal.InAppMessages.addEventListener("didDismiss", () => {
           queryClient.setQueryData(["onesignal", "dismiss"], Date.now());
+          persist().catch(reportError);
+          OneSignal.InAppMessages.removeTrigger("onboard");
         });
         return {
           enablePrompt: () => {
-            const lastDismiss = queryClient.getQueryData<number>(["onesignal", "dismiss"]) ?? 0;
-            if (appId && lastDismiss + DISMISS_EXPIRY < Date.now()) OneSignal.InAppMessages.addTrigger("onboard", "1");
+            hydrated.then(
+              () => {
+                const lastDismiss = queryClient.getQueryData<number>(["onesignal", "dismiss"]) ?? 0;
+                if (!appId || lastDismiss + DISMISS_EXPIRY >= Date.now()) return;
+                OneSignal.InAppMessages.addTrigger("onboard", "1");
+              },
+              () => undefined,
+            );
           },
           login: (userId: string) => {
             if (appId) OneSignal.login(userId);

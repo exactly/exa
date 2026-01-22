@@ -3,7 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { sdk } from "@farcaster/miniapp-sdk";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import { persistQueryClientRestore, persistQueryClientSubscribe } from "@tanstack/query-persist-client-core";
-import { QueryCache, QueryClient } from "@tanstack/react-query";
+import { dehydrate, QueryCache, QueryClient } from "@tanstack/react-query";
 import { deserialize, serialize } from "wagmi";
 import { hashFn, structuralSharing } from "wagmi/query";
 
@@ -13,7 +13,12 @@ import { isAvailable as isOwnerAvailable } from "./wagmi/owner";
 import type { getActivity } from "./server";
 import type { Address } from "viem";
 
-export const persister = createAsyncStoragePersister({ serialize, deserialize, storage: AsyncStorage });
+export const persister = createAsyncStoragePersister({
+  serialize,
+  deserialize,
+  storage: AsyncStorage,
+  throttleTime: 0,
+});
 const queryClient = new QueryClient({
   queryCache: new QueryCache({
     onError: (error, query) => {
@@ -32,16 +37,32 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { queryKeyHashFn: hashFn, structuralSharing } },
 });
 
+export const hydrated =
+  typeof window === "undefined"
+    ? Promise.resolve()
+    : persistQueryClientRestore({ queryClient, persister, maxAge: 30 * 24 * 60 * 60_000 }).catch((error: unknown) => {
+        reportError(error);
+        throw error;
+      });
+
+const dehydrateOptions = {
+  shouldDehydrateQuery: (query: { queryKey: readonly unknown[] }) =>
+    query.queryKey[0] !== "activity" && query.queryKey[0] !== "externalAssets",
+};
+
 if (typeof window !== "undefined") {
-  persistQueryClientRestore({ queryClient, persister, maxAge: 30 * 24 * 60 * 60_000 }).catch(reportError);
-  persistQueryClientSubscribe({
-    queryClient,
-    persister,
-    dehydrateOptions: {
-      shouldDehydrateQuery: (query: { queryKey: readonly unknown[] }) =>
-        query.queryKey[0] !== "activity" && query.queryKey[0] !== "externalAssets",
-    },
-  });
+  const subscribe = () => persistQueryClientSubscribe({ queryClient, persister, dehydrateOptions });
+  hydrated.then(subscribe, subscribe);
+}
+
+export function persist() {
+  return Promise.resolve(
+    persister.persistClient({
+      timestamp: Date.now(),
+      buster: "",
+      clientState: dehydrate(queryClient, dehydrateOptions),
+    }),
+  );
 }
 
 queryClient.setQueryDefaults(["credential"], {
