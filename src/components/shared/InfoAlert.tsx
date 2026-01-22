@@ -1,7 +1,10 @@
 import { ChevronRight, Info } from "@tamagui/lucide-icons";
 import React from "react";
 import { Pressable } from "react-native";
-import { View, Text, Spinner, XStack } from "tamagui";
+import { Spinner, XStack, YStack } from "tamagui";
+
+import Text from "./Text";
+import View from "./View";
 
 export default function InfoAlert({
   title,
@@ -15,16 +18,15 @@ export default function InfoAlert({
   onPress?: () => void;
 }) {
   return (
-    <View
+    <XStack
       borderRadius="$r6"
-      flexDirection="row"
       backgroundColor="$interactiveBaseInformationSoftDefault"
       justifyContent="space-between"
       alignItems="center"
       gap={10}
       flex={1}
     >
-      <View
+      <YStack
         padding={25}
         backgroundColor="$interactiveBaseInformationDefault"
         justifyContent="center"
@@ -35,9 +37,9 @@ export default function InfoAlert({
         height="100%"
       >
         <Info size={32} color="$interactiveOnBaseInformationDefault" />
-      </View>
+      </YStack>
       <View gap={10} padding={25} flex={1}>
-        <Text fontSize={15} color="$interactiveOnBaseInformationSoft">
+        <Text subHeadline color="$interactiveOnBaseInformationSoft">
           {title}
         </Text>
         <Pressable
@@ -45,8 +47,8 @@ export default function InfoAlert({
             onPress?.();
           }}
         >
-          <XStack flexDirection="row" gap={2} alignItems="center">
-            <Text color="$interactiveOnBaseInformationSoft" fontSize={15} fontWeight="bold">
+          <XStack gap="$s1" alignItems="center">
+            <Text emphasized subHeadline color="$interactiveOnBaseInformationSoft">
               {actionText}
             </Text>
             {loading ? (
@@ -63,6 +65,6 @@ export default function InfoAlert({
           </XStack>
         </Pressable>
       </View>
-    </View>
+    </XStack>
   );
 }

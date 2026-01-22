@@ -10,7 +10,7 @@ import { TimeToFullDisplay } from "@sentry/react-native";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigation, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
-import { RefreshControl } from "react-native";
+import { Platform, RefreshControl } from "react-native";
 import { ScrollView, useTheme, YStack } from "tamagui";
 import { zeroAddress } from "viem";
 import { useBytecode } from "wagmi";
@@ -21,6 +21,7 @@ import HomeActions from "./HomeActions";
 import HomeDisclaimer from "./HomeDisclaimer";
 import PortfolioSummary from "./PortfolioSummary";
 import SpendingLimitsSheet from "./SpendingLimitsSheet";
+import UpdateAppSheet from "./UpdateAppSheet";
 import VisaSignatureBanner from "./VisaSignatureBanner";
 import VisaSignatureModal from "./VisaSignatureSheet";
 import CardUpgradeSheet from "./card-upgrade/CardUpgradeSheet";
@@ -50,6 +51,7 @@ export default function Home() {
   const [paySheetOpen, setPaySheetOpen] = useState(false);
   const [spendingLimitsInfoSheetOpen, setSpendingLimitsInfoSheetOpen] = useState(false);
   const [visaSignatureModalOpen, setVisaSignatureModalOpen] = useState(false);
+  const [updateAppSheetOpen, setUpdateAppSheetOpen] = useState(false);
 
   const { address: account } = useAccount();
   const { data: bytecode, refetch: refetchBytecode } = useBytecode({
@@ -144,6 +146,13 @@ export default function Home() {
           <View flex={1}>
             <YStack backgroundColor="$backgroundSoft" padding="$s4" gap="$s4">
               {markets && healthFactor(markets) < HEALTH_FACTOR_THRESHOLD && <LiquidationAlert />}
+              {Platform.OS !== "web" && (
+                <InfoAlert
+                  title="Stay up to date and get the latest features and improvements."
+                  actionText="Update Exa App"
+                  onPress={() => setUpdateAppSheetOpen(true)}
+                />
+              )}
               {((isKYCFetched && isLegacyKYCFetched && legacyKYCStatus === "ok" && KYCStatus !== "ok") ||
                 (!!bytecode && !!installedPlugins && !isLatestPlugin)) && (
                 <InfoAlert
@@ -218,6 +227,7 @@ export default function Home() {
               setVisaSignatureModalOpen(false);
             }}
           />
+          <UpdateAppSheet open={updateAppSheetOpen} onClose={() => setUpdateAppSheetOpen(false)} />
         </ScrollView>
         <TimeToFullDisplay record={!!markets && !!activity} />
       </View>
