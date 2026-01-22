@@ -1,6 +1,8 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { Platform } from "react-native";
 import { Sheet } from "tamagui";
+
+import { closeHandlers } from "../../utils/modals";
 
 const ModalSheet = function ({
   open,
@@ -8,13 +10,27 @@ const ModalSheet = function ({
   children,
   heightPercent,
   disableDrag = true,
+  unmanaged = false,
 }: {
   open: boolean;
   onClose: () => void;
   children: React.ReactNode;
   heightPercent?: number;
   disableDrag?: boolean;
+  unmanaged?: boolean;
 }) {
+  const reference = useRef(onClose);
+  reference.current = onClose;
+
+  useEffect(() => {
+    if (!open || unmanaged || Platform.OS === "web") return;
+    const handler = () => reference.current();
+    closeHandlers.add(handler);
+    return () => {
+      closeHandlers.delete(handler);
+    };
+  }, [open, unmanaged]);
+
   return (
     <Sheet
       open={open}

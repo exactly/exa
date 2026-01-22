@@ -21,11 +21,11 @@ import HomeActions from "./HomeActions";
 import HomeDisclaimer from "./HomeDisclaimer";
 import PortfolioSummary from "./PortfolioSummary";
 import SpendingLimitsSheet from "./SpendingLimitsSheet";
-import UpdateAppSheet from "./UpdateAppSheet";
 import VisaSignatureBanner from "./VisaSignatureBanner";
 import VisaSignatureModal from "./VisaSignatureSheet";
 import CardUpgradeSheet from "./card-upgrade/CardUpgradeSheet";
 import type { AppNavigationProperties } from "../../app/(main)/_layout";
+import { showUpdateModal } from "../../utils/modals";
 import { KYC_TEMPLATE_ID, LEGACY_KYC_TEMPLATE_ID } from "../../utils/persona";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
@@ -51,7 +51,6 @@ export default function Home() {
   const [paySheetOpen, setPaySheetOpen] = useState(false);
   const [spendingLimitsInfoSheetOpen, setSpendingLimitsInfoSheetOpen] = useState(false);
   const [visaSignatureModalOpen, setVisaSignatureModalOpen] = useState(false);
-  const [updateAppSheetOpen, setUpdateAppSheetOpen] = useState(false);
 
   const { address: account } = useAccount();
   const { data: bytecode, refetch: refetchBytecode } = useBytecode({
@@ -150,7 +149,7 @@ export default function Home() {
                 <InfoAlert
                   title="Stay up to date and get the latest features and improvements."
                   actionText="Update Exa App"
-                  onPress={() => setUpdateAppSheetOpen(true)}
+                  onPress={showUpdateModal}
                 />
               )}
               {((isKYCFetched && isLegacyKYCFetched && legacyKYCStatus === "ok" && KYCStatus !== "ok") ||
@@ -227,7 +226,6 @@ export default function Home() {
               setVisaSignatureModalOpen(false);
             }}
           />
-          <UpdateAppSheet open={updateAppSheetOpen} onClose={() => setUpdateAppSheetOpen(false)} />
         </ScrollView>
         <TimeToFullDisplay record={!!markets && !!activity} />
       </View>

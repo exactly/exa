@@ -2,6 +2,7 @@ import type * as IntercomNative from "@intercom/intercom-react-native";
 import type * as IntercomWeb from "@intercom/messenger-js-sdk";
 import { Platform } from "react-native";
 
+import { showUpdateModal } from "./modals";
 import openBrowser from "./openBrowser";
 import reportError from "./reportError";
 
@@ -45,11 +46,7 @@ export const { login, logout, newMessage, present, presentArticle, presentCollec
         };
       }
     : () => {
-        const {
-          default: Intercom,
-          IntercomContent,
-          Space,
-        } = require("@intercom/intercom-react-native") as typeof IntercomNative; // eslint-disable-line @typescript-eslint/no-require-imports, unicorn/prefer-module
+        const { default: Intercom } = require("@intercom/intercom-react-native") as typeof IntercomNative; // eslint-disable-line @typescript-eslint/no-require-imports, unicorn/prefer-module
         return {
           login: (userId: string, token: string) =>
             appId
@@ -62,12 +59,22 @@ export const { login, logout, newMessage, present, presentArticle, presentCollec
                   })
               : Promise.resolve(false),
           logout: () => Intercom.logout(),
-          present: () => Intercom.presentSpace(Space.home),
-          presentArticle: (articleId: string) =>
-            Intercom.presentContent(IntercomContent.articleWithArticleId(articleId)),
-          presentCollection: (collectionId: string) =>
-            Intercom.presentContent(IntercomContent.helpCenterCollectionsWithIds([collectionId])),
-          newMessage: (message: string) => Intercom.presentMessageComposer(message),
+          present: () => {
+            showUpdateModal();
+            return Promise.resolve();
+          },
+          presentArticle: (_articleId: string) => {
+            showUpdateModal();
+            return Promise.resolve();
+          },
+          presentCollection: (_collectionId: string) => {
+            showUpdateModal();
+            return Promise.resolve();
+          },
+          newMessage: (_message: string) => {
+            showUpdateModal();
+            return Promise.resolve();
+          },
         };
       }
 )();

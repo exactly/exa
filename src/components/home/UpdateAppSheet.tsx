@@ -10,7 +10,7 @@ import Text from "../shared/Text";
 
 export default function UpdateAppSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (
-    <ModalSheet open={open} onClose={onClose} disableDrag>
+    <ModalSheet open={open} onClose={onClose} disableDrag unmanaged>
       <YStack paddingHorizontal="$s5" paddingVertical="$s7" gap="$s7" backgroundColor="$backgroundSoft">
         <YStack gap="$s5">
           <Text headline emphasized>

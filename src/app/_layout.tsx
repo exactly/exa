@@ -22,7 +22,7 @@ import { type FontSource, useFonts } from "expo-font";
 import { SplashScreen, Stack, useNavigationContainerRef } from "expo-router";
 import { channel, checkForUpdateAsync, fetchUpdateAsync, reloadAsync } from "expo-updates";
 import { use as configI18n } from "i18next";
-import React, { useEffect, useLayoutEffect as useClientLayoutEffect } from "react";
+import React, { useEffect, useLayoutEffect as useClientLayoutEffect, useState } from "react";
 import { initReactI18next } from "react-i18next";
 import { AppState, Platform } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -34,10 +34,12 @@ import BDOGroteskRegular from "../assets/fonts/BDOGrotesk-Regular.otf";
 import IBMPlexMonoMedium from "../assets/fonts/IBMPlexMono-Medm.otf";
 import AppIcon from "../assets/icon.png";
 import ThemeProvider from "../components/context/ThemeProvider";
+import UpdateAppSheet from "../components/home/UpdateAppSheet";
 import Error from "../components/shared/Error";
 import release from "../generated/release";
 import translation from "../i18n/en.json";
 import e2e from "../utils/e2e";
+import { onShow } from "../utils/modals";
 import publicClient from "../utils/publicClient";
 import queryClient, { persister } from "../utils/queryClient";
 import reportError from "../utils/reportError";
@@ -119,6 +121,12 @@ if (!chain.testnet && chain.id !== anvil.id && typeof window !== "undefined") {
 
 export default wrap(function RootLayout() {
   const navigationContainer = useNavigationContainerRef();
+  const [updateAppOpen, setUpdateAppOpen] = useState(false);
+
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    onShow(() => setUpdateAppOpen(true));
+  }, []);
 
   useServerFonts({
     "BDOGrotesk-DemiBold": BDOGroteskDemiBold as FontSource,
@@ -184,6 +192,9 @@ export default wrap(function RootLayout() {
                   <Stack.Screen name="(auth)" />
                   <Stack.Screen name="(main)" />
                 </Stack>
+                {Platform.OS !== "web" && (
+                  <UpdateAppSheet open={updateAppOpen} onClose={() => setUpdateAppOpen(false)} />
+                )}
               </ErrorBoundary>
             </ThemeProvider>
           </SafeAreaProvider>
