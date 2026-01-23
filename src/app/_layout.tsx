@@ -38,7 +38,6 @@ import ThemeProvider from "../components/context/ThemeProvider";
 import Error from "../components/shared/Error";
 import release from "../generated/release";
 import en from "../i18n/en.json";
-import es from "../i18n/es.json";
 import e2e from "../utils/e2e";
 import queryClient, { persister } from "../utils/queryClient";
 import reportError from "../utils/reportError";
@@ -47,20 +46,16 @@ import ownerConfig from "../utils/wagmi/owner";
 
 SplashScreen.preventAutoHideAsync().catch(reportError);
 
+const locale = getLocales()[0]?.languageCode;
+const resources: Record<string, { translation: object }> = { en: { translation: en } };
+if (locale === "es") resources.es = { translation: require("../i18n/es.json") as object }; // eslint-disable-line unicorn/prefer-module
+
 configI18n(initReactI18next)
   .use({
     type: "languageDetector",
-    detect: () =>
-      getLocales()[0]?.languageCode ??
-      (typeof navigator === "undefined" ? undefined : navigator.language.split("-")[0]) ??
-      "en",
+    detect: () => locale ?? (typeof navigator === "undefined" ? undefined : navigator.language.split("-")[0]) ?? "en",
   })
-  .init({
-    fallbackLng: "en",
-    keySeparator: false,
-    nsSeparator: false,
-    resources: { en: { translation: en }, es: { translation: es } },
-  })
+  .init({ fallbackLng: "en", keySeparator: false, nsSeparator: false, resources })
   .catch(reportError);
 
 export { ErrorBoundary } from "expo-router";

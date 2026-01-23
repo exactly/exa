@@ -3,14 +3,15 @@ import { ChainNotConfiguredError, createConnector } from "wagmi";
 
 import chain from "@exactly/common/generated/chain";
 
-import createAccountClient from "./accountClient";
-import publicClient from "./publicClient";
+import getPublicClient from "./publicClient";
 import queryClient from "./queryClient";
 import reportError from "./reportError";
 
 import type { SmartAccountClient, SmartContractAccount } from "@aa-sdk/core";
 import type { ClientWithAlchemyMethods } from "@account-kit/infra";
 import type { Credential } from "@exactly/common/validation";
+
+const chains = [chain] as const;
 
 export let accountClient:
   | SmartAccountClient<Transport, Chain, SmartContractAccount<"WebauthnAccount", "0.6.0">>
@@ -23,7 +24,10 @@ export default createConnector<ClientWithAlchemyMethods | SmartAccountClient>(({
   async getAccounts() {
     const credential = queryClient.getQueryData<Credential>(["credential"]);
     if (!credential) return [];
-    accountClient ??= await createAccountClient(credential);
+    if (!accountClient) {
+      const { default: createAccountClient } = await import("./accountClient");
+      accountClient = await createAccountClient(credential);
+    }
     return [accountClient.account.address];
   },
   async isAuthorized() {
@@ -31,11 +35,14 @@ export default createConnector<ClientWithAlchemyMethods | SmartAccountClient>(({
     return accounts.length > 0;
   },
   async connect({ chainId, withCapabilities } = {}) {
-    if (chainId && chainId !== chain.id) throw new SwitchChainError(new ChainNotConfiguredError());
+    if (chainId && !chains.some((c) => c.id === chainId)) throw new SwitchChainError(new ChainNotConfiguredError());
     try {
       const credential = queryClient.getQueryData<Credential>(["credential"]);
       if (!credential) throw new Error("missing credential");
-      accountClient ??= await createAccountClient(credential);
+      if (!accountClient) {
+        const { default: createAccountClient } = await import("./accountClient");
+        accountClient = await createAccountClient(credential);
+      }
     } catch (error: unknown) {
       reportError(error);
       throw error;
@@ -52,15 +59,16 @@ export default createConnector<ClientWithAlchemyMethods | SmartAccountClient>(({
     return Promise.resolve();
   },
   switchChain({ chainId }) {
-    if (chainId !== chain.id) throw new SwitchChainError(new ChainNotConfiguredError());
-    return Promise.resolve(chain);
+    const target = chains.find((c) => c.id === chainId);
+    if (!target) throw new SwitchChainError(new ChainNotConfiguredError());
+    return Promise.resolve(target);
   },
   onAccountsChanged(accounts) {
     if (accounts.length === 0) this.onDisconnect();
     else emitter.emit("change", { accounts: accounts.map((a) => getAddress(a)) });
   },
   onChainChanged(chainId) {
-    if (Number(chainId) !== chain.id) throw new SwitchChainError(new ChainNotConfiguredError());
+    if (!chains.some((c) => c.id === Number(chainId))) throw new SwitchChainError(new ChainNotConfiguredError());
     emitter.emit("change", { chainId: Number(chainId) });
   },
   onDisconnect(error) {
@@ -68,9 +76,9 @@ export default createConnector<ClientWithAlchemyMethods | SmartAccountClient>(({
     accountClient = undefined;
     if (error) reportError(error);
   },
-  getProvider({ chainId } = {}) {
-    if (chainId && chainId !== chain.id) throw new SwitchChainError(new ChainNotConfiguredError());
-    return Promise.resolve(accountClient ?? publicClient);
+  async getProvider({ chainId } = {}) {
+    if (chainId && !chains.some((c) => c.id === chainId)) throw new SwitchChainError(new ChainNotConfiguredError());
+    return accountClient ?? (await getPublicClient());
   },
   getChainId: () => Promise.resolve(chain.id),
 }));

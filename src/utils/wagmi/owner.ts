@@ -7,13 +7,24 @@ import { createConfig, createStorage, custom, injected } from "wagmi";
 
 import chain from "@exactly/common/generated/chain";
 
-import publicClient from "../publicClient";
+import getPublicClient from "../publicClient";
 
 const config = createConfig({
   chains: [chain],
   connectors: [miniAppConnector(), injected()],
   client({ chain: c }) {
-    return createClient({ chain: c, transport: c.id === chain.id ? custom(publicClient) : http() });
+    return createClient({
+      chain: c,
+      transport:
+        c.id === chain.id
+          ? custom({
+              async request(args) {
+                const client = await getPublicClient(c);
+                return client.request(args as never);
+              },
+            })
+          : http(),
+    });
   },
   storage: createStorage({ key: "wagmi.owner", storage: AsyncStorage }),
 });

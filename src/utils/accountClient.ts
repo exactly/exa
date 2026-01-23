@@ -53,20 +53,20 @@ import accountInitCode from "@exactly/common/accountInitCode";
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
 import domain from "@exactly/common/domain";
-import chain, { upgradeableModularAccountAbi } from "@exactly/common/generated/chain";
+import defaultChain, { upgradeableModularAccountAbi } from "@exactly/common/generated/chain";
 
 import e2e from "./e2e";
 import { login } from "./onesignal";
-import publicClient from "./publicClient";
+import getPublicClient from "./publicClient";
 import queryClient, { type AuthMethod } from "./queryClient";
 import ownerConfig from "./wagmi/owner";
 
 import type { Credential } from "@exactly/common/validation";
 
-if (chain.id !== anvil.id && !alchemyGasPolicyId) throw new Error("missing alchemy gas policy");
+if (defaultChain.id !== anvil.id && !alchemyGasPolicyId) throw new Error("missing alchemy gas policy");
 
-export default async function createAccountClient({ credentialId, factory, x, y }: Credential) {
-  const transport = custom(publicClient);
+export default async function createAccountClient({ credentialId, factory, x, y }: Credential, chain = defaultChain) {
+  const transport = custom(await getPublicClient(chain));
   const entryPoint = getEntryPoint(chain);
   const account = await toSmartContractAccount({
     chain,
@@ -260,6 +260,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
                 e2e.account.address,
               ],
             });
+            const publicClient = await getPublicClient(chain);
             await publicClient.waitForTransactionReceipt({ hash });
             return hash;
           }

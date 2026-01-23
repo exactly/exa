@@ -22,18 +22,19 @@ import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import chain, { mockSwapperAbi, swapperAddress } from "@exactly/common/generated/chain";
 import { Address as AddressSchema, Hex } from "@exactly/common/validation";
 
-import publicClient from "./publicClient";
+import getPublicClient from "./publicClient";
 
 let configured = false;
-function ensureConfig() {
+async function ensureConfig() {
   if (configured || chain.testnet || chain.id === anvil.id) return;
+  const client = await getPublicClient();
   createLifiConfig({
     integrator: "exa_app",
     apiKey: "4bdb54aa-4f28-4c61-992a-a2fdc87b0a0b.251e33ad-ef5e-40cb-9b0f-52d634b99e8f",
-    providers: [EVM({ getWalletClient: () => Promise.resolve(publicClient) })],
+    providers: [EVM({ getWalletClient: () => getPublicClient() })],
     rpcUrls: {
       [optimism.id]: [`${optimism.rpcUrls.alchemy?.http[0]}/${alchemyAPIKey}`],
-      [chain.id]: [publicClient.transport.alchemyRpcUrl],
+      [chain.id]: [client.transport.alchemyRpcUrl],
     },
   });
   configured = true;
@@ -47,9 +48,10 @@ export async function getRoute(
   receiver: Hex,
   denyExchanges?: Record<string, boolean>,
 ) {
-  ensureConfig();
+  await ensureConfig();
   if (chain.testnet || chain.id === anvil.id) {
-    const fromAmount = await publicClient.readContract({
+    const client = await getPublicClient();
+    const fromAmount = await client.readContract({
       abi: mockSwapperAbi,
       functionName: "getAmountIn",
       address: parse(Hex, swapperAddress),
@@ -108,7 +110,7 @@ export async function getRoute(
 }
 
 async function getAllTokens(): Promise<Token[]> {
-  ensureConfig();
+  await ensureConfig();
   if (chain.testnet || chain.id === anvil.id) return [];
   const response = await getTokens({ chains: [chain.id] });
   const exa = await getToken(chain.id, "0x1e925De1c68ef83bD98eE3E130eF14a50309C01B");
@@ -171,7 +173,7 @@ const allowList = new Set([
 ]);
 
 export async function getAllowTokens() {
-  ensureConfig();
+  await ensureConfig();
   if (chain.testnet || chain.id === anvil.id) return [];
   const exa = await getToken(chain.id, "0x1e925De1c68ef83bD98eE3E130eF14a50309C01B");
   const { tokens } = await getTokens({ chains: [chain.id] });
@@ -212,7 +214,7 @@ export async function getRouteFrom({
   toChainId?: number;
   toTokenAddress: string;
 }): Promise<RouteFrom> {
-  ensureConfig();
+  await ensureConfig();
   config.set({ integrator: "exa_app", userId: fromAddress });
   const { estimate, transactionRequest, tool } = await getQuote({
     fee: 0.0025,
@@ -263,7 +265,7 @@ export type BridgeSources = {
 };
 
 export async function getBridgeSources(account?: string, protocolSymbols: string[] = []): Promise<BridgeSources> {
-  ensureConfig();
+  await ensureConfig();
   if (!account) throw new Error("account is required");
   const bridgeTokenSymbols = new Set(protocolSymbols);
   if (bridgeTokenSymbols.size === 0) throw new Error("protocol symbols is required");
