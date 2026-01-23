@@ -36,8 +36,8 @@ import openBrowser from "../../utils/openBrowser";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
-import useAccountAssets from "../../utils/useAccountAssets";
 import useAsset from "../../utils/useAsset";
+import usePortfolio from "../../utils/usePortfolio";
 import useSimulateProposal from "../../utils/useSimulateProposal";
 import Button from "../shared/Button";
 import SafeView from "../shared/SafeView";
@@ -74,7 +74,7 @@ export default function Swaps() {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const { address: account } = useAccount();
-  const { externalAssets, protocolAssets } = useAccountAssets();
+  const { externalAssets, protocolAssets } = usePortfolio();
   const [acknowledged, setAcknowledged] = useState(false);
   const [activeInput, setActiveInput] = useState<"from" | "to">("from");
   const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [account ?? zeroAddress] });
