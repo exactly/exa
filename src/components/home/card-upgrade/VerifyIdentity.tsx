@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 
 import { IdCard } from "@tamagui/lucide-icons";
@@ -8,7 +8,7 @@ import { Spinner, YStack } from "tamagui";
 import { useMutation } from "@tanstack/react-query";
 
 import Progression from "./Progression";
-import { startKYC } from "../../../utils/persona";
+import { cancelKYC, startKYC } from "../../../utils/persona";
 import queryClient from "../../../utils/queryClient";
 import reportError from "../../../utils/reportError";
 import { APIError, getKYCStatus } from "../../../utils/server";
@@ -19,6 +19,9 @@ import View from "../../shared/View";
 export default function VerifyIdentity() {
   const toast = useToastController();
   const { t } = useTranslation();
+
+  useEffect(() => cancelKYC, []);
+
   const { mutate: beginKYC, isPending } = useMutation({
     mutationKey: ["kyc"],
     async mutationFn() {

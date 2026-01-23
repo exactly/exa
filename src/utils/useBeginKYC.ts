@@ -1,10 +1,11 @@
+import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useToastController } from "@tamagui/toast";
 
 import { useMutation } from "@tanstack/react-query";
 
-import { startKYC } from "./persona";
+import { cancelKYC, startKYC } from "./persona";
 import queryClient from "./queryClient";
 import reportError from "./reportError";
 import { APIError, getKYCStatus } from "./server";
@@ -12,6 +13,8 @@ import { APIError, getKYCStatus } from "./server";
 export default function useBeginKYC() {
   const toast = useToastController();
   const { t } = useTranslation();
+
+  useEffect(() => cancelKYC, []);
 
   return useMutation({
     mutationKey: ["kyc"],

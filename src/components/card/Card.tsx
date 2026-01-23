@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { Pressable, RefreshControl } from "react-native";
 
@@ -26,7 +26,7 @@ import SpendingLimits from "./SpendingLimits";
 import VerificationFailure from "./VerificationFailure";
 import { presentArticle } from "../../utils/intercom";
 import openBrowser from "../../utils/openBrowser";
-import { startKYC } from "../../utils/persona";
+import { cancelKYC, startKYC } from "../../utils/persona";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import {
@@ -60,6 +60,8 @@ export default function Card() {
   } = useTranslation();
   const [disclaimerShown, setDisclaimerShown] = useState(false);
   const [verificationFailureShown, setVerificationFailureShown] = useState(false);
+
+  useEffect(() => cancelKYC, []);
   const { data: cardDetailsOpen } = useQuery<boolean>({ queryKey: ["card-details-open"] });
   const [spendingLimitsOpen, setSpendingLimitsOpen] = useState(false);
   const { data: hidden } = useQuery<boolean>({ queryKey: ["settings", "sensitive"] });
