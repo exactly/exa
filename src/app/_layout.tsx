@@ -40,7 +40,7 @@ import release from "../generated/release";
 import en from "../i18n/en.json";
 import es from "../i18n/es.json";
 import e2e from "../utils/e2e";
-import queryClient, { persister } from "../utils/queryClient";
+import queryClient, { persistOptions } from "../utils/queryClient";
 import reportError from "../utils/reportError";
 import exaConfig from "../utils/wagmi/exa";
 import ownerConfig from "../utils/wagmi/owner";
@@ -169,7 +169,7 @@ export default wrap(function RootLayout() {
 
   return (
     <WagmiProvider config={exaConfig}>
-      <PersistQueryClientProvider client={queryClient} persistOptions={{ persister }}>
+      <PersistQueryClientProvider client={queryClient} persistOptions={persistOptions}>
         <ToastProvider>
           <SafeAreaProvider>
             <ThemeProvider>
