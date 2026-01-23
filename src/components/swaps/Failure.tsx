@@ -86,7 +86,7 @@ export default function Failure({
                     <Text emphasized secondary subHeadline>
                       {fromToken.symbol}
                     </Text>
-                    <AssetLogo source={{ uri: fromToken.logoURI }} width={16} height={16} />
+                    <AssetLogo symbol={fromToken.symbol} width={16} height={16} />
                   </XStack>
                   <ArrowDown size={24} color="$uiNeutralPrimary" />
                   <Text title primary color="$uiNeutralPrimary">
@@ -99,7 +99,7 @@ export default function Failure({
                     <Text emphasized secondary subHeadline>
                       {toToken.symbol}
                     </Text>
-                    <AssetLogo source={{ uri: toToken.logoURI }} width={16} height={16} />
+                    <AssetLogo symbol={toToken.symbol} width={16} height={16} />
                   </XStack>
                 </YStack>
               </YStack>

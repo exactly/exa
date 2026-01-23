@@ -90,7 +90,7 @@ export default function Success({
                     {`$${fromUsdAmount.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                   </Text>
                   <XStack gap="$s2" alignItems="center">
-                    <AssetLogo source={{ uri: fromToken.logoURI }} width={16} height={16} />
+                    <AssetLogo symbol={fromToken.symbol} width={16} height={16} />
                     <Text emphasized secondary subHeadline>
                       {Number(formatUnits(fromAmount, fromToken.decimals)).toFixed(8)}
                     </Text>
@@ -100,7 +100,7 @@ export default function Success({
                     {`$${toUsdAmount.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                   </Text>
                   <XStack gap="$s2" alignItems="center">
-                    <AssetLogo source={{ uri: toToken.logoURI }} width={16} height={16} />
+                    <AssetLogo symbol={toToken.symbol} width={16} height={16} />
                     <Text emphasized secondary subHeadline>
                       {Number(formatUnits(toAmount, toToken.decimals)).toFixed(8)}
                     </Text>

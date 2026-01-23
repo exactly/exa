@@ -30,7 +30,6 @@ import shortenHex from "@exactly/common/shortenHex";
 import { WAD } from "@exactly/lib";
 
 import AssetSelectSheet from "./AssetSelectSheet";
-import TokenLogo from "./TokenLogo";
 import { getBridgeSources, getRouteFrom, tokenCorrelation, type BridgeSources, type RouteFrom } from "../../utils/lifi";
 import openBrowser from "../../utils/openBrowser";
 import queryClient from "../../utils/queryClient";
@@ -520,7 +519,7 @@ export default function Bridge() {
                 </Text>
               </YStack>
               <XStack gap="$s3" alignItems="center">
-                <TokenLogo token={bridgePreview.sourceToken} size={32} />
+                <AssetLogo symbol={bridgePreview.sourceToken.symbol} width={32} height={32} />
                 <Text title primary color="$uiNeutralPrimary">
                   {`${Number(
                     formatUnits(bridgePreview.sourceAmount, bridgePreview.sourceToken.decimals),
@@ -643,7 +642,6 @@ export default function Bridge() {
                   onUseMax={(maxAmount) => {
                     setSourceAmount(maxAmount);
                   }}
-                  chainLogoUri={selectedGroup?.chain.logoURI}
                 />
               )}
               {insufficientBalance && (
@@ -682,11 +680,7 @@ export default function Bridge() {
                         <XStack gap="$s3_5" alignItems="center" justifyContent="space-between" flex={1}>
                           <XStack gap="$s3_5" alignItems="center" flex={1}>
                             <View width={40} height={40} position="relative">
-                              {destinationToken.logoURI ? (
-                                <AssetLogo source={{ uri: destinationToken.logoURI }} width={40} height={40} />
-                              ) : (
-                                <TokenLogo token={destinationToken} size={40} />
-                              )}
+                              <AssetLogo symbol={destinationToken.symbol} width={40} height={40} />
                               <View
                                 position="absolute"
                                 bottom={0}

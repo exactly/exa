@@ -25,7 +25,6 @@ import ProposalType from "@exactly/common/ProposalType";
 import shortenHex from "@exactly/common/shortenHex";
 import { MATURITY_INTERVAL, WAD } from "@exactly/lib";
 
-import assetLogos from "../../utils/assetLogos";
 import { presentArticle } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
@@ -234,11 +233,7 @@ export default function Review() {
                   {receiver === address ? t("You receive") : t("You send")}
                 </Text>
                 <XStack alignItems="center" gap="$s2">
-                  <AssetLogo
-                    height={16}
-                    source={{ uri: symbol ? assetLogos[symbol as keyof typeof assetLogos] : undefined }}
-                    width={16}
-                  />
+                  <AssetLogo height={16} symbol={symbol ?? ""} width={16} />
                   <Text title3 color="$uiNeutralPrimary">
                     {(Number(amount ?? 0n) / 10 ** (assetMarket?.decimals ?? 6)).toLocaleString(language, {
                       minimumFractionDigits: 2,
@@ -258,11 +253,7 @@ export default function Review() {
                   })}
                 </Text>
                 <XStack alignItems="center" gap="$s2">
-                  <AssetLogo
-                    height={16}
-                    source={{ uri: symbol ? assetLogos[symbol as keyof typeof assetLogos] : undefined }}
-                    width={16}
-                  />
+                  <AssetLogo height={16} symbol={symbol ?? ""} width={16} />
                   <Text title3 color="$uiNeutralPrimary">
                     {(Number(feeAmount) / 10 ** (assetMarket?.decimals ?? 6)).toLocaleString(language, {
                       minimumFractionDigits: 2,
@@ -279,11 +270,7 @@ export default function Review() {
                   </Text>
                   <XStack alignItems="center" gap="$s2">
                     <XStack alignItems="center" gap="$s2">
-                      <AssetLogo
-                        height={16}
-                        source={{ uri: symbol ? assetLogos[symbol as keyof typeof assetLogos] : undefined }}
-                        width={16}
-                      />
+                      <AssetLogo height={16} symbol={symbol ?? ""} width={16} />
                       <Text title3 color="$uiNeutralPrimary">
                         {(
                           Number(singleInstallment ? totalAmount : installmentsAmount) /
@@ -310,11 +297,7 @@ export default function Review() {
                     {t("Total")}
                   </Text>
                   <XStack alignItems="center" gap="$s2">
-                    <AssetLogo
-                      height={16}
-                      source={{ uri: symbol ? assetLogos[symbol as keyof typeof assetLogos] : undefined }}
-                      width={16}
-                    />
+                    <AssetLogo height={16} symbol={symbol ?? ""} width={16} />
                     <Text title3 color="$uiNeutralPrimary">
                       {(Number(totalAmount) / 10 ** (assetMarket?.decimals ?? 6)).toLocaleString(language, {
                         minimumFractionDigits: 2,
@@ -447,11 +430,7 @@ export default function Review() {
               {statusMessage}
             </Text>
             <XStack gap="$s2" alignItems="center" justifyContent="center">
-              <AssetLogo
-                height={32}
-                source={{ uri: symbol ? assetLogos[symbol as keyof typeof assetLogos] : undefined }}
-                width={32}
-              />
+              <AssetLogo height={32} symbol={symbol ?? ""} width={32} />
               <Text primary fontSize={34}>
                 {(Number(totalAmount) / 10 ** (assetMarket?.decimals ?? 6)).toLocaleString(language, {
                   minimumFractionDigits: 2,

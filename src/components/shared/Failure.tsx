@@ -11,8 +11,6 @@ import { marketUSDCAddress } from "@exactly/common/generated/chain";
 
 import GradientScrollView from "./GradientScrollView";
 import SafeView from "./SafeView";
-import assetLogos from "../../utils/assetLogos";
-import useAsset from "../../utils/useAsset";
 import AssetLogo from "../shared/AssetLogo";
 import Text from "../shared/Text";
 import View from "../shared/View";
@@ -34,7 +32,6 @@ export default function Failure({
   repayAssets: bigint;
   selectedAsset?: Hex;
 }) {
-  const { externalAsset } = useAsset(selectedAsset);
   const {
     t,
     i18n: { language },
@@ -82,7 +79,7 @@ export default function Failure({
               <Text title primary color="$uiNeutralPrimary">
                 &nbsp;USDC&nbsp;
               </Text>
-              <AssetLogo source={{ uri: assetLogos.USDC }} width={28} height={28} />
+              <AssetLogo symbol="USDC" width={28} height={28} />
             </XStack>
             {currency !== "USDC" && (
               <XStack gap="$s2" alignItems="center">
@@ -97,18 +94,7 @@ export default function Failure({
                 <Text title2 primary color="$uiNeutralPrimary">
                   &nbsp;{currency}&nbsp;
                 </Text>
-                <AssetLogo
-                  borderRadius={20}
-                  height={22}
-                  width={22}
-                  source={{
-                    uri: externalAsset
-                      ? externalAsset.logoURI
-                      : currency
-                        ? assetLogos[currency as keyof typeof assetLogos]
-                        : undefined,
-                  }}
-                />
+                {currency && <AssetLogo height={22} width={22} symbol={currency} />}
               </XStack>
             )}
           </YStack>

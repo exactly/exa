@@ -6,7 +6,6 @@ import { useForm } from "@tanstack/react-form";
 import { nonEmpty, pipe, string } from "valibot";
 import { formatUnits, parseUnits } from "viem";
 
-import assetLogos from "../../utils/assetLogos";
 import useAsset from "../../utils/useAsset";
 import AssetLogo from "../shared/AssetLogo";
 import Input from "../shared/Input";
@@ -83,13 +82,9 @@ export default function AmountSelector({
                   height={60}
                 >
                   <AssetLogo
-                    source={{
-                      uri: assetLogos[
-                        selectedMarket?.symbol.slice(3) === "WETH"
-                          ? "ETH"
-                          : (selectedMarket?.symbol.slice(3) as keyof typeof assetLogos)
-                      ],
-                    }}
+                    symbol={
+                      selectedMarket?.symbol.slice(3) === "WETH" ? "ETH" : (selectedMarket?.symbol.slice(3) ?? "")
+                    }
                     width={32}
                     height={32}
                   />

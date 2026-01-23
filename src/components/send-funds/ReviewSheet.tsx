@@ -9,7 +9,6 @@ import { zeroAddress } from "viem";
 
 import shortenHex from "@exactly/common/shortenHex";
 
-import assetLogos from "../../utils/assetLogos";
 import AssetLogo from "../shared/AssetLogo";
 import Blocky from "../shared/Blocky";
 import ModalSheet from "../shared/ModalSheet";
@@ -22,9 +21,7 @@ import type { Address } from "@exactly/common/validation";
 
 export default function ReviewSheet({
   amount,
-  external,
   isFirstSend,
-  logoURI,
   onClose,
   onSend,
   open,
@@ -34,9 +31,7 @@ export default function ReviewSheet({
   usdValue,
 }: {
   amount: string;
-  external: boolean;
   isFirstSend: boolean;
-  logoURI?: string;
   onClose: () => void;
   onSend: () => void;
   open: boolean;
@@ -72,13 +67,7 @@ export default function ReviewSheet({
                   {t("Sending")}
                 </Text>
                 <XStack alignItems="center" gap="$s3">
-                  <AssetLogo
-                    height={40}
-                    source={{
-                      uri: external ? logoURI : symbol ? assetLogos[symbol as keyof typeof assetLogos] : undefined,
-                    }}
-                    width={40}
-                  />
+                  <AssetLogo height={40} symbol={symbol ?? ""} width={40} />
                   <YStack flex={1}>
                     <Text title color="$uiNeutralPrimary">
                       {amount} {symbol}

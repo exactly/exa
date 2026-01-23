@@ -10,7 +10,6 @@ import { previewerAddress, ratePreviewerAddress } from "@exactly/common/generate
 import { useReadPreviewerExactly, useReadRatePreviewerSnapshot } from "@exactly/common/generated/hooks";
 import { floatingDepositRates } from "@exactly/lib";
 
-import assetLogos from "../../utils/assetLogos";
 import useAccount from "../../utils/useAccount";
 import usePortfolio from "../../utils/usePortfolio";
 import AssetLogo from "../shared/AssetLogo";
@@ -21,7 +20,6 @@ type AssetItem = {
   amount: bigint;
   assetName?: string;
   decimals: number;
-  logoURI?: string;
   market?: string;
   rate?: bigint;
   symbol: string;
@@ -34,11 +32,11 @@ function AssetRow({ asset }: { asset: AssetItem }) {
     t,
     i18n: { language },
   } = useTranslation();
-  const { symbol, logoURI, amount, decimals, usdPrice, usdValue, rate } = asset;
+  const { symbol, amount, decimals, usdPrice, usdValue, rate } = asset;
   return (
     <XStack alignItems="center" borderColor="$borderNeutralSoft" paddingVertical={vs(10)} gap="$s2" width="100%">
       <XStack gap={10} alignItems="center" flex={1} $platform-web={{ flexBasis: 1 / 3 }}>
-        <AssetLogo height={32} source={{ uri: logoURI ?? assetLogos[symbol as keyof typeof assetLogos] }} width={32} />
+        <AssetLogo height={32} symbol={symbol} width={32} />
         <YStack gap="$s2" alignItems="flex-start">
           <Text subHeadline color="$uiNeutralPrimary" numberOfLines={1}>
             {symbol}
@@ -138,10 +136,9 @@ export default function AssetList() {
       .filter(({ amount, symbol }) => (symbol === "USDC.e" ? amount > 0n : true))
       .sort((a, b) => Number(b.usdValue) - Number(a.usdValue)) ?? [];
 
-  const externalAssetItems = externalAssets.map(({ symbol, name, logoURI, amount, decimals, usdValue, priceUSD }) => ({
+  const externalAssetItems = externalAssets.map(({ symbol, name, amount, decimals, usdValue, priceUSD }) => ({
     symbol,
     name,
-    logoURI,
     amount: amount ?? 0n,
     decimals,
     usdValue: parseUnits(usdValue.toFixed(18), 18),

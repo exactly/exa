@@ -14,7 +14,6 @@ import { withdrawLimit } from "@exactly/lib";
 
 import AssetLogo from "./AssetLogo";
 import Skeleton from "./Skeleton";
-import assetLogos from "../../utils/assetLogos";
 import useAccount from "../../utils/useAccount";
 import usePortfolio from "../../utils/usePortfolio";
 import Text from "../shared/Text";
@@ -37,7 +36,7 @@ export default function AssetSelector({
   const { assets, externalAssets, isPending } = usePortfolio(undefined, { sortBy });
 
   if (assets.length === 0) {
-    if (isPending) {
+    if (isPending || !markets) {
       return (
         <YStack gap="$s2" borderWidth={1} borderRadius="$r3" borderColor="$borderNeutralSeparator" padding="$s3">
           <AssetSkeleton />
@@ -109,14 +108,7 @@ export default function AssetSelector({
                 borderRadius="$r3"
               >
                 <View flexDirection="row" gap={10} alignItems="center" maxWidth="50%">
-                  <AssetLogo
-                    source={{
-                      uri: asset.type === "external" ? asset.logoURI : assetLogos[symbol as keyof typeof assetLogos],
-                    }}
-                    width={32}
-                    height={32}
-                    borderRadius={16}
-                  />
+                  <AssetLogo symbol={symbol} width={32} height={32} />
                   <View gap="$s2" alignItems="flex-start" flexShrink={1}>
                     <Text fontSize={15} fontWeight="bold" color="$uiNeutralPrimary" numberOfLines={1}>
                       {symbol}

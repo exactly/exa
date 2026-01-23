@@ -10,7 +10,6 @@ import { MATURITY_INTERVAL } from "@exactly/lib";
 
 import AssetLogo from "./AssetLogo";
 import ModalSheet from "./ModalSheet";
-import assetLogos from "../../utils/assetLogos";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import SafeView from "../shared/SafeView";
@@ -31,7 +30,6 @@ export default function PaymentScheduleSheet({
   const { address } = useAccount();
   const { data: loan } = useQuery<Loan>({ queryKey: ["loan"], enabled: !!address });
   const { market } = useAsset(loan?.market);
-  const symbol = market?.symbol.slice(3) === "WETH" ? "ETH" : market?.symbol.slice(3);
   const {
     t,
     i18n: { language },
@@ -62,17 +60,14 @@ export default function PaymentScheduleSheet({
                 <YStack gap="$s5">
                   {Array.from({ length: loan.installments }).map((_, index) => {
                     const maturity = Number(loan.maturity) + index * MATURITY_INTERVAL;
+                    const symbol = market.symbol.slice(3) === "WETH" ? "ETH" : market.symbol.slice(3);
                     return (
                       <XStack key={maturity} gap="$s2" alignItems="center" justifyContent="space-between">
                         <XStack gap="$s3" alignItems="center">
                           <Text emphasized title3>
                             {index + 1}
                           </Text>
-                          <AssetLogo
-                            source={{ uri: symbol ? assetLogos[symbol as keyof typeof assetLogos] : undefined }}
-                            width={16}
-                            height={16}
-                          />
+                          <AssetLogo symbol={symbol} width={16} height={16} />
                           <Text title3 color="$uiNeutralPrimary">
                             {(Number(installmentsAmount) / 10 ** market.decimals).toLocaleString(language, {
                               minimumFractionDigits: 2,

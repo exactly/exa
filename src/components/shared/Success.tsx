@@ -15,9 +15,7 @@ import { useReadUpgradeableModularAccountGetInstalledPlugins } from "@exactly/co
 import GradientScrollView from "./GradientScrollView";
 import SafeView from "./SafeView";
 import View from "./View";
-import assetLogos from "../../utils/assetLogos";
 import useAccount from "../../utils/useAccount";
-import useAsset from "../../utils/useAsset";
 import AssetLogo from "../shared/AssetLogo";
 import Text from "../shared/Text";
 import TransactionDetails from "../shared/TransactionDetails";
@@ -43,7 +41,6 @@ export default function Success({
     t,
     i18n: { language },
   } = useTranslation();
-  const { externalAsset } = useAsset(selectedAsset);
   const { address } = useAccount();
   const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
@@ -102,7 +99,7 @@ export default function Success({
                   <Text title primary color="$uiNeutralPrimary">
                     &nbsp;USDC&nbsp;
                   </Text>
-                  <AssetLogo source={{ uri: assetLogos.USDC }} width={28} height={28} />
+                  <AssetLogo symbol="USDC" width={28} height={28} />
                 </XStack>
                 {currency !== "USDC" && (
                   <XStack gap="$s2" alignItems="center">
@@ -117,17 +114,7 @@ export default function Success({
                     <Text title2 primary color="$uiNeutralPrimary">
                       &nbsp;{currency}&nbsp;
                     </Text>
-                    <AssetLogo
-                      height={22}
-                      source={{
-                        uri: externalAsset
-                          ? externalAsset.logoURI
-                          : currency
-                            ? assetLogos[currency as keyof typeof assetLogos]
-                            : undefined,
-                      }}
-                      width={22}
-                    />
+                    {currency && <AssetLogo height={22} width={22} symbol={currency} />}
                   </XStack>
                 )}
               </YStack>

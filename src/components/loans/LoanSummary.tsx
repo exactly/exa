@@ -10,7 +10,6 @@ import { previewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerPreviewBorrowAtMaturity } from "@exactly/common/generated/hooks";
 import { MATURITY_INTERVAL, WAD } from "@exactly/lib";
 
-import assetLogos from "../../utils/assetLogos";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useInstallments from "../../utils/useInstallments";
@@ -27,7 +26,7 @@ export default function LoanSummary({ loan }: { loan: Loan }) {
   } = useTranslation();
   const { address } = useAccount();
   const { data: bytecode } = useBytecode({ address: previewerAddress, query: { enabled: !!address } });
-  const { market } = useAsset(loan.market);
+  const { market, isFetching: isMarketFetching } = useAsset(loan.market);
   const symbol = market?.symbol.slice(3) === "WETH" ? "ETH" : market?.symbol.slice(3);
   const isBorrow = loan.installments === 1;
   const timestamp = useMemo(() => Math.floor(Date.now() / 1000), []);
@@ -45,7 +44,7 @@ export default function LoanSummary({ loan }: { loan: Loan }) {
       enabled: isBorrow && !!loan.amount && !!loan.market && !!address && !!bytecode,
     },
   });
-  const pending = isInstallmentsPending || isBorrowPending;
+  const pending = isMarketFetching || isInstallmentsPending || isBorrowPending;
   const apr = useMemo(() => {
     const value =
       !isBorrow && installments
@@ -74,11 +73,7 @@ export default function LoanSummary({ loan }: { loan: Loan }) {
           <Skeleton width={100} height={24} />
         ) : (
           <XStack alignItems="center" gap="$s2">
-            <AssetLogo
-              height={16}
-              source={{ uri: symbol ? assetLogos[symbol as keyof typeof assetLogos] : undefined }}
-              width={16}
-            />
+            <AssetLogo height={16} symbol={symbol ?? ""} width={16} />
             <Text title3>
               {!isBorrow && installments
                 ? (Number(installments.amounts.reduce((a, b) => a + b, 0n)) / 1e6).toLocaleString(language, {

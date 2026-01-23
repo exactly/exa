@@ -25,7 +25,6 @@ import { Address } from "@exactly/common/validation";
 import { WAD } from "@exactly/lib";
 
 import ReviewSheet from "./ReviewSheet";
-import assetLogos from "../../utils/assetLogos";
 import queryClient from "../../utils/queryClient";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
@@ -137,7 +136,6 @@ export default function Amount() {
   const details: {
     amount: string;
     external: boolean;
-    logoURI?: string;
     symbol?: string;
     usdValue: string;
   } = useMemo(() => {
@@ -146,7 +144,6 @@ export default function Amount() {
       return {
         amount: formatUnits(formAmount, market.decimals),
         external: false,
-        logoURI: assetLogos[symbol as keyof typeof assetLogos],
         symbol,
         usdValue: formatUnits((formAmount * market.usdPrice) / WAD, market.decimals),
       };
@@ -154,7 +151,6 @@ export default function Amount() {
     return {
       amount: formatUnits(formAmount, external?.decimals ?? 0),
       external: true,
-      logoURI: external?.logoURI,
       symbol: external?.symbol,
       usdValue: formatUnits((formAmount * parseUnits(external?.priceUSD ?? "0", 18)) / WAD, external?.decimals ?? 0),
     };
@@ -333,8 +329,6 @@ export default function Amount() {
         </View>
         <ReviewSheet
           amount={details.amount}
-          external={details.external}
-          logoURI={details.logoURI}
           isFirstSend={isFirstSend}
           onClose={() => {
             setReviewOpen(false);
@@ -422,17 +416,7 @@ export default function Amount() {
               <Text emphasized secondary subHeadline>
                 &nbsp;{details.symbol}&nbsp;
               </Text>
-              <AssetLogo
-                height={16}
-                source={{
-                  uri: details.external
-                    ? external?.logoURI
-                    : details.symbol
-                      ? assetLogos[details.symbol as keyof typeof assetLogos]
-                      : undefined,
-                }}
-                width={16}
-              />
+              <AssetLogo height={16} symbol={details.symbol ?? ""} width={16} />
             </XStack>
           </YStack>
         </YStack>

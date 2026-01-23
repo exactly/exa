@@ -16,9 +16,7 @@ import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-const supportedAssets = Object.entries(assetLogos)
-  .filter(([symbol]) => symbol !== "USDC.e" && symbol !== "DAI")
-  .map(([symbol, image]) => ({ symbol, image }));
+const supportedAssets = Object.keys(assetLogos).filter((symbol) => symbol !== "USDC.e" && symbol !== "DAI");
 
 export default function SupportedAssetsSheet({ open, onClose }: { onClose: () => void; open: boolean }) {
   const { t } = useTranslation();
@@ -40,26 +38,24 @@ export default function SupportedAssetsSheet({ open, onClose }: { onClose: () =>
               </Text>
             </YStack>
             <XStack justifyContent="center" flexWrap="wrap">
-              {supportedAssets.map(({ symbol, image }) => {
-                return (
-                  <XStack
-                    key={symbol}
-                    borderWidth={1}
-                    alignItems="center"
-                    borderColor="$borderNeutralSoft"
-                    borderRadius="$r_0"
-                    alignSelf="center"
-                    padding="$s3_5"
-                    margin="$s3"
-                    gap="$s2"
-                  >
-                    <AssetLogo source={{ uri: image }} width={32} height={32} />
-                    <Text primary emphasized callout>
-                      {symbol}
-                    </Text>
-                  </XStack>
-                );
-              })}
+              {supportedAssets.map((symbol) => (
+                <XStack
+                  key={symbol}
+                  borderWidth={1}
+                  alignItems="center"
+                  borderColor="$borderNeutralSoft"
+                  borderRadius="$r_0"
+                  alignSelf="center"
+                  padding="$s3_5"
+                  margin="$s3"
+                  gap="$s2"
+                >
+                  <AssetLogo symbol={symbol} width={32} height={32} />
+                  <Text primary emphasized callout>
+                    {symbol}
+                  </Text>
+                </XStack>
+              ))}
             </XStack>
             <XStack
               gap="$s4"
