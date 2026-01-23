@@ -3,7 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { sdk } from "@farcaster/miniapp-sdk";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import { persistQueryClientRestore, persistQueryClientSubscribe } from "@tanstack/query-persist-client-core";
-import { dehydrate, QueryCache, QueryClient } from "@tanstack/react-query";
+import { dehydrate, QueryCache, QueryClient, type Query } from "@tanstack/react-query";
 import { deserialize, serialize } from "wagmi";
 import { hashFn, structuralSharing } from "wagmi/query";
 
@@ -46,8 +46,8 @@ export const hydrated =
       });
 
 const dehydrateOptions = {
-  shouldDehydrateQuery: (query: { queryKey: readonly unknown[] }) =>
-    query.queryKey[0] !== "activity" && query.queryKey[0] !== "externalAssets",
+  shouldDehydrateQuery: ({ queryKey, state }: Query) =>
+    state.status === "success" && queryKey[0] !== "activity" && queryKey[0] !== "externalAssets",
 };
 
 if (typeof window !== "undefined") {
