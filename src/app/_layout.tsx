@@ -14,8 +14,6 @@ import { channel, checkForUpdateAsync, fetchUpdateAsync, reloadAsync } from "exp
 
 import { ToastProvider } from "@tamagui/toast";
 
-import { optimism } from "@account-kit/infra";
-import { createConfig, EVM } from "@lifi/sdk";
 import {
   ErrorBoundary,
   feedbackIntegration,
@@ -28,12 +26,9 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { reconnect } from "@wagmi/core";
 import { use as configI18n } from "i18next";
-import { anvil } from "viem/chains";
 import { WagmiProvider } from "wagmi";
 
-import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import domain from "@exactly/common/domain";
-import chain from "@exactly/common/generated/chain";
 
 import BDOGroteskDemiBold from "../assets/fonts/BDOGrotesk-DemiBold.otf";
 import BDOGroteskRegular from "../assets/fonts/BDOGrotesk-Regular.otf";
@@ -45,7 +40,6 @@ import release from "../generated/release";
 import en from "../i18n/en.json";
 import es from "../i18n/es.json";
 import e2e from "../utils/e2e";
-import publicClient from "../utils/publicClient";
 import queryClient, { persister } from "../utils/queryClient";
 import reportError from "../utils/reportError";
 import exaConfig from "../utils/wagmi/exa";
@@ -124,17 +118,6 @@ const useServerFonts = typeof window === "undefined" ? useFonts : () => undefine
 const useServerAssets = typeof window === "undefined" ? useAssets : () => undefined;
 const useLayoutEffect = typeof window === "undefined" ? () => undefined : useClientLayoutEffect;
 const devtools = !!JSON.parse(process.env.EXPO_PUBLIC_DEVTOOLS ?? String(Platform.OS === "web" && __DEV__));
-if (!chain.testnet && chain.id !== anvil.id && typeof window !== "undefined") {
-  createConfig({
-    integrator: "exa_app",
-    apiKey: "4bdb54aa-4f28-4c61-992a-a2fdc87b0a0b.251e33ad-ef5e-40cb-9b0f-52d634b99e8f",
-    providers: [EVM({ getWalletClient: () => Promise.resolve(publicClient) })],
-    rpcUrls: {
-      [optimism.id]: [`${optimism.rpcUrls.alchemy?.http[0]}/${alchemyAPIKey}`],
-      [chain.id]: [publicClient.transport.alchemyRpcUrl],
-    },
-  });
-}
 
 export default wrap(function RootLayout() {
   const navigationContainer = useNavigationContainerRef();
