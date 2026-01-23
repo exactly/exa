@@ -68,8 +68,11 @@ const dehydrateOptions = {
     queryKey[0] !== "externalAssets" &&
     queryKey[0] !== "kyc" &&
     queryKey[0] !== "card" &&
-    queryKey[0] !== "pax",
+    queryKey[0] !== "pax" &&
+    queryKey[0] !== "lifi",
 };
+
+export const persistOptions = { persister, dehydrateOptions };
 
 if (typeof window !== "undefined") {
   const subscribe = () => persistQueryClientSubscribe({ queryClient, persister, dehydrateOptions, buster: release });

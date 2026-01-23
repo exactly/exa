@@ -14,6 +14,7 @@ import {
   type Token,
   type TokenAmount,
 } from "@lifi/sdk";
+import { queryOptions } from "@tanstack/react-query";
 import { parse } from "valibot";
 import { encodeFunctionData, formatUnits, type Address } from "viem";
 import { anvil } from "viem/chains";
@@ -23,6 +24,69 @@ import chain, { mockSwapperAbi, swapperAddress } from "@exactly/common/generated
 import { Address as AddressSchema, Hex } from "@exactly/common/validation";
 
 import publicClient from "./publicClient";
+import queryClient from "./queryClient";
+import reportError from "./reportError";
+
+export const lifiChainsOptions = queryOptions({
+  queryKey: ["lifi", "chains"],
+  staleTime: Infinity,
+  gcTime: Infinity,
+  enabled: !chain.testnet && chain.id !== anvil.id,
+  queryFn: async () => {
+    try {
+      return await getChains({ chainTypes: [ChainType.EVM] });
+    } catch (error) {
+      reportError(error);
+      return [];
+    }
+  },
+});
+
+export const lifiTokensOptions = queryOptions({
+  queryKey: ["lifi", "tokens"],
+  staleTime: Infinity,
+  gcTime: Infinity,
+  enabled: !chain.testnet && chain.id !== anvil.id,
+  queryFn: async () => {
+    try {
+      const { tokens } = await getTokens({ chainTypes: [ChainType.EVM] });
+      const allTokens = Object.values(tokens).flat();
+      if (chain.id !== optimism.id) return allTokens;
+      const exa = await getToken(chain.id, "0x1e925De1c68ef83bD98eE3E130eF14a50309C01B").catch((error: unknown) => {
+        reportError(error);
+      });
+      return exa ? [exa, ...allTokens] : allTokens;
+    } catch (error) {
+      reportError(error);
+      return [] as Token[];
+    }
+  },
+});
+
+export function tokenBalancesOptions(account: Address | undefined) {
+  return queryOptions({
+    queryKey: ["lifi", "tokenBalances", account],
+    staleTime: 30_000,
+    gcTime: 60_000,
+    enabled: !!account && !chain.testnet && chain.id !== anvil.id,
+    queryFn: async () => {
+      if (!account) return [];
+      try {
+        const allTokens =
+          queryClient.getQueryData<Token[]>(lifiTokensOptions.queryKey) ??
+          (await queryClient.fetchQuery(lifiTokensOptions));
+        const tokens = allTokens.filter((token) => (token.chainId as number) === chain.id);
+        if (tokens.length === 0) return [];
+        ensureConfig();
+        const balances = await getTokenBalancesByChain(account, { [chain.id]: tokens });
+        return balances[chain.id]?.filter((balance) => balance.amount && balance.amount > 0n) ?? [];
+      } catch (error) {
+        reportError(error);
+        return [];
+      }
+    },
+  });
+}
 
 let configured = false;
 function ensureConfig() {
