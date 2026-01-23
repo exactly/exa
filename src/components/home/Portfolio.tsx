@@ -25,13 +25,13 @@ import WeightedRate from "../shared/WeightedRate";
 
 export default function Portfolio() {
   const { address } = useAccount();
-  const { averageRate, portfolio } = usePortfolio(address);
+  const { averageRate, portfolio, totalBalanceUSD } = usePortfolio(address);
   const router = useRouter();
   const {
     t,
     i18n: { language },
   } = useTranslation();
-  const { usdBalance } = portfolio;
+  const { balanceUSD } = portfolio;
 
   const { refetch: refetchMarkets, isFetching: isFetchingMarkets } = useReadPreviewerExactly({
     address: previewerAddress,
@@ -94,9 +94,9 @@ export default function Portfolio() {
             numberOfLines={1}
             adjustsFontSizeToFit
           >
-            {`$${(Number(usdBalance) / 1e18).toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+            {`$${(Number(totalBalanceUSD) / 1e18).toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           </Text>
-          {usdBalance > 0n ? (
+          {balanceUSD > 0n ? (
             <WeightedRate
               averageRate={averageRate}
               depositMarkets={portfolio.depositMarkets}
