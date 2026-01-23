@@ -7,7 +7,7 @@ import { ButtonIcon, XStack, YStack } from "tamagui";
 
 import { formatUnits } from "viem";
 
-import useAccountAssets from "../../utils/useAccountAssets";
+import usePortfolio from "../../utils/usePortfolio";
 import AssetLogo from "../shared/AssetLogo";
 import Button from "../shared/Button";
 import Input from "../shared/Input";
@@ -30,8 +30,8 @@ function TokenListItem({
   onPress: () => void;
   token: Token;
 }) {
-  const { accountAssets } = useAccountAssets();
-  const matchingAsset = accountAssets.find(
+  const { assets } = usePortfolio();
+  const matchingAsset = assets.find(
     (asset) =>
       (asset.type === "protocol" && asset.asset === token.address) ||
       (asset.type === "external" && asset.address === token.address),
@@ -105,7 +105,7 @@ export default function TokenSelectModal({
   withBalanceOnly?: boolean;
 }) {
   const [searchQuery, setSearchQuery] = useState("");
-  const { accountAssets } = useAccountAssets();
+  const { assets } = usePortfolio();
   const {
     t,
     i18n: { language },
@@ -116,7 +116,7 @@ export default function TokenSelectModal({
     const matchesQuery = (...fields: (string | undefined)[]) =>
       fields.some((field) => field?.toLowerCase().includes(query));
     const matchesAsset = (token: Token) =>
-      accountAssets.find(
+      assets.find(
         (asset) =>
           (asset.type === "protocol" && asset.asset === token.address) ||
           (asset.type === "external" && asset.address === token.address),
@@ -131,7 +131,7 @@ export default function TokenSelectModal({
       }
       return matchesQuery(token.symbol, token.name, token.address);
     });
-  }, [searchQuery, tokens, withBalanceOnly, accountAssets]);
+  }, [searchQuery, tokens, withBalanceOnly, assets]);
 
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag heightPercent={85}>

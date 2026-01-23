@@ -12,7 +12,7 @@ import { floatingDepositRates } from "@exactly/lib";
 
 import assetLogos from "../../utils/assetLogos";
 import useAccount from "../../utils/useAccount";
-import useAccountAssets from "../../utils/useAccountAssets";
+import usePortfolio from "../../utils/usePortfolio";
 import AssetLogo from "../shared/AssetLogo";
 import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
@@ -111,7 +111,7 @@ export default function AssetList() {
   const { t } = useTranslation();
   const { address } = useAccount();
   const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [address ?? zeroAddress] });
-  const { externalAssets } = useAccountAssets();
+  const { externalAssets } = usePortfolio();
   const { data: snapshots, dataUpdatedAt } = useReadRatePreviewerSnapshot({
     address: ratePreviewerAddress,
   });
