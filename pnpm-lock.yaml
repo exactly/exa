@@ -276,6 +276,9 @@ importers:
       moti:
         specifier: ^0.30.0
         version: 0.30.0(react-dom@19.1.0(react@19.1.0))(react-native-reanimated@4.1.6(@babel/core@7.28.6)(react-native-worklets@0.5.1(@babel/core@7.28.6)(react-native@0.81.5(@babel/core@7.28.6)(@types/react@19.1.17)(bufferutil@4.1.0)(react@19.1.0)(utf-8-validate@5.0.10))(react@19.1.0))(react-native@0.81.5(@babel/core@7.28.6)(@types/react@19.1.17)(bufferutil@4.1.0)(react@19.1.0)(utf-8-validate@5.0.10))(react@19.1.0))(react@19.1.0)
+      persona:
+        specifier: ^5.5.0
+        version: 5.5.0
       react:
         specifier: 19.1.0
         version: 19.1.0
@@ -9817,6 +9820,9 @@ packages:
   lodash.isarray@3.0.4:
     resolution: {integrity: sha512-JwObCrNJuT0Nnbuecmqr5DgtuBppuCvGD9lxjFpAzwnVtdGoDQ1zig+5W8k5/6Gcn0gZ3936HDAlGd28i7sOGQ==}
 
+  lodash.kebabcase@4.1.1:
+    resolution: {integrity: sha512-N8XRTIMMqqDgSy4VLKPnJ/+hpGZN+PHQiJnSenYqPaVV/NCqEogTnAdZLQiGKhxX+JCs8waWq2t1XHWKOmlY8g==}
+
   lodash.keysin@3.0.8:
     resolution: {integrity: sha512-YDB/5xkL3fBKFMDaC+cfGV00pbiJ6XoJIfRmBhv7aR6wWtbCW6IzkiWnTfkiHTF6ALD7ff83dAtB3OEaSoyQPg==}
 
@@ -10855,6 +10861,9 @@ packages:
 
   pathe@2.0.3:
     resolution: {integrity: sha512-WUjGcAqP1gQacoQe+OBJsFA7Ld4DyXuUIjZ5cc75cLHvJ7dtNsTugphxIADwspS+AraAUePCKrSVtPLFj/F88w==}
+
+  persona@5.5.0:
+    resolution: {integrity: sha512-sSayn72ppan7RGhMhBHbfUjQtIeWGGKL/AKA/2+bXGEBhNgkzaLBuLd+urcRLXmqjoZhFXsWgG5oVxTFvABhcw==}
 
   pg-cloudflare@1.3.0:
     resolution: {integrity: sha512-6lswVVSztmHiRtD6I8hw4qP/nDm1EJbKMRhf3HCYaqud7frGysPv7FYJ5noZQdhQtN2xJnimfMtvQq21pdbzyQ==}
@@ -24567,6 +24576,8 @@ snapshots:
 
   lodash.isarray@3.0.4: {}
 
+  lodash.kebabcase@4.1.1: {}
+
   lodash.keysin@3.0.8:
     dependencies:
       lodash.isarguments: 3.1.0
@@ -26244,6 +26255,11 @@ snapshots:
   pathe@1.1.2: {}
 
   pathe@2.0.3: {}
+
+  persona@5.5.0:
+    dependencies:
+      lodash.kebabcase: 4.1.1
+      qs: 6.14.1
 
   pg-cloudflare@1.3.0:
     optional: true
