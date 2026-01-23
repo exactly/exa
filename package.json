@@ -92,6 +92,7 @@
     "i18n-iso-countries": "^7.14.0",
     "i18next": "^25.7.4",
     "moti": "^0.30.0",
+    "persona": "^5.5.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-i18next": "^16.5.3",
