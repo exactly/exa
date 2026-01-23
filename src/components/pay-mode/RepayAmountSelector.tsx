@@ -7,7 +7,6 @@ import { formatUnits, parseUnits } from "viem";
 
 import { min } from "@exactly/lib";
 
-import assetLogos from "../../utils/assetLogos";
 import AssetLogo from "../shared/AssetLogo";
 import Input from "../shared/Input";
 import Text from "../shared/Text";
@@ -118,7 +117,7 @@ export default function RepayAmountSelector({
             maxWidth="80%"
             height={60}
           >
-            <AssetLogo source={{ uri: assetLogos.USDC }} width={32} height={32} />
+            <AssetLogo symbol="USDC" width={32} height={32} />
             <Input
               alignSelf="center"
               backgroundColor="$backgroundSoft"

@@ -24,9 +24,7 @@ import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-const supportedAssets = Object.entries(assetLogos)
-  .filter(([symbol]) => symbol !== "USDC.e" && symbol !== "DAI")
-  .map(([symbol, image]) => ({ symbol, image }));
+const supportedAssets = Object.keys(assetLogos).filter((s) => s !== "USDC.e" && s !== "DAI");
 
 export default function AddCrypto() {
   const router = useRouter();
@@ -144,13 +142,11 @@ export default function AddCrypto() {
                   setSupportedAssetsShown(true);
                 }}
               >
-                {supportedAssets.map(({ symbol, image }, index) => {
-                  return (
-                    <XStack key={symbol} marginRight={index < supportedAssets.length - 1 ? -12 : 0} zIndex={index}>
-                      <AssetLogo source={{ uri: image }} width={32} height={32} />
-                    </XStack>
-                  );
-                })}
+                {supportedAssets.map((symbol, index) => (
+                  <XStack key={symbol} marginRight={index < supportedAssets.length - 1 ? -12 : 0} zIndex={index}>
+                    <AssetLogo symbol={symbol} width={32} height={32} />
+                  </XStack>
+                ))}
               </XStack>
             </XStack>
           </YStack>

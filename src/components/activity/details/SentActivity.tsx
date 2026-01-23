@@ -7,7 +7,6 @@ import { Square, XStack, YStack } from "tamagui";
 import shortenHex from "@exactly/common/shortenHex";
 
 import TransactionDetails from "./TransactionDetails";
-import assetLogos from "../../../utils/assetLogos";
 import AssetLogo from "../../shared/AssetLogo";
 import Text from "../../shared/Text";
 
@@ -44,7 +43,7 @@ export default function SentActivity({ item }: { item: Omit<WithdrawActivity, "b
               &nbsp;
               {currency}
             </Text>
-            <AssetLogo source={{ uri: assetLogos[currency as keyof typeof assetLogos] }} width={16} height={16} />
+            <AssetLogo symbol={currency} width={16} height={16} />
           </XStack>
         </YStack>
       </YStack>

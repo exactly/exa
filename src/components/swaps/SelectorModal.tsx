@@ -7,7 +7,7 @@ import { ButtonIcon, XStack, YStack } from "tamagui";
 
 import { formatUnits } from "viem";
 
-import usePortfolio from "../../utils/usePortfolio";
+import usePortfolio, { type PortfolioAsset } from "../../utils/usePortfolio";
 import AssetLogo from "../shared/AssetLogo";
 import Button from "../shared/Button";
 import Input from "../shared/Input";
@@ -24,18 +24,14 @@ function TokenListItem({
   isSelected,
   onPress,
   language,
+  matchingAsset,
 }: {
   isSelected: boolean;
   language: string;
+  matchingAsset?: PortfolioAsset;
   onPress: () => void;
   token: Token;
 }) {
-  const { assets } = usePortfolio();
-  const matchingAsset = assets.find(
-    (asset) =>
-      (asset.type === "protocol" && asset.asset === token.address) ||
-      (asset.type === "external" && asset.address === token.address),
-  );
   return (
     <Pressable onPress={onPress}>
       <XStack
@@ -45,7 +41,7 @@ function TokenListItem({
         backgroundColor={isSelected ? "$interactiveBaseBrandSoftDefault" : "transparent"}
         borderRadius="$r3"
       >
-        <AssetLogo source={{ uri: token.logoURI ?? "https://via.placeholder.com/40" }} width={40} height={40} />
+        <AssetLogo symbol={token.symbol} width={40} height={40} />
         <XStack gap="$s2" flex={1} justifyContent="space-between">
           <YStack flex={1}>
             <Text emphasized subHeadline textAlign="left">
@@ -111,19 +107,22 @@ export default function TokenSelectModal({
     i18n: { language },
   } = useTranslation();
 
+  const assetByAddress = useMemo(() => {
+    const map = new Map<string, PortfolioAsset>();
+    for (const asset of assets) {
+      const address = (asset.type === "protocol" ? asset.asset : asset.address).toLowerCase();
+      map.set(address, asset);
+    }
+    return map;
+  }, [assets]);
+
   const filteredTokens = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
     const matchesQuery = (...fields: (string | undefined)[]) =>
       fields.some((field) => field?.toLowerCase().includes(query));
-    const matchesAsset = (token: Token) =>
-      assets.find(
-        (asset) =>
-          (asset.type === "protocol" && asset.asset === token.address) ||
-          (asset.type === "external" && asset.address === token.address),
-      );
     return tokens.filter((token) => {
       if (withBalanceOnly) {
-        const asset = matchesAsset(token);
+        const asset = assetByAddress.get(token.address.toLowerCase());
         if (!asset) return false;
         return asset.type === "protocol"
           ? asset.floatingDepositAssets > 0n && matchesQuery(asset.symbol, asset.assetName, asset.asset)
@@ -131,7 +130,7 @@ export default function TokenSelectModal({
       }
       return matchesQuery(token.symbol, token.name, token.address);
     });
-  }, [searchQuery, tokens, withBalanceOnly, assets]);
+  }, [searchQuery, tokens, withBalanceOnly, assetByAddress]);
 
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag heightPercent={85}>
@@ -181,6 +180,7 @@ export default function TokenSelectModal({
                       setSearchQuery("");
                     }}
                     language={language}
+                    matchingAsset={assetByAddress.get(item.address.toLowerCase())}
                   />
                 )}
                 keyExtractor={(item) => item.address}

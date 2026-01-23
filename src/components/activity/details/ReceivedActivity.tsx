@@ -5,7 +5,6 @@ import { ArrowDownToLine } from "@tamagui/lucide-icons";
 import { Square, XStack, YStack } from "tamagui";
 
 import TransactionDetails from "./TransactionDetails";
-import assetLogos from "../../../utils/assetLogos";
 import AssetLogo from "../../shared/AssetLogo";
 import Text from "../../shared/Text";
 
@@ -38,7 +37,7 @@ export default function ReceivedActivity({ item }: { item: Omit<DepositActivity,
               &nbsp;
               {currency}
             </Text>
-            <AssetLogo source={{ uri: assetLogos[currency as keyof typeof assetLogos] }} width={16} height={16} />
+            <AssetLogo symbol={currency} width={16} height={16} />
           </XStack>
         </YStack>
       </YStack>

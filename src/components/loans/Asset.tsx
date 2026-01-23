@@ -12,7 +12,6 @@ import { zeroAddress } from "viem";
 import { previewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 
-import assetLogos from "../../utils/assetLogos";
 import { presentArticle } from "../../utils/intercom";
 import queryClient, { type Loan } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
@@ -97,11 +96,7 @@ export default function Asset() {
                         {selected && <Check size={12} color="$interactiveOnBaseBrandDefault" />}
                       </View>
                       <XStack gap="$s2" alignItems="center">
-                        <AssetLogo
-                          source={{ uri: assetLogos[assetSymbol as keyof typeof assetLogos] }}
-                          width={16}
-                          height={16}
-                        />
+                        <AssetLogo symbol={assetSymbol} width={16} height={16} />
                         <Text primary emphasized body>
                           {assetSymbol}
                         </Text>

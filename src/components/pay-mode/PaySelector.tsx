@@ -15,7 +15,6 @@ import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
 import { borrowLimit, WAD, withdrawLimit } from "@exactly/lib";
 
 import ManualRepaymentSheet from "./ManualRepaymentSheet";
-import assetLogos from "../../utils/assetLogos";
 import { presentArticle } from "../../utils/intercom";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
@@ -325,7 +324,7 @@ function InstallmentButton({
             <Text headline color={installment > 0 ? "$uiNeutralSecondary" : "$uiNeutralPrimary"}>
               {installment > 0 ? `${installment}x` : t("Pay Now")}
             </Text>
-            {installment > 0 && <AssetLogo source={{ uri: assetLogos.USDC }} width={17} height={17} />}
+            {installment > 0 && <AssetLogo symbol="USDC" width={17} height={17} />}
 
             {installment > 0 &&
               (isInstallmentsFetching || (installment === 1 && isBorrowPreviewLoading) ? (
