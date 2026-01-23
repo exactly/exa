@@ -1,17 +1,81 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { sdk } from "@farcaster/miniapp-sdk";
+import { ChainType, getChains, getToken, getTokenBalancesByChain, getTokens, type Token } from "@lifi/sdk";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import { persistQueryClientRestore, persistQueryClientSubscribe } from "@tanstack/query-persist-client-core";
-import { dehydrate, QueryCache, QueryClient, type Query } from "@tanstack/react-query";
+import { dehydrate, QueryCache, QueryClient, queryOptions, type Query } from "@tanstack/react-query";
+import { anvil, optimism } from "viem/chains";
 import { deserialize, serialize } from "wagmi";
 import { hashFn, structuralSharing } from "wagmi/query";
+
+import chain from "@exactly/common/generated/chain";
 
 import reportError from "./reportError";
 import { isAvailable as isOwnerAvailable } from "./wagmi/owner";
 
 import type { getActivity } from "./server";
 import type { Address } from "viem";
+
+export const lifiChainsOptions = queryOptions({
+  queryKey: ["lifi", "chains"],
+  staleTime: Infinity,
+  gcTime: Infinity,
+  enabled: !chain.testnet && chain.id !== anvil.id,
+  queryFn: async () => {
+    try {
+      return await getChains({ chainTypes: [ChainType.EVM] });
+    } catch (error) {
+      reportError(error);
+      return [];
+    }
+  },
+});
+
+export const lifiTokensOptions = queryOptions({
+  queryKey: ["lifi", "tokens"],
+  staleTime: Infinity,
+  gcTime: Infinity,
+  enabled: !chain.testnet && chain.id !== anvil.id,
+  queryFn: async () => {
+    try {
+      const { tokens } = await getTokens({ chainTypes: [ChainType.EVM] });
+      const allTokens = Object.values(tokens).flat();
+      if (chain.id !== optimism.id) return allTokens;
+      const exa = await getToken(chain.id, "0x1e925De1c68ef83bD98eE3E130eF14a50309C01B").catch((error: unknown) => {
+        reportError(error);
+      });
+      return exa ? [exa, ...allTokens] : allTokens;
+    } catch (error) {
+      reportError(error);
+      return [] as Token[];
+    }
+  },
+});
+
+export function tokenBalancesOptions(account: Address | undefined) {
+  return queryOptions({
+    queryKey: ["lifi", "tokenBalances", account],
+    staleTime: 30_000,
+    gcTime: 60_000,
+    enabled: !!account && !chain.testnet && chain.id !== anvil.id,
+    queryFn: async () => {
+      if (!account) return [];
+      try {
+        const allTokens =
+          queryClient.getQueryData<Token[]>(lifiTokensOptions.queryKey) ??
+          (await queryClient.fetchQuery(lifiTokensOptions));
+        const tokens = allTokens.filter((token) => (token.chainId as number) === chain.id);
+        if (tokens.length === 0) return [];
+        const balances = await getTokenBalancesByChain(account, { [chain.id]: tokens });
+        return balances[chain.id]?.filter((balance) => balance.amount && balance.amount > 0n) ?? [];
+      } catch (error) {
+        reportError(error);
+        return [];
+      }
+    },
+  });
+}
 
 export const persister = createAsyncStoragePersister({
   serialize,
@@ -47,8 +111,13 @@ export const hydrated =
 
 const dehydrateOptions = {
   shouldDehydrateQuery: ({ queryKey, state }: Query) =>
-    state.status === "success" && queryKey[0] !== "activity" && queryKey[0] !== "externalAssets",
+    state.status === "success" &&
+    queryKey[0] !== "activity" &&
+    queryKey[0] !== "externalAssets" &&
+    queryKey[0] !== "lifi",
 };
+
+export const persistOptions = { persister, dehydrateOptions };
 
 if (typeof window !== "undefined") {
   const subscribe = () => persistQueryClientSubscribe({ queryClient, persister, dehydrateOptions });
