@@ -7,7 +7,6 @@ import { XStack } from "tamagui";
 
 import AssetLogo from "./AssetLogo";
 import Text from "./Text";
-import assetLogos from "../../utils/assetLogos";
 
 export default function WeightedRate({
   averageRate,
@@ -46,14 +45,11 @@ export default function WeightedRate({
       </Text>
       {displayLogos && (
         <XStack alignItems="center">
-          {depositMarkets.map(({ market, symbol }, index, array) => {
-            const uri = assetLogos[symbol as keyof typeof assetLogos];
-            return (
-              <XStack key={market} marginRight={index < array.length - 1 ? -6 : 0} zIndex={array.length - index}>
-                <AssetLogo source={{ uri }} width={16} height={16} />
-              </XStack>
-            );
-          })}
+          {depositMarkets.map(({ market, symbol }, index, array) => (
+            <XStack key={market} marginRight={index < array.length - 1 ? -6 : 0} zIndex={array.length - index}>
+              <AssetLogo symbol={symbol} width={16} height={16} />
+            </XStack>
+          ))}
         </XStack>
       )}
     </XStack>

@@ -17,7 +17,6 @@ import ProposalType, {
 } from "@exactly/common/ProposalType";
 import { WAD } from "@exactly/lib";
 
-import assetLogos from "../../utils/assetLogos";
 import useAccount from "../../utils/useAccount";
 import AssetLogo from "../shared/AssetLogo";
 import Text from "../shared/Text";
@@ -100,7 +99,7 @@ export default function OverduePayments({ onSelect }: { onSelect: (maturity: big
               <XStack alignItems="center" gap="$s3">
                 <YStack gap="$s2">
                   <XStack alignItems="center" gap="$s3">
-                    <AssetLogo source={{ uri: assetLogos.USDC }} width={12} height={12} />
+                    <AssetLogo symbol="USDC" width={12} height={12} />
                     <Text sensitive subHeadline color={processing ? "$interactiveTextDisabled" : "$uiErrorSecondary"}>
                       {(Number(amount) / 1e6).toLocaleString(language, {
                         minimumFractionDigits: 2,

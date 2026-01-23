@@ -13,7 +13,6 @@ import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/c
 import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { borrowLimit, WAD, withdrawLimit } from "@exactly/lib";
 
-import assetLogos from "../../utils/assetLogos";
 import useAccount from "../../utils/useAccount";
 import AssetLogo from "../shared/AssetLogo";
 import Text from "../shared/Text";
@@ -34,7 +33,7 @@ export default function CardLimits({ onPress }: { onPress: () => void }) {
     <YStack justifyContent="space-between" height="100%">
       <YStack justifyContent="center" gap="$s2" alignItems="flex-start">
         <XStack justifyContent="center" alignItems="center" gap="$s3">
-          {isCredit ? null : <AssetLogo width={24} height={24} source={{ uri: assetLogos.USDC }} />}
+          {isCredit ? null : <AssetLogo width={24} height={24} symbol="USDC" />}
           <Text
             sensitive
             textAlign="center"

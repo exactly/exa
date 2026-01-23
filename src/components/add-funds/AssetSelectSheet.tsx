@@ -7,7 +7,7 @@ import { ScrollView, XStack, YStack } from "tamagui";
 
 import { formatUnits } from "viem";
 
-import TokenLogo from "./TokenLogo";
+import AssetLogo from "../shared/AssetLogo";
 import Input from "../shared/Input";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
@@ -131,7 +131,7 @@ export default function AssetSelectSheet({
                             gap="$s3_5"
                           >
                             <XStack gap="$s3_5" alignItems="center" flex={1}>
-                              <TokenLogo token={token} />
+                              <AssetLogo symbol={token.symbol} width={36} height={36} />
                               <YStack flex={1}>
                                 <Text emphasized subHeadline color="$uiNeutralPrimary">
                                   {token.symbol}

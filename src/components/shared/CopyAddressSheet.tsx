@@ -15,9 +15,7 @@ import Button from "../shared/Button";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 
-const supportedAssets = Object.entries(assetLogos)
-  .filter(([symbol]) => symbol !== "USDC.e" && symbol !== "DAI")
-  .map(([symbol, image]) => ({ symbol, image }));
+const supportedAssets = Object.keys(assetLogos).filter((s) => s !== "USDC.e" && s !== "DAI");
 
 export default function CopyAddressSheet({ open, onClose }: { onClose: () => void; open: boolean }) {
   const { address } = useAccount();
@@ -77,13 +75,11 @@ export default function CopyAddressSheet({ open, onClose }: { onClose: () => voi
                   padding="$s3_5"
                   alignSelf="flex-end"
                 >
-                  {supportedAssets.map(({ symbol, image }, index) => {
-                    return (
-                      <XStack key={symbol} marginRight={index < supportedAssets.length - 1 ? -12 : 0} zIndex={index}>
-                        <AssetLogo source={{ uri: image }} width={32} height={32} />
-                      </XStack>
-                    );
-                  })}
+                  {supportedAssets.map((symbol, index) => (
+                    <XStack key={symbol} marginRight={index < supportedAssets.length - 1 ? -12 : 0} zIndex={index}>
+                      <AssetLogo symbol={symbol} width={32} height={32} />
+                    </XStack>
+                  ))}
                 </XStack>
               </XStack>
             </YStack>

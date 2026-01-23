@@ -13,7 +13,6 @@ import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
 import AssetLogo from "./AssetLogo";
 import Skeleton from "./Skeleton";
 import Text from "./Text";
-import assetLogos from "../../utils/assetLogos";
 import useAsset from "../../utils/useAsset";
 import useInstallments from "../../utils/useInstallments";
 
@@ -116,11 +115,7 @@ function Installment({
         </Text>
       </XStack>
       <XStack gap="$s2" alignItems="center" justifyContent="flex-end" flex={1}>
-        <AssetLogo
-          height={16}
-          source={{ uri: symbol ? assetLogos[symbol as keyof typeof assetLogos] : undefined }}
-          width={16}
-        />
+        <AssetLogo height={16} symbol={symbol} width={16} />
         <XStack>
           {hasInstallments &&
             (isInstallmentsPending || isBorrowPending ? (

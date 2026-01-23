@@ -10,7 +10,7 @@ import { formatUnits, parseUnits } from "viem";
 import { WAD } from "@exactly/lib";
 
 import AssetLogo from "../shared/AssetLogo";
-import Image from "../shared/Image";
+import ChainLogo from "../shared/ChainLogo";
 import Input from "../shared/Input";
 import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
@@ -32,11 +32,9 @@ export default function TokenInput({
   onFocus,
   onChange,
   onUseMax,
-  chainLogoUri,
 }: {
   amount: bigint;
   balance: bigint;
-  chainLogoUri?: string;
   disabled?: boolean;
   isActive: boolean;
   isDanger?: boolean;
@@ -136,7 +134,7 @@ export default function TokenInput({
           >
             {token ? (
               <>
-                <AssetLogo source={{ uri: token.logoURI }} width={40} height={40} />
+                <AssetLogo symbol={token.symbol} width={40} height={40} />
                 <View
                   borderRadius="$r_0"
                   position="absolute"
@@ -148,7 +146,7 @@ export default function TokenInput({
                   borderColor="white"
                   overflow="hidden"
                 >
-                  <Image source={{ uri: chainLogoUri }} width="100%" height="100%" contentFit="cover" />
+                  <ChainLogo chainId={token.chainId} size={18} />
                 </View>
               </>
             ) : (

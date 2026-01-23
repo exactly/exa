@@ -13,7 +13,6 @@ import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/c
 import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { borrowLimit } from "@exactly/lib";
 
-import assetLogos from "../../utils/assetLogos";
 import queryClient, { type Loan } from "../../utils/queryClient";
 import useAccount from "../../utils/useAccount";
 import useInstallments from "../../utils/useInstallments";
@@ -44,7 +43,7 @@ export default function CreditLine() {
       </XStack>
       <YStack padding="$s4" paddingTop={0}>
         <XStack alignItems="center" gap="$s2">
-          <AssetLogo source={{ uri: assetLogos.USDC }} width={20} height={20} />
+          <AssetLogo symbol="USDC" width={20} height={20} />
           <Text emphasized title2 sensitive>
             {(markets ? Number(formatUnits(borrowLimit(markets, marketUSDCAddress), 6)) : 0).toLocaleString(language, {
               minimumFractionDigits: 2,
