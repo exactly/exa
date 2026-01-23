@@ -31,7 +31,6 @@ import { WAD } from "@exactly/lib";
 
 import AssetSelectSheet from "./AssetSelectSheet";
 import TokenLogo from "./TokenLogo";
-import OptimismImage from "../../assets/images/optimism.svg";
 import { getBridgeSources, getRouteFrom, tokenCorrelation, type BridgeSources, type RouteFrom } from "../../utils/lifi";
 import openBrowser from "../../utils/openBrowser";
 import queryClient from "../../utils/queryClient";
@@ -39,6 +38,7 @@ import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import ownerConfig from "../../utils/wagmi/owner";
 import AssetLogo from "../shared/AssetLogo";
+import ChainLogo from "../shared/ChainLogo";
 import GradientScrollView from "../shared/GradientScrollView";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
@@ -643,7 +643,7 @@ export default function Bridge() {
                   onUseMax={(maxAmount) => {
                     setSourceAmount(maxAmount);
                   }}
-                  chainLogoUri={selectedGroup?.chain.id === 10 ? undefined : selectedGroup?.chain.logoURI}
+                  chainLogoUri={selectedGroup?.chain.logoURI}
                 />
               )}
               {insufficientBalance && (
@@ -691,14 +691,12 @@ export default function Bridge() {
                                 position="absolute"
                                 bottom={0}
                                 right={0}
-                                width={20}
-                                height={20}
                                 borderWidth={1}
                                 borderColor="white"
-                                borderRadius={10}
+                                borderRadius="$r_0"
                                 overflow="hidden"
                               >
-                                <OptimismImage width="100%" height="100%" />
+                                <ChainLogo size={20} />
                               </View>
                             </View>
                             <YStack flex={1}>

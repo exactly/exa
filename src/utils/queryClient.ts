@@ -32,6 +32,11 @@ export const lifiChainsOptions = queryOptions({
   },
 });
 
+export const chainLogoOptions = queryOptions({
+  ...lifiChainsOptions,
+  select: (chains) => chains.find((c) => c.id === chain.id)?.logoURI,
+});
+
 export const lifiTokensOptions = queryOptions({
   queryKey: ["lifi", "tokens"],
   staleTime: Infinity,

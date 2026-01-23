@@ -12,7 +12,7 @@ import { format } from "date-fns";
 import chain from "@exactly/common/generated/chain";
 import shortenHex from "@exactly/common/shortenHex";
 
-import OptimismImage from "../../assets/images/optimism.svg";
+import ChainLogo from "./ChainLogo";
 import openBrowser from "../../utils/openBrowser";
 import reportError from "../../utils/reportError";
 import Text from "../shared/Text";
@@ -44,7 +44,7 @@ export default function TransactionDetails({ hash }: { hash?: string }) {
             <Text callout color="$uiNeutralPrimary" alignContent="center">
               {chain.name}
             </Text>
-            <OptimismImage height={20} width={20} />
+            <ChainLogo size={20} />
           </XStack>
         </XStack>
         {hash && (

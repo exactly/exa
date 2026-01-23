@@ -9,7 +9,6 @@ import { formatUnits, parseUnits } from "viem";
 
 import { WAD } from "@exactly/lib";
 
-import OptimismImage from "../../assets/images/optimism.svg";
 import AssetLogo from "../shared/AssetLogo";
 import Image from "../shared/Image";
 import Input from "../shared/Input";
@@ -149,11 +148,7 @@ export default function TokenInput({
                   borderColor="white"
                   overflow="hidden"
                 >
-                  {chainLogoUri ? (
-                    <Image source={{ uri: chainLogoUri }} width="100%" height="100%" contentFit="cover" />
-                  ) : (
-                    <OptimismImage width="100%" height="100%" />
-                  )}
+                  <Image source={{ uri: chainLogoUri }} width="100%" height="100%" contentFit="cover" />
                 </View>
               </>
             ) : (

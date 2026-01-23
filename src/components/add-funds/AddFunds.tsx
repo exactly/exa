@@ -14,9 +14,9 @@ import chain from "@exactly/common/generated/chain";
 import shortenHex from "@exactly/common/shortenHex";
 
 import AddFundsOption from "./AddFundsOption";
-import OptimismImage from "../../assets/images/optimism.svg";
 import { presentArticle } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
+import ChainLogo from "../shared/ChainLogo";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
@@ -70,7 +70,7 @@ export default function AddFunds() {
               }}
             />
             <AddFundsOption
-              icon={<OptimismImage width={40} height={40} />}
+              icon={<ChainLogo size={40} />}
               title={t("From another wallet")}
               subtitle={t("On {{chain}}", { chain: chain.name })}
               onPress={() => {
