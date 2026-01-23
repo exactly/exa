@@ -11,6 +11,7 @@ import { ScrollView, Spinner, Square, XStack, YStack } from "tamagui";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { switchChain, waitForTransactionReceipt } from "@wagmi/core";
 import {
+  defineChain,
   encodeFunctionData,
   erc20Abi,
   formatUnits,
@@ -37,7 +38,7 @@ import openBrowser from "../../utils/openBrowser";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
-import ownerConfig from "../../utils/wagmi/owner";
+import ownerConfig, { addChains } from "../../utils/wagmi/owner";
 import AssetLogo from "../shared/AssetLogo";
 import GradientScrollView from "../shared/GradientScrollView";
 import SafeView from "../shared/SafeView";
@@ -98,6 +99,22 @@ export default function Bridge() {
     refetchInterval: 60_000,
     refetchIntervalInBackground: true,
   });
+
+  useEffect(() => {
+    if (!bridge?.chains) return;
+    addChains(
+      bridge.chains
+        .filter((c): c is typeof c & { metamask: { rpcUrls: [string, ...string[]] } } => Boolean(c.metamask.rpcUrls[0]))
+        .map(({ id, name, metamask }) =>
+          defineChain({
+            id,
+            name,
+            nativeCurrency: metamask.nativeCurrency,
+            rpcUrls: { default: { http: [metamask.rpcUrls[0]] } },
+          }),
+        ),
+    );
+  }, [bridge?.chains]);
 
   const chains = bridge?.chains;
   const ownerAssetsByChain = bridge?.ownerAssetsByChain;
