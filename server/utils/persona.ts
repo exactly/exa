@@ -72,32 +72,48 @@ export function redactAccount(accountId: string) {
   return request(object({ data: object({ id: string() }) }), `/accounts/${accountId}`, RedactAccount, "PATCH");
 }
 
-export function updateAccount(accountId: string, fields: InferOutput<typeof UpdateAccountFields>) {
+export function updateAccount(accountId: string, attributes: InferOutput<typeof UpdateAccountAttributes>) {
   return request(
     object({ data: object({ id: string() }) }),
     `/accounts/${accountId}`,
     {
       data: {
-        attributes: {
-          fields,
-        },
+        attributes,
       },
     },
     "PATCH",
   );
 }
 
-export const UpdateAccountFields = object({
-  exa_card_tc: boolean(),
-  rain_e_sign_consent: boolean(),
-  privacy__policy: boolean(),
-  account_opening_disclosure: nullable(boolean()),
-  economic_activity: string(),
-  annual_salary: string(),
-  expected_monthly_volume: string(),
-  accurate_info_confirmation: boolean(),
-  non_unauthorized_solicitation: boolean(),
-  non_illegal_activities_2: picklist(["Yes", "No"]),
+export const UpdateAccountAttributes = object({
+  fields: object({
+    exa_card_tc: boolean(),
+    rain_e_sign_consent: boolean(),
+    privacy__policy: boolean(),
+    account_opening_disclosure: nullable(boolean()),
+    economic_activity: string(),
+    annual_salary: string(),
+    expected_monthly_volume: string(),
+    accurate_info_confirmation: boolean(),
+    non_unauthorized_solicitation: boolean(),
+    non_illegal_activities_2: picklist(["Yes", "No"]),
+    address: object({
+      value: object({
+        street_1: string(),
+        street_2: nullable(string()),
+        city: string(),
+        subdivision: string(),
+        postal_code: string(),
+        country_code: string(),
+      }),
+    }),
+  }),
+  "address-street-1": string(),
+  "address-street-2": nullable(string()),
+  "address-city": string(),
+  "address-subdivision": string(),
+  "address-postal-code": string(),
+  "country-code": string(),
 });
 
 const RedactAccount = {
@@ -483,7 +499,7 @@ export const Inquiry = object({
 export const UnknownInquiry = object({
   id: string(),
   type: literal("inquiry"),
-  attributes: object({
+  attributes: looseObject({
     status: literal("approved"),
     "reference-id": string(),
     "redacted-at": nullable(string()),
@@ -501,6 +517,12 @@ export const PandaInquiryApproved = object({
     status: literal("approved"),
     "reference-id": string(),
     "redacted-at": nullable(string()),
+    // "address-street-1": string(),
+    // "address-street-2": nullable(string()),
+    // "address-city": string(),
+    // "address-subdivision": string(),
+    // "address-postal-code": string(),
+    // "address-country-code": string(),
     fields: pipe(
       object({
         // common
@@ -530,6 +552,13 @@ export const PandaInquiryApproved = object({
 
         "monthly-purchases-range": nullish(object({ value: nullable(string()) })),
         "expected-monthly-volume": nullish(object({ value: nullable(string()) })),
+
+        "address-street-1": object({ value: string() }),
+        "address-street-2": object({ value: nullable(string()) }),
+        "address-city": object({ value: string() }),
+        "address-subdivision": object({ value: string() }),
+        "address-postal-code": object({ value: string() }),
+        "address-country-code": object({ value: string() }),
       }),
       transform((fields) => {
         if (!fields["new-screen-2-2-input-checkbox"]?.value && !fields["new-screen-input-checkbox-2"]?.value) {

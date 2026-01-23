@@ -169,17 +169,35 @@ function updateAccountFromInquiry(accountId: string, inquiry: InferOutput<typeof
   if (exaCardTc !== true) throw new Error("exa card tc is required");
 
   return persona.updateAccount(accountId, {
-    rain_e_sign_consent: inquiry.attributes.fields["input-checkbox"].value,
-    exa_card_tc: exaCardTc,
-    privacy__policy: inquiry.attributes.fields["new-screen-input-checkbox"].value,
-    account_opening_disclosure: inquiry.attributes.fields["new-screen-input-checkbox-4"]?.value ?? null,
+    fields: {
+      rain_e_sign_consent: inquiry.attributes.fields["input-checkbox"].value,
+      exa_card_tc: exaCardTc,
+      privacy__policy: inquiry.attributes.fields["new-screen-input-checkbox"].value,
+      account_opening_disclosure: inquiry.attributes.fields["new-screen-input-checkbox-4"]?.value ?? null,
 
-    economic_activity: inquiry.attributes.fields["input-select"].value,
-    annual_salary: annualSalary,
-    expected_monthly_volume: expectedMonthlyVolume,
-    accurate_info_confirmation: inquiry.attributes.fields["new-screen-input-checkbox-1"].value,
-    non_unauthorized_solicitation: inquiry.attributes.fields["new-screen-input-checkbox-3"].value,
-    non_illegal_activities_2: inquiry.attributes.fields["illegal-activites"].value, // cspell:ignore illegal-activites
+      economic_activity: inquiry.attributes.fields["input-select"].value,
+      annual_salary: annualSalary,
+      expected_monthly_volume: expectedMonthlyVolume,
+      accurate_info_confirmation: inquiry.attributes.fields["new-screen-input-checkbox-1"].value,
+      non_unauthorized_solicitation: inquiry.attributes.fields["new-screen-input-checkbox-3"].value,
+      non_illegal_activities_2: inquiry.attributes.fields["illegal-activites"].value, // cspell:ignore illegal-activites
+      address: {
+        value: {
+          street_1: inquiry.attributes.fields["address-street-1"].value,
+          street_2: inquiry.attributes.fields["address-street-2"].value ?? "",
+          city: inquiry.attributes.fields["address-city"].value,
+          subdivision: inquiry.attributes.fields["address-subdivision"].value,
+          postal_code: inquiry.attributes.fields["address-postal-code"].value,
+          country_code: inquiry.attributes.fields["address-country-code"].value,
+        },
+      },
+    },
+    "address-street-1": inquiry.attributes.fields["address-street-1"].value,
+    "address-street-2": inquiry.attributes.fields["address-street-2"].value ?? "",
+    "address-city": inquiry.attributes.fields["address-city"].value,
+    "address-subdivision": inquiry.attributes.fields["address-subdivision"].value,
+    "address-postal-code": inquiry.attributes.fields["address-postal-code"].value,
+    "country-code": inquiry.attributes.fields["address-country-code"].value,
   });
 }
 
