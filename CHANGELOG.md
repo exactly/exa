@@ -1,5 +1,15 @@
 # @exactly/mobile
 
+## 1.1.2
+
+### Patch Changes
+
+- [`665e6c3`](https://github.com/exactly/exa/commit/665e6c35e276a87b9a241805c1ed50ff0840aa69) Thanks [@franm91](https://github.com/franm91)! - ♻️ use new kyc flow
+
+- [#669](https://github.com/exactly/exa/pull/669) [`1aa1fe6`](https://github.com/exactly/exa/commit/1aa1fe636df9bc0e94f683a58bcd544963e29480) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🧵 fix onesignal prompt persistence race condition
+
+- [#672](https://github.com/exactly/exa/pull/672) [`c6a1241`](https://github.com/exactly/exa/commit/c6a1241d59f04af46d2c31c3ad70baa17de9dd8d) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 allow kyc on account deploy
+
 ## 1.1.1
 
 ### Patch Changes
