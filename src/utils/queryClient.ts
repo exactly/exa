@@ -9,13 +9,27 @@ import { hashFn, structuralSharing } from "wagmi/query";
 
 import reportError from "./reportError";
 import { isAvailable as isOwnerAvailable } from "./wagmi/owner";
+import release from "../generated/release";
 
 import type { getActivity } from "./server";
+import type { PersistedClient } from "@tanstack/query-persist-client-core";
 import type { Address } from "viem";
+
+const INVALIDATE_ON_UPGRADE = new Set(["kyc"]);
+
+function versionAwareDeserialize(cache: string): PersistedClient {
+  const persistedClient: PersistedClient = deserialize(cache);
+  if (persistedClient.buster === release) return persistedClient;
+  persistedClient.clientState.queries = persistedClient.clientState.queries.filter(
+    (query) => !INVALIDATE_ON_UPGRADE.has(query.queryKey[0] as string),
+  );
+  persistedClient.buster = release;
+  return persistedClient;
+}
 
 export const persister = createAsyncStoragePersister({
   serialize,
-  deserialize,
+  deserialize: versionAwareDeserialize,
   storage: AsyncStorage,
   throttleTime: 0,
 });
@@ -40,10 +54,12 @@ const queryClient = new QueryClient({
 export const hydrated =
   typeof window === "undefined"
     ? Promise.resolve()
-    : persistQueryClientRestore({ queryClient, persister, maxAge: 30 * 24 * 60 * 60_000 }).catch((error: unknown) => {
-        reportError(error);
-        throw error;
-      });
+    : persistQueryClientRestore({ queryClient, persister, maxAge: 30 * 24 * 60 * 60_000, buster: release }).catch(
+        (error: unknown) => {
+          reportError(error);
+          throw error;
+        },
+      );
 
 const dehydrateOptions = {
   shouldDehydrateQuery: ({ queryKey, state }: Query) =>
@@ -51,7 +67,7 @@ const dehydrateOptions = {
 };
 
 if (typeof window !== "undefined") {
-  const subscribe = () => persistQueryClientSubscribe({ queryClient, persister, dehydrateOptions });
+  const subscribe = () => persistQueryClientSubscribe({ queryClient, persister, dehydrateOptions, buster: release });
   hydrated.then(subscribe, subscribe);
 }
 
@@ -59,7 +75,7 @@ export function persist() {
   return Promise.resolve(
     persister.persistClient({
       timestamp: Date.now(),
-      buster: "",
+      buster: release,
       clientState: dehydrate(queryClient, dehydrateOptions),
     }),
   );
