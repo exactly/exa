@@ -23,6 +23,8 @@ import chain, { mockSwapperAbi, swapperAddress } from "@exactly/common/generated
 import { Address as AddressSchema, Hex } from "@exactly/common/validation";
 
 import publicClient from "./publicClient";
+import queryClient, { lifiChainsOptions, lifiTokensOptions } from "./queryClient";
+import reportError from "./reportError";
 
 let configured = false;
 function ensureConfig() {
@@ -37,6 +39,8 @@ function ensureConfig() {
     },
   });
   configured = true;
+  queryClient.prefetchQuery(lifiTokensOptions).catch(reportError);
+  queryClient.prefetchQuery(lifiChainsOptions).catch(reportError);
 }
 
 export async function getRoute(
@@ -111,8 +115,13 @@ async function getAllTokens(): Promise<Token[]> {
   ensureConfig();
   if (chain.testnet || chain.id === anvil.id) return [];
   const response = await getTokens({ chains: [chain.id] });
-  const exa = await getToken(chain.id, "0x1e925De1c68ef83bD98eE3E130eF14a50309C01B");
-  return [exa, ...(response.tokens[chain.id] ?? [])];
+  const tokens = response.tokens[chain.id] ?? [];
+  try {
+    const exa = await getToken(chain.id, "0x1e925De1c68ef83bD98eE3E130eF14a50309C01B");
+    return [exa, ...tokens];
+  } catch {
+    return tokens;
+  }
 }
 
 export async function getAsset(account: Address) {
@@ -173,10 +182,14 @@ const allowList = new Set([
 export async function getAllowTokens() {
   ensureConfig();
   if (chain.testnet || chain.id === anvil.id) return [];
-  const exa = await getToken(chain.id, "0x1e925De1c68ef83bD98eE3E130eF14a50309C01B");
   const { tokens } = await getTokens({ chains: [chain.id] });
   const allowTokens = tokens[chain.id]?.filter((token) => allowList.has(token.address)) ?? [];
-  return [exa, ...allowTokens];
+  try {
+    const exa = await getToken(chain.id, "0x1e925De1c68ef83bD98eE3E130eF14a50309C01B");
+    return [exa, ...allowTokens];
+  } catch {
+    return allowTokens;
+  }
 }
 
 export type RouteFrom = {
