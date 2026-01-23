@@ -16,7 +16,7 @@ import AssetLogo from "./AssetLogo";
 import Skeleton from "./Skeleton";
 import assetLogos from "../../utils/assetLogos";
 import useAccount from "../../utils/useAccount";
-import useAccountAssets from "../../utils/useAccountAssets";
+import usePortfolio from "../../utils/usePortfolio";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
@@ -34,9 +34,9 @@ export default function AssetSelector({
   const [selectedMarket, setSelectedMarket] = useState<Address | undefined>();
   const { address: account } = useAccount();
   const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [account ?? zeroAddress] });
-  const { accountAssets, externalAssets, isPending } = useAccountAssets({ sortBy });
+  const { assets, externalAssets, isPending } = usePortfolio(undefined, { sortBy });
 
-  if (accountAssets.length === 0) {
+  if (assets.length === 0) {
     if (isPending) {
       return (
         <YStack gap="$s2" borderWidth={1} borderRadius="$r3" borderColor="$borderNeutralSeparator" padding="$s3">
@@ -67,7 +67,7 @@ export default function AssetSelector({
           onSubmit(output, isExternal);
         }}
       >
-        {accountAssets.map((asset) => {
+        {assets.map((asset) => {
           const availableBalance =
             asset.type === "external"
               ? Number(asset.amount ?? 0n) / 10 ** asset.decimals

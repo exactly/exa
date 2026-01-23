@@ -48,8 +48,8 @@ import { getRoute, getRouteFrom } from "../../utils/lifi";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
-import useAccountAssets from "../../utils/useAccountAssets";
 import useAsset from "../../utils/useAsset";
+import usePortfolio from "../../utils/usePortfolio";
 import useSimulateProposal from "../../utils/useSimulateProposal";
 import exa from "../../utils/wagmi/exa";
 import AssetLogo from "../shared/AssetLogo";
@@ -66,7 +66,7 @@ export default function Pay() {
   } = useTranslation();
   const { address: account } = useAccount();
   const router = useRouter();
-  const { accountAssets } = useAccountAssets({ sortBy: "usdcFirst" });
+  const { assets } = usePortfolio(undefined, { sortBy: "usdcFirst" });
   const { market: exaUSDC } = useAsset(marketUSDCAddress);
   const [enableSimulations, setEnableSimulations] = useState(true);
   const [assetSelectionOpen, setAssetSelectionOpen] = useState(false);
@@ -74,7 +74,18 @@ export default function Pay() {
     (state: Record<string, boolean>, tool: string) => (state[tool] ? state : { ...state, [tool]: true }),
     {},
   );
-  const [selectedAsset, setSelectedAsset] = useState<{ address?: Address; external: boolean }>({ external: true });
+  const [manuallySelectedAsset, setManuallySelectedAsset] = useState<{ address?: Address; external: boolean }>({
+    external: true,
+  });
+  const selectedAsset = useMemo(() => {
+    if (manuallySelectedAsset.address) return manuallySelectedAsset;
+    if (!assets[0]) return manuallySelectedAsset;
+    const { type } = assets[0];
+    return {
+      address: type === "external" ? parse(Address, assets[0].address) : parse(Address, assets[0].market),
+      external: type === "external",
+    };
+  }, [manuallySelectedAsset, assets]);
   const [selectedRepayAssets, setSelectedRepayAssets] = useState<bigint | undefined>();
   const {
     markets,
@@ -487,16 +498,8 @@ export default function Pay() {
   const isSuccess = mode === "external" ? isExternalRepaySuccess : isRepaySuccess;
   const writeError = mode === "external" ? externalRepayError : writeContractError;
 
-  if (!selectedAsset.address && accountAssets[0]) {
-    const { type } = accountAssets[0];
-    setSelectedAsset({
-      address: type === "external" ? parse(Address, accountAssets[0].address) : parse(Address, accountAssets[0].market),
-      external: type === "external",
-    });
-  }
-
   const handleAssetSelect = useCallback((address: Address, external: boolean) => {
-    setSelectedAsset({ address, external });
+    setManuallySelectedAsset({ address, external });
   }, []);
 
   const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
