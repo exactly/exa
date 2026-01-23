@@ -12,12 +12,12 @@ import chain from "@exactly/common/generated/chain";
 import shortenHex from "@exactly/common/shortenHex";
 
 import SupportedAssetsSheet from "./SupportedAssetsSheet";
-import OptimismImage from "../../assets/images/optimism.svg";
 import assetLogos from "../../utils/assetLogos";
 import { presentArticle } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import AssetLogo from "../shared/AssetLogo";
+import ChainLogo from "../shared/ChainLogo";
 import CopyAddressSheet from "../shared/CopyAddressSheet";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
@@ -128,7 +128,7 @@ export default function AddCrypto() {
             </XStack>
             <XStack gap="$s5" justifyContent="space-between" alignItems="center">
               <XStack alignItems="center" gap="$s3" flex={1}>
-                <OptimismImage height={32} width={32} />
+                <ChainLogo size={32} />
                 <Text emphasized primary headline>
                   {chain.name}
                 </Text>
