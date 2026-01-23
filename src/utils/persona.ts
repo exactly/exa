@@ -11,41 +11,47 @@ import queryClient, { type EmbeddingContext } from "./queryClient";
 import reportError from "./reportError";
 import { getKYCTokens } from "./server";
 
+import type * as PersonaWeb from "persona";
+
 export const environment = (__DEV__ || process.env.EXPO_PUBLIC_ENV === "e2e" ? "sandbox" : "production") as Environment;
 
-export async function startKYC() {
-  const { otl: oneTimeLink, inquiryId, sessionToken } = await getKYCTokens("basic", await getRedirectURI());
+export const startKYC = (
+  Platform.OS === "web"
+    ? () => {
+        let activeClient: InstanceType<typeof PersonaWeb.Client> | undefined;
 
-  if (Platform.OS === "web") {
-    if (await sdk.isInMiniApp()) {
-      await sdk.actions.openUrl(oneTimeLink);
-      return;
-    }
-    const embeddingContext = queryClient.getQueryData<EmbeddingContext>(["embedding-context"]);
-    if (embeddingContext && !embeddingContext.endsWith("-web")) {
-      window.location.replace(oneTimeLink);
-      return;
-    }
-    window.open(oneTimeLink, "_blank", "noopener,noreferrer"); // cspell:ignore noopener noreferrer
-    return;
-  }
+        return async () => {
+          const [{ Client }, { inquiryId, sessionToken }] = await Promise.all([
+            import("persona"),
+            getKYCTokens("basic", await getRedirectURI()),
+          ]);
 
-  const { Inquiry } = await import("react-native-persona");
-  Inquiry.fromInquiry(inquiryId)
-    .sessionToken(sessionToken)
-    .onCanceled(() => {
-      queryClient.invalidateQueries({ queryKey: ["kyc", "status"] }).catch(reportError);
-      router.replace("/(main)/(home)");
-    })
-    .onComplete(() => {
-      queryClient.invalidateQueries({ queryKey: ["kyc", "status"] }).catch(reportError);
-      queryClient.setQueryData(["card-upgrade"], 1);
-      router.replace("/(main)/(home)");
-    })
-    .onError((error) => reportError(error))
-    .build()
-    .start();
-}
+          activeClient?.destroy();
+          activeClient = new Client({
+            inquiryId,
+            sessionToken,
+            environment: environment as "production" | "sandbox", // TODO implement environmentId
+            onReady: () => activeClient?.open(),
+            onComplete: () => {
+              activeClient?.destroy();
+              activeClient = undefined;
+              handleComplete();
+            },
+            onCancel: () => {
+              activeClient?.destroy();
+              activeClient = undefined;
+              handleCancel();
+            },
+            onError: (error) => {
+              activeClient?.destroy();
+              activeClient = undefined;
+              reportError(error);
+            },
+          });
+        };
+      }
+    : () => startNativeKYC
+)();
 
 async function getRedirectURI() {
   const miniappContext = (await sdk.context) as unknown as undefined | { client: { appUrl?: string } };
@@ -59,4 +65,27 @@ async function getRedirectURI() {
         }[domain]
       }/exa-app`;
   }
+}
+
+function handleComplete() {
+  queryClient.invalidateQueries({ queryKey: ["kyc", "status"] }).catch(reportError);
+  queryClient.setQueryData(["card-upgrade"], 1);
+  router.replace("/(main)/(home)");
+}
+
+function handleCancel() {
+  queryClient.invalidateQueries({ queryKey: ["kyc", "status"] }).catch(reportError);
+  router.replace("/(main)/(home)");
+}
+
+async function startNativeKYC() {
+  const { inquiryId, sessionToken } = await getKYCTokens("basic", await getRedirectURI());
+  const { Inquiry } = await import("react-native-persona");
+  Inquiry.fromInquiry(inquiryId)
+    .sessionToken(sessionToken)
+    .onCanceled(handleCancel)
+    .onComplete(handleComplete)
+    .onError((error) => reportError(error))
+    .build()
+    .start();
 }
