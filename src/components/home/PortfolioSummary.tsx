@@ -15,12 +15,15 @@ import WeightedRate from "../shared/WeightedRate";
 
 export default function PortfolioSummary({
   averageRate,
-  portfolio,
+  balanceUSD,
+  depositMarkets,
+  totalBalanceUSD,
 }: {
   averageRate: bigint;
-  portfolio: { depositMarkets: { market: string; symbol: string; usdValue: bigint }[]; usdBalance: bigint };
+  balanceUSD: bigint;
+  depositMarkets: { market: string; symbol: string; usdValue: bigint }[];
+  totalBalanceUSD: bigint;
 }) {
-  const { usdBalance, depositMarkets } = portfolio;
   const router = useRouter();
   const { data: country } = useQuery({ queryKey: ["user", "country"] });
   const {
@@ -65,7 +68,7 @@ export default function PortfolioSummary({
         fontFamily="$mono"
         fontSize={40}
       >
-        {`$${(Number(usdBalance) / 1e18).toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+        {`$${(Number(totalBalanceUSD) / 1e18).toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
       </Text>
       {processingBalance ? (
         <XStack
@@ -88,7 +91,7 @@ export default function PortfolioSummary({
           </Text>
           <ChevronRight size={16} color="$uiNeutralSecondary" />
         </XStack>
-      ) : usdBalance > 0n ? (
+      ) : balanceUSD > 0n ? (
         <WeightedRate displayLogos averageRate={averageRate} depositMarkets={depositMarkets} />
       ) : null}
     </YStack>

@@ -68,7 +68,11 @@ export default function Home() {
     address: account ?? zeroAddress,
     query: { enabled: !!account && !!bytecode },
   });
-  const { portfolio, averageRate } = usePortfolio(account);
+  const {
+    portfolio: { balanceUSD, depositMarkets },
+    averageRate,
+    totalBalanceUSD,
+  } = usePortfolio(account);
 
   const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
   const { data: cardUpgradeOpen } = useQuery<boolean>({
@@ -163,7 +167,12 @@ export default function Home() {
                 />
               )}
               <YStack gap="$s8">
-                <PortfolioSummary portfolio={portfolio} averageRate={averageRate} />
+                <PortfolioSummary
+                  balanceUSD={balanceUSD}
+                  depositMarkets={depositMarkets}
+                  averageRate={averageRate}
+                  totalBalanceUSD={totalBalanceUSD}
+                />
                 <HomeActions />
               </YStack>
             </YStack>
