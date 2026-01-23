@@ -7,9 +7,9 @@ import { AlertDialog, XStack, YStack } from "tamagui";
 import chain from "@exactly/common/generated/chain";
 
 import Button from "./Button";
+import ChainLogo from "./ChainLogo";
 import Text from "./Text";
 import View from "./View";
-import OptimismImage from "../../assets/images/optimism.svg";
 import useAspectRatio from "../../utils/useAspectRatio";
 
 export default function AddressDialog({
@@ -60,7 +60,7 @@ export default function AddressDialog({
               <YStack gap="$s5">
                 <XStack gap="$s3" alignItems="center">
                   <View alignItems="center" justifyContent="center">
-                    <OptimismImage height={32} width={32} />
+                    <ChainLogo size={32} />
                   </View>
                   <Text>
                     <Text emphasized title3>

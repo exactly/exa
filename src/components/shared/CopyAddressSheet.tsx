@@ -7,8 +7,8 @@ import { ScrollView, XStack, YStack } from "tamagui";
 import chain from "@exactly/common/generated/chain";
 
 import AssetLogo from "./AssetLogo";
+import ChainLogo from "./ChainLogo";
 import ModalSheet from "./ModalSheet";
-import OptimismImage from "../../assets/images/optimism.svg";
 import assetLogos from "../../utils/assetLogos";
 import useAccount from "../../utils/useAccount";
 import Button from "../shared/Button";
@@ -65,7 +65,7 @@ export default function CopyAddressSheet({ open, onClose }: { onClose: () => voi
               </XStack>
               <XStack gap="$s5" justifyContent="space-between" alignItems="center" width="100%">
                 <XStack alignItems="center" gap="$s3" flex={1}>
-                  <OptimismImage height={32} width={32} />
+                  <ChainLogo size={32} />
                   <Text emphasized primary headline>
                     {chain.name}
                   </Text>
