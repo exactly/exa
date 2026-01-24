@@ -8,7 +8,6 @@ import { isBefore } from "date-fns";
 import { zeroAddress } from "viem";
 import { useBytecode } from "wagmi";
 
-import { exaPreviewerAddress, previewerAddress } from "@exactly/common/generated/chain";
 import { useReadExaPreviewerPendingProposals, useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import ProposalType, {
   decodeCrossRepayAtMaturity,
@@ -31,12 +30,10 @@ export default function OverduePayments({ onSelect }: { onSelect: (maturity: big
   const { address } = useAccount();
   const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
   const { data: pendingProposals } = useReadExaPreviewerPendingProposals({
-    address: exaPreviewerAddress,
     args: [address ?? zeroAddress],
     query: { enabled: !!address && !!bytecode, gcTime: 0, refetchInterval: 30_000 },
   });
   const { data: markets } = useReadPreviewerExactly({
-    address: previewerAddress,
     args: [address ?? zeroAddress],
     query: { enabled: !!address && !!bytecode, refetchInterval: 30_000 },
   });

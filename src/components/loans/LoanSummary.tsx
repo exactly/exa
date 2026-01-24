@@ -6,7 +6,6 @@ import { XStack, YStack } from "tamagui";
 import { zeroAddress } from "viem";
 import { useBytecode } from "wagmi";
 
-import { previewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerPreviewBorrowAtMaturity } from "@exactly/common/generated/hooks";
 import { MATURITY_INTERVAL, WAD } from "@exactly/lib";
 
@@ -26,7 +25,7 @@ export default function LoanSummary({ loan }: { loan: Loan }) {
     i18n: { language },
   } = useTranslation();
   const { address } = useAccount();
-  const { data: bytecode } = useBytecode({ address: previewerAddress, query: { enabled: !!address } });
+  const { data: bytecode } = useBytecode({ address, query: { enabled: !!address } });
   const { market } = useAsset(loan.market);
   const symbol = market?.symbol.slice(3) === "WETH" ? "ETH" : market?.symbol.slice(3);
   const isBorrow = loan.installments === 1;
@@ -39,7 +38,6 @@ export default function LoanSummary({ loan }: { loan: Loan }) {
     marketAddress: market?.market,
   });
   const { data: borrow, isLoading: isBorrowPending } = useReadPreviewerPreviewBorrowAtMaturity({
-    address: previewerAddress,
     args: [loan.market ?? zeroAddress, loan.maturity ?? BigInt(defaultMaturity), loan.amount ?? 0n],
     query: {
       enabled: isBorrow && !!loan.amount && !!loan.market && !!address && !!bytecode,

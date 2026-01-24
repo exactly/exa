@@ -7,9 +7,9 @@ import { Loader, LockKeyhole, Snowflake } from "@tamagui/lucide-icons";
 import { AnimatePresence, XStack, YStack } from "tamagui";
 
 import { zeroAddress } from "viem";
+import { useChainId } from "wagmi";
 
-import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
-import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
+import { marketUsdcAddress, useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
 import { borrowLimit, withdrawLimit } from "@exactly/lib";
 
@@ -34,7 +34,8 @@ export default function CardContents({
   revealing: boolean;
 }) {
   const { address } = useAccount();
-  const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [address ?? zeroAddress] });
+  const chainId = useChainId();
+  const { data: markets } = useReadPreviewerExactly({ args: [address ?? zeroAddress] });
   const {
     t,
     i18n: { language },
@@ -76,7 +77,10 @@ export default function CardContents({
                 transform={[{ translateX: 0 }]}
               >
                 <Text sensitive color="white" title maxFontSizeMultiplier={1} numberOfLines={1}>
-                  {`$${(markets ? Number(borrowLimit(markets, marketUSDCAddress)) / 1e6 : 0).toLocaleString(language, {
+                  {`$${(markets
+                    ? Number(borrowLimit(markets, marketUsdcAddress[chainId as keyof typeof marketUsdcAddress])) / 1e6
+                    : 0
+                  ).toLocaleString(language, {
                     style: "decimal",
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
@@ -97,14 +101,14 @@ export default function CardContents({
                 transform={[{ translateX: 0 }]}
               >
                 <Text sensitive color="white" title maxFontSizeMultiplier={1} numberOfLines={1}>
-                  {`$${(markets ? Number(withdrawLimit(markets, marketUSDCAddress)) / 1e6 : 0).toLocaleString(
-                    language,
-                    {
-                      style: "decimal",
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    },
-                  )}`}
+                  {`$${(markets
+                    ? Number(withdrawLimit(markets, marketUsdcAddress[chainId as keyof typeof marketUsdcAddress])) / 1e6
+                    : 0
+                  ).toLocaleString(language, {
+                    style: "decimal",
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}`}
                 </Text>
                 <View>
                   <Text color="white" emphasized caption maxFontSizeMultiplier={1} textTransform="uppercase">

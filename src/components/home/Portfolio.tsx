@@ -9,7 +9,6 @@ import { ScrollView, XStack } from "tamagui";
 
 import { zeroAddress } from "viem";
 
-import { previewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 
 import AssetList from "./AssetList";
@@ -34,7 +33,6 @@ export default function Portfolio() {
   const { usdBalance } = portfolio;
 
   const { refetch: refetchMarkets, isFetching: isFetchingMarkets } = useReadPreviewerExactly({
-    address: previewerAddress,
     args: [address ?? zeroAddress],
   });
 

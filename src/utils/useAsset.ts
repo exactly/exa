@@ -3,7 +3,6 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { zeroAddress, type Address } from "viem";
 
-import { previewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { borrowLimit, withdrawLimit } from "@exactly/lib";
 
@@ -25,7 +24,7 @@ export default function useAsset(address?: Address) {
     data: markets,
     queryKey,
     isFetching: isMarketsFetching,
-  } = useReadPreviewerExactly({ address: previewerAddress, args: [account ?? zeroAddress] });
+  } = useReadPreviewerExactly({ args: [account ?? zeroAddress] });
   const market = useMemo(() => markets?.find(({ market: m }) => m === address), [address, markets]);
   const { data: available } = useQuery({
     initialData: 0n,

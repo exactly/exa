@@ -8,9 +8,9 @@ import { XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 import { zeroAddress } from "viem";
+import { useChainId } from "wagmi";
 
-import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
-import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
+import { marketUsdcAddress, useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { borrowLimit, WAD, withdrawLimit } from "@exactly/lib";
 
 import assetLogos from "../../utils/assetLogos";
@@ -26,9 +26,10 @@ export default function CardLimits({ onPress }: { onPress: () => void }) {
     i18n: { language },
   } = useTranslation();
   const { address } = useAccount();
+  const chainId = useChainId();
   const router = useRouter();
   const { data: card } = useQuery<CardDetails>({ queryKey: ["card", "details"] });
-  const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [address ?? zeroAddress] });
+  const { data: markets } = useReadPreviewerExactly({ args: [address ?? zeroAddress] });
   const isCredit = card ? card.mode > 0 : false;
   return (
     <YStack justifyContent="space-between" height="100%">
@@ -46,7 +47,9 @@ export default function CardLimits({ onPress }: { onPress: () => void }) {
           >
             {`$${(markets
               ? Number(
-                  isCredit ? borrowLimit(markets, marketUSDCAddress) : withdrawLimit(markets, marketUSDCAddress, WAD),
+                  isCredit
+                    ? borrowLimit(markets, marketUsdcAddress[chainId as keyof typeof marketUsdcAddress])
+                    : withdrawLimit(markets, marketUsdcAddress[chainId as keyof typeof marketUsdcAddress], WAD),
                 ) / 1e6
               : 0
             ).toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}

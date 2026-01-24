@@ -10,13 +10,15 @@ import { ScrollView, Separator, Square, XStack, YStack } from "tamagui";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { waitForCallsStatus } from "@wagmi/core/actions";
 import { encodeAbiParameters, encodeFunctionData, maxUint256, zeroAddress, type Address, type Hex } from "viem";
-import { useBytecode, useSendCalls } from "wagmi";
+import { useBytecode, useChainId, useSendCalls } from "wagmi";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
-import chain, { exaPluginAddress, marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
+import chain from "@exactly/common/generated/chain";
 import {
   exaPluginAbi,
+  exaPluginAddress,
+  marketUsdcAddress,
   upgradeableModularAccountAbi,
   useReadPreviewerPreviewBorrowAtMaturity,
   useReadUpgradeableModularAccountGetInstalledPlugins,
@@ -45,11 +47,13 @@ import type { Loan } from "../../utils/queryClient";
 
 export default function Review() {
   const router = useRouter();
+  const chainId = useChainId();
   const {
     t,
     i18n: { language },
   } = useTranslation();
   const { address } = useAccount();
+  const marketUSDC = marketUsdcAddress[chainId as keyof typeof marketUsdcAddress];
   const [paymentScheduleShown, setPaymentScheduleShown] = useState(false);
   const { data: loan } = useQuery<Loan>({ queryKey: ["loan"], enabled: !!address });
   const {
@@ -73,8 +77,7 @@ export default function Review() {
   const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
 
   const { data: borrow, isPending: isBorrowPending } = useReadPreviewerPreviewBorrowAtMaturity({
-    address: previewerAddress,
-    args: [marketUSDCAddress, maturity ?? 0n, amount ?? 0n],
+    args: [marketUSDC, maturity ?? 0n, amount ?? 0n],
     query: { enabled: !!address && !!bytecode && !!maturity && !!amount && singleInstallment },
   });
 
@@ -187,7 +190,7 @@ export default function Review() {
     address: address ?? zeroAddress,
     query: { enabled: !!address && !!bytecode },
   });
-  const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
+  const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress[chainId as keyof typeof exaPluginAddress];
 
   if (!processing && !error && !success) {
     return (

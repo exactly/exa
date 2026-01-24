@@ -53,7 +53,8 @@ import accountInitCode from "@exactly/common/accountInitCode";
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
 import domain from "@exactly/common/domain";
-import defaultChain, { upgradeableModularAccountAbi } from "@exactly/common/generated/chain";
+import defaultChain from "@exactly/common/generated/chain";
+import { upgradeableModularAccountAbi } from "@exactly/common/generated/hooks";
 
 import e2e from "./e2e";
 import { login } from "./onesignal";

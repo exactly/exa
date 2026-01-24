@@ -7,7 +7,6 @@ import { ToggleGroup, YStack } from "tamagui";
 import { safeParse } from "valibot";
 import { zeroAddress } from "viem";
 
-import { previewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { Address } from "@exactly/common/validation";
 import { withdrawLimit } from "@exactly/lib";
@@ -33,7 +32,7 @@ export default function AssetSelector({
   } = useTranslation();
   const [selectedMarket, setSelectedMarket] = useState<Address | undefined>();
   const { address: account } = useAccount();
-  const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [account ?? zeroAddress] });
+  const { data: markets } = useReadPreviewerExactly({ args: [account ?? zeroAddress] });
   const { accountAssets, externalAssets, isPending } = useAccountAssets({ sortBy });
 
   if (accountAssets.length === 0) {

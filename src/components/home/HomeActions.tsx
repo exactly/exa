@@ -8,10 +8,10 @@ import { XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 import { zeroAddress } from "viem";
-import { useBytecode, useReadContract } from "wagmi";
+import { useBytecode, useChainId, useReadContract } from "wagmi";
 
-import { exaPluginAddress } from "@exactly/common/generated/chain";
 import {
+  exaPluginAddress,
   upgradeableModularAccountAbi,
   useReadUpgradeableModularAccountGetInstalledPlugins,
 } from "@exactly/common/generated/hooks";
@@ -24,6 +24,7 @@ import type { AuthMethod } from "../../utils/queryClient";
 
 export default function HomeActions() {
   const router = useRouter();
+  const chainId = useChainId();
   const { address: account } = useAccount();
   const { data: method } = useQuery<AuthMethod>({ queryKey: ["method"] });
   const { data: bytecode } = useBytecode({ address: account ?? zeroAddress, query: { enabled: !!account } });
@@ -40,7 +41,7 @@ export default function HomeActions() {
     address: account ?? zeroAddress,
     query: { enabled: !!account && !!bytecode },
   });
-  const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
+  const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress[chainId as keyof typeof exaPluginAddress];
   const { refetch: fetchProposals, isPending } = useReadContract({
     functionName: "proposals",
     abi: [

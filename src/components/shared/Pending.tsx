@@ -6,8 +6,9 @@ import { X } from "@tamagui/lucide-icons";
 import { Square, XStack, YStack } from "tamagui";
 
 import { isAfter } from "date-fns";
+import { useChainId } from "wagmi";
 
-import { marketUSDCAddress } from "@exactly/common/generated/chain";
+import { marketUsdcAddress } from "@exactly/common/generated/hooks";
 
 import GradientScrollView from "./GradientScrollView";
 import assetLogos from "../../utils/assetLogos";
@@ -34,6 +35,7 @@ export default function Pending({
   repayAssets: bigint;
   selectedAsset?: Hex;
 }) {
+  const chainId = useChainId();
   const {
     t,
     i18n: { language },
@@ -91,7 +93,10 @@ export default function Pending({
                 </Text>
                 <Text title2 primary color="$uiNeutralPrimary">
                   {amount.toLocaleString(language, {
-                    maximumFractionDigits: selectedAsset && selectedAsset === marketUSDCAddress ? 2 : 8,
+                    maximumFractionDigits:
+                      selectedAsset && selectedAsset === marketUsdcAddress[chainId as keyof typeof marketUsdcAddress]
+                        ? 2
+                        : 8,
                   })}
                 </Text>
                 <Text title2 primary color="$uiNeutralPrimary">

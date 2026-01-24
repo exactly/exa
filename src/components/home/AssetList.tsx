@@ -6,7 +6,6 @@ import { XStack, YStack } from "tamagui";
 
 import { parseUnits, zeroAddress } from "viem";
 
-import { previewerAddress, ratePreviewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerExactly, useReadRatePreviewerSnapshot } from "@exactly/common/generated/hooks";
 import { floatingDepositRates } from "@exactly/lib";
 
@@ -110,11 +109,9 @@ function AssetSection({ title, assets }: { assets: AssetItem[]; title: string })
 export default function AssetList() {
   const { t } = useTranslation();
   const { address } = useAccount();
-  const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [address ?? zeroAddress] });
+  const { data: markets } = useReadPreviewerExactly({ args: [address ?? zeroAddress] });
   const { externalAssets } = useAccountAssets();
-  const { data: snapshots, dataUpdatedAt } = useReadRatePreviewerSnapshot({
-    address: ratePreviewerAddress,
-  });
+  const { data: snapshots, dataUpdatedAt } = useReadRatePreviewerSnapshot({});
 
   const rates = snapshots ? floatingDepositRates(snapshots, Math.floor(dataUpdatedAt / 1000)) : [];
 

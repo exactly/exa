@@ -11,11 +11,11 @@ import { useForm, useStore } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import { bigint, check, parse, pipe, safeParse } from "valibot";
 import { encodeAbiParameters, erc20Abi, formatUnits, parseUnits, zeroAddress as viemZeroAddress } from "viem";
-import { useBytecode, useSimulateContract, useWriteContract } from "wagmi";
+import { useBytecode, useChainId, useSimulateContract, useWriteContract } from "wagmi";
 
-import { exaPluginAddress } from "@exactly/common/generated/chain";
 import {
   exaPluginAbi,
+  exaPluginAddress,
   upgradeableModularAccountAbi,
   useReadUpgradeableModularAccountGetInstalledPlugins,
 } from "@exactly/common/generated/hooks";
@@ -43,6 +43,7 @@ import View from "../shared/View";
 
 export default function Amount() {
   const router = useRouter();
+  const chainId = useChainId();
   const { address } = useAccount();
   const {
     t,
@@ -67,7 +68,7 @@ export default function Amount() {
     address: address ?? zeroAddress,
     query: { enabled: !!address && !!bytecode },
   });
-  const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
+  const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress[chainId as keyof typeof exaPluginAddress];
 
   const { data: proposeSimulation } = useSimulateContract(
     isLatestPlugin

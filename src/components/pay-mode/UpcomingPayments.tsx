@@ -6,10 +6,13 @@ import { XStack, YStack } from "tamagui";
 
 import { isBefore } from "date-fns";
 import { zeroAddress } from "viem";
-import { useBytecode } from "wagmi";
+import { useBytecode, useChainId } from "wagmi";
 
-import { exaPreviewerAddress, marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
-import { useReadExaPreviewerPendingProposals, useReadPreviewerExactly } from "@exactly/common/generated/hooks";
+import {
+  marketUsdcAddress,
+  useReadExaPreviewerPendingProposals,
+  useReadPreviewerExactly,
+} from "@exactly/common/generated/hooks";
 import ProposalType, {
   decodeCrossRepayAtMaturity,
   decodeRepayAtMaturity,
@@ -29,18 +32,19 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
     i18n: { language },
   } = useTranslation();
   const { address } = useAccount();
+  const chainId = useChainId();
   const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
   const { data: pendingProposals } = useReadExaPreviewerPendingProposals({
-    address: exaPreviewerAddress,
     args: [address ?? zeroAddress],
     query: { enabled: !!address && !!bytecode, gcTime: 0, refetchInterval: 30_000 },
   });
   const { data: markets } = useReadPreviewerExactly({
-    address: previewerAddress,
     args: [address ?? zeroAddress],
     query: { enabled: !!address && !!bytecode, refetchInterval: 30_000 },
   });
-  const exaUSDC = markets?.find(({ market }) => market === marketUSDCAddress);
+  const exaUSDC = markets?.find(
+    ({ market }) => market === marketUsdcAddress[chainId as keyof typeof marketUsdcAddress],
+  );
   const duePayments = new Map<bigint, { amount: bigint; discount: number; positionAmount: bigint }>();
   if (markets) {
     for (const { fixedBorrowPositions } of markets) {

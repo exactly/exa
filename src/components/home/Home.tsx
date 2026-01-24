@@ -9,10 +9,10 @@ import { ScrollView, YStack } from "tamagui";
 import { TimeToFullDisplay } from "@sentry/react-native";
 import { useQuery } from "@tanstack/react-query";
 import { zeroAddress } from "viem";
-import { useBytecode } from "wagmi";
+import { useBytecode, useChainId } from "wagmi";
 
-import { exaPluginAddress, exaPreviewerAddress, previewerAddress } from "@exactly/common/generated/chain";
 import {
+  exaPluginAddress,
   useReadExaPreviewerPendingProposals,
   useReadPreviewerExactly,
   useReadUpgradeableModularAccountGetInstalledPlugins,
@@ -60,6 +60,7 @@ export default function Home() {
   const [visaSignatureModalOpen, setVisaSignatureModalOpen] = useState(false);
 
   const { address: account } = useAccount();
+  const chainId = useChainId();
   const { data: bytecode, refetch: refetchBytecode } = useBytecode({
     address: account ?? zeroAddress,
     query: { enabled: !!account },
@@ -70,7 +71,7 @@ export default function Home() {
   });
   const { portfolio, averageRate } = usePortfolio(account);
 
-  const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
+  const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress[chainId as keyof typeof exaPluginAddress];
   const { data: cardUpgradeOpen } = useQuery<boolean>({
     initialData: false,
     queryKey: ["card-upgrade-open"],
@@ -79,7 +80,6 @@ export default function Home() {
     },
   });
   const { refetch: refetchPendingProposals } = useReadExaPreviewerPendingProposals({
-    address: exaPreviewerAddress,
     args: [account ?? zeroAddress],
     query: { enabled: !!account && !!bytecode, gcTime: 0, refetchInterval: 30_000 },
   });
@@ -92,7 +92,7 @@ export default function Home() {
     data: markets,
     refetch: refetchMarkets,
     isPending: isPendingPreviewer,
-  } = useReadPreviewerExactly({ address: previewerAddress, args: [account ?? zeroAddress] });
+  } = useReadPreviewerExactly({ args: [account ?? zeroAddress] });
   const {
     data: KYCStatus,
     isFetched: isKYCFetched,

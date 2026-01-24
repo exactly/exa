@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { zeroAddress } from "viem";
 import { anvil } from "viem/chains";
 
-import chain, { previewerAddress } from "@exactly/common/generated/chain";
+import chain from "@exactly/common/generated/chain";
 import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { withdrawLimit } from "@exactly/lib";
 
@@ -36,7 +36,7 @@ export type ExternalAsset = {
 export default function useAccountAssets(options?: { sortBy?: "usdcFirst" | "usdValue" }) {
   const { address: account } = useAccount();
 
-  const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [account ?? zeroAddress] });
+  const { data: markets } = useReadPreviewerExactly({ args: [account ?? zeroAddress] });
 
   const { data: externalAssets, isPending: isExternalAssetsPending } = useQuery({
     queryKey: ["externalAssets", account],

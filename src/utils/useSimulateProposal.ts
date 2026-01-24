@@ -13,19 +13,16 @@ import {
   type Hex,
   type StateOverride,
 } from "viem";
-import { useBytecode, useSimulateContract } from "wagmi";
+import { useBytecode, useChainId, useSimulateContract } from "wagmi";
 
-import {
-  exaPluginAddress,
-  exaPreviewerAddress,
-  proposalManagerAddress,
-  swapperAddress,
-} from "@exactly/common/generated/chain";
 import {
   auditorAbi,
   exaPluginAbi,
+  exaPluginAddress,
   marketAbi,
   proposalManagerAbi,
+  proposalManagerAddress,
+  swapperAddress,
   upgradeableModularAccountAbi,
   useReadExaPreviewerAssets,
   useReadProposalManagerDelay,
@@ -85,6 +82,10 @@ export default function useSimulateProposal({
       receiver: Address | undefined;
     }
 )) {
+  const chainId = useChainId();
+  const plugin = exaPluginAddress[chainId as keyof typeof exaPluginAddress];
+  const manager = proposalManagerAddress[chainId as keyof typeof proposalManagerAddress];
+  const swapper = swapperAddress[chainId as keyof typeof swapperAddress];
   const proposalData =
     proposal.proposalType === ProposalType.BorrowAtMaturity
       ? proposal.maturity === undefined || proposal.maxAssets === undefined || proposal.receiver === undefined
@@ -198,10 +199,9 @@ export default function useSimulateProposal({
     query: { enabled: enabled && !!deployed && !!account && !!amount },
   });
 
-  const { data: proposalDelay } = useReadProposalManagerDelay({ address: proposalManagerAddress, query: { enabled } });
-  const { data: assets } = useReadExaPreviewerAssets({ address: exaPreviewerAddress, query: { enabled } });
+  const { data: proposalDelay } = useReadProposalManagerDelay({ query: { enabled } });
+  const { data: assets } = useReadExaPreviewerAssets({ query: { enabled } });
   const { data: nonce } = useReadProposalManagerQueueNonces({
-    address: proposalManagerAddress,
     args: [account ?? zeroAddress],
     query: { enabled: enabled && !!account },
   });
@@ -229,7 +229,7 @@ export default function useSimulateProposal({
     const proposalDataBytes = hexToBytes(proposalData);
     return [
       {
-        address: proposalManagerAddress,
+        address: manager,
         state: [
           {
             // nonces[account]
@@ -275,7 +275,7 @@ export default function useSimulateProposal({
               encodeAbiParameters(
                 [{ type: "address" }, { type: "bytes32" }],
                 [
-                  exaPluginAddress,
+                  plugin,
                   keccak256(
                     encodeAbiParameters(
                       [{ type: "bytes32" }, { type: "uint256" }],
@@ -287,7 +287,7 @@ export default function useSimulateProposal({
             ),
             value: encodeAbiParameters([{ type: "bool" }], [true]),
           },
-          ...[swapperAddress, ...assets.map(({ asset }) => asset)].map((target) => ({
+          ...[swapper, ...assets.map(({ asset }) => asset)].map((target) => ({
             // allowlist[target]
             slot: keccak256(encodeAbiParameters([{ type: "address" }, { type: "uint256" }], [target, 2n])),
             value: encodeAbiParameters([{ type: "bool" }], [true]),
@@ -295,7 +295,7 @@ export default function useSimulateProposal({
         ],
       },
     ] satisfies StateOverride;
-  }, [account, amount, assets, market, nonce, proposal.proposalType, proposalData]);
+  }, [account, amount, assets, manager, market, nonce, plugin, proposal.proposalType, proposalData, swapper]);
   const blockOverrides =
     proposalDelay === undefined
       ? undefined

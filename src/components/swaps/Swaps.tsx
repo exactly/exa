@@ -13,7 +13,6 @@ import { parse } from "valibot";
 import { formatUnits, parseUnits, zeroAddress } from "viem";
 import { useSimulateContract, useWriteContract } from "wagmi";
 
-import { previewerAddress } from "@exactly/common/generated/chain";
 import {
   auditorAbi,
   marketAbi,
@@ -77,7 +76,7 @@ export default function Swaps() {
   const { externalAssets, protocolAssets } = useAccountAssets();
   const [acknowledged, setAcknowledged] = useState(false);
   const [activeInput, setActiveInput] = useState<"from" | "to">("from");
-  const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [account ?? zeroAddress] });
+  const { data: markets } = useReadPreviewerExactly({ args: [account ?? zeroAddress] });
   const { data: tokens, isLoading: isTokensLoading } = useQuery({ queryKey: ["allowTokens"], queryFn: getAllowTokens });
   const {
     data: {

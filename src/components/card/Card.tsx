@@ -10,10 +10,10 @@ import { ScrollView, Separator, Spinner, Square, Switch, XStack, YStack } from "
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { zeroAddress } from "viem";
-import { useBytecode } from "wagmi";
+import { useBytecode, useChainId } from "wagmi";
 
-import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import {
+  marketUsdcAddress,
   useReadPreviewerExactly,
   useReadUpgradeableModularAccountGetInstalledPlugins,
 } from "@exactly/common/generated/hooks";
@@ -90,7 +90,10 @@ export default function Card() {
     : [];
   const totalSpent = weeklyPurchases.reduce((accumulator, item) => accumulator + item.usdAmount, 0);
 
-  const { queryKey, isFetching: isFetchingAsset } = useAsset(marketUSDCAddress);
+  const chainId = useChainId();
+  const { queryKey, isFetching: isFetchingAsset } = useAsset(
+    marketUsdcAddress[chainId as keyof typeof marketUsdcAddress],
+  );
   const { address } = useAccount();
   const {
     data: KYCStatus,
@@ -120,7 +123,6 @@ export default function Card() {
     refetch: refetchMarkets,
     isFetching: isFetchingMarkets,
   } = useReadPreviewerExactly({
-    address: previewerAddress,
     args: [address ?? zeroAddress],
   });
 

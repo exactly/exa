@@ -8,9 +8,13 @@ import { XStack, YStack } from "tamagui";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { formatUnits, parseUnits, zeroAddress } from "viem";
+import { useChainId } from "wagmi";
 
-import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
-import { useReadPreviewerExactly, useReadPreviewerPreviewBorrowAtMaturity } from "@exactly/common/generated/hooks";
+import {
+  marketUsdcAddress,
+  useReadPreviewerExactly,
+  useReadPreviewerPreviewBorrowAtMaturity,
+} from "@exactly/common/generated/hooks";
 import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
 import { borrowLimit, WAD, withdrawLimit } from "@exactly/lib";
 
@@ -40,8 +44,11 @@ export default function PaySelector() {
     return parseUnits(input.replaceAll(/\D/g, ".").replaceAll(/\.(?=.*\.)/g, ""), 6);
   }, [input]);
   const { address } = useAccount();
-  const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [address ?? zeroAddress] });
-  const exaUSDC = markets?.find(({ market }) => market === marketUSDCAddress);
+  const chainId = useChainId();
+  const { data: markets } = useReadPreviewerExactly({ args: [address ?? zeroAddress] });
+  const exaUSDC = markets?.find(
+    ({ market }) => market === marketUsdcAddress[chainId as keyof typeof marketUsdcAddress],
+  );
   const { firstMaturity } = useInstallments({
     totalAmount: assets,
     installments: 1,
@@ -179,7 +186,10 @@ export default function PaySelector() {
               {t("Available limit: {{asset}}", { asset: "USDC" })}
             </Text>
             <Text sensitive caption color="$uiNeutralPlaceholder">
-              {(markets ? Number(withdrawLimit(markets, marketUSDCAddress)) / 1e6 : 0).toLocaleString(language, {
+              {(markets
+                ? Number(withdrawLimit(markets, marketUsdcAddress[chainId as keyof typeof marketUsdcAddress])) / 1e6
+                : 0
+              ).toLocaleString(language, {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
               })}
@@ -204,7 +214,10 @@ export default function PaySelector() {
               {t("Credit limit: {{asset}}", { asset: "USDC" })}
             </Text>
             <Text sensitive caption color="$uiNeutralPlaceholder" numberOfLines={1}>
-              {(markets ? Number(borrowLimit(markets, marketUSDCAddress)) / 1e6 : 0).toLocaleString(language, {
+              {(markets
+                ? Number(borrowLimit(markets, marketUsdcAddress[chainId as keyof typeof marketUsdcAddress])) / 1e6
+                : 0
+              ).toLocaleString(language, {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
               })}
@@ -261,7 +274,8 @@ function InstallmentButton({
     t,
     i18n: { language },
   } = useTranslation();
-  const { market, account } = useAsset(marketUSDCAddress);
+  const chainId = useChainId();
+  const { market, account } = useAsset(marketUsdcAddress[chainId as keyof typeof marketUsdcAddress]);
   const calculationAssets = assets === 0n ? 100_000_000n : assets;
   const {
     data: installments,
@@ -273,7 +287,6 @@ function InstallmentButton({
     installments: installment,
   });
   const { data: borrowPreview, isLoading: isBorrowPreviewLoading } = useReadPreviewerPreviewBorrowAtMaturity({
-    address: previewerAddress,
     args: [market?.market ?? zeroAddress, BigInt(firstMaturity), calculationAssets],
     query: { enabled: !!market && !!account && !!firstMaturity && calculationAssets > 0n },
   });

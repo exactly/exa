@@ -7,10 +7,9 @@ import { ArrowRight } from "@tamagui/lucide-icons";
 import { Separator, XStack, YStack } from "tamagui";
 
 import { formatUnits, zeroAddress } from "viem";
-import { useBytecode } from "wagmi";
+import { useBytecode, useChainId } from "wagmi";
 
-import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
-import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
+import { marketUsdcAddress, useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { borrowLimit } from "@exactly/lib";
 
 import assetLogos from "../../utils/assetLogos";
@@ -23,6 +22,7 @@ import Text from "../shared/Text";
 
 export default function CreditLine() {
   const { address } = useAccount();
+  const chainId = useChainId();
   const router = useRouter();
   const {
     t,
@@ -30,7 +30,6 @@ export default function CreditLine() {
   } = useTranslation();
   const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
   const { data: markets } = useReadPreviewerExactly({
-    address: previewerAddress,
     args: [address ?? zeroAddress],
     query: { enabled: !!bytecode && !!address },
   });
@@ -46,7 +45,12 @@ export default function CreditLine() {
         <XStack alignItems="center" gap="$s2">
           <AssetLogo source={{ uri: assetLogos.USDC }} width={20} height={20} />
           <Text emphasized title2 sensitive>
-            {(markets ? Number(formatUnits(borrowLimit(markets, marketUSDCAddress), 6)) : 0).toLocaleString(language, {
+            {(markets
+              ? Number(
+                  formatUnits(borrowLimit(markets, marketUsdcAddress[chainId as keyof typeof marketUsdcAddress]), 6),
+                )
+              : 0
+            ).toLocaleString(language, {
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,
             })}
@@ -79,7 +83,7 @@ export default function CreditLine() {
           <Button
             onPress={() => {
               queryClient.setQueryData<Loan>(["loan"], () => ({
-                market: marketUSDCAddress,
+                market: marketUsdcAddress[chainId as keyof typeof marketUsdcAddress],
                 amount: undefined,
                 installments: undefined,
                 maturity: undefined,

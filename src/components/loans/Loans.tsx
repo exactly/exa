@@ -8,9 +8,9 @@ import { ArrowLeft, CircleHelp } from "@tamagui/lucide-icons";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import { zeroAddress } from "viem";
+import { useChainId } from "wagmi";
 
-import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
-import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
+import { marketUsdcAddress, useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 
 import CreditLine from "./CreditLine";
 import { presentArticle } from "../../utils/intercom";
@@ -26,10 +26,11 @@ import View from "../shared/View";
 export default function Loans() {
   const { t } = useTranslation();
   const parameters = useLocalSearchParams();
-  const { account } = useAsset(marketUSDCAddress);
+  const chainId = useChainId();
+  const { account } = useAsset(marketUsdcAddress[chainId as keyof typeof marketUsdcAddress]);
   const [paySheetOpen, setPaySheetOpen] = useState(false);
   const router = useRouter();
-  const { refetch, isPending } = useReadPreviewerExactly({ address: previewerAddress, args: [account ?? zeroAddress] });
+  const { refetch, isPending } = useReadPreviewerExactly({ args: [account ?? zeroAddress] });
   return (
     <SafeView fullScreen tab backgroundColor="$backgroundSoft">
       <View fullScreen backgroundColor="$backgroundMild">

@@ -23,10 +23,14 @@ import { enUS, es } from "date-fns/locale";
 import { digits, nonEmpty, pipe, safeParse, string } from "valibot";
 import { zeroAddress } from "viem";
 import { optimismSepolia } from "viem/chains";
-import { useBytecode } from "wagmi";
+import { useBytecode, useChainId } from "wagmi";
 
-import chain, { exaPluginAddress, marketUSDCAddress } from "@exactly/common/generated/chain";
-import { useReadUpgradeableModularAccountGetInstalledPlugins } from "@exactly/common/generated/hooks";
+import chain from "@exactly/common/generated/chain";
+import {
+  exaPluginAddress,
+  marketUsdcAddress,
+  useReadUpgradeableModularAccountGetInstalledPlugins,
+} from "@exactly/common/generated/hooks";
 import { WAD } from "@exactly/lib";
 
 import CalendarImage from "../../assets/images/calendar-rollover.svg";
@@ -43,8 +47,10 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function PaymentSheet({ open, onClose }: { onClose: () => void; open: boolean }) {
+  const chainId = useChainId();
   const { address } = useAccount();
-  const { market: USDCMarket } = useAsset(marketUSDCAddress);
+  const marketUSDC = marketUsdcAddress[chainId as keyof typeof marketUsdcAddress];
+  const { market: USDCMarket } = useAsset(marketUSDC);
   const { maturity: currentMaturity } = useLocalSearchParams();
   const router = useRouter();
   const [rolloverIntroOpen, setRolloverIntroOpen] = useState(false);
@@ -76,7 +82,7 @@ export default function PaymentSheet({ open, onClose }: { onClose: () => void; o
     ).catch(reportError);
   }, [address]);
 
-  const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
+  const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress[chainId as keyof typeof exaPluginAddress];
   if (!success || !USDCMarket) return;
   const { fixedBorrowPositions, usdPrice, decimals } = USDCMarket;
   const borrow = fixedBorrowPositions.find((b) => b.maturity === BigInt(maturity));

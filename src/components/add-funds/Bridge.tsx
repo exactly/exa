@@ -25,7 +25,7 @@ import {
 } from "viem";
 import { useReadContract, useSendCalls, useSendTransaction, useSimulateContract, useWriteContract } from "wagmi";
 
-import chain, { previewerAddress } from "@exactly/common/generated/chain";
+import chain from "@exactly/common/generated/chain";
 import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import shortenHex from "@exactly/common/shortenHex";
 import { WAD } from "@exactly/lib";
@@ -64,7 +64,7 @@ export default function Bridge() {
   const [destinationModalOpen, setDestinationModalOpen] = useState(false);
 
   const { address: account } = useAccount();
-  const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [zeroAddress] });
+  const { data: markets } = useReadPreviewerExactly({ args: [zeroAddress] });
 
   const [selectedSource, setSelectedSource] = useState<undefined | { address: string; chain: number }>();
   const [selectedDestinationAddress, setSelectedDestinationAddress] = useState<string | undefined>();

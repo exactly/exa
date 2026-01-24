@@ -19,7 +19,8 @@ import { encodeFunctionData, formatUnits, type Address } from "viem";
 import { anvil } from "viem/chains";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
-import chain, { mockSwapperAbi, swapperAddress } from "@exactly/common/generated/chain";
+import chain from "@exactly/common/generated/chain";
+import { swapperAbi, swapperAddress } from "@exactly/common/generated/hooks";
 import { Address as AddressSchema, Hex } from "@exactly/common/validation";
 
 import getPublicClient from "./publicClient";
@@ -52,9 +53,9 @@ export async function getRoute(
   if (chain.testnet || chain.id === anvil.id) {
     const client = await getPublicClient();
     const fromAmount = await client.readContract({
-      abi: mockSwapperAbi,
+      abi: swapperAbi,
       functionName: "getAmountIn",
-      address: parse(Hex, swapperAddress),
+      address: swapperAddress[chain.id as keyof typeof swapperAddress],
       args: [fromToken, toAmount, toToken],
     });
     return {
@@ -62,8 +63,8 @@ export async function getRoute(
       fromAmount,
       data: parse(
         Hex,
-        encodeFunctionData<typeof mockSwapperAbi>({
-          abi: mockSwapperAbi,
+        encodeFunctionData<typeof swapperAbi>({
+          abi: swapperAbi,
           functionName: "swapExactAmountOut",
           args: [fromToken, fromAmount, toToken, toAmount, receiver],
         }),

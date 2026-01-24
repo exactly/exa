@@ -9,7 +9,6 @@ import { ScrollView, XStack, YStack } from "tamagui";
 
 import { zeroAddress } from "viem";
 
-import { previewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 
 import assetLogos from "../../utils/assetLogos";
@@ -28,7 +27,7 @@ export default function Asset() {
   const { t } = useTranslation();
   const { address } = useAccount();
   const [selectedMarket, setSelectedMarket] = useState<string>();
-  const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [address ?? zeroAddress] });
+  const { data: markets } = useReadPreviewerExactly({ args: [address ?? zeroAddress] });
   return (
     <SafeView fullScreen>
       <View padded flexDirection="row" gap={10} paddingBottom="$s4" justifyContent="space-between" alignItems="center">

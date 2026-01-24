@@ -7,10 +7,13 @@ import { Square, XStack, YStack } from "tamagui";
 
 import { isAfter } from "date-fns";
 import { zeroAddress } from "viem";
-import { useBytecode } from "wagmi";
+import { useBytecode, useChainId } from "wagmi";
 
-import { exaPluginAddress, marketUSDCAddress } from "@exactly/common/generated/chain";
-import { useReadUpgradeableModularAccountGetInstalledPlugins } from "@exactly/common/generated/hooks";
+import {
+  exaPluginAddress,
+  marketUsdcAddress,
+  useReadUpgradeableModularAccountGetInstalledPlugins,
+} from "@exactly/common/generated/hooks";
 
 import GradientScrollView from "./GradientScrollView";
 import SafeView from "./SafeView";
@@ -43,6 +46,7 @@ export default function Success({
     t,
     i18n: { language },
   } = useTranslation();
+  const chainId = useChainId();
   const { externalAsset } = useAsset(selectedAsset);
   const { address } = useAccount();
   const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
@@ -50,7 +54,7 @@ export default function Success({
     address: address ?? zeroAddress,
     query: { enabled: !!address && !!bytecode },
   });
-  const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
+  const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress[chainId as keyof typeof exaPluginAddress];
   return (
     <GradientScrollView variant={isLatestPlugin ? "info" : "success"}>
       <SafeView flex={1} backgroundColor="transparent">
@@ -111,7 +115,11 @@ export default function Success({
                     </Text>
                     <Text title2 primary color="$uiNeutralPrimary">
                       {amount.toLocaleString(language, {
-                        maximumFractionDigits: selectedAsset && selectedAsset === marketUSDCAddress ? 2 : 8,
+                        maximumFractionDigits:
+                          selectedAsset &&
+                          selectedAsset === marketUsdcAddress[chainId as keyof typeof marketUsdcAddress]
+                            ? 2
+                            : 8,
                       })}
                     </Text>
                     <Text title2 primary color="$uiNeutralPrimary">

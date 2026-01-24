@@ -4,13 +4,14 @@ import { useTranslation } from "react-i18next";
 import { useMutation } from "@tanstack/react-query";
 import { waitForCallsStatus } from "@wagmi/core/actions";
 import { encodeAbiParameters, getAbiItem, keccak256, zeroAddress } from "viem";
-import { useBytecode, useSendCalls } from "wagmi";
+import { useBytecode, useChainId, useSendCalls } from "wagmi";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
-import chain, { exaPluginAddress } from "@exactly/common/generated/chain";
+import chain from "@exactly/common/generated/chain";
 import {
   exaPluginAbi,
+  exaPluginAddress,
   upgradeableModularAccountAbi,
   useReadExaPluginPluginManifest,
   useReadUpgradeableModularAccountGetInstalledPlugins,
@@ -24,6 +25,7 @@ import exa from "../../utils/wagmi/exa";
 
 export default function PluginUpgrade() {
   const { t } = useTranslation();
+  const chainId = useChainId();
   const { mutateAsync: mutateSendCalls } = useSendCalls();
   const { address } = useAccount();
   const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
@@ -32,8 +34,9 @@ export default function PluginUpgrade() {
       address,
       query: { refetchOnMount: true, enabled: !!address && !!bytecode },
     });
-  const { data: pluginManifest } = useReadExaPluginPluginManifest({ address: exaPluginAddress });
-  const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
+  const plugin = exaPluginAddress[chainId as keyof typeof exaPluginAddress];
+  const { data: pluginManifest } = useReadExaPluginPluginManifest();
+  const isLatestPlugin = installedPlugins?.[0] === plugin;
   const { data: uninstallPluginSimulation } = useSimulateUpgradeableModularAccountUninstallPlugin({
     address,
     args: [installedPlugins?.[0] ?? zeroAddress, "0x", "0x"],
@@ -56,7 +59,7 @@ export default function PluginUpgrade() {
             abi: upgradeableModularAccountAbi,
             functionName: "installPlugin",
             args: [
-              exaPluginAddress,
+              plugin,
               keccak256(
                 encodeAbiParameters(getAbiItem({ abi: exaPluginAbi, name: "pluginManifest" }).outputs, [
                   pluginManifest,

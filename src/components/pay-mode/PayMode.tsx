@@ -7,9 +7,9 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { ScrollView, XStack } from "tamagui";
 
 import { zeroAddress } from "viem";
+import { useChainId } from "wagmi";
 
-import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
-import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
+import { marketUsdcAddress, useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 
 import OverduePayments from "./OverduePayments";
 import PaymentSheet from "./PaymentSheet";
@@ -27,10 +27,11 @@ import View from "../shared/View";
 
 export default function PayMode() {
   const parameters = useLocalSearchParams();
-  const { account } = useAsset(marketUSDCAddress);
+  const chainId = useChainId();
+  const { account } = useAsset(marketUsdcAddress[chainId as keyof typeof marketUsdcAddress]);
   const [paySheetOpen, setPaySheetOpen] = useState(false);
   const router = useRouter();
-  const { refetch, isPending } = useReadPreviewerExactly({ address: previewerAddress, args: [account ?? zeroAddress] });
+  const { refetch, isPending } = useReadPreviewerExactly({ args: [account ?? zeroAddress] });
 
   const scrollRef = useRef<ScrollView>(null);
   const refresh = () => {

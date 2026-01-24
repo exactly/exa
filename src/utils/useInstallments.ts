@@ -1,6 +1,8 @@
 import { useMemo } from "react";
 
-import { marketUSDCAddress } from "@exactly/common/generated/chain";
+import { useChainId } from "wagmi";
+
+import { marketUsdcAddress } from "@exactly/common/generated/hooks";
 import MIN_BORROW_INTERVAL from "@exactly/common/MIN_BORROW_INTERVAL";
 import { fixedUtilization, globalUtilization, MATURITY_INTERVAL, splitInstallments } from "@exactly/lib";
 
@@ -12,7 +14,7 @@ import type { Hex } from "@exactly/common/validation";
 export default function useInstallments({
   totalAmount,
   installments,
-  marketAddress = marketUSDCAddress,
+  marketAddress,
   timestamp = Math.floor(Date.now() / 1000),
 }: {
   installments: number;
@@ -20,7 +22,8 @@ export default function useInstallments({
   timestamp?: number;
   totalAmount: bigint;
 }) {
-  const { market } = useAsset(marketAddress);
+  const chainId = useChainId();
+  const { market } = useAsset(marketAddress ?? marketUsdcAddress[chainId as keyof typeof marketUsdcAddress]);
 
   return useMemo(() => {
     const isLoading = !market;

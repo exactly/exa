@@ -11,13 +11,13 @@ import { ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
 
 import { nonEmpty, pipe, safeParse, string } from "valibot";
 import { ContractFunctionExecutionError, encodeAbiParameters, zeroAddress } from "viem";
-import { useBytecode, useWriteContract } from "wagmi";
+import { useBytecode, useChainId, useSimulateContract, useWriteContract } from "wagmi";
 
-import { exaPreviewerAddress, marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import {
+  exaPluginAbi,
+  marketUsdcAddress,
   useReadExaPreviewerPendingProposals,
   useReadPreviewerPreviewBorrowAtMaturity,
-  useSimulateExaPluginPropose,
 } from "@exactly/common/generated/hooks";
 import ProposalType from "@exactly/common/ProposalType";
 import { MATURITY_INTERVAL, WAD } from "@exactly/lib";
@@ -36,10 +36,12 @@ export default function Pay() {
     t,
     i18n: { language },
   } = useTranslation();
+  const chainId = useChainId();
   const { address } = useAccount();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { market: exaUSDC } = useAsset(marketUSDCAddress);
+  const marketUsdc = marketUsdcAddress[chainId as keyof typeof marketUsdcAddress];
+  const { market: exaUSDC } = useAsset(marketUsdc);
   const { success, output: repayMaturity } = safeParse(
     pipe(string(), nonEmpty("no maturity")),
     useLocalSearchParams().maturity,
@@ -54,8 +56,7 @@ export default function Pay() {
   const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
 
   const { data: borrowPreview } = useReadPreviewerPreviewBorrowAtMaturity({
-    address: previewerAddress,
-    args: [marketUSDCAddress, BigInt(borrowMaturity), borrow?.previewValue ?? 0n],
+    args: [marketUsdc, BigInt(borrowMaturity), borrow?.previewValue ?? 0n],
     query: { enabled: !!bytecode && !!exaUSDC && !!borrow && !!address && !!borrowMaturity },
   });
 
@@ -225,19 +226,23 @@ function RolloverButton({
   repayMaturity: bigint;
 }) {
   const { t } = useTranslation();
+  const chainId = useChainId();
   const { address } = useAccount();
   const router = useRouter();
   const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
   const toast = useToastController();
+  const marketUsdc = marketUsdcAddress[chainId as keyof typeof marketUsdcAddress];
 
   const slippage = (WAD * 105n) / 100n;
   const maxRepayAssets = (borrow.previewValue * slippage) / WAD;
   const percentage = WAD;
 
-  const { data: proposeSimulation } = useSimulateExaPluginPropose({
+  const { data: proposeSimulation } = useSimulateContract({
     address,
+    abi: exaPluginAbi,
+    functionName: "propose",
     args: [
-      marketUSDCAddress,
+      marketUsdc,
       maxRepayAssets,
       ProposalType.RollDebt,
       encodeAbiParameters(
@@ -263,7 +268,6 @@ function RolloverButton({
     refetch: refetchPendingProposals,
     isPending: isPendingProposalsPending,
   } = useReadExaPreviewerPendingProposals({
-    address: exaPreviewerAddress,
     args: [address ?? zeroAddress],
     query: { enabled: !!address && !!bytecode, gcTime: 0, refetchInterval: 30_000 },
   });
@@ -302,7 +306,7 @@ function RolloverButton({
 
   const hasProposed = pendingProposals?.some(
     ({ proposal }) =>
-      proposal.market === marketUSDCAddress &&
+      proposal.market === marketUsdc &&
       proposal.proposalType === (ProposalType.RollDebt as number) &&
       proposal.amount === maxRepayAssets,
   );
