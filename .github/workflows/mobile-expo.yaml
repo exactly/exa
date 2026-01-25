@@ -52,6 +52,12 @@ jobs:
       - run: eas update --auto --channel ${{ inputs.profile }} --platform all --non-interactive
       - run: echo "release=$(node -e 'console.log(require(`./src/generated/release`))')" >> $GITHUB_OUTPUT
         id: release
+      - run: npx sentry-expo-upload-sourcemaps dist
+        env:
+          SENTRY_ORG: exactly
+          SENTRY_PROJECT: exa
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_RELEASE: ${{ steps.release.outputs.release }}
       - uses: getsentry/action-release@v3 # cspell:ignore getsentry
         env:
           SENTRY_ORG: exactly
@@ -61,4 +67,3 @@ jobs:
           environment: ${{ inputs.profile }}
           release: ${{ steps.release.outputs.release }}
           finalize: ${{ inputs.profile == 'production' }}
-          sourcemaps: dist
