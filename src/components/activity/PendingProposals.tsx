@@ -16,9 +16,6 @@ import {
 } from "@tamagui/lucide-icons";
 import { XStack, YStack } from "tamagui";
 
-import { extractChain, type Chain } from "viem";
-import * as chains from "viem/chains";
-
 import chain from "@exactly/common/generated/chain";
 import ProposalType, {
   decodeBorrowAtMaturity,
@@ -30,6 +27,7 @@ import ProposalType, {
 import shortenHex from "@exactly/common/shortenHex";
 
 import { presentArticle } from "../../utils/intercom";
+import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAsset from "../../utils/useAsset";
 import usePendingOperations from "../../utils/usePendingOperations";
@@ -37,7 +35,7 @@ import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-import type { RouteFrom } from "../../utils/lifi";
+import type { BridgeSources, RouteFrom } from "../../utils/lifi";
 import type { MutationState } from "@tanstack/react-query";
 import type { TFunction } from "i18next";
 
@@ -300,10 +298,11 @@ function ProposalItem({ proposal }: { proposal: Proposal }) {
 
 function MutationItem({ mutation }: { mutation: MutationState<unknown, Error, RouteFrom> & { id: number } }) {
   const { t } = useTranslation();
-  const { name: sourceChainName } = extractChain({
-    chains: Object.values(chains) as unknown as readonly [Chain, ...Chain[]],
-    id: mutation.variables?.chainId ?? 0,
-  });
+  const chainId = mutation.variables?.chainId ?? 0;
+  const bridgeSources = queryClient.getQueriesData<BridgeSources>({ queryKey: ["bridge", "sources"] });
+  const sourceChainName =
+    bridgeSources.flatMap(([, data]) => data?.chains ?? []).find((c) => c.id === chainId)?.name ??
+    t("Chain {{id}}", { id: chainId });
   // TODO map values to other supported mutations
   return (
     <XStack gap="$s4" paddingVertical="$s3">

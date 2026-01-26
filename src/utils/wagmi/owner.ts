@@ -2,8 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { sdk } from "@farcaster/miniapp-sdk";
 import { farcasterMiniApp as miniAppConnector } from "@farcaster/miniapp-wagmi-connector";
-import { http } from "viem";
-import * as chains from "viem/chains";
+import { createClient, http, type Chain } from "viem";
 import { createConfig, createStorage, custom, injected } from "wagmi";
 
 import chain from "@exactly/common/generated/chain";
@@ -11,15 +10,22 @@ import chain from "@exactly/common/generated/chain";
 import publicClient from "../publicClient";
 
 const config = createConfig({
-  chains: [chain, ...Object.values(chains)],
+  chains: [chain],
   connectors: [miniAppConnector(), injected()],
-  transports: {
-    ...Object.fromEntries(Object.values(chains).map((c) => [c.id, http()])),
-    [chain.id]: custom(publicClient),
+  client({ chain: c }) {
+    return createClient({ chain: c, transport: c.id === chain.id ? custom(publicClient) : http() });
   },
   storage: createStorage({ key: "wagmi.owner", storage: AsyncStorage }),
 });
 export default config;
+
+export function addChains(newChains: readonly Chain[]) {
+  const current = config.chains;
+  const ids = new Set(current.map((c) => c.id));
+  const toAdd = newChains.filter((c) => !ids.has(c.id));
+  if (toAdd.length === 0) return;
+  config._internal.chains.setState([...current, ...toAdd]);
+}
 
 export async function getConnector() {
   const miniApp = await sdk.isInMiniApp();
