@@ -79,10 +79,13 @@
             "env": "EAS_BUILD_RUNNER"
           },
           {
+            "externalDependencies": ["@exactly/protocol"]
+          },
+          {
             "dependentTasksOutputFiles": "contracts/out/**/*.json"
           },
           {
-            "dependentTasksOutputFiles": "contracts/broadcast/*/31337/*.json"
+            "dependentTasksOutputFiles": "contracts/broadcast/**/run-latest.json"
           }
         ],
         "dependsOn": [

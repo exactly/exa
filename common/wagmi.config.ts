@@ -129,6 +129,10 @@ function pluginAddresses(contract: keyof typeof PLUGIN_BROADCASTS) {
   return result;
 }
 
+function anvilAddress(address: string): Record<number, `0x${string}`> {
+  return chainId === anvil.id ? { [anvil.id]: getAddress(address) } : {};
+}
+
 const auditor = loadDeployment("Auditor");
 const marketUSDC = loadDeployment("MarketUSDC");
 const marketWETH = loadDeployment("MarketWETH");
@@ -162,6 +166,7 @@ export default defineConfig([
           [optimismSepolia.id]: getAddress(AuditorOpSepolia.address),
           [base.id]: getAddress(Auditor.address),
           [baseSepolia.id]: getAddress(AuditorBaseSepolia.address),
+          ...anvilAddress(auditor.address),
         },
       },
       {
@@ -172,6 +177,7 @@ export default defineConfig([
           [optimismSepolia.id]: getAddress(IntegrationPreviewerOpSepolia.address),
           [base.id]: getAddress(IntegrationPreviewer.address),
           [baseSepolia.id]: getAddress(IntegrationPreviewerBaseSepolia.address),
+          ...anvilAddress(integrationPreviewer.address),
         },
       },
       {
@@ -188,6 +194,7 @@ export default defineConfig([
           [optimismSepolia.id]: getAddress(MarketUSDCOpSepolia.address),
           [base.id]: getAddress(MarketUSDCBase.address),
           [baseSepolia.id]: getAddress(MarketUSDCBaseSepolia.address),
+          ...anvilAddress(marketUSDC.address),
         },
       },
       {
@@ -198,6 +205,7 @@ export default defineConfig([
           [optimismSepolia.id]: getAddress(MarketWETHOpSepolia.address),
           [base.id]: getAddress(Market.address),
           [baseSepolia.id]: getAddress(MarketWETHBaseSepolia.address),
+          ...anvilAddress(marketWETH.address),
         },
       },
       {
@@ -208,6 +216,7 @@ export default defineConfig([
           [optimismSepolia.id]: getAddress(PreviewerOpSepolia.address),
           [base.id]: getAddress(Previewer.address),
           [baseSepolia.id]: getAddress(PreviewerBaseSepolia.address),
+          ...anvilAddress(previewer.address),
         },
       },
       {
@@ -218,6 +227,7 @@ export default defineConfig([
           [optimismSepolia.id]: getAddress(RatePreviewerOpSepolia.address),
           [base.id]: getAddress(RatePreviewer.address),
           [baseSepolia.id]: getAddress(RatePreviewerBaseSepolia.address),
+          ...anvilAddress(ratePreviewer.address),
         },
       },
       {
@@ -228,6 +238,7 @@ export default defineConfig([
           [optimismSepolia.id]: getAddress(USDCOpSepolia.address),
           [base.id]: getAddress(USDCBase.address),
           [baseSepolia.id]: getAddress(USDCBaseSepolia.address),
+          ...anvilAddress(usdc.address),
         },
       },
       {
@@ -238,6 +249,7 @@ export default defineConfig([
           [optimismSepolia.id]: getAddress(WETHOpSepolia.address),
           [base.id]: getAddress(WETHBase.address),
           [baseSepolia.id]: getAddress(WETHBaseSepolia.address),
+          ...anvilAddress(weth.address),
         },
       },
       { name: "ExaPlugin", abi: ExaPluginArtifact.abi as Abi, address: pluginAddresses("ExaPlugin") },
