@@ -1,9 +1,40 @@
 import createDebug from "debug";
+import { createReadStream } from "node:fs";
+import { createInterface } from "node:readline";
 import { inspect } from "node:util";
 import { safeParse, ValiError, type InferOutput } from "valibot";
 
 import * as persona from "../utils/persona";
 import { buildIssueMessages } from "../utils/validatorHook";
+
+type FilterMode = "none" | "only-failed" | "skip-completed";
+
+type CsvEntry = {
+  accountId: string;
+  referenceId: string;
+};
+
+async function loadEntriesFromCsv(csvPath: string): Promise<CsvEntry[]> {
+  const entries: CsvEntry[] = [];
+  // eslint-disable-next-line security/detect-non-literal-fs-filename
+  const fileStream = createReadStream(csvPath);
+  const rl = createInterface({ input: fileStream, crlfDelay: Number.POSITIVE_INFINITY });
+
+  let isHeader = true;
+  for await (const line of rl) {
+    if (isHeader) {
+      isHeader = false;
+      continue;
+    }
+    // parse csv line: "referenceId","accountId","status"
+    const match = /^"([^"]*)","([^"]*)"/.exec(line);
+    if (match?.[1] && match[2]) {
+      entries.push({ referenceId: match[1], accountId: match[2] });
+    }
+  }
+
+  return entries;
+}
 
 const BATCH_SIZE = 10;
 
@@ -17,6 +48,8 @@ let all = false;
 let onlyLogs = false;
 let initialNext: string | undefined;
 let onlyPandaTemplates = false;
+let filterMode: FilterMode = "none";
+let filterCsvPath: string | undefined;
 
 const options = process.argv.slice(2);
 for (const option of options) {
@@ -36,6 +69,14 @@ for (const option of options) {
       break;
     case option.startsWith("--only-panda-templates"):
       onlyPandaTemplates = true;
+      break;
+    case option.startsWith("--skip-completed="):
+      filterMode = "skip-completed";
+      filterCsvPath = option.split("=")[1];
+      break;
+    case option.startsWith("--only-failed="):
+      filterMode = "only-failed";
+      filterCsvPath = option.split("=")[1];
       break;
     default:
       unexpected(`❌ unknown option: ${option}`);
@@ -60,8 +101,15 @@ let failedAccounts = 0;
 let inquirySchemaErrors = 0;
 let noReferenceIdAccounts = 0;
 let totalAccounts = 0;
+let skippedByFilter = 0;
 
 async function main() {
+  if (filterMode === "only-failed" && filterCsvPath) {
+    await processOnlyFailed(filterCsvPath);
+    printSummary();
+    return;
+  }
+
   if (all) {
     log("🔍 Processing all accounts");
   } else if (reference) {
@@ -69,6 +117,14 @@ async function main() {
   } else {
     unexpected("❌ please provide --reference-id=<id> or --all is required");
     throw new Error("missing --reference-id=<id> or --all");
+  }
+
+  let skipSet: Set<string> | undefined;
+  if (filterMode === "skip-completed" && filterCsvPath) {
+    const entries = await loadEntriesFromCsv(filterCsvPath);
+    skipSet = new Set(entries.map((entry) => entry.referenceId));
+    log(`📋 Loaded ${skipSet.size} reference IDs to skip from ${filterCsvPath}`);
+    log("🔄 Mode: skip-completed (will skip accounts in CSV)");
   }
 
   let next = initialNext;
@@ -100,7 +156,16 @@ async function main() {
             warn(`Account ${account.id} has no reference id`);
             continue;
           }
-          await processAccount(account.id, account.attributes["reference-id"]);
+
+          const accountReferenceId = account.attributes["reference-id"];
+
+          if (skipSet?.has(accountReferenceId)) {
+            skippedByFilter++;
+            debug(`⏭️ Skipping completed account ${accountReferenceId}/${account.id}`);
+            continue;
+          }
+
+          await processAccount(account.id, accountReferenceId);
         } catch (error: unknown) {
           unexpected(
             `❌ Failed to process batch ${batch}, next: ${next ?? "undefined"}, account: ${account.id}/${account.attributes["reference-id"]} due to: ${inspect(error, { depth: null, colors: true })}`,
@@ -125,8 +190,44 @@ async function main() {
     }
   }
 
+  printSummary();
+}
+
+async function processOnlyFailed(csvPath: string) {
+  const entries = await loadEntriesFromCsv(csvPath);
+  log(`📋 Loaded ${entries.length} failed accounts from ${csvPath}`);
+  log("🔄 Mode: only-failed (processing accounts directly from CSV)");
+
+  totalAccounts = entries.length;
+
+  for (let index = 0; index < entries.length; index++) {
+    const entry = entries[index];
+    if (!entry) continue;
+
+    const { referenceId, accountId } = entry;
+
+    if (index % BATCH_SIZE === 0) {
+      log(`\n ----- Processing batch ${Math.floor(index / BATCH_SIZE)} (${index}/${entries.length}) -----`);
+    }
+
+    try {
+      await processAccount(accountId, referenceId);
+    } catch (error: unknown) {
+      unexpected(
+        `❌ Failed to process account ${accountId}/${referenceId} due to: ${inspect(error, { depth: null, colors: true })}`,
+      );
+      failedAccounts++;
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+  }
+}
+
+function printSummary() {
   log(`\n ----- Migration summary -----`);
   log(`🔍 Total accounts processed: ${totalAccounts}`);
+  if (skippedByFilter > 0) {
+    log(`⏭️ Skipped by filter: ${skippedByFilter}`);
+  }
   log(`🔍 Redacted inquiries: ${redactedInquiries}`);
   log(`🔍 No approved inquiry accounts, redaction needed: ${noApprovedInquiryAccounts}`);
   log(` ---------------------------------`);
