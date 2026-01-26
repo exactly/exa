@@ -96,6 +96,7 @@ export default function Home() {
   const {
     data: KYCStatus,
     isFetched: isKYCFetched,
+    isPending: isPendingKYC,
     refetch: refetchKYCStatus,
   } = useQuery({
     queryKey: ["kyc", "status"],
@@ -182,8 +183,8 @@ export default function Home() {
                   }}
                 />
               )}
-              <GettingStarted isDeployed={!!bytecode} hasKYC={isKYCApproved} />
-              {isKYCApproved && <BenefitsSection />}
+              {!isPendingKYC && <GettingStarted isDeployed={!!bytecode} hasKYC={isKYCApproved} />}
+              {isKYCFetched && isKYCApproved && <BenefitsSection />}
               <OverduePayments
                 onSelect={(maturity) => {
                   router.setParams({ ...parameters, maturity: String(maturity) });

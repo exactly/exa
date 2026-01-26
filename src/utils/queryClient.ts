@@ -15,7 +15,7 @@ import type { getActivity } from "./server";
 import type { PersistedClient } from "@tanstack/query-persist-client-core";
 import type { Address } from "viem";
 
-const INVALIDATE_ON_UPGRADE = new Set(["kyc"]);
+const INVALIDATE_ON_UPGRADE = new Set(["kyc", "card", "pax"]);
 
 function versionAwareDeserialize(cache: string): PersistedClient {
   const persistedClient: PersistedClient = deserialize(cache);
@@ -63,7 +63,12 @@ export const hydrated =
 
 const dehydrateOptions = {
   shouldDehydrateQuery: ({ queryKey, state }: Query) =>
-    state.status === "success" && queryKey[0] !== "activity" && queryKey[0] !== "externalAssets",
+    state.status === "success" &&
+    queryKey[0] !== "activity" &&
+    queryKey[0] !== "externalAssets" &&
+    queryKey[0] !== "kyc" &&
+    queryKey[0] !== "card" &&
+    queryKey[0] !== "pax",
 };
 
 if (typeof window !== "undefined") {

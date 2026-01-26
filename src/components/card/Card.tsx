@@ -96,6 +96,7 @@ export default function Card() {
     data: KYCStatus,
     refetch: refetchKYCStatus,
     isFetching: isFetchingKYC,
+    isPending: isPendingKYC,
   } = useQuery({
     queryKey: ["kyc", "status"],
     queryFn: async () => getKYCStatus(),
@@ -302,7 +303,7 @@ export default function Card() {
                     </Pressable>
                   </View>
                 </XStack>
-                {(usdBalance === 0n || !isKYCApproved) && (
+                {!isPendingKYC && (usdBalance === 0n || !isKYCApproved) && (
                   <InfoAlert
                     title={t("Your card is awaiting activation. Follow the steps to enable it.")}
                     actionText={t("Get started")}
