@@ -47,7 +47,12 @@ jobs:
           export ANDROID_AVD_HOME="$AVD_DIR"
 
           avdmanager -s create avd -n e2e -k "system-images;android-34;google_apis;x86_64" --force
-          printf '%s\n' "hw.ramSize=16384" "vm.heapSize=1024" "hw.camera.front=emulated" "hw.camera.back=emulated" "hw.gpu.mode=off" "hw.gpu.enabled=no" >> "$AVD_DIR/e2e.avd/config.ini"
+          # override gpu: sed replaces first occurrence; append if missing
+          sed -i 's/^hw\.gpu\.enabled=.*/hw.gpu.enabled=no/' "$AVD_DIR/e2e.avd/config.ini"
+          sed -i 's/^hw\.gpu\.mode=.*/hw.gpu.mode=off/' "$AVD_DIR/e2e.avd/config.ini"
+          grep -q '^hw\.gpu\.enabled=' "$AVD_DIR/e2e.avd/config.ini" || echo 'hw.gpu.enabled=no' >> "$AVD_DIR/e2e.avd/config.ini"
+          grep -q '^hw\.gpu\.mode=' "$AVD_DIR/e2e.avd/config.ini" || echo 'hw.gpu.mode=off' >> "$AVD_DIR/e2e.avd/config.ini"
+          printf '%s\n' "hw.ramSize=16384" "vm.heapSize=1024" "hw.camera.front=emulated" "hw.camera.back=emulated" >> "$AVD_DIR/e2e.avd/config.ini"
 
           echo "--- tmpfs diagnostics ---"
           df -h /dev/shm

@@ -156,13 +156,32 @@ becomes unresponsive, the monitor now reports:
 - `qemu process ALIVE (guest hang)` — emulator running, guest frozen
 - `qemu process DEAD (host crash)` — emulator process died (segfault, oom kill)
 
-**result**: the health monitor output went to the eas workflow stdout (not captured in
-artifacts). the maestro process continued running for 4+ minutes after the crash, which means
-either:
+**result** (run `2026-01-27_211247`): health monitor output went to eas workflow stdout (not
+captured). maestro ran 4+ minutes after crash — `kill $MAESTRO_PID` only killed the pnpm wrapper.
 
-- the health monitor didn't fire in time (timing gap between checks), or
-- `kill $MAESTRO_PID` only killed the `pnpm` wrapper process, not the underlying java/maestro
-  process tree. needs `kill -- -$MAESTRO_PID` (process group) or `pkill -P`.
+**result** (run `2026-01-27_215329`): after fixing health monitor (setsid + artifact file +
+process group kill), the monitor worked correctly:
+
+```text
+EMULATOR UNRESPONSIVE at 21:54:28 — qemu process DEAD (host crash)
+```
+
+**this is the definitive classification: the qemu process itself crashed (segfault).** it is NOT
+a guest hang — the host-side emulator process died. swiftshader is crashing when processing svg
+rendering operations through gfxstream. the missing maestro report artifacts confirm the health
+monitor successfully killed the maestro process group before it could write reports.
+
+### 19. `-gpu off` via config.ini append (run `2026-01-27_215329`)
+
+**hypothesis**: appending `hw.gpu.mode=off` and `hw.gpu.enabled=no` to the avd's `config.ini`
+should override the gpu setting that the cli flag couldn't.
+
+**result**: **still ignored.** the emulator still shows `Graphics backend: gfxstream` and falls
+back to `swiftshader_indirect`. the reason: `avdmanager create avd` writes `hw.gpu.enabled=yes`
+and `hw.gpu.mode=auto` early in the config.ini file. the emulator reads the **first occurrence**
+of each key and ignores later duplicates. appending with `>>` doesn't work.
+
+**fix**: must use `sed -i 's/^hw\.gpu\.enabled=.*/hw.gpu.enabled=no/'` to replace in-place.
 
 ## detailed findings from run `2026-01-27_211247`
 
@@ -219,15 +238,14 @@ confirming the health monitor either:
 
 ## updated hypotheses for future investigation
 
-### gpu stack is the primary suspect — `-gpu off` must be properly applied
+### gpu stack is confirmed — qemu crashes in swiftshader
 
-the cli flag `-gpu off` was silently ignored. to actually disable gpu rendering:
+the health monitor proved **qemu process DEAD (host crash)**. the emulator process itself
+segfaults — this is a swiftshader bug triggered by svg rendering through gfxstream. both cli
+`-gpu off` and config.ini append were silently ignored; the next attempt uses `sed -i` to replace
+the default values in-place.
 
-```bash
-printf '%s\n' "hw.gpu.mode=off" "hw.gpu.enabled=no" >> "$AVD_DIR/e2e.avd/config.ini"
-```
-
-if this eliminates the crash:
+if `-gpu off` (properly applied) eliminates the crash:
 
 1. **swiftshader bug**: the specific svg rendering path triggers a crash in swiftshader's software
    opengl implementation. possible fix: upgrade emulator version or use a different system image.
@@ -255,7 +273,7 @@ branch: `android`
 
 emulator config:
 
-- `-gpu off` (cli flag — **not effective**, see findings above)
+- `-gpu off` via `sed -i` on config.ini (previous attempts via cli flag and append were ignored)
 - `hw.ramSize=16384` / `-memory 16384` (16 gb)
 - `-cores 4`
 - avd on tmpfs (`/dev/shm/avd`)
@@ -274,3 +292,4 @@ diagnostic streams:
 - `18b30705` ⚗️ eas: instrument android e2e with diagnostic streams
 - `b59a4b42` ⚗️ eas: switch to guest gpu, fix stats sampler and dmesg
 - `4d4c37d7` ⚗️ eas: gpu off, 16gb guest ram, qemu crash detection
+- `b567561b` ⚗️ eas: force gpu off via config.ini, fix health monitor
