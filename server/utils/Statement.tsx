@@ -138,7 +138,7 @@ const Statement = (statement: {
           </View>
         </View>
         {repayments.length > 0 && (
-          <>
+          <View>
             <Text style={styles.sectionHeader}>Payments</Text>
             {repayments.map((item, index) => (
               <View key={index}>
@@ -157,10 +157,10 @@ const Statement = (statement: {
                 </View>
               </View>
             ))}
-          </>
+          </View>
         )}
         {purchases.length > 0 && (
-          <>
+          <View>
             <Text style={styles.sectionHeader}>Purchases</Text>
             {purchases.map((item, index) => (
               <View key={index}>
@@ -185,7 +185,7 @@ const Statement = (statement: {
                 </View>
               </View>
             ))}
-          </>
+          </View>
         )}
       </Page>
     </Document>
