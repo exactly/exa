@@ -52,10 +52,11 @@ export default function HTML({ children }: { children: ReactNode }) {
             /* #region layout */
             html,
             body {
-              width: 100vw;
+              width: 100%;
               height: 100dvh;
               margin: 0;
               padding: 0;
+              overflow: hidden;
               display: flex;
               justify-content: center;
               align-items: center;
@@ -68,7 +69,7 @@ export default function HTML({ children }: { children: ReactNode }) {
             }
 
             .sheet-frame {
-              max-width: min(100vw, calc(100dvh * 9 / 16));
+              max-width: min(100%, calc(100dvh * 9 / 16));
               margin: 0 auto;
             }
             /* #endregion */
@@ -76,7 +77,7 @@ export default function HTML({ children }: { children: ReactNode }) {
             /* #region aspect ratio */
             @media (hover: none) and (pointer: coarse) {
               #root {
-                width: 100vw;
+                width: 100%;
                 height: 100dvh;
                 aspect-ratio: auto;
               }
@@ -85,22 +86,22 @@ export default function HTML({ children }: { children: ReactNode }) {
             @media (hover: none) and (pointer: coarse) and (min-width: 768px) {
               #root {
                 aspect-ratio: 9 / 16;
-                width: min(100vw, calc(100dvh * 9 / 16));
-                height: min(100dvh, calc(100vw * 16 / 9));
+                width: min(100%, calc(100dvh * 9 / 16));
+                height: min(100dvh, calc(100% * 16 / 9));
               }
             }
 
             @media (pointer: fine) and (min-aspect-ratio: 9/16) {
               #root {
                 aspect-ratio: 9 / 16;
-                width: min(100vw, calc(100dvh * 9 / 16));
-                height: min(100dvh, calc(100vw * 16 / 9));
+                width: min(100%, calc(100dvh * 9 / 16));
+                height: min(100dvh, calc(100% * 16 / 9));
               }
             }
 
             @media (pointer: fine) and (max-aspect-ratio: 9/16) {
               #root {
-                width: 100vw;
+                width: 100%;
                 height: 100dvh;
               }
             }
