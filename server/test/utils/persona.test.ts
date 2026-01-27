@@ -10,6 +10,11 @@ vi.mock("../../utils/panda");
 vi.mock("../../utils/pax");
 vi.mock("@sentry/node", { spy: true });
 
+function getFirst<T>(items: T[]): T {
+  if (items.length !== 1) throw new Error("expected exactly one element");
+  return items[0] as T;
+}
+
 describe("is missing or null util", () => {
   const schema = object({
     field1: string(),
@@ -162,14 +167,14 @@ describe("is missing or null util", () => {
 
 describe("evaluateAccount", () => {
   it("throws when scope is not supported", () => {
-    expect(() => persona.evaluateAccount({ data: [] }, "invalid" as persona.AccountScope)).toThrow(
-      "unhandled account scope: invalid",
-    );
+    expect(() =>
+      persona.evaluateAccount({ data: [], links: { next: null } }, "invalid" as persona.AccountScope),
+    ).toThrow("unhandled account scope: invalid");
   });
 
   describe("basic", () => {
     it("returns panda template when account not found", () => {
-      const result = persona.evaluateAccount({ data: [] }, "basic");
+      const result = persona.evaluateAccount({ data: [], links: { next: null } }, "basic");
 
       expect(result).toBe(persona.PANDA_TEMPLATE);
     });
@@ -189,7 +194,10 @@ describe("evaluateAccount", () => {
     it("throws when account exists but is invalid", () => {
       expect(() =>
         persona.evaluateAccount(
-          { data: [{ id: "acc-123", type: "account", attributes: { "country-code": 3 } }] },
+          {
+            data: [{ id: "acc-123", attributes: { "reference-id": null, "country-code": 3 } }],
+            links: { next: null },
+          },
           "basic",
         ),
       ).toThrow(persona.scopeValidationErrors.INVALID_SCOPE_VALIDATION);
@@ -198,7 +206,7 @@ describe("evaluateAccount", () => {
 
   describe("manteca", () => {
     it("returns panda template when account not found", () => {
-      const result = persona.evaluateAccount({ data: [] }, "manteca");
+      const result = persona.evaluateAccount({ data: [], links: { next: null } }, "manteca");
 
       expect(result).toBe(persona.PANDA_TEMPLATE);
     });
@@ -213,13 +221,13 @@ describe("evaluateAccount", () => {
       expect(() =>
         persona.evaluateAccount(
           {
+            links: { next: null },
             data: [
               {
-                ...mantecaAccount.data[0],
-                type: "account" as const,
+                ...getFirst(mantecaAccount.data),
                 id: "test-account-id",
                 attributes: {
-                  ...mantecaAccount.data[0]?.attributes,
+                  ...getFirst(mantecaAccount.data).attributes,
                   "country-code": "XX",
                 },
               },
@@ -237,22 +245,24 @@ describe("evaluateAccount", () => {
     });
 
     it("returns manteca template when new account has a id class that is not allowed", () => {
+      const basic = getFirst(basicAccount.data);
+      const document = getFirst(basic.attributes.fields.documents.value);
       const result = persona.evaluateAccount(
         {
+          links: { next: null },
           data: [
             {
-              ...basicAccount.data[0],
-              type: "account" as const,
+              ...basic,
               id: "test-account-id",
               attributes: {
-                ...basicAccount.data[0]?.attributes,
+                ...basic.attributes,
                 fields: {
-                  ...basicAccount.data[0]?.attributes.fields,
+                  ...basic.attributes.fields,
                   documents: {
                     value: [
                       {
                         value: {
-                          ...basicAccount.data[0]?.attributes.fields.documents.value[0]?.value,
+                          ...document.value,
                           id_class: { value: "invalid" },
                         },
                       },
@@ -276,18 +286,19 @@ describe("evaluateAccount", () => {
     });
 
     it("throws when schema validation fails", () => {
+      const manteca = getFirst(mantecaAccount.data);
       expect(() =>
         persona.evaluateAccount(
           {
+            links: { next: null },
             data: [
               {
-                ...mantecaAccount.data[0],
-                type: "account" as const,
+                ...manteca,
                 id: "test-account-id",
                 attributes: {
-                  ...mantecaAccount.data[0]?.attributes,
+                  ...manteca.attributes,
                   fields: {
-                    ...mantecaAccount.data[0]?.attributes.fields,
+                    ...manteca.attributes.fields,
                     tin: { type: "string", value: 123 },
                   },
                 },
@@ -302,6 +313,7 @@ describe("evaluateAccount", () => {
 });
 
 const emptyAccount = {
+  links: { next: null },
   data: [
     {
       type: "account" as const,
@@ -451,6 +463,7 @@ const emptyAccount = {
 };
 
 const basicAccount = {
+  links: { next: null },
   data: [
     {
       type: "account" as const,
@@ -665,16 +678,19 @@ const basicAccount = {
   ],
 };
 
+const basicData = getFirst(basicAccount.data);
+
 const mantecaAccount = {
+  links: { next: null },
   data: [
     {
-      ...basicAccount.data[0],
+      ...basicData,
       type: "account" as const,
       id: "test-account-id",
       attributes: {
-        ...basicAccount.data[0]?.attributes,
+        ...basicData.attributes,
         fields: {
-          ...basicAccount.data[0]?.attributes.fields,
+          ...basicData.attributes.fields,
           tin: {
             type: "string",
             value: "12345678",

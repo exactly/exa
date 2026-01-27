@@ -1057,6 +1057,7 @@ const personaTemplate = {
   attributes: {
     status: "approved" as const,
     "reference-id": "ref-123",
+    "redacted-at": null,
     "name-first": "John",
     "name-middle": null,
     "name-last": "Doe",
@@ -1068,6 +1069,7 @@ const personaTemplate = {
   relationships: {
     documents: { data: [{ type: "document", id: "1234567890" }] },
     account: { data: { id: "1234567890", type: "account" } } as const,
+    "inquiry-template": { data: { id: "template-id" } },
   },
 };
 

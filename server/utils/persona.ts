@@ -4,13 +4,18 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import {
   array,
   boolean,
+  check,
   flatten,
   literal,
+  looseObject,
   nullable,
+  nullish,
   object,
   picklist,
+  pipe,
   safeParse,
   string,
+  transform,
   unknown,
   ValiError,
   type BaseIssue,
@@ -51,9 +56,102 @@ export async function getInquiry(referenceId: string, templateId: string) {
   return inquiries[0];
 }
 
+export async function getUnknownApprovedInquiry(referenceId: string, templateId?: string) {
+  const { data: approvedInquiries } = await request(
+    GetUnknownApprovedInquiryResponse,
+    `/inquiries?page[size]=1&filter[reference-id]=${referenceId}&filter[status]=approved${templateId ? `&filter[inquiry-template-id]=${templateId}` : ""}`,
+  );
+  return approvedInquiries[0];
+}
+
 export function resumeInquiry(inquiryId: string) {
   return request(ResumeInquiryResponse, `/inquiries/${inquiryId}/resume`, undefined, "POST");
 }
+
+export function redactAccount(accountId: string) {
+  return request(object({ data: object({ id: string() }) }), `/accounts/${accountId}`, RedactAccount, "PATCH");
+}
+
+export function updateAccount(accountId: string, attributes: InferOutput<typeof UpdateAccountAttributes>) {
+  return request(
+    object({ data: object({ id: string() }) }),
+    `/accounts/${accountId}`,
+    {
+      data: {
+        attributes,
+      },
+    },
+    "PATCH",
+  );
+}
+
+export const UpdateAccountAttributes = object({
+  fields: object({
+    exa_card_tc: boolean(),
+    rain_e_sign_consent: boolean(),
+    privacy__policy: boolean(),
+    account_opening_disclosure: nullable(boolean()),
+    economic_activity: string(),
+    annual_salary: string(),
+    expected_monthly_volume: string(),
+    accurate_info_confirmation: boolean(),
+    non_unauthorized_solicitation: boolean(),
+    non_illegal_activities_2: picklist(["Yes", "No"]),
+    address: object({
+      value: object({
+        street_1: string(),
+        street_2: nullable(string()),
+        city: string(),
+        subdivision: string(),
+        postal_code: string(),
+        country_code: string(),
+      }),
+    }),
+  }),
+  "address-street-1": string(),
+  "address-street-2": nullable(string()),
+  "address-city": string(),
+  "address-subdivision": string(),
+  "address-postal-code": string(),
+  "country-code": string(),
+});
+
+const RedactAccount = {
+  data: {
+    attributes: {
+      "country-code": "",
+      "identification-numbers": "",
+      "phone-number": "",
+      "email-address": "",
+      birthdate: "",
+      "name-first": "",
+      "name-middle": "",
+      "name-last": "",
+      "address-street-1": "",
+      "address-street-2": "",
+      "address-city": "",
+      "address-subdivision": "",
+      "address-postal-code": "",
+      "social-security-number": "",
+      fields: {
+        exa_card_tc: "",
+        rain_e_sign_consent: "",
+        privacy__policy: "",
+        account_opening_disclosure: "",
+        address: {
+          street_1: "",
+          street_2: "",
+          city: "",
+          subdivision: "",
+          postal_code: "",
+          country_code: "",
+        },
+        selfie_photo: "",
+        documents: [],
+      },
+    },
+  },
+};
 
 export function createInquiry(referenceId: string, templateId: string, redirectURI?: string) {
   return request(CreateInquiryResponse, "/inquiries", {
@@ -283,7 +381,8 @@ const MantecaAccount = object({
 });
 
 const UnknownAccount = object({
-  data: array(object({ id: string(), type: literal("account"), attributes: unknown() })),
+  data: array(looseObject({ id: string(), attributes: looseObject({ "reference-id": nullable(string()) }) })),
+  links: object({ next: nullable(string()) }),
 });
 
 const accountScopeSchemas = {
@@ -310,6 +409,13 @@ export async function getAccount<T extends AccountScope>(
 
 function getUnknownAccount(referenceId: string) {
   return request(UnknownAccount, `/accounts?page[size]=1&filter[reference-id]=${referenceId}`);
+}
+
+export function getUnknownAccounts(limit = 1, after?: string, referenceId?: string) {
+  return request(
+    UnknownAccount,
+    `/accounts?page[size]=${limit}${after ? `&page[after]=${after}` : ""}${referenceId ? `&filter[reference-id]=${referenceId}` : ""}`,
+  );
 }
 
 export async function getPendingInquiryTemplate(referenceId: string, scope: AccountScope): Promise<string | undefined> {
@@ -383,7 +489,104 @@ export const Inquiry = object({
   attributes: object({
     status: picklist(["created", "pending", "expired", "failed", "needs_review", "declined", "completed", "approved"]),
     "reference-id": string(),
+    "redacted-at": nullable(string()),
   }),
+  relationships: object({
+    "inquiry-template": nullable(object({ data: object({ id: string() }) })),
+  }),
+});
+
+export const UnknownInquiry = object({
+  id: string(),
+  type: literal("inquiry"),
+  attributes: looseObject({
+    status: literal("approved"),
+    "reference-id": string(),
+    "redacted-at": nullable(string()),
+    fields: unknown(),
+  }),
+  relationships: object({
+    "inquiry-template": nullable(object({ data: object({ id: string() }) })),
+  }),
+});
+
+export const PandaInquiryApproved = object({
+  id: string(),
+  type: literal("inquiry"),
+  attributes: object({
+    status: literal("approved"),
+    "reference-id": string(),
+    "redacted-at": nullable(string()),
+    // "address-street-1": string(),
+    // "address-street-2": nullable(string()),
+    // "address-city": string(),
+    // "address-subdivision": string(),
+    // "address-postal-code": string(),
+    // "address-country-code": string(),
+    fields: pipe(
+      object({
+        // common
+        "input-checkbox": object({ value: boolean() }), // rain e sign consent
+        "new-screen-input-checkbox": object({ value: boolean() }), // privacy policy
+        "new-screen-input-checkbox-1": object({ value: boolean() }), // info accurate
+        "new-screen-input-checkbox-3": object({ value: boolean() }), // unauthorized solicitation
+        "new-screen-2-2-input-checkbox": nullish(object({ value: nullable(boolean()) })), // exa card tc
+
+        // US
+        "new-screen-input-checkbox-4": nullish(object({ value: nullable(boolean()) })), // account opening disclosure
+        "new-screen-input-checkbox-2": nullish(object({ value: nullable(boolean()) })), // exa card tc legacy
+
+        "identification-class": object({ value: string() }),
+        "identification-number": object({ value: string() }),
+        "selected-country-code": object({ value: string() }),
+        "current-government-id": object({ value: object({ id: string() }) }),
+
+        "input-select": object({ value: string() }), // economic activity
+
+        "account-purpose": object({ value: string() }),
+        "illegal-activites": object({ value: picklist(["Yes", "No"]) }), // cspell:ignore illegal-activites
+
+        // fallback for missing fields
+        "annual-salary-ranges-us-150-000": nullish(object({ value: nullable(string()) })),
+        "annual-salary": nullish(object({ value: nullable(string()) })),
+
+        "monthly-purchases-range": nullish(object({ value: nullable(string()) })),
+        "expected-monthly-volume": nullish(object({ value: nullable(string()) })),
+
+        "address-street-1": object({ value: string() }),
+        "address-street-2": object({ value: nullable(string()) }),
+        "address-city": object({ value: string() }),
+        "address-subdivision": object({ value: string() }),
+        "address-postal-code": object({ value: string() }),
+        "address-country-code": object({ value: string() }),
+      }),
+      transform((fields) => {
+        if (!fields["new-screen-2-2-input-checkbox"]?.value && !fields["new-screen-input-checkbox-2"]?.value) {
+          // eslint-disable-next-line no-console
+          console.error(
+            "❌ exa card tc is required, either new-screen-2-2-input-checkbox or new-screen-input-checkbox-2 must be true, setting new-screen-input-checkbox-2 to true",
+          );
+          return { ...fields, "new-screen-input-checkbox-2": { value: true } };
+        }
+        return fields;
+      }),
+      check(
+        (fields) => !!fields["annual-salary"]?.value || !!fields["annual-salary-ranges-us-150-000"]?.value,
+        "either annual-salary or annual-salary-ranges-us-150-000 must have a value",
+      ),
+      check(
+        (fields) => !!fields["expected-monthly-volume"]?.value || !!fields["monthly-purchases-range"]?.value,
+        "either expected-monthly-volume or monthly-purchases-range must have a value",
+      ),
+    ),
+  }),
+  relationships: object({
+    "inquiry-template": nullable(object({ data: object({ id: string() }) })),
+  }),
+});
+
+const GetUnknownApprovedInquiryResponse = object({
+  data: array(UnknownInquiry),
 });
 
 const GetInquiriesResponse = object({
