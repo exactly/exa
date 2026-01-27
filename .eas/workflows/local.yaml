@@ -29,19 +29,19 @@ jobs:
           done
           cd $HOME/workingdir/build
           pnpm nx e2e server > server.log 2>&1 &
-          for i in {1..120}; do
+          for i in {1..60}; do
             curl -f http://localhost:3000/api/auth/authentication > /dev/null 2>&1 && break
-            [ $i -eq 120 ] && cat server.log && exit 1
+            [ $i -eq 60 ] && cat server.log && exit 1
             sleep 1
           done
       - uses: eas/download_build
         id: download
         with: { build_id: "${{ needs.android_get.outputs.build_id }}" }
-      - name: start emulator # cspell:ignore avdmanager getprop logcat netfast setsid swiftshader noop
+      - name: start emulator # cspell:ignore avdmanager getprop logcat netfast setsid swiftshader
         run: |
           adb kill-server && adb start-server
 
-          # put avd writable images on tmpfs to eliminate nested-virt i/o penalty
+          # put avd writable images on tmpfs to reduce nested-virt i/o penalty
           AVD_DIR=/dev/shm/avd
           mkdir -p "$AVD_DIR"
           export ANDROID_AVD_HOME="$AVD_DIR"
@@ -49,7 +49,6 @@ jobs:
           avdmanager -s create avd -n e2e -k "system-images;android-34;google_apis;x86_64" --force
           printf '%s\n' "hw.ramSize=8192" "vm.heapSize=1024" "hw.camera.front=emulated" "hw.camera.back=emulated" >> "$AVD_DIR/e2e.avd/config.ini"
 
-          # diagnostics — verify tmpfs usage
           echo "--- tmpfs diagnostics ---"
           df -h /dev/shm
           ls -la "$AVD_DIR/e2e.avd/"
@@ -59,72 +58,74 @@ jobs:
           adb wait-for-device
           timeout 180 adb shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
           timeout 60 sh -c 'until adb shell pm list packages > /dev/null 2>&1; do sleep 1; done'
-
-          # tune guest kernel for nested virt — reduce per-i/o overhead
-          adb root && adb wait-for-device
-          adb shell 'cat /sys/block/vd*/queue/scheduler 2>/dev/null; for d in /sys/block/vd*; do echo none > "$d/queue/scheduler" 2>/dev/null; echo 0 > "$d/queue/read_ahead_kb" 2>/dev/null; done' || true
-          adb shell 'echo 0 > /proc/sys/vm/swappiness' || true
-          adb unroot && adb wait-for-device
-
           adb shell settings put global window_animation_scale 0
           adb shell settings put global transition_animation_scale 0
           adb shell settings put global animator_duration_scale 0
           adb install "${{ steps.download.outputs.artifact_path }}"
-
-          # trigger gms module discovery then wait for system to truly settle.
-          # the previous 15-pass uiautomator gate passed too quickly — gms was
-          # still downloading and the combined load killed the kernel 54s into
-          # maestro. use cpu-idle monitoring to ensure gms is actually done.
           adb shell monkey -p app.exactly 1 2>/dev/null || true
-          echo "waiting for guest cpu to settle..."
-          prev_idle=0; prev_total=0; settled=0
-          for i in $(seq 1 180); do
-            cpu=$(timeout 5 adb shell cat /proc/stat 2>/dev/null | head -1)
-            if [ -n "$cpu" ]; then
-              idle=$(echo "$cpu" | awk '{print $5}')
-              total=$(echo "$cpu" | awk '{s=0; for(i=2;i<=NF;i++) s+=$i; print s}')
-              if [ "$prev_total" -gt 0 ]; then
-                di=$((idle - prev_idle)); dt=$((total - prev_total))
-                if [ "$dt" -gt 0 ]; then
-                  pct=$((100 * di / dt))
-                  echo "cpu idle: ${pct}% (attempt $i, settled=$settled)"
-                  if [ "$pct" -gt 80 ]; then
-                    settled=$((settled + 1))
-                    [ "$settled" -ge 10 ] && echo "system settled" && break
-                  else
-                    settled=0
-                  fi
-                fi
-              fi
-              prev_idle=$idle; prev_total=$total
+          stable=0; attempts=0
+          while [ $stable -lt 15 ]; do
+            attempts=$((attempts + 1))
+            [ $attempts -gt 150 ] && echo "emulator not stable after 5min" && exit 1
+            if timeout 10 adb shell uiautomator dump /dev/null 2>/dev/null; then
+              stable=$((stable + 1))
             else
-              settled=0; prev_idle=0; prev_total=0
+              stable=0
               adb kill-server 2>/dev/null; adb start-server 2>/dev/null; adb wait-for-device 2>/dev/null || true
             fi
             sleep 2
           done
-          [ "$settled" -ge 10 ] || { echo "system never settled"; exit 1; }
-
           adb shell am force-stop app.exactly
           adb devices -l
           adb reverse tcp:3000 tcp:3000 && adb reverse tcp:8545 tcp:8545 && adb reverse tcp:8969 tcp:8969
-      - name: run maestro # cspell:ignore bugreport
+      - name: run maestro # cspell:ignore bugreport dmesg diskstats loadavg
         run: |
-          # emulator health monitor — detect hangs faster than maestro's timeout
-          (while true; do
+          # --- diagnostic streams ---
+          adb logcat -v threadtime > emulator-logcat-live.log 2>&1 &
+          LOGCAT_PID=$!
+          adb shell 'logcat -f /data/local/tmp/logcat.log -r 4096 -n 2 -v threadtime' &
+
+          (i=0; while true; do
+            echo "=== SAMPLE $i at $(date -u +%H:%M:%S) ==="
+            echo "--- cpu ---"
+            timeout 5 adb shell cat /proc/stat 2>/dev/null | head -1
+            echo "--- mem ---"
+            timeout 5 adb shell cat /proc/meminfo 2>/dev/null | head -5
+            echo "--- io ---"
+            timeout 5 adb shell cat /proc/diskstats 2>/dev/null
+            echo "--- load ---"
+            timeout 5 adb shell cat /proc/loadavg 2>/dev/null
+            echo "--- top cpu consumers ---"
+            timeout 5 adb shell top -bn1 -o %CPU -q 2>/dev/null | head -15
+            echo "--- gms processes ---"
+            timeout 5 adb shell 'ps -A -o PID,NAME,%CPU,%MEM,ARGS | grep -i gms' 2>/dev/null
+            echo "--- io pressure ---"
+            timeout 5 adb shell cat /proc/pressure/io 2>/dev/null
+            i=$((i + 1))
+            sleep 10
+          done) > emulator-stats.log 2>&1 &
+          STATS_PID=$!
+
+          adb shell dmesg -T > emulator-dmesg-before.log 2>/dev/null || true
+
+          # --- maestro + health monitor ---
+          pnpm e2e:maestro -e "EXPO_PUBLIC_E2E_MNEMONIC=${{ env.EXPO_PUBLIC_E2E_MNEMONIC }}" &
+          MAESTRO_PID=$!
+
+          while kill -0 $MAESTRO_PID 2>/dev/null; do
             if ! timeout 10 adb shell getprop ro.build.type >/dev/null 2>&1; then
-              echo "EMULATOR UNRESPONSIVE at $(date -u +%H:%M:%S)"
-              timeout 30 adb bugreport emulator-bugreport-crash 2>&1 || true
-              break
+              echo "EMULATOR UNRESPONSIVE at $(date -u +%H:%M:%S) — killing maestro"
+              kill $MAESTRO_PID 2>/dev/null
+              wait $MAESTRO_PID 2>/dev/null
+              kill $LOGCAT_PID $STATS_PID 2>/dev/null || true
+              exit 1
             fi
             sleep 5
-          done) &
-          MONITOR_PID=$!
+          done
 
-          pnpm e2e:maestro -e "EXPO_PUBLIC_E2E_MNEMONIC=${{ env.EXPO_PUBLIC_E2E_MNEMONIC }}"
+          wait $MAESTRO_PID
           MAESTRO_EXIT=$?
-
-          kill $MONITOR_PID 2>/dev/null || true
+          kill $LOGCAT_PID $STATS_PID 2>/dev/null || true
           exit $MAESTRO_EXIT
       - name: exa teardown
         if: always()
@@ -135,6 +136,8 @@ jobs:
           ./codecov -t ${{ env.CODECOV_TOKEN }} -f server/coverage/lcov.info -f server/coverage/app.json -F e2e -n android --build-url ${{ workflow.url }}
           timeout 60 adb logcat -d -v time > emulator.log 2>&1 || true
           timeout 60 adb bugreport emulator-bugreport || true
+          adb pull /data/local/tmp/logcat.log emulator-logcat-guest.log 2>/dev/null || true
+          timeout 10 adb shell dmesg -T > emulator-dmesg-after.log 2>/dev/null || true
       - uses: eas/upload_artifact
         if: always()
         with:
@@ -146,7 +149,11 @@ jobs:
             server/node_modules/@exactly/.spotlight
             emulator.log
             emulator-process.log
+            emulator-logcat-live.log
+            emulator-logcat-guest.log
+            emulator-stats.log
+            emulator-dmesg-before.log
+            emulator-dmesg-after.log
             emulator-bugreport.zip
-            emulator-bugreport-crash.zip
             ${{ env.HOME }}/.maestro/tests
             .maestro/screenshots
