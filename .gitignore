@@ -29,6 +29,7 @@ generated/
 *.heapprofile
 application_x_sentry_envelope-*.txt
 lcov.info
+**/.claude/settings.local.json
 **/.vscode/*
 !/.vscode/extensions.json
 .clinic/
