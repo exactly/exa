@@ -177,6 +177,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
                 calls: [execute],
                 capabilities: {
                   paymasterService: {
+                    optional: true,
                     url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
                     context: { policyId: alchemyGasPolicyId },
                   },
@@ -220,6 +221,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
                   ],
                   capabilities: {
                     paymasterService: {
+                      optional: true,
                       url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
                       context: { policyId: alchemyGasPolicyId },
                     },
