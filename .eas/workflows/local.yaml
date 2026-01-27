@@ -47,11 +47,13 @@ jobs:
           export ANDROID_AVD_HOME="$AVD_DIR"
 
           avdmanager -s create avd -n e2e -k "system-images;android-34;google_apis;x86_64" --force
-          printf '%s\n' "hw.ramSize=16384" "vm.heapSize=1024" "hw.camera.front=emulated" "hw.camera.back=emulated" >> "$AVD_DIR/e2e.avd/config.ini"
+          printf '%s\n' "hw.ramSize=16384" "vm.heapSize=1024" "hw.camera.front=emulated" "hw.camera.back=emulated" "hw.gpu.mode=off" "hw.gpu.enabled=no" >> "$AVD_DIR/e2e.avd/config.ini"
 
           echo "--- tmpfs diagnostics ---"
           df -h /dev/shm
           ls -la "$AVD_DIR/e2e.avd/"
+          echo "--- avd gpu config ---"
+          grep -i gpu "$AVD_DIR/e2e.avd/config.ini" || echo "(no gpu config found)"
           echo "--- end diagnostics ---"
 
           setsid $ANDROID_HOME/emulator/emulator -avd e2e -no-snapshot -no-snapshot-save -no-window -no-audio -no-boot-anim -gpu off -netfast -no-metrics -memory 16384 -cores 4 -partition-size 4096 -wipe-data > emulator-process.log 2>&1 &
@@ -80,7 +82,7 @@ jobs:
           adb reverse tcp:3000 tcp:3000 && adb reverse tcp:8545 tcp:8545 && adb reverse tcp:8969 tcp:8969
       - name: run maestro # cspell:ignore bugreport dmesg diskstats loadavg
         run: |
-          # --- find emulator qemu pid for crash detection --- # cspell:ignore pgrep qemu
+          # --- find emulator qemu pid for crash detection --- # cspell:ignore pgrep qemu pkill setsid
           EMU_PID=$(pgrep -f 'qemu-system' 2>/dev/null | head -1)
           echo "emulator qemu PID: ${EMU_PID:-not found}"
 
@@ -105,28 +107,28 @@ jobs:
 
           adb shell dmesg > emulator-dmesg-before.log 2>/dev/null || true
 
-          # --- maestro + health monitor ---
-          pnpm e2e:maestro -e "EXPO_PUBLIC_E2E_MNEMONIC=${{ env.EXPO_PUBLIC_E2E_MNEMONIC }}" &
+          # --- maestro (in its own process group for clean kill) ---
+          setsid pnpm e2e:maestro -e "EXPO_PUBLIC_E2E_MNEMONIC=${{ env.EXPO_PUBLIC_E2E_MNEMONIC }}" &
           MAESTRO_PID=$!
 
-          while kill -0 $MAESTRO_PID 2>/dev/null; do
+          # --- health monitor (output to artifact file) ---
+          (while kill -0 $MAESTRO_PID 2>/dev/null; do
             if ! timeout 10 adb shell getprop ro.build.type >/dev/null 2>&1; then
               if [ -n "$EMU_PID" ] && kill -0 "$EMU_PID" 2>/dev/null; then
-                echo "EMULATOR UNRESPONSIVE at $(date -u +%H:%M:%S) — qemu process ALIVE (guest hang) — killing maestro"
+                echo "EMULATOR UNRESPONSIVE at $(date -u +%H:%M:%S) — qemu process ALIVE (guest hang)"
               else
-                echo "EMULATOR UNRESPONSIVE at $(date -u +%H:%M:%S) — qemu process DEAD (host crash) — killing maestro"
+                echo "EMULATOR UNRESPONSIVE at $(date -u +%H:%M:%S) — qemu process DEAD (host crash)"
               fi
-              kill $MAESTRO_PID 2>/dev/null
-              wait $MAESTRO_PID 2>/dev/null
-              kill $LOGCAT_PID $STATS_PID 2>/dev/null || true
-              exit 1
+              kill -- -$MAESTRO_PID 2>/dev/null || kill $MAESTRO_PID 2>/dev/null
+              break
             fi
             sleep 5
-          done
+          done) > emulator-health.log 2>&1 &
+          MONITOR_PID=$!
 
           wait $MAESTRO_PID
           MAESTRO_EXIT=$?
-          kill $LOGCAT_PID $STATS_PID 2>/dev/null || true
+          kill $LOGCAT_PID $STATS_PID $MONITOR_PID 2>/dev/null || true
           exit $MAESTRO_EXIT
       - name: exa teardown
         if: always()
@@ -155,6 +157,7 @@ jobs:
             emulator-stats.log
             emulator-dmesg-before.log
             emulator-dmesg-after.log
+            emulator-health.log
             emulator-bugreport.zip
             ${{ env.HOME }}/.maestro/tests
             .maestro/screenshots
