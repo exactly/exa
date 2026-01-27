@@ -7,50 +7,30 @@ import { previewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { borrowLimit, withdrawLimit } from "@exactly/lib";
 
-import { getAsset, getTokenBalances } from "./lifi";
+import { tokenBalancesOptions } from "./lifi";
 import useAccount from "./useAccount";
 
 export default function useAsset(address?: Address) {
   const { address: account } = useAccount();
-  const { data: externalAsset, isFetching: isExternalAssetFetching } = useQuery({
-    initialData: null,
-    queryKey: ["asset", address],
-    queryFn: async () => {
-      const asset = await getAsset(address ?? zeroAddress);
-      return asset ?? null;
-    },
-    enabled: !!address && !!account,
-  });
   const {
     data: markets,
     queryKey,
     isFetching: isMarketsFetching,
   } = useReadPreviewerExactly({ address: previewerAddress, args: [account ?? zeroAddress] });
   const market = useMemo(() => markets?.find(({ market: m }) => m === address), [address, markets]);
-  const { data: available } = useQuery({
-    initialData: 0n,
-    queryKey: ["available", address, market?.asset, externalAsset, account, markets, market],
-    queryFn: async () => {
-      if (markets && market) {
-        return withdrawLimit(markets, market.market);
-      } else if (externalAsset && account) {
-        const balances = await getTokenBalances(account);
-        const balance = balances.find((token) => token.address === externalAsset.address);
-        return balance?.amount ?? 0n;
-      }
-      return 0n;
-    },
-    enabled: !!address && !!account,
-  });
-  const { data: borrowAvailable } = useQuery({
-    initialData: 0n,
-    queryKey: ["borrowAvailable", address, market?.asset, externalAsset, account, markets, market],
-    queryFn: () => {
-      if (markets && market) return borrowLimit(markets, market.market);
-      return 0n;
-    },
-    enabled: !!address && !!account && !externalAsset,
-  });
+  const { data: tokenBalances, isFetching: isTokenBalancesFetching } = useQuery(tokenBalancesOptions(account));
+  const externalAsset = useMemo(
+    () => tokenBalances?.find((token) => token.address.toLowerCase() === address?.toLowerCase()) ?? null,
+    [tokenBalances, address],
+  );
+  const available = useMemo(() => {
+    if (markets && market) return withdrawLimit(markets, market.market);
+    return externalAsset?.amount ?? 0n;
+  }, [markets, market, externalAsset]);
+  const borrowAvailable = useMemo(() => {
+    if (markets && market && !externalAsset) return borrowLimit(markets, market.market);
+    return 0n;
+  }, [markets, market, externalAsset]);
 
   return {
     address,
@@ -61,6 +41,6 @@ export default function useAsset(address?: Address) {
     borrowAvailable,
     externalAsset,
     queryKey,
-    isFetching: isMarketsFetching || isExternalAssetFetching,
+    isFetching: isMarketsFetching || isTokenBalancesFetching,
   };
 }
