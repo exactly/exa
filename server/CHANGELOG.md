@@ -1,5 +1,13 @@
 # @exactly/server
 
+## 0.2.51
+
+### Patch Changes
+
+- [#674](https://github.com/exactly/exa/pull/674) [`71418d1`](https://github.com/exactly/exa/commit/71418d18eb9f4d1def1921d1edcdb0e4555fd642) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🗃️ add source to credentials database table
+
+- [#674](https://github.com/exactly/exa/pull/674) [`3430400`](https://github.com/exactly/exa/commit/343040061995e47764859080f7dcace6c33c435c) Thanks [@nfmelendez](https://github.com/nfmelendez)! - ✨ track user source attribution
+
 ## 0.2.50
 
 ### Patch Changes

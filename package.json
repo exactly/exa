@@ -1,6 +1,6 @@
 {
   "name": "@exactly/mobile",
-  "version": "1.1.2",
+  "version": "1.1.3",
   "title": "Exa App",
   "shortDescription": "What finance should be today",
   "description": "A Card. A Wallet. A DeFi Protocol. All of it together.",
@@ -37,7 +37,7 @@
     "@account-kit/smart-contracts": "catalog:",
     "@exactly/common": "workspace:^0.0.11",
     "@exactly/lib": "^0.1.0",
-    "@exactly/server": "workspace:^0.2.50",
+    "@exactly/server": "workspace:^0.2.51",
     "@expo/metro-runtime": "~6.1.2",
     "@farcaster/frame-sdk": "^0.1.12",
     "@farcaster/miniapp-sdk": "^0.2.1",

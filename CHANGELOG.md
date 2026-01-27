@@ -1,5 +1,20 @@
 # @exactly/mobile
 
+## 1.1.3
+
+### Patch Changes
+
+- [#678](https://github.com/exactly/exa/pull/678) [`bc8ac76`](https://github.com/exactly/exa/commit/bc8ac764d34ee857596a8fa926f67260926000e4) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 skip pending queries in dehydration to prevent hydration crash
+
+- [#682](https://github.com/exactly/exa/pull/682) [`eeb8a43`](https://github.com/exactly/exa/commit/eeb8a436d2c9cc8f16742016675ef17ea4863b8b) Thanks [@franm91](https://github.com/franm91)! - ♻️ filter server queries from persistence
+
+- [#682](https://github.com/exactly/exa/pull/682) [`8059d4a`](https://github.com/exactly/exa/commit/8059d4aa0e413053dbf431068b31de64301ea74b) Thanks [@franm91](https://github.com/franm91)! - 🐛 invalidate kyc query on version change
+
+- [#683](https://github.com/exactly/exa/pull/683) [`8780581`](https://github.com/exactly/exa/commit/87805815b8312f7d4f352d1c5e09dffc10ee18de) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ implement persona web sdk
+
+- Updated dependencies [[`71418d1`](https://github.com/exactly/exa/commit/71418d18eb9f4d1def1921d1edcdb0e4555fd642), [`3430400`](https://github.com/exactly/exa/commit/343040061995e47764859080f7dcace6c33c435c)]:
+  - @exactly/server@0.2.51
+
 ## 1.1.2
 
 ### Patch Changes
