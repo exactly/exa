@@ -11,7 +11,7 @@ import { useForm, useStore } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import { bigint, check, parse, pipe, safeParse } from "valibot";
 import { encodeAbiParameters, erc20Abi, formatUnits, parseUnits, zeroAddress as viemZeroAddress } from "viem";
-import { useBytecode, useSimulateContract, useWriteContract } from "wagmi";
+import { useBytecode, useEstimateGas, useSendTransaction, useSimulateContract, useWriteContract } from "wagmi";
 
 import { exaPluginAddress } from "@exactly/common/generated/chain";
 import {
@@ -80,7 +80,9 @@ export default function Amount() {
             ProposalType.Withdraw,
             encodeAbiParameters([{ type: "address" }], [receiver ?? zeroAddress]),
           ],
-          query: { enabled: !!market && !!address && !!bytecode && formAmount > 0n },
+          query: {
+            enabled: !!market && !!address && !!bytecode && formAmount > 0n && !!receiver && receiver !== zeroAddress,
+          },
         }
       : {
           address,
@@ -100,7 +102,9 @@ export default function Amount() {
             },
           ],
           args: [withdrawAsset ?? zeroAddress, formAmount, receiver ?? zeroAddress],
-          query: { enabled: !!market && !!address && !!bytecode && formAmount > 0n },
+          query: {
+            enabled: !!market && !!address && !!bytecode && formAmount > 0n && !!receiver && receiver !== zeroAddress,
+          },
         },
   );
 
@@ -109,29 +113,93 @@ export default function Amount() {
     return success ? output : zeroAddress;
   }, [external?.address, zeroAddress]);
 
-  const { data: transferSimulation } = useSimulateContract({
+  const isNativeTransfer = !!external && externalAddress === zeroAddress;
+
+  const { data: erc20TransferSimulation } = useSimulateContract({
     address: externalAddress,
     abi: erc20Abi,
     functionName: "transfer",
     args: [receiver ?? zeroAddress, formAmount],
-    query: { enabled: !!external && !!address && !!bytecode && formAmount > 0n },
+    query: {
+      enabled:
+        !!external &&
+        !isNativeTransfer &&
+        !!address &&
+        !!bytecode &&
+        formAmount > 0n &&
+        !!receiver &&
+        receiver !== zeroAddress,
+    },
   });
 
-  const { mutate, data: hash, isPending: pending, isSuccess: success, isError: error, reset } = useWriteContract();
+  const { data: nativeTransferEstimate } = useEstimateGas({
+    to: receiver ?? zeroAddress,
+    value: formAmount,
+    query: {
+      enabled: !!external && isNativeTransfer && !!address && formAmount > 0n && !!receiver && receiver !== zeroAddress,
+    },
+  });
+
+  const {
+    mutate: sendNative,
+    data: nativeHash,
+    isPending: nativePending,
+    isSuccess: nativeSuccess,
+    isError: nativeError,
+    reset: nativeReset,
+  } = useSendTransaction();
+
+  const {
+    mutate: sendContract,
+    data: contractHash,
+    isPending: contractPending,
+    isSuccess: contractSuccess,
+    isError: contractError,
+    reset: contractReset,
+  } = useWriteContract();
+
+  const hash = isNativeTransfer ? nativeHash : contractHash;
+  const pending = isNativeTransfer ? nativePending : contractPending;
+  const success = isNativeTransfer ? nativeSuccess : contractSuccess;
+  const error = isNativeTransfer ? nativeError : contractError;
+  const reset = isNativeTransfer ? nativeReset : contractReset;
 
   const sendReady = useMemo(
-    () => formAmount > 0n && (market ? !!proposeSimulation : !!external && !!transferSimulation),
-    [external, formAmount, market, proposeSimulation, transferSimulation],
+    () =>
+      formAmount > 0n &&
+      (market
+        ? !!proposeSimulation
+        : !!external && (isNativeTransfer ? !!nativeTransferEstimate : !!erc20TransferSimulation)),
+    [
+      external,
+      formAmount,
+      isNativeTransfer,
+      market,
+      nativeTransferEstimate,
+      proposeSimulation,
+      erc20TransferSimulation,
+    ],
   );
 
   const handleSubmit = useCallback(() => {
-    if (!sendReady) return;
+    if (!sendReady || !receiver) return;
     if (proposeSimulation) {
-      mutate(proposeSimulation.request);
-    } else if (transferSimulation) {
-      mutate(transferSimulation.request);
+      sendContract(proposeSimulation.request);
+    } else if (isNativeTransfer) {
+      sendNative({ to: receiver, value: formAmount });
+    } else if (erc20TransferSimulation) {
+      sendContract(erc20TransferSimulation.request);
     }
-  }, [proposeSimulation, sendReady, transferSimulation, mutate]);
+  }, [
+    erc20TransferSimulation,
+    formAmount,
+    isNativeTransfer,
+    proposeSimulation,
+    receiver,
+    sendContract,
+    sendNative,
+    sendReady,
+  ]);
 
   const details: {
     amount: string;
@@ -171,7 +239,7 @@ export default function Amount() {
   }, [success, receiver, recentContacts]);
 
   const invalidReceiver = !receiver || receiver === zeroAddress;
-  const invalidAsset = !withdrawAsset || withdrawAsset === zeroAddress;
+  const invalidAsset = !withdrawAsset;
   if (invalidReceiver || invalidAsset) {
     return (
       <SafeView fullScreen>
