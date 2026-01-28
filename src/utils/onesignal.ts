@@ -75,10 +75,16 @@ const { enablePrompt, login, logout } = (
         return {
           enablePrompt: () => {
             hydrated.then(
-              () => {
+              async () => {
                 const lastDismiss = queryClient.getQueryData<number>(["onesignal", "dismiss"]) ?? 0;
                 if (!appId || lastDismiss + DISMISS_EXPIRY >= Date.now()) return;
-                OneSignal.InAppMessages.addTrigger("onboard", "1");
+                for (let attempt = 0; attempt < 30; attempt++) {
+                  if (await OneSignal.User.getOnesignalId()) {
+                    OneSignal.InAppMessages.addTrigger("onboard", "1");
+                    return;
+                  }
+                  await new Promise((resolve) => setTimeout(resolve, 500));
+                }
               },
               () => undefined,
             );
