@@ -1,5 +1,20 @@
 # @exactly/mobile
 
+## 1.1.4
+
+### Patch Changes
+
+- [`1de528a`](https://github.com/exactly/exa/commit/1de528afabf7e781f9884c77bd131beb2bd06e24) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🩹 make paymaster service optional
+
+- [#681](https://github.com/exactly/exa/pull/681) [`3588803`](https://github.com/exactly/exa/commit/3588803b5a9517baddb251dd88d55ceb981f5992) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ⚡️ defer lifi sdk initialization
+
+- [`a7d330d`](https://github.com/exactly/exa/commit/a7d330d1bd2fa5018c6c06d7743e32b300a02438) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 allow eth transfers
+
+- [`e3852bc`](https://github.com/exactly/exa/commit/e3852bc12a853d8936968d0ee82cc5826d4e7246) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ⚡️ optimize use asset hook
+
+- Updated dependencies [[`e401f39`](https://github.com/exactly/exa/commit/e401f3937fc4f32556a128daed57711ff69b943c)]:
+  - @exactly/server@0.2.52
+
 ## 1.1.3
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.52
+
+### Patch Changes
+
+- [#680](https://github.com/exactly/exa/pull/680) [`e401f39`](https://github.com/exactly/exa/commit/e401f3937fc4f32556a128daed57711ff69b943c) Thanks [@mainqueg](https://github.com/mainqueg)! - ✨ support manteca inquiry
+
 ## 0.2.51
 
 ### Patch Changes
