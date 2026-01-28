@@ -1,6 +1,6 @@
 import { renderToBuffer } from "@react-pdf/renderer";
 
-import { captureException, setUser } from "@sentry/node";
+import { captureException, setUser, startSpan } from "@sentry/node";
 import { and, arrayOverlaps, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { validator as vValidator } from "hono-openapi/valibot";
@@ -369,8 +369,19 @@ export default new Hono().get(
           })
           .filter((item) => item !== undefined),
       };
-      const pdf = await renderToBuffer(Statement(statement));
-      return c.body(toArrayBuffer(pdf.buffer), 200, { "content-type": "application/pdf" });
+      try {
+        const pdf = await startSpan({ name: "pdf.render.statement", op: "pdf.render.statement" }, () =>
+          renderToBuffer(Statement(statement)),
+        );
+        const buffer = startSpan({ name: "pdf.to.buffer", op: "pdf.to.buffer" }, () => toArrayBuffer(pdf.buffer));
+        return c.body(buffer, 200, { "content-type": "application/pdf" });
+      } catch (error) {
+        captureException(error, {
+          level: "error",
+          contexts: { statement },
+        });
+        throw error;
+      }
     }
     return c.json(response, 200);
   },
