@@ -80,6 +80,7 @@ jobs:
           echo "--- end diagnostics ---"
 
           # use Xvfb virtual display instead of -no-window for proper framebuffer (screenshots)
+          sudo apt-get update && sudo apt-get install -y xvfb
           Xvfb :1 -screen 0 1280x720x24 &
           XVFB_PID=$!
           export DISPLAY=:1
