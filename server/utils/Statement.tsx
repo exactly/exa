@@ -119,21 +119,17 @@ const Statement = (statement: {
           <View style={styles.infoColumn}>
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Id:</Text>
-              <Text style={styles.cardNumber}>{statement.maturity}</Text>
             </View>
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Date:</Text>
-              <Text style={styles.cardNumber}>{new Date(statement.maturity * 1000).toLocaleDateString("en-CA")}</Text>
             </View>
           </View>
           <View style={styles.infoColumn}>
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Card No.:</Text>
-              <Text style={styles.cardNumber}>**** **** **** {statement.lastFour}</Text>
             </View>
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Due date:</Text>
-              <Text style={styles.cardNumber}>{new Date(statement.maturity * 1000).toLocaleDateString("en-CA")}</Text>
             </View>
           </View>
         </View>
