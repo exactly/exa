@@ -41,11 +41,9 @@ jobs:
         run: |
           adb kill-server && adb start-server
           avdmanager -s create avd -n e2e -k "system-images;android-32;google_apis;x86_64" --force
-          printf '%s\n' "vm.heapSize=1024" >> $HOME/.android/avd/e2e.avd/config.ini
-          setsid $ANDROID_HOME/emulator/emulator -avd e2e -no-snapshot -no-snapshot-save -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -memory 8192 -cores 2 -partition-size 4096 -wipe-data > emulator-process.log 2>&1 &
+          setsid $ANDROID_HOME/emulator/emulator -avd e2e -no-snapshot -no-snapshot-save -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -memory 4096 -cores 2 -partition-size 4096 -wipe-data > emulator-process.log 2>&1 &
           adb wait-for-device
           timeout 180 adb shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
-          timeout 60 sh -c 'until adb shell pm list packages > /dev/null 2>&1; do sleep 1; done'
           adb shell settings put global window_animation_scale 0
           adb shell settings put global transition_animation_scale 0
           adb shell settings put global animator_duration_scale 0
@@ -55,13 +53,12 @@ jobs:
       - run: pnpm e2e:maestro -e "EXPO_PUBLIC_E2E_MNEMONIC=${{ env.EXPO_PUBLIC_E2E_MNEMONIC }}"
       - name: exa teardown
         if: always()
-        run: | # cspell:ignore pkill bugreport
+        run: | # cspell:ignore pkill
           curl -X POST http://localhost:3000/e2e/shutdown || true
           for i in {1..60}; do [ -f server/coverage/lcov.info ] && break; sleep 1; done
           curl -Os https://uploader.codecov.io/latest/linux/codecov && chmod +x codecov
           ./codecov -t ${{ env.CODECOV_TOKEN }} -f server/coverage/lcov.info -f server/coverage/app.json -F e2e -n android --build-url ${{ workflow.url }}
           pkill -f "adb logcat" || true
-          timeout 60 adb bugreport emulator-bugreport || true
       - uses: eas/upload_artifact
         if: always()
         with:
@@ -73,6 +70,5 @@ jobs:
             server/node_modules/@exactly/.spotlight
             emulator.log
             emulator-process.log
-            emulator-bugreport.zip
             ${{ env.HOME }}/.maestro/tests
             .maestro/screenshots
