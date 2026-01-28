@@ -37,139 +37,24 @@ jobs:
       - uses: eas/download_build
         id: download
         with: { build_id: "${{ needs.android_get.outputs.build_id }}" }
-      - name: start emulator # cspell:ignore avdmanager getprop logcat netfast setsid
+      - name: start emulator # cspell:ignore avdmanager getprop logcat netfast setsid swiftshader
         run: |
           adb kill-server && adb start-server
-
-          # put avd writable images on tmpfs to reduce nested-virt i/o penalty
-          AVD_DIR=/dev/shm/avd
-          mkdir -p "$AVD_DIR"
-          export ANDROID_AVD_HOME="$AVD_DIR"
-
-          # diagnose available ATD images
-          echo "--- available ATD images ---"
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --list 2>&1 | grep -i atd || echo "(no atd images found)"
-          echo "--- pre-installed system images ---"
-          ls "$ANDROID_HOME/system-images/android-34/" 2>/dev/null || echo "(none for api 34)"
-          echo "---"
-
-          # google_atd: Google APIs + CI-optimized (no crash). Force GPU on for screenshots.
-          SYSIMG=""
-          for tag in google_apis_atd google_atd; do
-            candidate="system-images;android-34;${tag};x86_64"
-            echo "trying: $candidate"
-            if "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "$candidate" 2>&1; then
-              SYSIMG="$candidate"
-              break
-            fi
-          done
-          [ -z "$SYSIMG" ] && echo "FATAL: no ATD image available" && exit 1
-          echo "selected image: $SYSIMG"
-          avdmanager -s create avd -n e2e -k "$SYSIMG" --force
-
-          cp "$AVD_DIR/e2e.avd/config.ini" emulator-config-original.ini
-          # ATD defaults to hw.gpu.enabled=no (headless) - force enable for screenshots
-          sed -i 's/^hw\.gpu\.enabled=no/hw.gpu.enabled=yes/' "$AVD_DIR/e2e.avd/config.ini"
-          printf '%s\n' "hw.ramSize=16384" "vm.heapSize=1024" "hw.camera.front=emulated" "hw.camera.back=emulated" >> "$AVD_DIR/e2e.avd/config.ini"
-          cp "$AVD_DIR/e2e.avd/config.ini" emulator-config-modified.ini
-
-          echo "--- diagnostics ---"
-          echo "system image: $SYSIMG"
-          df -h /dev/shm
-          grep -i gpu "$AVD_DIR/e2e.avd/config.ini" || echo "(no gpu config found)"
-          echo "--- end diagnostics ---"
-
-          # start emulator in new session (setsid) for proper detachment
-          # ATD images are headless - no xvfb needed, adb screencap uses android framebuffer
-          echo "DEBUG: starting emulator..."
-          setsid $ANDROID_HOME/emulator/emulator -avd e2e -no-window -no-snapshot -no-snapshot-save -no-audio -no-boot-anim -gpu swiftshader_indirect -netfast -no-metrics -memory 16384 -cores 4 -partition-size 4096 -wipe-data > emulator-process.log 2>&1 &
-          EMU_PID=$!
-          echo "DEBUG: emulator backgrounded (PID: $EMU_PID)"
-          sleep 5
-          echo "DEBUG: checking emulator process..."
-          ps aux | grep -E 'qemu|emulator' | grep -v grep || echo "(no emulator process found)"
+          avdmanager -s create avd -n e2e -k "system-images;android-32;google_apis;x86_64" --force
+          printf '%s\n' "hw.ramSize=8192" "vm.heapSize=1024" "hw.camera.front=emulated" "hw.camera.back=emulated" >> $HOME/.android/avd/e2e.avd/config.ini
+          setsid $ANDROID_HOME/emulator/emulator -avd e2e -no-snapshot -no-snapshot-save -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -netfast -no-metrics -memory 8192 -cores 2 -partition-size 4096 -wipe-data > emulator-process.log 2>&1 &
           adb wait-for-device
+          setsid sh -c 'while true; do adb shell true 2>/dev/null || adb reconnect 2>/dev/null; sleep 2; done' > /dev/null 2>&1 &
           timeout 180 adb shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
           timeout 60 sh -c 'until adb shell pm list packages > /dev/null 2>&1; do sleep 1; done'
           adb shell settings put global window_animation_scale 0
           adb shell settings put global transition_animation_scale 0
           adb shell settings put global animator_duration_scale 0
-          adb install "${{ steps.download.outputs.artifact_path }}"
-          adb shell monkey -p app.exactly 1 2>/dev/null || true
-          stable=0; attempts=0
-          while [ $stable -lt 15 ]; do
-            attempts=$((attempts + 1))
-            [ $attempts -gt 150 ] && echo "emulator not stable after 5min" && exit 1
-            if timeout 10 adb shell uiautomator dump /dev/null 2>/dev/null; then
-              stable=$((stable + 1))
-            else
-              stable=0
-              adb kill-server 2>/dev/null; adb start-server 2>/dev/null; adb wait-for-device 2>/dev/null || true
-            fi
-            sleep 2
-          done
-          adb shell am force-stop app.exactly
           adb devices -l
           adb reverse tcp:3000 tcp:3000 && adb reverse tcp:8545 tcp:8545 && adb reverse tcp:8969 tcp:8969
-      - name: run maestro # cspell:ignore bugreport dmesg diskstats loadavg
-        run: |
-          # --- find emulator qemu pid for crash detection --- # cspell:ignore pgrep qemu pkill setsid
-          EMU_PID=$(pgrep -f 'qemu-system' 2>/dev/null | head -1)
-          echo "emulator qemu PID: ${EMU_PID:-not found}"
-
-          # --- cleanup trap: kill ALL background processes on exit ---
-          cleanup() {
-            kill $LOGCAT_PID $GUEST_LOGCAT_PID $STATS_PID $MONITOR_PID 2>/dev/null || true
-            [ -n "$EMU_PID" ] && kill "$EMU_PID" 2>/dev/null || true
-            pkill -f 'adb.*logcat' 2>/dev/null || true
-            adb kill-server 2>/dev/null || true
-          }
-          trap cleanup EXIT
-
-          # --- diagnostic streams ---
-          adb logcat -v threadtime > emulator-logcat-live.log 2>&1 &
-          LOGCAT_PID=$!
-          adb shell 'logcat -f /data/local/tmp/logcat.log -r 4096 -n 2 -v threadtime' &
-          GUEST_LOGCAT_PID=$!
-
-          (i=0; while true; do
-            echo "=== SAMPLE $i at $(date -u +%H:%M:%S) ==="
-            timeout 8 adb shell '
-              echo "--- cpu ---"; head -1 /proc/stat
-              echo "--- mem ---"; head -5 /proc/meminfo
-              echo "--- load ---"; cat /proc/loadavg
-              echo "--- io pressure ---"; cat /proc/pressure/io 2>/dev/null
-              echo "--- top cpu consumers ---"; top -bn1 -o %CPU -q 2>/dev/null | head -15
-            ' 2>/dev/null || echo "(adb unreachable)"
-            i=$((i + 1))
-            sleep 10
-          done) > emulator-stats.log 2>&1 &
-          STATS_PID=$!
-
-          adb shell dmesg > emulator-dmesg-before.log 2>/dev/null || true
-
-          # --- maestro (in its own process group for clean kill) ---
-          setsid pnpm e2e:maestro -e "EXPO_PUBLIC_E2E_MNEMONIC=${{ env.EXPO_PUBLIC_E2E_MNEMONIC }}" &
-          MAESTRO_PID=$!
-
-          # --- health monitor (output to artifact file) ---
-          (while kill -0 $MAESTRO_PID 2>/dev/null; do
-            if ! timeout 10 adb shell getprop ro.build.type >/dev/null 2>&1; then
-              if [ -n "$EMU_PID" ] && kill -0 "$EMU_PID" 2>/dev/null; then
-                echo "EMULATOR UNRESPONSIVE at $(date -u +%H:%M:%S) — qemu process ALIVE (guest hang)"
-              else
-                echo "EMULATOR UNRESPONSIVE at $(date -u +%H:%M:%S) — qemu process DEAD (host crash)"
-              fi
-              kill -- -$MAESTRO_PID 2>/dev/null || kill $MAESTRO_PID 2>/dev/null
-              break
-            fi
-            sleep 5
-          done) > emulator-health.log 2>&1 &
-          MONITOR_PID=$!
-
-          wait $MAESTRO_PID
-          MAESTRO_EXIT=$?
-          exit $MAESTRO_EXIT
+          adb install "${{ steps.download.outputs.artifact_path }}"
+          adb logcat -v time > emulator.log 2>&1 &
+      - run: pnpm e2e:maestro -e "EXPO_PUBLIC_E2E_MNEMONIC=${{ env.EXPO_PUBLIC_E2E_MNEMONIC }}"
       - name: exa teardown
         if: always()
         run: | # cspell:ignore pkill bugreport
@@ -177,10 +62,8 @@ jobs:
           for i in {1..60}; do [ -f server/coverage/lcov.info ] && break; sleep 1; done
           curl -Os https://uploader.codecov.io/latest/linux/codecov && chmod +x codecov
           ./codecov -t ${{ env.CODECOV_TOKEN }} -f server/coverage/lcov.info -f server/coverage/app.json -F e2e -n android --build-url ${{ workflow.url }}
-          timeout 60 adb logcat -d -v time > emulator.log 2>&1 || true
+          pkill -f "adb logcat" || true
           timeout 60 adb bugreport emulator-bugreport || true
-          adb pull /data/local/tmp/logcat.log emulator-logcat-guest.log 2>/dev/null || true
-          timeout 10 adb shell dmesg > emulator-dmesg-after.log 2>/dev/null || true
       - uses: eas/upload_artifact
         if: always()
         with:
@@ -192,14 +75,6 @@ jobs:
             server/node_modules/@exactly/.spotlight
             emulator.log
             emulator-process.log
-            emulator-logcat-live.log
-            emulator-logcat-guest.log
-            emulator-stats.log
-            emulator-dmesg-before.log
-            emulator-dmesg-after.log
-            emulator-health.log
-            emulator-config-original.ini
-            emulator-config-modified.ini
             emulator-bugreport.zip
             ${{ env.HOME }}/.maestro/tests
             .maestro/screenshots
