@@ -537,5 +537,22 @@
   "To upgrade your Exa Card, we first need to verify your identity so you can continue spending your onchain assets seamlessly.": "Para actualizar tu Exa Card, primero necesitamos verificar tu identidad para que puedas seguir gastando tus activos on-chain sin interrupciones.",
   "The transaction hash has been copied to the clipboard.": "El hash de la transacción ha sido copiado al portapapeles.",
   "Track your spending and see how much you’ve spent with your Exa Card so far.": "Sigue tus gastos y descubre cuánto has gastado con tu Exa Card hasta ahora.",
-  "Update your Exa account to support our new card provider. This quick step ensures a smooth transition to your upgraded Exa Card.": "Actualiza tu cuenta Exa para admitir nuestro nuevo proveedor de tarjetas. Este paso rápido garantiza una transición sin problemas a tu nueva Exa Card."
+  "Update your Exa account to support our new card provider. This quick step ensures a smooth transition to your upgraded Exa Card.": "Actualiza tu cuenta Exa para admitir nuestro nuevo proveedor de tarjetas. Este paso rápido garantiza una transición sin problemas a tu nueva Exa Card.",
+  "Turn {{currency}} transfers to onchain USDC": "Convierte transferencias de {{currency}} a USDC on-chain",
+  "Transfer from accounts in your name and automatically receive USDC in your Exa account.": "Transfiere desde cuentas a tu nombre y recibe USDC automáticamente en tu cuenta Exa.",
+  "Starting...": "Iniciando...",
+  "Accept and continue": "Aceptar y continuar",
+  "Details": "Detalles",
+  "Account details": "Detalles de la cuenta",
+  "Copy and share your account details to turn {{currency}} transfers into USDC.": "Copia y comparte los detalles de tu cuenta para convertir transferencias de {{currency}} a USDC.",
+  "Beneficiary name": "Nombre del beneficiario",
+  "Account": "Cuenta",
+  "Deposit alias": "Alias de depósito",
+  "Delivery time": "Tiempo de entrega",
+  "1 business day": "1 día hábil",
+  "Fee": "Comisión",
+  "Almost there!": "¡Ya casi!",
+  "There was an error verifying your information.": "Hubo un error verificando tu información.",
+  "We're verifying your information. You'll be able to add funds in {{currency}} soon.": "Estamos verificando tu información. Pronto podrás agregar fondos en {{currency}}.",
+  "From accounts in your name": "Desde cuentas a tu nombre"
 }

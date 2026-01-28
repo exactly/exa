@@ -11,6 +11,9 @@ export default function AddFundsLayout() {
       <Stack.Screen name="index" />
       <Stack.Screen name="add-crypto" />
       <Stack.Screen name="bridge" />
+      <Stack.Screen name="ramp-onboarding" />
+      <Stack.Screen name="verification-status" />
+      <Stack.Screen name="ramp-details" />
     </Stack>
   );
 }
