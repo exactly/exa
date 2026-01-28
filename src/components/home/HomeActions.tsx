@@ -6,7 +6,6 @@ import { useRouter } from "expo-router";
 import { ArrowDownToLine, ArrowUpRight } from "@tamagui/lucide-icons";
 import { XStack, YStack } from "tamagui";
 
-import { useQuery } from "@tanstack/react-query";
 import { zeroAddress } from "viem";
 import { useBytecode, useReadContract } from "wagmi";
 
@@ -20,12 +19,9 @@ import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import Button from "../shared/StyledButton";
 
-import type { AuthMethod } from "../../utils/queryClient";
-
 export default function HomeActions() {
   const router = useRouter();
   const { address: account } = useAccount();
-  const { data: method } = useQuery<AuthMethod>({ queryKey: ["method"] });
   const { data: bytecode } = useBytecode({ address: account ?? zeroAddress, query: { enabled: !!account } });
   const { t } = useTranslation();
   const actions = useMemo(
@@ -89,14 +85,7 @@ export default function HomeActions() {
               onPress={() => {
                 switch (key) {
                   case "deposit":
-                    switch (method) {
-                      case "siwe":
-                        router.push("/add-funds");
-                        break;
-                      default:
-                        router.push("/add-funds/add-crypto");
-                        break;
-                    }
+                    router.push("/add-funds");
                     break;
                   case "send":
                     handleSend().catch(reportError);

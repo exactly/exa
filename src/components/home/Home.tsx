@@ -104,7 +104,7 @@ export default function Home() {
     refetch: refetchKYCStatus,
   } = useQuery({
     queryKey: ["kyc", "status"],
-    queryFn: async () => getKYCStatus(),
+    queryFn: () => getKYCStatus("basic"),
     meta: {
       suppressError: (error) =>
         error instanceof APIError &&
