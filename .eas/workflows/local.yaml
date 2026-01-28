@@ -47,18 +47,27 @@ jobs:
           export ANDROID_AVD_HOME="$AVD_DIR"
 
           avdmanager -s create avd -n e2e -k "system-images;android-34;google_apis;x86_64" --force
-          # override gpu: sed replaces first occurrence; append if missing
+
+          # dump original config.ini for diagnosis
+          cp "$AVD_DIR/e2e.avd/config.ini" emulator-config-original.ini
+
+          # override gpu: sed replaces existing keys; append if missing
           sed -i 's/^hw\.gpu\.enabled=.*/hw.gpu.enabled=no/' "$AVD_DIR/e2e.avd/config.ini"
           sed -i 's/^hw\.gpu\.mode=.*/hw.gpu.mode=off/' "$AVD_DIR/e2e.avd/config.ini"
           grep -q '^hw\.gpu\.enabled=' "$AVD_DIR/e2e.avd/config.ini" || echo 'hw.gpu.enabled=no' >> "$AVD_DIR/e2e.avd/config.ini"
           grep -q '^hw\.gpu\.mode=' "$AVD_DIR/e2e.avd/config.ini" || echo 'hw.gpu.mode=off' >> "$AVD_DIR/e2e.avd/config.ini"
           printf '%s\n' "hw.ramSize=16384" "vm.heapSize=1024" "hw.camera.front=emulated" "hw.camera.back=emulated" >> "$AVD_DIR/e2e.avd/config.ini"
 
+          # dump modified config.ini for diagnosis
+          cp "$AVD_DIR/e2e.avd/config.ini" emulator-config-modified.ini
+
           echo "--- tmpfs diagnostics ---"
           df -h /dev/shm
           ls -la "$AVD_DIR/e2e.avd/"
-          echo "--- avd gpu config ---"
+          echo "--- avd config.ini gpu lines ---"
           grep -i gpu "$AVD_DIR/e2e.avd/config.ini" || echo "(no gpu config found)"
+          echo "--- system image hardware props ---"
+          grep -i gpu "$ANDROID_HOME/system-images/android-34/google_apis/x86_64/hardware-properties.ini" 2>/dev/null || echo "(not found)"
           echo "--- end diagnostics ---"
 
           setsid $ANDROID_HOME/emulator/emulator -avd e2e -no-snapshot -no-snapshot-save -no-window -no-audio -no-boot-anim -gpu off -netfast -no-metrics -memory 16384 -cores 4 -partition-size 4096 -wipe-data > emulator-process.log 2>&1 &
@@ -163,6 +172,8 @@ jobs:
             emulator-dmesg-before.log
             emulator-dmesg-after.log
             emulator-health.log
+            emulator-config-original.ini
+            emulator-config-modified.ini
             emulator-bugreport.zip
             ${{ env.HOME }}/.maestro/tests
             .maestro/screenshots
