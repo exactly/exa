@@ -217,12 +217,12 @@ reaches `Boot completed`.
 
 this exhausts all gpu renderer options:
 
-| renderer               | result                                          |
-| ---------------------- | ----------------------------------------------- |
-| `swiftshader_indirect` | boots, qemu segfaults on screen transition       |
-| `angle_indirect`       | hangs on startup (no vulkan in nested kvm)       |
-| `off` / `guest`        | falls back to swiftshader (image lacks guest gpu)|
-| `host`                 | no real gpu in nested kvm                        |
+| renderer               | result                                            |
+| ---------------------- | ------------------------------------------------- |
+| `swiftshader_indirect` | boots, qemu segfaults on screen transition        |
+| `angle_indirect`       | hangs on startup (no vulkan in nested kvm)        |
+| `off` / `guest`        | falls back to swiftshader (image lacks guest gpu) |
+| `host`                 | no real gpu in nested kvm                         |
 
 ### 22. google_atd system image (run `2026-01-28_013651`)
 
@@ -246,6 +246,7 @@ by SVG image decoding. the `Failed to create image decoder` errors in earlier ru
 correlated symptom, not the root cause. app-side SVG→PNG replacement would NOT fix the problem.
 
 **fix**: need to actually install the ATD image. possible reasons for failure:
+
 - `google_apis_atd;x86_64` may not exist for API 34 (check `sdkmanager --list`)
 - the EAS build image may not have the package available
 - stderr was suppressed, hiding the real error
@@ -256,6 +257,7 @@ correlated symptom, not the root cause. app-side SVG→PNG replacement would NOT
 swiftshader interaction that avoids the crash.
 
 **result**: **CRASH FIXED!** the emulator ran the full test without qemu segfaulting. key evidence:
+
 - emulator-process.log shows `Found systemPath .../google_atd/x86_64/`
 - config.ini: `tag.display=Google APIs ATD`, `tag.id=google_atd`
 - emulator-health.log is empty (no crash detected)
@@ -272,6 +274,7 @@ from the swiftshader crash. the emulator was stable throughout the 63-second tes
 
 the test failed at sendAsset flow after hiding keyboard. maestro searched for "Next" for 17 seconds
 without finding it. screenshot was completely black. possible causes:
+
 1. ATD image has different screen rendering timing/behavior
 2. keyboard dismissal animation not completing
 3. UI validation issue (address field?)
@@ -291,6 +294,7 @@ terminate.
 4. the emulator itself (started in a previous step) stays running
 
 **fix**: added a `trap cleanup EXIT` handler that:
+
 - captures and kills ALL backgrounded PIDs (including guest logcat)
 - kills the emulator qemu process
 - runs `pkill -f 'adb.*logcat'` as safety net for orphaned adb processes
