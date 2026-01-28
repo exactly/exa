@@ -1,6 +1,7 @@
 name: e2e:production
 on: { workflow_dispatch: {} }
 defaults: { tools: { node: "24.13.0", pnpm: "10.28.1" } }
+concurrency: { cancel_in_progress: true, group: "${{ workflow.filename }}-${{ github.ref }}" }
 jobs:
   fingerprint:
     type: fingerprint
