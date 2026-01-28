@@ -21,14 +21,12 @@ import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import Button from "../shared/StyledButton";
 
-import type { AuthMethod } from "../../utils/queryClient";
 import type { Credential } from "@exactly/common/validation";
 
 export default function HomeActions() {
   const router = useRouter();
   const { address: account } = useAccount();
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
-  const { data: method } = useQuery<AuthMethod>({ queryKey: ["method"] });
   const { data: bytecode } = useBytecode({ address: account ?? zeroAddress, query: { enabled: !!account } });
   const { t } = useTranslation();
   const actions = useMemo(
@@ -94,14 +92,7 @@ export default function HomeActions() {
               onPress={() => {
                 switch (key) {
                   case "deposit":
-                    switch (method) {
-                      case "siwe":
-                        router.push("/add-funds");
-                        break;
-                      default:
-                        router.push("/add-funds/add-crypto");
-                        break;
-                    }
+                    router.push("/add-funds");
                     break;
                   case "send":
                     handleSend().catch(reportError);

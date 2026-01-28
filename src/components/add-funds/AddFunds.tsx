@@ -13,11 +13,15 @@ import { isAddress } from "viem";
 import chain from "@exactly/common/generated/chain";
 import shortenHex from "@exactly/common/shortenHex";
 
+import AddFiatButton from "./AddFiatButton";
 import AddFundsOption from "./AddFundsOption";
 import { presentArticle } from "../../utils/intercom";
+import queryClient, { type AuthMethod } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
+import { getKYCStatus, getRampProviders } from "../../utils/server";
 import ChainLogo from "../shared/ChainLogo";
 import SafeView from "../shared/SafeView";
+import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
@@ -28,10 +32,30 @@ export default function AddFunds() {
   const { t } = useTranslation();
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const ownerAccount = credential && isAddress(credential.credentialId) ? credential.credentialId : undefined;
+
+  const { data: method } = useQuery<AuthMethod>({ queryKey: ["method"] });
+
+  const { data: countryCode } = useQuery({
+    queryKey: ["user", "country"],
+    queryFn: async () => {
+      await getKYCStatus("basic", true);
+      return queryClient.getQueryData<string>(["user", "country"]) ?? "";
+    },
+    staleTime: (query) => (query.state.data ? Infinity : 0),
+    retry: false,
+  });
+
+  const { data: providers, isPending } = useQuery({
+    queryKey: ["ramp", "providers", countryCode],
+    queryFn: () => getRampProviders(countryCode),
+    enabled: !!countryCode,
+    staleTime: 0,
+  });
+
   return (
     <SafeView fullScreen backgroundColor="$backgroundMild">
-      <View gap={20} fullScreen padded>
-        <YStack gap={20}>
+      <View gap="$s4_5" fullScreen padded>
+        <YStack gap="$s4_5">
           <XStack flexDirection="row" gap={10} justifyContent="space-between" alignItems="center">
             <Pressable
               onPress={() => {
@@ -58,17 +82,19 @@ export default function AddFunds() {
         </YStack>
         <ScrollView flex={1}>
           <YStack flex={1} gap="$s3_5">
-            <AddFundsOption
-              icon={<Wallet width={40} height={40} color="$iconBrandDefault" />}
-              title={t("From connected wallet")}
-              subtitle={
-                // TODO add support for ens resolution
-                ownerAccount ? shortenHex(ownerAccount, 4, 6) : ""
-              }
-              onPress={() => {
-                router.push("/add-funds/bridge");
-              }}
-            />
+            {method === "siwe" && (
+              <AddFundsOption
+                icon={<Wallet width={40} height={40} color="$iconBrandDefault" />}
+                title={t("From connected wallet")}
+                subtitle={
+                  // TODO add support for ens resolution
+                  ownerAccount ? shortenHex(ownerAccount, 4, 6) : ""
+                }
+                onPress={() => {
+                  router.push("/add-funds/bridge");
+                }}
+              />
+            )}
             <AddFundsOption
               icon={<ChainLogo size={24} borderRadius="$r3" />}
               title={t("From another wallet")}
@@ -77,6 +103,28 @@ export default function AddFunds() {
                 router.push("/add-funds/add-crypto");
               }}
             />
+            <View flex={1} gap="$s4_5">
+              {countryCode && isPending ? (
+                <View justifyContent="center" alignItems="center">
+                  <Skeleton width="100%" height={82} />
+                </View>
+              ) : (
+                providers && (
+                  <YStack gap="$s4">
+                    {Object.entries(providers).flatMap(([providerKey, provider]) => {
+                      const currencies = provider.onramp.currencies;
+                      return currencies.map((currency) => (
+                        <AddFiatButton
+                          key={`${providerKey}-${currency}`}
+                          currency={currency}
+                          status={provider.status}
+                        />
+                      ));
+                    })}
+                  </YStack>
+                )
+              )}
+            </View>
           </YStack>
         </ScrollView>
         <XStack

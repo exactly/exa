@@ -105,7 +105,7 @@ export default function Home() {
     data: KYCStatus,
     isFetched: isKYCFetched,
     refetch: refetchKYCStatus,
-  } = useQuery({ queryKey: ["kyc", "status"], queryFn: async () => getKYCStatus() });
+  } = useQuery({ queryKey: ["kyc", "status"], queryFn: () => getKYCStatus("basic") });
   const needsMigration = Boolean(KYCStatus && "code" in KYCStatus && KYCStatus.code === "legacy kyc");
   const isKYCApproved = Boolean(
     KYCStatus && "code" in KYCStatus && (KYCStatus.code === "ok" || KYCStatus.code === "legacy kyc"),

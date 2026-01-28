@@ -2,68 +2,55 @@ import React from "react";
 import { Pressable } from "react-native";
 
 import { ChevronRight, Info } from "@tamagui/lucide-icons";
-import { Spinner, Text, View, XStack } from "tamagui";
+import { Spinner, View, XStack } from "tamagui";
 
+import Text from "./Text";
 export default function InfoAlert({
   title,
   actionText,
   loading,
   onPress,
 }: {
-  actionText: string;
+  actionText?: string;
   loading?: boolean;
   onPress?: () => void;
   title: string;
 }) {
   return (
-    <View
-      borderRadius="$r6"
-      flexDirection="row"
-      backgroundColor="$interactiveBaseInformationSoftDefault"
-      justifyContent="space-between"
-      alignItems="center"
-      gap={10}
-      flex={1}
-    >
+    <XStack borderRadius="$r3" backgroundColor="$interactiveBaseInformationSoftDefault" overflow="hidden">
       <View
-        padding={25}
+        padding="$s4"
         backgroundColor="$interactiveBaseInformationDefault"
         justifyContent="center"
         alignItems="center"
-        borderTopLeftRadius="$r6"
-        borderBottomLeftRadius="$r6"
-        width="20%"
-        height="100%"
+        alignSelf="stretch"
       >
         <Info size={32} color="$interactiveOnBaseInformationDefault" />
       </View>
-      <View gap={10} padding={25} flex={1}>
-        <Text fontSize={15} color="$interactiveOnBaseInformationSoft">
+      <View gap="$s2" padding="$s4" flex={1}>
+        <Text subHeadline color="$interactiveOnBaseInformationSoft">
           {title}
         </Text>
         <Pressable
+          disabled={loading}
           onPress={() => {
             onPress?.();
           }}
         >
-          <XStack flexDirection="row" gap={2} alignItems="center">
-            <Text color="$interactiveOnBaseInformationSoft" fontSize={15} fontWeight="bold">
-              {actionText}
-            </Text>
-            {loading ? (
-              <Spinner color="$interactiveOnBaseInformationSoft" />
-            ) : (
-              <ChevronRight
-                size={16}
-                color="$interactiveOnBaseInformationSoft"
-                fontWeight="bold"
-                strokeWidth={3}
-                transform={[{ translateY: 1.2 }]}
-              />
-            )}
-          </XStack>
+          {actionText && (
+            <XStack gap="$s1" alignItems="center">
+              <Text emphasized subHeadline color="$interactiveOnBaseInformationSoft">
+                {actionText}
+              </Text>
+              {loading ? (
+                <Spinner color="$interactiveOnBaseInformationSoft" />
+              ) : (
+                <ChevronRight size={16} color="$interactiveOnBaseInformationSoft" strokeWidth={3} />
+              )}
+            </XStack>
+          )}
         </Pressable>
       </View>
-    </View>
+    </XStack>
   );
 }

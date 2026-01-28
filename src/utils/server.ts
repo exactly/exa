@@ -151,7 +151,7 @@ export async function setCardPIN(pin: string) {
   if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
 }
 
-export async function getKYCTokens(scope: "basic" = "basic", redirectURI?: string) {
+export async function getKYCTokens(scope: "basic" | "manteca" = "basic", redirectURI?: string) {
   await auth();
   const response = await api.kyc.$post({ json: { scope, redirectURI } });
   if (!response.ok) {
@@ -161,10 +161,28 @@ export async function getKYCTokens(scope: "basic" = "basic", redirectURI?: strin
   return response.json();
 }
 
-export async function getKYCStatus(scope: "basic" = "basic") {
+export async function getKYCStatus(scope: "basic" | "manteca" = "basic", includeCountryCode?: boolean) {
   await auth();
-  const response = await api.kyc.$get({ query: { scope } });
-  queryClient.setQueryData(["user", "country"], response.headers.get("User-Country"));
+  const query = { scope, countryCode: includeCountryCode ? "true" : undefined };
+  const response = await api.kyc.$get({ query });
+  if (!response.ok) {
+    const { code } = await response.json();
+    throw new APIError(response.status, code);
+  }
+  if (includeCountryCode) {
+    const country = response.headers.get("User-Country");
+    if (country) queryClient.setQueryData(["user", "country"], country);
+  }
+  return response.json();
+}
+
+export async function getMantecaKYCStatus() {
+  return getKYCStatus("manteca");
+}
+
+export async function createMantecaKYC(redirectURI?: string) {
+  await auth();
+  const response = await api.kyc.$post({ json: { scope: "manteca", redirectURI } });
   if (!response.ok) {
     const { code } = await response.json();
     throw new APIError(response.status, code);
@@ -252,3 +270,34 @@ export async function getPaxId() {
 
 queryClient.setQueryDefaults(["pax", "id"], { queryFn: getPaxId });
 export type PaxId = Awaited<ReturnType<typeof getPaxId>>;
+
+export async function getRampProviders(countryCode?: string, redirectURL?: string) {
+  await auth();
+  const query = { countryCode, redirectURL };
+  const response = await api.ramp.$get({ query });
+  if (!response.ok) {
+    const { code } = await response.json();
+    throw new APIError(response.status, code);
+  }
+  return response.json();
+}
+
+export async function getRampQuote(query: NonNullable<Parameters<typeof api.ramp.quote.$get>[0]>["query"]) {
+  await auth();
+  const response = await api.ramp.quote.$get({ query });
+  if (!response.ok) {
+    const { code } = await response.json();
+    throw new APIError(response.status, code);
+  }
+  return response.json();
+}
+
+export async function startRampOnboarding(onboarding: { provider: "manteca" }) {
+  await auth();
+  const response = await api.ramp.$post({ json: onboarding });
+  if (!response.ok) {
+    const { code } = await response.json();
+    throw new APIError(response.status, code);
+  }
+  return response.json();
+}
