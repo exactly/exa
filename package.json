@@ -169,7 +169,7 @@
       "ioredis": "catalog:",
       "lodash-es@4.17.21": "^4.17.23",
       "semver@7.3.2": "^7.5.2",
-      "tar": "^7.5.4",
+      "tar": "^7.5.7",
       "tmp@0.0.33": "^0.2.4",
       "typescript@5.8.3": "catalog:",
       "unicorn-magic@0.3.0": "^0.2.0",
