@@ -17,7 +17,6 @@ import auth from "../middleware/auth";
 import {
   createInquiry,
   CRYPTOMATE_TEMPLATE,
-  generateOTL,
   getAccount,
   getInquiry,
   getPendingInquiryTemplate,
@@ -38,14 +37,12 @@ export default new Hono()
     vValidator(
       "query",
       object({
-        templateId: optional(picklist([CRYPTOMATE_TEMPLATE, PANDA_TEMPLATE])), // TODO remove this after deprecate templateId query parameter
         countryCode: optional(literal("true")),
         scope: optional(picklist(["basic", "manteca"])),
       }),
       validatorHook(),
     ),
     async (c) => {
-      const templateId = c.req.valid("query").templateId;
       const scope = c.req.valid("query").scope ?? "basic";
 
       const { credentialId } = c.req.valid("cookie");
@@ -67,27 +64,6 @@ export default new Hono()
           const countryCode = personaAccount?.attributes["country-code"];
           countryCode && c.header("User-Country", countryCode);
         }
-        return c.json({ code: "ok", legacy: "ok" }, 200);
-      }
-
-      if (templateId) {
-        const inquiry = await getInquiry(credentialId, templateId);
-        if (!inquiry) return c.json({ code: "no kyc", legacy: "kyc not found" }, 404);
-        if (inquiry.attributes.status === "created") {
-          return c.json({ code: "not started", legacy: "kyc not started" }, 400);
-        }
-        if (inquiry.attributes.status === "pending" || inquiry.attributes.status === "expired") {
-          const { meta } = await resumeInquiry(inquiry.id);
-          return c.json({ inquiryId: inquiry.id, sessionToken: meta["session-token"] }, 200);
-        }
-        if (inquiry.attributes.status !== "approved") {
-          return c.json({ code: "bad kyc", legacy: "kyc not approved" }, 400);
-        }
-        const personaAccount = await getAccount(credentialId, "basic").catch((error: unknown) => {
-          captureException(error, { level: "warning", contexts: { details: { credentialId, scope } } });
-        });
-        const countryCode = personaAccount?.attributes["country-code"];
-        countryCode && c.header("User-Country", countryCode);
         return c.json({ code: "ok", legacy: "ok" }, 200);
       }
 
@@ -146,7 +122,6 @@ export default new Hono()
       object({
         redirectURI: optional(string()),
         scope: optional(picklist(["basic", "manteca"])),
-        templateId: optional(string()), // TODO remove this after deprecate templateId query parameter
       }),
       validatorHook({ debug }),
     ),
@@ -179,9 +154,8 @@ export default new Hono()
       const inquiry = await getInquiry(credentialId, inquiryTemplateId);
       if (!inquiry) {
         const { data } = await createInquiry(credentialId, inquiryTemplateId, redirectURI);
-        // TODO use a query param to select otl or sessionToken
-        const { inquiryId, otl, sessionToken, legacy } = await generateInquiryTokens(data.id);
-        return c.json({ inquiryId, otl, sessionToken, legacy }, 200);
+        const { inquiryId, sessionToken } = await generateInquiryTokens(data.id);
+        return c.json({ inquiryId, sessionToken }, 200);
       }
 
       switch (inquiry.attributes.status) {
@@ -200,9 +174,8 @@ export default new Hono()
         case "pending":
         case "created":
         case "expired": {
-          // TODO use a query param to select otl or sessionToken
-          const { inquiryId, otl, sessionToken, legacy } = await generateInquiryTokens(inquiry.id);
-          return c.json({ inquiryId, otl, sessionToken, legacy }, 200);
+          const { inquiryId, sessionToken } = await generateInquiryTokens(inquiry.id);
+          return c.json({ inquiryId, sessionToken }, 200);
         }
         default:
           throw new Error("Unknown inquiry status");
@@ -229,20 +202,7 @@ async function isLegacy(credentialId: string, account: Address, factory: string)
   });
 }
 
-async function generateInquiryTokens(inquiryId: string): Promise<{
-  inquiryId: string;
-  legacy: string;
-  otl: string;
-  sessionToken: string;
-}> {
-  const [{ meta: otlMeta }, { meta: sessionTokenMeta }] = await Promise.all([
-    generateOTL(inquiryId),
-    resumeInquiry(inquiryId),
-  ]);
-  return {
-    inquiryId,
-    legacy: otlMeta["one-time-link"],
-    otl: otlMeta["one-time-link"],
-    sessionToken: sessionTokenMeta["session-token"],
-  };
+async function generateInquiryTokens(inquiryId: string): Promise<{ inquiryId: string; sessionToken: string }> {
+  const { meta: sessionTokenMeta } = await resumeInquiry(inquiryId);
+  return { inquiryId, sessionToken: sessionTokenMeta["session-token"] };
 }

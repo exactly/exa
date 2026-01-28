@@ -62,10 +62,6 @@ export function createInquiry(referenceId: string, templateId: string, redirectU
   });
 }
 
-export function generateOTL(inquiryId: string) {
-  return request(GenerateOTLResponse, `/inquiries/${inquiryId}/generate-one-time-link`, undefined, "POST");
-}
-
 export async function getDocument(documentId: string) {
   const { data } = await request(GetDocumentResponse, `/document/government-ids/${documentId}`);
   return data;
@@ -108,31 +104,6 @@ export async function addDocument(referenceId: string, identityDocument: InferOu
     },
     "PATCH",
   );
-}
-
-export async function resumeOrCreateMantecaInquiryOTL(referenceId: string, redirectURL?: string): Promise<string> {
-  const { data: inquiries } = await request(
-    GetMantecaInquiryResponse,
-    `/inquiries?page[size]=1&filter[reference-id]=${referenceId}&filter[inquiry-template-id]=${MANTECA_TEMPLATE_EXTRA_FIELDS}&filter[status]=created,pending`,
-  );
-
-  if (inquiries[0]) {
-    const { meta } = await generateOTL(inquiries[0].id);
-    return meta["one-time-link"];
-  }
-
-  // TODO prefill inquiry with known fields
-  const { data } = await request(CreateInquiryResponse, `/inquiries`, {
-    data: {
-      attributes: {
-        "inquiry-template-id": MANTECA_TEMPLATE_EXTRA_FIELDS,
-        "redirect-uri": `${redirectURL ?? appOrigin}/`,
-      },
-    },
-    meta: { "auto-create-account-reference-id": referenceId },
-  });
-  const { meta } = await generateOTL(data.id);
-  return meta["one-time-link"];
 }
 
 async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
@@ -407,22 +378,6 @@ const CreateInquiryResponse = object({
     attributes: object({ status: literal("created"), "reference-id": string() }),
   }),
 });
-const GenerateOTLResponse = object({
-  data: object({
-    id: string(),
-    type: literal("inquiry"),
-    attributes: object({ status: string(), "reference-id": string() }),
-  }),
-  meta: object({ "one-time-link": string(), "one-time-link-short": string() }),
-});
-
-const MantecaInquiry = object({
-  id: string(),
-  type: literal("inquiry"),
-  attributes: object({ status: picklist(["completed", "pending", "created", "expired"]), "reference-id": string() }),
-});
-
-const GetMantecaInquiryResponse = object({ data: array(MantecaInquiry) });
 
 export function headerValidator() {
   return vValidator("header", object({ "persona-signature": string() }), async (r, c) => {
