@@ -81,8 +81,9 @@ jobs:
 
           # use xvfb-run for virtual display (handles socket creation properly)
           sudo apt-get update && sudo apt-get install -y xvfb
-          xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
-            setsid $ANDROID_HOME/emulator/emulator -avd e2e -no-snapshot -no-snapshot-save -no-audio -no-boot-anim -gpu swiftshader_indirect -netfast -no-metrics -memory 16384 -cores 4 -partition-size 4096 -wipe-data > emulator-process.log 2>&1 &
+          nohup xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
+            $ANDROID_HOME/emulator/emulator -avd e2e -no-snapshot -no-snapshot-save -no-audio -no-boot-anim -gpu swiftshader_indirect -netfast -no-metrics -memory 16384 -cores 4 -partition-size 4096 -wipe-data > emulator-process.log 2>&1 &
+          sleep 5
           adb wait-for-device
           timeout 180 adb shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
           timeout 60 sh -c 'until adb shell pm list packages > /dev/null 2>&1; do sleep 1; done'
