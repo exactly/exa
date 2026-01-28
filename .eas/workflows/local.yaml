@@ -112,10 +112,20 @@ jobs:
           EMU_PID=$(pgrep -f 'qemu-system' 2>/dev/null | head -1)
           echo "emulator qemu PID: ${EMU_PID:-not found}"
 
+          # --- cleanup trap: kill ALL background processes on exit ---
+          cleanup() {
+            kill $LOGCAT_PID $GUEST_LOGCAT_PID $STATS_PID $MONITOR_PID 2>/dev/null || true
+            [ -n "$EMU_PID" ] && kill "$EMU_PID" 2>/dev/null || true
+            pkill -f 'adb.*logcat' 2>/dev/null || true
+            adb kill-server 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
           # --- diagnostic streams ---
           adb logcat -v threadtime > emulator-logcat-live.log 2>&1 &
           LOGCAT_PID=$!
           adb shell 'logcat -f /data/local/tmp/logcat.log -r 4096 -n 2 -v threadtime' &
+          GUEST_LOGCAT_PID=$!
 
           (i=0; while true; do
             echo "=== SAMPLE $i at $(date -u +%H:%M:%S) ==="
@@ -154,7 +164,6 @@ jobs:
 
           wait $MAESTRO_PID
           MAESTRO_EXIT=$?
-          kill $LOGCAT_PID $STATS_PID $MONITOR_PID 2>/dev/null || true
           exit $MAESTRO_EXIT
       - name: exa teardown
         if: always()

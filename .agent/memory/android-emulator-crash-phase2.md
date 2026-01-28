@@ -250,11 +250,30 @@ correlated symptom, not the root cause. app-side SVG→PNG replacement would NOT
 - the EAS build image may not have the package available
 - stderr was suppressed, hiding the real error
 
-### 23. diagnose ATD availability + reduce rendering load (pending)
+### 23. diagnose ATD availability + fix stuck job (pending)
 
 **hypothesis**: two parallel approaches:
 1. show `sdkmanager --list | grep atd` output to determine if ATD exists for API 34 x86_64
 2. try smaller resolution or `-no-accel` to reduce swiftshader stress
+
+## separate bug: job hangs after maestro completes
+
+when the emulator does NOT crash (rare), maestro finishes (usually with test failure) but the
+eas workflow step never exits. the ci runner waits for all child processes of the step to
+terminate.
+
+**root cause**: background processes in the "run maestro" step are never fully cleaned up:
+
+1. `adb shell 'logcat -f ...'` was backgrounded but its PID was never captured — never killed
+2. `adb logcat` (host-side streaming) keeps an open connection to the emulator
+3. the stats sampler's inner `adb shell` commands may survive their parent being killed
+4. the emulator itself (started in a previous step) stays running
+
+**fix**: added a `trap cleanup EXIT` handler that:
+- captures and kills ALL backgrounded PIDs (including guest logcat)
+- kills the emulator qemu process
+- runs `pkill -f 'adb.*logcat'` as safety net for orphaned adb processes
+- runs `adb kill-server` to close all adb connections
 
 ## detailed findings from run `2026-01-27_211247`
 
