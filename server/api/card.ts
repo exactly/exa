@@ -1,6 +1,6 @@
 import { captureException, setContext, setUser } from "@sentry/node";
 import { Mutex } from "async-mutex";
-import { eq, inArray, ne } from "drizzle-orm";
+import { and, eq, inArray, ne } from "drizzle-orm";
 import { Hono } from "hono";
 import { describeRoute } from "hono-openapi";
 import { resolver, validator as vValidator } from "hono-openapi/valibot";
@@ -25,13 +25,15 @@ import {
 } from "valibot";
 
 import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
-import { SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
+import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import { Address } from "@exactly/common/validation";
 
 import database, { cards, credentials } from "../database";
 import auth from "../middleware/auth";
 import { sendPushNotification } from "../utils/onesignal";
 import { autoCredit, createCard, getCard, getPIN, getSecrets, getUser, setPIN, updateCard } from "../utils/panda";
+import { addCapita, deriveAssociateId } from "../utils/pax";
+import { getAccount } from "../utils/persona";
 import { customer } from "../utils/sardine";
 import { track } from "../utils/segment";
 import validatorHook from "../utils/validatorHook";
@@ -329,7 +331,10 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
             where: eq(credentials.id, credentialId),
             columns: { account: true, pandaId: true },
             with: {
-              cards: { columns: { id: true, status: true }, where: inArray(cards.status, ["ACTIVE", "FROZEN"]) },
+              cards: {
+                columns: { id: true, status: true, productId: true },
+                where: inArray(cards.status, ["ACTIVE", "FROZEN"]),
+              },
             },
           });
           if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
@@ -337,6 +342,18 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
           setUser({ id: account });
 
           if (!credential.pandaId) return c.json({ code: "no panda", legacy: "panda id not found" }, 403);
+
+          // check if this is an upgrade from platinum to signature
+          const deletedPlatinumCard = await database.query.cards.findFirst({
+            where: and(
+              eq(cards.credentialId, credentialId),
+              eq(cards.status, "DELETED"),
+              eq(cards.productId, PLATINUM_PRODUCT_ID),
+            ),
+            columns: { id: true },
+          });
+          let isUpgradeFromPlatinum = !!deletedPlatinumCard;
+
           let cardCount = credential.cards.length;
           for (const card of credential.cards) {
             try {
@@ -349,6 +366,10 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
                 await database.update(cards).set({ status: "DELETED" }).where(eq(cards.id, card.id));
                 cardCount--;
                 setContext("cryptomate card deleted", { id: card.id });
+                // check if the deleted card was a platinum card
+                if (card.productId === PLATINUM_PRODUCT_ID) {
+                  isUpgradeFromPlatinum = true;
+                }
               } else {
                 throw error;
               }
@@ -366,6 +387,10 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
             .insert(cards)
             .values([{ id: card.id, credentialId, lastFour: card.last4, mode, productId: SIGNATURE_PRODUCT_ID }]);
           track({ event: "CardIssued", userId: account, properties: { productId: SIGNATURE_PRODUCT_ID } });
+
+          if (isUpgradeFromPlatinum) {
+            addCapitaForPlatinumUpgrade(credentialId, account);
+          }
 
           customer({
             flow: { name: "card.issued", type: "payment_method_link" },
@@ -445,12 +470,12 @@ async function encryptPIN(pin: string) {
     secretKeyBase64Buffer,
   );
   const sessionId = secretKeyBase64BufferEncrypted.toString("base64");
-  
+
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv("aes-128-gcm", Buffer.from(secret, "hex"), iv);
   const encrypted = Buffer.concat([cipher.update(data, "utf8"), cipher.final()]);
   const authTag = cipher.getAuthTag();
-  
+
   return {
     data: Buffer.concat([encrypted, authTag]).toString("base64"),
     iv: iv.toString("base64"),
@@ -564,4 +589,31 @@ function buildBaseResponse(example = "string") {
     code: pipe(string(), metadata({ examples: [example] })),
     legacy: pipe(string(), metadata({ examples: [example] })),
   });
+}
+
+function addCapitaForPlatinumUpgrade(credentialId: string, account: InferOutput<typeof Address>) {
+  getAccount(credentialId, "basic")
+    .then((personaAccount) => {
+      if (!personaAccount) throw new Error("no persona account found");
+      const attributes = personaAccount.attributes;
+      const documents = attributes.fields.documents.value;
+      if (!documents[0]) throw new Error("no identity document found");
+
+      return addCapita({
+        firstName: attributes["name-first"],
+        lastName: attributes["name-last"],
+        birthdate: attributes.birthdate,
+        document: documents[0].value.id_number.value,
+        email: attributes["email-address"],
+        phone: attributes["phone-number"],
+        internalId: deriveAssociateId(account),
+        product: "travel insurance",
+      });
+    })
+    .catch((error: unknown) => {
+      captureException(error, {
+        level: "error",
+        extra: { credentialId, account, productId: SIGNATURE_PRODUCT_ID, scope: "basic" },
+      });
+    });
 }
