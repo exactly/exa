@@ -250,11 +250,32 @@ correlated symptom, not the root cause. app-side SVG→PNG replacement would NOT
 - the EAS build image may not have the package available
 - stderr was suppressed, hiding the real error
 
-### 23. diagnose ATD availability + fix stuck job (pending)
+### 23. google_atd system image (run `2026-01-28_114813`)
 
-**hypothesis**: two parallel approaches:
-1. show `sdkmanager --list | grep atd` output to determine if ATD exists for API 34 x86_64
-2. try smaller resolution or `-no-accel` to reduce swiftshader stress
+**hypothesis**: `google_atd;x86_64` (Google APIs ATD) may have lighter rendering behavior or different
+swiftshader interaction that avoids the crash.
+
+**result**: **CRASH FIXED!** the emulator ran the full test without qemu segfaulting. key evidence:
+- emulator-process.log shows `Found systemPath .../google_atd/x86_64/`
+- config.ini: `tag.display=Google APIs ATD`, `tag.id=google_atd`
+- emulator-health.log is empty (no crash detected)
+- emulator shut down gracefully: `Wait for emulator (pid 9633) 20 seconds to shutdown gracefully`
+- boot time improved: 28s vs 44s with `google_apis`
+
+the test failed with "Element not found: Next" and a black screenshot, but this is a **separate issue**
+from the swiftshader crash. the emulator was stable throughout the 63-second test run.
+
+**note**: `google_apis_atd` package failed to install; `google_atd` succeeded. despite the naming,
+`google_atd` IS the Google APIs ATD image (verified by `tag.display=Google APIs ATD`).
+
+### 24. debug "Next" button not found (pending)
+
+the test failed at sendAsset flow after hiding keyboard. maestro searched for "Next" for 17 seconds
+without finding it. screenshot was completely black. possible causes:
+1. ATD image has different screen rendering timing/behavior
+2. keyboard dismissal animation not completing
+3. UI validation issue (address field?)
+4. maestro screenshot capture issue
 
 ## separate bug: job hangs after maestro completes
 
@@ -361,7 +382,7 @@ branch: `android`
 emulator config:
 
 - `-gpu swiftshader_indirect` (only renderer that boots; angle/off/host all fail)
-- system image: `google_apis;x86_64` (ATD install failed silently, investigating)
+- system image: `google_atd;x86_64` (Google APIs ATD — **crash fixed!**)
 - `hw.ramSize=16384` / `-memory 16384` (16 gb)
 - `-cores 4`
 - avd on tmpfs (`/dev/shm/avd`)
@@ -385,3 +406,5 @@ diagnostic streams:
 - `1b521de9` ⚗️ eas: dump config.ini before/after sed for gpu diagnosis
 - `8f8c17e0` ⚗️ eas: switch to angle_indirect renderer
 - `82ae0ff6` ⚗️ eas: google_atd image, revert to swiftshader_indirect
+- `bc80132f` ⚗️ eas: diagnose atd availability, disprove svg hypothesis
+- `af001989` 🐛 eas: fix stuck job after maestro completes
