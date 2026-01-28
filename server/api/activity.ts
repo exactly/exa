@@ -259,7 +259,7 @@ export default new Hono().get(
                 if (!b) return null;
                 return {
                   events: b.events,
-                  timestamps: b.blockNumber && timestamps.get(b.blockNumber),
+                  timestamp: b.blockNumber && timestamps.get(b.blockNumber),
                 };
               }),
             });
