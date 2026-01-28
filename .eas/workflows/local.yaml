@@ -37,20 +37,18 @@ jobs:
       - uses: eas/download_build
         id: download
         with: { build_id: "${{ needs.android_get.outputs.build_id }}" }
-      - name: start emulator # cspell:ignore avdmanager getprop logcat netfast setsid swiftshader
+      - name: start emulator # cspell:ignore avdmanager getprop logcat setsid swiftshader
         run: |
           adb kill-server && adb start-server
           avdmanager -s create avd -n e2e -k "system-images;android-32;google_apis;x86_64" --force
-          printf '%s\n' "hw.ramSize=8192" "vm.heapSize=1024" "hw.camera.front=emulated" "hw.camera.back=emulated" >> $HOME/.android/avd/e2e.avd/config.ini
-          setsid $ANDROID_HOME/emulator/emulator -avd e2e -no-snapshot -no-snapshot-save -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -netfast -no-metrics -memory 8192 -cores 2 -partition-size 4096 -wipe-data > emulator-process.log 2>&1 &
+          printf '%s\n' "vm.heapSize=1024" >> $HOME/.android/avd/e2e.avd/config.ini
+          setsid $ANDROID_HOME/emulator/emulator -avd e2e -no-snapshot -no-snapshot-save -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -memory 8192 -cores 2 -partition-size 4096 -wipe-data > emulator-process.log 2>&1 &
           adb wait-for-device
-          setsid sh -c 'while true; do adb shell true 2>/dev/null || adb reconnect 2>/dev/null; sleep 2; done' > /dev/null 2>&1 &
           timeout 180 adb shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
           timeout 60 sh -c 'until adb shell pm list packages > /dev/null 2>&1; do sleep 1; done'
           adb shell settings put global window_animation_scale 0
           adb shell settings put global transition_animation_scale 0
           adb shell settings put global animator_duration_scale 0
-          adb devices -l
           adb reverse tcp:3000 tcp:3000 && adb reverse tcp:8545 tcp:8545 && adb reverse tcp:8969 tcp:8969
           adb install "${{ steps.download.outputs.artifact_path }}"
           adb logcat -v time > emulator.log 2>&1 &
