@@ -71,6 +71,8 @@ jobs:
           avdmanager -s create avd -n e2e -k "$SYSIMG" --force
 
           cp "$AVD_DIR/e2e.avd/config.ini" emulator-config-original.ini
+          # ATD images default to hw.gpu.enabled=no (headless) - enable for screencap
+          sed -i 's/^hw\.gpu\.enabled=no/hw.gpu.enabled=yes/' "$AVD_DIR/e2e.avd/config.ini"
           printf '%s\n' "hw.ramSize=16384" "vm.heapSize=1024" "hw.camera.front=emulated" "hw.camera.back=emulated" >> "$AVD_DIR/e2e.avd/config.ini"
           cp "$AVD_DIR/e2e.avd/config.ini" emulator-config-modified.ini
 
