@@ -87,7 +87,9 @@ framebuffer that `adb screencap` and UiAutomator rely on.
 | `default` (AOSP) image | user rejected — needs google APIs for FCM |
 | Xvfb virtual display | socket creation fails without root |
 | `xvfb-run` wrapper | blocks waiting for emulator to finish |
-| `nohup xvfb-run ... &` | pending verification |
+| `nohup xvfb-run ... &` | still hangs — xvfb-run blocks internally |
+| direct `Xvfb :99` + `DISPLAY=:99` | hangs after "Xvfb started" |
+| **conclusion** | Xvfb irrelevant — screencap uses android framebuffer, not host X |
 
 ### why enabling GPU doesn't help
 
@@ -101,19 +103,35 @@ regardless of `hw.gpu.enabled` setting, the `-gpu swiftshader_indirect` flag for
 host-side software rendering via gfxstream. the framebuffer exists in the host process
 but isn't exposed to the guest's screencap mechanism on ATD.
 
-### Xvfb approach (in progress)
+### Xvfb approach (abandoned)
 
 the theory: run emulator **without** `-no-window` inside a virtual X display. this gives
 the emulator a "real" display to render to, which screencap can capture.
 
-challenges encountered:
+**fundamental flaw**: `adb screencap` captures from **android's internal framebuffer**, not
+the host X display. Xvfb provides a virtual display for the emulator's *window*, but the
+android guest doesn't render to that — it renders to its own internal graphics buffer.
+therefore Xvfb cannot help with screenshots regardless of configuration.
+
+challenges encountered before abandoning:
 
 1. **xvfb not installed** on EAS — fixed with `sudo apt-get install -y xvfb`
 2. **socket creation fails** — `/tmp/.X11-unix` can't be created without root
-3. **xvfb-run blocks** — it waits for the wrapped command to complete
+3. **xvfb-run blocks** — it waits for the wrapped command to complete (even with `nohup ... &`)
+4. **direct Xvfb hangs** — starting `Xvfb :99` separately then emulator with `DISPLAY=:99` also hangs
 
-current attempt uses `nohup xvfb-run ... &` to properly background the emulator while
-xvfb-run manages the virtual display.
+the xvfb-run wrapper is documented to wait until its child exits before returning. from
+ubuntu manpage: "when the command exits, its status is saved, the Xvfb server is killed".
+this causes infinite hang regardless of backgrounding attempts.
+
+### current approach
+
+since Xvfb cannot help with ATD screenshots and causes hangs, the workflow now:
+
+1. **no Xvfb** — removed entirely
+2. **`setsid`** — starts emulator in new session for proper shell detachment
+3. **`-no-window`** — appropriate for headless ATD
+4. **accept black screenshots** — maestro tests don't require screenshots to pass
 
 ## key learnings
 
@@ -157,9 +175,12 @@ configuration:
 
 - image: `google_atd;x86_64` (stable, has google APIs)
 - gpu: `swiftshader_indirect`
-- `hw.gpu.enabled=yes` (via sed)
-- xvfb virtual display (via `nohup xvfb-run`)
+- `hw.gpu.enabled=yes` (via sed, but doesn't help screenshots)
+- **no xvfb** — abandoned after determining it can't help
+- **setsid** for proper emulator detachment
+- **-no-window** since ATD is headless
 - keyboard dismiss: tap "To:" label to blur
+- screenshots: expected to be black (ATD limitation)
 
 ## related commits
 
@@ -172,3 +193,5 @@ configuration:
 - `044af8e6` 🐛 eas: pass DISPLAY to emulator via env prefix
 - `15816f8f` ⚗️ eas: use xvfb-run instead of manual Xvfb
 - `86c266fc` 🐛 eas: use nohup to properly background xvfb-run + emulator
+- `15b051d2` 🐛 eas: replace xvfb-run with direct Xvfb to fix hang
+- `be203f70` 🐛 eas: remove xvfb, use setsid for emulator detachment

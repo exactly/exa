@@ -79,28 +79,15 @@ jobs:
           grep -i gpu "$AVD_DIR/e2e.avd/config.ini" || echo "(no gpu config found)"
           echo "--- end diagnostics ---"
 
-          # install xvfb for virtual display
-          sudo apt-get update && sudo apt-get install -y xvfb
-
-          # start xvfb directly in background (display :99 is standard for headless ci)
-          # -ac disables access control, allowing any client to connect
-          Xvfb :99 -screen 0 1280x720x24 -ac > xvfb.log 2>&1 &
-          XVFB_PID=$!
-          sleep 2
-          if ! kill -0 $XVFB_PID 2>/dev/null; then
-            echo "FATAL: Xvfb failed to start"
-            cat xvfb.log
-            exit 1
-          fi
-          echo "Xvfb started on display :99 (PID: $XVFB_PID)"
-
-          # set display for emulator (enables rendering to virtual framebuffer)
-          export DISPLAY=:99
-
-          # start emulator (no -no-window since we have xvfb display)
-          $ANDROID_HOME/emulator/emulator -avd e2e -no-snapshot -no-snapshot-save -no-audio -no-boot-anim -gpu swiftshader_indirect -netfast -no-metrics -memory 16384 -cores 4 -partition-size 4096 -wipe-data > emulator-process.log 2>&1 &
+          # start emulator in new session (setsid) for proper detachment
+          # ATD images are headless - no xvfb needed, adb screencap uses android framebuffer
+          echo "DEBUG: starting emulator..."
+          setsid $ANDROID_HOME/emulator/emulator -avd e2e -no-window -no-snapshot -no-snapshot-save -no-audio -no-boot-anim -gpu swiftshader_indirect -netfast -no-metrics -memory 16384 -cores 4 -partition-size 4096 -wipe-data > emulator-process.log 2>&1 &
           EMU_PID=$!
+          echo "DEBUG: emulator backgrounded (PID: $EMU_PID)"
           sleep 5
+          echo "DEBUG: checking emulator process..."
+          ps aux | grep -E 'qemu|emulator' | grep -v grep || echo "(no emulator process found)"
           adb wait-for-device
           timeout 180 adb shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
           timeout 60 sh -c 'until adb shell pm list packages > /dev/null 2>&1; do sleep 1; done'
@@ -135,7 +122,6 @@ jobs:
             kill $LOGCAT_PID $GUEST_LOGCAT_PID $STATS_PID $MONITOR_PID 2>/dev/null || true
             [ -n "$EMU_PID" ] && kill "$EMU_PID" 2>/dev/null || true
             pkill -f 'adb.*logcat' 2>/dev/null || true
-            pkill -f Xvfb 2>/dev/null || true
             adb kill-server 2>/dev/null || true
           }
           trap cleanup EXIT
@@ -195,7 +181,6 @@ jobs:
           timeout 60 adb bugreport emulator-bugreport || true
           adb pull /data/local/tmp/logcat.log emulator-logcat-guest.log 2>/dev/null || true
           timeout 10 adb shell dmesg > emulator-dmesg-after.log 2>/dev/null || true
-          pkill -f Xvfb 2>/dev/null || true
       - uses: eas/upload_artifact
         if: always()
         with:
@@ -215,7 +200,6 @@ jobs:
             emulator-health.log
             emulator-config-original.ini
             emulator-config-modified.ini
-            xvfb.log
             emulator-bugreport.zip
             ${{ env.HOME }}/.maestro/tests
             .maestro/screenshots
