@@ -51,11 +51,11 @@ jobs:
           # dump original config.ini for diagnosis
           cp "$AVD_DIR/e2e.avd/config.ini" emulator-config-original.ini
 
-          # override gpu: sed replaces existing keys; append if missing
-          sed -i 's/^hw\.gpu\.enabled=.*/hw.gpu.enabled=no/' "$AVD_DIR/e2e.avd/config.ini"
-          sed -i 's/^hw\.gpu\.mode=.*/hw.gpu.mode=off/' "$AVD_DIR/e2e.avd/config.ini"
-          grep -q '^hw\.gpu\.enabled=' "$AVD_DIR/e2e.avd/config.ini" || echo 'hw.gpu.enabled=no' >> "$AVD_DIR/e2e.avd/config.ini"
-          grep -q '^hw\.gpu\.mode=' "$AVD_DIR/e2e.avd/config.ini" || echo 'hw.gpu.mode=off' >> "$AVD_DIR/e2e.avd/config.ini"
+          # force angle_indirect renderer: swiftshader_indirect crashes on svg rendering in nested kvm.
+          # -gpu off is not valid — it means "guest rendering" which this image doesn't support,
+          # so the emulator falls back to swiftshader anyway. angle uses a different code path.
+          sed -i 's/^hw\.gpu\.enabled=.*/hw.gpu.enabled=yes/' "$AVD_DIR/e2e.avd/config.ini"
+          sed -i 's/^hw\.gpu\.mode=.*/hw.gpu.mode=angle_indirect/' "$AVD_DIR/e2e.avd/config.ini"
           printf '%s\n' "hw.ramSize=16384" "vm.heapSize=1024" "hw.camera.front=emulated" "hw.camera.back=emulated" >> "$AVD_DIR/e2e.avd/config.ini"
 
           # dump modified config.ini for diagnosis
@@ -70,7 +70,7 @@ jobs:
           grep -i gpu "$ANDROID_HOME/system-images/android-34/google_apis/x86_64/hardware-properties.ini" 2>/dev/null || echo "(not found)"
           echo "--- end diagnostics ---"
 
-          setsid $ANDROID_HOME/emulator/emulator -avd e2e -no-snapshot -no-snapshot-save -no-window -no-audio -no-boot-anim -gpu off -netfast -no-metrics -memory 16384 -cores 4 -partition-size 4096 -wipe-data > emulator-process.log 2>&1 &
+          setsid $ANDROID_HOME/emulator/emulator -avd e2e -no-snapshot -no-snapshot-save -no-window -no-audio -no-boot-anim -gpu angle_indirect -netfast -no-metrics -memory 16384 -cores 4 -partition-size 4096 -wipe-data > emulator-process.log 2>&1 &
           adb wait-for-device
           timeout 180 adb shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
           timeout 60 sh -c 'until adb shell pm list packages > /dev/null 2>&1; do sleep 1; done'

@@ -183,6 +183,34 @@ of each key and ignores later duplicates. appending with `>>` doesn't work.
 
 **fix**: must use `sed -i 's/^hw\.gpu\.enabled=.*/hw.gpu.enabled=no/'` to replace in-place.
 
+### 20. config.ini diagnosis (run `2026-01-28_005359`)
+
+dumped `config.ini` before and after sed. findings:
+
+- **the original config already had `hw.gpu.enabled=no`** — avdmanager generates this default
+  for the `google_apis;x86_64` image. the sed for `hw.gpu.enabled` was a no-op.
+- **sed correctly changed `hw.gpu.mode=auto` → `hw.gpu.mode=off`**
+- **the emulator ignored both settings entirely**. it still shows `Graphics backend: gfxstream`
+  and falls back to `swiftshader_indirect`.
+
+**root cause**: `-gpu off` does NOT mean "disable gpu." it means "use guest-side rendering."
+when the system image doesn't support guest rendering, the emulator falls back to
+`swiftshader_indirect` regardless. there is **no way to fully disable gpu** on this system
+image. the android framework requires a rendering surface.
+
+the only valid gpu modes for `google_apis;x86_64` api 34 are:
+
+- `swiftshader_indirect` — host-side software gpu (SwiftShader). **crashes on svg rendering.**
+- `host` — hardware gpu. **not available in nested kvm.**
+- `angle_indirect` — host-side ANGLE renderer (translates opengl to vulkan). **untested.**
+- `guest` — guest-side rendering. **not supported by this system image.**
+
+### 21. angle_indirect renderer (pending)
+
+**hypothesis**: angle uses a completely different rendering code path (ANGLE → Vulkan) instead
+of swiftshader (direct OpenGL). the crash is specifically in swiftshader's opengl implementation
+triggered by svg image decoding. angle may not have this bug.
+
 ## detailed findings from run `2026-01-27_211247`
 
 ### precise crash timeline (third confirmation)
@@ -273,7 +301,7 @@ branch: `android`
 
 emulator config:
 
-- `-gpu off` via `sed -i` on config.ini (previous attempts via cli flag and append were ignored)
+- `-gpu angle_indirect` (swiftshader crashes; angle uses different code path)
 - `hw.ramSize=16384` / `-memory 16384` (16 gb)
 - `-cores 4`
 - avd on tmpfs (`/dev/shm/avd`)
@@ -293,3 +321,5 @@ diagnostic streams:
 - `b59a4b42` ⚗️ eas: switch to guest gpu, fix stats sampler and dmesg
 - `4d4c37d7` ⚗️ eas: gpu off, 16gb guest ram, qemu crash detection
 - `b567561b` ⚗️ eas: force gpu off via config.ini, fix health monitor
+- `eb276671` ⚗️ eas: sed gpu config in-place, qemu crash confirmed
+- `1b521de9` ⚗️ eas: dump config.ini before/after sed for gpu diagnosis
