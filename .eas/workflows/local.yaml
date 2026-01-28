@@ -46,31 +46,27 @@ jobs:
           mkdir -p "$AVD_DIR"
           export ANDROID_AVD_HOME="$AVD_DIR"
 
-          avdmanager -s create avd -n e2e -k "system-images;android-34;google_apis;x86_64" --force
+          # try google_atd (ci-optimized image), fall back to google_apis if unavailable
+          SYSIMG="system-images;android-34;google_apis_atd;x86_64"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "$SYSIMG" 2>/dev/null || {
+            echo "google_apis_atd unavailable, falling back to google_apis"
+            SYSIMG="system-images;android-34;google_apis;x86_64"
+          }
+          avdmanager -s create avd -n e2e -k "$SYSIMG" --force
 
-          # dump original config.ini for diagnosis
           cp "$AVD_DIR/e2e.avd/config.ini" emulator-config-original.ini
-
-          # force angle_indirect renderer: swiftshader_indirect crashes on svg rendering in nested kvm.
-          # -gpu off is not valid — it means "guest rendering" which this image doesn't support,
-          # so the emulator falls back to swiftshader anyway. angle uses a different code path.
-          sed -i 's/^hw\.gpu\.enabled=.*/hw.gpu.enabled=yes/' "$AVD_DIR/e2e.avd/config.ini"
-          sed -i 's/^hw\.gpu\.mode=.*/hw.gpu.mode=angle_indirect/' "$AVD_DIR/e2e.avd/config.ini"
           printf '%s\n' "hw.ramSize=16384" "vm.heapSize=1024" "hw.camera.front=emulated" "hw.camera.back=emulated" >> "$AVD_DIR/e2e.avd/config.ini"
-
-          # dump modified config.ini for diagnosis
           cp "$AVD_DIR/e2e.avd/config.ini" emulator-config-modified.ini
 
-          echo "--- tmpfs diagnostics ---"
+          echo "--- diagnostics ---"
+          echo "system image: $SYSIMG"
           df -h /dev/shm
-          ls -la "$AVD_DIR/e2e.avd/"
-          echo "--- avd config.ini gpu lines ---"
           grep -i gpu "$AVD_DIR/e2e.avd/config.ini" || echo "(no gpu config found)"
-          echo "--- system image hardware props ---"
-          grep -i gpu "$ANDROID_HOME/system-images/android-34/google_apis/x86_64/hardware-properties.ini" 2>/dev/null || echo "(not found)"
           echo "--- end diagnostics ---"
 
-          setsid $ANDROID_HOME/emulator/emulator -avd e2e -no-snapshot -no-snapshot-save -no-window -no-audio -no-boot-anim -gpu angle_indirect -netfast -no-metrics -memory 16384 -cores 4 -partition-size 4096 -wipe-data > emulator-process.log 2>&1 &
+          # swiftshader_indirect is the only renderer that boots in nested kvm.
+          # angle_indirect hangs (no vulkan), -gpu off falls back to swiftshader.
+          setsid $ANDROID_HOME/emulator/emulator -avd e2e -no-snapshot -no-snapshot-save -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -netfast -no-metrics -memory 16384 -cores 4 -partition-size 4096 -wipe-data > emulator-process.log 2>&1 &
           adb wait-for-device
           timeout 180 adb shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
           timeout 60 sh -c 'until adb shell pm list packages > /dev/null 2>&1; do sleep 1; done'

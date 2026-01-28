@@ -205,11 +205,31 @@ the only valid gpu modes for `google_apis;x86_64` api 34 are:
 - `angle_indirect` — host-side ANGLE renderer (translates opengl to vulkan). **untested.**
 - `guest` — guest-side rendering. **not supported by this system image.**
 
-### 21. angle_indirect renderer (pending)
+### 21. angle_indirect renderer (run `2026-01-28_005359`)
 
 **hypothesis**: angle uses a completely different rendering code path (ANGLE → Vulkan) instead
 of swiftshader (direct OpenGL). the crash is specifically in swiftshader's opengl implementation
 triggered by svg image decoding. angle may not have this bug.
+
+**result**: **emulator hangs on startup.** angle_indirect requires real vulkan hardware on the
+host. nested kvm has no gpu, so the vulkan initialization never completes. the emulator never
+reaches `Boot completed`.
+
+this exhausts all gpu renderer options:
+
+| renderer               | result                                          |
+| ---------------------- | ----------------------------------------------- |
+| `swiftshader_indirect` | boots, qemu segfaults on svg rendering          |
+| `angle_indirect`       | hangs on startup (no vulkan in nested kvm)       |
+| `off` / `guest`        | falls back to swiftshader (image lacks guest gpu)|
+| `host`                 | no real gpu in nested kvm                        |
+
+### 22. google_atd system image (pending)
+
+**hypothesis**: `google_apis_atd;x86_64` is google's ci-optimized system image. it has the same
+api level and google apis (fcm works) but stripped-down gms and potentially different rendering
+behavior. it may handle the svg rendering without crashing swiftshader, or it may support guest
+rendering (bypassing gfxstream entirely).
 
 ## detailed findings from run `2026-01-27_211247`
 
@@ -301,7 +321,8 @@ branch: `android`
 
 emulator config:
 
-- `-gpu angle_indirect` (swiftshader crashes; angle uses different code path)
+- `-gpu swiftshader_indirect` (only renderer that boots; angle/off/host all fail)
+- system image: `google_apis_atd;x86_64` (ci-optimized, may handle svg differently)
 - `hw.ramSize=16384` / `-memory 16384` (16 gb)
 - `-cores 4`
 - avd on tmpfs (`/dev/shm/avd`)
