@@ -46,12 +46,28 @@ jobs:
           mkdir -p "$AVD_DIR"
           export ANDROID_AVD_HOME="$AVD_DIR"
 
-          # try google_atd (ci-optimized image), fall back to google_apis if unavailable
-          SYSIMG="system-images;android-34;google_apis_atd;x86_64"
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "$SYSIMG" 2>/dev/null || {
-            echo "google_apis_atd unavailable, falling back to google_apis"
+          # diagnose available ATD images
+          echo "--- available ATD images ---"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --list 2>&1 | grep -i atd || echo "(no atd images found)"
+          echo "--- pre-installed system images ---"
+          ls "$ANDROID_HOME/system-images/android-34/" 2>/dev/null || echo "(none for api 34)"
+          echo "---"
+
+          # try google_atd variants (ci-optimized), fall back to google_apis
+          SYSIMG=""
+          for tag in google_apis_atd google_atd; do
+            candidate="system-images;android-34;${tag};x86_64"
+            echo "trying: $candidate"
+            if "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "$candidate" 2>&1; then
+              SYSIMG="$candidate"
+              break
+            fi
+          done
+          if [ -z "$SYSIMG" ]; then
+            echo "no ATD image available, falling back to google_apis"
             SYSIMG="system-images;android-34;google_apis;x86_64"
-          }
+          fi
+          echo "selected image: $SYSIMG"
           avdmanager -s create avd -n e2e -k "$SYSIMG" --force
 
           cp "$AVD_DIR/e2e.avd/config.ini" emulator-config-original.ini

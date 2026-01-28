@@ -219,17 +219,42 @@ this exhausts all gpu renderer options:
 
 | renderer               | result                                          |
 | ---------------------- | ----------------------------------------------- |
-| `swiftshader_indirect` | boots, qemu segfaults on svg rendering          |
+| `swiftshader_indirect` | boots, qemu segfaults on screen transition       |
 | `angle_indirect`       | hangs on startup (no vulkan in nested kvm)       |
 | `off` / `guest`        | falls back to swiftshader (image lacks guest gpu)|
 | `host`                 | no real gpu in nested kvm                        |
 
-### 22. google_atd system image (pending)
+### 22. google_atd system image (run `2026-01-28_013651`)
 
 **hypothesis**: `google_apis_atd;x86_64` is google's ci-optimized system image. it has the same
 api level and google apis (fcm works) but stripped-down gms and potentially different rendering
-behavior. it may handle the svg rendering without crashing swiftshader, or it may support guest
+behavior. it may handle the rendering without crashing swiftshader, or it may support guest
 rendering (bypassing gfxstream entirely).
+
+**result**: **image was not available.** the `sdkmanager --install` command failed silently
+(stderr was suppressed with `2>/dev/null`). the workflow fell back to `google_apis;x86_64`.
+the config.ini confirms: `tag.id=google_apis`, `image.sysdir.1=system-images/android-34/google_apis/x86_64/`.
+
+the crash was identical — qemu DEAD at 01:37:50. however, this run revealed a **critical
+correction**: **zero `Failed to create image decoder` errors** appeared in the logcat (80,383
+lines). the crash happened at the exact same flow step (sendAsset → "Tap on Next" → asset
+selection screen → tap on "USDC") without any OpenGLRenderer image decoder failures.
+
+this disproves the SVG rendering hypothesis. the crash is triggered by the **general rendering
+load** of the asset selection screen transition through swiftshader/gfxstream, not specifically
+by SVG image decoding. the `Failed to create image decoder` errors in earlier runs were a
+correlated symptom, not the root cause. app-side SVG→PNG replacement would NOT fix the problem.
+
+**fix**: need to actually install the ATD image. possible reasons for failure:
+- `google_apis_atd;x86_64` may not exist for API 34 (check `sdkmanager --list`)
+- the EAS build image may not have the package available
+- stderr was suppressed, hiding the real error
+
+### 23. diagnose ATD availability + reduce rendering load (pending)
+
+**hypothesis**: two parallel approaches:
+1. show `sdkmanager --list | grep atd` output to determine if ATD exists for API 34 x86_64
+2. try smaller resolution or `-no-accel` to reduce swiftshader stress
 
 ## detailed findings from run `2026-01-27_211247`
 
@@ -288,29 +313,24 @@ confirming the health monitor either:
 
 ### gpu stack is confirmed — qemu crashes in swiftshader
 
-the health monitor proved **qemu process DEAD (host crash)**. the emulator process itself
-segfaults — this is a swiftshader bug triggered by svg rendering through gfxstream. both cli
-`-gpu off` and config.ini append were silently ignored; the next attempt uses `sed -i` to replace
-the default values in-place.
+the health monitor proved **qemu process DEAD (host crash)** across multiple runs. the emulator
+process itself segfaults. the crash occurs at a deterministic screen transition (asset selection
+screen in sendAsset flow), but the `Failed to create image decoder` errors present in early runs
+are **not always present** (run `2026-01-28_013651` had zero such errors). the crash is triggered
+by swiftshader's general rendering pipeline under nested kvm, not specifically by SVG decoding.
 
-if `-gpu off` (properly applied) eliminates the crash:
+all gpu renderer options are exhausted (swiftshader crashes, angle hangs, off/guest fall back to
+swiftshader, host unavailable). all config override methods attempted (cli flag, config.ini append,
+sed in-place) — `-gpu off` means "guest rendering" not "disable gpu".
 
-1. **swiftshader bug**: the specific svg rendering path triggers a crash in swiftshader's software
-   opengl implementation. possible fix: upgrade emulator version or use a different system image.
-2. **gfxstream pipe corruption**: the host↔guest gpu pipe corrupts under nested kvm, causing the
-   guest to block on a pipe read forever. possible fix: use a different gpu transport or disable
-   gpu entirely for ci.
-3. **svg rendering workaround**: the asset selection screen's svg icons (loaded via glide) could be
-   replaced with pre-rasterized pngs for the e2e test build, avoiding the problematic rendering
-   path entirely.
+### remaining approaches
 
-### if `-gpu off` doesn't help
-
-the crash may be in the emulator's core (qemu) rather than the gpu stack. next steps:
-
-- try `-gpu swiftshader_indirect` with `-no-accel` to rule out kvm interaction
-- try `google_atd` images (stripped gms, optimized for ci)
-- try emulator snapshot with pre-warmed state (let svg renders complete before starting test)
+1. **google_apis_atd image** (blocked — need to diagnose availability). ATD is google's
+   ci-optimized image. may have lighter rendering stack.
+2. **reduce rendering load**: try even smaller resolution, `-no-accel` (pure software emulation,
+   may avoid kvm-specific crash path), or skip the sendAsset flow.
+3. **emulator snapshot**: pre-warm past the crashing screen, save snapshot, run tests from there.
+4. **upgrade emulator version**: the swiftshader bug may be fixed in newer emulator builds.
 
 **do NOT try**: lowering the api level (e.g. api 33, api 30). the app targets api 34 and we must
 not downgrade.
@@ -322,7 +342,7 @@ branch: `android`
 emulator config:
 
 - `-gpu swiftshader_indirect` (only renderer that boots; angle/off/host all fail)
-- system image: `google_apis_atd;x86_64` (ci-optimized, may handle svg differently)
+- system image: `google_apis;x86_64` (ATD install failed silently, investigating)
 - `hw.ramSize=16384` / `-memory 16384` (16 gb)
 - `-cores 4`
 - avd on tmpfs (`/dev/shm/avd`)
@@ -344,3 +364,5 @@ diagnostic streams:
 - `b567561b` ⚗️ eas: force gpu off via config.ini, fix health monitor
 - `eb276671` ⚗️ eas: sed gpu config in-place, qemu crash confirmed
 - `1b521de9` ⚗️ eas: dump config.ini before/after sed for gpu diagnosis
+- `8f8c17e0` ⚗️ eas: switch to angle_indirect renderer
+- `82ae0ff6` ⚗️ eas: google_atd image, revert to swiftshader_indirect
