@@ -53,27 +53,16 @@ jobs:
           ls "$ANDROID_HOME/system-images/android-34/" 2>/dev/null || echo "(none for api 34)"
           echo "---"
 
-          # try google_atd variants (ci-optimized), fall back to google_apis
-          SYSIMG=""
-          for tag in google_apis_atd google_atd; do
-            candidate="system-images;android-34;${tag};x86_64"
-            echo "trying: $candidate"
-            if "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "$candidate" 2>&1; then
-              SYSIMG="$candidate"
-              break
-            fi
-          done
-          if [ -z "$SYSIMG" ]; then
-            echo "no ATD image available, falling back to google_apis"
-            SYSIMG="system-images;android-34;google_apis;x86_64"
-          fi
+          # use google_apis for screenshot support (ATD images have hw rendering disabled)
+          SYSIMG="system-images;android-34;google_apis;x86_64"
           echo "selected image: $SYSIMG"
           avdmanager -s create avd -n e2e -k "$SYSIMG" --force
 
           cp "$AVD_DIR/e2e.avd/config.ini" emulator-config-original.ini
-          # ATD images default to hw.gpu.enabled=no (headless) - enable for screencap
-          sed -i 's/^hw\.gpu\.enabled=no/hw.gpu.enabled=yes/' "$AVD_DIR/e2e.avd/config.ini"
           printf '%s\n' "hw.ramSize=16384" "vm.heapSize=1024" "hw.camera.front=emulated" "hw.camera.back=emulated" >> "$AVD_DIR/e2e.avd/config.ini"
+          # disable vulkan to prevent swiftshader/gfxstream crash
+          mkdir -p "$HOME/.android"
+          printf 'Vulkan = off\nGLDirectMem = on\n' > "$HOME/.android/advancedFeatures.ini"
           cp "$AVD_DIR/e2e.avd/config.ini" emulator-config-modified.ini
 
           echo "--- diagnostics ---"
@@ -83,8 +72,8 @@ jobs:
           echo "--- end diagnostics ---"
 
           # swiftshader_indirect is the only renderer that boots in nested kvm.
-          # angle_indirect hangs (no vulkan), -gpu off falls back to swiftshader.
-          setsid $ANDROID_HOME/emulator/emulator -avd e2e -no-snapshot -no-snapshot-save -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -netfast -no-metrics -memory 16384 -cores 4 -partition-size 4096 -wipe-data > emulator-process.log 2>&1 &
+          # -feature -Vulkan disables vulkan to prevent gfxstream crash on google_apis image.
+          setsid $ANDROID_HOME/emulator/emulator -avd e2e -no-snapshot -no-snapshot-save -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -feature -Vulkan -netfast -no-metrics -memory 16384 -cores 4 -partition-size 4096 -wipe-data > emulator-process.log 2>&1 &
           adb wait-for-device
           timeout 180 adb shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
           timeout 60 sh -c 'until adb shell pm list packages > /dev/null 2>&1; do sleep 1; done'
