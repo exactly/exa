@@ -60,13 +60,17 @@ abstract contract ForkTest is Test {
   }
 
   function protocol(string memory name, bool required) internal returns (address addr) {
+    return protocol(name, required, block.chainid);
+  }
+
+  function protocol(string memory name, bool required, uint256 chainid) internal returns (address addr) {
     addr = address(uint160(uint256(vm.load(msg.sender, keccak256(abi.encode(name))))));
     if (addr == address(0)) addr = vm.envOr(string.concat("PROTOCOL_", name.upper(), "_ADDRESS"), address(0));
     if (addr == address(0)) {
       try vm.readFile(
         string.concat(
           "node_modules/@exactly/protocol/deployments/",
-          block.chainid == 11_155_420 ? "op-sepolia" : getChain(block.chainid).chainAlias.replace("_", "-"),
+          chainid == 11_155_420 ? "op-sepolia" : getChain(chainid).chainAlias.replace("_", "-"),
           "/",
           name,
           ".json"
@@ -82,25 +86,35 @@ abstract contract ForkTest is Test {
   }
 
   function broadcast(string memory name) internal returns (address) {
-    return broadcast(name, name, 0);
+    return broadcast(name, name, 0, block.chainid);
   }
 
-  function broadcast(string memory name, string memory script, uint256 index) internal returns (address) {
-    return _broadcast(name, string.concat("broadcast/", script), index);
+  function broadcast(string memory name, uint256 chainid) internal returns (address) {
+    return broadcast(name, name, 0, chainid);
+  }
+
+  function broadcast(string memory name, string memory script, uint256 index, uint256 chainid)
+    internal
+    returns (address)
+  {
+    return _broadcast(name, string.concat("broadcast/", script), index, chainid);
   }
 
   function dependency(string memory package, string memory name, string memory script, uint256 index)
     internal
     returns (address)
   {
-    return _broadcast(name, string.concat("node_modules/", package, "/broadcast/", script), index);
+    return _broadcast(name, string.concat("node_modules/", package, "/broadcast/", script), index, block.chainid);
   }
 
-  function _broadcast(string memory name, string memory script, uint256 index) private returns (address addr) {
+  function _broadcast(string memory name, string memory script, uint256 index, uint256 chainid)
+    private
+    returns (address addr)
+  {
     addr = address(uint160(uint256(vm.load(msg.sender, keccak256(abi.encode(name))))));
     if (addr == address(0)) addr = vm.envOr(string.concat("BROADCAST_", name.upper(), "_ADDRESS"), address(0));
     if (addr == address(0)) {
-      addr = vm.readFile(string.concat(script, ".s.sol/", block.chainid.toString(), "/run-latest.json"))
+      addr = vm.readFile(string.concat(script, ".s.sol/", chainid.toString(), "/run-latest.json"))
         .readAddress(string.concat(".transactions[", index.toString(), "].contractAddress"));
     }
     _label(addr, name);
