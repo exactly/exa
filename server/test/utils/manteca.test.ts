@@ -2,6 +2,7 @@ import "../mocks/sentry";
 
 import { parse } from "valibot";
 import { padHex } from "viem";
+import { baseSepolia, optimism } from "viem/chains";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Address } from "@exactly/common/validation";
@@ -9,6 +10,12 @@ import { Address } from "@exactly/common/validation";
 import * as persona from "../../utils/persona";
 import * as manteca from "../../utils/ramps/manteca";
 import { ErrorCodes } from "../../utils/ramps/manteca";
+
+const chainMock = vi.hoisted(() => ({ id: 10 }));
+
+vi.mock("@exactly/common/generated/chain", () => ({
+  default: chainMock,
+}));
 
 function mockFetchResponse(body: unknown) {
   return {
@@ -29,6 +36,7 @@ function mockFetchError(status: number, message: string) {
 
 describe("manteca utils", () => {
   beforeEach(() => {
+    chainMock.id = optimism.id;
     vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,
       status: 200,
@@ -196,6 +204,31 @@ describe("manteca utils", () => {
 
       await expect(manteca.withdrawBalance("456", "USDC", address)).rejects.toThrow("asset balance not found");
     });
+
+    it("throws for unsupported chain id", async () => {
+      chainMock.id = 1;
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        mockFetchResponse({ ...mockBalanceBase, balance: { USDC: "100.00" } }),
+      );
+
+      await expect(manteca.withdrawBalance("456", "USDC", address)).rejects.toThrow(ErrorCodes.NOT_SUPPORTED_CHAIN_ID);
+    });
+
+    it("withdraws with BASE network on development chain", async () => {
+      chainMock.id = baseSepolia.id;
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(mockFetchResponse({ ...mockBalanceBase, balance: { USDC: "100.00" } }))
+        .mockResolvedValueOnce(mockFetchResponse(mockWithdrawResponse));
+
+      await expect(manteca.withdrawBalance("456", "USDC", address)).resolves.toBeUndefined();
+
+      const withdrawCall = fetchSpy.mock.calls[1];
+      const body = JSON.parse(withdrawCall?.[1]?.body as string) as Record<string, unknown>;
+      expect(body).toMatchObject({
+        destination: { address, network: "BASE" },
+      });
+    });
   });
 
   describe("getProvider", () => {
@@ -282,6 +315,29 @@ describe("manteca utils", () => {
 
       expect(result.status).toBe("ONBOARDING");
     });
+
+    it("returns NOT_AVAILABLE for unsupported chain id", async () => {
+      chainMock.id = 1;
+
+      const result = await manteca.getProvider(account, "AR");
+
+      expect(result.status).toBe("NOT_AVAILABLE");
+      expect(result.onramp.currencies).toEqual([]);
+    });
+
+    it("returns currencies on development chain", async () => {
+      chainMock.id = baseSepolia.id;
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        text: () => Promise.resolve("::404:: USER_NF"),
+      } as Response);
+
+      const result = await manteca.getProvider(account, "AR");
+
+      expect(result.status).toBe("NOT_STARTED");
+      expect(result.onramp.currencies).toEqual(["ARS", "USD"]);
+    });
   });
 
   describe("mantecaOnboarding", () => {
@@ -357,6 +413,12 @@ describe("manteca utils", () => {
       },
     };
 
+    it("throws for unsupported chain id", async () => {
+      chainMock.id = 1;
+
+      await expect(manteca.mantecaOnboarding(account, credentialId)).rejects.toThrow(ErrorCodes.NOT_SUPPORTED_CHAIN_ID);
+    });
+
     it("returns early when user is already active", async () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(mockFetchResponse(mockActiveUser));
 
@@ -381,7 +443,7 @@ describe("manteca utils", () => {
         .mockResolvedValueOnce(mockFetchError(404, "::404:: USER_NF"))
         .mockResolvedValueOnce(mockFetchResponse(mockNewUserResponse));
       vi.spyOn(persona, "getAccount").mockResolvedValueOnce(mockPersonaAccount);
-      vi.spyOn(persona, "getDocumentForManteca").mockReturnValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
+      vi.spyOn(persona, "getDocumentForManteca").mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
 
       await expect(manteca.mantecaOnboarding(account, credentialId)).rejects.toThrow(ErrorCodes.NO_DOCUMENT);
     });
@@ -391,7 +453,7 @@ describe("manteca utils", () => {
         .mockResolvedValueOnce(mockFetchError(404, "::404:: USER_NF"))
         .mockResolvedValueOnce(mockFetchResponse(mockNewUserResponse));
       vi.spyOn(persona, "getAccount").mockResolvedValueOnce(mockPersonaAccount);
-      vi.spyOn(persona, "getDocumentForManteca").mockReturnValueOnce(mockIdentityDocument);
+      vi.spyOn(persona, "getDocumentForManteca").mockResolvedValueOnce(mockIdentityDocument);
       vi.spyOn(persona, "getDocument").mockResolvedValueOnce({
         ...mockDocument,
         attributes: { ...mockDocument.attributes, "front-photo": null },
@@ -409,7 +471,7 @@ describe("manteca utils", () => {
         .mockResolvedValueOnce(mockFetchResponse({}));
 
       vi.spyOn(persona, "getAccount").mockResolvedValueOnce(mockPersonaAccount);
-      vi.spyOn(persona, "getDocumentForManteca").mockReturnValueOnce(mockIdentityDocument);
+      vi.spyOn(persona, "getDocumentForManteca").mockResolvedValueOnce(mockIdentityDocument);
       vi.spyOn(persona, "getDocument").mockResolvedValueOnce(mockDocument);
 
       await expect(manteca.mantecaOnboarding(account, credentialId)).resolves.toBeUndefined();
@@ -423,7 +485,7 @@ describe("manteca utils", () => {
         .mockResolvedValueOnce(mockFetchResponse({}));
 
       vi.spyOn(persona, "getAccount").mockResolvedValueOnce(mockPersonaAccount);
-      vi.spyOn(persona, "getDocumentForManteca").mockReturnValueOnce(mockIdentityDocument);
+      vi.spyOn(persona, "getDocumentForManteca").mockResolvedValueOnce(mockIdentityDocument);
       vi.spyOn(persona, "getDocument").mockResolvedValueOnce(mockDocument);
 
       await expect(manteca.mantecaOnboarding(account, credentialId)).resolves.toBeUndefined();
@@ -447,7 +509,7 @@ describe("manteca utils", () => {
         .mockResolvedValueOnce(mockFetchResponse({}));
 
       vi.spyOn(persona, "getAccount").mockResolvedValueOnce(femalePersonaAccount);
-      vi.spyOn(persona, "getDocumentForManteca").mockReturnValueOnce(mockIdentityDocument);
+      vi.spyOn(persona, "getDocumentForManteca").mockResolvedValueOnce(mockIdentityDocument);
       vi.spyOn(persona, "getDocument").mockResolvedValueOnce(mockDocument);
 
       await manteca.mantecaOnboarding(account, credentialId);
@@ -475,7 +537,7 @@ describe("manteca utils", () => {
         .mockResolvedValueOnce(mockFetchResponse({}));
 
       vi.spyOn(persona, "getAccount").mockResolvedValueOnce(nonBinaryPersonaAccount);
-      vi.spyOn(persona, "getDocumentForManteca").mockReturnValueOnce(mockIdentityDocument);
+      vi.spyOn(persona, "getDocumentForManteca").mockResolvedValueOnce(mockIdentityDocument);
       vi.spyOn(persona, "getDocument").mockResolvedValueOnce(mockDocument);
 
       await manteca.mantecaOnboarding(account, credentialId);

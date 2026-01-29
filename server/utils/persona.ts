@@ -320,10 +320,12 @@ export async function getPendingInquiryTemplate(
   return evaluateAccount(unknownAccount, scope);
 }
 
-export function evaluateAccount(
+export async function evaluateAccount(
   unknownAccount: InferOutput<typeof UnknownAccount>,
   scope: AccountScope,
-): typeof MANTECA_TEMPLATE_EXTRA_FIELDS | typeof MANTECA_TEMPLATE_WITH_ID_CLASS | typeof PANDA_TEMPLATE | undefined {
+): Promise<
+  typeof MANTECA_TEMPLATE_EXTRA_FIELDS | typeof MANTECA_TEMPLATE_WITH_ID_CLASS | typeof PANDA_TEMPLATE | undefined
+> {
   switch (scope) {
     case "document":
       throw new Error("document account scope not supported");
@@ -340,7 +342,7 @@ export function evaluateAccount(
       return;
     }
     case "manteca": {
-      const requiredTemplate = evaluateAccount(unknownAccount, "basic");
+      const requiredTemplate = await evaluateAccount(unknownAccount, "basic");
       // TODO use an unified template for panda + manteca
       if (requiredTemplate) return requiredTemplate;
 
@@ -351,25 +353,24 @@ export function evaluateAccount(
       }
 
       const countryCode = basicAccount.output.data[0]?.attributes["country-code"];
-      const userIdClasses = basicAccount.output.data[0]?.attributes.fields.documents.value.map(
-        (document) => document.value.id_class.value,
-      );
-      if (!userIdClasses?.length) throw new Error(scopeValidationErrors.INVALID_ACCOUNT);
       if (!countryCode) throw new Error(scopeValidationErrors.INVALID_ACCOUNT);
       const allowedIds = getAllowedMantecaIds(countryCode);
       if (!allowedIds) throw new Error(scopeValidationErrors.NOT_SUPPORTED);
+
+      const documents = basicAccount.output.data[0]?.attributes.fields.documents.value ?? [];
+      const validDocument = await getValidDocumentForManteca(documents, allowedIds);
+      const hasValidDocument = validDocument !== undefined;
 
       const result = safeParse(accountScopeSchemas[scope], unknownAccount);
       if (!result.success) {
         const notMissingFieldsIssues = result.issues.filter((issue) => !isMissingOrNull(issue));
         if (notMissingFieldsIssues.length === 0) {
-          return allowedIds.some((id) => userIdClasses.includes(id))
-            ? MANTECA_TEMPLATE_EXTRA_FIELDS
-            : MANTECA_TEMPLATE_WITH_ID_CLASS;
+          return hasValidDocument ? MANTECA_TEMPLATE_EXTRA_FIELDS : MANTECA_TEMPLATE_WITH_ID_CLASS;
         }
         setContext("validation", { ...result, flatten: flatten(result.issues) });
         throw new Error(scopeValidationErrors.INVALID_SCOPE_VALIDATION);
       }
+      if (!hasValidDocument) return MANTECA_TEMPLATE_WITH_ID_CLASS;
 
       return;
     }
@@ -450,36 +451,70 @@ export const MantecaCountryCode = ["AR", "CL", "BR", "CO", "PA", "CR", "GT", "MX
 
 type IdClass = (typeof IdentificationClasses)[number];
 type Country = (typeof MantecaCountryCode)[number];
-type Allowed = { allowedIds: readonly IdClass[] };
+type AllowedIdConfig = { id: IdClass; side: "both" | "front" };
+type Allowed = { allowedIds: readonly AllowedIdConfig[] };
 const allowedMantecaCountries = new Map<Country, Allowed>([
-  ["AR", { allowedIds: ["id", "pp"] }],
-  ["BR", { allowedIds: ["id", "pp", "dl"] }],
+  [
+    "AR",
+    {
+      allowedIds: [
+        { id: "id", side: "both" },
+        { id: "pp", side: "front" },
+      ],
+    },
+  ],
+  [
+    "BR",
+    {
+      allowedIds: [
+        { id: "dl", side: "both" },
+        { id: "pp", side: "front" },
+        { id: "id", side: "both" },
+      ],
+    },
+  ],
 ] satisfies (readonly [Country, Allowed])[]);
 
 function isDevelopment(): boolean {
   return DevelopmentChainIds.includes(chain.id as (typeof DevelopmentChainIds)[number]);
 }
 
-export function getAllowedMantecaIds(country: string): readonly IdClass[] | undefined {
+export function getAllowedMantecaIds(country: string): readonly AllowedIdConfig[] | undefined {
   if (isDevelopment()) {
-    return allowedMantecaCountries.get(country as Country)?.allowedIds ?? { US: ["dl"] as const }[country];
+    return (
+      allowedMantecaCountries.get(country as Country)?.allowedIds ??
+      { US: [{ id: "dl", side: "front" }] as const }[country]
+    );
   }
   const result = safeParse(picklist(MantecaCountryCode), country);
   if (!result.success) return undefined;
   return allowedMantecaCountries.get(result.output)?.allowedIds;
 }
 
-export function getDocumentForManteca(
+export async function getValidDocumentForManteca(
+  documents: InferOutput<typeof AccountBasicFields>["documents"]["value"],
+  allowedIds: readonly AllowedIdConfig[],
+): Promise<InferOutput<typeof IdentityDocument> | undefined> {
+  for (const { id: idClass, side } of allowedIds) {
+    const document = documents.find(({ value: { id_class } }) => id_class.value === idClass);
+    if (!document) continue;
+    if (side === "front") return document.value;
+    const { attributes } = await getDocument(document.value.id_document_id.value);
+    if (attributes["front-photo"] && attributes["back-photo"]) {
+      return document.value;
+    }
+  }
+
+  return undefined;
+}
+
+export async function getDocumentForManteca(
   documents: InferOutput<typeof AccountBasicFields>["documents"]["value"],
   country: string,
-): InferOutput<typeof IdentityDocument> | undefined {
+): Promise<InferOutput<typeof IdentityDocument> | undefined> {
   const allowedIds = getAllowedMantecaIds(country);
   if (!allowedIds) return undefined;
-  for (const idClass of allowedIds) {
-    const document = documents.find((id) => id.value.id_class.value === idClass);
-    if (document) return document.value;
-  }
-  return undefined;
+  return getValidDocumentForManteca(documents, allowedIds);
 }
 
 export const scopeValidationErrors = {

@@ -242,7 +242,7 @@ export async function mantecaOnboarding(account: Address, credentialId: string) 
   if (!personaAccount) throw new Error(ErrorCodes.NO_PERSONA_ACCOUNT);
   const countryCode = personaAccount.attributes["country-code"];
 
-  const identityDocument = getDocumentForManteca(personaAccount.attributes.fields.documents.value, countryCode);
+  const identityDocument = await getDocumentForManteca(personaAccount.attributes.fields.documents.value, countryCode);
   if (!identityDocument) {
     captureException(new Error("no identity document"), {
       level: "error",

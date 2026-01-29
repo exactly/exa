@@ -2,12 +2,20 @@ import "../mocks/persona";
 import "../mocks/sentry";
 
 import { array, minLength, number, object, optional, pipe, safeParse, string, union } from "valibot";
-import { describe, expect, it, vi } from "vitest";
+import { baseSepolia, optimism } from "viem/chains";
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 
 import * as persona from "../../utils/persona";
 
+const chainMock = vi.hoisted(() => ({ id: 10 }));
+
+vi.mock("@exactly/common/generated/chain", () => ({
+  default: chainMock,
+}));
+
 vi.mock("../../utils/panda");
 vi.mock("../../utils/pax");
+
 vi.mock("@sentry/node", { spy: true });
 
 describe("is missing or null util", () => {
@@ -161,56 +169,65 @@ describe("is missing or null util", () => {
 });
 
 describe("evaluateAccount", () => {
-  it("throws when scope is not supported", () => {
-    expect(() => persona.evaluateAccount({ data: [] }, "invalid" as persona.AccountScope)).toThrow(
+  let fetchSpy: MockInstance<typeof fetch>;
+  beforeEach(() => {
+    chainMock.id = optimism.id;
+    fetchSpy = vi.spyOn(globalThis, "fetch");
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("throws when scope is not supported", async () => {
+    await expect(persona.evaluateAccount({ data: [] }, "invalid" as persona.AccountScope)).rejects.toThrow(
       "unhandled account scope: invalid",
     );
   });
 
   describe("basic", () => {
-    it("returns panda template when account not found", () => {
-      const result = persona.evaluateAccount({ data: [] }, "basic");
+    it("returns panda template when account not found", async () => {
+      const result = await persona.evaluateAccount({ data: [] }, "basic");
 
       expect(result).toBe(persona.PANDA_TEMPLATE);
     });
 
-    it("returns panda template when all fields are missing", () => {
-      const result = persona.evaluateAccount(emptyAccount, "basic");
+    it("returns panda template when all fields are missing", async () => {
+      const result = await persona.evaluateAccount(emptyAccount, "basic");
 
       expect(result).toBe(persona.PANDA_TEMPLATE);
     });
 
-    it("returns undefined when account exists and is valid", () => {
-      const result = persona.evaluateAccount(basicAccount, "basic");
+    it("returns undefined when account exists and is valid", async () => {
+      const result = await persona.evaluateAccount(basicAccount, "basic");
 
       expect(result).toBeUndefined();
     });
 
-    it("throws when account exists but is invalid", () => {
-      expect(() =>
+    it("throws when account exists but is invalid", async () => {
+      await expect(
         persona.evaluateAccount(
           { data: [{ id: "acc-123", type: "account", attributes: { "country-code": 3 } }] },
           "basic",
         ),
-      ).toThrow(persona.scopeValidationErrors.INVALID_SCOPE_VALIDATION);
+      ).rejects.toThrow(persona.scopeValidationErrors.INVALID_SCOPE_VALIDATION);
     });
   });
 
   describe("manteca", () => {
-    it("returns panda template when account not found", () => {
-      const result = persona.evaluateAccount({ data: [] }, "manteca");
+    it("returns panda template when account not found", async () => {
+      const result = await persona.evaluateAccount({ data: [] }, "manteca");
 
       expect(result).toBe(persona.PANDA_TEMPLATE);
     });
 
-    it("returns manteca template when account exists and id class is allowed", () => {
-      const result = persona.evaluateAccount(basicAccount, "manteca");
+    it("returns manteca template when account exists and id class is allowed", async () => {
+      const result = await persona.evaluateAccount(basicAccount, "manteca");
 
       expect(result).toBe(persona.MANTECA_TEMPLATE_EXTRA_FIELDS);
     });
 
-    it("throws when account exists but country is not allowed", () => {
-      expect(() =>
+    it("throws when account exists but country is not allowed", async () => {
+      await expect(
         persona.evaluateAccount(
           {
             data: [
@@ -227,17 +244,38 @@ describe("evaluateAccount", () => {
           },
           "manteca",
         ),
-      ).toThrow(persona.scopeValidationErrors.NOT_SUPPORTED);
+      ).rejects.toThrow(persona.scopeValidationErrors.NOT_SUPPORTED);
     });
 
-    it("returns panda template when account exists but basic scope is not valid", () => {
-      const result = persona.evaluateAccount(emptyAccount, "manteca");
+    it("throws invalid account when country code is empty string", async () => {
+      await expect(
+        persona.evaluateAccount(
+          {
+            data: [
+              {
+                ...basicAccount.data[0],
+                type: "account" as const,
+                id: "test-account-id",
+                attributes: {
+                  ...basicAccount.data[0]?.attributes,
+                  "country-code": "",
+                },
+              },
+            ],
+          },
+          "manteca",
+        ),
+      ).rejects.toThrow(persona.scopeValidationErrors.INVALID_ACCOUNT);
+    });
+
+    it("returns panda template when account exists but basic scope is not valid", async () => {
+      const result = await persona.evaluateAccount(emptyAccount, "manteca");
 
       expect(result).toBe(persona.PANDA_TEMPLATE);
     });
 
-    it("returns manteca template when new account has a id class that is not allowed", () => {
-      const result = persona.evaluateAccount(
+    it("returns manteca template when new account has a id class that is not allowed", async () => {
+      const result = await persona.evaluateAccount(
         {
           data: [
             {
@@ -269,14 +307,134 @@ describe("evaluateAccount", () => {
       expect(result).toBe(persona.MANTECA_TEMPLATE_WITH_ID_CLASS);
     });
 
-    it("returns undefined when account exists and id class is allowed", () => {
-      const result = persona.evaluateAccount(mantecaAccount, "manteca");
+    it("returns manteca template when id document is missing photos", async () => {
+      fetchSpy.mockResolvedValueOnce(
+        Response.json(
+          {
+            data: {
+              id: "doc_123",
+              attributes: { "front-photo": null, "back-photo": null, "selfie-photo": null, "id-class": "id" },
+            },
+          },
+          { status: 200 },
+        ),
+      );
+
+      const result = await persona.evaluateAccount(accountWithIdDocument, "manteca");
+
+      expect(result).toBe(persona.MANTECA_TEMPLATE_WITH_ID_CLASS);
+    });
+
+    it("returns manteca template extra fields when id document has both photos", async () => {
+      fetchSpy.mockResolvedValueOnce(
+        Response.json(
+          {
+            data: {
+              id: "doc_123",
+              attributes: {
+                "front-photo": { filename: "front.jpg", url: "https://example.com/front.jpg" },
+                "back-photo": { filename: "back.jpg", url: "https://example.com/back.jpg" },
+                "selfie-photo": null,
+                "id-class": "id",
+              },
+            },
+          },
+          { status: 200 },
+        ),
+      );
+
+      const result = await persona.evaluateAccount(accountWithIdDocument, "manteca");
+
+      expect(result).toBe(persona.MANTECA_TEMPLATE_EXTRA_FIELDS);
+    });
+
+    it("returns manteca template extra fields when user has only pp document (no getDocument call)", async () => {
+      const result = await persona.evaluateAccount(
+        {
+          data: [
+            {
+              ...basicAccount.data[0],
+              type: "account" as const,
+              id: "test-account-id",
+              attributes: {
+                ...basicAccount.data[0]?.attributes,
+                "country-code": "AR",
+                fields: {
+                  ...basicAccount.data[0]?.attributes.fields,
+                  documents: {
+                    type: "array",
+                    value: [
+                      {
+                        type: "hash",
+                        value: {
+                          id_class: { type: "string", value: "pp" },
+                          id_number: { type: "string", value: "AB123456" },
+                          id_issuing_country: { type: "string", value: "AR" },
+                          id_document_id: { type: "string", value: "doc_pp_123" },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+          ],
+        },
+        "manteca",
+      );
+
+      expect(result).toBe(persona.MANTECA_TEMPLATE_EXTRA_FIELDS);
+    });
+
+    it("returns manteca template extra fields when user has id and pp, id has both photos", async () => {
+      fetchSpy.mockResolvedValueOnce(
+        Response.json(
+          {
+            data: {
+              id: "doc_123",
+              attributes: {
+                "front-photo": { filename: "front.jpg", url: "https://example.com/front.jpg" },
+                "back-photo": { filename: "back.jpg", url: "https://example.com/back.jpg" },
+                "selfie-photo": null,
+                "id-class": "id",
+              },
+            },
+          },
+          { status: 200 },
+        ),
+      );
+
+      const result = await persona.evaluateAccount(accountWithIdAndPpDocuments, "manteca");
+
+      expect(result).toBe(persona.MANTECA_TEMPLATE_EXTRA_FIELDS);
+    });
+
+    it("returns manteca template extra fields when user has id and pp, id missing photos (fallback to pp)", async () => {
+      fetchSpy.mockResolvedValueOnce(
+        Response.json(
+          {
+            data: {
+              id: "doc_123",
+              attributes: { "front-photo": null, "back-photo": null, "selfie-photo": null, "id-class": "id" },
+            },
+          },
+          { status: 200 },
+        ),
+      );
+
+      const result = await persona.evaluateAccount(accountWithIdAndPpDocuments, "manteca");
+
+      expect(result).toBe(persona.MANTECA_TEMPLATE_EXTRA_FIELDS);
+    });
+
+    it("returns undefined when account exists and id class is allowed", async () => {
+      const result = await persona.evaluateAccount(mantecaAccount, "manteca");
 
       expect(result).toBeUndefined();
     });
 
-    it("throws when schema validation fails", () => {
-      expect(() =>
+    it("throws when schema validation fails", async () => {
+      await expect(
         persona.evaluateAccount(
           {
             data: [
@@ -296,58 +454,540 @@ describe("evaluateAccount", () => {
           },
           "manteca",
         ),
-      ).toThrow(persona.scopeValidationErrors.INVALID_SCOPE_VALIDATION);
+      ).rejects.toThrow(persona.scopeValidationErrors.INVALID_SCOPE_VALIDATION);
+    });
+
+    it("returns manteca template with id class when user has manteca fields but invalid id document", async () => {
+      fetchSpy.mockResolvedValueOnce(
+        Response.json(
+          {
+            data: {
+              id: "doc_123",
+              attributes: { "front-photo": null, "back-photo": null, "selfie-photo": null, "id-class": "id" },
+            },
+          },
+          { status: 200 },
+        ),
+      );
+
+      const result = await persona.evaluateAccount(
+        {
+          data: [
+            {
+              ...mantecaAccount.data[0],
+              type: "account" as const,
+              id: "test-account-id",
+              attributes: {
+                ...mantecaAccount.data[0]?.attributes,
+                "country-code": "AR",
+                fields: {
+                  ...mantecaAccount.data[0]?.attributes.fields,
+                  documents: {
+                    type: "array",
+                    value: [
+                      {
+                        type: "hash",
+                        value: {
+                          id_class: { type: "string", value: "id" },
+                          id_number: { type: "string", value: "12345678" },
+                          id_issuing_country: { type: "string", value: "AR" },
+                          id_document_id: { type: "string", value: "doc_id_123" },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+          ],
+        },
+        "manteca",
+      );
+
+      expect(result).toBe(persona.MANTECA_TEMPLATE_WITH_ID_CLASS);
+    });
+  });
+});
+
+describe("getAllowedMantecaIds", () => {
+  describe("development mode", () => {
+    beforeEach(() => {
+      chainMock.id = baseSepolia.id;
+    });
+
+    it("returns allowed ids for supported countries (AR)", () => {
+      const result = persona.getAllowedMantecaIds("AR");
+
+      expect(result).toBeDefined();
+      expect(result).toHaveLength(2);
+      expect(result?.[0]).toEqual({ id: "id", side: "both" });
+      expect(result?.[1]).toEqual({ id: "pp", side: "front" });
+    });
+
+    it("returns allowed ids for supported countries (BR)", () => {
+      const result = persona.getAllowedMantecaIds("BR");
+
+      expect(result).toBeDefined();
+      expect(result).toHaveLength(3);
+      expect(result?.[0]).toEqual({ id: "dl", side: "both" });
+      expect(result?.[1]).toEqual({ id: "pp", side: "front" });
+      expect(result?.[2]).toEqual({ id: "id", side: "both" });
+    });
+
+    it("returns dl fallback for US in development mode", () => {
+      const result = persona.getAllowedMantecaIds("US");
+
+      expect(result).toBeDefined();
+      expect(result).toHaveLength(1);
+      expect(result?.[0]).toEqual({ id: "dl", side: "front" });
+    });
+
+    it("returns undefined for unsupported countries", () => {
+      const result = persona.getAllowedMantecaIds("XX");
+
+      expect(result).toBeUndefined();
+    });
+  });
+
+  describe("retrieving allowed ids", () => {
+    beforeEach(() => {
+      chainMock.id = optimism.id;
+    });
+
+    it("returns allowed ids for supported countries (AR)", () => {
+      const result = persona.getAllowedMantecaIds("AR");
+
+      expect(result).toBeDefined();
+      expect(result).toHaveLength(2);
+      expect(result?.[0]).toEqual({ id: "id", side: "both" });
+      expect(result?.[1]).toEqual({ id: "pp", side: "front" });
+    });
+
+    it("returns allowed ids for supported countries (BR)", () => {
+      const result = persona.getAllowedMantecaIds("BR");
+
+      expect(result).toBeDefined();
+      expect(result).toHaveLength(3);
+      expect(result?.[0]).toEqual({ id: "dl", side: "both" });
+    });
+
+    it("returns undefined for US in production mode (no fallback)", () => {
+      const result = persona.getAllowedMantecaIds("US");
+
+      expect(result).toBeUndefined();
+    });
+
+    it("returns undefined for invalid country code", () => {
+      const result = persona.getAllowedMantecaIds("XX");
+
+      expect(result).toBeUndefined();
+    });
+
+    it("returns undefined for country not listed", () => {
+      const result = persona.getAllowedMantecaIds("INVALID");
+
+      expect(result).toBeUndefined();
     });
   });
 });
 
 describe("get document for manteca", () => {
-  it("returns undefined when no document is found", () => {
-    const result = persona.getDocumentForManteca([], "US");
+  let fetchSpy: MockInstance<typeof fetch>;
+
+  beforeEach(() => {
+    chainMock.id = optimism.id;
+    fetchSpy = vi.spyOn(globalThis, "fetch");
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("returns undefined when no document is found", async () => {
+    const result = await persona.getDocumentForManteca([], "US");
 
     expect(result).toBeUndefined();
   });
 
-  it("returns document when found and id class is allowed", () => {
-    const document = {
-      id_class: { value: "id" },
-      id_number: { value: "1234567890" },
-      id_issuing_country: { value: "AR" },
-      id_document_id: { value: "1234567890" },
-    };
-    const result = persona.getDocumentForManteca([{ value: document }], "AR");
-
-    expect(result).toBe(document);
-  });
-
-  it("returns undefined when id class is not allowed", () => {
+  it("returns undefined when id class is not allowed", async () => {
     const document = {
       id_class: { value: "dl" },
       id_number: { value: "1234567890" },
       id_issuing_country: { value: "AR" },
       id_document_id: { value: "1234567890" },
     };
-    const result = persona.getDocumentForManteca([{ value: document }], "AR");
+    const result = await persona.getDocumentForManteca([{ value: document }], "AR");
 
     expect(result).toBeUndefined();
   });
 
-  it("returns document by id class priority when multiple documents are found", () => {
-    const document1 = {
+  it("returns undefined when country is not supported (allowedIds is undefined)", async () => {
+    const document = {
       id_class: { value: "id" },
       id_number: { value: "1234567890" },
-      id_issuing_country: { value: "AR" },
-      id_document_id: { value: "1234567890" },
+      id_issuing_country: { value: "XX" },
+      id_document_id: { value: "doc_123" },
     };
-    const document2 = {
+    const result = await persona.getDocumentForManteca([{ value: document }], "XX");
+
+    expect(result).toBeUndefined();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("returns pp document without fetching (no photo check required)", async () => {
+    const document = {
       id_class: { value: "pp" },
       id_number: { value: "1234567890" },
       id_issuing_country: { value: "AR" },
-      id_document_id: { value: "1234567890" },
+      id_document_id: { value: "doc_pp_123" },
     };
-    const result = persona.getDocumentForManteca([{ value: document2 }, { value: document1 }], "AR");
+    const result = await persona.getDocumentForManteca([{ value: document }], "AR");
 
-    expect(result).toBe(document1);
+    expect(result).toBe(document);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("returns id document when it has both photos", async () => {
+    fetchSpy.mockResolvedValueOnce(
+      Response.json(
+        {
+          data: {
+            id: "doc_123",
+            attributes: {
+              "front-photo": { filename: "front.jpg", url: "https://example.com/front.jpg" },
+              "back-photo": { filename: "back.jpg", url: "https://example.com/back.jpg" },
+              "selfie-photo": null,
+              "id-class": "id",
+            },
+          },
+        },
+        { status: 200 },
+      ),
+    );
+
+    const document = {
+      id_class: { value: "id" },
+      id_number: { value: "1234567890" },
+      id_issuing_country: { value: "AR" },
+      id_document_id: { value: "doc_id_123" },
+    };
+    const result = await persona.getDocumentForManteca([{ value: document }], "AR");
+
+    expect(result).toBe(document);
+    expect(fetchSpy).toHaveBeenCalled();
+  });
+
+  it("returns undefined when id document is missing photos and no fallback", async () => {
+    fetchSpy.mockResolvedValueOnce(
+      Response.json(
+        {
+          data: {
+            id: "doc_123",
+            attributes: { "front-photo": null, "back-photo": null, "selfie-photo": null, "id-class": "id" },
+          },
+        },
+        { status: 200 },
+      ),
+    );
+
+    const document = {
+      id_class: { value: "id" },
+      id_number: { value: "1234567890" },
+      id_issuing_country: { value: "AR" },
+      id_document_id: { value: "doc_id_123" },
+    };
+    const result = await persona.getDocumentForManteca([{ value: document }], "AR");
+
+    expect(result).toBeUndefined();
+  });
+
+  it("returns id document when it has both photos (priority over pp)", async () => {
+    fetchSpy.mockResolvedValueOnce(
+      Response.json(
+        {
+          data: {
+            id: "doc_123",
+            attributes: {
+              "front-photo": { filename: "front.jpg", url: "https://example.com/front.jpg" },
+              "back-photo": { filename: "back.jpg", url: "https://example.com/back.jpg" },
+              "selfie-photo": null,
+              "id-class": "id",
+            },
+          },
+        },
+        { status: 200 },
+      ),
+    );
+
+    const idDocument = {
+      id_class: { value: "id" },
+      id_number: { value: "1234567890" },
+      id_issuing_country: { value: "AR" },
+      id_document_id: { value: "doc_id_123" },
+    };
+    const ppDocument = {
+      id_class: { value: "pp" },
+      id_number: { value: "AB123456" },
+      id_issuing_country: { value: "AR" },
+      id_document_id: { value: "doc_pp_123" },
+    };
+    const result = await persona.getDocumentForManteca([{ value: ppDocument }, { value: idDocument }], "AR");
+
+    expect(result).toBe(idDocument);
+  });
+
+  it("falls back to pp when id document is missing photos", async () => {
+    fetchSpy.mockResolvedValueOnce(
+      Response.json(
+        {
+          data: {
+            id: "doc_123",
+            attributes: { "front-photo": null, "back-photo": null, "selfie-photo": null, "id-class": "id" },
+          },
+        },
+        { status: 200 },
+      ),
+    );
+
+    const idDocument = {
+      id_class: { value: "id" },
+      id_number: { value: "1234567890" },
+      id_issuing_country: { value: "AR" },
+      id_document_id: { value: "doc_id_123" },
+    };
+    const ppDocument = {
+      id_class: { value: "pp" },
+      id_number: { value: "AB123456" },
+      id_issuing_country: { value: "AR" },
+      id_document_id: { value: "doc_pp_123" },
+    };
+    const result = await persona.getDocumentForManteca([{ value: ppDocument }, { value: idDocument }], "AR");
+
+    expect(result).toBe(ppDocument);
+  });
+
+  describe("brazil priority order: dl > pp > id", () => {
+    it("prioritizes dl over pp and id when dl has both photos", async () => {
+      fetchSpy.mockResolvedValueOnce(
+        Response.json(
+          {
+            data: {
+              id: "doc_dl_123",
+              attributes: {
+                "front-photo": { filename: "front.jpg", url: "https://example.com/front.jpg" },
+                "back-photo": { filename: "back.jpg", url: "https://example.com/back.jpg" },
+                "selfie-photo": null,
+                "id-class": "dl",
+              },
+            },
+          },
+          { status: 200 },
+        ),
+      );
+
+      const dlDocument = {
+        id_class: { value: "dl" },
+        id_number: { value: "DL123456" },
+        id_issuing_country: { value: "BR" },
+        id_document_id: { value: "doc_dl_123" },
+      };
+      const ppDocument = {
+        id_class: { value: "pp" },
+        id_number: { value: "PP123456" },
+        id_issuing_country: { value: "BR" },
+        id_document_id: { value: "doc_pp_123" },
+      };
+      const idDocument = {
+        id_class: { value: "id" },
+        id_number: { value: "ID123456" },
+        id_issuing_country: { value: "BR" },
+        id_document_id: { value: "doc_id_123" },
+      };
+
+      const result = await persona.getDocumentForManteca(
+        [{ value: idDocument }, { value: ppDocument }, { value: dlDocument }],
+        "BR",
+      );
+
+      expect(result).toBe(dlDocument);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("falls back to pp when dl is missing back photo", async () => {
+      fetchSpy.mockResolvedValueOnce(
+        Response.json(
+          {
+            data: {
+              id: "doc_dl_123",
+              attributes: {
+                "front-photo": { filename: "front.jpg", url: "https://example.com/front.jpg" },
+                "back-photo": null,
+                "selfie-photo": null,
+                "id-class": "dl",
+              },
+            },
+          },
+          { status: 200 },
+        ),
+      );
+
+      const dlDocument = {
+        id_class: { value: "dl" },
+        id_number: { value: "DL123456" },
+        id_issuing_country: { value: "BR" },
+        id_document_id: { value: "doc_dl_123" },
+      };
+      const ppDocument = {
+        id_class: { value: "pp" },
+        id_number: { value: "PP123456" },
+        id_issuing_country: { value: "BR" },
+        id_document_id: { value: "doc_pp_123" },
+      };
+
+      const result = await persona.getDocumentForManteca([{ value: dlDocument }, { value: ppDocument }], "BR");
+
+      expect(result).toBe(ppDocument);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("falls back to id when dl missing photos and no pp present", async () => {
+      fetchSpy
+        .mockResolvedValueOnce(
+          Response.json(
+            {
+              data: {
+                id: "doc_dl_123",
+                attributes: { "front-photo": null, "back-photo": null, "selfie-photo": null, "id-class": "dl" },
+              },
+            },
+            { status: 200 },
+          ),
+        )
+        .mockResolvedValueOnce(
+          Response.json(
+            {
+              data: {
+                id: "doc_id_123",
+                attributes: {
+                  "front-photo": { filename: "front.jpg", url: "https://example.com/front.jpg" },
+                  "back-photo": { filename: "back.jpg", url: "https://example.com/back.jpg" },
+                  "selfie-photo": null,
+                  "id-class": "id",
+                },
+              },
+            },
+            { status: 200 },
+          ),
+        );
+
+      const dlDocument = {
+        id_class: { value: "dl" },
+        id_number: { value: "DL123456" },
+        id_issuing_country: { value: "BR" },
+        id_document_id: { value: "doc_dl_123" },
+      };
+      const idDocument = {
+        id_class: { value: "id" },
+        id_number: { value: "ID123456" },
+        id_issuing_country: { value: "BR" },
+        id_document_id: { value: "doc_id_123" },
+      };
+
+      const result = await persona.getDocumentForManteca([{ value: dlDocument }, { value: idDocument }], "BR");
+
+      expect(result).toBe(idDocument);
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it("returns undefined when dl and id both missing photos and no pp", async () => {
+      fetchSpy
+        .mockResolvedValueOnce(
+          Response.json(
+            {
+              data: {
+                id: "doc_dl_123",
+                attributes: { "front-photo": null, "back-photo": null, "selfie-photo": null, "id-class": "dl" },
+              },
+            },
+            { status: 200 },
+          ),
+        )
+        .mockResolvedValueOnce(
+          Response.json(
+            {
+              data: {
+                id: "doc_id_123",
+                attributes: { "front-photo": null, "back-photo": null, "selfie-photo": null, "id-class": "id" },
+              },
+            },
+            { status: 200 },
+          ),
+        );
+
+      const dlDocument = {
+        id_class: { value: "dl" },
+        id_number: { value: "DL123456" },
+        id_issuing_country: { value: "BR" },
+        id_document_id: { value: "doc_dl_123" },
+      };
+      const idDocument = {
+        id_class: { value: "id" },
+        id_number: { value: "ID123456" },
+        id_issuing_country: { value: "BR" },
+        id_document_id: { value: "doc_id_123" },
+      };
+
+      const result = await persona.getDocumentForManteca([{ value: dlDocument }, { value: idDocument }], "BR");
+
+      expect(result).toBeUndefined();
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it("returns pp without photo check (side: front)", async () => {
+      const ppDocument = {
+        id_class: { value: "pp" },
+        id_number: { value: "PP123456" },
+        id_issuing_country: { value: "BR" },
+        id_document_id: { value: "doc_pp_123" },
+      };
+
+      const result = await persona.getDocumentForManteca([{ value: ppDocument }], "BR");
+
+      expect(result).toBe(ppDocument);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it("skips dl check and returns pp when only pp is present", async () => {
+      const ppDocument = {
+        id_class: { value: "pp" },
+        id_number: { value: "PP123456" },
+        id_issuing_country: { value: "BR" },
+        id_document_id: { value: "doc_pp_123" },
+      };
+      const idDocument = {
+        id_class: { value: "id" },
+        id_number: { value: "ID123456" },
+        id_issuing_country: { value: "BR" },
+        id_document_id: { value: "doc_id_123" },
+      };
+
+      const result = await persona.getDocumentForManteca([{ value: ppDocument }, { value: idDocument }], "BR");
+
+      expect(result).toBe(ppDocument);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it("returns pp even when actual document has null back photo (side: front)", async () => {
+      const ppDocument = {
+        id_class: { value: "pp" },
+        id_number: { value: "PP123456" },
+        id_issuing_country: { value: "BR" },
+        id_document_id: { value: "doc_pp_123" },
+      };
+      const result = await persona.getDocumentForManteca([{ value: ppDocument }], "BR");
+
+      expect(result).toBe(ppDocument);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
   });
 });
 
@@ -554,7 +1194,7 @@ const basicAccount = {
               },
               country_code: {
                 type: "string",
-                value: "US",
+                value: "AR",
               },
             },
           },
@@ -566,15 +1206,15 @@ const basicAccount = {
                 value: {
                   identification_class: {
                     type: "string",
-                    value: "dl",
+                    value: "pp",
                   },
                   identification_number: {
                     type: "string",
-                    value: "I1234562",
+                    value: "AB123456",
                   },
                   issuing_country: {
                     type: "string",
-                    value: "US",
+                    value: "AR",
                   },
                 },
               },
@@ -665,19 +1305,19 @@ const basicAccount = {
                 value: {
                   id_class: {
                     type: "string",
-                    value: "dl",
+                    value: "pp",
                   },
                   id_number: {
                     type: "string",
-                    value: "1234567890",
+                    value: "AB123456",
                   },
                   id_issuing_country: {
                     type: "string",
-                    value: "US",
+                    value: "AR",
                   },
                   id_document_id: {
                     type: "string",
-                    value: "doc_1234567890",
+                    value: "doc_pp_123",
                   },
                 },
               },
@@ -693,18 +1333,18 @@ const basicAccount = {
         "address-city": "SAN FRANCISCO",
         "address-subdivision": "CA",
         "address-postal-code": "94109",
-        "country-code": "US",
+        "country-code": "AR",
         birthdate: "1977-07-17",
         "phone-number": "+1234567890",
         "email-address": "example@example.com",
         tags: [],
         "account-status": "Default",
         "identification-numbers": {
-          dl: [
+          pp: [
             {
-              "issuing-country": "US",
-              "identification-class": "dl",
-              "identification-number": "I1234562",
+              "issuing-country": "AR",
+              "identification-class": "pp",
+              "identification-number": "AB123456",
               "created-at": "2025-12-11T00:00:00.000Z",
               "updated-at": "2025-12-11T00:00:00.000Z",
             },
@@ -740,6 +1380,77 @@ const mantecaAccount = {
           isnotfacta: {
             type: "boolean",
             value: true,
+          },
+        },
+      },
+    },
+  ],
+};
+
+const accountWithIdDocument = {
+  data: [
+    {
+      ...basicAccount.data[0],
+      type: "account" as const,
+      id: "test-account-id",
+      attributes: {
+        ...basicAccount.data[0]?.attributes,
+        "country-code": "AR",
+        fields: {
+          ...basicAccount.data[0]?.attributes.fields,
+          documents: {
+            type: "array",
+            value: [
+              {
+                type: "hash",
+                value: {
+                  id_class: { type: "string", value: "id" },
+                  id_number: { type: "string", value: "12345678" },
+                  id_issuing_country: { type: "string", value: "AR" },
+                  id_document_id: { type: "string", value: "doc_id_123" },
+                },
+              },
+            ],
+          },
+        },
+      },
+    },
+  ],
+};
+
+const accountWithIdAndPpDocuments = {
+  data: [
+    {
+      ...basicAccount.data[0],
+      type: "account" as const,
+      id: "test-account-id",
+      attributes: {
+        ...basicAccount.data[0]?.attributes,
+        "country-code": "AR",
+        fields: {
+          ...basicAccount.data[0]?.attributes.fields,
+          documents: {
+            type: "array",
+            value: [
+              {
+                type: "hash",
+                value: {
+                  id_class: { type: "string", value: "id" },
+                  id_number: { type: "string", value: "12345678" },
+                  id_issuing_country: { type: "string", value: "AR" },
+                  id_document_id: { type: "string", value: "doc_id_123" },
+                },
+              },
+              {
+                type: "hash",
+                value: {
+                  id_class: { type: "string", value: "pp" },
+                  id_number: { type: "string", value: "AB123456" },
+                  id_issuing_country: { type: "string", value: "AR" },
+                  id_document_id: { type: "string", value: "doc_pp_123" },
+                },
+              },
+            ],
           },
         },
       },
