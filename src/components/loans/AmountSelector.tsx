@@ -1,4 +1,5 @@
 import React, { useCallback, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { Separator, XStack, YStack } from "tamagui";
 
@@ -20,6 +21,7 @@ export default function AmountSelector({
   market: Hex;
   onChange: (value: bigint, highAmount: boolean) => void;
 }) {
+  const { t } = useTranslation();
   const { market: selectedMarket, borrowAvailable } = useAsset(market);
   const { Field, setFieldValue, getFieldValue } = useForm({ defaultValues: { assetInput: "" } });
   const [focused, setFocused] = useState(false);
@@ -89,6 +91,7 @@ export default function AmountSelector({
                     height={32}
                   />
                   <Input
+                    aria-label={t("Amount")}
                     height="auto"
                     inputMode="decimal"
                     onChangeText={handleAmountChange}
