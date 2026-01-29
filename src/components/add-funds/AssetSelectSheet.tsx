@@ -131,7 +131,7 @@ export default function AssetSelectSheet({
                             gap="$s3_5"
                           >
                             <XStack gap="$s3_5" alignItems="center" flex={1}>
-                              <AssetLogo symbol={token.symbol} width={36} height={36} />
+                              <AssetLogo symbol={token.symbol} uri={token.logoURI} width={36} height={36} />
                               <YStack flex={1}>
                                 <Text emphasized subHeadline color="$uiNeutralPrimary">
                                   {token.symbol}

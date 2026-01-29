@@ -519,7 +519,12 @@ export default function Bridge() {
                 </Text>
               </YStack>
               <XStack gap="$s3" alignItems="center">
-                <AssetLogo symbol={bridgePreview.sourceToken.symbol} width={32} height={32} />
+                <AssetLogo
+                  symbol={bridgePreview.sourceToken.symbol}
+                  uri={bridgePreview.sourceToken.logoURI}
+                  width={32}
+                  height={32}
+                />
                 <Text title primary color="$uiNeutralPrimary">
                   {`${Number(
                     formatUnits(bridgePreview.sourceAmount, bridgePreview.sourceToken.decimals),
@@ -680,7 +685,12 @@ export default function Bridge() {
                         <XStack gap="$s3_5" alignItems="center" justifyContent="space-between" flex={1}>
                           <XStack gap="$s3_5" alignItems="center" flex={1}>
                             <View width={40} height={40} position="relative">
-                              <AssetLogo symbol={destinationToken.symbol} width={40} height={40} />
+                              <AssetLogo
+                                symbol={destinationToken.symbol}
+                                uri={destinationToken.logoURI}
+                                width={40}
+                                height={40}
+                              />
                               <View
                                 position="absolute"
                                 bottom={0}

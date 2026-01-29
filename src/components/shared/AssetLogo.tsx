@@ -25,10 +25,20 @@ const StyledImage = styled(Image, {
   onError: reportError,
 });
 
-export default function AssetLogo({ height, symbol, width }: { height: number; symbol?: string; width: number }) {
+export default function AssetLogo({
+  height,
+  symbol,
+  uri: defaultUri,
+  width,
+}: {
+  height: number;
+  symbol?: string;
+  uri?: string;
+  width: number;
+}) {
   const { data: tokens = [] } = useQuery(lifiTokensOptions);
   const chainTokens = tokens.filter((token) => (token.chainId as number) === chain.id);
-  const uri = symbol ? getTokenLogoURI(chainTokens, symbol) : undefined;
+  const uri = defaultUri ?? (symbol ? getTokenLogoURI(chainTokens, symbol) : undefined);
   if (!uri) {
     return (
       <View
