@@ -44,7 +44,7 @@ export default function DeFi() {
   return (
     <SafeView fullScreen tab backgroundColor="$backgroundSoft">
       <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} flex={1}>
-        <YStack gap="$s4_5" paddingHorizontal="$s4" paddingVertical="$s3">
+        <YStack gap="$s4_5" paddingHorizontal="$s4" paddingTop="$s4" paddingBottom="$s3">
           <XStack justifyContent="space-between" alignItems="center">
             <Text emphasized title3>
               {t("DeFi")}
