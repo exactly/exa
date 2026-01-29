@@ -66,26 +66,25 @@ describe.concurrent("authenticated", () => {
 
     beforeAll(async () => {
       await database.insert(cards).values([{ id: "activity", credentialId: "bob", lastFour: "1234" }]);
-      const logs = [
-        ...(await anvilClient.getContractEvents({
-          abi: marketAbi,
-          eventName: "BorrowAtMaturity",
-          address: [inject("MarketEXA"), inject("MarketUSDC"), inject("MarketWETH")],
-          args: { borrower: account },
-          toBlock: "latest",
-          fromBlock: 0n,
-          strict: true,
-        })),
-        ...(await anvilClient.getContractEvents({
-          abi: marketAbi,
-          eventName: "Withdraw",
-          address: [inject("MarketEXA"), inject("MarketUSDC"), inject("MarketWETH")],
-          args: { owner: account },
-          toBlock: "latest",
-          fromBlock: 0n,
-          strict: true,
-        })),
-      ];
+      const cardLogs = await anvilClient.getContractEvents({
+        abi: marketAbi,
+        eventName: "BorrowAtMaturity",
+        address: inject("MarketUSDC"),
+        args: { borrower: account },
+        toBlock: "latest",
+        fromBlock: 0n,
+        strict: true,
+      });
+      const withdrawLogs = await anvilClient.getContractEvents({
+        abi: marketAbi,
+        eventName: "Withdraw",
+        address: inject("MarketUSDC"),
+        args: { owner: account },
+        toBlock: "latest",
+        fromBlock: 0n,
+        strict: true,
+      });
+      const logs = [...cardLogs, ...withdrawLogs];
       const timestamps = await Promise.all(
         [...new Set(logs.map(({ blockNumber }) => blockNumber))].map((blockNumber) =>
           anvilClient.getBlock({ blockNumber }),
@@ -126,7 +125,6 @@ describe.concurrent("authenticated", () => {
                     createdAt,
                     body: {
                       id: String(index),
-                      type: "spend",
                       spend: {
                         ...spendTemplate,
                         amount: Number(total) / 1e4,
@@ -161,7 +159,10 @@ describe.concurrent("authenticated", () => {
           const panda = safeParse(PandaActivity, {
             ...(payload as object),
             hashes,
-            borrows: eventName === "Withdraw" ? [null] : [{ blockNumber, events }],
+            borrows:
+              eventName === "Withdraw"
+                ? hashes.map(() => null)
+                : hashes.map((currentHash) => (currentHash === hash ? { timestamp: blockTimestamp, events } : null)),
           });
           if (panda.success) return panda.output;
           const eventCount = eventName === "Withdraw" ? 0 : events.length;
