@@ -482,7 +482,7 @@ export default function Bridge() {
                   resetBridgeMutation();
                   resetTransferMutation();
                 }
-                router.replace("/(main)/(home)");
+                router.dismissTo("/(main)/(home)");
               }}
             >
               <X size={24} color="$uiNeutralPrimary" />
@@ -542,7 +542,7 @@ export default function Bridge() {
                 setBridgePreview(undefined);
                 resetBridgeMutation();
                 resetTransferMutation();
-                router.replace("/(main)/(home)");
+                router.dismissTo("/(main)/(home)");
               }}
             >
               <Text emphasized footnote color="$uiBrandSecondary" textAlign="center">

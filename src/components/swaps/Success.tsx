@@ -114,7 +114,7 @@ export default function Success({
                 <Button
                   onPress={() => {
                     queryClient.invalidateQueries({ queryKey: ["swap"] }).catch(reportError);
-                    router.push("/pending-proposals");
+                    router.dismissTo("/pending-proposals");
                   }}
                   contained
                   main

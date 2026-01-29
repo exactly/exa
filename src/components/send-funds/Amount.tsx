@@ -422,7 +422,7 @@ export default function Amount() {
           <Pressable
             aria-label={t("Close")}
             onPress={() => {
-              router.replace("/(main)/(home)");
+              router.dismissTo("/(main)/(home)");
             }}
           >
             <X size={24} color="$uiNeutralPrimary" />
@@ -503,9 +503,9 @@ export default function Amount() {
                 cursor="pointer"
                 onPress={() => {
                   if (!details.external && isLatestPlugin) {
-                    router.replace("/pending-proposals");
+                    router.dismissTo("/pending-proposals");
                   } else {
-                    router.replace("/(main)/(home)");
+                    router.dismissTo("/(main)/(home)");
                   }
                 }}
               >

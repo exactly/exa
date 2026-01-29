@@ -400,7 +400,7 @@ export default function Review() {
                 router.back();
                 return;
               }
-              router.replace("/loan");
+              router.dismissTo("/loan");
             }}
           >
             <X size={24} color="$uiNeutralPrimary" />
@@ -447,7 +447,7 @@ export default function Review() {
             <Button
               primary
               onPress={() => {
-                router.replace("/pending-proposals");
+                router.dismissTo("/pending-proposals");
               }}
             >
               <Button.Text>{t("Go to Requests")}</Button.Text>
@@ -468,7 +468,7 @@ export default function Review() {
                 router.back();
                 return;
               }
-              router.replace("/loan");
+              router.dismissTo("/loan");
             }}
           >
             {error ? t("Go back") : t("Close")}
