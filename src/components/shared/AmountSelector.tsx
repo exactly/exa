@@ -126,7 +126,7 @@ export default function AmountSelector({ onChange }: { onChange: (value: bigint)
               borderRadius="$r2"
               height={60}
               textAlign="center"
-              style={{ fontSize: 24 }}
+              fontSize={24}
               borderWidth={0}
               flex={1}
             />
@@ -154,7 +154,7 @@ export default function AmountSelector({ onChange }: { onChange: (value: bigint)
                 borderRadius="$r2"
                 height={60}
                 textAlign="center"
-                style={{ fontSize: 24 }}
+                fontSize={24}
                 borderWidth={0}
                 flex={1}
               />

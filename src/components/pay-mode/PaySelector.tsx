@@ -159,10 +159,12 @@ export default function PaySelector() {
                 maxLength={6}
                 numberOfLines={1}
                 onChangeText={setInput}
-                style={{ fontSize: 20, padding: 0, flex: 1 }}
+                fontSize={20}
+                padding={0}
                 textAlign="right"
                 value={input}
                 width="100%"
+                flex={1}
               />
             </XStack>
           </XStack>

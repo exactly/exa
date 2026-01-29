@@ -134,7 +134,7 @@ export default function TokenInput({
           >
             {token ? (
               <>
-                <AssetLogo symbol={token.symbol} width={40} height={40} />
+                <AssetLogo symbol={token.symbol} uri={token.logoURI} width={40} height={40} />
                 <View
                   borderRadius="$r_0"
                   position="absolute"
@@ -171,12 +171,10 @@ export default function TokenInput({
                         color={
                           isDanger ? "$uiErrorSecondary" : isActive ? "$uiNeutralPrimary" : "$uiNeutralPlaceholder"
                         }
-                        style={{
-                          fontFamily: "BDOGrotesk-Regular",
-                          fontSize: 28,
-                          fontWeight: "bold",
-                          letterSpacing: -0.2,
-                        }}
+                        fontFamily="BDOGrotesk-Regular"
+                        fontSize={28}
+                        fontWeight="bold"
+                        letterSpacing={-0.2}
                         textAlign="left"
                         inputMode="decimal"
                         borderColor="transparent"
