@@ -353,7 +353,7 @@ export const PandaActivity = pipe(
           city: spend.merchantCity?.trim(),
           country: spend.merchantCountry?.trim(),
           state: null,
-          icon: null,
+          icon: undefined,
         },
         operations: [],
         settled: false,
@@ -527,7 +527,7 @@ function transformCard(activity: InferOutput<typeof CardActivity>) {
       city: activity.data.merchant_data.city,
       country: activity.data.merchant_data.country,
       state: activity.data.merchant_data.state,
-      icon: null,
+      icon: undefined,
     },
   };
 }
