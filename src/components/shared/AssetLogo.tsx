@@ -36,9 +36,15 @@ export default function AssetLogo({
   uri?: string;
   width: number;
 }) {
-  const { data: tokens = [] } = useQuery(lifiTokensOptions);
-  const chainTokens = tokens.filter((token) => (token.chainId as number) === chain.id);
-  const uri = defaultUri ?? (symbol ? getTokenLogoURI(chainTokens, symbol) : undefined);
+  const { data: tokens = [] } = useQuery({ ...lifiTokensOptions, enabled: !defaultUri });
+  const uri =
+    defaultUri ??
+    (symbol
+      ? getTokenLogoURI(
+          tokens.filter((token) => (token.chainId as number) === chain.id),
+          symbol,
+        )
+      : undefined);
   if (!uri) {
     return (
       <View
