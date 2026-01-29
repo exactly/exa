@@ -11,7 +11,6 @@ import { YStack } from "tamagui";
 import SafeView from "../../../components/shared/SafeView";
 import StatusIndicator from "../../../components/shared/StatusIndicator";
 import Text from "../../../components/shared/Text";
-import View from "../../../components/shared/View";
 import usePendingOperations from "../../../utils/usePendingOperations";
 import { emitTabPress } from "../../../utils/useTabPress";
 
@@ -61,9 +60,7 @@ export default function HomeLayout() {
         </Head>
       )}
       <Tabs>
-        <View flex={1}>
-          <TabSlot />
-        </View>
+        <TabSlot style={{ flex: 1 }} />
         <TabList asChild>
           <SafeView
             flexDirection="row"
