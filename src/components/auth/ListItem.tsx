@@ -1,47 +1,35 @@
 import React, { memo } from "react";
-import { Platform, StyleSheet } from "react-native";
+import { StyleSheet } from "react-native";
 import type { SharedValue } from "react-native-reanimated";
 import { Extrapolation, interpolate, useAnimatedStyle } from "react-native-reanimated";
 
-import { useWindowDimensions, View } from "tamagui";
+import { View } from "tamagui";
 
-import useAspectRatio from "../../utils/useAspectRatio";
 import AnimatedView from "../shared/AnimatedView";
 
 import type { Page } from "./Auth";
 
-export default memo(function ListItem({ item, index, x }: { index: number; item: Page; x: SharedValue<number> }) {
-  const aspectRatio = useAspectRatio();
-  const { width, height } = useWindowDimensions();
-  const itemWidth = Platform.OS === "web" ? height * aspectRatio : width;
+type ListItemProperties = {
+  animationValue: SharedValue<number>;
+  item: Page;
+};
+
+function ListItem({ item, animationValue }: ListItemProperties) {
   /* istanbul ignore next */
   const rBackgroundStyle = useAnimatedStyle(() => {
-    const animatedScale = interpolate(
-      x.value,
-      [(index - 1) * itemWidth, index * itemWidth, (index + 1) * itemWidth],
-      [0, 1, 0],
-      Extrapolation.CLAMP,
-    );
-    const interpolatedOpacity = interpolate(
-      x.value,
-      [(index - 1) * itemWidth, index * itemWidth, (index + 1) * itemWidth],
-      [0, 1, 0],
-      Extrapolation.CLAMP,
-    );
+    const animatedScale = interpolate(animationValue.value, [-1, 0, 1], [0.5, 1, 0.5], Extrapolation.CLAMP);
+    const interpolatedOpacity = interpolate(animationValue.value, [-1, 0, 1], [0.3, 1, 0.3], Extrapolation.CLAMP);
     return { transform: [{ scale: animatedScale }], opacity: interpolatedOpacity };
-  }, [index, x]);
+  }, [animationValue]);
+
   /* istanbul ignore next */
   const rImageStyle = useAnimatedStyle(() => {
-    const animatedScale = interpolate(
-      x.value,
-      [(index - 1) * itemWidth, index * itemWidth, (index + 1) * itemWidth],
-      [0.5, 1, 0.5],
-      Extrapolation.CLAMP,
-    );
+    const animatedScale = interpolate(animationValue.value, [-1, 0, 1], [0.7, 1, 0.7], Extrapolation.CLAMP);
     return { transform: [{ scale: animatedScale }] };
-  }, [index, x]);
+  }, [animationValue]);
+
   return (
-    <View width={itemWidth} aspectRatio={aspectRatio} justifyContent="center" alignItems="center">
+    <View width="100%" height="100%" justifyContent="center" alignItems="center">
       <AnimatedView style={rBackgroundStyle} width="100%" height="100%">
         <item.backgroundImage width="100%" height="100%" />
       </AnimatedView>
@@ -50,4 +38,6 @@ export default memo(function ListItem({ item, index, x }: { index: number; item:
       </AnimatedView>
     </View>
   );
-});
+}
+
+export default memo(ListItem);

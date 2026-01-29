@@ -1,9 +1,11 @@
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Platform, useWindowDimensions } from "react-native";
+import { Platform, StyleSheet, useWindowDimensions } from "react-native";
+import type { SharedValue } from "react-native-reanimated";
+import { Extrapolation, interpolate, useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 import Carousel from "react-native-reanimated-carousel";
 
-import { View, XStack } from "tamagui";
+import { useTheme, View, XStack } from "tamagui";
 
 import BenefitCard from "./BenefitCard";
 import BenefitSheet from "./BenefitSheet";
@@ -11,6 +13,7 @@ import AiraloLogo from "../../assets/images/airalo.svg";
 import PaxLogo from "../../assets/images/pax.svg";
 import VisaLogo from "../../assets/images/visa.svg";
 import useAspectRatio from "../../utils/useAspectRatio";
+import AnimatedView from "../shared/AnimatedView";
 import Text from "../shared/Text";
 
 const BENEFITS = [
@@ -57,17 +60,69 @@ const BENEFITS = [
 
 export type Benefit = (typeof BENEFITS)[number];
 
+const styles = StyleSheet.create({ dot: { height: 8, borderRadius: 10 } });
+
+/* istanbul ignore next */
+function calculateDistance(scrollOffset: number, index: number, length: number) {
+  "worklet";
+  const normalizedOffset = ((scrollOffset % length) + length) % length;
+  let distance = Math.abs(normalizedOffset - index);
+  if (distance > length / 2) {
+    distance = length - distance;
+  }
+  return distance;
+}
+
+function PaginationDot({
+  index,
+  scrollOffset,
+  activeColor,
+  inactiveColor,
+}: {
+  activeColor: string;
+  inactiveColor: string;
+  index: number;
+  scrollOffset: SharedValue<number>;
+}) {
+  const length = BENEFITS.length;
+
+  /* istanbul ignore next */
+  const rStyle = useAnimatedStyle(() => {
+    const distance = calculateDistance(scrollOffset.value, index, length);
+    const width = interpolate(distance, [0, 1], [20, 8], Extrapolation.CLAMP);
+    const opacity = interpolate(distance, [0, 1], [1, 0.4], Extrapolation.CLAMP);
+    return { width, opacity };
+  }, [scrollOffset, index, length]);
+
+  /* istanbul ignore next */
+  const rColorStyle = useAnimatedStyle(() => {
+    const distance = calculateDistance(scrollOffset.value, index, length);
+    const isActive = distance < 0.5;
+    return { backgroundColor: isActive ? activeColor : inactiveColor };
+  }, [scrollOffset, index, activeColor, inactiveColor]);
+
+  return <AnimatedView style={[styles.dot, rStyle, rColorStyle]} />;
+}
+
 export default function BenefitsSection() {
   const { t } = useTranslation();
+  const theme = useTheme();
   const [selectedBenefit, setSelectedBenefit] = useState<Benefit>();
   const [sheetOpen, setSheetOpen] = useState(false);
 
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const scrollOffset = useSharedValue(0);
   const aspectRatio = useAspectRatio();
 
   const { width, height } = useWindowDimensions();
 
   const carouselWidth = Math.max(Platform.OS === "web" ? Math.min(height * aspectRatio, 600) - 64 : width - 64, 250);
+
+  const handleProgressChange = useCallback(
+    (_: number, absoluteProgress: number) => {
+      scrollOffset.value = absoluteProgress;
+    },
+    [scrollOffset],
+  );
 
   return (
     <>
@@ -77,20 +132,12 @@ export default function BenefitsSection() {
             {t("Benefits")}
           </Text>
           {BENEFITS.map((benefit, index) => (
-            <View
+            <PaginationDot
               key={benefit.id}
-              role="tab"
-              aria-label={t("{{partner}}, page {{current}} of {{total}}", {
-                partner: benefit.partner,
-                current: index + 1,
-                total: BENEFITS.length,
-              })}
-              aria-selected={index === currentIndex}
-              backgroundColor="$interactiveDisabled"
-              height="$s2"
-              width={index === currentIndex ? "$s5" : "$s2"}
-              borderRadius="$10"
-              animation="quick"
+              index={index}
+              scrollOffset={scrollOffset}
+              activeColor={theme.interactiveBaseBrandDefault.val}
+              inactiveColor={theme.interactiveDisabled.val}
             />
           ))}
         </XStack>
@@ -102,7 +149,7 @@ export default function BenefitsSection() {
             autoPlay
             autoPlayInterval={5000}
             scrollAnimationDuration={500}
-            onSnapToItem={(index) => setCurrentIndex(index)}
+            onProgressChange={handleProgressChange}
             renderItem={({ item }) => (
               <View paddingHorizontal="$s2">
                 <BenefitCard
