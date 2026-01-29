@@ -70,7 +70,7 @@ export default function AddFunds() {
               }}
             />
             <AddFundsOption
-              icon={<ChainLogo size={40} />}
+              icon={<ChainLogo size={24} borderRadius="$r3" />}
               title={t("From another wallet")}
               subtitle={t("On {{chain}}", { chain: chain.name })}
               onPress={() => {
