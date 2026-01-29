@@ -2,26 +2,35 @@ import { Platform } from "react-native";
 
 import { useMutation } from "@tanstack/react-query";
 import {
+  concat,
   createWalletClient,
-  hexToBigInt,
+  hexToNumber,
   http,
   isHex,
+  numberToHex,
+  sliceHex,
+  trim,
   type EIP1193Provider,
   type EIP1193RequestFn,
   type WalletSendCallsParameters,
 } from "viem";
-import { mnemonicToAccount } from "viem/accounts";
+import { mnemonicToAccount, nonceManager } from "viem/accounts";
 
 import chain from "@exactly/common/generated/chain";
+
+import publicClient from "./publicClient";
 
 const account =
   typeof window !== "undefined" && process.env.EXPO_PUBLIC_ENV === "e2e"
     ? mnemonicToAccount(
         process.env.EXPO_PUBLIC_E2E_MNEMONIC || "test test test test test test test test test test test junk", // eslint-disable-line @typescript-eslint/prefer-nullish-coalescing -- ignore empty string
+        { nonceManager },
       )
     : undefined;
 const client = account && createWalletClient({ chain, account, transport: http() });
 export default client;
+
+const TX_MAGIC_ID = "0x5792579257925792579257925792579257925792579257925792579257925792";
 
 if (client) {
   window.ethereum = {
@@ -43,13 +52,29 @@ if (client) {
           if (!Array.isArray(params) || params.length !== 1) throw new Error("bad params");
           const [{ from, calls }] = params as WalletSendCallsParameters;
           if (from && from !== account.address) throw new Error("bad account");
-          for (const { to, data, value } of calls) {
-            client
-              .sendTransaction({ to, data, value: value && hexToBigInt(value), gas: 6_666_666n })
-              .then(console.log) // eslint-disable-line no-console
-              .catch(console.error); // eslint-disable-line no-console
-          }
-          return { result: null };
+          const hashes = await Promise.all(
+            calls.map(({ to, data, value }) =>
+              client.sendTransaction({ to, data, value: value && BigInt(value), gas: 6_666_666n }),
+            ),
+          );
+          return { id: concat([...hashes, numberToHex(chain.id, { size: 32 }), TX_MAGIC_ID]) };
+        }
+        case "wallet_getCallsStatus": {
+          if (!Array.isArray(params) || params.length !== 1 || !isHex(params[0])) throw new Error("bad");
+          const [id] = params;
+          const receipts = await Promise.all(
+            Array.from({ length: (id.length - 2) / 2 / 32 - 2 }, (_, index) =>
+              publicClient.getTransactionReceipt({ hash: sliceHex(id, index * 32, (index + 1) * 32) }),
+            ),
+          );
+          return {
+            version: "2.0.0",
+            id,
+            atomic: true,
+            receipts,
+            status: receipts.every((r) => r.status === "success") ? 200 : 500,
+            chainId: hexToNumber(trim(sliceHex(id, -64, -32))),
+          };
         }
         default:
           throw new Error(`${method} not supported`);
