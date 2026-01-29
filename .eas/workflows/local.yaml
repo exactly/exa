@@ -31,7 +31,7 @@ jobs:
 
   android_e2e:
     after: [android_repack, android_build]
-    needs: [fingerprint]
+    needs: [android_get]
     environment: development
     runs_on: linux-large-nested-virtualization
     image: latest
@@ -116,7 +116,7 @@ jobs:
 
   ios_e2e:
     after: [ios_repack, ios_build]
-    needs: [fingerprint]
+    needs: [ios_get]
     environment: development
     runs_on: macos-large
     image: latest
