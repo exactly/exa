@@ -103,7 +103,9 @@ export default function AmountSelector({
                     color={highAmount ? "$interactiveBaseErrorDefault" : "$uiNeutralPrimary"}
                     alignSelf="center"
                     borderWidth={0}
-                    style={{ fontSize: 34, fontWeight: 400, letterSpacing: -0.2 }}
+                    fontSize={34}
+                    fontWeight="400"
+                    letterSpacing={-0.2}
                     cursor="pointer"
                     textAlign="center"
                     backgroundColor="$backgroundSoft"

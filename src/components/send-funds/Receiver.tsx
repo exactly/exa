@@ -90,7 +90,7 @@ export default function ReceiverSelection() {
                         borderBottomRightRadius={0}
                         value={value}
                         onChangeText={handleChange}
-                        style={{ borderColor: "$uiNeutralTertiary", borderWidth: 1, fontSize: 15 }}
+                        borderWidth={1}
                         focusStyle={{ borderColor: "$borderBrandStrong", borderWidth: 1 }}
                         backgroundColor="$backgroundSoft"
                       />
