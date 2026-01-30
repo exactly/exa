@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { useTranslation } from "react-i18next";
 import { PixelRatio, Pressable } from "react-native";
 
@@ -15,7 +15,7 @@ import View from "../shared/View";
 export default function GettingStarted({ isDeployed, hasKYC }: { hasKYC: boolean; isDeployed: boolean }) {
   const router = useRouter();
   const { t } = useTranslation();
-  const { currentStep, completedSteps, setSteps } = useOnboardingSteps();
+  const { currentStep, completedSteps } = useOnboardingSteps({ hasKYC, isDeployed });
   const { mutate: beginKYC, isPending } = useBeginKYC();
   function handleStepPress() {
     if (isPending) return;
@@ -28,22 +28,23 @@ export default function GettingStarted({ isDeployed, hasKYC }: { hasKYC: boolean
         break;
     }
   }
-  useEffect(() => {
-    setSteps((previous) =>
-      previous.map((step) => {
-        if (step.id === "add-funds" && isDeployed) return { ...step, completed: true };
-        if (step.id === "verify-identity" && hasKYC) return { ...step, completed: true };
-        return step;
-      }),
-    );
-  }, [hasKYC, isDeployed, setSteps]);
-
-  if (hasKYC && isDeployed) return null;
 
   const activeStepTitle = currentStep ? t(currentStep.title) : "";
 
   return (
-    <YStack backgroundColor="$backgroundBrandSoft" borderWidth={1} borderColor="$borderBrandSoft" borderRadius="$r3">
+    <YStack
+      key="getting-started"
+      backgroundColor="$backgroundBrandSoft"
+      borderWidth={1}
+      borderColor="$borderBrandSoft"
+      borderRadius="$r3"
+      opacity={1}
+      transform={[{ translateY: 0 }]}
+      animation="moderate"
+      animateOnly={["opacity", "transform"]}
+      enterStyle={{ opacity: 0, transform: [{ translateY: -20 }] }}
+      exitStyle={{ opacity: 0, transform: [{ translateY: -20 }] }}
+    >
       <XStack justifyContent="space-between" alignItems="center" padding="$s4">
         <Text emphasized headline color="$uiBrandSecondary" maxFontSizeMultiplier={1.3}>
           {t("Getting Started")}

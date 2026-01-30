@@ -4,7 +4,7 @@ import { RefreshControl } from "react-native";
 
 import { useLocalSearchParams, useRouter } from "expo-router";
 
-import { ScrollView, YStack } from "tamagui";
+import { AnimatePresence, ScrollView, YStack } from "tamagui";
 
 import { TimeToFullDisplay } from "@sentry/react-native";
 import { useQuery } from "@tanstack/react-query";
@@ -100,11 +100,15 @@ export default function Home() {
   const {
     data: KYCStatus,
     isFetched: isKYCFetched,
-    isPending: isPendingKYC,
     refetch: refetchKYCStatus,
   } = useQuery({
     queryKey: ["kyc", "status"],
     queryFn: async () => getKYCStatus(),
+    retry: (_, error) =>
+      !(
+        error instanceof APIError &&
+        (error.text === "no kyc" || error.text === "not started" || error.text === "bad kyc")
+      ),
     meta: {
       suppressError: (error) =>
         error instanceof APIError &&
@@ -192,7 +196,11 @@ export default function Home() {
                   }}
                 />
               )}
-              {!isPendingKYC && <GettingStarted isDeployed={!!bytecode} hasKYC={isKYCApproved} />}
+              <AnimatePresence>
+                {isKYCFetched && (!isKYCApproved || !bytecode) && (
+                  <GettingStarted isDeployed={!!bytecode} hasKYC={isKYCApproved} />
+                )}
+              </AnimatePresence>
               {isKYCFetched && isKYCApproved && <BenefitsSection />}
               <OverduePayments
                 onSelect={(maturity) => {

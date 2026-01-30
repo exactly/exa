@@ -7,9 +7,15 @@ import { useRouter } from "expo-router";
 import { ArrowDownToLine, ArrowLeft, Check, IdCard } from "@tamagui/lucide-icons";
 import { ScrollView, XStack, YStack } from "tamagui";
 
+import { useQuery } from "@tanstack/react-query";
+import { zeroAddress } from "viem";
+import { useBytecode } from "wagmi";
+
 import Step from "./Step";
 import { presentArticle } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
+import { getKYCStatus } from "../../utils/server";
+import useAccount from "../../utils/useAccount";
 import useBeginKYC from "../../utils/useBeginKYC";
 import useOnboardingSteps from "../../utils/useOnboardingSteps";
 import ActionButton from "../shared/ActionButton";
@@ -17,10 +23,25 @@ import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
+function useOnboardingState() {
+  const { address: account } = useAccount();
+  const { data: bytecode } = useBytecode({ address: account ?? zeroAddress, query: { enabled: !!account } });
+  const { data: kycStatus } = useQuery({ queryKey: ["kyc", "status"], queryFn: async () => getKYCStatus() });
+  const isDeployed = !!bytecode;
+  const hasKYC = Boolean(
+    kycStatus &&
+    typeof kycStatus === "object" &&
+    "code" in kycStatus &&
+    (kycStatus.code === "ok" || kycStatus.code === "legacy kyc"),
+  );
+  return { hasKYC, isDeployed };
+}
+
 export default function GettingStarted() {
   const { t } = useTranslation();
   const router = useRouter();
-  const { steps } = useOnboardingSteps();
+  const { hasKYC, isDeployed } = useOnboardingState();
+  const { steps } = useOnboardingSteps({ hasKYC, isDeployed });
   return (
     <SafeView fullScreen backgroundColor="$backgroundBrandSoft" paddingBottom={0}>
       <View gap={20} fullScreen>
@@ -46,7 +67,7 @@ export default function GettingStarted() {
           </View>
         </View>
         <ScrollView flex={1} showsVerticalScrollIndicator={false}>
-          <CurrentStep />
+          <CurrentStep hasKYC={hasKYC} isDeployed={isDeployed} />
           <YStack
             backgroundColor="$backgroundSoft"
             paddingHorizontal="$s5"
@@ -117,10 +138,10 @@ export default function GettingStarted() {
   );
 }
 
-function CurrentStep() {
+function CurrentStep({ hasKYC, isDeployed }: { hasKYC: boolean; isDeployed: boolean }) {
   const { t } = useTranslation();
   const router = useRouter();
-  const { currentStep, completedSteps } = useOnboardingSteps();
+  const { currentStep, completedSteps } = useOnboardingSteps({ hasKYC, isDeployed });
   const { mutate: beginKYC } = useBeginKYC();
   function handleAction() {
     switch (currentStep?.id) {
