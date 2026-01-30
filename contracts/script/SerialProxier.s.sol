@@ -1,139 +1,144 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.0;
 
-import { TimelockController } from "@openzeppelin/contracts-v4/governance/TimelockController.sol";
-import { ProxyAdmin } from "@openzeppelin/contracts-v4/proxy/transparent/ProxyAdmin.sol";
-import {
-  ITransparentUpgradeableProxy,
-  TransparentUpgradeableProxy
-} from "@openzeppelin/contracts-v4/proxy/transparent/TransparentUpgradeableProxy.sol";
-import { Ownable } from "openzeppelin-contracts/contracts/access/Ownable.sol";
+import { TransparentUpgradeableProxy } from "@openzeppelin/contracts-v4/proxy/transparent/TransparentUpgradeableProxy.sol";
+import { ProxyAdmin } from "openzeppelin-contracts/contracts/proxy/transparent/ProxyAdmin.sol";
+import { ITransparentUpgradeableProxy } from
+  "openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+
+import { IPlugin } from "modular-account-libs/interfaces/IPlugin.sol";
+
+import { ACCOUNT_IMPL, ENTRYPOINT } from "webauthn-owner-plugin/../script/Factory.s.sol";
+import { WebauthnOwnerPlugin } from "webauthn-owner-plugin/WebauthnOwnerPlugin.sol";
+
+import { EXA } from "@exactly/protocol/periphery/EXA.sol";
 
 import { BaseScript } from "./Base.s.sol";
+import { ExaAccountFactory } from "../src/ExaAccountFactory.sol";
+import {
+  ExaPlugin,
+  IAuditor,
+  IDebtManager,
+  IFlashLoaner,
+  IInstallmentsRouter,
+  IMarket,
+  IProposalManager,
+  Parameters
+} from "../src/ExaPlugin.sol";
+import { IssuerChecker } from "../src/IssuerChecker.sol";
+import { ProposalManager } from "../src/ProposalManager.sol";
 
 contract SerialProxier is BaseScript {
+  error NonceNotFound();
   error TargetNonceTooLow();
 
   Dummy public dummy;
+  ProxyAdmin public proxyAdmin;
+
+  function setUp() external {
+    address admin = acct("admin");
+    dummy = Dummy(CREATE3_FACTORY.getDeployed(admin, keccak256(abi.encode("Dummy"))));
+    proxyAdmin = ProxyAdmin(CREATE3_FACTORY.getDeployed(admin, keccak256(abi.encode("ProxyAdmin"))));
+  }
+
+  function prepare() external {
+    address admin = acct("admin");
+    vm.startBroadcast(admin);
+    dummy = Dummy(CREATE3_FACTORY.deploy(keccak256(abi.encode("Dummy")), vm.getCode("SerialProxier.s.sol:Dummy")));
+    proxyAdmin = ProxyAdmin(
+      CREATE3_FACTORY.deploy(
+        keccak256(abi.encode("ProxyAdmin")),
+        abi.encodePacked(vm.getCode("ProxyAdmin.sol:ProxyAdmin"), abi.encode(admin))
+      )
+    );
+    vm.stopBroadcast();
+  }
 
   /// @notice Deploys proxies with dummy implementation, consuming deployer nonces
   /// @param targetNonce The nonce to stop at (exclusive)
   /// @return start The starting nonce
   function run(uint256 targetNonce) external returns (uint256 start) {
-    address admin = acct("admin");
+    assert(address(dummy).code.length != 0);
+    assert(address(proxyAdmin).code.length != 0);
+
     address deployer = acct("deployer");
-    address proxyAdmin = protocol("ProxyAdmin");
 
     start = vm.getNonce(deployer);
     if (targetNonce <= start) revert TargetNonceTooLow();
 
-    if (address(dummy) == address(0)) dummy = new Dummy();
-
     vm.startBroadcast(deployer);
     for (uint256 nonce = vm.getNonce(deployer); nonce < targetNonce; ++nonce) {
-      address proxy =
-        address(new TransparentUpgradeableProxy(address(dummy), proxyAdmin, abi.encodeCall(Dummy.initialize, (admin))));
+      address proxy = address(new TransparentUpgradeableProxy(address(dummy), address(proxyAdmin), ""));
       vm.label(proxy, string.concat("Proxy", vm.toString(nonce)));
     }
-
     vm.stopBroadcast();
   }
 
-  function proposeUpgrade(address proxy, address implementation, bytes memory initData) external {
-    TimelockController timelock = TimelockController(payable(protocol("TimelockController")));
-    address proxyAdmin = protocol("ProxyAdmin");
+  function upgrade(address proxy, address implementation, bytes memory initData) external {
+    vm.broadcast(acct("admin"));
+    proxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(proxy), implementation, initData);
+  }
 
-    bytes[] memory payloads = new bytes[](1);
-    payloads[0] =
-      abi.encodeCall(ProxyAdmin.upgradeAndCall, (ITransparentUpgradeableProxy(proxy), implementation, initData));
-    address[] memory targets = new address[](payloads.length);
-    targets[0] = proxyAdmin;
-    uint256[] memory values = new uint256[](payloads.length);
-    bytes32 salt = "";
-
-    vm.startBroadcast(acct("exactly"));
-    timelock.scheduleBatch(targets, values, payloads, 0, salt, timelock.getMinDelay());
+  function deployEXA(address proxy) external {
+    vm.startBroadcast(acct("admin"));
+    EXA exa = new EXA();
+    proxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(proxy), address(exa), abi.encodeCall(EXA.initialize, ()));
     vm.stopBroadcast();
   }
 
-  function executeUpgrade(address proxy, address implementation, bytes memory initData) external {
-    TimelockController timelock = TimelockController(payable(protocol("TimelockController")));
-    address proxyAdmin = protocol("ProxyAdmin");
+  function deployFactory(address proxy, FactoryParameters memory fp) external {
+    address admin = acct("admin");
 
-    bytes[] memory payloads = new bytes[](1);
-    payloads[0] =
-      abi.encodeCall(ProxyAdmin.upgradeAndCall, (ITransparentUpgradeableProxy(proxy), implementation, initData));
-    address[] memory targets = new address[](payloads.length);
-    targets[0] = proxyAdmin;
-    uint256[] memory values = new uint256[](payloads.length);
-    bytes32 salt = "";
+    vm.startBroadcast(admin);
 
-    vm.startBroadcast(acct("exactly"));
-    timelock.executeBatch(targets, values, payloads, 0, salt);
-    vm.stopBroadcast();
-  }
+    WebauthnOwnerPlugin ownerPlugin = new WebauthnOwnerPlugin();
 
-  function proposeUpgradeWithReset(address proxy, address implementation, bytes memory initData, address resetter)
-    external
-  {
-    TimelockController timelock = TimelockController(payable(protocol("TimelockController")));
-    address proxyAdmin = protocol("ProxyAdmin");
-
-    bytes[] memory payloads = new bytes[](2);
-    payloads[0] = abi.encodeCall(
-      ProxyAdmin.upgradeAndCall, (ITransparentUpgradeableProxy(proxy), resetter, abi.encodeCall(Resetter.reset, ()))
+    address[] memory allowlist = new address[](2);
+    allowlist[0] = fp.exaUSDC.asset();
+    allowlist[1] = fp.exaWETH.asset();
+    ProposalManager proposalManager = new ProposalManager(
+      admin, fp.auditor, IDebtManager(address(1)), IInstallmentsRouter(address(1)), admin, allowlist, 1
     );
-    payloads[1] =
-      abi.encodeCall(ProxyAdmin.upgradeAndCall, (ITransparentUpgradeableProxy(proxy), implementation, initData));
-    address[] memory targets = new address[](payloads.length);
-    targets[0] = proxyAdmin;
-    targets[1] = proxyAdmin;
-    uint256[] memory values = new uint256[](payloads.length);
-    bytes32 salt = "";
 
-    vm.startBroadcast(acct("exactly"));
-    timelock.scheduleBatch(targets, values, payloads, 0, salt, timelock.getMinDelay());
+    ExaPlugin exaPlugin = new ExaPlugin(
+      Parameters({
+        owner: admin,
+        auditor: fp.auditor,
+        exaUSDC: fp.exaUSDC,
+        exaWETH: fp.exaWETH,
+        flashLoaner: IFlashLoaner(address(1)),
+        debtManager: IDebtManager(address(1)),
+        installmentsRouter: IInstallmentsRouter(address(1)),
+        issuerChecker: IssuerChecker(address(1)),
+        proposalManager: IProposalManager(address(proposalManager)),
+        collector: admin,
+        swapper: admin,
+        firstKeeper: admin
+      })
+    );
+
+    proposalManager.grantRole(keccak256("PROPOSER_ROLE"), address(exaPlugin));
+
+    ExaAccountFactory factory =
+      new ExaAccountFactory(admin, IPlugin(address(ownerPlugin)), IPlugin(address(exaPlugin)), ACCOUNT_IMPL, ENTRYPOINT);
+
+    proxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(proxy), address(factory), "");
+
     vm.stopBroadcast();
   }
 
-  function executeUpgradeWithReset(address proxy, address implementation, bytes memory initData, address resetter)
-    external
-  {
-    TimelockController timelock = TimelockController(payable(protocol("TimelockController")));
-    address proxyAdmin = protocol("ProxyAdmin");
-
-    bytes[] memory payloads = new bytes[](2);
-    payloads[0] = abi.encodeCall(
-      ProxyAdmin.upgradeAndCall, (ITransparentUpgradeableProxy(proxy), resetter, abi.encodeCall(Resetter.reset, ()))
-    );
-    payloads[1] =
-      abi.encodeCall(ProxyAdmin.upgradeAndCall, (ITransparentUpgradeableProxy(proxy), implementation, initData));
-    address[] memory targets = new address[](payloads.length);
-    targets[0] = proxyAdmin;
-    targets[1] = proxyAdmin;
-    uint256[] memory values = new uint256[](payloads.length);
-    bytes32 salt = "";
-
-    vm.startBroadcast(acct("exactly"));
-    timelock.executeBatch(targets, values, payloads, 0, salt);
-    vm.stopBroadcast();
+  function findNonce(address account, address target, uint256 stop) public pure returns (uint256) {
+    for (uint256 nonce = 0; nonce < stop; ++nonce) {
+      if (vm.computeCreateAddress(account, nonce) == target) return nonce;
+    }
+    revert NonceNotFound();
   }
 }
 
-/// @dev Dummy implementation for proxies, with initializable owner matching OZ v5 Ownable storage layout
-contract Dummy is Ownable(address(1)) {
-  error AlreadyInitialized();
+contract Dummy { }
 
-  function initialize(address owner_) external {
-    if (owner() != address(0)) revert AlreadyInitialized();
-    _transferOwnership(owner_);
-  }
-}
-
-contract Resetter {
-  address public owner;
-
-  function reset() external {
-    owner = address(0);
-  }
+struct FactoryParameters {
+  IAuditor auditor;
+  IMarket exaUSDC;
+  IMarket exaWETH;
 }
