@@ -1,6 +1,7 @@
 import React, { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { scheduleOnRN } from "react-native-worklets";
 
 import { ChevronRight } from "@tamagui/lucide-icons";
 import { XStack, YStack } from "tamagui";
@@ -17,7 +18,15 @@ type BenefitCardProperties = {
 export default memo(function BenefitCard({ benefit, onPress }: BenefitCardProperties) {
   const { t } = useTranslation();
   const BenefitLogo = benefit.logo;
-  const tap = useMemo(() => Gesture.Tap().onEnd(onPress), [onPress]);
+  const tap = useMemo(
+    () =>
+      /* istanbul ignore next */
+      Gesture.Tap().onEnd(() => {
+        "worklet";
+        scheduleOnRN(onPress);
+      }),
+    [onPress],
+  );
   return (
     <GestureDetector gesture={tap}>
       <YStack
