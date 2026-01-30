@@ -14,6 +14,7 @@ import {
   type InferInput,
   type InferOutput,
 } from "valibot";
+import { withRetry } from "viem";
 import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
 import chain from "@exactly/common/generated/chain";
@@ -48,14 +49,26 @@ export async function uploadIdentityFile(
   documentURL?: null | string,
 ): Promise<void> {
   if (!documentURL) return;
-  const { url: presignedURL } = await request(
-    UploadIdentityFileResponse,
-    "/crypto/v2/onboarding-actions/upload-identity-image",
-    {},
-    { userAnyId, fileName, side },
-    "POST",
+  await withRetry(
+    async () => {
+      const { url: presignedURL } = await request(
+        UploadIdentityFileResponse,
+        "/crypto/v2/onboarding-actions/upload-identity-image",
+        {},
+        { userAnyId, fileName, side },
+        "POST",
+      );
+      await forwardFileToURL(documentURL, presignedURL);
+    },
+    {
+      delay: 1000,
+      retryCount: 2,
+      shouldRetry: ({ error }) => {
+        captureException(error, { level: "warning" });
+        return true;
+      },
+    },
   );
-  await forwardFileToURL(documentURL, presignedURL);
 }
 
 export async function acceptTermsAndConditions(userAnyId: string) {

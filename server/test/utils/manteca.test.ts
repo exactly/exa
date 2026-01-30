@@ -547,6 +547,140 @@ describe("manteca utils", () => {
       expect(body.personalData.sex).toBe("X");
     });
   });
+
+  describe("uploadIdentityFile", () => {
+    it("retries file upload on failure and succeeds", async () => {
+      let forwardAttempt = 0;
+      vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+        const url = input instanceof Request ? input.url : String(input);
+        if (url.includes("upload-identity-image")) {
+          return Promise.resolve(mockFetchResponse({ url: "https://presigned.url/upload" }));
+        }
+        if (url === "https://example.com/document.jpg") {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            body: new ReadableStream(),
+            headers: new Headers({ "content-type": "image/jpeg", "content-length": "1000" }),
+          } as Response);
+        }
+        if (url === "https://presigned.url/upload") {
+          forwardAttempt++;
+          if (forwardAttempt < 2) {
+            return Promise.resolve({
+              ok: false,
+              status: 500,
+              statusText: "Internal Server Error",
+              text: () => Promise.resolve("server error"),
+            } as Response);
+          }
+          return Promise.resolve({ ok: true, status: 200 } as Response);
+        }
+        return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve("") } as Response);
+      });
+
+      await manteca.uploadIdentityFile("user-123", "FRONT", "document.jpg", "https://example.com/document.jpg");
+
+      expect(forwardAttempt).toBe(2);
+    });
+
+    it("throws after max retries exceeded", async () => {
+      let forwardAttempt = 0;
+      vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+        const url = input instanceof Request ? input.url : String(input);
+        if (url.includes("upload-identity-image")) {
+          return Promise.resolve(mockFetchResponse({ url: "https://presigned.url/upload" }));
+        }
+        if (url === "https://example.com/document.jpg") {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            body: new ReadableStream(),
+            headers: new Headers({ "content-type": "image/jpeg" }),
+          } as Response);
+        }
+        if (url === "https://presigned.url/upload") {
+          forwardAttempt++;
+          return Promise.resolve({
+            ok: false,
+            status: 500,
+            statusText: "Internal Server Error",
+            text: () => Promise.resolve("server error"),
+          } as Response);
+        }
+        return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve("") } as Response);
+      });
+
+      await expect(
+        manteca.uploadIdentityFile("user-123", "FRONT", "document.jpg", "https://example.com/document.jpg"),
+      ).rejects.toThrow("Destination upload failed");
+
+      expect(forwardAttempt).toBe(3);
+    });
+
+    it("retries when fetch throws an error", async () => {
+      let forwardAttempt = 0;
+      vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+        const url = input instanceof Request ? input.url : String(input);
+        if (url.includes("upload-identity-image")) {
+          return Promise.resolve(mockFetchResponse({ url: "https://presigned.url/upload" }));
+        }
+        if (url === "https://example.com/document.jpg") {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            body: new ReadableStream(),
+            headers: new Headers({ "content-type": "image/jpeg" }),
+          } as Response);
+        }
+        if (url === "https://presigned.url/upload") {
+          forwardAttempt++;
+          if (forwardAttempt < 2) return Promise.reject(new Error("fetch error"));
+          return Promise.resolve({ ok: true, status: 200 } as Response);
+        }
+        return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve("") } as Response);
+      });
+
+      await manteca.uploadIdentityFile("user-123", "FRONT", "document.jpg", "https://example.com/document.jpg");
+
+      expect(forwardAttempt).toBe(2);
+    });
+
+    it("retries when presigned URL request fails", async () => {
+      let presignedAttempt = 0;
+      vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+        const url = input instanceof Request ? input.url : String(input);
+        if (url.includes("upload-identity-image")) {
+          presignedAttempt++;
+          if (presignedAttempt < 2) {
+            return Promise.resolve({
+              ok: false,
+              status: 500,
+              statusText: "Internal Server Error",
+              text: () => Promise.resolve("presigned url error"),
+            } as Response);
+          }
+          return Promise.resolve(mockFetchResponse({ url: "https://presigned.url/upload" }));
+        }
+        if (url === "https://example.com/document.jpg") {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            body: new ReadableStream(),
+            headers: new Headers({ "content-type": "image/jpeg" }),
+          } as Response);
+        }
+        if (url === "https://presigned.url/upload") {
+          return Promise.resolve({ ok: true, status: 200 } as Response);
+        }
+        return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve("") } as Response);
+      });
+
+      await manteca.uploadIdentityFile("user-123", "FRONT", "document.jpg", "https://example.com/document.jpg");
+
+      expect(presignedAttempt).toBe(2);
+    });
+  });
 });
 
 const mockUserBase = {
