@@ -139,5 +139,52 @@ contract RedeployerTest is ForkTest {
       .execute(address(usdc), 0, abi.encodeCall(IERC20.transfer, (receiver, amount)));
     assertEq(usdc.balanceOf(receiver), amount, "receiver should have USDC");
   }
+
+  function test_deployExaFactory_deploysAtSameAddress_onPolygon() external {
+    address factoryOP = 0xcbeaAF42Cc39c17e84cBeFe85160995B515A9668;
+
+    vm.createSelectFork("polygon", 82_000_000);
+
+    redeployer = new Redeployer();
+
+    address deployer = acct("deployer");
+    uint256 targetNonce = redeployer.findNonce(deployer, factoryOP, 1_000_000);
+    uint256 currentNonce = vm.getNonce(deployer);
+    assertGt(targetNonce, currentNonce, "target nonce <= current nonce");
+
+    IERC20 usdc = IERC20(0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359);
+
+    redeployer.prepare();
+    redeployer.run(targetNonce + 1);
+
+    assertTrue(factoryOP.code.length > 0, "factory not deployed at same address");
+
+    redeployer.deployExaFactory(factoryOP);
+
+    vm.startPrank(acct("admin"));
+    ProposalManager(
+        address(ExaPlugin(payable(address(ExaAccountFactory(payable(factoryOP)).EXA_PLUGIN()))).proposalManager())
+      ).allowTarget(address(usdc), true);
+    vm.stopPrank();
+
+    PublicKey[] memory owners = new PublicKey[](1);
+    owners[0] = PublicKey({
+      x: 36_239_696_829_842_771_799_020_839_773_186_339_451_905_684_138_052_071_201_385_735_692_571_111_323_304,
+      y: 68_346_061_821_485_004_327_752_959_192_465_308_812_504_725_568_244_017_761_086_739_549_382_760_577_121
+    });
+
+    address expectedAccount = 0xDAB3996c49b8D9e0197aa6cb265Ed736448bD24E;
+    address account = ExaAccountFactory(payable(factoryOP)).createAccount(0, owners);
+    assertEq(account, expectedAccount, "account != expected");
+
+    uint256 amount = usdc.balanceOf(account);
+    assertGt(amount, 0, "account USDC == 0");
+
+    address receiver = makeAddr("receiver");
+    vm.prank(account);
+    UpgradeableModularAccount(payable(account))
+      .execute(address(usdc), 0, abi.encodeCall(IERC20.transfer, (receiver, amount)));
+    assertEq(usdc.balanceOf(receiver), amount, "receiver should have USDC");
+  }
   // solhint-enable func-name-mixedcase
 }
