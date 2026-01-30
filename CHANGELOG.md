@@ -1,5 +1,32 @@
 # @exactly/mobile
 
+## 1.1.5
+
+### Patch Changes
+
+- [#696](https://github.com/exactly/exa/pull/696) [`5b80605`](https://github.com/exactly/exa/commit/5b80605c59924a6c1b322f808a25271a1b693f7c) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 fix missing tamagui input styles
+
+- [#696](https://github.com/exactly/exa/pull/696) [`a4ab311`](https://github.com/exactly/exa/commit/a4ab3114a492dbada99be0d312e13464ac61d1f7) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ⚡️ optimize asset logo component
+
+- [#695](https://github.com/exactly/exa/pull/695) [`56e5e47`](https://github.com/exactly/exa/commit/56e5e474a6ece88e228500b8c38a96241116ffc3) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 dismiss flows when finished
+
+- [#695](https://github.com/exactly/exa/pull/695) [`9bec556`](https://github.com/exactly/exa/commit/9bec55640a9f9c899df3b5ceb0e282ff9eb61983) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 fix defi screen top padding
+
+- [#701](https://github.com/exactly/exa/pull/701) [`6077f60`](https://github.com/exactly/exa/commit/6077f60fec5a1577975c07c8c3e6538e3f8f9a84) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💫 improve carousel transitions
+
+- [#696](https://github.com/exactly/exa/pull/696) [`f36dfa0`](https://github.com/exactly/exa/commit/f36dfa09f9affa0dad258b04b698e4b7eba5a2a3) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix tab screen scrolling on web
+
+- [#696](https://github.com/exactly/exa/pull/696) [`4099f89`](https://github.com/exactly/exa/commit/4099f8955851b6fac630cbf2fcf6bd3cdae987e0) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 improve chain logo display
+
+- [#696](https://github.com/exactly/exa/pull/696) [`4b22d84`](https://github.com/exactly/exa/commit/4b22d848a2e0bc7f2e0776c2892105bbc3900d8d) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚸 navigate successful operations to activity
+
+- [#695](https://github.com/exactly/exa/pull/695) [`4113494`](https://github.com/exactly/exa/commit/41134945ae3863a7e0ccf2e4542d601a6c03c9d3) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ♻️ use expo router ui tabs
+
+- [#696](https://github.com/exactly/exa/pull/696) [`64c6667`](https://github.com/exactly/exa/commit/64c666758426eaa99a96e9a67cfacdc320b9642e) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix missing asset logos on bridge
+
+- Updated dependencies [[`de60df2`](https://github.com/exactly/exa/commit/de60df282b81ce960b3f7cb07e449dc3adfffed9), [`8ee587a`](https://github.com/exactly/exa/commit/8ee587adc11077331e4d235d0038446c34caa9fc), [`021a7bd`](https://github.com/exactly/exa/commit/021a7bd2c84cf3473691c0d2158f9b115f457e0e)]:
+  - @exactly/server@0.2.53
+
 ## 1.1.4
 
 ### Patch Changes

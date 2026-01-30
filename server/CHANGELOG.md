@@ -1,5 +1,15 @@
 # @exactly/server
 
+## 0.2.53
+
+### Patch Changes
+
+- [#693](https://github.com/exactly/exa/pull/693) [`de60df2`](https://github.com/exactly/exa/commit/de60df282b81ce960b3f7cb07e449dc3adfffed9) Thanks [@mainqueg](https://github.com/mainqueg)! - ✨ validate id document photos for manteca
+
+- [#700](https://github.com/exactly/exa/pull/700) [`8ee587a`](https://github.com/exactly/exa/commit/8ee587adc11077331e4d235d0038446c34caa9fc) Thanks [@mainqueg](https://github.com/mainqueg)! - 🥅 add retry to identity file upload
+
+- [#692](https://github.com/exactly/exa/pull/692) [`021a7bd`](https://github.com/exactly/exa/commit/021a7bd2c84cf3473691c0d2158f9b115f457e0e) Thanks [@mainqueg](https://github.com/mainqueg)! - ⚰️ remove template id param
+
 ## 0.2.52
 
 ### Patch Changes
