@@ -13,6 +13,7 @@ import { E_TIMEOUT } from "async-mutex";
 import createDebug from "debug";
 import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
+import { createHmac } from "node:crypto";
 import * as v from "valibot";
 import {
   BaseError,
@@ -28,9 +29,11 @@ import {
   padHex,
   RawContractError,
   toBytes,
+  withRetry,
   zeroHash,
 } from "viem";
 
+import domain from "@exactly/common/domain";
 import {
   auditorAbi,
   exaPluginAbi,
@@ -66,6 +69,9 @@ import type { UnofficialStatusCode } from "hono/utils/http-status";
 const debug = createDebug("exa:panda");
 Object.assign(debug, { inspectOpts: { depth: undefined } });
 
+const debugWebhook = createDebug("exa:webhook");
+Object.assign(debugWebhook, { inspectOpts: { depth: undefined } });
+
 const BaseTransaction = v.object({
   id: v.string(),
   type: v.literal("spend"),
@@ -81,7 +87,7 @@ const BaseTransaction = v.object({
     merchantCategory: v.nullish(v.string()),
     merchantCategoryCode: v.string(),
     merchantName: v.string(),
-    merchantId: v.optional(v.string()),
+    merchantId: v.nullish(v.string()),
     authorizedAt: v.optional(v.pipe(v.string(), v.isoTimestamp())),
     authorizedAmount: v.nullish(v.number()),
     authorizationMethod: v.optional(v.string()),
@@ -114,7 +120,10 @@ const Transaction = v.variant("action", [
         authorizationUpdateAmount: v.number(),
         authorizedAt: v.pipe(v.string(), v.isoTimestamp()),
         status: v.picklist(["declined", "pending", "reversed"]),
-        declinedReason: v.optional(v.string()),
+        declinedReason: v.nullish(v.string()),
+        enrichedMerchantIcon: v.nullish(v.string()),
+        enrichedMerchantName: v.nullish(v.string()),
+        enrichedMerchantCategory: v.nullish(v.string()),
       }),
     }),
   }),
@@ -143,6 +152,9 @@ const Transaction = v.variant("action", [
         authorizedAt: v.pipe(v.string(), v.isoTimestamp()),
         postedAt: v.pipe(v.string(), v.isoTimestamp()),
         status: v.literal("completed"),
+        enrichedMerchantIcon: v.nullish(v.string()),
+        enrichedMerchantName: v.nullish(v.string()),
+        enrichedMerchantCategory: v.nullish(v.string()),
       }),
     }),
   }),
@@ -203,7 +215,16 @@ const Payload = v.variant("resource", [
     action: v.literal("updated"),
     body: v.object({
       applicationReason: v.string(),
-      applicationStatus: v.string(),
+      applicationStatus: v.picklist([
+        "approved",
+        "pending",
+        "needsInformation",
+        "needsVerification",
+        "manualReview",
+        "denied",
+        "locked",
+        "canceled",
+      ]),
       firstName: v.string(),
       id: v.string(),
       isActive: v.boolean(),
@@ -226,6 +247,10 @@ export default new Hono().post(
     const jsonBody = await c.req.json(); // eslint-disable-line @typescript-eslint/no-unsafe-assignment
     setContext("panda", jsonBody); // eslint-disable-line @typescript-eslint/no-unsafe-argument
     getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, `panda.${payload.resource}.${payload.action}`);
+
+    startSpan({ name: "webhook", op: "panda.webhook" }, () => publish(payload)).catch((error: unknown) =>
+      captureException(error),
+    );
 
     if (payload.resource !== "transaction") {
       if (payload.resource === "dispute") return c.json({ code: "ok" });
@@ -269,8 +294,8 @@ export default new Hono().post(
               type: payload.body.spend.amount < 0 ? "return" : "purchase",
               merchant: {
                 mcc: payload.body.spend.merchantCategoryCode,
-                id: payload.body.spend.merchantId,
                 name: payload.body.spend.merchantName,
+                ...(payload.body.spend.merchantId && { id: payload.body.spend.merchantId }),
               },
               terminal: { type: payload.body.spend.authorizationMethod },
               address: { countryCode: payload.body.spend.merchantCountry },
@@ -637,7 +662,7 @@ export default new Hono().post(
             feedback: {
               type: "authorization",
               status: "network_declined",
-              reason: payload.body.spend.declinedReason,
+              reason: payload.body.spend.declinedReason ?? "unknown",
             },
           }).catch((error: unknown) => captureException(error, { level: "error" }));
           return c.json({ code: "ok" });
@@ -1150,3 +1175,251 @@ const TransactionPayload = v.object(
   { bodies: v.array(v.looseObject({ action: v.string() }), "invalid transaction payload") },
   "invalid transaction payload",
 );
+
+async function publish(payload: v.InferOutput<typeof Payload>) {
+  if (payload.resource === "transaction" && payload.action === "requested") return;
+  if (payload.resource === "dispute") return;
+  if (payload.resource === "card" && payload.action === "notification") return;
+
+  async function sendWebhook(webhookPayload: v.InferOutput<typeof Webhook>, url: string, secret: string) {
+    try {
+      const result = await withRetry(
+        async () => {
+          const response = await fetch(url, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Signature: createHmac("sha256", secret).update(JSON.stringify(webhookPayload)).digest("hex"),
+            },
+            body: JSON.stringify(webhookPayload),
+            signal: AbortSignal.timeout(60_000),
+          });
+          if (!response.ok)
+            throw new Error("WebhookFailed", {
+              cause: {
+                code: response.status,
+                response: await response.json(),
+                payload: webhookPayload,
+              },
+            });
+          return response;
+        },
+        {
+          delay: ({ count }) => Math.trunc(1 << count) * 500,
+          retryCount: domain === "web.exactly.app" ? 20 : 3,
+          shouldRetry: ({ error }) => {
+            if (error instanceof Error) {
+              return error.message === "WebhookFailed" || error.name === "TimeoutError";
+            }
+            return false;
+          },
+        },
+      );
+      debugWebhook({
+        code: result.status,
+        response: await result.json(),
+        payload: webhookPayload,
+      });
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error instanceof Error && error.message === "WebhookFailed") {
+          debugWebhook(error.cause);
+        } else {
+          debugWebhook({
+            error: error.message,
+            payload: webhookPayload,
+          });
+        }
+      }
+      throw error;
+    }
+  }
+
+  const timestamp = new Date().toISOString();
+  const user = await database.query.credentials.findFirst({
+    columns: { id: true, source: true },
+    with: { source: { columns: { config: true } } },
+    where: eq(
+      credentials.pandaId,
+      (() => {
+        switch (payload.resource) {
+          case "card":
+            return payload.body.userId;
+          case "user":
+            return payload.body.id;
+          case "transaction":
+            return payload.body.spend.userId;
+        }
+      })(),
+    ),
+  });
+
+  if (!user?.source) return;
+  const config = v.parse(webhookConfig, user.source.config);
+  await Promise.allSettled(
+    Object.values(config.webhooks).map(async (webhook) => {
+      const secret = config.secrets[webhook.secretId]?.key;
+      if (!secret) throw new Error("secret not found");
+
+      switch (payload.resource) {
+        case "user":
+          return sendWebhook(
+            v.parse(Webhook, {
+              ...payload,
+              timestamp,
+              body: { ...payload.body, credentialId: user.id },
+            }),
+            webhook.card?.[payload.action] ?? webhook.url,
+            secret,
+          );
+        case "card":
+        // falls through
+        case "transaction":
+          return sendWebhook(
+            v.parse(Webhook, {
+              ...payload,
+              timestamp,
+            }),
+            webhook.transaction?.[payload.action] ?? webhook.url,
+            secret,
+          );
+      }
+    }),
+  ).then((results) => {
+    for (const result of results) {
+      if (result.status === "rejected") captureException(result.reason, { level: "error" });
+    }
+  });
+}
+
+const BaseWebhook = v.object({
+  id: v.string(),
+  type: v.literal("spend"),
+  spend: v.object({
+    amount: v.number(),
+    currency: v.literal("usd"),
+    cardId: v.string(),
+    localAmount: v.number(),
+    localCurrency: v.pipe(v.string(), v.length(3)),
+    merchantCity: v.nullish(v.pipe(v.string(), v.trim())),
+    merchantCountry: v.nullish(v.pipe(v.string(), v.trim())),
+    merchantCategory: v.nullish(v.pipe(v.string(), v.trim())),
+    merchantName: v.pipe(v.string(), v.trim()),
+    authorizedAt: v.optional(v.pipe(v.string(), v.isoTimestamp())),
+    authorizedAmount: v.nullish(v.number()),
+    merchantId: v.nullish(v.string()),
+  }),
+});
+
+const Webhook = v.variant("resource", [
+  v.variant("action", [
+    v.object({
+      id: v.string(),
+      timestamp: v.pipe(v.string(), v.isoTimestamp()),
+      resource: v.literal("transaction"),
+      action: v.literal("created"),
+      body: v.object({
+        ...BaseWebhook.entries,
+        spend: v.object({
+          ...BaseWebhook.entries.spend.entries,
+          status: v.picklist(["pending", "declined"]),
+          declinedReason: v.nullish(v.string()),
+        }),
+      }),
+    }),
+    v.object({
+      id: v.string(),
+      timestamp: v.pipe(v.string(), v.isoTimestamp()),
+      resource: v.literal("transaction"),
+      action: v.literal("updated"),
+      body: v.object({
+        ...BaseWebhook.entries,
+        spend: v.object({
+          ...BaseWebhook.entries.spend.entries,
+          authorizationUpdateAmount: v.number(),
+          authorizedAt: v.pipe(v.string(), v.isoTimestamp()),
+          status: v.picklist(["declined", "pending", "reversed"]),
+          declinedReason: v.nullish(v.string()),
+          enrichedMerchantIcon: v.nullish(v.string()),
+          enrichedMerchantName: v.nullish(v.string()),
+          enrichedMerchantCategory: v.nullish(v.string()),
+        }),
+      }),
+    }),
+    v.object({
+      id: v.string(),
+      timestamp: v.pipe(v.string(), v.isoTimestamp()),
+      resource: v.literal("transaction"),
+      action: v.literal("completed"),
+      body: v.object({
+        ...BaseWebhook.entries,
+        spend: v.object({
+          ...BaseWebhook.entries.spend.entries,
+          authorizedAt: v.pipe(v.string(), v.isoTimestamp()),
+          status: v.literal("completed"),
+          enrichedMerchantIcon: v.nullish(v.string()),
+          enrichedMerchantName: v.nullish(v.string()),
+          enrichedMerchantCategory: v.nullish(v.string()),
+        }),
+      }),
+    }),
+  ]),
+  v.object({
+    id: v.string(),
+    timestamp: v.pipe(v.string(), v.isoTimestamp()),
+    resource: v.literal("card"),
+    action: v.literal("updated"),
+    body: v.object({
+      id: v.string(),
+      last4: v.pipe(v.string(), v.length(4)),
+      limit: v.object({
+        amount: v.number(),
+        frequency: v.picklist(["per24HourPeriod", "per7DayPeriod", "per30DayPeriod", "perYearPeriod"]),
+      }),
+      status: v.picklist(["notActivated", "active", "locked", "canceled"]),
+      tokenWallets: v.union([v.array(v.literal("Apple")), v.array(v.literal("Google Pay"))]),
+    }),
+  }),
+  v.object({
+    id: v.string(),
+    timestamp: v.pipe(v.string(), v.isoTimestamp()),
+    resource: v.literal("user"),
+    action: v.literal("updated"),
+    body: v.object({
+      credentialId: v.string(),
+      applicationReason: v.string(),
+      applicationStatus: v.picklist([
+        "approved",
+        "pending",
+        "needsInformation",
+        "needsVerification",
+        "manualReview",
+        "denied",
+        "locked",
+        "canceled",
+      ]),
+      isActive: v.boolean(),
+    }),
+  }),
+]);
+
+const webhookConfig = v.object({
+  type: v.picklist(["uphold"]),
+  secrets: v.record(v.string(), v.object({ key: v.string(), type: v.picklist(["HMAC-SHA256"]) })),
+  webhooks: v.record(
+    v.string(),
+    v.object({
+      url: v.string(),
+      secretId: v.string(),
+      transaction: v.optional(
+        v.object({
+          created: v.optional(v.string()),
+          updated: v.optional(v.string()),
+          completed: v.optional(v.string()),
+        }),
+      ),
+      card: v.optional(v.object({ updated: v.optional(v.string()) })),
+      user: v.optional(v.object({ updated: v.optional(v.string()) })),
+    }),
+  ),
+});
