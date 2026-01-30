@@ -127,7 +127,7 @@ export default function Success({
                 <Pressable
                   onPress={() => {
                     queryClient.invalidateQueries({ queryKey: ["swap"] }).catch(reportError);
-                    router.replace("/(main)/(home)");
+                    router.dismissTo("/activity");
                   }}
                 >
                   <Text emphasized footnote color="$uiBrandSecondary">

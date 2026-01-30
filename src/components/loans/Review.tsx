@@ -400,7 +400,7 @@ export default function Review() {
                 router.back();
                 return;
               }
-              router.dismissTo("/loan");
+              router.dismissTo("/activity");
             }}
           >
             <X size={24} color="$uiNeutralPrimary" />
@@ -468,7 +468,7 @@ export default function Review() {
                 router.back();
                 return;
               }
-              router.dismissTo("/loan");
+              router.dismissTo("/activity");
             }}
           >
             {error ? t("Go back") : t("Close")}

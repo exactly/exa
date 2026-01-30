@@ -422,7 +422,7 @@ export default function Amount() {
           <Pressable
             aria-label={t("Close")}
             onPress={() => {
-              router.dismissTo("/(main)/(home)");
+              router.dismissTo("/activity");
             }}
           >
             <X size={24} color="$uiNeutralPrimary" />
@@ -502,11 +502,7 @@ export default function Amount() {
                 hitSlop={20}
                 cursor="pointer"
                 onPress={() => {
-                  if (!details.external && isLatestPlugin) {
-                    router.dismissTo("/pending-proposals");
-                  } else {
-                    router.dismissTo("/(main)/(home)");
-                  }
+                  router.dismissTo("/activity");
                 }}
               >
                 {!details.external && isLatestPlugin ? t("View pending requests") : t("Close")}
