@@ -43,7 +43,19 @@ export default function GettingStarted({ isDeployed, hasKYC }: { hasKYC: boolean
   const activeStepTitle = currentStep ? t(currentStep.title) : "";
 
   return (
-    <YStack backgroundColor="$backgroundBrandSoft" borderWidth={1} borderColor="$borderBrandSoft" borderRadius="$r3">
+    <YStack
+      key="getting-started"
+      backgroundColor="$backgroundBrandSoft"
+      borderWidth={1}
+      borderColor="$borderBrandSoft"
+      borderRadius="$r3"
+      opacity={1}
+      transform={[{ translateY: 0 }]}
+      animation="moderate"
+      animateOnly={["opacity", "transform"]}
+      enterStyle={{ opacity: 0, transform: [{ translateY: -20 }] }}
+      exitStyle={{ opacity: 0, transform: [{ translateY: -20 }] }}
+    >
       <XStack justifyContent="space-between" alignItems="center" padding="$s4">
         <Text emphasized headline color="$uiBrandSecondary" maxFontSizeMultiplier={1.3}>
           {t("Getting Started")}
