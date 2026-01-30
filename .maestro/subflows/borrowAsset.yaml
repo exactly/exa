@@ -1,0 +1,35 @@
+# appId: ${APP_ID ?? "app.exactly"}
+url: http://localhost:8081
+env: { amount: "10", installments: "4" }
+---
+- assertTrue: ${amount && !Number.isNaN(Number(amount))}
+- assertTrue: ${installments && !Number.isNaN(Number(installments))}
+- tapOn: DeFi
+- runFlow:
+    when: { visible: Explore decentralized services }
+    commands: [{ tapOn: "Explore decentralized services" }]
+- tapOn: USDC funding
+- runFlow:
+    when: { visible: Connect wallet to Exactly Protocol }
+    commands: [{ tapOn: Connect wallet to Exactly Protocol }]
+- tapOn: Explore funding options
+- assertVisible: Select amount
+- tapOn: { id: Amount }
+- inputText: ${amount}
+- tapOn: Continue
+- assertVisible: Select your funding installment plan
+- tapOn: "${installments + ' installment' + (installments > 1 ? 's' : '') + ' of'}"
+- tapOn: Continue
+- assertVisible: Select first due date
+- tapOn: "^[A-Z][a-z]+ \\d+, \\d{4}$"
+- tapOn: Continue
+- assertVisible: Your Exa account
+- tapOn: Review loan terms
+- assertVisible: Review terms
+- tapOn: Confirm and receive USDC
+- extendedWaitUntil: { visible: Funding request sent, timeout: 180000 }
+- runScript: ../dist/getAccount.js
+- runScript:
+    file: ../dist/hookProposals.js
+    env: { account: "${output.account}" }
+- tapOn: Close

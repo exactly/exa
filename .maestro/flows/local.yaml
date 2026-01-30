@@ -1,4 +1,5 @@
-appId: ${APP_ID ?? "app.exactly"}
+# appId: ${APP_ID ?? "app.exactly"}
+url: http://localhost:8081
 tags: [critical]
 ---
 - launchApp: { clearState: true, permissions: { all: deny, camera: allow } }
@@ -47,6 +48,25 @@ tags: [critical]
           commands: [{ tapOn: { id: Home } }]
 - runFlow: ../subflows/readPortfolio.yaml
 - assertTrue: ${output.portfolioBefore - output.portfolio === 69}
+- evalScript: ${output.portfolioBefore = output.portfolio}
+- runFlow:
+    file: ../subflows/borrowAsset.yaml
+    env: { amount: "10", installments: "4", APP_ID: http://localhost:8081 }
+- tapOn: Home
+- runFlow: # HACK https://github.com/mobile-dev-inc/Maestro/issues/2914
+    when: { true: "${maestro.platform != 'web'}" }
+    commands:
+      - repeat:
+          while: { visible: Pending proposals }
+          commands: [{ tapOn: Home }]
+- runFlow: # HACK https://github.com/mobile-dev-inc/Maestro/issues/2914
+    when: { platform: web }
+    commands:
+      - repeat:
+          while: { visible: Pending proposals }
+          commands: [{ tapOn: { id: Home } }]
+- runFlow: ../subflows/readPortfolio.yaml
+- assertTrue: ${output.portfolio - output.portfolioBefore === 10}
 - runFlow:
     when: { visible: Getting Started }
     commands:
