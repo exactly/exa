@@ -181,14 +181,16 @@ export default function Home() {
               </YStack>
             </YStack>
             <View padded gap="$s5">
-              {card && (
-                <CardStatus
-                  onInfoPress={() => {
-                    setSpendingLimitsInfoSheetOpen(true);
-                  }}
-                  productId={card.productId}
-                />
-              )}
+              <AnimatePresence>
+                {card && (
+                  <CardStatus
+                    onInfoPress={() => {
+                      setSpendingLimitsInfoSheetOpen(true);
+                    }}
+                    productId={card.productId}
+                  />
+                )}
+              </AnimatePresence>
               {card?.productId === PLATINUM_PRODUCT_ID && (
                 <VisaSignatureBanner
                   onPress={() => {
