@@ -43,6 +43,7 @@ base_sepolia = "${BASE_SEPOLIA_RPC_URL}"
 mainnet = "${ETHEREUM_RPC_URL}"
 optimism = "${OPTIMISM_RPC_URL}"
 optimism_sepolia = "${OPTIMISM_SEPOLIA_RPC_URL}"
+polygon = "${POLYGON_RPC_URL}"
 anvil = "http://localhost:8545"
 
 [etherscan]
@@ -51,3 +52,4 @@ base_sepolia = { key = "${ETHERSCAN_KEY}" }
 mainnet = { key = "${ETHERSCAN_KEY}" }
 optimism = { key = "${ETHERSCAN_KEY}" }
 optimism_sepolia = { key = "${ETHERSCAN_KEY}" }
+polygon = { key = "${ETHERSCAN_KEY}" }
