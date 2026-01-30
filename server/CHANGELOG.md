@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.54
+
+### Patch Changes
+
+- [#706](https://github.com/exactly/exa/pull/706) [`9be9db9`](https://github.com/exactly/exa/commit/9be9db9152a7b7eeea0f0f050ad3c76b87cb4ec7) Thanks [@mainqueg](https://github.com/mainqueg)! - 🐛 select valid document when multiple same-class ids exist
+
 ## 0.2.53
 
 ### Patch Changes
