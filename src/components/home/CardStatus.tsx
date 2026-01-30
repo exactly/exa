@@ -15,6 +15,7 @@ export default function CardStatus({ onInfoPress, productId }: { onInfoPress: ()
   const router = useRouter();
   return (
     <XStack
+      key="card-status"
       backgroundColor={productId === SIGNATURE_PRODUCT_ID ? "$grayscaleLight12" : "black"}
       borderRadius="$r4"
       alignItems="center"
@@ -22,6 +23,12 @@ export default function CardStatus({ onInfoPress, productId }: { onInfoPress: ()
       height={136}
       justifyContent="space-between"
       padding="$s4"
+      opacity={1}
+      transform={[{ translateY: 0 }]}
+      animation="moderate"
+      animateOnly={["opacity", "transform"]}
+      enterStyle={{ opacity: 0, transform: [{ translateY: -20 }] }}
+      exitStyle={{ opacity: 0, transform: [{ translateY: -20 }] }}
     >
       <YStack height="100%" justifyContent="space-between" alignItems="flex-start" zIndex={2}>
         <CardLimits onPress={onInfoPress} />
