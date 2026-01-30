@@ -36,6 +36,10 @@ export default defineConfig({
       SARDINE_API_KEY: "sardine",
       SARDINE_API_URL: "https://api.sardine.ai",
       SEGMENT_WRITE_KEY: "segment",
+      GCP_KMS_KEY_RING: "op-sepolia",
+      GCP_KMS_KEY_VERSION: "1",
+      GCP_PROJECT_ID: "exa-dev",
+      GCP_BASE64_JSON: "WlhsS01HVllRbXhKYW05blNXNU9iR051V25CWk1sWm1XVmRPYW1JelZuVmtRMG81UTJjOVBRbz0K",
       ...(env.NODE_ENV === "e2e" && { APP_DOMAIN: "localhost", DEBUG: "exa:*" }),
     },
     ...(env.NODE_ENV === "e2e" && {

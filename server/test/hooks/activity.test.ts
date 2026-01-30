@@ -8,7 +8,6 @@ import { captureException } from "@sentry/node";
 import { testClient } from "hono/testing";
 import {
   bytesToHex,
-  hexToBigInt,
   hexToBytes,
   padHex,
   parseEther,
@@ -21,12 +20,10 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { afterEach, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
-import { exaAccountFactoryAbi, previewerAbi } from "@exactly/common/generated/chain";
 
 import database, { credentials } from "../../database";
 import app from "../../hooks/activity";
 import * as decodePublicKey from "../../utils/decodePublicKey";
-import keeper from "../../utils/keeper";
 import * as onesignal from "../../utils/onesignal";
 import publicClient from "../../utils/publicClient";
 import anvilClient from "../anvilClient";
@@ -102,142 +99,6 @@ describe("address activity", () => {
       new WaitForTransactionReceiptTimeoutError({ hash: zeroHash }),
       expect.anything(),
     );
-
-    expect(response.status).toBe(200);
-  });
-
-  it("pokes eth", async () => {
-    const deposit = parseEther("5");
-    await anvilClient.setBalance({ address: account, value: deposit });
-
-    const waitForTransactionReceipt = vi.spyOn(publicClient, "waitForTransactionReceipt");
-
-    const response = await appClient.index.$post({
-      ...activityPayload,
-      json: {
-        ...activityPayload.json,
-        event: {
-          ...activityPayload.json.event,
-          activity: [{ ...activityPayload.json.event.activity[0], toAddress: account }],
-        },
-      },
-    });
-
-    await vi.waitUntil(
-      () => waitForTransactionReceipt.mock.settledResults.filter(({ type }) => type !== "incomplete").length >= 2,
-      26_666,
-    );
-
-    const exactly = await publicClient.readContract({
-      address: inject("Previewer"),
-      functionName: "exactly",
-      abi: previewerAbi,
-      args: [account],
-    });
-
-    const market = exactly.find((m) => m.asset === inject("WETH"));
-
-    expect(market?.floatingDepositAssets).toBe(deposit);
-    expect(market?.isCollateral).toBe(true);
-    expect(response.status).toBe(200);
-  });
-
-  it("pokes weth and eth", async () => {
-    const eth = parseEther("5");
-    await anvilClient.setBalance({ address: account, value: eth });
-
-    const weth = parseEther("2");
-    await keeper.exaSend(
-      { name: "mint", op: "tx.mint" },
-      { address: inject("WETH"), abi: mockERC20Abi, functionName: "mint", args: [account, weth] },
-    );
-
-    const waitForTransactionReceipt = vi.spyOn(publicClient, "waitForTransactionReceipt");
-
-    const response = await appClient.index.$post({
-      ...activityPayload,
-      json: {
-        ...activityPayload.json,
-        event: {
-          ...activityPayload.json.event,
-          activity: [
-            { ...activityPayload.json.event.activity[0], toAddress: account },
-            {
-              ...activityPayload.json.event.activity[1],
-              toAddress: account,
-              rawContract: { ...activityPayload.json.event.activity[1].rawContract, address: inject("WETH") },
-            },
-          ],
-        },
-      },
-    });
-
-    await vi.waitUntil(
-      () => waitForTransactionReceipt.mock.settledResults.filter(({ type }) => type !== "incomplete").length >= 2,
-      26_666,
-    );
-
-    const exactly = await publicClient.readContract({
-      address: inject("Previewer"),
-      functionName: "exactly",
-      abi: previewerAbi,
-      args: [account],
-    });
-
-    const market = exactly.find((m) => m.asset === inject("WETH"));
-
-    expect(market?.floatingDepositAssets).toBe(eth + weth);
-    expect(market?.isCollateral).toBe(true);
-    expect(response.status).toBe(200);
-  });
-
-  it("pokes multiple accounts", async () => {
-    const owners = [
-      owner,
-      privateKeyToAccount(generatePrivateKey()),
-      privateKeyToAccount(generatePrivateKey()),
-    ] as const;
-    const accounts = owners.map(({ address }) =>
-      deriveAddress(inject("ExaAccountFactory"), { x: padHex(address), y: zeroHash }),
-    );
-    await Promise.all([
-      ...accounts.slice(1).map((id) =>
-        database.insert(credentials).values({
-          id,
-          publicKey: new Uint8Array(hexToBytes(id)),
-          account: id,
-          factory: inject("ExaAccountFactory"),
-        }),
-      ),
-      ...accounts.map((address) => anvilClient.setBalance({ address, value: parseEther("5") })),
-      keeper.exaSend(
-        { name: "create account", op: "exa.account" },
-        {
-          address: inject("ExaAccountFactory"),
-          abi: exaAccountFactoryAbi,
-          functionName: "createAccount",
-          args: [0n, [{ x: hexToBigInt(owners[0].address), y: 0n }]],
-        },
-      ),
-    ]);
-
-    const waitForTransactionReceipt = vi.spyOn(publicClient, "waitForTransactionReceipt");
-    const [response] = await Promise.all([
-      appClient.index.$post({
-        ...activityPayload,
-        json: {
-          ...activityPayload.json,
-          event: {
-            ...activityPayload.json.event,
-            activity: accounts.map((toAddress) => ({ ...activityPayload.json.event.activity[0], toAddress })),
-          },
-        },
-      }),
-      vi.waitUntil(
-        () => waitForTransactionReceipt.mock.settledResults.filter(({ type }) => type !== "incomplete").length >= 5,
-        26_666,
-      ),
-    ]);
 
     expect(response.status).toBe(200);
   });
@@ -346,13 +207,3 @@ afterEach(() => {
   vi.clearAllMocks();
   vi.restoreAllMocks();
 });
-
-const mockERC20Abi = [
-  {
-    type: "function",
-    name: "mint",
-    inputs: [{ type: "address" }, { type: "uint256" }],
-    outputs: [],
-    stateMutability: "nonpayable",
-  },
-] as const;

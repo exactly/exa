@@ -20,16 +20,25 @@ import {
   union,
 } from "valibot";
 
+import { firewallAbi, firewallAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
 import database, { credentials } from "../database/index";
+import allower from "../utils/allower";
 import { createUser } from "../utils/panda";
 import { addCapita, deriveAssociateId } from "../utils/pax";
-import { addDocument, headerValidator, MANTECA_TEMPLATE_WITH_ID_CLASS, PANDA_TEMPLATE } from "../utils/persona";
+import {
+  addDocument,
+  headerValidator,
+  MANTECA_TEMPLATE_WITH_ID_CLASS,
+  PANDA_TEMPLATE,
+  pokeAccountAssets,
+} from "../utils/persona";
 import { customer } from "../utils/sardine";
 import validatorHook from "../utils/validatorHook";
 
 import type { InferOutput } from "valibot";
+
 const Session = pipe(
   object({
     type: literal("inquiry-session"),
@@ -273,6 +282,20 @@ export default new Hono().post(
       if (risk.level === "very_high") return c.json({ code: "very high risk" }, 200);
     }
 
+    if (firewallAddress) {
+      try {
+        const allowerClient = await allower();
+        await allowerClient.exaSend(
+          { name: "exa.firewall", op: "exa.firewall", attributes: { account: credential.account, personaShareToken } },
+          { address: firewallAddress, functionName: "allow", args: [credential.account, true], abi: firewallAbi },
+          { ignore: [`AlreadyAllowed(${credential.account})`] },
+        );
+      } catch (error: unknown) {
+        captureException(error, { level: "error" });
+        return c.json({ code: "firewall error" }, 500);
+      }
+    }
+
     // TODO implement error handling to return 200 if event should not be retried
     const { id } = await createUser({
       accountPurpose: fields.accountPurpose.value,
@@ -289,8 +312,8 @@ export default new Hono().post(
     getActiveSpan()?.setAttributes({ "exa.pandaId": id });
     setContext("persona", { inquiryId: personaShareToken, pandaId: id });
 
-    const account = safeParse(Address, credential.account);
-    if (account.success) {
+    const accountParsed = safeParse(Address, credential.account);
+    if (accountParsed.success) {
       addCapita({
         birthdate: fields.birthdate.value,
         document: fields.identificationNumber.value,
@@ -298,7 +321,7 @@ export default new Hono().post(
         lastName: fields.nameLast.value,
         email: fields.emailAddress.value,
         phone: fields.phoneNumber?.value ?? "",
-        internalId: deriveAssociateId(account.output),
+        internalId: deriveAssociateId(accountParsed.output),
         product: "travel insurance",
       }).catch((error: unknown) => {
         captureException(error, { level: "error", extra: { pandaId: id, referenceId } });
@@ -308,6 +331,15 @@ export default new Hono().post(
         extra: { pandaId: id, referenceId, account: credential.account },
         level: "error",
       });
+    }
+
+    if (accountParsed.success) {
+      pokeAccountAssets(accountParsed.output, {
+        notification: {
+          headings: { en: "Account assets updated" },
+          contents: { en: "Your funds are ready to use" },
+        },
+      }).catch(captureException);
     }
     addDocument(referenceId, {
       id_class: { value: fields.identificationClass.value },
