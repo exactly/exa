@@ -427,6 +427,88 @@ describe("evaluateAccount", () => {
       expect(result).toBe(persona.MANTECA_TEMPLATE_EXTRA_FIELDS);
     });
 
+    it("returns manteca template extra fields when multiple same-class documents exist and only one is valid", async () => {
+      fetchSpy
+        .mockResolvedValueOnce(
+          Response.json(
+            {
+              data: {
+                id: "doc_id_incomplete",
+                attributes: {
+                  "front-photo": { filename: "front.jpg", url: "https://example.com/front.jpg" },
+                  "back-photo": null,
+                  "selfie-photo": null,
+                  "id-class": "id",
+                },
+              },
+            },
+            { status: 200 },
+          ),
+        )
+        .mockResolvedValueOnce(
+          Response.json(
+            {
+              data: {
+                id: "doc_id_complete",
+                attributes: {
+                  "front-photo": { filename: "front.jpg", url: "https://example.com/front.jpg" },
+                  "back-photo": { filename: "back.jpg", url: "https://example.com/back.jpg" },
+                  "selfie-photo": null,
+                  "id-class": "id",
+                },
+              },
+            },
+            { status: 200 },
+          ),
+        );
+
+      const result = await persona.evaluateAccount(
+        {
+          data: [
+            {
+              ...basicAccount.data[0],
+              type: "account" as const,
+              id: "test-account-id",
+              attributes: {
+                ...basicAccount.data[0]?.attributes,
+                "country-code": "AR",
+                fields: {
+                  ...basicAccount.data[0]?.attributes.fields,
+                  documents: {
+                    type: "array",
+                    value: [
+                      {
+                        type: "hash",
+                        value: {
+                          id_class: { type: "string", value: "id" },
+                          id_number: { type: "string", value: "11111111" },
+                          id_issuing_country: { type: "string", value: "AR" },
+                          id_document_id: { type: "string", value: "doc_id_incomplete" },
+                        },
+                      },
+                      {
+                        type: "hash",
+                        value: {
+                          id_class: { type: "string", value: "id" },
+                          id_number: { type: "string", value: "22222222" },
+                          id_issuing_country: { type: "string", value: "AR" },
+                          id_document_id: { type: "string", value: "doc_id_complete" },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+          ],
+        },
+        "manteca",
+      );
+
+      expect(result).toBe(persona.MANTECA_TEMPLATE_EXTRA_FIELDS);
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+    });
+
     it("returns undefined when account exists and id class is allowed", async () => {
       const result = await persona.evaluateAccount(mantecaAccount, "manteca");
 
@@ -698,6 +780,57 @@ describe("get document for manteca", () => {
     const result = await persona.getDocumentForManteca([{ value: document }], "AR");
 
     expect(result).toBeUndefined();
+  });
+
+  it("returns document with both photos when multiple documents of same class exist", async () => {
+    fetchSpy
+      .mockResolvedValueOnce(
+        Response.json(
+          {
+            data: {
+              id: "doc_id_incomplete",
+              attributes: { "front-photo": null, "back-photo": null, "selfie-photo": null, "id-class": "id" },
+            },
+          },
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        Response.json(
+          {
+            data: {
+              id: "doc_id_complete",
+              attributes: {
+                "front-photo": { filename: "front.jpg", url: "https://example.com/front.jpg" },
+                "back-photo": { filename: "back.jpg", url: "https://example.com/back.jpg" },
+                "selfie-photo": null,
+                "id-class": "id",
+              },
+            },
+          },
+          { status: 200 },
+        ),
+      );
+
+    const incompleteDocument = {
+      id_class: { value: "id" },
+      id_number: { value: "11111111" },
+      id_issuing_country: { value: "AR" },
+      id_document_id: { value: "doc_id_incomplete" },
+    };
+    const completeDocument = {
+      id_class: { value: "id" },
+      id_number: { value: "22222222" },
+      id_issuing_country: { value: "AR" },
+      id_document_id: { value: "doc_id_complete" },
+    };
+    const result = await persona.getDocumentForManteca(
+      [{ value: incompleteDocument }, { value: completeDocument }],
+      "AR",
+    );
+
+    expect(result).toBe(completeDocument);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 
   it("returns id document when it has both photos (priority over pp)", async () => {

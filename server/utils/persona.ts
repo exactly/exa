@@ -63,7 +63,7 @@ export function createInquiry(referenceId: string, templateId: string, redirectU
 }
 
 export async function getDocument(documentId: string) {
-  const { data } = await request(GetDocumentResponse, `/document/government-ids/${documentId}`);
+  const { data } = await request(GetDocumentResponse, `/document/government-ids/${encodeURIComponent(documentId)}`);
   return data;
 }
 
@@ -451,12 +451,14 @@ export async function getValidDocumentForManteca(
   allowedIds: readonly AllowedIdConfig[],
 ): Promise<InferOutput<typeof IdentityDocument> | undefined> {
   for (const { id: idClass, side } of allowedIds) {
-    const document = documents.find(({ value: { id_class } }) => id_class.value === idClass);
-    if (!document) continue;
-    if (side === "front") return document.value;
-    const { attributes } = await getDocument(document.value.id_document_id.value);
-    if (attributes["front-photo"] && attributes["back-photo"]) {
-      return document.value;
+    const classDocuments = documents.filter(({ value: { id_class } }) => id_class.value === idClass);
+    if (classDocuments.length === 0) continue;
+    for (const document of classDocuments) {
+      if (side === "front") return document.value;
+      const { attributes } = await getDocument(document.value.id_document_id.value);
+      if (attributes["front-photo"] && attributes["back-photo"]) {
+        return document.value;
+      }
     }
   }
 
