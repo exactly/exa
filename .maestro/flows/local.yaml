@@ -1,6 +1,5 @@
 appId: ${APP_ID ?? "app.exactly"}
-tags:
-  - critical
+tags: [critical]
 ---
 - launchApp: { clearState: true, permissions: { all: deny, camera: allow } }
 - runFlow: ../subflows/hideDevtools.yaml
@@ -24,6 +23,9 @@ tags:
     env: { asset: USDC, to: "${output.account}", amount: "420" }
 - tapOn: Home
 - runFlow: ../subflows/readPortfolio.yaml
+- runFlow:
+    when: { true: "${output.portfolio === output.portfolioBefore}" }
+    commands: [{ tapOn: Home }, { runFlow: ../subflows/readPortfolio.yaml }]
 - assertTrue: ${output.portfolio - output.portfolioBefore === 420}
 - evalScript: ${output.portfolioBefore = output.portfolio}
 - runScript: ../dist/getAccount.js
@@ -31,7 +33,18 @@ tags:
     file: ../subflows/sendAsset.yaml
     env: { asset: USDC, to: "${output.owner}", amount: "69" }
 - tapOn: Home
-- repeat: { while: { visible: Pending proposals }, commands: [{ tapOn: Home }] }
+- runFlow: # HACK https://github.com/mobile-dev-inc/Maestro/issues/2914
+    when: { true: "${maestro.platform != 'web'}" }
+    commands:
+      - repeat:
+          while: { visible: Pending proposals }
+          commands: [{ tapOn: Home }]
+- runFlow: # HACK https://github.com/mobile-dev-inc/Maestro/issues/2914
+    when: { platform: web }
+    commands:
+      - repeat:
+          while: { visible: Pending proposals }
+          commands: [{ tapOn: { id: Home } }]
 - runFlow: ../subflows/readPortfolio.yaml
 - assertTrue: ${output.portfolioBefore - output.portfolio === 69}
 - runFlow:
