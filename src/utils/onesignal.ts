@@ -67,6 +67,18 @@ const { enablePrompt, login, logout } = (
           queryFn: () => queryClient.getQueryData(["onesignal", "dismiss"]),
         });
         if (appId) OneSignal.initialize(appId);
+        const ready =
+          appId && process.env.EXPO_PUBLIC_ENV === "e2e"
+            ? new Promise<void>((resolve) => {
+                const listener: Parameters<typeof OneSignal.User.addEventListener>[1] = (event) => {
+                  if (!event.current.onesignalId) return;
+                  OneSignal.User.removeEventListener("change", listener);
+                  OneSignal.login(Math.random().toString(36).slice(2));
+                  resolve();
+                };
+                OneSignal.User.addEventListener("change", listener);
+              })
+            : Promise.resolve();
         OneSignal.InAppMessages.addEventListener("didDismiss", () => {
           queryClient.setQueryData(["onesignal", "dismiss"], Date.now());
           persist().catch(reportError);
@@ -74,7 +86,7 @@ const { enablePrompt, login, logout } = (
         });
         return {
           enablePrompt: () => {
-            hydrated.then(
+            Promise.all([hydrated, ready]).then(
               () => {
                 const lastDismiss = queryClient.getQueryData<number>(["onesignal", "dismiss"]) ?? 0;
                 if (!appId || lastDismiss + DISMISS_EXPIRY >= Date.now()) return;
@@ -84,7 +96,7 @@ const { enablePrompt, login, logout } = (
             );
           },
           login: (userId: string) => {
-            if (appId) OneSignal.login(userId);
+            if (appId && process.env.EXPO_PUBLIC_ENV !== "e2e") OneSignal.login(userId);
           },
           logout: () => {
             if (appId) OneSignal.logout();
