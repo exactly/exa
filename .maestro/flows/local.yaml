@@ -30,6 +30,7 @@ tags:
 - runFlow:
     file: ../subflows/sendAsset.yaml
     env: { asset: USDC, to: "${output.owner}", amount: "69" }
+- tapOn: Home
 - repeat: { while: { visible: Pending proposals }, commands: [{ tapOn: Home }] }
 - runFlow: ../subflows/readPortfolio.yaml
 - assertTrue: ${output.portfolioBefore - output.portfolio === 69}
