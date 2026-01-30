@@ -12,7 +12,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } fr
 import deriveAddress from "@exactly/common/deriveAddress";
 
 import app from "../../api/kyc";
-import database, { credentials } from "../../database";
+import database, { credentials, sources } from "../../database";
 import * as panda from "../../utils/panda";
 import * as persona from "../../utils/persona";
 import { scopeValidationErrors } from "../../utils/persona";
@@ -1050,6 +1050,19 @@ describe("authenticated", () => {
     });
 
     describe("submit", () => {
+      beforeAll(async () => {
+        await database.insert(sources).values([
+          {
+            id: "uphold",
+            config: {
+              type: "uphold",
+              secrets: { test: { key: "secret", type: "HMAC-SHA256" } },
+              webhooks: { sandbox: { url: "https://exa.test", secretId: "test" } },
+            },
+          },
+        ]);
+      });
+
       it("returns ok when payload is valid and kyc is not started", async () => {
         await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, account));
         const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
