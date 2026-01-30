@@ -4,7 +4,7 @@ import { get as assert, create } from "react-native-passkeys";
 import { sdk } from "@farcaster/miniapp-sdk";
 import { getConnection, signMessage } from "@wagmi/core";
 import { hc } from "hono/client";
-import { check, number, parse, pipe, safeParse, ValiError } from "valibot";
+import { check, number, parse, pipe, safeParse, ValiError, type InferInput } from "valibot";
 
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 import deriveAddress from "@exactly/common/deriveAddress";
@@ -17,6 +17,7 @@ import queryClient, { APIError, type AuthMethod } from "./queryClient";
 import ownerConfig from "./wagmi/owner";
 
 import type { ExaAPI } from "@exactly/server/api"; // eslint-disable-line @nx/enforce-module-boundaries
+import type { ProviderInfo as ProviderInfoSchema, RampProvider } from "@exactly/server/utils/ramps/shared"; // eslint-disable-line @nx/enforce-module-boundaries
 
 queryClient.setQueryDefaults<number | undefined>(["auth"], {
   retry: false,
@@ -148,7 +149,7 @@ export async function setCardPIN(pin: string) {
   if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
 }
 
-export async function getKYCTokens(scope: "basic" = "basic", redirectURI?: string) {
+export async function getKYCTokens(scope: "basic" | "manteca" = "basic", redirectURI?: string) {
   await auth();
   const response = await api.kyc.$post({ json: { scope, redirectURI } });
   if (!response.ok) {
@@ -158,12 +159,31 @@ export async function getKYCTokens(scope: "basic" = "basic", redirectURI?: strin
   return response.json();
 }
 
-export async function getKYCStatus(scope: "basic" = "basic") {
+export async function getKYCStatus(scope: "basic" | "manteca" = "basic", includeCountryCode?: boolean) {
   await auth();
-  const response = await api.kyc.$get({ query: { scope } });
-  queryClient.setQueryData(["user", "country"], response.headers.get("User-Country"));
+  const query = { scope, countryCode: includeCountryCode ? "true" : undefined };
+  const response = await api.kyc.$get({ query });
+  if (includeCountryCode) {
+    queryClient.setQueryData(["user", "country"], response.headers.get("User-Country"));
+  }
   if (!response.ok) {
-    const { code } = await response.json();
+    const { code } = (await response.json()) as { code: string };
+    throw new APIError(response.status, code);
+  }
+  return response.json();
+}
+
+export type RampProvider = (typeof RampProvider)[number];
+
+export async function getMantecaKYCStatus() {
+  return getKYCStatus("manteca");
+}
+
+export async function createMantecaKYC(redirectURI?: string) {
+  await auth();
+  const response = await api.kyc.$post({ json: { scope: "manteca", redirectURI } });
+  if (!response.ok) {
+    const { code } = (await response.json()) as { code: string };
     throw new APIError(response.status, code);
   }
   return response.json();
@@ -253,3 +273,42 @@ export async function getPaxId() {
 
 queryClient.setQueryDefaults(["pax", "id"], { queryFn: getPaxId });
 export type PaxId = Awaited<ReturnType<typeof getPaxId>>;
+
+export async function getRampProviders(countryCode?: string, redirectURL?: string) {
+  await auth();
+  const query = { countryCode, redirectURL };
+
+  const response = await api.ramp.$get({ query });
+  if (!response.ok) {
+    const { code } = (await response.json()) as { code: string };
+    throw new APIError(response.status, code);
+  }
+  return response.json();
+}
+export type ProviderInfo = InferInput<typeof ProviderInfoSchema>;
+
+export async function getRampQuote(query: NonNullable<Parameters<typeof api.ramp.quote.$get>[0]>["query"]) {
+  await auth();
+  const response = await api.ramp.quote.$get({ query });
+
+  if (!response.ok) {
+    const { code } = (await response.json()) as { code: string };
+    throw new APIError(response.status, code);
+  }
+
+  return response.json();
+}
+
+export async function startRampOnboarding(onboardingData: { provider: "manteca" }) {
+  await auth();
+  const response = await api.ramp.$post({
+    json: onboardingData,
+  });
+
+  if (!response.ok) {
+    const { code } = await response.json();
+    throw new APIError(response.status, code);
+  }
+
+  return response.json();
+}
