@@ -1,9 +1,10 @@
 import { $ } from "execa";
+import { spawn } from "node:child_process";
 import { readdir, readFile } from "node:fs/promises";
 import { env, stderr, stdout } from "node:process";
 import { Instance } from "prool";
 import { literal, object, parse, tuple } from "valibot";
-import { keccak256, padHex, toBytes, toHex, zeroAddress } from "viem";
+import { encodeAbiParameters, keccak256, padHex, toBytes, toHex, zeroAddress, type Hex } from "viem";
 import { mnemonicToAccount, privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
 import { foundry } from "viem/chains";
 
@@ -17,6 +18,19 @@ import type { TestProject } from "vitest/node";
 export default async function setup({ provide }: Pick<TestProject, "provide">) {
   const instance = Instance.anvil({ codeSizeLimit: 69_000, blockBaseFeePerGas: 1n });
   await instance.start();
+  const docker = env.NODE_ENV === "e2e" && !env.CI && (await $`docker info`.then(() => true).catch(() => false));
+  if (docker) {
+    await $({ cwd: "test" })`docker compose down`;
+    await $({ cwd: "test" })`docker compose up -d --wait`;
+    spawn(
+      "node",
+      [
+        "-e",
+        'process.stdin.resume();process.stdin.on("end",()=>require("child_process").execSync("docker compose down",{cwd:"test"}))',
+      ],
+      { detached: true, stdio: ["pipe", "ignore", "ignore"] },
+    ).unref();
+  }
 
   const keeper = privateKeyToAccount(padHex("0x69"));
   await anvilClient.setBalance({ address: keeper.address, value: 10n ** 24n });
@@ -208,6 +222,67 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
     }
   }
 
+  if (docker) {
+    const entries = await readdir("node_modules/@exactly/plugin/broadcast", { withFileTypes: true });
+    const broadcasts = await Promise.all(
+      entries
+        .filter((entry) => entry.isDirectory())
+        .map((entry) =>
+          // eslint-disable-next-line security/detect-non-literal-fs-filename -- controlled path from broadcast directory
+          readFile(`node_modules/@exactly/plugin/broadcast/${entry.name}/31337/run-latest.json`, "utf8").catch(
+            () => null,
+          ),
+        ),
+    );
+    const verify = (address: string, name: string, args?: Hex) =>
+      $(shell)`forge verify-contract ${address} ${name} ${args ? [`--constructor-args=${args}`] : []}
+          -c 31337 --verifier=sourcify --verifier-url=http://localhost:5555`;
+    await Promise.all([
+      ...broadcasts
+        .filter((content): content is string => content !== null)
+        .flatMap((content) =>
+          (
+            JSON.parse(content) as {
+              transactions: {
+                contractAddress?: string;
+                contractName?: string;
+                function?: string;
+                transactionType: string;
+              }[];
+            }
+          ).transactions
+            .flatMap((tx, index, txs) => [
+              ...(tx.transactionType === "CREATE" && tx.contractName && tx.contractAddress
+                ? [{ contractAddress: tx.contractAddress, contractName: tx.contractName }]
+                : []),
+              ...((next) =>
+                tx.transactionType === "CALL" &&
+                tx.function === "deploy(bytes32,bytes)" &&
+                next?.contractName &&
+                next.contractAddress
+                  ? [{ contractAddress: next.contractAddress, contractName: next.contractName }]
+                  : [])(txs[index + 1]),
+            ])
+            .map(({ contractAddress, contractName }) => ({
+              contractAddress,
+              contractName:
+                {
+                  MockERC20: "node_modules/solmate/src/test/utils/mocks/MockERC20.sol:MockERC20",
+                  MockWETH: "node_modules/@exactly/protocol/contracts/mocks/MockWETH.sol:MockWETH",
+                }[contractName] ?? contractName,
+            })),
+        )
+        .map(({ contractAddress, contractName }) => verify(contractAddress, contractName)),
+      verify("0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789", "EntryPoint"),
+      verify("0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", "MockPaymaster"),
+      verify(
+        "0x0046000000000151008789797b54fdb500E2a61e",
+        "UpgradeableModularAccount",
+        encodeAbiParameters([{ type: "address" }], ["0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789"]),
+      ),
+    ]);
+  }
+
   provide("Auditor", auditor);
   provide("Balancer2Vault", balancer);
   provide("ExaPreviewer", exaPreviewer);
@@ -229,6 +304,7 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
   provide("WETH", weth);
 
   return async function teardown() {
+    if (docker) await $({ cwd: "test" })`docker compose down`;
     await instance.stop();
   };
 }

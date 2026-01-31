@@ -1,0 +1,90 @@
+name: otterscan-sourcify
+services:
+  otterscan:
+    image: otterscan/otterscan:latest
+    ports: ["5100:80"]
+    environment:
+      OTTERSCAN_CONFIG: |
+        {
+          "erigonURL": "http://localhost:8545",
+          "chainInfo": {
+            "name": "Anvil",
+            "chainId": 31337,
+            "nativeCurrency": { "name": "Ether", "symbol": "ETH", "decimals": 18 }
+          },
+          "sourcify": {
+            "sources": {
+              "Sourcify": { "url": "http://localhost:5555/repository", "backendFormat": "RepositoryV1" }
+            }
+          }
+        }
+  sourcify:
+    image: ghcr.io/ethereum/sourcify/server:latest
+    ports: ["5555:5555"]
+    environment:
+      NODE_ENV: development
+      SOURCIFY_POSTGRES_HOST: postgres
+      SOURCIFY_POSTGRES_PORT: "5432"
+      SOURCIFY_POSTGRES_DB: sourcify
+      SOURCIFY_POSTGRES_USER: sourcify
+      SOURCIFY_POSTGRES_PASSWORD: sourcify
+      SESSION_SECRET: local-dev-secret
+      IPFS_GATEWAY: "https://ipfs.io/ipfs/"
+    command:
+      - bash
+      - -c
+      - |
+        cat > /home/app/services/server/dist/sourcify-chains.json << 'EOF'
+        {"31337":{"sourcifyName":"Anvil","supported":true,"rpc":["http://host.docker.internal:8545"]}}
+        EOF
+        exec node dist/server/cli.js
+    depends_on: { schema-fix: { condition: service_completed_successfully } }
+  postgres:
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM postgres:15-bookworm
+        RUN apt-get update && \
+            apt-get -y install postgresql-15-cron && \
+            apt-get clean && \
+            rm -rf /var/lib/apt/lists/*
+    environment: { POSTGRES_DB: sourcify, POSTGRES_USER: sourcify, POSTGRES_PASSWORD: sourcify }
+    ports: ["5432:5432"]
+    command: ["postgres", "-c", "shared_preload_libraries=pg_cron", "-c", "cron.database_name=sourcify"]
+    healthcheck: # cspell:ignore healthcheck
+      test: ["CMD-SHELL", "pg_isready -U sourcify"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+  migrations: # cspell:ignore dbmate dpkg sslmode
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM node:22-bookworm-slim
+        RUN apt-get update && apt-get install -y curl git && \
+            curl -fsSL "https://github.com/amacneil/dbmate/releases/download/v2.24.2/dbmate-linux-$$(dpkg --print-architecture)" -o /usr/local/bin/dbmate && \
+            chmod +x /usr/local/bin/dbmate && \
+            git clone --depth 1 https://github.com/ethereum/sourcify.git /sourcify && \
+            cd /sourcify/services/database && git submodule update --init
+        WORKDIR /sourcify/services/database
+    environment: { DATABASE_URL: "postgres://sourcify:sourcify@postgres:5432/sourcify?sslmode=disable" }
+    command:
+      - bash
+      - -c
+      - mkdir -p migrations-temp && cp database-specs/migrations/* migrations-temp/ && cp migrations/* migrations-temp/ && dbmate -d migrations-temp up
+    depends_on: { postgres: { condition: service_healthy } }
+  schema-fix:
+    image: postgres:15-bookworm
+    environment: { PGPASSWORD: sourcify } # cspell:ignore PGPASSWORD
+    command: # cspell:ignore isready psql
+      - bash
+      - -c
+      - |
+        until pg_isready -h postgres -U sourcify; do sleep 1; done
+        sleep 2
+        psql -h postgres -U sourcify -d sourcify -c "
+          ALTER TABLE compiled_contracts DROP CONSTRAINT IF EXISTS compiled_contracts_pseudo_pkey;
+          ALTER TABLE compiled_contracts ADD CONSTRAINT compiled_contracts_pseudo_pkey
+            UNIQUE (compiler, language, creation_code_hash, runtime_code_hash);
+        "
+    depends_on: { migrations: { condition: service_completed_successfully } }
