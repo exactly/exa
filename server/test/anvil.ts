@@ -16,34 +16,29 @@ import type { TestProject } from "vitest/node";
 
 export default async function setup({ provide }: Pick<TestProject, "provide">) {
   const instance = Instance.anvil({ codeSizeLimit: 69_000, blockBaseFeePerGas: 1n });
-  const initialize = await instance
-    .start()
-    .then(() => true)
-    .catch(() => false);
+  await instance.start();
 
   const keeper = privateKeyToAccount(padHex("0x69"));
-  if (initialize) {
-    await anvilClient.setBalance({ address: keeper.address, value: 10n ** 24n });
-    if (env.NODE_ENV === "e2e") {
-      instance.on("stderr", (message) => stderr.write(message));
-      instance.on("stdout", (message) => {
-        if (
-          !message.startsWith("eth_blockNumber") &&
-          !message.startsWith("eth_call") &&
-          !message.startsWith("eth_chainId") &&
-          !message.startsWith("eth_feeHistory") &&
-          !message.startsWith("eth_gasPrice") &&
-          !message.startsWith("eth_getAccount") &&
-          !message.startsWith("eth_getAccountInfo") &&
-          !message.startsWith("eth_getBlockByNumber") &&
-          !message.startsWith("eth_getCode") &&
-          !message.startsWith("eth_getStorageAt") &&
-          !message.startsWith("eth_getTransactionReceipt")
-        ) {
-          stdout.write(message);
-        }
-      });
-    }
+  await anvilClient.setBalance({ address: keeper.address, value: 10n ** 24n });
+  if (env.NODE_ENV === "e2e") {
+    instance.on("stderr", (message) => stderr.write(message));
+    instance.on("stdout", (message) => {
+      if (
+        !message.startsWith("eth_blockNumber") &&
+        !message.startsWith("eth_call") &&
+        !message.startsWith("eth_chainId") &&
+        !message.startsWith("eth_feeHistory") &&
+        !message.startsWith("eth_gasPrice") &&
+        !message.startsWith("eth_getAccount") &&
+        !message.startsWith("eth_getAccountInfo") &&
+        !message.startsWith("eth_getBlockByNumber") &&
+        !message.startsWith("eth_getCode") &&
+        !message.startsWith("eth_getStorageAt") &&
+        !message.startsWith("eth_getTransactionReceipt")
+      ) {
+        stdout.write(message);
+      }
+    });
     if (env.EXPO_PUBLIC_E2E_MNEMONIC) {
       await anvilClient.setBalance({
         address: mnemonicToAccount(env.EXPO_PUBLIC_E2E_MNEMONIC).address,
@@ -67,10 +62,8 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
     } as Record<string, string>,
   };
 
-  if (initialize) {
-    await $(shell)`forge script test/mocks/Protocol.s.sol --code-size-limit 69000
+  await $(shell)`forge script test/mocks/Protocol.s.sol --code-size-limit 69000
       --unlocked ${deployer} --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
-  }
 
   const protocol = parse(
     Protocol,
@@ -91,76 +84,74 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
   const installmentsRouter = protocol[35].contractAddress;
   const firewall = protocol[37].contractAddress;
 
-  if (initialize) {
-    // cspell:ignoreRegExp [\b_][A-Z]+_ADDRESS\b
-    shell.env.PROTOCOL_AUDITOR_ADDRESS = auditor;
-    shell.env.PROTOCOL_EXA_ADDRESS = exa;
-    shell.env.PROTOCOL_MARKETEXA_ADDRESS = marketEXA;
-    shell.env.PROTOCOL_USDC_ADDRESS = usdc;
-    shell.env.PROTOCOL_MARKETUSDC_ADDRESS = marketUSDC;
-    shell.env.PROTOCOL_WETH_ADDRESS = weth;
-    shell.env.PROTOCOL_MARKETWETH_ADDRESS = marketWETH;
-    shell.env.PROTOCOL_BALANCER2VAULT_ADDRESS = balancer;
-    shell.env.PROTOCOL_DEBTMANAGER_ADDRESS = debtManager;
-    shell.env.PROTOCOL_PREVIEWER_ADDRESS = previewer;
-    shell.env.PROTOCOL_INTEGRATIONPREVIEWER_ADDRESS = integrationPreviewer;
-    shell.env.PROTOCOL_RATEPREVIEWER_ADDRESS = ratePreviewer;
-    shell.env.PROTOCOL_INSTALLMENTSROUTER_ADDRESS = installmentsRouter;
-    shell.env.PROTOCOL_FIREWALL_ADDRESS = firewall;
-    shell.env.PROTOCOL_ESEXA_ADDRESS = padHex("0x666", { size: 20 });
-    shell.env.PROTOCOL_REWARDSCONTROLLER_ADDRESS = padHex("0x666", { size: 20 });
+  // cspell:ignoreRegExp [\b_][A-Z]+_ADDRESS\b
+  shell.env.PROTOCOL_AUDITOR_ADDRESS = auditor;
+  shell.env.PROTOCOL_EXA_ADDRESS = exa;
+  shell.env.PROTOCOL_MARKETEXA_ADDRESS = marketEXA;
+  shell.env.PROTOCOL_USDC_ADDRESS = usdc;
+  shell.env.PROTOCOL_MARKETUSDC_ADDRESS = marketUSDC;
+  shell.env.PROTOCOL_WETH_ADDRESS = weth;
+  shell.env.PROTOCOL_MARKETWETH_ADDRESS = marketWETH;
+  shell.env.PROTOCOL_BALANCER2VAULT_ADDRESS = balancer;
+  shell.env.PROTOCOL_DEBTMANAGER_ADDRESS = debtManager;
+  shell.env.PROTOCOL_PREVIEWER_ADDRESS = previewer;
+  shell.env.PROTOCOL_INTEGRATIONPREVIEWER_ADDRESS = integrationPreviewer;
+  shell.env.PROTOCOL_RATEPREVIEWER_ADDRESS = ratePreviewer;
+  shell.env.PROTOCOL_INSTALLMENTSROUTER_ADDRESS = installmentsRouter;
+  shell.env.PROTOCOL_FIREWALL_ADDRESS = firewall;
+  shell.env.PROTOCOL_ESEXA_ADDRESS = padHex("0x666", { size: 20 });
+  shell.env.PROTOCOL_REWARDSCONTROLLER_ADDRESS = padHex("0x666", { size: 20 });
 
-    await $(shell)`forge script test/mocks/Mocks.s.sol
+  await $(shell)`forge script test/mocks/Mocks.s.sol
       --unlocked ${deployer} --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
-    shell.env.SWAPPER_ADDRESS = parse(
-      object({
-        transactions: tuple([
-          object({ contractName: literal("MockVelodromeFactory"), contractAddress: Address }),
-          object({ contractName: literal("MockSwapper"), contractAddress: Address }),
-        ]),
-      }),
-      JSON.parse(await readFile("node_modules/@exactly/plugin/broadcast/Mocks.s.sol/31337/run-latest.json", "utf8")),
-    ).transactions[1].contractAddress;
+  shell.env.SWAPPER_ADDRESS = parse(
+    object({
+      transactions: tuple([
+        object({ contractName: literal("MockVelodromeFactory"), contractAddress: Address }),
+        object({ contractName: literal("MockSwapper"), contractAddress: Address }),
+      ]),
+    }),
+    JSON.parse(await readFile("node_modules/@exactly/plugin/broadcast/Mocks.s.sol/31337/run-latest.json", "utf8")),
+  ).transactions[1].contractAddress;
 
-    await $(shell)`forge script node_modules/webauthn-owner-plugin/script/Plugin.s.sol --sender ${deployer}
+  await $(shell)`forge script node_modules/webauthn-owner-plugin/script/Plugin.s.sol --sender ${deployer}
       --unlocked ${deployer} --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
-    shell.env.BROADCAST_WEBAUTHNOWNERPLUGIN_ADDRESS = parse(
-      object({
-        transactions: tuple([object({ contractName: literal("WebauthnOwnerPlugin"), contractAddress: Address })]),
-      }),
-      JSON.parse(await readFile("node_modules/@exactly/plugin/broadcast/Plugin.s.sol/31337/run-latest.json", "utf8")),
-    ).transactions[0].contractAddress;
+  shell.env.BROADCAST_WEBAUTHNOWNERPLUGIN_ADDRESS = parse(
+    object({
+      transactions: tuple([object({ contractName: literal("WebauthnOwnerPlugin"), contractAddress: Address })]),
+    }),
+    JSON.parse(await readFile("node_modules/@exactly/plugin/broadcast/Plugin.s.sol/31337/run-latest.json", "utf8")),
+  ).transactions[0].contractAddress;
 
-    await $(shell)`forge script test/mocks/Account.s.sol
+  await $(shell)`forge script test/mocks/Account.s.sol
       --unlocked ${deployer} --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
-    await $(shell)`forge script script/IssuerChecker.s.sol
+  await $(shell)`forge script script/IssuerChecker.s.sol
       --unlocked ${deployer} --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
-    await $(shell)`forge script script/ProposalManager.s.sol
+  await $(shell)`forge script script/ProposalManager.s.sol
       --unlocked ${deployer} --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
-    await $(shell)`forge script script/Refunder.s.sol
+  await $(shell)`forge script script/Refunder.s.sol
       --unlocked ${deployer} --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
-    await $(shell)`forge script script/ExaPreviewer.s.sol
+  await $(shell)`forge script script/ExaPreviewer.s.sol
       --unlocked ${deployer} --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
-    await $(shell)`forge script script/ExaPlugin.s.sol
+  await $(shell)`forge script script/ExaPlugin.s.sol
       --unlocked ${deployer} --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
-    await $(shell)`forge script script/ExaAccountFactory.s.sol
+  await $(shell)`forge script script/ExaAccountFactory.s.sol
       --unlocked ${deployer} --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
 
-    const bob = privateKeyToAddress(padHex("0xb0b"));
-    await Promise.all([
-      anvilClient.impersonateAccount({ address: bob }),
-      anvilClient.impersonateAccount({ address: keeper.address }),
-    ]);
-    await $(shell)`forge script test/mocks/Bob.s.sol
+  const bob = privateKeyToAddress(padHex("0xb0b"));
+  await Promise.all([
+    anvilClient.impersonateAccount({ address: bob }),
+    anvilClient.impersonateAccount({ address: keeper.address }),
+  ]);
+  await $(shell)`forge script test/mocks/Bob.s.sol
       --unlocked ${bob},${keeper.address} --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
-    await Promise.all([
-      anvilClient.stopImpersonatingAccount({ address: bob }),
-      anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[foundry.id] }),
-    ]);
-    await $(shell)`forge script test/mocks/BobExecute.s.sol --tc BobExecuteScript
+  await Promise.all([
+    anvilClient.stopImpersonatingAccount({ address: bob }),
+    anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[foundry.id] }),
+  ]);
+  await $(shell)`forge script test/mocks/BobExecute.s.sol --tc BobExecuteScript
       --unlocked ${keeper.address} --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
-    await anvilClient.stopImpersonatingAccount({ address: keeper.address });
-  }
+  await anvilClient.stopImpersonatingAccount({ address: keeper.address });
 
   const [issuerChecker, proposalManager, refunder, exaPreviewer, exaPlugin, exaAccountFactory] = await Promise.all([
     readFile("node_modules/@exactly/plugin/broadcast/IssuerChecker.s.sol/31337/run-latest.json", "utf8"),
@@ -194,28 +185,26 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
       ] as const,
   );
 
-  if (initialize) {
-    const files = await readdir(__dirname, { recursive: true }); // eslint-disable-line unicorn/prefer-module
-    for (const testFile of files.filter((file) => file.endsWith(".test.ts") || file.endsWith("e2e.ts"))) {
-      const address = privateKeyToAddress(keccak256(toBytes(testFile)));
-      await anvilClient.setBalance({ address, value: 10n ** 24n });
-      for (const contract of [exaPlugin, refunder]) {
-        await anvilClient.writeContract({
-          address: contract,
-          functionName: "grantRole",
-          args: [keccak256(toHex("KEEPER_ROLE")), address],
-          abi: [
-            {
-              type: "function",
-              name: "grantRole",
-              stateMutability: "nonpayable",
-              inputs: [{ type: "bytes32" }, { type: "address" }],
-              outputs: [],
-            },
-          ],
-          account: null,
-        });
-      }
+  const files = await readdir(__dirname, { recursive: true }); // eslint-disable-line unicorn/prefer-module
+  for (const testFile of files.filter((file) => file.endsWith(".test.ts") || file.endsWith("e2e.ts"))) {
+    const address = privateKeyToAddress(keccak256(toBytes(testFile)));
+    await anvilClient.setBalance({ address, value: 10n ** 24n });
+    for (const contract of [exaPlugin, refunder]) {
+      await anvilClient.writeContract({
+        address: contract,
+        functionName: "grantRole",
+        args: [keccak256(toHex("KEEPER_ROLE")), address],
+        abi: [
+          {
+            type: "function",
+            name: "grantRole",
+            stateMutability: "nonpayable",
+            inputs: [{ type: "bytes32" }, { type: "address" }],
+            outputs: [],
+          },
+        ],
+        account: null,
+      });
     }
   }
 
