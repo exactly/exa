@@ -14,6 +14,7 @@ import {
   type Quantity,
   type ReadContractParameters,
   type ReadContractReturnType,
+  type RpcLog,
   type RpcTransactionReceipt,
   type TransactionRequest,
   type WriteContractParameters,
@@ -50,6 +51,7 @@ export function writeContract<
 
 declare const output: { id?: number };
 
+export default function anvil(method: "eth_blockNumber", params: readonly []): Hex;
 export default function anvil(
   method: "eth_call",
   params: readonly [transaction: ExactPartial<TransactionRequest>],
@@ -58,6 +60,10 @@ export default function anvil(
   method: "eth_getBalance",
   params: readonly [account: Address, block: BlockIdentifier | BlockNumber<number> | BlockTag],
 ): `0x${string}`;
+export default function anvil(
+  method: "eth_getLogs",
+  params: readonly [filter: { address?: Address; fromBlock?: Hex; toBlock?: Hex; topics?: (Hex | Hex[] | null)[] }],
+): RpcLog[];
 export default function anvil(
   method: "eth_getTransactionCount",
   params: readonly [account: Address, block: BlockIdentifier | BlockNumber<number> | BlockTag],
