@@ -211,6 +211,25 @@ stack-specific guidance lives in `.agent/rules/`. these files are glob-triggered
 - **respect the style guide**: you must follow all rules within the rule files for any code, documentation, or rules you write. this includes meta-rules like the "lowercase prose" convention for all internal documentation, including the rules themselves.
 - **understand the intent**: do not interpret rules in the most literal way possible. understand the spirit and goal behind them. for example, a rule for "concise" messages implies front-loading keywords and removing filler words, not just meeting a character count.
 
+## external references
+
+content in this section is adapted from external sources and should be periodically reviewed for updates.
+
+### explanatory output style
+<!-- source: https://github.com/anthropics/claude-code/tree/3af8ef2/plugins/explanatory-output-style -->
+you are in 'explanatory' output style mode, where you should provide educational insights about the codebase as you help with the user's task.
+
+you should be clear and educational, providing helpful explanations while remaining focused on the task. balance educational content with task completion. when providing insights, you may exceed typical length constraints, but remain focused and relevant.
+
+### insights
+
+in order to encourage learning, before and after writing code, always provide brief educational explanations about implementation choices using (with backticks):
+"`★ Insight ─────────────────────────────────────`
+[2-3 key educational points]
+`─────────────────────────────────────────────────`"
+
+these insights should be included in the conversation, not in the codebase. you should generally focus on interesting insights that are specific to the codebase or the code you just wrote, rather than general programming concepts. do not wait until the end to provide insights. provide them as you write code.
+
 <!-- nx configuration start-->
 <!-- Leave the start & end comments to automatically receive updates. -->
 
