@@ -1,0 +1,39 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+- assertTrue: ${amount && !Number.isNaN(Number(amount))}
+- assertTrue: ${installments && !Number.isNaN(Number(installments))}
+- tapOn: DeFi
+- runFlow:
+    when: { visible: Explore decentralized services }
+    commands: [{ tapOn: "Explore decentralized services" }]
+- tapOn: USDC funding
+- runFlow:
+    when: { visible: Connect wallet to Exactly Protocol }
+    commands: [{ tapOn: Connect wallet to Exactly Protocol }]
+- tapOn: Explore funding options
+- assertVisible: Select amount
+- runFlow: # HACK https://github.com/mobile-dev-inc/Maestro/issues/2914
+    when: { true: "${maestro.platform != 'web'}" }
+    commands: [{ tapOn: Amount }]
+- runFlow: # HACK https://github.com/mobile-dev-inc/Maestro/issues/2914
+    when: { platform: web }
+    commands: [{ tapOn: { id: Amount } }]
+- inputText: ${amount}
+- tapOn: Select Amount # HACK
+- tapOn: Continue
+- assertVisible: Select your funding installment plan
+- tapOn: "${installments + ' installment' + (installments > 1 ? 's' : '') + ' of'}"
+- tapOn: Continue
+- assertVisible: Select first due date
+- tapOn: "^[A-Z][a-z]+ \\d+, \\d{4}$"
+- tapOn: Continue
+- assertVisible: Your Exa account
+- tapOn: Review loan terms
+- assertVisible: Review terms
+- tapOn: Confirm and receive USDC
+- extendedWaitUntil: { visible: Funding request sent, timeout: 180000 }
+- runScript: ../dist/getAccount.js
+- runScript:
+    file: ../dist/hookProposals.js
+    env: { account: "${output.account}" }
+- tapOn: Close
