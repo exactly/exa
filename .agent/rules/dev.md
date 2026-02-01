@@ -13,6 +13,7 @@ trigger: always_on
 - **developer experience is paramount**: the project is designed to work out-of-the-box with no environment variables for local development. use mock services and sensible defaults.
 - **strict automation**: rely on `pnpm` scripts for all tasks. all setup, testing, and generation is automated.
 - **monorepo integrity**: all commands must run from the repository root. never operate from within a sub-directory. never use `npm` or `yarn`.
+- **secrets strategy**: keys that will be exposed anyway (in builds) are hardcoded as defaults in the code. production secrets are environment variables at runtime only - never in files.
 
 ## initial setup
 

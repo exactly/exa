@@ -107,11 +107,17 @@ a core principle is specific capitalization for different contexts. this must be
 - **relative paths**: always use relative paths for imports within the project. avoid tsconfig path aliases.
   - ✅ `import { logger } from '../../../utils/logger';`
   - ❌ `import { logger } from '~/utils/logger';`
-- **import order**: follow the `eslint-plugin-import` order, which is enforced automatically:
-  - react
-  - external libraries
-  - relative paths (`./...` or `../...`)
-- **type imports**: always use `import type { ... }`.
+- **import order**: enforced by `eslint-plugin-perfectionist`. groups in order:
+  1. side-effect imports
+  2. mocks (files with `/mocks/` or `mock` pattern)
+  3. react (`react`, `@react-*`)
+  4. expo (`expo`, `@expo/*`)
+  5. tamagui (`tamagui`, `@tamagui/*`)
+  6. builtin and external packages
+  7. internal (`@exactly/*`)
+  8. relative paths (`./`, `../`)
+  9. type imports
+- **type imports**: always use `import type { ... }`. enforced by eslint.
 
 ### modern code practices (enforced by eslint-plugin-unicorn)
 
@@ -128,9 +134,10 @@ the `plugin:unicorn/recommended` ruleset is enabled globally, enforcing a strict
   - `??` for nullish coalescing.
   - `...` for object and array spreading.
   - `for...of` loops instead of traditional `for` loops with an index variable.
-- **no abbreviations**: do not use abbreviations or cryptic names. the `unicorn/prevent-abbreviations` rule is active.
+- **no abbreviations** (with exceptions): the `unicorn/prevent-abbreviations` rule is active but has an allowlist for framework conventions and common terms.
   - ✅ `error`, `parameters`, `request`
   - ❌ `err`, `params`, `req`
+  - **allowed exceptions**: `args`, `db`, `e2e`, `params`, `ref`, `Ref`, `utils` (framework conventions that earn their place through ubiquity)
 - **explicit `Number.parseInt()`**: when parsing numbers, `Number.parseInt()` must be used instead of the global `parseInt()` to avoid subtle bugs with different radices.
 - **no useless constructs**: avoid `undefined`, returning `undefined` from a function, and unnecessary `if` statement nesting.
 - **consistent casing for `new`**: all classes called with `new` must be `PascalCase`.
@@ -154,22 +161,49 @@ the project employs a highly strict and comprehensive eslint configuration to au
 
 - **valibot**: use valibot for all runtime validation (api inputs, environment variables, etc.). it is the single source of truth for data schemas.
 - **schema definition**: define schemas once and reuse them. infer typescript types from valibot schemas wherever possible.
-  - ✅ `type User = v.Input<typeof UserSchema>;`
+  - ✅ `type User = v.InferOutput<typeof UserSchema>;`
   - ❌ `interface User { ... }` (manually defined)
+
+### typescript patterns
+
+- **inline prop types**: always define component props inline with destructuring. never extract to separate type definitions.
+  - ✅ `function Card({ title, isActive }: { title: string; isActive: boolean })`
+  - ❌ `type CardProps = { title: string; isActive: boolean }; function Card({ title, isActive }: CardProps)`
+- **inline everything**: avoid declaring intermediate variables for single use. inline as much as possible. don't create abstractions for one-time operations.
+- **satisfies for responses**: always use `satisfies InferOutput<typeof Schema>` on server responses to validate return types at compile time.
+  - ✅ `return c.json({ id, name } satisfies InferOutput<typeof UserResponse>);`
+  - ❌ `return c.json({ id, name });`
+- **boolean naming**: prefer naked adjectives for conciseness (`hidden`, `open`, `allowed`). use `is*` prefix only when the adjective alone would be ambiguous (`isActive`, `isLast`).
+- **type inference**: rely heavily on inference. let typescript do its job. only annotate when necessary for clarity or to catch errors.
 
 ### comments
 
-- **strongly avoid comments**: prefer self-documenting code. good code with clear naming and structure rarely needs comments.
-- **explain the "why", not the "what"**: if a comment is strictly necessary, it should explain _why_ the code is written a certain way, not _what_ the code is doing.
-- **lowercase**: all code comments must be written in lowercase. the single exception is for special comment tags.
-- **special tags**: for tracking work, use an uppercase tag followed by a single space and a lowercase comment. always include a reference to a ticket or issue if available.
-  - ✅ `// TODO an explanation of the work to be done`
-  - ✅ `// FIXME an explanation of the bug to be fixed`
-  - ❌ `// todo: an explanation`
-  - ❌ `// HACK: an explanation`
+- **comments are noise**: prefer self-documenting code. good code with clear naming and structure never needs comments. the only acceptable comments are annotations for static analysis tools.
+- **static analysis annotations**: these are the only acceptable comment types:
+  - `// @ts-expect-error reason` - for expected type errors (never use `@ts-ignore`)
+  - `// eslint-disable-next-line rule-name -- reason` - for eslint suppressions
+  - `// slither-disable-next-line check-name -- reason` - for slither suppressions
+  - `// solhint-disable-next-line rule-name` - for solhint suppressions
+- **annotation format**: explanations must be brutally concise. only use `--` separator when strictly required by the tool (varies by tool). no colons, no dashes otherwise.
+  - ✅ `// @ts-expect-error third-party lib expects wrong type`
+  - ✅ `// eslint-disable-next-line no-console -- debug output for ci`
+  - ❌ `// @ts-expect-error: incorrect type`
+  - ❌ `// @ts-expect-error - incorrect type`
+- **todo/fixme**: use sparingly. uppercase tag, single space, lowercase explanation.
+  - ✅ `// TODO implement retry logic`
+  - ❌ `// todo: implement retry logic`
+
+### abstractions
+
+- **avoid premature abstraction**: don't add helpers, utilities, or abstractions for one-time operations. three similar lines of code is better than a premature abstraction. don't design for hypothetical future requirements.
+- **when abstraction is acceptable**: encapsulate complexity only when there's a foot-gun - a call that must always have an argument that can be easily forgotten. these are exceptions, not the rule.
+- **prefer raw library knowledge**: it's better to use libraries directly and understand their apis than to wrap them in project-specific abstractions. the team should know the tools.
+  - ✅ calling `queryClient.setQueryData()` directly
+  - ❌ wrapping it in `useSetUserData()` for a single use case
 
 ## ai assistant directives
 
 - **adopt, do not replace**: your primary role is to adopt and enforce the project's established conventions. never replace a core convention (e.g., the `gitmoji` commit format) with a different one (e.g., `conventional commits`), even if you believe it is superior.
 - **respect the style guide**: you must follow all rules within the `.mdc` files for any code, documentation, or rules you write. this includes meta-rules like the "lowercase prose" convention for all internal documentation, including the rules themselves.
 - **understand the intent**: do not interpret rules in the most literal way possible. understand the spirit and goal behind them. for example, a rule for "concise" messages implies front-loading keywords and removing filler words, not just meeting a character count.
+- **diff-friendliness**: when modifying code, consider the diff. avoid adding items at the end of lists. prefer sorted or middle insertions. structure changes to be minimal and reviewable.
