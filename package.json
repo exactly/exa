@@ -21,11 +21,11 @@
     "e2e:android:proxy": "adb start-server && adb reverse tcp:3000 tcp:3000 && adb reverse tcp:8545 tcp:8545 && adb reverse tcp:8969 tcp:8969",
     "e2e:maestro": "maestro test .maestro/flows --include-tags=critical",
     "test": "nx test mobile",
-    "test:spell": "cspell --gitignore '**' '.agents/**' '.changeset/**' '.cursor/**' '.do/**' '.github/**'",
+    "test:spell": "cspell --gitignore '**' '.agent/**' '.changeset/**' '.do/**' '.github/**'",
     "test:deps": "pnpm audit",
     "test:build": "expo export --platform web",
     "test:ts": "tsc --pretty ${GITHUB_ACTIONS:+false}",
-    "test:markdown": "markdownlint '**/*.md' '**/*.mdx' '.agents/**/*.md' '.changeset/**/*.md' '.cursor/**/*.mdc' -i '**/node_modules/**' -i ios/Pods",
+    "test:markdown": "markdownlint '**/*.md' '**/*.mdx' '.agent/**/*.md' '.changeset/**/*.md' -i '**/node_modules/**' -i ios/Pods",
     "test:changeset": "changeset status --since origin/main"
   },
   "engines": {

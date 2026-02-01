@@ -1,5 +1,5 @@
 {
-  "context": { "fileName": "AGENTS.md" },
+  "context": { "fileName": "AGENTS.md", "includeDirectories": [".agent/rules"] },
   "general": {
     "checkpointing": { "enabled": true },
     "enablePromptCompletion": true,
