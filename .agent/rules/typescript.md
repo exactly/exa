@@ -60,6 +60,7 @@ trigger: glob
   - ❌ `return c.json({ id, name });`
 - **boolean naming**: prefer naked adjectives (`hidden`, `open`, `allowed`). use `is*` prefix only when ambiguous (`isActive`, `isLast`).
 - **type inference**: rely heavily on inference. only annotate when necessary for clarity or to catch errors.
+  - avoid explicit return types on functions; let typescript infer them.
 
 ## validation (valibot)
 
