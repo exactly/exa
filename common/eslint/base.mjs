@@ -93,7 +93,7 @@ export default defineConfig([
       "unicorn/number-literal-case": "off", // incompatible with prettier
       "unicorn/prevent-abbreviations": [
         "error",
-        { allowList: { args: true, e2e: true, params: true, utils: true, Ref: true } },
+        { allowList: { args: true, db: true, e2e: true, params: true, Ref: true, ref: true, utils: true } },
       ],
       "unicorn/switch-case-braces": ["error", "avoid"], // consistently avoid braces
     },
