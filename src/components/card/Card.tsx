@@ -99,15 +99,7 @@ export default function Card() {
     refetch: refetchKYCStatus,
     isFetching: isFetchingKYC,
     isPending: isPendingKYC,
-  } = useQuery({
-    queryKey: ["kyc", "status"],
-    queryFn: async () => getKYCStatus(),
-    meta: {
-      suppressError: (error) =>
-        error instanceof APIError &&
-        (error.text === "no kyc" || error.text === "not started" || error.text === "bad kyc"),
-    },
-  });
+  } = useQuery({ queryKey: ["kyc", "status"], queryFn: async () => getKYCStatus() });
   const isKYCApproved = Boolean(
     KYCStatus && "code" in KYCStatus && (KYCStatus.code === "ok" || KYCStatus.code === "legacy kyc"),
   );

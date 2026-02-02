@@ -31,7 +31,7 @@ import VisaSignatureBanner from "./VisaSignatureBanner";
 import VisaSignatureModal from "./VisaSignatureSheet";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
-import { APIError, getActivity, getKYCStatus, type CardDetails } from "../../utils/server";
+import { getActivity, getKYCStatus, type CardDetails } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
 import usePortfolio from "../../utils/usePortfolio";
 import useTabPress from "../../utils/useTabPress";
@@ -101,20 +101,7 @@ export default function Home() {
     data: KYCStatus,
     isFetched: isKYCFetched,
     refetch: refetchKYCStatus,
-  } = useQuery({
-    queryKey: ["kyc", "status"],
-    queryFn: async () => getKYCStatus(),
-    retry: (_, error) =>
-      !(
-        error instanceof APIError &&
-        (error.text === "no kyc" || error.text === "not started" || error.text === "bad kyc")
-      ),
-    meta: {
-      suppressError: (error) =>
-        error instanceof APIError &&
-        (error.text === "no kyc" || error.text === "not started" || error.text === "bad kyc"),
-    },
-  });
+  } = useQuery({ queryKey: ["kyc", "status"], queryFn: async () => getKYCStatus() });
   const needsMigration = Boolean(KYCStatus && "code" in KYCStatus && KYCStatus.code === "legacy kyc");
   const isKYCApproved = Boolean(
     KYCStatus && "code" in KYCStatus && (KYCStatus.code === "ok" || KYCStatus.code === "legacy kyc"),

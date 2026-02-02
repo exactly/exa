@@ -268,7 +268,14 @@ queryClient.setQueryDefaults<EmbeddingContext>(["embedding-context"], {
     return null;
   },
 });
-queryClient.setQueryDefaults(["kyc", "status"], { staleTime: 5 * 60_000, gcTime: 60 * 60_000 });
+const expected = (error: unknown) =>
+  error instanceof APIError && (error.text === "no kyc" || error.text === "not started" || error.text === "bad kyc");
+queryClient.setQueryDefaults(["kyc", "status"], {
+  staleTime: 5 * 60_000,
+  gcTime: 60 * 60_000,
+  retry: (count, error) => count < 3 && !expected(error),
+  meta: { suppressError: expected },
+});
 
 export type AuthMethod = "siwe" | "webauthn";
 export type EmbeddingContext =
