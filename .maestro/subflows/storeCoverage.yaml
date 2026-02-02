@@ -1,9 +1,6 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
-- runFlow:
-    when: { true: "${maestro.platform != 'web'}" }
-    commands: [{ tapOn: Settings }]
-- runFlow: { when: { platform: web }, commands: [{ tapOn: { id: Settings } }] }
+- runFlow: { file: tapAria.yaml, env: { aria: Settings } }
 - tapOn: Submit coverage
 - runFlow:
     when: { platform: android }
