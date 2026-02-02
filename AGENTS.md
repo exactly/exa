@@ -81,13 +81,9 @@ a core principle is specific capitalization for different contexts. this must be
 
 ## comments
 
-- **comments are noise**: prefer self-documenting code. good code with clear naming and structure never needs comments. the only acceptable comments are annotations for static analysis tools.
-- **static analysis annotations only**:
-  - `// @ts-expect-error reason` (never use `@ts-ignore`)
-  - `// eslint-disable-next-line rule-name -- reason`
-  - `// slither-disable-next-line check-name -- reason`
-  - `// solhint-disable-next-line rule-name`
-- **annotation format**: explanations must be brutally concise. only use `--` separator when strictly required by the tool (varies by tool).
+this codebase does not use comments. the only exception is static analysis annotations (`@ts-expect-error`, `eslint-disable`, `slither-disable`, `solhint-disable`, `cspell:ignore`) and `TODO`/`FIXME` markers. everything else—jsdoc, explanatory prose, region markers, inline labels—is noise that masks unclear code. if code needs explanation, rewrite it until it doesn't.
+
+- **static analysis annotations only**: use `@ts-expect-error` (never `@ts-ignore`), eslint/slither/solhint disable comments, and `cspell:ignore`. explanations must be brutally concise, lowercase, and use `--` only when required by the tool.
   - ✅ `// @ts-expect-error third-party lib expects wrong type`
   - ✅ `// eslint-disable-next-line no-console -- debug output for ci`
   - ❌ `// @ts-expect-error: incorrect type`
