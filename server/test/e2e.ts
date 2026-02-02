@@ -9,9 +9,11 @@ import "./mocks/sardine";
 import "./mocks/sentry";
 
 import { cors } from "hono/cors";
+import crypto from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
 
+import type * as panda from "../utils/panda";
 import type * as persona from "../utils/persona";
 import type * as sentry from "@sentry/node";
 
@@ -43,12 +45,87 @@ describe("e2e", () => {
   );
 });
 
-vi.mock("../utils/panda", async (importOriginal) => ({
-  ...(await importOriginal()),
-  createUser: vi
-    .fn<() => Promise<{ id: string }>>()
-    .mockImplementation(() => Promise.resolve({ id: String(Math.random()) })),
-}));
+vi.mock("../utils/panda", async (importOriginal: () => Promise<typeof panda>) => {
+  const original = await importOriginal();
+  type User = Awaited<ReturnType<typeof original.getUser>>;
+  type Card = Awaited<ReturnType<typeof original.getCard>>;
+  const users = new Map<string, User>();
+  const cards = new Map<string, Card>();
+  return {
+    ...original,
+    autoCredit: vi.fn().mockResolvedValue(false),
+    createCard: vi.fn().mockImplementation((userId: string) => {
+      const id = `crd_${Math.random().toString(36).slice(2)}`;
+      const card: Card = {
+        expirationMonth: "12",
+        expirationYear: "2030",
+        id,
+        last4: String(Math.floor(1000 + Math.random() * 9000)),
+        limit: { amount: 1_000_000, frequency: "per7DayPeriod" },
+        status: "active",
+        type: "virtual",
+        userId,
+      };
+      cards.set(id, card);
+      return Promise.resolve(card);
+    }),
+    createUser: vi.fn().mockImplementation(() => {
+      const id = `usr_${Math.random().toString(36).slice(2)}`;
+      const user: User = {
+        applicationReason: "",
+        applicationStatus: "approved",
+        email: "test@example.com",
+        firstName: "Test",
+        id,
+        isActive: true,
+        lastName: "User",
+        phoneCountryCode: "+1",
+        phoneNumber: "5551234567",
+      };
+      users.set(id, user);
+      return Promise.resolve({ id });
+    }),
+    getCard: vi.fn().mockImplementation((cardId: string) => Promise.resolve(cards.get(cardId))),
+    getPIN: vi.fn().mockResolvedValue({ pin: null }),
+    getSecrets: vi.fn().mockImplementation((_cardId: string, sessionId: string) => {
+      const privateKey = process.env.PANDA_E2E_PRIVATE_KEY;
+      if (!privateKey) throw new Error("PANDA_E2E_PRIVATE_KEY not set");
+      const encryptedSecret = Buffer.from(sessionId, "base64");
+      const secretKeyBase64 = crypto.privateDecrypt(
+        { key: privateKey, padding: crypto.constants.RSA_PKCS1_OAEP_PADDING, oaepHash: "sha1" },
+        encryptedSecret,
+      );
+      const secretKey = Buffer.from(secretKeyBase64.toString("utf8"), "base64");
+      function encrypt(plaintext: string) {
+        const iv = crypto.randomBytes(16);
+        const cipher = crypto.createCipheriv("aes-128-gcm", secretKey, iv);
+        const encrypted = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
+        const authTag = cipher.getAuthTag();
+        return { data: Buffer.concat([encrypted, authTag]).toString("base64"), iv: iv.toString("base64") };
+      }
+      return Promise.resolve({
+        encryptedCvc: encrypt("123"),
+        encryptedPan: encrypt("4111111111111234"),
+      });
+    }),
+    getUser: vi.fn().mockImplementation((userId: string) => Promise.resolve(users.get(userId))),
+    isPanda: vi.fn().mockResolvedValue(true),
+    setPIN: vi.fn().mockResolvedValue({}),
+    signIssuerOp: vi.fn().mockResolvedValue("0x" + "ab".repeat(65)),
+    updateCard: vi.fn().mockImplementation((update: { id: string }) => {
+      const card = cards.get(update.id);
+      if (!card) return Promise.resolve();
+      Object.assign(card, update);
+      return Promise.resolve(card);
+    }),
+    updateUser: vi.fn().mockImplementation((update: { id: string }) => {
+      const user = users.get(update.id);
+      if (!user) return Promise.resolve();
+      Object.assign(user, update);
+      return Promise.resolve(user);
+    }),
+  };
+});
 
 vi.mock("../utils/persona", async (importOriginal: () => Promise<typeof persona>) => {
   const original = await importOriginal();
