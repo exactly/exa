@@ -164,7 +164,11 @@ function chain(): Plugin {
     return {
       name: "Chain",
       run: () => ({
-        content: `import { anvil, type Chain } from "viem/chains"\nconst chain = anvil as Chain\nchain.rpcUrls.alchemy = chain.rpcUrls.default\nexport default chain as Chain & { rpcUrls: { alchemy: { http: readonly [string] } } }`,
+        content: `import { anvil, type Chain } from "viem/chains"
+const chain = anvil as Chain
+chain.rpcUrls.alchemy = chain.rpcUrls.default
+chain.blockExplorers = { default: { name: "Otterscan", url: "http://localhost:5100" } }
+export default chain as Chain & { rpcUrls: { alchemy: { http: readonly [string] } } }`,
       }),
     };
   }
@@ -179,7 +183,7 @@ function chain(): Plugin {
   return {
     name: "Chain",
     run: () => ({
-      content: `import { ${importName} } from '@account-kit/infra'
+      content: `import { ${importName} } from "@account-kit/infra"
 import { type Chain } from "viem/chains"
 export default ${importName} as Chain & { rpcUrls: { alchemy: { http: readonly [string] } } }`,
     }),
