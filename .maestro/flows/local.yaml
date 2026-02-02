@@ -33,18 +33,9 @@ tags: [critical]
     file: ../subflows/sendAsset.yaml
     env: { asset: USDC, to: "${output.owner}", amount: "69" }
 - tapOn: Home
-- runFlow: # HACK https://github.com/mobile-dev-inc/Maestro/issues/2914
-    when: { true: "${maestro.platform != 'web'}" }
-    commands:
-      - repeat:
-          while: { visible: Pending proposals }
-          commands: [{ tapOn: Home }]
-- runFlow: # HACK https://github.com/mobile-dev-inc/Maestro/issues/2914
-    when: { platform: web }
-    commands:
-      - repeat:
-          while: { visible: { id: Pending proposals } }
-          commands: [{ tapOn: Home }]
+- runFlow:
+    file: ../subflows/tapWhileAria.yaml
+    env: { aria: Pending proposals, tap: Home }
 - runFlow: ../subflows/readPortfolio.yaml
 - assertTrue: ${output.portfolioBefore - output.portfolio === 69}
 - evalScript: ${output.portfolioBefore = output.portfolio}
@@ -52,18 +43,9 @@ tags: [critical]
     file: ../subflows/borrowAsset.yaml
     env: { amount: "10", installments: "4" }
 - tapOn: Home
-- runFlow: # HACK https://github.com/mobile-dev-inc/Maestro/issues/2914
-    when: { true: "${maestro.platform != 'web'}" }
-    commands:
-      - repeat:
-          while: { visible: Pending proposals }
-          commands: [{ tapOn: Home }]
-- runFlow: # HACK https://github.com/mobile-dev-inc/Maestro/issues/2914
-    when: { platform: web }
-    commands:
-      - repeat:
-          while: { visible: { id: Pending proposals } }
-          commands: [{ tapOn: Home }]
+- runFlow:
+    file: ../subflows/tapWhileAria.yaml
+    env: { aria: Pending proposals, tap: Home }
 - runFlow: ../subflows/readPortfolio.yaml
 - assertTrue: ${output.portfolio - output.portfolioBefore === 10}
 - runFlow:

@@ -12,12 +12,7 @@ appId: ${APP_ID ?? "app.exactly"}
     commands: [{ tapOn: Connect wallet to Exactly Protocol }]
 - tapOn: Explore funding options
 - assertVisible: Select amount
-- runFlow: # HACK https://github.com/mobile-dev-inc/Maestro/issues/2914
-    when: { true: "${maestro.platform != 'web'}" }
-    commands: [{ tapOn: Amount }]
-- runFlow: # HACK https://github.com/mobile-dev-inc/Maestro/issues/2914
-    when: { platform: web }
-    commands: [{ tapOn: { id: Amount } }]
+- runFlow: { file: tapAria.yaml, env: { aria: Amount } }
 - inputText: ${amount}
 - tapOn: Select Amount # HACK
 - tapOn: Continue

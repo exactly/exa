@@ -78,8 +78,5 @@ appId: ${APP_ID ?? "app.exactly"}
 - runScript:
     file: ../dist/approveKYC.js
     env: { credentialId: "${output.owner}" }
-- runFlow:
-    when: { true: "${maestro.platform != 'web'}" }
-    commands: [{ tapOn: Back }]
-- runFlow: { when: { platform: web }, commands: [{ tapOn: { id: Back } }] }
+- runFlow: { file: tapAria.yaml, env: { aria: Back } }
 - tapOn: Home
