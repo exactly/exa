@@ -1,0 +1,8 @@
+extends: default
+ignore: [android, ios, node_modules, pnpm-lock.yaml]
+rules:
+  braces: { max-spaces-inside: 1, min-spaces-inside: 1, max-spaces-inside-empty: 0, min-spaces-inside-empty: 0 }
+  comments: { min-spaces-from-content: 1 }
+  document-start: disable
+  line-length: disable
+  truthy: { check-keys: false }
