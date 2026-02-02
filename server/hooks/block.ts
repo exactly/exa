@@ -9,6 +9,7 @@ import {
   setContext,
   setExtra,
   startSpan,
+  withScope,
 } from "@sentry/node";
 import { deserialize, serialize } from "@wagmi/core";
 import { Mutex } from "async-mutex";
@@ -171,8 +172,10 @@ export default new Hono().post(
               receiver: withdraw.receiver,
               amount: String(withdraw.amount),
               unlock: Number(withdraw.unlock),
-              "messaging.message.id": withdraw.id,
+              "messaging.system": "redis",
+              "messaging.operation.type": "send",
               "messaging.destination.name": "withdraw",
+              "messaging.message.id": withdraw.id,
             },
           },
           async () => {
@@ -180,6 +183,7 @@ export default new Hono().post(
             withdraw.sentryTrace = sentryTrace;
             withdraw.sentryBaggage = sentryBaggage;
             const message = serialize(withdraw);
+            getActiveSpan()?.setAttribute("messaging.message.body.size", Buffer.byteLength(message));
             const added = await redis.zadd("withdraw", Number(event.args.unlock), message);
             if (added) scheduleWithdraw(message);
             return added;
@@ -205,6 +209,8 @@ function scheduleProposal(proposal: v.InferOutput<typeof Proposal>) {
         proposalType: proposal.proposalType,
         timestamp: proposal.timestamp,
         unlock: Number(proposal.unlock),
+        "messaging.system": "redis",
+        "messaging.operation.type": "send",
         "messaging.destination.name": "proposals",
         "messaging.message.id": proposal.id,
       },
@@ -214,6 +220,7 @@ function scheduleProposal(proposal: v.InferOutput<typeof Proposal>) {
       proposal.sentryTrace = sentryTrace;
       proposal.sentryBaggage = sentryBaggage;
       const message = serialize(proposal);
+      getActiveSpan()?.setAttribute("messaging.message.body.size", Buffer.byteLength(message));
       const added = await redis.zadd("proposals", Number(proposal.unlock + proposal.nonce), message);
       if (added) scheduleMessage(message);
       return added;
@@ -222,185 +229,218 @@ function scheduleProposal(proposal: v.InferOutput<typeof Proposal>) {
 }
 
 function scheduleMessage(message: string) {
-  const { account, amount, data, id, market, nonce, proposalType, sentryBaggage, sentryTrace, timestamp, unlock } =
-    v.parse(Proposal, deserialize(message));
-  setTimeout(Math.max(0, (Number(unlock) + 10) * 1000 - Date.now()))
-    .then(async () => {
-      const mutex = mutexes.get(account) ?? createMutex(account);
-      await mutex
-        .runExclusive(() =>
-          continueTrace({ sentryTrace, baggage: sentryBaggage }, () =>
-            startSpan({ name: "exa.execute", op: "exa.execute", forceTransaction: true }, (parent) =>
-              startSpan(
+  const proposal = v.parse(Proposal, deserialize(message));
+  const {
+    account,
+    amount,
+    data,
+    id,
+    market,
+    nonce,
+    proposalType,
+    retryCount,
+    sentryBaggage,
+    sentryTrace,
+    timestamp,
+    unlock,
+  } = proposal;
+  const bodySize = Buffer.byteLength(message);
+
+  const processProposal = () =>
+    withScope((scope) => {
+      scope.setUser({ id: account });
+      scope.setTag("exa.account", account);
+      return startSpan({ name: "exa.execute", op: "exa.execute", forceTransaction: true }, (parent) =>
+        startSpan(
+          {
+            name: "execute proposal",
+            op: "queue.process",
+            attributes: {
+              account,
+              amount: String(amount),
+              data,
+              market,
+              nonce: Number(nonce),
+              proposalType,
+              timestamp,
+              unlock: Number(unlock),
+              "messaging.system": "redis",
+              "messaging.operation.type": "process",
+              "messaging.destination.name": "proposals",
+              "messaging.message.id": id,
+              "messaging.message.body.size": bodySize,
+              "messaging.message.retry.count": retryCount,
+              "messaging.message.receive.latency": Date.now() - Number(unlock) * 1000,
+            },
+          },
+          async () => {
+            const skipNonce = () =>
+              keeper.exaSend(
+                { name: "exa.nonce", op: "exa.nonce", attributes: { account } },
                 {
-                  name: "execute proposal",
-                  op: "queue.process",
-                  attributes: {
-                    account,
-                    amount: String(amount),
-                    data,
-                    market,
-                    nonce: Number(nonce),
-                    proposalType,
-                    timestamp,
-                    unlock: Number(unlock),
-                    "messaging.destination.name": "proposals",
-                    "messaging.message.id": id,
-                    "messaging.message.receive.latency": Date.now() - Number(unlock) * 1000,
+                  address: account,
+                  functionName: "setProposalNonce",
+                  args: [nonce + 1n],
+                  abi: [...exaPluginAbi, ...upgradeableModularAccountAbi, ...proposalManagerAbi],
+                },
+              );
+
+            await (proposalType === ProposalType.None
+              ? skipNonce()
+              : keeper.exaSend(
+                  { name: "exa.execute", op: "exa.execute", attributes: { account } },
+                  {
+                    address: account,
+                    functionName: "executeProposal",
+                    args: [nonce],
+                    abi: [
+                      ...exaPluginAbi,
+                      ...upgradeableModularAccountAbi,
+                      ...proposalManagerAbi,
+                      ...auditorAbi,
+                      ...marketAbi,
+                    ],
                   },
-                },
-                async () => {
-                  const skipNonce = () =>
-                    keeper.exaSend(
-                      { name: "exa.nonce", op: "exa.nonce", attributes: { account } },
-                      {
-                        address: account,
-                        functionName: "setProposalNonce",
-                        args: [nonce + 1n],
-                        abi: [...exaPluginAbi, ...upgradeableModularAccountAbi, ...proposalManagerAbi],
+                ));
+
+            parent.setStatus({ code: SPAN_STATUS_OK });
+            if (proposalType === ProposalType.Withdraw) {
+              if (market.toLowerCase() === marketWETHAddress.toLowerCase()) await skipNonce();
+              const receiver = v.parse(Address, decodeAbiParameters([{ name: "receiver", type: "address" }], data)[0]);
+              startSpan(
+                { name: "send withdraw notification", op: "notification.send", attributes: { account, receiver } },
+                () =>
+                  Promise.all([
+                    publicClient.readContract({ address: market, abi: marketAbi, functionName: "decimals" }),
+                    publicClient.readContract({ address: market, abi: marketAbi, functionName: "symbol" }),
+                    ensClient.getEnsName({ address: receiver }),
+                  ]).then(([decimals, symbol, ensName]) =>
+                    sendPushNotification({
+                      userId: account,
+                      headings: { en: "Withdraw completed" },
+                      contents: {
+                        en: `${formatUnits(amount, decimals)} ${symbol.slice(3)} sent to ${ensName ?? shortenHex(receiver)}`,
                       },
-                    );
+                    }),
+                  ),
+              ).catch((error: unknown) => captureException(error));
+            }
+            return redis.zrem("proposals", message);
+          },
+        ).catch(async (error: unknown) => {
+          parent.setStatus({ code: SPAN_STATUS_ERROR, message: "proposal_failed" });
+          captureException(error, {
+            level: "error",
+            contexts: { proposal: { account, nonce, proposalType: ProposalType[proposalType], retryCount } },
+          });
 
-                  await (proposalType === ProposalType.None
-                    ? skipNonce()
-                    : keeper.exaSend(
-                        { name: "exa.execute", op: "exa.execute", attributes: { account } },
-                        {
-                          address: account,
-                          functionName: "executeProposal",
-                          args: [nonce],
-                          abi: [
-                            ...exaPluginAbi,
-                            ...upgradeableModularAccountAbi,
-                            ...proposalManagerAbi,
-                            ...auditorAbi,
-                            ...marketAbi,
-                          ],
-                        },
-                      ));
+          if (
+            error instanceof BaseError &&
+            error.cause instanceof ContractFunctionRevertedError &&
+            error.cause.data?.errorName === "NotNext"
+          ) {
+            const pendingProposals = await publicClient.readContract({
+              address: exaPreviewerAddress,
+              functionName: "pendingProposals",
+              abi: exaPreviewerAbi,
+              args: [account],
+            });
+            const idleProposals = pendingProposals
+              .filter((idle) => Number(idle.nonce) <= nonce)
+              .map((idle) =>
+                v.parse(Proposal, {
+                  ...idle.proposal,
+                  timestamp: Number(idle.proposal.timestamp),
+                  nonce: idle.nonce,
+                  account,
+                  unlock: idle.unlock,
+                  retryCount: retryCount + 1,
+                }),
+              );
+            setContext("exa", { idleProposals });
+            await Promise.all(idleProposals.map((p) => scheduleProposal(p)));
+            return redis.zrem("proposals", message);
+          }
 
-                  parent.setStatus({ code: SPAN_STATUS_OK });
-                  if (proposalType === ProposalType.Withdraw) {
-                    if (market.toLowerCase() === marketWETHAddress.toLowerCase()) await skipNonce();
-                    const receiver = v.parse(
-                      Address,
-                      decodeAbiParameters([{ name: "receiver", type: "address" }], data)[0],
-                    );
-                    Promise.all([
-                      publicClient.readContract({ address: market, abi: marketAbi, functionName: "decimals" }),
-                      publicClient.readContract({ address: market, abi: marketAbi, functionName: "symbol" }),
-                      ensClient.getEnsName({ address: receiver }).catch(() => null),
-                    ])
-                      .then(([decimals, symbol, ensName]) =>
-                        sendPushNotification({
-                          userId: account,
-                          headings: { en: "Withdraw completed" },
-                          contents: {
-                            en: `${formatUnits(amount, decimals)} ${symbol.slice(3)} sent to ${ensName ?? shortenHex(receiver)}`,
-                          },
-                        }),
-                      )
-                      .catch((error: unknown) => captureException(error));
-                  }
-                  return redis.zrem("proposals", message);
-                },
-              ).catch(async (error: unknown) => {
-                parent.setStatus({ code: SPAN_STATUS_ERROR, message: "proposal_failed" });
-                captureException(error, {
-                  level: "error",
-                  contexts: { proposal: { account, nonce, proposalType: ProposalType[proposalType] } },
-                });
+          if (error instanceof ContractFunctionExecutionError) {
+            await keeper.exaSend(
+              { name: "exa.nonce", op: "exa.nonce", attributes: { account } },
+              {
+                address: account,
+                functionName: "setProposalNonce",
+                args: [nonce + 1n],
+                abi: [...exaPluginAbi, ...upgradeableModularAccountAbi, ...proposalManagerAbi],
+              },
+            );
+            return redis.zrem("proposals", message);
+          }
+        }),
+      );
+    });
 
-                if (
-                  error instanceof BaseError &&
-                  error.cause instanceof ContractFunctionRevertedError &&
-                  error.cause.data?.errorName === "NotNext"
-                ) {
-                  const pendingProposals = await publicClient.readContract({
-                    address: exaPreviewerAddress,
-                    functionName: "pendingProposals",
-                    abi: exaPreviewerAbi,
-                    args: [account],
-                  });
-                  const idleProposals = pendingProposals
-                    .filter((idle) => Number(idle.nonce) <= nonce)
-                    .map((idle) =>
-                      v.parse(Proposal, {
-                        ...idle.proposal,
-                        timestamp: Number(idle.proposal.timestamp),
-                        nonce: idle.nonce,
-                        account,
-                        unlock: idle.unlock,
-                      }),
-                    );
-                  setContext("exa", { idleProposals });
-                  await Promise.all(idleProposals.map((proposal) => scheduleProposal(proposal)));
-                  return redis.zrem("proposals", message);
-                }
-
-                if (error instanceof ContractFunctionExecutionError) {
-                  await keeper.exaSend(
-                    { name: "exa.nonce", op: "exa.nonce", attributes: { account } },
-                    {
-                      address: account,
-                      functionName: "setProposalNonce",
-                      args: [nonce + 1n],
-                      abi: [...exaPluginAbi, ...upgradeableModularAccountAbi, ...proposalManagerAbi],
-                    },
-                  );
-                  return redis.zrem("proposals", message);
-                }
-              }),
-            ),
-          ),
-        )
-        .finally(() => {
-          if (!mutex.isLocked()) mutexes.delete(account);
-        });
+  setTimeout(Math.max(0, (Number(unlock) + 10) * 1000 - Date.now()))
+    .then(() => {
+      const mutex = mutexes.get(account) ?? createMutex(account);
+      return continueTrace({ sentryTrace, baggage: sentryBaggage }, () =>
+        startSpan(
+          { name: "acquire mutex", op: "lock.acquire", attributes: { account, "lock.name": `proposal:${account}` } },
+          () =>
+            mutex.runExclusive(processProposal).finally(() => {
+              if (!mutex.isLocked()) mutexes.delete(account);
+            }),
+        ),
+      );
     })
     .catch((error: unknown) => captureException(error));
 }
 
 function scheduleWithdraw(message: string) {
-  const { id, account, market, receiver, amount, unlock, sentryTrace, sentryBaggage } = v.parse(
-    Withdraw,
-    deserialize(message),
-  );
-  setTimeout(Math.max(0, (Number(unlock) + 10) * 1000 - Date.now()))
-    .then(() =>
-      continueTrace({ sentryTrace, baggage: sentryBaggage }, () =>
-        startSpan({ name: "exa.withdraw", op: "exa.withdraw", forceTransaction: true }, (parent) =>
-          startSpan(
-            {
-              name: "process withdraw",
-              op: "queue.process",
-              attributes: {
-                account,
-                market,
-                receiver,
-                amount: String(amount),
-                unlock: Number(unlock),
-                "messaging.message.id": id,
-                "messaging.destination.name": "withdraw",
-                "messaging.message.receive.latency": Date.now() - Number(unlock) * 1000,
-              },
+  const withdraw = v.parse(Withdraw, deserialize(message));
+  const { id, account, market, receiver, amount, unlock, retryCount, sentryTrace, sentryBaggage } = withdraw;
+  const bodySize = Buffer.byteLength(message);
+
+  const processWithdraw = () =>
+    withScope((scope) => {
+      scope.setUser({ id: account });
+      scope.setTag("exa.account", account);
+      return startSpan({ name: "exa.withdraw", op: "exa.withdraw", forceTransaction: true }, (parent) =>
+        startSpan(
+          {
+            name: "process withdraw",
+            op: "queue.process",
+            attributes: {
+              account,
+              market,
+              receiver,
+              amount: String(amount),
+              unlock: Number(unlock),
+              "messaging.system": "redis",
+              "messaging.operation.type": "process",
+              "messaging.destination.name": "withdraw",
+              "messaging.message.id": id,
+              "messaging.message.body.size": bodySize,
+              "messaging.message.retry.count": retryCount,
+              "messaging.message.receive.latency": Date.now() - Number(unlock) * 1000,
             },
-            async () => {
-              await keeper.exaSend(
-                { name: "exa.execute", op: "exa.execute", attributes: { account } },
-                {
-                  address: account,
-                  functionName: "withdraw",
-                  abi: [...legacyExaPluginAbi, ...upgradeableModularAccountAbi, ...auditorAbi, marketAbi[6]],
-                },
-              );
-              parent.setStatus({ code: SPAN_STATUS_OK });
-              Promise.all([
-                publicClient.readContract({ address: market, abi: marketAbi, functionName: "decimals" }),
-                publicClient.readContract({ address: market, abi: marketAbi, functionName: "symbol" }),
-                ensClient.getEnsName({ address: receiver }),
-              ])
-                .then(([decimals, symbol, ensName]) =>
+          },
+          async () => {
+            await keeper.exaSend(
+              { name: "exa.execute", op: "exa.execute", attributes: { account } },
+              {
+                address: account,
+                functionName: "withdraw",
+                abi: [...legacyExaPluginAbi, ...upgradeableModularAccountAbi, ...auditorAbi, marketAbi[6]],
+              },
+            );
+            parent.setStatus({ code: SPAN_STATUS_OK });
+            startSpan(
+              { name: "send withdraw notification", op: "notification.send", attributes: { account, receiver } },
+              () =>
+                Promise.all([
+                  publicClient.readContract({ address: market, abi: marketAbi, functionName: "decimals" }),
+                  publicClient.readContract({ address: market, abi: marketAbi, functionName: "symbol" }),
+                  ensClient.getEnsName({ address: receiver }),
+                ]).then(([decimals, symbol, ensName]) =>
                   sendPushNotification({
                     userId: account,
                     headings: { en: "Withdraw completed" },
@@ -408,34 +448,36 @@ function scheduleWithdraw(message: string) {
                       en: `${formatUnits(amount, decimals)} ${symbol.slice(3)} sent to ${ensName ?? shortenHex(receiver)}`,
                     },
                   }),
-                )
-                .catch((error: unknown) => captureException(error));
-              return redis.zrem("withdraw", message);
-            },
-          ).catch((error: unknown) => {
-            if (
-              error instanceof BaseError &&
-              error.cause instanceof ContractFunctionRevertedError &&
-              error.cause.data?.errorName === "PreExecHookReverted" &&
-              error.cause.data.args?.[2] === encodeErrorResult({ errorName: "NoProposal", abi: legacyExaPluginAbi })
-            ) {
-              parent.setStatus({ code: SPAN_STATUS_ERROR, message: "aborted" });
-              return redis.zrem("withdraw", message);
-            }
-            parent.setStatus({ code: SPAN_STATUS_ERROR, message: "failed_precondition" });
-            captureException(error);
-            if (
-              chain.id === optimismSepolia.id &&
-              error instanceof BaseError &&
-              error.cause instanceof CallExecutionError &&
-              error.cause.cause instanceof ExecutionRevertedError
-            ) {
-              return redis.zrem("withdraw", message);
-            }
-          }),
-        ),
-      ),
-    )
+                ),
+            ).catch((error: unknown) => captureException(error));
+            return redis.zrem("withdraw", message);
+          },
+        ).catch((error: unknown) => {
+          if (
+            error instanceof BaseError &&
+            error.cause instanceof ContractFunctionRevertedError &&
+            error.cause.data?.errorName === "PreExecHookReverted" &&
+            error.cause.data.args?.[2] === encodeErrorResult({ errorName: "NoProposal", abi: legacyExaPluginAbi })
+          ) {
+            parent.setStatus({ code: SPAN_STATUS_ERROR, message: "aborted" });
+            return redis.zrem("withdraw", message);
+          }
+          parent.setStatus({ code: SPAN_STATUS_ERROR, message: "failed_precondition" });
+          captureException(error, { contexts: { withdraw: { account, market, receiver, retryCount } } });
+          if (
+            chain.id === optimismSepolia.id &&
+            error instanceof BaseError &&
+            error.cause instanceof CallExecutionError &&
+            error.cause.cause instanceof ExecutionRevertedError
+          ) {
+            return redis.zrem("withdraw", message);
+          }
+        }),
+      );
+    });
+
+  setTimeout(Math.max(0, (Number(unlock) + 10) * 1000 - Date.now()))
+    .then(() => continueTrace({ sentryTrace, baggage: sentryBaggage }, processWithdraw))
     .catch((error: unknown) => captureException(error));
 }
 
@@ -535,6 +577,7 @@ const Proposal = v.pipe(
     market: Address,
     nonce: v.bigint(),
     proposalType: v.enum(ProposalType),
+    retryCount: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0)), 0),
     sentryBaggage: v.optional(v.string()),
     sentryTrace: v.optional(v.string()),
     timestamp: v.optional(v.number()),
@@ -553,6 +596,7 @@ const Withdraw = v.pipe(
     receiver: Address,
     amount: v.bigint(),
     unlock: v.bigint(),
+    retryCount: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0)), 0),
     timestamp: v.optional(v.number()),
     sentryTrace: v.optional(v.string()),
     sentryBaggage: v.optional(v.string()),
