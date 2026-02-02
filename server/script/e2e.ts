@@ -11,7 +11,7 @@ process.on("uncaughtException", () => null);
 process.stdout.on("error", () => null);
 process.stderr.on("error", () => null);
 
-const v = spawn("vitest", ["--watch"], { stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, FORCE_COLOR: "1" } });
+const v = spawn("vitest", ["run"], { stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, FORCE_COLOR: "1" } });
 
 v.stdout.pipe(process.stdout);
 v.stderr.pipe(process.stderr);
