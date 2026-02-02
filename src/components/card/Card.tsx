@@ -276,6 +276,7 @@ export default function Card() {
                   </Text>
                   <View display="flex" flexDirection="row" alignItems="center" gap={16}>
                     <Pressable
+                      aria-label={hidden ? t("Show sensitive") : t("Hide sensitive")}
                       onPress={() => {
                         queryClient.setQueryData(["settings", "sensitive"], !hidden);
                       }}
