@@ -24,7 +24,7 @@ const BENEFITS = [
     subtitle: "Travel with peace of mind.",
     descriptions: ["Copy your ID and get 30 days of travel insurance for free on Pax Assistance."],
     logo: PaxLogo,
-    url: "https://www.paxassistance.com/ar/capitas/exacardcap/",
+    url: "https://www.paxassistance.com/{locale}/capitas/exacardcap/",
   },
   {
     id: "airalo",

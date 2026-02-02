@@ -21,6 +21,12 @@ import View from "../shared/View";
 import type { Benefit } from "./BenefitsSection";
 import type { PaxId } from "../../utils/server";
 
+const PAX_LOCALE: Record<string, string> = {
+  es: "ar",
+  pt: "br",
+  en: "us",
+};
+
 type BenefitSheetProperties = {
   benefit: Benefit | undefined;
   onClose: () => void;
@@ -28,7 +34,10 @@ type BenefitSheetProperties = {
 };
 
 export default function BenefitSheet({ benefit, open, onClose }: BenefitSheetProperties) {
-  const { t } = useTranslation();
+  const {
+    t,
+    i18n: { language },
+  } = useTranslation();
   const toast = useToastController();
 
   const {
@@ -136,11 +145,10 @@ export default function BenefitSheet({ benefit, open, onClose }: BenefitSheetPro
               minHeight={64}
               padding="$s4"
               onPress={() => {
-                openBrowser(
-                  benefit.id === "pax" && paxData?.associateId
-                    ? `${benefit.url}?cid=${paxData.associateId}`
-                    : benefit.url,
-                ).catch(reportError);
+                const isPax = benefit.id === "pax";
+                let url = isPax ? benefit.url.replace("{locale}", PAX_LOCALE[language] ?? "us") : benefit.url;
+                if (isPax && paxData?.associateId) url += `?cid=${paxData.associateId}`;
+                openBrowser(url).catch(reportError);
               }}
             >
               <Button.Text emphasized subHeadline color="$interactiveOnBaseBrandDefault">
