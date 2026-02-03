@@ -6,6 +6,8 @@ export default defineConfig({
   test: {
     globalSetup: ["test/anvil.ts", "test/database.ts", "test/spotlight.ts"],
     coverage: { enabled: true, reporter: ["lcov"] },
+    reporters: ["default", "junit"],
+    outputFile: { junit: "coverage/junit.xml" },
     testTimeout: 36_666,
     hookTimeout: 36_666,
     env: {
@@ -57,7 +59,7 @@ VuNOZKwaXFtqgA==
     ...(env.NODE_ENV === "e2e" && {
       include: ["test/e2e.ts"],
       disableConsoleIntercept: true,
-      reporters: [["default", { summary: false }]],
+      reporters: [["default", { summary: false }], "junit"],
     }),
   },
 });

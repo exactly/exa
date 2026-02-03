@@ -82,6 +82,7 @@ jobs:
           for i in {1..60}; do [ -f server/coverage/lcov.info ] && break; sleep 1; done
           curl -Os https://uploader.codecov.io/latest/linux/codecov && chmod +x codecov
           ./codecov -t ${{ env.CODECOV_TOKEN }} -f server/coverage/lcov.info -f server/coverage/app.json -F e2e -n android --build-url ${{ workflow.url }}
+          ./codecov -t ${{ env.CODECOV_TOKEN }} --report-type test_results -f server/coverage/junit.xml -F e2e -n android --build-url ${{ workflow.url }}
           pkill -f "adb logcat" || true
       - uses: eas/upload_artifact
         if: always()
@@ -159,6 +160,7 @@ jobs:
           for i in {1..60}; do [ -f server/coverage/lcov.info ] && break; sleep 1; done
           curl -Os https://uploader.codecov.io/latest/macos/codecov && chmod +x codecov
           ./codecov -t ${{ env.CODECOV_TOKEN }} -f server/coverage/lcov.info -f server/coverage/app.json -F e2e -n ios --build-url ${{ workflow.url }}
+          ./codecov -t ${{ env.CODECOV_TOKEN }} --report-type test_results -f server/coverage/junit.xml -F e2e -n ios --build-url ${{ workflow.url }}
           pkill -f "log stream" || true
           xcrun simctl diagnose -b --no-archive --output=simulator-diagnose || true
       - uses: eas/upload_artifact
