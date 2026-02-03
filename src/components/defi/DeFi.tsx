@@ -59,7 +59,7 @@ export default function DeFi() {
           </XStack>
           <DeFiServiceButton
             title={t("USDC funding")}
-            description={t("Connect your wallet to Exactly Protocol")}
+            description={fundingConnected ? t("Explore funding options") : t("Connect your wallet to Exactly Protocol")}
             connected={fundingConnected ?? false}
             onPress={() => {
               if (fundingConnected) {
@@ -76,7 +76,7 @@ export default function DeFi() {
           {bytecode && (
             <DeFiServiceButton
               title={t("Swap tokens")}
-              description={t("Connect your wallet to LI.FI")}
+              description={lifiConnected ? t("Swap via LI.FI") : t("Connect your wallet to LI.FI")}
               connected={lifiConnected ?? false}
               onPress={() => {
                 if (lifiConnected) {
