@@ -1,0 +1,43 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+- tapOn: Card
+- runFlow:
+    when: { true: "${maestro.platform != 'web'}" }
+    commands:
+      - tapOn: \$[\s\d,.\xa0]+, AVAILABLE BALANCE
+- runFlow:
+    when: { platform: web }
+    commands: [{ tapOn: Available balance }]
+- runFlow:
+    when: { visible: Accept and enable card }
+    commands: [{ tapOn: Accept and enable card }]
+- assertVisible: Manually add your card to Apple Pay & Google Pay to make contactless payments.
+- tapOn: Close
+- tapOn: Freeze card
+- tapOn: Unfreeze card
+- tapOn: View PIN number
+- tapOn: Close
+- tapOn: Weekly spending limit
+- tapOn: Close
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Hide sensitive } }
+- runFlow:
+    when: { true: "${maestro.platform != 'web'}" }
+    commands:
+      - assertNotVisible: \$[\s\d,.\xa0]+, AVAILABLE BALANCE
+- runFlow:
+    when: { platform: web }
+    commands:
+      - assertNotVisible:
+          text: \$[\s\d,.\xa0]+
+          above: Available balance
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Show sensitive } }
+- runFlow:
+    when: { true: "${maestro.platform != 'web'}" }
+    commands:
+      - assertVisible: \$[\s\d,.\xa0]+, AVAILABLE BALANCE
+- runFlow:
+    when: { platform: web }
+    commands:
+      - assertVisible:
+          text: \$[\s\d,.\xa0]+
+          above: Available balance

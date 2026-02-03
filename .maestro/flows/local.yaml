@@ -54,4 +54,7 @@ tags: [critical]
       - tapOn: View all steps
       - runFlow: ../subflows/verifyIdentity.yaml
       - assertNotVisible: Getting Started
+- runFlow: ../subflows/activateCard.yaml
+- tapOn: Home
+- assertVisible: SPENDING LIMIT
 - runFlow: ../subflows/storeCoverage.yaml
