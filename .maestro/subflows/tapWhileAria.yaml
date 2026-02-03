@@ -1,15 +1,24 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
 # HACK https://github.com/mobile-dev-inc/Maestro/issues/2914
+- evalScript: ${output.deadline = Date.now() + Number(timeout ?? 30000)}
 - runFlow:
     when: { true: "${maestro.platform != 'web'}" }
     commands:
       - repeat:
           while: { visible: "${aria}" }
-          commands: [{ tapOn: "${tap ?? aria}" }]
+          commands:
+            - runFlow:
+                when: { true: "${Date.now() >= output.deadline}" }
+                commands: [{ evalScript: "${throw new Error('timeout')}" }]
+            - tapOn: "${tap ?? aria}"
 - runFlow:
     when: { platform: web }
     commands:
       - repeat:
           while: { visible: { id: "${aria}" } }
-          commands: [{ tapOn: "${tap ?? aria}" }]
+          commands:
+            - runFlow:
+                when: { true: "${Date.now() >= output.deadline}" }
+                commands: [{ evalScript: "${throw new Error('timeout')}" }]
+            - tapOn: "${tap ?? aria}"
