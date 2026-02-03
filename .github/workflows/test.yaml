@@ -7,7 +7,11 @@ jobs:
     runs-on: ubuntu-latest
     env:
       NX_DAEMON: false
+      BASE_RPC_URL: ${{ secrets.BASE_RPC_URL }}
+      ETHEREUM_RPC_URL: ${{ secrets.ETHEREUM_RPC_URL }}
       OPTIMISM_RPC_URL: ${{ secrets.OPTIMISM_RPC_URL }}
+      OPTIMISM_SEPOLIA_RPC_URL: ${{ secrets.OPTIMISM_SEPOLIA_RPC_URL }}
+      POLYGON_RPC_URL: ${{ secrets.POLYGON_RPC_URL }}
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0, fetch-tags: true }
