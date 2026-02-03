@@ -162,6 +162,7 @@
   "packageManager": "pnpm@10.28.1",
   "pnpm": {
     "overrides": {
+      "@isaacs/brace-expansion": "^5.0.1",
       "@wagmi/core": "catalog:",
       "esbuild@0.18.20": "^0.25.0",
       "glob@11.0.3": "^11.1.0",
