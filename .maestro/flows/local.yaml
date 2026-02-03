@@ -3,58 +3,19 @@ tags: [critical]
 ---
 - launchApp: { clearState: true, permissions: { all: deny, camera: allow } }
 - runFlow: ../subflows/hideDevtools.yaml
-- runScript: ../dist/getAccount.js
 - tapOn: Sign in
-- runFlow:
-    when: { true: "${maestro.platform != 'web'}" }
-    commands:
-      - assertVisible: Stay updated
-      - tapOn: Not now
-      - pressKey: home
-      - launchApp: { permissions: { all: deny, camera: allow } }
-      - extendedWaitUntil: { visible: Your portfolio, timeout: 180000 }
-      - assertNotVisible: Stay updated
+- runFlow: ../subflows/dismissNotifications.yaml
+- runScript: ../dist/getAccount.js
 - assertVisible: ${output.account.slice(0, 6)}…${output.account.slice(-4)}
-- runFlow: ../subflows/readPortfolio.yaml
-- evalScript: ${output.portfolioBefore = output.portfolio}
-- runScript: ../dist/getAccount.js
-- runScript:
-    file: ../dist/mint.js
+- runFlow:
+    file: ../subflows/mint.yaml
     env: { asset: USDC, to: "${output.account}", amount: "420" }
-- tapOn: Home
-- runFlow: ../subflows/readPortfolio.yaml
 - runFlow:
-    when: { true: "${output.portfolio === output.portfolioBefore}" }
-    commands: [{ tapOn: Home }, { runFlow: ../subflows/readPortfolio.yaml }]
-- assertTrue: ${output.portfolio - output.portfolioBefore === 420}
-- evalScript: ${output.portfolioBefore = output.portfolio}
-- runScript: ../dist/getAccount.js
-- runFlow:
-    file: ../subflows/sendAsset.yaml
+    file: ../subflows/send.yaml
     env: { asset: USDC, to: "${output.owner}", amount: "69" }
-- tapOn: Home
 - runFlow:
-    file: ../subflows/tapWhileAria.yaml
-    env: { aria: Pending proposals, tap: Home }
-- runFlow: ../subflows/readPortfolio.yaml
-- assertTrue: ${output.portfolioBefore - output.portfolio === 69}
-- evalScript: ${output.portfolioBefore = output.portfolio}
-- runFlow:
-    file: ../subflows/borrowAsset.yaml
+    file: ../subflows/borrow.yaml
     env: { amount: "10", installments: "4" }
-- tapOn: Home
-- runFlow:
-    file: ../subflows/tapWhileAria.yaml
-    env: { aria: Pending proposals, tap: Home }
-- runFlow: ../subflows/readPortfolio.yaml
-- assertTrue: ${output.portfolio - output.portfolioBefore === 10}
-- runFlow:
-    when: { visible: Getting Started }
-    commands:
-      - tapOn: View all steps
-      - runFlow: ../subflows/verifyIdentity.yaml
-      - assertNotVisible: Getting Started
+- runFlow: ../subflows/verifyIdentity.yaml
 - runFlow: ../subflows/activateCard.yaml
-- tapOn: Home
-- assertVisible: SPENDING LIMIT
 - runFlow: ../subflows/storeCoverage.yaml

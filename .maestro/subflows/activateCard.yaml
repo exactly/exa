@@ -41,3 +41,5 @@ appId: ${APP_ID ?? "app.exactly"}
       - assertVisible:
           text: \$[\s\d,.\xa0]+
           above: Available balance
+- tapOn: Home
+- assertVisible: SPENDING LIMIT

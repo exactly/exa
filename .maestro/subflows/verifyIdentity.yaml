@@ -1,9 +1,9 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
-- assertVisible: Begin verifying
 - runFlow:
     when: { true: false } # HACK
     commands:
+      - tapOn: View all steps
       - tapOn: Begin verifying
       - assertVisible: We need some information to help us confirm your identity.
       - tapOn: Begin verifying
@@ -74,9 +74,13 @@ appId: ${APP_ID ?? "app.exactly"}
       - repeat: { times: 6, commands: [{ tapOn: square }] }
       - tapOn: Continue
       - tapOn: Done
-- runScript: ../dist/getAccount.js
-- runScript:
-    file: ../dist/approveKYC.js
-    env: { credentialId: "${output.owner}" }
-- runFlow: { file: tapAria.yaml, env: { aria: Back } }
+      - runFlow: { file: tapAria.yaml, env: { aria: Back } }
+- runFlow:
+    when: { visible: Getting Started }
+    commands:
+      - runScript: ../dist/getAccount.js
+      - runScript:
+          file: ../dist/approveKYC.js
+          env: { credentialId: "${output.owner}" }
 - tapOn: Home
+- assertNotVisible: Getting Started

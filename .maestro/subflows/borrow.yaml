@@ -2,6 +2,8 @@ appId: ${APP_ID ?? "app.exactly"}
 ---
 - assertTrue: ${amount && !Number.isNaN(Number(amount))}
 - assertTrue: ${installments && !Number.isNaN(Number(installments))}
+- runFlow: ../subflows/readPortfolio.yaml
+- evalScript: ${output.portfolioBefore = output.portfolio}
 - tapOn: DeFi
 - runFlow:
     when: { visible: Explore decentralized services }
@@ -32,3 +34,9 @@ appId: ${APP_ID ?? "app.exactly"}
     file: ../dist/hookProposals.js
     env: { account: "${output.account}" }
 - tapOn: Close
+- tapOn: Home
+- runFlow:
+    file: ../subflows/tapWhileAria.yaml
+    env: { aria: Pending proposals, tap: Home }
+- runFlow: ../subflows/readPortfolio.yaml
+- assertTrue: ${output.portfolio - output.portfolioBefore === Number(amount)}

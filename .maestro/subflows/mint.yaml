@@ -1,0 +1,13 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+- assertTrue: ${asset && to && amount && !Number.isNaN(Number(amount))}
+- runFlow: ../subflows/readPortfolio.yaml
+- evalScript: ${output.portfolioBefore = output.portfolio}
+- runScript: ../dist/getAccount.js
+- runScript: { file: ../dist/mint.js }
+- tapOn: Home
+- runFlow: ../subflows/readPortfolio.yaml
+- runFlow:
+    when: { true: "${output.portfolio === output.portfolioBefore}" }
+    commands: [{ tapOn: Home }, { runFlow: ../subflows/readPortfolio.yaml }]
+- assertTrue: ${output.portfolio - output.portfolioBefore === Number(amount)}
