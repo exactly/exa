@@ -1,0 +1,35 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+- scrollUntilVisible: { element: Repay }
+- copyTextFrom:
+    text: \d+[,.]\d{2}
+    below: Upcoming payments
+    leftOf: Repay
+    index: 1
+- copyTextFrom:
+    text: "[^%.]+"
+    below: "${maestro.copiedText}"
+    leftOf: Repay
+- evalScript: ${output.secondMaturity = maestro.copiedText}
+- tapOn: Repay
+- tapOn: Rollover
+- runFlow:
+    when: { visible: Review refinance details }
+    commands: [{ tapOn: Review refinance details }]
+- tapOn: Confirm rollover
+- runScript: ../dist/getAccount.js
+- runScript:
+    file: ../dist/hookProposals.js
+    env: { account: "${output.account}" }
+- tapOn: Home
+- scrollUntilVisible: { element: Repay }
+- copyTextFrom:
+    text: \d+[,.]\d{2}
+    below: Upcoming payments
+    leftOf: Repay
+- copyTextFrom:
+    text: "[^%.]+"
+    below: "${maestro.copiedText}"
+    leftOf: Repay
+- assertTrue: ${maestro.copiedText === output.secondMaturity}
+- tapOn: Home
