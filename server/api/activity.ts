@@ -315,6 +315,7 @@ export default new Hono().get(
       .toSorted((a, b) => b.timestamp.localeCompare(a.timestamp) || b.id.localeCompare(a.id));
 
     if (maturity && c.req.header("accept") === "application/pdf") {
+      return c.json([], 200);
       const card = await database.query.cards.findFirst({
         columns: { lastFour: true },
         where: and(eq(cards.credentialId, credentialId), eq(cards.status, "ACTIVE")),
