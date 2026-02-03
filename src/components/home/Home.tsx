@@ -1,8 +1,8 @@
-import React, { useCallback, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { RefreshControl } from "react-native";
 
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 
 import { AnimatePresence, ScrollView, YStack } from "tamagui";
 
@@ -49,7 +49,6 @@ import View from "../shared/View";
 const HEALTH_FACTOR_THRESHOLD = (WAD * 11n) / 10n;
 
 export default function Home() {
-  const parameters = useLocalSearchParams<{ maturity?: string }>();
   const router = useRouter();
   const {
     t,
@@ -57,10 +56,6 @@ export default function Home() {
   } = useTranslation();
   const [spendingLimitsInfoSheetOpen, setSpendingLimitsInfoSheetOpen] = useState(false);
   const [visaSignatureModalOpen, setVisaSignatureModalOpen] = useState(false);
-  const { maturity } = parameters;
-  const clearMaturity = useCallback(() => {
-    router.setParams({ ...parameters, maturity: undefined });
-  }, [parameters, router]);
 
   const { address: account } = useAccount();
   const { data: bytecode, refetch: refetchBytecode } = useBytecode({
@@ -194,21 +189,13 @@ export default function Home() {
                 )}
               </AnimatePresence>
               {isKYCFetched && isKYCApproved && <BenefitsSection />}
-              <OverduePayments
-                onSelect={(m) => {
-                  router.setParams({ ...parameters, maturity: String(m) });
-                }}
-              />
-              <UpcomingPayments
-                onSelect={(m) => {
-                  router.setParams({ ...parameters, maturity: String(m) });
-                }}
-              />
+              <OverduePayments onSelect={(m) => router.setParams({ maturity: String(m) })} />
+              <UpcomingPayments onSelect={(m) => router.setParams({ maturity: String(m) })} />
               <LatestActivity activity={activity} />
               <HomeDisclaimer />
             </View>
           </View>
-          <PaymentSheet key={maturity ?? "closed"} maturity={maturity} onClose={clearMaturity} />
+          <PaymentSheet />
           <CardUpgradeSheet
             open={cardUpgradeOpen}
             onClose={() => {

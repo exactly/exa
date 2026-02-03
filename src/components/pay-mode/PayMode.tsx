@@ -1,8 +1,8 @@
-import React, { useCallback, useRef } from "react";
+import React, { useRef } from "react";
 import { Trans } from "react-i18next";
 import { RefreshControl } from "react-native";
 
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 
 import { ScrollView, XStack } from "tamagui";
 
@@ -26,13 +26,8 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function PayMode() {
-  const parameters = useLocalSearchParams<{ maturity?: string }>();
   const { account } = useAsset(marketUSDCAddress);
   const router = useRouter();
-  const { maturity } = parameters;
-  const clearMaturity = useCallback(() => {
-    router.setParams({ ...parameters, maturity: undefined });
-  }, [parameters, router]);
   const { refetch, isPending } = useReadPreviewerExactly({ address: previewerAddress, args: [account ?? zeroAddress] });
 
   const scrollRef = useRef<ScrollView>(null);
@@ -60,16 +55,8 @@ export default function PayMode() {
           <>
             <PaySelector />
             <View padded gap="$s6">
-              <OverduePayments
-                onSelect={(m) => {
-                  router.setParams({ ...parameters, maturity: String(m) });
-                }}
-              />
-              <UpcomingPayments
-                onSelect={(m) => {
-                  router.setParams({ ...parameters, maturity: String(m) });
-                }}
-              />
+              <OverduePayments onSelect={(m) => router.setParams({ maturity: String(m) })} />
+              <UpcomingPayments onSelect={(m) => router.setParams({ maturity: String(m) })} />
               <XStack gap="$s4" alignItems="flex-start" paddingTop="$s3" flexWrap="wrap">
                 <Text caption2 color="$interactiveOnDisabled" textAlign="justify">
                   <Trans
@@ -102,7 +89,7 @@ export default function PayMode() {
                 </Text>
               </XStack>
             </View>
-            <PaymentSheet key={maturity ?? "closed"} maturity={maturity} onClose={clearMaturity} />
+            <PaymentSheet />
           </>
         </ScrollView>
       </View>

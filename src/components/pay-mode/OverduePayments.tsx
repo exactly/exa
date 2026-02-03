@@ -22,7 +22,7 @@ import AssetLogo from "../shared/AssetLogo";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-export default function OverduePayments({ onSelect }: { onSelect: (maturity: bigint, amount: bigint) => void }) {
+export default function OverduePayments({ onSelect }: { onSelect: (maturity: bigint) => void }) {
   const {
     t,
     i18n: { language },
@@ -93,7 +93,7 @@ export default function OverduePayments({ onSelect }: { onSelect: (maturity: big
               alignItems="center"
               onPress={() => {
                 if (processing) return;
-                onSelect(maturity, amount);
+                onSelect(maturity);
               }}
             >
               <XStack alignItems="center" gap="$s3">

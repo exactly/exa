@@ -1,8 +1,8 @@
-import React, { useCallback, type RefObject } from "react";
+import React, { type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, RefreshControl } from "react-native";
 
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 
 import { ArrowLeft, CircleHelp } from "@tamagui/lucide-icons";
 import { ScrollView, XStack, YStack } from "tamagui";
@@ -25,13 +25,8 @@ import View from "../shared/View";
 
 export default function Loans() {
   const { t } = useTranslation();
-  const parameters = useLocalSearchParams<{ maturity?: string }>();
   const { account } = useAsset(marketUSDCAddress);
   const router = useRouter();
-  const { maturity } = parameters;
-  const clearMaturity = useCallback(() => {
-    router.setParams({ ...parameters, maturity: undefined });
-  }, [parameters, router]);
   const { refetch, isPending } = useReadPreviewerExactly({ address: previewerAddress, args: [account ?? zeroAddress] });
   return (
     <SafeView fullScreen tab backgroundColor="$backgroundSoft">
@@ -86,11 +81,7 @@ export default function Loans() {
             </View>
             <View gap="$s6" padded>
               <CreditLine />
-              <UpcomingPayments
-                onSelect={(m) => {
-                  router.setParams({ ...parameters, maturity: String(m) });
-                }}
-              />
+              <UpcomingPayments onSelect={(m) => router.setParams({ maturity: String(m) })} />
             </View>
             <XStack gap="$s4" alignItems="flex-start" padding="$s4" flexWrap="wrap">
               <Text caption2 color="$interactiveOnDisabled" textAlign="justify">
@@ -99,7 +90,7 @@ export default function Loans() {
                 )}
               </Text>
             </XStack>
-            <PaymentSheet key={maturity ?? "closed"} maturity={maturity} onClose={clearMaturity} />
+            <PaymentSheet />
           </>
         </ScrollView>
       </View>
