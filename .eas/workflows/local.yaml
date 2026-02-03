@@ -7,6 +7,7 @@ defaults: { tools: { node: "24.13.0", pnpm: "10.28.1" } }
 concurrency: { cancel_in_progress: true, group: "${{ workflow.filename }}-${{ github.ref }}" }
 jobs:
   fingerprint:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     type: fingerprint
     environment: development
     env: { APP_DOMAIN: localhost, CHAIN_ID: "31337" }
