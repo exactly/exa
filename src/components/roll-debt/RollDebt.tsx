@@ -281,7 +281,7 @@ function RolloverButton({
           burntOptions: { haptic: "success", preset: "done" },
         });
         await refetchPendingProposals();
-        router.replace("/pending-proposals");
+        router.dismissTo("/activity");
       },
       onError: (error) => {
         toast.show(t("Rollover failed"), {
