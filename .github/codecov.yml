@@ -1,3 +1,0 @@
-ignore:
-  - contracts/test/**
-  - server/test/**
