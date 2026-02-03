@@ -1,4 +1,4 @@
-import React, { useState, type RefObject } from "react";
+import React, { useCallback, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, RefreshControl } from "react-native";
 
@@ -25,10 +25,13 @@ import View from "../shared/View";
 
 export default function Loans() {
   const { t } = useTranslation();
-  const parameters = useLocalSearchParams();
+  const parameters = useLocalSearchParams<{ maturity?: string }>();
   const { account } = useAsset(marketUSDCAddress);
-  const [paySheetOpen, setPaySheetOpen] = useState(false);
   const router = useRouter();
+  const { maturity } = parameters;
+  const clearMaturity = useCallback(() => {
+    router.setParams({ ...parameters, maturity: undefined });
+  }, [parameters, router]);
   const { refetch, isPending } = useReadPreviewerExactly({ address: previewerAddress, args: [account ?? zeroAddress] });
   return (
     <SafeView fullScreen tab backgroundColor="$backgroundSoft">
@@ -84,9 +87,8 @@ export default function Loans() {
             <View gap="$s6" padded>
               <CreditLine />
               <UpcomingPayments
-                onSelect={(maturity) => {
-                  router.setParams({ ...parameters, maturity: String(maturity) });
-                  setPaySheetOpen(true);
+                onSelect={(m) => {
+                  router.setParams({ ...parameters, maturity: String(m) });
                 }}
               />
             </View>
@@ -97,13 +99,7 @@ export default function Loans() {
                 )}
               </Text>
             </XStack>
-            <PaymentSheet
-              open={paySheetOpen}
-              onClose={() => {
-                setPaySheetOpen(false);
-                router.setParams({ ...parameters, maturity: undefined });
-              }}
-            />
+            <PaymentSheet key={maturity ?? "closed"} maturity={maturity} onClose={clearMaturity} />
           </>
         </ScrollView>
       </View>

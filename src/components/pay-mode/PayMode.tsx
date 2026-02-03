@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useCallback, useRef } from "react";
 import { Trans } from "react-i18next";
 import { RefreshControl } from "react-native";
 
@@ -26,10 +26,13 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function PayMode() {
-  const parameters = useLocalSearchParams();
+  const parameters = useLocalSearchParams<{ maturity?: string }>();
   const { account } = useAsset(marketUSDCAddress);
-  const [paySheetOpen, setPaySheetOpen] = useState(false);
   const router = useRouter();
+  const { maturity } = parameters;
+  const clearMaturity = useCallback(() => {
+    router.setParams({ ...parameters, maturity: undefined });
+  }, [parameters, router]);
   const { refetch, isPending } = useReadPreviewerExactly({ address: previewerAddress, args: [account ?? zeroAddress] });
 
   const scrollRef = useRef<ScrollView>(null);
@@ -58,15 +61,13 @@ export default function PayMode() {
             <PaySelector />
             <View padded gap="$s6">
               <OverduePayments
-                onSelect={(maturity) => {
-                  router.setParams({ ...parameters, maturity: String(maturity) });
-                  setPaySheetOpen(true);
+                onSelect={(m) => {
+                  router.setParams({ ...parameters, maturity: String(m) });
                 }}
               />
               <UpcomingPayments
-                onSelect={(maturity) => {
-                  router.setParams({ ...parameters, maturity: String(maturity) });
-                  setPaySheetOpen(true);
+                onSelect={(m) => {
+                  router.setParams({ ...parameters, maturity: String(m) });
                 }}
               />
               <XStack gap="$s4" alignItems="flex-start" paddingTop="$s3" flexWrap="wrap">
@@ -101,13 +102,7 @@ export default function PayMode() {
                 </Text>
               </XStack>
             </View>
-            <PaymentSheet
-              open={paySheetOpen}
-              onClose={() => {
-                setPaySheetOpen(false);
-                router.setParams({ ...parameters, maturity: undefined });
-              }}
-            />
+            <PaymentSheet key={maturity ?? "closed"} maturity={maturity} onClose={clearMaturity} />
           </>
         </ScrollView>
       </View>

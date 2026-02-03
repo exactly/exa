@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { RefreshControl } from "react-native";
 
@@ -49,15 +49,18 @@ import View from "../shared/View";
 const HEALTH_FACTOR_THRESHOLD = (WAD * 11n) / 10n;
 
 export default function Home() {
-  const parameters = useLocalSearchParams();
+  const parameters = useLocalSearchParams<{ maturity?: string }>();
   const router = useRouter();
   const {
     t,
     i18n: { language },
   } = useTranslation();
-  const [paySheetOpen, setPaySheetOpen] = useState(false);
   const [spendingLimitsInfoSheetOpen, setSpendingLimitsInfoSheetOpen] = useState(false);
   const [visaSignatureModalOpen, setVisaSignatureModalOpen] = useState(false);
+  const { maturity } = parameters;
+  const clearMaturity = useCallback(() => {
+    router.setParams({ ...parameters, maturity: undefined });
+  }, [parameters, router]);
 
   const { address: account } = useAccount();
   const { data: bytecode, refetch: refetchBytecode } = useBytecode({
@@ -192,28 +195,20 @@ export default function Home() {
               </AnimatePresence>
               {isKYCFetched && isKYCApproved && <BenefitsSection />}
               <OverduePayments
-                onSelect={(maturity) => {
-                  router.setParams({ ...parameters, maturity: String(maturity) });
-                  setPaySheetOpen(true);
+                onSelect={(m) => {
+                  router.setParams({ ...parameters, maturity: String(m) });
                 }}
               />
               <UpcomingPayments
-                onSelect={(maturity) => {
-                  router.setParams({ ...parameters, maturity: String(maturity) });
-                  setPaySheetOpen(true);
+                onSelect={(m) => {
+                  router.setParams({ ...parameters, maturity: String(m) });
                 }}
               />
               <LatestActivity activity={activity} />
               <HomeDisclaimer />
             </View>
           </View>
-          <PaymentSheet
-            open={paySheetOpen}
-            onClose={() => {
-              setPaySheetOpen(false);
-              router.setParams({ ...parameters, maturity: undefined });
-            }}
-          />
+          <PaymentSheet key={maturity ?? "closed"} maturity={maturity} onClose={clearMaturity} />
           <CardUpgradeSheet
             open={cardUpgradeOpen}
             onClose={() => {

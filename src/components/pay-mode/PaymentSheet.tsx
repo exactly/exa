@@ -2,7 +2,7 @@ import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, StyleSheet } from "react-native";
 
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 
 import {
   ArrowRight,
@@ -42,16 +42,22 @@ import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-export default function PaymentSheet({ open, onClose }: { onClose: () => void; open: boolean }) {
+export default function PaymentSheet({
+  maturity: maturityParameter,
+  onClose,
+}: {
+  maturity: string | undefined;
+  onClose: () => void;
+}) {
   const { address } = useAccount();
   const { market: USDCMarket } = useAsset(marketUSDCAddress);
-  const { maturity: currentMaturity } = useLocalSearchParams();
   const router = useRouter();
   const [rolloverIntroOpen, setRolloverIntroOpen] = useState(false);
   const { success, output: maturity } = safeParse(
     pipe(string(), nonEmpty("no maturity"), digits("bad maturity")),
-    currentMaturity,
+    maturityParameter,
   );
+  const open = success;
   const toast = useToastController();
   const { data: hidden } = useQuery<boolean>({ queryKey: ["settings", "sensitive"] });
   const { data: rolloverIntroShown } = useQuery<boolean>({ queryKey: ["settings", "rollover-intro-shown"] });
@@ -77,10 +83,35 @@ export default function PaymentSheet({ open, onClose }: { onClose: () => void; o
   }, [address]);
 
   const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
-  if (!success || !USDCMarket) return;
+  const handleClose = useCallback(() => {
+    setRolloverIntroOpen(false);
+    onClose();
+  }, [onClose]);
+  if (!open || !USDCMarket) return null;
   const { fixedBorrowPositions, usdPrice, decimals } = USDCMarket;
   const borrow = fixedBorrowPositions.find((b) => b.maturity === BigInt(maturity));
-  if (!borrow) return;
+  if (!borrow) {
+    return (
+      <ModalSheet open={open} onClose={handleClose}>
+        <SafeView
+          paddingTop={0}
+          fullScreen
+          borderTopLeftRadius="$r4"
+          borderTopRightRadius="$r4"
+          backgroundColor="$backgroundMild"
+        >
+          <View padded paddingTop="$s6" fullScreen flex={1} justifyContent="center" alignItems="center" gap="$s4">
+            <Text secondary body textAlign="center">
+              {t("This payment is no longer available")}
+            </Text>
+            <Button secondary onPress={handleClose}>
+              <Button.Text>{t("Close")}</Button.Text>
+            </Button>
+          </View>
+        </SafeView>
+      </ModalSheet>
+    );
+  }
   const previewValue = (borrow.previewValue * usdPrice) / 10n ** BigInt(decimals);
   const positionValue = ((borrow.position.principal + borrow.position.fee) * usdPrice) / 10n ** BigInt(decimals);
   const discount = Number(WAD - (previewValue * WAD) / positionValue) / 1e18;
@@ -103,13 +134,7 @@ export default function PaymentSheet({ open, onClose }: { onClose: () => void; o
       ? t("PAY NOW AND SAVE {{percent}}", { percent: discountPercentDisplay })
       : t("DAILY PENALTIES {{percent}}", { percent: discountPercentDisplay });
   return (
-    <ModalSheet
-      open={open}
-      onClose={() => {
-        setRolloverIntroOpen(false);
-        onClose();
-      }}
-    >
+    <ModalSheet open={open} onClose={handleClose}>
       <SafeView
         paddingTop={0}
         fullScreen
