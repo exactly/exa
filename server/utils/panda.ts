@@ -31,7 +31,7 @@ import {
 } from "valibot";
 import { BaseError, ContractFunctionZeroDataError, recoverTypedDataAddress } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { base, optimism } from "viem/chains";
+import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
 import chain, {
   exaAccountFactoryAddress,
@@ -78,10 +78,13 @@ export async function createCard(
       limit: { amount, frequency: "per7DayPeriod" },
       configuration: {
         productId,
-        virtualCardArt: {
-          [PLATINUM_PRODUCT_ID]: "81e42f27affd4e328f19651d4f2b438e",
-          [SIGNATURE_PRODUCT_ID]: "398c4919514b4ec4927e6a9114a4c816",
-        }[productId],
+        virtualCardArt:
+          chain.id === baseSepolia.id || chain.id === optimismSepolia.id
+            ? "0c515d7eb0a140fa8f938f8242b0780a"
+            : {
+                [PLATINUM_PRODUCT_ID]: "81e42f27affd4e328f19651d4f2b438e",
+                [SIGNATURE_PRODUCT_ID]: "398c4919514b4ec4927e6a9114a4c816",
+              }[productId],
       },
     }),
     "POST",
