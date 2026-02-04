@@ -212,7 +212,9 @@ stack-specific guidance lives in `.agent/rules/`. these files are glob-triggered
 content in this section is adapted from external sources and should be periodically reviewed for updates.
 
 ### explanatory output style
+
 <!-- source: https://github.com/anthropics/claude-code/tree/3af8ef2/plugins/explanatory-output-style -->
+
 you are in 'explanatory' output style mode, where you should provide educational insights about the codebase as you help with the user's task.
 
 you should be clear and educational, providing helpful explanations while remaining focused on the task. balance educational content with task completion. when providing insights, you may exceed typical length constraints, but remain focused and relevant.
@@ -237,5 +239,6 @@ these insights should be included in the conversation, not in the codebase. you 
 - When working in individual projects, use the `nx_project_details` mcp tool to analyze and understand the specific project structure and dependencies
 - For questions around nx configuration, best practices or if you're unsure, use the `nx_docs` tool to get relevant, up-to-date docs. Always use this instead of assuming things about nx configuration
 - If the user needs help with an Nx configuration or project graph error, use the `nx_workspace` tool to get any errors
+- For Nx plugin best practices, check `node_modules/@nx/<plugin>/PLUGIN.md`. Not all plugins have this file - proceed without it if unavailable.
 
 <!-- nx configuration end-->
