@@ -155,8 +155,7 @@ contract SerialProxierTest is ForkTest {
     ProposalManager pm = ProposalManager(
       address(ExaPlugin(payable(address(ExaAccountFactory(payable(factoryOP)).EXA_PLUGIN()))).proposalManager())
     );
-    vm.prank(acct("admin"));
-    pm.allowTarget(address(usdc), true);
+    assertTrue(pm.allowlist(address(usdc)), "usdc should be in allowlist");
 
     PublicKey[] memory owners = new PublicKey[](1);
     owners[0] = PublicKey({
