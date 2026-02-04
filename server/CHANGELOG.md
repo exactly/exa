@@ -1,5 +1,15 @@
 # @exactly/server
 
+## 0.2.55
+
+### Patch Changes
+
+- [`38bcc93`](https://github.com/exactly/exa/commit/38bcc931a6ee3e854a761e5663e2db9dc89e516b) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 📈 enrich proposal queue span instrumentation
+
+- [`b150579`](https://github.com/exactly/exa/commit/b1505799417308f919af23093f34293ecb8fc2a8) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🤡 enhance panda mocks for e2e tests
+
+- [#670](https://github.com/exactly/exa/pull/670) [`d0e9f6e`](https://github.com/exactly/exa/commit/d0e9f6ec090caaa0da75e84545f8a4722bfbd43c) Thanks [@aguxez](https://github.com/aguxez)! - ✨ add pax for platinum to signature card upgrades
+
 ## 0.2.54
 
 ### Patch Changes

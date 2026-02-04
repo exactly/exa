@@ -1,5 +1,36 @@
 # @exactly/mobile
 
+## 1.1.6
+
+### Patch Changes
+
+- [#718](https://github.com/exactly/exa/pull/718) [`d0efe01`](https://github.com/exactly/exa/commit/d0efe0167e22dc6ae5bc893b5ed1556b271c18bb) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ♻️ recompose payment modal
+
+- [`9221121`](https://github.com/exactly/exa/commit/92211213bf7f8b20fa967ce3cf094cb81ef83266) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✅ test card activation flow
+
+- [#717](https://github.com/exactly/exa/pull/717) [`62ff9e7`](https://github.com/exactly/exa/commit/62ff9e73035cd1f76d9a1d6704e266c3e4a19ce6) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ♿️ add aria label to rollover back button
+
+- [#705](https://github.com/exactly/exa/pull/705) [`7f76205`](https://github.com/exactly/exa/commit/7f76205b941820b81341faf227efb2f19ac146a5) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚸 improve getting started component
+
+- [#705](https://github.com/exactly/exa/pull/705) [`6839afd`](https://github.com/exactly/exa/commit/6839afd90f6a661f3960c1a44d5c0593a7083333) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🩹 set card query defaults
+
+- [`80eb93e`](https://github.com/exactly/exa/commit/80eb93eeb68adcbd04d9d6b47eda31b09f36b1b4) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🩹 fix worklet gesture warning
+
+- [`b48ed21`](https://github.com/exactly/exa/commit/b48ed21c9f860ce0d6aea827e6f491cf12a563cc) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ♿️ add aria label to card sensitive toggle
+
+- [`79e0616`](https://github.com/exactly/exa/commit/79e06162b31fed6ebb46a1de981b1be80d8b02e7) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✅ extract maestro aria subflows
+
+- [#718](https://github.com/exactly/exa/pull/718) [`57f56f6`](https://github.com/exactly/exa/commit/57f56f6024d68c71fcc41918994c9731a136fc76) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix payment sheet
+
+- [#718](https://github.com/exactly/exa/pull/718) [`1e495e2`](https://github.com/exactly/exa/commit/1e495e23902c82829780820305a987c090bd0b5b) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix defi buttons ux
+
+- [#717](https://github.com/exactly/exa/pull/717) [`85337ca`](https://github.com/exactly/exa/commit/85337cae1036a1c66865c626f722950ed805de20) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚸 navigate successful rollover to activity
+
+- [#710](https://github.com/exactly/exa/pull/710) [`8b4f49c`](https://github.com/exactly/exa/commit/8b4f49cb2f61bc9d9d7de3be0a92e5a2c3dfb695) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ♿️ add aria label to loan amount selector
+
+- Updated dependencies [[`38bcc93`](https://github.com/exactly/exa/commit/38bcc931a6ee3e854a761e5663e2db9dc89e516b), [`b150579`](https://github.com/exactly/exa/commit/b1505799417308f919af23093f34293ecb8fc2a8), [`d0e9f6e`](https://github.com/exactly/exa/commit/d0e9f6ec090caaa0da75e84545f8a4722bfbd43c)]:
+  - @exactly/server@0.2.55
+
 ## 1.1.5
 
 ### Patch Changes
