@@ -2,7 +2,7 @@ codecov:
   notify: { after_n_builds: 4, notify_error: true }
 component_management:
   individual_components:
-    - { component_id: app, paths: [src/**] }
+    - { component_id: app, paths: [src/**, "*.ts"] }
     - { component_id: common, paths: [common/**] }
     - { component_id: contracts, paths: [contracts/**] }
     - { component_id: server, paths: [server/**] }
