@@ -501,7 +501,6 @@ export default function Pay() {
     setManuallySelectedAsset({ address, external });
   }, []);
 
-  const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
   const disabled =
     isSimulating || !!simulationError || (selectedAsset.external && !route) || repayAssets > maxRepayInput;
   const loading = isSimulating || isPending || (selectedAsset.external && isRoutePending);
@@ -837,7 +836,7 @@ export default function Pay() {
         currency={symbol}
         selectedAsset={selectedAsset.address}
         onClose={() => {
-          router.replace(isLatestPlugin ? "/pending-proposals" : "/(main)/(home)");
+          router.dismissTo("/activity");
         }}
       />
     );
