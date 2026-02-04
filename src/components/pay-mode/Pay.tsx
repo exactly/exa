@@ -35,7 +35,7 @@ import {
 } from "@exactly/common/generated/hooks";
 import ProposalType from "@exactly/common/ProposalType";
 import { Address } from "@exactly/common/validation";
-import { divWad, fixedRepayAssets, fixedRepayPosition, min, mulWad, WAD } from "@exactly/lib";
+import { divWad, fixedRepayAssets, fixedRepayPosition, min, WAD } from "@exactly/lib";
 
 import AssetSelectionSheet from "./AssetSelectionSheet";
 import RepayAmountSelector from "./RepayAmountSelector";
@@ -232,13 +232,13 @@ export default function Pay() {
 
   const positionAssets =
     fixedRepaySnapshot && repayAssets && simulationTimestamp && positionValue > 0n
-      ? fixedRepayPosition(fixedRepaySnapshot, Number(maturity ?? 0n), repayAssets, simulationTimestamp)
+      ? pad(fixedRepayPosition(fixedRepaySnapshot, Number(maturity ?? 0n), repayAssets, simulationTimestamp))
       : 0n;
 
   const discountOrPenalty = repayAssets && positionAssets ? divWad(repayAssets, positionAssets) : 0n;
   const discountOrPenaltyPercentage = Number(((WAD - discountOrPenalty) * 10n ** 8n) / WAD) / Number(10n ** 8n);
 
-  const maxRepay = borrow ? (repayAssets ? mulWad(repayAssets, slippage) : undefined) : 0n;
+  const maxRepay = borrow ? (repayAssets ? pad(repayAssets) : undefined) : 0n;
   const {
     data: route,
     error: routeError,
@@ -275,7 +275,7 @@ export default function Pay() {
     refetchInterval: 20_000,
   });
 
-  const maxAmountIn = route?.fromAmount ? (route.fromAmount * slippage) / WAD + 69n : undefined; // HACK try to avoid ZERO_SHARES on dust deposit
+  const maxAmountIn = route?.fromAmount ? pad(route.fromAmount, 1000n) + 69n : undefined; // HACK try to avoid ZERO_SHARES on dust deposit
 
   const {
     propose: { data: repayPropose },
@@ -859,4 +859,4 @@ export default function Pay() {
     );
 }
 
-const slippage = (WAD * 1001n) / 1000n;
+const pad = (value: bigint, divisor = 1_000_000n) => value + (value / divisor || 1n);
