@@ -52,6 +52,8 @@ jobs:
       - run: eas update --auto --channel ${{ inputs.profile }} --platform all --non-interactive
       - run: echo "release=$(node -e 'console.log(require(`./src/generated/release`))')" >> $GITHUB_OUTPUT
         id: release
+      - uses: actions/upload-artifact@v4
+        with: { name: "${{ steps.release.outputs.release }}", path: dist }
       - run: npx sentry-expo-upload-sourcemaps dist
         env:
           SENTRY_ORG: exactly
