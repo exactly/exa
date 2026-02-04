@@ -1460,11 +1460,10 @@ async function publish(payload: v.InferOutput<typeof Payload>, receipt?: Transac
               timestamp,
               body: { ...payload.body, credentialId: user.id },
             }),
-            webhook.card?.[payload.action] ?? webhook.url,
+            webhook.user?.[payload.action] ?? webhook.url,
             webhook.secret,
           );
         case "card":
-        // falls through
         case "transaction":
           return sendWebhook(
             v.parse(Webhook, {
