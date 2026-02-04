@@ -113,7 +113,7 @@ contract Redeployer is BaseScript {
     WebauthnOwnerPlugin ownerPlugin = new WebauthnOwnerPlugin();
 
     ProposalManager proposalManager = new ProposalManager(
-      admin, IAuditor(auditor), IDebtManager(address(1)), IInstallmentsRouter(address(1)), admin, new address[](0), 1
+      admin, IAuditor(auditor), IDebtManager(address(1)), IInstallmentsRouter(address(1)), admin, allowlist(), 1
     );
 
     ExaPlugin exaPlugin = new ExaPlugin(
@@ -150,6 +150,18 @@ contract Redeployer is BaseScript {
       if (vm.computeCreateAddress(account, nonce) == target) return nonce;
     }
     revert NonceNotFound();
+  }
+
+  function allowlist() internal view returns (address[] memory targets) {
+    string memory deploy = vm.readFile("deploy.json");
+    string memory key = string.concat(".proposalManager.allowlist.", vm.toString(block.chainid));
+    if (!vm.keyExistsJson(deploy, key)) return new address[](0);
+
+    string[] memory keys = vm.parseJsonKeys(deploy, key);
+    targets = new address[](keys.length);
+    for (uint256 i = 0; i < keys.length; ++i) {
+      targets[i] = vm.parseAddress(keys[i]);
+    }
   }
 }
 
