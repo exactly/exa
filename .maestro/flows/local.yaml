@@ -18,6 +18,7 @@ tags: [critical]
     file: ../subflows/borrow.yaml
     env: { amount: "10", installments: "4" }
 - runFlow: ../subflows/rollover.yaml
+- runFlow: ../subflows/repay.yaml
 - runFlow: ../subflows/verifyIdentity.yaml
 - runFlow: ../subflows/activateCard.yaml
 - runFlow: ../subflows/storeCoverage.yaml
