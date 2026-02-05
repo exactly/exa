@@ -25,12 +25,12 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
   gcTime: AUTH_EXPIRY,
   queryFn: async () => {
     const method = queryClient.getQueryData<AuthMethod>(["method"]);
-    const credentialId =
+    const owner =
       method === "siwe"
         ? getConnection(ownerConfig).address
         : queryClient.getQueryData<Credential>(["credential"])?.credentialId;
-    if (method === "siwe" && !credentialId) return queryClient.getQueryData<number>(["auth"]) ?? 0;
-    const get = await api.auth.authentication.$get({ query: { credentialId } });
+    if (method === "siwe" && !owner) return queryClient.getQueryData<number>(["auth"]) ?? 0;
+    const get = await api.auth.authentication.$get({ query: { credentialId: owner } });
     const options = await get.json();
     if (options.method === "webauthn" && Platform.OS === "android") delete options.allowCredentials; // HACK fix android credential filtering
     const json =
@@ -50,7 +50,8 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
           });
     const post = await api.auth.authentication.$post({ json });
     if (!post.ok) throw new APIError(post.status, stringOrLegacy(await post.json()));
-    const { expires, intercomToken, factory, x, y } = await post.json();
+    const { expires, intercomToken, credentialId, factory, x, y } = await post.json();
+    queryClient.setQueryData(["credential"], { credentialId, factory, x, y });
     await logoutIntercom();
     await loginIntercom(deriveAddress(factory, { x, y }), intercomToken);
     return parse(Auth, expires);
@@ -170,16 +171,12 @@ export async function getKYCStatus(scope: "basic" = "basic") {
 }
 
 export async function getCredential() {
+  const cached = queryClient.getQueryData<Credential>(["credential"]);
+  if (cached) return cached;
   await auth();
-  const response = await api.passkey.$get();
-  if (!response.ok) {
-    if ((response.status as number) === 401) {
-      queryClient.setQueryData(["auth"], undefined);
-      return getCredential();
-    }
-    throw new APIError(response.status, stringOrLegacy(await response.json()));
-  }
-  return response.json();
+  const credential = queryClient.getQueryData<Credential>(["credential"]);
+  if (!credential) throw new Error("missing credential");
+  return credential;
 }
 
 export async function createCredential() {
