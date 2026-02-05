@@ -11,9 +11,11 @@ import database, { credentials } from "../database";
 import auth from "../middleware/auth";
 import decodePublicKey from "../utils/decodePublicKey";
 
+/** @deprecated covered by authentication */
 export default new Hono().get(
   "/",
   describeRoute({
+    deprecated: true,
     summary: "Get passkey metadata",
     responses: {
       200: {

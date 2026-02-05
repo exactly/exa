@@ -24,7 +24,7 @@ const api = new Hono()
   .route("/activity", activity)
   .route("/card", card)
   .route("/kyc", kyc)
-  .route("/passkey", passkey)
+  .route("/passkey", passkey) // eslint-disable-line @typescript-eslint/no-deprecated -- // TODO remove
   .route("/pax", pax)
   .route("/ramp", ramp);
 
