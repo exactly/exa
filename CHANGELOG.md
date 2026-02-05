@@ -1,5 +1,20 @@
 # @exactly/mobile
 
+## 1.1.7
+
+### Patch Changes
+
+- [#719](https://github.com/exactly/exa/pull/719) [`46f385b`](https://github.com/exactly/exa/commit/46f385b57e81af57db51f8795ea36c082d0b7893) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 pad repay assets to avoid dust
+
+- [#719](https://github.com/exactly/exa/pull/719) [`62756c2`](https://github.com/exactly/exa/commit/62756c26070bf0ca1df248e73cad0524f48a2b5d) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚸 navigate successful repay to activity
+
+- [`86bf361`](https://github.com/exactly/exa/commit/86bf36133281fc9a15e7ecefadf8d7bbb52423ae) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 handle error when reporting to sentry
+
+- [`c9984a3`](https://github.com/exactly/exa/commit/c9984a3d1ef97d3f8ca8ea0dae67fee6175cc9f0) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ⚡️ cache credential in query client
+
+- Updated dependencies [[`9ac36f0`](https://github.com/exactly/exa/commit/9ac36f0002b38ea3ffe5738b448299694b638fd9), [`da675ee`](https://github.com/exactly/exa/commit/da675ee9a97806990b8410dbc1a4e1e4b5aae8fc)]:
+  - @exactly/server@0.2.56
+
 ## 1.1.6
 
 ### Patch Changes

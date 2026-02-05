@@ -1,5 +1,13 @@
 # @exactly/server
 
+## 0.2.56
+
+### Patch Changes
+
+- [`9ac36f0`](https://github.com/exactly/exa/commit/9ac36f0002b38ea3ffe5738b448299694b638fd9) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🗑️ deprecate passkey metadata api
+
+- [#723](https://github.com/exactly/exa/pull/723) [`da675ee`](https://github.com/exactly/exa/commit/da675ee9a97806990b8410dbc1a4e1e4b5aae8fc) Thanks [@mainqueg](https://github.com/mainqueg)! - ✨ add limits to ramp provider response
+
 ## 0.2.55
 
 ### Patch Changes
