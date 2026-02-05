@@ -93,7 +93,7 @@ export default new Hono()
         manteca: mantecaProvider,
         bridge: bridgeProvider,
       };
-      return c.json({ providers });
+      return c.json({ providers }, 200);
     },
   )
   .get(
@@ -140,7 +140,7 @@ export default new Hono()
             }
             throw error;
           }
-          return c.json({ quote: await getMantecaQuote(`USDC_${query.currency}`), depositInfo });
+          return c.json({ quote: await getMantecaQuote(`USDC_${query.currency}`), depositInfo }, 200);
         }
         case "bridge": {
           if (!credential.bridgeId) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
@@ -162,10 +162,13 @@ export default new Hono()
             throw error;
           }
 
-          return c.json({
-            quote: "currency" in query ? await getBridgeQuote(query.currency, query.currency) : undefined,
-            depositInfo,
-          });
+          return c.json(
+            {
+              quote: "currency" in query ? await getBridgeQuote(query.currency, query.currency) : undefined,
+              depositInfo,
+            },
+            200,
+          );
         }
       }
     },
@@ -226,6 +229,6 @@ export default new Hono()
           }
           break;
       }
-      return c.json({ code: "ok" });
+      return c.json({ code: "ok" }, 200);
     },
   );

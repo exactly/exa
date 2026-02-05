@@ -246,12 +246,50 @@ describe("manteca utils", () => {
       expect(result.status).toBe("NOT_STARTED");
     });
 
-    it("returns ACTIVE when user status is ACTIVE", async () => {
-      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(mockFetchResponse(mockActiveUser));
+    it("returns ACTIVE status and limits when user is ACTIVE", async () => {
+      vi.spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(mockFetchResponse(mockActiveUser))
+        .mockResolvedValueOnce(mockFetchResponse(mockLimitsResponse));
 
       const result = await manteca.getProvider(account, "AR");
 
       expect(result.status).toBe("ACTIVE");
+      expect(result.onramp.limits).toEqual({
+        monthly: { available: "8000.00", limit: "10000.00", symbol: "USD" },
+        yearly: { available: "95000.00", limit: "100000.00", symbol: "USD" },
+      });
+    });
+
+    it("returns no limits when limits response is empty", async () => {
+      vi.spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(mockFetchResponse(mockActiveUser))
+        .mockResolvedValueOnce(mockFetchResponse([]));
+
+      const result = await manteca.getProvider(account, "AR");
+
+      expect(result.onramp.limits).toBeUndefined();
+    });
+
+    it("returns no limits when no EXCHANGE type limit found", async () => {
+      const remittanceLimits = [{ ...mockLimitsResponse[0], type: "REMITTANCE" }];
+      vi.spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(mockFetchResponse(mockActiveUser))
+        .mockResolvedValueOnce(mockFetchResponse(remittanceLimits));
+
+      const result = await manteca.getProvider(account, "AR");
+
+      expect(result.onramp.limits).toBeUndefined();
+    });
+
+    it("returns ACTIVE with no limits when limits fetch fails", async () => {
+      vi.spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(mockFetchResponse(mockActiveUser))
+        .mockResolvedValueOnce(mockFetchError(500, "::500:: limits error"));
+
+      const result = await manteca.getProvider(account, "AR");
+
+      expect(result.status).toBe("ACTIVE");
+      expect(result.onramp.limits).toBeUndefined();
     });
 
     it("returns NOT_AVAILABLE when user status is INACTIVE", async () => {
@@ -706,3 +744,15 @@ const mockBalanceBase = {
 
 const mockOrderResponse = { id: "order-123", numberId: "789", status: "PENDING" as const };
 const mockWithdrawResponse = { id: "withdraw-123", numberId: "789", status: "PENDING" as const };
+
+const mockLimitsResponse = [
+  {
+    exchangeCountry: "ARGENTINA",
+    asset: "USD",
+    type: "EXCHANGE" as const,
+    yearlyLimit: "100000.00",
+    availableYearlyLimit: "95000.00",
+    monthlyLimit: "10000.00",
+    availableMonthlyLimit: "8000.00",
+  },
+];

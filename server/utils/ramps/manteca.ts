@@ -225,7 +225,33 @@ export async function getProvider(
   }
   if (mantecaUser.status === "ACTIVE") {
     const exchange = mantecaUser.exchange;
-    return { onramp: { currencies: CurrenciesByExchange[exchange], cryptoCurrencies: [] }, status: "ACTIVE" };
+    const limits = await getLimits(mantecaUser.numberId).catch((error: unknown) => {
+      captureException(error, { level: "error" });
+    });
+    const exchangeLimits = limits?.find((limit) => limit.type === "EXCHANGE");
+    return {
+      onramp: {
+        currencies: CurrenciesByExchange[exchange],
+        cryptoCurrencies: [],
+        ...(exchangeLimits
+          ? {
+              limits: {
+                monthly: {
+                  available: exchangeLimits.availableMonthlyLimit,
+                  limit: exchangeLimits.monthlyLimit,
+                  symbol: exchangeLimits.asset,
+                },
+                yearly: {
+                  available: exchangeLimits.availableYearlyLimit,
+                  limit: exchangeLimits.yearlyLimit,
+                  symbol: exchangeLimits.asset,
+                },
+              },
+            }
+          : {}),
+      },
+      status: "ACTIVE",
+    };
   }
   if (mantecaUser.status === "INACTIVE") {
     return { onramp: { currencies: [], cryptoCurrencies: [] }, status: "NOT_AVAILABLE" };

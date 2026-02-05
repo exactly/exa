@@ -125,6 +125,24 @@ export const PendingTask = variant("type", [
 export const ProviderInfo = object({
   onramp: object({
     currencies: array(string()),
+    limits: optional(
+      object({
+        monthly: optional(
+          object({
+            available: optional(string()),
+            limit: optional(string()),
+            symbol: string(),
+          }),
+        ),
+        yearly: optional(
+          object({
+            available: optional(string()),
+            limit: optional(string()),
+            symbol: string(),
+          }),
+        ),
+      }),
+    ),
     cryptoCurrencies: array(object({ cryptoCurrency: picklist(Cryptocurrency), network: picklist(CryptoNetwork) })),
   }),
   status: picklist(["NOT_STARTED", "ACTIVE", "ONBOARDING", "NOT_AVAILABLE"]),
