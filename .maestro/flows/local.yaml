@@ -16,8 +16,9 @@ tags: [critical]
     env: { asset: USDC, to: "${output.owner}", amount: "69" }
 - runFlow:
     file: ../subflows/borrow.yaml
-    env: { amount: "10", installments: "4" }
+    env: { amount: "69", installments: "4" }
 - runFlow: ../subflows/rollover.yaml
+- runFlow: { file: ../subflows/repay.yaml, env: { amount: "13" } }
 - runFlow: ../subflows/repay.yaml
 - runFlow: ../subflows/verifyIdentity.yaml
 - runFlow: ../subflows/activateCard.yaml
