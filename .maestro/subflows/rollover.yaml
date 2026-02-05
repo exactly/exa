@@ -1,6 +1,6 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
-- scrollUntilVisible: { element: Repay }
+- scrollUntilVisible: { element: Upcoming payments }
 - copyTextFrom:
     text: \d+[,.]\d{2}
     below: Upcoming payments
@@ -12,6 +12,7 @@ appId: ${APP_ID ?? "app.exactly"}
     leftOf: Repay
 - evalScript: ${output.secondMaturity = maestro.copiedText}
 - tapOn: Repay
+- waitForAnimationToEnd
 - tapOn: Rollover
 - runFlow:
     when: { visible: Review refinance details }
@@ -22,7 +23,7 @@ appId: ${APP_ID ?? "app.exactly"}
     file: ../dist/hookProposals.js
     env: { account: "${output.account}" }
 - tapOn: Home
-- scrollUntilVisible: { element: Repay }
+- scrollUntilVisible: { element: Upcoming payments }
 - copyTextFrom:
     text: \d+[,.]\d{2}
     below: Upcoming payments
