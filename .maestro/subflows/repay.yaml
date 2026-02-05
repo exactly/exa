@@ -1,19 +1,32 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
-- scrollUntilVisible: { element: Repay }
+- scrollUntilVisible: { element: Upcoming payments }
 - copyTextFrom:
     text: \d+[,.]\d{2}
     below: Upcoming payments
     leftOf: Repay
-- evalScript: ${output.debt = maestro.copiedText}
+- evalScript: ${output.debt = Number(maestro.copiedText)}
 - copyTextFrom:
     text: "[^%.]+"
     below: "${maestro.copiedText}"
     leftOf: Repay
 - evalScript: ${output.maturity = maestro.copiedText}
 - tapOn: { text: Repay, rightOf: "${output.maturity}" }
+- waitForAnimationToEnd
 - tapOn: { text: Repay, leftOf: Rollover }
-- tapOn: Max
+- runFlow:
+    when: { true: "${!JSON.parse(partial ?? false)}" }
+    commands: [{ tapOn: Max }]
+- runFlow:
+    when:
+      true: "${!!JSON.parse(partial ?? false) && maestro.platform != 'web'}"
+    commands:
+      - swipe: { from: { text: Repay amount slider }, direction: LEFT }
+- runFlow: # HACK https://github.com/mobile-dev-inc/Maestro/issues/2914
+    when:
+      true: "${!!JSON.parse(partial ?? false) && maestro.platform == 'web'}"
+    commands:
+      - swipe: { from: { id: Repay amount slider }, direction: LEFT }
 - tapOn: Confirm payment
 - assertVisible: Processing.*
 - tapOn: Close
@@ -22,6 +35,18 @@ appId: ${APP_ID ?? "app.exactly"}
     file: ../dist/hookProposals.js
     env: { account: "${output.account}" }
 - tapOn: Home
-- scrollUntilVisible: { element: Repay }
-- assertNotVisible: "${output.maturity}"
+- scrollUntilVisible: { element: Upcoming payments }
+- runFlow:
+    when: { true: "${!JSON.parse(partial ?? false)}" }
+    commands: [{ assertNotVisible: "${output.maturity}" }]
+- runFlow:
+    when: { true: "${!!JSON.parse(partial ?? false)}" }
+    commands:
+      - assertVisible: "${output.maturity}"
+      - copyTextFrom:
+          text: \d+[,.]\d{2}
+          above: "${output.maturity}"
+          below: Upcoming payments
+          leftOf: Repay
+      - assertTrue: ${Number(maestro.copiedText) < output.debt}
 - tapOn: Home
