@@ -64,6 +64,8 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
         (error.name === "NotAllowedError" ||
           error.message ===
             "The operation couldn’t be completed. (com.apple.AuthenticationServices.AuthorizationError error 1001.)" ||
+          error.message ===
+            "The operation couldn’t be completed. (com.apple.AuthenticationServices.AuthorizationError error 1004.)" ||
           error.message === "The operation couldn’t be completed. Device must be unlocked to perform request." ||
           error.message === "UserCancelled" ||
           error.message.startsWith("androidx.credentials.exceptions.domerrors.NotAllowedError"))

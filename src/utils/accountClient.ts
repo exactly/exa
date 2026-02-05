@@ -104,6 +104,8 @@ export default async function createAccountClient({ credentialId, factory, x, y 
           error instanceof Error &&
           (error.message ===
             "The operation couldn’t be completed. (com.apple.AuthenticationServices.AuthorizationError error 1001.)" ||
+            error.message ===
+              "The operation couldn’t be completed. (com.apple.AuthenticationServices.AuthorizationError error 1004.)" ||
             error.message === "The operation couldn’t be completed. Device must be unlocked to perform request." ||
             error.message === "UserCancelled")
         ) {
