@@ -52,6 +52,7 @@ import { anvil } from "viem/chains";
 import accountInitCode from "@exactly/common/accountInitCode";
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
+import deriveAddress from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
 import chain, { upgradeableModularAccountAbi } from "@exactly/common/generated/chain";
 
@@ -66,12 +67,16 @@ import type { Credential } from "@exactly/common/validation";
 if (chain.id !== anvil.id && !alchemyGasPolicyId) throw new Error("missing alchemy gas policy");
 
 export default async function createAccountClient({ credentialId, factory, x, y }: Credential) {
+  const accountAddress = deriveAddress(factory, { x, y });
+  setUser({ id: accountAddress });
+  login(accountAddress);
   const transport = custom(publicClient);
   const entryPoint = getEntryPoint(chain);
   const account = await toSmartContractAccount({
     chain,
     transport,
     entryPoint,
+    accountAddress,
     source: "WebauthnAccount" as const,
     getAccountInitCode: () => Promise.resolve(accountInitCode({ factory, x, y })),
     getDummySignature: () => DUMMY_SIGNATURE,
@@ -118,8 +123,6 @@ export default async function createAccountClient({ credentialId, factory, x, y 
     signTypedData: () => Promise.reject(new Error("not implemented")),
     ...(standardExecutor as Pick<SmartContractAccount, "encodeBatchExecute" | "encodeExecute">),
   });
-  setUser({ id: account.address });
-  login(account.address);
   const client = createSmartAccountClient({
     chain,
     transport,
@@ -160,15 +163,15 @@ export default async function createAccountClient({ credentialId, factory, x, y 
           case "wallet_sendCalls": {
             if (!Array.isArray(params) || params.length !== 1) throw new Error("bad params");
             const { calls, from, id } = params[0] as { calls: readonly Call[]; from?: Address; id?: string };
-            if (from && from !== account.address) throw new Error("bad account");
+            if (from && from !== accountAddress) throw new Error("bad account");
             if (queryClient.getQueryData<AuthMethod>(["method"]) === "webauthn") {
               const { hash } = await client.sendUserOperation({
-                uo: calls.map(({ to, data = "0x", value }) => ({ from: account.address, target: to, data, value })),
+                uo: calls.map(({ to, data = "0x", value }) => ({ from: accountAddress, target: to, data, value })),
               });
               return { id: concat([hash, numberToHex(chain.id, { size: 32 }), UO_MAGIC_ID]) };
             }
             const execute = {
-              to: account.address,
+              to: accountAddress,
               functionName: "executeBatch",
               args: [calls.map(({ to, data = "0x", value = 0n }) => ({ target: to, data, value }))],
               abi: upgradeableModularAccountAbi,
@@ -215,7 +218,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
                 const { id } = await sendCalls(ownerConfig, {
                   calls: [
                     {
-                      to: account.address,
+                      to: accountAddress,
                       functionName: "executeBatch",
                       args: [[{ target: to ?? "0x", data, value }]],
                       abi: upgradeableModularAccountAbi,
