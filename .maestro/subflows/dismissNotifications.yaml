@@ -7,5 +7,5 @@ appId: ${APP_ID ?? "app.exactly"}
       - tapOn: Not now
       - pressKey: home
       - launchApp: { permissions: { all: deny, camera: allow } }
-      - extendedWaitUntil: { visible: Your portfolio, timeout: 180000 }
+      - extendedWaitUntil: { visible: Portfolio, timeout: 180000 }
       - assertNotVisible: Stay updated

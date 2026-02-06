@@ -73,8 +73,9 @@ export default function Home() {
     query: { enabled: !!account && !!credential },
   });
   const {
-    portfolio: { balanceUSD, depositMarkets },
+    portfolio: { balanceUSD },
     averageRate,
+    assets,
     totalBalanceUSD,
   } = usePortfolio();
 
@@ -164,8 +165,8 @@ export default function Home() {
               <YStack gap="$s8">
                 <PortfolioSummary
                   balanceUSD={balanceUSD}
-                  depositMarkets={depositMarkets}
                   averageRate={averageRate}
+                  assets={assets}
                   totalBalanceUSD={totalBalanceUSD}
                 />
                 <HomeActions />
