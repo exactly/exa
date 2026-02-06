@@ -4,7 +4,9 @@ import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { validator as vValidator } from "hono-openapi/valibot";
 import { literal, object, optional, parse, picklist, string } from "valibot";
+import { getAddress } from "viem";
 
+import accountInit from "@exactly/common/accountInit";
 import {
   exaAccountFactoryAddress,
   exaPluginAddress,
@@ -14,6 +16,7 @@ import { Address } from "@exactly/common/validation";
 
 import database, { credentials } from "../database/index";
 import auth from "../middleware/auth";
+import decodePublicKey from "../utils/decodePublicKey";
 import {
   createInquiry,
   CRYPTOMATE_TEMPLATE,
@@ -47,7 +50,7 @@ export default new Hono()
 
       const { credentialId } = c.req.valid("cookie");
       const credential = await database.query.credentials.findFirst({
-        columns: { id: true, account: true, pandaId: true, factory: true },
+        columns: { id: true, account: true, pandaId: true, factory: true, publicKey: true },
         where: eq(credentials.id, credentialId),
       });
       if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
@@ -67,7 +70,7 @@ export default new Hono()
         return c.json({ code: "ok", legacy: "ok" }, 200);
       }
 
-      if (await isLegacy(credentialId, account, credential.factory)) {
+      if (await isLegacy(credentialId, account, credential.factory, credential.publicKey)) {
         return c.json({ code: "legacy kyc", legacy: "legacy kyc" }, 200);
       }
 
@@ -183,13 +186,20 @@ export default new Hono()
     },
   );
 
-async function isLegacy(credentialId: string, account: Address, factory: string): Promise<boolean> {
+async function isLegacy(
+  credentialId: string,
+  account: Address,
+  factory: string,
+  publicKey: Uint8Array<ArrayBuffer>,
+): Promise<boolean> {
   if (factory === exaAccountFactoryAddress) return false;
   return await startSpan({ name: "exa.kyc", op: "isLegacy" }, async () => {
     const installedPlugin = await publicClient.readContract({
       address: account,
       functionName: "getInstalledPlugins",
       abi: upgradeableModularAccountAbi,
+      factory: getAddress(factory),
+      factoryData: accountInit(decodePublicKey(publicKey)),
     });
     if (installedPlugin.length === 0) return false;
     if (installedPlugin.includes(exaPluginAddress)) return false;
