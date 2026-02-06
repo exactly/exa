@@ -168,7 +168,7 @@ const Payload = v.variant("resource", [
         ]),
       }),
       status: v.picklist(["notActivated", "active", "locked", "canceled"]),
-      tokenWallets: v.union([v.array(v.literal("Apple")), v.array(v.literal("Google Pay"))]),
+      tokenWallets: v.optional(v.union([v.array(v.literal("Apple")), v.array(v.literal("Google Pay"))])),
       type: v.literal("virtual"),
       userId: v.string(),
     }),
