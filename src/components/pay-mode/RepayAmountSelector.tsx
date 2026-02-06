@@ -101,7 +101,15 @@ export default function RepayAmountSelector({
       paddingHorizontal="$s4"
     >
       <XStack justifyContent="flex-end" alignItems="center">
-        <Text emphasized subHeadline color="$uiBrandSecondary" onPress={handleMaxPress} cursor="pointer">
+        <Text
+          emphasized
+          subHeadline
+          color="$uiBrandSecondary"
+          onPress={handleMaxPress}
+          cursor="pointer"
+          role="button"
+          aria-label={t("Set maximum repay amount")}
+        >
           {t("Max")}
         </Text>
       </XStack>
@@ -119,6 +127,7 @@ export default function RepayAmountSelector({
           >
             <AssetLogo symbol="USDC" width={32} height={32} />
             <Input
+              aria-label={t("Repay amount")}
               alignSelf="center"
               backgroundColor="$backgroundSoft"
               borderBottomLeftRadius={0}
@@ -165,16 +174,21 @@ export default function RepayAmountSelector({
               hitSlop={100}
               hoverStyle={{ backgroundColor: "$uiBrandSecondary" }}
               pressStyle={{ backgroundColor: "$uiBrandSecondary" }}
+              aria-label={t("Repay amount slider")}
+              aria-valuetext={`${(Number(clampedValue) / 1e6).toLocaleString(language, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })} USDC`}
             />
           </Slider>
           {maxReached && (
-            <Text caption color="$uiNeutralSecondary">
+            <Text caption color="$uiNeutralSecondary" aria-live="polite">
               {canPayFullDebt ? t("Full repayment selected.") : t("Maximum amount selected.")}
             </Text>
           )}
         </YStack>
         {balancerBalance !== undefined && positionValue > balancerBalance && (
-          <Text caption color="$uiNeutralPlaceholder">
+          <Text caption color="$uiNeutralPlaceholder" aria-live="polite">
             {t("Limit {{amount}} per repay. Please split larger amounts into smaller payments.", {
               amount: `$${(Number(balancerBalance) / 1e6).toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
             })}

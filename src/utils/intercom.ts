@@ -15,7 +15,7 @@ export const { login, logout, newMessage, present, presentArticle, presentCollec
           require("@intercom/messenger-js-sdk") as typeof IntercomWeb; // eslint-disable-line unicorn/prefer-module
         return {
           login: (userId: string, token: string) => {
-            if (!appId) return Promise.resolve(false);
+            if (!appId || process.env.EXPO_PUBLIC_ENV === "e2e") return Promise.resolve(false);
             try {
               Intercom({ app_id: appId, user_id: userId, intercom_user_jwt: token });
               return Promise.resolve(true);
@@ -53,7 +53,7 @@ export const { login, logout, newMessage, present, presentArticle, presentCollec
         } = require("@intercom/intercom-react-native") as typeof IntercomNative; // eslint-disable-line unicorn/prefer-module
         return {
           login: (userId: string, token: string) =>
-            appId
+            appId && process.env.EXPO_PUBLIC_ENV !== "e2e"
               ? Intercom.setUserJwt(token)
                   .then(() => Intercom.loginUserWithUserAttributes({ userId }))
                   .then(() => true)
