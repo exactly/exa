@@ -18,7 +18,7 @@ import ManualRepaymentSheet from "./ManualRepaymentSheet";
 import { presentArticle } from "../../utils/intercom";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
-import { setCardMode, type CardDetails } from "../../utils/server";
+import { cardModeMutationOptions, type CardDetails } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useInstallments from "../../utils/useInstallments";
@@ -55,28 +55,7 @@ export default function PaySelector() {
   const [pendingInstallment, setPendingInstallment] = useState<null | number>(null);
 
   const { data: card } = useQuery<CardDetails>({ queryKey: ["card", "details"] });
-  const { mutateAsync: mutateMode } = useMutation({
-    mutationKey: ["card", "mode"],
-    mutationFn: setCardMode,
-    onMutate: async (newMode) => {
-      await queryClient.cancelQueries({ queryKey: ["card", "details"] });
-      const previous = queryClient.getQueryData(["card", "details"]);
-      queryClient.setQueryData(["card", "details"], (old: CardDetails) => ({ ...old, mode: newMode }));
-      return { previous };
-    },
-    onError: (error, _, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(["card", "details"], context.previous);
-      }
-      reportError(error);
-    },
-    onSettled: async (data) => {
-      await queryClient.invalidateQueries({ queryKey: ["card", "details"] });
-      if (data && "mode" in data && data.mode > 0) {
-        queryClient.setQueryData(["settings", "installments"], data.mode);
-      }
-    },
-  });
+  const { mutateAsync: mutateMode } = useMutation(cardModeMutationOptions);
 
   function setInstallments(value: number) {
     if (!card || card.mode === value) return;
