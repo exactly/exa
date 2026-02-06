@@ -126,6 +126,13 @@ queryClient.setQueryDefaults(["settings", "installments"], {
   gcTime: Infinity,
   queryFn: () => queryClient.getQueryData(["settings", "installments"]),
 });
+queryClient.setQueryDefaults(["settings", "installments-spotlight"], {
+  initialData: false,
+  retry: false,
+  staleTime: Infinity,
+  gcTime: Infinity,
+  queryFn: () => queryClient.getQueryData(["settings", "installments-spotlight"]),
+});
 queryClient.setQueryDefaults(["simulate-purchase", "installments"], {
   initialData: 1,
   retry: false,

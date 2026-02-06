@@ -42,4 +42,27 @@ appId: ${APP_ID ?? "app.exactly"}
           text: \$[\s\d,.\xa0]+
           above: Available balance
 - tapOn: Home
-- assertVisible: SPENDING LIMIT
+- runFlow:
+    when: { visible: Tap here to change the number of installments }
+    commands:
+      - tapOn: Tap here to change the number of installments
+      - assertVisible: Set installments
+      - tapOn: "3"
+      - tapOn: Set Pay Later in 3
+      - tapOn: Later in 3
+      - assertVisible: Set installments
+      - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
+      - assertVisible: Exa Card pay mode
+- tapOn: Now
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Spending limit info } }
+- assertVisible: It's based on the USDC available in your balance.
+- tapOn: Close
+- tapOn: Later in \d+
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Credit limit info } }
+- assertVisible: It's based on the value of your collateral assets and updates as their value changes.
+- tapOn: Close
+- tapOn:
+    text: Learn more
+    rightOf: Exa Card pay mode
+- assertVisible: Change the pay mode before each purchase and pay how you want.
+- tapOn: Close
