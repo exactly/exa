@@ -5,7 +5,7 @@ import { Pressable } from "react-native";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { ArrowLeft, ArrowRight, Check } from "@tamagui/lucide-icons";
-import { ScrollView, Spinner, XStack, YStack } from "tamagui";
+import { ScrollView, XStack, YStack } from "tamagui";
 
 import { useMutation } from "@tanstack/react-query";
 
@@ -148,10 +148,11 @@ export default function Onboard() {
               </Text>
             </XStack>
           </XStack>
-
-          <Button onPress={handleContinue} primary disabled={isPending || !acknowledged}>
+          <Button onPress={handleContinue} primary disabled={isPending || !acknowledged} loading={isPending}>
             <Button.Text>{isPending ? t("Starting...") : t("Accept and continue")}</Button.Text>
-            <Button.Icon>{isPending ? <Spinner height={24} width={24} /> : <ArrowRight />}</Button.Icon>
+            <Button.Icon>
+              <ArrowRight />
+            </Button.Icon>
           </Button>
         </YStack>
       </View>
