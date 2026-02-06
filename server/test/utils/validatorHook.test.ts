@@ -57,6 +57,7 @@ describe("validation error hook", () => {
       expect(mockText).toHaveBeenCalledWith();
       expect(mockDebug).toHaveBeenCalledWith("text-payload");
       expect(captureException).toHaveBeenCalledWith(new Error("bad request"), {
+        fingerprint: ["{{ default }}", "bad request"],
         contexts: { validation: { ...result, flatten: flatten(result.issues) } },
       });
       expect(mockContext.json).toHaveBeenCalledWith(
@@ -73,6 +74,7 @@ describe("validation error hook", () => {
       hook(result, mockContext);
 
       expect(captureException).toHaveBeenCalledWith(new Error("bad request"), {
+        fingerprint: ["{{ default }}", "bad request"],
         contexts: { validation: { ...result, flatten: flatten(result.issues) } },
       });
       expect(mockContext.json).toHaveBeenCalledWith(
@@ -95,6 +97,7 @@ describe("validation error hook", () => {
       );
 
       expect(captureException).toHaveBeenCalledWith(new Error(customErrorMessage), {
+        fingerprint: ["{{ default }}", customErrorMessage],
         contexts: { validation: { ...result, flatten: flatten(result.issues) } },
       });
     });

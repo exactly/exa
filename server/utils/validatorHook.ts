@@ -30,6 +30,7 @@ export default function validatorHook<
     }
     if (!result.success) {
       captureException(new Error(code), {
+        fingerprint: ["{{ default }}", code],
         contexts: { validation: { ...result, flatten: flatten(result.issues) } },
       });
       setContext("validation", result);
