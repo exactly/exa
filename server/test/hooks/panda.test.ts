@@ -140,6 +140,27 @@ describe("card operations", () => {
         });
 
         expect(response.status).toBe(557);
+        expect(captureException).not.toHaveBeenCalled();
+      });
+
+      it("fails with replay", async () => {
+        vi.spyOn(traceClient, "traceCall").mockResolvedValue({ ...callFrame, output: "0xb5a78004" });
+
+        await database.insert(cards).values([{ id: "replay", credentialId: "cred", lastFour: "2222", mode: 4 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: { ...authorization.json.body, spend: { ...authorization.json.body.spend, cardId: "replay" } },
+          },
+        });
+
+        expect(response.status).toBe(558);
+        expect(captureException).toHaveBeenCalledWith(
+          expect.objectContaining({ message: "Replay" }),
+          expect.objectContaining({ level: "error", tags: { unhandled: true } }),
+        );
       });
 
       it("fails with bad panda", async () => {
@@ -282,6 +303,10 @@ describe("card operations", () => {
         expect(captureException).toHaveBeenCalledWith(
           expect.objectContaining({ name: "ContractFunctionExecutionError", functionName: "collectCredit" }),
           expect.anything(),
+        );
+        expect(captureException).toHaveBeenCalledWith(
+          expect.objectContaining({ message: "tx reverted" }),
+          expect.objectContaining({ level: "error", tags: { unhandled: true } }),
         );
         expect(response.status).toBe(550);
       });

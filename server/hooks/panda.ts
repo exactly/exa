@@ -348,7 +348,6 @@ export default new Hono().post(
                 ...call,
               });
               trackAuthorizationRejected(account, payload, card.mode, contractError.shortMessage);
-              captureException(contractError, { contexts: { tx: { call, trace } } });
               if (contractError instanceof BaseError && contractError.cause instanceof ContractFunctionRevertedError) {
                 switch (contractError.cause.data?.errorName) {
                   case "InsufficientAccountLiquidity":
@@ -357,6 +356,7 @@ export default new Hono().post(
                     throw new PandaError("Replay", 558 as UnofficialStatusCode);
                 }
               }
+              captureException(contractError, { contexts: { tx: { call, trace } } });
               throw new PandaError("tx reverted", 550 as UnofficialStatusCode);
             }
             if (
@@ -381,7 +381,9 @@ export default new Hono().post(
           setContext("mutex", { locked: mutex.isLocked() });
           if (error instanceof PandaError) {
             error.message !== "tx reverted" && trackAuthorizationRejected(account, payload, card.mode, "panda-error");
-            captureException(error, { level: "error", tags: { unhandled: true } });
+            if (error.statusCode !== (557 as UnofficialStatusCode)) {
+              captureException(error, { level: "error", tags: { unhandled: true } });
+            }
             return c.json({ code: error.message }, error.statusCode as UnofficialStatusCode);
           }
           trackAuthorizationRejected(account, payload, card.mode, "unexpected-error");
