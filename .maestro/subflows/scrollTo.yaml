@@ -1,0 +1,46 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+# HACK https://github.com/mobile-dev-inc/maestro/issues/1775
+# maestro web uses window.scroll() which doesn't reach inner scroll containers
+- runFlow:
+    when: { true: "${maestro.platform != 'web'}" }
+    commands:
+      - scrollUntilVisible: { element: "${element}" }
+- runFlow:
+    when: { platform: web }
+    commands:
+      - evalScript: ${output.scrollDeadline = Date.now() + 30000}
+      - evalScript: ${output.found = false}
+      - repeat:
+          while:
+            true: "${!output.found}"
+          commands:
+            - runFlow:
+                when: { visible: "${element}" }
+                commands: [{ evalScript: "${output.found = true}" }]
+            - runFlow:
+                when: { visible: { id: "${element}" } }
+                commands: [{ evalScript: "${output.found = true}" }]
+            - runFlow:
+                when: { true: "${!output.found}" }
+                commands:
+                  - runFlow:
+                      when: { true: "${Date.now() >= output.scrollDeadline}" }
+                      commands: [{ evalScript: "${throw new Error('scroll timeout')}" }]
+                  - swipe:
+                      start: "50%,40%"
+                      end: "50%,10%"
+                      duration: 500
+- runFlow:
+    when: { true: "${typeof offset !== 'undefined' && Number(offset) > 0}" }
+    commands:
+      - evalScript: ${output.scrollExtra = 0}
+      - repeat:
+          while:
+            true: "${output.scrollExtra < Number(offset)}"
+          commands:
+            - swipe:
+                start: "50%,70%"
+                end: "50%,50%"
+                duration: 300
+            - evalScript: ${output.scrollExtra = output.scrollExtra + 1}

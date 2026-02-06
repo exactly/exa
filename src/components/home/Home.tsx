@@ -1,36 +1,46 @@
-import React, { useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { RefreshControl } from "react-native";
+import { RefreshControl, type View as RNView } from "react-native";
 
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 
 import { AnimatePresence, ScrollView, YStack } from "tamagui";
 
 import { TimeToFullDisplay } from "@sentry/react-native";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useBytecode } from "wagmi";
 
 import accountInit from "@exactly/common/accountInit";
-import { exaPluginAddress, exaPreviewerAddress, previewerAddress } from "@exactly/common/generated/chain";
+import {
+  exaPluginAddress,
+  exaPreviewerAddress,
+  marketUSDCAddress,
+  previewerAddress,
+} from "@exactly/common/generated/chain";
 import {
   useReadExaPreviewerPendingProposals,
   useReadPreviewerExactly,
   useReadUpgradeableModularAccountGetInstalledPlugins,
 } from "@exactly/common/generated/hooks";
 import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
-import { healthFactor, WAD } from "@exactly/lib";
+import { borrowLimit, healthFactor, WAD, withdrawLimit } from "@exactly/lib";
 
 import CardUpgradeSheet from "./card-upgrade/CardUpgradeSheet";
 import CardStatus from "./CardStatus";
+import CreditLimitSheet from "./CreditLimitSheet";
 import GettingStarted from "./GettingStarted";
 import HomeActions from "./HomeActions";
 import HomeDisclaimer from "./HomeDisclaimer";
+import InstallmentsSheet from "./InstallmentsSheet";
+import InstallmentsSpotlight from "./InstallmentsSpotlight";
+import PayModeSheet from "./PayModeSheet";
 import PortfolioSummary from "./PortfolioSummary";
-import SpendingLimitsSheet from "./SpendingLimitsSheet";
+import SpendingLimitSheet from "./SpendingLimitSheet";
 import VisaSignatureBanner from "./VisaSignatureBanner";
 import VisaSignatureModal from "./VisaSignatureSheet";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
+import { setCardMode } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
 import usePortfolio from "../../utils/usePortfolio";
 import useTabPress from "../../utils/useTabPress";
@@ -57,8 +67,22 @@ export default function Home() {
     t,
     i18n: { language },
   } = useTranslation();
-  const [spendingLimitsInfoSheetOpen, setSpendingLimitsInfoSheetOpen] = useState(false);
+  const [creditLimitSheetOpen, setCreditLimitSheetOpen] = useState(false);
+  const [installmentsSheetOpen, setInstallmentsSheetOpen] = useState(false);
+  const [payModeSheetOpen, setPayModeSheetOpen] = useState(false);
+  const [spendingLimitSheetOpen, setSpendingLimitSheetOpen] = useState(false);
   const [visaSignatureModalOpen, setVisaSignatureModalOpen] = useState(false);
+
+  const [focused, setFocused] = useState(false);
+  useFocusEffect(
+    useCallback(() => {
+      setFocused(true);
+      return () => {
+        setFocused(false);
+      };
+    }, []),
+  );
+  const spotlightRef = useRef<RNView>(null);
 
   const { address: account } = useAccount();
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
@@ -112,8 +136,41 @@ export default function Home() {
     kycStatus && "code" in kycStatus && (kycStatus.code === "ok" || kycStatus.code === "legacy kyc"),
   );
   const { data: card } = useQuery<CardDetails>({ queryKey: ["card", "details"], enabled: !!account && !!bytecode });
+  const { data: spotlightShown } = useQuery<boolean>({ queryKey: ["settings", "installments-spotlight"] });
+  const { mutateAsync: mutateMode } = useMutation({
+    mutationKey: ["card", "mode"],
+    mutationFn: setCardMode,
+    onMutate: async (newMode) => {
+      await queryClient.cancelQueries({ queryKey: ["card", "details"] });
+      const previous = queryClient.getQueryData(["card", "details"]);
+      queryClient.setQueryData(["card", "details"], (old: CardDetails) => ({ ...old, mode: newMode }));
+      return { previous };
+    },
+    onError: (error, _, context) => {
+      if (context?.previous) queryClient.setQueryData(["card", "details"], context.previous);
+      reportError(error);
+    },
+    onSettled: async (data) => {
+      await queryClient.invalidateQueries({ queryKey: ["card", "details"] });
+      if (data && "mode" in data && data.mode > 0) queryClient.setQueryData(["settings", "installments"], data.mode);
+    },
+  });
+
+  const collateralUSD = useMemo(
+    () =>
+      markets?.reduce(
+        (total, market) =>
+          total +
+          (market.floatingDepositAssets > 0n
+            ? (market.floatingDepositAssets * market.usdPrice) / 10n ** BigInt(market.decimals)
+            : 0n),
+        0n,
+      ) ?? 0n,
+    [markets],
+  );
 
   const scrollRef = useRef<ScrollView>(null);
+  const scrollOffsetRef = useRef<number>(0);
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ["activity"], exact: true }).catch(reportError);
     queryClient.invalidateQueries({ queryKey: ["kyc", "status"], exact: true }).catch(reportError);
@@ -138,6 +195,10 @@ export default function Home() {
           backgroundColor="transparent"
           contentContainerStyle={{ backgroundColor: "$backgroundMild" }}
           showsVerticalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onScroll={(event) => {
+            scrollOffsetRef.current = event.nativeEvent.contentOffset.y;
+          }}
           refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refresh} />}
         >
           <ProfileHeader />
@@ -162,7 +223,7 @@ export default function Home() {
                   }}
                 />
               )}
-              <YStack gap="$s8">
+              <YStack gap="$s5">
                 <PortfolioSummary
                   balanceUSD={balanceUSD}
                   averageRate={averageRate}
@@ -176,10 +237,29 @@ export default function Home() {
               <AnimatePresence>
                 {card && (
                   <CardStatus
-                    onInfoPress={() => {
-                      setSpendingLimitsInfoSheetOpen(true);
+                    collateral={collateralUSD}
+                    creditLimit={markets ? borrowLimit(markets, marketUSDCAddress) : 0n}
+                    spotlightRef={spotlightRef}
+                    mode={card.mode}
+                    onCreditLimitInfoPress={() => {
+                      setCreditLimitSheetOpen(true);
                     }}
-                    productId={card.productId}
+                    onDetailsPress={() => {
+                      router.push("/card");
+                    }}
+                    onInstallmentsPress={() => {
+                      setInstallmentsSheetOpen(true);
+                    }}
+                    onLearnMorePress={() => {
+                      setPayModeSheetOpen(true);
+                    }}
+                    onModeChange={(mode) => {
+                      mutateMode(mode).catch(reportError);
+                    }}
+                    onSpendingLimitInfoPress={() => {
+                      setSpendingLimitSheetOpen(true);
+                    }}
+                    spendingLimit={markets ? withdrawLimit(markets, marketUSDCAddress, WAD) : 0n}
                   />
                 )}
               </AnimatePresence>
@@ -212,10 +292,32 @@ export default function Home() {
               queryClient.resetQueries({ queryKey: ["card-upgrade"] }).catch(reportError);
             }}
           />
-          <SpendingLimitsSheet
-            open={spendingLimitsInfoSheetOpen}
+          <InstallmentsSheet
+            mode={card?.mode ?? 1}
+            open={installmentsSheetOpen}
             onClose={() => {
-              setSpendingLimitsInfoSheetOpen(false);
+              setInstallmentsSheetOpen(false);
+            }}
+            onModeChange={(mode) => {
+              mutateMode(mode).catch(reportError);
+            }}
+          />
+          <CreditLimitSheet
+            open={creditLimitSheetOpen}
+            onClose={() => {
+              setCreditLimitSheetOpen(false);
+            }}
+          />
+          <PayModeSheet
+            open={payModeSheetOpen}
+            onClose={() => {
+              setPayModeSheetOpen(false);
+            }}
+          />
+          <SpendingLimitSheet
+            open={spendingLimitSheetOpen}
+            onClose={() => {
+              setSpendingLimitSheetOpen(false);
             }}
           />
           <VisaSignatureModal
@@ -224,6 +326,19 @@ export default function Home() {
               setVisaSignatureModalOpen(false);
             }}
           />
+          {card && !spotlightShown && focused && (
+            <InstallmentsSpotlight
+              scrollOffset={scrollOffsetRef}
+              scrollRef={scrollRef}
+              targetRef={spotlightRef}
+              onDismiss={() => {
+                queryClient.setQueryData(["settings", "installments-spotlight"], true);
+              }}
+              onPress={() => {
+                setInstallmentsSheetOpen(true);
+              }}
+            />
+          )}
         </ScrollView>
         <TimeToFullDisplay record={!!markets && !!activity} />
       </View>
