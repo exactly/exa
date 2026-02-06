@@ -1,5 +1,11 @@
 # @exactly/common
 
+## 0.0.12
+
+### Patch Changes
+
+- [#729](https://github.com/exactly/exa/pull/729) [`9fa63db`](https://github.com/exactly/exa/commit/9fa63dbb4fe1eba262c97b9823bfebb25f87fe50) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ♻️ decouple factory address from account init calldata
+
 ## 0.0.11
 
 ### Patch Changes

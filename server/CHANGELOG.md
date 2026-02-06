@@ -1,5 +1,17 @@
 # @exactly/server
 
+## 0.2.57
+
+### Patch Changes
+
+- [#727](https://github.com/exactly/exa/pull/727) [`872d7d6`](https://github.com/exactly/exa/commit/872d7d6e421866302c2449f7ebc8b6e698ea3176) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 skip sentry capture for expected liquidity errors
+
+- [#728](https://github.com/exactly/exa/pull/728) [`f676383`](https://github.com/exactly/exa/commit/f676383acd0def5185e1aeafb78e58d790b08b38) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🦺 handle optional panda wallets field
+
+- [#731](https://github.com/exactly/exa/pull/731) [`3c7077c`](https://github.com/exactly/exa/commit/3c7077c850e990313d26a7037538c3dfb3daac39) Thanks [@mainqueg](https://github.com/mainqueg)! - ♻️ flatten ramp providers response
+
+- [#729](https://github.com/exactly/exa/pull/729) [`523997a`](https://github.com/exactly/exa/commit/523997a46af5021997bceb4882574976b7887e31) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 handle undeployed accounts with deployless read
+
 ## 0.2.56
 
 ### Patch Changes

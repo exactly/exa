@@ -1,5 +1,25 @@
 # @exactly/mobile
 
+## 1.1.8
+
+### Patch Changes
+
+- [#725](https://github.com/exactly/exa/pull/725) [`d72511b`](https://github.com/exactly/exa/commit/d72511b2b291088a0c636af51da0ac0f1457b690) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 handle passkey requests canceled by ios
+
+- [#730](https://github.com/exactly/exa/pull/730) [`ae61d29`](https://github.com/exactly/exa/commit/ae61d291bbd3c3117f59342914326f2822892388) Thanks [@franm91](https://github.com/franm91)! - 🌐 add locale parameter to pax url
+
+- [#729](https://github.com/exactly/exa/pull/729) [`e047836`](https://github.com/exactly/exa/commit/e0478362e5456f0f115efd59882d59bd9726c75c) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ♻️ use deployless reads for undeployed accounts
+
+- [#704](https://github.com/exactly/exa/pull/704) [`7b8decb`](https://github.com/exactly/exa/commit/7b8decb549a01108e113f2dacc155ab87192673a) Thanks [@franm91](https://github.com/franm91)! - ✨ implement manteca ramp
+
+- [#730](https://github.com/exactly/exa/pull/730) [`4d46523`](https://github.com/exactly/exa/commit/4d4652316deb22519dd82ef4ac9a41d3eb6c7d9c) Thanks [@franm91](https://github.com/franm91)! - 🍱 use pax latest logo
+
+- [#725](https://github.com/exactly/exa/pull/725) [`d9866f9`](https://github.com/exactly/exa/commit/d9866f9ea700504a625edbb64a33bd846e2b6120) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ⚡️ skip rpc call for account address derivation
+
+- Updated dependencies [[`872d7d6`](https://github.com/exactly/exa/commit/872d7d6e421866302c2449f7ebc8b6e698ea3176), [`f676383`](https://github.com/exactly/exa/commit/f676383acd0def5185e1aeafb78e58d790b08b38), [`3c7077c`](https://github.com/exactly/exa/commit/3c7077c850e990313d26a7037538c3dfb3daac39), [`9fa63db`](https://github.com/exactly/exa/commit/9fa63dbb4fe1eba262c97b9823bfebb25f87fe50), [`523997a`](https://github.com/exactly/exa/commit/523997a46af5021997bceb4882574976b7887e31)]:
+  - @exactly/server@0.2.57
+  - @exactly/common@0.0.12
+
 ## 1.1.7
 
 ### Patch Changes
