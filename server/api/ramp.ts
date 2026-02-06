@@ -89,11 +89,13 @@ export default new Hono()
         }),
       ]);
 
-      const providers: Record<(typeof RampProvider)[number], InferInput<typeof ProviderInfo>> = {
-        manteca: mantecaProvider,
-        bridge: bridgeProvider,
-      };
-      return c.json({ providers }, 200);
+      return c.json(
+        {
+          manteca: mantecaProvider,
+          bridge: bridgeProvider,
+        } satisfies Record<(typeof RampProvider)[number], InferInput<typeof ProviderInfo>>,
+        200,
+      );
     },
   )
   .get(

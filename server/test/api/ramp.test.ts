@@ -63,10 +63,8 @@ describe("ramp api", () => {
       expect(response.status).toBe(200);
       const json = await response.json();
       expect(json).toStrictEqual({
-        providers: {
-          manteca: { onramp: { currencies: ["ARS", "USD"], cryptoCurrencies: [] }, status: "NOT_STARTED" },
-          bridge: { onramp: { currencies: [], cryptoCurrencies: [] }, status: "NOT_AVAILABLE" },
-        },
+        manteca: { onramp: { currencies: ["ARS", "USD"], cryptoCurrencies: [] }, status: "NOT_STARTED" },
+        bridge: { onramp: { currencies: [], cryptoCurrencies: [] }, status: "NOT_AVAILABLE" },
       });
     });
 
@@ -82,10 +80,8 @@ describe("ramp api", () => {
       expect(response.status).toBe(200);
       const json = await response.json();
       expect(json).toStrictEqual({
-        providers: {
-          manteca: { onramp: { currencies: [], cryptoCurrencies: [] }, status: "NOT_AVAILABLE" },
-          bridge: { onramp: { currencies: [], cryptoCurrencies: [] }, status: "NOT_AVAILABLE" },
-        },
+        manteca: { onramp: { currencies: [], cryptoCurrencies: [] }, status: "NOT_AVAILABLE" },
+        bridge: { onramp: { currencies: [], cryptoCurrencies: [] }, status: "NOT_AVAILABLE" },
       });
     });
 
@@ -101,10 +97,8 @@ describe("ramp api", () => {
       expect(response.status).toBe(200);
       const json = await response.json();
       expect(json).toStrictEqual({
-        providers: {
-          manteca: { onramp: { currencies: ["ARS"], cryptoCurrencies: [] }, status: "ACTIVE" },
-          bridge: { onramp: { currencies: [], cryptoCurrencies: [] }, status: "NOT_AVAILABLE" },
-        },
+        manteca: { onramp: { currencies: ["ARS"], cryptoCurrencies: [] }, status: "ACTIVE" },
+        bridge: { onramp: { currencies: [], cryptoCurrencies: [] }, status: "NOT_AVAILABLE" },
       });
     });
   });
