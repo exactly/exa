@@ -1,9 +1,17 @@
+[mcp_servers.do-apps]
+url = "https://apps.mcp.digitalocean.com/mcp"
+[mcp_servers.do-databases]
+url = "https://databases.mcp.digitalocean.com/mcp"
+
 [mcp_servers.eslint]
 command = "npx"
 args = ["@eslint/mcp"]
 
 [mcp_servers.expo]
 url = "https://mcp.expo.dev/mcp"
+
+[mcp_servers.figma]
+url = "https://mcp.figma.com/mcp"
 
 [mcp_servers.maestro]
 command = "maestro"

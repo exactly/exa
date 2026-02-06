@@ -3,17 +3,20 @@
   "general": {
     "checkpointing": { "enabled": true },
     "enablePromptCompletion": true,
-    "preferredEditor": "antigravity",
-    "previewFeatures": true
+    "preferredEditor": "antigravity"
   },
   "mcpServers": {
+    "do-apps": { "type":"http", "url": "https://apps.mcp.digitalocean.com/mcp" },
+    "do-databases": { "type":"http", "url": "https://databases.mcp.digitalocean.com/mcp" },
     "eslint": { "command": "npx", "args": ["@eslint/mcp"] },
+    "expo": { "type": "http", "url": "https://mcp.expo.dev/mcp" },
+    "figma": { "type": "http", "url": "https://mcp.figma.com/mcp" },
     "maestro": { "command": "maestro", "args": ["mcp"] },
     "nx": { "command": "npx", "args": ["nx", "mcp"] },
     "sentry": { "url": "https://mcp.sentry.dev/mcp" }
   },
   "privacy": { "usageStatisticsEnabled": false },
   "telemetry": { "enabled": false },
-  "tools": { "autoAccept": true, "sandbox": true },
+  "tools": { "sandbox": true },
   "$schema": "https://raw.githubusercontent.com/google-gemini/gemini-cli/main/schemas/settings.schema.json"
 }
