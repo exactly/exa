@@ -5,7 +5,7 @@ import { Pressable } from "react-native";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { ArrowLeft, ArrowRight } from "@tamagui/lucide-icons";
-import { ScrollView, Spinner, YStack } from "tamagui";
+import { ScrollView, YStack } from "tamagui";
 
 import { useMutation } from "@tanstack/react-query";
 
@@ -84,9 +84,11 @@ export default function KYC() {
           </View>
         </ScrollView>
         <MantecaDisclaimer />
-        <Button onPress={handlePress} primary disabled={isPending}>
+        <Button onPress={handlePress} primary disabled={isPending} loading={isPending}>
           <Button.Text>{isPending ? t("Starting...") : t("Continue verification")}</Button.Text>
-          <Button.Icon>{isPending ? <Spinner height={24} width={24} /> : <ArrowRight />}</Button.Icon>
+          <Button.Icon>
+            <ArrowRight />
+          </Button.Icon>
         </Button>
       </View>
     </SafeView>
