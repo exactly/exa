@@ -26,4 +26,5 @@ tags: [critical]
 - runFlow: ../subflows/verifyIdentity.yaml
 - runFlow: ../subflows/assertBenefits.yaml
 - runFlow: ../subflows/activateCard.yaml
+- runFlow: ../subflows/assertHome.yaml
 - runFlow: ../subflows/storeCoverage.yaml

@@ -49,6 +49,7 @@ export default function Portfolio() {
         alignItems="center"
       >
         <Pressable
+          aria-label={t("Back")}
           onPress={() => {
             if (router.canGoBack()) {
               router.back();

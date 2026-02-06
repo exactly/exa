@@ -49,6 +49,7 @@ export default function useInstallments({
             market.floatingBackupBorrowed,
           ),
           market.interestRateModel.parameters,
+          timestamp,
         );
       }
     } catch (error) {
