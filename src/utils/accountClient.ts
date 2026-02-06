@@ -30,6 +30,7 @@ import {
   bytesToBigInt,
   bytesToHex,
   concat,
+  concatHex,
   custom,
   encodeAbiParameters,
   encodePacked,
@@ -49,7 +50,7 @@ import {
 } from "viem";
 import { anvil } from "viem/chains";
 
-import accountInitCode from "@exactly/common/accountInitCode";
+import accountInit from "@exactly/common/accountInit";
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
 import deriveAddress from "@exactly/common/deriveAddress";
@@ -78,7 +79,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
     entryPoint,
     accountAddress,
     source: "WebauthnAccount" as const,
-    getAccountInitCode: () => Promise.resolve(accountInitCode({ factory, x, y })),
+    getAccountInitCode: () => Promise.resolve(concatHex([factory, accountInit({ x, y })])),
     getDummySignature: () => DUMMY_SIGNATURE,
     signUserOperationHash: async (uoHash) => {
       try {
