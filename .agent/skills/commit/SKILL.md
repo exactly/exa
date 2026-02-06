@@ -65,6 +65,7 @@ the start of the commit message is prime real estate. git UIs (github, gitlab, `
 
 ### gitmoji usage notes
 
+- 🧑‍💻 `technologist` — improve developer experience. always use for ai/agent related changes (skills, rules, prompts, agent config).
 - 🎉 `tada` — begin a project. use only for starting new subprojects.
 - 🚧 `construction` — work in progress. use for features not yet ready. these commits are reworded later via rebase. should never be merged to main.
 - ⚗️ `alembic` — experiments. use for temporary commits needed to test something on the server, debug, or special instrumentation. should never be merged to main.
@@ -174,7 +175,7 @@ if files span multiple scopes, suggest splitting into separate commits. if the d
 
 ### step 5: message options
 
-present exactly **9** commit message options using the gitmojis the developer chose.
+present exactly **9** commit message options — always 9, no less — using the gitmojis the developer chose. number them 1–9.
 
 format: `<emoji> <scope>: <message>`
 
