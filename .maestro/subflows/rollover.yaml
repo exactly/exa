@@ -2,16 +2,14 @@ appId: ${APP_ID ?? "app.exactly"}
 ---
 - scrollUntilVisible: { element: Upcoming payments }
 - copyTextFrom:
-    text: \d+[,.]\d{2}
+    text: "[^%.$]+"
     below: Upcoming payments
-    leftOf: Repay
     index: 1
-- copyTextFrom:
-    text: "[^%.]+"
-    below: "${maestro.copiedText}"
-    leftOf: Repay
 - evalScript: ${output.secondMaturity = maestro.copiedText}
-- tapOn: Repay
+- copyTextFrom:
+    text: "[^%.$]+"
+    below: Upcoming payments
+- tapOn: "${maestro.copiedText}"
 - waitForAnimationToEnd
 - tapOn: Rollover
 - runFlow:
@@ -28,12 +26,7 @@ appId: ${APP_ID ?? "app.exactly"}
     env: { aria: Pending proposals, tap: Home }
 - scrollUntilVisible: { element: Upcoming payments }
 - copyTextFrom:
-    text: \d+[,.]\d{2}
+    text: "[^%.$]+"
     below: Upcoming payments
-    leftOf: Repay
-- copyTextFrom:
-    text: "[^%.]+"
-    below: "${maestro.copiedText}"
-    leftOf: Repay
 - assertTrue: ${maestro.copiedText === output.secondMaturity}
 - tapOn: Home
