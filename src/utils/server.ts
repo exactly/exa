@@ -15,7 +15,7 @@ import { Credential } from "@exactly/common/validation";
 import { login as loginIntercom, logout as logoutIntercom } from "./intercom";
 import { decrypt, decryptPIN, encryptPIN, session } from "./panda";
 import queryClient, { APIError, triage, type AuthMethod } from "./queryClient";
-import { classifyError } from "./reportError";
+import reportError, { classifyError } from "./reportError";
 import ownerConfig from "./wagmi/owner";
 
 import type { ExaAPI } from "@exactly/server/api"; // eslint-disable-line @nx/enforce-module-boundaries
@@ -133,12 +133,33 @@ export async function setCardStatus(status: "ACTIVE" | "DELETED" | "FROZEN") {
   return response.json();
 }
 
-export async function setCardMode(mode: number) {
+async function setCardMode(mode: number) {
   await auth();
   const response = await api.card.$patch({ json: { mode } });
   if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
   return response.json();
 }
+export const cardModeMutationOptions = {
+  mutationKey: ["card", "mode"] as const,
+  mutationFn: setCardMode,
+};
+queryClient.setMutationDefaults(cardModeMutationOptions.mutationKey, {
+  ...cardModeMutationOptions,
+  onMutate: async (newMode: number) => {
+    await queryClient.cancelQueries({ queryKey: ["card", "details"] });
+    const previous = queryClient.getQueryData(["card", "details"]);
+    queryClient.setQueryData(["card", "details"], (old: CardDetails) => (old ? { ...old, mode: newMode } : old));
+    return { previous };
+  },
+  onError: (error, _, context) => {
+    if (context?.previous) queryClient.setQueryData(["card", "details"], context.previous);
+    reportError(error);
+  },
+  onSettled: async (data) => {
+    await queryClient.invalidateQueries({ queryKey: ["card", "details"] });
+    if (data && "mode" in data && data.mode > 0) queryClient.setQueryData(["settings", "installments"], data.mode);
+  },
+});
 
 export async function setCardPIN(pin: string) {
   await auth();
