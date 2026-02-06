@@ -19,7 +19,7 @@ export default defineConfig({
       BRIDGE_API_KEY: "bridge",
       BRIDGE_API_URL: "https://bridge.test",
       EXPO_PUBLIC_ALCHEMY_API_KEY: " ",
-      INTERCOM_IDENTITY_KEY: "intercom",
+      INTERCOM_IDENTITY_KEY: "a9cBeTfEtGPSQ58REZP35Bx00ofajvStEc8TTuBtSmk",
       ISSUER_PRIVATE_KEY: padHex("0x420"),
       MANTECA_API_URL: "https://manteca.test",
       MANTECA_API_KEY: "manteca",

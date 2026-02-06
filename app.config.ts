@@ -93,8 +93,14 @@ export default {
       "@intercom/intercom-react-native",
       {
         appId: env.EXPO_PUBLIC_INTERCOM_APP_ID,
-        androidApiKey: "android_sdk-d602d62cbdb9e8e0a6f426db847ddc74d2e26090",
-        iosApiKey: "ios_sdk-ad6831098d9c2d69bd98e92a5ad7a4f030472a92",
+        androidApiKey:
+          env.APP_DOMAIN === "web.exactly.app"
+            ? "android_sdk-d602d62cbdb9e8e0a6f426db847ddc74d2e26090"
+            : "android_sdk-e98928bdde6eeb08efe3c1a1f683756b98fc1ba1",
+        iosApiKey:
+          env.APP_DOMAIN === "web.exactly.app"
+            ? "ios_sdk-ad6831098d9c2d69bd98e92a5ad7a4f030472a92"
+            : "ios_sdk-53eec69c747965af2ed69c8e0454b381f04feb86",
       } satisfies IntercomPluginProps,
     ],
     [
