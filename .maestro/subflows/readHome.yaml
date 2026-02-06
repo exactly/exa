@@ -1,0 +1,67 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+- assertVisible: ${output.account.slice(0, 6)}…${output.account.slice(-4)}
+- runFlow:
+    when: { true: "${maestro.platform != 'web'}" }
+    commands: [{ assertVisible: Settings }]
+- runFlow:
+    when: { platform: web }
+    commands: [{ assertVisible: { id: Settings } }]
+- runFlow: { file: tapAria.yaml, env: { aria: Hide sensitive } }
+- assertNotVisible:
+    text: \$[\s\d,.\xa0]+
+    below: Portfolio
+- runFlow: { file: tapAria.yaml, env: { aria: Show sensitive } }
+- assertVisible:
+    text: \$[\s\d,.\xa0]+
+    below: Portfolio
+- assertVisible: Portfolio
+- assertVisible:
+    text: \$[\s\d,.\xa0]+
+    below: Portfolio
+- assertVisible: Manage portfolio
+- runFlow: readPortfolio.yaml
+- assertTrue: ${output.portfolio > 0}
+- assertVisible: Add funds
+- assertVisible: Send
+- assertVisible: Swap
+- assertVisible: Exa Card pay mode
+- assertVisible: Learn more
+- assertNotVisible: Getting Started
+- scrollUntilVisible: { element: Upcoming payments }
+- assertVisible: Benefits
+- extendedWaitUntil:
+    visible: 30 days of free travel insurance
+    timeout: 15000
+- tapOn: 30 days of free travel insurance
+- assertVisible: Copy your ID and get 30 days of travel insurance for free on Pax Assistance.
+- tapOn: COPY ID
+- runFlow: { file: tapAria.yaml, env: { aria: Close } }
+- extendedWaitUntil:
+    visible: 20% OFF on eSims
+    timeout: 15000
+- tapOn: 20% OFF on eSims
+- assertVisible: Stay connected around the world.
+- assertVisible: Terms & conditions
+- runFlow: { file: tapAria.yaml, env: { aria: Close } }
+- extendedWaitUntil:
+    visible: Visa Signature benefits
+    timeout: 15000
+- tapOn: Visa Signature benefits
+- assertVisible: Visa Signature Exa Card benefits
+- assertVisible: A world of benefits.
+- runFlow: { file: tapAria.yaml, env: { aria: Close } }
+- assertVisible: Upcoming payments
+- assertVisible:
+    text: \$[\d,]+\.\d{2}
+    below: Upcoming payments
+- scrollUntilVisible: { element: Latest activity }
+- assertVisible: Latest activity
+- assertVisible: View all
+- assertNotVisible: No activity yet
+- tapOn: View all
+- tapOn: Home
+- assertVisible: Portfolio
+- assertVisible:
+    text: \$[\s\d,.\xa0]+
+    below: Portfolio
