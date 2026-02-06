@@ -50,7 +50,7 @@ a core principle is specific capitalization for different contexts. this must be
 - **code examples:** any identifier inside backticks (`` ` ``) or a code fence (` ``` `) is considered code, not prose. it must strictly follow the casing rules for that language.
 - **code comments:** all code comments must be lowercase.
 - **user-facing documentation (`docs/`):** use proper sentence case.
-- **changeset summaries:** use a lowercase sentence in the imperative present tense. (e.g., `implement x feature for y.`).
+- **changeset summaries:** use a lowercase sentence in the imperative present tense (e.g., `implement x feature for y`).
 - **git commit messages**: must be lowercase.
 
 ## file naming
@@ -99,53 +99,6 @@ this codebase does not use comments. the only exception is static analysis annot
 - **prefer raw library knowledge**: it's better to use libraries directly and understand their apis than to wrap them in project-specific abstractions.
   - ✅ calling `queryClient.setQueryData()` directly
   - ❌ wrapping it in `useSetUserData()` for a single use case
-
-## git & versioning
-
-this project uses [gitmoji](https://gitmoji.dev). the conventional commits specification is **not** used.
-
-### commit message format
-
-all commit messages must strictly adhere to the following format: `<emoji> <scope>: <message>`
-
-- **`<emoji>`**: a single, appropriate gitmoji unicode character from the [official list](node_modules/gitmojis/dist/index.mjs).
-- **`<scope>`**: a mandatory, short name identifying the part of the codebase affected.
-- **`<message>`**: a short, lowercase description of the change.
-
-### core rules
-
-- **use gitmoji**: all commits must start with a single gitmoji. this is not optional.
-- **scope is mandatory**: every commit must have a scope.
-- **lowercase everything**: the scope and the message must be in lowercase.
-
-### allowed scopes
-
-- `app`: the root react native application.
-- `server`: the backend api server.
-- `contracts`: the solidity smart contracts.
-- `docs`: documentation-only changes.
-- `common`: shared utilities and types.
-- `dependencies`: changes to dependencies, either cross-project or project-specific.
-- `github`: changes to github actions or ci workflows.
-- `config`: changes to configuration files (eslint, tsconfig, etc.).
-- `repo`: repository-wide changes that don't fit other scopes.
-
-### writing effective messages
-
-the start of the commit message is prime real estate. git uis (github, gitlab, `git log --oneline`) truncate long subjects and render them differently. front-load the most important information.
-
-- **front-load keywords**: start with the most impactful words.
-- **remove filler words**: omit articles (`a`, `the`), prepositions, and other words that don't add critical meaning.
-- **be keyword-driven**: details belong in the commit body, not the subject.
-
-```bash
-# ✅ good - direct and keyword-focused
-🐛 app: fix card activation crash
-✨ server: add user auth endpoint
-
-# ❌ bad - verbose and buries context
-🐛 app: fix a crash that happens when a user tries to activate their card
-```
 
 ## development environment
 
