@@ -174,6 +174,7 @@ When called with an Ethereum address as \`credentialId\`, this endpoint creates 
       const issuedAt = new Date();
       const expires = new Date(issuedAt.getTime() + timeout);
       setCookie(c, "session_id", sessionId, {
+        path: "/",
         expires,
         httpOnly: true,
         ...(domain === "localhost" ? { sameSite: "lax", secure: false } : { domain, sameSite: "none", secure: true }),
