@@ -1,5 +1,26 @@
 # @exactly/mobile
 
+## 1.1.9
+
+### Patch Changes
+
+- [`6fe4010`](https://github.com/exactly/exa/commit/6fe4010408b6d722f079c6d243a1901f2a9a08b1) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🔧 enable android native debug symbols
+
+- [#735](https://github.com/exactly/exa/pull/735) [`caee7a5`](https://github.com/exactly/exa/commit/caee7a55838bbd77d3db6bda16d5b0e222bedc8a) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix manteca button loading spinner
+
+- [#732](https://github.com/exactly/exa/pull/732) [`36db52b`](https://github.com/exactly/exa/commit/36db52b8eb54b1cb6fbdd5087f7fc4ebd958d766) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🩹 mirror session cookie as header in auth flow
+
+- [#735](https://github.com/exactly/exa/pull/735) [`23939d2`](https://github.com/exactly/exa/commit/23939d2073a8194cb6b33de3419368bbe877ce4f) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix manteca onboarding routing
+
+- [#735](https://github.com/exactly/exa/pull/735) [`80d3b63`](https://github.com/exactly/exa/commit/80d3b63ff131df6aa6656578484dab4f82a6d2d6) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix translation key
+
+- [#733](https://github.com/exactly/exa/pull/733) [`f0a54fc`](https://github.com/exactly/exa/commit/f0a54fccb80fed7cb6a6dc4156f7139239b3680a) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🔐 add intercom test workspace keys
+
+- [#735](https://github.com/exactly/exa/pull/735) [`4373918`](https://github.com/exactly/exa/commit/437391893a5cf25528fbd14bc2cafb66371dc003) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix spinner crash on android
+
+- Updated dependencies [[`a7373e0`](https://github.com/exactly/exa/commit/a7373e099141c36829979d4675a9ca2beaa7ef8e), [`a6e9d6a`](https://github.com/exactly/exa/commit/a6e9d6a4c01f7e218e3c6b76745e05c13ed74ce1), [`789b2c3`](https://github.com/exactly/exa/commit/789b2c35106a5b2f6aa863280dc1504d9158106d)]:
+  - @exactly/server@0.2.58
+
 ## 1.1.8
 
 ### Patch Changes

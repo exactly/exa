@@ -1,5 +1,15 @@
 # @exactly/server
 
+## 0.2.58
+
+### Patch Changes
+
+- [#732](https://github.com/exactly/exa/pull/732) [`a7373e0`](https://github.com/exactly/exa/commit/a7373e099141c36829979d4675a9ca2beaa7ef8e) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 fallback session delivery via response header
+
+- [#732](https://github.com/exactly/exa/pull/732) [`a6e9d6a`](https://github.com/exactly/exa/commit/a6e9d6a4c01f7e218e3c6b76745e05c13ed74ce1) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🩹 set explicit cookie path for auth endpoints
+
+- [#732](https://github.com/exactly/exa/pull/732) [`789b2c3`](https://github.com/exactly/exa/commit/789b2c35106a5b2f6aa863280dc1504d9158106d) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 📈 fingerprint validator errors by code
+
 ## 0.2.57
 
 ### Patch Changes
