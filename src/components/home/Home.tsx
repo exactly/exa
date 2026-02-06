@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { RefreshControl, type View as RNView } from "react-native";
 
@@ -41,7 +41,7 @@ import VisaSignatureBanner from "./VisaSignatureBanner";
 import VisaSignatureModal from "./VisaSignatureSheet";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
-import { getActivity, getKYCStatus, setCardMode, type CardDetails } from "../../utils/server";
+import { cardModeMutationOptions, getActivity, getKYCStatus, type CardDetails } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
 import usePortfolio from "../../utils/usePortfolio";
 import useTabPress from "../../utils/useTabPress";
@@ -127,33 +127,18 @@ export default function Home() {
   );
   const { data: card } = useQuery<CardDetails>({ queryKey: ["card", "details"], enabled: !!account && !!bytecode });
   const { data: spotlightShown } = useQuery<boolean>({ queryKey: ["settings", "installments-spotlight"] });
-  const { mutateAsync: mutateMode } = useMutation({
-    mutationKey: ["card", "mode"],
-    mutationFn: setCardMode,
-    onMutate: async (newMode) => {
-      await queryClient.cancelQueries({ queryKey: ["card", "details"] });
-      const previous = queryClient.getQueryData(["card", "details"]);
-      queryClient.setQueryData(["card", "details"], (old: CardDetails) => ({ ...old, mode: newMode }));
-      return { previous };
-    },
-    onError: (error, _, context) => {
-      if (context?.previous) queryClient.setQueryData(["card", "details"], context.previous);
-      reportError(error);
-    },
-    onSettled: async (data) => {
-      await queryClient.invalidateQueries({ queryKey: ["card", "details"] });
-      if (data && "mode" in data && data.mode > 0) queryClient.setQueryData(["settings", "installments"], data.mode);
-    },
-  });
+  const { mutateAsync: mutateMode } = useMutation(cardModeMutationOptions);
 
-  let collateralUSD = 0n;
-  if (markets) {
+  const collateralUSD = useMemo(() => {
+    if (!markets) return 0n;
+    let total = 0n;
     for (const market of markets) {
       if (market.floatingDepositAssets > 0n) {
-        collateralUSD += (market.floatingDepositAssets * market.usdPrice) / 10n ** BigInt(market.decimals);
+        total += (market.floatingDepositAssets * market.usdPrice) / 10n ** BigInt(market.decimals);
       }
     }
-  }
+    return total;
+  }, [markets]);
 
   const scrollRef = useRef<ScrollView>(null);
   const scrollOffsetRef = useRef<number>(0);
