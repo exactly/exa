@@ -145,8 +145,7 @@ const Transaction = v.variant("action", [
   }),
 ]);
 
-const Payload = v.variant("resource", [
-  Transaction,
+const Card = v.variant("action", [
   v.object({
     id: v.string(),
     resource: v.literal("card"),
@@ -173,6 +172,23 @@ const Payload = v.variant("resource", [
       userId: v.string(),
     }),
   }),
+  v.object({
+    id: v.string(),
+    resource: v.literal("card"),
+    action: v.literal("notification"),
+    body: v.object({
+      id: v.string(),
+      card: v.object({ id: v.string(), userId: v.nullable(v.string()) }),
+      tokenWallet: v.string(),
+      reasonCode: v.literal("PROVISIONING_DECLINED"),
+      decisionReason: v.optional(v.object({ code: v.string(), description: v.optional(v.string()) })),
+    }),
+  }),
+]);
+
+const Payload = v.variant("resource", [
+  Transaction,
+  Card,
   v.object({
     resource: v.literal("user"),
     action: v.literal("updated"),
@@ -203,11 +219,19 @@ export default new Hono().post(
     getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, `panda.${payload.resource}.${payload.action}`);
 
     if (payload.resource !== "transaction") {
-      const user = await database.query.credentials.findFirst({
-        columns: { account: true },
-        where: and(eq(credentials.pandaId, payload.resource === "card" ? payload.body.userId : payload.body.id)),
-      });
-      if (user) setUser({ id: user.account });
+      const pandaId =
+        payload.resource === "card"
+          ? payload.action === "updated"
+            ? payload.body.userId
+            : payload.body.card.userId
+          : payload.body.id;
+      if (pandaId) {
+        const user = await database.query.credentials.findFirst({
+          columns: { account: true },
+          where: eq(credentials.pandaId, pandaId),
+        });
+        if (user) setUser({ id: user.account });
+      }
       return c.json({ code: "ok" });
     }
 

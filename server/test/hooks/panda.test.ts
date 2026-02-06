@@ -6,7 +6,7 @@ import "../mocks/redis";
 import "../mocks/sardine";
 import "../mocks/sentry";
 
-import { captureException } from "@sentry/node";
+import { captureException, setUser } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { parse } from "valibot";
@@ -1248,6 +1248,96 @@ describe("card operations", () => {
         expect(updateUser).toHaveBeenCalledWith({ id: account, isActive: false });
       });
     });
+  });
+});
+
+describe("card notification", () => {
+  beforeAll(async () => {
+    await database.update(credentials).set({ pandaId: "cred" }).where(eq(credentials.id, "cred"));
+  });
+
+  it("returns ok with known user", async () => {
+    const response = await appClient.index.$post({
+      header: { signature: "panda-signature" },
+      json: {
+        resource: "card",
+        action: "notification",
+        id: "webhook-id",
+        body: {
+          id: "notification-id",
+          card: { id: "card", userId: "cred" },
+          tokenWallet: "Apple",
+          reasonCode: "PROVISIONING_DECLINED",
+          decisionReason: { code: "WALLET_PROVIDER_RISK_THRESHOLD_EXCEEDED", description: "declined" },
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(setUser).toHaveBeenCalledWith({ id: account });
+  });
+
+  it("returns ok with null userId", async () => {
+    const response = await appClient.index.$post({
+      header: { signature: "panda-signature" },
+      json: {
+        resource: "card",
+        action: "notification",
+        id: "webhook-id",
+        body: {
+          id: "notification-id",
+          card: { id: "card", userId: null },
+          tokenWallet: "Apple",
+          reasonCode: "PROVISIONING_DECLINED",
+          decisionReason: { code: "WALLET_PROVIDER_RISK_THRESHOLD_EXCEEDED", description: "declined" },
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+  });
+
+  it("returns ok with unknown userId", async () => {
+    const response = await appClient.index.$post({
+      header: { signature: "panda-signature" },
+      json: {
+        resource: "card",
+        action: "notification",
+        id: "webhook-id",
+        body: {
+          id: "notification-id",
+          card: { id: "card", userId: "unknown" },
+          tokenWallet: "Apple",
+          reasonCode: "PROVISIONING_DECLINED",
+          decisionReason: { code: "WALLET_PROVIDER_RISK_THRESHOLD_EXCEEDED", description: "declined" },
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+  });
+
+  it("returns ok without decisionReason", async () => {
+    const response = await appClient.index.$post({
+      header: { signature: "panda-signature" },
+      json: {
+        resource: "card",
+        action: "notification",
+        id: "webhook-id",
+        body: {
+          id: "notification-id",
+          card: { id: "card", userId: "cred" },
+          tokenWallet: "Apple",
+          reasonCode: "PROVISIONING_DECLINED",
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
   });
 });
 
