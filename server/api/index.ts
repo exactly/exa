@@ -13,7 +13,7 @@ import ramp from "./ramp";
 import appOrigin from "../utils/appOrigin";
 
 const api = new Hono()
-  .use(cors({ origin: [appOrigin, "http://localhost:8081"], credentials: true }))
+  .use(cors({ origin: [appOrigin, "http://localhost:8081"], credentials: true, exposeHeaders: ["X-Session-Id"] }))
   .use((c, next) => {
     if (c.req.method.toUpperCase() === "OPTIONS") return next();
     if (!c.req.header("origin") && !c.req.header("sec-fetch-site")) return next();

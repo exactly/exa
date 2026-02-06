@@ -52,7 +52,7 @@ import redis from "../../utils/redis";
 import validatorHook from "../../utils/validatorHook";
 
 const Cookie = object({
-  session_id: pipe(Base64URL, title("Session identifier"), description("HTTP-only cookie.")),
+  session_id: optional(pipe(Base64URL, title("Session identifier"), description("HTTP-only cookie."))),
 });
 
 const AuthenticationOptions = variant("method", [
@@ -179,6 +179,7 @@ When called with an Ethereum address as \`credentialId\`, this endpoint creates 
         httpOnly: true,
         ...(domain === "localhost" ? { sameSite: "lax", secure: false } : { domain, sameSite: "none", secure: true }),
       });
+      c.header("X-Session-Id", sessionId);
       const { credentialId } = c.req.valid("query");
       if (credentialId && (isAddress as (address: string) => address is Address)(credentialId)) {
         const message = createSiweMessage({
@@ -304,7 +305,8 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
     async (c) => {
       const assertion = c.req.valid("json");
       setContext("auth", assertion);
-      const { session_id: sessionId } = c.req.valid("cookie");
+      const sessionId = c.req.header("x-session-id") ?? c.req.valid("cookie").session_id;
+      if (!sessionId) return c.json({ code: "bad session" }, 400);
       const [credential, challenge] = await Promise.all([
         database.query.credentials.findFirst({
           columns: { publicKey: true, account: true, factory: true, transports: true, counter: true },
