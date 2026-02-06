@@ -258,7 +258,7 @@ export default new Hono().get(
                 if (!b) return null;
                 return {
                   events: b.events,
-                  timestamps: b.blockNumber && timestamps.get(b.blockNumber),
+                  timestamp: b.blockNumber && timestamps.get(b.blockNumber),
                 };
               }),
             });
@@ -277,7 +277,25 @@ export default new Hono().get(
               },
             );
             if (cryptomate.success) return cryptomate.output;
-            captureException(new Error("bad transaction"), { level: "error", contexts: { cryptomate, panda } });
+            captureException(new Error("bad transaction"), {
+              level: "error",
+              contexts: {
+                cryptomate: {
+                  success: cryptomate.success,
+                  issues: cryptomate.issues.map(({ message, path }) => ({
+                    message,
+                    path: path?.map(({ key }) => key),
+                  })),
+                },
+                panda: {
+                  success: panda.success,
+                  issues: panda.issues.map(({ message, path }) => ({
+                    message,
+                    path: path?.map(({ key }) => key),
+                  })),
+                },
+              },
+            });
           }),
         ),
         ...[...deposits, ...repays, ...withdraws].map(({ blockNumber, ...event }) => {
@@ -300,19 +318,77 @@ const Borrow = object({ maturity: bigint(), assets: bigint(), fee: bigint() });
 
 export const PandaActivity = pipe(
   object({
-    bodies: array(looseObject({ action: picklist(["created", "completed", "updated"]) })),
+    bodies: array(
+      looseObject({
+        action: picklist(["completed", "created", "requested", "updated"]),
+        createdAt: optional(string()),
+        status: optional(literal("declined")),
+        reason: optional(string()),
+        body: optional(
+          object({
+            id: string(),
+            spend: object({
+              amount: number(),
+              currency: optional(literal("usd")),
+              localAmount: number(),
+              localCurrency: string(),
+              merchantCity: nullish(string()),
+              merchantCountry: nullish(string()),
+              merchantName: string(),
+              enrichedMerchantIcon: optional(string()),
+            }),
+          }),
+        ),
+      }),
+    ),
     borrows: array(nullable(object({ timestamp: optional(bigint()), events: array(Borrow) }))),
     hashes: array(Hash),
     type: literal("panda"),
   }),
   transform(({ bodies, borrows, hashes, type }) => {
+    const normalizedBodies = bodies.map((body) => ({
+      ...body,
+      action: body.action === "requested" ? "created" : body.action,
+    }));
+
+    const declinedBody = normalizedBodies
+      .filter((b) => b.status === "declined" && b.body !== undefined)
+      .toSorted((a, b) => ((b.createdAt ?? "") > (a.createdAt ?? "") ? 1 : -1))[0];
+
+    if (declinedBody?.body) {
+      const { id, spend } = declinedBody.body;
+      const timestamp = declinedBody.createdAt ?? new Date().toISOString();
+
+      return {
+        id,
+        type,
+        status: "declined" as const,
+        reason: declinedBody.reason ?? "transaction declined",
+        currency: spend.localCurrency.toUpperCase(),
+        amount: spend.localAmount / 100,
+        usdAmount: spend.amount / 100,
+        merchant: {
+          name: spend.merchantName.trim(),
+          city: spend.merchantCity?.trim(),
+          country: spend.merchantCountry?.trim(),
+          state: null,
+          icon: spend.enrichedMerchantIcon,
+        },
+        operations: [],
+        settled: false,
+        timestamp,
+        transactionHash: hashes[0] ?? zeroHash,
+      };
+    }
+
     const operations = hashes.map((hash, index) => {
       const borrow = borrows[index];
       const validation = safeParse(
         { 0: DebitActivity, 1: CreditActivity }[borrow?.events.length ?? 0] ?? InstallmentsActivity,
         {
-          ...bodies[index],
-          forceCapture: bodies[index]?.action === "completed" && !bodies.some((b) => b.action === "created"),
+          ...normalizedBodies[index],
+          forceCapture:
+            normalizedBodies[index]?.action === "completed" && !normalizedBodies.some((b) => b.action === "created"),
           type,
           hash,
           events: borrow?.events,
@@ -349,6 +425,7 @@ export const PandaActivity = pipe(
     const usdAmount = operations.reduce((sum, { usdAmount: amount }) => sum + amount, 0);
     const exchangeRate = flow.completed?.exchangeRate ?? [flow.created, ...flow.updates].at(-1)?.exchangeRate;
     if (!exchangeRate) throw new Error("no exchange rate");
+    const icon = flow.completed?.merchant.icon ?? flow.updates.at(-1)?.merchant.icon;
     return {
       id,
       currency,
@@ -358,7 +435,7 @@ export const PandaActivity = pipe(
         city: city?.trim(),
         country: country?.trim(),
         state: state?.trim(),
-        icon: flow.completed?.merchant.icon ?? flow.updates.at(-1)?.merchant.icon,
+        icon: icon ?? undefined,
       },
       operations: operations.filter(({ transactionHash }) => transactionHash !== zeroHash),
       timestamp,
@@ -373,7 +450,7 @@ const CardActivity = pipe(
   variant("type", [
     object({
       type: literal("panda"),
-      action: picklist(["created", "completed", "updated"]),
+      action: picklist(["created", "completed", "updated", "requested"]),
       createdAt: pipe(string(), isoTimestamp()),
       body: object({
         id: string(),
@@ -404,6 +481,7 @@ const CardActivity = pipe(
           country: nullish(string()),
           state: nullish(string()),
           city: nullish(string()),
+          icon: optional(string()),
         }),
         transaction_amount: number(),
         transaction_currency_code: nullish(string()),
@@ -449,8 +527,8 @@ function transformCard(activity: InferOutput<typeof CardActivity>) {
         name: activity.body.spend.merchantName,
         city: activity.body.spend.merchantCity,
         country: activity.body.spend.merchantCountry,
-        icon: activity.body.spend.enrichedMerchantIcon,
         state: "",
+        icon: activity.body.spend.enrichedMerchantIcon,
       },
     };
   }
@@ -467,6 +545,7 @@ function transformCard(activity: InferOutput<typeof CardActivity>) {
       city: activity.data.merchant_data.city,
       country: activity.data.merchant_data.country,
       state: activity.data.merchant_data.state,
+      icon: activity.data.merchant_data.icon,
     },
   };
 }

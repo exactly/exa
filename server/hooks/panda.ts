@@ -10,7 +10,7 @@ import {
 } from "@sentry/node";
 import { E_TIMEOUT } from "async-mutex";
 import createDebug from "debug";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import * as v from "valibot";
 import {
@@ -62,6 +62,21 @@ import type { UnofficialStatusCode } from "hono/utils/http-status";
 
 const debug = createDebug("exa:panda");
 Object.assign(debug, { inspectOpts: { depth: undefined } });
+
+const DECLINE_REASONS = {
+  INSUFFICIENT_FUNDS: "insufficient funds",
+  FROZEN_CARD: "frozen card",
+  MERCHANT_BLOCKED: "merchant blocked",
+  TRANSACTION_DECLINED: "transaction declined",
+} as const;
+
+type DeclineReason = (typeof DECLINE_REASONS)[keyof typeof DECLINE_REASONS];
+
+const NOTIFICATION_TRIGGERING_REASONS = new Set<DeclineReason>([
+  DECLINE_REASONS.INSUFFICIENT_FUNDS,
+  DECLINE_REASONS.FROZEN_CARD,
+  DECLINE_REASONS.MERCHANT_BLOCKED,
+]);
 
 const BaseTransaction = v.object({
   id: v.string(),
@@ -217,13 +232,26 @@ export default new Hono().post(
     switch (payload.action) {
       case "requested": {
         const card = await database.query.cards.findFirst({
-          columns: { mode: true },
-          where: and(eq(cards.id, payload.body.spend.cardId), eq(cards.status, "ACTIVE")),
+          columns: { mode: true, status: true },
+          where: eq(cards.id, payload.body.spend.cardId),
           with: { credential: { columns: { account: true, id: true } } },
         });
         if (!card) return c.json({ code: "card not found" }, 404);
+
         const account = v.parse(Address, card.credential.account);
         setUser({ id: account });
+
+        if (card.status === "FROZEN") {
+          trackAuthorizationRejected(account, payload, card.mode, "frozen-card");
+
+          handleRejectedTransaction(account, payload, jsonBody, "frozen_card");
+
+          return c.json({ code: "frozen card" }, 403 as UnofficialStatusCode);
+        }
+
+        if (card.status !== "ACTIVE") {
+          return c.json({ code: "card not active" }, 403);
+        }
         const assess = () => {
           return risk({
             sessionKey: payload.body.id ?? payload.id,
@@ -384,10 +412,21 @@ export default new Hono().post(
             if (error.statusCode !== (557 as UnofficialStatusCode)) {
               captureException(error, { level: "error", tags: { unhandled: true } });
             }
+
+            handleRejectedTransaction(account, payload, jsonBody, error.message);
+
             return c.json({ code: error.message }, error.statusCode as UnofficialStatusCode);
           }
           trackAuthorizationRejected(account, payload, card.mode, "unexpected-error");
           captureException(error, { level: "error", tags: { unhandled: true } });
+
+          handleRejectedTransaction(
+            account,
+            payload,
+            jsonBody,
+            error instanceof Error ? error.message : "unexpected error",
+          );
+
           return c.json({ code: "ouch" }, 569 as UnofficialStatusCode);
         }
       }
@@ -533,6 +572,9 @@ export default new Hono().post(
           const mutex = getMutex(account);
           mutex?.release();
           setContext("mutex", { locked: mutex?.isLocked() });
+
+          await handleDeclinedTransaction(account, payload, jsonBody);
+
           trackTransactionRejected(account, payload, card.mode);
           feedback({
             kind: "issuing",
@@ -952,3 +994,162 @@ const TransactionPayload = v.object(
   { bodies: v.array(v.looseObject({ action: v.string() }), "invalid transaction payload") },
   "invalid transaction payload",
 );
+
+function getDeclineReason(error: Error | string): DeclineReason {
+  const errorMessage = typeof error === "string" ? error : error.message;
+
+  const errorMap: Record<string, DeclineReason> = {
+    InsufficientAccountLiquidity: DECLINE_REASONS.INSUFFICIENT_FUNDS,
+    insufficient_funds: DECLINE_REASONS.INSUFFICIENT_FUNDS,
+    merchant_blocked: DECLINE_REASONS.MERCHANT_BLOCKED,
+    frozen_card: DECLINE_REASONS.FROZEN_CARD,
+  };
+
+  for (const [key, value] of Object.entries(errorMap)) {
+    if (errorMessage.toLowerCase().includes(key.toLowerCase())) {
+      return value;
+    }
+  }
+
+  return DECLINE_REASONS.TRANSACTION_DECLINED;
+}
+
+async function handleDeclinedTransaction(
+  account: Address,
+  payload: v.InferOutput<typeof Transaction>,
+  jsonBody: unknown,
+): Promise<void> {
+  try {
+    if (payload.action === "requested" || payload.action === "completed") return;
+
+    const declineReason = payload.body.spend.declinedReason ?? "transaction declined";
+    await handleRejectedTransactionSync(account, payload, jsonBody, declineReason);
+  } catch (error) {
+    const errorToCapture =
+      error instanceof Error ? error : new Error(`handleDeclinedTransaction failed: ${String(error)}`);
+    captureException(errorToCapture, { level: "error" });
+  }
+}
+
+async function updateTransactionRecord(
+  transactionId: string,
+  spend: v.InferOutput<typeof Transaction>["body"]["spend"],
+  payload: v.InferOutput<typeof Transaction>,
+  jsonBody: unknown,
+  reason: string,
+) {
+  const createdAt = getCreatedAt(payload) ?? new Date().toISOString();
+  const body = { ...(jsonBody as object), createdAt };
+  const declinedBody = { ...body, status: "declined" as const, reason };
+
+  await database
+    .insert(transactions)
+    .values({
+      id: transactionId,
+      cardId: spend.cardId,
+      hashes: [zeroHash],
+      payload: {
+        bodies: [declinedBody],
+        type: "panda",
+      },
+    })
+    .onConflictDoUpdate({
+      target: transactions.id,
+      set: {
+        payload: sql`jsonb_set(
+          ${transactions.payload},
+          '{bodies}',
+          ${transactions.payload}::jsonb->'bodies' || ${JSON.stringify([declinedBody])}::jsonb
+        )`,
+      },
+    });
+}
+
+async function sendDeclinedNotification(
+  account: Address,
+  spend: v.InferOutput<typeof Transaction>["body"]["spend"],
+  reason: string,
+) {
+  let formattedAmount: string;
+  try {
+    formattedAmount = (spend.localAmount / 100).toLocaleString(undefined, {
+      style: "currency",
+      currency: spend.localCurrency,
+    });
+  } catch {
+    formattedAmount = `${spend.localCurrency.toUpperCase()} ${(spend.localAmount / 100).toFixed(2)}`;
+  }
+
+  await sendPushNotification({
+    userId: account,
+    headings: { en: "Exa Card purchase rejected" },
+    contents: {
+      en: `Transaction rejected: ${reason} - ${formattedAmount} at ${spend.merchantName.trim()}`,
+    },
+  });
+}
+
+function validateTransactionId(
+  payload: v.InferOutput<typeof Transaction>,
+): null | { spend: v.InferOutput<typeof Transaction>["body"]["spend"]; transactionId: string } {
+  const { id: transactionId, spend } = payload.body;
+  if (!transactionId) {
+    const error = new Error("cannot handle rejected transaction: missing transaction id");
+    captureException(error, {
+      level: "warning",
+      contexts: { payload },
+    });
+    return null;
+  }
+  return { transactionId, spend };
+}
+
+function handleRejectedTransaction(
+  account: Address,
+  payload: v.InferOutput<typeof Transaction>,
+  jsonBody: unknown,
+  declineReason: string,
+) {
+  const validation = validateTransactionId(payload);
+  if (!validation) return;
+
+  const { transactionId, spend } = validation;
+  const reason = getDeclineReason(declineReason);
+
+  updateTransactionRecord(transactionId, spend, payload, jsonBody, reason).catch((error: unknown) => {
+    captureException(error, { level: "error" });
+  });
+
+  if (NOTIFICATION_TRIGGERING_REASONS.has(reason)) {
+    sendDeclinedNotification(account, spend, reason).catch((error: unknown) => {
+      captureException(error, { level: "error" });
+    });
+  }
+}
+
+async function handleRejectedTransactionSync(
+  account: Address,
+  payload: v.InferOutput<typeof Transaction>,
+  jsonBody: unknown,
+  declineReason: string,
+): Promise<void> {
+  const validation = validateTransactionId(payload);
+  if (!validation) return;
+
+  const { transactionId, spend } = validation;
+  const reason = getDeclineReason(declineReason);
+
+  try {
+    await updateTransactionRecord(transactionId, spend, payload, jsonBody, reason);
+  } catch (error) {
+    captureException(error, { level: "error" });
+  }
+
+  if (NOTIFICATION_TRIGGERING_REASONS.has(reason)) {
+    try {
+      await sendDeclinedNotification(account, spend, reason);
+    } catch (error) {
+      captureException(error, { level: "error" });
+    }
+  }
+}
