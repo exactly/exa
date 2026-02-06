@@ -245,17 +245,21 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
       if (credential.cards.length > 0 && credential.cards[0]) {
         const { id, lastFour, status, mode, productId } = credential.cards[0];
         if (status === "DELETED") throw new Error("card deleted");
-        const [{ expirationMonth, expirationYear, limit }, pan, { firstName, lastName }, pin] = await Promise.all([
+        const [{ expirationMonth, expirationYear, limit }, pan, user, pin] = await Promise.all([
           getCard(id),
           getSecrets(id, c.req.valid("header").sessionid),
-          getUser(credential.pandaId),
+          getUser(credential.pandaId).catch((error: unknown) => {
+            if (error instanceof Error && error.message.startsWith("404")) return;
+            throw error;
+          }),
           getPIN(id, c.req.valid("header").sessionid),
         ]);
+        if (!user) return c.json({ code: BadRequestCodes.NO_PANDA, legacy: BadRequestCodes.NO_PANDA }, 403);
         return c.json(
           {
             ...pan,
             ...pin,
-            displayName: `${firstName} ${lastName}`,
+            displayName: `${user.firstName} ${user.lastName}`,
             expirationMonth,
             expirationYear,
             lastFour,

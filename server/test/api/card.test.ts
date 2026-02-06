@@ -192,6 +192,37 @@ describe("authenticated", () => {
     expect(response.status).toBe(403);
   });
 
+  it("returns 403 when panda user is not found", async () => {
+    vi.spyOn(panda, "getSecrets").mockResolvedValueOnce(panTemplate);
+    vi.spyOn(panda, "getPIN").mockResolvedValueOnce(pinTemplate);
+    vi.spyOn(panda, "getCard").mockResolvedValueOnce(cardTemplate);
+    vi.spyOn(panda, "getUser").mockRejectedValueOnce(
+      new Error('404 {"message":"Not Found","error":"NotFoundError","statusCode":404}'),
+    );
+
+    const response = await appClient.index.$get(
+      { header: { sessionid: "fakeSession" } },
+      { headers: { "test-credential-id": "default" } },
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toStrictEqual({ code: "no panda", legacy: "no panda" });
+  });
+
+  it("throws when getUser fails with non-404 error", async () => {
+    vi.spyOn(panda, "getSecrets").mockResolvedValueOnce(panTemplate);
+    vi.spyOn(panda, "getPIN").mockResolvedValueOnce(pinTemplate);
+    vi.spyOn(panda, "getCard").mockResolvedValueOnce(cardTemplate);
+    vi.spyOn(panda, "getUser").mockRejectedValueOnce(new Error("500 internal server error"));
+
+    const response = await appClient.index.$get(
+      { header: { sessionid: "fakeSession" } },
+      { headers: { "test-credential-id": "default" } },
+    );
+
+    expect(response.status).toBe(500);
+  });
+
   it("creates a panda debit card with signature product id", async () => {
     vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: "createCard" });
 
