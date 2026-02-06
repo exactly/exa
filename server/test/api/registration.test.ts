@@ -15,6 +15,7 @@ import { Address } from "@exactly/common/validation";
 import app from "../../api/auth/registration";
 import database, { credentials } from "../../database";
 
+import type * as AlchemyQueue from "../../queues/alchemyQueue";
 import type * as SimpleWebAuthn from "@simplewebauthn/server";
 import type * as SimpleWebAuthnHelpers from "@simplewebauthn/server/helpers";
 
@@ -126,6 +127,11 @@ vi.mock("../../utils/redis", () => ({
     del: vi.fn<() => boolean>().mockResolvedValue(true),
   },
 }));
+
+vi.mock("../../queues/alchemyQueue", async (importOriginal) => {
+  const actual = await importOriginal<typeof AlchemyQueue>();
+  return { ...actual, getAlchemyQueue: vi.fn(() => ({ add: vi.fn().mockResolvedValue({}) })) };
+});
 
 vi.mock("@simplewebauthn/server/helpers", async (importOriginal) => {
   const original = await importOriginal<typeof SimpleWebAuthnHelpers>();
