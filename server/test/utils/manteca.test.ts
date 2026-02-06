@@ -11,7 +11,14 @@ import * as persona from "../../utils/persona";
 import * as manteca from "../../utils/ramps/manteca";
 import { ErrorCodes } from "../../utils/ramps/manteca";
 
-const chainMock = vi.hoisted(() => ({ id: 10 }));
+const chainMock = vi.hoisted(() => ({
+  id: 10,
+  rpcUrls: {
+    alchemy: {
+      http: ["https://mocked-rpc-url"],
+    },
+  },
+}));
 
 vi.mock("@exactly/common/generated/chain", () => ({
   default: chainMock,

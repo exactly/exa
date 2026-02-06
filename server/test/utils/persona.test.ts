@@ -7,7 +7,14 @@ import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } fr
 
 import * as persona from "../../utils/persona";
 
-const chainMock = vi.hoisted(() => ({ id: 10 }));
+const chainMock = vi.hoisted(() => ({
+  id: 10,
+  rpcUrls: {
+    alchemy: {
+      http: ["https://mocked-rpc-url"],
+    },
+  },
+}));
 
 vi.mock("@exactly/common/generated/chain", () => ({
   default: chainMock,
