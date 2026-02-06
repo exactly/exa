@@ -40,7 +40,7 @@ import VisaSignatureBanner from "./VisaSignatureBanner";
 import VisaSignatureModal from "./VisaSignatureSheet";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
-import { setCardMode } from "../../utils/server";
+import { cardModeMutationOptions } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
 import usePortfolio from "../../utils/usePortfolio";
 import useTabPress from "../../utils/useTabPress";
@@ -140,24 +140,7 @@ export default function Home() {
   );
   const { data: card } = useQuery<CardDetails>({ queryKey: ["card", "details"], enabled: !!account && !!bytecode });
   const { data: spotlightShown } = useQuery<boolean>({ queryKey: ["settings", "installments-spotlight"] });
-  const { mutateAsync: mutateMode } = useMutation({
-    mutationKey: ["card", "mode"],
-    mutationFn: setCardMode,
-    onMutate: async (newMode) => {
-      await queryClient.cancelQueries({ queryKey: ["card", "details"] });
-      const previous = queryClient.getQueryData(["card", "details"]);
-      queryClient.setQueryData(["card", "details"], (old: CardDetails) => ({ ...old, mode: newMode }));
-      return { previous };
-    },
-    onError: (error, _, context) => {
-      if (context?.previous) queryClient.setQueryData(["card", "details"], context.previous);
-      reportError(error);
-    },
-    onSettled: async (data) => {
-      await queryClient.invalidateQueries({ queryKey: ["card", "details"] });
-      if (data && "mode" in data && data.mode > 0) queryClient.setQueryData(["settings", "installments"], data.mode);
-    },
-  });
+  const { mutateAsync: mutateMode } = useMutation(cardModeMutationOptions);
 
   const { data: manualRepaymentAcknowledged } = useQuery<boolean>({ queryKey: ["manual-repayment-acknowledged"] });
   function handleModeChange(mode: number) {
