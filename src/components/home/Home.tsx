@@ -197,7 +197,9 @@ export default function Home() {
                   <GettingStarted isDeployed={!!bytecode} hasKYC={isKYCApproved} />
                 )}
               </AnimatePresence>
-              {isKYCFetched && isKYCApproved && <BenefitsSection />}
+            </View>
+            {isKYCFetched && isKYCApproved && <BenefitsSection />}
+            <View padded gap="$s5">
               <OverduePayments onSelect={(m) => router.setParams({ maturity: String(m) })} />
               <UpcomingPayments onSelect={(m) => router.setParams({ maturity: String(m) })} />
               <LatestActivity activity={activity} />
