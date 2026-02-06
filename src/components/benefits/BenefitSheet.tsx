@@ -1,6 +1,6 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable } from "react-native";
+import { Platform, Pressable } from "react-native";
 
 import { setStringAsync } from "expo-clipboard";
 
@@ -49,6 +49,9 @@ export default function BenefitSheet({ benefit, open, onClose }: BenefitSheetPro
     enabled: benefit?.id === "pax" && open,
   });
 
+  const paxLabel = paxData ? t("Copy Pax ID {{id}}", { id: paxData.associateId }) : undefined;
+  const web = Platform.OS === "web";
+
   if (!benefit) return null;
 
   const LogoComponent = benefit.logo;
@@ -64,7 +67,7 @@ export default function BenefitSheet({ benefit, open, onClose }: BenefitSheetPro
         backgroundColor="$backgroundSoft"
       >
         <View position="absolute" top="$s5" right="$s5" zIndex={10}>
-          <Pressable onPress={onClose} hitSlop={15}>
+          <Pressable accessibilityLabel={t("Close")} accessibilityRole="button" onPress={onClose} hitSlop={15}>
             <X size={25} color="$uiNeutralSecondary" />
           </Pressable>
         </View>
@@ -90,6 +93,7 @@ export default function BenefitSheet({ benefit, open, onClose }: BenefitSheetPro
               </YStack>
               {benefit.id === "pax" && (
                 <Pressable
+                  aria-label={web ? undefined : paxLabel}
                   disabled={!paxData || isPaxError}
                   onPress={() => {
                     if (!paxData) return;
@@ -111,6 +115,17 @@ export default function BenefitSheet({ benefit, open, onClose }: BenefitSheetPro
                     justifyContent="space-between"
                     alignItems="center"
                   >
+                    {paxLabel && (
+                      <Text
+                        aria-label={web ? paxLabel : undefined}
+                        aria-hidden={!web}
+                        position="absolute"
+                        opacity={0}
+                        pointerEvents="none"
+                      >
+                        {paxLabel}
+                      </Text>
+                    )}
                     {isPaxLoading ? (
                       <Spinner color="$uiNeutralSecondary" />
                     ) : paxData ? (
