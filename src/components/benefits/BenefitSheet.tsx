@@ -64,7 +64,7 @@ export default function BenefitSheet({ benefit, open, onClose }: BenefitSheetPro
         backgroundColor="$backgroundSoft"
       >
         <View position="absolute" top="$s5" right="$s5" zIndex={10}>
-          <Pressable accessibilityLabel={t("Close")} accessibilityRole="button" onPress={onClose} hitSlop={15}>
+          <Pressable onPress={onClose} hitSlop={15} aria-label={t("Close")}>
             <X size={25} color="$uiNeutralSecondary" />
           </Pressable>
         </View>
@@ -90,8 +90,7 @@ export default function BenefitSheet({ benefit, open, onClose }: BenefitSheetPro
               </YStack>
               {benefit.id === "pax" && (
                 <Pressable
-                  accessibilityLabel={t("COPY ID")}
-                  accessibilityRole="button"
+                  aria-label={t("COPY ID")}
                   disabled={!paxData || isPaxError}
                   onPress={() => {
                     if (!paxData) return;

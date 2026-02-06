@@ -1,0 +1,73 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+- assertVisible: ${output.account.slice(0, 6)}…${output.account.slice(-4)}
+- runFlow:
+    when: { true: "${maestro.platform != 'web'}" }
+    commands: [{ assertVisible: Settings }]
+- runFlow:
+    when: { platform: web }
+    commands: [{ assertVisible: { id: Settings } }]
+- runFlow: { file: tapAria.yaml, env: { aria: Hide sensitive } }
+- assertNotVisible:
+    text: \$[\s\d,.\xa0]+
+    below: Portfolio
+- runFlow: { file: tapAria.yaml, env: { aria: Show sensitive } }
+- assertVisible:
+    text: \$[\s\d,.\xa0]+
+    below: Portfolio
+- assertVisible: Portfolio
+- assertVisible:
+    text: \$[\s\d,.\xa0]+
+    below: Portfolio
+- assertVisible: Manage portfolio
+- runFlow: readPortfolio.yaml
+- assertTrue: ${output.portfolio > 0}
+- assertVisible: Add funds
+- assertVisible: Send
+- assertVisible: Swap
+- assertVisible: Exa Card pay mode
+- assertVisible: Learn more
+- assertNotVisible: Getting Started
+- repeat:
+    while:
+      notVisible: Upcoming payments
+    commands:
+      - swipe:
+          start: "50%, 40%"
+          end: "50%, 10%"
+          duration: 500
+- assertVisible: Benefits
+- runFlow: readBenefits.yaml
+- assertVisible: Upcoming payments
+- repeat:
+    while:
+      notVisible:
+        text: \d+[,.]\d{2}
+        below: Upcoming payments
+    commands:
+      - swipe:
+          start: "50%, 40%"
+          end: "50%, 10%"
+          duration: 500
+- assertVisible:
+    text: \d+[,.]\d{2}
+    below: Upcoming payments
+- repeat:
+    while:
+      notVisible: Latest activity
+    commands:
+      - swipe:
+          start: "50%, 40%"
+          end: "50%, 10%"
+          duration: 500
+- assertVisible: Latest activity
+- assertVisible: View all
+- assertNotVisible: No activity yet
+- tapOn: View all
+- tapOn: Home
+- tapOn: Home
+- waitForAnimationToEnd
+- assertVisible: Portfolio
+- assertVisible:
+    text: \$[\s\d,.\xa0]+
+    below: Portfolio

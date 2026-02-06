@@ -42,7 +42,7 @@ appId: ${APP_ID ?? "app.exactly"}
       - runFlow:
           when: { platform: android }
           commands: [{ tapOn: Confirmation Code }]
-      - inputText: "12345"
+      - inputText: '12345'
       - hideKeyboard
       - tapOn: Continue
       - assertVisible: What is your phone number?
@@ -51,14 +51,14 @@ appId: ${APP_ID ?? "app.exactly"}
       - tapOn: 🇦🇷 Argentina +54
       - tapOn:
           containsChild: { containsChild: { id: textinput_prefix_text } } # cspell:ignore textinput
-      - inputText: "1199999999"
+      - inputText: '1199999999'
       - hideKeyboard
       - tapOn: Continue
       - assertVisible: Confirm your phone number
       - runFlow: # HACK
           when: { platform: android }
           commands: [{ tapOn: { id: first } }]
-      - inputText: "1234"
+      - inputText: '1234'
       - hideKeyboard
       - extendedWaitUntil: { visible: Economic activity }
       - tapOn: Economic activity
@@ -81,6 +81,6 @@ appId: ${APP_ID ?? "app.exactly"}
       - runScript: ../dist/getAccount.js
       - runScript:
           file: ../dist/approveKYC.js
-          env: { credentialId: "${output.owner}" }
+          env: { credentialId: '${output.owner}' }
 - tapOn: Home
 - assertNotVisible: Getting Started
