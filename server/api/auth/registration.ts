@@ -43,7 +43,7 @@ import appOrigin from "../../utils/appOrigin";
 import createCredential, { WebhookNotReadyError } from "../../utils/createCredential";
 import getIntercomToken from "../../utils/intercom";
 import publicClient from "../../utils/publicClient";
-import redis from "../../utils/redis";
+import { requestRedis as redis } from "../../utils/redis";
 import validatorHook from "../../utils/validatorHook";
 
 const Cookie = object({
