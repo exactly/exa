@@ -22,6 +22,9 @@ appId: ${APP_ID ?? "app.exactly"}
     file: ../dist/hookProposals.js
     env: { account: "${output.account}" }
 - tapOn: Home
+- runFlow:
+    file: ../subflows/tapWhileAria.yaml
+    env: { aria: Pending proposals, tap: Home }
 - scrollUntilVisible: { element: Repay }
 - assertNotVisible: "${output.maturity}"
 - tapOn: Home
