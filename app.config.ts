@@ -2,7 +2,7 @@ import type { PluginConfigType as BuildPropertiesConfig } from "expo-build-prope
 import type withCamera from "expo-camera/plugin/build/withCamera";
 import type { FontProps } from "expo-font/plugin/build/withFonts";
 
-import { AndroidConfig, withAndroidManifest, type ConfigPlugin } from "expo/config-plugins";
+import { AndroidConfig, withAndroidManifest, withAppBuildGradle, type ConfigPlugin } from "expo/config-plugins";
 import { env } from "node:process";
 
 import metadata from "./package.json";
@@ -117,25 +117,34 @@ export default {
     ],
     // @ts-expect-error inline plugin
     ((config) =>
-      withAndroidManifest(config, (configWithManifest) => {
-        const manifest = configWithManifest.modResults;
-        manifest.manifest.$["xmlns:tools"] ??= "http://schemas.android.com/tools";
-        const mainApplication = AndroidConfig.Manifest.getMainApplication(manifest);
-        if (!mainApplication) return configWithManifest;
-        const META_NAME = "com.google.mlkit.vision.DEPENDENCIES"; // cspell:ignore mlkit
-        mainApplication["meta-data"] =
-          mainApplication["meta-data"]?.filter(({ $ }) => $["android:name"] !== META_NAME) ?? [];
-        mainApplication["meta-data"].push({
-          $: {
-            "android:name": META_NAME,
-            "android:value": "ocr,face,barcode,barcode_ui",
-            // @ts-expect-error xmlns:tools
-            "tools:replace": "android:value",
-          },
-        });
-        configWithManifest.modResults = manifest;
-        return configWithManifest;
-      })) satisfies ConfigPlugin,
+      withAndroidManifest(
+        withAppBuildGradle(config, (c) => {
+          c.modResults.contents = c.modResults.contents.replace(
+            /defaultConfig\s*\{/,
+            '$& ndk { debugSymbolLevel "FULL" }',
+          );
+          return c;
+        }),
+        (configWithManifest) => {
+          const manifest = configWithManifest.modResults;
+          manifest.manifest.$["xmlns:tools"] ??= "http://schemas.android.com/tools";
+          const mainApplication = AndroidConfig.Manifest.getMainApplication(manifest);
+          if (!mainApplication) return configWithManifest;
+          const META_NAME = "com.google.mlkit.vision.DEPENDENCIES"; // cspell:ignore mlkit
+          mainApplication["meta-data"] =
+            mainApplication["meta-data"]?.filter(({ $ }) => $["android:name"] !== META_NAME) ?? [];
+          mainApplication["meta-data"].push({
+            $: {
+              "android:name": META_NAME,
+              "android:value": "ocr,face,barcode,barcode_ui",
+              // @ts-expect-error xmlns:tools
+              "tools:replace": "android:value",
+            },
+          });
+          configWithManifest.modResults = manifest;
+          return configWithManifest;
+        },
+      )) satisfies ConfigPlugin,
   ],
   experiments: { typedRoutes: true },
   extra: { eas: { projectId: "06bc0158-d23b-430b-a7e8-802df03c450b" } },
