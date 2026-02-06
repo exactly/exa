@@ -31,6 +31,7 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
         : queryClient.getQueryData<Credential>(["credential"])?.credentialId;
     if (method === "siwe" && !owner) return queryClient.getQueryData<number>(["auth"]) ?? 0;
     const get = await api.auth.authentication.$get({ query: { credentialId: owner } });
+    const sessionId = get.headers.get("x-session-id");
     const options = await get.json();
     if (options.method === "webauthn" && Platform.OS === "android") delete options.allowCredentials; // HACK fix android credential filtering
     const json =
@@ -48,7 +49,10 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
             if (!assertion) throw new Error("bad assertion");
             return { method: "webauthn" as const, ...assertion };
           });
-    const post = await api.auth.authentication.$post({ json });
+    const post = await api.auth.authentication.$post(
+      { json },
+      sessionId ? { headers: { "x-session-id": sessionId } } : undefined,
+    );
     if (!post.ok) throw new APIError(post.status, stringOrLegacy(await post.json()));
     const { expires, intercomToken, credentialId, factory, x, y } = await post.json();
     queryClient.setQueryData(["credential"], { credentialId, factory, x, y });
@@ -204,23 +208,27 @@ export async function createCredential() {
   const credentialId = method === "siwe" ? getConnection(ownerConfig).address : undefined;
   if (method === "siwe" && !credentialId) throw new Error("invalid operation");
   const get = await api.auth.registration.$get({ query: { credentialId } });
+  const sessionId = get.headers.get("x-session-id");
   const options = await get.json();
-  const post = await api.auth.registration.$post({
-    json:
-      options.method === "siwe"
-        ? {
-            method: options.method,
-            id: options.address,
-            signature: await signMessage(ownerConfig, { account: options.address, message: options.message }),
-          }
-        : await create({
-            ...options,
-            extensions: options.extensions as Record<string, unknown> | undefined,
-          }).then((attestation) => {
-            if (!attestation) throw new Error("bad attestation");
-            return attestation;
-          }),
-  });
+  const post = await api.auth.registration.$post(
+    {
+      json:
+        options.method === "siwe"
+          ? {
+              method: options.method,
+              id: options.address,
+              signature: await signMessage(ownerConfig, { account: options.address, message: options.message }),
+            }
+          : await create({
+              ...options,
+              extensions: options.extensions as Record<string, unknown> | undefined,
+            }).then((attestation) => {
+              if (!attestation) throw new Error("bad attestation");
+              return attestation;
+            }),
+    },
+    sessionId ? { headers: { "x-session-id": sessionId } } : undefined,
+  );
   if (!post.ok) throw new APIError(post.status, stringOrLegacy(await post.json()));
   const { auth: expires, intercomToken, ...credential } = await post.json();
   await loginIntercom(deriveAddress(credential.factory, { x: credential.x, y: credential.y }), intercomToken);
@@ -252,8 +260,9 @@ const Auth = pipe(
 
 export { APIError } from "./queryClient";
 
-function stringOrLegacy(response: string | { legacy: string }) {
+function stringOrLegacy(response: string | { code: string } | { legacy: string }) {
   if (typeof response === "string") return response;
+  if ("code" in response && typeof response.code === "string") return response.code;
   if ("legacy" in response && typeof response.legacy === "string") return response.legacy;
   throw new Error("invalid api response");
 }
