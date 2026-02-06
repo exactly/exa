@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Platform, StyleSheet, useWindowDimensions } from "react-native";
+import { StyleSheet } from "react-native";
 import type { SharedValue } from "react-native-reanimated";
 import { Easing, Extrapolation, interpolate, useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 import Carousel from "react-native-reanimated-carousel";
@@ -12,7 +12,6 @@ import BenefitSheet from "./BenefitSheet";
 import AiraloLogo from "../../assets/images/airalo.svg";
 import PaxLogo from "../../assets/images/pax.svg";
 import VisaLogo from "../../assets/images/visa.svg";
-import useAspectRatio from "../../utils/useAspectRatio";
 import AnimatedView from "../shared/AnimatedView";
 import Text from "../shared/Text";
 
@@ -60,7 +59,10 @@ const BENEFITS = [
 
 export type Benefit = (typeof BENEFITS)[number];
 
-const styles = StyleSheet.create({ dot: { height: 8, borderRadius: 10 } });
+const styles = StyleSheet.create({
+  dot: { height: 4, borderRadius: 9999 },
+  overflow: { overflow: "visible" },
+});
 
 /* istanbul ignore next */
 function calculateDistance(scrollOffset: number, index: number, length: number) {
@@ -89,7 +91,7 @@ function PaginationDot({
   /* istanbul ignore next */
   const rStyle = useAnimatedStyle(() => {
     const distance = calculateDistance(scrollOffset.value, index, length);
-    const width = interpolate(distance, [0, 1], [20, 8], Extrapolation.CLAMP);
+    const width = interpolate(distance, [0, 1], [24, 8], Extrapolation.CLAMP);
     const opacity = interpolate(distance, [0, 1], [1, 0.4], Extrapolation.CLAMP);
     return { width, opacity };
   }, [scrollOffset, index, length]);
@@ -111,11 +113,8 @@ export default function BenefitsSection() {
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const scrollOffset = useSharedValue(0);
-  const aspectRatio = useAspectRatio();
-
-  const { width, height } = useWindowDimensions();
-
-  const carouselWidth = Math.max(Platform.OS === "web" ? Math.min(height * aspectRatio, 600) - 64 : width - 64, 250);
+  const [width, setWidth] = useState(0);
+  const itemWidth = Math.max(width - 40, 250);
 
   const handleProgressChange = useCallback(
     (_: number, absoluteProgress: number) => {
@@ -126,42 +125,56 @@ export default function BenefitsSection() {
 
   return (
     <>
-      <View backgroundColor="$backgroundSoft" padding="$s4" gap="$s3_5">
-        <XStack alignItems="center" justifyContent="center" gap="$s2" paddingTop="$s2">
+      <View
+        backgroundColor="$backgroundSoft"
+        paddingVertical="$s4_5"
+        gap="$s3_5"
+        borderTopWidth={1}
+        borderBottomWidth={1}
+        borderColor="$borderNeutralSoft"
+      >
+        <XStack alignItems="center" gap="$s3_5" paddingHorizontal="$s6">
           <Text emphasized headline flex={1}>
             {t("Benefits")}
           </Text>
-          {BENEFITS.map((benefit, index) => (
-            <PaginationDot
-              key={benefit.id}
-              index={index}
-              scrollOffset={scrollOffset}
-              activeColor={theme.interactiveBaseBrandDefault.val}
-              inactiveColor={theme.interactiveDisabled.val}
-            />
-          ))}
+          <XStack alignItems="center" gap="$s2">
+            {BENEFITS.map((benefit, index) => (
+              <PaginationDot
+                key={benefit.id}
+                index={index}
+                scrollOffset={scrollOffset}
+                activeColor={theme.interactiveBaseBrandDefault.val}
+                inactiveColor={theme.interactiveDisabled.val}
+              />
+            ))}
+          </XStack>
         </XStack>
-        <View>
-          <Carousel
-            width={carouselWidth}
-            height={160}
-            data={BENEFITS}
-            autoPlay
-            autoPlayInterval={5000}
-            withAnimation={{ type: "timing", config: { duration: 512, easing: Easing.bezier(0.7, 0, 0.3, 1) } }}
-            onProgressChange={handleProgressChange}
-            renderItem={({ item }) => (
-              <View paddingHorizontal="$s2">
-                <BenefitCard
-                  benefit={item}
-                  onPress={() => {
-                    setSelectedBenefit(item);
-                    setSheetOpen(true);
-                  }}
-                />
-              </View>
-            )}
-          />
+        <View overflow="hidden" alignItems="center" onLayout={(event) => setWidth(event.nativeEvent.layout.width)}>
+          {width === 0 ? undefined : (
+            <Carousel
+              style={styles.overflow}
+              containerStyle={styles.overflow}
+              width={itemWidth}
+              height={160}
+              data={BENEFITS}
+              autoPlay
+              autoPlayInterval={5000}
+              withAnimation={{ type: "timing", config: { duration: 512, easing: Easing.bezier(0.7, 0, 0.3, 1) } }}
+              onProgressChange={handleProgressChange}
+              onConfigurePanGesture={(gesture) => gesture.activeOffsetX([-10, 10]).failOffsetY([-5, 5])}
+              renderItem={({ item }) => (
+                <View paddingHorizontal="$s2">
+                  <BenefitCard
+                    benefit={item}
+                    onPress={() => {
+                      setSelectedBenefit(item);
+                      setSheetOpen(true);
+                    }}
+                  />
+                </View>
+              )}
+            />
+          )}
         </View>
       </View>
       <BenefitSheet benefit={selectedBenefit} open={sheetOpen} onClose={() => setSheetOpen(false)} />
