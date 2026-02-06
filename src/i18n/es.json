@@ -556,7 +556,7 @@
   "There was an error verifying your information.": "Hubo un error verificando tu información.",
   "We're verifying your information. You'll be able to add funds soon.": "Estamos verificando tu información. Pronto podrás agregar fondos.",
   "We need more information about you": "Necesitamos más información sobre ti",
-  "You'll be able to add funds soon.": "Pronto podrás agregar fondos.",
+  "You’ll be able to add funds soon.": "Pronto podrás agregar fondos.",
   "Continue verification": "Continuar verificación",
   "Between {{min}} and {{max}} minutes": "Entre {{min}} y {{max}} minutos",
   "The fiat deposit services are provided by <provider>Manteca</provider> (Sixalime SAS) and are subject to <terms>Terms and Conditions</terms>. Exa Labs SAS does not custody fiat funds.": "Los servicios de depósito fiat son proporcionados por <provider>Manteca</provider> (Sixalime SAS) y están sujetos a los <terms>Términos y Condiciones</terms>. Exa Labs SAS no custodia fondos fiat.",
