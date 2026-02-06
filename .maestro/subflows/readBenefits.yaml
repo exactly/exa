@@ -1,0 +1,32 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+- repeat:
+    while:
+      notVisible: Copy your ID and get 30 days of travel insurance for free on Pax Assistance.
+    commands:
+      - extendedWaitUntil:
+          visible: 30 days of free travel insurance
+          timeout: 15000
+      - tapOn: 30 days of free travel insurance
+- tapOn: COPY ID
+- runFlow: { file: tapAria.yaml, env: { aria: Close } }
+- repeat:
+    while:
+      notVisible: Stay connected around the world.
+    commands:
+      - extendedWaitUntil:
+          visible: 20% OFF on eSims
+          timeout: 15000
+      - tapOn: 20% OFF on eSims
+- assertVisible: Terms & conditions
+- runFlow: { file: tapAria.yaml, env: { aria: Close } }
+- repeat:
+    while:
+      notVisible: Visa Signature Exa Card benefits
+    commands:
+      - extendedWaitUntil:
+          visible: Visa Signature benefits
+          timeout: 15000
+      - tapOn: Visa Signature benefits
+- assertVisible: A world of benefits.
+- runFlow: { file: tapAria.yaml, env: { aria: Close } }
