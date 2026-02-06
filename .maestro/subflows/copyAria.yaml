@@ -1,0 +1,12 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+# HACK https://github.com/mobile-dev-inc/Maestro/issues/2914
+- runFlow:
+    when: { true: "${maestro.platform != 'web'}" }
+    commands:
+      - copyTextFrom: "${aria}"
+- runFlow:
+    when: { platform: web }
+    commands:
+      - copyTextFrom:
+          text: "${aria}"
