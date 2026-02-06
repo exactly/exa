@@ -5,10 +5,11 @@ import { Pressable } from "react-native";
 import { Check, X } from "@tamagui/lucide-icons";
 import { Square, XStack, YStack } from "tamagui";
 
+import { useQuery } from "@tanstack/react-query";
 import { isAfter } from "date-fns";
 import { zeroAddress } from "viem";
-import { useBytecode } from "wagmi";
 
+import accountInit from "@exactly/common/accountInit";
 import { exaPluginAddress, marketUSDCAddress } from "@exactly/common/generated/chain";
 import { useReadUpgradeableModularAccountGetInstalledPlugins } from "@exactly/common/generated/hooks";
 
@@ -20,7 +21,7 @@ import AssetLogo from "../shared/AssetLogo";
 import Text from "../shared/Text";
 import TransactionDetails from "../shared/TransactionDetails";
 
-import type { Hex } from "@exactly/common/validation";
+import type { Credential, Hex } from "@exactly/common/validation";
 
 export default function Success({
   amount,
@@ -42,10 +43,12 @@ export default function Success({
     i18n: { language },
   } = useTranslation();
   const { address } = useAccount();
-  const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
+  const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
     address: address ?? zeroAddress,
-    query: { enabled: !!address && !!bytecode },
+    factory: credential?.factory,
+    factoryData: credential && accountInit(credential),
+    query: { enabled: !!address && !!credential },
   });
   const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
   return (

@@ -12,6 +12,7 @@ import { waitForCallsStatus } from "@wagmi/core/actions";
 import { encodeAbiParameters, encodeFunctionData, maxUint256, zeroAddress, type Address, type Hex } from "viem";
 import { useBytecode, useSendCalls } from "wagmi";
 
+import accountInit from "@exactly/common/accountInit";
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
 import chain, { exaPluginAddress, marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
@@ -41,6 +42,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 import type { Loan } from "../../utils/queryClient";
+import type { Credential } from "@exactly/common/validation";
 
 export default function Review() {
   const router = useRouter();
@@ -69,6 +71,7 @@ export default function Review() {
   const symbol = assetMarket?.symbol.slice(3) === "WETH" ? "ETH" : assetMarket?.symbol.slice(3);
   const singleInstallment = count === 1;
 
+  const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
 
   const { data: borrow, isPending: isBorrowPending } = useReadPreviewerPreviewBorrowAtMaturity({
@@ -184,7 +187,9 @@ export default function Review() {
 
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
     address: address ?? zeroAddress,
-    query: { enabled: !!address && !!bytecode },
+    factory: credential?.factory,
+    factoryData: credential && accountInit(credential),
+    query: { enabled: !!address && !!credential },
   });
   const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
 

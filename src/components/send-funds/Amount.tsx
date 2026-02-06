@@ -13,6 +13,7 @@ import { bigint, check, parse, pipe, safeParse } from "valibot";
 import { encodeAbiParameters, erc20Abi, formatUnits, parseUnits, zeroAddress as viemZeroAddress } from "viem";
 import { useBytecode, useEstimateGas, useSendTransaction, useSimulateContract, useWriteContract } from "wagmi";
 
+import accountInit from "@exactly/common/accountInit";
 import { exaPluginAddress } from "@exactly/common/generated/chain";
 import {
   exaPluginAbi,
@@ -21,7 +22,7 @@ import {
 } from "@exactly/common/generated/hooks";
 import ProposalType from "@exactly/common/ProposalType";
 import shortenHex from "@exactly/common/shortenHex";
-import { Address } from "@exactly/common/validation";
+import { Address, type Credential } from "@exactly/common/validation";
 import { WAD } from "@exactly/lib";
 
 import ReviewSheet from "./ReviewSheet";
@@ -61,10 +62,13 @@ export default function Amount() {
   const form = useForm({ defaultValues: { amount: typeof amount === "string" ? BigInt(amount) : 0n } });
   const formAmount = useStore(form.store, (state) => state.values.amount);
 
+  const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
     address: address ?? zeroAddress,
-    query: { enabled: !!address && !!bytecode },
+    factory: credential?.factory,
+    factoryData: credential && accountInit(credential),
+    query: { enabled: !!address && !!credential },
   });
   const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
 

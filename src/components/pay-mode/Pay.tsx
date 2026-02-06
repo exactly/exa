@@ -14,6 +14,7 @@ import { digits, nonEmpty, parse, pipe, safeParse, string, transform } from "val
 import { ContractFunctionExecutionError, ContractFunctionRevertedError, erc20Abi, zeroAddress } from "viem";
 import { useBytecode, useReadContract, useSendCalls, useSimulateContract, useWriteContract } from "wagmi";
 
+import accountInit from "@exactly/common/accountInit";
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
 import chain, {
@@ -34,7 +35,7 @@ import {
   useReadUpgradeableModularAccountGetInstalledPlugins,
 } from "@exactly/common/generated/hooks";
 import ProposalType from "@exactly/common/ProposalType";
-import { Address } from "@exactly/common/validation";
+import { Address, type Credential } from "@exactly/common/validation";
 import { divWad, fixedRepayAssets, fixedRepayPosition, min, WAD } from "@exactly/lib";
 
 import AssetSelectionSheet from "./AssetSelectionSheet";
@@ -98,10 +99,13 @@ export default function Pay() {
     usdAmount: 0,
   });
   const { mutateAsync: mutateSendCalls } = useSendCalls();
+  const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const { data: bytecode } = useBytecode({ address: account ?? zeroAddress, query: { enabled: !!account } });
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
     address: account ?? zeroAddress,
-    query: { enabled: !!account && !!bytecode },
+    factory: credential?.factory,
+    factoryData: credential && accountInit(credential),
+    query: { enabled: !!account && !!credential },
   });
   const withUSDC = selectedAsset.address === (marketUSDCAddress as Address);
   const mode =

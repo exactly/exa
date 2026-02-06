@@ -10,6 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { zeroAddress } from "viem";
 import { useBytecode, useReadContract } from "wagmi";
 
+import accountInit from "@exactly/common/accountInit";
 import { exaPluginAddress } from "@exactly/common/generated/chain";
 import {
   upgradeableModularAccountAbi,
@@ -21,10 +22,12 @@ import useAccount from "../../utils/useAccount";
 import Button from "../shared/StyledButton";
 
 import type { AuthMethod } from "../../utils/queryClient";
+import type { Credential } from "@exactly/common/validation";
 
 export default function HomeActions() {
   const router = useRouter();
   const { address: account } = useAccount();
+  const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const { data: method } = useQuery<AuthMethod>({ queryKey: ["method"] });
   const { data: bytecode } = useBytecode({ address: account ?? zeroAddress, query: { enabled: !!account } });
   const { t } = useTranslation();
@@ -38,7 +41,9 @@ export default function HomeActions() {
 
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
     address: account ?? zeroAddress,
-    query: { enabled: !!account && !!bytecode },
+    factory: credential?.factory,
+    factoryData: credential && accountInit(credential),
+    query: { enabled: !!account && !!credential },
   });
   const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
   const { refetch: fetchProposals, isPending } = useReadContract({

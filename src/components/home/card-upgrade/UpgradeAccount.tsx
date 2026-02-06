@@ -7,9 +7,10 @@ import { YStack } from "tamagui";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { waitForCallsStatus } from "@wagmi/core/actions";
-import { encodeAbiParameters, getAbiItem, keccak256, zeroAddress } from "viem";
-import { useBytecode, useSendCalls } from "wagmi";
+import { encodeAbiParameters, getAbiItem, keccak256 } from "viem";
+import { useSendCalls } from "wagmi";
 
+import accountInit from "@exactly/common/accountInit";
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
 import chain, { exaPluginAddress } from "@exactly/common/generated/chain";
@@ -30,14 +31,18 @@ import Spinner from "../../shared/Spinner";
 import Text from "../../shared/Text";
 import View from "../../shared/View";
 
+import type { Credential } from "@exactly/common/validation";
+
 export default function UpgradeAccount() {
   const { mutateAsync: mutateSendCalls } = useSendCalls();
   const { address } = useAccount();
-  const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
+  const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const { data: installedPlugins, refetch: refetchInstalledPlugins } =
     useReadUpgradeableModularAccountGetInstalledPlugins({
       address,
-      query: { refetchOnMount: true, enabled: !!address && !!bytecode },
+      factory: credential?.factory,
+      factoryData: credential && accountInit(credential),
+      query: { refetchOnMount: true, enabled: !!address && !!credential },
     });
   const { data: pluginManifest } = useReadExaPluginPluginManifest({ address: exaPluginAddress });
   const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;

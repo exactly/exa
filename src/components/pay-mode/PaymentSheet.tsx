@@ -21,10 +21,9 @@ import { useQuery } from "@tanstack/react-query";
 import { formatDistance, isAfter } from "date-fns";
 import { enUS, es } from "date-fns/locale";
 import { digits, pipe, safeParse, string } from "valibot";
-import { zeroAddress } from "viem";
 import { optimismSepolia } from "viem/chains";
-import { useBytecode } from "wagmi";
 
+import accountInit from "@exactly/common/accountInit";
 import chain, { exaPluginAddress, marketUSDCAddress } from "@exactly/common/generated/chain";
 import { useReadUpgradeableModularAccountGetInstalledPlugins } from "@exactly/common/generated/hooks";
 import { WAD } from "@exactly/lib";
@@ -41,6 +40,8 @@ import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
+
+import type { Credential } from "@exactly/common/validation";
 
 function Frame({ children }: { children: React.ReactNode }) {
   return (
@@ -265,12 +266,14 @@ export default function PaymentSheet() {
   const [open, setOpen] = useState(() => !!maturity);
   const [displayMaturity, setDisplayMaturity] = useState(maturity);
   const toast = useToastController();
+  const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const { data: hidden } = useQuery<boolean>({ queryKey: ["settings", "sensitive"] });
   const { data: rolloverIntroShown } = useQuery<boolean>({ queryKey: ["settings", "rollover-intro-shown"] });
-  const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
     address,
-    query: { refetchOnMount: true, enabled: !!address && !!bytecode },
+    factory: credential?.factory,
+    factoryData: credential && accountInit(credential),
+    query: { refetchOnMount: true, enabled: !!address && !!credential },
   });
   const {
     t,

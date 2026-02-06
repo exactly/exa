@@ -10,8 +10,8 @@ import { ScrollView, Separator, Spinner, Square, Switch, XStack, YStack } from "
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { zeroAddress } from "viem";
-import { useBytecode } from "wagmi";
 
+import accountInit from "@exactly/common/accountInit";
 import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import {
   useReadPreviewerExactly,
@@ -103,11 +103,12 @@ export default function Card() {
   const isKYCApproved = Boolean(
     KYCStatus && "code" in KYCStatus && (KYCStatus.code === "ok" || KYCStatus.code === "legacy kyc"),
   );
-  const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
   const { refetch: refetchInstalledPlugins, isFetching: isFetchingPlugins } =
     useReadUpgradeableModularAccountGetInstalledPlugins({
       address: address ?? zeroAddress,
-      query: { enabled: !!address && !!bytecode },
+      factory: credential?.factory,
+      factoryData: credential && accountInit(credential),
+      query: { enabled: !!address && !!credential },
     });
 
   const {

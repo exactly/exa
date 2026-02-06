@@ -11,6 +11,7 @@ import { useQuery } from "@tanstack/react-query";
 import { zeroAddress } from "viem";
 import { useBytecode } from "wagmi";
 
+import accountInit from "@exactly/common/accountInit";
 import { exaPluginAddress, exaPreviewerAddress, previewerAddress } from "@exactly/common/generated/chain";
 import {
   useReadExaPreviewerPendingProposals,
@@ -46,6 +47,8 @@ import ProfileHeader from "../shared/ProfileHeader";
 import SafeView from "../shared/SafeView";
 import View from "../shared/View";
 
+import type { Credential } from "@exactly/common/validation";
+
 const HEALTH_FACTOR_THRESHOLD = (WAD * 11n) / 10n;
 
 export default function Home() {
@@ -58,13 +61,16 @@ export default function Home() {
   const [visaSignatureModalOpen, setVisaSignatureModalOpen] = useState(false);
 
   const { address: account } = useAccount();
+  const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const { data: bytecode, refetch: refetchBytecode } = useBytecode({
     address: account ?? zeroAddress,
     query: { enabled: !!account },
   });
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
     address: account ?? zeroAddress,
-    query: { enabled: !!account && !!bytecode },
+    factory: credential?.factory,
+    factoryData: credential && accountInit(credential),
+    query: { enabled: !!account && !!credential },
   });
   const {
     portfolio: { balanceUSD, depositMarkets },
