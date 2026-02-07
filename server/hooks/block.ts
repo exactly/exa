@@ -299,6 +299,26 @@ function scheduleMessage(message: string) {
                       ...proposalManagerAbi,
                       ...auditorAbi,
                       ...marketAbi,
+                      { type: "error", name: "ExpiredTransaction", inputs: [] },
+                      { type: "error", name: "InsufficientAmountOut", inputs: [] },
+                      {
+                        type: "error",
+                        name: "MinimalOutputBalanceViolation",
+                        inputs: [
+                          { name: "token", type: "address" },
+                          { name: "amount", type: "uint256" },
+                        ],
+                      },
+                      {
+                        type: "error",
+                        name: "WrappedError",
+                        inputs: [
+                          { name: "target", type: "address" },
+                          { name: "selector", type: "bytes4" },
+                          { name: "reason", type: "bytes" },
+                          { name: "details", type: "bytes" },
+                        ],
+                      },
                     ],
                   },
                 ));
@@ -334,9 +354,11 @@ function scheduleMessage(message: string) {
             contexts: { proposal: { account, nonce, proposalType: ProposalType[proposalType], retryCount } },
             fingerprint: [
               "{{ default }}",
-              error instanceof BaseError && error.cause instanceof ContractFunctionRevertedError
-                ? (error.cause.reason ?? error.cause.data?.errorName ?? error.cause.signature ?? "unknown")
-                : "unknown",
+              ...(error instanceof BaseError && error.cause instanceof ContractFunctionRevertedError
+                ? error.cause.data?.errorName === "WrappedError" && error.cause.data.args
+                  ? ["WrappedError", String(error.cause.data.args[1])]
+                  : [error.cause.reason ?? error.cause.data?.errorName ?? error.cause.signature ?? "unknown"]
+                : ["unknown"]),
             ],
           });
 

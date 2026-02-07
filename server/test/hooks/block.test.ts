@@ -11,13 +11,16 @@ import {
   decodeAbiParameters,
   decodeEventLog,
   encodeAbiParameters,
+  encodeErrorResult,
   encodeFunctionData,
   erc20Abi,
+  getContractError,
   http,
   maxUint256,
   nonceManager,
   padHex,
   parseEventLogs,
+  RawContractError,
   zeroAddress,
   zeroHash,
   type Address,
@@ -253,6 +256,184 @@ describe("proposal", () => {
     });
   });
 
+  describe("with wrapped error", () => {
+    beforeEach(async () => {
+      const hash = await proposeWithdraw(3_000_000n, padHex("0x69", { size: 20 }));
+      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
+      proposals = await getLogs([hash]);
+      const unlock = proposals[0]?.args.unlock ?? 0n;
+      vi.setSystemTime(new Date(Number(unlock + 10n) * 1000));
+    });
+
+    afterEach(() => vi.useRealTimers());
+
+    it("fingerprints with inner selector", async () => {
+      const proposal = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
+
+      vi.spyOn(publicClient, "simulateContract").mockImplementationOnce(() => {
+        // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
+        throw getContractError(
+          new RawContractError({
+            data: encodeErrorResult({
+              abi: wrappedErrorAbi,
+              errorName: "WrappedError",
+              args: [zeroAddress, "0x931997cf", "0x", "0x"],
+            }),
+          }),
+          { abi: wrappedErrorAbi, address: bobAccount, functionName: "executeProposal", args: [proposal.args.nonce] },
+        );
+      });
+
+      const waitForTransactionReceipt = vi.spyOn(publicClient, "waitForTransactionReceipt");
+
+      await appClient.index.$post({
+        ...withdrawProposal,
+        json: {
+          ...withdrawProposal.json,
+          event: {
+            ...withdrawProposal.json.event,
+            data: {
+              ...withdrawProposal.json.event.data,
+              block: {
+                ...withdrawProposal.json.event.data.block,
+                logs: [{ topics: proposal.topics, data: proposal.data, account: { address: proposal.address } }],
+              },
+            },
+          },
+        },
+      });
+
+      await vi.waitUntil(() => waitForTransactionReceipt.mock.settledResults.some(({ type }) => type !== "incomplete"));
+
+      expect(captureException).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "ContractFunctionExecutionError" }),
+        expect.objectContaining({ fingerprint: ["{{ default }}", "WrappedError", "0x931997cf"] }),
+      );
+    });
+
+    it("fingerprints zero data errors", async () => {
+      const proposal = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
+
+      vi.spyOn(publicClient, "simulateContract").mockImplementationOnce(() => {
+        // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
+        throw getContractError(new RawContractError({ data: "0x" }), {
+          abi: [],
+          address: bobAccount,
+          functionName: "executeProposal",
+          args: [proposal.args.nonce],
+        });
+      });
+
+      const waitForTransactionReceipt = vi.spyOn(publicClient, "waitForTransactionReceipt");
+
+      await appClient.index.$post({
+        ...withdrawProposal,
+        json: {
+          ...withdrawProposal.json,
+          event: {
+            ...withdrawProposal.json.event,
+            data: {
+              ...withdrawProposal.json.event.data,
+              block: {
+                ...withdrawProposal.json.event.data.block,
+                logs: [{ topics: proposal.topics, data: proposal.data, account: { address: proposal.address } }],
+              },
+            },
+          },
+        },
+      });
+
+      await vi.waitUntil(() => waitForTransactionReceipt.mock.settledResults.some(({ type }) => type !== "incomplete"));
+
+      expect(captureException).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "ContractFunctionExecutionError" }),
+        expect.objectContaining({ fingerprint: ["{{ default }}", "unknown"] }),
+      );
+    });
+
+    it("fingerprints non-contract errors", async () => {
+      const proposal = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
+
+      vi.spyOn(publicClient, "simulateContract").mockImplementationOnce(() => {
+        throw new Error("test");
+      });
+
+      await appClient.index.$post({
+        ...withdrawProposal,
+        json: {
+          ...withdrawProposal.json,
+          event: {
+            ...withdrawProposal.json.event,
+            data: {
+              ...withdrawProposal.json.event.data,
+              block: {
+                ...withdrawProposal.json.event.data.block,
+                logs: [{ topics: proposal.topics, data: proposal.data, account: { address: proposal.address } }],
+              },
+            },
+          },
+        },
+      });
+
+      await vi.waitUntil(() =>
+        vi
+          .mocked(captureException)
+          .mock.calls.some(
+            ([error, context]) =>
+              error instanceof Error &&
+              error.message === "test" &&
+              typeof context === "object" &&
+              "fingerprint" in context,
+          ),
+      );
+
+      expect(captureException).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "test" }),
+        expect.objectContaining({ fingerprint: ["{{ default }}", "unknown"] }),
+      );
+    });
+
+    it("fingerprints unknown signatures", async () => {
+      const proposal = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
+
+      vi.spyOn(publicClient, "simulateContract").mockImplementationOnce(() => {
+        // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
+        throw getContractError(new RawContractError({ data: "0x12345678" }), {
+          abi: [],
+          address: bobAccount,
+          functionName: "executeProposal",
+          args: [proposal.args.nonce],
+        });
+      });
+
+      const waitForTransactionReceipt = vi.spyOn(publicClient, "waitForTransactionReceipt");
+
+      await appClient.index.$post({
+        ...withdrawProposal,
+        json: {
+          ...withdrawProposal.json,
+          event: {
+            ...withdrawProposal.json.event,
+            data: {
+              ...withdrawProposal.json.event.data,
+              block: {
+                ...withdrawProposal.json.event.data.block,
+                logs: [{ topics: proposal.topics, data: proposal.data, account: { address: proposal.address } }],
+              },
+            },
+          },
+        },
+      });
+
+      await vi.waitUntil(() => waitForTransactionReceipt.mock.settledResults.some(({ type }) => type !== "incomplete"));
+
+      expect(captureException).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "ContractFunctionExecutionError" }),
+        expect.objectContaining({ fingerprint: ["{{ default }}", "0x12345678"] }),
+      );
+    });
+  });
+
   describe.todo("with none proposal", () => {
     beforeEach(async () => {
       const hash = await execute(
@@ -452,3 +633,16 @@ async function getLogs(hashes: Hex[]) {
 afterEach(() => vi.restoreAllMocks());
 
 vi.mock("@sentry/node", { spy: true });
+
+const wrappedErrorAbi = [
+  {
+    type: "error",
+    name: "WrappedError",
+    inputs: [
+      { name: "target", type: "address" },
+      { name: "selector", type: "bytes4" },
+      { name: "reason", type: "bytes" },
+      { name: "details", type: "bytes" },
+    ],
+  },
+] as const;
