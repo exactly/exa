@@ -97,6 +97,8 @@ a changeset is needed when the change has **user-facing impact** — where "user
 - for `contracts`: anything interacting with the contracts
 - for `substreams`: anything consuming the substreams
 
+"consumers" includes monitoring, instrumentation, logging, and analytics consumers too. if the change alters what an external analyst would see in dashboards, logs, or error tracking, the changeset is definitely required.
+
 ### when a changeset is NOT needed
 
 the guiding principle: if no package consumer could ever notice the difference, there's no changeset. changesets exist so users can trace when behavior changed — if behavior didn't change, there's nothing to trace.
