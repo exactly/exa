@@ -15,6 +15,7 @@ import {
   createWalletClient,
   decodeEventLog,
   encodeAbiParameters,
+  encodeErrorResult,
   encodeFunctionData,
   erc20Abi,
   hexToBigInt,
@@ -144,7 +145,10 @@ describe("card operations", () => {
       });
 
       it("fails with replay", async () => {
-        vi.spyOn(traceClient, "traceCall").mockResolvedValue({ ...callFrame, output: "0xb5a78004" });
+        vi.spyOn(traceClient, "traceCall").mockResolvedValue({
+          ...callFrame,
+          output: encodeErrorResult({ abi: issuerCheckerAbi, errorName: "Replay" }),
+        });
 
         await database.insert(cards).values([{ id: "replay", credentialId: "cred", lastFour: "2222", mode: 4 }]);
 
@@ -287,7 +291,14 @@ describe("card operations", () => {
       });
 
       it("fails when tracing", async () => {
-        const trace = vi.spyOn(traceClient, "traceCall").mockResolvedValue({ ...callFrame, output: "0x" });
+        const trace = vi.spyOn(traceClient, "traceCall").mockResolvedValue({
+          ...callFrame,
+          output: encodeErrorResult({
+            abi: [{ type: "error", name: "Panic", inputs: [{ type: "uint256", name: "reason" }] }],
+            errorName: "Panic",
+            args: [0x11n],
+          }),
+        });
 
         await database.insert(cards).values([{ id: "failed_trace", credentialId: "cred", lastFour: "2222", mode: 4 }]);
 
@@ -302,7 +313,9 @@ describe("card operations", () => {
         expect(trace).toHaveBeenCalledOnce();
         expect(captureException).toHaveBeenCalledWith(
           expect.objectContaining({ name: "ContractFunctionExecutionError", functionName: "collectCredit" }),
-          expect.anything(),
+          expect.objectContaining({
+            fingerprint: ["{{ default }}", "Arithmetic operation resulted in underflow or overflow."],
+          }),
         );
         expect(captureException).toHaveBeenCalledWith(
           expect.objectContaining({ message: "tx reverted" }),
@@ -421,6 +434,10 @@ describe("card operations", () => {
           });
 
           expect(response.status).toBe(550);
+          expect(captureException).toHaveBeenCalledWith(
+            expect.objectContaining({ name: "ContractFunctionExecutionError" }),
+            expect.objectContaining({ fingerprint: ["{{ default }}", "InsufficientLiquidity"] }),
+          );
         });
       });
     });

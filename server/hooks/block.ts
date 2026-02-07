@@ -332,6 +332,12 @@ function scheduleMessage(message: string) {
           captureException(error, {
             level: "error",
             contexts: { proposal: { account, nonce, proposalType: ProposalType[proposalType], retryCount } },
+            fingerprint: [
+              "{{ default }}",
+              error instanceof BaseError && error.cause instanceof ContractFunctionRevertedError
+                ? (error.cause.reason ?? error.cause.data?.errorName ?? error.cause.signature ?? "unknown")
+                : "unknown",
+            ],
           });
 
           if (

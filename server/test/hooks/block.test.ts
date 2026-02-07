@@ -4,6 +4,7 @@ import "../mocks/onesignal";
 import "../mocks/redis";
 import "../mocks/sentry";
 
+import { captureException } from "@sentry/node";
 import { testClient } from "hono/testing";
 import {
   createWalletClient,
@@ -245,6 +246,10 @@ describe("proposal", () => {
           : -1n;
 
       expect(newNonce).toBe(revert.args.nonce + 1n);
+      expect(captureException).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "ContractFunctionExecutionError", functionName: "executeProposal" }),
+        expect.objectContaining({ fingerprint: ["{{ default }}", "execution reverted"] }),
+      );
     });
   });
 
@@ -369,6 +374,10 @@ describe("proposal", () => {
             )
           : 0n,
       ).toBe(idle.args.amount);
+      expect(captureException).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "ContractFunctionExecutionError", functionName: "executeProposal" }),
+        expect.objectContaining({ fingerprint: ["{{ default }}", "NotNext"] }),
+      );
     });
   });
 });
@@ -441,3 +450,5 @@ async function getLogs(hashes: Hex[]) {
 }
 
 afterEach(() => vi.restoreAllMocks());
+
+vi.mock("@sentry/node", { spy: true });

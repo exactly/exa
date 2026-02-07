@@ -380,7 +380,18 @@ export default new Hono().post(
                     throw new PandaError("Replay", 558 as UnofficialStatusCode);
                 }
               }
-              captureException(contractError, { contexts: { tx: { call, trace } } });
+              captureException(contractError, {
+                contexts: { tx: { call, trace } },
+                fingerprint: [
+                  "{{ default }}",
+                  contractError.cause instanceof ContractFunctionRevertedError
+                    ? (contractError.cause.reason ??
+                      contractError.cause.data?.errorName ??
+                      contractError.cause.signature ??
+                      "unknown")
+                    : "unknown",
+                ],
+              });
               throw new PandaError("tx reverted", 550 as UnofficialStatusCode);
             }
             if (
