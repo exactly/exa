@@ -6,7 +6,7 @@ import "../mocks/redis";
 import "../mocks/sardine";
 import "../mocks/sentry";
 
-import { captureException, setUser } from "@sentry/node";
+import { captureException, setContext, setTag, setUser, startSpan } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { parse } from "valibot";
@@ -16,6 +16,7 @@ import {
   decodeEventLog,
   encodeAbiParameters,
   encodeErrorResult,
+  encodeEventTopics,
   encodeFunctionData,
   erc20Abi,
   hexToBigInt,
@@ -39,6 +40,7 @@ import chain, {
   issuerCheckerAbi,
   marketAbi,
   marketUSDCAddress,
+  usdcAddress,
   upgradeableModularAccountAbi,
 } from "@exactly/common/generated/chain";
 import ProposalType from "@exactly/common/ProposalType";
@@ -48,9 +50,12 @@ import { proposalManager } from "@exactly/plugin/deploy.json";
 import database, { cards, credentials, transactions } from "../../database";
 import app from "../../hooks/panda";
 import keeper from "../../utils/keeper";
+import * as onesignal from "../../utils/onesignal";
 import * as panda from "../../utils/panda";
+import { collectors } from "../../utils/panda";
 import publicClient from "../../utils/publicClient";
 import * as sardine from "../../utils/sardine";
+import * as segment from "../../utils/segment";
 import traceClient from "../../utils/traceClient";
 import anvilClient from "../anvilClient";
 
@@ -142,6 +147,12 @@ describe("card operations", () => {
 
         expect(response.status).toBe(557);
         expect(captureException).not.toHaveBeenCalled();
+        expect(segment.track).toHaveBeenCalledWith(
+          expect.objectContaining({
+            event: "AuthorizationRejected",
+            properties: expect.objectContaining({ declinedReason: "panda-error" }),
+          }),
+        );
       });
 
       it("fails with replay", async () => {
@@ -165,6 +176,12 @@ describe("card operations", () => {
           expect.objectContaining({ message: "Replay" }),
           expect.objectContaining({ level: "error", tags: { unhandled: true } }),
         );
+        expect(segment.track).toHaveBeenCalledWith(
+          expect.objectContaining({
+            event: "AuthorizationRejected",
+            properties: expect.objectContaining({ declinedReason: expect.stringContaining("reverted") }),
+          }),
+        );
       });
 
       it("fails with bad panda", async () => {
@@ -177,6 +194,53 @@ describe("card operations", () => {
         expect(captureException).toHaveBeenCalledWith(new Error("bad panda"), expect.anything());
       });
 
+      it("returns 404 when card not found in authorization", async () => {
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: {
+              ...authorization.json.body,
+              spend: { ...authorization.json.body.spend, cardId: "nonexistent-auth-card" },
+            },
+          },
+        });
+
+        expect(response.status).toBe(404);
+        await expect(response.json()).resolves.toStrictEqual({ code: "card not found" });
+      });
+
+      it("throws on mutex acquire with non-timeout error", async () => {
+        const error = new Error("broken");
+        vi.spyOn(panda, "getMutex").mockReturnValueOnce(undefined);
+        vi.spyOn(panda, "createMutex").mockReturnValueOnce({
+          acquire: () => Promise.reject(error),
+          release: vi.fn(),
+          isLocked: () => false,
+          cancel: vi.fn(),
+          waitForUnlock: vi.fn(),
+        } as unknown as ReturnType<typeof panda.createMutex>);
+        await database
+          .insert(cards)
+          .values([{ id: "mutex-err", credentialId: "cred", lastFour: "5678", mode: 0 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: { ...authorization.json.body, spend: { ...authorization.json.body.spend, cardId: "mutex-err" } },
+          },
+        });
+
+        expect(response.status).toBe(500);
+        expect(segment.track).toHaveBeenCalledWith(
+          expect.objectContaining({
+            event: "AuthorizationRejected",
+            properties: expect.objectContaining({ declinedReason: "unknown-error" }),
+          }),
+        );
+      });
+
       it("authorizes credit", async () => {
         const response = await appClient.index.$post({
           ...authorization,
@@ -187,6 +251,14 @@ describe("card operations", () => {
         });
 
         expect(response.status).toBe(200);
+        expect(setUser).toHaveBeenCalledWith({ id: account });
+        expect(segment.track).toHaveBeenCalledWith(
+          expect.objectContaining({
+            userId: account,
+            event: "TransactionAuthorized",
+            properties: expect.objectContaining({ type: "panda", cardMode: 0, usdAmount: 9 }),
+          }),
+        );
       });
 
       it("authorizes debit", async () => {
@@ -201,6 +273,14 @@ describe("card operations", () => {
         });
 
         expect(response.status).toBe(200);
+        expect(setUser).toHaveBeenCalledWith({ id: account });
+        expect(segment.track).toHaveBeenCalledWith(
+          expect.objectContaining({
+            userId: account,
+            event: "TransactionAuthorized",
+            properties: expect.objectContaining({ type: "panda", cardMode: 0, usdAmount: 9 }),
+          }),
+        );
       });
 
       it("authorizes debit when risk assessment times out", async () => {
@@ -223,6 +303,27 @@ describe("card operations", () => {
         expect(response.status).toBe(200);
       });
 
+      it("authorizes debit when risk assessment fails with non-timeout error", async () => {
+        vi.spyOn(sardine, "default").mockRejectedValueOnce(new Error("network"));
+        await database
+          .insert(cards)
+          .values([{ id: "risk-network", credentialId: "cred", lastFour: "5678", mode: 0 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: { ...authorization.json.body, spend: { ...authorization.json.body.spend, cardId: "risk-network" } },
+          },
+        });
+
+        expect(captureException).toHaveBeenCalledWith(
+          expect.objectContaining({ message: "network" }),
+          expect.objectContaining({ level: "error" }),
+        );
+        expect(response.status).toBe(200);
+      });
+
       it("authorizes installments", async () => {
         await database.insert(cards).values([{ id: "inst", credentialId: "cred", lastFour: "5678", mode: 6 }]);
 
@@ -235,6 +336,14 @@ describe("card operations", () => {
         });
 
         expect(response.status).toBe(200);
+        expect(setUser).toHaveBeenCalledWith({ id: account });
+        expect(segment.track).toHaveBeenCalledWith(
+          expect.objectContaining({
+            userId: account,
+            event: "TransactionAuthorized",
+            properties: expect.objectContaining({ type: "panda", cardMode: 6, usdAmount: 9 }),
+          }),
+        );
       });
 
       it("authorizes zero", async () => {
@@ -250,6 +359,14 @@ describe("card operations", () => {
         });
 
         expect(response.status).toBe(200);
+        expect(setUser).toHaveBeenCalledWith({ id: account });
+        expect(segment.track).toHaveBeenCalledWith(
+          expect.objectContaining({
+            userId: account,
+            event: "TransactionAuthorized",
+            properties: expect.objectContaining({ type: "panda", cardMode: 0, usdAmount: 0 }),
+          }),
+        );
       });
 
       it("authorizes negative amount", async () => {
@@ -322,6 +439,14 @@ describe("card operations", () => {
           expect.objectContaining({ level: "error", tags: { unhandled: true } }),
         );
         expect(response.status).toBe(550);
+        expect(segment.track).toHaveBeenCalledWith(
+          expect.objectContaining({
+            event: "AuthorizationRejected",
+            properties: expect.objectContaining({
+              declinedReason: expect.stringContaining("Arithmetic operation resulted in underflow or overflow"),
+            }),
+          }),
+        );
       });
 
       it("alarms high risk authorization", async () => {
@@ -406,6 +531,142 @@ describe("card operations", () => {
         expect(response.status).toBe(200);
       });
 
+      it("catches fire-and-forget risk assessment error for refund", async () => {
+        const error = new Error("risk crash");
+        vi.spyOn(sardine, "default").mockImplementationOnce(async () => {
+          await new Promise((resolve) => setTimeout(resolve, 0));
+          throw error;
+        });
+        await database
+          .insert(cards)
+          .values([{ id: "risk-ff-refund", credentialId: "cred", lastFour: "5678", mode: 0 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: {
+              ...authorization.json.body,
+              spend: { ...authorization.json.body.spend, cardId: "risk-ff-refund", amount: -100 },
+            },
+          },
+        });
+
+        expect(response.status).toBe(200);
+        await vi.waitFor(() =>
+          expect(captureException).toHaveBeenCalledWith(error, expect.objectContaining({ level: "error" })),
+        );
+      });
+
+      it("fingerprints by signature when error has no reason or name", async () => {
+        vi.spyOn(traceClient, "traceCall").mockResolvedValue({ ...callFrame, output: "0xdeadbeef" as Hex });
+        await database
+          .insert(cards)
+          .values([{ id: "unknown-sig", credentialId: "cred", lastFour: "2222", mode: 0 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: { ...authorization.json.body, spend: { ...authorization.json.body.spend, cardId: "unknown-sig" } },
+          },
+        });
+
+        expect(response.status).toBe(550);
+        expect(captureException).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.objectContaining({ fingerprint: ["{{ default }}", "0xdeadbeef"] }),
+        );
+      });
+
+      it("returns 569 with non-PandaError in authorization catch-all", async () => {
+        vi.spyOn(panda, "signIssuerOp").mockRejectedValue("boom");
+        await database
+          .insert(cards)
+          .values([{ id: "ouch", credentialId: "cred", lastFour: "2222", mode: 0 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: { ...authorization.json.body, spend: { ...authorization.json.body.spend, cardId: "ouch" } },
+          },
+        });
+
+        expect(response.status).toBe(569);
+        await expect(response.json()).resolves.toStrictEqual({ code: "ouch" });
+        expect(segment.track).toHaveBeenCalledWith(
+          expect.objectContaining({
+            event: "AuthorizationRejected",
+            properties: expect.objectContaining({ declinedReason: "unexpected-error" }),
+          }),
+        );
+        expect(captureException).toHaveBeenCalledWith("boom", expect.objectContaining({ level: "error" }));
+      });
+
+      it("fails with bad collection", async () => {
+        const [transferTopic] = encodeEventTopics({ abi: erc20Abi, eventName: "Transfer" });
+        vi.spyOn(traceClient, "traceCall").mockResolvedValue({
+          ...callFrame,
+          logs: [
+            {
+              address: usdcAddress.toLowerCase() as Hex,
+              data: encodeAbiParameters([{ type: "uint256" }], [1n]),
+              position: "0x0",
+              topics: [
+                transferTopic,
+                padHex(account, { size: 32 }),
+                padHex(collectors[0]?.toLowerCase() as Hex, { size: 32 }),
+              ],
+            },
+          ],
+        });
+
+        await database.insert(cards).values([{ id: "bad-coll", credentialId: "cred", lastFour: "2222", mode: 0 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: { ...authorization.json.body, spend: { ...authorization.json.body.spend, cardId: "bad-coll" } },
+          },
+        });
+
+        expect(response.status).toBe(551);
+        expect(captureException).toHaveBeenCalledWith(
+          new Error("bad collection"),
+          expect.objectContaining({ level: "warning" }),
+        );
+        expect(segment.track).toHaveBeenCalledWith(
+          expect.objectContaining({
+            event: "AuthorizationRejected",
+            properties: expect.objectContaining({ declinedReason: "panda-error" }),
+          }),
+        );
+      });
+
+      it("returns 569 when trace throws unexpected error", async () => {
+        vi.spyOn(traceClient, "traceCall").mockRejectedValue(new Error("network failure"));
+
+        await database
+          .insert(cards)
+          .values([{ id: "trace-error", credentialId: "cred", lastFour: "2222", mode: 0 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: { ...authorization.json.body, spend: { ...authorization.json.body.spend, cardId: "trace-error" } },
+          },
+        });
+
+        expect(response.status).toBe(569);
+        expect(captureException).toHaveBeenCalledWith(
+          new Error("network failure"),
+          expect.objectContaining({ contexts: expect.objectContaining({ tx: expect.objectContaining({ call: expect.any(Object) }) }) }),
+        );
+      });
+
       describe("with drain proposal", () => {
         beforeAll(async () => {
           await execute(
@@ -479,6 +740,13 @@ describe("card operations", () => {
 
         expect(usdcToCollector(purchaseReceipt)).toBe(BigInt(authorization.json.body.spend.amount * 1e4));
         expect(response.status).toBe(200);
+        expect(setUser).toHaveBeenCalledWith({ id: account });
+        expect(onesignal.sendPushNotification).toHaveBeenCalledWith(
+          expect.objectContaining({ headings: { en: "Card purchase" }, contents: expect.objectContaining({ en: expect.stringContaining("with USDC") }) }),
+        );
+        expect(sardine.feedback).toHaveBeenCalledWith(
+          expect.objectContaining({ feedback: { type: "authorization", status: "approved" } }),
+        );
       });
 
       it("clears credit", async () => {
@@ -508,6 +776,13 @@ describe("card operations", () => {
 
         expect(usdcToCollector(purchaseReceipt)).toBe(BigInt(amount * 1e4));
         expect(response.status).toBe(200);
+        expect(setUser).toHaveBeenCalledWith({ id: account });
+        expect(onesignal.sendPushNotification).toHaveBeenCalledWith(
+          expect.objectContaining({ headings: { en: "Card purchase" }, contents: expect.objectContaining({ en: expect.stringContaining("with credit") }) }),
+        );
+        expect(sardine.feedback).toHaveBeenCalledWith(
+          expect.objectContaining({ feedback: { type: "authorization", status: "approved" } }),
+        );
       });
 
       it("clears with transaction update", async () => {
@@ -576,6 +851,7 @@ describe("card operations", () => {
             { action: "updated", createdAt: updatedAt, body: { spend: { amount: amount + update } } },
           ],
         });
+        expect(onesignal.sendPushNotification).toHaveBeenCalledTimes(1);
       });
 
       it("clears installments", async () => {
@@ -605,6 +881,531 @@ describe("card operations", () => {
 
         expect(usdcToCollector(purchaseReceipt)).toBe(BigInt(amount * 1e4));
         expect(response.status).toBe(200);
+        expect(setUser).toHaveBeenCalledWith({ id: account });
+        expect(onesignal.sendPushNotification).toHaveBeenCalledWith(
+          expect.objectContaining({ headings: { en: "Card purchase" }, contents: expect.objectContaining({ en: expect.stringContaining("in 6 installments") }) }),
+        );
+        expect(sardine.feedback).toHaveBeenCalledWith(
+          expect.objectContaining({ feedback: { type: "authorization", status: "approved" } }),
+        );
+      });
+
+      it("clears credit when amount is less than installment count", async () => {
+        const amount = 3;
+        const cardId = "credit-fallback";
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "6755", mode: 6 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "created",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: { ...authorization.json.body.spend, cardId, amount },
+            },
+          },
+        });
+
+        const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
+        const purchaseReceipt = await publicClient.waitForTransactionReceipt({
+          hash: transaction?.hashes[0] as Hex,
+          confirmations: 0,
+        });
+
+        expect(usdcToCollector(purchaseReceipt)).toBe(BigInt(amount * 1e4));
+        expect(response.status).toBe(200);
+      });
+
+      it("returns 404 when card not found in clearing path", async () => {
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "created",
+            body: {
+              ...authorization.json.body,
+              id: "no-card-clearing",
+              spend: { ...authorization.json.body.spend, cardId: "nonexistent-card", amount: 100 },
+            },
+          },
+        });
+
+        expect(response.status).toBe(404);
+        await expect(response.json()).resolves.toStrictEqual({ code: "card not found" });
+      });
+
+      it("handles declined without declinedReason", async () => {
+        await database
+          .insert(cards)
+          .values([{ id: "declined-noreason", credentialId: "cred", lastFour: "5678", mode: 0 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "created",
+            body: {
+              ...authorization.json.body,
+              id: "declined-noreason",
+              spend: {
+                ...authorization.json.body.spend,
+                cardId: "declined-noreason",
+                amount: 100,
+                status: "declined",
+              },
+            },
+          },
+        });
+
+        expect(response.status).toBe(200);
+        expect(segment.track).toHaveBeenCalledWith(
+          expect.objectContaining({
+            event: "TransactionRejected",
+            properties: expect.objectContaining({ declinedReason: undefined }),
+          }),
+        );
+      });
+
+      it("handles declined with explicit declinedReason", async () => {
+        await database
+          .insert(cards)
+          .values([{ id: "declined-reason", credentialId: "cred", lastFour: "5678", mode: 0 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "created",
+            body: {
+              ...authorization.json.body,
+              id: "declined-reason",
+              spend: {
+                ...authorization.json.body.spend,
+                cardId: "declined-reason",
+                amount: 100,
+                status: "declined",
+                declinedReason: "insufficient_funds",
+              },
+            },
+          },
+        });
+
+        expect(response.status).toBe(200);
+        expect(segment.track).toHaveBeenCalledWith(
+          expect.objectContaining({
+            event: "TransactionRejected",
+            properties: expect.objectContaining({ declinedReason: "insufficient_funds" }),
+          }),
+        );
+      });
+
+      it("catches declined feedback error", async () => {
+        vi.spyOn(sardine, "feedback").mockRejectedValueOnce(new Error("feedback down"));
+        await database
+          .insert(cards)
+          .values([{ id: "declined-fb", credentialId: "cred", lastFour: "5678", mode: 0 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "created",
+            body: {
+              ...authorization.json.body,
+              id: "declined-fb",
+              spend: {
+                ...authorization.json.body.spend,
+                cardId: "declined-fb",
+                amount: 100,
+                status: "declined",
+              },
+            },
+          },
+        });
+
+        expect(response.status).toBe(200);
+        await vi.waitFor(() =>
+          expect(captureException).toHaveBeenCalledWith(
+            expect.objectContaining({ message: "feedback down" }),
+            expect.objectContaining({ level: "error" }),
+          ),
+        );
+      });
+
+      it("catches negative amount authorization feedback error", async () => {
+        vi.spyOn(sardine, "feedback").mockRejectedValueOnce(new Error("feedback neg"));
+        await database
+          .insert(cards)
+          .values([{ id: "neg-fb", credentialId: "cred", lastFour: "5678", mode: 0 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "created",
+            body: {
+              ...authorization.json.body,
+              id: "neg-fb",
+              spend: { ...authorization.json.body.spend, cardId: "neg-fb", amount: -100 },
+            },
+          },
+        });
+
+        expect(response.status).toBe(200);
+        await vi.waitFor(() =>
+          expect(captureException).toHaveBeenCalledWith(
+            expect.objectContaining({ message: "feedback neg" }),
+            expect.objectContaining({ level: "error" }),
+          ),
+        );
+      });
+
+      it("catches clearing push notification error", async () => {
+        vi.spyOn(onesignal, "sendPushNotification").mockRejectedValueOnce(new Error("push down"));
+        const cardId = "push-err";
+        const amount = 5;
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "3456", mode: 0 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "created",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: { ...authorization.json.body.spend, cardId, amount, localAmount: amount },
+            },
+          },
+        });
+
+        expect(response.status).toBe(200);
+        await vi.waitFor(() =>
+          expect(captureException).toHaveBeenCalledWith(
+            expect.objectContaining({ message: "push down" }),
+            expect.objectContaining({ level: "error" }),
+          ),
+        );
+      });
+
+      it("catches authorization feedback error in clearing", async () => {
+        const exaSend = vi.spyOn(keeper, "exaSend").mockImplementation(async (_span, _tx, opts) => {
+          await opts?.onHash?.("0xabc" as Hex);
+          return {} as Awaited<ReturnType<typeof keeper.exaSend>>;
+        });
+        vi.spyOn(sardine, "feedback").mockRejectedValueOnce(new Error("fb auth err"));
+        const cardId = "fb-auth-err";
+        const amount = 5;
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "3456", mode: 0 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "created",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: { ...authorization.json.body.spend, cardId, amount, localAmount: amount },
+            },
+          },
+        });
+
+        expect(response.status).toBe(200);
+        expect(exaSend).toHaveBeenCalled();
+        await vi.waitFor(() =>
+          expect(captureException).toHaveBeenCalledWith(
+            expect.objectContaining({ message: "fb auth err" }),
+            expect.objectContaining({ level: "error" }),
+          ),
+        );
+      });
+
+      it("catches settlement feedback error", async () => {
+        const hold = 5;
+        const cardId = "fb-settle-err";
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+
+        vi.spyOn(keeper, "exaSend").mockImplementation(async (_span, _tx, opts) => {
+          await opts?.onHash?.("0xfeed" as Hex);
+          return {} as Awaited<ReturnType<typeof keeper.exaSend>>;
+        });
+
+        const createResponse = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "created",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: { ...authorization.json.body.spend, amount: hold, cardId, localAmount: hold },
+            },
+          },
+        });
+        expect(createResponse.status).toBe(200);
+        vi.mocked(keeper.exaSend).mockRestore();
+
+        vi.mocked(sardine.feedback).mockRejectedValueOnce(new Error("fb settle err"));
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "completed",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: {
+                ...authorization.json.body.spend,
+                amount: hold,
+                authorizedAmount: hold,
+                authorizedAt: new Date().toISOString(),
+                postedAt: new Date().toISOString(),
+                cardId,
+                status: "completed",
+              },
+            },
+          },
+        });
+
+        expect(response.status).toBe(200);
+        await vi.waitFor(() =>
+          expect(captureException).toHaveBeenCalledWith(
+            expect.objectContaining({ message: "fb settle err" }),
+            expect.objectContaining({ level: "error" }),
+          ),
+        );
+      });
+
+      it("uses nextMaturity without extra interval when far from maturity", async () => {
+        const MATURITY_INTERVAL = 2_419_200;
+        const now = Math.floor(Date.now() / 1000);
+        const lastMaturity = now - (now % MATURITY_INTERVAL);
+        const farTimestamp = lastMaturity + 1;
+        const cardId = "min-borrow";
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "5678", mode: 1 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "created",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: {
+                ...authorization.json.body.spend,
+                cardId,
+                amount: 10,
+                localAmount: 10,
+                authorizedAt: new Date(farTimestamp * 1000).toISOString(),
+              },
+            },
+          },
+        });
+
+        expect(response.status).toBe(200);
+      });
+
+      it("clears installments when usdAmount >= card.mode", async () => {
+        const cardId = "real-inst";
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "6789", mode: 3 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "created",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: { ...authorization.json.body.spend, cardId, amount: 400, localAmount: 400 },
+            },
+          },
+        });
+
+        const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
+        const purchaseReceipt = await publicClient.waitForTransactionReceipt({
+          hash: transaction?.hashes[0] as Hex,
+          confirmations: 0,
+        });
+
+        expect(usdcToCollector(purchaseReceipt)).toBe(BigInt(400 * 1e4));
+        expect(response.status).toBe(200);
+      });
+
+      it("catches zero-amount feedback error", async () => {
+        const hold = 15;
+        const cardId = "fb-zero-err";
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+
+        await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "created",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: { ...authorization.json.body.spend, amount: hold, cardId, localAmount: hold },
+            },
+          },
+        });
+
+        vi.spyOn(sardine, "feedback").mockRejectedValueOnce(new Error("fb zero err"));
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "completed",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: {
+                ...authorization.json.body.spend,
+                amount: hold,
+                authorizedAmount: hold,
+                authorizedAt: new Date().toISOString(),
+                postedAt: new Date().toISOString(),
+                cardId,
+                status: "completed",
+              },
+            },
+          },
+        });
+
+        expect(response.status).toBe(200);
+        await vi.waitFor(() =>
+          expect(captureException).toHaveBeenCalledWith(
+            expect.objectContaining({ message: "fb zero err" }),
+            expect.objectContaining({ level: "error" }),
+          ),
+        );
+      });
+
+      it("handles zero-amount settlement with existing transaction", async () => {
+        const hold = 50;
+        const cardId = "zero-settle";
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+
+        await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "created",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: { ...authorization.json.body.spend, amount: hold, cardId, localAmount: hold },
+            },
+          },
+        });
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "completed",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: {
+                ...authorization.json.body.spend,
+                amount: hold,
+                authorizedAmount: hold,
+                authorizedAt: new Date().toISOString(),
+                postedAt: new Date().toISOString(),
+                cardId,
+                status: "completed",
+              },
+            },
+          },
+        });
+
+        expect(response.status).toBe(200);
+        const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
+        expect(transaction?.hashes).toContain(zeroHash);
+        expect(sardine.feedback).toHaveBeenCalledWith(
+          expect.objectContaining({ feedback: { type: "settlement", status: "settled" } }),
+        );
+      });
+
+      it("handles zero-amount update with existing transaction", async () => {
+        const exaSend = vi.spyOn(keeper, "exaSend").mockImplementationOnce(async (_span, _tx, opts) => {
+          await opts?.onHash?.("0xabc" as Hex);
+          return {} as Awaited<ReturnType<typeof keeper.exaSend>>;
+        });
+        const hold = 30;
+        const cardId = "zero-update";
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+
+        await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "created",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: { ...authorization.json.body.spend, amount: hold, cardId, localAmount: hold },
+            },
+          },
+        });
+        expect(exaSend).toHaveBeenCalled();
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "updated",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: {
+                ...authorization.json.body.spend,
+                amount: hold,
+                authorizationUpdateAmount: 0,
+                authorizedAt: new Date().toISOString(),
+                cardId,
+                status: "pending",
+              },
+            },
+          },
+        });
+
+        expect(response.status).toBe(200);
+        expect(sardine.feedback).toHaveBeenCalledWith(
+          expect.objectContaining({ feedback: { type: "authorization", status: "approved" } }),
+        );
+      });
+
+      it("throws when transaction not found in zero-amount path", async () => {
+        const cardId = "zero-no-tx";
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "updated",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: {
+                ...authorization.json.body.spend,
+                cardId,
+                amount: 100,
+                authorizationUpdateAmount: 0,
+                authorizedAt: new Date().toISOString(),
+                status: "pending",
+              },
+            },
+          },
+        });
+
+        expect(response.status).toBe(500);
       });
 
       it("fails with transaction timeout", async () => {
@@ -815,6 +1616,19 @@ describe("card operations", () => {
 
         expect(deposit?.args.assets).toBe(BigInt(amount * 1e4));
         expect(response.status).toBe(200);
+        expect(setUser).toHaveBeenCalledWith({ id: account });
+        expect(onesignal.sendPushNotification).toHaveBeenCalledWith(
+          expect.objectContaining({
+            headings: { en: "Refund processed" },
+            contents: expect.objectContaining({ en: expect.stringContaining("99999") }),
+          }),
+        );
+        expect(segment.track).toHaveBeenCalledWith(
+          expect.objectContaining({
+            event: "TransactionRefund",
+            properties: expect.objectContaining({ type: "reversal" }),
+          }),
+        );
       });
 
       it("fails with spending transaction not found", async () => {
@@ -903,6 +1717,22 @@ describe("card operations", () => {
         });
         expect(deposit?.args.assets).toBe(BigInt(amount * 1e4));
         expect(response.status).toBe(200);
+        expect(setUser).toHaveBeenCalledWith({ id: account });
+        expect(onesignal.sendPushNotification).toHaveBeenCalledWith(
+          expect.objectContaining({
+            headings: { en: "Refund processed" },
+            contents: expect.objectContaining({ en: expect.stringContaining("99999") }),
+          }),
+        );
+        expect(segment.track).toHaveBeenCalledWith(
+          expect.objectContaining({
+            event: "TransactionRefund",
+            properties: expect.objectContaining({ type: "refund" }),
+          }),
+        );
+        expect(sardine.feedback).toHaveBeenCalledWith(
+          expect.objectContaining({ feedback: { type: "settlement", status: "refund" } }),
+        );
       });
 
       it("refunds without traceable spending", async () => {
@@ -947,6 +1777,231 @@ describe("card operations", () => {
         });
         expect(deposit?.args.assets).toBe(BigInt(amount * 1e4));
         expect(response.status).toBe(200);
+        expect(sardine.feedback).toHaveBeenCalledWith(
+          expect.objectContaining({ feedback: { type: "settlement", status: "refund" } }),
+        );
+      });
+
+      it("returns 569 when refund execution fails", async () => {
+        const amount = 500;
+        const cardId = "card";
+        const createdAt = new Date().toISOString();
+
+        await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "created",
+            body: {
+              ...authorization.json.body,
+              id: "refund-fail",
+              spend: {
+                ...authorization.json.body.spend,
+                cardId,
+                amount,
+                localAmount: amount,
+                authorizedAt: createdAt,
+              },
+            },
+          },
+        });
+
+        vi.spyOn(publicClient, "simulateContract").mockRejectedValue(new Error("execution reverted"));
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "completed",
+            body: {
+              ...authorization.json.body,
+              id: "refund-fail",
+              spend: {
+                ...authorization.json.body.spend,
+                cardId,
+                amount: -amount,
+                localAmount: -amount,
+                authorizedAmount: -amount,
+                authorizedAt: createdAt,
+                postedAt: new Date().toISOString(),
+                status: "completed",
+              },
+            },
+          },
+        });
+
+        expect(response.status).toBe(569);
+        expect(captureException).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.objectContaining({ level: "fatal", tags: { unhandled: true } }),
+        );
+      });
+
+      it("throws when user is not active during refund", async () => {
+        vi.spyOn(panda, "getUser").mockResolvedValue({ ...userResponseTemplate, isActive: false });
+        const amount = 400;
+        const cardId = "card";
+        const createdAt = new Date().toISOString();
+
+        await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "created",
+            body: {
+              ...authorization.json.body,
+              id: "inactive-refund",
+              spend: {
+                ...authorization.json.body.spend,
+                cardId,
+                amount,
+                localAmount: amount,
+                authorizedAt: createdAt,
+              },
+            },
+          },
+        });
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "completed",
+            body: {
+              ...authorization.json.body,
+              id: "inactive-refund",
+              spend: {
+                ...authorization.json.body.spend,
+                cardId,
+                amount: -amount,
+                localAmount: -amount,
+                authorizedAmount: -amount,
+                authorizedAt: createdAt,
+                postedAt: new Date().toISOString(),
+                status: "completed",
+              },
+            },
+          },
+        });
+
+        expect(response.status).toBe(500);
+      });
+
+      it("catches refund push notification error", async () => {
+        const amount = 100;
+        const cardId = "card";
+        const createdAt = new Date().toISOString();
+
+        await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "created",
+            body: {
+              ...authorization.json.body,
+              id: "refund-push",
+              spend: { ...authorization.json.body.spend, cardId, amount, localAmount: amount, authorizedAt: createdAt },
+            },
+          },
+        });
+
+        vi.spyOn(onesignal, "sendPushNotification").mockRejectedValueOnce(new Error("push failed"));
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "completed",
+            body: {
+              ...authorization.json.body,
+              id: "refund-push",
+              spend: {
+                ...authorization.json.body.spend,
+                cardId,
+                amount: -amount,
+                localAmount: -amount,
+                authorizedAmount: -amount,
+                authorizedAt: createdAt,
+                postedAt: new Date().toISOString(),
+                status: "completed",
+              },
+            },
+          },
+        });
+
+        expect(response.status).toBe(200);
+        await vi.waitFor(() => expect(captureException).toHaveBeenCalledWith(new Error("push failed")));
+      });
+
+      it("handles non-Error in refund catch-all", async () => {
+        const amount = 100;
+        const cardId = "card";
+        const createdAt = new Date().toISOString();
+
+        await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "created",
+            body: {
+              ...authorization.json.body,
+              id: "refund-non-error",
+              spend: { ...authorization.json.body.spend, cardId, amount, localAmount: amount, authorizedAt: createdAt },
+            },
+          },
+        });
+
+        vi.spyOn(keeper, "exaSend").mockRejectedValueOnce("refund boom");
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "completed",
+            body: {
+              ...authorization.json.body,
+              id: "refund-non-error",
+              spend: {
+                ...authorization.json.body.spend,
+                cardId,
+                amount: -amount,
+                localAmount: -amount,
+                authorizedAmount: -amount,
+                authorizedAt: createdAt,
+                postedAt: new Date().toISOString(),
+                status: "completed",
+              },
+            },
+          },
+        });
+
+        expect(response.status).toBe(569);
+        expect(captureException).toHaveBeenCalledWith("refund boom", expect.objectContaining({ level: "fatal" }));
+        expect(await response.json()).toEqual({ code: "refund boom" });
+      });
+
+      it("throws when card not found during refund", async () => {
+        vi.spyOn(panda, "getUser").mockResolvedValue(userResponseTemplate);
+        const createdAt = new Date().toISOString();
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "updated",
+            body: {
+              ...authorization.json.body,
+              id: "no-card-refund",
+              spend: {
+                ...authorization.json.body.spend,
+                cardId: "nonexistent-card",
+                authorizationUpdateAmount: -100,
+                authorizedAt: createdAt,
+                status: "reversed",
+              },
+            },
+          },
+        });
+
+        expect(response.status).toBe(500);
       });
     });
   });
@@ -1019,6 +2074,11 @@ describe("card operations", () => {
             ],
           },
         });
+        expect(setUser).toHaveBeenCalledWith({ id: account });
+        expect(onesignal.sendPushNotification).toHaveBeenCalledTimes(1);
+        expect(sardine.feedback).toHaveBeenCalledWith(
+          expect.objectContaining({ feedback: { type: "settlement", status: "settled" } }),
+        );
       });
 
       it("over-captures frozen debit", async () => {
@@ -1127,6 +2187,9 @@ describe("card operations", () => {
             bodies: [{ action: "created" }, { action: "completed", body: { spend: { amount: capture } } }],
           },
         });
+        expect(sardine.feedback).toHaveBeenCalledWith(
+          expect.objectContaining({ feedback: { type: "settlement", status: "settled" } }),
+        );
       });
 
       it("partial capture debit", async () => {
@@ -1180,6 +2243,15 @@ describe("card operations", () => {
             bodies: [{ action: "created" }, { action: "completed", body: { spend: { amount: capture } } }],
           },
         });
+        expect(segment.track).toHaveBeenCalledWith(
+          expect.objectContaining({
+            event: "TransactionRefund",
+            properties: expect.objectContaining({ type: "partial" }),
+          }),
+        );
+        expect(sardine.feedback).toHaveBeenCalledWith(
+          expect.objectContaining({ feedback: { type: "settlement", status: "settled" } }),
+        );
       });
 
       it("force capture debit", async () => {
@@ -1218,6 +2290,13 @@ describe("card operations", () => {
             bodies: [{ action: "completed", body: { spend: { amount: capture } } }],
           },
         });
+        expect(setUser).toHaveBeenCalledWith({ id: account });
+        expect(onesignal.sendPushNotification).toHaveBeenCalledWith(
+          expect.objectContaining({ headings: { en: "Card purchase" }, contents: expect.objectContaining({ en: expect.stringContaining("with USDC") }) }),
+        );
+        expect(sardine.feedback).toHaveBeenCalledWith(
+          expect.objectContaining({ feedback: { type: "settlement", status: "settled" } }),
+        );
       });
 
       it("force capture fraud", async () => {
@@ -1266,6 +2345,107 @@ describe("card operations", () => {
 
         expect(completeResponse.status).toBe(556);
         expect(updateUser).toHaveBeenCalledWith({ id: account, isActive: false });
+      });
+
+      it("returns 569 without deactivation when completed collection fails with prior authorization", async () => {
+        const updateUserSpy = vi.spyOn(panda, "updateUser").mockResolvedValue(userResponseTemplate);
+        const hold = 50;
+        const capture = 60;
+        const cardId = "fail-with-prior-auth";
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+
+        await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "created",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: { ...authorization.json.body.spend, amount: hold, cardId, localAmount: hold },
+            },
+          },
+        });
+
+        vi.spyOn(publicClient, "simulateContract").mockRejectedValue(new Error("execution reverted"));
+
+        const completeResponse = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "completed",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: {
+                ...authorization.json.body.spend,
+                amount: capture,
+                authorizedAmount: hold,
+                authorizedAt: new Date().toISOString(),
+                postedAt: new Date().toISOString(),
+                cardId,
+                status: "completed",
+              },
+            },
+          },
+        });
+
+        expect(completeResponse.status).toBe(569);
+        expect(updateUserSpy).not.toHaveBeenCalled();
+      });
+
+      it("handles non-Error in collection failure for created action", async () => {
+        vi.spyOn(publicClient, "simulateContract").mockRejectedValueOnce("string error");
+        const cardId = "non-error-coll";
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "created",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: { ...authorization.json.body.spend, amount: 10, cardId, localAmount: 10 },
+            },
+          },
+        });
+
+        expect(response.status).toBe(569);
+        expect(captureException).toHaveBeenCalledWith("string error", expect.anything());
+      });
+
+      it("handles non-Error in collection failure for completed action without prior auth", async () => {
+        vi.spyOn(panda, "updateUser").mockResolvedValue(userResponseTemplate);
+        vi.spyOn(publicClient, "simulateContract").mockRejectedValueOnce("collection boom");
+        const cardId = "non-error-force";
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        const { authorizedAmount, ...spend } = authorization.json.body.spend;
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "completed",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: {
+                ...spend,
+                amount: 100,
+                authorizedAt: new Date().toISOString(),
+                postedAt: new Date().toISOString(),
+                cardId,
+                status: "completed",
+                userId: account,
+              },
+            },
+          },
+        });
+
+        expect(response.status).toBe(556);
+        expect(captureException).toHaveBeenCalledWith("collection boom", expect.anything());
       });
     });
   });
@@ -1360,6 +2540,108 @@ describe("card notification", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+  });
+});
+
+describe("card updated", () => {
+  it("returns ok with known user", async () => {
+    const response = await appClient.index.$post({
+      header: { signature: "panda-signature" },
+      json: {
+        resource: "card",
+        action: "updated",
+        id: "webhook-id",
+        body: {
+          id: "card",
+          expirationMonth: "12",
+          expirationYear: "2030",
+          last4: "1234",
+          limit: { amount: 1000, frequency: "per24HourPeriod" },
+          status: "active",
+          type: "virtual",
+          userId: "cred",
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(setUser).toHaveBeenCalledWith({ id: account });
+  });
+
+  it("returns ok with unknown user", async () => {
+    const response = await appClient.index.$post({
+      header: { signature: "panda-signature" },
+      json: {
+        resource: "card",
+        action: "updated",
+        id: "webhook-id",
+        body: {
+          id: "card",
+          expirationMonth: "12",
+          expirationYear: "2030",
+          last4: "1234",
+          limit: { amount: 1000, frequency: "per24HourPeriod" },
+          status: "active",
+          type: "virtual",
+          userId: "unknown-user",
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(setUser).not.toHaveBeenCalled();
+  });
+});
+
+describe("user updated", () => {
+  it("returns ok with known user", async () => {
+    const response = await appClient.index.$post({
+      header: { signature: "panda-signature" },
+      json: {
+        resource: "user",
+        action: "updated",
+        id: "webhook-id",
+        body: {
+          id: "cred",
+          applicationReason: "approved",
+          applicationStatus: "approved",
+          firstName: "John",
+          isActive: true,
+          isTermsOfServiceAccepted: true,
+          lastName: "Doe",
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(setUser).toHaveBeenCalledWith({ id: account });
+  });
+
+  it("returns ok with unknown user", async () => {
+    const response = await appClient.index.$post({
+      header: { signature: "panda-signature" },
+      json: {
+        resource: "user",
+        action: "updated",
+        id: "webhook-id",
+        body: {
+          id: "unknown-user",
+          applicationReason: "approved",
+          applicationStatus: "approved",
+          firstName: "John",
+          isActive: true,
+          isTermsOfServiceAccepted: true,
+          lastName: "Doe",
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(setUser).not.toHaveBeenCalled();
   });
 });
 
@@ -1483,6 +2765,15 @@ describe("concurrency", () => {
     expect(mutex?.isLocked()).toBe(false);
     expect(spendAuthorization.status).toBe(200);
     expect(collectSpendAuthorization.status).toBe(200);
+    expect(segment.track).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: "TransactionRejected",
+        properties: expect.objectContaining({ declinedReason: undefined, updated: false }),
+      }),
+    );
+    expect(sardine.feedback).toHaveBeenCalledWith(
+      expect.objectContaining({ feedback: expect.objectContaining({ type: "authorization", status: "network_declined" }) }),
+    );
   });
 
   describe("with fake timers", () => {
@@ -1645,8 +2936,15 @@ const userResponseTemplate = {
 } as const;
 
 vi.mock("@sentry/node", { spy: true });
+vi.mock("../../utils/segment", { spy: true });
 
-afterEach(() => {
+afterEach(async () => {
+  await Promise.allSettled(
+    [startSpan, sardine.feedback, onesignal.sendPushNotification]
+      .flatMap((fn) => vi.mocked(fn).mock.results)
+      .filter((r): r is { type: "return"; value: Promise<unknown> } => r.type === "return" && r.value instanceof Promise)
+      .map((r) => r.value),
+  );
   vi.clearAllMocks();
   vi.restoreAllMocks();
 });
