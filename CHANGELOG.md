@@ -1,5 +1,14 @@
 # @exactly/mobile
 
+## 1.1.10
+
+### Patch Changes
+
+- [#739](https://github.com/exactly/exa/pull/739) [`f7de431`](https://github.com/exactly/exa/commit/f7de43163796907a4de6ba1fc082c62af3070177) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 deduplicate and fingerprint unknown passkey sentry reports
+
+- Updated dependencies [[`10160fb`](https://github.com/exactly/exa/commit/10160fbe665a5c2591e26ec1fa72383c9b089fb6), [`9987e26`](https://github.com/exactly/exa/commit/9987e26d2571ee5fb99a4dc6ecebd69479878306), [`f044fad`](https://github.com/exactly/exa/commit/f044fadc2994154ae002ea42f9c2bdbdfa31a8ce)]:
+  - @exactly/server@0.2.59
+
 ## 1.1.9
 
 ### Patch Changes
