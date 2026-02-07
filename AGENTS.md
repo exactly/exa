@@ -160,6 +160,13 @@ stack-specific guidance lives in `.agent/rules/`. these files are glob-triggered
 - **respect the style guide**: you must follow all rules within the rule files for any code, documentation, or rules you write. this includes meta-rules like the "lowercase prose" convention for all internal documentation, including the rules themselves.
 - **understand the intent**: do not interpret rules in the most literal way possible. understand the spirit and goal behind them. for example, a rule for "concise" messages implies front-loading keywords and removing filler words, not just meeting a character count.
 
+### sentry mcp
+
+when using sentry mcp tools:
+
+- **never use seer tools**: `analyze_issue_with_seer` is non-functional and will fail. use `search_issues`, `get_issue_details`, and `search_issue_events` to investigate errors instead.
+- **never use `naturalLanguageQuery`**: this parameter is unsupported on all sentry mcp tools and will cause requests to fail. use the structured query parameters (`query`, `sort`, `project`, etc.) directly.
+
 ## external references
 
 content in this section is adapted from external sources and should be periodically reviewed for updates.
