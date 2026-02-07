@@ -84,5 +84,10 @@ function handleError(
   ) {
     onDomainError();
   }
-  reportError(error);
+  reportError(
+    error,
+    error instanceof Error && !(error instanceof APIError) && "code" in error
+      ? { fingerprint: ["{{ default }}", (error as Error & { code: string }).code] }
+      : undefined,
+  );
 }
