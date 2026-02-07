@@ -32,7 +32,7 @@ this project uses [gitmoji](https://gitmoji.dev). the conventional commits speci
 | eas | expo application services (eas builds, updates, submit) |
 | global | repository-wide changes that don't fit other scopes |
 | e2e | end-to-end tests (`.maestro/`) |
-| agents | agent-related changes (`.agent/`) |
+| agents | agent-related changes (`.agents/`) |
 
 config changes use the subproject scope when specific to a subproject (e.g., `server` for server tsconfig). for global config, use the tool/platform name as scope (e.g., `eslint`, `prettier`, `nx`).
 
