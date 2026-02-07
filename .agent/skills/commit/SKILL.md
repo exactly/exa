@@ -175,7 +175,7 @@ if files span multiple scopes, suggest splitting into separate commits. if the d
 
 ### step 5: message options
 
-present exactly **9** commit message options — always 9, no less — using the gitmojis the developer chose. number them 1–9.
+present exactly **9** commit message options — always 9, no less — using the gitmojis the developer chose. number them 1–9. **do NOT use `AskUserQuestion` for this step** — it only supports 4 options. output the 9 options as plain numbered text and let the developer reply with their choice.
 
 format: `<emoji> <scope>: <message>`
 
