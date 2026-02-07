@@ -86,6 +86,7 @@ jobs:
           for repo in firehose-ethereum substreams substreams-sink-sql; do
             curl -L "$(curl -s https://api.github.com/repos/streamingfast/$repo/releases/latest | jq --arg arch "$(uname -m | sed 's/aarch64/arm64/')" -r '.assets[] | select(.browser_download_url | test("linux_" + $arch)) | .browser_download_url')" | tar zxf -
               done
+          set -o pipefail
           curl -fsSL "https://get.maestro.mobile.dev" | bash
           echo "$HOME/.maestro/bin" >> $GITHUB_PATH
       - run: pnpm install --frozen-lockfile
