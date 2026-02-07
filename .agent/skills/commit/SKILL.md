@@ -150,7 +150,7 @@ execute these steps in order. the developer makes every decision — never auto-
 2. use `AskUserQuestion` with `multiSelect: true` to present all possibly relevant gitmojis — no count limit, be extensive. each option:
    - **label**: `<emoji> <name>` — some emojis are multi-codepoint: they contain a zero-width joiner (ZWJ, U+200D) or a variation selector (VS16, U+FE0F). terminals often render these as two visible glyphs instead of one. append `*` to the label of any such emoji so the developer isn't confused (e.g., 🧑‍💻\*, ⚗️\*, ♻️\*, 🏷️\*, 🏗️\*, ✏️\*)
    - **description**: a short argument for why this gitmoji fits the change
-   - if any option in the list has `*`, append to the question text: `(* may display as two emojis — it's one)`
+   - **question text**: only if at least one option label ends with `*`, append `(* may display as two emojis — it's one)` to the question. if no option has `*`, do NOT include this footnote
 3. the developer picks 1 or 2 gitmojis
 
 ### step 4: scope resolution
