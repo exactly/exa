@@ -181,9 +181,10 @@ format: `<emoji> <scope>: <message>`
 
 rules for messages:
 
-- all lowercase
+- all lowercase — use natural language words, never camelCase, PascalCase, or snake_case (e.g., `auth endpoint` not `authEndpoint`)
 - start with an imperative verb (add, fix, implement, update, remove, refactor, replace, extract, etc.)
 - front-load keywords — most important word first after the verb
+- prefer single words; use kebab-case only when a compound term is unavoidable
 - remove filler words (a, the, for, with, of, etc.)
 - no trailing punctuation
 - be keyword-driven — details belong in the commit body, not the subject
