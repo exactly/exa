@@ -78,6 +78,8 @@ a core principle is specific capitalization for different contexts. this must be
 ## code formatting
 
 - **maximum compactness**: the project enforces a maximally compact code style. do not introduce line breaks inside objects, arrays, or function arguments voluntarily. let prettier break lines automatically only when a line exceeds `printWidth`.
+- **inline by default**: if a value or expression is used exactly once, keep it at the point of use. extracting a single-use variable or function adds indirection — the reader must jump to the definition, hold it in memory, then jump back. inlining also helps type inference: types narrow more precisely at the point of use than through an intermediate variable. the threshold for extraction is reuse or genuine complexity, not tidiness. a long expression at the call site is better than a named intermediate that exists only to be passed once.
+- **file ordering**: the top of a file is prime real estate. the default export — the thing the file exists for — goes first. since inline-by-default means most standalone function declarations only exist because they were extracted (reuse or complexity), they are supporting details and belong at the bottom alongside internal constants and types. when multiple declarations exist at the same level, order them by relevance, most important first.
 
 ## comments
 
