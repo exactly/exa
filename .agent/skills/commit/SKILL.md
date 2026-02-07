@@ -1,6 +1,6 @@
 ---
 name: commit
-description: "create git commits and changesets following the project's gitmoji conventions. MUST be force-activated before every commit. handles: (1) smart staging — review and stage files if nothing is staged, (2) gitmoji selection — present all relevant gitmojis for the developer to choose, (3) commit message drafting — generate 9 concise message options, (4) changeset creation — create .changeset files when the change has user-facing impact. use this skill whenever the user asks to commit, requests /commit, or when you are about to create a git commit for any reason."
+description: "MANDATORY for ALL git commits. this skill MUST be invoked before running `git commit` — never commit without it. triggers: /commit, 'commit this', 'commit', 'let's commit', 'save this', or any intent to create a git commit. also triggers when you are about to commit on behalf of the user after completing a task. covers commit messages (gitmoji format), staging, and changeset creation."
 ---
 
 <!-- cspell:ignore uall -->
@@ -132,28 +132,25 @@ the gray area is refactors. most don't need a changeset, but some do. ask: "if t
 
 execute these steps in order. the developer makes every decision — never auto-commit.
 
-### step 1: smart staging
+the workflow is split into a **prep phase** (runs in a `Task` subagent to avoid polluting the main context) and an **interactive phase** (runs in the main agent for user-facing choices).
+
+### prep phase (Task subagent)
+
+launch a `Task` subagent (subagent_type: `general-purpose`). instruct it to perform steps 1–4 below and return **only** the compact summary described in step 4. the subagent must NOT return the full gitmoji list or the full diff — only the summary.
+
+#### step 1: smart staging
 
 1. run `git status` (never use `-uall`) and `git diff --staged --stat`
 2. if files are already staged, show the staged summary and proceed to step 2
 3. if nothing is staged, show the full status and ask the developer what to stage
 4. stage the requested files with `git add <specific files>` (never `git add -A` or `git add .`)
 
-### step 2: analyze the diff
+#### step 2: analyze the diff
 
 1. run `git diff --staged` to read the full staged diff
 2. identify: which packages are affected, what changed semantically, whether the change is user-facing
 
-### step 3: gitmoji selection
-
-1. read the full gitmoji list from `node_modules/gitmojis/dist/index.mjs`
-2. use `AskUserQuestion` with `multiSelect: true` to present all possibly relevant gitmojis — no count limit, be extensive. each option:
-   - **label**: `<emoji> <name>` — some emojis are multi-codepoint: they contain a zero-width joiner (ZWJ, U+200D) or a variation selector (VS16, U+FE0F). terminals often render these as two visible glyphs instead of one. append `*` to the label of any such emoji so the developer isn't confused (e.g., 🧑‍💻\*, ⚗️\*, ♻️\*, 🏷️\*, 🏗️\*, ✏️\*)
-   - **description**: a short argument for why this gitmoji fits the change
-   - **question text**: only if at least one option label ends with `*`, append `(* may display as two emojis — it's one)` to the question. if no option has `*`, do NOT include this footnote
-3. the developer picks 1 or 2 gitmojis
-
-### step 4: scope resolution
+#### step 3: scope resolution
 
 determine the scope from staged files:
 
@@ -173,7 +170,38 @@ determine the scope from staged files:
 
 if files span multiple scopes, suggest splitting into separate commits. if the developer prefers a single commit, let them pick the primary scope.
 
-### step 5: message options
+#### step 4: suggest gitmojis and return summary
+
+1. read the full gitmoji list from `node_modules/gitmojis/dist/index.mjs`
+2. select all possibly relevant gitmojis for the change — be extensive, no count limit
+3. return **only** this compact summary (nothing else):
+
+```text
+scope: <resolved scope>
+changeset: <yes/no + package name if yes>
+summary: <one-line semantic summary of the change>
+gitmojis:
+- <emoji> <name>: <short reason>
+- ...
+```
+
+do NOT return the full diff, the full gitmoji list, or any other verbose output.
+
+### interactive phase (main agent)
+
+the main agent receives the compact summary and continues with the developer.
+
+#### step 5: gitmoji selection
+
+use `AskUserQuestion` with `multiSelect: true` to present the suggested gitmojis. each option:
+
+- **label**: `<emoji> <name>` — some emojis are multi-codepoint: they contain a zero-width joiner (ZWJ, U+200D) or a variation selector (VS16, U+FE0F). terminals often render these as two visible glyphs instead of one. append `*` to the label of any such emoji so the developer isn't confused (e.g., 🧑‍💻\*, ⚗️\*, ♻️\*, 🏷️\*, 🏗️\*, ✏️\*)
+- **description**: a short argument for why this gitmoji fits the change
+- **question text**: only if at least one option label ends with `*`, append `(* may display as two emojis — it's one)` to the question. if no option has `*`, do NOT include this footnote
+
+the developer picks 1 or 2 gitmojis.
+
+#### step 6: message options
 
 present exactly **9** commit message options — always 9, no less — using the gitmojis the developer chose. number them 1–9. **do NOT use `AskUserQuestion` for this step** — it only supports 4 options. output the 9 options as plain numbered text and let the developer reply with their choice.
 
@@ -181,12 +209,17 @@ format: `<emoji> <scope>: <message>`
 
 rules for messages:
 
-- all lowercase — use natural language words, never camelCase, PascalCase, or snake_case (e.g., `auth endpoint` not `authEndpoint`)
+- **plain english words only** — never carry over identifier casing from source code. always translate identifiers into separate lowercase words:
+  - ✅ `auth endpoint` ❌ `authEndpoint`
+  - ✅ `validator hook` ❌ `validatorHook`
+  - ✅ `session cookie` ❌ `sessionCookie`
+  - ✅ `user profile` ❌ `UserProfile` ❌ `user_profile`
+  - ✅ `rate limit middleware` ❌ `rateLimitMiddleware`
+- all lowercase, no trailing punctuation
 - start with an imperative verb (add, fix, implement, update, remove, refactor, replace, extract, etc.)
 - front-load keywords — most important word first after the verb
 - prefer single words; use kebab-case only when a compound term is unavoidable
 - remove filler words (a, the, for, with, of, etc.)
-- no trailing punctuation
 - be keyword-driven — details belong in the commit body, not the subject
 - concise — aim for under 50 characters total
 
@@ -194,7 +227,7 @@ if the scope is obvious (one clear scope from the diff), use it for all 9 option
 
 the developer picks one option (or writes their own).
 
-### step 6: changeset decision
+#### step 7: changeset decision
 
 determine if a changeset is needed using the rules above.
 
@@ -205,7 +238,7 @@ if a changeset is needed:
 3. semver level = `patch` (unless explicitly requested otherwise)
 4. write the `.changeset/<name>.md` file
 
-### step 7: commit
+#### step 8: commit
 
 1. run the `git commit` command with the chosen message using a HEREDOC:
 
