@@ -419,7 +419,17 @@ function scheduleMessage(message: string) {
         ),
       );
     })
-    .catch((error: unknown) => captureException(error));
+    .catch((error: unknown) =>
+      captureException(error, {
+        level: "error",
+        fingerprint: [
+          "{{ default }}",
+          error instanceof BaseError && error.cause instanceof ContractFunctionRevertedError
+            ? (error.cause.data?.errorName ?? error.cause.reason ?? error.cause.signature ?? "unknown")
+            : "unknown",
+        ],
+      }),
+    );
 }
 
 function scheduleWithdraw(message: string) {
@@ -491,7 +501,18 @@ function scheduleWithdraw(message: string) {
             return redis.zrem("withdraw", message);
           }
           parent.setStatus({ code: SPAN_STATUS_ERROR, message: "failed_precondition" });
-          captureException(error, { contexts: { withdraw: { account, market, receiver, retryCount } } });
+          captureException(error, {
+            level: "error",
+            contexts: { withdraw: { account, market, receiver, retryCount } },
+            fingerprint: [
+              "{{ default }}",
+              ...(error instanceof BaseError && error.cause instanceof ContractFunctionRevertedError
+                ? error.cause.data?.errorName === "WrappedError" && error.cause.data.args
+                  ? ["WrappedError", String(error.cause.data.args[1])]
+                  : [error.cause.data?.errorName ?? error.cause.reason ?? error.cause.signature ?? "unknown"]
+                : ["unknown"]),
+            ],
+          });
           if (
             chain.id === optimismSepolia.id &&
             error instanceof BaseError &&
@@ -506,7 +527,17 @@ function scheduleWithdraw(message: string) {
 
   setTimeout(Math.max(0, (Number(unlock) + 10) * 1000 - Date.now()))
     .then(() => continueTrace({ sentryTrace, baggage: sentryBaggage }, processWithdraw))
-    .catch((error: unknown) => captureException(error));
+    .catch((error: unknown) =>
+      captureException(error, {
+        level: "error",
+        fingerprint: [
+          "{{ default }}",
+          error instanceof BaseError && error.cause instanceof ContractFunctionRevertedError
+            ? (error.cause.data?.errorName ?? error.cause.reason ?? error.cause.signature ?? "unknown")
+            : "unknown",
+        ],
+      }),
+    );
 }
 
 const url = `${appOrigin}/hooks/block`;
