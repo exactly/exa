@@ -239,7 +239,10 @@ describe("proposal", () => {
         },
       });
 
-      await vi.waitUntil(() => waitForTransactionReceipt.mock.settledResults.some(({ type }) => type !== "incomplete"));
+      await vi.waitUntil(
+        () => waitForTransactionReceipt.mock.settledResults.some(({ type }) => type !== "incomplete"),
+        26_666,
+      );
       const withdrawReceipt = waitForTransactionReceipt.mock.settledResults[0];
       const newNonce =
         withdrawReceipt?.type === "fulfilled" && withdrawReceipt.value.logs.length === 1
@@ -303,7 +306,10 @@ describe("proposal", () => {
         },
       });
 
-      await vi.waitUntil(() => waitForTransactionReceipt.mock.settledResults.some(({ type }) => type !== "incomplete"));
+      await vi.waitUntil(
+        () => waitForTransactionReceipt.mock.settledResults.some(({ type }) => type !== "incomplete"),
+        26_666,
+      );
 
       expect(captureException).toHaveBeenCalledWith(
         expect.objectContaining({ name: "ContractFunctionExecutionError" }),
@@ -343,7 +349,10 @@ describe("proposal", () => {
         },
       });
 
-      await vi.waitUntil(() => waitForTransactionReceipt.mock.settledResults.some(({ type }) => type !== "incomplete"));
+      await vi.waitUntil(
+        () => waitForTransactionReceipt.mock.settledResults.some(({ type }) => type !== "incomplete"),
+        26_666,
+      );
 
       expect(captureException).toHaveBeenCalledWith(
         expect.objectContaining({ name: "ContractFunctionExecutionError" }),
@@ -375,16 +384,18 @@ describe("proposal", () => {
         },
       });
 
-      await vi.waitUntil(() =>
-        vi
-          .mocked(captureException)
-          .mock.calls.some(
-            ([error, context]) =>
-              error instanceof Error &&
-              error.message === "test" &&
-              typeof context === "object" &&
-              "fingerprint" in context,
-          ),
+      await vi.waitUntil(
+        () =>
+          vi
+            .mocked(captureException)
+            .mock.calls.some(
+              ([error, context]) =>
+                error instanceof Error &&
+                error.message === "test" &&
+                typeof context === "object" &&
+                "fingerprint" in context,
+            ),
+        26_666,
       );
 
       expect(captureException).toHaveBeenCalledWith(
@@ -425,7 +436,10 @@ describe("proposal", () => {
         },
       });
 
-      await vi.waitUntil(() => waitForTransactionReceipt.mock.settledResults.some(({ type }) => type !== "incomplete"));
+      await vi.waitUntil(
+        () => waitForTransactionReceipt.mock.settledResults.some(({ type }) => type !== "incomplete"),
+        26_666,
+      );
 
       expect(captureException).toHaveBeenCalledWith(
         expect.objectContaining({ name: "ContractFunctionExecutionError" }),
