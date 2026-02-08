@@ -1,5 +1,13 @@
 # @exactly/server
 
+## 0.2.60
+
+### Patch Changes
+
+- [#743](https://github.com/exactly/exa/pull/743) [`d194d5d`](https://github.com/exactly/exa/commit/d194d5db7b4cf2a9dd540857c84327130135b62c) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 fingerprint keeper errors for sentry grouping
+
+- [#741](https://github.com/exactly/exa/pull/741) [`12a4f4c`](https://github.com/exactly/exa/commit/12a4f4c2dad7f980000306ba288cf3ba497d78cd) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 decode external swap errors in proposal execution
+
 ## 0.2.59
 
 ### Patch Changes
