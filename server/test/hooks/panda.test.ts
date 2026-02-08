@@ -314,7 +314,7 @@ describe("card operations", () => {
         expect(captureException).toHaveBeenCalledWith(
           expect.objectContaining({ name: "ContractFunctionExecutionError", functionName: "collectCredit" }),
           expect.objectContaining({
-            fingerprint: ["{{ default }}", "Arithmetic operation resulted in underflow or overflow."],
+            fingerprint: ["{{ default }}", "Panic"],
           }),
         );
         expect(captureException).toHaveBeenCalledWith(
@@ -631,7 +631,7 @@ describe("card operations", () => {
         expect(captureException).toHaveBeenNthCalledWith(
           1,
           new Error("timeout"),
-          expect.objectContaining({ level: "error" }),
+          expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "unknown"] }),
         );
         expect(captureException).toHaveBeenNthCalledWith(
           2,
@@ -670,7 +670,7 @@ describe("card operations", () => {
         expect(captureException).toHaveBeenNthCalledWith(
           1,
           expect.any(BaseError),
-          expect.objectContaining({ level: "error" }),
+          expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "unknown"] }),
         );
         expect(captureException).toHaveBeenNthCalledWith(
           2,
@@ -700,7 +700,10 @@ describe("card operations", () => {
           },
         });
 
-        expect(captureException).toHaveBeenCalledWith(new Error("Unexpected Error"), expect.anything());
+        expect(captureException).toHaveBeenCalledWith(
+          new Error("Unexpected Error"),
+          expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "unknown"] }),
+        );
         expect(response.status).toBe(569);
       });
 

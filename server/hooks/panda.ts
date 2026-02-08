@@ -385,8 +385,8 @@ export default new Hono().post(
                 fingerprint: [
                   "{{ default }}",
                   contractError.cause instanceof ContractFunctionRevertedError
-                    ? (contractError.cause.reason ??
-                      contractError.cause.data?.errorName ??
+                    ? (contractError.cause.data?.errorName ??
+                      contractError.cause.reason ??
                       contractError.cause.signature ??
                       "unknown")
                     : "unknown",

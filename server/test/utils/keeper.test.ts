@@ -48,6 +48,10 @@ describe("fault tolerance", () => {
         { onHash },
       ),
     ).rejects.toThrow("Timed out while waiting for transaction");
+    expect(captureException).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "WaitForTransactionReceiptTimeoutError" }),
+      expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "unknown"] }),
+    );
     expect(onHash).toHaveBeenCalledOnce();
     expect(sendRawTransaction).toHaveBeenCalledTimes(3);
   });

@@ -357,7 +357,7 @@ function scheduleMessage(message: string) {
               ...(error instanceof BaseError && error.cause instanceof ContractFunctionRevertedError
                 ? error.cause.data?.errorName === "WrappedError" && error.cause.data.args
                   ? ["WrappedError", String(error.cause.data.args[1])]
-                  : [error.cause.reason ?? error.cause.data?.errorName ?? error.cause.signature ?? "unknown"]
+                  : [error.cause.data?.errorName ?? error.cause.reason ?? error.cause.signature ?? "unknown"]
                 : ["unknown"]),
             ],
           });

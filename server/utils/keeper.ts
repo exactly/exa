@@ -181,7 +181,15 @@ export function extender(keeper: WalletClient<HttpTransport, typeof chain, Priva
               }
             }
             span.setStatus({ code: SPAN_STATUS_ERROR, message: reason });
-            captureException(error, { level: "error" });
+            captureException(error, {
+              level: "error",
+              fingerprint: [
+                "{{ default }}",
+                error instanceof BaseError && error.cause instanceof ContractFunctionRevertedError
+                  ? (error.cause.data?.errorName ?? error.cause.reason ?? error.cause.signature ?? "unknown")
+                  : "unknown",
+              ],
+            });
             throw error;
           }
         }),

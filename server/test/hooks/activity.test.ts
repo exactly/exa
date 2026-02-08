@@ -100,7 +100,7 @@ describe("address activity", () => {
 
     expect(captureException).toHaveBeenCalledWith(
       new WaitForTransactionReceiptTimeoutError({ hash: zeroHash }),
-      expect.anything(),
+      expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "unknown"] }),
     );
 
     expect(response.status).toBe(200);
