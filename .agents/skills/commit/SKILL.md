@@ -69,6 +69,7 @@ the start of the commit message is prime real estate. git UIs (github, gitlab, `
 - 🎉 `tada` — begin a project. use only for starting new subprojects.
 - 🚧 `construction` — work in progress. use for features not yet ready. these commits are reworded later via rebase. should never be merged to main.
 - ⚗️ `alembic` — experiments. use for temporary commits needed to test something on the server, debug, or special instrumentation. should never be merged to main.
+- 🧪 `test_tube` — add a failing test. this is for tdd workflows only. this project does not use it — use ✅ `white_check_mark` instead.
 
 ## changeset format
 
