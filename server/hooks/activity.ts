@@ -14,7 +14,7 @@ import createDebug from "debug";
 import { eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import * as v from "valibot";
-import { bytesToBigInt, withRetry } from "viem";
+import { BaseError, bytesToBigInt, ContractFunctionRevertedError, withRetry } from "viem";
 
 import {
   auditorAbi,
@@ -181,7 +181,18 @@ export default new Hono().post(
                           delay: 2000,
                           retryCount: 5,
                           shouldRetry: ({ error }) => {
-                            captureException(error, { level: "error" });
+                            captureException(error, {
+                              level: "error",
+                              fingerprint: [
+                                "{{ default }}",
+                                error instanceof BaseError && error.cause instanceof ContractFunctionRevertedError
+                                  ? (error.cause.data?.errorName ??
+                                    error.cause.reason ??
+                                    error.cause.signature ??
+                                    "unknown")
+                                  : "unknown",
+                              ],
+                            });
                             return true;
                           },
                         },
@@ -232,7 +243,18 @@ export default new Hono().post(
         for (const result of results) {
           if (result.status === "fulfilled") continue;
           status = { code: SPAN_STATUS_ERROR, message: "activity_failed" };
-          captureException(result.reason, { level: "error" });
+          captureException(result.reason, {
+            level: "error",
+            fingerprint: [
+              "{{ default }}",
+              result.reason instanceof BaseError && result.reason.cause instanceof ContractFunctionRevertedError
+                ? (result.reason.cause.data?.errorName ??
+                  result.reason.cause.reason ??
+                  result.reason.cause.signature ??
+                  "unknown")
+                : "unknown",
+            ],
+          });
         }
         getActiveSpan()?.setStatus(status);
       })

@@ -7,7 +7,10 @@ import "../mocks/sentry";
 import { captureException } from "@sentry/node";
 import { testClient } from "hono/testing";
 import {
+  BaseError,
   bytesToHex,
+  ContractFunctionRevertedError,
+  encodeErrorResult,
   hexToBigInt,
   hexToBytes,
   padHex,
@@ -103,6 +106,276 @@ describe("address activity", () => {
       expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "unknown"] }),
     );
 
+    expect(response.status).toBe(200);
+  });
+
+  it("fingerprints poke revert by error name", async () => {
+    const simulateContract = vi.spyOn(publicClient, "simulateContract");
+    const revertAbi = [{ type: "error", name: "Unauthorized", inputs: [] }] as const;
+    simulateContract.mockRejectedValueOnce(
+      new BaseError("test", {
+        cause: new ContractFunctionRevertedError({
+          abi: revertAbi,
+          data: encodeErrorResult({ abi: revertAbi, errorName: "Unauthorized" }),
+          functionName: "poke",
+        }),
+      }),
+    );
+
+    const deposit = parseEther("5");
+    await anvilClient.setBalance({ address: account, value: deposit });
+
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: {
+          ...activityPayload.json.event,
+          activity: [{ ...activityPayload.json.event.activity[0], toAddress: account }],
+        },
+      },
+    });
+
+    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0);
+
+    expect(captureException).toHaveBeenCalledWith(
+      expect.any(BaseError),
+      expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "Unauthorized"] }),
+    );
+    expect(response.status).toBe(200);
+  });
+
+  it("fingerprints poke revert by reason", async () => {
+    const simulateContract = vi.spyOn(publicClient, "simulateContract");
+    simulateContract.mockRejectedValueOnce(
+      new BaseError("test", {
+        cause: new ContractFunctionRevertedError({ abi: [], functionName: "poke", message: "custom reason" }),
+      }),
+    );
+
+    const deposit = parseEther("5");
+    await anvilClient.setBalance({ address: account, value: deposit });
+
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: {
+          ...activityPayload.json.event,
+          activity: [{ ...activityPayload.json.event.activity[0], toAddress: account }],
+        },
+      },
+    });
+
+    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0);
+
+    expect(captureException).toHaveBeenCalledWith(
+      expect.any(BaseError),
+      expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "custom reason"] }),
+    );
+    expect(response.status).toBe(200);
+  });
+
+  it("fingerprints poke revert as unknown", async () => {
+    const simulateContract = vi.spyOn(publicClient, "simulateContract");
+    simulateContract.mockRejectedValueOnce(
+      new BaseError("test", { cause: new ContractFunctionRevertedError({ abi: [], functionName: "poke" }) }),
+    );
+
+    const deposit = parseEther("5");
+    await anvilClient.setBalance({ address: account, value: deposit });
+
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: {
+          ...activityPayload.json.event,
+          activity: [{ ...activityPayload.json.event.activity[0], toAddress: account }],
+        },
+      },
+    });
+
+    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0);
+
+    expect(captureException).toHaveBeenCalledWith(
+      expect.any(BaseError),
+      expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "unknown"] }),
+    );
+    expect(response.status).toBe(200);
+  });
+
+  it("fingerprints poke revert by signature", async () => {
+    const simulateContract = vi.spyOn(publicClient, "simulateContract");
+    simulateContract.mockRejectedValueOnce(
+      new BaseError("test", {
+        cause: new ContractFunctionRevertedError({
+          abi: [],
+          data: "0xdeadbeef",
+          functionName: "poke",
+        }),
+      }),
+    );
+
+    const deposit = parseEther("5");
+    await anvilClient.setBalance({ address: account, value: deposit });
+
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: {
+          ...activityPayload.json.event,
+          activity: [{ ...activityPayload.json.event.activity[0], toAddress: account }],
+        },
+      },
+    });
+
+    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0);
+
+    expect(captureException).toHaveBeenCalledWith(
+      expect.any(BaseError),
+      expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "0xdeadbeef"] }),
+    );
+    expect(response.status).toBe(200);
+  });
+
+  it("fingerprints shouldRetry by error name", async () => {
+    vi.spyOn(publicClient, "getCode").mockResolvedValue("0x1");
+    const revertAbi = [{ type: "error", name: "Unauthorized", inputs: [] }] as const;
+    vi.spyOn(publicClient, "simulateContract").mockRejectedValueOnce(
+      new BaseError("test", {
+        cause: new ContractFunctionRevertedError({
+          abi: revertAbi,
+          data: encodeErrorResult({ abi: revertAbi, errorName: "Unauthorized" }),
+          functionName: "pokeETH",
+        }),
+      }),
+    );
+
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: {
+          ...activityPayload.json.event,
+          activity: [{ ...activityPayload.json.event.activity[0], toAddress: account }],
+        },
+      },
+    });
+
+    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0, 26_666);
+
+    expect(captureException).toHaveBeenCalledWith(
+      expect.any(BaseError),
+      expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "Unauthorized"] }),
+    );
+    expect(response.status).toBe(200);
+  });
+
+  it("fingerprints shouldRetry by reason", async () => {
+    vi.spyOn(publicClient, "getCode").mockResolvedValue("0x1");
+    vi.spyOn(publicClient, "simulateContract").mockRejectedValueOnce(
+      new BaseError("test", {
+        cause: new ContractFunctionRevertedError({ abi: [], functionName: "pokeETH", message: "custom reason" }),
+      }),
+    );
+
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: {
+          ...activityPayload.json.event,
+          activity: [{ ...activityPayload.json.event.activity[0], toAddress: account }],
+        },
+      },
+    });
+
+    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0, 26_666);
+
+    expect(captureException).toHaveBeenCalledWith(
+      expect.any(BaseError),
+      expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "custom reason"] }),
+    );
+    expect(response.status).toBe(200);
+  });
+
+  it("fingerprints shouldRetry by signature", async () => {
+    vi.spyOn(publicClient, "getCode").mockResolvedValue("0x1");
+    vi.spyOn(publicClient, "simulateContract").mockRejectedValueOnce(
+      new BaseError("test", {
+        cause: new ContractFunctionRevertedError({ abi: [], data: "0xdeadbeef", functionName: "pokeETH" }),
+      }),
+    );
+
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: {
+          ...activityPayload.json.event,
+          activity: [{ ...activityPayload.json.event.activity[0], toAddress: account }],
+        },
+      },
+    });
+
+    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0, 26_666);
+
+    expect(captureException).toHaveBeenCalledWith(
+      expect.any(BaseError),
+      expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "0xdeadbeef"] }),
+    );
+    expect(response.status).toBe(200);
+  });
+
+  it("fingerprints shouldRetry as unknown revert", async () => {
+    vi.spyOn(publicClient, "getCode").mockResolvedValue("0x1");
+    vi.spyOn(publicClient, "simulateContract").mockRejectedValueOnce(
+      new BaseError("test", { cause: new ContractFunctionRevertedError({ abi: [], functionName: "pokeETH" }) }),
+    );
+
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: {
+          ...activityPayload.json.event,
+          activity: [{ ...activityPayload.json.event.activity[0], toAddress: account }],
+        },
+      },
+    });
+
+    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0, 26_666);
+
+    expect(captureException).toHaveBeenCalledWith(
+      expect.any(BaseError),
+      expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "unknown"] }),
+    );
+    expect(response.status).toBe(200);
+  });
+
+  it("fingerprints shouldRetry as unknown", async () => {
+    vi.spyOn(publicClient, "getCode").mockResolvedValue("0x1");
+    vi.spyOn(publicClient, "simulateContract").mockRejectedValueOnce(new Error("unexpected"));
+
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: {
+          ...activityPayload.json.event,
+          activity: [{ ...activityPayload.json.event.activity[0], toAddress: account }],
+        },
+      },
+    });
+
+    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0, 26_666);
+
+    expect(captureException).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "unexpected" }),
+      expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "unknown"] }),
+    );
     expect(response.status).toBe(200);
   });
 
