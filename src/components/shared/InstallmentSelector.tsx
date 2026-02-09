@@ -101,7 +101,7 @@ function Installment({
           backgroundColor={selected ? "$interactiveBaseBrandDefault" : "$backgroundStrong"}
           width={16}
           height={16}
-          padding={4}
+          padding="$s2"
           borderRadius="$r_0"
           alignItems="center"
           justifyContent="center"
