@@ -129,9 +129,9 @@ export default function Ramp() {
 
   return (
     <SafeView fullScreen>
-      <View gap={20} fullScreen padded>
-        <View gap={20}>
-          <View flexDirection="row" gap={10} justifyContent="space-between" alignItems="center">
+      <View gap="$s4_5" fullScreen padded>
+        <View gap="$s4_5">
+          <View flexDirection="row" gap="$s3_5" justifyContent="space-between" alignItems="center">
             <Pressable
               onPress={() => {
                 if (router.canGoBack()) {
@@ -152,7 +152,7 @@ export default function Ramp() {
           </View>
         </View>
         <ScrollView flex={1}>
-          <View flex={1} gap={20}>
+          <View flex={1} gap="$s4_5">
             <YStack flex={1} padding="$s4" gap="$s5">
               <YStack gap="$s4" alignSelf="center">
                 <Text emphasized title3>

@@ -34,7 +34,14 @@ export default function Asset() {
   });
   return (
     <SafeView fullScreen>
-      <View padded flexDirection="row" gap={10} paddingBottom="$s4" justifyContent="space-between" alignItems="center">
+      <View
+        padded
+        flexDirection="row"
+        gap="$s3_5"
+        paddingBottom="$s4"
+        justifyContent="space-between"
+        alignItems="center"
+      >
         <Pressable
           onPress={() => {
             if (router.canGoBack()) {
@@ -93,7 +100,7 @@ export default function Asset() {
                         height={16}
                         backgroundColor={selected ? "$interactiveBaseBrandDefault" : "$uiNeutralSecondary"}
                         borderRadius="$r_0"
-                        padding={4}
+                        padding="$s2"
                         alignItems="center"
                         justifyContent="center"
                       >

@@ -23,10 +23,10 @@ const StyledAction = styled(View, {
 export default function PaymentsActions() {
   const { t } = useTranslation();
   return (
-    <View flexDirection="row" justifyContent="space-between" gap={10}>
+    <View flexDirection="row" justifyContent="space-between" gap="$s3_5">
       <StyledAction>
         <Pressable>
-          <View gap={10}>
+          <View gap="$s3_5">
             <Coins size={24} color="$backgroundBrand" fontWeight="bold" />
             <Text fontSize={15}>{t("Auto-pay")}</Text>
             <Switch disabled backgroundColor="$backgroundMild" borderColor="$borderNeutralSoft">
@@ -37,7 +37,7 @@ export default function PaymentsActions() {
       </StyledAction>
       <StyledAction>
         <Pressable>
-          <View gap={10}>
+          <View gap="$s3_5">
             <CircleDollarSign size={24} color="$interactiveDisabled" fontWeight="bold" />
             <Text fontSize={15} color="$interactiveDisabled">
               {t("Collateral")}

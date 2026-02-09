@@ -378,7 +378,7 @@ export default function Swaps() {
         <View
           padded
           flexDirection="row"
-          gap={10}
+          gap="$s3_5"
           paddingBottom="$s4"
           justifyContent="space-between"
           alignItems="center"
@@ -457,7 +457,7 @@ export default function Swaps() {
             </YStack>
           </View>
         </ScrollView>
-        <YStack padding="$s4" paddingBottom={insets.bottom} gap="$s2_5">
+        <YStack padding="$s4" paddingBottom={insets.bottom} gap="$s3">
           <YStack gap="$s3">
             {(caution || danger) && showWarning && (
               <YStack gap="$s4_5">

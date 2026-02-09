@@ -38,7 +38,14 @@ export default function Installments() {
   }, []);
   return (
     <SafeView fullScreen>
-      <View padded flexDirection="row" gap={10} paddingBottom="$s4" justifyContent="space-between" alignItems="center">
+      <View
+        padded
+        flexDirection="row"
+        gap="$s3_5"
+        paddingBottom="$s4"
+        justifyContent="space-between"
+        alignItems="center"
+      >
         <Pressable
           onPress={() => {
             if (router.canGoBack()) {

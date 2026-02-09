@@ -275,8 +275,8 @@ export default function Amount() {
   if (!pending && !error && !success) {
     return (
       <SafeView fullScreen>
-        <View gap={20} fullScreen padded>
-          <View flexDirection="row" gap={10} justifyContent="space-around" alignItems="center">
+        <View gap="$s4_5" fullScreen padded>
+          <View flexDirection="row" gap="$s3_5" justifyContent="space-around" alignItems="center">
             <View position="absolute" left={0}>
               <Pressable
                 onPress={() => {

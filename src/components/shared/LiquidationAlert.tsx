@@ -17,11 +17,11 @@ export default function LiquidationAlert() {
       backgroundColor="$interactiveBaseErrorSoftDefault"
       justifyContent="space-between"
       alignItems="center"
-      gap={10}
+      gap="$s3_5"
       flex={1}
     >
       <View
-        padding={25}
+        padding="$s5"
         backgroundColor="$interactiveBaseErrorDefault"
         justifyContent="center"
         alignItems="center"
@@ -33,7 +33,7 @@ export default function LiquidationAlert() {
         <AlertTriangle size={32} color="$interactiveOnBaseErrorDefault" />
       </View>
 
-      <View gap={10} padding={25} flex={1}>
+      <View gap="$s3_5" padding="$s5" flex={1}>
         <Text fontSize={15} color="$interactiveOnBaseErrorSoft">
           {t("Some of your assets are at risk of being liquidated.")}
         </Text>
@@ -42,7 +42,7 @@ export default function LiquidationAlert() {
             presentArticle("9975910").catch(reportError);
           }}
         >
-          <View flexDirection="row" gap={2} alignItems="center">
+          <View flexDirection="row" gap="$s1" alignItems="center">
             <Text color="$interactiveOnBaseErrorSoft" fontSize={15} fontWeight="bold">
               {t("Learn more")}
             </Text>

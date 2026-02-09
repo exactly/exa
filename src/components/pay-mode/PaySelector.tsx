@@ -115,7 +115,7 @@ export default function PaySelector() {
     <>
       <View backgroundColor="$backgroundSoft" padded>
         <YStack paddingBottom="$s3" gap="$s4_5">
-          <XStack gap={10} justifyContent="space-between" alignItems="center">
+          <XStack gap="$s3_5" justifyContent="space-between" alignItems="center">
             <Text fontSize={20} fontWeight="bold">
               {t("Pay Mode")}
             </Text>
@@ -191,7 +191,7 @@ export default function PaySelector() {
             </Text>
           </XStack>
         </XStack>
-        <YStack gap="$s1_5">
+        <YStack gap="$s2">
           <InstallmentButton
             key={0}
             installment={0}
@@ -216,7 +216,7 @@ export default function PaySelector() {
             </Text>
           </XStack>
         </XStack>
-        <YStack gap="$s1_5">
+        <YStack gap="$s2">
           {Array.from({ length: MAX_INSTALLMENTS }, (_, index) => index + 1).map((installment) => (
             <InstallmentButton
               key={installment}
