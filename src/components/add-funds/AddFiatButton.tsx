@@ -9,10 +9,11 @@ import Text from "../shared/Text";
 
 type AddFiatButtonProperties = {
   currency: string;
+  provider: string;
   status: "ACTIVE" | "NOT_AVAILABLE" | "NOT_STARTED" | "ONBOARDING";
 };
 
-export default function AddFiatButton({ currency, status }: AddFiatButtonProperties) {
+export default function AddFiatButton({ currency, provider, status }: AddFiatButtonProperties) {
   const { t } = useTranslation();
   const router = useRouter();
 
@@ -25,15 +26,15 @@ export default function AddFiatButton({ currency, status }: AddFiatButtonPropert
   function handlePress() {
     switch (status) {
       case "NOT_STARTED":
-        router.push({ pathname: "/add-funds/onboard", params: { currency } });
+        router.push({ pathname: "/add-funds/onboard", params: { currency, provider } });
         break;
 
       case "ONBOARDING":
-        router.push({ pathname: "/add-funds/status", params: { status: "ONBOARDING", currency } });
+        router.push({ pathname: "/add-funds/status", params: { status: "ONBOARDING", currency, provider } });
         break;
 
       case "ACTIVE":
-        router.push({ pathname: "/add-funds/ramp", params: { currency } });
+        router.push({ pathname: "/add-funds/ramp", params: { currency, provider } });
         break;
     }
   }

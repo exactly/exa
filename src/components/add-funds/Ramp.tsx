@@ -11,6 +11,7 @@ import { ScrollView, Separator, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 
+import BridgeDisclaimer from "./BridgeDisclaimer";
 import MantecaDisclaimer from "./MantecaDisclaimer";
 import { isValidCurrency } from "../../utils/currencies";
 import reportError from "../../utils/reportError";
@@ -53,16 +54,30 @@ export default function Ramp() {
   } = useTranslation();
   const router = useRouter();
   const toast = useToastController();
-  const { currency } = useLocalSearchParams<{ currency: string }>();
+  const { provider, currency, cryptoCurrency, network } = useLocalSearchParams<{
+    cryptoCurrency: string;
+    currency: string;
+    network: string;
+    provider: string;
+  }>();
 
   const typedCurrency = isValidCurrency(currency) ? currency : undefined;
+  const isCrypto = !!cryptoCurrency && !!network;
+  const displayCurrency = isCrypto ? `${cryptoCurrency} (${network})` : currency;
 
   const { data: countryCode } = useQuery<string>({ queryKey: ["user", "country"] });
 
   const { data, isPending } = useQuery({
-    queryKey: ["ramp", "quote", "manteca", typedCurrency],
-    queryFn: typedCurrency ? () => getRampQuote({ provider: "manteca", currency: typedCurrency }) : undefined,
-    enabled: !!typedCurrency,
+    queryKey: ["ramp", "quote", provider, isCrypto, cryptoCurrency, network, typedCurrency],
+    queryFn: () =>
+      getRampQuote(
+        isCrypto
+          ? ({ provider: "bridge", cryptoCurrency, network } as Parameters<typeof getRampQuote>[0])
+          : ({ provider: provider as "bridge" | "manteca", currency: typedCurrency } as Parameters<
+              typeof getRampQuote
+            >[0]),
+      ),
+    enabled: isCrypto || !!typedCurrency,
     refetchInterval: 30_000,
     staleTime: 10_000,
   });
@@ -74,20 +89,13 @@ export default function Ramp() {
     staleTime: 60_000,
   });
 
-  if (!typedCurrency) return <Redirect href="/add-funds" />;
+  if (!typedCurrency && !isCrypto) return <Redirect href="/add-funds" />;
 
   const depositInfo = data?.depositInfo.at(0);
   const quote = data?.quote;
 
-  const beneficiaryName = depositInfo && "beneficiaryName" in depositInfo ? depositInfo.beneficiaryName : undefined;
-  const depositAddress =
-    depositInfo?.network === "ARG_FIAT_TRANSFER"
-      ? depositInfo.cbu
-      : depositInfo?.network === "PIX"
-        ? depositInfo.pixKey
-        : undefined;
-  const depositAlias = depositInfo?.network === "ARG_FIAT_TRANSFER" ? depositInfo.depositAlias : undefined;
-  const limits = providers?.manteca.onramp.limits;
+  const providerData = providers?.[provider as keyof typeof providers];
+  const limits = providerData?.onramp.limits;
   const limitCurrency = limits?.monthly?.symbol;
   const minAmount = quote?.buyRate ? Number(quote.buyRate) : undefined;
   const maxAmount = limits?.monthly?.available ? Number(limits.monthly.available) : undefined;
@@ -133,46 +141,27 @@ export default function Ramp() {
             <YStack flex={1} padding="$s4" gap="$s5">
               <YStack gap="$s4" alignSelf="center">
                 <Text emphasized title3>
-                  {currency} {t("Account details")}
+                  {displayCurrency} {t("Account details")}
                 </Text>
                 <Text color="$uiNeutralPlaceholder" subHeadline>
-                  {t("Transfer {{currency}} from bank accounts under your name to receive USDC in your Exa App.", {
-                    currency,
-                  })}
+                  {isCrypto
+                    ? t("Send {{currency}} to the address below to receive it in your Exa App.", {
+                        currency: cryptoCurrency,
+                      })
+                    : t("Transfer {{currency}} from bank accounts under your name to receive USDC in your Exa App.", {
+                        currency,
+                      })}
                 </Text>
               </YStack>
               <YStack gap="$s4" backgroundColor="$backgroundSoft" padding="$s4_5" borderRadius="$r3">
-                <DetailRow
-                  label={t("Beneficiary name")}
-                  value={beneficiaryName}
-                  isLoading={isPending}
-                  onCopy={() => {
-                    if (!beneficiaryName) return;
-                    copyToClipboard(beneficiaryName);
-                  }}
+                <DepositDetailRows
+                  depositInfo={depositInfo}
+                  isPending={isPending}
+                  copyToClipboard={copyToClipboard}
+                  t={t}
                 />
-                <DetailRow
-                  label={depositInfo?.displayName ?? t("Account")}
-                  value={depositAddress}
-                  isLoading={isPending}
-                  onCopy={() => {
-                    if (!depositAddress) return;
-                    copyToClipboard(depositAddress);
-                  }}
-                />
-                {depositAlias && (
-                  <DetailRow
-                    label={t("Deposit alias")}
-                    value={depositAlias}
-                    isLoading={isPending}
-                    onCopy={() => {
-                      if (!depositAlias) return;
-                      copyToClipboard(depositAlias);
-                    }}
-                  />
-                )}
               </YStack>
-              <InfoAlert title={t("All deposits must be from bank accounts under your name.")} />
+              {!isCrypto && <InfoAlert title={t("All deposits must be from bank accounts under your name.")} />}
             </YStack>
           </View>
         </ScrollView>
@@ -180,29 +169,31 @@ export default function Ramp() {
           <Separator height={1} borderColor="$borderNeutralSoft" />
 
           <YStack gap="$s2" paddingHorizontal="$s4_5">
-            <XStack gap="$s3" alignItems="center">
-              <Banknote size={24} color="$uiNeutralPrimary" />
-              <Text emphasized secondary caption2 color="$uiNeutralPlaceholder">
-                {t("Amount")}
-              </Text>
-              <XStack alignItems="center">
-                {currency === limitCurrency &&
-                  (minAmount === undefined ? (
-                    <Skeleton width={80} height={16} />
-                  ) : (
+            {!isCrypto && (
+              <XStack gap="$s3" alignItems="center">
+                <Banknote size={24} color="$uiNeutralPrimary" />
+                <Text emphasized secondary caption2 color="$uiNeutralPlaceholder">
+                  {t("Amount")}
+                </Text>
+                <XStack alignItems="center">
+                  {currency === limitCurrency &&
+                    (minAmount === undefined ? (
+                      <Skeleton width={80} height={16} />
+                    ) : (
+                      <Text emphasized secondary caption2 color="$uiNeutralSecondary">
+                        {`${t("Min")} ${limitCurrency} ${formatAmount(minAmount)} - `}
+                      </Text>
+                    ))}
+                  {maxAmount !== undefined && limitCurrency ? (
                     <Text emphasized secondary caption2 color="$uiNeutralSecondary">
-                      {`${t("Min")} ${limitCurrency} ${formatAmount(minAmount)} - `}
+                      {`${t("Max")} ${limitCurrency} ${formatAmount(maxAmount)}`}
                     </Text>
-                  ))}
-                {maxAmount !== undefined && limitCurrency ? (
-                  <Text emphasized secondary caption2 color="$uiNeutralSecondary">
-                    {`${t("Max")} ${limitCurrency} ${formatAmount(maxAmount)}`}
-                  </Text>
-                ) : (
-                  <Skeleton width={80} height={16} />
-                )}
+                  ) : (
+                    <Skeleton width={80} height={16} />
+                  )}
+                </XStack>
               </XStack>
-            </XStack>
+            )}
             <XStack gap="$s3" alignItems="center">
               <CalendarDays size={24} color="$uiNeutralPrimary" />
               <Text emphasized secondary caption2 color="$uiNeutralPlaceholder">
@@ -221,19 +212,21 @@ export default function Ramp() {
                 <Skeleton width={100} height={16} />
               )}
             </XStack>
-            <XStack gap="$s3" alignItems="center">
-              <Repeat size={24} color="$uiNeutralPrimary" />
-              <Text emphasized secondary caption2 color="$uiNeutralPlaceholder">
-                {t("Exchange rate")}
-              </Text>
-              <Text emphasized secondary caption2 color="$uiNeutralSecondary">
-                {quote?.buyRate ? (
-                  `${currency} ${Number(quote.buyRate).toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })} ~ 1 USDC`
-                ) : (
-                  <Skeleton width={100} height={16} />
-                )}
-              </Text>
-            </XStack>
+            {!isCrypto && (
+              <XStack gap="$s3" alignItems="center">
+                <Repeat size={24} color="$uiNeutralPrimary" />
+                <Text emphasized secondary caption2 color="$uiNeutralPlaceholder">
+                  {t("Exchange rate")}
+                </Text>
+                <Text emphasized secondary caption2 color="$uiNeutralSecondary">
+                  {quote?.buyRate ? (
+                    `${currency} ${Number(quote.buyRate).toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })} ~ 1 USDC`
+                  ) : (
+                    <Skeleton width={100} height={16} />
+                  )}
+                </Text>
+              </XStack>
+            )}
             {depositInfo?.fee && Number.parseFloat(depositInfo.fee) !== 0 && (
               <XStack gap="$s3" alignItems="center">
                 <Percent size={24} color="$uiNeutralPrimary" />
@@ -245,10 +238,161 @@ export default function Ramp() {
                 </Text>
               </XStack>
             )}
-            <MantecaDisclaimer primary />
+            {provider === "bridge" ? <BridgeDisclaimer primary /> : <MantecaDisclaimer primary />}
           </YStack>
         </YStack>
       </View>
     </SafeView>
   );
+}
+
+type DepositInfo = NonNullable<Awaited<ReturnType<typeof getRampQuote>>>["depositInfo"][number];
+
+function DepositDetailRows({
+  depositInfo,
+  isPending,
+  copyToClipboard,
+  t,
+}: {
+  copyToClipboard: (text: string) => void;
+  depositInfo: DepositInfo | undefined;
+  isPending: boolean;
+  t: (key: string) => string;
+}) {
+  switch (depositInfo?.network) {
+    case "ARG_FIAT_TRANSFER":
+      return (
+        <>
+          <DetailRow
+            label={t("Beneficiary name")}
+            value={depositInfo.beneficiaryName}
+            isLoading={isPending}
+            onCopy={() => copyToClipboard(depositInfo.beneficiaryName)}
+          />
+          <DetailRow
+            label={depositInfo.displayName}
+            value={depositInfo.cbu}
+            isLoading={isPending}
+            onCopy={() => copyToClipboard(depositInfo.cbu)}
+          />
+          {depositInfo.depositAlias && (
+            <DetailRow
+              label={t("Deposit alias")}
+              value={depositInfo.depositAlias}
+              isLoading={isPending}
+              onCopy={() => copyToClipboard(depositInfo.depositAlias ?? "")}
+            />
+          )}
+        </>
+      );
+    case "PIX":
+      return (
+        <>
+          <DetailRow
+            label={t("Beneficiary name")}
+            value={depositInfo.beneficiaryName}
+            isLoading={isPending}
+            onCopy={() => copyToClipboard(depositInfo.beneficiaryName)}
+          />
+          <DetailRow
+            label={depositInfo.displayName}
+            value={depositInfo.pixKey}
+            isLoading={isPending}
+            onCopy={() => copyToClipboard(depositInfo.pixKey)}
+          />
+        </>
+      );
+    case "ACH":
+    case "WIRE":
+      return (
+        <>
+          <DetailRow
+            label={t("Beneficiary name")}
+            value={depositInfo.beneficiaryName}
+            isLoading={isPending}
+            onCopy={() => copyToClipboard(depositInfo.beneficiaryName)}
+          />
+          <DetailRow
+            label={t("Routing number")}
+            value={depositInfo.routingNumber}
+            isLoading={isPending}
+            onCopy={() => copyToClipboard(depositInfo.routingNumber)}
+          />
+          <DetailRow
+            label={t("Account number")}
+            value={depositInfo.accountNumber}
+            isLoading={isPending}
+            onCopy={() => copyToClipboard(depositInfo.accountNumber)}
+          />
+          <DetailRow
+            label={t("Bank name")}
+            value={depositInfo.bankName}
+            isLoading={isPending}
+            onCopy={() => copyToClipboard(depositInfo.bankName)}
+          />
+          <DetailRow
+            label={t("Bank address")}
+            value={depositInfo.bankAddress}
+            isLoading={isPending}
+            onCopy={() => copyToClipboard(depositInfo.bankAddress)}
+          />
+        </>
+      );
+    case "SEPA":
+      return (
+        <>
+          <DetailRow
+            label={t("Beneficiary name")}
+            value={depositInfo.beneficiaryName}
+            isLoading={isPending}
+            onCopy={() => copyToClipboard(depositInfo.beneficiaryName)}
+          />
+          <DetailRow
+            label={t("IBAN")}
+            value={depositInfo.iban}
+            isLoading={isPending}
+            onCopy={() => copyToClipboard(depositInfo.iban)}
+          />
+        </>
+      );
+    case "SPEI":
+      return (
+        <>
+          <DetailRow
+            label={t("Beneficiary name")}
+            value={depositInfo.beneficiaryName}
+            isLoading={isPending}
+            onCopy={() => copyToClipboard(depositInfo.beneficiaryName)}
+          />
+          <DetailRow
+            label={t("CLABE")}
+            value={depositInfo.clabe}
+            isLoading={isPending}
+            onCopy={() => copyToClipboard(depositInfo.clabe)}
+          />
+        </>
+      );
+    case "TRON":
+    case "SOLANA":
+    case "STELLAR":
+      return (
+        <DetailRow
+          label={`${depositInfo.displayName} ${t("address")}`}
+          value={depositInfo.address}
+          isLoading={isPending}
+          onCopy={() => copyToClipboard(depositInfo.address)}
+        />
+      );
+    default:
+      return (
+        <DetailRow
+          label={t("Account")}
+          value={undefined}
+          isLoading={isPending}
+          onCopy={() => {
+            /* empty */
+          }}
+        />
+      );
+  }
 }

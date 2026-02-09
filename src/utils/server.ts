@@ -297,7 +297,9 @@ export async function getRampQuote(query: NonNullable<Parameters<typeof api.ramp
   return response.json();
 }
 
-export async function startRampOnboarding(onboarding: { provider: "manteca" }) {
+export async function startRampOnboarding(
+  onboarding: { acceptedTermsId: string; provider: "bridge" } | { provider: "manteca" },
+) {
   await auth();
   const response = await api.ramp.$post({ json: onboarding });
   if (!response.ok) {

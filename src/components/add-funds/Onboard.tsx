@@ -3,6 +3,7 @@ import { Trans, useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
+import { openAuthSessionAsync } from "expo-web-browser";
 
 import { ArrowLeft, ArrowRight, Check } from "@tamagui/lucide-icons";
 import { ScrollView, XStack, YStack } from "tamagui";
@@ -30,12 +31,13 @@ export default function Onboard() {
   const { t } = useTranslation();
   const router = useRouter();
 
-  const { currency } = useLocalSearchParams<{ currency: string }>();
+  const { currency, provider } = useLocalSearchParams<{ currency: string; provider: string }>();
   const validCurrency = isValidCurrency(currency);
+  const isManteca = provider === "manteca";
 
   const [acknowledged, setAcknowledged] = useState(true);
 
-  const { mutateAsync: handleOnboarding, isPending } = useMutation({
+  const { mutateAsync: handleMantecaOnboarding, isPending: isMantecaPending } = useMutation({
     mutationKey: ["ramp", "onboarding", "manteca"],
     async mutationFn() {
       if (!currency) return;
@@ -46,25 +48,47 @@ export default function Onboard() {
       const kycCode = "code" in status && typeof status.code === "string" ? status.code : "not started";
 
       if (kycCode === "not started") {
-        router.push({ pathname: "/add-funds/kyc", params: { currency } });
+        router.push({ pathname: "/add-funds/kyc", params: { currency, provider: "manteca" } });
         return;
       }
 
       if (kycCode === "ok") {
-        await completeOnboarding(router, currency);
+        await completeOnboarding(router, currency, "manteca");
         return;
       }
 
-      router.replace({ pathname: "/add-funds/status", params: { status: "error", currency } });
+      router.replace({ pathname: "/add-funds/status", params: { status: "error", currency, provider: "manteca" } });
+    },
+  });
+
+  const { mutateAsync: handleBridgeOnboarding, isPending: isBridgePending } = useMutation({
+    mutationKey: ["ramp", "onboarding", "bridge"],
+    async mutationFn() {
+      if (!currency) return;
+
+      const tosLink = "";
+
+      const result = await openAuthSessionAsync(tosLink, "exactly://");
+      if (result.type !== "success") return;
+
+      const url = new URL(result.url);
+      const acceptedTermsId = url.searchParams.get("signed_agreement_id");
+      if (!acceptedTermsId) {
+        router.replace({ pathname: "/add-funds/status", params: { status: "error", currency, provider: "bridge" } });
+        return;
+      }
+
+      await completeOnboarding(router, currency, "bridge", acceptedTermsId);
     },
   });
 
   if (!validCurrency) return <Redirect href="/add-funds" />;
 
   const CurrencyImage = currencyImages[currency] ?? ARS;
+  const isPending = isManteca ? isMantecaPending : isBridgePending;
 
   function handleContinue() {
-    handleOnboarding().catch(reportError);
+    (isManteca ? handleMantecaOnboarding() : handleBridgeOnboarding()).catch(reportError);
   }
 
   return (
@@ -106,7 +130,7 @@ export default function Onboard() {
         </ScrollView>
 
         <YStack gap="$s4_5">
-          <MantecaDisclaimer />
+          {isManteca && <MantecaDisclaimer />}
           <XStack alignItems="center" gap="$s4" justifyContent="flex-start">
             <XStack
               cursor="pointer"

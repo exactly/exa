@@ -21,10 +21,11 @@ export default function Status() {
 
   const parameters = useLocalSearchParams<{
     currency: string;
+    provider: string;
     status: string;
   }>();
 
-  const { currency, status } = parameters;
+  const { currency, provider, status } = parameters;
   const validCurrency = isValidCurrency(currency);
   const isOnboarding = status === "ONBOARDING";
 
@@ -58,7 +59,7 @@ export default function Status() {
             </YStack>
           </View>
         </ScrollView>
-        <MantecaDisclaimer />
+        {provider === "manteca" && <MantecaDisclaimer />}
         <Button onPress={handleClose} primary>
           <Button.Text>{t("Close")}</Button.Text>
           <Button.Icon>
