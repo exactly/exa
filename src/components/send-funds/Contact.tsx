@@ -48,7 +48,7 @@ export default function Contact({
           </Text>
         ) : null}
       </XStack>
-      <Text textAlign="right" subHeadline color="$uiNeutralSecondary" fontFamily="$mono">
+      <Text textAlign="right" subHeadline color="$uiNeutralSecondary" mono>
         {shortenHex(address)}
       </Text>
     </XStack>

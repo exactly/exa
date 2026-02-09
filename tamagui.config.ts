@@ -215,15 +215,20 @@ const tokens = createTokens({
   zIndex: config.tokens.zIndex,
 });
 
+const sizes = config.fonts.body.size;
 const body = createFont({
-  family: "BDOGrotesk-Regular",
+  family: "SplineSans-Regular",
   face: {
-    400: { normal: "BDOGrotesk-Regular" },
-    600: { normal: "BDOGrotesk-DemiBold" },
-    700: { normal: "BDOGrotesk-DemiBold" },
+    400: { normal: "SplineSans-Regular" },
+    600: { normal: "SplineSans-SemiBold" },
+    700: { normal: "SplineSans-SemiBold" },
   },
-  size: config.fonts.body.size,
-  weight: { regular: 400, semibold: 600 },
+  size: sizes,
+  lineHeight: Object.fromEntries(
+    Object.entries(sizes).map(([k, v]) => [k, Math.round(Number(v) * 1.3)]),
+  ) as typeof sizes,
+  letterSpacing: Object.fromEntries(Object.entries(sizes).map(([k, v]) => [k, Number(v) * -0.002])) as typeof sizes,
+  weight: { regular: 400, semibold: 600, bold: 700 },
 });
 
 const tamagui = createTamagui({
@@ -234,10 +239,10 @@ const tamagui = createTamagui({
     body,
     heading: body,
     mono: createFont({
-      family: "IBMPlexMono-Medm",
-      face: { 500: { normal: "IBMPlexMono-Medm" } },
+      family: "SplineSansMono-Medium",
+      face: { 500: { normal: "SplineSansMono-Medium" } },
       weight: { medium: 500 },
-      size: config.fonts.mono.size,
+      size: sizes,
     }),
   },
   defaultFont: "body",

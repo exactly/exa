@@ -54,7 +54,7 @@ export default function ProfileHeader() {
               }}
             >
               <View display="flex" flexDirection="row" alignItems="flex-start">
-                <Text fontSize={17} fontFamily="$mono">
+                <Text callout mono>
                   {hidden ? "0x..." : shortenHex(address)}
                 </Text>
               </View>

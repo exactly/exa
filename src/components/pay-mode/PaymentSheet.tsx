@@ -198,7 +198,7 @@ function DetailsView({
             <Text
               sensitive
               textAlign="center"
-              fontFamily="$mono"
+              mono
               fontSize={40}
               overflow="hidden"
               color={isUpcoming ? "$uiNeutralPrimary" : "$uiErrorSecondary"}

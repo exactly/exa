@@ -106,13 +106,13 @@ function Countdown({ pin, error, onRetry }: { error: unknown; onRetry: () => voi
         <XStack flexWrap="wrap" justifyContent="center" gap="$s5">
           {Array.from({ length: pin.length }).map((_, index) => (
             // eslint-disable-next-line @eslint-react/no-array-index-key
-            <Text fontSize={48} fontFamily="$mono" key={index}>
+            <Text fontSize={48} mono key={index}>
               {displayPIN ? pin[index] : "*"}
             </Text>
           ))}
         </XStack>
       ) : (
-        <Text fontSize={48} fontFamily="$mono">
+        <Text fontSize={48} mono>
           {t("N/A")}
         </Text>
       )}
