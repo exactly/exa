@@ -38,7 +38,7 @@ import verifySignature from "../utils/verifySignature";
 const webhooksKey = process.env.MANTECA_WEBHOOKS_KEY;
 if (!webhooksKey) throw new Error("missing manteca webhooks key");
 
-const debug = createDebug("exa:manteca-hook");
+const debug = createDebug("exa:manteca");
 Object.assign(debug, { inspectOpts: { depth: undefined } });
 
 const DepositDetectedData = object({
@@ -150,19 +150,19 @@ export default new Hono().post(
     }
 
     if (payload.event === "SYSTEM_NOTICE") {
-      captureEvent({ message: "MANTECA SYSTEM NOTICE" });
+      captureEvent({ message: "MantecaSystemNotice", level: "info" });
       return c.json({ code: "ok" }, 200);
     }
 
     if (payload.event === "COMPLIANCE_NOTICE") {
       // TODO evaluate send a push notification
-      captureEvent({ message: "MANTECA COMPLIANCE NOTICE" });
+      captureEvent({ message: "MantecaComplianceNotice", level: "info" });
       return c.json({ code: "ok" }, 200);
     }
 
     if (payload.event === "PAYMENT_REFUND") {
       // TODO retrieve the userExternalId from manteca to continue with the flow
-      captureEvent({ message: "MANTECA PAYMENT REFUND" });
+      captureEvent({ message: "MantecaPaymentRefund", level: "info" });
       return c.json({ code: "ok" }, 200);
     }
 
@@ -236,7 +236,7 @@ async function handleDepositDetected(data: InferInput<typeof DepositDetectedData
         .catch((error: unknown) => {
           if (error instanceof Error && error.message.includes(ErrorCodes.INVALID_ORDER_SIZE)) {
             // TODO send a push notification to the user
-            captureEvent({ message: "MANTECA INVALID ORDER SIZE", level: "error", contexts: { data } });
+            captureEvent({ message: "MantecaInvalidOrderSize", level: "error", contexts: { data } });
             return;
           }
           throw error;
