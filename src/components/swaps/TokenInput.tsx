@@ -171,7 +171,6 @@ export default function TokenInput({
                         color={
                           isDanger ? "$uiErrorSecondary" : isActive ? "$uiNeutralPrimary" : "$uiNeutralPlaceholder"
                         }
-                        fontFamily="BDOGrotesk-Regular"
                         fontSize={28}
                         fontWeight="bold"
                         letterSpacing={-0.2}

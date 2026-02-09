@@ -55,14 +55,12 @@ export default function PortfolioSummary({
       </XStack>
       <Text
         sensitive
-        subHeadline
         emphasized
         overflow="hidden"
         maxFontSizeMultiplier={1}
         numberOfLines={1}
         adjustsFontSizeToFit
-        fontFamily="$mono"
-        fontSize={40}
+        largeTitle
       >
         {`$${(Number(totalBalanceUSD) / 1e18).toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
       </Text>
