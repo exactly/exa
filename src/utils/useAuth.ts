@@ -70,6 +70,15 @@ function handleError(
     });
     return;
   }
+  if (error instanceof Error && "code" in error && (error as Error & { code: string }).code === "ERR_BIOMETRIC") {
+    queryClient.setQueryData(["method"], undefined);
+    toast.show(t("Biometrics must be enabled to use passkeys. Please enable biometrics in your device settings"), {
+      native: true,
+      duration: 3000,
+      burntOptions: { haptic: "error", preset: "error" },
+    });
+    return;
+  }
   if (error instanceof APIError && error.text === "backup eligibility required") {
     toast.show(t("Your password manager does not support passkey backups. Please try a different one"), {
       native: true,

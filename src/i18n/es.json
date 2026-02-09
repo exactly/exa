@@ -419,6 +419,7 @@
   "Send error report": "Enviar reporte de error",
   "Authentication cancelled": "Autenticación cancelada",
   "Your password manager does not support passkey backups. Please try a different one": "Tu gestor de contraseñas no admite copias de seguridad de llaves de acceso. Por favor, prueba con otro.",
+  "Biometrics must be enabled to use passkeys. Please enable biometrics in your device settings": "Se debe habilitar la biometría para usar llaves de acceso. Habilita la biometría en la configuración de tu dispositivo",
   "Due {{date}}": "Vence {{date}}",
   "with": "con",
   "Processing rollover": "Procesando refinanciamiento",
