@@ -65,7 +65,6 @@ export default function PortfolioSummary({
         maxFontSizeMultiplier={1}
         numberOfLines={1}
         adjustsFontSizeToFit
-        fontFamily="$mono"
         fontSize={40}
       >
         {`$${(Number(totalBalanceUSD) / 1e18).toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}

@@ -91,7 +91,7 @@ export default function ReviewSheet({
                     <Blocky seed={receiver ?? zeroAddress} scale={5} />
                   </View>
                   <YStack>
-                    <Text title color="$uiNeutralPrimary" fontFamily="$mono">
+                    <Text title color="$uiNeutralPrimary">
                       {shortenHex(receiver ?? "", 3, 5)}
                     </Text>
                     {receiver && isFirstSend && (
