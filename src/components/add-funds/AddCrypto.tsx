@@ -78,7 +78,7 @@ export default function AddCrypto() {
               </Text>
               <Pressable hitSlop={15} onPress={copy}>
                 {address && (
-                  <Text fontFamily="$mono" fontSize={18} color="$uiNeutralPrimary">
+                  <Text body>
                     {shortenHex(address, 10, 12)}
                   </Text>
                 )}
