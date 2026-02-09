@@ -229,6 +229,7 @@ const body = createFont({
 const tamagui = createTamagui({
   ...config,
   tokens,
+  groups: { column: { pseudo: true } },
   fonts: {
     body,
     heading: body,
@@ -544,5 +545,9 @@ const tamagui = createTamagui({
 export type Config = typeof tamagui;
 declare module "tamagui" {
   interface TamaguiCustomConfig extends Config {} // eslint-disable-line @typescript-eslint/consistent-type-definitions, @typescript-eslint/no-empty-interface
+  // eslint-disable-next-line @typescript-eslint/consistent-type-definitions
+  interface TypeOverride {
+    groupNames(): "column";
+  }
 }
 export default tamagui;

@@ -2,7 +2,7 @@ import type React from "react";
 import { use, useMemo, type ComponentPropsWithoutRef } from "react";
 
 import type { ArrowRight } from "@tamagui/lucide-icons";
-import { createStyledContext, Spinner, styled, withStaticProperties, XStack } from "tamagui";
+import { createStyledContext, Spinner, styled, withStaticProperties, XStack, YStack } from "tamagui";
 
 import Text from "./Text";
 
@@ -26,6 +26,13 @@ const ButtonContext = createStyledContext<{
   loading: false,
 });
 
+const pressable = (hover: object, press: object) => ({
+  hoverStyle: hover,
+  pressStyle: press,
+  "$group-column-hover": hover,
+  "$group-column-press": press,
+});
+
 const ButtonFrame = styled(XStack, {
   name: "Button",
   context: ButtonContext,
@@ -43,29 +50,37 @@ const ButtonFrame = styled(XStack, {
     primary: {
       true: {
         backgroundColor: "$interactiveBaseBrandDefault",
-        hoverStyle: { backgroundColor: "$interactiveBaseBrandHover" },
-        pressStyle: { backgroundColor: "$interactiveBaseBrandPressed" },
+        ...pressable(
+          { backgroundColor: "$interactiveBaseBrandHover" },
+          { backgroundColor: "$interactiveBaseBrandPressed" },
+        ),
       },
     },
     secondary: {
       true: {
         backgroundColor: "$interactiveBaseBrandSoftDefault",
-        hoverStyle: { backgroundColor: "$interactiveBaseBrandSoftHover" },
-        pressStyle: { backgroundColor: "$interactiveBaseBrandSoftPressed" },
+        ...pressable(
+          { backgroundColor: "$interactiveBaseBrandSoftHover" },
+          { backgroundColor: "$interactiveBaseBrandSoftPressed" },
+        ),
       },
     },
     danger: {
       true: {
         backgroundColor: "$interactiveBaseErrorDefault",
-        hoverStyle: { backgroundColor: "$interactiveBaseErrorHover" },
-        pressStyle: { backgroundColor: "$interactiveBaseErrorPressed" },
+        ...pressable(
+          { backgroundColor: "$interactiveBaseErrorHover" },
+          { backgroundColor: "$interactiveBaseErrorPressed" },
+        ),
       },
     },
     dangerSecondary: {
       true: {
         backgroundColor: "$interactiveBaseErrorSoftDefault",
-        hoverStyle: { backgroundColor: "$interactiveBaseErrorSoftHover" },
-        pressStyle: { backgroundColor: "$interactiveBaseErrorSoftPressed" },
+        ...pressable(
+          { backgroundColor: "$interactiveBaseErrorSoftHover" },
+          { backgroundColor: "$interactiveBaseErrorSoftPressed" },
+        ),
       },
     },
     outlined: {
@@ -74,8 +89,10 @@ const ButtonFrame = styled(XStack, {
         borderColor: "$interactiveBaseBrandDefault",
         borderWidth: 1,
         color: "$interactiveBaseBrandDefault",
-        hoverStyle: { backgroundColor: "$interactiveBaseBrandSoftDefault", color: "$interactiveOnBaseBrandDefault" },
-        pressStyle: { backgroundColor: "$interactiveBaseBrandSoftHover", color: "$interactiveOnBaseBrandDefault" },
+        ...pressable(
+          { backgroundColor: "$interactiveBaseBrandSoftDefault", color: "$interactiveOnBaseBrandDefault" },
+          { backgroundColor: "$interactiveBaseBrandSoftHover", color: "$interactiveOnBaseBrandDefault" },
+        ),
       },
     },
     transparent: {
@@ -83,8 +100,10 @@ const ButtonFrame = styled(XStack, {
         backgroundColor: "transparent",
         borderColor: "transparent",
         color: "$interactiveBaseBrandDefault",
-        hoverStyle: { backgroundColor: "$interactiveBaseBrandSoftDefault", color: "$interactiveOnBaseBrandDefault" },
-        pressStyle: { backgroundColor: "$interactiveBaseBrandSoftHover", color: "$interactiveOnBaseBrandDefault" },
+        ...pressable(
+          { backgroundColor: "$interactiveBaseBrandSoftDefault", color: "$interactiveOnBaseBrandDefault" },
+          { backgroundColor: "$interactiveBaseBrandSoftHover", color: "$interactiveOnBaseBrandDefault" },
+        ),
         disabledStyle: {
           backgroundColor: "transparent",
           borderColor: "transparent",
@@ -98,8 +117,7 @@ const ButtonFrame = styled(XStack, {
         backgroundColor: "$interactiveDisabled",
         borderColor: "transparent",
         cursor: "not-allowed",
-        hoverStyle: { backgroundColor: "$interactiveDisabled" },
-        pressStyle: { backgroundColor: "$interactiveDisabled" },
+        ...pressable({ backgroundColor: "$interactiveDisabled" }, { backgroundColor: "$interactiveDisabled" }),
       },
     },
   } as const,
@@ -150,4 +168,61 @@ const ButtonIcon = (properties: { children: React.ReactElement<ComponentPropsWit
   return <IconComponent {...iconProperties} size={size} strokeWidth={strokeWidth} color={color} />;
 };
 
-export default withStaticProperties(ButtonFrame, { Props: ButtonContext.Provider, Text: ButtonText, Icon: ButtonIcon });
+const ButtonColumnFrame = styled(YStack, {
+  name: "ButtonColumn",
+  context: ButtonContext,
+  alignItems: "center",
+  gap: "$s3_5",
+  cursor: "pointer",
+  group: "column",
+  pointerEvents: "box-only",
+  variants: {
+    primary: { true: {} },
+    secondary: { true: {} },
+    danger: { true: {} },
+    dangerSecondary: { true: {} },
+    outlined: { true: {} },
+    transparent: { true: {} },
+    loading: { true: {} },
+    disabled: { true: { cursor: "not-allowed" } },
+  } as const,
+});
+
+const ButtonColumn = ({
+  primary,
+  secondary,
+  danger,
+  dangerSecondary,
+  outlined,
+  transparent,
+  loading,
+  disabled,
+  ...properties
+}: ComponentPropsWithoutRef<typeof ButtonColumnFrame>) => {
+  const context = { primary, secondary, danger, dangerSecondary, outlined, transparent, loading, disabled };
+  return (
+    <ButtonContext.context value={context}>
+      <ButtonColumnFrame {...context} {...properties} />
+    </ButtonContext.context>
+  );
+};
+
+const ButtonLabel = (properties: ComponentPropsWithoutRef<typeof Text>) => {
+  const { disabled } = use(ButtonContext.context);
+  return (
+    <Text
+      footnote
+      color={disabled ? "$interactiveOnDisabled" : "$interactiveBaseBrandDefault"}
+      textAlign="center"
+      {...properties}
+    />
+  );
+};
+
+export default withStaticProperties(ButtonFrame, {
+  Props: ButtonContext.Provider,
+  Text: ButtonText,
+  Icon: ButtonIcon,
+  Column: ButtonColumn,
+  Label: ButtonLabel,
+});
