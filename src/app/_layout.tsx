@@ -31,9 +31,8 @@ import { WagmiProvider } from "wagmi";
 
 import domain from "@exactly/common/domain";
 
-import BDOGroteskDemiBold from "../assets/fonts/BDOGrotesk-DemiBold.otf";
-import BDOGroteskRegular from "../assets/fonts/BDOGrotesk-Regular.otf";
-import IBMPlexMonoMedium from "../assets/fonts/IBMPlexMono-Medm.otf";
+import SplineSansRegular from "../assets/fonts/SplineSans-Regular.otf";
+import SplineSansSemiBold from "../assets/fonts/SplineSans-SemiBold.otf";
 import AppIcon from "../assets/icon.png";
 import ThemeProvider from "../components/context/ThemeProvider";
 import Error from "../components/shared/Error";
@@ -160,9 +159,8 @@ export default wrap(function RootLayout() {
   const navigationContainer = useNavigationContainerRef();
 
   useServerFonts({
-    "BDOGrotesk-DemiBold": BDOGroteskDemiBold as FontSource,
-    "BDOGrotesk-Regular": BDOGroteskRegular as FontSource,
-    "IBMPlexMono-Medm": IBMPlexMonoMedium as FontSource,
+    "SplineSans-Regular": SplineSansRegular as FontSource,
+    "SplineSans-SemiBold": SplineSansSemiBold as FontSource,
   });
   useServerAssets([AppIcon]);
   useEffect(() => {

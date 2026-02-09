@@ -114,7 +114,7 @@ export default function BenefitSheet({ benefit, open, onClose }: BenefitSheetPro
                     {isPaxLoading ? (
                       <Spinner color="$uiNeutralSecondary" />
                     ) : paxData ? (
-                      <Text emphasized body fontFamily="$mono">
+                      <Text emphasized body>
                         {paxData.associateId}
                       </Text>
                     ) : (

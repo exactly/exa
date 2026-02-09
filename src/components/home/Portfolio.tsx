@@ -86,7 +86,6 @@ export default function Portfolio() {
           <Text
             sensitive
             textAlign="center"
-            fontFamily="$mono"
             fontSize={40}
             overflow="hidden"
             maxFontSizeMultiplier={1}

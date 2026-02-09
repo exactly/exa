@@ -76,7 +76,7 @@ export default function TransactionDetails({ hash }: { hash?: string }) {
                 openBrowser(`${explorerUrl}/tx/${hash}`).catch(reportError);
               }}
             >
-              <Text callout fontFamily="$mono" textDecorationLine="underline">
+              <Text callout textDecorationLine="underline">
                 {shortenHex(hash)}
               </Text>
               <ExternalLink size={20} color="$uiBrandPrimary" />

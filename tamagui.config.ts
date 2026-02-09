@@ -215,30 +215,26 @@ const tokens = createTokens({
   zIndex: config.tokens.zIndex,
 });
 
+const sizes = config.fonts.body.size;
 const body = createFont({
-  family: "BDOGrotesk-Regular",
+  family: "SplineSans-Regular",
   face: {
-    400: { normal: "BDOGrotesk-Regular" },
-    600: { normal: "BDOGrotesk-DemiBold" },
-    700: { normal: "BDOGrotesk-DemiBold" },
+    400: { normal: "SplineSans-Regular" },
+    600: { normal: "SplineSans-SemiBold" },
+    700: { normal: "SplineSans-SemiBold" },
   },
-  size: config.fonts.body.size,
-  weight: { regular: 400, semibold: 600 },
+  size: sizes,
+  lineHeight: Object.fromEntries(
+    Object.entries(sizes).map(([k, v]) => [k, Math.round(Number(v) * 1.3)]),
+  ) as typeof sizes,
+  letterSpacing: Object.fromEntries(Object.entries(sizes).map(([k, v]) => [k, Number(v) * -0.002])) as typeof sizes,
+  weight: { regular: 400, semibold: 600, bold: 700 },
 });
 
 const tamagui = createTamagui({
   ...config,
   tokens,
-  fonts: {
-    body,
-    heading: body,
-    mono: createFont({
-      family: "IBMPlexMono-Medm",
-      face: { 500: { normal: "IBMPlexMono-Medm" } },
-      weight: { medium: 500 },
-      size: config.fonts.mono.size,
-    }),
-  },
+  fonts: { body, heading: body },
   defaultFont: "body",
   animations: createAnimations({
     bouncy: { type: "spring", damping: 9, mass: 0.9, stiffness: 150 },
@@ -543,6 +539,6 @@ const tamagui = createTamagui({
 
 export type Config = typeof tamagui;
 declare module "tamagui" {
-  interface TamaguiCustomConfig extends Config {} // eslint-disable-line @typescript-eslint/no-empty-interface
+  interface TamaguiCustomConfig extends Config {} // eslint-disable-line @typescript-eslint/no-empty-interface, @typescript-eslint/consistent-type-definitions
 }
 export default tamagui;

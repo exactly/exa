@@ -101,7 +101,6 @@ export default function CardDetails({ open, onClose }: { onClose: () => void; op
                     <Text
                       headline
                       letterSpacing={2}
-                      fontFamily="$mono"
                       color={card.productId === PLATINUM_PRODUCT_ID ? "$uiNeutralInversePrimary" : "white"}
                     >
                       {details.pan.match(/.{1,4}/g)?.join(" ") ?? ""}
@@ -134,7 +133,6 @@ export default function CardDetails({ open, onClose }: { onClose: () => void; op
                       <Text
                         headline
                         letterSpacing={2}
-                        fontFamily="$mono"
                         color={card.productId === PLATINUM_PRODUCT_ID ? "uiNeutralInversePrimary" : "white"}
                       >
                         {`${card.expirationMonth}/${card.expirationYear.length === 4 ? card.expirationYear.slice(-2) : card.expirationYear}`}
@@ -152,7 +150,6 @@ export default function CardDetails({ open, onClose }: { onClose: () => void; op
                       <Text
                         headline
                         letterSpacing={2}
-                        fontFamily="$mono"
                         color={card.productId === PLATINUM_PRODUCT_ID ? "uiNeutralInversePrimary" : "white"}
                       >
                         {details.cvc}

@@ -54,9 +54,7 @@ export default function ProfileHeader() {
               }}
             >
               <View display="flex" flexDirection="row" alignItems="flex-start">
-                <Text fontSize={17} fontFamily="$mono">
-                  {hidden ? "0x..." : shortenHex(address)}
-                </Text>
+                <Text fontSize={17}>{hidden ? "0x..." : shortenHex(address)}</Text>
               </View>
             </Pressable>
           )}
