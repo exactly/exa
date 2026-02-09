@@ -186,5 +186,24 @@ contract RedeployerTest is ForkTest {
       .execute(address(usdc), 0, abi.encodeCall(IERC20.transfer, (receiver, amount)));
     assertEq(usdc.balanceOf(receiver), amount, "receiver should have USDC");
   }
+
+  function test_deployExaFactory_deploysViaCreate3AtSameAddress_onPolygon() external {
+    address factoryBase = 0xAd92a288CE0cc869129cDA518Af2baaf69fFa026;
+    address accountBase = 0xeC6EE8939C1230742eCe9571319037767F574754;
+
+    vm.createSelectFork("polygon", 82_000_000);
+
+    redeployer = new Redeployer();
+    ExaAccountFactory factory = redeployer.deployExaFactory();
+
+    assertEq(address(factory), factoryBase, "factory != expected");
+
+    PublicKey[] memory owners = new PublicKey[](1);
+    owners[0] = PublicKey({ x: 1_377_837_249_724_728_941_829_967_018_498_619_894_891_941_074_907, y: 0 });
+
+    address account = factory.createAccount(0, owners);
+    assertEq(account, accountBase, "account != expected");
+  }
+
   // solhint-enable func-name-mixedcase
 }

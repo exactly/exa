@@ -9,7 +9,7 @@ import {
   ITransparentUpgradeableProxy
 } from "openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
-import { IPlugin } from "modular-account-libs/interfaces/IPlugin.sol";
+import { IPlugin, PluginMetadata } from "modular-account-libs/interfaces/IPlugin.sol";
 
 import { ACCOUNT_IMPL, ENTRYPOINT } from "webauthn-owner-plugin/../script/Factory.s.sol";
 import { WebauthnOwnerPlugin } from "webauthn-owner-plugin/WebauthnOwnerPlugin.sol";
@@ -99,13 +99,62 @@ contract Redeployer is BaseScript {
   /// @notice Deploys ExaAccountFactory with all dependencies and upgrades the proxy to it.
   function deployExaFactory(address proxy) external {
     address admin = acct("admin");
-
-    address auditor = protocol("Auditor", false);
-    address exaUSDC = protocol("MarketUSDC", false);
-    address exaWETH = protocol("MarketWETH", false);
-
     vm.startBroadcast(admin);
+    (IPlugin ownerPlugin, IPlugin exaPlugin) = _deployDependencies(
+      admin, protocol("Auditor", false), protocol("MarketUSDC", false), protocol("MarketWETH", false)
+    );
+    proxyAdmin.upgradeAndCall(
+      ITransparentUpgradeableProxy(proxy),
+      address(new ExaAccountFactory(admin, ownerPlugin, exaPlugin, ACCOUNT_IMPL, ENTRYPOINT)),
+      ""
+    );
+    vm.stopBroadcast();
+  }
 
+  /// @notice Deploys ExaAccountFactory with all dependencies via CREATE3.
+  function deployExaFactory() external returns (ExaAccountFactory factory) {
+    address admin = acct("admin");
+    vm.startBroadcast(admin);
+    (IPlugin ownerPlugin, IPlugin exaPlugin) = _deployDependencies(
+      admin, protocol("Auditor", false), protocol("MarketUSDC", false), protocol("MarketWETH", false)
+    );
+    PluginMetadata memory metadata = exaPlugin.pluginMetadata();
+    factory = ExaAccountFactory(
+      payable(CREATE3_FACTORY.deploy(
+          keccak256(abi.encode(metadata.name, metadata.version)),
+          abi.encodePacked(
+            vm.getCode("ExaAccountFactory.sol:ExaAccountFactory"),
+            abi.encode(admin, ownerPlugin, exaPlugin, ACCOUNT_IMPL, ENTRYPOINT)
+          )
+        ))
+    );
+    vm.stopBroadcast();
+  }
+
+  /// @notice Finds the nonce at which `account` would deploy to `target` via CREATE.
+  function findNonce(address account, address target, uint256 stop) public pure returns (uint256) {
+    for (uint256 nonce = 0; nonce < stop; ++nonce) {
+      if (vm.computeCreateAddress(account, nonce) == target) return nonce;
+    }
+    revert NonceNotFound();
+  }
+
+  function _allowlist() internal view returns (address[] memory targets) {
+    string memory deploy = vm.readFile("deploy.json");
+    string memory key = string.concat(".proposalManager.allowlist.", vm.toString(block.chainid));
+    if (!vm.keyExistsJson(deploy, key)) return new address[](0);
+
+    string[] memory keys = vm.parseJsonKeys(deploy, key);
+    targets = new address[](keys.length);
+    for (uint256 i = 0; i < keys.length; ++i) {
+      targets[i] = vm.parseAddress(keys[i]);
+    }
+  }
+
+  function _deployDependencies(address admin, address auditor, address exaUSDC, address exaWETH)
+    internal
+    returns (IPlugin, IPlugin)
+  {
     if (auditor == address(0)) auditor = address(new StubAuditor());
     if (exaUSDC == address(0)) exaUSDC = address(new StubMarket(address(new StubAsset())));
     if (exaWETH == address(0)) exaWETH = address(new StubMarket(address(new StubAsset())));
@@ -113,7 +162,7 @@ contract Redeployer is BaseScript {
     WebauthnOwnerPlugin ownerPlugin = new WebauthnOwnerPlugin();
 
     ProposalManager proposalManager = new ProposalManager(
-      admin, IAuditor(auditor), IDebtManager(address(1)), IInstallmentsRouter(address(1)), admin, allowlist(), 1
+      admin, IAuditor(auditor), IDebtManager(address(1)), IInstallmentsRouter(address(1)), admin, _allowlist(), 1
     );
 
     ExaPlugin exaPlugin = new ExaPlugin(
@@ -135,33 +184,7 @@ contract Redeployer is BaseScript {
 
     proposalManager.grantRole(keccak256("PROPOSER_ROLE"), address(exaPlugin));
 
-    ExaAccountFactory factory = new ExaAccountFactory(
-      admin, IPlugin(address(ownerPlugin)), IPlugin(address(exaPlugin)), ACCOUNT_IMPL, ENTRYPOINT
-    );
-
-    proxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(proxy), address(factory), "");
-
-    vm.stopBroadcast();
-  }
-
-  /// @notice Finds the nonce at which `account` would deploy to `target` via CREATE.
-  function findNonce(address account, address target, uint256 stop) public pure returns (uint256) {
-    for (uint256 nonce = 0; nonce < stop; ++nonce) {
-      if (vm.computeCreateAddress(account, nonce) == target) return nonce;
-    }
-    revert NonceNotFound();
-  }
-
-  function allowlist() internal view returns (address[] memory targets) {
-    string memory deploy = vm.readFile("deploy.json");
-    string memory key = string.concat(".proposalManager.allowlist.", vm.toString(block.chainid));
-    if (!vm.keyExistsJson(deploy, key)) return new address[](0);
-
-    string[] memory keys = vm.parseJsonKeys(deploy, key);
-    targets = new address[](keys.length);
-    for (uint256 i = 0; i < keys.length; ++i) {
-      targets[i] = vm.parseAddress(keys[i]);
-    }
+    return (IPlugin(address(ownerPlugin)), IPlugin(address(exaPlugin)));
   }
 }
 
