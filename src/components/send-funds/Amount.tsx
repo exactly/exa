@@ -310,7 +310,7 @@ export default function Amount() {
                     <Text emphasized callout color="$uiNeutralSecondary">
                       {t("To:")}
                     </Text>
-                    <Text callout color="$uiNeutralPrimary" fontFamily="$mono">
+                    <Text callout color="$uiNeutralPrimary">
                       {shortenHex(receiver)}
                     </Text>
                   </XStack>
