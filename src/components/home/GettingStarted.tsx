@@ -50,7 +50,7 @@ export default function GettingStarted({ isDeployed, hasKYC }: { hasKYC: boolean
           {t("Getting Started")}
         </Text>
         <Pressable hitSlop={15}>
-          <XStack gap={2} alignItems="center">
+          <XStack gap="$s1" alignItems="center">
             <Pressable
               hitSlop={15}
               onPress={() => {

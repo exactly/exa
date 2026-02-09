@@ -223,8 +223,8 @@ function DetailsView({
               </Text>
             )}
           </View>
-          <YStack gap={10} alignItems="center" paddingVertical={10} flex={1}>
-            <XStack justifyContent="space-between" width="100%" gap={10}>
+          <YStack gap="$s3_5" alignItems="center" paddingVertical="$s3_5" flex={1}>
+            <XStack justifyContent="space-between" width="100%" gap="$s3_5">
               <Button primary flex={1} onPress={onRepayPress}>
                 <Button.Text>{t("Repay")}</Button.Text>
                 <Button.Icon>

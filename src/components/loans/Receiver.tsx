@@ -70,7 +70,14 @@ export default function Receiver() {
   }, []);
   return (
     <SafeView fullScreen>
-      <View padded flexDirection="row" gap={10} paddingBottom="$s4" justifyContent="space-between" alignItems="center">
+      <View
+        padded
+        flexDirection="row"
+        gap="$s3_5"
+        paddingBottom="$s4"
+        justifyContent="space-between"
+        alignItems="center"
+      >
         <Pressable
           onPress={() => {
             queryClient.setQueryData<Loan>(["loan"], (old) => ({ ...old, receiver: undefined }));
@@ -128,7 +135,7 @@ export default function Receiver() {
                   >
                     {receiverType === "internal" && <Check size={12} color="$interactiveOnBaseBrandDefault" />}
                   </XStack>
-                  <YStack gap={2} flex={1}>
+                  <YStack gap="$s1" flex={1}>
                     <Text headline>{t("Your Exa account")}</Text>
                     <Text footnote color="$uiNeutralSecondary">
                       {t("Deposit {{symbol}} into your Exa App wallet", { symbol })}
@@ -159,7 +166,7 @@ export default function Receiver() {
                   >
                     {receiverType === "external" && <Check size={12} color="$interactiveOnBaseBrandDefault" />}
                   </XStack>
-                  <YStack gap={2} flex={1}>
+                  <YStack gap="$s1" flex={1}>
                     <Text headline>{t("External address on {{chain}}", { chain: chain.name })}</Text>
                     <Text footnote color="$uiNeutralSecondary">
                       {t("Deposit {{symbol}} directly to an external wallet", { symbol })}

@@ -532,7 +532,7 @@ export default function Pay() {
     return (
       <SafeView fullScreen backgroundColor="$backgroundMild" paddingBottom={0}>
         <View fullScreen gap="$s5" paddingTop="$s4_5">
-          <View flexDirection="row" gap={10} justifyContent="space-around" alignItems="center">
+          <View flexDirection="row" gap="$s3_5" justifyContent="space-around" alignItems="center">
             <View padded position="absolute" left={0}>
               <Pressable
                 onPress={() => {
@@ -593,7 +593,7 @@ export default function Pay() {
                     <Text secondary footnote textAlign="left">
                       {t("Subtotal")}
                     </Text>
-                    <XStack alignItems="center" gap="$s2_5">
+                    <XStack alignItems="center" gap="$s3">
                       <AssetLogo symbol="USDC" width={20} height={20} />
                       {isRouteFetching ? (
                         <Skeleton height={25} width={40} />
@@ -670,7 +670,7 @@ export default function Pay() {
                         {t("You will pay")}
                       </Text>
                       <YStack alignItems="flex-end">
-                        <XStack alignItems="center" gap="$s2_5">
+                        <XStack alignItems="center" gap="$s3">
                           <AssetLogo symbol="USDC" width={20} height={20} />
                           {isRouteFetching ? (
                             <Skeleton height={25} width={40} />
