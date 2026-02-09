@@ -205,5 +205,31 @@ contract RedeployerTest is ForkTest {
     assertEq(account, accountBase, "account != expected");
   }
 
+  function test_recoversNativeETHOnPolygon() external {
+    address accountBase = 0xeC6EE8939C1230742eCe9571319037767F574754;
+
+    vm.createSelectFork("polygon", 82_000_000);
+    vm.deal(accountBase, 1 ether);
+
+    redeployer = new Redeployer();
+    ExaAccountFactory factory = redeployer.deployExaFactory();
+
+    PublicKey[] memory owners = new PublicKey[](1);
+    owners[0] = PublicKey({ x: 1_377_837_249_724_728_941_829_967_018_498_619_894_891_941_074_907, y: 0 });
+
+    address account = factory.createAccount(0, owners);
+    assertEq(account, accountBase, "account != expected");
+
+    address receiver = address(0x420);
+    vm.startPrank(acct("admin"));
+    ProposalManager(address(ExaPlugin(payable(address(factory.EXA_PLUGIN()))).proposalManager()))
+      .allowTarget(receiver, true);
+    vm.stopPrank();
+
+    vm.prank(account);
+    UpgradeableModularAccount(payable(account)).execute(receiver, 1 ether, new bytes(4));
+    assertEq(receiver.balance, 1 ether, "receiver should have ETH");
+  }
+
   // solhint-enable func-name-mixedcase
 }
