@@ -35,7 +35,7 @@ function AssetRow({ asset }: { asset: AssetItem }) {
   const { symbol, amount, decimals, usdPrice, usdValue, rate } = asset;
   return (
     <XStack alignItems="center" borderColor="$borderNeutralSoft" paddingVertical={vs(10)} gap="$s2" width="100%">
-      <XStack gap={10} alignItems="center" flex={1} $platform-web={{ flexBasis: 1 / 3 }}>
+      <XStack gap="$s3_5" alignItems="center" flex={1} $platform-web={{ flexBasis: 1 / 3 }}>
         <AssetLogo height={32} symbol={symbol} width={32} />
         <YStack gap="$s2" alignItems="flex-start">
           <Text subHeadline color="$uiNeutralPrimary" numberOfLines={1}>
@@ -46,7 +46,7 @@ function AssetRow({ asset }: { asset: AssetItem }) {
           </Text>
         </YStack>
       </XStack>
-      <YStack gap={5} flex={1} alignItems="flex-end" $platform-web={{ flexBasis: 1 / 3 }}>
+      <YStack gap="$s2" flex={1} alignItems="flex-end" $platform-web={{ flexBasis: 1 / 3 }}>
         {rate === undefined ? (
           asset.market ? (
             <>
@@ -73,7 +73,7 @@ function AssetRow({ asset }: { asset: AssetItem }) {
           </>
         )}
       </YStack>
-      <YStack gap={5} flex={1} $platform-web={{ flexBasis: 1 / 3 }}>
+      <YStack gap="$s2" flex={1} $platform-web={{ flexBasis: 1 / 3 }}>
         <Text sensitive emphasized subHeadline numberOfLines={1} adjustsFontSizeToFit textAlign="right">
           {`$${(Number(usdValue) / 1e18).toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
         </Text>
@@ -94,7 +94,7 @@ function AssetRow({ asset }: { asset: AssetItem }) {
 function AssetSection({ title, assets }: { assets: AssetItem[]; title: string }) {
   if (assets.length === 0) return null;
   return (
-    <YStack backgroundColor="$backgroundSoft" borderRadius="$r3" padding="$s4" gap="$s2_5">
+    <YStack backgroundColor="$backgroundSoft" borderRadius="$r3" padding="$s4" gap="$s3">
       <Text emphasized headline color="$uiNeutralPrimary">
         {title}
       </Text>

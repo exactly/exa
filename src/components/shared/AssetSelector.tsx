@@ -100,7 +100,7 @@ export default function AssetSelector({
                 paddingHorizontal="$s4"
                 borderRadius="$r3"
               >
-                <View flexDirection="row" gap={10} alignItems="center" maxWidth="50%">
+                <View flexDirection="row" gap="$s3_5" alignItems="center" maxWidth="50%">
                   <AssetLogo symbol={symbol} width={32} height={32} />
                   <View gap="$s2" alignItems="flex-start" flexShrink={1}>
                     <Text fontSize={15} fontWeight="bold" color="$uiNeutralPrimary" numberOfLines={1}>
