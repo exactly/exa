@@ -265,11 +265,11 @@ export default function Card() {
           <View fullScreen>
             <View flex={1}>
               <View alignItems="center" gap="$s4" width="100%" backgroundColor="$backgroundSoft" padded>
-                <XStack gap={10} justifyContent="space-between" alignItems="center" width="100%">
+                <XStack gap="$s3_5" justifyContent="space-between" alignItems="center" width="100%">
                   <Text fontSize={20} fontWeight="bold">
                     {t("My Exa Card")}
                   </Text>
-                  <View display="flex" flexDirection="row" alignItems="center" gap={16}>
+                  <View display="flex" flexDirection="row" alignItems="center" gap="$s4">
                     <Pressable
                       aria-label={hidden ? t("Show sensitive") : t("Hide sensitive")}
                       onPress={() => {

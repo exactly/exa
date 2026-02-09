@@ -56,7 +56,7 @@ export default function AddFunds() {
     <SafeView fullScreen backgroundColor="$backgroundMild">
       <View gap="$s4_5" fullScreen padded>
         <YStack gap="$s4_5">
-          <XStack flexDirection="row" gap={10} justifyContent="space-between" alignItems="center">
+          <XStack flexDirection="row" gap="$s3_5" justifyContent="space-between" alignItems="center">
             <Pressable
               onPress={() => {
                 if (router.canGoBack()) {

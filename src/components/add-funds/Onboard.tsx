@@ -71,7 +71,7 @@ export default function Onboard() {
     <SafeView fullScreen>
       <View gap="$s4_5" fullScreen padded>
         <View gap="$s4_5">
-          <View flexDirection="row" gap={10} justifyContent="space-between" alignItems="center">
+          <View flexDirection="row" gap="$s3_5" justifyContent="space-between" alignItems="center">
             <Pressable
               onPress={() => {
                 if (router.canGoBack()) {

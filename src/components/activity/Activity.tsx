@@ -77,7 +77,7 @@ export default function Activity() {
           ListHeaderComponent={
             <>
               <View padded gap="$s5" backgroundColor="$backgroundSoft">
-                <View flexDirection="row" gap={10} justifyContent="space-between" alignItems="center">
+                <View flexDirection="row" gap="$s3_5" justifyContent="space-between" alignItems="center">
                   <Text fontSize={20} fontWeight="bold">
                     {t("All Activity")}
                   </Text>

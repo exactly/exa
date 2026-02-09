@@ -72,7 +72,13 @@ export default function AddCrypto() {
         </View>
         <ScrollView showsVerticalScrollIndicator={false} flex={1}>
           <YStack gap="$s5">
-            <YStack flex={1} borderBottomWidth={1} borderBottomColor="$borderNeutralSoft" paddingBottom={20} gap="$s5">
+            <YStack
+              flex={1}
+              borderBottomWidth={1}
+              borderBottomColor="$borderNeutralSoft"
+              paddingBottom="$s4_5"
+              gap="$s5"
+            >
               <Text emphasized subHeadline secondary>
                 {t("Your {{chain}} address", { chain: chain.name })}
               </Text>

@@ -60,7 +60,14 @@ export default function Amount() {
   }, []);
   return (
     <SafeView fullScreen>
-      <View padded flexDirection="row" gap={10} paddingBottom="$s4" justifyContent="space-between" alignItems="center">
+      <View
+        padded
+        flexDirection="row"
+        gap="$s3_5"
+        paddingBottom="$s4"
+        justifyContent="space-between"
+        alignItems="center"
+      >
         <Pressable
           onPress={() => {
             queryClient.setQueryData<Loan>(["loan"], (old) => ({ ...old, amount: undefined }));
