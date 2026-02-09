@@ -240,7 +240,7 @@ function LimitPaginator({
       <XStack width={width * 2} x={mode > 0 ? -width : 0} animation="moderate" animateOnly={["transform"]}>
         <XStack width={width} height={48} alignItems="center" gap="$s3">
           <Wallet size={20} color="$uiNeutralSecondary" />
-          <XStack flex={1} alignItems="center" gap={4}>
+          <XStack flex={1} alignItems="center" gap="$s2">
             <Text callout emphasized>
               {t("Spending limit")}
             </Text>
@@ -260,7 +260,7 @@ function LimitPaginator({
         <XStack width={width} height={48} alignItems="center" gap="$s3">
           <CreditCard size={20} color="$uiNeutralSecondary" />
           <YStack flex={1} justifyContent="center">
-            <XStack alignItems="center" gap={4}>
+            <XStack alignItems="center" gap="$s2">
               <Text callout emphasized>
                 {t("Credit limit")}
               </Text>

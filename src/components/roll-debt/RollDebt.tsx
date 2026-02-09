@@ -70,7 +70,7 @@ export default function Pay() {
   return (
     <SafeView fullScreen backgroundColor="$backgroundMild" paddingBottom={0}>
       <View fullScreen gap="$s5" paddingTop="$s4_5">
-        <View flexDirection="row" gap={10} justifyContent="space-around" alignItems="center">
+        <View flexDirection="row" gap="$s3_5" justifyContent="space-around" alignItems="center">
           <View padded position="absolute" left={0}>
             <Pressable
               aria-label={t("Back")}
