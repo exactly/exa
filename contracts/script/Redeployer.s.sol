@@ -139,15 +139,14 @@ contract Redeployer is BaseScript {
     revert NonceNotFound();
   }
 
-  function _allowlist() internal view returns (address[] memory targets) {
+  function _allowlist() internal returns (address[] memory targets) {
     string memory deploy = vm.readFile("deploy.json");
     string memory key = string.concat(".proposalManager.allowlist.", vm.toString(block.chainid));
-    if (!vm.keyExistsJson(deploy, key)) return new address[](0);
-
-    string[] memory keys = vm.parseJsonKeys(deploy, key);
-    targets = new address[](keys.length);
+    string[] memory keys = vm.keyExistsJson(deploy, key) ? vm.parseJsonKeys(deploy, key) : new string[](0);
+    targets = new address[](keys.length + 1);
+    targets[0] = acct("swapper");
     for (uint256 i = 0; i < keys.length; ++i) {
-      targets[i] = vm.parseAddress(keys[i]);
+      targets[i + 1] = vm.parseAddress(keys[i]);
     }
   }
 

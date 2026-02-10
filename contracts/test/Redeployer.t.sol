@@ -160,11 +160,12 @@ contract RedeployerTest is ForkTest {
     assertTrue(factoryOP.code.length > 0, "factory not deployed at same address");
 
     redeployer.deployExaFactory(factoryOP);
-
+    ProposalManager p = ProposalManager(
+      address(ExaPlugin(payable(address(ExaAccountFactory(payable(factoryOP)).EXA_PLUGIN()))).proposalManager())
+    );
+    assertTrue(p.allowlist(acct("swapper")), "swapper should be in allowlist");
     vm.startPrank(acct("admin"));
-    ProposalManager(
-        address(ExaPlugin(payable(address(ExaAccountFactory(payable(factoryOP)).EXA_PLUGIN()))).proposalManager())
-      ).allowTarget(address(usdc), true);
+    p.allowTarget(address(usdc), true);
     vm.stopPrank();
 
     PublicKey[] memory owners = new PublicKey[](1);
