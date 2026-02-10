@@ -110,7 +110,7 @@ export default function AddFunds() {
                 </View>
               ) : (
                 providers && (
-                  <YStack gap="$s4">
+                  <YStack gap="$s3_5">
                     {Object.entries(providers)
                       .filter(([providerKey]) => providerKey === "manteca")
                       .flatMap(([providerKey, provider]) =>
