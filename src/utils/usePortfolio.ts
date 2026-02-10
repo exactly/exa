@@ -94,6 +94,7 @@ export default function usePortfolio(account_?: Hex, options?: { sortBy?: "usdcF
       .filter(({ floatingDepositAssets }) => floatingDepositAssets > 0n)
       .map((market) => ({
         ...market,
+        symbol: market.symbol.slice(3) === "WETH" ? "ETH" : market.symbol.slice(3),
         usdValue:
           Number((withdrawLimit(markets, market.market) * market.usdPrice) / BigInt(10 ** market.decimals)) / 1e18,
         type: "protocol" as const,
@@ -118,8 +119,8 @@ export default function usePortfolio(account_?: Hex, options?: { sortBy?: "usdcF
     const combined = [...protocolAssets, ...externalAssets];
     return combined.sort((a, b) => {
       if (options?.sortBy === "usdcFirst") {
-        const aSymbol = a.type === "protocol" ? a.symbol.slice(3) : a.symbol;
-        const bSymbol = b.type === "protocol" ? b.symbol.slice(3) : b.symbol;
+        const aSymbol = a.symbol;
+        const bSymbol = b.symbol;
         if (aSymbol === "USDC" && bSymbol !== "USDC") return -1;
         if (bSymbol === "USDC" && aSymbol !== "USDC") return 1;
       }

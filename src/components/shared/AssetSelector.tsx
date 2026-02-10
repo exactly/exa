@@ -75,8 +75,7 @@ export default function AssetSelector({
             ),
           });
 
-          const symbol =
-            asset.type === "external" ? asset.symbol : asset.symbol.slice(3) === "WETH" ? "ETH" : asset.symbol.slice(3);
+          const symbol = asset.symbol;
           const name =
             asset.type === "external" ? asset.name : asset.assetName === "Wrapped Ether" ? "Ether" : asset.assetName;
           const isSelected = selectedMarket === (asset.type === "external" ? asset.address : asset.market);
