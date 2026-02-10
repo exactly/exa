@@ -190,6 +190,12 @@ const Payload = v.variant("resource", [
   Transaction,
   Card,
   v.object({
+    resource: v.literal("dispute"),
+    action: v.string(),
+    body: v.looseObject({ id: v.string() }),
+    id: v.string(),
+  }),
+  v.object({
     resource: v.literal("user"),
     action: v.literal("updated"),
     body: v.object({
@@ -219,6 +225,7 @@ export default new Hono().post(
     getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, `panda.${payload.resource}.${payload.action}`);
 
     if (payload.resource !== "transaction") {
+      if (payload.resource === "dispute") return c.json({ code: "ok" });
       const pandaId =
         payload.resource === "card"
           ? payload.action === "updated"

@@ -1363,6 +1363,22 @@ describe("card notification", () => {
   });
 });
 
+describe("dispute", () => {
+  it("returns ok", async () => {
+    const response = await appClient.index.$post({
+      header: { signature: "panda-signature" },
+      json: {
+        resource: "dispute",
+        action: "created",
+        body: { id: "dispute-id", status: "pending", transactionId: "tx-id" },
+        id: "webhook-id",
+      },
+    });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+  });
+});
+
 describe("concurrency", () => {
   let owner2: WalletClient<ReturnType<typeof http>, typeof chain, ReturnType<typeof privateKeyToAccount>>;
   let account2: Address;
