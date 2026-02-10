@@ -11,6 +11,7 @@ import deriveAddress from "@exactly/common/deriveAddress";
 
 import app from "../../api/ramp";
 import database, { credentials } from "../../database";
+import * as persona from "../../utils/persona";
 import * as bridge from "../../utils/ramps/bridge";
 import * as manteca from "../../utils/ramps/manteca";
 
@@ -244,6 +245,95 @@ describe("ramp api", () => {
         expect(response.status).toBe(200);
         await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
         expect(manteca.mantecaOnboarding).toHaveBeenCalledWith(account, "ramp-test");
+      });
+
+      it("returns 400 with new inquiry for invalid legal id when no existing inquiry", async () => {
+        vi.spyOn(manteca, "mantecaOnboarding").mockRejectedValue(new Error(manteca.ErrorCodes.INVALID_LEGAL_ID));
+        vi.spyOn(persona, "getInquiry").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
+        vi.spyOn(persona, "createInquiry").mockResolvedValue({
+          data: {
+            id: "inq_abc123",
+            type: "inquiry" as const,
+            attributes: { status: "created" as const, "reference-id": "ramp-test" },
+          },
+        });
+        vi.spyOn(persona, "resumeInquiry").mockResolvedValue({
+          data: { id: "inq_abc123", type: "inquiry" as const },
+          meta: { "session-token": "token_xyz" },
+        });
+
+        const response = await appClient.index.$post(
+          { json: { provider: "manteca" } },
+          { headers: { "test-credential-id": "ramp-test" } },
+        );
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({
+          code: "invalid legal id",
+          inquiryId: "inq_abc123",
+          sessionToken: "token_xyz",
+        });
+        expect(persona.createInquiry).toHaveBeenCalledTimes(1);
+      });
+
+      it("resumes existing inquiry for invalid legal id when inquiry is resumable", async () => {
+        vi.spyOn(manteca, "mantecaOnboarding").mockRejectedValue(new Error(manteca.ErrorCodes.INVALID_LEGAL_ID));
+        vi.spyOn(persona, "getInquiry").mockResolvedValue({
+          id: "inq_existing",
+          type: "inquiry" as const,
+          attributes: { status: "created" as const, "reference-id": "ramp-test" },
+        });
+        const createInquirySpy = vi.spyOn(persona, "createInquiry");
+        vi.spyOn(persona, "resumeInquiry").mockResolvedValue({
+          data: { id: "inq_existing", type: "inquiry" as const },
+          meta: { "session-token": "token_existing" },
+        });
+
+        const response = await appClient.index.$post(
+          { json: { provider: "manteca" } },
+          { headers: { "test-credential-id": "ramp-test" } },
+        );
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({
+          code: "invalid legal id",
+          inquiryId: "inq_existing",
+          sessionToken: "token_existing",
+        });
+        expect(createInquirySpy).not.toHaveBeenCalled();
+      });
+
+      it("creates new inquiry for invalid legal id when existing inquiry is not resumable", async () => {
+        vi.spyOn(manteca, "mantecaOnboarding").mockRejectedValue(new Error(manteca.ErrorCodes.INVALID_LEGAL_ID));
+        vi.spyOn(persona, "getInquiry").mockResolvedValue({
+          id: "inq_approved",
+          type: "inquiry" as const,
+          attributes: { status: "approved" as const, "reference-id": "ramp-test" },
+        });
+        vi.spyOn(persona, "createInquiry").mockResolvedValue({
+          data: {
+            id: "inq_new",
+            type: "inquiry" as const,
+            attributes: { status: "created" as const, "reference-id": "ramp-test" },
+          },
+        });
+        vi.spyOn(persona, "resumeInquiry").mockResolvedValue({
+          data: { id: "inq_new", type: "inquiry" as const },
+          meta: { "session-token": "token_new" },
+        });
+
+        const response = await appClient.index.$post(
+          { json: { provider: "manteca" } },
+          { headers: { "test-credential-id": "ramp-test" } },
+        );
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({
+          code: "invalid legal id",
+          inquiryId: "inq_new",
+          sessionToken: "token_new",
+        });
+        expect(persona.createInquiry).toHaveBeenCalledTimes(1);
       });
 
       it("returns 400 for no document error", async () => {

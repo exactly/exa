@@ -500,6 +500,21 @@ describe("manteca utils", () => {
       await expect(manteca.mantecaOnboarding(account, credentialId)).rejects.toThrow("front document URL not found");
     });
 
+    it("throws INVALID_LEGAL_ID when initiateOnboarding returns legalId error", async () => {
+      vi.spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(mockFetchError(404, "::404:: USER_NF"))
+        .mockResolvedValueOnce(
+          mockFetchError(
+            400,
+            '::400:: {"internalStatus":"BAD_REQUEST","message":"Bad request.","errors":["legalId has wrong value 20991231239"]}',
+          ),
+        );
+      vi.spyOn(persona, "getAccount").mockResolvedValueOnce(mockPersonaAccount);
+      vi.spyOn(persona, "getDocumentForManteca").mockResolvedValueOnce(mockIdentityDocument);
+
+      await expect(manteca.mantecaOnboarding(account, credentialId)).rejects.toThrow(ErrorCodes.INVALID_LEGAL_ID);
+    });
+
     it("initiates onboarding for new user", async () => {
       vi.spyOn(globalThis, "fetch")
         .mockResolvedValueOnce(mockFetchError(404, "::404:: USER_NF"))

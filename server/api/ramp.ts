@@ -20,6 +20,7 @@ import { Address } from "@exactly/common/validation";
 
 import database, { credentials } from "../database";
 import auth from "../middleware/auth";
+import { createInquiry, getInquiry, MANTECA_TEMPLATE_EXTRA_FIELDS, resumeInquiry } from "../utils/persona";
 import {
   SupportedCurrency as BridgeCurrency,
   ErrorCodes as BridgeErrorCodes,
@@ -207,6 +208,18 @@ export default new Hono()
               switch (error.message) {
                 case MantecaErrorCodes.NO_DOCUMENT:
                   return c.json({ code: error.message }, 400);
+                case MantecaErrorCodes.INVALID_LEGAL_ID: {
+                  const existing = await getInquiry(credentialId, MANTECA_TEMPLATE_EXTRA_FIELDS);
+                  const resumable =
+                    existing?.attributes.status === "created" ||
+                    existing?.attributes.status === "pending" ||
+                    existing?.attributes.status === "expired";
+                  const { data } = resumable
+                    ? { data: { id: existing.id } }
+                    : await createInquiry(credentialId, MANTECA_TEMPLATE_EXTRA_FIELDS);
+                  const { meta } = await resumeInquiry(data.id);
+                  return c.json({ code: error.message, inquiryId: data.id, sessionToken: meta["session-token"] }, 400);
+                }
               }
             }
             throw error;

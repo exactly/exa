@@ -315,6 +315,11 @@ export async function mantecaOnboarding(account: Address, credentialId: string) 
         isFep: false,
         work: personaAccount.attributes.fields.economic_activity.value,
       },
+    }).catch((error: unknown) => {
+      if (error instanceof Error && error.message.includes(MantecaApiErrorCodes.INVALID_LEGAL_ID)) {
+        throw new Error(ErrorCodes.INVALID_LEGAL_ID);
+      }
+      throw error;
     });
   }
 
@@ -772,12 +777,14 @@ export const ErrorCodes = {
   NOT_SUPPORTED_CHAIN_ID: "not supported chain id",
   NOT_SUPPORTED_CURRENCY: "not supported currency",
   MANTECA_USER_INACTIVE: "manteca user inactive",
+  INVALID_LEGAL_ID: "invalid legal id",
   INVALID_ORDER_SIZE: "invalid order size",
   NO_PERSONA_ACCOUNT: "no persona account",
   NO_DOCUMENT: "no document",
 };
 
 const MantecaApiErrorCodes = {
+  INVALID_LEGAL_ID: "legalId has wrong value",
   INVALID_ORDER_SIZE: "MIN_SIZE",
   USER_NOT_FOUND: "USER_NF",
 } as const;
