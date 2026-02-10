@@ -38,6 +38,17 @@ export function track(
     | { event: "CardIssued"; properties: { productId: string } }
     | { event: "CardUnfrozen" }
     | {
+        event: "Onramp";
+        properties: {
+          currency: string;
+          fiatAmount: number;
+          provider: "bridge" | "manteca";
+          source: null | string;
+          usdcAmount: number;
+        };
+      }
+    | { event: "RampAccount"; properties: { provider: "bridge" | "manteca"; source: null | string } }
+    | {
         event: "TransactionAuthorized";
         properties: {
           cardMode: number;

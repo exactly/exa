@@ -32,6 +32,7 @@ import {
   withdrawBalance,
   WithdrawStatus,
 } from "../utils/ramps/manteca";
+import { track } from "../utils/segment";
 import validatorHook from "../utils/validatorHook";
 import verifySignature from "../utils/verifySignature";
 
@@ -176,7 +177,7 @@ export default new Hono().post(
     setUser({ id: account });
 
     const credential = await database.query.credentials.findFirst({
-      columns: { account: true },
+      columns: { account: true, source: true },
       where: eq(credentials.account, account),
     });
     if (!credential) {
@@ -195,6 +196,17 @@ export default new Hono().post(
           return c.json({ code: "ok" }, 200);
         }
         if (payload.data.status === "COMPLETED") {
+          track({
+            userId: account,
+            event: "Onramp",
+            properties: {
+              currency: payload.data.against,
+              fiatAmount: Number(payload.data.assetAmount) * Number(payload.data.effectivePrice),
+              provider: "manteca",
+              source: credential.source,
+              usdcAmount: Number(payload.data.assetAmount),
+            },
+          });
           await withdrawBalance(payload.data.userNumberId, payload.data.asset, account);
           return c.json({ code: "ok" }, 200);
         }
@@ -207,6 +219,11 @@ export default new Hono().post(
         return c.json({ code: "ok" }, 200);
       case "USER_ONBOARDING_UPDATE":
         if (payload.data.user.status === "ACTIVE") {
+          track({
+            userId: account,
+            event: "RampAccount",
+            properties: { provider: "manteca", source: credential.source },
+          });
           sendPushNotification({
             userId: credential.account,
             headings: { en: "Fiat onramp activated" },

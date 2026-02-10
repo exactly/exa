@@ -12,6 +12,7 @@ import deriveAddress from "@exactly/common/deriveAddress";
 import database, { credentials } from "../../database";
 import app from "../../hooks/manteca";
 import * as manteca from "../../utils/ramps/manteca";
+import * as segment from "../../utils/segment";
 
 const appClient = testClient(app);
 
@@ -319,6 +320,7 @@ describe("manteca hook", () => {
 
     it("handles completed order and withdraws balance", async () => {
       vi.spyOn(manteca, "withdrawBalance").mockResolvedValue();
+      vi.spyOn(segment, "track").mockReturnValue();
       const payload = {
         event: "ORDER_STATUS_UPDATE",
         data: {
@@ -341,6 +343,11 @@ describe("manteca hook", () => {
 
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+      expect(segment.track).toHaveBeenCalledWith({
+        userId: account,
+        event: "Onramp",
+        properties: { currency: "ARS", fiatAmount: 100_000, provider: "manteca", source: null, usdcAmount: 100 },
+      });
       expect(manteca.withdrawBalance).toHaveBeenCalledWith("456", "USDC", account);
     });
 
@@ -441,7 +448,8 @@ describe("manteca hook", () => {
   });
 
   describe("when a user onboarding is updated", () => {
-    it("returns ok when user becomes active", async () => {
+    it("tracks RampAccount when user becomes active", async () => {
+      vi.spyOn(segment, "track").mockReturnValue();
       const payload = {
         event: "USER_ONBOARDING_UPDATE",
         data: {
@@ -463,6 +471,11 @@ describe("manteca hook", () => {
 
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+      expect(segment.track).toHaveBeenCalledWith({
+        userId: account,
+        event: "RampAccount",
+        properties: { provider: "manteca", source: null },
+      });
     });
 
     it("returns ok for onboarding status", async () => {
