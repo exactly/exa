@@ -110,7 +110,7 @@ export default function AddFunds() {
                 </View>
               ) : (
                 providers && (
-                  <YStack gap="$s4">
+                  <YStack gap="$s3_5">
                     {Object.entries(providers).flatMap(([providerKey, provider]) => {
                       const currencies = provider.onramp.currencies;
                       return currencies.map((currency) => (
