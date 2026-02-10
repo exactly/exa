@@ -3,8 +3,8 @@ import { useTranslation } from "react-i18next";
 
 import { useRouter } from "expo-router";
 
-import { ArrowDownToLine, ArrowUpRight } from "@tamagui/lucide-icons";
-import { XStack, YStack } from "tamagui";
+import { ArrowDownToLine, ArrowUpRight, Repeat } from "@tamagui/lucide-icons";
+import { XStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 import { useBytecode, useReadContract } from "wagmi";
@@ -32,6 +32,7 @@ export default function HomeActions() {
     () => [
       { key: "deposit", title: t("Add funds"), Icon: ArrowDownToLine },
       { key: "send", title: t("Send"), Icon: ArrowUpRight },
+      { key: "swap", title: t("Swap"), Icon: Repeat },
     ],
     [t],
   );
@@ -79,33 +80,44 @@ export default function HomeActions() {
     }
   };
   return (
-    <XStack gap="$s4" justifyContent="space-between" width="100%">
+    <XStack gap="$s3" justifyContent="space-between" width="100%">
       {actions.map(({ key, title, Icon }) => {
+        const disabled = key !== "deposit" && !bytecode;
+        const handlePress = disabled
+          ? undefined
+          : () => {
+              switch (key) {
+                case "deposit":
+                  router.push("/add-funds");
+                  break;
+                case "send":
+                  handleSend().catch(reportError);
+                  break;
+                case "swap":
+                  router.push("/swaps");
+                  break;
+              }
+            };
         return (
-          <YStack key={key} alignItems="center" flex={1} gap="$s3_5" flexBasis={1 / 2}>
-            <Button
-              primary={key === "deposit"}
-              secondary={key !== "deposit"}
-              disabled={key !== "deposit" && !bytecode}
-              loading={key === "send" && !isLatestPlugin && isPending && !!bytecode}
-              onPress={() => {
-                switch (key) {
-                  case "deposit":
-                    router.push("/add-funds");
-                    break;
-                  case "send":
-                    handleSend().catch(reportError);
-                    break;
-                }
-              }}
-              width="100%"
-            >
-              <Button.Text adjustsFontSizeToFit>{title}</Button.Text>
+          <Button.Column
+            key={key}
+            primary={key === "deposit"}
+            secondary={key !== "deposit"}
+            disabled={disabled}
+            loading={key === "send" && !isLatestPlugin && isPending && !!bytecode}
+            flex={1}
+            aria-label={title}
+            role="button"
+            aria-disabled={disabled}
+            onPress={handlePress}
+          >
+            <Button width="100%" padding="$s3_5" justifyContent="center" minHeight="auto" onPress={handlePress}>
               <Button.Icon>
                 <Icon />
               </Button.Icon>
             </Button>
-          </YStack>
+            <Button.Label>{title}</Button.Label>
+          </Button.Column>
         );
       })}
     </XStack>
