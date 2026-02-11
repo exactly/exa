@@ -548,6 +548,14 @@ export default new Hono().post(
             }
             return c.json({ code: "ok" });
           } catch (error: unknown) {
+            if (
+              error instanceof BaseError &&
+              error.cause instanceof ContractFunctionRevertedError &&
+              error.cause.data?.errorName === "Replay"
+            ) {
+              getActiveSpan()?.setAttributes({ "panda.replay": true });
+              return c.json({ code: "ok" });
+            }
             captureException(error, { level: "fatal", tags: { unhandled: true } });
             return c.json(
               { code: error instanceof Error ? error.message : String(error) },
@@ -721,6 +729,14 @@ export default new Hono().post(
             }
             return c.json({ code: "ok" });
           } catch (error: unknown) {
+            if (
+              error instanceof BaseError &&
+              error.cause instanceof ContractFunctionRevertedError &&
+              error.cause.data?.errorName === "Replay"
+            ) {
+              getActiveSpan()?.setAttributes({ "panda.replay": true });
+              return c.json({ code: "ok" });
+            }
             captureException(error, { level: "fatal", contexts: { tx: { call } } });
             if (payload.action === "completed") {
               const tx = await database.query.transactions.findFirst({
