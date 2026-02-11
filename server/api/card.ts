@@ -333,7 +333,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
         .runExclusive(async () => {
           const credential = await database.query.credentials.findFirst({
             where: eq(credentials.id, credentialId),
-            columns: { account: true, pandaId: true },
+            columns: { account: true, pandaId: true, source: true },
             with: {
               cards: {
                 columns: { id: true, status: true, productId: true },
@@ -382,7 +382,11 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
           await database
             .insert(cards)
             .values([{ id: card.id, credentialId, lastFour: card.last4, mode, productId: SIGNATURE_PRODUCT_ID }]);
-          track({ event: "CardIssued", userId: account, properties: { productId: SIGNATURE_PRODUCT_ID } });
+          track({
+            event: "CardIssued",
+            userId: account,
+            properties: { productId: SIGNATURE_PRODUCT_ID, source: credential.source },
+          });
 
           if (isUpgradeFromPlatinum) handlePlatinumUpgrade(credentialId, account);
 
@@ -523,7 +527,7 @@ async function encryptPIN(pin: string) {
       return mutex
         .runExclusive(async () => {
           const credential = await database.query.credentials.findFirst({
-            columns: { account: true },
+            columns: { account: true, source: true },
             where: eq(credentials.id, credentialId),
             with: {
               cards: { columns: { id: true, mode: true, status: true }, where: ne(cards.status, "DELETED") },
@@ -550,14 +554,14 @@ async function encryptPIN(pin: string) {
                 return c.json({ code: BadRequestCodes.ALREADY_SET, status, legacy: BadRequestCodes.ALREADY_SET }, 400);
               switch (status) {
                 case "ACTIVE":
-                  track({ userId: account, event: "CardUnfrozen" });
+                  track({ userId: account, event: "CardUnfrozen", properties: { source: credential.source } });
                   break;
                 case "DELETED":
                   await updateCard({ id: card.id, status: "canceled" });
-                  track({ userId: account, event: "CardDeleted" });
+                  track({ userId: account, event: "CardDeleted", properties: { source: credential.source } });
                   break;
                 case "FROZEN":
-                  track({ userId: account, event: "CardFrozen" });
+                  track({ userId: account, event: "CardFrozen", properties: { source: credential.source } });
                   break;
               }
               await database.update(cards).set({ status }).where(eq(cards.id, card.id));
