@@ -4,6 +4,7 @@ import { RefreshControl, type View as RNView } from "react-native";
 
 import { useFocusEffect, useRouter } from "expo-router";
 
+import { useToastController } from "@tamagui/toast";
 import { AnimatePresence, ScrollView, YStack } from "tamagui";
 
 import { TimeToFullDisplay } from "@sentry/react-native";
@@ -140,12 +141,27 @@ export default function Home() {
   );
   const { data: card } = useQuery<CardDetails>({ queryKey: ["card", "details"], enabled: !!account && !!bytecode });
   const { data: spotlightShown } = useQuery<boolean>({ queryKey: ["settings", "installments-spotlight"] });
-  const { mutateAsync: mutateMode } = useMutation(cardModeMutationOptions);
+  const toast = useToastController();
+  const { mutate: mutateMode, isPending: isModePending } = useMutation({
+    ...cardModeMutationOptions,
+    onSuccess: (_data, mode) => {
+      setInstallmentsSheetOpen(false);
+      toast.show(mode === 0 ? t("Pay Now selected") : t("Installments selected", { count: mode }), {
+        native: true,
+        burntOptions: { haptic: "success", preset: "done" },
+      });
+    },
+    onError: (error, _, context: undefined | { previous?: CardDetails }) => {
+      if (context?.previous) queryClient.setQueryData(["card", "details"], context.previous);
+      toast.show(t("Failed to update pay mode"), { native: true, burntOptions: { haptic: "error", preset: "error" } });
+      reportError(error);
+    },
+  });
 
   const { data: manualRepaymentAcknowledged } = useQuery<boolean>({ queryKey: ["manual-repayment-acknowledged"] });
   function handleModeChange(mode: number) {
     if (mode === 0 || manualRepaymentAcknowledged) {
-      mutateMode(mode).catch(reportError);
+      mutateMode(mode);
       return;
     }
     pendingModeRef.current = mode;
@@ -291,6 +307,7 @@ export default function Home() {
           <InstallmentsSheet
             mode={card?.mode ?? 1}
             open={installmentsSheetOpen}
+            isPending={isModePending}
             onClose={() => {
               setInstallmentsSheetOpen(false);
             }}
@@ -309,7 +326,7 @@ export default function Home() {
             }}
             onActionPress={() => {
               queryClient.setQueryData(["manual-repayment-acknowledged"], true);
-              mutateMode(pendingModeRef.current).catch(reportError);
+              mutateMode(pendingModeRef.current);
               setManualRepaymentSheetOpen(false);
             }}
             penaltyRate={markets?.find(({ market }) => market === marketUSDCAddress)?.penaltyRate}

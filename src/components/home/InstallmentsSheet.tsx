@@ -3,7 +3,8 @@ import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import Carousel, { type ICarouselInstance } from "react-native-reanimated-carousel";
 
-import { selectionAsync } from "expo-haptics";
+import { impactAsync, ImpactFeedbackStyle } from "expo-haptics";
+import { useRouter } from "expo-router";
 
 import { Check, X } from "@tamagui/lucide-icons";
 import { View, XStack, YStack } from "tamagui";
@@ -12,23 +13,26 @@ import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
 
 import reportError from "../../utils/reportError";
 import useInstallmentRates from "../../utils/useInstallmentRates";
-import Button from "../shared/Button";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
+import StyledButton from "../shared/StyledButton";
 import Text from "../shared/Text";
 
 export default function InstallmentsSheet({
   mode,
+  isPending,
   onClose,
   onModeChange,
   open,
 }: {
+  isPending: boolean;
   mode: number;
   onClose: () => void;
   onModeChange: (mode: number) => void;
   open: boolean;
 }) {
+  const router = useRouter();
   const {
     t,
     i18n: { language },
@@ -108,7 +112,7 @@ export default function InstallmentsSheet({
                             cursor="pointer"
                             onPress={() => {
                               setSelected(installment);
-                              selectionAsync().catch(reportError);
+                              impactAsync(ImpactFeedbackStyle.Medium).catch(reportError);
                               const target = Math.floor((installment - 1) / perPage);
                               if (target !== carouselRef.current?.getCurrentIndex()) {
                                 requestAnimationFrame(() =>
@@ -156,19 +160,30 @@ export default function InstallmentsSheet({
             </View>
           </YStack>
           <YStack gap="$s4" paddingHorizontal="$s4">
-            <Button
+            <StyledButton
+              primary
+              disabled={selected === mode || isPending}
+              loading={isPending}
               onPress={() => {
-                if (selected !== mode) onModeChange(selected);
-                onClose();
+                onModeChange(selected);
               }}
-              contained
-              main
-              spaced
-              fullwidth
-              iconAfter={<Check strokeWidth={2.5} color="$interactiveOnBaseBrandDefault" />}
             >
-              {t("Set Pay Later in {{count}}", { count: selected })}
-            </Button>
+              <StyledButton.Text>{t("Set Pay Later in {{count}}", { count: selected })}</StyledButton.Text>
+              <StyledButton.Icon>
+                <Check />
+              </StyledButton.Icon>
+            </StyledButton>
+            <Pressable
+              hitSlop={15}
+              onPress={() => {
+                onClose();
+                router.push("/calculator");
+              }}
+            >
+              <Text footnote emphasized brand textAlign="center">
+                {t("Installments calculator")}
+              </Text>
+            </Pressable>
           </YStack>
         </YStack>
       </SafeView>
