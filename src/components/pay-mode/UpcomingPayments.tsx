@@ -1,10 +1,12 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import { ChevronRight } from "@tamagui/lucide-icons";
-import { XStack, YStack } from "tamagui";
+import { selectionAsync } from "expo-haptics";
 
-import { isBefore } from "date-fns";
+import { ChevronRight } from "@tamagui/lucide-icons";
+import { Separator, XStack, YStack } from "tamagui";
+
+import { isBefore, isToday, isTomorrow } from "date-fns";
 import { useBytecode } from "wagmi";
 
 import { exaPreviewerAddress, marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
@@ -16,8 +18,8 @@ import ProposalType, {
 } from "@exactly/common/ProposalType";
 import { WAD } from "@exactly/lib";
 
+import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
-import AssetLogo from "../shared/AssetLogo";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
@@ -57,15 +59,13 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
   }
   const payments = [...duePayments];
   return (
-    <View backgroundColor="$backgroundSoft" borderRadius="$r3" padding="$s4" gap="$s6">
-      <XStack alignItems="center" justifyContent="space-between">
-        <Text emphasized headline flex={1}>
-          {t("Upcoming payments")}
-        </Text>
-      </XStack>
-      <YStack gap="$s6">
+    <View backgroundColor="$backgroundSoft" borderRadius="$r3" padding="$s4" gap="$s5">
+      <Text emphasized headline>
+        {t("Upcoming payments")}
+      </Text>
+      <YStack gap="$s4">
         {payments.length > 0 ? (
-          payments.map(([maturity, { amount, discount }]) => {
+          payments.map(([maturity, { amount, discount }], index) => {
             const isRepaying = pendingProposals?.some(({ proposal }) => {
               const { proposalType: type, data } = proposal;
               const isRepayProposal =
@@ -85,106 +85,62 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
               return decoded.repayMaturity === maturity;
             });
             const processing = isRepaying || isRollingDebt; //eslint-disable-line @typescript-eslint/prefer-nullish-coalescing
+            const maturityDate = new Date(Number(maturity) * 1000);
             return (
-              <XStack
-                key={String(maturity)}
-                cursor="pointer"
-                justifyContent="space-between"
-                alignItems="center"
-                onPress={() => {
-                  if (processing) return;
-                  onSelect(maturity);
-                }}
-              >
-                <XStack alignItems="center" gap="$s3">
-                  <YStack gap="$s2">
-                    <XStack alignItems="center" gap="$s3">
-                      <AssetLogo symbol="USDC" width={12} height={12} />
-                      <Text
-                        sensitive
-                        subHeadline
-                        color={
-                          processing
-                            ? "$interactiveTextDisabled"
-                            : discount >= 0
-                              ? "$interactiveBaseSuccessDefault"
-                              : "$uiNeutralPrimary"
-                        }
-                      >
-                        {(Number(amount) / 10 ** (exaUSDC?.decimals ?? 6)).toLocaleString(language, {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
-                      </Text>
-                    </XStack>
-                    <Text caption color={processing ? "$interactiveTextDisabled" : "$uiNeutralPrimary"}>
-                      {new Date(Number(maturity) * 1000).toLocaleDateString(language, {
-                        year: "numeric",
-                        month: "short",
-                        day: "numeric",
-                      })}
+              <React.Fragment key={String(maturity)}>
+                {index > 0 && <Separator borderColor="$borderNeutralSoft" />}
+                <XStack
+                  cursor="pointer"
+                  alignItems="center"
+                  gap="$s3"
+                  onPress={() => {
+                    if (processing) return;
+                    selectionAsync().catch(reportError);
+                    onSelect(maturity);
+                  }}
+                >
+                  <YStack flex={1} gap="$s2">
+                    <Text emphasized subHeadline color={processing ? "$interactiveTextDisabled" : "$uiNeutralPrimary"}>
+                      {isToday(maturityDate)
+                        ? t("Due today")
+                        : isTomorrow(maturityDate)
+                          ? t("Due tomorrow")
+                          : maturityDate.toLocaleDateString(language, {
+                              year: "2-digit",
+                              month: "short",
+                              day: "numeric",
+                            })}
                     </Text>
-                  </YStack>
-                  {processing ? (
-                    <View
-                      alignSelf="center"
-                      justifyContent="center"
-                      alignItems="center"
-                      backgroundColor="$interactiveDisabled"
-                      borderRadius="$r2"
-                      paddingVertical="$s1"
-                      paddingHorizontal="$s2"
-                    >
-                      <Text
-                        emphasized
-                        color="$interactiveOnDisabled"
-                        maxFontSizeMultiplier={1}
-                        caption2
-                        textTransform="uppercase"
-                      >
+                    {processing ? (
+                      <Text footnote color="$interactiveTextDisabled">
                         {t("Processing")}
                       </Text>
-                    </View>
-                  ) : null}
-                </XStack>
-                <XStack alignItems="center" gap="$s3">
-                  {processing || discount < 0.001 ? null : (
-                    <View
-                      alignSelf="center"
-                      justifyContent="center"
-                      alignItems="center"
-                      backgroundColor="$interactiveBaseSuccessDefault"
-                      borderRadius="$r2"
-                      paddingVertical="$s1"
-                      paddingHorizontal="$s2"
-                    >
-                      <Text
-                        emphasized
-                        color="$interactiveOnBaseSuccessDefault"
-                        maxFontSizeMultiplier={1}
-                        caption2
-                        textTransform="uppercase"
-                      >
-                        {t("{{discount}} off", {
-                          discount: discount.toLocaleString(language, {
+                    ) : discount >= 0.001 ? (
+                      <Text emphasized footnote color="$uiSuccessSecondary">
+                        {t("{{percent}} OFF", {
+                          percent: discount.toLocaleString(language, {
                             style: "percent",
                             minimumFractionDigits: 2,
                             maximumFractionDigits: 2,
                           }),
                         })}
                       </Text>
-                    </View>
-                  )}
+                    ) : null}
+                  </YStack>
                   <Text
+                    sensitive
                     emphasized
-                    subHeadline
-                    color={processing ? "$interactiveOnDisabled" : "$interactiveBaseBrandDefault"}
+                    title3
+                    color={processing ? "$interactiveTextDisabled" : "$uiNeutralPrimary"}
                   >
-                    {t("Repay")}
+                    {(Number(amount) / 10 ** (exaUSDC?.decimals ?? 6)).toLocaleString(language, {
+                      style: "currency",
+                      currency: "USD",
+                    })}
                   </Text>
-                  <ChevronRight size={16} color={processing ? "$iconDisabled" : "$iconBrandDefault"} />
+                  <ChevronRight size={20} color={processing ? "$iconDisabled" : "$interactiveBaseBrandDefault"} />
                 </XStack>
-              </XStack>
+              </React.Fragment>
             );
           })
         ) : (
