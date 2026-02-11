@@ -34,6 +34,7 @@ export default function InstallmentsSheet({
   onModeChange: (mode: number) => void;
   open: boolean;
 }) {
+  const router = useRouter();
   const {
     t,
     i18n: { language },
@@ -140,9 +141,17 @@ export default function InstallmentsSheet({
             >
               {t("Set Pay Later in {{count}}", { count: selected })}
             </Button>
-            <Text footnote emphasized brand textAlign="center">
-              {t("Installments calculator")}
-            </Text>
+            <Pressable
+              hitSlop={15}
+              onPress={() => {
+                onClose();
+                router.push("/calculator");
+              }}
+            >
+              <Text footnote emphasized brand textAlign="center">
+                {t("Installments calculator")}
+              </Text>
+            </Pressable>
           </YStack>
         </YStack>
       </SafeView>
