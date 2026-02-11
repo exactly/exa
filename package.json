@@ -66,6 +66,7 @@
     "abitype": "^1.2.3",
     "buffer": "^6.0.3",
     "burnt": "^0.13.0",
+    "comlink": "^4.4.2",
     "date-fns": "^4.1.0",
     "expo": "^55.0.9",
     "expo-application": "~55.0.10",
@@ -168,6 +169,7 @@
     "overrides": {
       "@wagmi/core": "catalog:",
       "abitype>zod": "^4.0.0",
+      "comlink": "$comlink",
       "esbuild@0.18.20": "^0.25.0",
       "glob@11.0.3": "^11.1.0",
       "lodash-es@4": "^4.18.0",
