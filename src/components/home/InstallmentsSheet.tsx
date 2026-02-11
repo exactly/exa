@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Dimensions, Pressable, ScrollView, StyleSheet } from "react-native";
 
 import { selectionAsync } from "expo-haptics";
+import { useRouter } from "expo-router";
 
 import { Check, X } from "@tamagui/lucide-icons";
 import { XStack, YStack } from "tamagui";
@@ -28,6 +29,7 @@ export default function InstallmentsSheet({
   onModeChange: (mode: number) => void;
   open: boolean;
 }) {
+  const router = useRouter();
   const {
     t,
     i18n: { language },
@@ -36,7 +38,7 @@ export default function InstallmentsSheet({
   useEffect(() => {
     if (open) setSelected(mode > 0 ? mode : 1); // eslint-disable-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
   }, [mode, open]);
-  const rates = useInstallmentRates();
+  const data = useInstallmentRates();
   const initial = Math.max(mode, 1);
   const initialX = Math.max(
     0,
@@ -102,12 +104,12 @@ export default function InstallmentsSheet({
                     <Text title2 emphasized color={isSelected ? "$cardCreditText" : "$cardCreditInteractive"}>
                       {installment}
                     </Text>
-                    {rates?.installments[installment - 1]?.rate === undefined ? (
+                    {data?.installments[installment - 1]?.rate === undefined ? (
                       <Skeleton height={12} width={48} />
                     ) : (
                       <Text caption2 color={isSelected ? "$cardCreditText" : "$uiNeutralSecondary"} numberOfLines={1}>
                         {t("{{apr}} APR", {
-                          apr: (Number(rates.installments[installment - 1]?.rate) / 1e18).toLocaleString(language, {
+                          apr: (Number(data.installments[installment - 1]?.rate) / 1e18).toLocaleString(language, {
                             style: "percent",
                             minimumFractionDigits: 2,
                             maximumFractionDigits: 2,
@@ -134,9 +136,17 @@ export default function InstallmentsSheet({
             >
               {t("Set Pay Later in {{count}}", { count: selected })}
             </Button>
-            <Text footnote emphasized brand textAlign="center">
-              {t("Installments calculator")}
-            </Text>
+            <Pressable
+              hitSlop={15}
+              onPress={() => {
+                onClose();
+                router.push("/calculator");
+              }}
+            >
+              <Text footnote emphasized brand textAlign="center">
+                {t("Installments calculator")}
+              </Text>
+            </Pressable>
           </YStack>
         </YStack>
       </SafeView>
