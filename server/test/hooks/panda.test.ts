@@ -654,6 +654,7 @@ describe("card operations", () => {
             declinedReason: "collection:created:collectCredit:timeout",
             id: cardId,
             reasonName: "Error",
+            source: null,
             updated: false,
             usdAmount: 0.6,
             merchant: {
@@ -685,6 +686,7 @@ describe("card operations", () => {
             reasonName: "Error",
             settlement: false,
             usdAmount: 0.6,
+            source: null,
             webhookId: authorization.json.id,
           },
         });
@@ -1321,6 +1323,7 @@ describe("card operations", () => {
             declinedReason: "collection:completed:collectDebit:settlement failed",
             id: cardId,
             reasonName: "Error",
+            source: null,
             updated: true,
             usdAmount: capture / 100,
             merchant: {
@@ -1352,6 +1355,7 @@ describe("card operations", () => {
             reasonName: "Error",
             settlement: true,
             usdAmount: capture / 100,
+            source: null,
             webhookId: authorization.json.id,
           },
         });
