@@ -250,6 +250,16 @@ function scheduleMessage(message: string) {
     withScope((scope) => {
       scope.setUser({ id: account });
       scope.setTag("exa.account", account);
+      const skipNonce = () =>
+        keeper.exaSend(
+          { name: "exa.nonce", op: "exa.nonce", attributes: { account } },
+          {
+            address: account,
+            functionName: "setProposalNonce",
+            args: [nonce + 1n],
+            abi: [...exaPluginAbi, ...upgradeableModularAccountAbi, ...proposalManagerAbi],
+          },
+        );
       return startSpan({ name: "exa.execute", op: "exa.execute", forceTransaction: true }, (parent) =>
         startSpan(
           {
@@ -274,17 +284,6 @@ function scheduleMessage(message: string) {
             },
           },
           async () => {
-            const skipNonce = () =>
-              keeper.exaSend(
-                { name: "exa.nonce", op: "exa.nonce", attributes: { account } },
-                {
-                  address: account,
-                  functionName: "setProposalNonce",
-                  args: [nonce + 1n],
-                  abi: [...exaPluginAbi, ...upgradeableModularAccountAbi, ...proposalManagerAbi],
-                },
-              );
-
             await (proposalType === ProposalType.None
               ? skipNonce()
               : keeper.exaSend(
@@ -325,7 +324,27 @@ function scheduleMessage(message: string) {
 
             parent.setStatus({ code: SPAN_STATUS_OK });
             if (proposalType === ProposalType.Withdraw) {
-              if (market.toLowerCase() === marketWETHAddress.toLowerCase()) await skipNonce();
+              if (market.toLowerCase() === marketWETHAddress.toLowerCase()) {
+                await skipNonce().catch((nonceError: unknown) => {
+                  captureException(nonceError, {
+                    level: "error",
+                    contexts: { proposal: { account, nonce, proposalType: ProposalType[proposalType], retryCount } },
+                    fingerprint: [
+                      "{{ default }}",
+                      ...(nonceError instanceof BaseError && nonceError.cause instanceof ContractFunctionRevertedError
+                        ? nonceError.cause.data?.errorName === "WrappedError" && nonceError.cause.data.args
+                          ? ["WrappedError", String(nonceError.cause.data.args[1])]
+                          : [
+                              nonceError.cause.data?.errorName ??
+                                nonceError.cause.reason ??
+                                nonceError.cause.signature ??
+                                "unknown",
+                            ]
+                        : ["unknown"]),
+                    ],
+                  });
+                });
+              }
               const receiver = v.parse(Address, decodeAbiParameters([{ name: "receiver", type: "address" }], data)[0]);
               startSpan(
                 { name: "send withdraw notification", op: "notification.send", attributes: { account, receiver } },
@@ -391,16 +410,29 @@ function scheduleMessage(message: string) {
           }
 
           if (error instanceof ContractFunctionExecutionError) {
-            await keeper.exaSend(
-              { name: "exa.nonce", op: "exa.nonce", attributes: { account } },
-              {
-                address: account,
-                functionName: "setProposalNonce",
-                args: [nonce + 1n],
-                abi: [...exaPluginAbi, ...upgradeableModularAccountAbi, ...proposalManagerAbi],
-              },
-            );
-            return redis.zrem("proposals", message);
+            const skipped = await skipNonce()
+              .then(() => true)
+              .catch((nonceError: unknown) => {
+                captureException(nonceError, {
+                  level: "error",
+                  contexts: { proposal: { account, nonce, proposalType: ProposalType[proposalType], retryCount } },
+                  fingerprint: [
+                    "{{ default }}",
+                    ...(nonceError instanceof BaseError && nonceError.cause instanceof ContractFunctionRevertedError
+                      ? nonceError.cause.data?.errorName === "WrappedError" && nonceError.cause.data.args
+                        ? ["WrappedError", String(nonceError.cause.data.args[1])]
+                        : [
+                            nonceError.cause.data?.errorName ??
+                              nonceError.cause.reason ??
+                              nonceError.cause.signature ??
+                              "unknown",
+                          ]
+                      : ["unknown"]),
+                  ],
+                });
+                return false;
+              });
+            if (skipped) return redis.zrem("proposals", message);
           }
         }),
       );

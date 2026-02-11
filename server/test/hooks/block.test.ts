@@ -551,6 +551,96 @@ describe("proposal", () => {
         expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "unknown"] }),
       );
     });
+
+    it("fingerprints recovery nonce revert", async () => {
+      const proposal = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
+      const errorAbi = [{ type: "error", name: "NonceTooLow", inputs: [] }] as const;
+      const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
+      vi.spyOn(publicClient, "simulateContract")
+        .mockImplementationOnce(() => {
+          // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
+          throw getContractError(new RawContractError({ data: "0x" }), {
+            abi: [],
+            address: bobAccount,
+            functionName: "executeProposal",
+            args: [proposal.args.nonce],
+          });
+        })
+        .mockImplementationOnce(() => {
+          // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
+          throw getContractError(
+            new RawContractError({ data: encodeErrorResult({ abi: errorAbi, errorName: "NonceTooLow" }) }),
+            {
+              abi: errorAbi,
+              address: bobAccount,
+              functionName: "setProposalNonce",
+              args: [proposal.args.nonce + 1n],
+            },
+          );
+        });
+
+      await appClient.index.$post({
+        ...withdrawProposal,
+        json: {
+          ...withdrawProposal.json,
+          event: {
+            ...withdrawProposal.json.event,
+            data: {
+              ...withdrawProposal.json.event.data,
+              block: {
+                ...withdrawProposal.json.event.data.block,
+                logs: [{ topics: proposal.topics, data: proposal.data, account: { address: proposal.address } }],
+              },
+            },
+          },
+        },
+      });
+
+      await vi.waitUntil(
+        () =>
+          vi
+            .mocked(captureException)
+            .mock.calls.slice(initialCaptureExceptionCalls)
+            .some(
+              ([error, hint]) =>
+                error instanceof Error &&
+                "functionName" in error &&
+                error.functionName === "setProposalNonce" &&
+                typeof hint === "object" &&
+                "contexts" in hint,
+            ),
+        26_666,
+      );
+
+      const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
+      const recoveryCapture = captureExceptionCalls.find(
+        ([error, hint]) =>
+          error instanceof Error &&
+          "functionName" in error &&
+          error.functionName === "setProposalNonce" &&
+          typeof hint === "object" &&
+          "contexts" in hint,
+      );
+
+      expect(recoveryCapture).toBeDefined();
+      expect(recoveryCapture?.[0]).toEqual(
+        expect.objectContaining({ name: "ContractFunctionExecutionError", functionName: "setProposalNonce" }),
+      );
+      expect(recoveryCapture?.[1]).toEqual(
+        expect.objectContaining({
+          level: "error",
+          contexts: {
+            proposal: {
+              account: bobAccount,
+              nonce: proposal.args.nonce,
+              proposalType: "Withdraw",
+              retryCount: 0,
+            },
+          },
+          fingerprint: ["{{ default }}", "NonceTooLow"],
+        }),
+      );
+    });
   });
 
   describe("with wrapped error", () => {
