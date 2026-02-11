@@ -1,9 +1,12 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import { ChevronRight } from "@tamagui/lucide-icons";
-import { XStack, YStack } from "tamagui";
+import { selectionAsync } from "expo-haptics";
 
+import { ChevronRight } from "@tamagui/lucide-icons";
+import { Separator, XStack, YStack } from "tamagui";
+
+import { useQuery } from "@tanstack/react-query";
 import { isBefore } from "date-fns";
 import { useBytecode } from "wagmi";
 
@@ -16,8 +19,8 @@ import ProposalType, {
 } from "@exactly/common/ProposalType";
 import { WAD } from "@exactly/lib";
 
+import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
-import AssetLogo from "../shared/AssetLogo";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
@@ -33,11 +36,13 @@ export default function OverduePayments({ onSelect }: { onSelect: (maturity: big
     args: address ? [address] : undefined,
     query: { enabled: !!address && !!bytecode, gcTime: 0, refetchInterval: 30_000 },
   });
+  const { data: hidden } = useQuery<boolean>({ queryKey: ["settings", "sensitive"] });
   const { data: markets } = useReadPreviewerExactly({
     address: previewerAddress,
     args: address ? [address] : undefined,
     query: { enabled: !!address && !!bytecode, refetchInterval: 30_000 },
   });
+  const exaUSDC = markets?.find(({ market }) => market === marketUSDCAddress);
   const overduePayments = new Map<bigint, { amount: bigint; discount: number }>();
   if (markets) {
     for (const { market, fixedBorrowPositions } of markets) {
@@ -57,14 +62,12 @@ export default function OverduePayments({ onSelect }: { onSelect: (maturity: big
   const payments = [...overduePayments];
   if (payments.length === 0) return null;
   return (
-    <View backgroundColor="$backgroundSoft" borderRadius="$r3" padding="$s4" gap="$s6">
-      <XStack alignItems="center" justifyContent="space-between">
-        <Text emphasized headline flex={1}>
-          {t("Overdue payments")}
-        </Text>
-      </XStack>
-      <YStack gap="$s6">
-        {payments.map(([maturity, { amount, discount }]) => {
+    <View backgroundColor="$backgroundSoft" borderRadius="$r3" padding="$s4" gap="$s5">
+      <Text emphasized headline>
+        {t("Overdue payments")}
+      </Text>
+      <YStack gap="$s4">
+        {payments.map(([maturity, { amount, discount }], index) => {
           const isRepaying = pendingProposals?.some(({ proposal }) => {
             const { proposalType: type, data } = proposal;
             const isRepayProposal =
@@ -84,98 +87,67 @@ export default function OverduePayments({ onSelect }: { onSelect: (maturity: big
             return decoded.repayMaturity === maturity;
           });
           const processing = isRepaying || isRollingDebt; //eslint-disable-line @typescript-eslint/prefer-nullish-coalescing
+          const formattedDate = new Date(Number(maturity) * 1000).toLocaleDateString(language, {
+            year: "2-digit",
+            month: "short",
+            day: "numeric",
+          });
+          const formattedAmount = `$${(Number(amount) / 10 ** (exaUSDC?.decimals ?? 6)).toLocaleString(language, {
+            style: "decimal",
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}`;
           return (
-            <XStack
-              key={String(maturity)}
-              cursor="pointer"
-              justifyContent="space-between"
-              alignItems="center"
-              onPress={() => {
-                if (processing) return;
-                onSelect(maturity);
-              }}
-            >
-              <XStack alignItems="center" gap="$s3">
-                <YStack gap="$s2">
-                  <XStack alignItems="center" gap="$s3">
-                    <AssetLogo symbol="USDC" width={12} height={12} />
-                    <Text sensitive subHeadline color={processing ? "$interactiveTextDisabled" : "$uiErrorSecondary"}>
-                      {(Number(amount) / 1e6).toLocaleString(language, {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}
-                    </Text>
-                  </XStack>
-                  <Text caption color={processing ? "$interactiveTextDisabled" : "$uiErrorSecondary"}>
-                    {new Date(Number(maturity) * 1000).toLocaleDateString(language, {
-                      year: "numeric",
-                      month: "short",
-                      day: "numeric",
-                    })}
+            <React.Fragment key={String(maturity)}>
+              {index > 0 && <Separator borderColor="$borderNeutralSoft" />}
+              <XStack
+                aria-label={t("Overdue payment {{date}}, {{amount}}", {
+                  date: formattedDate,
+                  amount: hidden ? "***" : formattedAmount,
+                })}
+                role="button"
+                aria-disabled={processing}
+                cursor="pointer"
+                alignItems="center"
+                gap="$s3"
+                onPress={() => {
+                  if (processing) return;
+                  selectionAsync().catch(reportError);
+                  onSelect(maturity);
+                }}
+              >
+                <YStack flex={1} gap="$s2">
+                  <Text emphasized subHeadline color={processing ? "$interactiveTextDisabled" : "$uiNeutralPrimary"}>
+                    {formattedDate}
                   </Text>
-                </YStack>
-                {processing ? (
-                  <View
-                    alignSelf="center"
-                    justifyContent="center"
-                    alignItems="center"
-                    backgroundColor="$interactiveDisabled"
-                    borderRadius="$r2"
-                    paddingVertical="$s1"
-                    paddingHorizontal="$s2"
-                  >
-                    <Text
-                      emphasized
-                      color="$interactiveOnDisabled"
-                      maxFontSizeMultiplier={1}
-                      caption2
-                      textTransform="uppercase"
-                    >
-                      {t("Processing")}
-                    </Text>
-                  </View>
-                ) : null}
-              </XStack>
-              <XStack alignItems="center" gap="$s3">
-                {processing ? null : (
-                  <View
-                    alignSelf="center"
-                    justifyContent="center"
-                    alignItems="center"
-                    backgroundColor="$interactiveBaseErrorDefault"
-                    borderRadius="$r2"
-                    paddingVertical="$s1"
-                    paddingHorizontal="$s2"
-                  >
-                    <Text
-                      emphasized
-                      color="$interactiveOnBaseErrorDefault"
-                      maxFontSizeMultiplier={1}
-                      caption2
-                      textTransform="uppercase"
-                    >
-                      {t("Penalties {{percent}}", {
-                        percent: Math.abs(discount).toLocaleString(language, {
+                  <Text emphasized footnote color={processing ? "$interactiveTextDisabled" : "$uiErrorSecondary"}>
+                    {processing
+                      ? t("Processing")
+                      : `+${Math.abs(discount).toLocaleString(language, {
                           style: "percent",
                           minimumFractionDigits: 2,
                           maximumFractionDigits: 2,
-                        }),
-                      })}
-                    </Text>
-                  </View>
-                )}
-                <Text
-                  emphasized
-                  subHeadline
-                  color={processing ? "$interactiveOnDisabled" : "$interactiveBaseErrorDefault"}
-                >
-                  {t("Repay")}
+                        })}`}
+                  </Text>
+                </YStack>
+                <Text sensitive emphasized title3 color={processing ? "$interactiveTextDisabled" : "$uiErrorSecondary"}>
+                  {formattedAmount}
                 </Text>
-                <ChevronRight size={16} color={processing ? "$iconDisabled" : "$interactiveBaseBrandDefault"} />
+                <ChevronRight size={20} color={processing ? "$iconDisabled" : "$interactiveBaseBrandDefault"} />
               </XStack>
-            </XStack>
+            </React.Fragment>
           );
         })}
+        <Text caption color="$uiNeutralSecondary" textAlign="justify">
+          <Text emphasized>{t("You must repay each installment manually before its due date.")} </Text>
+          {t("If not, a {{rate}} penalty is added every day the payment is late.", {
+            rate: (exaUSDC ? Number(exaUSDC.penaltyRate * 86_400n) / 1e18 : 0).toLocaleString(language, {
+              style: "percent",
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            }),
+          })}
+        </Text>
       </YStack>
     </View>
   );
