@@ -19,6 +19,7 @@ import app, { type Authentication } from "../../api/auth/authentication";
 import database, { credentials } from "../../database";
 import * as publicClient from "../../utils/publicClient";
 
+import type * as AlchemyQueue from "../../queues/alchemyQueue";
 import type * as SimpleWebAuthn from "@simplewebauthn/server";
 import type * as SimpleWebAuthnHelpers from "@simplewebauthn/server/helpers";
 import type * as ViemSiwe from "viem/siwe";
@@ -146,13 +147,14 @@ vi.mock("@simplewebauthn/server", async (importOriginal) => {
   };
 });
 
-vi.mock("../../utils/redis", () => ({
-  default: {
+vi.mock("../../utils/redis", () => {
+  const redis = {
     get: vi.fn<() => string>().mockResolvedValue("test-challenge"),
     set: vi.fn<() => boolean>().mockResolvedValue(true),
     del: vi.fn<() => boolean>().mockResolvedValue(true),
-  },
-}));
+  };
+  return { default: redis, requestRedis: redis };
+});
 
 vi.mock("@simplewebauthn/server/helpers", async (importOriginal) => {
   const original = await importOriginal<typeof SimpleWebAuthnHelpers>();
@@ -169,6 +171,11 @@ vi.mock("@simplewebauthn/server/helpers", async (importOriginal) => {
     ),
     cose: { ...original.cose, isCOSEPublicKeyEC2: () => true, COSEKEYS: { x: -2, y: -3 } },
   };
+});
+
+vi.mock("../../queues/alchemyQueue", async (importOriginal) => {
+  const actual = await importOriginal<typeof AlchemyQueue>();
+  return { ...actual, getAlchemyQueue: vi.fn(() => ({ add: vi.fn().mockResolvedValue({}) })) };
 });
 
 vi.mock("viem/siwe", async (importOriginal) => {
