@@ -109,6 +109,7 @@ export default function RepayAmountSelector({
           cursor="pointer"
           role="button"
           aria-label={t("Set maximum repay amount")}
+          hitSlop={15}
         >
           {t("Max")}
         </Text>

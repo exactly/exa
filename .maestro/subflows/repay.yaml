@@ -1,21 +1,20 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
 - waitForAnimationToEnd
-- runFlow: { file: scrollTo.yaml, env: { element: "Payment due .+" } }
+- runFlow: { file: scrollTo.yaml, env: { element: "Upcoming payments", offset: 1 } }
 - copyTextFrom:
-    text: \d+[,.]\d{2}
+    text: "[A-Z].+"
     below: Upcoming payments
-    leftOf: Repay
-- evalScript: ${output.debt = Number(maestro.copiedText)}
-- copyTextFrom:
-    text: "[^%.]+"
-    below: "${maestro.copiedText}"
-    leftOf: Repay
+    index: 0
 - evalScript: ${output.maturity = maestro.copiedText}
-- tapOn: { text: Repay, rightOf: "${output.maturity}" }
+- copyTextFrom:
+    text: \$[\d,.]+
+    below: Upcoming payments
+    index: 0
+- evalScript: ${output.debt = Number(maestro.copiedText.slice(1).split(",").join(""))}
+- tapOn: { text: "${output.maturity}", below: Upcoming payments }
 - waitForAnimationToEnd
-- tapOn: { text: Repay, leftOf: Rollover }
-- runFlow: { when: { true: "${!amount}" }, commands: [{ tapOn: Max }] }
+- tapOn: Pay
 - runFlow:
     when: { true: "${amount}" }
     commands:
@@ -43,7 +42,7 @@ appId: ${APP_ID ?? "app.exactly"}
     file: ../subflows/tapWhileAria.yaml
     env: { aria: Pending proposals, tap: Home }
 - waitForAnimationToEnd
-- runFlow: { file: scrollTo.yaml, env: { element: "Payment due .+" } }
+- runFlow: { file: scrollTo.yaml, env: { element: "Upcoming payments", offset: 1 } }
 - runFlow:
     when: { true: "${!amount}" }
     commands: [{ assertNotVisible: "${output.maturity}" }]
@@ -52,10 +51,10 @@ appId: ${APP_ID ?? "app.exactly"}
     commands:
       - assertVisible: "${output.maturity}"
       - copyTextFrom:
-          text: \d+[,.]\d{2}
-          above: "${output.maturity}"
+          text: \$[\d,.]+
           below: Upcoming payments
-          leftOf: Repay
-      - assertTrue: ${Math.abs(output.debt - Number(maestro.copiedText) - Number(amount)) < 0.02}
+          index: 0
+      - evalScript: ${output.newDebt = Number(maestro.copiedText.slice(1).split(",").join(""))}
+      - assertTrue: ${Math.abs(output.debt - output.newDebt - Number(amount)) < 0.02}
 - tapOn: Home
 - waitForAnimationToEnd

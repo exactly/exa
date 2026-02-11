@@ -1,10 +1,15 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 
 import { useMutationState } from "@tanstack/react-query";
 import { useBytecode } from "wagmi";
 
 import { exaPreviewerAddress } from "@exactly/common/generated/chain";
 import { useReadExaPreviewerPendingProposals } from "@exactly/common/generated/hooks";
+import ProposalType, {
+  decodeCrossRepayAtMaturity,
+  decodeRepayAtMaturity,
+  decodeRollDebt,
+} from "@exactly/common/ProposalType";
 
 import useAccount from "./useAccount";
 import exa from "./wagmi/exa";
@@ -34,5 +39,27 @@ export default function usePendingOperations() {
     return [...(bridgeMutation?.status === "pending" ? [bridgeMutation] : [])];
   }, [bridgeMutation]);
 
-  return { count: (proposals.data?.length ?? 0) + mutations.length, mutations, proposals };
+  const isProcessing = useCallback(
+    (maturity: bigint) => {
+      if (!proposals.data) return false;
+      return proposals.data.some(({ proposal }) => {
+        const { proposalType: type, data } = proposal;
+        if (
+          type === (ProposalType.RepayAtMaturity as number) ||
+          type === (ProposalType.CrossRepayAtMaturity as number)
+        ) {
+          const decoded =
+            type === (ProposalType.RepayAtMaturity as number)
+              ? decodeRepayAtMaturity(data)
+              : decodeCrossRepayAtMaturity(data);
+          return decoded.maturity === maturity;
+        }
+        if (type === (ProposalType.RollDebt as number)) return decodeRollDebt(data).repayMaturity === maturity;
+        return false;
+      });
+    },
+    [proposals.data],
+  );
+
+  return { count: (proposals.data?.length ?? 0) + mutations.length, isProcessing, mutations, proposals };
 }

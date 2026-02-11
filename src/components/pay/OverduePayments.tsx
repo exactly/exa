@@ -6,87 +6,78 @@ import { selectionAsync } from "expo-haptics";
 import { ChevronRight } from "@tamagui/lucide-icons";
 import { Separator, XStack, YStack } from "tamagui";
 
-import { useQuery } from "@tanstack/react-query";
 import { isBefore } from "date-fns";
 import { useBytecode } from "wagmi";
 
-import { exaPreviewerAddress, marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
-import { useReadExaPreviewerPendingProposals, useReadPreviewerExactly } from "@exactly/common/generated/hooks";
-import ProposalType, {
-  decodeCrossRepayAtMaturity,
-  decodeRepayAtMaturity,
-  decodeRollDebt,
-} from "@exactly/common/ProposalType";
+import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
+import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { WAD } from "@exactly/lib";
 
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
+import usePendingOperations from "../../utils/usePendingOperations";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-export default function OverduePayments({ onSelect }: { onSelect: (maturity: bigint) => void }) {
+export default function OverduePayments({
+  excludeMaturity,
+  onSelect,
+}: {
+  excludeMaturity?: bigint;
+  onSelect: (maturity: bigint) => void;
+}) {
   const {
     t,
     i18n: { language },
   } = useTranslation();
   const { address } = useAccount();
   const { data: bytecode } = useBytecode({ address, query: { enabled: !!address } });
-  const { data: pendingProposals } = useReadExaPreviewerPendingProposals({
-    address: exaPreviewerAddress,
-    args: address ? [address] : undefined,
-    query: { enabled: !!address && !!bytecode, gcTime: 0, refetchInterval: 30_000 },
-  });
-  const { data: hidden } = useQuery<boolean>({ queryKey: ["settings", "sensitive"] });
+  const { isProcessing } = usePendingOperations();
   const { data: markets } = useReadPreviewerExactly({
     address: previewerAddress,
     args: address ? [address] : undefined,
     query: { enabled: !!address && !!bytecode, refetchInterval: 30_000 },
   });
   const exaUSDC = markets?.find(({ market }) => market === marketUSDCAddress);
-  const overduePayments = new Map<bigint, { amount: bigint; discount: number }>();
+  const overdueMaturities = new Map<bigint, { totalPosition: bigint; totalPreview: bigint }>();
   if (markets) {
     for (const { market, fixedBorrowPositions } of markets) {
       if (market !== marketUSDCAddress) continue;
       for (const { maturity, previewValue, position } of fixedBorrowPositions) {
         if (!previewValue) continue;
-        const positionAmount = position.principal + position.fee;
+        if (maturity === excludeMaturity) continue;
         if (isBefore(new Date(Number(maturity) * 1000), new Date())) {
-          overduePayments.set(maturity, {
-            amount: (overduePayments.get(maturity)?.amount ?? 0n) + previewValue,
-            discount: Number(WAD - (previewValue * WAD) / positionAmount) / 1e18,
+          const positionAmount = position.principal + position.fee;
+          const existing = overdueMaturities.get(maturity);
+          overdueMaturities.set(maturity, {
+            totalPreview: (existing?.totalPreview ?? 0n) + previewValue,
+            totalPosition: (existing?.totalPosition ?? 0n) + positionAmount,
           });
         }
       }
     }
   }
-  const payments = [...overduePayments];
+  const payments = [...overdueMaturities].map(
+    ([maturity, { totalPreview, totalPosition }]) =>
+      [
+        maturity,
+        {
+          amount: totalPreview,
+          discount: Number(WAD - (totalPreview * WAD) / totalPosition) / 1e18,
+        },
+      ] as const,
+  );
   if (payments.length === 0) return null;
   return (
-    <View backgroundColor="$backgroundSoft" borderRadius="$r3" padding="$s4" gap="$s5">
-      <Text emphasized headline>
-        {t("Overdue payments")}
-      </Text>
-      <YStack gap="$s4">
+    <View backgroundColor="$backgroundSoft" borderRadius="$r3" overflow="hidden">
+      <XStack padding="$s4">
+        <Text emphasized headline>
+          {t("Overdue payments")}
+        </Text>
+      </XStack>
+      <YStack role="list" paddingHorizontal="$s4" paddingBottom="$s4" paddingTop="$s3_5" gap="$s4">
         {payments.map(([maturity, { amount, discount }], index) => {
-          const isRepaying = pendingProposals?.some(({ proposal }) => {
-            const { proposalType: type, data } = proposal;
-            const isRepayProposal =
-              type === (ProposalType.RepayAtMaturity as number) ||
-              type === (ProposalType.CrossRepayAtMaturity as number);
-            if (!isRepayProposal) return false;
-            const decoded =
-              type === (ProposalType.RepayAtMaturity as number)
-                ? decodeRepayAtMaturity(data)
-                : decodeCrossRepayAtMaturity(data);
-            return decoded.maturity === maturity;
-          });
-          const isRollingDebt = pendingProposals?.some(({ proposal }) => {
-            const { proposalType: type, data } = proposal;
-            if (type !== (ProposalType.RollDebt as number)) return false;
-            const decoded = decodeRollDebt(data);
-            return decoded.repayMaturity === maturity;
-          });
-          const processing = isRepaying || isRollingDebt; //eslint-disable-line @typescript-eslint/prefer-nullish-coalescing
+          const processing = isProcessing(maturity);
           const formattedDate = new Date(Number(maturity) * 1000).toLocaleDateString(language, {
             year: "2-digit",
             month: "short",
@@ -101,10 +92,7 @@ export default function OverduePayments({ onSelect }: { onSelect: (maturity: big
             <React.Fragment key={String(maturity)}>
               {index > 0 && <Separator borderColor="$borderNeutralSoft" />}
               <XStack
-                aria-label={t("Overdue payment {{date}}, {{amount}}", {
-                  date: formattedDate,
-                  amount: hidden ? "***" : formattedAmount,
-                })}
+                aria-label={formattedDate}
                 role="button"
                 aria-disabled={processing}
                 cursor="pointer"
