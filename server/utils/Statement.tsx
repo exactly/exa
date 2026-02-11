@@ -1,6 +1,8 @@
 import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 import React from "react";
 
+import { MATURITY_INTERVAL } from "@exactly/lib";
+
 const styles = StyleSheet.create({
   page: { flexDirection: "column", backgroundColor: "#FBFDFC", padding: 24 },
   header: {
@@ -87,7 +89,8 @@ const Statement = (statement: {
   lastFour: string;
   maturity: number;
 }) => {
-  const statementDate = new Date(statement.maturity * 1000).toLocaleDateString("en-CA");
+  const dueDate = new Date(statement.maturity * 1000).toLocaleDateString("en-CA");
+  const statementDate = new Date((statement.maturity - MATURITY_INTERVAL) * 1000).toLocaleDateString("en-CA");
   const repayments = statement.data.filter(
     (
       item,
@@ -134,7 +137,7 @@ const Statement = (statement: {
             </View>
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Due date:</Text>
-              <Text style={styles.cardNumber}>{statementDate}</Text>
+              <Text style={styles.cardNumber}>{dueDate}</Text>
             </View>
           </View>
         </View>
