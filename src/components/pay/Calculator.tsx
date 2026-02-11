@@ -30,9 +30,11 @@ export default function Calculator() {
 
   const bestRateIndex = useMemo(() => {
     if (!data) return;
-    let minIndex = 0;
-    for (let index = 1; index < data.installments.length; index++) {
-      if ((data.installments[index]?.rate ?? 0n) < (data.installments[minIndex]?.rate ?? 0n)) minIndex = index;
+    let minIndex: number | undefined;
+    for (let index = 0; index < data.installments.length; index++) {
+      if (!data.installments[index]?.payments) continue;
+      if (minIndex === undefined || (data.installments[index]?.rate ?? 0n) < (data.installments[minIndex]?.rate ?? 0n))
+        minIndex = index;
     }
     return minIndex;
   }, [data]);

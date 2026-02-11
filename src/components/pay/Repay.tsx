@@ -58,7 +58,7 @@ import Pending from "../shared/Pending";
 import Skeleton from "../shared/Skeleton";
 import Success from "../shared/Success";
 
-export default function Pay() {
+export default function Repay() {
   const insets = useSafeAreaInsets();
   const {
     t,

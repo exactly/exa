@@ -23,7 +23,13 @@ import useAccount from "../../utils/useAccount";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bigint) => void }) {
+export default function UpcomingPayments({
+  excludeMaturity,
+  onSelect,
+}: {
+  excludeMaturity?: bigint;
+  onSelect: (maturity: bigint) => void;
+}) {
   const {
     t,
     i18n: { language },
@@ -41,28 +47,48 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
     query: { enabled: !!address && !!bytecode, refetchInterval: 30_000 },
   });
   const exaUSDC = markets?.find(({ market }) => market === marketUSDCAddress);
-  const duePayments = new Map<bigint, { amount: bigint; discount: number; positionAmount: bigint }>();
+  const dueMaturities = new Map<bigint, { totalPosition: bigint; totalPreview: bigint }>();
   if (markets) {
     for (const { fixedBorrowPositions } of markets) {
       for (const { maturity, previewValue, position } of fixedBorrowPositions) {
-        if (!previewValue) continue;
-
+        if (previewValue === 0n) continue;
         if (isBefore(new Date(Number(maturity) * 1000), new Date())) continue;
-        duePayments.set(maturity, {
-          positionAmount: position.principal + position.fee,
-          amount: (duePayments.get(maturity)?.amount ?? 0n) + previewValue,
-          discount: Number(WAD - (previewValue * WAD) / (position.principal + position.fee)) / 1e18,
+        if (maturity === excludeMaturity) continue;
+        const positionAmount = position.principal + position.fee;
+        const existing = dueMaturities.get(maturity);
+        dueMaturities.set(maturity, {
+          totalPreview: (existing?.totalPreview ?? 0n) + previewValue,
+          totalPosition: (existing?.totalPosition ?? 0n) + positionAmount,
         });
       }
     }
   }
-  const payments = [...duePayments];
+  const payments = [...dueMaturities].map(
+    ([maturity, { totalPreview, totalPosition }]) =>
+      [
+        maturity,
+        {
+          amount: totalPreview,
+          discount: Number(WAD - (totalPreview * WAD) / totalPosition) / 1e18,
+        },
+      ] as const,
+  );
   return (
-    <View backgroundColor="$backgroundSoft" borderRadius="$r3" padding="$s4" gap="$s5">
-      <Text emphasized headline>
-        {t("Upcoming payments")}
-      </Text>
-      <YStack gap="$s4">
+    <View
+      backgroundColor="$backgroundSoft"
+      borderRadius="$r3"
+      overflow="hidden"
+      shadowColor="$uiNeutralSecondary"
+      shadowOffset={{ width: 0, height: 2 }}
+      shadowOpacity={0.15}
+      shadowRadius={8}
+    >
+      <XStack padding="$s4">
+        <Text emphasized headline>
+          {t("Upcoming payments")}
+        </Text>
+      </XStack>
+      <YStack paddingHorizontal="$s4" paddingBottom="$s4" paddingTop="$s3_5" gap="$s4">
         {payments.length > 0 ? (
           payments.map(([maturity, { amount, discount }], index) => {
             const isRepaying = pendingProposals?.some(({ proposal }) => {
@@ -85,10 +111,22 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
             });
             const processing = isRepaying || isRollingDebt; //eslint-disable-line @typescript-eslint/prefer-nullish-coalescing
             const maturityDate = new Date(Number(maturity) * 1000);
+            const formattedDate = isToday(maturityDate)
+              ? t("Due today")
+              : isTomorrow(maturityDate)
+                ? t("Due tomorrow")
+                : maturityDate.toLocaleDateString(language, { year: "2-digit", month: "short", day: "numeric" });
+            const formattedAmount = (Number(amount) / 10 ** (exaUSDC?.decimals ?? 6)).toLocaleString(language, {
+              style: "currency",
+              currency: "USD",
+            });
             return (
               <React.Fragment key={String(maturity)}>
                 {index > 0 && <Separator borderColor="$borderNeutralSoft" />}
                 <XStack
+                  aria-label={t("{{date}}, {{amount}}", { date: formattedDate, amount: formattedAmount })}
+                  role="button"
+                  aria-disabled={processing}
                   cursor="pointer"
                   alignItems="center"
                   gap="$s3"
@@ -100,15 +138,7 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
                 >
                   <YStack flex={1} gap="$s2">
                     <Text emphasized subHeadline color={processing ? "$interactiveTextDisabled" : "$uiNeutralPrimary"}>
-                      {isToday(maturityDate)
-                        ? t("Due today")
-                        : isTomorrow(maturityDate)
-                          ? t("Due tomorrow")
-                          : maturityDate.toLocaleDateString(language, {
-                              year: "2-digit",
-                              month: "short",
-                              day: "numeric",
-                            })}
+                      {formattedDate}
                     </Text>
                     {processing ? (
                       <Text footnote color="$interactiveTextDisabled">
@@ -132,10 +162,7 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
                     title3
                     color={processing ? "$interactiveTextDisabled" : "$uiNeutralPrimary"}
                   >
-                    {(Number(amount) / 10 ** (exaUSDC?.decimals ?? 6)).toLocaleString(language, {
-                      style: "currency",
-                      currency: "USD",
-                    })}
+                    {formattedAmount}
                   </Text>
                   <ChevronRight size={20} color={processing ? "$iconDisabled" : "$interactiveBaseBrandDefault"} />
                 </XStack>
