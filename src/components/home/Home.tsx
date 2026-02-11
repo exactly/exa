@@ -46,10 +46,11 @@ import useAccount from "../../utils/useAccount";
 import usePortfolio from "../../utils/usePortfolio";
 import useTabPress from "../../utils/useTabPress";
 import BenefitsSection from "../benefits/BenefitsSection";
-import ManualRepaymentSheet from "../pay-mode/ManualRepaymentSheet";
-import OverduePayments from "../pay-mode/OverduePayments";
-import PaymentSheet from "../pay-mode/PaymentSheet";
-import UpcomingPayments from "../pay-mode/UpcomingPayments";
+import ManualRepaymentSheet from "../pay/ManualRepaymentSheet";
+import OverduePayments from "../pay/OverduePayments";
+import PaymentSheet from "../pay/PaymentSheet";
+import RolloverIntroSheet from "../pay/RolloverIntroSheet";
+import UpcomingPayments from "../pay/UpcomingPayments";
 import InfoAlert from "../shared/InfoAlert";
 import LatestActivity from "../shared/LatestActivity";
 import LiquidationAlert from "../shared/LiquidationAlert";
@@ -75,6 +76,7 @@ export default function Home() {
   const [spendingLimitSheetOpen, setSpendingLimitSheetOpen] = useState(false);
   const [visaSignatureModalOpen, setVisaSignatureModalOpen] = useState(false);
   const [manualRepaymentSheetOpen, setManualRepaymentSheetOpen] = useState(false);
+  const [rolloverIntroMaturity, setRolloverIntroMaturity] = useState<string>();
   const pendingModeRef = useRef<number>(0);
 
   const [focused, setFocused] = useState(false);
@@ -291,12 +293,13 @@ export default function Home() {
             {isKYCFetched && isKYCApproved && <BenefitsSection />}
             <View paddingHorizontal="$s4" gap="$s5">
               <OverduePayments onSelect={(m) => router.setParams({ maturity: String(m) })} />
-              <UpcomingPayments onSelect={(m) => router.setParams({ maturity: String(m) })} />
+              <UpcomingPayments showEmpty onSelect={(m) => router.setParams({ maturity: String(m) })} />
               <LatestActivity activity={activity} />
               <HomeDisclaimer />
             </View>
           </View>
-          <PaymentSheet />
+          <PaymentSheet onRolloverIntro={setRolloverIntroMaturity} />
+          <RolloverIntroSheet maturity={rolloverIntroMaturity} onClose={() => setRolloverIntroMaturity(undefined)} />
           <CardUpgradeSheet
             open={cardUpgradeOpen}
             onClose={() => {
