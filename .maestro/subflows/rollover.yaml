@@ -3,16 +3,13 @@ appId: ${APP_ID ?? "app.exactly"}
 - waitForAnimationToEnd
 - runFlow: { file: scrollTo.yaml, env: { element: Repay } }
 - copyTextFrom:
-    text: \d+[,.]\d{2}
+    text: "[^%.$]+"
     below: Upcoming payments
-    leftOf: Repay
     index: 1
-- copyTextFrom:
-    text: "[^%.]+"
-    below: "${maestro.copiedText}"
-    leftOf: Repay
 - evalScript: ${output.secondMaturity = maestro.copiedText}
-- tapOn: Repay
+- tapOn:
+    text: "[^%.$]+"
+    below: Upcoming payments
 - waitForAnimationToEnd
 - tapOn: Rollover
 - runFlow:
@@ -30,13 +27,8 @@ appId: ${APP_ID ?? "app.exactly"}
 - waitForAnimationToEnd
 - runFlow: { file: scrollTo.yaml, env: { element: Repay } }
 - copyTextFrom:
-    text: \d+[,.]\d{2}
+    text: "[^%.$]+"
     below: Upcoming payments
-    leftOf: Repay
-- copyTextFrom:
-    text: "[^%.]+"
-    below: "${maestro.copiedText}"
-    leftOf: Repay
 - assertTrue: ${maestro.copiedText === output.secondMaturity}
 - tapOn: Home
 - waitForAnimationToEnd

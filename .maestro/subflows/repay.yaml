@@ -3,18 +3,20 @@ appId: ${APP_ID ?? "app.exactly"}
 - waitForAnimationToEnd
 - runFlow: { file: scrollTo.yaml, env: { element: Repay } }
 - copyTextFrom:
-    text: \d+[,.]\d{2}
+    text: \$[\d,.\xa0]+
     below: Upcoming payments
-    leftOf: Repay
-- evalScript: ${output.debt = Number(maestro.copiedText)}
+- evalScript: ${output.debt = Number(maestro.copiedText.replace(/[^\d.]/g, ""))}
 - copyTextFrom:
-    text: "[^%.]+"
-    below: "${maestro.copiedText}"
-    leftOf: Repay
+    text: "[^%.$]+"
+    below: Upcoming payments
+    leftOf: "${maestro.copiedText}"
 - evalScript: ${output.maturity = maestro.copiedText}
-- tapOn: { text: Repay, rightOf: "${output.maturity}" }
+- tapOn:
+    text: "${output.maturity}"
+    below: Upcoming payments
 - waitForAnimationToEnd
-- tapOn: { text: Repay, leftOf: Rollover }
+- tapOn: { text: Pay, leftOf: Rollover }
+- waitForAnimationToEnd
 - runFlow: { when: { true: "${!amount}" }, commands: [{ tapOn: Max }] }
 - runFlow:
     when: { true: "${amount}" }
@@ -52,10 +54,9 @@ appId: ${APP_ID ?? "app.exactly"}
     commands:
       - assertVisible: "${output.maturity}"
       - copyTextFrom:
-          text: \d+[,.]\d{2}
-          above: "${output.maturity}"
+          text: \$[\d,.\xa0]+
           below: Upcoming payments
-          leftOf: Repay
-      - assertTrue: ${Math.abs(output.debt - Number(maestro.copiedText) - Number(amount)) < 0.02}
+          rightOf: "${output.maturity}"
+      - assertTrue: ${Math.abs(output.debt - Number(maestro.copiedText.replace(/[^\d.]/g, "")) - Number(amount)) < 0.02}
 - tapOn: Home
 - waitForAnimationToEnd

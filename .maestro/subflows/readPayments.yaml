@@ -1,0 +1,25 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+- tapOn: Payments
+- waitForAnimationToEnd
+- assertVisible: Total outstanding
+- assertVisible: Statements
+- assertVisible:
+    text: \$[\s\d,.\xa0]+
+    below: Total outstanding
+- assertVisible: in \d+ payments
+- runFlow: { file: tapAria.yaml, env: { aria: Hide sensitive } }
+- assertNotVisible:
+    text: \$[\s\d,.\xa0]+
+    below: Total outstanding
+- runFlow: { file: tapAria.yaml, env: { aria: Show sensitive } }
+- assertVisible:
+    text: \$[\s\d,.\xa0]+
+    below: Total outstanding
+- assertVisible: { text: Pay, leftOf: Rollover }
+- assertVisible: Rollover
+- assertVisible: View statement
+- scrollUntilVisible: { element: Upcoming payments }
+- assertVisible: Upcoming payments
+- tapOn: Home
+- waitForAnimationToEnd

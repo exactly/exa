@@ -26,16 +26,21 @@ export default function Calculator() {
   } = useTranslation();
   const [input, setInput] = useState("100");
   const assets = useMemo(() => parseUnits(input.replaceAll(/\D/g, ".").replaceAll(/\.(?=.*\.)/g, ""), 6), [input]);
-  const data = useInstallmentRates(assets);
+  const rates = useInstallmentRates(assets);
 
   const bestRateIndex = useMemo(() => {
-    if (!data) return;
-    let minIndex = 0;
-    for (let index = 1; index < data.installments.length; index++) {
-      if ((data.installments[index]?.rate ?? 0n) < (data.installments[minIndex]?.rate ?? 0n)) minIndex = index;
+    if (!rates) return;
+    let minIndex: number | undefined;
+    for (let index = 0; index < rates.installments.length; index++) {
+      if (!rates.installments[index]?.payments) continue;
+      if (
+        minIndex === undefined ||
+        (rates.installments[index]?.rate ?? 0n) < (rates.installments[minIndex]?.rate ?? 0n)
+      )
+        minIndex = index;
     }
-    return minIndex;
-  }, [data]);
+    return minIndex !== undefined && (rates.installments[minIndex]?.rate ?? 0n) > 0n ? minIndex : undefined;
+  }, [rates]);
 
   return (
     <SafeView fullScreen backgroundColor="$backgroundSoft" paddingBottom={0}>
@@ -73,6 +78,8 @@ export default function Calculator() {
               {t("Installments calculator")}
             </Text>
             <Pressable
+              aria-label={t("Help")}
+              role="button"
               onPress={() => {
                 presentArticle("11541409").catch(reportError);
               }}
@@ -127,7 +134,7 @@ export default function Calculator() {
           </View>
           <YStack paddingTop="$s6" paddingBottom="$s7" paddingHorizontal="$s4" gap="$s4_5">
             <YStack gap="$s3">
-              {data?.installments.map(({ count, payments, rate, total }) => {
+              {rates?.installments.map(({ count, payments, rate, total }) => {
                 const isBestRate = bestRateIndex === count - 1;
                 return (
                   <XStack
@@ -193,10 +200,10 @@ export default function Calculator() {
                 );
               })}
             </YStack>
-            {data && (
+            {rates && (
               <Text caption color="$uiNeutralSecondary">
                 {t("First due date: {{date}} - then every 28 days.", {
-                  date: new Date(data.firstMaturity * 1000).toLocaleDateString(language, {
+                  date: new Date(rates.firstMaturity * 1000).toLocaleDateString(language, {
                     year: "numeric",
                     month: "short",
                     day: "numeric",

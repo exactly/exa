@@ -6,7 +6,7 @@ import { selectionAsync } from "expo-haptics";
 import { ChevronRight } from "@tamagui/lucide-icons";
 import { Separator, XStack, YStack } from "tamagui";
 
-import { isBefore } from "date-fns";
+import { isBefore, isToday, isTomorrow } from "date-fns";
 import { useBytecode } from "wagmi";
 
 import { exaPreviewerAddress, marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
@@ -23,7 +23,13 @@ import useAccount from "../../utils/useAccount";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-export default function OverduePayments({ onSelect }: { onSelect: (maturity: bigint) => void }) {
+export default function UpcomingPayments({
+  excludeMaturity,
+  onSelect,
+}: {
+  excludeMaturity?: bigint;
+  onSelect: (maturity: bigint) => void;
+}) {
   const {
     t,
     i18n: { language },
@@ -41,30 +47,45 @@ export default function OverduePayments({ onSelect }: { onSelect: (maturity: big
     query: { enabled: !!address && !!bytecode, refetchInterval: 30_000 },
   });
   const exaUSDC = markets?.find(({ market }) => market === marketUSDCAddress);
-  const overduePayments = new Map<bigint, { amount: bigint; discount: number }>();
-  if (markets) {
-    for (const { market, fixedBorrowPositions } of markets) {
-      if (market !== marketUSDCAddress) continue;
-      for (const { maturity, previewValue, position } of fixedBorrowPositions) {
-        if (!previewValue) continue;
-        const positionAmount = position.principal + position.fee;
-        if (isBefore(new Date(Number(maturity) * 1000), new Date())) {
-          overduePayments.set(maturity, {
-            amount: (overduePayments.get(maturity)?.amount ?? 0n) + previewValue,
-            discount: Number(WAD - (previewValue * WAD) / positionAmount) / 1e18,
-          });
-        }
-      }
-    }
+  const dueMaturities = new Map<bigint, { totalPosition: bigint; totalPreview: bigint }>();
+  for (const { maturity, previewValue, position } of exaUSDC?.fixedBorrowPositions ?? []) {
+    if (previewValue === 0n) continue;
+    if (isBefore(new Date(Number(maturity) * 1000), new Date())) continue;
+    if (maturity === excludeMaturity) continue;
+    const positionAmount = position.principal + position.fee;
+    const existing = dueMaturities.get(maturity);
+    dueMaturities.set(maturity, {
+      totalPreview: (existing?.totalPreview ?? 0n) + previewValue,
+      totalPosition: (existing?.totalPosition ?? 0n) + positionAmount,
+    });
   }
-  const payments = [...overduePayments];
+  const payments = [...dueMaturities].map(
+    ([maturity, { totalPreview, totalPosition }]) =>
+      [
+        maturity,
+        {
+          amount: totalPreview,
+          discount: Number(WAD - (totalPreview * WAD) / totalPosition) / 1e18,
+        },
+      ] as const,
+  );
   if (payments.length === 0) return null;
   return (
-    <View backgroundColor="$backgroundSoft" borderRadius="$r3" padding="$s4" gap="$s5">
-      <Text emphasized headline>
-        {t("Overdue payments")}
-      </Text>
-      <YStack gap="$s4">
+    <View
+      backgroundColor="$backgroundSoft"
+      borderRadius="$r3"
+      overflow="hidden"
+      shadowColor="$uiNeutralSecondary"
+      shadowOffset={{ width: 0, height: 2 }}
+      shadowOpacity={0.15}
+      shadowRadius={8}
+    >
+      <XStack padding="$s4">
+        <Text emphasized headline>
+          {t("Upcoming payments")}
+        </Text>
+      </XStack>
+      <YStack paddingHorizontal="$s4" paddingBottom="$s4" paddingTop="$s3_5" gap="$s4">
         {payments.map(([maturity, { amount, discount }], index) => {
           const isRepaying = pendingProposals?.some(({ proposal }) => {
             const { proposalType: type, data } = proposal;
@@ -84,11 +105,24 @@ export default function OverduePayments({ onSelect }: { onSelect: (maturity: big
             const decoded = decodeRollDebt(data);
             return decoded.repayMaturity === maturity;
           });
-          const processing = isRepaying || isRollingDebt; //eslint-disable-line @typescript-eslint/prefer-nullish-coalescing
+          const processing = isRepaying || isRollingDebt; // eslint-disable-line @typescript-eslint/prefer-nullish-coalescing
+          const maturityDate = new Date(Number(maturity) * 1000);
+          const formattedDate = isToday(maturityDate)
+            ? t("Due today")
+            : isTomorrow(maturityDate)
+              ? t("Due tomorrow")
+              : maturityDate.toLocaleDateString(language, { year: "2-digit", month: "short", day: "numeric" });
+          const formattedAmount = (Number(amount) / 10 ** (exaUSDC?.decimals ?? 6)).toLocaleString(language, {
+            style: "currency",
+            currency: "USD",
+          });
           return (
             <React.Fragment key={String(maturity)}>
               {index > 0 && <Separator borderColor="$borderNeutralSoft" />}
               <XStack
+                aria-label={t("{{date}}, {{amount}}", { date: formattedDate, amount: formattedAmount })}
+                role="button"
+                aria-disabled={processing}
                 cursor="pointer"
                 alignItems="center"
                 gap="$s3"
@@ -100,33 +134,44 @@ export default function OverduePayments({ onSelect }: { onSelect: (maturity: big
               >
                 <YStack flex={1} gap="$s2">
                   <Text emphasized subHeadline color={processing ? "$interactiveTextDisabled" : "$uiNeutralPrimary"}>
-                    {new Date(Number(maturity) * 1000).toLocaleDateString(language, {
-                      year: "2-digit",
-                      month: "short",
-                      day: "numeric",
-                    })}
+                    {formattedDate}
                   </Text>
-                  <Text emphasized footnote color={processing ? "$interactiveTextDisabled" : "$uiErrorSecondary"}>
-                    {processing
-                      ? t("Processing")
-                      : `+${Math.abs(discount).toLocaleString(language, {
+                  {processing ? (
+                    <Text footnote color="$interactiveTextDisabled">
+                      {t("Processing")}
+                    </Text>
+                  ) : discount >= 0.001 ? (
+                    <Text emphasized footnote color="$uiSuccessSecondary">
+                      {t("{{percent}} OFF", {
+                        percent: discount.toLocaleString(language, {
                           style: "percent",
                           minimumFractionDigits: 2,
                           maximumFractionDigits: 2,
-                        })}`}
-                  </Text>
+                        }),
+                      })}
+                    </Text>
+                  ) : null}
                 </YStack>
-                <Text sensitive emphasized title3 color={processing ? "$interactiveTextDisabled" : "$uiErrorSecondary"}>
-                  {(Number(amount) / 10 ** (exaUSDC?.decimals ?? 6)).toLocaleString(language, {
-                    style: "currency",
-                    currency: "USD",
-                  })}
+                <Text sensitive emphasized title3 color={processing ? "$interactiveTextDisabled" : "$uiNeutralPrimary"}>
+                  {formattedAmount}
                 </Text>
                 <ChevronRight size={20} color={processing ? "$iconDisabled" : "$interactiveBaseBrandDefault"} />
               </XStack>
             </React.Fragment>
           );
         })}
+        <Text caption color="$uiNeutralSecondary">
+          <Text color="$uiInfoSecondary" emphasized>
+            {t("You must repay each installment manually before its due date.")}{" "}
+          </Text>
+          {t("If not, a {{rate}} penalty is added every day the payment is late.", {
+            rate: (exaUSDC ? Number(exaUSDC.penaltyRate * 86_400n) / 1e18 : 0).toLocaleString(language, {
+              style: "percent",
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            }),
+          })}
+        </Text>
       </YStack>
     </View>
   );
