@@ -50,6 +50,7 @@ import { Address, Hash, Hex } from "@exactly/common/validation";
 import { headers as alchemyHeaders, createWebhook, findWebhook, headerValidator } from "../utils/alchemy";
 import appOrigin from "../utils/appOrigin";
 import ensClient from "../utils/ensClient";
+import fingerprintRevert from "../utils/fingerprintRevert";
 import keeper from "../utils/keeper";
 import { sendPushNotification } from "../utils/onesignal";
 import publicClient from "../utils/publicClient";
@@ -329,19 +330,7 @@ function scheduleMessage(message: string) {
                   captureException(nonceError, {
                     level: "error",
                     contexts: { proposal: { account, nonce, proposalType: ProposalType[proposalType], retryCount } },
-                    fingerprint: [
-                      "{{ default }}",
-                      ...(nonceError instanceof BaseError && nonceError.cause instanceof ContractFunctionRevertedError
-                        ? nonceError.cause.data?.errorName === "WrappedError" && nonceError.cause.data.args
-                          ? ["WrappedError", String(nonceError.cause.data.args[1])]
-                          : [
-                              nonceError.cause.data?.errorName ??
-                                nonceError.cause.reason ??
-                                nonceError.cause.signature ??
-                                "unknown",
-                            ]
-                        : ["unknown"]),
-                    ],
+                    fingerprint: fingerprintRevert(nonceError),
                   });
                 });
               }
@@ -371,14 +360,7 @@ function scheduleMessage(message: string) {
           captureException(error, {
             level: "error",
             contexts: { proposal: { account, nonce, proposalType: ProposalType[proposalType], retryCount } },
-            fingerprint: [
-              "{{ default }}",
-              ...(error instanceof BaseError && error.cause instanceof ContractFunctionRevertedError
-                ? error.cause.data?.errorName === "WrappedError" && error.cause.data.args
-                  ? ["WrappedError", String(error.cause.data.args[1])]
-                  : [error.cause.data?.errorName ?? error.cause.reason ?? error.cause.signature ?? "unknown"]
-                : ["unknown"]),
-            ],
+            fingerprint: fingerprintRevert(error),
           });
 
           if (
@@ -416,19 +398,7 @@ function scheduleMessage(message: string) {
                 captureException(nonceError, {
                   level: "error",
                   contexts: { proposal: { account, nonce, proposalType: ProposalType[proposalType], retryCount } },
-                  fingerprint: [
-                    "{{ default }}",
-                    ...(nonceError instanceof BaseError && nonceError.cause instanceof ContractFunctionRevertedError
-                      ? nonceError.cause.data?.errorName === "WrappedError" && nonceError.cause.data.args
-                        ? ["WrappedError", String(nonceError.cause.data.args[1])]
-                        : [
-                            nonceError.cause.data?.errorName ??
-                              nonceError.cause.reason ??
-                              nonceError.cause.signature ??
-                              "unknown",
-                          ]
-                      : ["unknown"]),
-                  ],
+                  fingerprint: fingerprintRevert(nonceError),
                 });
                 return false;
               });
@@ -451,17 +421,7 @@ function scheduleMessage(message: string) {
         ),
       );
     })
-    .catch((error: unknown) =>
-      captureException(error, {
-        level: "error",
-        fingerprint: [
-          "{{ default }}",
-          error instanceof BaseError && error.cause instanceof ContractFunctionRevertedError
-            ? (error.cause.data?.errorName ?? error.cause.reason ?? error.cause.signature ?? "unknown")
-            : "unknown",
-        ],
-      }),
-    );
+    .catch((error: unknown) => captureException(error, { level: "error", fingerprint: fingerprintRevert(error) }));
 }
 
 function scheduleWithdraw(message: string) {
@@ -536,14 +496,7 @@ function scheduleWithdraw(message: string) {
           captureException(error, {
             level: "error",
             contexts: { withdraw: { account, market, receiver, retryCount } },
-            fingerprint: [
-              "{{ default }}",
-              ...(error instanceof BaseError && error.cause instanceof ContractFunctionRevertedError
-                ? error.cause.data?.errorName === "WrappedError" && error.cause.data.args
-                  ? ["WrappedError", String(error.cause.data.args[1])]
-                  : [error.cause.data?.errorName ?? error.cause.reason ?? error.cause.signature ?? "unknown"]
-                : ["unknown"]),
-            ],
+            fingerprint: fingerprintRevert(error),
           });
           if (
             chain.id === optimismSepolia.id &&
@@ -559,17 +512,7 @@ function scheduleWithdraw(message: string) {
 
   setTimeout(Math.max(0, (Number(unlock) + 10) * 1000 - Date.now()))
     .then(() => continueTrace({ sentryTrace, baggage: sentryBaggage }, processWithdraw))
-    .catch((error: unknown) =>
-      captureException(error, {
-        level: "error",
-        fingerprint: [
-          "{{ default }}",
-          error instanceof BaseError && error.cause instanceof ContractFunctionRevertedError
-            ? (error.cause.data?.errorName ?? error.cause.reason ?? error.cause.signature ?? "unknown")
-            : "unknown",
-        ],
-      }),
-    );
+    .catch((error: unknown) => captureException(error, { level: "error", fingerprint: fingerprintRevert(error) }));
 }
 
 const url = `${appOrigin}/hooks/block`;

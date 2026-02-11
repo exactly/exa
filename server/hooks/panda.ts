@@ -49,6 +49,7 @@ import { Address, type Hash, type Hex } from "@exactly/common/validation";
 import { MATURITY_INTERVAL, splitInstallments } from "@exactly/lib";
 
 import database, { cards, credentials, transactions } from "../database/index";
+import fingerprintRevert from "../utils/fingerprintRevert";
 import keeper from "../utils/keeper";
 import { sendPushNotification } from "../utils/onesignal";
 import { collectors, createMutex, getMutex, getUser, headerValidator, signIssuerOp, updateUser } from "../utils/panda";
@@ -389,15 +390,7 @@ export default new Hono().post(
               }
               captureException(contractError, {
                 contexts: { tx: { call, trace } },
-                fingerprint: [
-                  "{{ default }}",
-                  contractError.cause instanceof ContractFunctionRevertedError
-                    ? (contractError.cause.data?.errorName ??
-                      contractError.cause.reason ??
-                      contractError.cause.signature ??
-                      "unknown")
-                    : "unknown",
-                ],
+                fingerprint: fingerprintRevert(contractError),
               });
               throw new PandaError("tx reverted", 550 as UnofficialStatusCode);
             }

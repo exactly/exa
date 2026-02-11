@@ -28,6 +28,7 @@ import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import chain from "@exactly/common/generated/chain";
 import { Hash } from "@exactly/common/validation";
 
+import fingerprintRevert from "./fingerprintRevert";
 import nonceManager from "./nonceManager";
 import publicClient, { captureRequests, Requests } from "./publicClient";
 import traceClient from "./traceClient";
@@ -181,15 +182,7 @@ export function extender(keeper: WalletClient<HttpTransport, typeof chain, Priva
               }
             }
             span.setStatus({ code: SPAN_STATUS_ERROR, message: reason });
-            captureException(error, {
-              level: "error",
-              fingerprint: [
-                "{{ default }}",
-                error instanceof BaseError && error.cause instanceof ContractFunctionRevertedError
-                  ? (error.cause.data?.errorName ?? error.cause.reason ?? error.cause.signature ?? "unknown")
-                  : "unknown",
-              ],
-            });
+            captureException(error, { level: "error", fingerprint: fingerprintRevert(error) });
             throw error;
           }
         }),
