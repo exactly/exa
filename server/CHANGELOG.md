@@ -1,5 +1,23 @@
 # @exactly/server
 
+## 0.2.61
+
+### Patch Changes
+
+- [#744](https://github.com/exactly/exa/pull/744) [`5f4b287`](https://github.com/exactly/exa/commit/5f4b2873bdf5ac0b424db88feb24226d695c114d) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 fingerprint block hook errors
+
+- [#756](https://github.com/exactly/exa/pull/756) [`7fa2fa3`](https://github.com/exactly/exa/commit/7fa2fa38e5a4385376e364f43124e9cd4000d6bc) Thanks [@mainqueg](https://github.com/mainqueg)! - 🏷️ normalize sentry event names
+
+- [#755](https://github.com/exactly/exa/pull/755) [`520573b`](https://github.com/exactly/exa/commit/520573b2d393a6c365eace63cea3dcf5b9778844) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🦺 acknowledge panda dispute events
+
+- [#756](https://github.com/exactly/exa/pull/756) [`c3098bd`](https://github.com/exactly/exa/commit/c3098bdedf1d09b5f28b4924069351112d90c88f) Thanks [@mainqueg](https://github.com/mainqueg)! - 🥅 catch invalid legal id during manteca onboarding
+
+- [#758](https://github.com/exactly/exa/pull/758) [`03fdfa3`](https://github.com/exactly/exa/commit/03fdfa3fa3cf5906d4ce7a9776a71022c156ad76) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🥅 skip retries for replay reverts
+
+- [#756](https://github.com/exactly/exa/pull/756) [`6d8bc73`](https://github.com/exactly/exa/commit/6d8bc7365873bd27a315e9c3b65741669e5896ab) Thanks [@mainqueg](https://github.com/mainqueg)! - 📈 track onramp and ramp account events
+
+- [#744](https://github.com/exactly/exa/pull/744) [`4a6c836`](https://github.com/exactly/exa/commit/4a6c836345d2239b5e09236f0505abeb73e07e06) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 fingerprint poke errors in activity hook
+
 ## 0.2.60
 
 ### Patch Changes
