@@ -681,6 +681,34 @@ describe("card operations", () => {
         expect(response.status).toBe(569);
       });
 
+      it("returns ok on replay", async () => {
+        const cardId = "replay-collect";
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "9999", mode: 0 }]);
+
+        const json = {
+          ...authorization.json,
+          action: "created" as const,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, amount: 50 },
+          },
+        };
+
+        const first = await appClient.index.$post({ ...authorization, json });
+        const tx = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
+        await publicClient.waitForTransactionReceipt({ hash: tx?.hashes[0] as Hex, confirmations: 0 });
+        expect(first.status).toBe(200);
+
+        const second = await appClient.index.$post({ ...authorization, json });
+
+        expect(second.status).toBe(200);
+        expect(captureException).toHaveBeenCalledExactlyOnceWith(
+          expect.any(BaseError),
+          expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "Replay"] }),
+        );
+      });
+
       it("fails with unexpected error", async () => {
         vi.spyOn(publicClient, "simulateContract").mockRejectedValue(new Error("Unexpected Error"));
 
@@ -815,6 +843,61 @@ describe("card operations", () => {
 
         expect(deposit?.args.assets).toBe(BigInt(amount * 1e4));
         expect(response.status).toBe(200);
+      });
+
+      it("returns ok on reversal replay", async () => {
+        const amount = 1500;
+        const cardId = "reversal-replay";
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "3333" }]);
+
+        const createdAt = new Date();
+        await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "created",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: {
+                ...authorization.json.body.spend,
+                cardId,
+                amount,
+                localAmount: amount,
+                authorizedAt: createdAt.toISOString(),
+              },
+            },
+          },
+        });
+
+        const updatedJson = {
+          ...authorization.json,
+          action: "updated" as const,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: {
+              ...authorization.json.body.spend,
+              cardId,
+              authorizationUpdateAmount: -amount,
+              authorizedAt: new Date(createdAt.getTime() + 1000 * 30).toISOString(),
+              status: "reversed" as const,
+            },
+          },
+        };
+
+        const first = await appClient.index.$post({ ...authorization, json: updatedJson });
+        const tx = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
+        await publicClient.waitForTransactionReceipt({ hash: tx?.hashes[1] as Hex, confirmations: 0 });
+        expect(first.status).toBe(200);
+
+        const second = await appClient.index.$post({ ...authorization, json: updatedJson });
+
+        expect(second.status).toBe(200);
+        expect(captureException).toHaveBeenCalledExactlyOnceWith(
+          expect.any(BaseError),
+          expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "Replay"] }),
+        );
       });
 
       it("fails with spending transaction not found", async () => {
