@@ -46,7 +46,9 @@ appId: ${APP_ID ?? "app.exactly"}
       - assertVisible: How installment repayment works
       - tapOn: Close
       - tapOn: Tap here to change the number of installments
-      - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
+      - tapOn: Installments calculator
+      - assertVisible: Enter a purchase amount
+      - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Go back } }
 - runFlow: { file: scrollTo.yaml, env: { element: Learn more } }
 - tapOn:
     text: Learn more
