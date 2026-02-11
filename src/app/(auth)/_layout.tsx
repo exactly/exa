@@ -1,3 +1,5 @@
+import "../../utils/server";
+
 import React, { useCallback, useEffect } from "react";
 import { Platform } from "react-native";
 
@@ -6,9 +8,13 @@ import Head from "expo-router/head";
 
 import { sdk } from "@farcaster/miniapp-sdk";
 import { useQuery } from "@tanstack/react-query";
+import { getConnection } from "@wagmi/core";
+import { proxy } from "comlink";
 
+import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useBackgroundColor from "../../utils/useBackgroundColor";
+import exaConfig from "../../utils/wagmi/exa";
 
 import type { Credential } from "@exactly/common/validation";
 
@@ -20,7 +26,17 @@ export default function OnboardingLayout() {
 
   useEffect(() => {
     if (isLoading || !isFetched) return;
-    if (isMiniApp) sdk.actions.ready().catch(reportError);
+    if (isMiniApp) {
+      sdk.actions
+        .ready(
+          // @ts-expect-error ready takes no arguments
+          proxy({
+            getAddress: () => getConnection(exaConfig).address,
+            hasCard: async () => !!(await queryClient.fetchQuery({ queryKey: ["card", "details"] })),
+          }),
+        )
+        .catch(reportError);
+    }
     SplashScreen.hideAsync().catch(reportError);
   }, [isFetched, isLoading, isMiniApp]);
 
