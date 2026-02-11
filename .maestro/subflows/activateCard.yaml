@@ -51,7 +51,9 @@ appId: ${APP_ID ?? "app.exactly"}
       - tapOn: Set Pay Later in 3
       - tapOn: Later in 3
       - assertVisible: Set installments
-      - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
+      - tapOn: Installments calculator
+      - assertVisible: Enter a purchase amount
+      - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Go back } }
       - assertVisible: Exa Card pay mode
 - tapOn: Now
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Spending limit info } }
