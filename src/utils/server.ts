@@ -241,12 +241,15 @@ export async function getActivity(parameters?: NonNullable<Parameters<typeof api
   return response.json();
 }
 
+let authenticating: Promise<void> | undefined;
 export async function auth() {
-  if (queryClient.isFetching({ queryKey: ["auth"] })) return;
-  const { success } = safeParse(Auth, queryClient.getQueryData<number | undefined>(["auth"]));
-  if (!success) {
-    await queryClient.fetchQuery({ ...queryClient.getQueryDefaults(["auth"]), queryKey: ["auth"], staleTime: 0 });
-  }
+  if (authenticating) return authenticating;
+  if (safeParse(Auth, queryClient.getQueryData<number | undefined>(["auth"])).success) return;
+  await (authenticating = queryClient
+    .fetchQuery({ ...queryClient.getQueryDefaults(["auth"]), queryKey: ["auth"], staleTime: 0 })
+    .finally(() => {
+      authenticating = undefined;
+    }));
 }
 
 const Auth = pipe(
