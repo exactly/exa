@@ -19,7 +19,7 @@ import { emitTabPress } from "../../../utils/useTabPress";
 const tabs = [
   { name: "index", title: "Home", href: "/", Icon: Home },
   { name: "card", title: "Card", href: "/card", Icon: CreditCard },
-  { name: "pay-mode", title: "Payments", href: "/pay-mode", Icon: CalendarCheck },
+  { name: "pay", title: "Payments", href: "/pay", Icon: CalendarCheck },
   { name: "defi", title: "DeFi", href: "/defi", Icon: Boxes },
   { name: "activity", title: "Activity", href: "/activity", Icon: History },
 ] as const;

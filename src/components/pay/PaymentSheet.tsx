@@ -7,15 +7,16 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   ArrowRight,
   Calendar,
-  ChevronRight,
   CirclePercent,
   Coins,
+  ExternalLink,
+  FileText,
   Info,
   RefreshCw,
   Siren,
 } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
-import { Separator, XStack, YStack } from "tamagui";
+import { Separator, XStack, YStack, type YStackProps } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 import { formatDistance, isAfter } from "date-fns";
@@ -35,25 +36,28 @@ import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
+import Amount from "../shared/Amount";
+import InfoSheet from "../shared/InfoSheet";
 import ModalSheet from "../shared/ModalSheet";
-import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
 import type { Credential } from "@exactly/common/validation";
 
-function Frame({ children }: { children: React.ReactNode }) {
+function Frame({ children, ...properties }: YStackProps & { children: React.ReactNode }) {
   return (
-    <SafeView
-      paddingTop={0}
-      fullScreen
-      borderTopLeftRadius="$r4"
-      borderTopRightRadius="$r4"
-      backgroundColor="$backgroundMild"
+    <YStack
+      borderTopLeftRadius="$r5"
+      borderTopRightRadius="$r5"
+      backgroundColor="$backgroundSoft"
+      paddingTop="$s5"
+      paddingHorizontal="$s5"
+      paddingBottom="$s7"
+      {...properties}
     >
       {children}
-    </SafeView>
+    </YStack>
   );
 }
 
@@ -61,14 +65,21 @@ function NotAvailableView({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
   return (
     <Frame>
-      <View padded paddingTop="$s6" fullScreen flex={1} justifyContent="center" alignItems="center" gap="$s4">
+      <YStack
+        flex={1}
+        justifyContent="center"
+        alignItems="center"
+        gap="$s4"
+        borderTopLeftRadius="$r5"
+        borderTopRightRadius="$r5"
+      >
         <Text secondary body textAlign="center">
           {t("This payment is no longer available")}
         </Text>
         <Button secondary onPress={onClose}>
           <Button.Text>{t("Close")}</Button.Text>
         </Button>
-      </View>
+      </YStack>
     </Frame>
   );
 }
@@ -77,14 +88,14 @@ function RolloverIntroView({ isLatestPlugin, onContinue }: { isLatestPlugin: boo
   const { t } = useTranslation();
   const toast = useToastController();
   return (
-    <Frame>
+    <Frame paddingHorizontal={0}>
       <View aspectRatio={2} justifyContent="center" alignItems="center">
         <View width="100%" height="100%" style={StyleSheet.absoluteFillObject}>
           <CalendarImage width="100%" height="100%" />
         </View>
       </View>
       <Separator height={1} borderColor="$borderNeutralSoft" />
-      <View padded paddingTop="$s6" fullScreen flex={1} backgroundColor="$backgroundMild">
+      <YStack paddingTop="$s6" paddingHorizontal="$s5" flex={1} backgroundColor="$backgroundMild">
         <YStack gap="$s7">
           <YStack gap="$s4_5">
             <Text primary emphasized title3>
@@ -99,19 +110,19 @@ function RolloverIntroView({ isLatestPlugin, onContinue }: { isLatestPlugin: boo
           <YStack gap="$s4">
             <XStack gap="$s3" alignItems="center" justifyContent="center">
               <Siren strokeWidth={2.5} color="$uiBrandSecondary" />
-              <Text color="$uiBrandSecondary" emphasized headline>
+              <Text color="$uiBrandSecondary" emphasized subHeadline>
                 {t("Avoid penalties by extending your deadline")}
               </Text>
             </XStack>
             <XStack gap="$s3" alignItems="center" justifyContent="center">
               <CirclePercent strokeWidth={2.5} color="$uiBrandSecondary" />
-              <Text color="$uiBrandSecondary" emphasized headline>
+              <Text color="$uiBrandSecondary" emphasized subHeadline>
                 {t("Refinance at a better rate")}
               </Text>
             </XStack>
             <XStack gap="$s3" alignItems="center" justifyContent="center">
               <Calendar strokeWidth={2.5} color="$uiBrandSecondary" />
-              <Text color="$uiBrandSecondary" emphasized headline>
+              <Text color="$uiBrandSecondary" emphasized subHeadline>
                 {t("Get more time to repay")}
               </Text>
             </XStack>
@@ -137,120 +148,117 @@ function RolloverIntroView({ isLatestPlugin, onContinue }: { isLatestPlugin: boo
             </Button.Icon>
           </Button>
         </YStack>
-      </View>
+      </YStack>
     </Frame>
   );
 }
 
 function DetailsView({
   borrow,
-  hidden,
   language,
+  onInfoPress,
   onRepayPress,
   onRolloverPress,
   onViewStatement,
 }: {
   borrow: {
     discount: number;
-    discountLabel: string;
     dueDate: Date;
     dueStatus: string;
     isUpcoming: boolean;
     positionValue: bigint;
     previewValue: bigint;
   };
-  hidden: boolean;
   language: string;
+  onInfoPress: () => void;
   onRepayPress: () => void;
   onRolloverPress: () => void;
   onViewStatement: () => void;
 }) {
   const { t } = useTranslation();
-  const { previewValue, positionValue, discount, dueDate, isUpcoming, dueStatus, discountLabel } = borrow;
+  const { previewValue, positionValue, discount, dueDate, isUpcoming, dueStatus } = borrow;
+
+  const penaltyPercent = Math.abs(discount);
+  const originalAmount = Number(positionValue) / 1e18;
+
   return (
     <Frame>
-      <View padded paddingTop="$s6" fullScreen flex={1}>
-        <View gap="$s5">
-          <XStack alignItems="center" justifyContent="center" gap="$s3" flex={1} flexWrap="wrap">
-            <Text
-              secondary
-              textAlign="center"
-              emphasized
-              subHeadline
-              color={isUpcoming ? "$uiNeutralSecondary" : "$uiErrorSecondary"}
-            >
-              {dueStatus}
-              <Text secondary textAlign="center" emphasized subHeadline color="$uiNeutralSecondary">
-                {" - "}
-                {dueDate.toLocaleDateString(language, { year: "numeric", month: "short", day: "numeric" })}
+      <YStack backgroundColor="$backgroundSoft" gap="$s5">
+        <YStack gap="$s1">
+          <XStack gap="$s3" alignItems="center">
+            <XStack gap="$s2" alignItems="center" flex={1}>
+              <Text emphasized headline flexShrink={1} color={isUpcoming ? "$uiNeutralPrimary" : "$uiErrorSecondary"}>
+                {dueStatus}
               </Text>
-            </Text>
-            <Pressable
-              onPress={() => {
-                presentArticle("10245778").catch(reportError);
-              }}
-              hitSlop={15}
-            >
-              <Info size={16} color="$uiNeutralPrimary" />
-            </Pressable>
+            </XStack>
+            <XStack flexShrink={0} gap="$s1" alignItems="center" cursor="pointer" onPress={onViewStatement}>
+              <Text emphasized footnote color="$interactiveBaseBrandDefault">
+                {t("View statement")}
+              </Text>
+              <FileText size={16} color="$interactiveBaseBrandDefault" />
+            </XStack>
           </XStack>
-          <View flexDirection="column" justifyContent="center" alignItems="center" gap="$s4">
-            <Text
-              sensitive
-              textAlign="center"
-              fontSize={40}
-              overflow="hidden"
-              color={isUpcoming ? "$uiNeutralPrimary" : "$uiErrorSecondary"}
-            >
-              {`$${(Number(previewValue) / 1e18).toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-            </Text>
-            {discount >= 0 && (
-              <Text sensitive body strikeThrough color="$uiNeutralSecondary">
-                {`$${(Number(positionValue) / 1e18).toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-              </Text>
+          <Text caption color="$uiNeutralSecondary">
+            {dueDate.toLocaleDateString(language, { year: "numeric", month: "short", day: "numeric" })}
+            {` - ${dueDate.toLocaleTimeString(language, { hour: "2-digit", minute: "2-digit", timeZoneName: "short" })}`}
+          </Text>
+        </YStack>
+        <XStack gap="$s3_5" alignItems="center">
+          <Amount amount={Number(previewValue) / 1e18} status={isUpcoming ? "success" : "danger"} flex={1} />
+          <YStack alignItems="flex-end" gap="$s3">
+            {isUpcoming ? (
+              discount >= 0.001 ? (
+                <>
+                  <Text sensitive body strikeThrough color="$uiNeutralSecondary">
+                    {`$${originalAmount.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                  </Text>
+                  <Text emphasized subHeadline color="$uiSuccessSecondary">
+                    {t("{{percent}} OFF", {
+                      percent: discount.toLocaleString(language, {
+                        style: "percent",
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      }),
+                    })}
+                  </Text>
+                </>
+              ) : null
+            ) : (
+              <>
+                <Text sensitive body color="$uiErrorSecondary">
+                  {penaltyPercent.toLocaleString(language, {
+                    style: "percent",
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </Text>
+                <Text emphasized subHeadline color="$uiErrorSecondary">
+                  {t("Late payment fee")}
+                </Text>
+              </>
             )}
-            {!hidden && (
-              <Text
-                pill
-                caption2
-                padding="$s2"
-                backgroundColor={
-                  discount >= 0 ? "$interactiveBaseSuccessSoftDefault" : "$interactiveBaseErrorSoftDefault"
-                }
-                color={discount >= 0 ? "$uiSuccessSecondary" : "$uiErrorSecondary"}
-              >
-                {discountLabel}
-              </Text>
-            )}
-          </View>
-          <YStack gap="$s3_5" alignItems="center" paddingVertical="$s3_5" flex={1}>
-            <XStack justifyContent="space-between" width="100%" gap="$s3_5">
-              <Button primary flex={1} onPress={onRepayPress}>
-                <Button.Text>{t("Repay")}</Button.Text>
-                <Button.Icon>
-                  <Coins color="$interactiveOnBaseBrandDefault" strokeWidth={2.5} />
-                </Button.Icon>
-              </Button>
-              <Button secondary flex={1} onPress={onRolloverPress}>
-                <Button.Text>{t("Rollover")}</Button.Text>
-                <Button.Icon>
-                  <RefreshCw color="$interactiveOnBaseBrandSoft" strokeWidth={2.5} />
-                </Button.Icon>
-              </Button>
-            </XStack>
-            <XStack flex={1} width="100%">
-              <Button onPress={onViewStatement} outlined minHeight={46} borderColor="$borderNeutralSoft" flex={1}>
-                <Button.Text emphasized footnote textTransform="uppercase">
-                  {t("View Statement")}
-                </Button.Text>
-                <Button.Icon>
-                  <ChevronRight color="$interactiveOnBaseBrandSoft" strokeWidth={2.5} />
-                </Button.Icon>
-              </Button>
-            </XStack>
           </YStack>
-        </View>
-      </View>
+          <Pressable onPress={onInfoPress} hitSlop={15}>
+            <Info size={16} color="$interactiveBaseBrandDefault" />
+          </Pressable>
+        </XStack>
+        <YStack>
+          <XStack gap="$s3">
+            <Button primary flex={1} onPress={onRepayPress}>
+              <Button.Text>{t("Pay")}</Button.Text>
+              <Button.Icon>
+                <Coins color="$interactiveOnBaseBrandDefault" strokeWidth={2.5} />
+              </Button.Icon>
+            </Button>
+            <Button secondary flex={1} onPress={onRolloverPress}>
+              <Button.Text>{t("Rollover")}</Button.Text>
+              <Button.Icon>
+                <RefreshCw color="$interactiveOnBaseBrandSoft" strokeWidth={2.5} />
+              </Button.Icon>
+            </Button>
+          </XStack>
+        </YStack>
+      </YStack>
     </Frame>
   );
 }
@@ -261,12 +269,12 @@ export default function PaymentSheet() {
   const { maturity } = parameters;
   const { address } = useAccount();
   const { market: USDCMarket } = useAsset(marketUSDCAddress);
+  const [infoOpen, setInfoOpen] = useState(false);
   const [rolloverIntroOpen, setRolloverIntroOpen] = useState(false);
   const [open, setOpen] = useState(() => !!maturity);
   const [displayMaturity, setDisplayMaturity] = useState(maturity);
   const toast = useToastController();
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
-  const { data: hidden } = useQuery<boolean>({ queryKey: ["settings", "sensitive"] });
   const { data: rolloverIntroShown } = useQuery<boolean>({ queryKey: ["settings", "rollover-intro-shown"] });
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
     address,
@@ -292,7 +300,6 @@ export default function PaymentSheet() {
     | undefined
     | {
         discount: number;
-        discountLabel: string;
         dueDate: Date;
         dueStatus: string;
         isUpcoming: boolean;
@@ -318,16 +325,7 @@ export default function PaymentSheet() {
     const dueStatus = isUpcoming
       ? t("Due in {{time}}", { time: timeDistance })
       : t("{{time}} past due", { time: timeDistance });
-    const discountPercentDisplay = (discount >= 0 ? discount : discount * -1).toLocaleString(language, {
-      style: "percent",
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
-    const discountLabel =
-      discount >= 0
-        ? t("PAY NOW AND SAVE {{percent}}", { percent: discountPercentDisplay })
-        : t("DAILY PENALTIES {{percent}}", { percent: discountPercentDisplay });
-    return { discount, discountLabel, dueDate, dueStatus, isUpcoming, positionValue, previewValue };
+    return { discount, dueDate, dueStatus, isUpcoming, positionValue, previewValue };
   }, [displayMaturity, USDCMarket, dateFnsLocale, t, language]);
 
   const close = useCallback(() => {
@@ -348,7 +346,7 @@ export default function PaymentSheet() {
 
   const navigateToRepay = useCallback(() => {
     close();
-    router.navigate({ pathname: "/pay", params: { maturity: displayMaturity } });
+    router.navigate({ pathname: "/repay", params: { maturity: displayMaturity } });
   }, [close, router, displayMaturity]);
 
   const navigateToRollover = useCallback(() => {
@@ -370,14 +368,12 @@ export default function PaymentSheet() {
 
   const renderContent = () => {
     if (!displayMaturity || !USDCMarket || !borrow) return <NotAvailableView onClose={close} />;
-    if (rolloverIntroOpen) {
-      return <RolloverIntroView isLatestPlugin={isLatestPlugin} onContinue={navigateToRollover} />;
-    }
+    if (rolloverIntroOpen) return <RolloverIntroView isLatestPlugin={isLatestPlugin} onContinue={navigateToRollover} />;
     return (
       <DetailsView
         borrow={borrow}
-        hidden={!!hidden}
         language={language}
+        onInfoPress={() => setInfoOpen(true)}
         onRepayPress={navigateToRepay}
         onRolloverPress={navigateToRollover}
         onViewStatement={viewStatement}
@@ -386,8 +382,57 @@ export default function PaymentSheet() {
   };
 
   return (
-    <ModalSheet open={open} onClose={close}>
-      {renderContent()}
-    </ModalSheet>
+    <>
+      <ModalSheet open={open} onClose={close}>
+        {renderContent()}
+      </ModalSheet>
+      {borrow && (
+        <InfoSheet
+          open={infoOpen}
+          onClose={() => setInfoOpen(false)}
+          title={borrow.isUpcoming ? t("Early repayment discount") : t("Late payment fees")}
+        >
+          {borrow.isUpcoming ? (
+            <Text body color="$uiNeutralSecondary">
+              {t(
+                "You can repay early and save on interest. The final amount updates automatically before you confirm.",
+              )}
+            </Text>
+          ) : (
+            <>
+              <Text body color="$uiNeutralSecondary">
+                {t(
+                  "Late fees are charged daily after the due date. The rate applies to your full balance (principal + interest) and keeps adding up until you pay.",
+                )}
+              </Text>
+              <Text emphasized body color="$uiNeutralSecondary">
+                {t("Example: On a $100 balance, a 0.45% daily fee adds $0.45 per day.")}
+              </Text>
+            </>
+          )}
+          <Button
+            primary
+            onPress={() => {
+              presentArticle("10245778").catch(reportError);
+            }}
+          >
+            <Button.Text>{t("Learn more")}</Button.Text>
+            <Button.Icon>
+              <ExternalLink color="$interactiveOnBaseBrandDefault" strokeWidth={2.5} />
+            </Button.Icon>
+          </Button>
+          <Text
+            footnote
+            emphasized
+            color="$interactiveTextBrandDefault"
+            cursor="pointer"
+            textAlign="center"
+            onPress={() => setInfoOpen(false)}
+          >
+            {t("Close")}
+          </Text>
+        </InfoSheet>
+      )}
+    </>
   );
 }

@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 
 import reportError from "./reportError";
 
-type TabName = "activity" | "card" | "defi" | "index" | "pay-mode";
+type TabName = "activity" | "card" | "defi" | "index" | "pay";
 
 const subscribers = new Map<TabName, Set<() => void>>();
 

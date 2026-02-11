@@ -12,5 +12,7 @@
   "{{count}} step remaining_one": "{{count}} step remaining",
   "{{count}} step remaining_other": "{{count}} steps remaining",
   "Pending requests → {{count}}_one": "Pending request → {{count}}",
-  "Pending requests → {{count}}_other": "Pending requests → {{count}}"
+  "Pending requests → {{count}}_other": "Pending requests → {{count}}",
+  "in {{count}} payments_one": "in {{count}} payment",
+  "in {{count}} payments_other": "in {{count}} payments"
 }

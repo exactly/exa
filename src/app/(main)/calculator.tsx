@@ -1,1 +1,1 @@
-export { default } from "../../components/pay-mode/InstallmentsCalculator";
+export { default } from "../../components/pay/InstallmentsCalculator";
