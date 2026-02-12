@@ -951,6 +951,7 @@ describe("legacy withdraw", () => {
   const withdrawAccount = getAddress(padHex("0xdead", { size: 20 }));
   const withdrawMarket = getAddress(padHex("0xbeef", { size: 20 }));
   const withdrawReceiver = getAddress(padHex("0xcafe", { size: 20 }));
+  const { simulateContract } = publicClient;
 
   function legacyPayload(amount: bigint) {
     return {
@@ -983,7 +984,8 @@ describe("legacy withdraw", () => {
 
   it("fingerprints withdraw revert by error name", async () => {
     const errorAbi = [{ type: "error", name: "InsufficientAccountLiquidity", inputs: [] }] as const;
-    vi.spyOn(publicClient, "simulateContract").mockImplementationOnce(() => {
+    vi.spyOn(publicClient, "simulateContract").mockImplementation(async (params) => {
+      if (params.functionName !== "withdraw") return simulateContract(params);
       // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
       throw getContractError(
         new RawContractError({
@@ -1023,7 +1025,8 @@ describe("legacy withdraw", () => {
   });
 
   it("fingerprints withdraw wrapped errors with inner selector", async () => {
-    vi.spyOn(publicClient, "simulateContract").mockImplementationOnce(() => {
+    vi.spyOn(publicClient, "simulateContract").mockImplementation(async (params) => {
+      if (params.functionName !== "withdraw") return simulateContract(params);
       // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
       throw getContractError(
         new RawContractError({
@@ -1069,7 +1072,8 @@ describe("legacy withdraw", () => {
   });
 
   it("fingerprints withdraw revert by reason", async () => {
-    vi.spyOn(publicClient, "simulateContract").mockImplementationOnce(() => {
+    vi.spyOn(publicClient, "simulateContract").mockImplementation(async (params) => {
+      if (params.functionName !== "withdraw") return simulateContract(params);
       throw new ContractFunctionExecutionError(
         new ContractFunctionRevertedError({
           abi: [],
@@ -1112,7 +1116,8 @@ describe("legacy withdraw", () => {
   });
 
   it("fingerprints withdraw revert by signature", async () => {
-    vi.spyOn(publicClient, "simulateContract").mockImplementationOnce(() => {
+    vi.spyOn(publicClient, "simulateContract").mockImplementation(async (params) => {
+      if (params.functionName !== "withdraw") return simulateContract(params);
       // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
       throw getContractError(new RawContractError({ data: "0x12345678" }), {
         abi: [],
@@ -1154,7 +1159,8 @@ describe("legacy withdraw", () => {
   });
 
   it("fingerprints withdraw revert by unknown contract data", async () => {
-    vi.spyOn(publicClient, "simulateContract").mockImplementationOnce(() => {
+    vi.spyOn(publicClient, "simulateContract").mockImplementation(async (params) => {
+      if (params.functionName !== "withdraw") return simulateContract(params);
       // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
       throw getContractError(new RawContractError({ data: "0x" }), {
         abi: [],
@@ -1196,7 +1202,8 @@ describe("legacy withdraw", () => {
   });
 
   it("fingerprints withdraw revert as unknown", async () => {
-    vi.spyOn(publicClient, "simulateContract").mockImplementationOnce(() => {
+    vi.spyOn(publicClient, "simulateContract").mockImplementation(async (params) => {
+      if (params.functionName !== "withdraw") return simulateContract(params);
       throw new Error("withdraw failed");
     });
 
