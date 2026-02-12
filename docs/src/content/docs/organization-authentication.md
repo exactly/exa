@@ -10,6 +10,9 @@ Then the owner can add members with admin role and those admins will be able to 
 
 Better auth client and viem are the recommended libraries to use for authentication and signing using SIWE.
 
+> ⚠️ **Note:**  
+> If you need to perform an encrypted KYC operation, please ask the exa team for `kyc` permissions.
+
 ## SIWE Authentication
 
 Example code to authenticate using SIWE, it will create the user if doesn't exist with an auto generated email that will be needed
