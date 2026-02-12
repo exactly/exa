@@ -10,7 +10,6 @@ import {
   ContractFunctionExecutionError,
   ContractFunctionRevertedError,
   createWalletClient,
-  decodeAbiParameters,
   decodeEventLog,
   encodeAbiParameters,
   encodeErrorResult,
@@ -44,7 +43,7 @@ import chain, {
   proposalManagerAbi,
   upgradeableModularAccountAbi,
 } from "@exactly/common/generated/chain";
-import ProposalType from "@exactly/common/ProposalType";
+import ProposalType, { decodeWithdraw } from "@exactly/common/ProposalType";
 import deploy from "@exactly/plugin/deploy.json";
 
 import app from "../../hooks/block";
@@ -104,13 +103,11 @@ describe("proposal", () => {
       const initialSettledResults = waitForTransactionReceipt.mock.settledResults.length;
       const expected = [
         {
-          receiver: getAddress(decodeAbiParameters([{ name: "receiver", type: "address" }], withdraw.args.data)[0]),
+          receiver: getAddress(decodeWithdraw(withdraw.args.data)),
           amount: withdraw.args.amount,
         },
         {
-          receiver: getAddress(
-            decodeAbiParameters([{ name: "receiver", type: "address" }], anotherWithdraw.args.data)[0],
-          ),
+          receiver: getAddress(decodeWithdraw(anotherWithdraw.args.data)),
           amount: anotherWithdraw.args.amount,
         },
       ];
@@ -906,11 +903,11 @@ describe("proposal", () => {
       const initialSettledResults = waitForTransactionReceipt.mock.settledResults.length;
       const expected = [
         {
-          receiver: getAddress(decodeAbiParameters([{ name: "receiver", type: "address" }], withdraw.args.data)[0]),
+          receiver: getAddress(decodeWithdraw(withdraw.args.data)),
           amount: withdraw.args.amount,
         },
         {
-          receiver: getAddress(decodeAbiParameters([{ name: "receiver", type: "address" }], idle.args.data)[0]),
+          receiver: getAddress(decodeWithdraw(idle.args.data)),
           amount: idle.args.amount,
         },
       ];
