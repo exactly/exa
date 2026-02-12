@@ -156,6 +156,8 @@ describe("proposal", () => {
       vi.setSystemTime(new Date(Number(unlock + 10n) * 1000));
     });
 
+    afterEach(() => vi.useRealTimers());
+
     it("increments nonce", async () => {
       const withdraw = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
       const waitForTransactionReceipt = vi.spyOn(publicClient, "waitForTransactionReceipt");
