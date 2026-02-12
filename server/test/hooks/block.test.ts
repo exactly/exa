@@ -48,6 +48,7 @@ import deploy from "@exactly/plugin/deploy.json";
 
 import app from "../../hooks/block";
 import publicClient from "../../utils/publicClient";
+import redis from "../../utils/redis";
 import anvilClient from "../anvilClient";
 
 const bob = createWalletClient({
@@ -247,20 +248,15 @@ describe("proposal", () => {
       );
     });
 
-    it("fingerprints outer catch with contract revert", async () => {
+    it("handles NonceTooLow as success in outer catch", async () => {
       const proposal = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
       const errorAbi = [{ type: "error", name: "NonceTooLow", inputs: [] }] as const;
-      const simulateContract = vi.spyOn(publicClient, "simulateContract");
       const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
-      vi.mocked(continueTrace).mockImplementationOnce(() => {
+      const zrem = vi.spyOn(redis, "zrem");
+      vi.spyOn(publicClient, "simulateContract").mockImplementationOnce(() => {
         // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
         throw getContractError(
-          new RawContractError({
-            data: encodeErrorResult({
-              abi: errorAbi,
-              errorName: "NonceTooLow",
-            }),
-          }),
+          new RawContractError({ data: encodeErrorResult({ abi: errorAbi, errorName: "NonceTooLow" }) }),
           { abi: errorAbi, address: bobAccount, functionName: "executeProposal", args: [proposal.args.nonce] },
         );
       });
@@ -282,34 +278,10 @@ describe("proposal", () => {
         },
       });
 
-      await vi.waitUntil(
-        () =>
-          vi
-            .mocked(captureException)
-            .mock.calls.some(
-              ([error, hint]) =>
-                error instanceof Error &&
-                "functionName" in error &&
-                error.functionName === "executeProposal" &&
-                typeof hint === "object" &&
-                "fingerprint" in hint &&
-                Array.isArray(hint.fingerprint) &&
-                hint.fingerprint.includes("NonceTooLow"),
-            ),
-        26_666,
-      );
+      await vi.waitUntil(() => zrem.mock.calls.some(([key]) => key === "proposals"), 26_666);
 
       const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
-      const captureExceptionFingerprints = captureExceptionCalls.flatMap(([, hint]) =>
-        typeof hint === "object" && "fingerprint" in hint && Array.isArray(hint.fingerprint) ? [hint.fingerprint] : [],
-      );
-
-      expect(simulateContract).not.toHaveBeenCalled();
-      expect(captureExceptionFingerprints).toEqual([["{{ default }}", "NonceTooLow"]]);
-      expect(captureException).toHaveBeenCalledWith(
-        expect.objectContaining({ name: "ContractFunctionExecutionError", functionName: "executeProposal" }),
-        expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "NonceTooLow"] }),
-      );
+      expect(captureExceptionCalls.some(([, hint]) => typeof hint === "object" && "contexts" in hint)).toBe(false);
     });
 
     it("fingerprints outer catch by reason", async () => {
@@ -549,10 +521,11 @@ describe("proposal", () => {
       );
     });
 
-    it("fingerprints recovery nonce revert", async () => {
+    it("handles recovery NonceTooLow as success", async () => {
       const proposal = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
       const errorAbi = [{ type: "error", name: "NonceTooLow", inputs: [] }] as const;
       const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
+      const zrem = vi.spyOn(redis, "zrem");
       vi.spyOn(publicClient, "simulateContract")
         .mockImplementationOnce(() => {
           // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
@@ -593,21 +566,7 @@ describe("proposal", () => {
         },
       });
 
-      await vi.waitUntil(
-        () =>
-          vi
-            .mocked(captureException)
-            .mock.calls.slice(initialCaptureExceptionCalls)
-            .some(
-              ([error, hint]) =>
-                error instanceof Error &&
-                "functionName" in error &&
-                error.functionName === "setProposalNonce" &&
-                typeof hint === "object" &&
-                "contexts" in hint,
-            ),
-        26_666,
-      );
+      await vi.waitUntil(() => zrem.mock.calls.some(([key]) => key === "proposals"), 26_666);
 
       const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
       const recoveryCapture = captureExceptionCalls.find(
@@ -619,24 +578,7 @@ describe("proposal", () => {
           "contexts" in hint,
       );
 
-      expect(recoveryCapture).toBeDefined();
-      expect(recoveryCapture?.[0]).toEqual(
-        expect.objectContaining({ name: "ContractFunctionExecutionError", functionName: "setProposalNonce" }),
-      );
-      expect(recoveryCapture?.[1]).toEqual(
-        expect.objectContaining({
-          level: "error",
-          contexts: {
-            proposal: {
-              account: bobAccount,
-              nonce: proposal.args.nonce,
-              proposalType: "Withdraw",
-              retryCount: 0,
-            },
-          },
-          fingerprint: ["{{ default }}", "NonceTooLow"],
-        }),
-      );
+      expect(recoveryCapture).toBeUndefined();
     });
   });
 

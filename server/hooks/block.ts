@@ -260,6 +260,7 @@ function scheduleMessage(message: string) {
             args: [nonce + 1n],
             abi: [...exaPluginAbi, ...upgradeableModularAccountAbi, ...proposalManagerAbi],
           },
+          { ignore: ["NonceTooLow()"] },
         );
       return startSpan({ name: "exa.execute", op: "exa.execute", forceTransaction: true }, (parent) =>
         startSpan(
@@ -356,6 +357,14 @@ function scheduleMessage(message: string) {
             return redis.zrem("proposals", message);
           },
         ).catch(async (error: unknown) => {
+          if (
+            error instanceof BaseError &&
+            error.cause instanceof ContractFunctionRevertedError &&
+            error.cause.data?.errorName === "NonceTooLow"
+          ) {
+            parent.setStatus({ code: SPAN_STATUS_OK, message: "aborted" });
+            return redis.zrem("proposals", message);
+          }
           parent.setStatus({ code: SPAN_STATUS_ERROR, message: "proposal_failed" });
           captureException(error, {
             level: "error",
