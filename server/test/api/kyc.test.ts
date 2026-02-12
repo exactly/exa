@@ -2007,6 +2007,40 @@ describe("authenticated", () => {
           expect(submitApplication).not.toHaveBeenCalled();
         });
 
+        it("returns 403 when siwe statement does not match expected statement", async () => {
+          const credential = await database.query.credentials.findFirst({
+            where: eq(credentials.id, account),
+          });
+          const expected = `I apply for KYC approval on behalf of address ${getAddress(credential?.account ?? "")} with payload hash ${sha256(Buffer.from(canonicalize(applicationPayload) ?? "", "utf8"))}`;
+          const statement = "I apply for KYC approval with a tampered payload";
+          const message = createSiweMessage({
+            statement,
+            resources: ["https://exactly.github.io/exa"],
+            nonce: generateSiweNonce(),
+            uri: `https://${domain}`,
+            address: owner.address,
+            chainId: chain.id,
+            scheme: "https",
+            version: "1",
+            domain,
+          });
+          const signature = await owner.signMessage({ message });
+          const verify = { message, signature, walletAddress: owner.address, chainId: chain.id };
+          const submitApplication = vi.spyOn(panda, "submitApplication");
+
+          const response = await appClient.application.$post(
+            { json: { ...applicationPayload, verify } },
+            { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
+          );
+
+          expect(response.status).toBe(403);
+          await expect(response.json()).resolves.toStrictEqual({
+            code: "no permission",
+            message: `invalid statement, expected: [${expected}] but got [${statement}]`,
+          });
+          expect(submitApplication).not.toHaveBeenCalled();
+        });
+
         describe("with encrypted payload", () => {
           const publicKey = `-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyZixoAuo015iMt+JND0y
