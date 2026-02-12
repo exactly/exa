@@ -437,11 +437,15 @@ The admin should add a member using [addMember method](https://www.better-auth.c
         "ciphertext" in body
           ? sha256(Buffer.from(body.ciphertext, "base64"))
           : sha256(Buffer.from(JSON.stringify(canonicalize(body)), "utf8"));
-      if (
-        siweMessage.statement !==
-        `I apply for KYC approval on behalf of address ${parse(Address, credential.account)} with payload hash ${hash}`
-      ) {
-        return c.json({ code: "no permission", message: "invalid statement" }, 403);
+      const expected = `I apply for KYC approval on behalf of address ${parse(Address, credential.account)} with payload hash ${hash}`;
+      if (siweMessage.statement !== expected) {
+        return c.json(
+          {
+            code: "no permission",
+            message: `invalid statement, expected: [${expected}] but got [${siweMessage.statement}]`,
+          },
+          403,
+        );
       }
 
       if (credential.pandaId) return c.json({ code: BadRequestCodes.ALREADY_STARTED }, 409);
