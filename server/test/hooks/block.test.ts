@@ -96,10 +96,11 @@ describe("proposal", () => {
 
     afterEach(() => vi.useRealTimers());
 
-    it("execute withdraws", async () => {
+    it("execute withdraws via batch", async () => {
       const withdraw = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
       const anotherWithdraw = proposals[1]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
 
+      const simulateContract = vi.spyOn(publicClient, "simulateContract");
       const waitForTransactionReceipt = vi.spyOn(publicClient, "waitForTransactionReceipt");
       const initialSettledResults = waitForTransactionReceipt.mock.settledResults.length;
       const expected = [
@@ -144,6 +145,62 @@ describe("proposal", () => {
         }, 26_666),
       ]);
       expect(hasTransfers(waitForTransactionReceipt.mock.settledResults, initialSettledResults, expected)).toBe(true);
+      expect(simulateContract).toHaveBeenCalledWith(expect.objectContaining({ functionName: "executeProposals" }));
+    });
+
+    it("falls back to individual when batch fails", async () => {
+      const withdraw = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
+      const anotherWithdraw = proposals[1]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
+
+      const simulateContract = vi.spyOn(publicClient, "simulateContract");
+      simulateContract.mockImplementationOnce(() => {
+        throw new Error("batch not supported");
+      });
+      const waitForTransactionReceipt = vi.spyOn(publicClient, "waitForTransactionReceipt");
+      const initialSettledResults = waitForTransactionReceipt.mock.settledResults.length;
+      const expected = [
+        {
+          receiver: getAddress(decodeAbiParameters([{ name: "receiver", type: "address" }], withdraw.args.data)[0]),
+          amount: withdraw.args.amount,
+        },
+        {
+          receiver: getAddress(
+            decodeAbiParameters([{ name: "receiver", type: "address" }], anotherWithdraw.args.data)[0],
+          ),
+          amount: anotherWithdraw.args.amount,
+        },
+      ];
+
+      await Promise.all([
+        appClient.index.$post({
+          ...withdrawProposal,
+          json: {
+            ...withdrawProposal.json,
+            event: {
+              ...withdrawProposal.json.event,
+              data: {
+                ...withdrawProposal.json.event.data,
+                block: {
+                  ...withdrawProposal.json.event.data.block,
+                  logs: [
+                    { topics: withdraw.topics, data: withdraw.data, account: { address: withdraw.address } },
+                    {
+                      topics: anotherWithdraw.topics,
+                      data: anotherWithdraw.data,
+                      account: { address: anotherWithdraw.address },
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        }),
+        vi.waitUntil(() => {
+          return hasTransfers(waitForTransactionReceipt.mock.settledResults, initialSettledResults, expected);
+        }, 26_666),
+      ]);
+      expect(hasTransfers(waitForTransactionReceipt.mock.settledResults, initialSettledResults, expected)).toBe(true);
+      expect(simulateContract).toHaveBeenCalledWith(expect.objectContaining({ functionName: "executeProposal" }));
     });
   });
 
@@ -160,6 +217,7 @@ describe("proposal", () => {
 
     it("increments nonce", async () => {
       const withdraw = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
+      const simulateContract = vi.spyOn(publicClient, "simulateContract");
       const waitForTransactionReceipt = vi.spyOn(publicClient, "waitForTransactionReceipt");
       await Promise.all([
         appClient.index.$post({
@@ -192,6 +250,7 @@ describe("proposal", () => {
           args: [bobAccount],
         }),
       ).resolves.toBe(withdraw.args.nonce + 1n);
+      expect(simulateContract).not.toHaveBeenCalledWith(expect.objectContaining({ functionName: "executeProposals" }));
     });
   });
 
