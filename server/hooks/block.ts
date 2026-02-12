@@ -23,7 +23,6 @@ import {
   CallExecutionError,
   ContractFunctionExecutionError,
   ContractFunctionRevertedError,
-  decodeAbiParameters,
   decodeEventLog,
   encodeErrorResult,
   ExecutionRevertedError,
@@ -43,7 +42,7 @@ import chain, {
   proposalManagerAddress,
   upgradeableModularAccountAbi,
 } from "@exactly/common/generated/chain";
-import ProposalType from "@exactly/common/ProposalType";
+import ProposalType, { decodeWithdraw } from "@exactly/common/ProposalType";
 import shortenHex from "@exactly/common/shortenHex";
 import { Address, Hash, Hex } from "@exactly/common/validation";
 
@@ -335,7 +334,7 @@ function scheduleMessage(message: string) {
                   });
                 });
               }
-              const receiver = v.parse(Address, decodeAbiParameters([{ name: "receiver", type: "address" }], data)[0]);
+              const receiver = v.parse(Address, decodeWithdraw(data));
               startSpan(
                 { name: "send withdraw notification", op: "notification.send", attributes: { account, receiver } },
                 () =>
