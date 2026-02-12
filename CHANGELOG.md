@@ -1,5 +1,14 @@
 # @exactly/mobile
 
+## 1.1.12
+
+### Patch Changes
+
+- [#761](https://github.com/exactly/exa/pull/761) [`dbaaa93`](https://github.com/exactly/exa/commit/dbaaa93061c573ed158fc5ee0a66dcba07eb46a9) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🧵 fix concurrent auth race condition
+
+- Updated dependencies [[`c740fd5`](https://github.com/exactly/exa/commit/c740fd5eb4e3e7187a1ebc54faaaf555e70e90ec)]:
+  - @exactly/server@0.2.62
+
 ## 1.1.11
 
 ### Patch Changes

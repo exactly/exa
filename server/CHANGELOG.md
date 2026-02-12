@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.62
+
+### Patch Changes
+
+- [#760](https://github.com/exactly/exa/pull/760) [`c740fd5`](https://github.com/exactly/exa/commit/c740fd5eb4e3e7187a1ebc54faaaf555e70e90ec) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 fingerprint nonce-skip reverts in block hook
+
 ## 0.2.61
 
 ### Patch Changes
