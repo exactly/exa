@@ -206,8 +206,7 @@ describe("proposal", () => {
 
     it("increments nonce", async () => {
       const revert = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-
-      const waitForTransactionReceipt = vi.spyOn(publicClient, "waitForTransactionReceipt");
+      const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
 
       await appClient.index.$post({
         ...withdrawProposal,
@@ -219,13 +218,7 @@ describe("proposal", () => {
               ...withdrawProposal.json.event.data,
               block: {
                 ...withdrawProposal.json.event.data.block,
-                logs: [
-                  {
-                    topics: revert.topics,
-                    data: revert.data,
-                    account: { address: revert.address },
-                  },
-                ],
+                logs: [{ topics: revert.topics, data: revert.data, account: { address: revert.address } }],
               },
             },
           },
@@ -233,21 +226,25 @@ describe("proposal", () => {
       });
 
       await vi.waitUntil(
-        () => waitForTransactionReceipt.mock.settledResults.some(({ type }) => type !== "incomplete"),
+        async () =>
+          (await publicClient.readContract({
+            address: inject("ProposalManager"),
+            abi: proposalManagerAbi,
+            functionName: "nonces",
+            args: [bobAccount],
+          })) ===
+          revert.args.nonce + 1n,
         26_666,
       );
-      const withdrawReceipt = waitForTransactionReceipt.mock.settledResults[0];
-      const newNonce =
-        withdrawReceipt?.type === "fulfilled" && withdrawReceipt.value.logs.length === 1
-          ? withdrawReceipt.value.logs.map(({ topics, data }) =>
-              decodeEventLog({ abi: proposalManagerAbi, eventName: "ProposalNonceSet", topics, data }),
-            )[0]?.args.nonce
-          : -1n;
 
-      expect(newNonce).toBe(revert.args.nonce + 1n);
-      expect(captureException).toHaveBeenCalledWith(
-        expect.objectContaining({ name: "ContractFunctionExecutionError", functionName: "executeProposal" }),
-        expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "execution reverted"] }),
+      const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
+      expect(captureExceptionCalls).toEqual(
+        expect.arrayContaining([
+          [
+            expect.objectContaining({ name: "ContractFunctionExecutionError", functionName: "executeProposal" }),
+            expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "execution reverted"] }),
+          ],
+        ]),
       );
     });
 
