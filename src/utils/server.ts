@@ -4,7 +4,7 @@ import { get as assert, create } from "react-native-passkeys";
 import { sdk } from "@farcaster/miniapp-sdk";
 import { getConnection, signMessage } from "@wagmi/core";
 import { hc } from "hono/client";
-import { check, number, parse, pipe, safeParse, ValiError } from "valibot";
+import { check, number, object, parse, pipe, safeParse, string, ValiError } from "valibot";
 import { UserRejectedRequestError } from "viem";
 
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
@@ -300,8 +300,12 @@ export async function startRampOnboarding(onboarding: { provider: "manteca" }) {
   await auth();
   const response = await api.ramp.$post({ json: onboarding });
   if (!response.ok) {
-    const { code } = await response.json();
-    throw new APIError(response.status, code);
+    const body = await response.json();
+    if (body.code === "invalid legal id") {
+      const { inquiryId, sessionToken } = parse(object({ inquiryId: string(), sessionToken: string() }), body);
+      return { code: body.code, inquiryId, sessionToken };
+    }
+    throw new APIError(response.status, body.code);
   }
   return response.json();
 }

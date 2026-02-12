@@ -76,7 +76,8 @@ const dehydrateOptions = {
     queryKey[0] !== "kyc" &&
     queryKey[0] !== "card" &&
     queryKey[0] !== "pax" &&
-    queryKey[0] !== "lifi",
+    queryKey[0] !== "lifi" &&
+    !(queryKey[0] === "ramp" && queryKey[1] === "invalid-legal-id"),
 };
 
 export const persistOptions = { persister, dehydrateOptions };

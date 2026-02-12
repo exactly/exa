@@ -14,6 +14,7 @@ import FaceId from "../../assets/images/face-id.svg";
 import completeOnboarding from "../../utils/completeOnboarding";
 import { isValidCurrency } from "../../utils/currencies";
 import { startMantecaKYC } from "../../utils/persona";
+import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
@@ -25,17 +26,23 @@ export default function KYC() {
   const router = useRouter();
   const { currency } = useLocalSearchParams<{ currency: string }>();
   const validCurrency = isValidCurrency(currency);
+  const invalidLegalId = queryClient.getQueryData<{ inquiryId: string; sessionToken: string }>([
+    "ramp",
+    "invalid-legal-id",
+  ]);
 
   const { mutateAsync: handleContinue, isPending } = useMutation({
     mutationKey: ["kyc", "complete", "manteca"],
     async mutationFn() {
       if (!currency) return;
-      const result = await startMantecaKYC();
+      const result = await startMantecaKYC(invalidLegalId);
       if (result.status === "cancel") return;
-      if (result.status === "error") {
+      if (result.status !== "complete") {
+        queryClient.removeQueries({ queryKey: ["ramp", "invalid-legal-id"] });
         router.replace({ pathname: "/add-funds/status", params: { status: "error", currency } });
         return;
       }
+      queryClient.removeQueries({ queryKey: ["ramp", "invalid-legal-id"] });
       await completeOnboarding(router, currency);
     },
   });
@@ -53,6 +60,7 @@ export default function KYC() {
           <View flexDirection="row" gap="$s3" justifyContent="space-between" alignItems="center">
             <Pressable
               onPress={() => {
+                queryClient.removeQueries({ queryKey: ["ramp", "invalid-legal-id"] });
                 if (router.canGoBack()) {
                   router.back();
                 } else {
@@ -73,10 +81,12 @@ export default function KYC() {
                 </View>
                 <YStack gap="$s4" alignSelf="center">
                   <Text title emphasized textAlign="center" color="$interactiveTextBrandDefault">
-                    {t("We need more information about you")}
+                    {invalidLegalId ? t("Your ID needs to be updated") : t("We need more information about you")}
                   </Text>
                   <Text color="$uiNeutralPlaceholder" footnote textAlign="center">
-                    {t("You’ll be able to add funds soon.")}
+                    {invalidLegalId
+                      ? t("There was an issue with your tax ID. Please update your information to continue.")
+                      : t("You'll be able to add funds soon.")}
                   </Text>
                 </YStack>
               </YStack>
@@ -85,7 +95,9 @@ export default function KYC() {
         </ScrollView>
         <MantecaDisclaimer />
         <Button onPress={handlePress} primary disabled={isPending} loading={isPending}>
-          <Button.Text>{isPending ? t("Starting...") : t("Continue verification")}</Button.Text>
+          <Button.Text>
+            {isPending ? t("Starting...") : invalidLegalId ? t("Update information") : t("Continue verification")}
+          </Button.Text>
           <Button.Icon>
             <ArrowRight />
           </Button.Icon>

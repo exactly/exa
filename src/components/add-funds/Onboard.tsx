@@ -46,7 +46,7 @@ export default function Onboard() {
       const kycCode = "code" in status && typeof status.code === "string" ? status.code : "not started";
 
       if (kycCode === "not started") {
-        router.push({ pathname: "/add-funds/kyc", params: { currency } });
+        router.replace({ pathname: "/add-funds/kyc", params: { currency } });
         return;
       }
 
