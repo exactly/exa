@@ -904,6 +904,16 @@ describe("proposal", () => {
 
       const waitForTransactionReceipt = vi.spyOn(publicClient, "waitForTransactionReceipt");
       const initialSettledResults = waitForTransactionReceipt.mock.settledResults.length;
+      const expected = [
+        {
+          receiver: getAddress(decodeAbiParameters([{ name: "receiver", type: "address" }], withdraw.args.data)[0]),
+          amount: withdraw.args.amount,
+        },
+        {
+          receiver: getAddress(decodeAbiParameters([{ name: "receiver", type: "address" }], idle.args.data)[0]),
+          amount: idle.args.amount,
+        },
+      ];
 
       await Promise.all([
         appClient.index.$post({
@@ -926,23 +936,11 @@ describe("proposal", () => {
           },
         }),
         vi.waitUntil(
-          () => waitForTransactionReceipt.mock.settledResults.filter(({ type }) => type !== "incomplete").length >= 5,
+          () => hasTransfers(waitForTransactionReceipt.mock.settledResults, initialSettledResults, expected),
           26_666,
         ),
       ]);
-
-      expect(
-        hasTransfers(waitForTransactionReceipt.mock.settledResults, initialSettledResults, [
-          {
-            receiver: getAddress(decodeAbiParameters([{ name: "receiver", type: "address" }], withdraw.args.data)[0]),
-            amount: withdraw.args.amount,
-          },
-          {
-            receiver: getAddress(decodeAbiParameters([{ name: "receiver", type: "address" }], idle.args.data)[0]),
-            amount: idle.args.amount,
-          },
-        ]),
-      ).toBe(true);
+      expect(hasTransfers(waitForTransactionReceipt.mock.settledResults, initialSettledResults, expected)).toBe(true);
       expect(captureException).toHaveBeenCalledWith(
         expect.objectContaining({ name: "ContractFunctionExecutionError", functionName: "executeProposal" }),
         expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "NotNext"] }),
