@@ -685,13 +685,14 @@ describe("card operations", () => {
         const cardId = "replay-collect";
         await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "9999", mode: 0 }]);
 
+        const authorizedAt = new Date().toISOString();
         const json = {
           ...authorization.json,
           action: "created" as const,
           body: {
             ...authorization.json.body,
             id: cardId,
-            spend: { ...authorization.json.body.spend, cardId, amount: 50 },
+            spend: { ...authorization.json.body.spend, cardId, amount: 50, authorizedAt },
           },
         };
 
