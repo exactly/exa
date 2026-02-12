@@ -22,7 +22,16 @@ const StyledImage = styled(Image, {
   placeholderContentFit: "cover",
   borderRadius: "$r_0",
   overflow: "hidden",
-  onError: reportError,
+  onError: ({ error }) => {
+    if (
+      // cspell:ignore javax
+      !/internet connection appears to be offline|request timed out|could not connect to the server|tls error|java\.net\.|javax\.net\./i.test(
+        error,
+      )
+    ) {
+      reportError(new Error(error));
+    }
+  },
 });
 
 export default function AssetLogo({
