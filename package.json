@@ -47,6 +47,7 @@
     "@peculiar/asn1-ecc": "^2.6.0",
     "@peculiar/asn1-schema": "^2.6.0",
     "@peculiar/webcrypto": "^1.5.0",
+    "@pix.js/qrcode": "^1.1.0",
     "@react-native-async-storage/async-storage": "~2.2.0",
     "@sentry/browser": "^10.35.0",
     "@sentry/react-native": "^7.9.0",

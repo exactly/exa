@@ -148,6 +148,9 @@ importers:
       '@peculiar/webcrypto':
         specifier: ^1.5.0
         version: 1.5.0
+      '@pix.js/qrcode':
+        specifier: ^1.1.0
+        version: 1.1.0(buffer@6.0.3)
       '@react-native-async-storage/async-storage':
         specifier: ~2.2.0
         version: 2.2.0(react-native@0.81.5(@babel/core@7.28.6)(@types/react@19.1.17)(bufferutil@4.1.0)(react@19.1.0)(utf-8-validate@5.0.10))
@@ -4073,6 +4076,15 @@ packages:
     peerDependencies:
       typescript: ^5.9.3
 
+  '@pix.js/core@1.0.0':
+    resolution: {integrity: sha512-Zg7oMqSybx5UGoPYWNCJ8lXKX31NFPFQqu2lY82uusB7/H6dQHX3VqD9C4MwqRwGjrp0urpnl3rA/uAKIVuOBQ==}
+
+  '@pix.js/qrcode@1.1.0':
+    resolution: {integrity: sha512-EsoOm/5GapfsC954q0bFGMG5ZoN2BAYxYW8doRm7j6qJa/7DB7adfSUnPSu9otyWoFRRpwHpKhgRziybvd+Udg==}
+
+  '@pix.js/validator@1.1.0':
+    resolution: {integrity: sha512-NIYcYwuFblA8/cx7YpNdEEujNjKsnA985jsNgIMcYtY2AVUz646IUbisgTgFu7erN7X5eeQGzELgRnFoPcInVw==}
+
   '@pkgr/core@0.1.2':
     resolution: {integrity: sha512-fdDH1LSGfZdTH2sxdpVMw31BanV28K/Gry0cVFxaNP77neJSkd82mM8ErPNYs9e+0O7SdHBLTDzDgwUuy18RnQ==}
     engines: {node: ^12.20.0 || ^14.18.0 || >=16.0.0}
@@ -6969,6 +6981,9 @@ packages:
   client-only@0.0.1:
     resolution: {integrity: sha512-IV3Ou0jSMzZrd3pZ48nLkT9DA7Ag1pnPzaiQhpW7c3RbcqqzvzzVu+L8gfqMp/8IM2MQtSiqaCxrrcfu8I8rMA==}
 
+  cliui@6.0.0:
+    resolution: {integrity: sha512-t6wbgtoCXvAzst7QgXxJYqPt0usEfbgQdftEPbLL/cvv6HPE5VgvqCuAIDR0NgU52ds6rFwqrgakNLrHEjCbrQ==}
+
   cliui@8.0.1:
     resolution: {integrity: sha512-BSeNnyus75C4//NQ9gQt1/csTXyo/8Sb+afLAkzAptFuMsod9HFokGNudZpi/oQV73hnVK+sR+5PVRMd+Dr7YQ==}
     engines: {node: '>=12'}
@@ -7165,6 +7180,15 @@ packages:
       typescript: ^5.9.3
     peerDependenciesMeta:
       typescript:
+        optional: true
+
+  crc@4.3.2:
+    resolution: {integrity: sha512-uGDHf4KLLh2zsHa8D8hIQ1H/HtFQhyHrc0uhHBcoKGol/Xnb+MPYfUMw7cvON6ze/GUESTudKayDcJC5HnJv1A==}
+    engines: {node: '>=12'}
+    peerDependencies:
+      buffer: '>=6.0.3'
+    peerDependenciesMeta:
+      buffer:
         optional: true
 
   cron-parser@4.9.0:
@@ -7488,6 +7512,10 @@ packages:
       supports-color:
         optional: true
 
+  decamelize@1.2.0:
+    resolution: {integrity: sha512-z2S+W9X73hAUUki+N+9Za2lBlun89zigOyGrsax+KUQ6wKW4ZoWpEYBkGhQjwAjjDCkWxhY0VKEhk8wzY7F5cA==}
+    engines: {node: '>=0.10.0'}
+
   decode-named-character-reference@1.2.0:
     resolution: {integrity: sha512-c6fcElNV6ShtZXmsgNgFFV5tVX2PaV4g+MOAkb8eXHvn6sryJBrZa9r0zV6+dtTyoCKxtDy5tyQ5ZwQuidtd+Q==}
 
@@ -7593,6 +7621,9 @@ packages:
   diff@8.0.3:
     resolution: {integrity: sha512-qejHi7bcSD4hQAZE0tNAawRK1ZtafHDmMTMkrrIGgSLl7hTnQHmKCeB45xAcbfTqK2zowkM3j3bHt/4b/ARbYQ==}
     engines: {node: '>=0.3.1'}
+
+  dijkstrajs@1.0.3:
+    resolution: {integrity: sha512-qiSlmBq9+BCdCA/L46dw8Uy93mloxsPSbwnm5yrKn2vMPiy8KyAskTF6zuV/j5BMsmOGZDPs7KjU+mjb670kfA==}
 
   dir-glob@3.0.1:
     resolution: {integrity: sha512-WkrWp9GR4KXfKGYzOLmTuGVi1UWFfws377n9cc55/tb6DuqyF6pcQ5AbiHEshaDpY9v6oaSr2XCDidGmMwdzIA==}
@@ -11131,6 +11162,10 @@ packages:
     resolution: {integrity: sha512-NCrCHhWmnQklfH4MtJMRjZ2a8c80qXeMlQMv2uVp9ISJMTt562SbGd6n2oq0PaPgKm7Z6pL9E2UlLIhC+SHL3w==}
     engines: {node: '>=4.0.0'}
 
+  pngjs@5.0.0:
+    resolution: {integrity: sha512-40QW5YalBNfQo5yRYmiw7Yz6TKKVr3h6970B2YE+3fQpsWcrbj1PzJgxeJ19DRQjhMbKPIuMY8rFaXc8moolVw==}
+    engines: {node: '>=10.13.0'}
+
   points-on-curve@0.2.0:
     resolution: {integrity: sha512-0mYKnYYe9ZcqMCWhUjItv/oHjvgEsfKvnUTg8sAtnHr3GVy7rGkXCb6d5cSyqrWqL4k81b9CPg3urd+T7aop3A==}
 
@@ -11294,6 +11329,11 @@ packages:
 
   qrcode-terminal@0.11.0:
     resolution: {integrity: sha512-Uu7ii+FQy4Qf82G4xu7ShHhjhGahEpCWc3x8UavY3CTcWV+ufmmCtwkr7ZKsX42jdL0kr1B5FKUeqJvAn51jzQ==}
+    hasBin: true
+
+  qrcode@1.5.4:
+    resolution: {integrity: sha512-1ca71Zgiu6ORjHqFBDpnSMTR2ReToX4l1Au1VFLyVeBTFavzQnv5JxMFr3ukHVKpSrSA2MCk0lNJSykjUfz7Zg==}
+    engines: {node: '>=10.13.0'}
     hasBin: true
 
   qs@6.14.2:
@@ -11708,6 +11748,9 @@ packages:
   require-in-the-middle@8.0.1:
     resolution: {integrity: sha512-QT7FVMXfWOYFbeRBF6nu+I6tr2Tf3u0q8RIEjNob/heKY/nh7drD/k7eeMFmSQgnTtCzLDcCu/XEnpW2wk4xCQ==}
     engines: {node: '>=9.3.0 || >=8.10.0 <9.0.0'}
+
+  require-main-filename@2.0.0:
+    resolution: {integrity: sha512-NKN5kMDylKuldxYLSUfrbo5Tuzh4hd+2E8NPPX02mZtn1VuREQToYe/ZdlJy+J3uCpfaiGF05e7B8W0iXbQHmg==}
 
   requireg@0.2.2:
     resolution: {integrity: sha512-nYzyjnFcPNGR3lx9lwPPPnuQxv6JWEZd2Ci0u9opN7N5zUEPIhY/GbL3vMGOr2UXwEg9WwSyV9X9Y/kLFgPsOg==}
@@ -13128,6 +13171,9 @@ packages:
     resolution: {integrity: sha512-K4jVyjnBdgvc86Y6BkaLZEN933SwYOuBFkdmBu9ZfkcAbdVbpITnDmjvZ/aQjRXQrv5EPkTnD1s39GiiqbngCw==}
     engines: {node: '>= 0.4'}
 
+  which-module@2.0.1:
+    resolution: {integrity: sha512-iBdZ57RDvnOR9AGBhML2vFZf7h8vmBjhoaZqODJBFWHVtKkDmKuHai3cx5PgVMrX5YDNp27AofYbAwctSS+vhQ==}
+
   which-pm-runs@1.1.0:
     resolution: {integrity: sha512-n1brCuqClxfFfq/Rb0ICg9giSZqCS+pLtccdag6C2HyufBrh3fBOiy9nb6ggRMvWOVH5GrdJskj5iGTZNxd7SA==}
     engines: {node: '>=4'}
@@ -13163,6 +13209,10 @@ packages:
   word-wrap@1.2.5:
     resolution: {integrity: sha512-BN22B5eaMMI9UMtjrGd5g5eCYPpCPDUy0FJXbYsaT5zYxjFOckS53SQDE3pWkVoWpHXVb3BrYcEN4Twa55B5cA==}
     engines: {node: '>=0.10.0'}
+
+  wrap-ansi@6.2.0:
+    resolution: {integrity: sha512-r6lPcBGxZXlIcymEu7InxDMhdW0KDxpLgoFLcguasxCaJ/SOIZwINatK9KY/tf+ZrlywOKU0UDj3ATXUBfxJXA==}
+    engines: {node: '>=8'}
 
   wrap-ansi@7.0.0:
     resolution: {integrity: sha512-YVGIj2kamLSTxw6NsZjoBxfSwsn0ycdesmc4p+Q21c5zPuZ1pl+NfxVdxPtdHvmNVOQ6XSYG4AUtyt/Fi7D16Q==}
@@ -13269,6 +13319,9 @@ packages:
   xxhash-wasm@1.1.0:
     resolution: {integrity: sha512-147y/6YNh+tlp6nd/2pWq38i9h6mz/EuQ6njIrmW8D1BS5nCqs0P6DG+m6zTGnNz5I+uhZ0SHxBs9BsPrwcKDA==}
 
+  y18n@4.0.3:
+    resolution: {integrity: sha512-JKhqTOwSrqNA1NY5lSztJ1GrBiUodLMmIZuLiDaMRJ+itFd+ABVE8XBjOvIWL+rSqNDC74LCSFmlb/U4UZ4hJQ==}
+
   y18n@5.0.8:
     resolution: {integrity: sha512-0pfFzegeDWJHJIAmTLRP2DwHjdF5s7jo9tuztdQxAhINCdvS+3nGINqPd00AphqJR/0LhANUS6/+7SCb98YOfA==}
     engines: {node: '>=10'}
@@ -13294,9 +13347,17 @@ packages:
     engines: {node: '>= 14.6'}
     hasBin: true
 
+  yargs-parser@18.1.3:
+    resolution: {integrity: sha512-o50j0JeToy/4K6OZcaQmW6lyXXKhq7csREXcDwk2omFPJEwUNOVtJKvmDr9EI1fAJZUyZcRF7kxGBWmRXudrCQ==}
+    engines: {node: '>=6'}
+
   yargs-parser@21.1.1:
     resolution: {integrity: sha512-tVpsJW7DdjecAiFpbIB1e3qxIQsE6NoPc5/eTdrbbIC4h0LVsWhnoa3g+m2HclBIujHzsxZ4VJVA+GUuc2/LBw==}
     engines: {node: '>=12'}
+
+  yargs@15.4.1:
+    resolution: {integrity: sha512-aePbxDmcYW++PaqBsJ+HYUFwCdv4LVvdnhBy78E57PIor8/OVvhMrADFFEDh8DHDFRv/O9i3lPhsENjO7QX0+A==}
+    engines: {node: '>=8'}
 
   yargs@17.7.2:
     resolution: {integrity: sha512-7dSzzRQ++CKnNI/krKnYRV7JKKPUXMEh61soaHKg9mrWEhzFWhFnxPxGl+69cD1Ou63C13NUPCnmIcrvqCuM6w==}
@@ -17273,6 +17334,29 @@ snapshots:
       '@types/esquery': 1.5.4
       esquery: 1.7.0
       typescript: 5.9.3
+
+  '@pix.js/core@1.0.0(buffer@6.0.3)':
+    dependencies:
+      crc: 4.3.2(buffer@6.0.3)
+      zod: 3.25.76
+    transitivePeerDependencies:
+      - buffer
+
+  '@pix.js/qrcode@1.1.0(buffer@6.0.3)':
+    dependencies:
+      '@pix.js/core': 1.0.0(buffer@6.0.3)
+      '@pix.js/validator': 1.1.0(buffer@6.0.3)
+      qrcode: 1.5.4
+    transitivePeerDependencies:
+      - buffer
+
+  '@pix.js/validator@1.1.0(buffer@6.0.3)':
+    dependencies:
+      '@pix.js/core': 1.0.0(buffer@6.0.3)
+      crc: 4.3.2(buffer@6.0.3)
+      zod: 3.25.76
+    transitivePeerDependencies:
+      - buffer
 
   '@pkgr/core@0.1.2': {}
 
@@ -21267,6 +21351,12 @@ snapshots:
 
   client-only@0.0.1: {}
 
+  cliui@6.0.0:
+    dependencies:
+      string-width: 4.2.3
+      strip-ansi: 6.0.1
+      wrap-ansi: 6.2.0
+
   cliui@8.0.1:
     dependencies:
       string-width: 4.2.3
@@ -21446,6 +21536,10 @@ snapshots:
       path-type: 4.0.0
     optionalDependencies:
       typescript: 5.9.3
+
+  crc@4.3.2(buffer@6.0.3):
+    optionalDependencies:
+      buffer: 6.0.3
 
   cron-parser@4.9.0:
     dependencies:
@@ -21841,6 +21935,8 @@ snapshots:
     dependencies:
       ms: 2.1.3
 
+  decamelize@1.2.0: {}
+
   decode-named-character-reference@1.2.0:
     dependencies:
       character-entities: 2.0.2
@@ -21923,6 +22019,8 @@ snapshots:
   diacritics@1.3.0: {}
 
   diff@8.0.3: {}
+
+  dijkstrajs@1.0.3: {}
 
   dir-glob@3.0.1:
     dependencies:
@@ -26628,6 +26726,8 @@ snapshots:
 
   pngjs@3.4.0: {}
 
+  pngjs@5.0.0: {}
+
   points-on-curve@0.2.0: {}
 
   points-on-path@0.2.1:
@@ -26784,6 +26884,12 @@ snapshots:
   pvutils@1.1.5: {}
 
   qrcode-terminal@0.11.0: {}
+
+  qrcode@1.5.4:
+    dependencies:
+      dijkstrajs: 1.0.3
+      pngjs: 5.0.0
+      yargs: 15.4.1
 
   qs@6.14.2:
     dependencies:
@@ -27338,6 +27444,8 @@ snapshots:
       module-details-from-path: 1.0.4
     transitivePeerDependencies:
       - supports-color
+
+  require-main-filename@2.0.0: {}
 
   requireg@0.2.2:
     dependencies:
@@ -28961,6 +29069,8 @@ snapshots:
       is-weakmap: 2.0.2
       is-weakset: 2.0.4
 
+  which-module@2.0.1: {}
+
   which-pm-runs@1.1.0: {}
 
   which-typed-array@1.1.20:
@@ -28997,6 +29107,12 @@ snapshots:
   wonka@6.3.5: {}
 
   word-wrap@1.2.5: {}
+
+  wrap-ansi@6.2.0:
+    dependencies:
+      ansi-styles: 4.3.0
+      string-width: 4.2.3
+      strip-ansi: 6.0.1
 
   wrap-ansi@7.0.0:
     dependencies:
@@ -29071,6 +29187,8 @@ snapshots:
 
   xxhash-wasm@1.1.0: {}
 
+  y18n@4.0.3: {}
+
   y18n@5.0.8: {}
 
   yaeti@0.0.6:
@@ -29084,7 +29202,26 @@ snapshots:
 
   yaml@2.8.2: {}
 
+  yargs-parser@18.1.3:
+    dependencies:
+      camelcase: 5.3.1
+      decamelize: 1.2.0
+
   yargs-parser@21.1.1: {}
+
+  yargs@15.4.1:
+    dependencies:
+      cliui: 6.0.0
+      decamelize: 1.2.0
+      find-up: 4.1.0
+      get-caller-file: 2.0.5
+      require-directory: 2.1.1
+      require-main-filename: 2.0.0
+      set-blocking: 2.0.0
+      string-width: 4.2.3
+      which-module: 2.0.1
+      y18n: 4.0.3
+      yargs-parser: 18.1.3
 
   yargs@17.7.2:
     dependencies:
