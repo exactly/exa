@@ -315,6 +315,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
         redis.get(sessionId),
       ]);
       if (!challenge) return c.json({ code: "no authentication", legacy: "no authentication" }, 400);
+      await redis.del(sessionId);
       if (!credential) {
         if (assertion.method !== "siwe") return c.json({ code: "no credential", legacy: "no credential" }, 400);
         const message = parseSiweMessage(challenge);
@@ -383,8 +384,6 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
       } catch (error) {
         captureException(error, { level: "error", tags: { unhandled: true } });
         return c.json({ code: "ouch", legacy: "ouch" }, 500);
-      } finally {
-        await redis.del(sessionId);
       }
 
       const expires = new Date(Date.now() + AUTH_EXPIRY);

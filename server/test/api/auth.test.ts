@@ -18,6 +18,7 @@ import { Address } from "@exactly/common/validation";
 import app, { type Authentication } from "../../api/auth/authentication";
 import database, { credentials } from "../../database";
 import * as publicClient from "../../utils/publicClient";
+import redis from "../../utils/redis";
 
 import type * as SimpleWebAuthn from "@simplewebauthn/server";
 import type * as SimpleWebAuthnHelpers from "@simplewebauthn/server/helpers";
@@ -70,6 +71,51 @@ describe("authentication", () => {
     expect(payload.sub).toBe(zeroAddress);
     expect(payload.exp).toBeGreaterThan(nowInSeconds + 86_000);
     expect(payload.exp).toBeLessThan(nowInSeconds + 86_500);
+    expect(redis.del).toHaveBeenCalledWith("test-session");
+  });
+
+  it("returns 400 if authentication challenge is missing", async () => {
+    vi.mocked(redis.get).mockResolvedValueOnce(null);
+
+    const response = await appClient.index.$post(
+      {
+        json: {
+          method: "webauthn",
+          id: "dGVzdC1jcmVkLWlk",
+          rawId: "dGVzdC1jcmVkLWlk",
+          response: { clientDataJSON: "dGVzdA", authenticatorData: "dGVzdA", signature: "dGVzdA" },
+          clientExtensionResults: {},
+          type: "public-key",
+        },
+        query: {},
+      },
+      { headers: { cookie: "session_id=test-session" } },
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual(expect.objectContaining({ code: "no authentication" }));
+    expect(redis.del).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 for missing credential with non-siwe assertion", async () => {
+    const response = await appClient.index.$post(
+      {
+        json: {
+          method: "webauthn",
+          id: "bWlzc2luZy1jcmVk",
+          rawId: "bWlzc2luZy1jcmVk",
+          response: { clientDataJSON: "dGVzdA", authenticatorData: "dGVzdA", signature: "dGVzdA" },
+          clientExtensionResults: {},
+          type: "public-key",
+        },
+        query: {},
+      },
+      { headers: { cookie: "session_id=test-session" } },
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual(expect.objectContaining({ code: "no credential" }));
+    expect(redis.del).toHaveBeenCalledWith("test-session");
   });
 
   it("creates a credential with source using siwe", async () => {
@@ -94,6 +140,7 @@ describe("authentication", () => {
       columns: { source: true },
     });
     expect(credential?.source).toBe("12345");
+    expect(redis.del).toHaveBeenCalledWith("test-session");
   });
 
   it("creates a credential using siwe", async () => {
@@ -119,6 +166,7 @@ describe("authentication", () => {
       columns: { id: true },
     });
     expect(credential?.id).toBe(id);
+    expect(redis.del).toHaveBeenCalledWith("test-session");
   });
 
   it("returns 400 if the siwe message is invalid", async () => {
@@ -130,6 +178,7 @@ describe("authentication", () => {
       { headers: { cookie: "session_id=test-session" } },
     );
     expect(response.status).toBe(400);
+    expect(redis.del).toHaveBeenCalledWith("test-session");
   });
 });
 
@@ -148,7 +197,7 @@ vi.mock("@simplewebauthn/server", async (importOriginal) => {
 
 vi.mock("../../utils/redis", () => ({
   default: {
-    get: vi.fn<() => string>().mockResolvedValue("test-challenge"),
+    get: vi.fn<() => string | null>().mockResolvedValue("test-challenge"),
     set: vi.fn<() => boolean>().mockResolvedValue(true),
     del: vi.fn<() => boolean>().mockResolvedValue(true),
   },
