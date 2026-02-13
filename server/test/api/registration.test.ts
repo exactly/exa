@@ -6,14 +6,18 @@ import "../mocks/sentry";
 
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
+import assert from "node:assert";
 import { parse } from "valibot";
+import { getAddress, padHex } from "viem";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import * as derive from "@exactly/common/deriveAddress";
+import { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
 import app from "../../api/auth/registration";
 import database, { credentials } from "../../database";
+import validFactories from "../../utils/validFactories";
 
 import type * as SimpleWebAuthn from "@simplewebauthn/server";
 import type * as SimpleWebAuthnHelpers from "@simplewebauthn/server/helpers";
@@ -35,6 +39,7 @@ describe("registration", () => {
           clientExtensionResults: {},
           type: "public-key",
         },
+        query: {},
       },
       { headers: { cookie: "session_id=test-session", "Client-Fid": "12345" } },
     );
@@ -67,6 +72,7 @@ describe("registration", () => {
           clientExtensionResults: {},
           type: "public-key",
         },
+        query: {},
       },
       { headers: { cookie: "session_id=test-session" } },
     );
@@ -85,6 +91,55 @@ describe("registration", () => {
     });
     expect(credential).toBeDefined();
     expect(credential?.source).toBeNull();
+  });
+
+  it("creates a credential with factory using webauthn", async () => {
+    const account = parse(Address, "0x1234567890123456789012345678901234567894");
+    vi.spyOn(derive, "default").mockReturnValue(account);
+    const factory = [...validFactories].find((f) => f !== exaAccountFactoryAddress);
+    assert.ok(factory);
+    const response = await appClient.index.$post(
+      {
+        json: {
+          id: "ZmFjdG9yeS1jcmVkLWlk", // cspell:ignore ZmFjdG9yeS1jcmVkLWlk
+          rawId: "ZmFjdG9yeS1jcmVkLWlk",
+          response: { clientDataJSON: "dGVzdA", attestationObject: "dGVzdA", transports: ["internal"] },
+          clientExtensionResults: {},
+          type: "public-key",
+        },
+        query: { factory },
+      },
+      { headers: { cookie: "session_id=test-session" } },
+    );
+
+    expect(response.status).toBe(200);
+
+    const credential = await database.query.credentials.findFirst({
+      where: eq(credentials.id, "ZmFjdG9yeS1jcmVkLWlk"),
+      columns: { factory: true },
+    });
+    expect(credential).toBeDefined();
+    expect(credential?.factory).toBe(factory);
+  });
+
+  it("returns 400 for invalid factory", async () => {
+    const account = parse(Address, "0x1234567890123456789012345678901234567895");
+    vi.spyOn(derive, "default").mockReturnValue(account);
+    const response = await appClient.index.$post(
+      {
+        json: {
+          id: "aW52YWxpZC1mYWN0b3J5", // cspell:ignore aW52YWxpZC1mYWN0b3J5
+          rawId: "aW52YWxpZC1mYWN0b3J5",
+          response: { clientDataJSON: "dGVzdA", attestationObject: "dGVzdA", transports: ["internal"] },
+          clientExtensionResults: {},
+          type: "public-key",
+        },
+        query: { factory: getAddress(padHex("0xdead", { size: 20 })) },
+      },
+      { headers: { cookie: "session_id=test-session" } },
+    );
+
+    expect(response.status).toBe(400);
   });
 });
 
