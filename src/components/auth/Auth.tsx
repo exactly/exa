@@ -121,7 +121,7 @@ export default function Auth() {
           height={itemWidth / aspectRatio}
           autoPlay
           autoPlayInterval={5000}
-          scrollAnimationDuration={500}
+          withAnimation={{ type: "timing", config: { duration: 512, easing: Easing.bezier(0.7, 0, 0.3, 1) } }}
           onSnapToItem={handleSnapToItem}
           onScrollEnd={handleScrollEnd}
           onProgressChange={handleProgressChange}

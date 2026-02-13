@@ -40,7 +40,7 @@ export default function GettingStarted({ isDeployed, hasKYC }: { hasKYC: boolean
       borderRadius="$r3"
       opacity={1}
       transform={[{ translateY: 0 }]}
-      animation="moderate"
+      animation="default"
       animateOnly={["opacity", "transform"]}
       enterStyle={{ opacity: 0, transform: [{ translateY: -20 }] }}
       exitStyle={{ opacity: 0, transform: [{ translateY: -20 }] }}
