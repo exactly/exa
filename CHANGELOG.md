@@ -1,5 +1,14 @@
 # @exactly/mobile
 
+## 1.1.14
+
+### Patch Changes
+
+- [#774](https://github.com/exactly/exa/pull/774) [`e2620dc`](https://github.com/exactly/exa/commit/e2620dc09387647bdf7235897900a1236771392b) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 fingerprint passkey errors by message, drop expected ones
+
+- Updated dependencies [[`de02358`](https://github.com/exactly/exa/commit/de0235870d7399e9fd5d9940fd175a27de187e06), [`48a97e6`](https://github.com/exactly/exa/commit/48a97e601abff85ab49e6eb4bf73a3a6267b0390)]:
+  - @exactly/server@0.2.64
+
 ## 1.1.13
 
 ### Patch Changes

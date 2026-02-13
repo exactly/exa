@@ -1,5 +1,13 @@
 # @exactly/server
 
+## 0.2.64
+
+### Patch Changes
+
+- [#772](https://github.com/exactly/exa/pull/772) [`de02358`](https://github.com/exactly/exa/commit/de0235870d7399e9fd5d9940fd175a27de187e06) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 handle no-proposal as success in proposal execution
+
+- [#771](https://github.com/exactly/exa/pull/771) [`48a97e6`](https://github.com/exactly/exa/commit/48a97e601abff85ab49e6eb4bf73a3a6267b0390) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🧵 guarantee nonce order in proposal execution
+
 ## 0.2.63
 
 ### Patch Changes
