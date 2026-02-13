@@ -1,6 +1,6 @@
 ---
 name: commit
-description: "MANDATORY for ALL git commits. this skill MUST be invoked before running `git commit` — never commit without it. triggers: /commit, 'commit this', 'commit', 'let's commit', 'save this', or any intent to create a git commit. also triggers when you are about to commit on behalf of the user after completing a task. covers commit messages (gitmoji format), staging, and changeset creation."
+description: "MANDATORY for ALL git commits. this skill MUST be invoked before running `git commit` — never commit without it. triggers: /commit, 'commit this', 'commit', 'let's commit', 'save this', or any intent to create a git commit. also triggers when you are about to commit on behalf of the user after completing a task. covers commit messages (gitmoji format), staging, signing, and changeset creation."
 ---
 
 <!-- cspell:ignore uall -->
@@ -49,7 +49,7 @@ the start of the commit message is prime real estate. git UIs (github, gitlab, `
 ### examples
 
 ```bash
-# ✅ good — direct and keyword-focused
+# good — direct and keyword-focused
 🐛 app: fix card activation crash
 ✨ server: add user auth endpoint
 🩹 app: mirror session cookie as header in auth flow
@@ -59,7 +59,7 @@ the start of the commit message is prime real estate. git UIs (github, gitlab, `
 🌐 app: add missing translation keys for onboarding
 🍱 app: update card background assets
 
-# ❌ bad — verbose and buries context
+# bad — verbose and buries context
 🐛 app: fix a crash that happens when a user tries to activate their card
 ```
 
@@ -70,6 +70,23 @@ the start of the commit message is prime real estate. git UIs (github, gitlab, `
 - 🚧 `construction` — work in progress. use for features not yet ready. these commits are reworded later via rebase. should never be merged to main.
 - ⚗️ `alembic` — experiments. use for temporary commits needed to test something on the server, debug, or special instrumentation. should never be merged to main.
 - 🧪 `test_tube` — add a failing test. this is for tdd workflows only. this project does not use it — use ✅ `white_check_mark` instead.
+
+## commit signing
+
+**all commits must be cryptographically signed.** this is non-negotiable.
+
+- always pass `-S` to `git commit`
+- never use `--no-gpg-sign`
+- never fall back to an unsigned commit under any circumstance
+
+### handling signing failures
+
+signing may fail due to key agent timeouts (e.g., gpg-agent passphrase cache expired, ssh-agent locked, hardware key like yubikey not touched in time). when this happens:
+
+1. **warn the developer**: explain that signing failed (include the error output) and that the commit was not created
+2. **ask for acknowledgment**: use `AskUserQuestion` with options like "ready to retry" and "abort commit". do not retry silently
+3. **retry with `-S`**: after acknowledgment, run the exact same `git commit -S` command again
+4. **repeat if needed**: if signing fails again, go back to step 1. never give up on signing. never strip `-S` to work around the failure
 
 ## changeset format
 
@@ -165,7 +182,7 @@ determine the scope from staged files:
 - files in `docs/` → `docs`
 - files in `.github/` → `github`
 - files in `.maestro/` → `e2e`
-- files in `.agent/` → `agents`
+- files in `.agents/` → `agents`
 - eas config files (`eas.json`, etc.) → `eas`
 - dependency-only changes → `dependencies`
 - config files → use the subproject scope if specific to one, otherwise use the tool/platform name (e.g., `eslint`, `prettier`, `nx`)
@@ -241,24 +258,36 @@ if a changeset is needed:
 3. semver level = `patch` (unless explicitly requested otherwise)
 4. write the `.changeset/<name>.md` file
 
-#### step 8: commit
+#### step 8: signed commit
 
-1. run the `git commit` command with the chosen message using a HEREDOC:
+**every commit must be signed.** follow this procedure:
+
+1. stage the changeset (if created in step 7) and commit in a single command:
 
    ```bash
-   git commit -m "$(cat <<'EOF'
+   git add .changeset/<name>.md && git commit -S -m "$(cat <<'EOF'
    <emoji> <scope>: <message>
    EOF
    )"
    ```
 
-2. show the result to the developer
-3. do NOT push unless explicitly asked
+   if no changeset was created, omit the `git add` portion and run only the `git commit -S` command.
 
-## important
+2. **if signing succeeds**: show the result to the developer. done.
+3. **if signing fails** (exit code non-zero and stderr mentions signing, gpg, ssh, key, timeout, agent, or passphrase):
+   1. show the full error output
+   2. warn the developer that the commit was **not created** because signing failed — suggest they check their key agent, unlock their hardware key, or re-enter their passphrase
+   3. use `AskUserQuestion` with two options: "retry" and "abort"
+   4. on "retry": run the exact same `git commit -S` command again and go back to step 2
+   5. on "abort": stop the workflow entirely — do **not** fall back to an unsigned commit
+   6. there is no retry limit — keep looping through warn → ack → retry as long as the developer chooses to retry
+4. do NOT push unless explicitly asked
 
+## invariants
+
+- **signing is mandatory** — never run `git commit` without `-S`, never use `--no-gpg-sign`, never commit unsigned
 - never amend a previous commit unless the developer explicitly requests it
 - never skip git hooks (no `--no-verify`)
 - never push without being asked
-- if a pre-commit hook fails, fix the issue and create a NEW commit
+- if a pre-commit hook fails, fix the issue and create a NEW commit (still signed with `-S`)
 - the developer always has final say on every choice
