@@ -61,6 +61,7 @@ import e2e from "./e2e";
 import { login } from "./onesignal";
 import publicClient from "./publicClient";
 import queryClient, { type AuthMethod } from "./queryClient";
+import { isPasskeyCancelled } from "./reportError";
 import ownerConfig from "./wagmi/owner";
 
 import type { Credential } from "@exactly/common/validation";
@@ -106,17 +107,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
         if (s > P256_N / 2n) s = P256_N - s; // pass malleability guard
         return webauthn({ authenticatorData, clientDataJSON, challengeIndex, typeIndex, r, s });
       } catch (error: unknown) {
-        if (
-          error instanceof Error &&
-          (error.message ===
-            "The operation couldn’t be completed. (com.apple.AuthenticationServices.AuthorizationError error 1001.)" ||
-            error.message ===
-              "The operation couldn’t be completed. (com.apple.AuthenticationServices.AuthorizationError error 1004.)" ||
-            error.message === "The operation couldn’t be completed. Device must be unlocked to perform request." ||
-            error.message === "UserCancelled")
-        ) {
-          return "0x";
-        }
+        if (isPasskeyCancelled(error)) return "0x";
         throw error;
       }
     },

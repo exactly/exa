@@ -14,6 +14,7 @@ import { Credential } from "@exactly/common/validation";
 import { login as loginIntercom, logout as logoutIntercom } from "./intercom";
 import { decrypt, decryptPIN, encryptPIN, session } from "./panda";
 import queryClient, { APIError, type AuthMethod } from "./queryClient";
+import { isPasskeyExpected } from "./reportError";
 import ownerConfig from "./wagmi/owner";
 
 import type { ExaAPI } from "@exactly/server/api"; // eslint-disable-line @nx/enforce-module-boundaries
@@ -61,19 +62,7 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
     return parse(Auth, expires);
   },
   meta: {
-    suppressError: (error) =>
-      error instanceof ValiError ||
-      (error instanceof Error &&
-        (error.name === "NotAllowedError" ||
-          error.message === "UnknownError" ||
-          error.message ===
-            "The operation couldn’t be completed. (com.apple.AuthenticationServices.AuthorizationError error 1001.)" ||
-          error.message ===
-            "The operation couldn’t be completed. (com.apple.AuthenticationServices.AuthorizationError error 1004.)" ||
-          error.message === "The operation couldn’t be completed. Device must be unlocked to perform request." ||
-          error.message === "UserCancelled" ||
-          error.message.startsWith("androidx.credentials.exceptions.domerrors.NotAllowedError") ||
-          ("code" in error && error.code === "ERR_UNKNOWN"))),
+    suppressError: (error) => error instanceof ValiError || isPasskeyExpected(error),
   },
 });
 

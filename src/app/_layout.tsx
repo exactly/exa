@@ -41,7 +41,7 @@ import en from "../i18n/en.json";
 import es from "../i18n/es.json";
 import e2e from "../utils/e2e";
 import queryClient, { persistOptions } from "../utils/queryClient";
-import reportError from "../utils/reportError";
+import reportError, { classifyError } from "../utils/reportError";
 import exaConfig from "../utils/wagmi/exa";
 import ownerConfig from "../utils/wagmi/owner";
 
@@ -112,6 +112,18 @@ init({
   enableUserInteractionTracing: true,
   integrations: [routingInstrumentation, userFeedback, ...(__DEV__ || e2e ? [] : [mobileReplayIntegration()])],
   _experiments: __DEV__ || e2e ? undefined : { replaysOnErrorSampleRate: 1, replaysSessionSampleRate: 0.01 },
+  beforeSend: (event, hint) => {
+    for (const source of [
+      hint.originalException,
+      ...(event.exception?.values?.map(({ value }) => value) ?? []),
+      event.message,
+    ]) {
+      const { expected, fingerprint } = classifyError(source);
+      if (expected) return null;
+      event.fingerprint ??= fingerprint;
+    }
+    return event;
+  },
   spotlight: __DEV__ || !!e2e,
 });
 const useServerFonts = typeof window === "undefined" ? useFonts : () => undefined;

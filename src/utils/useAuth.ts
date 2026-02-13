@@ -12,7 +12,7 @@ import chain from "@exactly/common/generated/chain";
 
 import alchemyConnector from "./alchemyConnector";
 import queryClient, { type AuthMethod } from "./queryClient";
-import reportError from "./reportError";
+import reportError, { isAuthExpected } from "./reportError";
 import { APIError, createCredential, getCredential } from "./server";
 import ownerConfig, { getConnector as getOwnerConnector } from "./wagmi/owner";
 
@@ -49,19 +49,7 @@ function handleError(
   onDomainError: () => void,
   t: TFunction,
 ) {
-  if (
-    (error instanceof Error &&
-      (error.message ===
-        "The operation couldn’t be completed. (com.apple.AuthenticationServices.AuthorizationError error 1001.)" ||
-        error.message ===
-          "The operation couldn’t be completed. (com.apple.AuthenticationServices.AuthorizationError error 1004.)" ||
-        error.message === "The operation couldn’t be completed. Device must be unlocked to perform request." ||
-        error.message === "UserCancelled" ||
-        error.message.startsWith("androidx.credentials.exceptions.domerrors.NotAllowedError") ||
-        error.message === "invalid operation" ||
-        error.name === "NotAllowedError")) ||
-    error instanceof UserRejectedRequestError
-  ) {
+  if (isAuthExpected(error) || error instanceof UserRejectedRequestError) {
     queryClient.setQueryData(["method"], undefined);
     toast.show(t("Authentication cancelled"), {
       native: true,
@@ -70,7 +58,7 @@ function handleError(
     });
     return;
   }
-  if (error instanceof Error && "code" in error && (error as Error & { code: string }).code === "ERR_BIOMETRIC") {
+  if (error instanceof Error && "code" in error && error.code === "ERR_BIOMETRIC") {
     queryClient.setQueryData(["method"], undefined);
     toast.show(t("Biometrics must be enabled to use passkeys. Please enable biometrics in your device settings"), {
       native: true,
@@ -93,10 +81,5 @@ function handleError(
   ) {
     onDomainError();
   }
-  reportError(
-    error,
-    error instanceof Error && !(error instanceof APIError) && "code" in error
-      ? { fingerprint: ["{{ default }}", (error as Error & { code: string }).code] }
-      : undefined,
-  );
+  reportError(error);
 }
