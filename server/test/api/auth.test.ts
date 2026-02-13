@@ -10,11 +10,11 @@ import { testClient } from "hono/testing";
 import { decodeJwt } from "jose";
 import assert from "node:assert";
 import { parse, type InferOutput } from "valibot";
-import { zeroAddress } from "viem";
+import { getAddress, padHex, zeroAddress } from "viem";
 import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 
 import * as derive from "@exactly/common/deriveAddress";
-import chain from "@exactly/common/generated/chain";
+import chain, { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
 import app, { type Authentication } from "../../api/auth/authentication";
@@ -22,6 +22,7 @@ import registrationApp from "../../api/auth/registration";
 import database, { credentials } from "../../database";
 import * as publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
+import validFactories from "../../utils/validFactories";
 
 import type * as SimpleWebAuthn from "@simplewebauthn/server";
 import type * as SimpleWebAuthnHelpers from "@simplewebauthn/server/helpers";
@@ -57,6 +58,7 @@ describe("authentication", () => {
           clientExtensionResults: {},
           type: "public-key",
         },
+        query: {},
       },
       { headers: { cookie: "session_id=test-session" } },
     );
@@ -300,7 +302,7 @@ describe("authentication", () => {
     vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(true);
     const id = "0x1234567890123456789012345678901234567890";
     const response = await appClient.index.$post(
-      { json: { method: "siwe", id, signature: "0xdeadbeef" } },
+      { json: { method: "siwe", id, signature: "0xdeadbeef" }, query: {} },
       { headers: { cookie: "session_id=test-session", "Client-Fid": "12345" } },
     );
 
@@ -326,7 +328,7 @@ describe("authentication", () => {
     const id = "0xaBcDef1234567890123456789012345678901234";
 
     const response = await appClient.index.$post(
-      { json: { method: "siwe", id, signature: "0xdeadbeef" } },
+      { json: { method: "siwe", id, signature: "0xdeadbeef" }, query: {} },
       { headers: { cookie: "session_id=test-session" } },
     );
 
@@ -352,10 +354,11 @@ describe("authentication", () => {
     const id = "0xaBcDef1234567890123456789012345678901234";
 
     const response = await appClient.index.$post(
-      { json: { method: "siwe", id, signature: "0xdeadbeef" } },
+      { json: { method: "siwe", id, signature: "0xdeadbeef" }, query: {} },
       { headers: { cookie: "session_id=test-session" } },
     );
     expect(response.status).toBe(400);
+    expect(await response.json()).toEqual(expect.objectContaining({ code: "bad authentication" }));
     expect(vi.mocked(redis).getdel.mock.calls).toContainEqual(["test-session"]);
   });
 
@@ -377,6 +380,87 @@ describe("authentication", () => {
     expect(await firstResponse.json()).toEqual(expect.objectContaining({ code: "bad authentication" }));
     expect(secondResponse.status).toBe(400);
     expect(await secondResponse.json()).toEqual(expect.objectContaining({ code: "no authentication" }));
+  });
+
+  it("creates a credential with factory using siwe", async () => {
+    vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(true);
+    const factory = [...validFactories].find((f) => f !== exaAccountFactoryAddress);
+    assert.ok(factory);
+    const id = "0xFace000000000000000000000000000000000001";
+    const response = await appClient.index.$post(
+      { json: { method: "siwe", id, signature: "0xdeadbeef" }, query: { factory } },
+      { headers: { cookie: "session_id=test-session" } },
+    );
+
+    expect(response.status).toBe(200);
+
+    const credential = await database.query.credentials.findFirst({
+      where: eq(credentials.id, id),
+      columns: { factory: true },
+    });
+    expect(credential?.factory).toBe(factory);
+    expect(vi.mocked(redis).getdel.mock.calls).toContainEqual(["test-session"]);
+  });
+
+  it("returns 400 for invalid factory using siwe", async () => {
+    vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(true);
+    const id = "0xFace000000000000000000000000000000000002";
+    const response = await appClient.index.$post(
+      {
+        json: { method: "siwe", id, signature: "0xdeadbeef" },
+        query: { factory: getAddress(padHex("0xdead", { size: 20 })) },
+      },
+      { headers: { cookie: "session_id=test-session" } },
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual(expect.objectContaining({ code: "bad factory" }));
+    expect(vi.mocked(redis).getdel.mock.calls).toContainEqual(["test-session"]);
+  });
+
+  it("authenticates existing credential with matching factory", async () => {
+    const factory = parse(Address, inject("ExaAccountFactory"));
+    const response = await appClient.index.$post(
+      {
+        json: {
+          method: "webauthn",
+          id: "dGVzdC1jcmVkLWlk",
+          rawId: "dGVzdC1jcmVkLWlk",
+          response: { clientDataJSON: "dGVzdA", authenticatorData: "dGVzdA", signature: "dGVzdA" },
+          clientExtensionResults: {},
+          type: "public-key",
+        },
+        query: { factory },
+      },
+      { headers: { cookie: "session_id=test-session" } },
+    );
+
+    expect(response.status).toBe(200);
+    const json = (await response.json()) as InferOutput<typeof Authentication>;
+    expect(json.factory).toBe(factory);
+    expect(vi.mocked(redis).getdel.mock.calls).toContainEqual(["test-session"]);
+  });
+
+  it("returns 400 if factory mismatches existing credential", async () => {
+    const factory = [...validFactories].find((f) => f !== parse(Address, inject("ExaAccountFactory")));
+    assert.ok(factory);
+    const response = await appClient.index.$post(
+      {
+        json: {
+          method: "webauthn",
+          id: "dGVzdC1jcmVkLWlk",
+          rawId: "dGVzdC1jcmVkLWlk",
+          response: { clientDataJSON: "dGVzdA", authenticatorData: "dGVzdA", signature: "dGVzdA" },
+          clientExtensionResults: {},
+          type: "public-key",
+        },
+        query: { factory },
+      },
+      { headers: { cookie: "session_id=test-session" } },
+    );
+
+    expect(response.status).toBe(400);
+    expect(vi.mocked(redis).getdel.mock.calls).toContainEqual(["test-session"]);
   });
 });
 
@@ -482,6 +566,7 @@ describe("registration", () => {
     expect(secondResponse.status).toBe(400);
     expect(await secondResponse.json()).toEqual(expect.objectContaining({ code: "no registration" }));
   });
+
   it("creates a credential using siwe", async () => {
     vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(true);
     const id = "0x1234567890123456789012345678901234567895";

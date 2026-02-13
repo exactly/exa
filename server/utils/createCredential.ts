@@ -24,13 +24,14 @@ import type { Context } from "hono";
 export default async function createCredential<C extends string>(
   c: Context,
   credentialId: C,
-  options?: { source?: string; webauthn?: WebAuthnCredential },
+  options?: { factory?: Address; source?: string; webauthn?: WebAuthnCredential },
 ) {
+  const factory = options?.factory ?? exaAccountFactoryAddress;
   const publicKey =
     options?.webauthn?.publicKey ?? (isAddress(credentialId) ? new Uint8Array(hexToBytes(credentialId)) : undefined);
   if (!publicKey) throw new Error("bad credential");
   const { x, y } = decodePublicKey(publicKey);
-  const account = deriveAddress(exaAccountFactoryAddress, { x, y });
+  const account = deriveAddress(factory, { x, y });
 
   setUser({ id: account });
   const expires = new Date(Date.now() + AUTH_EXPIRY);
@@ -39,7 +40,7 @@ export default async function createCredential<C extends string>(
       account,
       id: credentialId,
       publicKey,
-      factory: exaAccountFactoryAddress,
+      factory,
       transports: options?.webauthn?.transports,
       counter: options?.webauthn?.counter,
       source: options?.source,
@@ -63,5 +64,5 @@ export default async function createCredential<C extends string>(
     }).catch((error: unknown) => captureException(error, { level: "error" })),
   ]);
   identify({ userId: account });
-  return { credentialId, factory: parse(Address, exaAccountFactoryAddress), x, y, auth: expires.getTime() };
+  return { credentialId, factory: parse(Address, factory), x, y, auth: expires.getTime() };
 }

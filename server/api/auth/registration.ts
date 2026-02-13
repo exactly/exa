@@ -45,6 +45,7 @@ import getIntercomToken from "../../utils/intercom";
 import publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
 import validatorHook from "../../utils/validatorHook";
+import validFactories from "../../utils/validFactories";
 
 const Cookie = object({
   session_id: optional(pipe(Base64URL, title("Session identifier"), description("HTTP-only cookie."))),
@@ -256,6 +257,13 @@ export default new Hono()
     ),
     vValidator("header", optional(object({ "Client-Fid": optional(pipe(string(), maxLength(36))) }))),
     vValidator(
+      "query",
+      object({
+        factory: optional(pipe(Address, title("Factory"), description("Account factory address."))),
+      }),
+      validatorHook({ code: "bad factory" }),
+    ),
+    vValidator(
       "json",
       variant("method", [
         pipe(
@@ -304,9 +312,11 @@ export default new Hono()
     ),
     async (c) => {
       const attestation = c.req.valid("json");
+      const { factory } = c.req.valid("query");
       setContext("auth", attestation);
       const sessionId = c.req.header("x-session-id") ?? c.req.valid("cookie").session_id;
       if (!sessionId) return c.json({ code: "bad session" }, 400);
+      if (factory && !validFactories.has(factory)) return c.json({ code: "bad factory" }, 400);
       const challenge = await redis.getdel(sessionId);
       if (!challenge) return c.json({ code: "no registration", legacy: "no registration" }, 400);
 
@@ -360,7 +370,11 @@ export default new Hono()
       }
 
       try {
-        const result = await createCredential(c, attestation.id, { webauthn, source: c.req.header("Client-Fid") });
+        const result = await createCredential(c, attestation.id, {
+          factory,
+          webauthn,
+          source: c.req.header("Client-Fid"),
+        });
         const account = deriveAddress(result.factory, { x: result.x, y: result.y });
         const intercomToken = await getIntercomToken(account, new Date(Date.now() + AUTH_EXPIRY));
         return c.json(

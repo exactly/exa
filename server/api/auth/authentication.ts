@@ -50,6 +50,7 @@ import getIntercomToken from "../../utils/intercom";
 import publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
 import validatorHook from "../../utils/validatorHook";
+import validFactories from "../../utils/validFactories";
 
 const Cookie = object({
   session_id: optional(pipe(Base64URL, title("Session identifier"), description("HTTP-only cookie."))),
@@ -251,6 +252,13 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
     ),
     vValidator("header", optional(object({ "Client-Fid": optional(pipe(string(), maxLength(36))) }))),
     vValidator(
+      "query",
+      object({
+        factory: optional(pipe(Address, title("Factory"), description("Account factory address."))),
+      }),
+      validatorHook({ code: "bad factory" }),
+    ),
+    vValidator(
       "json",
       variant("method", [
         pipe(
@@ -304,6 +312,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
     ),
     async (c) => {
       const assertion = c.req.valid("json");
+      const { factory } = c.req.valid("query");
       setContext("auth", assertion);
       const sessionId = c.req.header("x-session-id") ?? c.req.valid("cookie").session_id;
       if (!sessionId) return c.json({ code: "bad session" }, 400);
@@ -329,7 +338,8 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
           ) {
             return c.json({ code: "bad authentication", legacy: "bad authentication" }, 400);
           }
-          const result = await createCredential(c, assertion.id, { source: c.req.header("Client-Fid") });
+          if (factory && !validFactories.has(factory)) return c.json({ code: "bad factory" }, 400);
+          const result = await createCredential(c, assertion.id, { factory, source: c.req.header("Client-Fid") });
           const account = deriveAddress(result.factory, { x: result.x, y: result.y });
           const intercomToken = await getIntercomToken(account, result.auth);
           return c.json(
@@ -345,6 +355,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
           return c.json({ code: "ouch", legacy: "ouch" }, 500);
         }
       }
+      if (factory && factory !== parse(Address, credential.factory)) return c.json({ code: "bad factory" }, 400);
       setUser({ id: parse(Address, credential.account) });
 
       let newCounter: number | undefined;
