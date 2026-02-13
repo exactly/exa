@@ -2,7 +2,7 @@ import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Platform, StyleSheet, useWindowDimensions } from "react-native";
 import type { SharedValue } from "react-native-reanimated";
-import { Extrapolation, interpolate, useAnimatedStyle, useSharedValue } from "react-native-reanimated";
+import { Easing, Extrapolation, interpolate, useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 import Carousel from "react-native-reanimated-carousel";
 
 import { useTheme, View, XStack } from "tamagui";
@@ -148,7 +148,7 @@ export default function BenefitsSection() {
             data={BENEFITS}
             autoPlay
             autoPlayInterval={5000}
-            scrollAnimationDuration={500}
+            withAnimation={{ type: "timing", config: { duration: 512, easing: Easing.bezier(0.7, 0, 0.3, 1) } }}
             onProgressChange={handleProgressChange}
             renderItem={({ item }) => (
               <View paddingHorizontal="$s2">
