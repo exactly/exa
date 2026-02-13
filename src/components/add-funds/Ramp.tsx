@@ -9,12 +9,14 @@ import { ArrowLeft, Banknote, CalendarDays, Copy, Info, Percent, Repeat } from "
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, Separator, XStack, YStack } from "tamagui";
 
+import { createStatic } from "@pix.js/qrcode";
 import { useQuery } from "@tanstack/react-query";
 
 import MantecaDisclaimer from "./MantecaDisclaimer";
 import { isValidCurrency } from "../../utils/currencies";
 import reportError from "../../utils/reportError";
 import { getRampProviders, getRampQuote } from "../../utils/server";
+import Image from "../shared/Image";
 import InfoAlert from "../shared/InfoAlert";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
@@ -74,12 +76,25 @@ export default function Ramp() {
     staleTime: 60_000,
   });
 
-  if (!typedCurrency) return <Redirect href="/add-funds" />;
-
   const depositInfo = data?.depositInfo.at(0);
   const quote = data?.quote;
-
   const beneficiaryName = depositInfo && "beneficiaryName" in depositInfo ? depositInfo.beneficiaryName : undefined;
+  const pixKey = depositInfo?.network === "PIX" ? depositInfo.pixKey : undefined;
+  const { data: qrDataUrl } = useQuery({
+    queryKey: ["pix", "qrcode", pixKey, beneficiaryName],
+    queryFn: () => {
+      if (!pixKey) throw new Error("missing pix key");
+      return createStatic({
+        merchantAccountInfo: { key: pixKey },
+        merchantName: beneficiaryName ?? "",
+        merchantCity: "SAO PAULO",
+      }).toBase64;
+    },
+    enabled: !!pixKey,
+  });
+
+  if (!typedCurrency) return <Redirect href="/add-funds" />;
+
   const depositAddress =
     depositInfo?.network === "ARG_FIAT_TRANSFER"
       ? depositInfo.cbu
@@ -142,6 +157,11 @@ export default function Ramp() {
                 </Text>
               </YStack>
               <YStack gap="$s4" backgroundColor="$backgroundSoft" padding="$s4_5" borderRadius="$r3">
+                {qrDataUrl && (
+                  <YStack alignItems="center" paddingVertical="$s4">
+                    <Image source={{ uri: qrDataUrl }} width={200} height={200} />
+                  </YStack>
+                )}
                 <DetailRow
                   label={t("Beneficiary name")}
                   value={beneficiaryName}
