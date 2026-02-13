@@ -17,6 +17,7 @@ import { PublicKey } from "webauthn-owner-plugin/IWebauthnOwnerPlugin.sol";
 import { EXA } from "@exactly/protocol/periphery/EXA.sol";
 
 import { AdminIsDeployer, Redeployer, TargetNonceTooLow } from "../script/Redeployer.s.sol";
+import { EXY } from "../src/EXY.sol";
 import { ExaAccountFactory } from "../src/ExaAccountFactory.sol";
 import { ExaPlugin } from "../src/ExaPlugin.sol";
 import { ProposalManager } from "../src/ProposalManager.sol";

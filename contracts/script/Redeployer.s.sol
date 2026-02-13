@@ -16,6 +16,7 @@ import { WebauthnOwnerPlugin } from "webauthn-owner-plugin/WebauthnOwnerPlugin.s
 
 import { EXA } from "@exactly/protocol/periphery/EXA.sol";
 
+import { EXY } from "../src/EXY.sol";
 import { ExaAccountFactory } from "../src/ExaAccountFactory.sol";
 import {
   ExaPlugin,
@@ -93,6 +94,26 @@ contract Redeployer is BaseScript {
     vm.startBroadcast(acct("admin"));
     exa = EXA(CREATE3_FACTORY.deploy(keccak256(abi.encode("EXA")), vm.getCode("EXA.sol:EXA")));
     proxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(proxy), address(exa), abi.encodeCall(EXA.initialize, ()));
+    vm.stopBroadcast();
+  }
+
+  function burnNonces(uint256 count) external {
+    vm.startBroadcast(acct("deployer"));
+    for (uint256 i = 0; i < count; ++i) {
+      new Dummy();
+    }
+    vm.stopBroadcast();
+  }
+
+  function deployEXY() external returns (address proxy) {
+    address deployer = acct("deployer");
+    vm.startBroadcast(deployer);
+    ProxyAdmin pa = new ProxyAdmin(deployer);
+    proxy = address(
+      new TransparentUpgradeableProxy(
+        address(new EXY()), address(pa), abi.encodeCall(EXY.initialize, ())
+      )
+    );
     vm.stopBroadcast();
   }
 
