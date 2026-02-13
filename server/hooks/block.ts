@@ -155,11 +155,9 @@ export default new Hono().post(
         ?.map(({ topics, data }) => decodeEventLog({ topics, data, abi: legacyExaPluginAbi })) ?? [];
 
     await Promise.all([
-      ...proposalsByAccount
-        .values()
-        .flatMap((ps) =>
-          ps.toSorted((a, b) => Number(a.nonce - b.nonce)).map((proposal) => scheduleProposal(proposal)),
-        ),
+      ...proposalsByAccount.values().map(async (ps) => {
+        for (const proposal of ps.toSorted((a, b) => Number(a.nonce - b.nonce))) await scheduleProposal(proposal);
+      }),
       ...oldWithdraws.map(async (event) => {
         const withdraw = v.parse(Withdraw, { ...event.args, timestamp });
         return startSpan(
@@ -393,9 +391,10 @@ function scheduleMessage(message: string) {
                   unlock: idle.unlock,
                   retryCount: retryCount + 1,
                 }),
-              );
+              )
+              .toSorted((a, b) => Number(a.nonce - b.nonce));
             setContext("exa", { idleProposals });
-            await Promise.all(idleProposals.map((p) => scheduleProposal(p)));
+            for (const p of idleProposals) await scheduleProposal(p);
             return redis.zrem("proposals", message);
           }
 
@@ -423,7 +422,7 @@ function scheduleMessage(message: string) {
         startSpan(
           { name: "acquire mutex", op: "lock.acquire", attributes: { account, "lock.name": `proposal:${account}` } },
           () =>
-            mutex.runExclusive(processProposal).finally(() => {
+            mutex.runExclusive(processProposal, -Number(nonce)).finally(() => {
               if (!mutex.isLocked()) mutexes.delete(account);
             }),
         ),
