@@ -307,7 +307,7 @@ export default new Hono()
       setContext("auth", attestation);
       const sessionId = c.req.header("x-session-id") ?? c.req.valid("cookie").session_id;
       if (!sessionId) return c.json({ code: "bad session" }, 400);
-      const challenge = await redis.get(sessionId);
+      const challenge = await redis.getdel(sessionId);
       if (!challenge) return c.json({ code: "no registration", legacy: "no registration" }, 400);
 
       let webauthn: undefined | WebAuthnCredential;
@@ -357,8 +357,6 @@ export default new Hono()
       } catch (error) {
         captureException(error, { level: "error", tags: { unhandled: true } });
         return c.json({ code: "ouch", legacy: "ouch" }, 500);
-      } finally {
-        await redis.del(sessionId);
       }
 
       const result = await createCredential(c, attestation.id, { webauthn, source: c.req.header("Client-Fid") });
