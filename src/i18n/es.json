@@ -566,5 +566,7 @@
   "The fiat deposit services are provided by <provider>Manteca</provider> (Sixalime SAS) and are subject to <terms>Terms and Conditions</terms>. Exa Labs SAS does not custody fiat funds.": "Los servicios de depósito fiat son proporcionados por <provider>Manteca</provider> (Sixalime SAS) y están sujetos a los <terms>Términos y Condiciones</terms>. Exa Labs SAS no custodia fondos fiat.",
   "I accept the <terms>Terms and Conditions</terms>.": "Acepto los <terms>Términos y Condiciones</terms>.",
   "All deposits must be from bank accounts under your name.": "Todos los depósitos deben ser desde cuentas bancarias a tu nombre.",
+  "Show QR Code": "Mostrar código QR",
+  "Deposit with PIX": "Depositar con PIX",
   "The bank account must be in your name": "La cuenta bancaria debe estar a tu nombre"
 }

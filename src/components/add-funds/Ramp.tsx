@@ -1,21 +1,25 @@
-import React from "react";
+import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
+import QRCode from "react-native-qrcode-styled";
 
 import { setStringAsync } from "expo-clipboard";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft, Banknote, CalendarDays, Copy, Info, Percent, Repeat } from "@tamagui/lucide-icons";
+import { ArrowLeft, Banknote, CalendarDays, Copy, Info, Percent, QrCode, Repeat } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, Separator, XStack, YStack } from "tamagui";
 
+import { createStatic } from "@pix.js/qrcode";
 import { useQuery } from "@tanstack/react-query";
 
 import MantecaDisclaimer from "./MantecaDisclaimer";
 import { isValidCurrency } from "../../utils/currencies";
 import reportError from "../../utils/reportError";
 import { getRampProviders, getRampQuote } from "../../utils/server";
+import Button from "../shared/Button";
 import InfoAlert from "../shared/InfoAlert";
+import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
@@ -53,6 +57,7 @@ export default function Ramp() {
   } = useTranslation();
   const router = useRouter();
   const toast = useToastController();
+  const [qrSheetOpen, setQRSheetOpen] = useState(false);
   const { currency } = useLocalSearchParams<{ currency: string }>();
 
   const typedCurrency = isValidCurrency(currency) ? currency : undefined;
@@ -74,12 +79,30 @@ export default function Ramp() {
     staleTime: 60_000,
   });
 
-  if (!typedCurrency) return <Redirect href="/add-funds" />;
-
   const depositInfo = data?.depositInfo.at(0);
   const quote = data?.quote;
-
   const beneficiaryName = depositInfo && "beneficiaryName" in depositInfo ? depositInfo.beneficiaryName : undefined;
+  const pixKey = depositInfo?.network === "PIX" ? depositInfo.pixKey : undefined;
+  const pix = useMemo(() => {
+    if (!pixKey || !beneficiaryName) return null;
+    try {
+      const result = createStatic({
+        merchantAccountInfo: { key: pixKey },
+        merchantName: beneficiaryName,
+        merchantCity: "São Paulo",
+        postalCode: "00000-000",
+      });
+      result.toBase64.catch(() => {}); // eslint-disable-line @typescript-eslint/no-empty-function
+      return result;
+    } catch (error) {
+      reportError(error);
+      return null;
+    }
+  }, [pixKey, beneficiaryName]);
+  const qrCode = pix?.brcode; // cspell:ignore brcode
+
+  if (!typedCurrency) return <Redirect href="/add-funds" />;
+
   const depositAddress =
     depositInfo?.network === "ARG_FIAT_TRANSFER"
       ? depositInfo.cbu
@@ -172,6 +195,19 @@ export default function Ramp() {
                   />
                 )}
               </YStack>
+              {qrCode && (
+                <Button
+                  onPress={() => setQRSheetOpen(true)}
+                  flexBasis={60}
+                  contained
+                  main
+                  spaced
+                  fullwidth
+                  iconAfter={<QrCode size={20} />}
+                >
+                  {t("Show QR Code")}
+                </Button>
+              )}
               <InfoAlert title={t("All deposits must be from bank accounts under your name.")} />
             </YStack>
           </View>
@@ -249,6 +285,33 @@ export default function Ramp() {
           </YStack>
         </YStack>
       </View>
+      {qrCode && (
+        <ModalSheet open={qrSheetOpen} onClose={() => setQRSheetOpen(false)}>
+          <SafeView borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
+            <YStack gap="$s4" alignItems="center" padding="$s5">
+              <Text emphasized headline color="$uiNeutralPrimary">
+                {t("Deposit with PIX")}
+              </Text>
+              <YStack padding="$s3" borderRadius="$r4" backgroundColor="white" overflow="hidden">
+                <QRCode
+                  data={qrCode}
+                  size={200}
+                  pieceBorderRadius={2}
+                  innerEyesOptions={{ borderRadius: 2 }}
+                  isPiecesGlued
+                  outerEyesOptions={{ borderRadius: 2 }}
+                />
+              </YStack>
+              <InfoAlert title={t("All deposits must be from bank accounts under your name.")} />
+              <Pressable onPress={() => setQRSheetOpen(false)}>
+                <Text emphasized footnote color="$uiBrandSecondary">
+                  {t("Close")}
+                </Text>
+              </Pressable>
+            </YStack>
+          </SafeView>
+        </ModalSheet>
+      )}
     </SafeView>
   );
 }
