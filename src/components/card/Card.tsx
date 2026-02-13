@@ -383,7 +383,7 @@ export default function Card() {
                             <Switch.Thumb
                               checked={displayStatus === "FROZEN"}
                               shadowColor="$uiNeutralSecondary"
-                              animation="moderate"
+                              animation="default"
                               backgroundColor={
                                 displayStatus === "ACTIVE" ? "$interactiveDisabled" : "$interactiveBaseBrandDefault"
                               }

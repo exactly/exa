@@ -53,7 +53,7 @@ export default function CardStatus({
       overflow="hidden"
       opacity={1}
       transform={[{ translateY: 0 }]}
-      animation="moderate"
+      animation="default"
       animateOnly={["opacity", "transform"]}
       enterStyle={{ opacity: 0, transform: [{ translateY: -20 }] }}
       exitStyle={{ opacity: 0, transform: [{ translateY: -20 }] }}
@@ -170,7 +170,7 @@ function PayModeToggle({
         borderRadius="$r_0"
         backgroundColor={isDebit ? "$cardDebitInteractive" : "$cardCreditInteractive"}
         x={isDebit ? 0 : width / 2}
-        animation="moderate"
+        animation="default"
         animateOnly={["transform"]}
       />
       <Pressable
@@ -237,7 +237,7 @@ function LimitPaginator({
   const [width, setWidth] = useState(0);
   return (
     <View height={48} overflow="hidden" onLayout={(event) => setWidth(event.nativeEvent.layout.width)}>
-      <XStack width={width * 2} x={mode > 0 ? -width : 0} animation="moderate" animateOnly={["transform"]}>
+      <XStack width={width * 2} x={mode > 0 ? -width : 0} animation="default" animateOnly={["transform"]}>
         <XStack width={width} height={48} alignItems="center" gap="$s3">
           <Wallet size={20} color="$uiNeutralSecondary" />
           <XStack flex={1} alignItems="center" gap="$s2">
