@@ -284,6 +284,42 @@ describe("proposal", () => {
       expect(captureExceptionCalls.some(([, hint]) => typeof hint === "object" && "contexts" in hint)).toBe(false);
     });
 
+    it("handles NoProposal as success in outer catch", async () => {
+      const proposal = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
+      const errorAbi = [{ type: "error", name: "NoProposal", inputs: [] }] as const;
+      const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
+      const zrem = vi.spyOn(redis, "zrem");
+      vi.spyOn(publicClient, "simulateContract").mockImplementationOnce(() => {
+        // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
+        throw getContractError(
+          new RawContractError({ data: encodeErrorResult({ abi: errorAbi, errorName: "NoProposal" }) }),
+          { abi: errorAbi, address: bobAccount, functionName: "executeProposal", args: [proposal.args.nonce] },
+        );
+      });
+
+      await appClient.index.$post({
+        ...withdrawProposal,
+        json: {
+          ...withdrawProposal.json,
+          event: {
+            ...withdrawProposal.json.event,
+            data: {
+              ...withdrawProposal.json.event.data,
+              block: {
+                ...withdrawProposal.json.event.data.block,
+                logs: [{ topics: proposal.topics, data: proposal.data, account: { address: proposal.address } }],
+              },
+            },
+          },
+        },
+      });
+
+      await vi.waitUntil(() => zrem.mock.calls.some(([key]) => key === "proposals"), 26_666);
+
+      const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
+      expect(captureExceptionCalls.some(([, hint]) => typeof hint === "object" && "contexts" in hint)).toBe(false);
+    });
+
     it("fingerprints outer catch by reason", async () => {
       const proposal = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
       const simulateContract = vi.spyOn(publicClient, "simulateContract");
@@ -1178,13 +1214,13 @@ describe("legacy withdraw", () => {
   });
 
   it("fingerprints withdraw outer catch with contract revert", async () => {
-    const errorAbi = [{ type: "error", name: "NoProposal", inputs: [] }] as const;
+    const errorAbi = [{ type: "error", name: "Unauthorized", inputs: [] }] as const;
     const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
     vi.mocked(continueTrace).mockImplementationOnce(() => {
       // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
       throw getContractError(
         new RawContractError({
-          data: encodeErrorResult({ abi: errorAbi, errorName: "NoProposal" }),
+          data: encodeErrorResult({ abi: errorAbi, errorName: "Unauthorized" }),
         }),
         { abi: errorAbi, address: withdrawAccount, functionName: "withdraw", args: [] },
       );
@@ -1201,7 +1237,7 @@ describe("legacy withdraw", () => {
               typeof hint === "object" &&
               "fingerprint" in hint &&
               Array.isArray(hint.fingerprint) &&
-              hint.fingerprint.includes("NoProposal"),
+              hint.fingerprint.includes("Unauthorized"),
           ),
       26_666,
     );
@@ -1211,10 +1247,10 @@ describe("legacy withdraw", () => {
       typeof hint === "object" && "fingerprint" in hint && Array.isArray(hint.fingerprint) ? [hint.fingerprint] : [],
     );
 
-    expect(captureExceptionFingerprints).toEqual([["{{ default }}", "NoProposal"]]);
+    expect(captureExceptionFingerprints).toEqual([["{{ default }}", "Unauthorized"]]);
     expect(captureException).toHaveBeenCalledWith(
       expect.objectContaining({ name: "ContractFunctionExecutionError", functionName: "withdraw" }),
-      expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "NoProposal"] }),
+      expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "Unauthorized"] }),
     );
   });
 

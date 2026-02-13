@@ -359,7 +359,7 @@ function scheduleMessage(message: string) {
           if (
             error instanceof BaseError &&
             error.cause instanceof ContractFunctionRevertedError &&
-            error.cause.data?.errorName === "NonceTooLow"
+            (error.cause.data?.errorName === "NonceTooLow" || error.cause.data?.errorName === "NoProposal")
           ) {
             parent.setStatus({ code: SPAN_STATUS_OK, message: "aborted" });
             return redis.zrem("proposals", message);
