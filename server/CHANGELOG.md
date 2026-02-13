@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.63
+
+### Patch Changes
+
+- [#765](https://github.com/exactly/exa/pull/765) [`0728413`](https://github.com/exactly/exa/commit/072841385c32bf648a17199cc8a078cb8c8065ba) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 resolve orphaned proposals on nonce-too-low revert
+
 ## 0.2.62
 
 ### Patch Changes

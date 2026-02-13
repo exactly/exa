@@ -1,5 +1,16 @@
 # @exactly/mobile
 
+## 1.1.13
+
+### Patch Changes
+
+- [#767](https://github.com/exactly/exa/pull/767) [`622e970`](https://github.com/exactly/exa/commit/622e97080b873175960505f5a70efe532bd6126a) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 filter network failures in asset logo image handler
+
+- [#724](https://github.com/exactly/exa/pull/724) [`2a2b804`](https://github.com/exactly/exa/commit/2a2b804c307835058d0a81b9f521c7f76e4a0d97) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ♿️ add aria accessibility to repay slider
+
+- Updated dependencies [[`0728413`](https://github.com/exactly/exa/commit/072841385c32bf648a17199cc8a078cb8c8065ba)]:
+  - @exactly/server@0.2.63
+
 ## 1.1.12
 
 ### Patch Changes
