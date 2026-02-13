@@ -461,14 +461,19 @@ function scheduleWithdraw(message: string) {
             },
           },
           async () => {
-            await keeper.exaSend(
+            const receipt = await keeper.exaSend(
               { name: "exa.execute", op: "exa.execute", attributes: { account } },
               {
                 address: account,
                 functionName: "withdraw",
                 abi: [...legacyExaPluginAbi, ...upgradeableModularAccountAbi, ...auditorAbi, marketAbi[6]],
               },
+              { ignore: isTerminalWithdrawReason },
             );
+            if (receipt?.status !== "success") {
+              parent.setStatus({ code: SPAN_STATUS_ERROR, message: "aborted" });
+              return redis.zrem("withdraw", message);
+            }
             parent.setStatus({ code: SPAN_STATUS_OK });
             startSpan(
               { name: "send withdraw notification", op: "notification.send", attributes: { account, receiver } },
@@ -490,12 +495,13 @@ function scheduleWithdraw(message: string) {
             return redis.zrem("withdraw", message);
           },
         ).catch((error: unknown) => {
-          if (
+          const revertReason =
             error instanceof BaseError &&
             error.cause instanceof ContractFunctionRevertedError &&
-            error.cause.data?.errorName === "PreExecHookReverted" &&
-            error.cause.data.args?.[2] === encodeErrorResult({ errorName: "NoProposal", abi: legacyExaPluginAbi })
-          ) {
+            error.cause.data?.errorName
+              ? `${error.cause.data.errorName}(${error.cause.data.args?.map(String).join(",") ?? ""})`
+              : null;
+          if (revertReason && isTerminalWithdrawReason(revertReason)) {
             parent.setStatus({ code: SPAN_STATUS_ERROR, message: "aborted" });
             return redis.zrem("withdraw", message);
           }
@@ -521,6 +527,11 @@ function scheduleWithdraw(message: string) {
     .then(() => continueTrace({ sentryTrace, baggage: sentryBaggage }, processWithdraw))
     .catch((error: unknown) => captureException(error, { level: "error", fingerprint: fingerprintRevert(error) }));
 }
+
+const isTerminalWithdrawReason = (reason: string) =>
+  reason === "InsufficientAccountLiquidity()" ||
+  (reason.startsWith("PreExecHookReverted(") &&
+    reason.endsWith(`,${encodeErrorResult({ errorName: "NoProposal", abi: proposalManagerAbi })})`));
 
 const url = `${appOrigin}/hooks/block`;
 findWebhook(({ webhook_type, webhook_url }) => webhook_type === "GRAPHQL" && webhook_url === url)
