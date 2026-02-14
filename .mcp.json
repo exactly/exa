@@ -7,6 +7,7 @@
     "figma": { "type": "http", "url": "https://mcp.figma.com/mcp" },
     "maestro": { "type": "stdio", "command": "maestro", "args": ["mcp"] },
     "nx": { "type": "stdio", "command": "npx", "args": ["nx", "mcp"] },
-    "sentry": { "type": "http", "url": "https://mcp.sentry.dev/mcp" }
+    "sentry": { "type": "http", "url": "https://mcp.sentry.dev/mcp" },
+    "spotlight": { "type": "stdio", "command": "npx", "args": ["@spotlightjs/spotlight", "mcp"] }
   }
 }

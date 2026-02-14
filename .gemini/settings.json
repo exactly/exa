@@ -13,7 +13,8 @@
     "figma": { "type": "http", "url": "https://mcp.figma.com/mcp" },
     "maestro": { "command": "maestro", "args": ["mcp"] },
     "nx": { "command": "npx", "args": ["nx", "mcp"] },
-    "sentry": { "url": "https://mcp.sentry.dev/mcp" }
+    "sentry": { "url": "https://mcp.sentry.dev/mcp" },
+    "spotlight": { "command": "npx", "args": ["@spotlightjs/spotlight", "mcp"] }
   },
   "privacy": { "usageStatisticsEnabled": false },
   "telemetry": { "enabled": false },

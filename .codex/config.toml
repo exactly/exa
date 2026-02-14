@@ -23,3 +23,7 @@ args = ["nx", "mcp"]
 
 [mcp_servers.sentry]
 url = "https://mcp.sentry.dev/mcp"
+
+[mcp_servers.spotlight]
+command = "npx"
+args = ["@spotlightjs/spotlight", "mcp"]

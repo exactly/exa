@@ -181,6 +181,14 @@ foundry is a project dependency, so `cast` is always available. use it to invest
 - **decoding**: `cast 4byte-decode` for calldata, `cast abi-decode` for return data, `cast sig` for function selectors, `cast logs` for event logs with topic filtering. contract abis are available in `contracts/out/` after a build.
 - **anvil in e2e**: during e2e tests, anvil runs at `localhost:8545` (chain id 31337). use `cast rpc` for anvil-specific methods (`anvil_impersonateAccount`, `anvil_setBalance`, `anvil_mine`) to manipulate test state.
 
+### spotlight
+
+spotlight is a local debug companion that intercepts sentry sdk telemetry and exposes it via mcp. it is configured as an mcp server (`@spotlightjs/spotlight mcp`) and requires no additional application instrumentation — both the app and the server already send telemetry to spotlight automatically.
+
+- **use it for e2e debugging**: when an e2e test fails or exhibits unexpected behavior, spotlight gives direct access to the errors, logs, and traces the server produced during that run. this is far more effective than reading raw console output.
+- **available tools**: `search_errors` for errors with stack traces, `search_logs` for application log queries, `search_traces` for performance trace summaries, `get_traces` for detailed span trees and timing of a specific trace.
+- **pair with cast**: for onchain issues surfaced in e2e, use spotlight to identify the failing operation and `cast` to inspect the corresponding chain state.
+
 ## external references
 
 content in this section is adapted from external sources and should be periodically reviewed for updates.
