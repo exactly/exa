@@ -273,6 +273,29 @@ describe("authentication", () => {
     expect(await secondResponse.json()).toEqual(expect.objectContaining({ code: "no authentication" }));
   });
 
+  it("handles exceptions in no-credential siwe authentication path", async () => {
+    vi.mocked(redis).getdel.mockResolvedValueOnce("test-challenge").mockResolvedValueOnce(null);
+    const { parseSiweMessage } = await import("viem/siwe");
+    vi.mocked(parseSiweMessage).mockImplementationOnce(() => {
+      throw new Error("boom");
+    });
+    const id = "0x1234567890123456789012345678901234567897";
+
+    const firstResponse = await appClient.index.$post(
+      { json: { method: "siwe", id, signature: "0xdeadbeef" } },
+      { headers: { cookie: "session_id=test-session" } },
+    );
+    const secondResponse = await appClient.index.$post(
+      { json: { method: "siwe", id, signature: "0xdeadbeef" } },
+      { headers: { cookie: "session_id=test-session" } },
+    );
+
+    expect(firstResponse.status).toBe(500);
+    expect(await firstResponse.json()).toEqual(expect.objectContaining({ code: "ouch" }));
+    expect(secondResponse.status).toBe(400);
+    expect(await secondResponse.json()).toEqual(expect.objectContaining({ code: "no authentication" }));
+  });
+
   it("creates a credential with source using siwe", async () => {
     vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(true);
     const id = "0x1234567890123456789012345678901234567890";
@@ -499,7 +522,7 @@ describe("registration", () => {
     );
 
     expect(firstResponse.status).toBe(400);
-    expect(await firstResponse.json()).toEqual(expect.objectContaining({ code: "bad authentication" }));
+    expect(await firstResponse.json()).toEqual(expect.objectContaining({ code: "bad registration" }));
     expect(secondResponse.status).toBe(400);
     expect(await secondResponse.json()).toEqual(expect.objectContaining({ code: "no registration" }));
   });

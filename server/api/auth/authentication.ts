@@ -317,28 +317,33 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
       if (!challenge) return c.json({ code: "no authentication", legacy: "no authentication" }, 400);
       if (!credential) {
         if (assertion.method !== "siwe") return c.json({ code: "no credential", legacy: "no credential" }, 400);
-        const message = parseSiweMessage(challenge);
-        if (
-          !validateSiweMessage({ message, address: assertion.id, nonce: sessionId, domain, scheme }) ||
-          !(await publicClient.verifySiweMessage({
-            message: challenge,
-            address: assertion.id,
-            signature: assertion.signature,
-          }))
-        ) {
-          return c.json({ code: "bad authentication", legacy: "bad authentication" }, 400);
+        try {
+          const message = parseSiweMessage(challenge);
+          if (
+            !validateSiweMessage({ message, address: assertion.id, nonce: sessionId, domain, scheme }) ||
+            !(await publicClient.verifySiweMessage({
+              message: challenge,
+              address: assertion.id,
+              signature: assertion.signature,
+            }))
+          ) {
+            return c.json({ code: "bad authentication", legacy: "bad authentication" }, 400);
+          }
+          const result = await createCredential(c, assertion.id, { source: c.req.header("Client-Fid") });
+          const account = deriveAddress(result.factory, { x: result.x, y: result.y });
+          const intercomToken = await getIntercomToken(account, result.auth);
+          return c.json(
+            {
+              ...result,
+              expires: result.auth,
+              intercomToken,
+            } satisfies InferOutput<typeof LegacyAuthentication>,
+            200,
+          );
+        } catch (error) {
+          captureException(error, { level: "error", tags: { unhandled: true } });
+          return c.json({ code: "ouch", legacy: "ouch" }, 500);
         }
-        const result = await createCredential(c, assertion.id, { source: c.req.header("Client-Fid") });
-        const account = deriveAddress(result.factory, { x: result.x, y: result.y });
-        const intercomToken = await getIntercomToken(account, result.auth);
-        return c.json(
-          {
-            ...result,
-            expires: result.auth,
-            intercomToken,
-          } satisfies InferOutput<typeof LegacyAuthentication>,
-          200,
-        );
       }
       setUser({ id: parse(Address, credential.account) });
 

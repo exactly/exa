@@ -323,7 +323,7 @@ export default new Hono()
                 signature: attestation.signature,
               }))
             ) {
-              return c.json({ code: "bad authentication", legacy: "bad authentication" }, 400);
+              return c.json({ code: "bad registration", legacy: "bad registration" }, 400);
             }
             break;
           }
@@ -359,16 +359,21 @@ export default new Hono()
         return c.json({ code: "ouch", legacy: "ouch" }, 500);
       }
 
-      const result = await createCredential(c, attestation.id, { webauthn, source: c.req.header("Client-Fid") });
-      const account = deriveAddress(result.factory, { x: result.x, y: result.y });
-      const intercomToken = await getIntercomToken(account, new Date(Date.now() + AUTH_EXPIRY));
-      return c.json(
-        {
-          ...result,
-          intercomToken,
-        } satisfies InferOutput<typeof Authentication>,
-        200,
-      );
+      try {
+        const result = await createCredential(c, attestation.id, { webauthn, source: c.req.header("Client-Fid") });
+        const account = deriveAddress(result.factory, { x: result.x, y: result.y });
+        const intercomToken = await getIntercomToken(account, new Date(Date.now() + AUTH_EXPIRY));
+        return c.json(
+          {
+            ...result,
+            intercomToken,
+          } satisfies InferOutput<typeof Authentication>,
+          200,
+        );
+      } catch (error) {
+        captureException(error, { level: "error", tags: { unhandled: true } });
+        return c.json({ code: "ouch", legacy: "ouch" }, 500);
+      }
     },
   );
 
