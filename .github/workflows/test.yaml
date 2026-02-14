@@ -55,7 +55,9 @@ jobs:
         if: ${{ !cancelled() }}
         with:
           name: server-events
-          path: server/node_modules/@exactly/.spotlight
+          path: |
+            server/node_modules/@exactly/.runtime
+            server/node_modules/@exactly/.spotlight
           include-hidden-files: true
 
   e2e:
