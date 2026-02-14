@@ -43,7 +43,7 @@ export default function CopyAddressSheet({ open, onClose }: { onClose: () => voi
                 {t("Double-check your address before sending funds to avoid losing them.")}
               </Text>
             </YStack>
-            <Text primary title fontFamily="$mono" textAlign="center">
+            <Text primary title textAlign="center">
               {address}
             </Text>
             <YStack

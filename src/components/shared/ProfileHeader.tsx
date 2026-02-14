@@ -37,7 +37,7 @@ export default function ProfileHeader() {
   return (
     <View padded backgroundColor="$backgroundSoft">
       <View display="flex" flexDirection="row" justifyContent="space-between">
-        <View display="flex" flexDirection="row" alignItems="center" gap={8}>
+        <View display="flex" flexDirection="row" alignItems="center" gap="$s3">
           <View position="relative">
             {address && (
               <View borderRadius="$r_0" overflow="hidden">
@@ -54,14 +54,12 @@ export default function ProfileHeader() {
               }}
             >
               <View display="flex" flexDirection="row" alignItems="flex-start">
-                <Text fontSize={17} fontFamily="$mono">
-                  {hidden ? "0x..." : shortenHex(address)}
-                </Text>
+                <Text fontSize={17}>{hidden ? "0x..." : shortenHex(address)}</Text>
               </View>
             </Pressable>
           )}
         </View>
-        <View display="flex" flexDirection="row" alignItems="center" gap={16}>
+        <View display="flex" flexDirection="row" alignItems="center" gap="$s4">
           <Pressable aria-label={hidden ? t("Show sensitive") : t("Hide sensitive")} onPress={toggle} hitSlop={15}>
             {hidden ? <EyeOff color="$uiNeutralSecondary" /> : <Eye color="$uiNeutralSecondary" />}
           </Pressable>
