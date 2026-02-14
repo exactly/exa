@@ -84,13 +84,18 @@ jobs:
       - uses: actions/setup-java@v4
         with: { distribution: zulu, java-version: "17" }
       - run: |
+          set -o pipefail
           mkdir -p $HOME/.local/bin && cd $HOME/.local/bin
           for repo in firehose-ethereum substreams substreams-sink-sql; do
             curl -L "$(curl -sH 'Authorization: token ${{ github.token }}' https://api.github.com/repos/streamingfast/$repo/releases/latest | jq --arg arch "$(uname -m | sed 's/aarch64/arm64/')" -r '.assets[] | select(.browser_download_url | test("linux_" + $arch)) | .browser_download_url')" | tar zxf -
-              done
-          set -o pipefail
-          curl -fsSL "https://get.maestro.mobile.dev" | bash
-          echo "$HOME/.maestro/bin" >> $GITHUB_PATH
+          done
+          for attempt in {1..5}; do
+            curl -fsSL "https://get.maestro.mobile.dev" | bash || true
+            [ -x $HOME/.maestro/bin/maestro ] && $HOME/.maestro/bin/maestro --version && echo $HOME/.maestro/bin >> "$GITHUB_PATH" && break
+            [ "$attempt" -eq 5 ] && echo "maestro install failed after 5 attempts" && exit 1
+            rm -rf $HOME/.maestro $HOME/.maestro.tmp
+            sleep 2
+          done
       - run: pnpm install --frozen-lockfile
       - run: |
           pnpm nx run-many -t build -p mobile e2e
