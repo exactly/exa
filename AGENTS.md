@@ -171,6 +171,16 @@ when using sentry mcp tools:
 - **never use `naturalLanguageQuery`**: this parameter is unsupported on all sentry mcp tools and will cause requests to fail. use the structured query parameters (`query`, `sort`, `project`, etc.) directly.
 - **always pass both issue and event ids**: `get_issue_details` returns only the latest event by default, which may not be the one you are investigating. when looking into a specific error occurrence, use `search_issue_events` to locate the exact event and pass its id explicitly.
 
+### foundry `cast`
+
+foundry is a project dependency, so `cast` is always available. use it to investigate onchain state, decode transactions, and debug contract interactions — both against production chains and the local anvil node.
+
+- **always pass `--rpc-url`**: never rely on a default rpc. construct urls from the alchemy base urls in `common/node_modules/@account-kit/infra/dist/esm/chains.js` and the api keys in `common/alchemyAPIKey.ts` (format: `{base_url}/{api_key}`). for local testing, use `http://localhost:8545` (anvil).
+- **querying state**: `cast call` for read-only contract calls, `cast balance` for balances, `cast storage` for raw storage slots, `cast code` for deployed bytecode.
+- **investigating transactions**: `cast tx` for transaction details, `cast receipt` for receipts and logs, `cast run` to trace execution and pinpoint reverts.
+- **decoding**: `cast 4byte-decode` for calldata, `cast abi-decode` for return data, `cast sig` for function selectors, `cast logs` for event logs with topic filtering. contract abis are available in `contracts/out/` after a build.
+- **anvil in e2e**: during e2e tests, anvil runs at `localhost:8545` (chain id 31337). use `cast rpc` for anvil-specific methods (`anvil_impersonateAccount`, `anvil_setBalance`, `anvil_mine`) to manipulate test state.
+
 ## external references
 
 content in this section is adapted from external sources and should be periodically reviewed for updates.
