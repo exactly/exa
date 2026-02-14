@@ -32,7 +32,7 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { anvil } from "viem/chains";
-import { afterEach, beforeEach, describe, expect, inject, it, vi, type MockSettledResult } from "vitest";
+import { afterEach, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import chain, {
@@ -104,8 +104,6 @@ describe("proposal", () => {
       const withdraw = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
       const anotherWithdraw = proposals[1]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
 
-      const waitForTransactionReceipt = vi.spyOn(publicClient, "waitForTransactionReceipt");
-      const initialSettledResults = waitForTransactionReceipt.mock.settledResults.length;
       const expected = [
         {
           receiver: getAddress(decodeWithdraw(withdraw.args.data)),
@@ -116,8 +114,9 @@ describe("proposal", () => {
           amount: anotherWithdraw.args.amount,
         },
       ];
+      const proposalExecutions = waitForSuccessfulProposalExecutions([withdraw.args.nonce, anotherWithdraw.args.nonce]);
 
-      await Promise.all([
+      const [, receipts] = await Promise.all([
         appClient.index.$post({
           ...withdrawProposal,
           json: {
@@ -141,11 +140,9 @@ describe("proposal", () => {
             },
           },
         }),
-        vi.waitUntil(() => {
-          return hasTransfers(waitForTransactionReceipt.mock.settledResults, initialSettledResults, expected);
-        }, 26_666),
+        proposalExecutions,
       ]);
-      expect(hasTransfers(waitForTransactionReceipt.mock.settledResults, initialSettledResults, expected)).toBe(true);
+      expect(hasExpectedTransfers(receipts, expected)).toBe(true);
     });
   });
 
@@ -885,8 +882,6 @@ describe("proposal", () => {
       const withdraw = proposals[3]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
       const another = proposals[4]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
 
-      const waitForTransactionReceipt = vi.spyOn(publicClient, "waitForTransactionReceipt");
-      const initialSettledResults = waitForTransactionReceipt.mock.settledResults.length;
       const expected = [
         {
           receiver: getAddress(decodeWithdraw(withdraw.args.data)),
@@ -897,8 +892,9 @@ describe("proposal", () => {
           amount: idle.args.amount,
         },
       ];
+      const proposalExecutions = waitForSuccessfulProposalExecutions([withdraw.args.nonce, idle.args.nonce]);
 
-      await Promise.all([
+      const [, receipts] = await Promise.all([
         appClient.index.$post({
           ...withdrawProposal,
           json: {
@@ -918,12 +914,9 @@ describe("proposal", () => {
             },
           },
         }),
-        vi.waitUntil(
-          () => hasTransfers(waitForTransactionReceipt.mock.settledResults, initialSettledResults, expected),
-          26_666,
-        ),
+        proposalExecutions,
       ]);
-      expect(hasTransfers(waitForTransactionReceipt.mock.settledResults, initialSettledResults, expected)).toBe(true);
+      expect(hasExpectedTransfers(receipts, expected)).toBe(true);
       expect(captureException).toHaveBeenCalledWith(
         expect.objectContaining({ name: "ContractFunctionExecutionError", functionName: "executeProposal" }),
         expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "NotNext"] }),
@@ -1735,20 +1728,16 @@ const withdrawProposal = {
   },
 };
 
-function hasTransfers(
-  settledResults: readonly MockSettledResult<TransactionReceipt>[],
-  initialSettledResults: number,
+function hasExpectedTransfers(
+  receipts: readonly TransactionReceipt[],
   expected: { amount: bigint; receiver: Address }[],
 ) {
-  const transferred = settledResults
-    .slice(initialSettledResults)
-    .flatMap((result) =>
-      result.type === "fulfilled"
-        ? result.value.logs
-            .filter((l) => l.address.toLowerCase() === inject("USDC").toLowerCase())
-            .map((l) => decodeEventLog({ abi: erc20Abi, eventName: "Transfer", topics: l.topics, data: l.data }))
-            .map((l) => ({ receiver: getAddress(l.args.to), amount: l.args.value }))
-        : [],
+  const transferred = receipts
+    .flatMap((receipt) =>
+      receipt.logs
+        .filter((l) => l.address.toLowerCase() === inject("USDC").toLowerCase())
+        .map((l) => decodeEventLog({ abi: erc20Abi, eventName: "Transfer", topics: l.topics, data: l.data }))
+        .map((l) => ({ receiver: getAddress(l.args.to), amount: l.args.value })),
     )
     .filter(({ amount }) => amount > 0n);
   const transferCountByKey = new Map<string, number>();
@@ -1763,6 +1752,34 @@ function hasTransfers(
     transferCountByKey.set(key, count - 1);
   }
   return true;
+}
+
+function waitForSuccessfulProposalExecutions(expectedNonces: bigint[]) {
+  if (vi.isMockFunction(keeper.exaSend)) throw new Error("unexpected keeper exaSend mock");
+  const exaSend = keeper.exaSend.bind(keeper);
+  const expected = new Set(expectedNonces);
+  const successfulReceipts = new Map<bigint, TransactionReceipt>();
+  vi.spyOn(keeper, "exaSend").mockImplementation(async (span, call, options) => {
+    const receipt = await exaSend(span, call, options);
+    if (
+      call.functionName === "executeProposal" &&
+      call.args?.length === 1 &&
+      typeof call.args[0] === "bigint" &&
+      expected.has(call.args[0]) &&
+      receipt?.status === "success"
+    )
+      successfulReceipts.set(call.args[0], receipt);
+    return receipt;
+  });
+  return vi
+    .waitUntil(() => expectedNonces.every((nonce) => successfulReceipts.has(nonce)), 26_666)
+    .then(() =>
+      expectedNonces.map((nonce) => {
+        const receipt = successfulReceipts.get(nonce);
+        if (!receipt) throw new Error(`missing successful receipt for nonce ${String(nonce)}`);
+        return receipt;
+      }),
+    );
 }
 
 function execute(calldata: Hex) {
