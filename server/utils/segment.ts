@@ -21,22 +21,24 @@ type MerchantProperties = {
   name: string;
 };
 
+type SourceProperty = { source: null | string };
+
 export function track(
   action: Id<
-    | { event: "AccountFunded" }
+    | { event: "AccountFunded"; properties: SourceProperty }
     | {
         event: "AuthorizationRejected";
-        properties: {
+        properties: SourceProperty & {
           cardMode: number;
           declinedReason: string;
           merchant: MerchantProperties;
           usdAmount: number;
         };
       }
-    | { event: "CardDeleted" }
-    | { event: "CardFrozen" }
-    | { event: "CardIssued"; properties: { productId: string } }
-    | { event: "CardUnfrozen" }
+    | { event: "CardDeleted"; properties: SourceProperty }
+    | { event: "CardFrozen"; properties: SourceProperty }
+    | { event: "CardIssued"; properties: SourceProperty & { productId: string } }
+    | { event: "CardUnfrozen"; properties: SourceProperty }
     | {
         event: "Onramp";
         properties: {
@@ -50,7 +52,7 @@ export function track(
     | { event: "RampAccount"; properties: { provider: "bridge" | "manteca"; source: null | string } }
     | {
         event: "TransactionAuthorized";
-        properties: {
+        properties: SourceProperty & {
           cardMode: number;
           merchant: MerchantProperties;
           type: "panda";
@@ -59,7 +61,7 @@ export function track(
       }
     | {
         event: "TransactionRefund";
-        properties: {
+        properties: SourceProperty & {
           id: string;
           merchant: MerchantProperties;
           type: "partial" | "refund" | "reversal";
@@ -68,7 +70,7 @@ export function track(
       }
     | {
         event: "TransactionRejected";
-        properties: {
+        properties: SourceProperty & {
           cardMode: number;
           declinedReason?: null | string;
           id: string;
