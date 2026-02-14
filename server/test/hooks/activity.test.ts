@@ -383,32 +383,21 @@ describe("address activity", () => {
     const deposit = parseEther("5");
     await anvilClient.setBalance({ address: account, value: deposit });
 
-    const waitForTransactionReceipt = vi.spyOn(publicClient, "waitForTransactionReceipt");
-
-    const response = await appClient.index.$post({
-      ...activityPayload,
-      json: {
-        ...activityPayload.json,
-        event: {
-          ...activityPayload.json.event,
-          activity: [{ ...activityPayload.json.event.activity[0], toAddress: account }],
+    const [response] = await Promise.all([
+      appClient.index.$post({
+        ...activityPayload,
+        json: {
+          ...activityPayload.json,
+          event: {
+            ...activityPayload.json.event,
+            activity: [{ ...activityPayload.json.event.activity[0], toAddress: account }],
+          },
         },
-      },
-    });
+      }),
+      waitForWethMarket(account, deposit),
+    ]);
 
-    await vi.waitUntil(
-      () => waitForTransactionReceipt.mock.settledResults.filter(({ type }) => type !== "incomplete").length >= 2,
-      26_666,
-    );
-
-    const exactly = await publicClient.readContract({
-      address: inject("Previewer"),
-      functionName: "exactly",
-      abi: previewerAbi,
-      args: [account],
-    });
-
-    const market = exactly.find((m) => m.asset === inject("WETH"));
+    const market = await getWethMarket(account);
 
     expect(market?.floatingDepositAssets).toBe(deposit);
     expect(market?.isCollateral).toBe(true);
@@ -425,39 +414,28 @@ describe("address activity", () => {
       { address: inject("WETH"), abi: mockERC20Abi, functionName: "mint", args: [account, weth] },
     );
 
-    const waitForTransactionReceipt = vi.spyOn(publicClient, "waitForTransactionReceipt");
-
-    const response = await appClient.index.$post({
-      ...activityPayload,
-      json: {
-        ...activityPayload.json,
-        event: {
-          ...activityPayload.json.event,
-          activity: [
-            { ...activityPayload.json.event.activity[0], toAddress: account },
-            {
-              ...activityPayload.json.event.activity[1],
-              toAddress: account,
-              rawContract: { ...activityPayload.json.event.activity[1].rawContract, address: inject("WETH") },
-            },
-          ],
+    const [response] = await Promise.all([
+      appClient.index.$post({
+        ...activityPayload,
+        json: {
+          ...activityPayload.json,
+          event: {
+            ...activityPayload.json.event,
+            activity: [
+              { ...activityPayload.json.event.activity[0], toAddress: account },
+              {
+                ...activityPayload.json.event.activity[1],
+                toAddress: account,
+                rawContract: { ...activityPayload.json.event.activity[1].rawContract, address: inject("WETH") },
+              },
+            ],
+          },
         },
-      },
-    });
+      }),
+      waitForWethMarket(account, eth + weth),
+    ]);
 
-    await vi.waitUntil(
-      () => waitForTransactionReceipt.mock.settledResults.filter(({ type }) => type !== "incomplete").length >= 2,
-      26_666,
-    );
-
-    const exactly = await publicClient.readContract({
-      address: inject("Previewer"),
-      functionName: "exactly",
-      abi: previewerAbi,
-      args: [account],
-    });
-
-    const market = exactly.find((m) => m.asset === inject("WETH"));
+    const market = await getWethMarket(account);
 
     expect(market?.floatingDepositAssets).toBe(eth + weth);
     expect(market?.isCollateral).toBe(true);
@@ -495,6 +473,7 @@ describe("address activity", () => {
     ]);
 
     const waitForTransactionReceipt = vi.spyOn(publicClient, "waitForTransactionReceipt");
+    const initialSettledResults = waitForTransactionReceipt.mock.settledResults.length;
     const [response] = await Promise.all([
       appClient.index.$post({
         ...activityPayload,
@@ -507,7 +486,10 @@ describe("address activity", () => {
         },
       }),
       vi.waitUntil(
-        () => waitForTransactionReceipt.mock.settledResults.filter(({ type }) => type !== "incomplete").length >= 5,
+        () =>
+          waitForTransactionReceipt.mock.settledResults
+            .slice(initialSettledResults)
+            .filter(({ type }) => type !== "incomplete").length >= 5,
         26_666,
       ),
     ]);
@@ -516,23 +498,19 @@ describe("address activity", () => {
   });
 
   it("deploy account for non market asset", async () => {
-    const waitForTransactionReceipt = vi.spyOn(publicClient, "waitForTransactionReceipt");
-
-    const response = await appClient.index.$post({
-      ...activityPayload,
-      json: {
-        ...activityPayload.json,
-        event: {
-          ...activityPayload.json.event,
-          activity: [{ ...activityPayload.json.event.activity[2], toAddress: account }],
+    const [response] = await Promise.all([
+      appClient.index.$post({
+        ...activityPayload,
+        json: {
+          ...activityPayload.json,
+          event: {
+            ...activityPayload.json.event,
+            activity: [{ ...activityPayload.json.event.activity[2], toAddress: account }],
+          },
         },
-      },
-    });
-
-    await vi.waitUntil(
-      () => waitForTransactionReceipt.mock.settledResults.some(({ type }) => type !== "incomplete"),
-      26_666,
-    );
+      }),
+      vi.waitUntil(async () => !!(await publicClient.getCode({ address: account })), 26_666),
+    ]);
 
     const deployed = !!(await publicClient.getCode({ address: account }));
 
@@ -560,10 +538,29 @@ describe("address activity", () => {
       },
     });
 
-    expect(sendPushNotification).not.toHaveBeenCalledOnce();
+    expect(sendPushNotification).not.toHaveBeenCalled();
     expect(response.status).toBe(200);
   });
 });
+
+async function getWethMarket(account: Address) {
+  const exactly = await publicClient.readContract({
+    address: inject("Previewer"),
+    functionName: "exactly",
+    abi: previewerAbi,
+    args: [account],
+  });
+
+  return exactly.find((m) => m.asset === inject("WETH"));
+}
+
+async function waitForWethMarket(account: Address, floatingDepositAssets: bigint) {
+  await vi.waitUntil(async () => {
+    const market = await getWethMarket(account);
+
+    return market?.floatingDepositAssets === floatingDepositAssets && market.isCollateral;
+  }, 26_666);
+}
 
 const activityPayload = {
   header: {},
