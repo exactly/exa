@@ -162,8 +162,32 @@ launch a `Task` subagent (subagent_type: `general-purpose`). instruct it to perf
 
 1. run `git status` (never use `-uall`) and `git diff --staged --stat`
 2. if files are already staged, show the staged summary and proceed to step 2
-3. if nothing is staged, show the full status and ask the developer what to stage
-4. stage the requested files with `git add <specific files>` (never `git add -A` or `git add .`)
+3. if nothing is staged, run `git diff` to read the full unstaged diff and evaluate **coherence** before staging:
+
+**auto-stage** (no question needed) when all changes form one coherent unit of work — every change is necessary for or directly caused by the same single intent.
+
+**ask the developer** when the diff contains incoherent changes. incoherence signals:
+
+- **different gitmojis** — part of the diff is a fix and another part is a feature
+- **drive-by changes** — formatting, typo fixes, import cleanup in files unrelated to the main change
+- **independent functional changes** — two unrelated fixes, or a fix + an unrelated improvement, even in the same file
+- **formatting mixed with logic** — style/whitespace changes alongside behavioral changes
+- **cross-package changes** — server + client changes are separate commits, separate versions, separate deploys
+- **dependency changes** — additions/updates in `package.json`/`pnpm-lock.yaml` are always their own commit
+- **db schema changes** — migrations or schema modifications are always their own commit, separate from code using the new schema
+
+coherence signals (fine together):
+
+- feature code + its tests within the same package
+- implementation + its changeset
+- a mechanical refactor applying the same transformation across files (e.g., renaming a symbol, updating an import path, changing a function signature)
+- config changes within the same package strictly required by the feature
+
+coherence must be evaluated at the **hunk level**, not the file level — a single file can contain hunks belonging to different intents. working on multiple changes simultaneously and authoring commits separately is normal workflow.
+
+when asking, explain which groups of changes were detected and suggest how to split them. stage only what the developer confirms.
+
+staging must always be granular (never `git add -A` or `git add .`). when all hunks in a file belong to the same intent, `git add <file>` is acceptable. when a file contains hunks for different intents, stage individual hunks programmatically (e.g., generate a patch for the relevant hunks and apply with `git apply --cached`).
 
 #### step 2: analyze the diff
 
