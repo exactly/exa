@@ -169,6 +169,7 @@ when using sentry mcp tools:
 
 - **never use seer tools**: `analyze_issue_with_seer` is non-functional and will fail. use `search_issues`, `get_issue_details`, and `search_issue_events` to investigate errors instead.
 - **never use `naturalLanguageQuery`**: this parameter is unsupported on all sentry mcp tools and will cause requests to fail. use the structured query parameters (`query`, `sort`, `project`, etc.) directly.
+- **always pass both issue and event ids**: `get_issue_details` returns only the latest event by default, which may not be the one you are investigating. when looking into a specific error occurrence, use `search_issue_events` to locate the exact event and pass its id explicitly.
 
 ## external references
 
