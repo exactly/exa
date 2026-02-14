@@ -1,37 +1,32 @@
-import { SPAN_STATUS_ERROR, SPAN_STATUS_OK } from "@sentry/core";
-import { captureException, startSpan, withScope } from "@sentry/node";
-import { setTimeout } from "node:timers/promises";
+import { captureException } from "@sentry/node";
 import { parse } from "valibot";
 import {
-  BaseError,
-  ContractFunctionRevertedError,
   createWalletClient,
-  encodeFunctionData,
-  getContractError,
+  erc20Abi,
   http,
-  InvalidInputRpcError,
-  keccak256,
-  RawContractError,
-  WaitForTransactionReceiptTimeoutError,
   withRetry,
   type HttpTransport,
-  type MaybePromise,
-  type Prettify,
   type PrivateKeyAccount,
-  type TransactionReceipt,
   type WalletClient,
-  type WriteContractParameters,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
-import chain from "@exactly/common/generated/chain";
-import { Hash } from "@exactly/common/validation";
+import chain, {
+  auditorAbi,
+  exaPluginAbi,
+  exaPreviewerAbi,
+  exaPreviewerAddress,
+  marketAbi,
+  upgradeableModularAccountAbi,
+  wethAddress,
+} from "@exactly/common/generated/chain";
+import { Address, Hash } from "@exactly/common/validation";
 
-import fingerprintRevert from "./fingerprintRevert";
+import baseExtender from "./baseExtender";
 import nonceManager from "./nonceManager";
+import { sendPushNotification } from "./onesignal";
 import publicClient, { captureRequests, Requests } from "./publicClient";
-import traceClient from "./traceClient";
 
 if (!chain.rpcUrls.alchemy.http[0]) throw new Error("missing alchemy rpc url");
 
@@ -51,141 +46,129 @@ export default createWalletClient({
   ),
 }).extend(extender);
 
+const ETH = parse(Address, "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
+const WETH = parse(Address, wethAddress);
+
 export function extender(keeper: WalletClient<HttpTransport, typeof chain, PrivateKeyAccount>) {
+  const base = baseExtender(keeper);
+
   return {
-    exaSend: async (
-      spanOptions: Prettify<Omit<Parameters<typeof startSpan>[0], "name" | "op"> & { name: string; op: string }>,
-      call: Prettify<Pick<WriteContractParameters, "abi" | "address" | "args" | "functionName">>,
-      options?: {
-        ignore?: ((reason: string) => MaybePromise<boolean | TransactionReceipt | undefined>) | string[];
-        onHash?: (hash: Hash) => MaybePromise<unknown>;
-      },
-    ) =>
-      withScope((scope) =>
-        startSpan({ forceTransaction: true, ...spanOptions }, async (span) => {
-          try {
-            scope.setContext("tx", { call });
-            span.setAttributes({
-              "tx.call": `${call.functionName}(${call.args?.map(String).join(", ") ?? ""})`,
-              "tx.from": keeper.account.address,
-              "tx.to": call.address,
-            });
-            const txOptions = {
-              type: "eip1559",
-              maxFeePerGas: 1_000_000_000n,
-              maxPriorityFeePerGas: 1_000_000n,
-              gas: 5_000_000n,
-            } as const;
-            const { request: writeRequest } = await startSpan({ name: "eth_call", op: "tx.simulate" }, () =>
-              publicClient.simulateContract({ account: keeper.account, ...txOptions, ...call }),
-            );
-            const {
-              abi: _,
-              account: __,
-              address: ___,
-              ...request
-            } = { from: writeRequest.account.address, to: writeRequest.address, ...writeRequest };
-            scope.setContext("tx", { request });
-            const prepared = await startSpan({ name: "prepare transaction", op: "tx.prepare" }, () =>
-              keeper.prepareTransactionRequest({
-                to: call.address,
-                data: encodeFunctionData(call),
-                ...txOptions,
-                nonceManager,
-              }),
-            );
-            scope.setContext("tx", { request, prepared });
-            span.setAttribute("tx.nonce", prepared.nonce);
-            const serializedTransaction = await startSpan({ name: "sign transaction", op: "tx.sign" }, () =>
-              keeper.signTransaction(prepared),
-            );
-            const hash = keccak256(serializedTransaction);
-            scope.setContext("tx", { request, prepared, hash });
-            span.setAttribute("tx.hash", hash);
-            const abortController = new AbortController();
-            const [, receiptResult] = await Promise.allSettled([
-              (async () => {
-                while (!abortController.signal.aborted) {
-                  await Promise.allSettled([
-                    startSpan({ name: "send transaction", op: "tx.send" }, () =>
-                      publicClient.sendRawTransaction({ serializedTransaction }),
-                    ).catch((error: unknown) => {
-                      captureException(error, { level: "error" });
-                      throw error;
-                    }),
-                    setTimeout(10_000, null, { signal: abortController.signal }),
-                  ]);
-                }
-              })(),
-              startSpan({ name: "wait for receipt", op: "tx.wait" }, () =>
-                publicClient.waitForTransactionReceipt({ hash, confirmations: 0 }),
-              )
-                .catch((error: unknown) => {
-                  if (error instanceof WaitForTransactionReceiptTimeoutError) {
-                    startSpan(
-                      { name: "nonce reset", op: "tx.reset", attributes: { "tx.nonce": prepared.nonce } },
-                      (resetSpan) => {
-                        const info = nonceManager.info({ address: keeper.account.address, chainId: chain.id });
-                        resetSpan.setAttribute("exa.reset", true);
-                        resetSpan.setAttribute("exa.delta", info.delta);
-                        resetSpan.setAttribute("exa.nonce", info.nonce);
-                        nonceManager.hardReset({ address: keeper.account.address, chainId: chain.id });
-                      },
-                    );
-                  }
-                  throw error;
-                })
-                .finally(() => {
-                  abortController.abort();
-                }),
-              Promise.resolve(options?.onHash?.(hash)).catch((error: unknown) =>
-                captureException(error, { level: "error" }),
-              ),
-            ]);
-            if (receiptResult.status === "rejected") throw receiptResult.reason;
-            const receipt = receiptResult.value;
-            scope.setContext("tx", { request, receipt });
-            const trace = await startSpan({ name: "trace transaction", op: "tx.trace" }, () =>
-              withRetry(() => traceClient.traceTransaction(hash), {
-                delay: 1000,
-                retryCount: 10,
-                shouldRetry: ({ error }) => error instanceof InvalidInputRpcError,
-              }).catch((error: unknown) => {
+    ...base,
+    poke: async (
+      accountAddress: Address,
+      options?: { ignore?: string[]; notification?: { contents: { en: string }; headings: { en: string } } },
+    ) => {
+      const combinedAccountAbi = [...exaPluginAbi, ...upgradeableModularAccountAbi, ...auditorAbi, ...marketAbi];
+      const marketsByAsset = await withRetry(
+        () => publicClient.readContract({ address: exaPreviewerAddress, functionName: "assets", abi: exaPreviewerAbi }),
+        {
+          delay: 2000,
+          retryCount: 5,
+          shouldRetry: ({ error }) => {
+            captureException(error, { level: "error" });
+            return true;
+          },
+        },
+      ).then((p) => new Map<Address, Address>(p.map((m) => [parse(Address, m.asset), parse(Address, m.market)])));
+
+      const assetsToPoke: { asset: Address; market: Address | null }[] = [];
+
+      const [ethBalance, assetBalances] = await Promise.all([
+        withRetry(() => publicClient.getBalance({ address: accountAddress }), {
+          delay: 2000,
+          retryCount: 5,
+          shouldRetry: ({ error }) => {
+            captureException(error, { level: "error" });
+            return true;
+          },
+        }),
+        Promise.all(
+          [...marketsByAsset.entries()].map(async ([asset, market]) => {
+            const maxAttempts = 3;
+            for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+              try {
+                const balance = await publicClient.readContract({
+                  address: asset,
+                  functionName: "balanceOf",
+                  args: [accountAddress],
+                  abi: erc20Abi,
+                });
+                return { asset, market, balance };
+              } catch (error) {
                 captureException(error, { level: "error" });
-                return null;
-              }),
-            );
-            scope.setContext("tx", { request, receipt, trace });
-            if (receipt.status !== "success") {
-              if (!trace) throw new Error("no trace");
-              // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
-              throw getContractError(new RawContractError({ data: trace.output }), { ...call, args: call.args ?? [] });
-            }
-            span.setStatus({ code: SPAN_STATUS_OK });
-            return receipt;
-          } catch (error: unknown) {
-            const reason =
-              error instanceof BaseError &&
-              error.cause instanceof ContractFunctionRevertedError &&
-              error.cause.data?.errorName
-                ? `${error.cause.data.errorName}(${error.cause.data.args?.map(String).join(",") ?? ""})`
-                : error instanceof Error
-                  ? error.message
-                  : String(error);
-            if (options?.ignore) {
-              const ignore =
-                typeof options.ignore === "function" ? await options.ignore(reason) : options.ignore.includes(reason);
-              if (ignore) {
-                span.setAttribute("exa.error", reason);
-                span.setStatus({ code: SPAN_STATUS_OK });
-                return ignore === true ? null : ignore;
+                if (attempt === maxAttempts) {
+                  return { asset, market, balance: 0n };
+                }
+                await new Promise((resolve) => globalThis.setTimeout(resolve, 1000 * attempt));
               }
             }
-            span.setStatus({ code: SPAN_STATUS_ERROR, message: reason });
-            captureException(error, { level: "error", fingerprint: fingerprintRevert(error) });
-            throw error;
-          }
-        }),
-      ),
+            return { asset, market, balance: 0n };
+          }),
+        ),
+      ]);
+
+      const hasETH = ethBalance > 0n;
+
+      if (hasETH) {
+        assetsToPoke.push({ asset: ETH, market: null });
+      }
+
+      for (const { asset, market, balance } of assetBalances) {
+        if (hasETH && asset === WETH) continue;
+
+        if (balance > 0n) {
+          assetsToPoke.push({ asset, market });
+        }
+      }
+
+      const pokePromises = assetsToPoke.map(({ asset, market }) =>
+        withRetry(
+          () =>
+            base.exaSend(
+              {
+                name: "poke account",
+                op: "exa.poke",
+                attributes: { account: accountAddress, asset },
+              },
+              asset === ETH
+                ? {
+                    address: accountAddress,
+                    abi: combinedAccountAbi,
+                    functionName: "pokeETH",
+                  }
+                : {
+                    address: accountAddress,
+                    abi: combinedAccountAbi,
+                    functionName: "poke",
+                    args: [market],
+                  },
+              ...(options?.ignore ? [{ ignore: options.ignore }] : []),
+            ),
+          {
+            delay: 2000,
+            retryCount: 5,
+            shouldRetry: ({ error }) => {
+              captureException(error, { level: "warning" });
+              return true;
+            },
+          },
+        ),
+      );
+
+      const results = await Promise.allSettled(pokePromises);
+      for (const result of results) {
+        if (result.status === "rejected") captureException(result.reason);
+      }
+
+      const successCount = results.filter((result) => result.status === "fulfilled").length;
+
+      if (options?.notification && successCount > 0) {
+        sendPushNotification({
+          userId: accountAddress,
+          headings: options.notification.headings,
+          contents: options.notification.contents,
+        }).catch((error: unknown) => captureException(error));
+      }
+    },
   };
 }
