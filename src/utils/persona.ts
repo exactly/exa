@@ -17,7 +17,12 @@ type MantecaKYCResult = { status: "cancel" } | { status: "complete" } | { status
 
 let current:
   | undefined
-  | { controller: AbortController; promise: Promise<MantecaKYCResult>; type: "manteca" }
+  | {
+      controller: AbortController;
+      promise: Promise<MantecaKYCResult>;
+      tokens?: { inquiryId: string; sessionToken: string };
+      type: "manteca";
+    }
   | { controller: AbortController; promise: Promise<void>; type: "basic" };
 
 export function startKYC() {
@@ -117,8 +122,9 @@ export function cancelKYC() {
   current?.controller.abort(new Error("persona inquiry cancelled"));
 }
 
-export function startMantecaKYC() {
-  if (current && !current.controller.signal.aborted && current.type === "manteca") return current.promise;
+export function startMantecaKYC(tokens?: { inquiryId: string; sessionToken: string }) {
+  if (current && !current.controller.signal.aborted && current.type === "manteca" && current.tokens === tokens)
+    return current.promise;
 
   current?.controller.abort(new Error("persona inquiry aborted"));
   const controller = new AbortController();
@@ -135,7 +141,7 @@ export function startMantecaKYC() {
     if (Platform.OS === "web") {
       const [{ Client }, { inquiryId, sessionToken }] = await Promise.all([
         import("persona"),
-        getKYCTokens("manteca", await getRedirectURI()),
+        tokens ?? getKYCTokens("manteca", await getRedirectURI()),
       ]);
       if (signal.aborted) throw signal.reason;
 
@@ -175,7 +181,7 @@ export function startMantecaKYC() {
       });
     }
 
-    const { inquiryId, sessionToken } = await getKYCTokens("manteca", await getRedirectURI());
+    const { inquiryId, sessionToken } = tokens ?? (await getKYCTokens("manteca", await getRedirectURI()));
     if (signal.aborted) throw signal.reason;
 
     const { Inquiry } = await import("react-native-persona");
@@ -206,7 +212,7 @@ export function startMantecaKYC() {
     if (current?.controller === controller) current = undefined;
   });
 
-  current = { type: "manteca", controller, promise };
+  current = { type: "manteca", controller, promise, tokens };
   return promise;
 }
 

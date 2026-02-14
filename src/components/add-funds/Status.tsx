@@ -1,15 +1,18 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { X } from "@tamagui/lucide-icons";
-import { ScrollView, YStack } from "tamagui";
+import { ScrollView, Spinner, YStack } from "tamagui";
+
+import { useQuery } from "@tanstack/react-query";
 
 import MantecaDisclaimer from "./MantecaDisclaimer";
 import Denied from "../../assets/images/denied.svg";
 import FaceId from "../../assets/images/face-id.svg";
 import { isValidCurrency } from "../../utils/currencies";
+import { getRampProviders } from "../../utils/server";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
@@ -19,14 +22,32 @@ export default function Status() {
   const { t } = useTranslation();
   const router = useRouter();
 
-  const parameters = useLocalSearchParams<{
-    currency: string;
-    status: string;
-  }>();
-
-  const { currency, status } = parameters;
+  const { currency, status, pending } = useLocalSearchParams<{ currency: string; pending: string; status: string }>();
   const validCurrency = isValidCurrency(currency);
   const isOnboarding = status === "ONBOARDING";
+  const isPending = pending === "true";
+
+  const [timedOut, setTimedOut] = useState(!isPending);
+  useEffect(() => {
+    if (!isPending) return;
+    const timeout = setTimeout(() => setTimedOut(true), 5000);
+    return () => clearTimeout(timeout);
+  }, [isPending]);
+
+  const { data: countryCode } = useQuery<string>({ queryKey: ["user", "country"] });
+  const { data: providers, isFetching } = useQuery({
+    queryKey: ["ramp", "providers", countryCode],
+    queryFn: () => getRampProviders(countryCode),
+    enabled: isPending && timedOut && !!countryCode,
+  });
+
+  useEffect(() => {
+    if (isPending && providers?.manteca.status === "ACTIVE" && currency) {
+      router.replace({ pathname: "/add-funds/ramp", params: { currency } });
+    }
+  }, [isPending, providers, currency, router]);
+
+  const ready = !isPending || (timedOut && !isFetching);
 
   if (!validCurrency) return <Redirect href="/add-funds" />;
 
@@ -59,12 +80,19 @@ export default function Status() {
           </View>
         </ScrollView>
         <MantecaDisclaimer />
-        <Button onPress={handleClose} primary>
-          <Button.Text>{t("Close")}</Button.Text>
-          <Button.Icon>
-            <X size={24} />
-          </Button.Icon>
-        </Button>
+        {ready ? (
+          <Button onPress={handleClose} primary>
+            <Button.Text>{t("Close")}</Button.Text>
+            <Button.Icon>
+              <X size={24} />
+            </Button.Icon>
+          </Button>
+        ) : (
+          <Button disabled primary>
+            <Button.Text>{t("Verifying...")}</Button.Text>
+            <Spinner color="$interactiveOnDisabled" />
+          </Button>
+        )}
       </View>
     </SafeView>
   );
