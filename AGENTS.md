@@ -22,6 +22,7 @@ code is read far more often than it is written. visual harmony is not vanity —
 
 aesthetics cannot be fully codified into rules. it is a sensibility — a reflex that recoils at visual noise and reaches for elegance. cultivate it. when two approaches are functionally equivalent, pick the one that looks better on screen.
 
+- **prefer single words**: the most elegant identifier is a single word. it needs no separator, obeys every casing convention at once, and is always the shortest option. before reaching for a compound name, ask whether a more precise single word exists.
 - **`snake_case` is prohibited by default**: this project uses `camelCase` for variables, functions, and modules, `PascalCase` for types, components, and events, and `kebab-case` for files, directories, and anything else. `snake_case` is visually noisy and breaks the rhythm of the codebase. never use it for any identifier, event name, key, or label where you have the freedom to choose. the only acceptable exceptions are external boundaries you cannot control:
   - adopting a third-party api contract that uses `snake_case` fields
   - writing in a language where `snake_case` is the dominant idiom (rust, python, sql)
