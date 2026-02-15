@@ -1,5 +1,6 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
+- waitForAnimationToEnd
 - scrollUntilVisible: { element: Upcoming payments }
 - copyTextFrom:
     text: \d+[,.]\d{2}
@@ -26,6 +27,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow:
     file: ../subflows/tapWhileAria.yaml
     env: { aria: Pending proposals, tap: Home }
+- waitForAnimationToEnd
 - scrollUntilVisible: { element: Upcoming payments }
 - copyTextFrom:
     text: \d+[,.]\d{2}
@@ -37,3 +39,4 @@ appId: ${APP_ID ?? "app.exactly"}
     leftOf: Repay
 - assertTrue: ${maestro.copiedText === output.secondMaturity}
 - tapOn: Home
+- waitForAnimationToEnd
