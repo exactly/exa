@@ -16,6 +16,16 @@ this codebase will outlive you. every shortcut becomes someone else's burden. ev
 - **diff-friendliness**: diffs matter. avoid adding items at the end of json/array lists (add in the middle or sorted position). trailing commas everywhere. structure code so changes are minimal and reviewable.
 - **obsessive attention to detail**: every line of code, every comment, and every commit message reflects the quality of the project.
 
+## aesthetics
+
+code is read far more often than it is written. visual harmony is not vanity — it directly affects readability, cognitive load, and the willingness of developers to maintain a codebase with care. ugly code invites more ugly code. beautiful code raises the bar.
+
+aesthetics cannot be fully codified into rules. it is a sensibility — a reflex that recoils at visual noise and reaches for elegance. cultivate it. when two approaches are functionally equivalent, pick the one that looks better on screen.
+
+- **`snake_case` is prohibited by default**: this project uses `camelCase` for variables, functions, and modules, `PascalCase` for types, components, and events, and `kebab-case` for files, directories, and anything else. `snake_case` is visually noisy and breaks the rhythm of the codebase. never use it for any identifier, event name, key, or label where you have the freedom to choose. the only acceptable exceptions are external boundaries you cannot control:
+  - adopting a third-party api contract that uses `snake_case` fields
+  - writing in a language where `snake_case` is the dominant idiom (rust, python, sql)
+
 ## naming philosophy ("long names are long")
 
 this project follows bob nystrom's "long names are long" philosophy. names must be clear and precise. any additional characters are dead weight.
