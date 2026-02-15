@@ -252,6 +252,7 @@ describe("proposal", () => {
 
     it("handles NonceTooLow as success in outer catch", async () => {
       const proposal = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
+      const match = matchProposal(proposal.args.account, proposal.args.nonce);
       const errorAbi = [{ type: "error", name: "NonceTooLow", inputs: [] }] as const;
       const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
       const zrem = vi.spyOn(redis, "zrem");
@@ -280,14 +281,15 @@ describe("proposal", () => {
         },
       });
 
-      await vi.waitUntil(() => zrem.mock.calls.some(([key]) => key === "proposals"), 26_666);
+      await vi.waitUntil(() => zrem.mock.calls.some((call) => match.zrem(call)), 26_666);
 
       const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
-      expect(captureExceptionCalls.some(([, hint]) => typeof hint === "object" && "contexts" in hint)).toBe(false);
+      expect(captureExceptionCalls.filter((call) => match.capture(call))).toEqual([]);
     });
 
     it("handles NoProposal as success in outer catch", async () => {
       const proposal = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
+      const match = matchProposal(proposal.args.account, proposal.args.nonce);
       const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
       const zrem = vi.spyOn(redis, "zrem");
       vi.spyOn(publicClient, "simulateContract").mockImplementationOnce(() => {
@@ -320,10 +322,10 @@ describe("proposal", () => {
         },
       });
 
-      await vi.waitUntil(() => zrem.mock.calls.some(([key]) => key === "proposals"), 26_666);
+      await vi.waitUntil(() => zrem.mock.calls.some((call) => match.zrem(call)), 26_666);
 
       const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
-      expect(captureExceptionCalls.some(([, hint]) => typeof hint === "object" && "contexts" in hint)).toBe(false);
+      expect(captureExceptionCalls.filter((call) => match.capture(call))).toEqual([]);
     });
 
     it("fingerprints outer catch by reason", async () => {
@@ -565,6 +567,7 @@ describe("proposal", () => {
 
     it("handles recovery NonceTooLow as success", async () => {
       const proposal = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
+      const match = matchProposal(proposal.args.account, proposal.args.nonce);
       const errorAbi = [{ type: "error", name: "NonceTooLow", inputs: [] }] as const;
       const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
       const zrem = vi.spyOn(redis, "zrem");
@@ -608,11 +611,12 @@ describe("proposal", () => {
         },
       });
 
-      await vi.waitUntil(() => zrem.mock.calls.some(([key]) => key === "proposals"), 26_666);
+      await vi.waitUntil(() => zrem.mock.calls.some((call) => match.zrem(call)), 26_666);
 
       const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
       const recoveryCapture = captureExceptionCalls.find(
         ([error, hint]) =>
+          match.capture([error, hint]) &&
           error instanceof Error &&
           "functionName" in error &&
           error.functionName === "setProposalNonce" &&
@@ -1932,6 +1936,31 @@ const wrappedErrorAbi = [
     ],
   },
 ] as const;
+
+function matchProposal(account: Address, nonce: bigint) {
+  return {
+    capture([, hint]: unknown[]) {
+      if (typeof hint !== "object" || hint === null || !("contexts" in hint)) return false;
+      const contexts = (hint as { contexts?: unknown }).contexts;
+      if (typeof contexts !== "object" || contexts === null || !("proposal" in contexts)) return false;
+      const proposal = (contexts as { proposal?: unknown }).proposal;
+      return (
+        typeof proposal === "object" &&
+        proposal !== null &&
+        "account" in proposal &&
+        proposal.account === account &&
+        "nonce" in proposal &&
+        proposal.nonce === nonce
+      );
+    },
+    zrem([key, message]: unknown[]) {
+      if (key !== "proposals" || typeof message !== "string") return false;
+      const payload = deserialize(message);
+      if (typeof payload !== "object" || payload === null) return false;
+      return "account" in payload && payload.account === account && "nonce" in payload && payload.nonce === nonce;
+    },
+  };
+}
 
 function matchWithdraw(amount: bigint, account: Address, market: Address, receiver: Address) {
   return {
