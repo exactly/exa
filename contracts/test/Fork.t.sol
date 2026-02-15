@@ -71,7 +71,9 @@ abstract contract ForkTest is Test {
           name,
           ".json"
         )
-      ) returns (string memory json) {
+      ) returns (
+        string memory json
+      ) {
         addr = json.readAddress(".address");
       } catch { } // solhint-disable-line no-empty-blocks
     }
@@ -98,9 +100,8 @@ abstract contract ForkTest is Test {
     addr = address(uint160(uint256(vm.load(msg.sender, keccak256(abi.encode(name))))));
     if (addr == address(0)) addr = vm.envOr(string.concat("BROADCAST_", name.upper(), "_ADDRESS"), address(0));
     if (addr == address(0)) {
-      addr = vm.readFile(string.concat(script, ".s.sol/", block.chainid.toString(), "/run-latest.json")).readAddress(
-        string.concat(".transactions[", index.toString(), "].contractAddress")
-      );
+      addr = vm.readFile(string.concat(script, ".s.sol/", block.chainid.toString(), "/run-latest.json"))
+        .readAddress(string.concat(".transactions[", index.toString(), "].contractAddress"));
     }
     _label(addr, name);
   }

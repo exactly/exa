@@ -975,11 +975,7 @@ contract ExaPluginTest is ForkTest {
       ProposalType.CROSS_REPAY_AT_MATURITY,
       abi.encode(
         CrossRepayData({
-          maturity: maturity,
-          positionAssets: 110e6,
-          marketOut: exaUSDC,
-          maxRepay: 110e6,
-          route: bytes("")
+          maturity: maturity, positionAssets: 110e6, marketOut: exaUSDC, maxRepay: 110e6, route: bytes("")
         })
       )
     );
@@ -2855,8 +2851,9 @@ contract ExaPluginTest is ForkTest {
 
     Call[] memory calls = new Call[](4);
     calls[0] = Call(address(auditor), 0, abi.encodeCall(IAuditor.enterMarket, exaEXA));
-    calls[1] =
-      Call(address(account), 0, abi.encodeCall(UpgradeableModularAccount.uninstallPlugin, (address(exaPlugin), "", "")));
+    calls[1] = Call(
+      address(account), 0, abi.encodeCall(UpgradeableModularAccount.uninstallPlugin, (address(exaPlugin), "", ""))
+    );
     calls[2] = Call(
       address(account),
       0,
@@ -2899,9 +2896,7 @@ contract ExaPluginTest is ForkTest {
       address(exaPlugin),
       abi.encode(
         UpgradeableModularAccount.UninstallPluginConfig({
-          serializedManifest: "",
-          forceUninstall: true,
-          callbackGasLimit: 0
+          serializedManifest: "", forceUninstall: true, callbackGasLimit: 0
         })
       ),
       ""
@@ -2910,8 +2905,9 @@ contract ExaPluginTest is ForkTest {
 
   function test_uninstall_reverts_withUnauthorized_whenInsideBatch() external {
     Call[] memory calls = new Call[](1);
-    calls[0] =
-      Call(address(account), 0, abi.encodeCall(UpgradeableModularAccount.uninstallPlugin, (address(exaPlugin), "", "")));
+    calls[0] = Call(
+      address(account), 0, abi.encodeCall(UpgradeableModularAccount.uninstallPlugin, (address(exaPlugin), "", ""))
+    );
     vm.expectRevert(
       abi.encodeWithSelector(
         UpgradeableModularAccount.PreExecHookReverted.selector,
@@ -2926,8 +2922,9 @@ contract ExaPluginTest is ForkTest {
 
   function test_uninstall_reverts_withUnauthorized_whenNotAllowedPlugin() external {
     Call[] memory calls = new Call[](2);
-    calls[0] =
-      Call(address(account), 0, abi.encodeCall(UpgradeableModularAccount.uninstallPlugin, (address(exaPlugin), "", "")));
+    calls[0] = Call(
+      address(account), 0, abi.encodeCall(UpgradeableModularAccount.uninstallPlugin, (address(exaPlugin), "", ""))
+    );
     calls[1] = Call(
       address(account),
       0,
@@ -2950,8 +2947,9 @@ contract ExaPluginTest is ForkTest {
 
   function test_uninstall_reverts_whitUnauthorized_whenNextCallIsNotInstall() external {
     Call[] memory calls = new Call[](2);
-    calls[0] =
-      Call(address(account), 0, abi.encodeCall(UpgradeableModularAccount.uninstallPlugin, (address(exaPlugin), "", "")));
+    calls[0] = Call(
+      address(account), 0, abi.encodeCall(UpgradeableModularAccount.uninstallPlugin, (address(exaPlugin), "", ""))
+    );
     calls[1] = Call(address(auditor), 0, abi.encodeCall(IAuditor.enterMarket, exaEXA));
     vm.expectRevert(
       abi.encodeWithSelector(
@@ -3081,8 +3079,9 @@ contract ExaPluginTest is ForkTest {
       address(badPlugin), keccak256(abi.encode(badPlugin.pluginManifest())), "", new FunctionReference[](0)
     );
     Call[] memory calls = new Call[](1);
-    calls[0] =
-      Call(address(account), 0, abi.encodeCall(UpgradeableModularAccount.uninstallPlugin, (address(badPlugin), "", "")));
+    calls[0] = Call(
+      address(account), 0, abi.encodeCall(UpgradeableModularAccount.uninstallPlugin, (address(badPlugin), "", ""))
+    );
     account.executeBatch(calls);
   }
 
@@ -3090,8 +3089,9 @@ contract ExaPluginTest is ForkTest {
     exaPlugin.allowPlugin(address(exaPlugin), true);
 
     Call[] memory calls = new Call[](2);
-    calls[0] =
-      Call(address(account), 0, abi.encodeCall(UpgradeableModularAccount.uninstallPlugin, (address(exaPlugin), "", "")));
+    calls[0] = Call(
+      address(account), 0, abi.encodeCall(UpgradeableModularAccount.uninstallPlugin, (address(exaPlugin), "", ""))
+    );
     calls[1] = Call(
       address(account),
       0,
@@ -3119,8 +3119,9 @@ contract ExaPluginTest is ForkTest {
   function test_uninstall_uninstalls_whenWrongProposalManager() external {
     exaPlugin.allowPlugin(address(exaPlugin), true);
     Call[] memory calls = new Call[](2);
-    calls[0] =
-      Call(address(account), 0, abi.encodeCall(UpgradeableModularAccount.uninstallPlugin, (address(exaPlugin), "", "")));
+    calls[0] = Call(
+      address(account), 0, abi.encodeCall(UpgradeableModularAccount.uninstallPlugin, (address(exaPlugin), "", ""))
+    );
     calls[1] = Call(
       address(account),
       0,
@@ -3607,8 +3608,9 @@ contract ExaPluginTest is ForkTest {
     exaPlugin.allowPlugin(address(newExaPlugin), true);
 
     Call[] memory calls = new Call[](2);
-    calls[0] =
-      Call(address(account), 0, abi.encodeCall(UpgradeableModularAccount.uninstallPlugin, (address(exaPlugin), "", "")));
+    calls[0] = Call(
+      address(account), 0, abi.encodeCall(UpgradeableModularAccount.uninstallPlugin, (address(exaPlugin), "", ""))
+    );
     calls[1] = Call(
       address(account),
       0,
@@ -3814,7 +3816,8 @@ contract ExaPluginTest is ForkTest {
   receive() external payable { } // solhint-disable-line no-empty-blocks
 }
 
-abstract contract ExaAccount is UpgradeableModularAccount, IExaAccount { } // solhint-disable-line no-empty-blocks
+// solhint-disable-next-line no-empty-blocks
+abstract contract ExaAccount is UpgradeableModularAccount, IExaAccount { }
 
 contract BadPlugin is BasePlugin {
   function userOpValidationFunction(uint8, UserOperation calldata, bytes32) external pure override returns (uint256) {
@@ -3830,9 +3833,7 @@ contract BadPlugin is BasePlugin {
     manifest.userOpValidationFunctions[0] = ManifestAssociatedFunction({
       executionSelector: IExaAccount.poke.selector,
       associatedFunction: ManifestFunction({
-        functionType: ManifestAssociatedFunctionType.SELF,
-        functionId: 0,
-        dependencyIndex: 0
+        functionType: ManifestAssociatedFunctionType.SELF, functionId: 0, dependencyIndex: 0
       })
     });
   }

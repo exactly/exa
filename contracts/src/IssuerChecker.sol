@@ -46,21 +46,21 @@ contract IssuerChecker is AccessControl, EIP712 {
       refunds[account][hash] = true;
       emit Refunded(account, amount, timestamp);
       recovered = _hashTypedData(
-        keccak256(
-          abi.encode(keccak256("Refund(address account,uint256 amount,uint40 timestamp)"), account, amount, timestamp)
-        )
-      ).recoverCalldata(signature);
+          keccak256(
+            abi.encode(keccak256("Refund(address account,uint256 amount,uint40 timestamp)"), account, amount, timestamp)
+          )
+        ).recoverCalldata(signature);
     } else {
       if (collections[account][hash]) revert Replay();
       collections[account][hash] = true;
       emit Collected(account, amount, timestamp);
       recovered = _hashTypedData(
-        keccak256(
-          abi.encode(
-            keccak256("Collection(address account,uint256 amount,uint40 timestamp)"), account, amount, timestamp
+          keccak256(
+            abi.encode(
+              keccak256("Collection(address account,uint256 amount,uint40 timestamp)"), account, amount, timestamp
+            )
           )
-        )
-      ).recoverCalldata(signature);
+        ).recoverCalldata(signature);
     }
     // solhint-enable gas-small-strings
 

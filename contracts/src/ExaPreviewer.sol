@@ -69,7 +69,9 @@ contract ExaPreviewer {
       proposals[i - nonce] = PendingProposal({
         nonce: i,
         unlock: timestamp + delay,
-        proposal: Proposal({ amount: amount, market: market, timestamp: timestamp, proposalType: proposalType, data: data })
+        proposal: Proposal({
+          amount: amount, market: market, timestamp: timestamp, proposalType: proposalType, data: data
+        })
       });
     }
   }

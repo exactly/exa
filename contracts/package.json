@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "build": "forge build",
-    "prepare": "[ \"$EAS_BUILD_RUNNER\" != eas-build ] || (export FOUNDRY_DIR=${FOUNDRY_DIR-$HOME/workingdir} && curl -L https://foundry.paradigm.xyz | bash || true && foundryup -i v1.3.6)",
+    "prepare": "[ \"$EAS_BUILD_RUNNER\" != eas-build ] || (export FOUNDRY_DIR=${FOUNDRY_DIR-$HOME/workingdir} && curl -L https://foundry.paradigm.xyz | bash || true && foundryup -i v1.5.1)",
     "snapshot": "FOUNDRY_PROFILE=snapshot forge snapshot --force",
     "test": "nx test contracts",
     "test:fmt": "forge fmt --check",

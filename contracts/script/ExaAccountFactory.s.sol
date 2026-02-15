@@ -20,15 +20,13 @@ contract DeployExaAccountFactory is BaseScript {
     vm.startBroadcast(admin);
 
     factory = ExaAccountFactory(
-      payable(
-        CREATE3_FACTORY.deploy(
+      payable(CREATE3_FACTORY.deploy(
           _salt(IPlugin(exaPlugin)),
           abi.encodePacked(
             vm.getCode("ExaAccountFactory.sol:ExaAccountFactory"),
             abi.encode(admin, ownerPlugin, exaPlugin, ACCOUNT_IMPL, ENTRYPOINT)
           )
-        )
-      )
+        ))
     );
 
     factory.addStake{ value: 0.1 ether }(1 days, 0.1 ether);

@@ -82,20 +82,16 @@ contract MockSwapper {
 
   function _getAmountIn(address pool, uint256 amountOut, bool isToken0, uint256 fee) internal view returns (uint256) {
     (uint256 reserve0, uint256 reserve1,) = IVelodromePool(pool).getReserves();
-    return (
-      isToken0
-        ? (reserve0 * amountOut * 10_000) / ((reserve1 - amountOut) * (10_000 - fee))
-        : (reserve1 * amountOut * 10_000) / ((reserve0 - amountOut) * (10_000 - fee))
-    ) + 1;
+    return (isToken0
+          ? (reserve0 * amountOut * 10_000) / ((reserve1 - amountOut) * (10_000 - fee))
+          : (reserve1 * amountOut * 10_000) / ((reserve0 - amountOut) * (10_000 - fee))) + 1;
   }
 
   function _getAmountOut(address pool, uint256 amountIn, bool isToken0, uint256 fee) internal view returns (uint256) {
     (uint256 reserve0, uint256 reserve1,) = IVelodromePool(pool).getReserves();
-    return (
-      isToken0
+    return (isToken0
         ? (reserve1 * amountIn * (10_000 - fee)) / (reserve0 * 10_000 + amountIn * (10_000 - fee))
-        : (reserve0 * amountIn * (10_000 - fee)) / (reserve1 * 10_000 + amountIn * (10_000 - fee))
-    );
+        : (reserve0 * amountIn * (10_000 - fee)) / (reserve1 * 10_000 + amountIn * (10_000 - fee)));
   }
 }
 

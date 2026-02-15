@@ -77,7 +77,7 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
   };
 
   await $(shell)`forge script test/mocks/Protocol.s.sol --code-size-limit 69000
-      --unlocked ${deployer} --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
+      --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
 
   const protocol = parse(
     Protocol,
@@ -117,7 +117,7 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
   shell.env.PROTOCOL_REWARDSCONTROLLER_ADDRESS = padHex("0x666", { size: 20 });
 
   await $(shell)`forge script test/mocks/Mocks.s.sol
-      --unlocked ${deployer} --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
+      --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
   shell.env.SWAPPER_ADDRESS = parse(
     object({
       transactions: tuple([
@@ -129,7 +129,7 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
   ).transactions[1].contractAddress;
 
   await $(shell)`forge script node_modules/webauthn-owner-plugin/script/Plugin.s.sol --sender ${deployer}
-      --unlocked ${deployer} --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
+      --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
   shell.env.BROADCAST_WEBAUTHNOWNERPLUGIN_ADDRESS = parse(
     object({
       transactions: tuple([object({ contractName: literal("WebauthnOwnerPlugin"), contractAddress: Address })]),
@@ -138,19 +138,19 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
   ).transactions[0].contractAddress;
 
   await $(shell)`forge script test/mocks/Account.s.sol
-      --unlocked ${deployer} --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
+      --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
   await $(shell)`forge script script/IssuerChecker.s.sol
-      --unlocked ${deployer} --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
+      --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
   await $(shell)`forge script script/ProposalManager.s.sol
-      --unlocked ${deployer} --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
+      --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
   await $(shell)`forge script script/Refunder.s.sol
-      --unlocked ${deployer} --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
+      --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
   await $(shell)`forge script script/ExaPreviewer.s.sol
-      --unlocked ${deployer} --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
+      --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
   await $(shell)`forge script script/ExaPlugin.s.sol
-      --unlocked ${deployer} --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
+      --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
   await $(shell)`forge script script/ExaAccountFactory.s.sol
-      --unlocked ${deployer} --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
+      --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
 
   const bob = privateKeyToAddress(padHex("0xb0b"));
   await Promise.all([
@@ -158,13 +158,13 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
     anvilClient.impersonateAccount({ address: keeper.address }),
   ]);
   await $(shell)`forge script test/mocks/Bob.s.sol
-      --unlocked ${bob},${keeper.address} --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
+      --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
   await Promise.all([
     anvilClient.stopImpersonatingAccount({ address: bob }),
     anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[foundry.id] }),
   ]);
   await $(shell)`forge script test/mocks/BobExecute.s.sol --tc BobExecuteScript
-      --unlocked ${keeper.address} --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
+      --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
   await anvilClient.stopImpersonatingAccount({ address: keeper.address });
 
   const [issuerChecker, proposalManager, refunder, exaPreviewer, exaPlugin, exaAccountFactory] = await Promise.all([

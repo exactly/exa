@@ -132,7 +132,11 @@ contract RefunderTest is ForkTest {
 
   // solhint-enable func-name-mixedcase
 
-  function _issuerOp(address account, uint256 amount, uint256 timestamp) internal view returns (bytes memory signature) {
+  function _issuerOp(address account, uint256 amount, uint256 timestamp)
+    internal
+    view
+    returns (bytes memory signature)
+  {
     return _sign(
       issuerKey,
       keccak256(

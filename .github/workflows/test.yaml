@@ -16,7 +16,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: "^24.13.0", cache: pnpm }
       - uses: foundry-rs/foundry-toolchain@v1
-        with: { version: v1.3.6 }
+        with: { version: v1.5.1 }
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -75,7 +75,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: "^24.13.0", cache: pnpm }
       - uses: foundry-rs/foundry-toolchain@v1
-        with: { version: v1.3.6 }
+        with: { version: v1.5.1 }
       - uses: actions/cache@v4
         with:
           path: .nx/cache

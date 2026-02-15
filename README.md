@@ -8,7 +8,7 @@
 
 - [node.js](https://github.com/asdf-vm/asdf-nodejs) v24
 - [pnpm](https://pnpm.io/installation) v10
-- [foundry](https://getfoundry.sh) v1.3.6 (`foundryup -i v1.3.6`)
+- [foundry](https://getfoundry.sh)
 - [rust](https://github.com/asdf-community/asdf-rust)
 - [slither](https://github.com/crytic/slither) (`pip install -r contracts/requirements.txt`)
 - [maestro](https://maestro.mobile.dev) (`brew tap mobile-dev-inc/tap && brew install mobile-dev-inc/tap/maestro`)

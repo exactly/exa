@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y ca-certificates curl gcc git jq libc6-d
   curl -fsSL https://foundry.paradigm.xyz | bash && \
   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --profile minimal --default-toolchain none -y
 ENV PATH="$PATH:/root/.local/share/pnpm:/root/.foundry/bin:/root/.cargo/bin"
-RUN foundryup -i v1.3.6
+RUN foundryup -i v1.5.1
 WORKDIR /usr/local/bin
 RUN curl -L "$(curl -s https://api.github.com/repos/streamingfast/substreams/releases/latest | jq --arg arch "$(uname -m | sed 's/aarch64/arm64/')" -r '.assets[] | select(.browser_download_url | test("linux_" + $arch)) | .browser_download_url')" | tar zxf -
 WORKDIR /usr/src/app

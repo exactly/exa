@@ -365,16 +365,13 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
 
     ManifestAssociatedFunction[] memory runtimeValidationFunctions = new ManifestAssociatedFunction[](13);
     runtimeValidationFunctions[0] = ManifestAssociatedFunction({
-      executionSelector: IExaAccount.swap.selector,
-      associatedFunction: selfRuntimeValidationFunction
+      executionSelector: IExaAccount.swap.selector, associatedFunction: selfRuntimeValidationFunction
     });
     runtimeValidationFunctions[1] = ManifestAssociatedFunction({
-      executionSelector: IExaAccount.propose.selector,
-      associatedFunction: selfRuntimeValidationFunction
+      executionSelector: IExaAccount.propose.selector, associatedFunction: selfRuntimeValidationFunction
     });
     runtimeValidationFunctions[2] = ManifestAssociatedFunction({
-      executionSelector: IExaAccount.executeProposal.selector,
-      associatedFunction: keeperOrSelfRuntimeValidationFunction
+      executionSelector: IExaAccount.executeProposal.selector, associatedFunction: keeperOrSelfRuntimeValidationFunction
     });
     runtimeValidationFunctions[3] = ManifestAssociatedFunction({
       executionSelector: IExaAccount.executeProposals.selector,
@@ -385,12 +382,10 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
       associatedFunction: keeperOrSelfRuntimeValidationFunction
     });
     runtimeValidationFunctions[5] = ManifestAssociatedFunction({
-      executionSelector: IExaAccount.proposeRepay.selector,
-      associatedFunction: keeperRuntimeValidationFunction
+      executionSelector: IExaAccount.proposeRepay.selector, associatedFunction: keeperRuntimeValidationFunction
     });
     runtimeValidationFunctions[6] = ManifestAssociatedFunction({
-      executionSelector: IExaAccount.collectCollateral.selector,
-      associatedFunction: keeperRuntimeValidationFunction
+      executionSelector: IExaAccount.collectCollateral.selector, associatedFunction: keeperRuntimeValidationFunction
     });
     runtimeValidationFunctions[7] = ManifestAssociatedFunction({
       executionSelector: bytes4(keccak256("collectCredit(uint256,uint256,uint256,bytes)")), // solhint-disable-line gas-small-strings
@@ -401,20 +396,16 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
       associatedFunction: keeperRuntimeValidationFunction
     });
     runtimeValidationFunctions[9] = ManifestAssociatedFunction({
-      executionSelector: IExaAccount.collectDebit.selector,
-      associatedFunction: keeperRuntimeValidationFunction
+      executionSelector: IExaAccount.collectDebit.selector, associatedFunction: keeperRuntimeValidationFunction
     });
     runtimeValidationFunctions[10] = ManifestAssociatedFunction({
-      executionSelector: IExaAccount.collectInstallments.selector,
-      associatedFunction: keeperRuntimeValidationFunction
+      executionSelector: IExaAccount.collectInstallments.selector, associatedFunction: keeperRuntimeValidationFunction
     });
     runtimeValidationFunctions[11] = ManifestAssociatedFunction({
-      executionSelector: IExaAccount.poke.selector,
-      associatedFunction: keeperRuntimeValidationFunction
+      executionSelector: IExaAccount.poke.selector, associatedFunction: keeperRuntimeValidationFunction
     });
     runtimeValidationFunctions[12] = ManifestAssociatedFunction({
-      executionSelector: IExaAccount.pokeETH.selector,
-      associatedFunction: keeperRuntimeValidationFunction
+      executionSelector: IExaAccount.pokeETH.selector, associatedFunction: keeperRuntimeValidationFunction
     });
     manifest.runtimeValidationFunctions = runtimeValidationFunctions;
 
@@ -438,14 +429,10 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
 
     ManifestExecutionHook[] memory executionHooks = new ManifestExecutionHook[](4);
     executionHooks[0] = ManifestExecutionHook({
-      executionSelector: IStandardExecutor.execute.selector,
-      preExecHook: singleExecutionHook,
-      postExecHook: none
+      executionSelector: IStandardExecutor.execute.selector, preExecHook: singleExecutionHook, postExecHook: none
     });
     executionHooks[1] = ManifestExecutionHook({
-      executionSelector: IStandardExecutor.executeBatch.selector,
-      preExecHook: batchExecutionHook,
-      postExecHook: none
+      executionSelector: IStandardExecutor.executeBatch.selector, preExecHook: batchExecutionHook, postExecHook: none
     });
     executionHooks[2] = ManifestExecutionHook({
       executionSelector: IPluginExecutor.executeFromPluginExternal.selector,
@@ -464,9 +451,7 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
       manifest.preUserOpValidationHooks[i] = ManifestAssociatedFunction({
         executionSelector: executionFunctions[i],
         associatedFunction: ManifestFunction({
-          functionType: ManifestAssociatedFunctionType.PRE_HOOK_ALWAYS_DENY,
-          functionId: 0,
-          dependencyIndex: 0
+          functionType: ManifestAssociatedFunctionType.PRE_HOOK_ALWAYS_DENY, functionId: 0, dependencyIndex: 0
         })
       });
     }
@@ -798,11 +783,12 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
     if (proposal.proposalType == ProposalType.REDEEM) {
       // slither-disable-next-line calls-loop
       assets = abi.decode(
-        IPluginExecutor(msg.sender).executeFromPluginExternal(
-          address(proposal.market),
-          0,
-          abi.encodeCall(IERC4626.redeem, (proposal.amount, isWETH ? address(this) : receiver, msg.sender))
-        ),
+        IPluginExecutor(msg.sender)
+          .executeFromPluginExternal(
+            address(proposal.market),
+            0,
+            abi.encodeCall(IERC4626.redeem, (proposal.amount, isWETH ? address(this) : receiver, msg.sender))
+          ),
         (uint256)
       );
     } else {
