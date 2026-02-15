@@ -1,5 +1,15 @@
 # @exactly/server
 
+## 0.2.65
+
+### Patch Changes
+
+- [#776](https://github.com/exactly/exa/pull/776) [`29a8d35`](https://github.com/exactly/exa/commit/29a8d35cd76f5744a5e909552f96bc6c6f613261) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🔒️ prevent challenge replay on failed auth
+
+- [#776](https://github.com/exactly/exa/pull/776) [`dc47522`](https://github.com/exactly/exa/commit/dc47522aed7ac2e603fee4704352867baee900af) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 harden siwe no credential error handling
+
+- [#777](https://github.com/exactly/exa/pull/777) [`80537b2`](https://github.com/exactly/exa/commit/80537b2a79644a7b423939c559542c84a849b041) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 handle terminal withdraw reverts
+
 ## 0.2.64
 
 ### Patch Changes
