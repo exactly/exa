@@ -56,7 +56,7 @@ contracts are automatically formatted by `forge fmt` and linted by `solhint`. th
 - **test file naming**: test files must end with `.t.sol` and mirror the contract name (e.g., `ExaPlugin.sol` -> `ExaPlugin.t.sol`).
 - **test function naming**: test functions must start with `test`. use descriptive names (e.g., `test_revert_when_caller_is_not_owner()`).
 - **fuzz testing**: use fuzz testing extensively for functions with numerical or address inputs. same `test_` prefix as regular tests.
-- **gas snapshots**: always run `pnpm --filter plugin snapshot` after changes and commit the resulting `.gas-snapshot` file. failing to do so breaks `test:gas`.
+- **gas snapshots**: always run `pnpm nx snapshot contracts` after changes and commit the resulting `.gas-snapshot` file. failing to do so breaks `test:gas`.
 - **`vm.prank`**: use `vm.prank` to simulate calls from different addresses. avoid changing `msg.sender` through other means.
 
 ## gas optimization
@@ -69,6 +69,6 @@ contracts are automatically formatted by `forge fmt` and linted by `solhint`. th
 ## development workflow
 
 - **core concepts**: account abstraction (`modular-account`) and passkeys (`webauthn-sol`).
-- **build contracts**: `pnpm --filter plugin build`
-- **run tests**: `pnpm --filter plugin test`
-- **check formatting**: `pnpm --filter plugin test:fmt`
+- **build contracts**: `pnpm nx build contracts`
+- **run tests**: `pnpm nx test contracts`
+- **check formatting**: `pnpm nx test:fmt contracts`

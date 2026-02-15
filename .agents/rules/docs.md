@@ -11,7 +11,7 @@ trigger: glob
 
 - **stack**: astro, starlight theme.
 - **single source of truth**: all documentation content resides within the `docs/` directory and is versioned in git.
-- **linting**: all markdown files must adhere to `.markdownlint.json`. always run `pnpm test:markdown` to verify.
+- **linting**: all markdown files must adhere to `.markdownlint.json`. always run `pnpm nx test:markdown mobile` to verify.
 
 ## linting
 
@@ -47,7 +47,7 @@ the documentation's eslint configuration enforces:
 - **api reference**: the api documentation at the `/api` route is auto-generated.
 - **source**: the generation source is the openapi specification from the `server` package.
 - **rule**: do not edit the api documentation pages directly.
-- **update command**: run `pnpm --filter server openapi` to regenerate.
+- **update command**: run `pnpm nx generate:openapi server` to regenerate.
 
 ## writing style
 

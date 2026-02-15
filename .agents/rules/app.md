@@ -63,5 +63,5 @@ trigger: glob
 
 ## development workflow
 
-- **start dev server**: `pnpm start`
-- **run on platform**: `pnpm android`, `pnpm ios`, `pnpm web`
+- **start dev server**: `pnpm nx start mobile`
+- **run on platform**: `pnpm nx android mobile`, `pnpm nx ios mobile`, `pnpm nx web mobile`

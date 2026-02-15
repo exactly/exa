@@ -119,13 +119,12 @@ this codebase does not use comments. the only exception is static analysis annot
 ### philosophy
 
 - **developer experience is paramount**: the project is designed to work out-of-the-box with no environment variables for local development. use mock services and sensible defaults.
-- **strict automation**: rely on `pnpm` scripts for all tasks. all setup, testing, and generation is automated.
+- **strict automation**: rely on `pnpm nx` for task orchestration. all setup, testing, and generation is automated through nx targets.
 - **monorepo integrity**: all commands must run from the repository root. never operate from within a sub-directory. never use `npm` or `yarn`.
 
 ### initial setup
 
-- **to install dependencies**: run `pnpm install`.
-- **to prepare the environment**: run `pnpm prepare`. this command is comprehensive and handles git hooks, code generation (`wagmi`), and versioning.
+- **to install dependencies**: run `pnpm install`. this automatically triggers `prepare` for all packages, which handles code generation (`wagmi`), versioning, and schema exports. no further setup needed.
 
 ### workspace structure & commands
 
@@ -135,23 +134,34 @@ this codebase does not use comments. the only exception is static analysis annot
   - `contracts`: the solidity smart contracts (`@exactly/plugin`).
   - `common`: shared utilities (`@exactly/common`).
   - `docs`: astro-based documentation (`@exactly/docs`).
-- **running scripts**: use `pnpm --filter <package_name> <script>` or `pnpm nx <script> <package_name>` to run a script in a specific package.
-  - example: `pnpm --filter server dev` or `pnpm nx dev server`
-- **nx integration**: the workspace uses `nx/presets/npm.json`, which means nx infers targets from package.json scripts. `pnpm nx <script> <package>` works for any script defined in that package's package.json. prefer nx commands for better caching and task orchestration.
-- **never use npx**: use the pnpm-provided binaries instead.
-  - ✅ `pnpm eslint .`
-  - ❌ `npx eslint .`
+  - `substreams`: rust blockchain indexer (`@exactly/substreams`).
+  - `.maestro`: end-to-end test scripts (`@exactly/e2e`).
+- **running tasks**: always use `pnpm nx` — never bare `nx`, `npx`, or `pnpm --filter`.
+  - `pnpm nx <target> <project>` — run a target for one project (e.g., `pnpm nx dev server`)
+  - `pnpm nx run-many -t <target>` — run across all projects
+  - `pnpm nx affected -t <target>` — run for affected projects only
+- **nx integration**: the workspace extends `nx/presets/npm.json`, which infers targets from package.json scripts. the `@nx/eslint/plugin` auto-injects `test:eslint` for all projects. nx provides caching, dependency management, and parallel execution.
+- **never use**:
+  - ❌ `nx test server` — bare `nx` may not resolve; always prefix with `pnpm`
+  - ❌ `npx eslint .` — use `pnpm eslint .` for direct binaries
+  - ❌ `pnpm --filter server test` — bypasses nx caching and task orchestration
+  - ❌ `pnpm tsc`, `npx tsc`, `pnpm typecheck` — nonexistent targets; use `pnpm nx test:ts <project>`
 
 ### testing
 
-- **run all tests**: `pnpm test`. this is the primary command and runs a comprehensive suite.
-- **test suite includes**:
-  - typescript compilation (`test:ts:*`)
-  - eslint (`test:eslint` with zero warnings)
-  - spell checking (`test:spell`)
-  - markdown linting (`test:markdown`)
-  - contract tests (`foundry`)
-- **environment**: all tests are designed to run without any `.env` files or external services.
+- **run all workspace tests**: `pnpm nx run-many -t test`. this is the authoritative command.
+- **run tests for one project**: `pnpm nx test <project>` (e.g., `pnpm nx test server`).
+- **run a specific test target**: `pnpm nx <target> <project>` (e.g., `pnpm nx test:ts server`, `pnpm nx test:vi server`).
+- **note**: `pnpm test` at the root only runs `mobile:test`, not all workspace tests. always use `pnpm nx run-many -t test` for the full suite.
+- **environment**: all tests run without `.env` files or external services.
+
+**test targets** (`test:ts` and `test:eslint` exist in all ts projects):
+
+- **workspace-wide** (defined in root/mobile): `test:spell`, `test:markdown`, `test:deps`, `test:changeset`
+- **mobile**: `test:build`
+- **server**: `test:vi`, `test:openapi`
+- **contracts**: `test:fmt`, `test:gas`, `test:solhint`, `test:slither`, `test:coverage`, `test:sizes`
+- **substreams**: `test:fmt`, `test:clippy`, `test:protolint`
 
 ### file management
 
