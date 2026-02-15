@@ -508,7 +508,7 @@ function scheduleWithdraw(message: string) {
           parent.setStatus({ code: SPAN_STATUS_ERROR, message: "failed_precondition" });
           captureException(error, {
             level: "error",
-            contexts: { withdraw: { account, market, receiver, retryCount } },
+            contexts: { withdraw: { account, market, receiver, amount: String(amount), retryCount } },
             fingerprint: fingerprintRevert(error),
           });
           if (
