@@ -11,8 +11,9 @@ import verifySignature from "./verifySignature";
 
 import type { Address } from "@exactly/common/validation";
 
-if (!process.env.ALCHEMY_WEBHOOKS_KEY) throw new Error("missing alchemy webhooks key");
-export const headers = { "Content-Type": "application/json", "X-Alchemy-Token": process.env.ALCHEMY_WEBHOOKS_KEY };
+export function headers(key = alchemyKey()) {
+  return { "Content-Type": "application/json", "X-Alchemy-Token": key };
+}
 
 export function headerValidator(signingKeys: (() => Set<string>) | Set<string>) {
   return validator("header", async ({ "x-alchemy-signature": signature }, c) => {
@@ -31,7 +32,7 @@ export function network(id = chain.id) {
 export async function findWebhook(predicate: (webhook: Webhook) => unknown) {
   const webhooks = await withRetry(
     async () => {
-      const response = await fetch("https://dashboard.alchemy.com/api/team-webhooks", { headers });
+      const response = await fetch("https://dashboard.alchemy.com/api/team-webhooks", { headers: headers() });
       if (!response.ok) throw new ServiceError("Alchemy", response.status, await response.text());
       return parse(WebhooksResponse, await response.json()).data;
     },
@@ -47,7 +48,7 @@ export async function createWebhook(
   ) & { network?: never; webhook_url: string },
 ) {
   const create = await fetch("https://dashboard.alchemy.com/api/create-webhook", {
-    headers,
+    headers: headers(),
     method: "POST",
     body: JSON.stringify({ ...options, network: network() }),
   });
@@ -55,14 +56,30 @@ export async function createWebhook(
   return parse(WebhookResponse, await create.json()).data;
 }
 
-export async function updateWebhookAddresses(id: string | undefined, add: Address[], remove: Address[] = []) {
+export async function addWebhookAddresses(id: string | undefined, addresses: Address[], key?: string) {
+  if (addresses.length === 0) return;
+  if (!id) throw new Error("no active webhook");
+  return updateWebhookAddresses(id, addresses, [], key);
+}
+
+export async function updateWebhookAddresses(
+  id: string | undefined,
+  add: Address[],
+  remove: Address[] = [],
+  key?: string,
+) {
   if (!id) return;
   const update = await fetch("https://dashboard.alchemy.com/api/update-webhook-addresses", {
-    headers,
+    headers: headers(key),
     method: "PATCH",
     body: JSON.stringify({ webhook_id: id, addresses_to_add: add, addresses_to_remove: remove }),
   });
   if (!update.ok) throw new ServiceError("Alchemy", update.status, await update.text());
+}
+
+function alchemyKey() {
+  if (!process.env.ALCHEMY_WEBHOOKS_KEY) throw new Error("missing alchemy webhooks key");
+  return process.env.ALCHEMY_WEBHOOKS_KEY;
 }
 
 const Webhook = object({

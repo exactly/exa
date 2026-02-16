@@ -12,6 +12,8 @@ import crypto from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
 
+import { close as closeSubscribeWorker, start as startSubscribeWorker } from "../workers/subscribe/worker";
+
 import type * as panda from "../utils/panda";
 import type * as persona from "../utils/persona";
 import type * as sentry from "@sentry/node";
@@ -21,22 +23,30 @@ describe("e2e", () => {
     "runs server",
     async () => {
       const { default: app, close } = await import("../index");
-
-      app.use("/e2e/*", cors());
-      app.post("/e2e/coverage", async (c) => {
-        await mkdir("coverage", { recursive: true });
-        await writeFile("coverage/app.json", JSON.stringify(await c.req.json()));
-        return c.json({ code: "ok" });
-      });
+      const redisUrl = process.env.REDIS_URL;
+      if (!redisUrl) throw new Error("missing redis url");
 
       await expect(
-        new Promise((resolve) => {
-          const teardown = () => void close().finally(() => resolve(null)); // eslint-disable-line no-void
+        new Promise((resolve, reject) => {
+          const teardown = () => {
+            Promise.allSettled([closeSubscribeWorker()])
+              .then(close)
+              .then(() => resolve(null), reject);
+          };
+
+          app.use("/e2e/*", cors());
+          app.post("/e2e/coverage", async (c) => {
+            await mkdir("coverage", { recursive: true });
+            await writeFile("coverage/app.json", JSON.stringify(await c.req.json()));
+            return c.json({ code: "ok" });
+          });
           app.post("/e2e/shutdown", (c) => {
             teardown();
             return c.json({ code: "ok" });
           });
           process.once("SIGTERM", teardown);
+
+          startSubscribeWorker({ alchemyKey: "webhooks", redisUrl }).waitUntilReady().catch(reject);
         }),
       ).resolves.toBeNull();
     },

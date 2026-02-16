@@ -1,4 +1,4 @@
-import { captureException, setUser } from "@sentry/core";
+import { captureException, setUser } from "@sentry/node";
 import { setSignedCookie } from "hono/cookie";
 import { parse } from "valibot";
 import { hexToBytes, isAddress } from "viem";
@@ -10,14 +10,13 @@ import domain from "@exactly/common/domain";
 import chain, { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
-import { updateWebhookAddresses } from "./alchemy";
 import authSecret from "./authSecret";
 import decodePublicKey from "./decodePublicKey";
 import { customer } from "./sardine";
 import { identify } from "./segment";
 import database from "../database";
 import { credentials } from "../database/schema";
-import { webhookId } from "../hooks/activity";
+import { enqueue } from "../workers/subscribe/queue";
 
 import type { WebAuthnCredential } from "@simplewebauthn/server";
 import type { Context } from "hono";
@@ -47,6 +46,7 @@ export default async function createCredential<C extends string>(
       source: options?.source,
     },
   ]);
+
   await Promise.all([
     setSignedCookie(c, "credential_id", credentialId, authSecret, {
       expires,
@@ -55,7 +55,6 @@ export default async function createCredential<C extends string>(
         ? { sameSite: "lax", secure: false }
         : { domain, sameSite: "none", secure: true, partitioned: true }),
     }),
-    updateWebhookAddresses(webhookId, [account]).catch((error: unknown) => captureException(error)),
     customer({
       flow: { name: "signup", type: "signup" },
       customer: {
@@ -64,6 +63,9 @@ export default async function createCredential<C extends string>(
       },
     }).catch((error: unknown) => captureException(error, { level: "error" })),
   ]);
+
+  await enqueue(account);
+
   identify({ userId: account });
   return { credentialId, factory: parse(Address, factory), x, y, auth: expires.getTime() };
 }

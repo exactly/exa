@@ -1,6 +1,7 @@
 import "../mocks/onesignal";
 import "../mocks/sentry";
 
+import { addBreadcrumb, captureException, captureMessage } from "@sentry/node";
 import { Queue, type Job } from "bullmq";
 import { like } from "drizzle-orm";
 import { parse } from "valibot";
@@ -16,24 +17,9 @@ import { closeQueue, reminders } from "../../utils/maturity";
 import * as onesignal from "../../utils/onesignal";
 import { bullmq, close as closeRedis } from "../../utils/redis";
 
-import type * as sentry from "@sentry/node";
-
 const mocks = vi.hoisted(() => ({
-  addBreadcrumb: vi.fn<typeof sentry.addBreadcrumb>(),
-  captureException: vi.fn<typeof sentry.captureException>(),
-  captureMessage: vi.fn<typeof sentry.captureMessage>(),
   readContract: vi.fn(),
 }));
-
-vi.mock("@sentry/node", async (importOriginal) => {
-  const module = await importOriginal<typeof sentry>();
-  return {
-    ...module,
-    addBreadcrumb: mocks.addBreadcrumb.mockImplementation(module.addBreadcrumb),
-    captureException: mocks.captureException.mockImplementation(module.captureException),
-    captureMessage: mocks.captureMessage.mockImplementation(module.captureMessage),
-  };
-});
 
 vi.mock("../../utils/publicClient", () => ({
   default: { readContract: mocks.readContract },
@@ -518,7 +504,7 @@ describe("worker", () => {
     const jobs = await notificationJobs();
     expect(jobs.flatMap((reminder) => reminder.data.accounts).toSorted()).toStrictEqual([first, second].toSorted());
     expect(sendPushNotification).not.toHaveBeenCalled();
-    expect(mocks.captureException).toHaveBeenCalledWith(expect.any(Error), {
+    expect(vi.mocked(captureException)).toHaveBeenCalledWith(expect.any(Error), {
       level: "error",
       extra: { accounts: 2, kind: "rpc", maturity, window },
     });
@@ -713,7 +699,7 @@ describe("worker", () => {
       const jobs = await notificationJobs();
       expect(mocks.readContract).not.toHaveBeenCalled();
       expect(jobs).toHaveLength(0);
-      expect(mocks.captureMessage).toHaveBeenCalledWith("maturity reminders dropped", {
+      expect(vi.mocked(captureMessage)).toHaveBeenCalledWith("maturity reminders dropped", {
         level: "warning",
         extra: { maturity, window, now, remaining: 54 * 60, accounts: accounts.length },
       });
@@ -816,7 +802,7 @@ describe("worker", () => {
 
       expect(mocks.readContract).not.toHaveBeenCalled();
       expect(sendPushNotification).not.toHaveBeenCalled();
-      expect(mocks.captureMessage).toHaveBeenCalledWith("maturity reminders dropped", {
+      expect(vi.mocked(captureMessage)).toHaveBeenCalledWith("maturity reminders dropped", {
         level: "warning",
         extra: { maturity, window: "24h", now, remaining: 6 * 3600, accounts: 1 },
       });
@@ -835,7 +821,7 @@ describe("worker", () => {
     await expectFailedReminder({ userId: account, maturity, window });
 
     expect(sendPushNotification).toHaveBeenCalledOnce();
-    expect(mocks.captureException).toHaveBeenCalledWith(expect.any(Error), {
+    expect(vi.mocked(captureException)).toHaveBeenCalledWith(expect.any(Error), {
       level: "error",
       extra: { account, kind: "notification", maturity, window },
     });
@@ -957,7 +943,7 @@ describe("worker", () => {
 
       expect(jobs).toHaveLength(2);
       expect(jobs.map((job) => job.data.window).toSorted()).toStrictEqual(["1h", "24h"]);
-      expect(mocks.addBreadcrumb).toHaveBeenCalledWith({
+      expect(vi.mocked(addBreadcrumb)).toHaveBeenCalledWith({
         category: "maturity-queue",
         message: "scheduler started inside reminder window",
         level: "warning",
@@ -979,12 +965,12 @@ describe("worker", () => {
       vi.spyOn(Date, "now").mockReturnValue((maturity - scheduledBefore) * 1000);
       try {
         await reminders();
-        mocks.addBreadcrumb.mockClear();
+        vi.mocked(addBreadcrumb).mockClear();
         vi.mocked(Date.now).mockReturnValue((maturity - remaining) * 1000);
 
         await reminders();
 
-        expect(mocks.addBreadcrumb).not.toHaveBeenCalled();
+        expect(vi.mocked(addBreadcrumb)).not.toHaveBeenCalled();
       } finally {
         vi.mocked(Date.now).mockRestore();
         await queue.resume();
@@ -1026,7 +1012,7 @@ describe("worker", () => {
 
       expect(await notificationJobs()).toHaveLength(0);
       expect(sendPushNotification).not.toHaveBeenCalled();
-      expect(mocks.captureMessage).toHaveBeenCalledWith("maturity reminders dropped", {
+      expect(vi.mocked(captureMessage)).toHaveBeenCalledWith("maturity reminders dropped", {
         level: "warning",
         extra: { maturity, window: "24h", now, remaining: 6 * 3600 },
       });

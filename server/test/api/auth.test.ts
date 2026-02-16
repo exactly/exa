@@ -36,6 +36,7 @@ const registrationAppClient = testClient(registrationApp);
 const WALLET_EXTENSION_EXPIRY = 60 * 24 * 60 * 60_000;
 
 vi.mock("@sentry/node", { spy: true });
+vi.mock("../../workers/subscribe/queue", () => ({ enqueue: vi.fn<() => Promise<void>>().mockResolvedValue() }));
 
 function expectWalletExtensionExpire(expire: number, auth: number, start: number) {
   expect(expire).toBeGreaterThan(auth);
