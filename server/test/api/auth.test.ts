@@ -23,6 +23,7 @@ import database, { credentials } from "../../database";
 import * as publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
 
+import type * as AlchemyQueue from "../../queues/alchemyQueue";
 import type * as SimpleWebAuthn from "@simplewebauthn/server";
 import type * as SimpleWebAuthnHelpers from "@simplewebauthn/server/helpers";
 import type * as ViemSiwe from "viem/siwe";
@@ -36,6 +37,11 @@ vi.mock("../../utils/redis", () => {
     set: vi.fn<() => Promise<boolean>>().mockResolvedValue(true),
   };
   return { default: redisMock, requestRedis: redisMock };
+});
+
+vi.mock("../../queues/alchemyQueue", async (importOriginal) => {
+  const actual = await importOriginal<typeof AlchemyQueue>();
+  return { ...actual, getAlchemyQueue: vi.fn(() => ({ add: vi.fn().mockResolvedValue({}) })) };
 });
 
 describe("authentication", () => {
