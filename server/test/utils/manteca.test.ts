@@ -100,7 +100,7 @@ describe("manteca utils", () => {
     });
 
     it("returns null when user not found", async () => {
-      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(mockFetchError(404, "::404:: USER_NF"));
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(mockFetchError(404, "USER_NF"));
 
       const result = await manteca.getUser(account);
 
@@ -108,9 +108,9 @@ describe("manteca utils", () => {
     });
 
     it("throws on other errors", async () => {
-      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(mockFetchError(500, "::500:: internal error"));
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(mockFetchError(500, "internal error"));
 
-      await expect(manteca.getUser(account)).rejects.toThrow("::500:: internal error");
+      await expect(manteca.getUser(account)).rejects.toThrow("500 internal error");
     });
   });
 
@@ -134,7 +134,7 @@ describe("manteca utils", () => {
     });
 
     it("returns undefined on error", async () => {
-      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(mockFetchError(500, "::500:: error"));
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(mockFetchError(500, "error"));
 
       const result = await manteca.getQuote("USDC_ARS");
 
@@ -172,7 +172,7 @@ describe("manteca utils", () => {
     it("throws INVALID_ORDER_SIZE on MIN_SIZE error", async () => {
       vi.spyOn(globalThis, "fetch")
         .mockResolvedValueOnce(mockFetchResponse({ ...mockBalanceBase, balance: { ARS: "1.00" } }))
-        .mockResolvedValueOnce(mockFetchError(400, "::400:: MIN_SIZE"));
+        .mockResolvedValueOnce(mockFetchError(400, "MIN_SIZE"));
 
       await expect(manteca.convertBalanceToUsdc("456", "ARS")).rejects.toThrow(ErrorCodes.INVALID_ORDER_SIZE);
     });
@@ -238,7 +238,7 @@ describe("manteca utils", () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
         ok: false,
         status: 404,
-        text: () => Promise.resolve("::404:: USER_NF"),
+        text: () => Promise.resolve("USER_NF"),
       } as Response);
 
       const result = await manteca.getProvider(account, "AR");
@@ -284,7 +284,7 @@ describe("manteca utils", () => {
     it("returns ACTIVE with no limits when limits fetch fails", async () => {
       vi.spyOn(globalThis, "fetch")
         .mockResolvedValueOnce(mockFetchResponse(mockActiveUser))
-        .mockResolvedValueOnce(mockFetchError(500, "::500:: limits error"));
+        .mockResolvedValueOnce(mockFetchError(500, "limits error"));
 
       const result = await manteca.getProvider(account, "AR");
 
@@ -368,7 +368,7 @@ describe("manteca utils", () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
         ok: false,
         status: 404,
-        text: () => Promise.resolve("::404:: USER_NF"),
+        text: () => Promise.resolve("USER_NF"),
       } as Response);
 
       const result = await manteca.getProvider(account, "AR");
@@ -470,7 +470,7 @@ describe("manteca utils", () => {
     });
 
     it("throws when no persona account found", async () => {
-      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(mockFetchError(404, "::404:: USER_NF"));
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(mockFetchError(404, "USER_NF"));
       vi.spyOn(persona, "getAccount").mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
 
       await expect(manteca.mantecaOnboarding(account, credentialId)).rejects.toThrow(ErrorCodes.NO_PERSONA_ACCOUNT);
@@ -478,7 +478,7 @@ describe("manteca utils", () => {
 
     it("throws when no identity document found", async () => {
       vi.spyOn(globalThis, "fetch")
-        .mockResolvedValueOnce(mockFetchError(404, "::404:: USER_NF"))
+        .mockResolvedValueOnce(mockFetchError(404, "USER_NF"))
         .mockResolvedValueOnce(mockFetchResponse(mockNewUserResponse));
       vi.spyOn(persona, "getAccount").mockResolvedValueOnce(mockPersonaAccount);
       vi.spyOn(persona, "getDocumentForManteca").mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
@@ -488,7 +488,7 @@ describe("manteca utils", () => {
 
     it("throws when front document URL not found", async () => {
       vi.spyOn(globalThis, "fetch")
-        .mockResolvedValueOnce(mockFetchError(404, "::404:: USER_NF"))
+        .mockResolvedValueOnce(mockFetchError(404, "USER_NF"))
         .mockResolvedValueOnce(mockFetchResponse(mockNewUserResponse));
       vi.spyOn(persona, "getAccount").mockResolvedValueOnce(mockPersonaAccount);
       vi.spyOn(persona, "getDocumentForManteca").mockResolvedValueOnce(mockIdentityDocument);
@@ -502,11 +502,11 @@ describe("manteca utils", () => {
 
     it("throws INVALID_LEGAL_ID when initiateOnboarding returns legalId error", async () => {
       vi.spyOn(globalThis, "fetch")
-        .mockResolvedValueOnce(mockFetchError(404, "::404:: USER_NF"))
+        .mockResolvedValueOnce(mockFetchError(404, "USER_NF"))
         .mockResolvedValueOnce(
           mockFetchError(
             400,
-            '::400:: {"internalStatus":"BAD_REQUEST","message":"Bad request.","errors":["legalId has wrong value 20991231239"]}',
+            '{"internalStatus":"BAD_REQUEST","message":"Bad request.","errors":["legalId has wrong value 20991231239"]}',
           ),
         );
       vi.spyOn(persona, "getAccount").mockResolvedValueOnce(mockPersonaAccount);
@@ -517,7 +517,7 @@ describe("manteca utils", () => {
 
     it("initiates onboarding for new user", async () => {
       vi.spyOn(globalThis, "fetch")
-        .mockResolvedValueOnce(mockFetchError(404, "::404:: USER_NF"))
+        .mockResolvedValueOnce(mockFetchError(404, "USER_NF"))
         .mockResolvedValueOnce(mockFetchResponse(mockNewUserResponse))
         .mockResolvedValueOnce(mockFetchResponse({ url: "https://presigned.url/front" }))
         .mockResolvedValueOnce(mockFetchResponse({ url: "https://presigned.url/back" }))
@@ -555,7 +555,7 @@ describe("manteca utils", () => {
 
       const fetchSpy = vi
         .spyOn(globalThis, "fetch")
-        .mockResolvedValueOnce(mockFetchError(404, "::404:: USER_NF"))
+        .mockResolvedValueOnce(mockFetchError(404, "USER_NF"))
         .mockResolvedValueOnce(mockFetchResponse(mockNewUserResponse))
         .mockResolvedValueOnce(mockFetchResponse({ url: "https://presigned.url/front" }))
         .mockResolvedValueOnce(mockFetchResponse({ url: "https://presigned.url/back" }))
@@ -583,7 +583,7 @@ describe("manteca utils", () => {
 
       const fetchSpy = vi
         .spyOn(globalThis, "fetch")
-        .mockResolvedValueOnce(mockFetchError(404, "::404:: USER_NF"))
+        .mockResolvedValueOnce(mockFetchError(404, "USER_NF"))
         .mockResolvedValueOnce(mockFetchResponse(mockNewUserResponse))
         .mockResolvedValueOnce(mockFetchResponse({ url: "https://presigned.url/front" }))
         .mockResolvedValueOnce(mockFetchResponse({ url: "https://presigned.url/back" }))

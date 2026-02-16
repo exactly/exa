@@ -59,7 +59,7 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
     signal: AbortSignal.timeout(timeout),
   });
 
-  if (!response.ok) throw new Error(`${response.status} ${await response.text()} ${url}`);
+  if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);
   const rawBody = await response.arrayBuffer();
   if (rawBody.byteLength === 0) throw new Error(`Empty response body from ${url}`);
   return parse(schema, JSON.parse(new TextDecoder().decode(rawBody)));

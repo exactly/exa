@@ -275,7 +275,33 @@ frontend.use(
 app.route("/", frontend);
 
 app.onError((error, c) => {
-  captureException(error, { level: "error", tags: { unhandled: true } });
+  let fingerprint: string[] | undefined;
+  if (error instanceof Error) {
+    const status = error.message.slice(0, 3);
+    const hasStatus = /^\d{3}$/.test(status);
+    const hasBodyFormat = error.message.length === 3 || error.message[3] === " ";
+    const body = hasBodyFormat && error.message.length > 3 ? error.message.slice(4) : undefined;
+    if (hasStatus && hasBodyFormat) fingerprint = ["{{ default }}", status];
+    if (hasStatus && hasBodyFormat && body !== undefined) {
+      try {
+        const json = JSON.parse(body) as { code?: unknown; error?: unknown; message?: unknown };
+        fingerprint = [
+          "{{ default }}",
+          status,
+          ...("code" in json
+            ? [String(json.code)]
+            : typeof json.error === "string"
+              ? [json.error]
+              : typeof json.message === "string"
+                ? [json.message]
+                : []),
+        ];
+      } catch {
+        fingerprint = ["{{ default }}", status, body];
+      }
+    }
+  }
+  captureException(error, { level: "error", tags: { unhandled: true }, fingerprint });
   return c.json({ code: "unexpected error", legacy: "unexpected error" }, 555 as UnofficialStatusCode);
 });
 
