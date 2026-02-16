@@ -25,7 +25,7 @@ import {
   type withRetry,
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, inject, it, onTestFinished, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import { exaAccountFactoryAbi, previewerAbi } from "@exactly/common/generated/chain";
@@ -35,6 +35,7 @@ import activity from "../../hooks/activity";
 import t, { f } from "../../i18n";
 import { setWebhookId, webhookId } from "../../utils/activityWebhook";
 import { NETWORKS } from "../../utils/alchemy";
+import appOrigin from "../../utils/appOrigin";
 import * as Panda from "../../utils/panda";
 import publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
@@ -1542,23 +1543,52 @@ afterEach(async () => {
   vi.restoreAllMocks();
 }, 66_666);
 
-it("sets the existing activity webhook id", async () => {
-  setWebhookId("activity");
-  findWebhookMock.mockResolvedValueOnce({
-    id: "existing-hook-id",
-    is_active: true,
-    network: "OPT_SEPOLIA",
-    signing_key: "existing-signing-key",
-    webhook_type: "ADDRESS_ACTIVITY",
-    webhook_url: "https://webhook.test",
+describe("webhook initialization", () => {
+  beforeEach(() => {
+    setWebhookId("activity");
   });
-  const current = createHook("activity");
-  onTestFinished(() => current.close().then(() => undefined));
 
-  await current.ready;
+  it("sets the existing webhook id", async () => {
+    const existing: NonNullable<Awaited<ReturnType<typeof findWebhookMock>>> = {
+      id: "existing-hook-id",
+      is_active: true,
+      network: "OPT_SEPOLIA",
+      signing_key: "existing-signing-key",
+      webhook_type: "ADDRESS_ACTIVITY",
+      webhook_url: `${appOrigin}/hooks/activity`,
+    };
+    vi.mocked(findWebhookMock).mockResolvedValueOnce(existing);
+    const current = createHook("bootstrap-signing-key");
 
-  expect(createWebhookMock).not.toHaveBeenCalled();
-  expect(webhookId).toBe("existing-hook-id");
+    await current.ready;
+
+    expect(createWebhookMock).not.toHaveBeenCalled();
+    expect(webhookId).toBe("existing-hook-id");
+    await current.close();
+  });
+
+  it("sets a newly created webhook id", async () => {
+    vi.mocked(findWebhookMock).mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined -- create path
+    const current = createHook();
+
+    await current.ready;
+
+    expect(createWebhookMock).toHaveBeenCalledOnce();
+    expect(webhookId).toBe("mock-webhook-id");
+    await current.close();
+  });
+
+  it("preserves the webhook id when readiness fails", async () => {
+    const error = new Error("alchemy error");
+    vi.mocked(findWebhookMock).mockRejectedValueOnce(error);
+    const current = createHook("activity");
+
+    await expect(current.ready).rejects.toBe(error);
+
+    expect(createWebhookMock).not.toHaveBeenCalled();
+    expect(webhookId).toBe("activity");
+    await current.close();
+  });
 });
 
 function createHook(activityKey?: string) {

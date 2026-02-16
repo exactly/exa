@@ -16,6 +16,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { describe, expect, it, vi } from "vitest";
 
 import refundWorker from "../workers/refund/worker";
+import subscribeWorker from "../workers/subscribe/worker";
 
 import type * as panda from "../utils/panda";
 import type * as persona from "../utils/persona";
@@ -36,6 +37,7 @@ describe("e2e", () => {
           redisUrl: env.REDIS_URL,
           refunder: privateKeyToAccount(padHex("0xfee")),
         }),
+        subscribeWorker({ alchemyKey: "webhooks", redisUrl: env.REDIS_URL }),
       ];
 
       await expect(
