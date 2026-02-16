@@ -71,6 +71,14 @@ function parseError(error: unknown) {
     error.code.length > 0
       ? error.code
       : undefined;
+  const status =
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    typeof error.code === "number" &&
+    Number.isFinite(error.code)
+      ? String(error.code)
+      : undefined;
   const name =
     typeof error === "object" &&
     error !== null &&
@@ -91,10 +99,10 @@ function parseError(error: unknown) {
             error.message.length > 0
           ? normalizeMessage(error.message)
           : undefined;
-  return { code, name, message };
+  return { code, name, message, status };
 }
 
-function classify({ code, name, message }: ParsedError) {
+function classify({ code, name, message, status }: ParsedError) {
   const passkeyNameExpected = name === "NotAllowedError";
   const passkeyCancelled = message !== undefined && passkeyCancelledMessages.has(message);
   const passkeyExpected =
@@ -110,11 +118,16 @@ function classify({ code, name, message }: ParsedError) {
       ? message
       : undefined;
   const value =
-    code !== undefined && code !== "ERR_UNKNOWN"
+    (name === "APIError" && status !== undefined
+      ? message === undefined || message.endsWith("[object Object]")
+        ? ["{{ default }}", "api", status]
+        : ["{{ default }}", "api", status, message]
+      : undefined) ??
+    (code !== undefined && code !== "ERR_UNKNOWN"
       ? ["{{ default }}", code]
       : fingerprintMessage === undefined
         ? undefined
-        : ["{{ default }}", fingerprintMessage];
+        : ["{{ default }}", fingerprintMessage]);
   return { passkeyExpected, passkeyCancelled, passkeyNameExpected, authExpected, expected, fingerprint: value };
 }
 
