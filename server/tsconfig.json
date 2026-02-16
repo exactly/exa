@@ -17,6 +17,7 @@
     "strict": true
   },
   "include": [
+    "workers/**/*.ts",
     "api/**/*.ts",
     "database/**/*.ts",
     "hooks/**/*.ts",
