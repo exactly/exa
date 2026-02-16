@@ -1,5 +1,14 @@
 # @exactly/mobile
 
+## 1.1.16
+
+### Patch Changes
+
+- [#787](https://github.com/exactly/exa/pull/787) [`8280e78`](https://github.com/exactly/exa/commit/8280e78ed09615b3dc79ef502658b183d78f4580) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 fingerprint api errors with status
+
+- Updated dependencies [[`20c98c1`](https://github.com/exactly/exa/commit/20c98c107291b4ddc552e0f427106b0b4ef6e749), [`6b00391`](https://github.com/exactly/exa/commit/6b003919fc42a58ff86876c6d11cefee0618b814)]:
+  - @exactly/server@0.2.67
+
 ## 1.1.15
 
 ### Patch Changes

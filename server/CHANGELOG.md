@@ -1,5 +1,13 @@
 # @exactly/server
 
+## 0.2.67
+
+### Patch Changes
+
+- [#789](https://github.com/exactly/exa/pull/789) [`20c98c1`](https://github.com/exactly/exa/commit/20c98c107291b4ddc552e0f427106b0b4ef6e749) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 suppress no-balance until retries exhaust
+
+- [#786](https://github.com/exactly/exa/pull/786) [`6b00391`](https://github.com/exactly/exa/commit/6b003919fc42a58ff86876c6d11cefee0618b814) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 group api errors by specific reason
+
 ## 0.2.66
 
 ### Patch Changes
