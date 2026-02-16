@@ -242,7 +242,7 @@ export default function Pay() {
   const discountOrPenalty = repayAssets && positionAssets ? divWad(repayAssets, positionAssets) : 0n;
   const discountOrPenaltyPercentage = Number(((WAD - discountOrPenalty) * 10n ** 8n) / WAD) / Number(10n ** 8n);
 
-  const maxRepay = borrow ? (repayAssets ? pad(repayAssets) : undefined) : 0n;
+  const maxRepay = borrow ? (repayAssets ? pad(repayAssets, SLIPPAGE_DIVISOR) : undefined) : 0n;
   const {
     data: route,
     error: routeError,
@@ -279,7 +279,7 @@ export default function Pay() {
     refetchInterval: 20_000,
   });
 
-  const maxAmountIn = route?.fromAmount ? pad(route.fromAmount, 1000n) + 69n : undefined; // HACK try to avoid ZERO_SHARES on dust deposit
+  const maxAmountIn = route?.fromAmount ? pad(route.fromAmount, SLIPPAGE_DIVISOR) + 69n : undefined; // HACK try to avoid ZERO_SHARES on dust deposit
 
   const {
     propose: { data: repayPropose },
@@ -863,4 +863,5 @@ export default function Pay() {
     );
 }
 
+const SLIPPAGE_DIVISOR = 1000n; // 10 bps
 const pad = (value: bigint, divisor = 1_000_000n) => value + (value / divisor || 1n);
