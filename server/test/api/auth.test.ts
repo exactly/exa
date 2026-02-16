@@ -4,6 +4,7 @@ import "../mocks/redis";
 import customer from "../mocks/sardine";
 import "../mocks/sentry";
 
+import { captureException } from "@sentry/node";
 import { verifyAuthenticationResponse, verifyRegistrationResponse } from "@simplewebauthn/server";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
@@ -20,6 +21,7 @@ import { Address } from "@exactly/common/validation";
 import app, { type Authentication } from "../../api/auth/authentication";
 import registrationApp from "../../api/auth/registration";
 import database, { credentials } from "../../database";
+import { WebhookNotReadyError } from "../../utils/createCredential";
 import * as publicClient from "../../utils/publicClient";
 import validFactories from "../../utils/validFactories";
 
@@ -29,6 +31,14 @@ import type * as ViemSiwe from "viem/siwe";
 
 const appClient = testClient(app);
 const registrationAppClient = testClient(registrationApp);
+
+const mocks = vi.hoisted(() => ({ activityWebhookId: "activity" as string | undefined }));
+
+vi.mock("../../hooks/activity", () => ({
+  get webhookId() {
+    return mocks.activityWebhookId;
+  },
+}));
 
 describe("authentication", () => {
   beforeAll(async () => {
@@ -44,7 +54,10 @@ describe("authentication", () => {
     ]);
   });
 
-  afterEach(() => vi.clearAllMocks());
+  afterEach(() => {
+    vi.clearAllMocks();
+    mocks.activityWebhookId = "activity";
+  });
 
   it("returns intercom token on successful login", async () => {
     const response = await appClient.index.$post(
@@ -461,6 +474,27 @@ describe("authentication", () => {
     expect(response.status).toBe(400);
     expect(vi.mocked(redis).getdel.mock.calls).toContainEqual(["test-session"]);
   });
+
+  it("returns 503 when webhook not ready for new siwe credential", async () => {
+    mocks.activityWebhookId = undefined;
+    vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(true);
+    const id = "0x1234567890123456789012345678901234567899";
+
+    const response = await appClient.index.$post(
+      { json: { method: "siwe", id, signature: "0xdeadbeef" } },
+      { headers: { cookie: "session_id=test-session" } },
+    );
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toStrictEqual({
+      code: "service unavailable",
+      legacy: "service temporarily unavailable, please retry",
+    });
+    expect(vi.mocked(captureException)).toHaveBeenCalledWith(expect.any(WebhookNotReadyError), {
+      level: "warning",
+      tags: { retriable: true }, // cspell:ignore retriable
+    });
+  });
 });
 
 describe("registration", () => {
@@ -706,7 +740,16 @@ const redis = vi.hoisted(() => ({
   del: vi.fn<() => Promise<number>>().mockResolvedValue(1),
 }));
 
-vi.mock("../../utils/redis", () => ({ default: redis, requestRedis: redis }));
+vi.mock("../../utils/redis", () => ({ default: redis, requestRedis: redis, queue: redis, close: vi.fn() }));
+
+vi.mock("bullmq", () => ({
+  Queue: class {
+    add = vi.fn().mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
+  },
+  Worker: class {
+    on = vi.fn().mockReturnThis();
+  },
+}));
 
 vi.mock("@simplewebauthn/server/helpers", async (importOriginal) => {
   const original = await importOriginal<typeof SimpleWebAuthnHelpers>();
