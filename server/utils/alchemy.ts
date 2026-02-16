@@ -8,8 +8,6 @@ import chain from "@exactly/common/generated/chain";
 import ServiceError from "./ServiceError";
 import verifySignature from "./verifySignature";
 
-import type { Address } from "@exactly/common/validation";
-
 if (!process.env.ALCHEMY_WEBHOOKS_KEY) throw new Error("missing alchemy webhooks key");
 export const headers = { "Content-Type": "application/json", "X-Alchemy-Token": process.env.ALCHEMY_WEBHOOKS_KEY };
 
@@ -57,16 +55,6 @@ export async function createWebhook(
   });
   if (!create.ok) throw new ServiceError("Alchemy", create.status, await create.text());
   return parse(WebhookResponse, await create.json()).data;
-}
-
-export async function updateWebhookAddresses(id: string | undefined, add: Address[], remove: Address[] = []) {
-  if (!id) return;
-  const update = await fetch("https://dashboard.alchemy.com/api/update-webhook-addresses", {
-    headers,
-    method: "PATCH",
-    body: JSON.stringify({ webhook_id: id, addresses_to_add: add, addresses_to_remove: remove }),
-  });
-  if (!update.ok) throw new ServiceError("Alchemy", update.status, await update.text());
 }
 
 const Webhook = object({
