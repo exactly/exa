@@ -267,10 +267,15 @@ findWebhook(({ webhook_type, webhook_url }) => webhook_type === "ADDRESS_ACTIVIT
   .then(async (currentHook) => {
     if (currentHook) {
       webhookId = currentHook.id;
+      debug("alchemy webhook initialized with existing hook: %s", webhookId);
       return signingKeys.add(currentHook.signing_key);
     }
     const newHook = await createWebhook({ webhook_type: "ADDRESS_ACTIVITY", webhook_url: url, addresses: [] });
     webhookId = newHook.id;
+    debug("alchemy webhook initialized with new hook: %s", webhookId);
     signingKeys.add(newHook.signing_key);
   })
-  .catch((error: unknown) => captureException(error));
+  .catch((error: unknown) => {
+    debug("failed to initialize alchemy webhook: %o", error);
+    captureException(error);
+  });
