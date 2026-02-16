@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type * as Supervise from "../../supervise";
 
+const alchemy = {};
 const refunder = privateKeyToAccount(padHex("0xfee"));
 const database = { $client: { end: vi.fn<() => Promise<void>>() } };
 const onesignal = {};
@@ -11,6 +12,7 @@ const panda = {};
 const sardine = {};
 const segment = { close: vi.fn<() => Promise<void>>() };
 const mocks = {
+  alchemy: vi.fn<(key: string) => object>(),
   close: vi.fn<() => Promise<void>>(),
   drizzle: vi.fn<() => typeof database>(),
   hook: vi.fn<(config: { bullmq: object; database: typeof database; panda: object }) => Handle>(),
@@ -32,6 +34,7 @@ const mocks = {
   segment: vi.fn<(key: string) => typeof segment>(),
   signer: vi.fn<(name: string) => Promise<typeof refunder>>(),
   sardine: vi.fn<(key: string, url: string) => object>(),
+  subscribe: vi.fn<(config: { alchemy: object; bullmq: object }) => Handle>(),
   supervise: vi.fn<(name: string, created: Promise<Handle>) => void>(),
 };
 
@@ -41,6 +44,7 @@ afterEach(() => {
 
 beforeEach(() => {
   vi.resetModules();
+  mocks.alchemy.mockReset().mockReturnValue(alchemy);
   mocks.close.mockReset().mockResolvedValue();
   mocks.drizzle.mockReset().mockReturnValue(database);
   mocks.hook.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
@@ -51,6 +55,7 @@ beforeEach(() => {
   mocks.secret.mockReset().mockImplementation((name) => Promise.resolve(name));
   mocks.segment.mockReset().mockReturnValue(segment);
   mocks.signer.mockReset().mockResolvedValue(refunder);
+  mocks.subscribe.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
   mocks.supervise.mockReset();
   vi.doMock("drizzle-orm/node-postgres", () => ({ drizzle: mocks.drizzle }));
   vi.doMock("ioredis", () => ({
@@ -65,6 +70,7 @@ beforeEach(() => {
     ...(await importOriginal<typeof Supervise>()),
     default: mocks.supervise,
   }));
+  vi.doMock("../../utils/alchemy", () => ({ default: mocks.alchemy }));
   vi.doMock("../../utils/onesignal", () => ({ default: mocks.onesignal }));
   vi.doMock("../../utils/panda", () => ({ default: mocks.panda }));
   vi.doMock("../../utils/sardine", () => ({ default: mocks.sardine }));
@@ -73,6 +79,7 @@ beforeEach(() => {
   vi.doMock("../../utils/wallet", () => ({ signer: mocks.signer }));
   vi.doMock("../../workers/hook/worker", () => ({ default: mocks.hook }));
   vi.doMock("../../workers/refund/worker", () => ({ default: mocks.refund }));
+  vi.doMock("../../workers/subscribe/worker", () => ({ default: mocks.subscribe }));
 });
 
 describe("bin", () => {
@@ -157,6 +164,25 @@ describe("bin", () => {
 
     await expect(created).rejects.toBe(error);
     expect(mocks.hook).not.toHaveBeenCalled();
+  });
+
+  it("resolves subscribe private config before constructing and supervising its worker", async () => {
+    await import("../../workers/subscribe/bin");
+
+    const created = mocks.supervise.mock.calls[0]?.[1];
+    if (!created) throw new Error("missing worker");
+    expect(mocks.supervise).toHaveBeenCalledExactlyOnceWith("subscribe", created);
+    await created;
+    expect(mocks.secret.mock.calls.map(([secret]) => secret)).toStrictEqual([
+      "subscribe-alchemy-webhooks-key",
+      "redis-url",
+    ]);
+    expect(new Set(mocks.secret.mock.calls.map(([, secrets]) => secrets)).size).toBe(1);
+    expect(mocks.alchemy).toHaveBeenCalledExactlyOnceWith("subscribe-alchemy-webhooks-key");
+    expect(mocks.subscribe).toHaveBeenCalledExactlyOnceWith({
+      alchemy,
+      bullmq: expect.objectContaining({ redisUrl: "redis-url", options: { maxRetriesPerRequest: null } }) as object,
+    });
   });
 });
 

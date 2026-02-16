@@ -24,6 +24,7 @@ describe("alchemy", () => {
       headers: { "Content-Type": "application/json", "X-Alchemy-Token": "update-key" },
       method: "PATCH",
     });
+    expect(bodies()).toStrictEqual([{ webhook_id: "activity", addresses_to_add: [account], addresses_to_remove: [] }]);
   });
 
   it("fails when no active webhook exists", async () => {
@@ -48,5 +49,13 @@ describe("alchemy", () => {
     await expect(createAlchemy("key").addWebhookAddresses("activity", [account])).rejects.toBeInstanceOf(ServiceError);
 
     expect(fetch).toHaveBeenCalledTimes(1);
+    expect(bodies()).toStrictEqual([{ webhook_id: "activity", addresses_to_add: [account], addresses_to_remove: [] }]);
   });
 });
+
+function bodies() {
+  return vi.mocked(fetch).mock.calls.map(([, init]) => {
+    if (!init || typeof init.body !== "string") throw new Error("missing body");
+    return JSON.parse(init.body) as unknown;
+  });
+}

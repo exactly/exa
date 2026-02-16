@@ -39,6 +39,7 @@ import createWalletExtension from "./utils/walletExtension";
 import createHook from "./workers/hook/queue";
 import createHookWorker from "./workers/hook/worker";
 import createRefund from "./workers/refund/queue";
+import createSubscribe from "./workers/subscribe/queue";
 
 const alchemy = createAlchemy(parse(pipe(string("alchemy"), nonEmpty("alchemy")), env.ALCHEMY_WEBHOOKS_KEY));
 const bridge = createBridge(
@@ -73,12 +74,12 @@ const sardine = createSardine(
   parse(pipe(string("sardine url"), nonEmpty("sardine url")), env.SARDINE_API_URL),
 );
 const segment = createSegment(parse(pipe(string("segment"), nonEmpty("segment")), env.SEGMENT_WRITE_KEY));
+const subscribe = createSubscribe(bullmq, alchemy);
 const walletExtension = createWalletExtension(
   parse(pipe(string("wallet"), nonEmpty("wallet")), env.WALLET_EXTENSION_SECRET),
 );
 setupMaturity(onesignal);
 const api = createApi({
-  alchemy,
   authSecret: parse(pipe(string("auth"), nonEmpty("auth")), env.AUTH_SECRET),
   bridge,
   database,
@@ -90,6 +91,7 @@ const api = createApi({
   redis,
   sardine,
   segment,
+  subscribe,
   walletExtension,
 });
 
@@ -418,6 +420,7 @@ export const close = supervise(
         () => hookWorker.close(),
         () => refund.close(),
         () => segment.close(),
+        () => subscribe.close(),
         () => webhook.close(),
       ),
       () => database.$client.end(),

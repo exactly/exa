@@ -32,6 +32,7 @@ import activity from "../../hooks/activity";
 import t, { f } from "../../i18n";
 import { setWebhookId, webhookId } from "../../utils/activityWebhook";
 import createAlchemy, { NETWORKS } from "../../utils/alchemy";
+import appOrigin from "../../utils/appOrigin";
 import createOnesignal from "../../utils/onesignal";
 import * as Panda from "../../utils/panda";
 import publicClient from "../../utils/publicClient";
@@ -1528,22 +1529,49 @@ afterEach(async () => {
   vi.restoreAllMocks();
 }, 66_666);
 
-it("sets the existing activity webhook id", async () => {
-  setWebhookId("activity");
-  findWebhookMock.mockResolvedValueOnce({
-    id: "existing-hook-id",
-    is_active: true,
-    network: "OPT_SEPOLIA",
-    signing_key: "existing-signing-key",
-    webhook_type: "ADDRESS_ACTIVITY",
-    webhook_url: "https://webhook.test",
+describe("webhook initialization", () => {
+  beforeEach(() => {
+    setWebhookId("activity");
   });
-  const currentHook = createHook("activity");
 
-  await currentHook.ready;
+  it("sets the existing webhook id", async () => {
+    const existing: NonNullable<Awaited<ReturnType<typeof findWebhookMock>>> = {
+      id: "existing-hook-id",
+      is_active: true,
+      network: "OPT_SEPOLIA",
+      signing_key: "existing-signing-key",
+      webhook_type: "ADDRESS_ACTIVITY",
+      webhook_url: `${appOrigin}/hooks/activity`,
+    };
+    vi.mocked(findWebhookMock).mockResolvedValueOnce(existing);
+    const current = createHook("bootstrap-signing-key");
 
-  expect(createWebhookMock).not.toHaveBeenCalled();
-  expect(webhookId).toBe("existing-hook-id");
+    await current.ready;
+
+    expect(createWebhookMock).not.toHaveBeenCalled();
+    expect(webhookId).toBe("existing-hook-id");
+  });
+
+  it("sets a newly created webhook id", async () => {
+    vi.mocked(findWebhookMock).mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined -- create path
+    const current = createHook();
+
+    await current.ready;
+
+    expect(createWebhookMock).toHaveBeenCalledOnce();
+    expect(webhookId).toBe("mock-webhook-id");
+  });
+
+  it("preserves the webhook id when readiness fails", async () => {
+    const error = new Error("alchemy error");
+    vi.mocked(findWebhookMock).mockRejectedValueOnce(error);
+    const current = createHook("activity");
+
+    await expect(current.ready).rejects.toBe(error);
+
+    expect(createWebhookMock).not.toHaveBeenCalled();
+    expect(webhookId).toBe("activity");
+  });
 });
 
 function createHook(activityKey?: string) {

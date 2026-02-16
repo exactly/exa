@@ -6,7 +6,6 @@ import { zeroHash } from "viem";
 
 import * as schema from "../database/schema";
 import { version } from "../package.json";
-import createAlchemy from "../utils/alchemy";
 import createIntercom from "../utils/intercom";
 import createPanda from "../utils/panda";
 import createPax from "../utils/pax";
@@ -24,7 +23,6 @@ import("../api")
     const redis = new Redis({ lazyConnect: true });
     const segment = createSegment("segment");
     const handle = api({
-      alchemy: createAlchemy("webhooks"),
       authSecret: zeroHash,
       bridge: createBridge("bridge", "https://bridge.test"),
       database,
@@ -36,6 +34,7 @@ import("../api")
       redis,
       sardine: createSardine("sardine", "https://api.sardine.ai"),
       segment,
+      subscribe: { close: () => Promise.resolve(), enqueue: () => Promise.resolve() },
       walletExtension: createWalletExtension(zeroHash),
     });
     const spec = await generateSpecs(handle.app, {

@@ -16,12 +16,14 @@ import { privateKeyToAccount } from "viem/accounts";
 import { describe, expect, it, vi } from "vitest";
 
 import database from "../database";
+import createAlchemy from "../utils/alchemy";
 import createOnesignal from "../utils/onesignal";
 import createPanda from "../utils/panda";
 import createSardine from "../utils/sardine";
 import createSegment from "../utils/segment";
 import hookWorker from "../workers/hook/worker";
 import refundWorker from "../workers/refund/worker";
+import subscribeWorker from "../workers/subscribe/worker";
 import { connect } from "../workers/worker";
 
 import type * as panda from "../utils/panda";
@@ -51,6 +53,7 @@ describe("e2e", () => {
           segment,
         }),
         hookWorker({ bullmq, database, panda }),
+        subscribeWorker({ alchemy: createAlchemy("webhooks"), bullmq }),
       ];
 
       await expect(

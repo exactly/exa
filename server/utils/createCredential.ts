@@ -10,31 +10,30 @@ import domain from "@exactly/common/domain";
 import chain, { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
-import { webhookId } from "./activityWebhook";
 import decodePublicKey from "./decodePublicKey";
 import { credentials } from "../database/schema";
 
-import type createAlchemy from "./alchemy";
 import type { IpAddress } from "./sardine";
 import type createSardine from "./sardine";
 import type createSegment from "./segment";
 import type * as schema from "../database/schema";
+import type createSubscribe from "../workers/subscribe/queue";
 import type { WebAuthnCredential } from "@simplewebauthn/server";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Context } from "hono";
 
 export default function createCredential({
-  alchemy,
   authSecret,
   database,
   sardine,
   segment,
+  subscribe,
 }: {
-  alchemy: ReturnType<typeof createAlchemy>;
   authSecret: string;
   database: NodePgDatabase<typeof schema>;
   sardine: ReturnType<typeof createSardine>;
   segment: ReturnType<typeof createSegment>;
+  subscribe: ReturnType<typeof createSubscribe>;
 }) {
   return async function credential<C extends string>(
     c: Context,
@@ -70,7 +69,6 @@ export default function createCredential({
           ? { sameSite: "lax", secure: false }
           : { domain, sameSite: "none", secure: true, partitioned: true }),
       }),
-      alchemy.addWebhookAddresses(webhookId, [account]).catch((error: unknown) => captureException(error)),
       sardine
         .customer({
           flow: { name: "signup", type: "signup" },
@@ -85,6 +83,8 @@ export default function createCredential({
         })
         .catch((error: unknown) => captureException(error, { level: "error" })),
     ]);
+
+    await subscribe.enqueue(account).catch(() => undefined);
 
     segment.identify({ userId: account });
     return { credentialId, factory: parse(Address, factory), x, y, auth: expires.getTime() };
