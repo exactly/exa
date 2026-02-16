@@ -30,6 +30,14 @@ import type * as ViemSiwe from "viem/siwe";
 const appClient = testClient(app);
 const registrationAppClient = testClient(registrationApp);
 
+vi.mock("../../utils/redis", () => {
+  const redisMock = {
+    getdel: vi.fn<() => Promise<null | string>>().mockResolvedValue("test-challenge"),
+    set: vi.fn<() => Promise<boolean>>().mockResolvedValue(true),
+  };
+  return { default: redisMock, requestRedis: redisMock };
+});
+
 describe("authentication", () => {
   beforeAll(async () => {
     await database.insert(credentials).values([
@@ -614,13 +622,6 @@ vi.mock("@simplewebauthn/server", async (importOriginal) => {
       ),
   };
 });
-
-vi.mock("../../utils/redis", () => ({
-  default: {
-    getdel: vi.fn<() => Promise<null | string>>().mockResolvedValue("test-challenge"),
-    set: vi.fn<() => Promise<boolean>>().mockResolvedValue(true),
-  },
-}));
 
 vi.mock("@simplewebauthn/server/helpers", async (importOriginal) => {
   const original = await importOriginal<typeof SimpleWebAuthnHelpers>();
