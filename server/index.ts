@@ -20,6 +20,7 @@ import panda from "./hooks/panda";
 import persona from "./hooks/persona";
 import androidFingerprints from "./utils/android/fingerprints";
 import appOrigin from "./utils/appOrigin";
+import { closeQueue as closeAccountQueue, startQueue as startAccountQueue } from "./utils/createCredential";
 import { close as closeRedis } from "./utils/redis";
 import { closeAndFlush as closeSegment } from "./utils/segment";
 
@@ -315,19 +316,37 @@ app.onError((error, c) => {
 
 export default app;
 
-const server = serve(app);
+const server = startAccountQueue()
+  .waitUntilReady()
+  .then(() => serve(app));
+
+server.catch((error: unknown) => {
+  captureException(error, { level: "fatal", tags: { startup: true } });
+  process.exitCode = 1;
+  return close().catch((error_: unknown) => {
+    captureException(error_, { level: "fatal", tags: { close: true } });
+  });
+});
 
 export async function close() {
+  const current = await server.catch(() => undefined);
   return new Promise((resolve, reject) => {
-    server.close((error) => {
-      Promise.allSettled([closeSentry(), closeRedis(), closeSegment(), database.$client.end()])
+    const finish = (error?: Error) => {
+      Promise.allSettled([
+        closeSentry(),
+        closeSegment(),
+        database.$client.end(),
+        closeAccountQueue().finally(closeRedis),
+      ])
         .then((results) => {
           if (error) reject(error);
           else if (results.some((result) => result.status === "rejected")) reject(new Error("closing services failed"));
           else resolve(null);
         })
         .catch(reject);
-    });
+    };
+    if (current) current.close(finish);
+    else finish();
   });
 }
 

@@ -1,4 +1,4 @@
-import "../mocks/alchemy";
+import { createWebhook as createWebhookMock, findWebhook as findWebhookMock } from "../mocks/alchemy";
 import "../mocks/deployments";
 import "../mocks/keeper";
 import "../mocks/onesignal";
@@ -1375,3 +1375,44 @@ const mockERC20Abi = [
     stateMutability: "nonpayable",
   },
 ] as const;
+
+describe("webhook initialization", () => {
+  beforeEach(() => vi.resetModules());
+
+  it("sets webhookId when existing hook is found", async () => {
+    vi.mocked(findWebhookMock).mockResolvedValueOnce({ id: "existing-hook-id", signing_key: "existing-signing-key" });
+    const activity = await import("../../hooks/activity");
+    await vi.waitUntil(() => activity.webhookId === "existing-hook-id", 5000);
+    expect(activity.webhookId).toBe("existing-hook-id");
+  });
+
+  it("sets webhookId when a hook is created", async () => {
+    vi.mocked(findWebhookMock).mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined -- create path
+    const activity = await import("../../hooks/activity");
+    await vi.waitUntil(() => activity.webhookId === "mock-webhook-id", 5000);
+    expect(createWebhookMock).toHaveBeenCalledOnce();
+    expect(activity.webhookId).toBe("mock-webhook-id");
+  });
+
+  it("reads webhookId from env", async () => {
+    const previous = process.env.ALCHEMY_ACTIVITY_ID;
+    try {
+      process.env.ALCHEMY_ACTIVITY_ID = "hook-a";
+      vi.mocked(findWebhookMock).mockRejectedValueOnce(new Error("alchemy error"));
+      const activity = await import("../../hooks/activity");
+      expect(activity.webhookId).toBe("hook-a");
+    } finally {
+      if (previous === undefined) delete process.env.ALCHEMY_ACTIVITY_ID;
+      else process.env.ALCHEMY_ACTIVITY_ID = previous;
+    }
+  });
+
+  it("captures exception when webhook initialization fails", async () => {
+    const error = new Error("alchemy error");
+    vi.mocked(findWebhookMock).mockRejectedValueOnce(error);
+    const { captureException: ce } = await import("@sentry/node");
+    await import("../../hooks/activity");
+    await vi.waitUntil(() => vi.mocked(ce).mock.calls.some(([error_]) => error_ === error), 5000);
+    expect(ce).toHaveBeenCalledWith(error, { level: "error" });
+  });
+});
