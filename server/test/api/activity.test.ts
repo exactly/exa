@@ -7,12 +7,13 @@ import "../mocks/sentry";
 import { captureException } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
+import assert from "node:assert";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { safeParse, type InferOutput } from "valibot";
 import { padHex, zeroHash, type Hash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
-import { afterEach, assert, beforeAll, describe, expect, inject, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import { marketAbi } from "@exactly/common/generated/chain";
@@ -20,6 +21,24 @@ import { marketAbi } from "@exactly/common/generated/chain";
 import app, { CreditActivity, DebitActivity, InstallmentsActivity, PandaActivity } from "../../api/activity";
 import database, { cards, transactions } from "../../database";
 import anvilClient from "../anvilClient";
+
+function httpSerialize<T>(object: T): T {
+  const cloned = structuredClone(object);
+  return removeUndefined(cloned) as T;
+}
+
+function removeUndefined(object: unknown): unknown {
+  if (object === null || typeof object !== "object") return object;
+  if (Array.isArray(object)) return object.map((value) => removeUndefined(value));
+
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(object)) {
+    if (value !== undefined) {
+      result[key] = removeUndefined(value);
+    }
+  }
+  return result;
+}
 
 const appClient = testClient(app);
 const account = deriveAddress(inject("ExaAccountFactory"), {
@@ -79,7 +98,7 @@ describe.concurrent("authenticated", () => {
         fromBlock: 0n,
         strict: true,
       });
-      assert(borrows[0], "expected at least one BorrowAtMaturity event");
+      assert.ok(borrows[0], "expected at least one BorrowAtMaturity event");
       maturity = String(borrows[0].args.maturity);
       const logs = [
         ...borrows,
@@ -99,65 +118,107 @@ describe.concurrent("authenticated", () => {
         ),
       ).then((blocks) => new Map(blocks.map(({ number, timestamp }) => [number, timestamp])));
       const txs = [
-        ...logs.reduce((m, { args, transactionHash: h, ...v }) => {
-          const d = m.get(h) ?? { ...v, events: [] as (typeof logs)[number]["args"][] };
-          return m.set(h, (d.events.push(args), d));
-        }, new Map<Hash, { blockNumber: bigint; eventName: string; events: (typeof logs)[number]["args"][] }>()),
-      ].map(([hash, { blockNumber, eventName, events }], index) => {
-        const blockTimestamp = timestamps.get(blockNumber)!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-        const total = events.reduce((sum, { assets }) => sum + assets, 0n);
-        const createdAt = new Date(Number(blockTimestamp) * 1000).toISOString();
-        const { payload, hashes } =
-          index === 0
-            ? {
-                hashes: [hash] as [Hash],
-                payload: {
-                  operation_id: String(index),
-                  type: "cryptomate",
-                  data: {
-                    created_at: createdAt,
-                    bill_amount: Number(total) / 1e6,
-                    transaction_amount: (1200 * Number(total)) / 1e6,
-                    transaction_currency_code: "ARS",
-                    merchant_data: { name: "Merchant", country: "ARG", city: "Buenos Aires", state: "BA" },
-                  },
-                },
-              }
-            : {
-                hashes: index === 1 ? ([hash] as [Hash]) : ([hash, zeroHash] as [Hash, Hash]),
-                payload: {
-                  type: "panda",
-                  bodies: (index === 1 ? ["completed"] : ["created", "completed"]).map((action) => ({
-                    action,
-                    resource: "transaction",
-                    createdAt,
-                    body: {
-                      id: String(index),
-                      type: "spend",
-                      spend: {
-                        ...spendTemplate,
-                        amount: Number(total) / 1e4,
-                        localAmount: (1200 * Number(total)) / 1e4,
-                        ...(action === "completed" && {
-                          enrichedMerchantIcon: "https://storage.googleapis.com/icon/icon.png",
-                        }),
-                      },
+        ...[
+          ...logs.reduce((m, { args, transactionHash: h, ...v }) => {
+            const d = m.get(h) ?? { ...v, events: [] as (typeof logs)[number]["args"][] };
+            return m.set(h, (d.events.push(args), d));
+          }, new Map<Hash, { blockNumber: bigint; eventName: string; events: (typeof logs)[number]["args"][] }>()),
+        ].map(([hash, { blockNumber, eventName, events }], index) => {
+          const blockTimestamp = timestamps.get(blockNumber)!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
+          const total = events.reduce((sum, { assets }) => sum + assets, 0n);
+          const createdAt = new Date(Number(blockTimestamp) * 1000).toISOString();
+          const { payload, hashes } =
+            index === 0
+              ? {
+                  hashes: [hash] as [Hash],
+                  payload: {
+                    operation_id: String(index),
+                    type: "cryptomate",
+                    data: {
+                      created_at: createdAt,
+                      bill_amount: Number(total) / 1e6,
+                      transaction_amount: (1200 * Number(total)) / 1e6,
+                      transaction_currency_code: "ARS",
+                      merchant_data: { name: "Merchant", country: "ARG", city: "Buenos Aires", state: "BA" },
                     },
-                  })),
-                },
-              };
-        return {
-          id: String(index),
+                  },
+                }
+              : {
+                  hashes: index === 1 ? ([hash] as [Hash]) : ([hash, zeroHash] as [Hash, Hash]),
+                  payload: {
+                    type: "panda",
+                    bodies: (index === 1 ? ["completed"] : ["created", "completed"]).map((action) => ({
+                      action,
+                      resource: "transaction",
+                      createdAt,
+                      body: {
+                        id: String(index),
+                        spend: {
+                          ...spendTemplate,
+                          amount: Number(total) / 1e4,
+                          localAmount: (1200 * Number(total)) / 1e4,
+                          ...(action === "completed" && {
+                            enrichedMerchantIcon: "https://storage.googleapis.com/icon/icon.png",
+                          }),
+                        },
+                      },
+                    })),
+                  },
+                };
+          return {
+            id: String(index),
+            cardId: "activity",
+            hashes,
+            payload,
+            hash,
+            blockNumber,
+            eventName,
+            events,
+            blockTimestamp,
+          };
+        }),
+        {
+          id: "transaction-declined",
           cardId: "activity",
-          hashes,
-          payload,
-          hash,
-          blockNumber,
-          eventName,
-          events,
-          blockTimestamp,
-        };
-      });
+          hashes: [zeroHash],
+          hash: zeroHash,
+          blockNumber: 0n,
+          eventName: "request declined",
+          events: [],
+          blockTimestamp: 0n,
+          payload: {
+            type: "panda",
+            bodies: [
+              {
+                id: "aa8b527b-c508-4550-954d-f85a25335113",
+                body: {
+                  id: "ac89fe24-8c17-48d5-b0df-efdd80695ed4",
+                  type: "spend",
+                  spend: { ...spendTemplate, amount: 1500, localAmount: 1500, localCurrency: "usd" },
+                },
+                action: "created",
+                resource: "transaction",
+                createdAt: new Date(0).toISOString(),
+                status: "declined" as const,
+                reason: "insufficient funds" as const,
+              },
+              {
+                id: "bb8b527b-c508-4550-954d-f85a25335114",
+                body: {
+                  id: "ac89fe24-8c17-48d5-b0df-efdd80695ed4",
+                  type: "spend",
+                  spend: { ...spendTemplate, amount: 1500, localAmount: 1500, localCurrency: "usd" },
+                },
+                action: "requested",
+                resource: "transaction",
+                createdAt: new Date(0).toISOString(),
+                status: "declined" as const,
+                reason: "insufficient funds" as const,
+              },
+            ],
+          },
+        },
+      ];
 
       await database
         .insert(transactions)
@@ -168,7 +229,12 @@ describe.concurrent("authenticated", () => {
           const panda = safeParse(PandaActivity, {
             ...(payload as object),
             hashes,
-            borrows: eventName === "Withdraw" ? [null] : [{ blockNumber, events }],
+            borrows:
+              eventName === "Withdraw"
+                ? hashes.map(() => null)
+                : hashes.map((currentHash) =>
+                    currentHash === hash && events.length > 0 ? { timestamp: blockTimestamp, events } : null,
+                  ),
           });
           if (panda.success) return panda.output;
           const eventCount = eventName === "Withdraw" ? 0 : events.length;
@@ -191,7 +257,22 @@ describe.concurrent("authenticated", () => {
       );
 
       expect(response.status).toBe(200);
-      await expect(response.json()).resolves.toStrictEqual(activity);
+      await expect(response.json()).resolves.toMatchObject(httpSerialize(activity));
+    });
+
+    it("returns declined transaction in http response", async () => {
+      const txId = "ac89fe24-8c17-48d5-b0df-efdd80695ed4";
+      expect.hasAssertions();
+      const response = await appClient.index.$get(
+        { query: { include: "card" } },
+        { headers: { "test-credential-id": "bob" } },
+      );
+
+      expect(response.status).toBe(200);
+      const json = (await response.json()) as { id: string }[];
+      const declined = json.find(({ id }) => id === txId);
+      assert.ok(declined, "expected declined transaction in response");
+      expect(declined).toStrictEqual(httpSerialize(activity.find(({ id }) => id === txId)));
     });
 
     it("accepts panda activity with zero exchange rate", () => {
@@ -213,6 +294,7 @@ describe.concurrent("authenticated", () => {
       if (!panda.success) return;
       expect(panda.output.amount).toBe(0);
       expect(panda.output.usdAmount).toBe(1);
+      expect(panda.output.status).toBe("pending");
     });
 
     it("reports bad transaction", async () => {
@@ -235,7 +317,7 @@ describe.concurrent("authenticated", () => {
         }),
       );
       expect(response.status).toBe(200);
-      await expect(response.json()).resolves.toStrictEqual(activity);
+      await expect(response.json()).resolves.toMatchObject(httpSerialize(activity));
     });
 
     it("filters by maturity", async () => {
@@ -299,7 +381,7 @@ describe.concurrent("authenticated", () => {
         database.query.credentials.findMany({ columns: { id: true } }),
       ]);
       const otherCredential = credentials.find(({ id }) => id !== "bob");
-      assert(otherCredential, "expected another credential");
+      assert.ok(otherCredential, "expected another credential");
       const borrows = await anvilClient.getContractEvents({
         abi: marketAbi,
         eventName: "BorrowAtMaturity",
@@ -318,7 +400,7 @@ describe.concurrent("authenticated", () => {
         columns: { hashes: true, payload: true },
       });
       const source = transactionsByHash.find(({ hashes }) => hashes.some((hash) => borrowHashes.has(hash as Hash)));
-      assert(source, "expected source transaction");
+      assert.ok(source, "expected source transaction");
 
       const leak = {
         cardId: `leak-card-${Date.now()}`,
@@ -368,7 +450,7 @@ describe.concurrent("authenticated", () => {
         fromBlock: 0n,
         strict: true,
       });
-      assert(repays[0], "expected at least one RepayAtMaturity event");
+      assert.ok(repays[0], "expected at least one RepayAtMaturity event");
       const response = await appClient.index.$get(
         { query: { include: "received", maturity: String(repays[0].args.maturity) } },
         { headers: { "test-credential-id": "bob" } },
@@ -442,6 +524,100 @@ describe.concurrent("authenticated", () => {
         expect.objectContaining({ type: "panda" }),
       ]),
     );
+  });
+
+  describe("declined transactions", () => {
+    it("parses declined transaction with created action", () => {
+      const result = safeParse(PandaActivity, {
+        type: "panda",
+        hashes: [zeroHash],
+        borrows: [null],
+        bodies: [
+          {
+            action: "created",
+            createdAt: "2024-01-15T10:30:00.000Z",
+            status: "declined",
+            reason: "insufficient funds",
+            body: {
+              id: "declined-tx-1",
+              spend: { ...spendTemplate, amount: 1000, localAmount: 1000, localCurrency: "usd" },
+            },
+          },
+        ],
+      });
+
+      expect(result.success).toBe(true);
+      assert.ok(result.success);
+      expect(result.output).toStrictEqual({
+        id: "declined-tx-1",
+        type: "panda",
+        status: "declined",
+        reason: "insufficient funds",
+        currency: "USD",
+        amount: 10,
+        usdAmount: 10,
+        merchant: {
+          name: "once",
+          city: "Buenos Aires",
+          country: "ARG",
+          icon: undefined,
+          state: "",
+        },
+        operations: [],
+        timestamp: "2024-01-15T10:30:00.000Z",
+      });
+    });
+
+    it("parses declined transaction with requested action alongside created", () => {
+      const result = safeParse(PandaActivity, {
+        type: "panda",
+        hashes: [zeroHash, zeroHash],
+        borrows: [null, null],
+        bodies: [
+          {
+            action: "created",
+            createdAt: "2024-01-15T11:00:00.000Z",
+            status: "declined",
+            reason: "merchant blocked",
+            body: {
+              id: "declined-tx-2",
+              spend: { ...spendTemplate, amount: 500, localAmount: 500, localCurrency: "usd" },
+            },
+          },
+          {
+            action: "requested",
+            createdAt: "2024-01-15T10:59:00.000Z",
+            status: "declined",
+            reason: "merchant blocked",
+            body: {
+              id: "declined-tx-2",
+              spend: { ...spendTemplate, amount: 500, localAmount: 500, localCurrency: "usd" },
+            },
+          },
+        ],
+      });
+
+      expect(result.success).toBe(true);
+      assert.ok(result.success);
+      expect(result.output).toStrictEqual({
+        id: "declined-tx-2",
+        type: "panda",
+        status: "declined",
+        reason: "merchant blocked",
+        currency: "USD",
+        amount: 5,
+        usdAmount: 5,
+        merchant: {
+          name: "once",
+          city: "Buenos Aires",
+          country: "ARG",
+          icon: undefined,
+          state: "",
+        },
+        operations: [],
+        timestamp: "2024-01-15T11:00:00.000Z",
+      });
+    });
   });
 });
 
