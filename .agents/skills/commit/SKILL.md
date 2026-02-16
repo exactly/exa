@@ -253,12 +253,12 @@ format: `<emoji> <scope>: <message>`
 
 rules for messages:
 
-- **plain english words only** — never carry over identifier casing from source code. always translate identifiers into separate lowercase words:
+- **natural prose, not code** — never carry over identifier casing (`camelCase`, `PascalCase`, `snake_case`) from source code. rewrite identifiers as lowercase prose that reads naturally in a sentence. hyphenate compound terms that function as a single modifier:
   - ✅ `auth endpoint` ❌ `authEndpoint`
   - ✅ `validator hook` ❌ `validatorHook`
   - ✅ `session cookie` ❌ `sessionCookie`
   - ✅ `user profile` ❌ `UserProfile` ❌ `user_profile`
-  - ✅ `rate limit middleware` ❌ `rateLimitMiddleware`
+  - ✅ `rate-limit middleware` ❌ `rateLimitMiddleware`
 - all lowercase, no trailing punctuation
 - start with an imperative verb (add, fix, implement, update, remove, refactor, replace, extract, etc.)
 - front-load keywords — most important word first after the verb
