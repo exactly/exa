@@ -59,10 +59,10 @@ jobs:
           echo "release=$(node -e 'console.log(require(`./server/generated/release`))')" >> $GITHUB_OUTPUT
         id: extract
       - uses: getsentry/action-release@v3 # cspell:ignore getsentry
+        if: inputs.environment == 'production'
         env: { SENTRY_ORG: exactly, SENTRY_PROJECT: server, SENTRY_AUTH_TOKEN: "${{ secrets.SENTRY_AUTH_TOKEN }}" }
         with:
           environment: ${{ inputs.environment }}
           release: ${{ steps.extract.outputs.release }}
-          finalize: ${{ inputs.environment == 'production' }}
           sourcemaps: server/dist
           inject: false

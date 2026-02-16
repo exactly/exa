@@ -16,7 +16,6 @@
     "generate:expo": "expo customize tsconfig.json",
     "generate:release": "echo \"module.exports = /** @type {const} */ ('$(git describe --tags --abbrev=7 --match '@exactly/mobile@*' | sed 's/@exactly\\///')')\" > src/generated/release.js",
     "generate:version": "echo \"module.exports = /** @type {const} */ ($(git rev-list --count HEAD))\" > src/generated/versionCode.js",
-    "eas-build-on-success": "[ \"$EAS_BUILD_PROFILE\" != production ] || sentry-cli releases new --finalize -o exactly -p exa $(node -p 'require(\"./src/generated/release\")')",
     "e2e:iphone": "maestro start-device --platform=ios --os-version=26 --device-locale=es-419",
     "e2e:android:proxy": "adb start-server && adb reverse tcp:3000 tcp:3000 && adb reverse tcp:8545 tcp:8545 && adb reverse tcp:8969 tcp:8969",
     "e2e:maestro": "maestro test .maestro/flows --include-tags=critical",
