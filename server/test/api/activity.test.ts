@@ -201,8 +201,8 @@ describe.concurrent("authenticated", () => {
         expect.objectContaining({
           // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           contexts: expect.objectContaining({
-            cryptomate: expect.objectContaining({ issues: expect.anything() }), // eslint-disable-line @typescript-eslint/no-unsafe-assignment
-            panda: expect.objectContaining({ issues: expect.anything() }), // eslint-disable-line @typescript-eslint/no-unsafe-assignment
+            cryptomate: expect.objectContaining({ success: false }), // eslint-disable-line @typescript-eslint/no-unsafe-assignment
+            panda: expect.objectContaining({ success: false }), // eslint-disable-line @typescript-eslint/no-unsafe-assignment
           }),
         }),
       );

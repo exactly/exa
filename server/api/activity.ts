@@ -6,6 +6,7 @@ import {
   array,
   bigint,
   boolean,
+  flatten,
   intersect,
   isoTimestamp,
   length,
@@ -277,7 +278,13 @@ export default new Hono().get(
               },
             );
             if (cryptomate.success) return cryptomate.output;
-            captureException(new Error("bad transaction"), { level: "error", contexts: { cryptomate, panda } });
+            captureException(new Error("bad transaction"), {
+              level: "error",
+              contexts: {
+                cryptomate: { success: cryptomate.success, ...flatten(cryptomate.issues) },
+                panda: { success: panda.success, ...flatten(panda.issues) },
+              },
+            });
           }),
         ),
         ...[...deposits, ...repays, ...withdraws].map(({ blockNumber, ...event }) => {
