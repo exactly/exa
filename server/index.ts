@@ -277,12 +277,15 @@ app.route("/", frontend);
 app.onError((error, c) => {
   let fingerprint: string[] | undefined;
   if (error instanceof Error) {
-    const status = error.message.slice(0, 3);
+    const message = error.message
+      .split("Error:")
+      .reduce((result, part) => (result ? `${result}Error:${part}` : part.trimStart()), "");
+    const status = message.slice(0, 3);
     const hasStatus = /^\d{3}$/.test(status);
-    const hasBodyFormat = error.message.length === 3 || error.message[3] === " ";
-    const body = hasBodyFormat && error.message.length > 3 ? error.message.slice(4) : undefined;
+    const hasBodyFormat = message.length === 3 || message[3] === " ";
+    const body = hasBodyFormat && message.length > 3 ? message.slice(4).trim() : undefined;
     if (hasStatus && hasBodyFormat) fingerprint = ["{{ default }}", status];
-    if (hasStatus && hasBodyFormat && body !== undefined) {
+    if (hasStatus && hasBodyFormat && body) {
       try {
         const json = JSON.parse(body) as { code?: unknown; error?: unknown; message?: unknown };
         fingerprint = [
@@ -290,10 +293,10 @@ app.onError((error, c) => {
           status,
           ...("code" in json
             ? [String(json.code)]
-            : typeof json.error === "string"
-              ? [json.error]
-              : typeof json.message === "string"
-                ? [json.message]
+            : typeof json.message === "string"
+              ? [json.message]
+              : typeof json.error === "string"
+                ? [json.error]
                 : []),
         ];
       } catch {
