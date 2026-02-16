@@ -114,21 +114,12 @@ describe("card operations", () => {
       afterEach(() => panda.getMutex(account)?.release());
 
       it("fails with InsufficientAccountLiquidity", async () => {
-        const currentFunds = await publicClient
-          .readContract({
-            address: inject("MarketUSDC"),
-            abi: marketAbi,
-            functionName: "balanceOf",
-            args: [account],
-          })
-          .then((shares) => {
-            return publicClient.readContract({
-              address: inject("MarketUSDC"),
-              abi: marketAbi,
-              functionName: "convertToAssets",
-              args: [shares],
-            });
-          });
+        const currentFunds = await publicClient.readContract({
+          address: inject("MarketUSDC"),
+          abi: marketAbi,
+          functionName: "maxWithdraw",
+          args: [account],
+        });
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -1724,21 +1715,12 @@ describe("card operations", () => {
 
       it("force capture fraud", async () => {
         const updateUser = vi.spyOn(panda, "updateUser").mockResolvedValue(userResponseTemplate);
-        const currentFunds = await publicClient
-          .readContract({
-            address: inject("MarketUSDC"),
-            abi: marketAbi,
-            functionName: "balanceOf",
-            args: [account],
-          })
-          .then((shares) => {
-            return publicClient.readContract({
-              address: inject("MarketUSDC"),
-              abi: marketAbi,
-              functionName: "convertToAssets",
-              args: [shares],
-            });
-          });
+        const currentFunds = await publicClient.readContract({
+          address: inject("MarketUSDC"),
+          abi: marketAbi,
+          functionName: "maxWithdraw",
+          args: [account],
+        });
 
         const capture = Number(currentFunds) / 1e4 + 10_000;
 
