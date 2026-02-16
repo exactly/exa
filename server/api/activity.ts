@@ -542,28 +542,42 @@ const Borrow = object({ maturity: bigint(), assets: bigint(), fee: bigint() });
 
 export const PandaActivity = pipe(
   object({
-    bodies: array(looseObject({ action: picklist(["created", "completed", "updated"]) })),
+    bodies: array(looseObject({ action: picklist(["completed", "created", "requested", "updated"]) })),
     borrows: array(nullable(object({ timestamp: optional(bigint()), events: array(Borrow) }))),
     hashes: array(Hash),
     type: literal("panda"),
   }),
   transform(({ bodies, borrows, hashes, type }) => {
-    const operations = hashes.map((hash, index) => {
-      const borrow = borrows[index];
-      const validation = safeParse(
-        { 0: DebitActivity, 1: CreditActivity }[borrow?.events.length ?? 0] ?? InstallmentsActivity,
-        {
-          ...bodies[index],
-          forceCapture: bodies[index]?.action === "completed" && !bodies.some((b) => b.action === "created"),
-          type,
-          hash,
-          events: borrow?.events,
-          blockTimestamp: borrow?.timestamp,
-        },
-      );
-      if (validation.success) return validation.output;
-      throw new Error("bad panda activity");
-    });
+    const operations = hashes
+      .map((hash, index) => {
+        const borrow = borrows[index];
+        const validation = safeParse(
+          { 0: DebitActivity, 1: CreditActivity }[borrow?.events.length ?? 0] ?? InstallmentsActivity,
+          {
+            ...bodies[index],
+            forceCapture: bodies[index]?.action === "completed" && !bodies.some((b) => b.action === "created"),
+            type,
+            hash,
+            events: borrow?.events,
+            blockTimestamp: borrow?.timestamp,
+          },
+        );
+        if (validation.success) return validation.output;
+        throw new Error("bad panda activity");
+      })
+      .filter((p) => p.provider === "panda");
+
+    const declined = (function () {
+      const operation = operations.findLast((b) => b.action === "created" && b.status === "declined");
+      if (operation) {
+        if (operation.reason === "webhook declined") {
+          const requested = operations.findLast((b) => b.action === "requested");
+          return requested ? { ...operation, reason: requested.reason } : operation;
+        }
+        return operation;
+      }
+      return operations.findLast((b) => b.action === "requested");
+    })();
 
     const flow = operations.reduce<{
       completed: (typeof operations)[number] | undefined;
@@ -571,9 +585,21 @@ export const PandaActivity = pipe(
       updates: (typeof operations)[number][];
     }>(
       (f, operation) => {
-        if (operation.action === "updated") f.updates.push(operation);
-        else if (operation.action === "created" || operation.action === "completed") f[operation.action] = operation;
-        else throw new Error("bad action");
+        switch (operation.action) {
+          case "updated":
+            f.updates.push(operation);
+            break;
+
+          case "created":
+          case "completed":
+            f[operation.action] = operation;
+            break;
+
+          case "requested":
+            return f;
+          default:
+            throw new Error("bad action");
+        }
         return f;
       },
       { created: undefined, updates: [], completed: undefined },
@@ -588,7 +614,9 @@ export const PandaActivity = pipe(
       timestamp,
       merchant: { city, country, name, state },
     } = details;
-    const usdAmount = operations.reduce((sum, { usdAmount: amount }) => sum + amount, 0);
+    const usdAmount = operations
+      .filter((op) => op.action !== "requested")
+      .reduce((sum, { usdAmount: amount }) => sum + amount, 0);
     const exchangeRate = flow.completed?.exchangeRate ?? [flow.created, ...flow.updates].at(-1)?.exchangeRate;
     if (exchangeRate === undefined) throw new Error("no exchange rate");
     return {
@@ -599,42 +627,55 @@ export const PandaActivity = pipe(
         name: name.trim(),
         city: city?.trim(),
         country: country?.trim(),
-        state: state?.trim(),
+        state: state.trim(),
         icon: flow.completed?.merchant.icon ?? flow.updates.at(-1)?.merchant.icon,
       },
       operations: operations.filter(({ transactionHash }) => transactionHash !== zeroHash),
       timestamp,
       type,
-      settled: !!flow.completed,
       usdAmount,
+      status: declined ? ("declined" as const) : flow.completed ? ("settled" as const) : ("pending" as const),
+      ...(declined && { reason: declined.reason ?? "transaction declined" }),
     };
   }),
 );
 
+const PandaBase = {
+  type: literal("panda"),
+  createdAt: pipe(string(), isoTimestamp()),
+  body: object({
+    id: string(),
+    spend: object({
+      amount: number(),
+      authorizedAmount: nullish(number()),
+      currency: literal("usd"),
+      localAmount: number(),
+      localCurrency: string(),
+      merchantCity: nullish(string()),
+      merchantCountry: nullish(string()),
+      merchantName: string(),
+      authorizationUpdateAmount: optional(number()),
+      enrichedMerchantIcon: optional(string()),
+    }),
+  }),
+  forceCapture: boolean(),
+  hash: Hash,
+};
+
 const CardActivity = pipe(
   variant("type", [
-    object({
-      type: literal("panda"),
-      action: picklist(["created", "completed", "updated"]),
-      createdAt: pipe(string(), isoTimestamp()),
-      body: object({
-        id: string(),
-        spend: object({
-          amount: number(),
-          authorizedAmount: nullish(number()),
-          currency: literal("usd"),
-          localAmount: number(),
-          localCurrency: string(),
-          merchantCity: nullish(string()),
-          merchantCountry: nullish(string()),
-          merchantName: string(),
-          authorizationUpdateAmount: optional(number()),
-          enrichedMerchantIcon: optional(string()),
+    pipe(
+      variant("action", [
+        object({ ...PandaBase, action: picklist(["completed", "updated"]) }),
+        object({
+          ...PandaBase,
+          action: literal("created"),
+          status: optional(literal("declined")),
+          reason: optional(string()),
         }),
-      }),
-      forceCapture: boolean(),
-      hash: Hash,
-    }),
+        object({ ...PandaBase, action: literal("requested"), status: literal("declined"), reason: string() }),
+      ]),
+    ),
     object({
       type: literal("cryptomate"),
       operation_id: string(),
@@ -680,6 +721,7 @@ function transformCard(activity: InferOutput<typeof CardActivity>) {
       activity.body.spend.amount === 0 ? 1 : activity.body.spend.localAmount / activity.body.spend.amount;
     return {
       type: "card" as const,
+      provider: "panda" as const,
       action: activity.action,
       id: activity.body.id,
       transactionHash: activity.hash,
@@ -692,13 +734,18 @@ function transformCard(activity: InferOutput<typeof CardActivity>) {
         name: activity.body.spend.merchantName,
         city: activity.body.spend.merchantCity,
         country: activity.body.spend.merchantCountry,
-        icon: activity.body.spend.enrichedMerchantIcon,
         state: "",
+        icon: activity.body.spend.enrichedMerchantIcon,
       },
+      ...((activity.action === "requested" || activity.action === "created") && {
+        status: activity.status,
+        reason: activity.reason,
+      }),
     };
   }
   return {
     type: "card" as const,
+    provider: "cryptomate" as const,
     id: activity.operation_id,
     transactionHash: activity.hash,
     timestamp: activity.data.created_at,
