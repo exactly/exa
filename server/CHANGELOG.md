@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.66
+
+### Patch Changes
+
+- [#781](https://github.com/exactly/exa/pull/781) [`00f96dc`](https://github.com/exactly/exa/commit/00f96dcd11d1c08ad689d4db6c40e6a8525f1216) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 fingerprint api errors by response message
+
 ## 0.2.65
 
 ### Patch Changes

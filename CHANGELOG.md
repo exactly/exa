@@ -1,5 +1,18 @@
 # @exactly/mobile
 
+## 1.1.15
+
+### Patch Changes
+
+- [#782](https://github.com/exactly/exa/pull/782) [`fc1081d`](https://github.com/exactly/exa/commit/fc1081d97b9bf30a830d6c806474b9b1d711b39e) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚑️ fix missing slippage on repay max amount
+
+- [#784](https://github.com/exactly/exa/pull/784) [`d65aefa`](https://github.com/exactly/exa/commit/d65aefa44180c07377d938dcf8eb089e6c5233ce) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 globally suppress expected kyc api errors
+
+- [#785](https://github.com/exactly/exa/pull/785) [`6f6e24d`](https://github.com/exactly/exa/commit/6f6e24dcbb758cf55dcac169a8657eeb1179e8c0) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 suppress network failure errors in error reporter
+
+- Updated dependencies [[`00f96dc`](https://github.com/exactly/exa/commit/00f96dcd11d1c08ad689d4db6c40e6a8525f1216)]:
+  - @exactly/server@0.2.66
+
 ## 1.1.14
 
 ### Patch Changes
