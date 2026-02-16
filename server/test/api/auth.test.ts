@@ -1,6 +1,5 @@
 import "../expect";
 
-import { addWebhookAddresses } from "../mocks/alchemy";
 import sardineCustomer from "../mocks/sardine";
 import "../mocks/segment";
 import "../mocks/sentry";
@@ -24,7 +23,6 @@ import { Address } from "@exactly/common/validation";
 import authentication, { Authentication } from "../../api/auth/authentication";
 import registration from "../../api/auth/registration";
 import database, { credentials } from "../../database";
-import createAlchemy from "../../utils/alchemy";
 import authSecret from "../../utils/authSecret";
 import createCredentialFactory from "../../utils/createCredential";
 import createIntercom from "../../utils/intercom";
@@ -35,6 +33,7 @@ import createSegment from "../../utils/segment";
 import validFactories from "../../utils/validFactories";
 import createWalletExtension from "../../utils/walletExtension";
 
+import type createSubscribe from "../../workers/subscribe/queue";
 import type * as SimpleWebAuthn from "@simplewebauthn/server";
 import type * as SimpleWebAuthnHelpers from "@simplewebauthn/server/helpers";
 import type * as ViemSiwe from "viem/siwe";
@@ -44,8 +43,11 @@ const WALLET_EXTENSION_EXPIRY = 60 * 24 * 60 * 60_000;
 vi.mock("@sentry/node", { spy: true });
 
 const walletExtension = createWalletExtension(parse(pipe(string(), nonEmpty()), env.WALLET_EXTENSION_SECRET));
+const subscribe = {
+  close: vi.fn<ReturnType<typeof createSubscribe>["close"]>().mockResolvedValue(),
+  enqueue: vi.fn<ReturnType<typeof createSubscribe>["enqueue"]>().mockResolvedValue(),
+};
 const createCredential = createCredentialFactory({
-  alchemy: createAlchemy(parse(pipe(string(), nonEmpty()), env.ALCHEMY_WEBHOOKS_KEY)),
   authSecret,
   database,
   sardine: createSardine(
@@ -53,6 +55,7 @@ const createCredential = createCredentialFactory({
     parse(pipe(string(), nonEmpty()), env.SARDINE_API_URL),
   ),
   segment: createSegment(parse(pipe(string(), nonEmpty()), env.SEGMENT_WRITE_KEY)),
+  subscribe,
 });
 const intercom = createIntercom(parse(pipe(string(), nonEmpty()), env.INTERCOM_IDENTITY_KEY));
 const appClient = testClient(
@@ -527,31 +530,9 @@ describe("authentication", () => {
 
     const credential = await database.query.credentials.findFirst({
       where: eq(credentials.id, id),
-      columns: { account: true, id: true },
+      columns: { id: true },
     });
     expect(credential?.id).toBe(id);
-    expect(addWebhookAddresses).toHaveBeenCalledExactlyOnceWith("activity", [credential?.account]);
-    await expect(redis.exists("test-session")).resolves.toBe(0);
-  });
-
-  it("captures activity subscription failures", async () => {
-    const error = new Error("alchemy failed");
-    addWebhookAddresses.mockRejectedValueOnce(error);
-    vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(true);
-    const id = "0x2234567890123456789012345678901234567890";
-
-    const response = await appClient.index.$post(
-      { json: { method: "siwe", id, signature: "0xdeadbeef" } },
-      { headers: { cookie: "session_id=test-session" } },
-    );
-
-    const credential = await database.query.credentials.findFirst({
-      where: eq(credentials.id, id),
-      columns: { account: true },
-    });
-    expect(response.status).toBe(200);
-    expect(addWebhookAddresses).toHaveBeenCalledExactlyOnceWith("activity", [credential?.account]);
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(error);
     await expect(redis.exists("test-session")).resolves.toBe(0);
   });
 

@@ -8,6 +8,7 @@ export default define({
       shared: ["panda-api-url", "sardine-api-url"],
       signers: ["refunder"],
     },
+    subscribe: { env: { ALCHEMY_ACTIVITY_ID: "alchemyActivityId" }, secrets: ["alchemy-webhooks-key"] },
   },
 });
 

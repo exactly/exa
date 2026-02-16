@@ -18,7 +18,6 @@ import createBetterAuth from "../utils/auth";
 import createCredential from "../utils/createCredential";
 
 import type * as schema from "../database/schema";
-import type createAlchemy from "../utils/alchemy";
 import type createIntercom from "../utils/intercom";
 import type createPanda from "../utils/panda";
 import type createPax from "../utils/pax";
@@ -28,11 +27,11 @@ import type createManteca from "../utils/ramps/manteca";
 import type createSardine from "../utils/sardine";
 import type createSegment from "../utils/segment";
 import type createWalletExtension from "../utils/walletExtension";
+import type createSubscribe from "../workers/subscribe/queue";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Redis } from "ioredis";
 
 export default function api({
-  alchemy,
   authSecret,
   bridge,
   database,
@@ -44,9 +43,9 @@ export default function api({
   redis,
   sardine,
   segment,
+  subscribe,
   walletExtension,
 }: {
-  alchemy: ReturnType<typeof createAlchemy>;
   authSecret: string;
   bridge: ReturnType<typeof createBridge>;
   database: NodePgDatabase<typeof schema>;
@@ -58,12 +57,13 @@ export default function api({
   redis: Redis;
   sardine: ReturnType<typeof createSardine>;
   segment: ReturnType<typeof createSegment>;
+  subscribe: ReturnType<typeof createSubscribe>;
   walletExtension: ReturnType<typeof createWalletExtension>;
 }) {
   const betterAuth = createBetterAuth(database, authSecret);
   const auth = createAuth(authSecret);
   const org = createOrg(betterAuth);
-  const credential = createCredential({ alchemy, authSecret, database, sardine, segment });
+  const credential = createCredential({ authSecret, database, sardine, segment, subscribe });
   const app = new Hono()
     .use(cors({ origin: [appOrigin, "http://localhost:8081"], credentials: true, exposeHeaders: ["X-Session-Id"] }))
     .use((c, next) => {
