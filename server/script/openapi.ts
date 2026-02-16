@@ -6,7 +6,6 @@ import { privateKeyToAddress } from "viem/accounts";
 import { version } from "../package.json";
 
 process.env.ALCHEMY_ACTIVITY_ID = "activity";
-process.env.ALCHEMY_WEBHOOKS_KEY = "webhooks";
 process.env.AUTH_SECRET = zeroHash;
 process.env.BRIDGE_API_KEY = "bridge";
 process.env.BRIDGE_API_URL = "https://bridge.test";

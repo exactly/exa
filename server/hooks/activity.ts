@@ -34,7 +34,8 @@ import { Address, Hash, Hex } from "@exactly/common/validation";
 
 import database, { cards, credentials } from "../database";
 import t, { f } from "../i18n";
-import { createWebhook, findWebhook, headerValidator, NETWORKS } from "../utils/alchemy";
+import { webhookId as currentWebhookId, setWebhookId } from "../utils/activityWebhook";
+import createAlchemy, { headerValidator, NETWORKS } from "../utils/alchemy";
 import appOrigin from "../utils/appOrigin";
 import decodePublicKey from "../utils/decodePublicKey";
 import keeper, { extender } from "../utils/keeper";
@@ -53,11 +54,10 @@ const WETH = v.parse(Address, wethAddress);
 const debug = createDebug("exa:activity");
 Object.assign(debug, { inspectOpts: { depth: undefined } });
 
-if (!process.env.ALCHEMY_ACTIVITY_ID) debug("missing alchemy activity id");
-export let webhookId = process.env.ALCHEMY_ACTIVITY_ID;
-
 if (!process.env.ALCHEMY_ACTIVITY_KEY) debug("missing alchemy activity key");
 const signingKeys = new Set(process.env.ALCHEMY_ACTIVITY_KEY && [process.env.ALCHEMY_ACTIVITY_KEY]);
+
+export { webhookId } from "../utils/activityWebhook";
 
 export default new Hono().post(
   "/",
@@ -325,17 +325,28 @@ export default new Hono().post(
 );
 
 const url = `${appOrigin}/hooks/activity`;
-findWebhook(({ webhook_type, webhook_url }) => webhook_type === "ADDRESS_ACTIVITY" && webhook_url === url)
+const alchemy = createAlchemy(v.parse(v.string(), process.env.ALCHEMY_WEBHOOKS_KEY));
+alchemy
+  .findWebhook(({ webhook_type, webhook_url }) => webhook_type === "ADDRESS_ACTIVITY" && webhook_url === url)
   .then(async (currentHook) => {
     if (currentHook) {
-      webhookId = currentHook.id;
+      setWebhookId(currentHook.id);
+      debug("alchemy webhook initialized with existing hook: %s", currentWebhookId);
       return signingKeys.add(currentHook.signing_key);
     }
-    const newHook = await createWebhook({ webhook_type: "ADDRESS_ACTIVITY", webhook_url: url, addresses: [] });
-    webhookId = newHook.id;
+    const newHook = await alchemy.createWebhook({
+      webhook_type: "ADDRESS_ACTIVITY",
+      webhook_url: url,
+      addresses: [],
+    });
+    setWebhookId(newHook.id);
+    debug("alchemy webhook initialized with new hook: %s", currentWebhookId);
     signingKeys.add(newHook.signing_key);
   })
-  .catch((error: unknown) => captureException(error));
+  .catch((error: unknown) => {
+    debug("failed to initialize alchemy webhook: %o", error);
+    captureException(error, { level: "error" });
+  });
 
 async function isKnownToken(chainId: number, address: Address) {
   if (chainId === anvil.id) return true;
