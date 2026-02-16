@@ -170,7 +170,12 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
         400: {
           description: "Bad request",
           content: {
-            "application/json": { schema: resolver(object({ code: literal("bad request") }), { errorMode: "ignore" }) },
+            "application/json": {
+              schema: resolver(
+                union([object({ code: literal("bad request") }), object({ code: literal("bad session id") })]),
+                { errorMode: "ignore" },
+              ),
+            },
           },
         },
         403: {
@@ -212,8 +217,23 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
           getCard(id),
           getSecrets(id, c.req.valid("header").sessionid),
           getUser(credential.pandaId).catch((error: unknown) => {
-            if (error instanceof Error && error.message.startsWith("404")) return;
-            throw error;
+            const issue = noUser(error);
+            if (!issue) throw error;
+            const shouldCapture = issue.type === "NotFoundError" || status === "ACTIVE";
+            if (shouldCapture) {
+              captureException(issue.error, {
+                level: "warning",
+                extra: {
+                  cardId: id,
+                  credentialId,
+                  pandaId: credential.pandaId,
+                  status,
+                  shouldCapture,
+                  userIssue: issue.type,
+                },
+              });
+            }
+            return null;
           }),
           getPIN(id, c.req.valid("header").sessionid),
         ]);
@@ -315,50 +335,70 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
             }
           }
           if (cardCount > 0) return c.json({ code: "already created" }, 400);
-          const card = await createCard(credential.pandaId, SIGNATURE_PRODUCT_ID);
-          let mode = 0;
           try {
-            if (await autoCredit(account)) mode = 1;
-          } catch (error) {
-            captureException(error);
-          }
-          await database
-            .insert(cards)
-            .values([{ id: card.id, credentialId, lastFour: card.last4, mode, productId: SIGNATURE_PRODUCT_ID }]);
-          track({ event: "CardIssued", userId: account, properties: { productId: SIGNATURE_PRODUCT_ID } });
+            const card = await createCard(credential.pandaId, SIGNATURE_PRODUCT_ID);
+            let mode = 0;
+            try {
+              if (await autoCredit(account)) mode = 1;
+            } catch (error) {
+              captureException(error);
+            }
+            await database
+              .insert(cards)
+              .values([{ id: card.id, credentialId, lastFour: card.last4, mode, productId: SIGNATURE_PRODUCT_ID }]);
+            track({ event: "CardIssued", userId: account, properties: { productId: SIGNATURE_PRODUCT_ID } });
 
-          if (isUpgradeFromPlatinum) handlePlatinumUpgrade(credentialId, account);
+            if (isUpgradeFromPlatinum) handlePlatinumUpgrade(credentialId, account);
 
-          customer({
-            flow: { name: "card.issued", type: "payment_method_link" },
-            customer: { id: credentialId, type: "customer" },
-            transaction: {
-              id: card.id,
-              paymentMethod: {
-                type: "card",
-                card: {
-                  hash: card.id,
-                  last4: card.last4,
-                  expiryMonth: card.expirationMonth,
-                  expiryYear: card.expirationYear,
+            customer({
+              flow: { name: "card.issued", type: "payment_method_link" },
+              customer: { id: credentialId, type: "customer" },
+              transaction: {
+                id: card.id,
+                paymentMethod: {
+                  type: "card",
+                  card: {
+                    hash: card.id,
+                    last4: card.last4,
+                    expiryMonth: card.expirationMonth,
+                    expiryYear: card.expirationYear,
+                  },
                 },
               },
-            },
-          }).catch((error: unknown) => captureException(error, { level: "error" }));
+            }).catch((error: unknown) => captureException(error, { level: "error" }));
 
-          if (mode) {
-            sendPushNotification({
-              userId: account,
-              headings: { en: "Card mode" },
-              contents: { en: "Credit mode is active" },
-            }).catch((error: unknown) => captureException(error));
+            if (mode) {
+              sendPushNotification({
+                userId: account,
+                headings: { en: "Card mode" },
+                contents: { en: "Credit mode is active" },
+              }).catch((error: unknown) => captureException(error));
+            }
+            return c.json(
+              { lastFour: card.last4, status: "ACTIVE", productId: SIGNATURE_PRODUCT_ID } satisfies InferOutput<
+                typeof CreatedCardResponse
+              >,
+              200,
+            );
+          } catch (error) {
+            const issue = noUser(error);
+            if (!issue) throw error;
+            const hasCardHistory = credential.cards.length > 0;
+            const shouldCapture = issue.type === "NotFoundError" || hasCardHistory;
+            if (shouldCapture) {
+              captureException(issue.error, {
+                level: "warning",
+                extra: {
+                  credentialId,
+                  hasCardHistory,
+                  pandaId: credential.pandaId,
+                  statuses: credential.cards.map(({ status }) => status),
+                  userIssue: issue.type,
+                },
+              });
+            }
+            return c.json({ code: "no panda" }, 403);
           }
-          return c.json(
-            { lastFour: card.last4, status: "ACTIVE", productId: SIGNATURE_PRODUCT_ID } satisfies InferOutput<
-              typeof CreatedCardResponse
-            >,
-            200,
-          );
         })
         .finally(() => {
           if (!mutex.isLocked()) mutexes.delete(credentialId);
@@ -432,7 +472,11 @@ async function encryptPIN(pin: string) {
           content: {
             "application/json": {
               schema: resolver(
-                union([object({ code: literal("bad request") }), object({ code: literal("already set") })]),
+                union([
+                  object({ code: literal("bad request") }),
+                  object({ code: literal("already set"), mode: number() }),
+                  object({ code: literal("already set"), status: picklist(["ACTIVE", "DELETED", "FROZEN"]) }),
+                ]),
                 { errorMode: "ignore" },
               ),
             },
@@ -506,6 +550,22 @@ async function encryptPIN(pin: string) {
   );
 
 const CardUUID = pipe(string(), uuid());
+
+function noUser(error: unknown) {
+  if (!(error instanceof Error)) return;
+  const { cause } = error;
+  if (typeof cause !== "object" || cause === null) return;
+  const { message, status, type } = cause as { message?: unknown; status?: unknown; type?: unknown };
+  if (status === 404 && type === "NotFoundError") return { error, type } as const;
+  if (
+    status === 403 &&
+    type === "ForbiddenError" &&
+    typeof message === "string" &&
+    message.toLowerCase().includes("not approved")
+  ) {
+    return { error, type } as const;
+  }
+}
 
 function handlePlatinumUpgrade(credentialId: string, account: InferOutput<typeof Address>) {
   getAccount(credentialId, "basic")

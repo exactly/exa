@@ -176,7 +176,25 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
     signal: AbortSignal.timeout(timeout),
   });
 
-  if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);
+  if (!response.ok) {
+    const raw = await response.text();
+    let type: string | undefined;
+    let message = raw;
+    try {
+      const payload = JSON.parse(raw) as unknown;
+      if (typeof payload === "object" && payload !== null) {
+        const { error, message: detail } = payload as { error?: unknown; message?: unknown };
+        if (typeof error === "string") type = error;
+        if (typeof detail === "string") message = detail;
+      }
+    } catch {} // eslint-disable-line no-empty -- non-json panda errors use fallback classification
+    if (!type) {
+      const lower = raw.toLowerCase();
+      if (response.status === 404 && (!raw || lower.includes("not found"))) type = "NotFoundError";
+      if (response.status === 403 && (!raw || lower.includes("not approved"))) type = "ForbiddenError";
+    }
+    throw new Error(`${response.status} ${raw}`, { cause: { message, status: response.status, type } });
+  }
   const rawBody = await response.arrayBuffer();
   if (rawBody.byteLength === 0) return parse(schema, {});
   return parse(schema, JSON.parse(new TextDecoder().decode(rawBody)));
