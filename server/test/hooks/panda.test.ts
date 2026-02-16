@@ -42,7 +42,7 @@ import chain, {
   upgradeableModularAccountAbi,
 } from "@exactly/common/generated/chain";
 import ProposalType from "@exactly/common/ProposalType";
-import { Address } from "@exactly/common/validation";
+import { Address, type Hash } from "@exactly/common/validation";
 import { proposalManager } from "@exactly/plugin/deploy.json";
 
 import database, { cards, credentials, transactions } from "../../database";
@@ -608,7 +608,12 @@ describe("card operations", () => {
       });
 
       it("fails with transaction timeout", async () => {
-        vi.spyOn(publicClient, "waitForTransactionReceipt").mockRejectedValue(new Error("timeout"));
+        const error = new Error("timeout");
+        const exaSend = vi.spyOn(keeper, "exaSend").mockImplementation(async (...args) => {
+          const options = args[2];
+          await options?.onHash?.(zeroHash as Hash);
+          throw error;
+        });
 
         const cardId = "timeout";
         await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "7777", mode: 6 }]);
@@ -628,18 +633,75 @@ describe("card operations", () => {
 
         const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
 
+        expect(exaSend).toHaveBeenCalledOnce();
+        expect(exaSend.mock.calls[0]?.[0]).toMatchObject({
+          name: "collect credit",
+          op: "exa.collect",
+          attributes: { account },
+        });
+        expect(exaSend.mock.calls[0]?.[1]).toMatchObject({
+          address: account,
+          functionName: "collectCredit",
+          args: [expect.any(BigInt), 600_000n, expect.any(BigInt), expect.any(BigInt), expect.any(String)],
+        });
+        expect(captureException).toHaveBeenCalledExactlyOnceWith(error, expect.objectContaining({ level: "fatal" }));
+        expect(transaction).toBeDefined();
+        expect(transaction?.hashes).toContain(zeroHash);
+        expect(spendFromPayload(transaction?.payload)).toMatchObject({ amount: 60, cardId });
+        expect(response.status).toBe(569);
+        await expect(response.text()).resolves.toBe("timeout");
+      });
+
+      it("fails with keeper timeout in debit flow", async () => {
+        const waitForTransactionReceipt = publicClient.waitForTransactionReceipt;
+        const waitForReceipt = vi
+          .spyOn(publicClient, "waitForTransactionReceipt")
+          .mockImplementation((parameters) => waitForTransactionReceipt({ ...parameters, timeout: 1100 }));
+        const sendRawTransaction = vi.spyOn(publicClient, "sendRawTransaction").mockResolvedValue("0x");
+        const exaSend = vi.spyOn(keeper, "exaSend");
+
+        const cardId = "timeout-debit";
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "7171", mode: 0 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "created",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: { ...authorization.json.body.spend, cardId, amount: 61 },
+            },
+          },
+        });
+
+        const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
+
+        expect(exaSend).toHaveBeenCalledOnce();
+        expect(exaSend.mock.calls[0]?.[1]).toMatchObject({
+          address: account,
+          functionName: "collectDebit",
+          args: [610_000n, expect.any(BigInt), expect.any(String)],
+        });
+        expect(waitForReceipt).toHaveBeenCalledOnce();
+        expect(sendRawTransaction).toHaveBeenCalled();
+        expect(captureException).toHaveBeenCalledTimes(2);
         expect(captureException).toHaveBeenNthCalledWith(
           1,
-          new Error("timeout"),
+          expect.objectContaining({ name: "WaitForTransactionReceiptTimeoutError" }),
           expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "unknown"] }),
         );
         expect(captureException).toHaveBeenNthCalledWith(
           2,
-          new Error("timeout"),
+          expect.objectContaining({ name: "WaitForTransactionReceiptTimeoutError" }),
           expect.objectContaining({ level: "fatal" }),
         );
         expect(transaction).toBeDefined();
+        expect(transaction?.hashes).toHaveLength(1);
+        expect(spendFromPayload(transaction?.payload)).toMatchObject({ amount: 61, cardId });
         expect(response.status).toBe(569);
+        await expect(response.text()).resolves.toContain("Timed out while waiting for transaction");
       });
 
       it("fails with transaction revert", async () => {
@@ -1148,12 +1210,11 @@ describe("card operations", () => {
 
         expect(transaction).toMatchObject({
           hashes: [expect.any(String), zeroHash],
-          payload: {
-            bodies: [
-              { action: "created" },
-              { action: "completed", body: { spend: { amount: capture, authorizedAmount: hold } } },
-            ],
-          },
+        });
+        expect(spendFromPayload(transaction?.payload)).toBeDefined();
+        expect(spendFromPayload(transaction?.payload, "completed")).toMatchObject({
+          amount: capture,
+          authorizedAmount: hold,
         });
       });
 
@@ -1206,10 +1267,9 @@ describe("card operations", () => {
 
         expect(transaction).toMatchObject({
           hashes: [expect.any(String), expect.any(String)],
-          payload: {
-            bodies: [{ action: "created" }, { action: "completed", body: { spend: { amount: capture } } }],
-          },
         });
+        expect(spendFromPayload(transaction?.payload)).toBeDefined();
+        expect(spendFromPayload(transaction?.payload, "completed")).toMatchObject({ amount: capture });
       });
 
       it("over capture debit", async () => {
@@ -1259,10 +1319,9 @@ describe("card operations", () => {
 
         expect(transaction).toMatchObject({
           hashes: [expect.any(String), expect.any(String)],
-          payload: {
-            bodies: [{ action: "created" }, { action: "completed", body: { spend: { amount: capture } } }],
-          },
         });
+        expect(spendFromPayload(transaction?.payload)).toBeDefined();
+        expect(spendFromPayload(transaction?.payload, "completed")).toMatchObject({ amount: capture });
       });
 
       it("partial capture debit", async () => {
@@ -1312,10 +1371,9 @@ describe("card operations", () => {
 
         expect(transaction).toMatchObject({
           hashes: [expect.any(String), expect.any(String)],
-          payload: {
-            bodies: [{ action: "created" }, { action: "completed", body: { spend: { amount: capture } } }],
-          },
         });
+        expect(spendFromPayload(transaction?.payload)).toBeDefined();
+        expect(spendFromPayload(transaction?.payload, "completed")).toMatchObject({ amount: capture });
       });
 
       it("force capture debit", async () => {
@@ -1350,10 +1408,8 @@ describe("card operations", () => {
 
         expect(transaction).toMatchObject({
           hashes: [expect.any(String)],
-          payload: {
-            bodies: [{ action: "completed", body: { spend: { amount: capture } } }],
-          },
         });
+        expect(spendFromPayload(transaction?.payload, "completed")).toMatchObject({ amount: capture });
       });
 
       it("force capture fraud", async () => {
@@ -1783,6 +1839,30 @@ const mockERC20Abi = [
     stateMutability: "nonpayable",
   },
 ] as const;
+
+function spendFromPayload(
+  payload: unknown,
+  action: "completed" | "created" | "updated" = "created",
+): undefined | { amount?: number; authorizedAmount?: number; cardId?: string } {
+  if (!payload || typeof payload !== "object" || !("bodies" in payload)) return undefined;
+  const bodies = (payload as { bodies?: unknown }).bodies;
+  if (!Array.isArray(bodies)) return undefined;
+  for (const entry of bodies) {
+    if (!entry || typeof entry !== "object" || !("action" in entry) || !("body" in entry)) continue;
+    if ((entry as { action?: unknown }).action !== action) continue;
+    const body = (entry as { body?: unknown }).body;
+    if (!body || typeof body !== "object" || !("spend" in body)) continue;
+    const spend = (body as { spend?: unknown }).spend;
+    if (!spend || typeof spend !== "object") continue;
+    const data = spend as { amount?: unknown; authorizedAmount?: unknown; cardId?: unknown };
+    const value: { amount?: number; authorizedAmount?: number; cardId?: string } = {};
+    if (typeof data.amount === "number") value.amount = data.amount;
+    if (typeof data.authorizedAmount === "number") value.authorizedAmount = data.authorizedAmount;
+    if (typeof data.cardId === "string") value.cardId = data.cardId;
+    if ("amount" in value || "authorizedAmount" in value || "cardId" in value) return value;
+  }
+  return undefined;
+}
 
 const userResponseTemplate = {
   id: "some-id",
