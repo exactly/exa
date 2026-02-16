@@ -89,8 +89,7 @@ a core principle is specific capitalization for different contexts. this must be
 ## code formatting
 
 - **maximum compactness**: the project enforces a maximally compact code style. do not introduce line breaks inside objects, arrays, or function arguments voluntarily. let prettier break lines automatically only when a line exceeds `printWidth`.
-- **inline by default**: if a value or expression is used exactly once, keep it at the point of use. extracting a single-use variable or function adds indirection — the reader must jump to the definition, hold it in memory, then jump back. inlining also helps type inference: types narrow more precisely at the point of use than through an intermediate variable. the threshold for extraction is reuse or genuine complexity, not tidiness. a long expression at the call site is better than a named intermediate that exists only to be passed once.
-- **file ordering**: the top of a file is prime real estate. the default export — the thing the file exists for — goes first. since inline-by-default means most standalone function declarations only exist because they were extracted (reuse or complexity), they are supporting details and belong at the bottom alongside internal constants and types. when multiple declarations exist at the same level, order them by relevance, most important first.
+- **file ordering**: the top of a file is prime real estate. the default export — the thing the file exists for — goes first. standalone function declarations only exist because they were extracted for reuse or genuine complexity — they are supporting details and belong at the bottom alongside internal constants and types. when multiple declarations exist at the same level, order them by relevance, most important first.
 
 ## comments
 
@@ -106,11 +105,17 @@ this codebase does not use comments. the only exception is static analysis annot
   - ❌ `// TODO: implement retry logic`
   - ❌ `// todo: implement retry logic`
 
-## abstractions
+## extraction and abstraction
 
-- **avoid premature abstraction**: don't add helpers, utilities, or abstractions for one-time operations. three similar lines of code is better than a premature abstraction. don't design for hypothetical future requirements.
-- **when abstraction is acceptable**: encapsulate complexity only when there's a foot-gun - a call that must always have an argument that can be easily forgotten. these are exceptions, not the rule.
-- **prefer raw library knowledge**: it's better to use libraries directly and understand their apis than to wrap them in project-specific abstractions.
+extracting a value into a variable and extracting logic into a function are the same impulse at different scales. both add a layer of indirection. both widen the diff. both are justified only by reuse — never by tidiness, readability theatre, or a desire to name things.
+
+- **single-use = inline**: a value consumed once stays at the point of consumption. a function called once stays at the call site. no exceptions for "clarity" — the call site is already clear.
+- **destructuring is extraction**: unpacking fields into named bindings only to pass them individually is a net negative. it duplicates every name and inflates the diff.
+  - ✅ `await db.insert(accounts).values({ id: crypto.randomUUID(), email: c.req.valid("json").email })`
+  - ❌ `const { email } = c.req.valid("json"); await db.insert(accounts).values({ id: crypto.randomUUID(), email })`
+- **two or more uses earn a name**: the threshold for extraction is a second call site. not "it makes the code more readable". not "it documents intent". a second use.
+- **foot-gun encapsulation is the only other exception**: wrap a call only when it has an invariant (a required argument that's easy to forget) that must be enforced project-wide.
+- **prefer raw library apis**: use libraries directly. do not wrap them in project-specific helpers for a single use case.
   - ✅ calling `queryClient.setQueryData()` directly
   - ❌ wrapping it in `useSetUserData()` for a single use case
 
