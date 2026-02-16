@@ -55,6 +55,39 @@ describe("address activity", () => {
     ]);
   });
 
+  it("captures no balance once after retries", async () => {
+    vi.spyOn(publicClient, "getCode").mockResolvedValue("0x1");
+    vi.spyOn(keeper, "exaSend").mockImplementation((spanOptions) =>
+      Promise.resolve(
+        spanOptions.op === "exa.poke" ? null : ({ status: "success" } as Awaited<ReturnType<typeof keeper.exaSend>>),
+      ),
+    );
+
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: {
+          ...activityPayload.json.event,
+          activity: [{ ...activityPayload.json.event.activity[0], toAddress: account }],
+        },
+      },
+    });
+
+    await vi.waitUntil(
+      () => vi.mocked(captureException).mock.calls.some(([error, hint]) => isNoBalance(error, hint, "warning")),
+      26_666,
+    );
+
+    expect(
+      vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "warning")),
+    ).toHaveLength(1);
+    expect(
+      vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "error")),
+    ).toHaveLength(0);
+    expect(response.status).toBe(200);
+  });
+
   it("fails with unexpected error", async () => {
     const getCode = vi.spyOn(publicClient, "getCode");
     getCode.mockRejectedValue(new Error("Unexpected"));
@@ -76,6 +109,9 @@ describe("address activity", () => {
     await vi.waitUntil(() => getCode.mock.calls.length > 0);
 
     expect(captureException).toHaveBeenCalledWith(new Error("Unexpected"), expect.objectContaining({ level: "error" }));
+    expect(
+      vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "warning")),
+    ).toHaveLength(0);
 
     expect(response.status).toBe(200);
   });
@@ -105,6 +141,9 @@ describe("address activity", () => {
       new WaitForTransactionReceiptTimeoutError({ hash: zeroHash }),
       expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "unknown"] }),
     );
+    expect(
+      vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "warning")),
+    ).toHaveLength(0);
 
     expect(response.status).toBe(200);
   });
@@ -142,6 +181,9 @@ describe("address activity", () => {
       expect.any(BaseError),
       expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "Unauthorized"] }),
     );
+    expect(
+      vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "warning")),
+    ).toHaveLength(0);
     expect(response.status).toBe(200);
   });
 
@@ -173,6 +215,9 @@ describe("address activity", () => {
       expect.any(BaseError),
       expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "custom reason"] }),
     );
+    expect(
+      vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "warning")),
+    ).toHaveLength(0);
     expect(response.status).toBe(200);
   });
 
@@ -202,6 +247,9 @@ describe("address activity", () => {
       expect.any(BaseError),
       expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "unknown"] }),
     );
+    expect(
+      vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "warning")),
+    ).toHaveLength(0);
     expect(response.status).toBe(200);
   });
 
@@ -237,6 +285,9 @@ describe("address activity", () => {
       expect.any(BaseError),
       expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "0xdeadbeef"] }),
     );
+    expect(
+      vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "warning")),
+    ).toHaveLength(0);
     expect(response.status).toBe(200);
   });
 
@@ -270,6 +321,9 @@ describe("address activity", () => {
       expect.any(BaseError),
       expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "Unauthorized"] }),
     );
+    expect(
+      vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "warning")),
+    ).toHaveLength(0);
     expect(response.status).toBe(200);
   });
 
@@ -298,6 +352,9 @@ describe("address activity", () => {
       expect.any(BaseError),
       expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "custom reason"] }),
     );
+    expect(
+      vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "warning")),
+    ).toHaveLength(0);
     expect(response.status).toBe(200);
   });
 
@@ -326,6 +383,9 @@ describe("address activity", () => {
       expect.any(BaseError),
       expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "0xdeadbeef"] }),
     );
+    expect(
+      vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "warning")),
+    ).toHaveLength(0);
     expect(response.status).toBe(200);
   });
 
@@ -352,6 +412,9 @@ describe("address activity", () => {
       expect.any(BaseError),
       expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "unknown"] }),
     );
+    expect(
+      vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "warning")),
+    ).toHaveLength(0);
     expect(response.status).toBe(200);
   });
 
@@ -376,6 +439,9 @@ describe("address activity", () => {
       expect.objectContaining({ message: "unexpected" }),
       expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "unknown"] }),
     );
+    expect(
+      vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "warning")),
+    ).toHaveLength(0);
     expect(response.status).toBe(200);
   });
 
@@ -560,6 +626,17 @@ async function waitForWethMarket(account: Address, floatingDepositAssets: bigint
 
     return market?.floatingDepositAssets === floatingDepositAssets && market.isCollateral;
   }, 26_666);
+}
+
+function isNoBalance(error: unknown, hint: unknown, level: "error" | "warning") {
+  const data = hint as Record<string, unknown> | undefined;
+  return (
+    error instanceof Error &&
+    error.message === "NoBalance()" &&
+    data?.level === level &&
+    Array.isArray(data.fingerprint) &&
+    data.fingerprint.join(":") === "{{ default }}:NoBalance()"
+  );
 }
 
 const activityPayload = {

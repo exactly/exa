@@ -165,23 +165,30 @@ export default new Hono().post(
                     .map(async (asset) =>
                       withRetry(
                         () =>
-                          keeper.exaSend(
-                            { name: "poke account", op: "exa.poke", attributes: { account, asset } },
-                            {
-                              address: account,
-                              abi: [...exaPluginAbi, ...upgradeableModularAccountAbi, ...auditorAbi, ...marketAbi],
-                              ...(asset === ETH
-                                ? { functionName: "pokeETH" }
-                                : {
-                                    functionName: "poke",
-                                    args: [marketsByAsset.get(asset)!], // eslint-disable-line @typescript-eslint/no-non-null-assertion
-                                  }),
-                            },
-                          ),
+                          keeper
+                            .exaSend(
+                              { name: "poke account", op: "exa.poke", attributes: { account, asset } },
+                              {
+                                address: account,
+                                abi: [...exaPluginAbi, ...upgradeableModularAccountAbi, ...auditorAbi, ...marketAbi],
+                                ...(asset === ETH
+                                  ? { functionName: "pokeETH" }
+                                  : {
+                                      functionName: "poke",
+                                      args: [marketsByAsset.get(asset)!], // eslint-disable-line @typescript-eslint/no-non-null-assertion
+                                    }),
+                              },
+                              { ignore: ["NoBalance()"] },
+                            )
+                            .then((receipt) => {
+                              if (receipt) return receipt;
+                              throw new Error("NoBalance()");
+                            }),
                         {
                           delay: 2000,
                           retryCount: 5,
                           shouldRetry: ({ error }) => {
+                            if (error instanceof Error && error.message === "NoBalance()") return true;
                             captureException(error, { level: "error", fingerprint: fingerprintRevert(error) });
                             return true;
                           },
@@ -191,6 +198,13 @@ export default new Hono().post(
                 );
                 for (const result of results) {
                   if (result.status === "fulfilled") continue;
+                  if (result.reason instanceof Error && result.reason.message === "NoBalance()") {
+                    captureException(result.reason, {
+                      level: "warning",
+                      fingerprint: ["{{ default }}", result.reason.message],
+                    });
+                    continue;
+                  }
                   span.setStatus({ code: SPAN_STATUS_ERROR, message: "poke_failed" });
                   throw result.reason;
                 }
