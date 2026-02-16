@@ -40,7 +40,7 @@ import { Address, Base64URL, Hex } from "@exactly/common/validation";
 import { Authentication } from "./authentication";
 import androidOrigins from "../../utils/android/origins";
 import appOrigin from "../../utils/appOrigin";
-import createCredential from "../../utils/createCredential";
+import createCredential, { WebhookNotReadyError } from "../../utils/createCredential";
 import getIntercomToken from "../../utils/intercom";
 import publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
@@ -370,6 +370,10 @@ export default new Hono()
           200,
         );
       } catch (error) {
+        if (error instanceof WebhookNotReadyError) {
+          captureException(error, { level: "warning", tags: { retriable: true } });
+          return c.json({ code: "service unavailable" }, 503);
+        }
         captureException(error, { level: "error", tags: { unhandled: true } });
         return c.json({ code: "ouch", legacy: "ouch" }, 500);
       }
