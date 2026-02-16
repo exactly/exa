@@ -16,6 +16,12 @@ import type { PersistedClient } from "@tanstack/query-persist-client-core";
 import type { Address } from "viem";
 
 const INVALIDATE_ON_UPGRADE = new Set(["kyc", "card", "pax"]);
+const expected = (error: unknown) =>
+  error instanceof APIError &&
+  (error.text === "no kyc" ||
+    error.text === "not started" ||
+    error.text === "bad kyc" ||
+    error.text === "kyc required");
 
 function versionAwareDeserialize(cache: string): PersistedClient {
   const persistedClient: PersistedClient = deserialize(cache);
@@ -40,10 +46,7 @@ const queryClient = new QueryClient({
       if (error instanceof Error && error.message === "don't refetch") return;
       if (error instanceof APIError) {
         if (error.code === 401 && error.text === "unauthorized") return;
-        if (query.queryKey[0] === "card" && query.queryKey[1] === "details") {
-          if (error.text === "kyc required") return;
-          if (error.text === "bad kyc") return;
-        }
+        if (expected(error)) return;
       }
       reportError(error);
     },
@@ -268,8 +271,6 @@ queryClient.setQueryDefaults<EmbeddingContext>(["embedding-context"], {
     return null;
   },
 });
-const expected = (error: unknown) =>
-  error instanceof APIError && (error.text === "no kyc" || error.text === "not started" || error.text === "bad kyc");
 queryClient.setQueryDefaults(["kyc", "status"], {
   staleTime: 5 * 60_000,
   gcTime: 60 * 60_000,
