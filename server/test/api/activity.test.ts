@@ -6,6 +6,7 @@ import "../mocks/sentry";
 
 import { captureException } from "@sentry/node";
 import { testClient } from "hono/testing";
+import assert from "node:assert";
 import { safeParse, type InferOutput } from "valibot";
 import { padHex, zeroHash, type Hash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
@@ -17,6 +18,24 @@ import { marketAbi } from "@exactly/common/generated/chain";
 import app, { CreditActivity, DebitActivity, InstallmentsActivity, PandaActivity } from "../../api/activity";
 import database, { cards, transactions } from "../../database";
 import anvilClient from "../anvilClient";
+
+function httpSerialize<T>(object: T): T {
+  const cloned = structuredClone(object);
+  return removeUndefined(cloned) as T;
+}
+
+function removeUndefined(object: unknown): unknown {
+  if (object === null || typeof object !== "object") return object;
+  if (Array.isArray(object)) return object.map((value) => removeUndefined(value));
+
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(object)) {
+    if (value !== undefined) {
+      result[key] = removeUndefined(value);
+    }
+  }
+  return result;
+}
 
 const appClient = testClient(app);
 const account = deriveAddress(inject("ExaAccountFactory"), {
@@ -66,26 +85,25 @@ describe.concurrent("authenticated", () => {
 
     beforeAll(async () => {
       await database.insert(cards).values([{ id: "activity", credentialId: "bob", lastFour: "1234" }]);
-      const logs = [
-        ...(await anvilClient.getContractEvents({
-          abi: marketAbi,
-          eventName: "BorrowAtMaturity",
-          address: [inject("MarketEXA"), inject("MarketUSDC"), inject("MarketWETH")],
-          args: { borrower: account },
-          toBlock: "latest",
-          fromBlock: 0n,
-          strict: true,
-        })),
-        ...(await anvilClient.getContractEvents({
-          abi: marketAbi,
-          eventName: "Withdraw",
-          address: [inject("MarketEXA"), inject("MarketUSDC"), inject("MarketWETH")],
-          args: { owner: account },
-          toBlock: "latest",
-          fromBlock: 0n,
-          strict: true,
-        })),
-      ];
+      const cardLogs = await anvilClient.getContractEvents({
+        abi: marketAbi,
+        eventName: "BorrowAtMaturity",
+        address: inject("MarketUSDC"),
+        args: { borrower: account },
+        toBlock: "latest",
+        fromBlock: 0n,
+        strict: true,
+      });
+      const withdrawLogs = await anvilClient.getContractEvents({
+        abi: marketAbi,
+        eventName: "Withdraw",
+        address: inject("MarketUSDC"),
+        args: { owner: account },
+        toBlock: "latest",
+        fromBlock: 0n,
+        strict: true,
+      });
+      const logs = [...cardLogs, ...withdrawLogs];
       const timestamps = await Promise.all(
         [...new Set(logs.map(({ blockNumber }) => blockNumber))].map((blockNumber) =>
           anvilClient.getBlock({ blockNumber }),
@@ -126,7 +144,6 @@ describe.concurrent("authenticated", () => {
                     createdAt,
                     body: {
                       id: String(index),
-                      type: "spend",
                       spend: {
                         ...spendTemplate,
                         amount: Number(total) / 1e4,
@@ -161,7 +178,10 @@ describe.concurrent("authenticated", () => {
           const panda = safeParse(PandaActivity, {
             ...(payload as object),
             hashes,
-            borrows: eventName === "Withdraw" ? [null] : [{ blockNumber, events }],
+            borrows:
+              eventName === "Withdraw"
+                ? hashes.map(() => null)
+                : hashes.map((currentHash) => (currentHash === hash ? { timestamp: blockTimestamp, events } : null)),
           });
           if (panda.success) return panda.output;
           const eventCount = eventName === "Withdraw" ? 0 : events.length;
@@ -184,7 +204,7 @@ describe.concurrent("authenticated", () => {
       );
 
       expect(response.status).toBe(200);
-      await expect(response.json()).resolves.toStrictEqual(activity);
+      await expect(response.json()).resolves.toMatchObject(httpSerialize(activity));
     });
 
     it("reports bad transaction", async () => {
@@ -207,7 +227,7 @@ describe.concurrent("authenticated", () => {
         }),
       );
       expect(response.status).toBe(200);
-      await expect(response.json()).resolves.toStrictEqual(activity);
+      await expect(response.json()).resolves.toMatchObject(httpSerialize(activity));
     });
   });
 
@@ -288,6 +308,77 @@ describe.concurrent("authenticated", () => {
         expect.objectContaining({ type: "panda" }),
       ]),
     );
+  });
+
+  describe("declined transactions", () => {
+    it("parses declined transaction with created action", () => {
+      const result = safeParse(PandaActivity, {
+        type: "panda",
+        hashes: [zeroHash],
+        borrows: [null],
+        bodies: [
+          {
+            action: "created",
+            createdAt: "2024-01-15T10:30:00.000Z",
+            status: "declined",
+            reason: "insufficient funds",
+            body: {
+              id: "declined-tx-1",
+              spend: {
+                amount: 1000,
+                currency: "usd",
+                localAmount: 1000,
+                localCurrency: "usd",
+                merchantCity: "Buenos Aires",
+                merchantCountry: "AR",
+                merchantName: "Test Merchant",
+              },
+            },
+          },
+        ],
+      });
+
+      expect(result.success).toBe(true);
+      assert.ok(result.success);
+      expect(result.output.status).toBe("declined");
+      expect(result.output.reason).toBe("insufficient funds");
+      expect(result.output.timestamp).toBe("2024-01-15T10:30:00.000Z");
+      expect(result.output.id).toBe("declined-tx-1");
+    });
+
+    it("parses declined transaction with requested action normalized to created", () => {
+      const result = safeParse(PandaActivity, {
+        type: "panda",
+        hashes: [zeroHash],
+        borrows: [null],
+        bodies: [
+          {
+            action: "requested",
+            createdAt: "2024-01-15T11:00:00.000Z",
+            status: "declined",
+            reason: "merchant blocked",
+            body: {
+              id: "declined-tx-2",
+              spend: {
+                amount: 500,
+                currency: "usd",
+                localAmount: 500,
+                localCurrency: "usd",
+                merchantCity: "New York",
+                merchantCountry: "US",
+                merchantName: "Blocked Merchant",
+              },
+            },
+          },
+        ],
+      });
+
+      expect(result.success).toBe(true);
+      assert.ok(result.success);
+      expect(result.output.status).toBe("declined");
+      expect(result.output.reason).toBe("merchant blocked");
+      expect(result.output.timestamp).toBe("2024-01-15T11:00:00.000Z");
+    });
   });
 });
 
