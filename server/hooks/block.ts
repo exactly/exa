@@ -47,7 +47,7 @@ import shortenHex from "@exactly/common/shortenHex";
 import { Address, Hash, Hex } from "@exactly/common/validation";
 
 import t, { f } from "../i18n";
-import { headers as alchemyHeaders, createWebhook, findWebhook, headerValidator } from "../utils/alchemy";
+import createAlchemy, { headerValidator } from "../utils/alchemy";
 import appOrigin from "../utils/appOrigin";
 import ensClient from "../utils/ensClient";
 import { sendPushNotification } from "../utils/onesignal";
@@ -592,7 +592,9 @@ const isTerminalWithdrawReason = (reason: string) =>
     reason.endsWith(`,${encodeErrorResult({ errorName: "NoProposal", abi: proposalManagerAbi })})`));
 
 const url = `${appOrigin}/hooks/block`;
-findWebhook(({ webhook_type, webhook_url }) => webhook_type === "GRAPHQL" && webhook_url === url)
+const alchemy = createAlchemy(v.parse(v.string(), process.env.ALCHEMY_WEBHOOKS_KEY));
+alchemy
+  .findWebhook(({ webhook_type, webhook_url }) => webhook_type === "GRAPHQL" && webhook_url === url)
   .then(async (currentHook) => {
     let shouldUpdate = !currentHook;
     let currentAddresses: string[] = [];
@@ -601,7 +603,7 @@ findWebhook(({ webhook_type, webhook_url }) => webhook_type === "GRAPHQL" && web
 
       const queryResponse = await fetch(
         `https://dashboard.alchemy.com/api/dashboard-webhook-graphql-query?webhook_id=${currentHook.id}`,
-        { headers: alchemyHeaders },
+        { headers: alchemy.headers },
       );
       if (!queryResponse.ok) throw new Error(`${queryResponse.status} ${await queryResponse.text()}`);
       const { data: query } = (await queryResponse.json()) as { data: { graphql_query: string } };
@@ -633,7 +635,7 @@ findWebhook(({ webhook_type, webhook_url }) => webhook_type === "GRAPHQL" && web
     }
     if (!shouldUpdate) return;
 
-    const newHook = await createWebhook({
+    const newHook = await alchemy.createWebhook({
       webhook_type: "GRAPHQL",
       webhook_url: url,
       graphql_query: {
@@ -670,7 +672,7 @@ findWebhook(({ webhook_type, webhook_url }) => webhook_type === "GRAPHQL" && web
     if (currentHook) {
       const deleteResponse = await fetch(
         `https://dashboard.alchemy.com/api/delete-webhook?webhook_id=${currentHook.id}`,
-        { headers: alchemyHeaders, method: "DELETE" },
+        { headers: alchemy.headers, method: "DELETE" },
       );
       if (!deleteResponse.ok) throw new Error(`${deleteResponse.status} ${await deleteResponse.text()}`);
       await setTimeout(5000);
