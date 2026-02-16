@@ -3,6 +3,7 @@ export default define({
   crema: ["redis-address", "redis-password", "redis-username"],
   workers: {
     refund: { secrets: ["panda-api-key"], shared: ["panda-api-url"], signers: ["refunder", "issuer"] },
+    subscribe: { env: { ALCHEMY_ACTIVITY_ID: "alchemyActivityId" }, secrets: ["alchemy-webhooks-key"] },
   },
 });
 
