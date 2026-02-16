@@ -39,10 +39,10 @@ describe("secret", () => {
     process.env.APP_STACK = "production";
 
     const secret = await load();
-    await secret("account-alchemy-webhooks-key");
+    await secret("subscribe-alchemy-webhooks-key");
 
     expect(mocks.accessSecretVersion).toHaveBeenCalledWith({
-      name: "projects/exa-test/secrets/production-account-alchemy-webhooks-key/versions/latest",
+      name: "projects/exa-test/secrets/production-subscribe-alchemy-webhooks-key/versions/latest",
     });
   });
 

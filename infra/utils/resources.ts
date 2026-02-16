@@ -5,6 +5,10 @@ export default {
   crema: ["redis-address", "redis-password", "redis-username"],
   workers: {
     refund: worker("refund", { secrets: [scoped("panda-api-key"), shared("panda-api-url")], signer: "refunder" }),
+    subscribe: worker("subscribe", {
+      env: { ALCHEMY_ACTIVITY_ID: "alchemyActivityId" },
+      secrets: [scoped("alchemy-webhooks-key")],
+    }),
   },
 } as const;
 
