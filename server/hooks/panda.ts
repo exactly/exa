@@ -11,7 +11,7 @@ import {
 } from "@sentry/node";
 import { E_TIMEOUT } from "async-mutex";
 import createDebug from "debug";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { createHmac } from "node:crypto";
 import * as v from "valibot";
@@ -276,13 +276,27 @@ export default new Hono().post(
     switch (payload.action) {
       case "requested": {
         const card = await database.query.cards.findFirst({
-          columns: { mode: true },
-          where: and(eq(cards.id, payload.body.spend.cardId), eq(cards.status, "ACTIVE")),
-          with: { credential: { columns: { account: true, id: true } } },
+          columns: { mode: true, status: true },
+          where: eq(cards.id, payload.body.spend.cardId),
+          with: { credential: { columns: { account: true, id: true, source: true } } },
         });
         if (!card) return c.json({ code: "card not found" }, 404);
+
         const account = v.parse(Address, card.credential.account);
         setUser({ id: account });
+
+        if (card.status === "FROZEN") {
+          trackAuthorizationRejected(account, payload, card.mode, card.credential.source, "frozen-card");
+
+          await reject(account, payload, jsonBody, "frozen_card");
+
+          return c.json({ code: "frozen card" }, 403 as UnofficialStatusCode);
+        }
+
+        if (card.status !== "ACTIVE") {
+          trackAuthorizationRejected(account, payload, card.mode, card.credential.source, "card-not-active");
+          return c.json({ code: "card not active" }, 403);
+        }
         const assess = () => {
           return risk({
             sessionKey: payload.body.id ?? payload.id,
@@ -328,10 +342,10 @@ export default new Hono().post(
         } catch (error: unknown) {
           if (error === E_TIMEOUT) {
             captureException(error, { level: "fatal", tags: { unhandled: true } });
-            trackAuthorizationRejected(account, payload, card.mode, "mutex-timeout");
+            trackAuthorizationRejected(account, payload, card.mode, card.credential.source, "mutex-timeout");
             return c.json({ code: "mutex timeout" }, 554 as UnofficialStatusCode);
           }
-          trackAuthorizationRejected(account, payload, card.mode, "unknown-error");
+          trackAuthorizationRejected(account, payload, card.mode, card.credential.source, "unknown-error");
           throw error;
         }
         setContext("mutex", { locked: mutex.isLocked() });
@@ -339,7 +353,7 @@ export default new Hono().post(
         try {
           const { amount, call, transaction } = await prepareCollection(card, payload);
           const authorize = () => {
-            trackTransactionAuthorized(account, payload, card.mode);
+            trackAuthorized(account, payload, card.mode, card.credential.source);
             return c.json({ code: "ok" });
           };
           if (!transaction) {
@@ -406,7 +420,13 @@ export default new Hono().post(
                 ],
                 ...call,
               });
-              trackAuthorizationRejected(account, payload, card.mode, contractError.shortMessage);
+              trackAuthorizationRejected(
+                account,
+                payload,
+                card.mode,
+                card.credential.source,
+                contractError.shortMessage,
+              );
               if (contractError instanceof BaseError && contractError.cause instanceof ContractFunctionRevertedError) {
                 switch (contractError.cause.data?.errorName) {
                   case "InsufficientAccountLiquidity":
@@ -452,14 +472,23 @@ export default new Hono().post(
           mutex.release();
           setContext("mutex", { locked: mutex.isLocked() });
           if (error instanceof PandaError) {
-            error.message !== "tx reverted" && trackAuthorizationRejected(account, payload, card.mode, "panda-error");
+            error.message !== "tx reverted" &&
+              trackAuthorizationRejected(account, payload, card.mode, card.credential.source, "panda-error");
             if (error.statusCode !== (557 as UnofficialStatusCode)) {
               captureException(error, { level: "error", tags: { unhandled: true } });
             }
+
+            if (error.message !== "Replay" && error.message !== "tx reverted") {
+              await reject(account, payload, jsonBody, error.message);
+            }
+
             return c.json({ code: error.message }, error.statusCode as UnofficialStatusCode);
           }
-          trackAuthorizationRejected(account, payload, card.mode, "unexpected-error");
+          trackAuthorizationRejected(account, payload, card.mode, card.credential.source, "unexpected-error");
           captureException(error, { level: "error", tags: { unhandled: true } });
+
+          await reject(account, payload, jsonBody, error instanceof Error ? error.message : "unexpected error");
+
           return c.json({ code: "ouch" }, 569 as UnofficialStatusCode);
         }
       }
@@ -486,7 +515,7 @@ export default new Hono().post(
             database.query.cards.findFirst({
               columns: { mode: true },
               where: eq(cards.id, payload.body.spend.cardId),
-              with: { credential: { columns: { account: true, id: true } } },
+              with: { credential: { columns: { account: true, id: true, source: true } } },
             }),
             getUser(payload.body.spend.userId),
           ]);
@@ -562,7 +591,7 @@ export default new Hono().post(
                 en: `${refundAmountUsd} USDC from ${payload.body.spend.merchantName.trim()} have been refunded to your account`,
               },
             }).catch((error: unknown) => captureException(error));
-            trackTransactionRefund(account, refundAmountUsd, payload);
+            trackRefund(account, refundAmountUsd, payload, card.credential.source);
             if (payload.action === "completed") {
               if (payload.body.spend.amount < 0) {
                 feedback({
@@ -643,7 +672,7 @@ export default new Hono().post(
         const card = await database.query.cards.findFirst({
           columns: { mode: true },
           where: eq(cards.id, payload.body.spend.cardId),
-          with: { credential: { columns: { account: true, id: true } } },
+          with: { credential: { columns: { account: true, id: true, source: true } } },
         });
         if (!card) return c.json({ code: "card not found" }, 404);
 
@@ -658,7 +687,10 @@ export default new Hono().post(
           const mutex = getMutex(account);
           mutex?.release();
           setContext("mutex", { locked: mutex?.isLocked() });
-          trackTransactionRejected(account, payload, card.mode);
+
+          await reject(account, payload, jsonBody, payload.body.spend.declinedReason ?? "transaction declined");
+
+          trackRejected(account, payload, card.mode, card.credential.source);
           feedback({
             kind: "issuing",
             customer: { id: card.credential.id },
@@ -944,10 +976,11 @@ export default new Hono().post(
   },
 );
 
-function trackTransactionAuthorized(
+function trackAuthorized(
   account: Address,
   payload: v.InferOutput<typeof Transaction>,
   cardMode: number,
+  source: null | string,
 ): void {
   track({
     userId: account,
@@ -970,6 +1003,7 @@ function trackAuthorizationRejected(
   account: Address,
   payload: v.InferOutput<typeof Transaction>,
   cardMode: number,
+  source: null | string,
   declinedReason: string,
 ): void {
   track({
@@ -989,10 +1023,11 @@ function trackAuthorizationRejected(
   });
 }
 
-function trackTransactionRejected(
+function trackRejected(
   account: Address,
   payload: v.InferOutput<typeof Transaction>,
   cardMode: number,
+  source: null | string,
 ): void {
   if (payload.action !== "created" && payload.action !== "updated") {
     captureException(new Error("unsupported transaction type"), { contexts: { payload } });
@@ -1017,10 +1052,11 @@ function trackTransactionRejected(
   });
 }
 
-function trackTransactionRefund(
+function trackRefund(
   account: Address,
   refundAmountUsd: number,
   payload: v.InferOutput<typeof Transaction>,
+  source: null | string,
 ): void {
   if (payload.action === "requested") {
     captureException(new Error("unsupported transaction type"), { contexts: { payload } });
@@ -1471,3 +1507,82 @@ const webhookConfig = v.object({
     }),
   ),
 });
+
+async function sendDeclinedNotification(
+  account: Address,
+  spend: v.InferOutput<typeof Transaction>["body"]["spend"],
+  reason: string,
+) {
+  let formattedAmount: string;
+  try {
+    formattedAmount = (spend.localAmount / 100).toLocaleString(undefined, {
+      style: "currency",
+      currency: spend.localCurrency,
+    });
+  } catch {
+    formattedAmount = `${spend.localCurrency.toUpperCase()} ${(spend.localAmount / 100).toFixed(2)}`;
+  }
+
+  await sendPushNotification({
+    userId: account,
+    headings: { en: "Exa Card purchase rejected" },
+    contents: {
+      en: `Transaction at ${spend.merchantName.trim()} for ${formattedAmount} rejected: ${reason}`,
+    },
+  });
+}
+
+const declineReasons: Record<string, { notify: boolean; reason: string }> = {
+  InsufficientAccountLiquidity: { reason: "insufficient funds" as const, notify: true },
+  insufficient_funds: { reason: "insufficient funds" as const, notify: true },
+  merchant_blocked: { reason: "merchant blocked" as const, notify: true },
+  frozen_card: { reason: "frozen card" as const, notify: true },
+  "webhook declined": { reason: "webhook declined" as const, notify: false },
+} as const;
+
+async function reject(
+  account: Address,
+  payload: v.InferOutput<typeof Transaction>,
+  jsonBody: unknown,
+  declineReason: string,
+) {
+  const { spend } = payload.body;
+  const transactionId = payload.body.id ?? payload.id;
+
+  const { reason, notify } =
+    declineReasons[declineReason] ?? ({ reason: "transaction declined", notify: false } as const);
+
+  const createdAt = getCreatedAt(payload) ?? new Date().toISOString();
+  const declinedBody = { ...(jsonBody as object), createdAt, status: "declined" as const, reason };
+
+  return database
+    .insert(transactions)
+    .values({
+      id: transactionId,
+      cardId: spend.cardId,
+      hashes: [zeroHash],
+      payload: { bodies: [declinedBody], type: "panda" },
+    })
+    .onConflictDoUpdate({
+      target: transactions.id,
+      set: {
+        hashes: sql`${transactions.hashes} || ARRAY[${zeroHash}]::text[]`,
+        payload: sql`jsonb_set(
+            ${transactions.payload},
+            '{bodies}',
+            COALESCE(${transactions.payload}::jsonb->'bodies', '[]'::jsonb) || ${JSON.stringify([declinedBody])}::jsonb
+          )`,
+      },
+    })
+    .returning({ isNew: sql<boolean>`xmax = 0` })
+    .then((result) => {
+      if (result[0]?.isNew && notify) {
+        sendDeclinedNotification(account, spend, reason).catch((error: unknown) => {
+          captureException(error, { level: "error" });
+        });
+      }
+    })
+    .catch((error: unknown) => {
+      captureException(error, { level: "error" });
+    });
+}
