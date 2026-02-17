@@ -47,24 +47,13 @@ function createMutex(credentialId: string) {
 
 const CardResponse = object({
   displayName: pipe(string(), metadata({ examples: ["John Doe"] })),
-  encryptedPan: object({
-    data: string(),
-    iv: string(),
-  }),
-  encryptedCvc: object({
-    data: string(),
-    iv: string(),
-  }),
+  encryptedPan: object({ data: string(), iv: string() }),
+  encryptedCvc: object({ data: string(), iv: string() }),
   expirationMonth: pipe(string(), metadata({ examples: ["12"] })),
   expirationYear: pipe(string(), metadata({ examples: ["2025"] })),
   lastFour: pipe(string(), metadata({ examples: ["1234"] })),
   mode: pipe(number(), metadata({ examples: [0] })),
-  pin: nullable(
-    object({
-      data: string(),
-      iv: string(),
-    }),
-  ),
+  pin: nullable(object({ data: string(), iv: string() })),
   provider: pipe(literal("panda"), metadata({ examples: ["panda"] })),
   status: pipe(picklist(["ACTIVE", "FROZEN"]), metadata({ examples: ["ACTIVE", "FROZEN"] })),
   limit: object({
@@ -103,13 +92,8 @@ const UpdateCard = union([
 ]);
 
 const UpdatedCardResponse = union([
-  object({
-    data: string(),
-    iv: string(),
-  }),
-  object({
-    mode: pipe(number(), metadata({ examples: [0] })),
-  }),
+  object({ data: string(), iv: string() }),
+  object({ mode: pipe(number(), metadata({ examples: [0] })) }),
   object({
     status: pipe(picklist(["ACTIVE", "DELETED", "FROZEN"]), metadata({ examples: ["ACTIVE", "DELETED", "FROZEN"] })),
   }),
@@ -264,11 +248,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
       responses: {
         200: {
           description: "Card created",
-          content: {
-            "application/json": {
-              schema: resolver(CreatedCardResponse, { errorMode: "ignore" }),
-            },
-          },
+          content: { "application/json": { schema: resolver(CreatedCardResponse, { errorMode: "ignore" }) } },
         },
         400: {
           description: "Bad request",
