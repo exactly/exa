@@ -35,6 +35,12 @@ const passkeyExpectedMessages = new Set([
   "The operation couldn’t be completed. Stolen Device Protection is enabled and biometry is required.",
 ]);
 const authPrefixes = ["androidx.credentials.exceptions.domerrors.NotAllowedError"];
+const networkTypes = [
+  ["offline", /internet connection appears to be offline/i],
+  ["timeout", /request timed out|request took too long to respond/i],
+  ["tls", /tls error caused the secure connection to fail/i],
+  ["lost", /network connection was lost/i],
+] as const;
 type ParsedError = ReturnType<typeof parseError>;
 
 export function isPasskeyExpected(error: unknown) {
@@ -112,6 +118,7 @@ function classify({ code, name, message, status }: ParsedError) {
       authPrefixes.some((prefix) => message.startsWith(prefix)));
   const authExpected = passkeyExpected || passkeyNameExpected || message === "invalid operation";
   const expected = passkeyExpected || message === "invalid operation" || message === "Network request failed";
+  const network = classifyNetwork(message);
   const fingerprintMessage =
     message?.startsWith("Calling the 'get' function has failed") ||
     message?.startsWith("The operation couldn’t be completed.")
@@ -123,15 +130,22 @@ function classify({ code, name, message, status }: ParsedError) {
         ? ["{{ default }}", "api", status]
         : ["{{ default }}", "api", status, message]
       : undefined) ??
-    (code !== undefined && code !== "ERR_UNKNOWN"
-      ? ["{{ default }}", code]
-      : fingerprintMessage === undefined
-        ? undefined
-        : ["{{ default }}", fingerprintMessage]);
+    (code === undefined || code === "ERR_UNKNOWN"
+      ? network === undefined
+        ? fingerprintMessage === undefined
+          ? undefined
+          : ["{{ default }}", fingerprintMessage]
+        : ["{{ default }}", network]
+      : ["{{ default }}", code]);
   return { passkeyExpected, passkeyCancelled, passkeyNameExpected, authExpected, expected, fingerprint: value };
 }
 
 function normalizeMessage(message: string) {
   const value = message.startsWith("Error: ") ? message.slice("Error: ".length) : message;
   return value.trim();
+}
+
+function classifyNetwork(message: string | undefined) {
+  if (message === undefined) return;
+  for (const [type, pattern] of networkTypes) if (pattern.test(message)) return type;
 }
