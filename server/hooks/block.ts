@@ -530,6 +530,7 @@ function scheduleWithdraw(message: string) {
 
 const isTerminalWithdrawReason = (reason: string) =>
   reason === "InsufficientAccountLiquidity()" ||
+  reason === "RuntimeValidationFunctionMissing(0x3ccfd60b)" ||
   (reason.startsWith("PreExecHookReverted(") &&
     reason.endsWith(`,${encodeErrorResult({ errorName: "NoProposal", abi: proposalManagerAbi })})`));
 

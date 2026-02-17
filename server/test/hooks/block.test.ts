@@ -1032,6 +1032,39 @@ describe("legacy withdraw", () => {
     ).toBe(true);
   });
 
+  it("removes withdraw from queue on RuntimeValidationFunctionMissing", async () => {
+    const amount = 1_313_000n;
+    const match = matchWithdraw(amount, withdrawAccount, withdrawMarket, withdrawReceiver);
+    const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
+    const zrem = vi.spyOn(redis, "zrem");
+    const runtimeValidationFunctionMissingError = getContractError(
+      new RawContractError({
+        data: encodeErrorResult({
+          abi: upgradeableModularAccountAbi,
+          errorName: "RuntimeValidationFunctionMissing",
+          args: ["0x3ccfd60b"],
+        }),
+      }),
+      { abi: upgradeableModularAccountAbi, address: withdrawAccount, functionName: "withdraw", args: [] },
+    );
+    vi.spyOn(publicClient, "simulateContract").mockImplementation(async (params) => {
+      if (params.functionName !== "withdraw") return simulateContract(params);
+      // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
+      throw runtimeValidationFunctionMissingError;
+    });
+
+    await appClient.index.$post(legacyPayload(amount));
+
+    await vi.waitUntil(() => zrem.mock.calls.some((call) => match.zrem(call)), 26_666);
+
+    const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
+    expect(captureExceptionCalls.filter((call) => match.capture(call))).toEqual([]);
+    expect(fingerprintRevert(runtimeValidationFunctionMissingError)).toEqual([
+      "{{ default }}",
+      "RuntimeValidationFunctionMissing",
+    ]);
+  });
+
   it("sends withdraw notification when keeper returns receipt", async () => {
     const amount = 1_375_000n;
     const match = matchWithdraw(amount, withdrawAccount, withdrawMarket, withdrawReceiver);
