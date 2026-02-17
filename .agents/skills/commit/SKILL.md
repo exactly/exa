@@ -249,7 +249,15 @@ the developer picks 1 or 2 gitmojis.
 
 present exactly **9** commit message options — always 9, no less — using the gitmojis the developer chose. number them 1–9. **do NOT use `AskUserQuestion` for this step** — it only supports 4 options. output the 9 options as plain numbered text and let the developer reply with their choice.
 
-format: `<emoji> <scope>: <message>`
+format: `<emoji> <scope>: <message>` — **scope is mandatory in every option, never omit it**.
+
+example (given scope `server` and emoji `🐛`):
+
+```text
+1. 🐛 server: fix statement data edge cases
+2. 🐛 server: handle missing statement entries
+3. ...
+```
 
 rules for messages:
 
@@ -284,7 +292,7 @@ if a changeset is needed:
 
 #### step 8: signed commit
 
-**every commit must be signed.** follow this procedure:
+**every commit must be signed.** the commit message format is `<emoji> <scope>: <message>` — do NOT reuse the changeset description (which omits scope). the commit message chosen in step 6 already has the correct format.
 
 1. stage the changeset (if created in step 7) and commit in a single command:
 
