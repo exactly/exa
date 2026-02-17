@@ -49,11 +49,12 @@ import { Address, type Hash, type Hex } from "@exactly/common/validation";
 import { MATURITY_INTERVAL, splitInstallments } from "@exactly/lib";
 
 import database, { cards, credentials, transactions } from "../database/index";
-import fingerprintRevert from "../utils/fingerprintRevert";
 import keeper from "../utils/keeper";
 import { sendPushNotification } from "../utils/onesignal";
 import { collectors, createMutex, getMutex, getUser, headerValidator, signIssuerOp, updateUser } from "../utils/panda";
 import publicClient from "../utils/publicClient";
+import revertFingerprint from "../utils/revertFingerprint";
+import revertReason from "../utils/revertReason";
 import risk, { feedback } from "../utils/sardine";
 import { track } from "../utils/segment";
 import traceClient, { type CallFrame } from "../utils/traceClient";
@@ -390,7 +391,7 @@ export default new Hono().post(
               }
               captureException(contractError, {
                 contexts: { tx: { call, trace } },
-                fingerprint: fingerprintRevert(contractError),
+                fingerprint: revertFingerprint(contractError),
               });
               throw new PandaError("tx reverted", 550 as UnofficialStatusCode);
             }

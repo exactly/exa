@@ -49,11 +49,12 @@ import { Address, Hash, Hex } from "@exactly/common/validation";
 import { headers as alchemyHeaders, createWebhook, findWebhook, headerValidator } from "../utils/alchemy";
 import appOrigin from "../utils/appOrigin";
 import ensClient from "../utils/ensClient";
-import fingerprintRevert from "../utils/fingerprintRevert";
 import keeper from "../utils/keeper";
 import { sendPushNotification } from "../utils/onesignal";
 import publicClient from "../utils/publicClient";
 import redis from "../utils/redis";
+import revertFingerprint from "../utils/revertFingerprint";
+import revertReason from "../utils/revertReason";
 import validatorHook from "../utils/validatorHook";
 
 const debug = createDebug("exa:block");
@@ -328,7 +329,7 @@ function scheduleMessage(message: string) {
                   captureException(nonceError, {
                     level: "error",
                     contexts: { proposal: { account, nonce, proposalType: ProposalType[proposalType], retryCount } },
-                    fingerprint: fingerprintRevert(nonceError),
+                    fingerprint: revertFingerprint(nonceError),
                   });
                 });
               }
@@ -366,7 +367,7 @@ function scheduleMessage(message: string) {
           captureException(error, {
             level: "error",
             contexts: { proposal: { account, nonce, proposalType: ProposalType[proposalType], retryCount } },
-            fingerprint: fingerprintRevert(error),
+            fingerprint: revertFingerprint(error),
           });
 
           if (
@@ -405,7 +406,7 @@ function scheduleMessage(message: string) {
                 captureException(nonceError, {
                   level: "error",
                   contexts: { proposal: { account, nonce, proposalType: ProposalType[proposalType], retryCount } },
-                  fingerprint: fingerprintRevert(nonceError),
+                  fingerprint: revertFingerprint(nonceError),
                 });
                 return false;
               });
@@ -428,7 +429,7 @@ function scheduleMessage(message: string) {
         ),
       );
     })
-    .catch((error: unknown) => captureException(error, { level: "error", fingerprint: fingerprintRevert(error) }));
+    .catch((error: unknown) => captureException(error, { level: "error", fingerprint: revertFingerprint(error) }));
 }
 
 function scheduleWithdraw(message: string) {
@@ -495,13 +496,8 @@ function scheduleWithdraw(message: string) {
             return redis.zrem("withdraw", message);
           },
         ).catch((error: unknown) => {
-          const revertReason =
-            error instanceof BaseError &&
-            error.cause instanceof ContractFunctionRevertedError &&
-            error.cause.data?.errorName
-              ? `${error.cause.data.errorName}(${error.cause.data.args?.map(String).join(",") ?? ""})`
-              : null;
-          if (revertReason && isTerminalWithdrawReason(revertReason)) {
+          const reason = revertReason(error, { fallback: "unknown", withArguments: true });
+          if (isTerminalWithdrawReason(reason)) {
             parent.setStatus({ code: SPAN_STATUS_ERROR, message: "aborted" });
             return redis.zrem("withdraw", message);
           }
@@ -509,7 +505,7 @@ function scheduleWithdraw(message: string) {
           captureException(error, {
             level: "error",
             contexts: { withdraw: { account, market, receiver, amount: String(amount), retryCount } },
-            fingerprint: fingerprintRevert(error),
+            fingerprint: revertFingerprint(error),
           });
           if (
             chain.id === optimismSepolia.id &&
@@ -525,7 +521,7 @@ function scheduleWithdraw(message: string) {
 
   setTimeout(Math.max(0, (Number(unlock) + 10) * 1000 - Date.now()))
     .then(() => continueTrace({ sentryTrace, baggage: sentryBaggage }, processWithdraw))
-    .catch((error: unknown) => captureException(error, { level: "error", fingerprint: fingerprintRevert(error) }));
+    .catch((error: unknown) => captureException(error, { level: "error", fingerprint: revertFingerprint(error) }));
 }
 
 const isTerminalWithdrawReason = (reason: string) =>

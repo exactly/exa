@@ -1,22 +1,22 @@
 import { BaseError, ContractFunctionRevertedError } from "viem";
 import { describe, expect, it } from "vitest";
 
-import fingerprintRevert from "../../utils/fingerprintRevert";
+import revertFingerprint from "../../utils/revertFingerprint";
 
-describe("fingerprintRevert", () => {
+describe("revertFingerprint", () => {
   it("returns unknown for non-BaseError", () => {
-    expect(fingerprintRevert(new Error("plain"))).toEqual(["{{ default }}", "unknown"]);
+    expect(revertFingerprint(new Error("plain"))).toEqual(["{{ default }}", "unknown"]);
   });
 
   it("returns unknown for non-error values", () => {
-    expect(fingerprintRevert("string")).toEqual(["{{ default }}", "unknown"]);
-    expect(fingerprintRevert(null)).toEqual(["{{ default }}", "unknown"]);
-    expect(fingerprintRevert()).toEqual(["{{ default }}", "unknown"]);
-    expect(fingerprintRevert(42)).toEqual(["{{ default }}", "unknown"]);
+    expect(revertFingerprint("string")).toEqual(["{{ default }}", "unknown"]);
+    expect(revertFingerprint(null)).toEqual(["{{ default }}", "unknown"]);
+    expect(revertFingerprint()).toEqual(["{{ default }}", "unknown"]);
+    expect(revertFingerprint(42)).toEqual(["{{ default }}", "unknown"]);
   });
 
   it("returns unknown for BaseError without ContractFunctionRevertedError cause", () => {
-    expect(fingerprintRevert(new BaseError("test", { cause: new Error("other") }))).toEqual([
+    expect(revertFingerprint(new BaseError("test", { cause: new Error("other") }))).toEqual([
       "{{ default }}",
       "unknown",
     ]);
@@ -24,31 +24,31 @@ describe("fingerprintRevert", () => {
 
   it("returns error name when available", () => {
     expect(
-      fingerprintRevert(revertError({ errorName: "InsufficientBalance", abiItem: {} as never, args: [] })),
+      revertFingerprint(revertError({ errorName: "InsufficientBalance", abiItem: {} as never, args: [] })),
     ).toEqual(["{{ default }}", "InsufficientBalance"]);
   });
 
   it("falls back to reason", () => {
-    expect(fingerprintRevert(revertError(undefined, { reason: "some reason" }))).toEqual([
+    expect(revertFingerprint(revertError(undefined, { reason: "some reason" }))).toEqual([
       "{{ default }}",
       "some reason",
     ]);
   });
 
   it("falls back to signature", () => {
-    expect(fingerprintRevert(revertError(undefined, { signature: "0xdeadbeef" }))).toEqual([
+    expect(revertFingerprint(revertError(undefined, { signature: "0xdeadbeef" }))).toEqual([
       "{{ default }}",
       "0xdeadbeef",
     ]);
   });
 
   it("returns unknown for empty revert", () => {
-    expect(fingerprintRevert(revertError())).toEqual(["{{ default }}", "unknown"]);
+    expect(revertFingerprint(revertError())).toEqual(["{{ default }}", "unknown"]);
   });
 
   it("handles WrappedError with selector", () => {
     expect(
-      fingerprintRevert(
+      revertFingerprint(
         revertError({
           errorName: "WrappedError",
           abiItem: {} as never,
@@ -60,7 +60,7 @@ describe("fingerprintRevert", () => {
 
   it("treats WrappedError without args as regular named error", () => {
     expect(
-      fingerprintRevert(revertError({ errorName: "WrappedError", abiItem: {} as never, args: undefined as never })),
+      revertFingerprint(revertError({ errorName: "WrappedError", abiItem: {} as never, args: undefined as never })),
     ).toEqual(["{{ default }}", "WrappedError"]);
   });
 });

@@ -32,11 +32,11 @@ import database, { cards, credentials } from "../database";
 import { createWebhook, findWebhook, headerValidator, network } from "../utils/alchemy";
 import appOrigin from "../utils/appOrigin";
 import decodePublicKey from "../utils/decodePublicKey";
-import fingerprintRevert from "../utils/fingerprintRevert";
 import keeper from "../utils/keeper";
 import { sendPushNotification } from "../utils/onesignal";
 import { autoCredit } from "../utils/panda";
 import publicClient from "../utils/publicClient";
+import revertFingerprint from "../utils/revertFingerprint";
 import { track } from "../utils/segment";
 import validatorHook from "../utils/validatorHook";
 
@@ -189,7 +189,7 @@ export default new Hono().post(
                           retryCount: 5,
                           shouldRetry: ({ error }) => {
                             if (error instanceof Error && error.message === "NoBalance()") return true;
-                            captureException(error, { level: "error", fingerprint: fingerprintRevert(error) });
+                            captureException(error, { level: "error", fingerprint: revertFingerprint(error) });
                             return true;
                           },
                         },
@@ -247,7 +247,7 @@ export default new Hono().post(
         for (const result of results) {
           if (result.status === "fulfilled") continue;
           status = { code: SPAN_STATUS_ERROR, message: "activity_failed" };
-          captureException(result.reason, { level: "error", fingerprint: fingerprintRevert(result.reason) });
+          captureException(result.reason, { level: "error", fingerprint: revertFingerprint(result.reason) });
         }
         getActiveSpan()?.setStatus(status);
       })

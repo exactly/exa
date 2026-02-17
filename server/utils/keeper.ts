@@ -3,8 +3,6 @@ import { captureException, startSpan, withScope } from "@sentry/node";
 import { setTimeout } from "node:timers/promises";
 import { parse } from "valibot";
 import {
-  BaseError,
-  ContractFunctionRevertedError,
   createWalletClient,
   encodeFunctionData,
   getContractError,
@@ -28,9 +26,10 @@ import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import chain from "@exactly/common/generated/chain";
 import { Hash } from "@exactly/common/validation";
 
-import fingerprintRevert from "./fingerprintRevert";
 import nonceManager from "./nonceManager";
 import publicClient, { captureRequests, Requests } from "./publicClient";
+import revertFingerprint from "./revertFingerprint";
+import revertReason from "./revertReason";
 import traceClient from "./traceClient";
 
 if (!chain.rpcUrls.alchemy.http[0]) throw new Error("missing alchemy rpc url");
@@ -164,14 +163,7 @@ export function extender(keeper: WalletClient<HttpTransport, typeof chain, Priva
             span.setStatus({ code: SPAN_STATUS_OK });
             return receipt;
           } catch (error: unknown) {
-            const reason =
-              error instanceof BaseError &&
-              error.cause instanceof ContractFunctionRevertedError &&
-              error.cause.data?.errorName
-                ? `${error.cause.data.errorName}(${error.cause.data.args?.map(String).join(",") ?? ""})`
-                : error instanceof Error
-                  ? error.message
-                  : String(error);
+            const reason = revertReason(error, { fallback: "message", withArguments: true });
             if (options?.ignore) {
               const ignore =
                 typeof options.ignore === "function" ? await options.ignore(reason) : options.ignore.includes(reason);
@@ -182,7 +174,7 @@ export function extender(keeper: WalletClient<HttpTransport, typeof chain, Priva
               }
             }
             span.setStatus({ code: SPAN_STATUS_ERROR, message: reason });
-            captureException(error, { level: "error", fingerprint: fingerprintRevert(error) });
+            captureException(error, { level: "error", fingerprint: revertFingerprint(error) });
             throw error;
           }
         }),

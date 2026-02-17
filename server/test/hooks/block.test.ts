@@ -49,11 +49,11 @@ import deploy from "@exactly/plugin/deploy.json";
 
 import app from "../../hooks/block";
 import ensClient from "../../utils/ensClient";
-import fingerprintRevert from "../../utils/fingerprintRevert";
 import keeper from "../../utils/keeper";
 import * as onesignal from "../../utils/onesignal";
 import publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
+import revertFingerprint from "../../utils/revertFingerprint";
 import anvilClient from "../anvilClient";
 
 const bob = createWalletClient({
@@ -989,7 +989,7 @@ describe("legacy withdraw", () => {
 
     const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
     expect(captureExceptionCalls.filter((call) => match.capture(call))).toEqual([]);
-    expect(fingerprintRevert(insufficientAccountLiquidityError)).toEqual([
+    expect(revertFingerprint(insufficientAccountLiquidityError)).toEqual([
       "{{ default }}",
       "InsufficientAccountLiquidity",
     ]);
@@ -1022,7 +1022,7 @@ describe("legacy withdraw", () => {
 
     const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
     expect(captureExceptionCalls.filter((call) => match.capture(call))).toEqual([]);
-    expect(fingerprintRevert(noProposalError)).toEqual(["{{ default }}", "PreExecHookReverted"]);
+    expect(revertFingerprint(noProposalError)).toEqual(["{{ default }}", "PreExecHookReverted"]);
     expect(
       noProposalError instanceof ContractFunctionExecutionError &&
         noProposalError.cause instanceof ContractFunctionRevertedError &&
@@ -1059,7 +1059,7 @@ describe("legacy withdraw", () => {
 
     const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
     expect(captureExceptionCalls.filter((call) => match.capture(call))).toEqual([]);
-    expect(fingerprintRevert(runtimeValidationFunctionMissingError)).toEqual([
+    expect(revertFingerprint(runtimeValidationFunctionMissingError)).toEqual([
       "{{ default }}",
       "RuntimeValidationFunctionMissing",
     ]);
