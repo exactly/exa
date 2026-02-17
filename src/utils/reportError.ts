@@ -117,8 +117,13 @@ function classify({ code, name, message, status }: ParsedError) {
       message.includes("There is already a pending passkey request") ||
       authPrefixes.some((prefix) => message.startsWith(prefix)));
   const authExpected = passkeyExpected || passkeyNameExpected || message === "invalid operation";
-  const expected = passkeyExpected || message === "invalid operation" || message === "Network request failed";
   const network = classifyNetwork(message);
+  const expected =
+    passkeyExpected ||
+    message === "invalid operation" ||
+    message === "Network request failed" ||
+    network === "offline" ||
+    network === "lost";
   const fingerprintMessage =
     message?.startsWith("Calling the 'get' function has failed") ||
     message?.startsWith("The operation couldn’t be completed.")
