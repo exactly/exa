@@ -448,7 +448,7 @@ export default new Hono().post(
           const refundAmount = BigInt(Math.round(refundAmountUsd * 1e6));
           const [card, user] = await Promise.all([
             database.query.cards.findFirst({
-              columns: {},
+              columns: { mode: true },
               where: eq(cards.id, payload.body.spend.cardId),
               with: { credential: { columns: { account: true, id: true } } },
             }),
@@ -550,7 +550,48 @@ export default new Hono().post(
               getActiveSpan()?.setAttributes({ "panda.replay": true });
               return c.json({ code: "ok" });
             }
-            captureException(error, { level: "fatal", tags: { unhandled: true } });
+            const reason = revertReason(error, { fallback: "message" });
+            const reasonName = revertReason(error, { fallback: "name" });
+            track({
+              userId: account,
+              event: "TransactionRejected",
+              properties: {
+                cardMode: card.mode,
+                declinedReason: `refund:${reason}`,
+                id: payload.body.id,
+                reasonName,
+                updated: payload.action === "updated",
+                usdAmount: payload.body.spend.amount / 100,
+                merchant: {
+                  name: payload.body.spend.merchantName,
+                  category: payload.body.spend.merchantCategory,
+                  city: payload.body.spend.merchantCity,
+                  country: payload.body.spend.merchantCountry,
+                },
+              },
+            });
+            captureException(error, {
+              level: "fatal",
+              fingerprint: ["{{ default }}", "panda.refund", ...revertFingerprint(error).slice(1)],
+              tags: {
+                unhandled: true,
+                "panda.failure": "refund",
+                "panda.reason": reason,
+                "panda.reasonName": reasonName,
+              },
+              contexts: {
+                pandaRefund: {
+                  action: payload.action,
+                  amount: payload.body.spend.amount,
+                  authorizedAmount: payload.body.spend.authorizedAmount ?? null,
+                  cardId: payload.body.spend.cardId,
+                  refundAmount: String(refundAmount),
+                  refundAmountUsd,
+                  transactionId: payload.body.id,
+                  webhookId: payload.id,
+                },
+              },
+            });
             return c.json(
               { code: error instanceof Error ? error.message : String(error) },
               569 as UnofficialStatusCode,

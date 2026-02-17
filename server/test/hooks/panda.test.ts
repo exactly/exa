@@ -1055,7 +1055,15 @@ describe("card operations", () => {
         expect(response.status).toBe(569);
         expect(captureException).toHaveBeenCalledWith(
           expect.any(Error),
-          expect.objectContaining({ level: "fatal", tags: { unhandled: true } }),
+          expect.objectContaining({
+            level: "fatal",
+            tags: expect.objectContaining({
+              unhandled: true,
+              "panda.failure": "refund",
+              "panda.reason": "unexpected contract revert",
+              "panda.reasonName": "Error",
+            }) as unknown,
+          }),
         );
       });
 
