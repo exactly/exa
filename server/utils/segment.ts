@@ -47,6 +47,24 @@ export function track(
           usdcAmount: number;
         };
       }
+    | {
+        event: "PandaCollectionFailed";
+        properties: {
+          action: "completed" | "created" | "updated";
+          amount: number;
+          authorizedAmount?: null | number;
+          cardMode: number;
+          functionName: string;
+          id: string;
+          knownTransaction: boolean;
+          merchant: MerchantProperties;
+          reason: string;
+          reasonName: string;
+          settlement: boolean;
+          usdAmount: number;
+          webhookId: string;
+        };
+      }
     | { event: "RampAccount"; properties: { provider: "bridge" | "manteca"; source: null | string } }
     | {
         event: "TransactionAuthorized";
@@ -73,6 +91,7 @@ export function track(
           declinedReason?: null | string;
           id: string;
           merchant: MerchantProperties;
+          reasonName?: null | string;
           updated: boolean;
           usdAmount: number;
         };

@@ -51,6 +51,7 @@ import keeper from "../../utils/keeper";
 import * as panda from "../../utils/panda";
 import publicClient from "../../utils/publicClient";
 import * as sardine from "../../utils/sardine";
+import * as segment from "../../utils/segment";
 import traceClient from "../../utils/traceClient";
 import anvilClient from "../anvilClient";
 
@@ -609,6 +610,7 @@ describe("card operations", () => {
 
       it("fails with transaction timeout", async () => {
         const error = new Error("timeout");
+        const track = vi.spyOn(segment, "track").mockReturnValue();
         const exaSend = vi.spyOn(keeper, "exaSend").mockImplementation(async (...args) => {
           const options = args[2];
           await options?.onHash?.(zeroHash as Hash);
@@ -643,6 +645,48 @@ describe("card operations", () => {
           address: account,
           functionName: "collectCredit",
           args: [expect.any(BigInt), 600_000n, expect.any(BigInt), expect.any(BigInt), expect.any(String)],
+        });
+        expect(track).toHaveBeenCalledWith({
+          userId: account,
+          event: "TransactionRejected",
+          properties: {
+            cardMode: 6,
+            declinedReason: "collection:created:collectCredit:timeout",
+            id: cardId,
+            reasonName: "Error",
+            updated: false,
+            usdAmount: 0.6,
+            merchant: {
+              name: authorization.json.body.spend.merchantName,
+              category: authorization.json.body.spend.merchantCategory,
+              city: authorization.json.body.spend.merchantCity,
+              country: authorization.json.body.spend.merchantCountry,
+            },
+          },
+        });
+        expect(track).toHaveBeenCalledWith({
+          userId: account,
+          event: "PandaCollectionFailed",
+          properties: {
+            action: "created",
+            amount: 60,
+            authorizedAmount: authorization.json.body.spend.authorizedAmount,
+            cardMode: 6,
+            functionName: "collectCredit",
+            id: cardId,
+            knownTransaction: true,
+            merchant: {
+              name: authorization.json.body.spend.merchantName,
+              category: authorization.json.body.spend.merchantCategory,
+              city: authorization.json.body.spend.merchantCity,
+              country: authorization.json.body.spend.merchantCountry,
+            },
+            reason: "timeout",
+            reasonName: "Error",
+            settlement: false,
+            usdAmount: 0.6,
+            webhookId: authorization.json.id,
+          },
         });
         expect(captureException).toHaveBeenCalledExactlyOnceWith(error, expect.objectContaining({ level: "fatal" }));
         expect(transaction).toBeDefined();
@@ -1216,6 +1260,264 @@ describe("card operations", () => {
           amount: capture,
           authorizedAmount: hold,
         });
+      });
+
+      it("reports settlement collection failures", async () => {
+        const hold = 7;
+        const capture = 12;
+
+        const cardId = "settlement-failure";
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        const createdAt = new Date().toISOString();
+        await database.insert(transactions).values([
+          {
+            id: cardId,
+            cardId,
+            hashes: [zeroHash],
+            payload: {
+              bodies: [{ action: "created", createdAt }],
+              type: "panda",
+            },
+          },
+        ]);
+
+        const track = vi.spyOn(segment, "track").mockReturnValue();
+        vi.spyOn(keeper, "exaSend").mockRejectedValueOnce(new Error("settlement failed"));
+        const completeResponse = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "completed",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: {
+                ...authorization.json.body.spend,
+                amount: capture,
+                authorizedAmount: hold,
+                authorizedAt: createdAt,
+                postedAt: new Date().toISOString(),
+                cardId,
+                status: "completed",
+              },
+            },
+          },
+        });
+
+        expect(completeResponse.status).toBe(569);
+        expect(track).toHaveBeenCalledWith({
+          userId: account,
+          event: "TransactionRejected",
+          properties: {
+            cardMode: 0,
+            declinedReason: "collection:completed:collectDebit:settlement failed",
+            id: cardId,
+            reasonName: "Error",
+            updated: true,
+            usdAmount: capture / 100,
+            merchant: {
+              name: authorization.json.body.spend.merchantName,
+              category: authorization.json.body.spend.merchantCategory,
+              city: authorization.json.body.spend.merchantCity,
+              country: authorization.json.body.spend.merchantCountry,
+            },
+          },
+        });
+        expect(track).toHaveBeenCalledWith({
+          userId: account,
+          event: "PandaCollectionFailed",
+          properties: {
+            action: "completed",
+            amount: capture,
+            authorizedAmount: hold,
+            cardMode: 0,
+            functionName: "collectDebit",
+            id: cardId,
+            knownTransaction: true,
+            merchant: {
+              name: authorization.json.body.spend.merchantName,
+              category: authorization.json.body.spend.merchantCategory,
+              city: authorization.json.body.spend.merchantCity,
+              country: authorization.json.body.spend.merchantCountry,
+            },
+            reason: "settlement failed",
+            reasonName: "Error",
+            settlement: true,
+            usdAmount: capture / 100,
+            webhookId: authorization.json.id,
+          },
+        });
+        expect(captureException).toHaveBeenCalledWith(
+          expect.objectContaining({ message: "settlement failed" }),
+          expect.objectContaining({
+            level: "fatal",
+            fingerprint: ["{{ default }}", "panda.collection", "completed", "collectDebit", "unknown"],
+            tags: expect.objectContaining({
+              unhandled: true,
+              "panda.failure": "collection",
+              "panda.function": "collectDebit",
+              "panda.reason": "settlement failed",
+              "panda.reasonName": "Error",
+              "panda.settlement": "true",
+            }) as unknown,
+            contexts: expect.objectContaining({
+              pandaCollection: expect.objectContaining({
+                action: "completed",
+                cardId,
+                knownTransaction: true,
+                reason: "settlement failed",
+                reasonName: "Error",
+                transactionId: cardId,
+              }) as unknown,
+            }) as unknown,
+          }),
+        );
+      });
+
+      it("captures collection errors when transaction lookup fails", async () => {
+        const cardId = "lookup-failure";
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 6 }]);
+
+        const collectionError = new Error("collection failed");
+        const lookupError = new Error("transaction lookup failed");
+        const track = vi.spyOn(segment, "track").mockReturnValue();
+        vi.spyOn(keeper, "exaSend").mockRejectedValueOnce(collectionError);
+        vi.spyOn(database.query.transactions, "findFirst").mockRejectedValueOnce(lookupError);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "updated",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: {
+                ...authorization.json.body.spend,
+                amount: 60,
+                authorizationUpdateAmount: 60,
+                authorizedAt: new Date().toISOString(),
+                cardId,
+                status: "pending",
+              },
+            },
+          },
+        });
+
+        expect(response.status).toBe(569);
+        expect(track).toHaveBeenCalledWith({
+          userId: account,
+          event: "PandaCollectionFailed",
+          properties: expect.objectContaining({
+            action: "updated",
+            functionName: "collectCredit",
+            id: cardId,
+            knownTransaction: false,
+            reason: "collection failed",
+            reasonName: "Error",
+            settlement: false,
+          }) as unknown,
+        });
+        expect(captureException).toHaveBeenCalledWith(
+          lookupError,
+          expect.objectContaining({
+            level: "error",
+            tags: expect.objectContaining({
+              unhandled: true,
+              "panda.failure": "collection",
+              "panda.query": "transaction",
+            }) as unknown,
+          }),
+        );
+        expect(captureException).toHaveBeenCalledWith(
+          collectionError,
+          expect.objectContaining({
+            level: "fatal",
+            tags: expect.objectContaining({
+              unhandled: true,
+              "panda.failure": "collection",
+              "panda.reason": "collection failed",
+            }) as unknown,
+          }),
+        );
+      });
+
+      it("does not suspend users when settlement lookup fails", async () => {
+        const hold = 7;
+        const capture = 12;
+        const cardId = "settlement-lookup-failure";
+
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        const createdAt = new Date().toISOString();
+        await database.insert(transactions).values([
+          {
+            id: cardId,
+            cardId,
+            hashes: [zeroHash],
+            payload: {
+              bodies: [{ action: "created", createdAt }],
+              type: "panda",
+            },
+          },
+        ]);
+
+        const collectionError = new Error("settlement failed");
+        const lookupError = new Error("transaction lookup failed");
+        const track = vi.spyOn(segment, "track").mockReturnValue();
+        const updateUser = vi.spyOn(panda, "updateUser").mockResolvedValue(userResponseTemplate);
+        const findFirst = database.query.transactions.findFirst.bind(database.query.transactions);
+        vi.spyOn(keeper, "exaSend").mockRejectedValueOnce(collectionError);
+        vi.spyOn(database.query.transactions, "findFirst")
+          .mockImplementationOnce((...args) => findFirst(...args))
+          .mockRejectedValueOnce(lookupError)
+          .mockImplementation((...args) => findFirst(...args));
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "completed",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: {
+                ...authorization.json.body.spend,
+                amount: capture,
+                authorizedAmount: hold,
+                authorizedAt: createdAt,
+                postedAt: new Date().toISOString(),
+                cardId,
+                status: "completed",
+              },
+            },
+          },
+        });
+
+        expect(response.status).toBe(569);
+        expect(updateUser).not.toHaveBeenCalled();
+        expect(track).toHaveBeenCalledWith({
+          userId: account,
+          event: "PandaCollectionFailed",
+          properties: expect.objectContaining({
+            action: "completed",
+            id: cardId,
+            knownTransaction: false,
+            reason: "settlement failed",
+            reasonName: "Error",
+            settlement: true,
+          }) as unknown,
+        });
+        expect(captureException).toHaveBeenCalledWith(
+          lookupError,
+          expect.objectContaining({
+            level: "error",
+            tags: expect.objectContaining({
+              unhandled: true,
+              "panda.failure": "collection",
+              "panda.query": "transaction",
+            }) as unknown,
+          }),
+        );
       });
 
       it("over-captures frozen debit", async () => {

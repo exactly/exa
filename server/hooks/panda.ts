@@ -731,12 +731,106 @@ export default new Hono().post(
               getActiveSpan()?.setAttributes({ "panda.replay": true });
               return c.json({ code: "ok" });
             }
-            captureException(error, { level: "fatal", contexts: { tx: { call } } });
-            if (payload.action === "completed") {
-              const tx = await database.query.transactions.findFirst({
+            const settlement = payload.action === "completed";
+            const transaction = await database.query.transactions
+              .findFirst({
                 where: and(eq(transactions.id, payload.body.id), eq(transactions.cardId, payload.body.spend.cardId)),
+              })
+              .then((tx) => ({ failed: false, tx }))
+              .catch((lookupError: unknown) => {
+                captureException(lookupError, {
+                  level: "error",
+                  tags: {
+                    unhandled: true,
+                    "panda.failure": "collection",
+                    "panda.query": "transaction",
+                  },
+                  contexts: { tx: { call } },
+                });
+                return { failed: true, tx: null };
               });
-              if (!tx || !v.parse(TransactionPayload, tx.payload).bodies.some((t) => t.action === "created")) {
+            const tx = transaction.tx;
+            const reason = revertReason(error, { fallback: "message" });
+            const reasonName = revertReason(error, { fallback: "name" });
+            const merchant = {
+              name: payload.body.spend.merchantName,
+              category: payload.body.spend.merchantCategory,
+              city: payload.body.spend.merchantCity,
+              country: payload.body.spend.merchantCountry,
+            };
+            track({
+              userId: account,
+              event: "TransactionRejected",
+              properties: {
+                cardMode: card.mode,
+                declinedReason: `collection:${payload.action}:${call.functionName}:${reason}`,
+                id: payload.body.id,
+                reasonName,
+                updated: payload.action !== "created",
+                usdAmount: payload.body.spend.amount / 100,
+                merchant,
+              },
+            });
+            track({
+              userId: account,
+              event: "PandaCollectionFailed",
+              properties: {
+                action: payload.action,
+                amount: payload.body.spend.amount,
+                authorizedAmount: payload.body.spend.authorizedAmount ?? null,
+                cardMode: card.mode,
+                functionName: call.functionName,
+                id: payload.body.id,
+                knownTransaction: Boolean(tx),
+                merchant,
+                reason,
+                reasonName,
+                settlement,
+                usdAmount: payload.body.spend.amount / 100,
+                webhookId: payload.id,
+              },
+            });
+            captureException(error, {
+              level: "fatal",
+              fingerprint: [
+                "{{ default }}",
+                "panda.collection",
+                payload.action,
+                call.functionName,
+                ...revertFingerprint(error).slice(1),
+              ],
+              tags: {
+                unhandled: true,
+                "panda.failure": "collection",
+                "panda.function": call.functionName,
+                "panda.reason": reason,
+                "panda.reasonName": reasonName,
+                "panda.settlement": String(settlement),
+              },
+              contexts: {
+                tx: { call },
+                pandaCollection: {
+                  action: payload.action,
+                  cardId: payload.body.spend.cardId,
+                  transactionId: payload.body.id,
+                  amount: payload.body.spend.amount,
+                  authorizedAmount: payload.body.spend.authorizedAmount ?? null,
+                  authorizationMethod: payload.body.spend.authorizationMethod ?? null,
+                  knownTransaction: Boolean(tx),
+                  reason,
+                  reasonName,
+                  webhookId: payload.id,
+                },
+              },
+            });
+            if (settlement) {
+              if (transaction.failed) {
+                return c.text(error instanceof Error ? error.message : String(error), 569 as UnofficialStatusCode);
+              }
+              const hasCreated = tx
+                ? v.parse(TransactionPayload, tx.payload).bodies.some((body) => body.action === "created")
+                : false;
+              if (!tx || !hasCreated) {
                 await updateUser({ id: payload.body.spend.userId, isActive: false });
                 getActiveSpan()?.setAttributes({ "panda.suspicious": true, "panda.amount": payload.body.spend.amount });
                 return c.text(error instanceof Error ? error.message : String(error), 556 as UnofficialStatusCode);
