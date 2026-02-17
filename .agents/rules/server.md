@@ -64,6 +64,17 @@ the server's eslint configuration enforces:
 - **environment variables at runtime**: import from `node:env` and validate at import time. if a required variable is missing, throw immediately. this ensures the app fails fast on startup, not at runtime when the variable is first accessed.
 - **blocking the event loop**: avoid long-running synchronous operations. use `async/await` correctly and be mindful of cpu-intensive tasks.
 
+## testing
+
+- **branch coverage requirement**: every new or changed line of server code must have 100% branch coverage in the vitest suite. every `if/else`, ternary, `??`, `||`, `&&`, early return, and `catch` path must be exercised by a test. no exceptions.
+- **run tests**: `pnpm nx test:vi server`. coverage is collected automatically via `@vitest/coverage-v8`.
+- **verify before committing**: after writing or modifying tests, confirm that the coverage report shows no uncovered branches in the affected files. use `pnpm nx test:vi server` and inspect the output.
+- **test structure**: tests live in `server/test/`. each test file targets a specific route or module. colocate related assertions in a single `describe` block.
+- **what to test**: test every conditional outcome — success paths, expected error codes, validation rejections, edge cases, and fallback branches. if a handler returns different responses based on a condition, each branch gets its own test case.
+- **assert aggressively**: every test must assert as much observable behavior as possible — response status, response body, database state, headers, and error codes. a test that only checks one field when five are available is incomplete. prefer `toStrictEqual` over `toMatchObject` to catch unexpected extra fields or missing properties.
+- **assert on monitoring and tracking**: always verify observability side effects. assert `captureException` calls with their exact fingerprints, severity levels, and context objects. assert calls to external service spies (notifications, risk scoring, analytics). assert span/trace metadata (`name`, `op`, `attributes`). monitoring behavior is production behavior — untested tracking is broken tracking.
+- **assert the negative**: explicitly verify that things that should not happen did not happen. assert `not.toHaveBeenCalled()` on spies that must stay silent in a given scenario — no unexpected exceptions captured, no notifications sent, no side effects triggered. a test that only asserts what happened is half a test.
+
 ## development workflow
 
 - **start dev server**: `pnpm nx dev server` (uses `tsx` for hot-reload).
