@@ -45,13 +45,6 @@ function createMutex(credentialId: string) {
   return mutex;
 }
 
-const BadRequestCodes = {
-  NO_PANDA: "no panda",
-  BAD_REQUEST: "bad request",
-  ALREADY_CREATED: "already created",
-  ALREADY_SET: "already set",
-} as const;
-
 const CardResponse = object({
   displayName: pipe(string(), metadata({ examples: ["John Doe"] })),
   encryptedPan: object({
@@ -188,39 +181,25 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
       responses: {
         200: {
           description: "Card information",
-          content: {
-            "application/json": {
-              schema: resolver(CardResponse, { errorMode: "ignore" }),
-            },
-          },
+          content: { "application/json": { schema: resolver(CardResponse, { errorMode: "ignore" }) } },
         },
         400: {
           description: "Bad request",
           content: {
-            "application/json": {
-              schema: resolver(buildBaseResponse(BadRequestCodes.BAD_REQUEST), { errorMode: "ignore" }),
-            },
+            "application/json": { schema: resolver(object({ code: literal("bad request") }), { errorMode: "ignore" }) },
           },
         },
         403: {
           description: "Forbidden",
           content: {
-            "application/json": {
-              schema: resolver(buildBaseResponse(BadRequestCodes.NO_PANDA), { errorMode: "ignore" }),
-            },
+            "application/json": { schema: resolver(object({ code: literal("no panda") }), { errorMode: "ignore" }) },
           },
         },
         404: {
           description: "Not found",
           content: {
             "application/json": {
-              schema: resolver(
-                object({
-                  code: pipe(literal("no card"), metadata({ examples: ["no card"] })),
-                  legacy: pipe(literal("card not found"), metadata({ examples: ["card not found"] })),
-                }),
-                { errorMode: "ignore" },
-              ),
+              schema: resolver(object({ code: literal("no card") }), { errorMode: "ignore" }),
             },
           },
         },
@@ -238,10 +217,10 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
           },
         },
       });
-      if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
+      if (!credential) return c.json({ code: "no credential" }, 500);
       const account = parse(Address, credential.account);
       setUser({ id: account });
-      if (!credential.pandaId) return c.json({ code: BadRequestCodes.NO_PANDA, legacy: BadRequestCodes.NO_PANDA }, 403);
+      if (!credential.pandaId) return c.json({ code: "no panda" }, 403);
       if (credential.cards.length > 0 && credential.cards[0]) {
         const { id, lastFour, status, mode, productId } = credential.cards[0];
         if (status === "DELETED") throw new Error("card deleted");
@@ -254,7 +233,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
           }),
           getPIN(id, c.req.valid("header").sessionid),
         ]);
-        if (!user) return c.json({ code: BadRequestCodes.NO_PANDA, legacy: BadRequestCodes.NO_PANDA }, 403);
+        if (!user) return c.json({ code: "no panda" }, 403);
         return c.json(
           {
             ...pan,
@@ -271,9 +250,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
           } satisfies InferOutput<typeof CardResponse>,
           200,
         );
-      } else {
-        return c.json({ code: "no card", legacy: "card not found" }, 404);
-      }
+      } else return c.json({ code: "no card" }, 404);
     },
   )
   .post(
@@ -298,13 +275,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
           content: {
             "application/json": {
               schema: resolver(
-                union([
-                  buildBaseResponse(BadRequestCodes.BAD_REQUEST),
-                  object({
-                    code: string(BadRequestCodes.ALREADY_CREATED),
-                    legacy: string("card already exists"),
-                  }),
-                ]),
+                union([object({ code: literal("bad request") }), object({ code: literal("already created") })]),
                 { errorMode: "ignore" },
               ),
             },
@@ -313,15 +284,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
         403: {
           description: "Forbidden",
           content: {
-            "application/json": {
-              schema: resolver(
-                object({
-                  code: string(BadRequestCodes.NO_PANDA),
-                  legacy: string("panda id not found"),
-                }),
-                { errorMode: "ignore" },
-              ),
-            },
+            "application/json": { schema: resolver(object({ code: literal("no panda") }), { errorMode: "ignore" }) },
           },
         },
       },
@@ -341,11 +304,11 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
               },
             },
           });
-          if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
+          if (!credential) return c.json({ code: "no credential" }, 500);
           const account = parse(Address, credential.account);
           setUser({ id: account });
 
-          if (!credential.pandaId) return c.json({ code: "no panda", legacy: "panda id not found" }, 403);
+          if (!credential.pandaId) return c.json({ code: "no panda" }, 403);
 
           let isUpgradeFromPlatinum = credential.cards.some(
             ({ status, productId }) => status === "DELETED" && productId === PLATINUM_PRODUCT_ID,
@@ -371,7 +334,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
               }
             }
           }
-          if (cardCount > 0) return c.json({ code: "already created", legacy: "card already exists" }, 400);
+          if (cardCount > 0) return c.json({ code: "already created" }, 400);
           const card = await createCard(credential.pandaId, SIGNATURE_PRODUCT_ID);
           let mode = 0;
           try {
@@ -482,18 +445,14 @@ async function encryptPIN(pin: string) {
       responses: {
         200: {
           description: "Card updated",
-          content: {
-            "application/json": {
-              schema: resolver(UpdatedCardResponse, { errorMode: "ignore" }),
-            },
-          },
+          content: { "application/json": { schema: resolver(UpdatedCardResponse, { errorMode: "ignore" }) } },
         },
         400: {
           description: "Bad request",
           content: {
             "application/json": {
               schema: resolver(
-                union([buildBaseResponse(BadRequestCodes.BAD_REQUEST), buildBaseResponse(BadRequestCodes.ALREADY_SET)]),
+                union([object({ code: literal("bad request") }), object({ code: literal("already set") })]),
                 { errorMode: "ignore" },
               ),
             },
@@ -502,15 +461,7 @@ async function encryptPIN(pin: string) {
         404: {
           description: "Not found",
           content: {
-            "application/json": {
-              schema: resolver(
-                object({
-                  code: pipe(literal("no card"), metadata({ examples: ["no card"] })),
-                  legacy: pipe(literal("card not found"), metadata({ examples: ["card not found"] })),
-                }),
-                { errorMode: "ignore" },
-              ),
-            },
+            "application/json": { schema: resolver(object({ code: literal("no card") }), { errorMode: "ignore" }) },
           },
         },
       },
@@ -529,25 +480,23 @@ async function encryptPIN(pin: string) {
               cards: { columns: { id: true, mode: true, status: true }, where: ne(cards.status, "DELETED") },
             },
           });
-          if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
+          if (!credential) return c.json({ code: "no credential" }, 500);
           const account = parse(Address, credential.account);
           setUser({ id: account });
           if (credential.cards.length === 0 || !credential.cards[0]) {
-            return c.json({ code: "no card", legacy: "no card found" }, 404);
+            return c.json({ code: "no card" }, 404);
           }
           const card = credential.cards[0];
           switch (patch.type) {
             case "mode": {
               const { mode } = patch;
-              if (card.mode === mode)
-                return c.json({ code: BadRequestCodes.ALREADY_SET, mode, legacy: BadRequestCodes.ALREADY_SET }, 400);
+              if (card.mode === mode) return c.json({ code: "already set", mode }, 400);
               await database.update(cards).set({ mode }).where(eq(cards.id, card.id));
               return c.json({ mode } satisfies InferOutput<typeof UpdatedCardResponse>, 200);
             }
             case "status": {
               const { status } = patch;
-              if (card.status === status)
-                return c.json({ code: BadRequestCodes.ALREADY_SET, status, legacy: BadRequestCodes.ALREADY_SET }, 400);
+              if (card.status === status) return c.json({ code: "already set", status }, 400);
               switch (status) {
                 case "ACTIVE":
                   track({ userId: account, event: "CardUnfrozen" });
@@ -577,13 +526,6 @@ async function encryptPIN(pin: string) {
   );
 
 const CardUUID = pipe(string(), uuid());
-
-function buildBaseResponse(example = "string") {
-  return object({
-    code: pipe(string(), metadata({ examples: [example] })),
-    legacy: pipe(string(), metadata({ examples: [example] })),
-  });
-}
 
 function handlePlatinumUpgrade(credentialId: string, account: InferOutput<typeof Address>) {
   getAccount(credentialId, "basic")
