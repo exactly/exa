@@ -1,5 +1,19 @@
 # @exactly/server
 
+## 0.2.68
+
+### Patch Changes
+
+- [#792](https://github.com/exactly/exa/pull/792) [`fdd213d`](https://github.com/exactly/exa/commit/fdd213d095cc7b39cc05c29ccd7be2e09f8528e6) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 handle legacy withdraw validation revert
+
+- [#791](https://github.com/exactly/exa/pull/791) [`70ad3dc`](https://github.com/exactly/exa/commit/70ad3dcfdb4a86ea4ff2059e8f7f57770ac6369b) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 handle no panda user on card endpoint
+
+- [#794](https://github.com/exactly/exa/pull/794) [`8ade540`](https://github.com/exactly/exa/commit/8ade54023f51f6ddcabad651d64ad7acec56139d) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 📈 improve panda refund failure telemetry
+
+- [#791](https://github.com/exactly/exa/pull/791) [`b9c76ab`](https://github.com/exactly/exa/commit/b9c76ab782d7337e85d5b2a0359d5b6523701cdd) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🔥 remove legacy card response fields
+
+- [#794](https://github.com/exactly/exa/pull/794) [`ef22435`](https://github.com/exactly/exa/commit/ef224357d18f31f71f0443f924292cb2f69189f7) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 📈 improve panda settlement failure telemetry
+
 ## 0.2.67
 
 ### Patch Changes
