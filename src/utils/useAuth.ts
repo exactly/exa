@@ -49,20 +49,23 @@ function handleError(
   onDomainError: () => void,
   t: TFunction,
 ) {
+  if (
+    error instanceof Error &&
+    (("code" in error && error.code === "ERR_BIOMETRIC") || error.message.includes("Biometrics must be enabled"))
+  ) {
+    queryClient.setQueryData(["method"], undefined);
+    toast.show(t("Biometrics must be enabled to use passkeys. Please enable biometrics in your device settings"), {
+      native: true,
+      duration: 3000,
+      burntOptions: { haptic: "error", preset: "error" },
+    });
+    return;
+  }
   if (isAuthExpected(error) || error instanceof UserRejectedRequestError) {
     queryClient.setQueryData(["method"], undefined);
     toast.show(t("Authentication cancelled"), {
       native: true,
       duration: 1000,
-      burntOptions: { haptic: "error", preset: "error" },
-    });
-    return;
-  }
-  if (error instanceof Error && "code" in error && error.code === "ERR_BIOMETRIC") {
-    queryClient.setQueryData(["method"], undefined);
-    toast.show(t("Biometrics must be enabled to use passkeys. Please enable biometrics in your device settings"), {
-      native: true,
-      duration: 3000,
       burntOptions: { haptic: "error", preset: "error" },
     });
     return;

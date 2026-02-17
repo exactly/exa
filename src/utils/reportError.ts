@@ -114,12 +114,15 @@ function classify({ code, name, message, status }: ParsedError) {
   const passkeyExpected =
     message !== undefined &&
     (passkeyExpectedMessages.has(message) ||
+      message.includes("Biometrics must be enabled") ||
       message.includes("There is already a pending passkey request") ||
       authPrefixes.some((prefix) => message.startsWith(prefix)));
-  const authExpected = passkeyExpected || passkeyNameExpected || message === "invalid operation";
+  const biometric = code === "ERR_BIOMETRIC";
+  const authExpected = passkeyExpected || passkeyNameExpected || biometric || message === "invalid operation";
   const network = classifyNetwork(message);
   const expected =
     passkeyExpected ||
+    biometric ||
     message === "invalid operation" ||
     message === "Network request failed" ||
     network === "offline" ||
