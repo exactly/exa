@@ -1,37 +1,21 @@
 import { useMemo } from "react";
 
-import {
-  bytesToHex,
-  encodeAbiParameters,
-  hexToBigInt,
-  hexToBytes,
-  keccak256,
-  toBytes,
-  zeroAddress,
-  type Address,
-  type BlockOverrides,
-  type Hex,
-  type StateOverride,
-} from "viem";
-import { useBytecode, useSimulateContract } from "wagmi";
+import { encodeAbiParameters, encodeFunctionData, zeroAddress, type Address, type Hex } from "viem";
+import { useBytecode } from "wagmi";
 
-import {
-  exaPluginAddress,
-  exaPreviewerAddress,
-  proposalManagerAddress,
-  swapperAddress,
-} from "@exactly/common/generated/chain";
+import { proposalManagerAddress } from "@exactly/common/generated/chain";
 import {
   auditorAbi,
   exaPluginAbi,
   marketAbi,
   proposalManagerAbi,
   upgradeableModularAccountAbi,
-  useReadExaPreviewerAssets,
   useReadProposalManagerDelay,
   useReadProposalManagerQueueNonces,
 } from "@exactly/common/generated/hooks";
 import ProposalType from "@exactly/common/ProposalType";
+
+import useSimulateBlocks from "./wagmi/useSimulateBlocks";
 
 export default function useSimulateProposal({
   account,
@@ -188,131 +172,102 @@ export default function useSimulateProposal({
                     [{ assetOut: proposal.assetOut, minAmountOut: proposal.minAmountOut, route: proposal.route }],
                   )
               : proposal.receiver && encodeAbiParameters([{ type: "address" }], [proposal.receiver]);
-  const { data: deployed } = useBytecode({ address: account, query: { enabled: enabled && !!account } });
-  const hasMarket = market !== undefined && market !== zeroAddress;
-  const propose = useSimulateContract({
-    account,
-    address: account,
-    functionName: "propose",
-    abi: [...upgradeableModularAccountAbi, ...exaPluginAbi, ...proposalManagerAbi],
-    args: hasMarket ? [market, amount ?? 0n, proposal.proposalType, proposalData ?? "0x"] : undefined,
-    query: { enabled: enabled && !!deployed && !!account && !!amount && hasMarket },
-  });
-
+  const { data: deployed } = useBytecode({ address: account ?? zeroAddress, query: { enabled: enabled && !!account } });
+  const proposalArguments = useMemo(
+    () => [market ?? zeroAddress, amount ?? 0n, proposal.proposalType, proposalData ?? "0x"] as const,
+    [amount, market, proposal.proposalType, proposalData],
+  );
+  const proposeRequest = useMemo(
+    () =>
+      account === undefined
+        ? undefined
+        : ({
+            account,
+            address: account,
+            abi: proposeAbi,
+            functionName: "propose",
+            args: proposalArguments,
+          } as const),
+    [account, proposalArguments],
+  );
+  const proposeCalldata = useMemo(
+    () => encodeFunctionData({ abi: proposeAbi, functionName: "propose", args: proposalArguments }),
+    [proposalArguments],
+  );
   const { data: proposalDelay } = useReadProposalManagerDelay({ address: proposalManagerAddress, query: { enabled } });
-  const { data: assets } = useReadExaPreviewerAssets({ address: exaPreviewerAddress, query: { enabled } });
   const { data: nonce } = useReadProposalManagerQueueNonces({
     address: proposalManagerAddress,
     args: account ? [account] : undefined,
     query: { enabled: enabled && !!account },
   });
-
-  const stateOverride = useMemo(() => {
-    if (
-      account === undefined ||
-      amount === undefined ||
-      !hasMarket ||
-      assets === undefined ||
-      nonce === undefined ||
-      proposalData === undefined
-    ) {
-      return;
-    }
-    const proposalsSlot = hexToBigInt(
-      keccak256(
-        encodeAbiParameters(
-          [{ type: "uint256" }, { type: "bytes32" }],
-          [nonce, keccak256(encodeAbiParameters([{ type: "address" }, { type: "uint256" }], [account, 5n]))],
-        ),
-      ),
-    );
-    const proposalDataSlot = hexToBigInt(keccak256(encodeAbiParameters([{ type: "uint256" }], [proposalsSlot + 4n])));
-    const proposalDataBytes = hexToBytes(proposalData);
-    return [
+  const executeArguments = useMemo(() => [nonce ?? 0n] as const, [nonce]);
+  const executeRequest = useMemo(
+    () =>
+      account === undefined
+        ? undefined
+        : ({
+            account,
+            address: account,
+            abi: executeProposalAbi,
+            functionName: "executeProposal",
+            args: executeArguments,
+          } as const),
+    [account, executeArguments],
+  );
+  const executeCalldata = useMemo(
+    () => encodeFunctionData({ abi: executeProposalAbi, functionName: "executeProposal", args: executeArguments }),
+    [executeArguments],
+  );
+  const simulationTime = useMemo(
+    () => (proposalDelay === undefined ? undefined : BigInt(Math.floor(Date.now() / 1000)) + proposalDelay),
+    [account, amount, market, nonce, proposal.proposalType, proposalData, proposalDelay],
+  );
+  const simulation = useSimulateBlocks({
+    blocks: [
+      { calls: [{ account, to: account ?? zeroAddress, data: proposeCalldata }] },
       {
-        address: proposalManagerAddress,
-        state: [
-          {
-            // nonces[account]
-            slot: keccak256(encodeAbiParameters([{ type: "address" }, { type: "uint256" }], [account, 3n])),
-            value: encodeAbiParameters([{ type: "uint256" }], [nonce]),
-          },
-          {
-            // queueNonces[account]
-            slot: keccak256(encodeAbiParameters([{ type: "address" }, { type: "uint256" }], [account, 4n])),
-            value: encodeAbiParameters([{ type: "uint256" }], [nonce + 1n]),
-          },
-          {
-            // proposals[account][nonce][0] (amount)
-            slot: encodeAbiParameters([{ type: "uint256" }], [proposalsSlot]),
-            value: encodeAbiParameters([{ type: "uint256" }], [amount]),
-          },
-          {
-            // proposals[account][nonce][1] (market)
-            slot: encodeAbiParameters([{ type: "uint256" }], [proposalsSlot + 1n]),
-            value: encodeAbiParameters([{ type: "address" }], [market]),
-          },
-          {
-            // proposals[account][nonce][3] (proposalType)
-            slot: encodeAbiParameters([{ type: "uint256" }], [proposalsSlot + 3n]),
-            value: encodeAbiParameters([{ type: "uint8" }], [proposal.proposalType]),
-          },
-          {
-            // proposals[account][nonce][4] (2 * proposalData.length + 1)
-            slot: encodeAbiParameters([{ type: "uint256" }], [proposalsSlot + 4n]),
-            value: encodeAbiParameters([{ type: "uint256" }], [BigInt(2 * proposalDataBytes.length + 1)]),
-          },
-          ...Array.from({ length: Math.ceil(proposalDataBytes.length / 32) }, (_, index) => ({
-            // keccak256(proposalData.slot) (proposalData)
-            slot: encodeAbiParameters([{ type: "uint256" }], [proposalDataSlot + BigInt(index)]),
-            value: encodeAbiParameters(
-              [{ type: "bytes32" }],
-              [bytesToHex(proposalDataBytes.slice(index * 32, (index + 1) * 32))],
-            ),
-          })),
-          {
-            // hasRole(PROPOSER_ROLE, exaPlugin)
-            slot: keccak256(
-              encodeAbiParameters(
-                [{ type: "address" }, { type: "bytes32" }],
-                [
-                  exaPluginAddress,
-                  keccak256(
-                    encodeAbiParameters(
-                      [{ type: "bytes32" }, { type: "uint256" }],
-                      [keccak256(toBytes("PROPOSER_ROLE")), 0n],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            value: encodeAbiParameters([{ type: "bool" }], [true]),
-          },
-          ...[swapperAddress, ...assets.map(({ asset }) => asset)].map((target) => ({
-            // allowlist[target]
-            slot: keccak256(encodeAbiParameters([{ type: "address" }, { type: "uint256" }], [target, 2n])),
-            value: encodeAbiParameters([{ type: "bool" }], [true]),
-          })),
-        ],
+        blockOverrides: simulationTime === undefined ? undefined : { time: simulationTime },
+        calls: [{ account, to: account ?? zeroAddress, data: executeCalldata }],
       },
-    ] satisfies StateOverride;
-  }, [account, amount, assets, hasMarket, market, nonce, proposal.proposalType, proposalData]);
-  const blockOverrides =
-    proposalDelay === undefined
-      ? undefined
-      : ({ time: BigInt(Math.floor(Date.now() / 1000)) + proposalDelay } satisfies BlockOverrides);
-  const executeProposal = useSimulateContract({
-    account,
-    address: account,
-    functionName: "executeProposal",
-    args: [nonce ?? 0n],
-    abi: [...upgradeableModularAccountAbi, ...exaPluginAbi, ...proposalManagerAbi, ...auditorAbi, ...marketAbi],
-    stateOverride,
-    blockOverrides,
+    ],
     query: {
-      enabled: enabled && !!deployed && nonce !== undefined && !!account && !!stateOverride && !!blockOverrides,
+      enabled: enabled && !!deployed && !!account && !!amount && nonce !== undefined && simulationTime !== undefined,
     },
   });
-
+  const proposeCall = simulation.data?.[0]?.calls[0] as CallResult | undefined;
+  const executeCall = simulation.data?.[1]?.calls[0] as CallResult | undefined;
+  const propose = {
+    ...simulation,
+    data:
+      proposeCall?.status === "success" && proposeRequest
+        ? { request: proposeRequest, result: proposeCall.result }
+        : undefined,
+    error: simulation.error ?? (proposeCall?.status === "failure" ? proposeCall.error : null),
+  };
+  const executeProposal = {
+    ...simulation,
+    data:
+      executeCall?.status === "success" && executeRequest
+        ? { request: executeRequest, result: executeCall.result }
+        : undefined,
+    error:
+      simulation.error ??
+      (proposeCall?.status === "failure"
+        ? proposeCall.error
+        : executeCall?.status === "failure"
+          ? executeCall.error
+          : null),
+  };
   return { propose, executeProposal, proposalData };
 }
+
+const proposeAbi = [...upgradeableModularAccountAbi, ...exaPluginAbi, ...proposalManagerAbi];
+const executeProposalAbi = [
+  ...upgradeableModularAccountAbi,
+  ...exaPluginAbi,
+  ...proposalManagerAbi,
+  ...auditorAbi,
+  ...marketAbi,
+];
+
+type CallResult = { error: Error; status: "failure" } | { result: unknown; status: "success" };
