@@ -77,7 +77,11 @@ export default function Swaps() {
   const { externalAssets, protocolAssets } = usePortfolio();
   const [acknowledged, setAcknowledged] = useState(false);
   const [activeInput, setActiveInput] = useState<"from" | "to">("from");
-  const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [account ?? zeroAddress] });
+  const { data: markets } = useReadPreviewerExactly({
+    address: previewerAddress,
+    args: account ? [account] : undefined,
+    query: { enabled: !!account },
+  });
   const { data: tokens, isLoading: isTokensLoading } = useQuery({ queryKey: ["allowTokens"], queryFn: getAllowTokens });
   const {
     data: {

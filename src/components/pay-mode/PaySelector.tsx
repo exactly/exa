@@ -7,7 +7,7 @@ import { useToastController } from "@tamagui/toast";
 import { XStack, YStack } from "tamagui";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { formatUnits, parseUnits, zeroAddress } from "viem";
+import { formatUnits, parseUnits } from "viem";
 
 import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerExactly, useReadPreviewerPreviewBorrowAtMaturity } from "@exactly/common/generated/hooks";
@@ -39,7 +39,11 @@ export default function PaySelector() {
     return parseUnits(input.replaceAll(/\D/g, ".").replaceAll(/\.(?=.*\.)/g, ""), 6);
   }, [input]);
   const { address } = useAccount();
-  const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [address ?? zeroAddress] });
+  const { data: markets } = useReadPreviewerExactly({
+    address: previewerAddress,
+    args: address ? [address] : undefined,
+    query: { enabled: !!address },
+  });
   const exaUSDC = markets?.find(({ market }) => market === marketUSDCAddress);
   const { firstMaturity } = useInstallments({
     totalAmount: assets,
@@ -275,7 +279,10 @@ function InstallmentButton({
   });
   const { data: borrowPreview, isLoading: isBorrowPreviewLoading } = useReadPreviewerPreviewBorrowAtMaturity({
     address: previewerAddress,
-    args: [market?.market ?? zeroAddress, BigInt(firstMaturity), calculationAssets],
+    args:
+      market && account && firstMaturity && calculationAssets
+        ? [market.market, BigInt(firstMaturity), calculationAssets]
+        : undefined,
     query: { enabled: !!market && !!account && !!firstMaturity && calculationAssets > 0n },
   });
 

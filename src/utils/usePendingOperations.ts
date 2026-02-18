@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 
 import { useMutationState } from "@tanstack/react-query";
-import { zeroAddress } from "viem";
 import { useBytecode } from "wagmi";
 
 import { exaPreviewerAddress } from "@exactly/common/generated/chain";
@@ -15,11 +14,11 @@ import type { MutationState } from "@tanstack/react-query";
 
 export default function usePendingOperations() {
   const { address: exaAccount } = useAccount({ config: exa });
-  const { data: bytecode } = useBytecode({ address: exaAccount ?? zeroAddress, query: { enabled: !!exaAccount } });
+  const { data: bytecode } = useBytecode({ address: exaAccount, query: { enabled: !!exaAccount } });
 
   const proposals = useReadExaPreviewerPendingProposals({
     address: exaPreviewerAddress,
-    args: [exaAccount ?? zeroAddress],
+    args: exaAccount ? [exaAccount] : undefined,
     query: { enabled: !!exaAccount && !!bytecode, gcTime: 0, refetchInterval: 30_000 },
   });
 

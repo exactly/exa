@@ -8,7 +8,6 @@ import { ArrowDownToLine, ArrowLeft, Check, IdCard } from "@tamagui/lucide-icons
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
-import { zeroAddress } from "viem";
 import { useBytecode } from "wagmi";
 
 import Step from "./Step";
@@ -25,7 +24,7 @@ import View from "../shared/View";
 
 function useOnboardingState() {
   const { address: account } = useAccount();
-  const { data: bytecode } = useBytecode({ address: account ?? zeroAddress, query: { enabled: !!account } });
+  const { data: bytecode } = useBytecode({ address: account, query: { enabled: !!account } });
   const { data: kycStatus } = useQuery({ queryKey: ["kyc", "status"], queryFn: async () => getKYCStatus() });
   const isDeployed = !!bytecode;
   const hasKYC = Boolean(

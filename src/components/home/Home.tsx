@@ -8,7 +8,6 @@ import { AnimatePresence, ScrollView, YStack } from "tamagui";
 
 import { TimeToFullDisplay } from "@sentry/react-native";
 import { useQuery } from "@tanstack/react-query";
-import { zeroAddress } from "viem";
 import { useBytecode } from "wagmi";
 
 import accountInit from "@exactly/common/accountInit";
@@ -63,11 +62,11 @@ export default function Home() {
   const { address: account } = useAccount();
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const { data: bytecode, refetch: refetchBytecode } = useBytecode({
-    address: account ?? zeroAddress,
+    address: account,
     query: { enabled: !!account },
   });
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
-    address: account ?? zeroAddress,
+    address: account,
     factory: credential?.factory,
     factoryData: credential && accountInit(credential),
     query: { enabled: !!account && !!credential },
@@ -88,7 +87,7 @@ export default function Home() {
   });
   const { refetch: refetchPendingProposals } = useReadExaPreviewerPendingProposals({
     address: exaPreviewerAddress,
-    args: [account ?? zeroAddress],
+    args: account ? [account] : undefined,
     query: { enabled: !!account && !!bytecode, gcTime: 0, refetchInterval: 30_000 },
   });
   const {
@@ -100,7 +99,11 @@ export default function Home() {
     data: markets,
     refetch: refetchMarkets,
     isPending: isPendingPreviewer,
-  } = useReadPreviewerExactly({ address: previewerAddress, args: [account ?? zeroAddress] });
+  } = useReadPreviewerExactly({
+    address: previewerAddress,
+    args: account ? [account] : undefined,
+    query: { enabled: !!account },
+  });
   const {
     data: KYCStatus,
     isFetched: isKYCFetched,
@@ -115,10 +118,10 @@ export default function Home() {
   const scrollRef = useRef<ScrollView>(null);
   const refresh = () => {
     refetchActivity().catch(reportError);
-    refetchBytecode().catch(reportError);
-    refetchMarkets().catch(reportError);
     refetchKYCStatus().catch(reportError);
-    refetchPendingProposals().catch(reportError);
+    if (account) refetchMarkets().catch(reportError);
+    if (account) refetchBytecode().catch(reportError);
+    if (account && bytecode) refetchPendingProposals().catch(reportError);
   };
   useTabPress("index", () => {
     scrollRef.current?.scrollTo({ y: 0, animated: true });

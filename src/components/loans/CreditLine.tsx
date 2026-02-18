@@ -6,7 +6,7 @@ import { useRouter } from "expo-router";
 import { ArrowRight } from "@tamagui/lucide-icons";
 import { Separator, XStack, YStack } from "tamagui";
 
-import { formatUnits, zeroAddress } from "viem";
+import { formatUnits } from "viem";
 import { useBytecode } from "wagmi";
 
 import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
@@ -27,10 +27,10 @@ export default function CreditLine() {
     t,
     i18n: { language },
   } = useTranslation();
-  const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
+  const { data: bytecode } = useBytecode({ address, query: { enabled: !!address } });
   const { data: markets } = useReadPreviewerExactly({
     address: previewerAddress,
-    args: [address ?? zeroAddress],
+    args: address ? [address] : undefined,
     query: { enabled: !!bytecode && !!address },
   });
   const { firstMaturity } = useInstallments({ totalAmount: 100n, installments: 1 });

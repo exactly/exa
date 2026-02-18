@@ -10,7 +10,7 @@ import { useToastController } from "@tamagui/toast";
 import { ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
 
 import { nonEmpty, pipe, safeParse, string } from "valibot";
-import { ContractFunctionExecutionError, encodeAbiParameters, zeroAddress } from "viem";
+import { ContractFunctionExecutionError, encodeAbiParameters } from "viem";
 import { useBytecode, useWriteContract } from "wagmi";
 
 import { exaPreviewerAddress, marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
@@ -51,7 +51,7 @@ export default function Pay() {
   const borrow = exaUSDC?.fixedBorrowPositions.find((b) => b.maturity === BigInt(success ? repayMaturity : 0));
   const rolloverMaturityBorrow = exaUSDC?.fixedBorrowPositions.find((b) => b.maturity === BigInt(borrowMaturity));
 
-  const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
+  const { data: bytecode } = useBytecode({ address, query: { enabled: !!address } });
 
   const { data: borrowPreview } = useReadPreviewerPreviewBorrowAtMaturity({
     address: previewerAddress,
@@ -228,7 +228,7 @@ function RolloverButton({
   const { t } = useTranslation();
   const { address } = useAccount();
   const router = useRouter();
-  const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
+  const { data: bytecode } = useBytecode({ address, query: { enabled: !!address } });
   const toast = useToastController();
 
   const slippage = (WAD * 105n) / 100n;
@@ -265,7 +265,7 @@ function RolloverButton({
     isPending: isPendingProposalsPending,
   } = useReadExaPreviewerPendingProposals({
     address: exaPreviewerAddress,
-    args: [address ?? zeroAddress],
+    args: address ? [address] : undefined,
     query: { enabled: !!address && !!bytecode, gcTime: 0, refetchInterval: 30_000 },
   });
 
@@ -275,13 +275,13 @@ function RolloverButton({
     error: proposeRollDebtError,
   } = useWriteContract({
     mutation: {
-      onSuccess: async () => {
+      onSuccess: () => {
         toast.show(t("Processing rollover"), {
           native: true,
           duration: 1000,
           burntOptions: { haptic: "success", preset: "done" },
         });
-        await refetchPendingProposals();
+        if (address && bytecode) refetchPendingProposals().catch(reportError);
         router.dismissTo("/activity");
       },
       onError: (error) => {

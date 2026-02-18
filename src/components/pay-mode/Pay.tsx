@@ -11,7 +11,7 @@ import { ScrollView, Separator, XStack, YStack } from "tamagui";
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { waitForCallsStatus } from "@wagmi/core/actions";
 import { digits, nonEmpty, parse, pipe, safeParse, string, transform } from "valibot";
-import { ContractFunctionExecutionError, ContractFunctionRevertedError, erc20Abi, zeroAddress } from "viem";
+import { ContractFunctionExecutionError, ContractFunctionRevertedError, erc20Abi } from "viem";
 import { useBytecode, useReadContract, useSendCalls, useSimulateContract, useWriteContract } from "wagmi";
 
 import accountInit from "@exactly/common/accountInit";
@@ -100,9 +100,9 @@ export default function Pay() {
   });
   const { mutateAsync: mutateSendCalls } = useSendCalls();
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
-  const { data: bytecode } = useBytecode({ address: account ?? zeroAddress, query: { enabled: !!account } });
+  const { data: bytecode } = useBytecode({ address: account, query: { enabled: !!account } });
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
-    address: account ?? zeroAddress,
+    address: account,
     factory: credential?.factory,
     factoryData: credential && accountInit(credential),
     query: { enabled: !!account && !!credential },
@@ -134,7 +134,7 @@ export default function Pay() {
     address: integrationPreviewerAddress,
     abi: integrationPreviewerAbi,
     functionName: "fixedRepaySnapshot",
-    args: [account ?? zeroAddress, marketUSDCAddress, maturity ?? 0n],
+    args: account ? [account, marketUSDCAddress, maturity ?? 0n] : undefined,
     query: { enabled: !!account && !!bytecode && !!maturity },
   });
 
@@ -165,7 +165,7 @@ export default function Pay() {
     address: usdcAddress,
     abi: erc20Abi,
     functionName: "balanceOf",
-    args: [balancerVaultAddress ?? zeroAddress],
+    args: balancerVaultAddress ? [balancerVaultAddress] : undefined,
     query: {
       enabled: !!account && !!bytecode && !!balancerVaultAddress,
       select: (data) => (data * (WAD * 990n)) / 1000n / WAD,
@@ -339,7 +339,7 @@ export default function Pay() {
   } = useSimulateContract({
     address: account,
     functionName: "crossRepay",
-    args: [maturity ?? 0n, selectedAsset.address ?? zeroAddress],
+    args: selectedAsset.address && maturity ? [maturity, selectedAsset.address] : undefined,
     abi: [
       ...auditorAbi,
       ...marketAbi,
@@ -355,7 +355,7 @@ export default function Pay() {
         stateMutability: "nonpayable",
       },
     ],
-    query: { enabled: enableSimulations && mode === "legacyCrossRepay" },
+    query: { enabled: enableSimulations && mode === "legacyCrossRepay" && !!selectedAsset.address && !!maturity },
   });
 
   const {
@@ -418,6 +418,7 @@ export default function Pay() {
       if (!account) throw new Error("no account");
       if (!maturity) throw new Error("no maturity");
       if (!externalAsset) throw new Error("no external asset");
+      if (!selectedAsset.address) throw new Error("no selected asset");
       if (!selectedAsset.external) throw new Error("not external asset");
       if (!route) throw new Error("no route");
       if (!route.fromAmount) throw new Error("no route from amount");
@@ -430,7 +431,7 @@ export default function Pay() {
       const { id } = await mutateSendCalls({
         calls: [
           {
-            to: selectedAsset.address ?? zeroAddress,
+            to: selectedAsset.address,
             abi: erc20Abi,
             functionName: "approve",
             args: [swapperAddress, route.fromAmount],

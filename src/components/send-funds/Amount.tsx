@@ -63,9 +63,9 @@ export default function Amount() {
   const formAmount = useStore(form.store, (state) => state.values.amount);
 
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
-  const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
+  const { data: bytecode } = useBytecode({ address, query: { enabled: !!address } });
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
-    address: address ?? zeroAddress,
+    address,
     factory: credential?.factory,
     factoryData: credential && accountInit(credential),
     query: { enabled: !!address && !!credential },
@@ -123,7 +123,7 @@ export default function Amount() {
     address: externalAddress,
     abi: erc20Abi,
     functionName: "transfer",
-    args: [receiver ?? zeroAddress, formAmount],
+    args: receiver ? [receiver, formAmount] : undefined,
     query: {
       enabled:
         !!external &&
@@ -137,7 +137,7 @@ export default function Amount() {
   });
 
   const { data: nativeTransferEstimate } = useEstimateGas({
-    to: receiver ?? zeroAddress,
+    to: receiver,
     value: formAmount,
     query: {
       enabled: !!external && isNativeTransfer && !!address && formAmount > 0n && !!receiver && receiver !== zeroAddress,

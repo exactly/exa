@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 
 import { useQuery } from "@tanstack/react-query";
-import { zeroAddress } from "viem";
 
 import { previewerAddress, ratePreviewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerExactly, useReadRatePreviewerSnapshot } from "@exactly/common/generated/hooks";
@@ -38,19 +37,20 @@ export type ExternalAsset = {
 
 export type PortfolioAsset = ExternalAsset | ProtocolAsset;
 
-export default function usePortfolio(account?: Hex, options?: { sortBy?: "usdcFirst" | "usdValue" }) {
+export default function usePortfolio(account_?: Hex, options?: { sortBy?: "usdcFirst" | "usdValue" }) {
   const { address: connectedAccount } = useAccount();
-  const resolvedAccount = account ?? connectedAccount;
+  const account = account_ ?? connectedAccount;
 
   const { data: rateSnapshot, dataUpdatedAt: rateDataUpdatedAt } = useReadRatePreviewerSnapshot({
     address: ratePreviewerAddress,
   });
   const { data: markets, isPending: isMarketsPending } = useReadPreviewerExactly({
     address: previewerAddress,
-    args: [resolvedAccount ?? zeroAddress],
+    args: account ? [account] : undefined,
+    query: { enabled: !!account },
   });
 
-  const { data: tokenBalances, isPending: isExternalPending } = useQuery(tokenBalancesOptions(resolvedAccount));
+  const { data: tokenBalances, isPending: isExternalPending } = useQuery(tokenBalancesOptions(account));
 
   const portfolio = useMemo(() => {
     if (!markets) return { depositMarkets: [], balanceUSD: 0n };

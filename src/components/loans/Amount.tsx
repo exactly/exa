@@ -8,7 +8,7 @@ import { ArrowLeft, ArrowRight, Check, CircleHelp, TriangleAlert } from "@tamagu
 import { Checkbox, ScrollView, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
-import { formatUnits, zeroAddress } from "viem";
+import { formatUnits } from "viem";
 import { useBytecode } from "wagmi";
 
 import { previewerAddress } from "@exactly/common/generated/chain";
@@ -34,10 +34,10 @@ export default function Amount() {
     t,
     i18n: { language },
   } = useTranslation();
-  const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
+  const { data: bytecode } = useBytecode({ address, query: { enabled: !!address } });
   const { data: markets } = useReadPreviewerExactly({
     address: previewerAddress,
-    args: [address ?? zeroAddress],
+    args: address ? [address] : undefined,
     query: { enabled: !!bytecode && !!address },
   });
   const { data: loan } = useQuery<Loan>({ queryKey: ["loan"], enabled: !!address });

@@ -7,8 +7,6 @@ import { useRouter } from "expo-router";
 import { ArrowLeft, ArrowRight, Check, CircleHelp } from "@tamagui/lucide-icons";
 import { ScrollView, XStack, YStack } from "tamagui";
 
-import { zeroAddress } from "viem";
-
 import { previewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 
@@ -27,7 +25,11 @@ export default function Asset() {
   const { t } = useTranslation();
   const { address } = useAccount();
   const [selectedMarket, setSelectedMarket] = useState<string>();
-  const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [address ?? zeroAddress] });
+  const { data: markets } = useReadPreviewerExactly({
+    address: previewerAddress,
+    args: address ? [address] : undefined,
+    query: { enabled: !!address },
+  });
   return (
     <SafeView fullScreen>
       <View padded flexDirection="row" gap={10} paddingBottom="$s4" justifyContent="space-between" alignItems="center">

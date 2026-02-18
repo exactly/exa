@@ -4,7 +4,7 @@ import { vs } from "react-native-size-matters";
 
 import { XStack, YStack } from "tamagui";
 
-import { parseUnits, zeroAddress } from "viem";
+import { parseUnits } from "viem";
 
 import { previewerAddress, ratePreviewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerExactly, useReadRatePreviewerSnapshot } from "@exactly/common/generated/hooks";
@@ -108,7 +108,11 @@ function AssetSection({ title, assets }: { assets: AssetItem[]; title: string })
 export default function AssetList() {
   const { t } = useTranslation();
   const { address } = useAccount();
-  const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [address ?? zeroAddress] });
+  const { data: markets } = useReadPreviewerExactly({
+    address: previewerAddress,
+    args: address ? [address] : undefined,
+    query: { enabled: !!address },
+  });
   const { externalAssets } = usePortfolio();
   const { data: snapshots, dataUpdatedAt } = useReadRatePreviewerSnapshot({
     address: ratePreviewerAddress,

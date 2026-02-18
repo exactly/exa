@@ -6,8 +6,6 @@ import { useRouter } from "expo-router";
 
 import { ScrollView, XStack } from "tamagui";
 
-import { zeroAddress } from "viem";
-
 import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 
@@ -28,11 +26,15 @@ import View from "../shared/View";
 export default function PayMode() {
   const { account } = useAsset(marketUSDCAddress);
   const router = useRouter();
-  const { refetch, isPending } = useReadPreviewerExactly({ address: previewerAddress, args: [account ?? zeroAddress] });
+  const { refetch, isPending } = useReadPreviewerExactly({
+    address: previewerAddress,
+    args: account ? [account] : undefined,
+    query: { enabled: !!account },
+  });
 
   const scrollRef = useRef<ScrollView>(null);
   const refresh = () => {
-    refetch().catch(reportError);
+    if (account) refetch().catch(reportError);
     queryClient.refetchQueries({ queryKey: ["activity"] }).catch(reportError);
   };
   useTabPress("pay-mode", () => {

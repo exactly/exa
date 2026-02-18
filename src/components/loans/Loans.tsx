@@ -7,8 +7,6 @@ import { useRouter } from "expo-router";
 import { ArrowLeft, CircleHelp } from "@tamagui/lucide-icons";
 import { ScrollView, XStack, YStack } from "tamagui";
 
-import { zeroAddress } from "viem";
-
 import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 
@@ -27,7 +25,11 @@ export default function Loans() {
   const { t } = useTranslation();
   const { account } = useAsset(marketUSDCAddress);
   const router = useRouter();
-  const { refetch, isPending } = useReadPreviewerExactly({ address: previewerAddress, args: [account ?? zeroAddress] });
+  const { refetch, isPending } = useReadPreviewerExactly({
+    address: previewerAddress,
+    args: account ? [account] : undefined,
+    query: { enabled: !!account },
+  });
   return (
     <SafeView fullScreen tab backgroundColor="$backgroundSoft">
       <View fullScreen backgroundColor="$backgroundMild">
@@ -40,7 +42,7 @@ export default function Loans() {
               ref={loansRefreshControlReference}
               refreshing={isPending}
               onRefresh={() => {
-                refetch().catch(reportError);
+                if (account) refetch().catch(reportError);
                 queryClient.refetchQueries({ queryKey: ["activity"] }).catch(reportError);
               }}
             />

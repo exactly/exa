@@ -7,7 +7,6 @@ import { Square, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 import { isAfter } from "date-fns";
-import { zeroAddress } from "viem";
 
 import accountInit from "@exactly/common/accountInit";
 import { exaPluginAddress, marketUSDCAddress } from "@exactly/common/generated/chain";
@@ -45,7 +44,7 @@ export default function Success({
   const { address } = useAccount();
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
-    address: address ?? zeroAddress,
+    address,
     factory: credential?.factory,
     factoryData: credential && accountInit(credential),
     query: { enabled: !!address && !!credential },

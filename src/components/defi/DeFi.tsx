@@ -8,7 +8,6 @@ import { CircleHelp, Link } from "@tamagui/lucide-icons";
 import { ScrollView, useTheme, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
-import { zeroAddress } from "viem";
 import { useBytecode } from "wagmi";
 
 import AboutDefiSheet from "./AboutDefiSheet";
@@ -33,7 +32,7 @@ export default function DeFi() {
   const { data: fundingConnected } = useQuery<boolean>({ queryKey: ["defi", "usdc-funding-connected"] });
   const { data: lifiConnected } = useQuery<boolean>({ queryKey: ["defi", "lifi-connected"] });
   const { address } = useAccount();
-  const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
+  const { data: bytecode } = useBytecode({ address, query: { enabled: !!address } });
   const [aboutDefiSheetOpen, setAboutDefiSheetOpen] = useState(false);
   const [fundingSheetOpen, setFundingSheetOpen] = useState(false);
   const [lifiSheetOpen, setLifiSheetOpen] = useState(false);

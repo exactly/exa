@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 
 import { XStack, YStack } from "tamagui";
 
-import { zeroAddress } from "viem";
 import { useBytecode } from "wagmi";
 
 import { previewerAddress } from "@exactly/common/generated/chain";
@@ -39,7 +38,7 @@ export default function LoanSummary({ loan }: { loan: Loan }) {
   });
   const { data: borrow, isLoading: isBorrowPending } = useReadPreviewerPreviewBorrowAtMaturity({
     address: previewerAddress,
-    args: [loan.market ?? zeroAddress, loan.maturity ?? BigInt(defaultMaturity), loan.amount ?? 0n],
+    args: loan.market && loan.amount ? [loan.market, loan.maturity ?? BigInt(defaultMaturity), loan.amount] : undefined,
     query: {
       enabled: isBorrow && !!loan.amount && !!loan.market && !!address && !!bytecode,
     },

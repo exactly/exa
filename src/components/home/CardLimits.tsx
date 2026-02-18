@@ -7,7 +7,6 @@ import { ChevronRight, Info } from "@tamagui/lucide-icons";
 import { XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
-import { zeroAddress } from "viem";
 
 import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
@@ -27,7 +26,11 @@ export default function CardLimits({ onPress }: { onPress: () => void }) {
   const { address } = useAccount();
   const router = useRouter();
   const { data: card } = useQuery<CardDetails>({ queryKey: ["card", "details"] });
-  const { data: markets } = useReadPreviewerExactly({ address: previewerAddress, args: [address ?? zeroAddress] });
+  const { data: markets } = useReadPreviewerExactly({
+    address: previewerAddress,
+    args: address ? [address] : undefined,
+    query: { enabled: !!address },
+  });
   const isCredit = card ? card.mode > 0 : false;
   return (
     <YStack justifyContent="space-between" height="100%">

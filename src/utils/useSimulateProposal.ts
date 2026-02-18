@@ -188,21 +188,22 @@ export default function useSimulateProposal({
                     [{ assetOut: proposal.assetOut, minAmountOut: proposal.minAmountOut, route: proposal.route }],
                   )
               : proposal.receiver && encodeAbiParameters([{ type: "address" }], [proposal.receiver]);
-  const { data: deployed } = useBytecode({ address: account ?? zeroAddress, query: { enabled: enabled && !!account } });
+  const { data: deployed } = useBytecode({ address: account, query: { enabled: enabled && !!account } });
+  const hasMarket = market !== undefined && market !== zeroAddress;
   const propose = useSimulateContract({
     account,
     address: account,
     functionName: "propose",
     abi: [...upgradeableModularAccountAbi, ...exaPluginAbi, ...proposalManagerAbi],
-    args: [market ?? zeroAddress, amount ?? 0n, proposal.proposalType, proposalData ?? "0x"],
-    query: { enabled: enabled && !!deployed && !!account && !!amount },
+    args: hasMarket ? [market, amount ?? 0n, proposal.proposalType, proposalData ?? "0x"] : undefined,
+    query: { enabled: enabled && !!deployed && !!account && !!amount && hasMarket },
   });
 
   const { data: proposalDelay } = useReadProposalManagerDelay({ address: proposalManagerAddress, query: { enabled } });
   const { data: assets } = useReadExaPreviewerAssets({ address: exaPreviewerAddress, query: { enabled } });
   const { data: nonce } = useReadProposalManagerQueueNonces({
     address: proposalManagerAddress,
-    args: [account ?? zeroAddress],
+    args: account ? [account] : undefined,
     query: { enabled: enabled && !!account },
   });
 
@@ -210,7 +211,7 @@ export default function useSimulateProposal({
     if (
       account === undefined ||
       amount === undefined ||
-      market === undefined ||
+      !hasMarket ||
       assets === undefined ||
       nonce === undefined ||
       proposalData === undefined
@@ -295,7 +296,7 @@ export default function useSimulateProposal({
         ],
       },
     ] satisfies StateOverride;
-  }, [account, amount, assets, market, nonce, proposal.proposalType, proposalData]);
+  }, [account, amount, assets, hasMarket, market, nonce, proposal.proposalType, proposalData]);
   const blockOverrides =
     proposalDelay === undefined
       ? undefined

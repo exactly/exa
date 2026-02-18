@@ -72,7 +72,7 @@ export default function Review() {
   const singleInstallment = count === 1;
 
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
-  const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
+  const { data: bytecode } = useBytecode({ address, query: { enabled: !!address } });
 
   const { data: borrow, isPending: isBorrowPending } = useReadPreviewerPreviewBorrowAtMaturity({
     address: previewerAddress,
@@ -186,7 +186,7 @@ export default function Review() {
       : t("Funding request processing");
 
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
-    address: address ?? zeroAddress,
+    address,
     factory: credential?.factory,
     factoryData: credential && accountInit(credential),
     query: { enabled: !!address && !!credential },

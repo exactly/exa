@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { waitForCallsStatus } from "@wagmi/core/actions";
-import { encodeAbiParameters, getAbiItem, keccak256, zeroAddress } from "viem";
+import { encodeAbiParameters, getAbiItem, keccak256 } from "viem";
 import { useBytecode, useSendCalls } from "wagmi";
 
 import accountInit from "@exactly/common/accountInit";
@@ -30,7 +30,7 @@ export default function PluginUpgrade() {
   const { mutateAsync: mutateSendCalls } = useSendCalls();
   const { address } = useAccount();
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
-  const { data: bytecode } = useBytecode({ address: address ?? zeroAddress, query: { enabled: !!address } });
+  const { data: bytecode } = useBytecode({ address, query: { enabled: !!address } });
   const { data: installedPlugins, refetch: refetchInstalledPlugins } =
     useReadUpgradeableModularAccountGetInstalledPlugins({
       address,
@@ -42,7 +42,7 @@ export default function PluginUpgrade() {
   const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
   const { data: uninstallPluginSimulation } = useSimulateUpgradeableModularAccountUninstallPlugin({
     address,
-    args: [installedPlugins?.[0] ?? zeroAddress, "0x", "0x"],
+    args: installedPlugins?.[0] ? [installedPlugins[0], "0x", "0x"] : undefined,
     query: { enabled: !!address && !!installedPlugins?.[0] && !!bytecode && !isLatestPlugin },
   });
   const isReady =
@@ -82,9 +82,7 @@ export default function PluginUpgrade() {
       });
       const { status } = await waitForCallsStatus(exa, { id });
       if (status === "failure") throw new Error("failed to upgrade plugin");
-    },
-    onSuccess: async () => {
-      await refetchInstalledPlugins();
+      if (credential) await refetchInstalledPlugins();
     },
   });
 

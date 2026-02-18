@@ -7,7 +7,6 @@ import { ArrowDownToLine, ArrowUpRight } from "@tamagui/lucide-icons";
 import { XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
-import { zeroAddress } from "viem";
 import { useBytecode, useReadContract } from "wagmi";
 
 import accountInit from "@exactly/common/accountInit";
@@ -27,7 +26,7 @@ export default function HomeActions() {
   const router = useRouter();
   const { address: account } = useAccount();
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
-  const { data: bytecode } = useBytecode({ address: account ?? zeroAddress, query: { enabled: !!account } });
+  const { data: bytecode } = useBytecode({ address: account, query: { enabled: !!account } });
   const { t } = useTranslation();
   const actions = useMemo(
     () => [
@@ -38,7 +37,7 @@ export default function HomeActions() {
   );
 
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
-    address: account ?? zeroAddress,
+    address: account,
     factory: credential?.factory,
     factoryData: credential && accountInit(credential),
     query: { enabled: !!account && !!credential },
@@ -62,7 +61,7 @@ export default function HomeActions() {
       },
     ],
     address: installedPlugins?.[0],
-    args: [account ?? zeroAddress],
+    args: account ? [account] : undefined,
     query: { enabled: !!account && !!installedPlugins?.[0] && !isLatestPlugin },
   });
 

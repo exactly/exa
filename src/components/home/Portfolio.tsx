@@ -7,8 +7,6 @@ import { useRouter } from "expo-router";
 import { ArrowLeft, CircleHelp } from "@tamagui/lucide-icons";
 import { ScrollView, XStack } from "tamagui";
 
-import { zeroAddress } from "viem";
-
 import { previewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 
@@ -35,7 +33,8 @@ export default function Portfolio() {
 
   const { refetch: refetchMarkets, isFetching: isFetchingMarkets } = useReadPreviewerExactly({
     address: previewerAddress,
-    args: [address ?? zeroAddress],
+    args: address ? [address] : undefined,
+    query: { enabled: !!address },
   });
 
   return (
@@ -69,7 +68,7 @@ export default function Portfolio() {
           <RefreshControl
             refreshing={isFetchingMarkets}
             onRefresh={() => {
-              refetchMarkets().catch(reportError);
+              if (address) refetchMarkets().catch(reportError);
             }}
           />
         }
