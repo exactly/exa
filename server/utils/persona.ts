@@ -453,7 +453,7 @@ export async function getValidDocumentForManteca(
   for (const { id: idClass, side } of allowedIds) {
     const classDocuments = documents.filter(({ value: { id_class } }) => id_class.value === idClass);
     if (classDocuments.length === 0) continue;
-    for (const document of classDocuments) {
+    for (const document of classDocuments.toReversed()) {
       if (side === "front") return document.value;
       const { attributes } = await getDocument(document.value.id_document_id.value);
       if (attributes["front-photo"] && attributes["back-photo"]) {

@@ -427,40 +427,23 @@ describe("evaluateAccount", () => {
       expect(result).toBe(persona.MANTECA_TEMPLATE_EXTRA_FIELDS);
     });
 
-    it("returns manteca template extra fields when multiple same-class documents exist and only one is valid", async () => {
-      fetchSpy
-        .mockResolvedValueOnce(
-          Response.json(
-            {
-              data: {
-                id: "doc_id_incomplete",
-                attributes: {
-                  "front-photo": { filename: "front.jpg", url: "https://example.com/front.jpg" },
-                  "back-photo": null,
-                  "selfie-photo": null,
-                  "id-class": "id",
-                },
+    it("returns manteca template extra fields when multiple same-class documents exist and latest is valid", async () => {
+      fetchSpy.mockResolvedValueOnce(
+        Response.json(
+          {
+            data: {
+              id: "doc_id_complete",
+              attributes: {
+                "front-photo": { filename: "front.jpg", url: "https://example.com/front.jpg" },
+                "back-photo": { filename: "back.jpg", url: "https://example.com/back.jpg" },
+                "selfie-photo": null,
+                "id-class": "id",
               },
             },
-            { status: 200 },
-          ),
-        )
-        .mockResolvedValueOnce(
-          Response.json(
-            {
-              data: {
-                id: "doc_id_complete",
-                attributes: {
-                  "front-photo": { filename: "front.jpg", url: "https://example.com/front.jpg" },
-                  "back-photo": { filename: "back.jpg", url: "https://example.com/back.jpg" },
-                  "selfie-photo": null,
-                  "id-class": "id",
-                },
-              },
-            },
-            { status: 200 },
-          ),
-        );
+          },
+          { status: 200 },
+        ),
+      );
 
       const result = await persona.evaluateAccount(
         {
@@ -506,7 +489,7 @@ describe("evaluateAccount", () => {
       );
 
       expect(result).toBe(persona.MANTECA_TEMPLATE_EXTRA_FIELDS);
-      expect(fetchSpy).toHaveBeenCalledTimes(2);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
     });
 
     it("returns undefined when account exists and id class is allowed", async () => {
@@ -782,13 +765,49 @@ describe("get document for manteca", () => {
     expect(result).toBeUndefined();
   });
 
-  it("returns document with both photos when multiple documents of same class exist", async () => {
+  it("returns latest document when multiple documents of same class exist and latest has both photos", async () => {
+    fetchSpy.mockResolvedValueOnce(
+      Response.json(
+        {
+          data: {
+            id: "doc_id_latest",
+            attributes: {
+              "front-photo": { filename: "front.jpg", url: "https://example.com/front.jpg" },
+              "back-photo": { filename: "back.jpg", url: "https://example.com/back.jpg" },
+              "selfie-photo": null,
+              "id-class": "id",
+            },
+          },
+        },
+        { status: 200 },
+      ),
+    );
+
+    const earlierDocument = {
+      id_class: { value: "id" },
+      id_number: { value: "11111111" },
+      id_issuing_country: { value: "AR" },
+      id_document_id: { value: "doc_id_earlier" },
+    };
+    const latestDocument = {
+      id_class: { value: "id" },
+      id_number: { value: "22222222" },
+      id_issuing_country: { value: "AR" },
+      id_document_id: { value: "doc_id_latest" },
+    };
+    const result = await persona.getDocumentForManteca([{ value: earlierDocument }, { value: latestDocument }], "AR");
+
+    expect(result).toBe(latestDocument);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to earlier document when latest same-class document is missing photos", async () => {
     fetchSpy
       .mockResolvedValueOnce(
         Response.json(
           {
             data: {
-              id: "doc_id_incomplete",
+              id: "doc_id_latest",
               attributes: { "front-photo": null, "back-photo": null, "selfie-photo": null, "id-class": "id" },
             },
           },
@@ -799,7 +818,7 @@ describe("get document for manteca", () => {
         Response.json(
           {
             data: {
-              id: "doc_id_complete",
+              id: "doc_id_earlier",
               attributes: {
                 "front-photo": { filename: "front.jpg", url: "https://example.com/front.jpg" },
                 "back-photo": { filename: "back.jpg", url: "https://example.com/back.jpg" },
@@ -812,25 +831,41 @@ describe("get document for manteca", () => {
         ),
       );
 
-    const incompleteDocument = {
+    const earlierDocument = {
       id_class: { value: "id" },
       id_number: { value: "11111111" },
       id_issuing_country: { value: "AR" },
-      id_document_id: { value: "doc_id_incomplete" },
+      id_document_id: { value: "doc_id_earlier" },
     };
-    const completeDocument = {
+    const latestDocument = {
       id_class: { value: "id" },
       id_number: { value: "22222222" },
       id_issuing_country: { value: "AR" },
-      id_document_id: { value: "doc_id_complete" },
+      id_document_id: { value: "doc_id_latest" },
     };
-    const result = await persona.getDocumentForManteca(
-      [{ value: incompleteDocument }, { value: completeDocument }],
-      "AR",
-    );
+    const result = await persona.getDocumentForManteca([{ value: earlierDocument }, { value: latestDocument }], "AR");
 
-    expect(result).toBe(completeDocument);
+    expect(result).toBe(earlierDocument);
     expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("returns latest pp document when multiple pp documents exist (front-only, no fetch)", async () => {
+    const olderPp = {
+      id_class: { value: "pp" },
+      id_number: { value: "OLD111" },
+      id_issuing_country: { value: "AR" },
+      id_document_id: { value: "doc_pp_old" },
+    };
+    const newerPp = {
+      id_class: { value: "pp" },
+      id_number: { value: "NEW222" },
+      id_issuing_country: { value: "AR" },
+      id_document_id: { value: "doc_pp_new" },
+    };
+    const result = await persona.getDocumentForManteca([{ value: olderPp }, { value: newerPp }], "AR");
+
+    expect(result).toBe(newerPp);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it("returns id document when it has both photos (priority over pp)", async () => {
