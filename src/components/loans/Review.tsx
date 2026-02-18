@@ -9,7 +9,7 @@ import { ScrollView, Separator, Square, XStack, YStack } from "tamagui";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { waitForCallsStatus } from "@wagmi/core/actions";
-import { encodeAbiParameters, encodeFunctionData, maxUint256, zeroAddress, type Address, type Hex } from "viem";
+import { maxUint256, zeroAddress } from "viem";
 import { useBytecode, useSendCalls } from "wagmi";
 
 import accountInit from "@exactly/common/accountInit";
@@ -17,8 +17,6 @@ import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
 import chain, { exaPluginAddress, marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import {
-  exaPluginAbi,
-  upgradeableModularAccountAbi,
   useReadPreviewerPreviewBorrowAtMaturity,
   useReadUpgradeableModularAccountGetInstalledPlugins,
 } from "@exactly/common/generated/hooks";
@@ -31,6 +29,7 @@ import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useInstallments from "../../utils/useInstallments";
+import useSimulateProposal from "../../utils/useSimulateProposal";
 import exa from "../../utils/wagmi/exa";
 import AssetLogo from "../shared/AssetLogo";
 import GradientScrollView from "../shared/GradientScrollView";
@@ -66,6 +65,7 @@ export default function Review() {
     market: zeroAddress,
     receiver: "",
   };
+  const baseMaturity = maturity ?? 0n;
   const { market: assetMarket, isFetching: isAssetPending } = useAsset(market);
 
   const symbol = assetMarket?.symbol.slice(3) === "WETH" ? "ETH" : assetMarket?.symbol.slice(3);
@@ -105,6 +105,26 @@ export default function Review() {
     : split
       ? split.installments.reduce((accumulator, current) => accumulator + current, 0n) - (amount ?? 0n)
       : 0n;
+  const {
+    propose: { data: borrowProposals, error: borrowProposalsError, isPending: isSimulatingBorrowProposals },
+  } = useSimulateProposal({
+    account: address,
+    proposals: Array.from({ length: count ?? 0 }, (_, index) => ({
+      amount: singleInstallment ? amount : split?.amounts[index],
+      market,
+      maturity: baseMaturity > 0n ? baseMaturity + BigInt(index) * BigInt(MATURITY_INTERVAL) : undefined,
+      maxAssets: maxUint256,
+      proposalType: ProposalType.BorrowAtMaturity,
+      receiver: receiver === "" ? undefined : receiver,
+    })),
+    enabled:
+      !!address &&
+      !!market &&
+      !!receiver &&
+      (count ?? 0) > 0 &&
+      baseMaturity > 0n &&
+      (singleInstallment ? !!borrow : !!split),
+  });
 
   const { mutateAsync: mutateSendCalls } = useSendCalls();
   const {
@@ -115,35 +135,9 @@ export default function Review() {
   } = useMutation({
     async mutationFn() {
       if (!address) throw new Error("no account");
-      if (!market) throw new Error("no market");
-      if (!receiver) throw new Error("no receiver");
-      if (!singleInstallment && !split) throw new Error("no installment data");
-      const calls: { data: Hex; to: Address }[] = [];
-      for (let index = 0; index < (count ?? 0); index++) {
-        const borrowAmount = singleInstallment ? amount : split?.amounts[index];
-        const borrowMaturity = BigInt(Number(loan?.maturity) + index * MATURITY_INTERVAL);
-        if (!borrowAmount) return;
-        const data = encodeFunctionData({
-          functionName: "propose",
-          abi: [...upgradeableModularAccountAbi, ...exaPluginAbi],
-          args: [
-            market,
-            borrowAmount,
-            ProposalType.BorrowAtMaturity,
-            encodeAbiParameters(
-              [
-                { name: "maturity", internalType: "uint256", type: "uint256" },
-                { name: "maxAssets", internalType: "uint256", type: "uint256" },
-                { name: "receiver", internalType: "address", type: "address" },
-              ],
-              [borrowMaturity, maxUint256, receiver],
-            ),
-          ],
-        });
-        calls.push({ to: address, data });
-      }
+      if (!borrowProposals) throw new Error("no borrow proposals simulation");
       const { id } = await mutateSendCalls({
-        calls,
+        calls: borrowProposals.calls,
         capabilities: {
           paymasterService: {
             context: { policyId: alchemyGasPolicyId },
@@ -167,7 +161,8 @@ export default function Review() {
       ? Number(split.effectiveRate) / 1e18
       : 0;
 
-  const pending = isAssetPending || (singleInstallment ? isBorrowPending : isInstallmentsPending);
+  const pending =
+    isAssetPending || (singleInstallment ? isBorrowPending : isInstallmentsPending) || isSimulatingBorrowProposals;
   const processing = isProposingBorrowInstallments;
   const success = isProposingBorrowInstallmentsSuccess;
   const error = !!proposeBorrowInstallmentsError;
@@ -177,6 +172,8 @@ export default function Review() {
     !receiver ||
     !market ||
     !bytecode ||
+    !borrowProposals ||
+    !!borrowProposalsError ||
     (!singleInstallment && !split) ||
     (singleInstallment && !borrow);
   const statusMessage = error

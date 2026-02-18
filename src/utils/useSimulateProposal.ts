@@ -17,182 +17,179 @@ import ProposalType from "@exactly/common/ProposalType";
 
 import useSimulateBlocks from "./wagmi/useSimulateBlocks";
 
-export default function useSimulateProposal({
-  account,
-  amount,
-  market,
-  enabled = true,
-  ...proposal
-}: {
-  account: Address | undefined;
-  amount: bigint | undefined;
-  enabled?: boolean;
-  market: Address | undefined;
-} & (
-  | {
-      assetOut: Address | undefined;
-      minAmountOut: bigint | undefined;
-      proposalType: typeof ProposalType.Swap;
-      route: Hex | undefined;
-    }
-  | {
-      borrowMaturity: bigint | undefined;
-      maxRepayAssets: bigint | undefined;
-      percentage: bigint | undefined;
-      proposalType: typeof ProposalType.RollDebt;
-      repayMaturity: bigint | undefined;
-    }
-  | {
-      maturity: bigint | undefined;
-      maxAssets: bigint | undefined;
-      proposalType: typeof ProposalType.BorrowAtMaturity;
-      receiver: Address | undefined;
-    }
-  | {
-      maturity: bigint | undefined;
-      maxRepay: bigint | undefined;
-      positionAssets: bigint | undefined;
-      proposalType: typeof ProposalType.CrossRepayAtMaturity;
-      route: Hex | undefined;
-    }
-  | {
-      maturity: bigint | undefined;
-      positionAssets: bigint | undefined;
-      proposalType: typeof ProposalType.RepayAtMaturity;
-    }
-  | {
-      proposalType: typeof ProposalType.Redeem;
-      receiver: Address | undefined;
-    }
-  | {
-      proposalType: typeof ProposalType.Withdraw;
-      receiver: Address | undefined;
-    }
-)) {
-  const proposalData =
-    proposal.proposalType === ProposalType.BorrowAtMaturity
-      ? proposal.maturity === undefined || proposal.maxAssets === undefined || proposal.receiver === undefined
-        ? undefined
-        : encodeAbiParameters(
-            [
-              {
-                type: "tuple",
-                components: [
-                  { name: "maturity", type: "uint256" },
-                  { name: "maxAssets", type: "uint256" },
-                  { name: "receiver", type: "address" },
-                ],
-              },
-            ],
-            [{ maturity: proposal.maturity, maxAssets: proposal.maxAssets, receiver: proposal.receiver }],
-          )
-      : proposal.proposalType === ProposalType.CrossRepayAtMaturity
-        ? proposal.maturity === undefined ||
-          proposal.positionAssets === undefined ||
-          proposal.maxRepay === undefined ||
-          proposal.route === undefined
-          ? undefined
-          : encodeAbiParameters(
-              [
-                {
-                  type: "tuple",
-                  components: [
-                    { name: "maturity", type: "uint256" },
-                    { name: "positionAssets", type: "uint256" },
-                    { name: "maxRepay", type: "uint256" },
-                    { name: "route", type: "bytes" },
-                  ],
-                },
-              ],
-              [
-                {
-                  maturity: proposal.maturity,
-                  positionAssets: proposal.positionAssets,
-                  maxRepay: proposal.maxRepay,
-                  route: proposal.route,
-                },
-              ],
-            )
-        : proposal.proposalType === ProposalType.RepayAtMaturity
-          ? proposal.maturity === undefined || proposal.positionAssets === undefined
-            ? undefined
-            : encodeAbiParameters(
-                [
-                  {
-                    type: "tuple",
-                    components: [
-                      { name: "maturity", type: "uint256" },
-                      { name: "positionAssets", type: "uint256" },
-                    ],
-                  },
-                ],
-                [{ maturity: proposal.maturity, positionAssets: proposal.positionAssets }],
-              )
-          : proposal.proposalType === ProposalType.RollDebt
-            ? proposal.repayMaturity === undefined ||
-              proposal.borrowMaturity === undefined ||
-              proposal.maxRepayAssets === undefined ||
-              proposal.percentage === undefined
+export default function useSimulateProposal(
+  parameters:
+    | (Proposal & { account?: Address; enabled?: boolean })
+    | { account?: Address; enabled?: boolean; proposals: readonly Proposal[] },
+) {
+  const { account, enabled = true } = parameters;
+  const proposals = useMemo(() => ("proposals" in parameters ? parameters.proposals : [parameters]), [parameters]);
+  const { data: deployed } = useBytecode({ address: account ?? zeroAddress, query: { enabled: enabled && !!account } });
+  const proposalEntries = useMemo(
+    () =>
+      proposals.map((proposal) => {
+        const legacyWithdraw = proposal.proposalType === ProposalType.Withdraw && proposal.legacy === true;
+        const proposalData =
+          proposal.proposalType === ProposalType.BorrowAtMaturity
+            ? proposal.maturity === undefined || proposal.maxAssets === undefined || proposal.receiver === undefined
               ? undefined
               : encodeAbiParameters(
                   [
                     {
                       type: "tuple",
                       components: [
-                        { name: "repayMaturity", type: "uint256" },
-                        { name: "borrowMaturity", type: "uint256" },
-                        { name: "maxRepayAssets", type: "uint256" },
-                        { name: "percentage", type: "uint256" },
+                        { name: "maturity", type: "uint256" },
+                        { name: "maxAssets", type: "uint256" },
+                        { name: "receiver", type: "address" },
                       ],
                     },
                   ],
-                  [
-                    {
-                      repayMaturity: proposal.repayMaturity,
-                      borrowMaturity: proposal.borrowMaturity,
-                      maxRepayAssets: proposal.maxRepayAssets,
-                      percentage: proposal.percentage,
-                    },
-                  ],
+                  [{ maturity: proposal.maturity, maxAssets: proposal.maxAssets, receiver: proposal.receiver }],
                 )
-            : proposal.proposalType === ProposalType.Swap
-              ? proposal.assetOut === undefined || proposal.minAmountOut === undefined || proposal.route === undefined
+            : proposal.proposalType === ProposalType.CrossRepayAtMaturity
+              ? proposal.maturity === undefined ||
+                proposal.positionAssets === undefined ||
+                proposal.maxRepay === undefined ||
+                proposal.route === undefined
                 ? undefined
                 : encodeAbiParameters(
                     [
                       {
                         type: "tuple",
                         components: [
-                          { name: "assetOut", type: "address" },
-                          { name: "minAmountOut", type: "uint256" },
+                          { name: "maturity", type: "uint256" },
+                          { name: "positionAssets", type: "uint256" },
+                          { name: "maxRepay", type: "uint256" },
                           { name: "route", type: "bytes" },
                         ],
                       },
                     ],
-                    [{ assetOut: proposal.assetOut, minAmountOut: proposal.minAmountOut, route: proposal.route }],
+                    [
+                      {
+                        maturity: proposal.maturity,
+                        positionAssets: proposal.positionAssets,
+                        maxRepay: proposal.maxRepay,
+                        route: proposal.route,
+                      },
+                    ],
                   )
-              : proposal.receiver && encodeAbiParameters([{ type: "address" }], [proposal.receiver]);
-  const { data: deployed } = useBytecode({ address: account ?? zeroAddress, query: { enabled: enabled && !!account } });
-  const proposalArguments = useMemo(
-    () => [market ?? zeroAddress, amount ?? 0n, proposal.proposalType, proposalData ?? "0x"] as const,
-    [amount, market, proposal.proposalType, proposalData],
-  );
-  const proposeRequest = useMemo(
-    () =>
-      account === undefined
-        ? undefined
-        : ({
-            account,
-            address: account,
-            abi: proposeAbi,
-            functionName: "propose",
-            args: proposalArguments,
-          } as const),
-    [account, proposalArguments],
-  );
-  const proposeCalldata = useMemo(
-    () => encodeFunctionData({ abi: proposeAbi, functionName: "propose", args: proposalArguments }),
-    [proposalArguments],
+              : proposal.proposalType === ProposalType.RepayAtMaturity
+                ? proposal.maturity === undefined || proposal.positionAssets === undefined
+                  ? undefined
+                  : encodeAbiParameters(
+                      [
+                        {
+                          type: "tuple",
+                          components: [
+                            { name: "maturity", type: "uint256" },
+                            { name: "positionAssets", type: "uint256" },
+                          ],
+                        },
+                      ],
+                      [{ maturity: proposal.maturity, positionAssets: proposal.positionAssets }],
+                    )
+                : proposal.proposalType === ProposalType.RollDebt
+                  ? proposal.repayMaturity === undefined ||
+                    proposal.borrowMaturity === undefined ||
+                    proposal.maxRepayAssets === undefined ||
+                    proposal.percentage === undefined
+                    ? undefined
+                    : encodeAbiParameters(
+                        [
+                          {
+                            type: "tuple",
+                            components: [
+                              { name: "repayMaturity", type: "uint256" },
+                              { name: "borrowMaturity", type: "uint256" },
+                              { name: "maxRepayAssets", type: "uint256" },
+                              { name: "percentage", type: "uint256" },
+                            ],
+                          },
+                        ],
+                        [
+                          {
+                            repayMaturity: proposal.repayMaturity,
+                            borrowMaturity: proposal.borrowMaturity,
+                            maxRepayAssets: proposal.maxRepayAssets,
+                            percentage: proposal.percentage,
+                          },
+                        ],
+                      )
+                  : proposal.proposalType === ProposalType.Swap
+                    ? proposal.assetOut === undefined ||
+                      proposal.minAmountOut === undefined ||
+                      proposal.route === undefined
+                      ? undefined
+                      : encodeAbiParameters(
+                          [
+                            {
+                              type: "tuple",
+                              components: [
+                                { name: "assetOut", type: "address" },
+                                { name: "minAmountOut", type: "uint256" },
+                                { name: "route", type: "bytes" },
+                              ],
+                            },
+                          ],
+                          [
+                            {
+                              assetOut: proposal.assetOut,
+                              minAmountOut: proposal.minAmountOut,
+                              route: proposal.route,
+                            },
+                          ],
+                        )
+                    : proposal.receiver && encodeAbiParameters([{ type: "address" }], [proposal.receiver]);
+        const argumentsAndAbi = legacyWithdraw
+          ? {
+              abi: legacyProposeAbi,
+              args: [proposal.market ?? zeroAddress, proposal.amount ?? 0n, proposal.receiver ?? zeroAddress] as const,
+            }
+          : {
+              abi: proposeAbi,
+              args: [
+                proposal.market ?? zeroAddress,
+                proposal.amount ?? 0n,
+                proposal.proposalType,
+                proposalData ?? "0x",
+              ] as const,
+            };
+        const calldata = encodeFunctionData({
+          abi: argumentsAndAbi.abi,
+          functionName: "propose",
+          args: argumentsAndAbi.args,
+        });
+        const call: undefined | { data: Hex; to: Address } =
+          account === undefined ? undefined : { data: calldata, to: account };
+        return {
+          args: argumentsAndAbi.args,
+          call,
+          proposal,
+          proposalData,
+          request:
+            account === undefined
+              ? undefined
+              : ({
+                  account,
+                  address: account,
+                  abi: argumentsAndAbi.abi,
+                  functionName: "propose",
+                  args: argumentsAndAbi.args,
+                } satisfies {
+                  abi: readonly unknown[];
+                  account: Address;
+                  address: Address;
+                  args: readonly unknown[];
+                  functionName: "propose";
+                }),
+          valid:
+            account !== undefined &&
+            proposal.amount !== undefined &&
+            proposal.market !== undefined &&
+            (legacyWithdraw ? proposal.receiver !== undefined : proposalData !== undefined),
+        };
+      }),
+    [account, proposals],
   );
   const { data: proposalDelay } = useReadProposalManagerDelay({ address: proposalManagerAddress, query: { enabled } });
   const { data: nonce } = useReadProposalManagerQueueNonces({
@@ -200,68 +197,128 @@ export default function useSimulateProposal({
     args: account ? [account] : undefined,
     query: { enabled: enabled && !!account },
   });
-  const executeArguments = useMemo(() => [nonce ?? 0n] as const, [nonce]);
-  const executeRequest = useMemo(
+  const executeEntries = useMemo(
     () =>
-      account === undefined
-        ? undefined
-        : ({
-            account,
-            address: account,
-            abi: executeProposalAbi,
-            functionName: "executeProposal",
-            args: executeArguments,
-          } as const),
-    [account, executeArguments],
-  );
-  const executeCalldata = useMemo(
-    () => encodeFunctionData({ abi: executeProposalAbi, functionName: "executeProposal", args: executeArguments }),
-    [executeArguments],
+      proposals.map((_, index) => {
+        const args = [(nonce ?? 0n) + BigInt(index)] as const;
+        const calldata = encodeFunctionData({ abi: executeProposalAbi, functionName: "executeProposal", args });
+        const call = account === undefined ? undefined : { data: calldata, to: account };
+        return {
+          args,
+          call,
+          request:
+            account === undefined
+              ? undefined
+              : ({
+                  account,
+                  address: account,
+                  abi: executeProposalAbi,
+                  functionName: "executeProposal",
+                  args,
+                } as const),
+        };
+      }),
+    [account, nonce, proposals],
   );
   const simulationTime = useMemo(
     () => (proposalDelay === undefined ? undefined : BigInt(Math.floor(Date.now() / 1000)) + proposalDelay),
-    [account, amount, market, nonce, proposal.proposalType, proposalData, proposalDelay],
+    [proposalDelay],
   );
   const simulation = useSimulateBlocks({
     blocks: [
-      { calls: [{ account, to: account ?? zeroAddress, data: proposeCalldata }] },
+      { calls: proposalEntries.map(({ call }) => ({ account, to: account, data: call?.data ?? "0x" })) },
       {
         blockOverrides: simulationTime === undefined ? undefined : { time: simulationTime },
-        calls: [{ account, to: account ?? zeroAddress, data: executeCalldata }],
+        calls: executeEntries.map(({ call }) => ({ account, to: account, data: call?.data ?? "0x" })),
       },
     ],
     query: {
-      enabled: enabled && !!deployed && !!account && !!amount && nonce !== undefined && simulationTime !== undefined,
+      enabled:
+        enabled &&
+        !!deployed &&
+        !!account &&
+        proposals.length > 0 &&
+        proposalEntries.every(({ valid }) => valid) &&
+        nonce !== undefined &&
+        simulationTime !== undefined,
     },
   });
-  const proposeCall = simulation.data?.[0]?.calls[0] as CallResult | undefined;
-  const executeCall = simulation.data?.[1]?.calls[0] as CallResult | undefined;
+  const proposePayloads = proposalEntries.map((entry) => entry.call).filter((value) => value !== undefined);
+  const proposeRequests = proposalEntries.map((entry) => entry.request).filter((value) => value !== undefined);
+  const executePayloads = executeEntries.map((entry) => entry.call).filter((value) => value !== undefined);
+  const executeRequests = executeEntries.map((entry) => entry.request).filter((value) => value !== undefined);
+  const proposeCalls = simulation.data?.[0]?.calls as CallResult[] | undefined;
+  const executeCalls = simulation.data?.[1]?.calls as CallResult[] | undefined;
+  const successfulProposeCalls = proposeCalls?.every((call) => call.status === "success") ? proposeCalls : undefined;
+  const successfulExecuteCalls = executeCalls?.every((call) => call.status === "success") ? executeCalls : undefined;
+  const failedProposeCall = proposeCalls?.find((call) => call.status === "failure");
+  const failedExecuteCall = executeCalls?.find((call) => call.status === "failure");
+  const firstProposeRequest = proposeRequests[0];
+  const firstProposeResult = successfulProposeCalls?.[0];
+  const firstExecuteRequest = executeRequests[0];
+  const firstExecuteResult = successfulExecuteCalls?.[0];
   const propose = {
     ...simulation,
     data:
-      proposeCall?.status === "success" && proposeRequest
-        ? { request: proposeRequest, result: proposeCall.result }
+      successfulProposeCalls &&
+      firstProposeRequest &&
+      firstProposeResult &&
+      proposePayloads.length === proposals.length &&
+      proposeRequests.length === proposals.length &&
+      successfulProposeCalls.length === proposals.length &&
+      proposals.length > 0
+        ? {
+            calls: proposePayloads,
+            request: firstProposeRequest,
+            requests: proposeRequests,
+            result: firstProposeResult.result,
+            results: successfulProposeCalls.map((call) => call.result),
+          }
         : undefined,
-    error: simulation.error ?? (proposeCall?.status === "failure" ? proposeCall.error : null),
+    error: simulation.error ?? failedProposeCall?.error ?? null,
   };
   const executeProposal = {
     ...simulation,
     data:
-      executeCall?.status === "success" && executeRequest
-        ? { request: executeRequest, result: executeCall.result }
+      successfulExecuteCalls &&
+      firstExecuteRequest &&
+      firstExecuteResult &&
+      executePayloads.length === proposals.length &&
+      executeRequests.length === proposals.length &&
+      successfulExecuteCalls.length === proposals.length &&
+      proposals.length > 0
+        ? {
+            calls: executePayloads,
+            request: firstExecuteRequest,
+            requests: executeRequests,
+            result: firstExecuteResult.result,
+            results: successfulExecuteCalls.map((call) => call.result),
+          }
         : undefined,
-    error:
-      simulation.error ??
-      (proposeCall?.status === "failure"
-        ? proposeCall.error
-        : executeCall?.status === "failure"
-          ? executeCall.error
-          : null),
+    error: simulation.error ?? failedProposeCall?.error ?? failedExecuteCall?.error ?? null,
   };
-  return { propose, executeProposal, proposalData };
+  return {
+    propose,
+    executeProposal,
+    proposalData: proposals.length === 1 ? proposalEntries[0]?.proposalData : undefined,
+  };
 }
 
 const proposeAbi = [...upgradeableModularAccountAbi, ...exaPluginAbi, ...proposalManagerAbi];
+const legacyProposeAbi = [
+  ...upgradeableModularAccountAbi,
+  {
+    type: "function",
+    name: "propose",
+    inputs: [
+      { internalType: "contract IMarket", name: "market", type: "address" },
+      { internalType: "uint256", name: "amount", type: "uint256" },
+      { internalType: "address", name: "receiver", type: "address" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+] as const;
 const executeProposalAbi = [
   ...upgradeableModularAccountAbi,
   ...exaPluginAbi,
@@ -271,3 +328,24 @@ const executeProposalAbi = [
 ];
 
 type CallResult = { error: Error; status: "failure" } | { result: unknown; status: "success" };
+type Proposal = { amount?: bigint; market?: Address } & (
+  | { assetOut?: Address; minAmountOut?: bigint; proposalType: typeof ProposalType.Swap; route?: Hex }
+  | {
+      borrowMaturity?: bigint;
+      maxRepayAssets?: bigint;
+      percentage?: bigint;
+      proposalType: typeof ProposalType.RollDebt;
+      repayMaturity?: bigint;
+    }
+  | { legacy?: boolean; proposalType: typeof ProposalType.Withdraw; receiver?: Address }
+  | { maturity?: bigint; maxAssets?: bigint; proposalType: typeof ProposalType.BorrowAtMaturity; receiver?: Address }
+  | {
+      maturity?: bigint;
+      maxRepay?: bigint;
+      positionAssets?: bigint;
+      proposalType: typeof ProposalType.CrossRepayAtMaturity;
+      route?: Hex;
+    }
+  | { maturity?: bigint; positionAssets?: bigint; proposalType: typeof ProposalType.RepayAtMaturity }
+  | { proposalType: typeof ProposalType.Redeem; receiver?: Address }
+);
