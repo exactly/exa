@@ -23,7 +23,7 @@ import WeightedRate from "../shared/WeightedRate";
 
 export default function Portfolio() {
   const { address } = useAccount();
-  const { averageRate, portfolio, totalBalanceUSD } = usePortfolio(address);
+  const { averageRate, portfolio, totalBalanceUSD } = usePortfolio();
   const router = useRouter();
   const {
     t,

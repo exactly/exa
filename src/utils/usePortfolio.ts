@@ -37,9 +37,8 @@ export type ExternalAsset = {
 
 export type PortfolioAsset = ExternalAsset | ProtocolAsset;
 
-export default function usePortfolio(account_?: Hex, options?: { sortBy?: "usdcFirst" | "usdValue" }) {
-  const { address: connectedAccount } = useAccount();
-  const account = account_ ?? connectedAccount;
+export default function usePortfolio(options?: { sortBy?: "usdcFirst" | "usdValue" }) {
+  const { address: account } = useAccount();
 
   const { data: rateSnapshot, dataUpdatedAt: rateDataUpdatedAt } = useReadRatePreviewerSnapshot({
     address: ratePreviewerAddress,

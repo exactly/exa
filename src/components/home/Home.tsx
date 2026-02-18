@@ -75,7 +75,7 @@ export default function Home() {
     portfolio: { balanceUSD, depositMarkets },
     averageRate,
     totalBalanceUSD,
-  } = usePortfolio(account);
+  } = usePortfolio();
 
   const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
   const { data: cardUpgradeOpen } = useQuery<boolean>({
