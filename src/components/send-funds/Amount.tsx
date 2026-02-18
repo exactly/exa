@@ -10,16 +10,12 @@ import { Avatar, ScrollView, Square, XStack, YStack } from "tamagui";
 import { useForm, useStore } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import { bigint, check, parse, pipe, safeParse } from "valibot";
-import { encodeAbiParameters, erc20Abi, formatUnits, parseUnits, zeroAddress as viemZeroAddress } from "viem";
+import { erc20Abi, formatUnits, parseUnits, zeroAddress as viemZeroAddress } from "viem";
 import { useBytecode, useEstimateGas, useSendTransaction, useSimulateContract, useWriteContract } from "wagmi";
 
 import accountInit from "@exactly/common/accountInit";
 import { exaPluginAddress } from "@exactly/common/generated/chain";
-import {
-  exaPluginAbi,
-  upgradeableModularAccountAbi,
-  useReadUpgradeableModularAccountGetInstalledPlugins,
-} from "@exactly/common/generated/hooks";
+import { useReadUpgradeableModularAccountGetInstalledPlugins } from "@exactly/common/generated/hooks";
 import ProposalType from "@exactly/common/ProposalType";
 import shortenHex from "@exactly/common/shortenHex";
 import { Address, type Credential } from "@exactly/common/validation";
@@ -29,6 +25,7 @@ import ReviewSheet from "./ReviewSheet";
 import queryClient from "../../utils/queryClient";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
+import useSimulateProposal from "../../utils/useSimulateProposal";
 import AmountSelector from "../shared/AmountSelector";
 import AssetLogo from "../shared/AssetLogo";
 import Blocky from "../shared/Blocky";
@@ -71,46 +68,20 @@ export default function Amount() {
     query: { enabled: !!address && !!credential },
   });
   const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
+  const canSimulateMarketTransfer =
+    !!market && !!address && !!bytecode && formAmount > 0n && !!receiver && receiver !== zeroAddress;
 
-  const { data: proposeSimulation } = useSimulateContract(
-    isLatestPlugin
-      ? {
-          address,
-          functionName: "propose",
-          abi: [...upgradeableModularAccountAbi, ...exaPluginAbi],
-          args: [
-            market?.market ?? zeroAddress,
-            formAmount,
-            ProposalType.Withdraw,
-            encodeAbiParameters([{ type: "address" }], [receiver ?? zeroAddress]),
-          ],
-          query: {
-            enabled: !!market && !!address && !!bytecode && formAmount > 0n && !!receiver && receiver !== zeroAddress,
-          },
-        }
-      : {
-          address,
-          functionName: "propose",
-          abi: [
-            ...upgradeableModularAccountAbi,
-            {
-              type: "function",
-              name: "propose",
-              inputs: [
-                { internalType: "contract IMarket", name: "market", type: "address" },
-                { internalType: "uint256", name: "amount", type: "uint256" },
-                { internalType: "address", name: "receiver", type: "address" },
-              ],
-              outputs: [],
-              stateMutability: "nonpayable",
-            },
-          ],
-          args: [withdrawAsset ?? zeroAddress, formAmount, receiver ?? zeroAddress],
-          query: {
-            enabled: !!market && !!address && !!bytecode && formAmount > 0n && !!receiver && receiver !== zeroAddress,
-          },
-        },
-  );
+  const {
+    propose: { data: proposeSimulation },
+  } = useSimulateProposal({
+    account: address,
+    amount: formAmount,
+    market: isLatestPlugin ? market?.market : withdrawAsset,
+    proposalType: ProposalType.Withdraw,
+    receiver,
+    legacy: !isLatestPlugin,
+    enabled: canSimulateMarketTransfer,
+  });
 
   const externalAddress = useMemo(() => {
     const { success, output } = safeParse(Address, external?.address);
