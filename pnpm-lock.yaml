@@ -57,7 +57,7 @@ overrides:
   lodash-es@4.17.21: ^4.17.23
   markdown-it@14.1.0: ^14.1.1
   semver@7.3.2: ^7.5.2
-  tar: ^7.5.7
+  tar: ^7.5.8
   tmp@0.0.33: ^0.2.4
   typescript@5.8.3: ^5.9.3
   unicorn-magic@0.3.0: ^0.2.0
@@ -12191,8 +12191,8 @@ packages:
     resolution: {integrity: sha512-ujeqbceABgwMZxEJnk2HDY2DlnUZ+9oEcb1KzTVfYHio0UE6dG71n60d8D2I4qNvleWrrXpmjpt7vZeF1LnMZQ==}
     engines: {node: '>=6'}
 
-  tar@7.5.7:
-    resolution: {integrity: sha512-fov56fJiRuThVFXD6o6/Q354S7pnWMJIVlDBYijsTNx6jKSE4pvrDTs6lUnmGvNyfJwFQQwWy3owKz1ucIhveQ==}
+  tar@7.5.9:
+    resolution: {integrity: sha512-BTLcK0xsDh2+PUe9F6c2TlRp4zOOBMTkoQHQIWSIzI0R7KG46uEwq4OPk2W7bZcprBMsuaeFsqwYr7pjh6CuHg==}
     engines: {node: '>=18'}
 
   temp-dir@1.0.0:
@@ -15538,7 +15538,7 @@ snapshots:
       source-map-support: 0.5.21
       stacktrace-parser: 0.1.11
       structured-headers: 0.4.1
-      tar: 7.5.7
+      tar: 7.5.9
       terminal-link: 2.1.1
       undici: 6.23.0
       wrap-ansi: 7.0.0
@@ -26474,7 +26474,7 @@ snapshots:
       execa: 9.6.1
       get-port: 7.1.0
       http-proxy: 1.18.1(debug@4.4.3)
-      tar: 7.5.7
+      tar: 7.5.9
     transitivePeerDependencies:
       - debug
 
@@ -26496,7 +26496,7 @@ snapshots:
       https-proxy-agent: 7.0.6
       npmlog: 7.0.1
       semver: 7.7.3
-      tar: 7.5.7
+      tar: 7.5.9
       tempy: 3.1.0
     transitivePeerDependencies:
       - supports-color
@@ -27952,7 +27952,7 @@ snapshots:
       inherits: 2.0.4
       readable-stream: 3.6.2
 
-  tar@7.5.7:
+  tar@7.5.9:
     dependencies:
       '@isaacs/fs-minipass': 4.0.1
       chownr: 3.0.0
