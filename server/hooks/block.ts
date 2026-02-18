@@ -22,7 +22,6 @@ import {
   BaseError,
   CallExecutionError,
   ContractFunctionExecutionError,
-  ContractFunctionRevertedError,
   decodeEventLog,
   encodeErrorResult,
   ExecutionRevertedError,
@@ -355,62 +354,83 @@ function scheduleMessage(message: string) {
             return redis.zrem("proposals", message);
           },
         ).catch(async (error: unknown) => {
-          if (
-            error instanceof BaseError &&
-            error.cause instanceof ContractFunctionRevertedError &&
-            (error.cause.data?.errorName === "NonceTooLow" || error.cause.data?.errorName === "NoProposal")
-          ) {
-            parent.setStatus({ code: SPAN_STATUS_OK, message: "aborted" });
-            return redis.zrem("proposals", message);
-          }
-          parent.setStatus({ code: SPAN_STATUS_ERROR, message: "proposal_failed" });
-          captureException(error, {
-            level: "error",
-            contexts: { proposal: { account, nonce, proposalType: ProposalType[proposalType], retryCount } },
-            fingerprint: revertFingerprint(error),
-          });
-
-          if (
-            error instanceof BaseError &&
-            error.cause instanceof ContractFunctionRevertedError &&
-            error.cause.data?.errorName === "NotNext"
-          ) {
-            const pendingProposals = await publicClient.readContract({
-              address: exaPreviewerAddress,
-              functionName: "pendingProposals",
-              abi: exaPreviewerAbi,
-              args: [account],
-            });
-            const idleProposals = pendingProposals
-              .filter((idle) => Number(idle.nonce) <= nonce)
-              .map((idle) =>
-                v.parse(Proposal, {
-                  ...idle.proposal,
-                  timestamp: Number(idle.proposal.timestamp),
-                  nonce: idle.nonce,
-                  account,
-                  unlock: idle.unlock,
-                  retryCount: retryCount + 1,
-                }),
-              )
-              .toSorted((a, b) => Number(a.nonce - b.nonce));
-            setContext("exa", { idleProposals });
-            for (const p of idleProposals) await scheduleProposal(p);
-            return redis.zrem("proposals", message);
-          }
-
-          if (error instanceof ContractFunctionExecutionError) {
-            const skipped = await skipNonce()
-              .then(() => true)
-              .catch((nonceError: unknown) => {
-                captureException(nonceError, {
-                  level: "error",
-                  contexts: { proposal: { account, nonce, proposalType: ProposalType[proposalType], retryCount } },
-                  fingerprint: revertFingerprint(nonceError),
-                });
-                return false;
+          switch (revertReason(error)) {
+            case "NonceTooLow":
+            case "NoProposal":
+              parent.setStatus({ code: SPAN_STATUS_OK, message: "aborted" });
+              return redis.zrem("proposals", message);
+            case "NotNext": {
+              captureException(error, {
+                level: "warning",
+                contexts: { proposal: { account, nonce, proposalType: ProposalType[proposalType], retryCount } },
+                fingerprint: revertFingerprint(error),
               });
-            if (skipped) return redis.zrem("proposals", message);
+              const pendingProposals = await publicClient.readContract({
+                address: exaPreviewerAddress,
+                functionName: "pendingProposals",
+                abi: exaPreviewerAbi,
+                args: [account],
+              });
+              const idleProposals = pendingProposals
+                .filter((idle) => idle.nonce <= nonce)
+                .map((idle) =>
+                  v.parse(Proposal, {
+                    ...idle.proposal,
+                    timestamp: Number(idle.proposal.timestamp),
+                    nonce: idle.nonce,
+                    account,
+                    unlock: idle.unlock,
+                    retryCount: retryCount + 1,
+                  }),
+                )
+                .toSorted((a, b) => Number(a.nonce - b.nonce));
+              setContext("exa", { idleProposals });
+              for (const p of idleProposals) await scheduleProposal(p);
+              parent.setStatus({ code: SPAN_STATUS_OK, message: "rescheduled" });
+              return redis.zrem("proposals", message);
+            }
+            case "Timelocked": {
+              captureException(error, {
+                level: "warning",
+                contexts: { proposal: { account, nonce, proposalType: ProposalType[proposalType], retryCount } },
+                fingerprint: revertFingerprint(error),
+              });
+              const pendingProposals = await publicClient.readContract({
+                address: exaPreviewerAddress,
+                functionName: "pendingProposals",
+                abi: exaPreviewerAbi,
+                args: [account],
+              });
+              const pending = pendingProposals.find((queued) => queued.nonce === nonce);
+              let nextUnlock = pending?.unlock;
+              if (!nextUnlock) {
+                const block = await publicClient.getBlock();
+                nextUnlock = block.timestamp + 1n;
+              }
+              await scheduleProposal({ ...proposal, retryCount: retryCount + 1, unlock: nextUnlock });
+              parent.setStatus({ code: SPAN_STATUS_OK, message: "retrying" });
+              return redis.zrem("proposals", message);
+            }
+            default:
+              parent.setStatus({ code: SPAN_STATUS_ERROR, message: "proposal_failed" });
+              captureException(error, {
+                level: "error",
+                contexts: { proposal: { account, nonce, proposalType: ProposalType[proposalType], retryCount } },
+                fingerprint: revertFingerprint(error),
+              });
+              if (error instanceof ContractFunctionExecutionError) {
+                const skipped = await skipNonce()
+                  .then(() => true)
+                  .catch((nonceError: unknown) => {
+                    captureException(nonceError, {
+                      level: "error",
+                      contexts: { proposal: { account, nonce, proposalType: ProposalType[proposalType], retryCount } },
+                      fingerprint: revertFingerprint(nonceError),
+                    });
+                    return false;
+                  });
+                if (skipped) return redis.zrem("proposals", message);
+              }
           }
         }),
       );

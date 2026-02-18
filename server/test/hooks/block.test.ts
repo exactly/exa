@@ -328,6 +328,80 @@ describe("proposal", () => {
       expect(captureExceptionCalls.filter((call) => match.capture(call))).toEqual([]);
     });
 
+    it("requeues Timelocked proposals without nonce skipping", async () => {
+      const proposal = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
+      const match = matchProposal(proposal.args.account, proposal.args.nonce);
+      const timelockedAbi = [{ type: "error", name: "Timelocked", inputs: [] }] as const;
+      const { simulateContract } = publicClient;
+      const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
+      const zadd = vi.spyOn(redis, "zadd");
+      const zrem = vi.spyOn(redis, "zrem");
+      if (vi.isMockFunction(keeper.exaSend)) throw new Error("unexpected keeper exaSend mock");
+      const exaSend = keeper.exaSend.bind(keeper);
+      const exaSendSpy = vi
+        .spyOn(keeper, "exaSend")
+        .mockImplementation((span, call, options) => exaSend(span, call, options));
+      vi.spyOn(publicClient, "simulateContract").mockImplementation((params) => {
+        if (params.functionName !== "executeProposal") return simulateContract(params);
+        // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
+        throw getContractError(
+          new RawContractError({ data: encodeErrorResult({ abi: timelockedAbi, errorName: "Timelocked" }) }),
+          { abi: timelockedAbi, address: bobAccount, functionName: "executeProposal", args: [proposal.args.nonce] },
+        );
+      });
+
+      await appClient.index.$post({
+        ...withdrawProposal,
+        json: {
+          ...withdrawProposal.json,
+          event: {
+            ...withdrawProposal.json.event,
+            data: {
+              ...withdrawProposal.json.event.data,
+              block: {
+                ...withdrawProposal.json.event.data.block,
+                logs: [{ topics: proposal.topics, data: proposal.data, account: { address: proposal.address } }],
+              },
+            },
+          },
+        },
+      });
+
+      await vi.waitUntil(() => zadd.mock.calls.some(([key]) => key === "proposals"), 26_666);
+      await vi.waitUntil(() => zrem.mock.calls.some((call) => match.zrem(call)), 26_666);
+      const queued = zadd.mock.calls.find(([key, , message]) => {
+        if (key !== "proposals" || typeof message !== "string") return false;
+        const proposalPayload = deserialize(message);
+        if (typeof proposalPayload !== "object" || proposalPayload === null) return false;
+        return (
+          "account" in proposalPayload &&
+          proposalPayload.account === proposal.args.account &&
+          "nonce" in proposalPayload &&
+          proposalPayload.nonce === proposal.args.nonce &&
+          "retryCount" in proposalPayload &&
+          proposalPayload.retryCount === 1
+        );
+      });
+      if (!queued || typeof queued[2] !== "string") throw new Error("missing requeued proposal");
+      const payload = deserialize(queued[2]);
+      if (
+        typeof payload !== "object" ||
+        payload === null ||
+        !("unlock" in payload) ||
+        typeof payload.unlock !== "bigint"
+      ) {
+        throw new Error("missing requeued proposal");
+      }
+      expect(payload.unlock).toBeGreaterThanOrEqual(proposal.args.unlock);
+      const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
+      const proposalCaptureCalls = captureExceptionCalls.filter((call) => match.capture(call));
+      expect(proposalCaptureCalls).toContainEqual([
+        expect.objectContaining({ name: "ContractFunctionExecutionError", functionName: "executeProposal" }),
+        expect.objectContaining({ level: "warning", fingerprint: ["{{ default }}", "Timelocked"] }),
+      ]);
+      expect(exaSendSpy.mock.calls.some(([, call]) => call.functionName === "setProposalNonce")).toBe(false);
+    });
+
     it("fingerprints outer catch by reason", async () => {
       const proposal = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
       const simulateContract = vi.spyOn(publicClient, "simulateContract");
@@ -876,6 +950,14 @@ describe("proposal", () => {
       );
       await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
       proposals = await getLogs(hashes);
+      const maxUnlock = proposals.reduce((max, proposal) => {
+        if (proposal.args.unlock > max) return proposal.args.unlock;
+        return max;
+      }, 0n);
+      const block = await anvilClient.getBlock();
+      if (block.timestamp <= maxUnlock) {
+        await anvilClient.mine({ blocks: 1, interval: Number(maxUnlock - block.timestamp + 1n) });
+      }
       const unlock = proposals[0]?.args.unlock ?? 0n;
       vi.setSystemTime(new Date(Number(unlock + 10n) * 1000));
     });
@@ -886,6 +968,8 @@ describe("proposal", () => {
       const idle = proposals[1]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
       const withdraw = proposals[3]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
       const another = proposals[4]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
+      const match = matchProposal(another.args.account, another.args.nonce);
+      const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
 
       const expected = [
         {
@@ -922,10 +1006,12 @@ describe("proposal", () => {
         proposalExecutions,
       ]);
       expect(hasExpectedTransfers(receipts, expected)).toBe(true);
-      expect(captureException).toHaveBeenCalledWith(
+      const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
+      const proposalCaptureCalls = captureExceptionCalls.filter((call) => match.capture(call));
+      expect(proposalCaptureCalls).toContainEqual([
         expect.objectContaining({ name: "ContractFunctionExecutionError", functionName: "executeProposal" }),
-        expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "NotNext"] }),
-      );
+        expect.objectContaining({ level: "warning", fingerprint: ["{{ default }}", "NotNext"] }),
+      ]);
     });
   });
 });
