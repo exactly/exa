@@ -27,7 +27,7 @@ export default function AssetSelector({
     i18n: { language },
   } = useTranslation();
   const [selectedMarket, setSelectedMarket] = useState<Address | undefined>();
-  const { assets, externalAssets, markets, isPending } = usePortfolio(undefined, { sortBy });
+  const { assets, externalAssets, markets, isPending } = usePortfolio({ sortBy });
 
   if (assets.length === 0) {
     if (isPending || !markets) {

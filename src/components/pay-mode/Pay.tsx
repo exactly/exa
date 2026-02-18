@@ -66,7 +66,7 @@ export default function Pay() {
   } = useTranslation();
   const { address: account } = useAccount();
   const router = useRouter();
-  const { assets } = usePortfolio(undefined, { sortBy: "usdcFirst" });
+  const { assets } = usePortfolio({ sortBy: "usdcFirst" });
   const { market: exaUSDC } = useAsset(marketUSDCAddress);
   const [enableSimulations, setEnableSimulations] = useState(true);
   const [assetSelectionOpen, setAssetSelectionOpen] = useState(false);
