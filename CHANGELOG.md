@@ -1,5 +1,15 @@
 # @exactly/mobile
 
+## 1.1.17
+
+### Patch Changes
+
+- [#795](https://github.com/exactly/exa/pull/795) [`1efacfa`](https://github.com/exactly/exa/commit/1efacfad5a2bb67c8944448cfff07e0bbedd5936) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 handle biometric check before passkey fallback
+
+- [#795](https://github.com/exactly/exa/pull/795) [`861d30b`](https://github.com/exactly/exa/commit/861d30b81f3af87a9655eab557664ae8f93707a1) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 fingerprint network errors
+
+- [#795](https://github.com/exactly/exa/pull/795) [`375ea92`](https://github.com/exactly/exa/commit/375ea921a7e65fa2e167a29b709bd4a7500b6e09) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 suppress expected network errors
+
 ## 1.1.16
 
 ### Patch Changes
