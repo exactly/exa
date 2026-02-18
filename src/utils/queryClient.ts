@@ -16,12 +16,12 @@ import type { PersistedClient } from "@tanstack/query-persist-client-core";
 import type { Address } from "viem";
 
 const INVALIDATE_ON_UPGRADE = new Set(["kyc", "card", "pax"]);
-const expected = (error: unknown) =>
-  error instanceof APIError &&
-  (error.text === "no kyc" ||
-    error.text === "not started" ||
-    error.text === "bad kyc" ||
-    error.text === "kyc required");
+
+function triage(error: unknown) {
+  if (!(error instanceof APIError)) return;
+  if (error.text === "bad kyc") return "warn";
+  if (error.text === "no kyc" || error.text === "not started" || error.text === "kyc required") return "drop";
+}
 
 function versionAwareDeserialize(cache: string): PersistedClient {
   const persistedClient: PersistedClient = deserialize(cache);
@@ -42,11 +42,15 @@ export const persister = createAsyncStoragePersister({
 const queryClient = new QueryClient({
   queryCache: new QueryCache({
     onError: (error, query) => {
-      if (query.meta?.suppressError?.(error)) return;
+      if (query.meta?.dropError?.(error)) return;
+      if (query.meta?.warnError?.(error)) return reportError(error, { level: "warning" });
+      if (query.queryKey[0] !== "auth" && queryClient.getQueryState(["auth"])?.error === error) return;
       if (error instanceof Error && error.message === "don't refetch") return;
       if (error instanceof APIError) {
         if (error.code === 401 && error.text === "unauthorized") return;
-        if (expected(error)) return;
+        const value = triage(error);
+        if (value === "warn") return reportError(error, { level: "warning" });
+        if (value === "drop") return;
       }
       reportError(error);
     },
@@ -274,8 +278,8 @@ queryClient.setQueryDefaults<EmbeddingContext>(["embedding-context"], {
 queryClient.setQueryDefaults(["kyc", "status"], {
   staleTime: 5 * 60_000,
   gcTime: 60 * 60_000,
-  retry: (count, error) => count < 3 && !expected(error),
-  meta: { suppressError: expected },
+  retry: (count, error) => count < 3 && triage(error) === undefined,
+  meta: { warnError: (error) => triage(error) === "warn" },
 });
 
 export type AuthMethod = "siwe" | "webauthn";
@@ -314,6 +318,9 @@ export class APIError extends Error {
 declare module "@tanstack/react-query" {
   // eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- module augmentation requires interface merging
   interface Register {
-    queryMeta: { suppressError?: (error: unknown) => boolean | undefined };
+    queryMeta: {
+      dropError?: (error: unknown) => boolean | undefined;
+      warnError?: (error: unknown) => boolean | undefined;
+    };
   }
 }

@@ -5,6 +5,7 @@ import { sdk } from "@farcaster/miniapp-sdk";
 import { getConnection, signMessage } from "@wagmi/core";
 import { hc } from "hono/client";
 import { check, number, parse, pipe, safeParse, ValiError } from "valibot";
+import { UserRejectedRequestError } from "viem";
 
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 import deriveAddress from "@exactly/common/deriveAddress";
@@ -14,7 +15,7 @@ import { Credential } from "@exactly/common/validation";
 import { login as loginIntercom, logout as logoutIntercom } from "./intercom";
 import { decrypt, decryptPIN, encryptPIN, session } from "./panda";
 import queryClient, { APIError, type AuthMethod } from "./queryClient";
-import { isPasskeyExpected } from "./reportError";
+import { classifyError } from "./reportError";
 import ownerConfig from "./wagmi/owner";
 
 import type { ExaAPI } from "@exactly/server/api"; // eslint-disable-line @nx/enforce-module-boundaries
@@ -62,7 +63,13 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
     return parse(Auth, expires);
   },
   meta: {
-    suppressError: (error) => error instanceof ValiError || isPasskeyExpected(error),
+    dropError: (error) => {
+      if (error instanceof ValiError) return true;
+      if (error instanceof UserRejectedRequestError) return true;
+      const { passkeyCancelled, passkeyNotAllowed } = classifyError(error);
+      return passkeyCancelled || passkeyNotAllowed;
+    },
+    warnError: (error) => classifyError(error).passkeyWarning,
   },
 });
 

@@ -12,7 +12,7 @@ import chain from "@exactly/common/generated/chain";
 
 import alchemyConnector from "./alchemyConnector";
 import queryClient, { type AuthMethod } from "./queryClient";
-import reportError, { isAuthExpected } from "./reportError";
+import reportError, { classifyError } from "./reportError";
 import { APIError, createCredential, getCredential } from "./server";
 import ownerConfig, { getConnector as getOwnerConnector } from "./wagmi/owner";
 
@@ -36,8 +36,8 @@ export default function useAuth(onDomainError: () => void, onSuccess?: (credenti
       return credential;
     },
     onSuccess,
-    onError: (error: unknown) => {
-      handleError(error, toast, onDomainError, t);
+    onError: (error: unknown, { method, register }) => {
+      handleError(error, toast, onDomainError, t, method === "siwe" || !register);
     },
   });
   return { signIn, ...mutation };
@@ -48,11 +48,13 @@ function handleError(
   toast: ReturnType<typeof useToastController>,
   onDomainError: () => void,
   t: TFunction,
+  auth: boolean,
 ) {
   if (
     error instanceof Error &&
     (("code" in error && error.code === "ERR_BIOMETRIC") || error.message.includes("Biometrics must be enabled"))
   ) {
+    if (!auth) reportError(error);
     queryClient.setQueryData(["method"], undefined);
     toast.show(t("Biometrics must be enabled to use passkeys. Please enable biometrics in your device settings"), {
       native: true,
@@ -61,7 +63,10 @@ function handleError(
     });
     return;
   }
-  if (isAuthExpected(error) || error instanceof UserRejectedRequestError) {
+  const { authKnown, passkeyCancelled, passkeyNotAllowed } = classifyError(error);
+  if (authKnown || error instanceof UserRejectedRequestError) {
+    const cancelled = passkeyCancelled || passkeyNotAllowed || error instanceof UserRejectedRequestError;
+    if (!cancelled && !auth) reportError(error);
     queryClient.setQueryData(["method"], undefined);
     toast.show(t("Authentication cancelled"), {
       native: true,
@@ -71,6 +76,7 @@ function handleError(
     return;
   }
   if (error instanceof APIError && error.text === "backup eligibility required") {
+    reportError(error, { level: "warning" });
     toast.show(t("Your password manager does not support passkey backups. Please try a different one"), {
       native: true,
       duration: 1000,
@@ -84,5 +90,6 @@ function handleError(
   ) {
     onDomainError();
   }
+  if (auth && queryClient.getQueryState(["auth"])?.error === error) return;
   reportError(error);
 }

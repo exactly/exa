@@ -113,15 +113,17 @@ init({
   integrations: [routingInstrumentation, userFeedback, ...(__DEV__ || e2e ? [] : [mobileReplayIntegration()])],
   _experiments: __DEV__ || e2e ? undefined : { replaysOnErrorSampleRate: 1, replaysSessionSampleRate: 0.01 },
   beforeSend: (event, hint) => {
+    let known = false;
     for (const source of [
       hint.originalException,
       ...(event.exception?.values?.map(({ value }) => value) ?? []),
       event.message,
     ]) {
-      const { expected, fingerprint } = classifyError(source);
-      if (expected) return null;
-      event.fingerprint ??= fingerprint;
+      const classification = classifyError(source);
+      if (classification.known) known = true;
+      event.fingerprint ??= classification.fingerprint;
     }
+    if (known) event.level = "warning";
     return event;
   },
   spotlight: __DEV__ || !!e2e,

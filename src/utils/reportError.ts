@@ -3,22 +3,17 @@ import { captureException, withScope } from "@sentry/react-native";
 export default function reportError(error: unknown, hint?: Parameters<typeof captureException>[1]) {
   console.error(error); // eslint-disable-line no-console
   const classification = classify(parseError(error));
-  if (classification.expected) return;
   try {
-    if (hint) {
-      const value = classification.fingerprint;
-      if (value === undefined) return captureException(error, hint);
-      let eventId: ReturnType<typeof captureException> | undefined;
-      withScope((scope) => {
-        scope.setFingerprint(value);
-        eventId = captureException(error, hint);
-      });
-      return eventId;
-    }
-    return captureException(
-      error,
-      classification.fingerprint ? { fingerprint: classification.fingerprint } : undefined,
-    );
+    const value = classification.fingerprint;
+    const known = classification.known;
+    if (!known && value === undefined) return captureException(error, hint);
+    let eventId: ReturnType<typeof captureException> | undefined;
+    withScope((scope) => {
+      if (known) scope.setLevel("warning");
+      if (value !== undefined) scope.setFingerprint(value);
+      eventId = captureException(error, hint);
+    });
+    return eventId;
   } catch (sentryError) {
     console.error(sentryError); // eslint-disable-line no-console
   }
@@ -30,7 +25,7 @@ const passkeyCancelledMessages = new Set([
   "The operation couldn’t be completed. Device must be unlocked to perform request.",
   "UserCancelled",
 ]);
-const passkeyExpectedMessages = new Set([
+const passkeyKnownMessages = new Set([
   ...passkeyCancelledMessages,
   "The operation couldn’t be completed. Stolen Device Protection is enabled and biometry is required.",
 ]);
@@ -43,25 +38,8 @@ const networkTypes = [
 ] as const;
 type ParsedError = ReturnType<typeof parseError>;
 
-export function isPasskeyExpected(error: unknown) {
-  const classification = classify(parseError(error));
-  return classification.passkeyExpected || classification.passkeyNameExpected;
-}
-
 export function isPasskeyCancelled(error: unknown) {
   return classify(parseError(error)).passkeyCancelled;
-}
-
-export function isAuthExpected(error: unknown) {
-  return classify(parseError(error)).authExpected;
-}
-
-export function isExpected(error: unknown) {
-  return classify(parseError(error)).expected;
-}
-
-export function fingerprint(error: unknown) {
-  return classify(parseError(error)).fingerprint;
 }
 
 export function classifyError(error: unknown) {
@@ -109,19 +87,21 @@ function parseError(error: unknown) {
 }
 
 function classify({ code, name, message, status }: ParsedError) {
-  const passkeyNameExpected = name === "NotAllowedError";
+  const passkeyNotAllowed =
+    name === "NotAllowedError" || (message !== undefined && authPrefixes.some((prefix) => message.startsWith(prefix)));
   const passkeyCancelled = message !== undefined && passkeyCancelledMessages.has(message);
-  const passkeyExpected =
+  const passkeyKnown =
     message !== undefined &&
-    (passkeyExpectedMessages.has(message) ||
+    (passkeyKnownMessages.has(message) ||
       message.includes("Biometrics must be enabled") ||
       message.includes("There is already a pending passkey request") ||
       authPrefixes.some((prefix) => message.startsWith(prefix)));
+  const passkeyWarning = passkeyKnown && !passkeyCancelled && !passkeyNotAllowed;
   const biometric = code === "ERR_BIOMETRIC";
-  const authExpected = passkeyExpected || passkeyNameExpected || biometric || message === "invalid operation";
+  const authKnown = passkeyKnown || passkeyNotAllowed || biometric || message === "invalid operation";
   const network = classifyNetwork(message);
-  const expected =
-    passkeyExpected ||
+  const known =
+    passkeyKnown ||
     biometric ||
     message === "invalid operation" ||
     message === "Network request failed" ||
@@ -145,7 +125,7 @@ function classify({ code, name, message, status }: ParsedError) {
           : ["{{ default }}", fingerprintMessage]
         : ["{{ default }}", network]
       : ["{{ default }}", code]);
-  return { passkeyExpected, passkeyCancelled, passkeyNameExpected, authExpected, expected, fingerprint: value };
+  return { passkeyKnown, passkeyCancelled, passkeyNotAllowed, passkeyWarning, authKnown, known, fingerprint: value };
 }
 
 function normalizeMessage(message: string) {
