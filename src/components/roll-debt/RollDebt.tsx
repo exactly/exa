@@ -10,14 +10,13 @@ import { useToastController } from "@tamagui/toast";
 import { ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
 
 import { nonEmpty, pipe, safeParse, string } from "valibot";
-import { ContractFunctionExecutionError, encodeAbiParameters } from "viem";
+import { ContractFunctionExecutionError, zeroAddress } from "viem";
 import { useBytecode, useWriteContract } from "wagmi";
 
 import { exaPreviewerAddress, marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import {
   useReadExaPreviewerPendingProposals,
   useReadPreviewerPreviewBorrowAtMaturity,
-  useSimulateExaPluginPropose,
 } from "@exactly/common/generated/hooks";
 import ProposalType from "@exactly/common/ProposalType";
 import { MATURITY_INTERVAL, WAD } from "@exactly/lib";
@@ -28,6 +27,7 @@ import View from "../../components/shared/View";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
+import useSimulateProposal from "../../utils/useSimulateProposal";
 import Button from "../shared/Button";
 import Skeleton from "../shared/Skeleton";
 
@@ -235,28 +235,18 @@ function RolloverButton({
   const maxRepayAssets = (borrow.previewValue * slippage) / WAD;
   const percentage = WAD;
 
-  const { data: proposeSimulation } = useSimulateExaPluginPropose({
-    address,
-    args: [
-      marketUSDCAddress,
-      maxRepayAssets,
-      ProposalType.RollDebt,
-      encodeAbiParameters(
-        [
-          {
-            type: "tuple",
-            components: [
-              { name: "repayMaturity", type: "uint256" },
-              { name: "borrowMaturity", type: "uint256" },
-              { name: "maxRepayAssets", type: "uint256" },
-              { name: "percentage", type: "uint256" },
-            ],
-          },
-        ],
-        [{ repayMaturity, borrowMaturity, maxRepayAssets, percentage }],
-      ),
-    ],
-    query: { enabled: !!address && !!bytecode },
+  const {
+    propose: { data: proposeSimulation },
+  } = useSimulateProposal({
+    account: address,
+    amount: maxRepayAssets,
+    market: marketUSDCAddress,
+    proposalType: ProposalType.RollDebt,
+    borrowMaturity,
+    maxRepayAssets,
+    percentage,
+    repayMaturity,
+    enabled: !!address && !!bytecode,
   });
 
   const {
