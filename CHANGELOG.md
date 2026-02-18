@@ -1,5 +1,13 @@
 # @exactly/mobile
 
+## 1.1.18
+
+### Patch Changes
+
+- [#802](https://github.com/exactly/exa/pull/802) [`4aee44e`](https://github.com/exactly/exa/commit/4aee44ebe919dda84e914de2d68450af3eab52a3) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🩹 avoid zero address contract reads
+
+- [#801](https://github.com/exactly/exa/pull/801) [`b6afa4e`](https://github.com/exactly/exa/commit/b6afa4ebe861916b9017777b39a061c7ab73a821) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 report expected errors as sentry warnings
+
 ## 1.1.17
 
 ### Patch Changes
