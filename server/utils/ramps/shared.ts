@@ -1,26 +1,41 @@
 import { array, literal, object, optional, picklist, string, variant } from "valibot";
 import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
-export const Currency = ["ARS", "USD", "CLP", "BRL", "COP", "PUSD", "CRC", "GTQ", "MXN", "PHP", "BOB", "EUR"] as const;
-export const Cryptocurrency = ["USDC", "USDT", "ETH", "SOL", "BTC", "DAI", "PYUSD", "USDP"] as const; // cspell:ignore usdp
-export const RampProvider = ["manteca", "bridge"] as const;
+export const Currency = [
+  "ARS",
+  "BOB",
+  "BRL",
+  "CLP",
+  "COP",
+  "CRC",
+  "EUR",
+  "GBP",
+  "GTQ",
+  "MXN",
+  "PHP",
+  "PUSD",
+  "USD",
+] as const;
+export const Cryptocurrency = ["BTC", "DAI", "ETH", "PYUSD", "SOL", "USDC", "USDP", "USDT"] as const; // cspell:ignore usdp
+export const RampProvider = ["bridge", "manteca"] as const;
 
 export const SupportedChainId = [optimism.id, base.id, baseSepolia.id, optimismSepolia.id] as const;
 export const DevelopmentChainIds = [baseSepolia.id, optimismSepolia.id] as const;
 
 export const FiatNetwork = [
+  "ACH",
   "ARG_FIAT_TRANSFER",
-  "STELLAR",
+  "FASTER_PAYMENTS",
+  "PIX",
+  "SEPA", // cspell:ignore sepa
   "SOLANA",
   "SPEI", // cspell:ignore spei
+  "STELLAR",
   "TRON",
-  "SEPA", // cspell:ignore sepa
   "WIRE",
-  "ACH",
-  "PIX",
 ] as const;
 
-export const CryptoNetwork = ["TRON", "SOLANA", "STELLAR"] as const;
+export const CryptoNetwork = ["SOLANA", "STELLAR", "TRON"] as const;
 
 export type OnRampNetworkType = (typeof CryptoNetwork)[number] | (typeof FiatNetwork)[number];
 
@@ -101,6 +116,17 @@ export const DepositDetails = variant("network", [
     fee: string(),
     estimatedProcessingTime: string(),
   }),
+  object({
+    network: literal("FASTER_PAYMENTS" satisfies OnRampNetworkType),
+    displayName: literal("Faster Payments"),
+    accountNumber: string(),
+    sortCode: string(),
+    accountHolderName: string(),
+    bankName: string(),
+    bankAddress: string(),
+    fee: string(),
+    estimatedProcessingTime: string(),
+  }),
 ]);
 
 export const QuoteResponse = optional(object({ buyRate: string(), sellRate: string() }));
@@ -145,5 +171,6 @@ export const ProviderInfo = object({
     ),
     cryptoCurrencies: array(object({ cryptoCurrency: picklist(Cryptocurrency), network: picklist(CryptoNetwork) })),
   }),
-  status: picklist(["NOT_STARTED", "ACTIVE", "ONBOARDING", "NOT_AVAILABLE"]),
+  status: picklist(["ACTIVE", "NOT_AVAILABLE", "NOT_STARTED", "ONBOARDING"]),
+  tosLink: optional(string()),
 });

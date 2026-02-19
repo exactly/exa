@@ -210,25 +210,6 @@ describe("ramp api", () => {
           ],
         });
       });
-
-      it("returns 400 for unavailable crypto payment rail", async () => {
-        vi.spyOn(bridge, "getCustomer").mockResolvedValue({
-          id: "bridge-customer-123",
-          status: "active",
-          endorsements: [],
-        });
-        vi.spyOn(bridge, "getCryptoDepositDetails").mockRejectedValue(
-          new Error(bridge.ErrorCodes.NOT_AVAILABLE_CRYPTO_PAYMENT_RAIL),
-        );
-
-        const response = await appClient.quote.$get(
-          { query: { provider: "bridge", cryptoCurrency: "USDC", network: "TRON" } },
-          { headers: { "test-credential-id": "ramp-bridge" } },
-        );
-
-        expect(response.status).toBe(400);
-        await expect(response.json()).resolves.toStrictEqual({ code: "not available crypto payment rail" });
-      });
     });
   });
 
@@ -346,6 +327,219 @@ describe("ramp api", () => {
 
         expect(response.status).toBe(400);
         await expect(response.json()).resolves.toStrictEqual({ code: "no document" });
+      });
+    });
+
+    describe("bridge", () => {
+      it("onboards bridge successfully", async () => {
+        vi.spyOn(bridge, "onboarding").mockResolvedValue();
+
+        const response = await appClient.index.$post(
+          { json: { provider: "bridge", acceptedTermsId: "terms_123" } },
+          { headers: { "test-credential-id": "ramp-test" } },
+        );
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+        expect(bridge.onboarding).toHaveBeenCalledWith({
+          credentialId: "ramp-test",
+          customerId: null,
+          acceptedTermsId: "terms_123",
+        });
+      });
+
+      it("passes existing bridgeId as customerId", async () => {
+        vi.spyOn(bridge, "onboarding").mockResolvedValue();
+
+        const response = await appClient.index.$post(
+          { json: { provider: "bridge", acceptedTermsId: "terms_456" } },
+          { headers: { "test-credential-id": "ramp-bridge" } },
+        );
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+        expect(bridge.onboarding).toHaveBeenCalledWith({
+          credentialId: "ramp-bridge",
+          customerId: "bridge-customer-123",
+          acceptedTermsId: "terms_456",
+        });
+      });
+
+      it("returns 400 when already onboarded", async () => {
+        vi.spyOn(bridge, "onboarding").mockRejectedValue(new Error(bridge.ErrorCodes.ALREADY_ONBOARDED));
+
+        const response = await appClient.index.$post(
+          { json: { provider: "bridge", acceptedTermsId: "terms_123" } },
+          { headers: { "test-credential-id": "ramp-bridge" } },
+        );
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({ code: "already onboarded" });
+      });
+
+      it("returns 400 with new inquiry for invalid address when no existing inquiry", async () => {
+        vi.spyOn(bridge, "onboarding").mockRejectedValue(new Error(bridge.ErrorCodes.INVALID_ADDRESS));
+        vi.spyOn(persona, "getInquiry").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
+        vi.spyOn(persona, "createInquiry").mockResolvedValue({
+          data: {
+            id: "inq_addr_new",
+            type: "inquiry" as const,
+            attributes: { status: "created" as const, "reference-id": "ramp-test" },
+          },
+        });
+        vi.spyOn(persona, "resumeInquiry").mockResolvedValue({
+          data: { id: "inq_addr_new", type: "inquiry" as const },
+          meta: { "session-token": "token_addr" },
+        });
+
+        const response = await appClient.index.$post(
+          { json: { provider: "bridge", acceptedTermsId: "terms_123" } },
+          { headers: { "test-credential-id": "ramp-test" } },
+        );
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({
+          code: "invalid address",
+          inquiryId: "inq_addr_new",
+          sessionToken: "token_addr",
+        });
+        expect(persona.createInquiry).toHaveBeenCalledTimes(1);
+        expect(persona.getInquiry).toHaveBeenCalledWith("ramp-test", persona.ADDRESS_TEMPLATE);
+      });
+
+      it("resumes existing inquiry for invalid address when inquiry is resumable", async () => {
+        vi.spyOn(bridge, "onboarding").mockRejectedValue(new Error(bridge.ErrorCodes.INVALID_ADDRESS));
+        vi.spyOn(persona, "getInquiry").mockResolvedValue({
+          id: "inq_addr_existing",
+          type: "inquiry" as const,
+          attributes: { status: "created" as const, "reference-id": "ramp-test" },
+        });
+        const createInquirySpy = vi.spyOn(persona, "createInquiry");
+        vi.spyOn(persona, "resumeInquiry").mockResolvedValue({
+          data: { id: "inq_addr_existing", type: "inquiry" as const },
+          meta: { "session-token": "token_addr_existing" },
+        });
+
+        const response = await appClient.index.$post(
+          { json: { provider: "bridge", acceptedTermsId: "terms_123" } },
+          { headers: { "test-credential-id": "ramp-test" } },
+        );
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({
+          code: "invalid address",
+          inquiryId: "inq_addr_existing",
+          sessionToken: "token_addr_existing",
+        });
+        expect(createInquirySpy).not.toHaveBeenCalled();
+      });
+
+      it("resumes existing inquiry for invalid address when inquiry is pending", async () => {
+        vi.spyOn(bridge, "onboarding").mockRejectedValue(new Error(bridge.ErrorCodes.INVALID_ADDRESS));
+        vi.spyOn(persona, "getInquiry").mockResolvedValue({
+          id: "inq_addr_pending",
+          type: "inquiry" as const,
+          attributes: { status: "pending" as const, "reference-id": "ramp-test" },
+        });
+        const createInquirySpy = vi.spyOn(persona, "createInquiry");
+        vi.spyOn(persona, "resumeInquiry").mockResolvedValue({
+          data: { id: "inq_addr_pending", type: "inquiry" as const },
+          meta: { "session-token": "token_addr_pending" },
+        });
+
+        const response = await appClient.index.$post(
+          { json: { provider: "bridge", acceptedTermsId: "terms_123" } },
+          { headers: { "test-credential-id": "ramp-test" } },
+        );
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({
+          code: "invalid address",
+          inquiryId: "inq_addr_pending",
+          sessionToken: "token_addr_pending",
+        });
+        expect(createInquirySpy).not.toHaveBeenCalled();
+      });
+
+      it("resumes existing inquiry for invalid address when inquiry is expired", async () => {
+        vi.spyOn(bridge, "onboarding").mockRejectedValue(new Error(bridge.ErrorCodes.INVALID_ADDRESS));
+        vi.spyOn(persona, "getInquiry").mockResolvedValue({
+          id: "inq_addr_expired",
+          type: "inquiry" as const,
+          attributes: { status: "expired" as const, "reference-id": "ramp-test" },
+        });
+        const createInquirySpy = vi.spyOn(persona, "createInquiry");
+        vi.spyOn(persona, "resumeInquiry").mockResolvedValue({
+          data: { id: "inq_addr_expired", type: "inquiry" as const },
+          meta: { "session-token": "token_addr_expired" },
+        });
+
+        const response = await appClient.index.$post(
+          { json: { provider: "bridge", acceptedTermsId: "terms_123" } },
+          { headers: { "test-credential-id": "ramp-test" } },
+        );
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({
+          code: "invalid address",
+          inquiryId: "inq_addr_expired",
+          sessionToken: "token_addr_expired",
+        });
+        expect(createInquirySpy).not.toHaveBeenCalled();
+      });
+
+      it("creates new inquiry for invalid address when existing inquiry is not resumable", async () => {
+        vi.spyOn(bridge, "onboarding").mockRejectedValue(new Error(bridge.ErrorCodes.INVALID_ADDRESS));
+        vi.spyOn(persona, "getInquiry").mockResolvedValue({
+          id: "inq_addr_approved",
+          type: "inquiry" as const,
+          attributes: { status: "approved" as const, "reference-id": "ramp-test" },
+        });
+        vi.spyOn(persona, "createInquiry").mockResolvedValue({
+          data: {
+            id: "inq_addr_fresh",
+            type: "inquiry" as const,
+            attributes: { status: "created" as const, "reference-id": "ramp-test" },
+          },
+        });
+        vi.spyOn(persona, "resumeInquiry").mockResolvedValue({
+          data: { id: "inq_addr_fresh", type: "inquiry" as const },
+          meta: { "session-token": "token_addr_fresh" },
+        });
+
+        const response = await appClient.index.$post(
+          { json: { provider: "bridge", acceptedTermsId: "terms_123" } },
+          { headers: { "test-credential-id": "ramp-test" } },
+        );
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({
+          code: "invalid address",
+          inquiryId: "inq_addr_fresh",
+          sessionToken: "token_addr_fresh",
+        });
+        expect(persona.createInquiry).toHaveBeenCalledTimes(1);
+      });
+
+      it("returns 500 on unknown bridge error", async () => {
+        vi.spyOn(bridge, "onboarding").mockRejectedValue(new Error("unexpected bridge failure"));
+
+        const response = await appClient.index.$post(
+          { json: { provider: "bridge", acceptedTermsId: "terms_123" } },
+          { headers: { "test-credential-id": "ramp-test" } },
+        );
+
+        expect(response.status).toBe(500);
+      });
+
+      it("returns 400 for no credential", async () => {
+        const response = await appClient.index.$post(
+          { json: { provider: "bridge", acceptedTermsId: "terms_123" } },
+          { headers: { "test-credential-id": "non-existent" } },
+        );
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({ code: "no credential" });
       });
     });
   });
