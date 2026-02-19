@@ -202,7 +202,7 @@ export default function Home() {
           refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refresh} />}
         >
           <ProfileHeader />
-          <View flex={1}>
+          <View flex={1} gap="$s5" paddingBottom="$s5">
             <YStack backgroundColor="$backgroundSoft" padding="$s4" gap="$s4">
               {markets && healthFactor(markets) < HEALTH_FACTOR_THRESHOLD && <LiquidationAlert />}
               {(showKYCMigration || showPluginOutdated) && (
@@ -233,51 +233,53 @@ export default function Home() {
                 <HomeActions />
               </YStack>
             </YStack>
-            <View padded gap="$s5">
-              <AnimatePresence>
-                {card && (
-                  <CardStatus
-                    collateral={collateralUSD}
-                    creditLimit={markets ? borrowLimit(markets, marketUSDCAddress) : 0n}
-                    spotlightRef={spotlightRef}
-                    mode={card.mode}
-                    onCreditLimitInfoPress={() => {
-                      setCreditLimitSheetOpen(true);
+            {(card ?? (isKYCFetched && (!isKYCApproved || !bytecode))) && (
+              <View paddingHorizontal="$s4" gap="$s5">
+                <AnimatePresence>
+                  {card && (
+                    <CardStatus
+                      collateral={collateralUSD}
+                      creditLimit={markets ? borrowLimit(markets, marketUSDCAddress) : 0n}
+                      spotlightRef={spotlightRef}
+                      mode={card.mode}
+                      onCreditLimitInfoPress={() => {
+                        setCreditLimitSheetOpen(true);
+                      }}
+                      onDetailsPress={() => {
+                        router.push("/card");
+                      }}
+                      onInstallmentsPress={() => {
+                        setInstallmentsSheetOpen(true);
+                      }}
+                      onLearnMorePress={() => {
+                        setPayModeSheetOpen(true);
+                      }}
+                      onModeChange={(mode) => {
+                        mutateMode(mode).catch(reportError);
+                      }}
+                      onSpendingLimitInfoPress={() => {
+                        setSpendingLimitSheetOpen(true);
+                      }}
+                      spendingLimit={markets ? withdrawLimit(markets, marketUSDCAddress, WAD) : 0n}
+                    />
+                  )}
+                </AnimatePresence>
+                {card?.productId === PLATINUM_PRODUCT_ID && (
+                  <VisaSignatureBanner
+                    onPress={() => {
+                      setVisaSignatureModalOpen(true);
                     }}
-                    onDetailsPress={() => {
-                      router.push("/card");
-                    }}
-                    onInstallmentsPress={() => {
-                      setInstallmentsSheetOpen(true);
-                    }}
-                    onLearnMorePress={() => {
-                      setPayModeSheetOpen(true);
-                    }}
-                    onModeChange={(mode) => {
-                      mutateMode(mode).catch(reportError);
-                    }}
-                    onSpendingLimitInfoPress={() => {
-                      setSpendingLimitSheetOpen(true);
-                    }}
-                    spendingLimit={markets ? withdrawLimit(markets, marketUSDCAddress, WAD) : 0n}
                   />
                 )}
-              </AnimatePresence>
-              {card?.productId === PLATINUM_PRODUCT_ID && (
-                <VisaSignatureBanner
-                  onPress={() => {
-                    setVisaSignatureModalOpen(true);
-                  }}
-                />
-              )}
-              <AnimatePresence>
-                {isKYCFetched && (!isKYCApproved || !bytecode) && (
-                  <GettingStarted isDeployed={!!bytecode} hasKYC={isKYCApproved} />
-                )}
-              </AnimatePresence>
-            </View>
+                <AnimatePresence>
+                  {isKYCFetched && (!isKYCApproved || !bytecode) && (
+                    <GettingStarted isDeployed={!!bytecode} hasKYC={isKYCApproved} />
+                  )}
+                </AnimatePresence>
+              </View>
+            )}
             {isKYCFetched && isKYCApproved && <BenefitsSection />}
-            <View padded gap="$s5">
+            <View paddingHorizontal="$s4" gap="$s5">
               <OverduePayments onSelect={(m) => router.setParams({ maturity: String(m) })} />
               <UpcomingPayments onSelect={(m) => router.setParams({ maturity: String(m) })} />
               <LatestActivity activity={activity} />
