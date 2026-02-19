@@ -54,10 +54,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
         with:
-          name: server-events
-          path: |
-            server/node_modules/@exactly/.runtime
-            server/node_modules/@exactly/.spotlight
+          name: server-artifacts
+          path: server/node_modules/@exactly/.*
           include-hidden-files: true
 
   e2e:
@@ -135,7 +133,7 @@ jobs:
             chrome.log
             server.log
             server/coverage
-            server/node_modules/@exactly/.spotlight
+            server/node_modules/@exactly/.*
             ~/.maestro/tests
             .maestro/screenshots
           include-hidden-files: true
