@@ -6,6 +6,7 @@ import {
   array,
   bigint,
   boolean,
+  flatten,
   intersect,
   isoTimestamp,
   length,
@@ -277,7 +278,13 @@ export default new Hono().get(
               },
             );
             if (cryptomate.success) return cryptomate.output;
-            captureException(new Error("bad transaction"), { level: "error", contexts: { cryptomate, panda } });
+            captureException(new Error("bad transaction"), {
+              level: "error",
+              contexts: {
+                cryptomate: { success: cryptomate.success, ...flatten(cryptomate.issues) },
+                panda: { success: panda.success, ...flatten(panda.issues) },
+              },
+            });
           }),
         ),
         ...[...deposits, ...repays, ...withdraws].map(({ blockNumber, ...event }) => {
@@ -300,19 +307,76 @@ const Borrow = object({ maturity: bigint(), assets: bigint(), fee: bigint() });
 
 export const PandaActivity = pipe(
   object({
-    bodies: array(looseObject({ action: picklist(["created", "completed", "updated"]) })),
+    bodies: array(
+      looseObject({
+        action: picklist(["completed", "created", "requested", "updated"]),
+        createdAt: optional(string()),
+        status: optional(literal("declined")),
+        reason: optional(string()),
+        body: optional(
+          object({
+            id: string(),
+            spend: object({
+              amount: number(),
+              authorizedAmount: nullish(number()),
+              authorizationUpdateAmount: optional(number()),
+              currency: optional(literal("usd")),
+              localAmount: number(),
+              localCurrency: string(),
+              merchantCity: nullish(string()),
+              merchantCountry: nullish(string()),
+              merchantName: string(),
+              enrichedMerchantIcon: optional(string()),
+            }),
+          }),
+        ),
+      }),
+    ),
     borrows: array(nullable(object({ timestamp: optional(bigint()), events: array(Borrow) }))),
     hashes: array(Hash),
     type: literal("panda"),
   }),
   transform(({ bodies, borrows, hashes, type }) => {
+    const mapped = bodies.map((body) => ({
+      ...body,
+      action: body.action === "requested" ? "created" : body.action,
+    }));
+
+    const declined = mapped.find((b) => b.status === "declined" && b.body !== undefined);
+
+    if (declined?.body) {
+      const { id, spend } = declined.body;
+      const timestamp = declined.createdAt ?? new Date().toISOString();
+
+      return {
+        id,
+        type,
+        status: "declined" as const,
+        reason: declined.reason ?? "transaction declined",
+        currency: spend.localCurrency.toUpperCase(),
+        amount: spend.localAmount / 100,
+        usdAmount: spend.amount / 100,
+        merchant: {
+          name: spend.merchantName.trim(),
+          city: spend.merchantCity?.trim(),
+          country: spend.merchantCountry?.trim(),
+          state: null,
+          icon: spend.enrichedMerchantIcon,
+        },
+        operations: [],
+        settled: false,
+        timestamp,
+        transactionHash: hashes[0] ?? zeroHash,
+      };
+    }
+
     const operations = hashes.map((hash, index) => {
       const borrow = borrows[index];
       const validation = safeParse(
         { 0: DebitActivity, 1: CreditActivity }[borrow?.events.length ?? 0] ?? InstallmentsActivity,
         {
-          ...bodies[index],
-          forceCapture: bodies[index]?.action === "completed" && !bodies.some((b) => b.action === "created"),
+          ...mapped[index],
+          forceCapture: mapped[index]?.action === "completed" && !mapped.some((b) => b.action === "created"),
           type,
           hash,
           events: borrow?.events,
@@ -449,8 +513,8 @@ function transformCard(activity: InferOutput<typeof CardActivity>) {
         name: activity.body.spend.merchantName,
         city: activity.body.spend.merchantCity,
         country: activity.body.spend.merchantCountry,
-        icon: activity.body.spend.enrichedMerchantIcon,
         state: "",
+        icon: activity.body.spend.enrichedMerchantIcon,
       },
     };
   }
