@@ -147,7 +147,7 @@ const Statement = ({
 
 export default Statement;
 
-function format(timestamp: number) {
+export function format(timestamp: number) {
   return new Date(timestamp * 1000).toISOString().slice(0, 10);
 }
 
