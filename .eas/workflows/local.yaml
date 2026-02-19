@@ -92,8 +92,7 @@ jobs:
           path: |
             server.log
             server/coverage
-            server/node_modules/@exactly/.runtime
-            server/node_modules/@exactly/.spotlight
+            server/node_modules/@exactly/.*
             emulator.log
             emulator-process.log
             ${{ env.HOME }}/.maestro/tests
@@ -172,8 +171,7 @@ jobs:
           path: |
             server.log
             server/coverage
-            server/node_modules/@exactly/.runtime
-            server/node_modules/@exactly/.spotlight
+            server/node_modules/@exactly/.*
             simulator.log
             simulator-diagnose
             ${{ env.HOME }}/.maestro/tests
