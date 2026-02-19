@@ -244,7 +244,7 @@ describe("proposal", () => {
         expect.arrayContaining([
           [
             expect.objectContaining({ name: "ContractFunctionExecutionError", functionName: "executeProposal" }),
-            expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "execution reverted"] }),
+            expect.objectContaining({ level: "warning", fingerprint: ["{{ default }}", "execution reverted"] }),
           ],
         ]),
       );
@@ -756,7 +756,7 @@ describe("proposal", () => {
 
       expect(captureException).toHaveBeenCalledWith(
         expect.objectContaining({ name: "ContractFunctionExecutionError" }),
-        expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "WrappedError", "0x931997cf"] }),
+        expect.objectContaining({ level: "warning", fingerprint: ["{{ default }}", "WrappedError", "0x931997cf"] }),
       );
     });
 
@@ -799,7 +799,7 @@ describe("proposal", () => {
 
       expect(captureException).toHaveBeenCalledWith(
         expect.objectContaining({ name: "ContractFunctionExecutionError" }),
-        expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "unknown"] }),
+        expect.objectContaining({ level: "warning", fingerprint: ["{{ default }}", "unknown"] }),
       );
     });
 
@@ -886,7 +886,7 @@ describe("proposal", () => {
 
       expect(captureException).toHaveBeenCalledWith(
         expect.objectContaining({ name: "ContractFunctionExecutionError" }),
-        expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "0x12345678"] }),
+        expect.objectContaining({ level: "warning", fingerprint: ["{{ default }}", "0x12345678"] }),
       );
     });
   });
@@ -2058,18 +2058,31 @@ const wrappedErrorAbi = [
 
 function matchProposal(account: Address, nonce: bigint) {
   return {
-    capture([, hint]: unknown[]) {
-      if (typeof hint !== "object" || hint === null || !("contexts" in hint)) return false;
-      const contexts = (hint as { contexts?: unknown }).contexts;
-      if (typeof contexts !== "object" || contexts === null || !("proposal" in contexts)) return false;
-      const proposal = (contexts as { proposal?: unknown }).proposal;
+    capture([error, hint]: unknown[]) {
+      if (typeof hint === "object" && hint !== null && "contexts" in hint) {
+        const contexts = (hint as { contexts?: unknown }).contexts;
+        if (typeof contexts === "object" && contexts !== null && "proposal" in contexts) {
+          const proposal = (contexts as { proposal?: unknown }).proposal;
+          return (
+            typeof proposal === "object" &&
+            proposal !== null &&
+            "account" in proposal &&
+            proposal.account === account &&
+            "nonce" in proposal &&
+            proposal.nonce === Number(nonce)
+          );
+        }
+      }
       return (
-        typeof proposal === "object" &&
-        proposal !== null &&
-        "account" in proposal &&
-        proposal.account === account &&
-        "nonce" in proposal &&
-        proposal.nonce === nonce
+        typeof error === "object" &&
+        error !== null &&
+        "functionName" in error &&
+        error.functionName === "executeProposal" &&
+        "contractAddress" in error &&
+        (error.contractAddress as string).toLowerCase() === account.toLowerCase() &&
+        "args" in error &&
+        Array.isArray(error.args) &&
+        error.args[0] === nonce
       );
     },
     zrem([key, message]: unknown[]) {

@@ -57,6 +57,7 @@ export function extender(keeper: WalletClient<HttpTransport, typeof chain, Priva
       call: Prettify<Pick<WriteContractParameters, "abi" | "address" | "args" | "functionName">>,
       options?: {
         ignore?: ((reason: string) => MaybePromise<boolean | TransactionReceipt | undefined>) | string[];
+        level?: "error" | "warning" | ((reason: string, error: unknown) => "error" | "warning" | false) | false;
         onHash?: (hash: Hash) => MaybePromise<unknown>;
       },
     ) =>
@@ -174,7 +175,21 @@ export function extender(keeper: WalletClient<HttpTransport, typeof chain, Priva
               }
             }
             span.setStatus({ code: SPAN_STATUS_ERROR, message: reason });
-            captureException(error, { level: "error", fingerprint: revertFingerprint(error) });
+            const level =
+              typeof options?.level === "function" ? options.level(reason, error) : (options?.level ?? "error");
+            if (level) {
+              withScope((captureScope) => {
+                const fingerprint = revertFingerprint(error);
+                if (fingerprint[1] && fingerprint[1] !== "unknown") {
+                  const type = fingerprint.length > 2 ? `${fingerprint[1]}(${fingerprint[2]})` : fingerprint[1];
+                  captureScope.addEventProcessor((event) => {
+                    if (event.exception?.values?.[0]) event.exception.values[0].type = type;
+                    return event;
+                  });
+                }
+                captureException(error, { level, fingerprint });
+              });
+            }
             throw error;
           }
         }),

@@ -4,6 +4,7 @@ import "../mocks/sentry";
 
 import { captureException } from "@sentry/node";
 import { setImmediate } from "node:timers/promises";
+import { encodeErrorResult, getContractError, RawContractError } from "viem";
 import { afterEach, describe, expect, inject, it, vi } from "vitest";
 
 import { auditorAbi } from "@exactly/common/generated/chain";
@@ -201,6 +202,109 @@ describe("fault tolerance", () => {
     await expect(Promise.all(hashes.map((hash) => waitForTransactionReceipt({ hash })))).resolves.toMatchObject(
       hashes.map(() => ({ status: "success" })),
     );
+  });
+});
+
+describe("level option", () => {
+  it("defaults to error", async () => {
+    vi.spyOn(publicClient, "simulateContract").mockImplementationOnce(() => {
+      throw new Error("operational failure");
+    });
+    const initialCalls = vi.mocked(captureException).mock.calls.length;
+    await expect(
+      keeper.exaSend(
+        { name: "test transfer", op: "test.transfer" },
+        { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+      ),
+    ).rejects.toThrow("operational failure");
+    const calls = vi.mocked(captureException).mock.calls.slice(initialCalls);
+    expect(calls).toContainEqual([
+      expect.objectContaining({ message: "operational failure" }),
+      expect.objectContaining({ level: "error" }),
+    ]);
+  });
+
+  it("captures with static warning level", async () => {
+    vi.spyOn(publicClient, "simulateContract").mockImplementationOnce(() => {
+      throw new Error("test warning");
+    });
+    const initialCalls = vi.mocked(captureException).mock.calls.length;
+    await expect(
+      keeper.exaSend(
+        { name: "test transfer", op: "test.transfer" },
+        { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+        { level: "warning" },
+      ),
+    ).rejects.toThrow("test warning");
+    const calls = vi.mocked(captureException).mock.calls.slice(initialCalls);
+    expect(calls).toContainEqual([
+      expect.objectContaining({ message: "test warning" }),
+      expect.objectContaining({ level: "warning" }),
+    ]);
+  });
+
+  it("suppresses capture with false", async () => {
+    vi.spyOn(publicClient, "simulateContract").mockImplementationOnce(() => {
+      throw new Error("suppressed");
+    });
+    const initialCalls = vi.mocked(captureException).mock.calls.length;
+    await expect(
+      keeper.exaSend(
+        { name: "test transfer", op: "test.transfer" },
+        { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+        { level: false },
+      ),
+    ).rejects.toThrow("suppressed");
+    const calls = vi.mocked(captureException).mock.calls.slice(initialCalls);
+    expect(calls.some(([error]) => error instanceof Error && error.message === "suppressed")).toBe(false);
+  });
+
+  it("calls level function with reason and error", async () => {
+    const contractError = getContractError(
+      new RawContractError({ data: encodeErrorResult({ abi: auditorAbi, errorName: "InsufficientShortfall" }) }),
+      { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+    );
+    vi.spyOn(publicClient, "simulateContract").mockImplementationOnce(() => {
+      throw contractError; // eslint-disable-line @typescript-eslint/only-throw-error -- returns error
+    });
+    const levelFunction = vi
+      .fn<(reason: string, error: unknown) => "error" | "warning" | false>()
+      .mockReturnValue("warning");
+    const initialCalls = vi.mocked(captureException).mock.calls.length;
+    await expect(
+      keeper.exaSend(
+        { name: "test transfer", op: "test.transfer" },
+        { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+        { level: levelFunction },
+      ),
+    ).rejects.toThrow();
+    expect(levelFunction).toHaveBeenCalledWith(expect.stringContaining("InsufficientShortfall"), contractError);
+    const calls = vi.mocked(captureException).mock.calls.slice(initialCalls);
+    expect(calls).toContainEqual([contractError, expect.objectContaining({ level: "warning" })]);
+  });
+
+  it("suppresses capture when level function returns false", async () => {
+    vi.spyOn(publicClient, "simulateContract").mockImplementationOnce(() => {
+      // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
+      throw getContractError(
+        new RawContractError({ data: encodeErrorResult({ abi: auditorAbi, errorName: "InsufficientShortfall" }) }),
+        { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+      );
+    });
+    const initialCalls = vi.mocked(captureException).mock.calls.length;
+    await expect(
+      keeper.exaSend(
+        { name: "test transfer", op: "test.transfer" },
+        { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+        { level: () => false },
+      ),
+    ).rejects.toThrow();
+    const calls = vi.mocked(captureException).mock.calls.slice(initialCalls);
+    expect(
+      calls.some(
+        ([error]) => error instanceof Error && "functionName" in error && error.functionName === "enterMarket",
+      ),
+    ).toBe(false);
   });
 });
 
