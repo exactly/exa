@@ -7,6 +7,8 @@ import "../mocks/sentry";
 import { captureException } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
 import { safeParse, type InferOutput } from "valibot";
 import { padHex, zeroHash, type Hash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
@@ -239,6 +241,9 @@ describe.concurrent("authenticated", () => {
       expect(response.headers.get("content-type")).toBe("application/pdf");
       const body = await response.arrayBuffer();
       expect(body.byteLength).toBeGreaterThan(0);
+      const directory = path.join("node_modules/@exactly/.runtime");
+      await mkdir(directory, { recursive: true });
+      await writeFile(path.join(directory, `statement-${Date.now()}.pdf`), new Uint8Array(body)); // eslint-disable-line security/detect-non-literal-fs-filename -- test artifact path includes timestamp
     });
 
     it("returns statement pdf for combined accept header", async () => {
