@@ -41,7 +41,7 @@ export default new Hono()
       "query",
       object({
         countryCode: optional(literal("true")),
-        scope: optional(picklist(["basic", "manteca"])),
+        scope: optional(picklist(["basic", "bridge", "manteca"])),
       }),
       validatorHook(),
     ),
@@ -124,7 +124,7 @@ export default new Hono()
       "json",
       object({
         redirectURI: optional(string()),
-        scope: optional(picklist(["basic", "manteca"])),
+        scope: optional(picklist(["basic", "bridge", "manteca"])),
       }),
       validatorHook({ debug }),
     ),
