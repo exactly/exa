@@ -1,4 +1,4 @@
-import { captureException, captureMessage } from "@sentry/core";
+import { captureException, captureMessage, withScope } from "@sentry/core";
 import {
   array,
   boolean,
@@ -64,7 +64,7 @@ export async function uploadIdentityFile(
       delay: 1000,
       retryCount: 2,
       shouldRetry: ({ error }) => {
-        captureException(error, { level: "warning" });
+        captureException(error, { level: "warning", fingerprint: ["{{ default }}", "upload identity file"] });
         return true;
       },
     },
@@ -260,7 +260,17 @@ export async function getProvider(
     (task) => task.required && task.status === "PENDING",
   );
   if (hasPendingTasks) {
-    captureException(new Error("has pending tasks"), { level: "warning", contexts: { mantecaUser } });
+    withScope((scope) => {
+      scope.addEventProcessor((event) => {
+        if (event.exception?.values?.[0]) event.exception.values[0].type = "has pending tasks";
+        return event;
+      });
+      captureException(new Error("has pending tasks"), {
+        level: "warning",
+        fingerprint: ["{{ default }}", "has pending tasks"],
+        contexts: { mantecaUser },
+      });
+    });
     return { onramp: { currencies, cryptoCurrencies: [] }, status: "NOT_STARTED" };
   }
   return { onramp: { currencies, cryptoCurrencies: [] }, status: "ONBOARDING" };

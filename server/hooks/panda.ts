@@ -7,6 +7,7 @@ import {
   setTag,
   setUser,
   startSpan,
+  withScope,
 } from "@sentry/node";
 import { E_TIMEOUT } from "async-mutex";
 import createDebug from "debug";
@@ -403,7 +404,17 @@ export default new Hono().post(
               ) !== amount
             ) {
               debug(`${payload.action}:${payload.body.spend.status}`, payload.body.id, "bad collection");
-              captureException(new Error("bad collection"), { level: "warning", contexts: { tx: { call, trace } } });
+              withScope((scope) => {
+                scope.addEventProcessor((event) => {
+                  if (event.exception?.values?.[0]) event.exception.values[0].type = "bad collection";
+                  return event;
+                });
+                captureException(new Error("bad collection"), {
+                  level: "warning",
+                  fingerprint: ["{{ default }}", "bad collection"],
+                  contexts: { tx: { call, trace } },
+                });
+              });
               throw new PandaError("bad collection", 551 as UnofficialStatusCode);
             }
             return authorize();

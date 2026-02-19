@@ -199,9 +199,15 @@ export default new Hono().post(
                 for (const result of results) {
                   if (result.status === "fulfilled") continue;
                   if (result.reason instanceof Error && result.reason.message === "NoBalance()") {
-                    captureException(result.reason, {
-                      level: "warning",
-                      fingerprint: ["{{ default }}", result.reason.message],
+                    withScope((captureScope) => {
+                      captureScope.addEventProcessor((event) => {
+                        if (event.exception?.values?.[0]) event.exception.values[0].type = "NoBalance";
+                        return event;
+                      });
+                      captureException(result.reason, {
+                        level: "warning",
+                        fingerprint: ["{{ default }}", "NoBalance"],
+                      });
                     });
                     continue;
                   }

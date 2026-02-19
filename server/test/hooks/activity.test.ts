@@ -635,7 +635,7 @@ function isNoBalance(error: unknown, hint: unknown, level: "error" | "warning") 
     error.message === "NoBalance()" &&
     data?.level === level &&
     Array.isArray(data.fingerprint) &&
-    data.fingerprint.join(":") === "{{ default }}:NoBalance()"
+    data.fingerprint.join(":") === "{{ default }}:NoBalance"
   );
 }
 

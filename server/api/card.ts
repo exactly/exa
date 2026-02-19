@@ -1,4 +1,4 @@
-import { captureException, setContext, setUser } from "@sentry/node";
+import { captureException, setContext, setUser, withScope } from "@sentry/node";
 import { Mutex } from "async-mutex";
 import { eq, inArray, ne } from "drizzle-orm";
 import { Hono } from "hono";
@@ -221,16 +221,23 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
             if (!issue) throw error;
             const shouldCapture = issue.type === "NotFoundError" || status === "ACTIVE";
             if (shouldCapture) {
-              captureException(issue.error, {
-                level: "warning",
-                extra: {
-                  cardId: id,
-                  credentialId,
-                  pandaId: credential.pandaId,
-                  status,
-                  shouldCapture,
-                  userIssue: issue.type,
-                },
+              withScope((scope) => {
+                scope.addEventProcessor((event) => {
+                  if (event.exception?.values?.[0]) event.exception.values[0].type = issue.type;
+                  return event;
+                });
+                captureException(issue.error, {
+                  level: "warning",
+                  fingerprint: ["{{ default }}", issue.type],
+                  extra: {
+                    cardId: id,
+                    credentialId,
+                    pandaId: credential.pandaId,
+                    status,
+                    shouldCapture,
+                    userIssue: issue.type,
+                  },
+                });
               });
             }
             return null;
@@ -386,15 +393,22 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
             const hasCardHistory = credential.cards.length > 0;
             const shouldCapture = issue.type === "NotFoundError" || hasCardHistory;
             if (shouldCapture) {
-              captureException(issue.error, {
-                level: "warning",
-                extra: {
-                  credentialId,
-                  hasCardHistory,
-                  pandaId: credential.pandaId,
-                  statuses: credential.cards.map(({ status }) => status),
-                  userIssue: issue.type,
-                },
+              withScope((scope) => {
+                scope.addEventProcessor((event) => {
+                  if (event.exception?.values?.[0]) event.exception.values[0].type = issue.type;
+                  return event;
+                });
+                captureException(issue.error, {
+                  level: "warning",
+                  fingerprint: ["{{ default }}", issue.type],
+                  extra: {
+                    credentialId,
+                    hasCardHistory,
+                    pandaId: credential.pandaId,
+                    statuses: credential.cards.map(({ status }) => status),
+                    userIssue: issue.type,
+                  },
+                });
               });
             }
             return c.json({ code: "no panda" }, 403);
@@ -588,8 +602,22 @@ function handlePlatinumUpgrade(credentialId: string, account: InferOutput<typeof
     })
     .catch((error: unknown) => {
       const isPaxConfigError = error instanceof Error && error.message.includes("missing pax");
+      if (isPaxConfigError) {
+        withScope((scope) => {
+          scope.addEventProcessor((event) => {
+            if (event.exception?.values?.[0]) event.exception.values[0].type = "missing pax";
+            return event;
+          });
+          captureException(error, {
+            level: "warning",
+            fingerprint: ["{{ default }}", "missing pax"],
+            extra: { credentialId, account, productId: SIGNATURE_PRODUCT_ID, scope: "basic", isPaxConfigError },
+          });
+        });
+        return;
+      }
       captureException(error, {
-        level: isPaxConfigError ? "warning" : "error",
+        level: "error",
         extra: { credentialId, account, productId: SIGNATURE_PRODUCT_ID, scope: "basic", isPaxConfigError },
       });
     });
