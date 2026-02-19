@@ -20,7 +20,13 @@ import { Address } from "@exactly/common/validation";
 
 import database, { credentials } from "../database";
 import auth from "../middleware/auth";
-import { createInquiry, getInquiry, MANTECA_TEMPLATE_EXTRA_FIELDS, resumeInquiry } from "../utils/persona";
+import {
+  ADDRESS_TEMPLATE,
+  createInquiry,
+  getInquiry,
+  MANTECA_TEMPLATE_EXTRA_FIELDS,
+  resumeInquiry,
+} from "../utils/persona";
 import {
   SupportedCurrency as BridgeCurrency,
   ErrorCodes as BridgeErrorCodes,
@@ -30,7 +36,6 @@ import {
   getDepositDetails as getBridgeDepositDetails,
   getProvider as getBridgeProvider,
   getQuote as getBridgeQuote,
-  SupportedCrypto as SupportedBridgeCrypto,
 } from "../utils/ramps/bridge";
 import {
   getDepositDetails as getMantecaDepositDetails,
@@ -41,8 +46,9 @@ import {
   ErrorCodes as MantecaErrorCodes,
   mantecaOnboarding,
 } from "../utils/ramps/manteca";
-import { CryptoNetwork, type DepositDetails, type ProviderInfo, type RampProvider } from "../utils/ramps/shared";
 import validatorHook from "../utils/validatorHook";
+
+import type { DepositDetails, ProviderInfo, RampProvider } from "../utils/ramps/shared";
 
 const debug = createDebug("exa:ramp");
 Object.assign(debug, { inspectOpts: { depth: undefined } });
@@ -107,11 +113,9 @@ export default new Hono()
       union([
         object({ provider: literal("manteca"), currency: picklist(MantecaCurrency) }),
         object({ provider: literal("bridge"), currency: picklist(BridgeCurrency) }),
-        object({
-          provider: literal("bridge"),
-          cryptoCurrency: picklist(SupportedBridgeCrypto),
-          network: picklist(CryptoNetwork),
-        }),
+        object({ provider: literal("bridge"), cryptoCurrency: literal("USDT"), network: literal("TRON") }),
+        object({ provider: literal("bridge"), cryptoCurrency: literal("USDC"), network: literal("SOLANA") }),
+        object({ provider: literal("bridge"), cryptoCurrency: literal("USDC"), network: literal("STELLAR") }),
       ]),
       validatorHook(),
     ),
@@ -150,20 +154,9 @@ export default new Hono()
           const bridgeUser = await getBridgeCustomer(credential.bridgeId);
           if (!bridgeUser) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
 
-          try {
-            depositInfo = await ("cryptoCurrency" in query && "network" in query
-              ? getBridgeCryptoDepositDetails(query.cryptoCurrency, query.network, credential.account, bridgeUser)
-              : getBridgeDepositDetails(query.currency, credential.account, bridgeUser));
-          } catch (error) {
-            captureException(error, { level: "error", contexts: { credential } });
-            if (error instanceof Error && Object.values(BridgeErrorCodes).includes(error.message)) {
-              switch (error.message) {
-                case BridgeErrorCodes.NOT_AVAILABLE_CRYPTO_PAYMENT_RAIL:
-                  return c.json({ code: error.message }, 400);
-              }
-            }
-            throw error;
-          }
+          depositInfo = await ("cryptoCurrency" in query && "network" in query
+            ? getBridgeCryptoDepositDetails(query.cryptoCurrency, query.network, credential.account, bridgeUser)
+            : getBridgeDepositDetails(query.currency, credential.account, bridgeUser));
 
           return c.json(
             {
@@ -209,16 +202,11 @@ export default new Hono()
                 case MantecaErrorCodes.NO_DOCUMENT:
                   return c.json({ code: error.message }, 400);
                 case MantecaErrorCodes.INVALID_LEGAL_ID: {
-                  const existing = await getInquiry(credentialId, MANTECA_TEMPLATE_EXTRA_FIELDS);
-                  const resumable =
-                    existing?.attributes.status === "created" ||
-                    existing?.attributes.status === "pending" ||
-                    existing?.attributes.status === "expired";
-                  const { data } = resumable
-                    ? { data: { id: existing.id } }
-                    : await createInquiry(credentialId, MANTECA_TEMPLATE_EXTRA_FIELDS);
-                  const { meta } = await resumeInquiry(data.id);
-                  return c.json({ code: error.message, inquiryId: data.id, sessionToken: meta["session-token"] }, 400);
+                  const { inquiryId, sessionToken } = await getOrCreateInquiry(
+                    credentialId,
+                    MANTECA_TEMPLATE_EXTRA_FIELDS,
+                  );
+                  return c.json({ code: error.message, inquiryId, sessionToken }, 400);
                 }
               }
             }
@@ -238,6 +226,10 @@ export default new Hono()
               switch (error.message) {
                 case BridgeErrorCodes.ALREADY_ONBOARDED:
                   return c.json({ code: error.message }, 400);
+                case BridgeErrorCodes.INVALID_ADDRESS: {
+                  const { inquiryId, sessionToken } = await getOrCreateInquiry(credentialId, ADDRESS_TEMPLATE);
+                  return c.json({ code: error.message, inquiryId, sessionToken }, 400);
+                }
               }
             }
             throw error;
@@ -247,3 +239,15 @@ export default new Hono()
       return c.json({ code: "ok" }, 200);
     },
   );
+
+async function getOrCreateInquiry(credentialId: string, template: string) {
+  const existing = await getInquiry(credentialId, template);
+  const { data: inquiry } =
+    existing?.attributes.status === "created" ||
+    existing?.attributes.status === "pending" ||
+    existing?.attributes.status === "expired"
+      ? { data: { id: existing.id } }
+      : await createInquiry(credentialId, template);
+  const { meta } = await resumeInquiry(inquiry.id);
+  return { inquiryId: inquiry.id, sessionToken: meta["session-token"] };
+}
