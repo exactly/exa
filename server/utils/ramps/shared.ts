@@ -146,4 +146,5 @@ export const ProviderInfo = object({
     cryptoCurrencies: array(object({ cryptoCurrency: picklist(Cryptocurrency), network: picklist(CryptoNetwork) })),
   }),
   status: picklist(["NOT_STARTED", "ACTIVE", "ONBOARDING", "NOT_AVAILABLE"]),
+  tosLink: optional(string()),
 });
