@@ -448,7 +448,7 @@ describe("manteca hook", () => {
   });
 
   describe("when a user onboarding is updated", () => {
-    it("tracks RampAccount when user becomes active", async () => {
+    it("tracks RampAccount when user is active and identity validation is completed", async () => {
       vi.spyOn(segment, "track").mockReturnValue();
       const payload = {
         event: "USER_ONBOARDING_UPDATE",
@@ -461,6 +461,7 @@ describe("manteca hook", () => {
             externalId: userExternalId,
             exchange: "ARGENTINA",
             status: "ACTIVE",
+            onboarding: { IDENTITY_VALIDATION: { required: true, status: "COMPLETED" as const } },
           },
         },
       };
@@ -478,7 +479,8 @@ describe("manteca hook", () => {
       });
     });
 
-    it("returns ok for onboarding status", async () => {
+    it("does not track when user is active but updated task is not identity validation", async () => {
+      vi.spyOn(segment, "track").mockReturnValue();
       const payload = {
         event: "USER_ONBOARDING_UPDATE",
         data: {
@@ -489,7 +491,8 @@ describe("manteca hook", () => {
             numberId: "456",
             externalId: userExternalId,
             exchange: "ARGENTINA",
-            status: "ONBOARDING",
+            status: "ACTIVE",
+            onboarding: { IDENTITY_VALIDATION: { required: true, status: "COMPLETED" as const } },
           },
         },
       };
@@ -500,6 +503,61 @@ describe("manteca hook", () => {
 
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+      expect(segment.track).not.toHaveBeenCalled();
+    });
+
+    it("does not track when identity validation task is not completed", async () => {
+      vi.spyOn(segment, "track").mockReturnValue();
+      const payload = {
+        event: "USER_ONBOARDING_UPDATE",
+        data: {
+          updatedTasks: ["IDENTITY_VALIDATION"],
+          user: {
+            email: "test@example.com",
+            id: "user123",
+            numberId: "456",
+            externalId: userExternalId,
+            exchange: "ARGENTINA",
+            status: "ACTIVE",
+            onboarding: { IDENTITY_VALIDATION: { required: true, status: "IN_PROGRESS" as const } },
+          },
+        },
+      };
+      const response = await appClient.index.$post({
+        header: { "md-webhook-signature": createSignature(payload) },
+        json: payload as never,
+      });
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+      expect(segment.track).not.toHaveBeenCalled();
+    });
+
+    it("does not track when user status is not active", async () => {
+      vi.spyOn(segment, "track").mockReturnValue();
+      const payload = {
+        event: "USER_ONBOARDING_UPDATE",
+        data: {
+          updatedTasks: ["IDENTITY_VALIDATION"],
+          user: {
+            email: "test@example.com",
+            id: "user123",
+            numberId: "456",
+            externalId: userExternalId,
+            exchange: "ARGENTINA",
+            status: "ONBOARDING",
+            onboarding: { IDENTITY_VALIDATION: { required: true, status: "COMPLETED" as const } },
+          },
+        },
+      };
+      const response = await appClient.index.$post({
+        header: { "md-webhook-signature": createSignature(payload) },
+        json: payload as never,
+      });
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+      expect(segment.track).not.toHaveBeenCalled();
     });
   });
 });
