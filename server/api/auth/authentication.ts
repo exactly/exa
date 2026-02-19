@@ -253,9 +253,11 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
     vValidator("header", optional(object({ "Client-Fid": optional(pipe(string(), maxLength(36))) }))),
     vValidator(
       "query",
-      object({
-        factory: optional(pipe(Address, title("Factory"), description("Account factory address."))),
-      }),
+      optional(
+        object({
+          factory: optional(pipe(Address, title("Factory"), description("Account factory address."))),
+        }),
+      ),
       validatorHook({ code: "bad factory" }),
     ),
     vValidator(
@@ -312,7 +314,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
     ),
     async (c) => {
       const assertion = c.req.valid("json");
-      const { factory } = c.req.valid("query");
+      const factory = c.req.valid("query")?.factory ?? undefined;
       setContext("auth", assertion);
       const sessionId = c.req.header("x-session-id") ?? c.req.valid("cookie").session_id;
       if (!sessionId) return c.json({ code: "bad session" }, 400);
