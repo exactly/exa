@@ -258,9 +258,11 @@ export default new Hono()
     vValidator("header", optional(object({ "Client-Fid": optional(pipe(string(), maxLength(36))) }))),
     vValidator(
       "query",
-      object({
-        factory: optional(pipe(Address, title("Factory"), description("Account factory address."))),
-      }),
+      optional(
+        object({
+          factory: optional(pipe(Address, title("Factory"), description("Account factory address."))),
+        }),
+      ),
       validatorHook({ code: "bad factory" }),
     ),
     vValidator(
@@ -312,7 +314,7 @@ export default new Hono()
     ),
     async (c) => {
       const attestation = c.req.valid("json");
-      const { factory } = c.req.valid("query");
+      const factory = c.req.valid("query")?.factory ?? undefined;
       setContext("auth", attestation);
       const sessionId = c.req.header("x-session-id") ?? c.req.valid("cookie").session_id;
       if (!sessionId) return c.json({ code: "bad session" }, 400);
