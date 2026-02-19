@@ -2,15 +2,34 @@ import { captureException, withScope } from "@sentry/react-native";
 
 export default function reportError(error: unknown, hint?: Parameters<typeof captureException>[1]) {
   console.error(error); // eslint-disable-line no-console
-  const classification = classify(parseError(error));
+  const parsed = parseError(error);
+  const classification = classify(parsed);
   try {
     const value = classification.fingerprint;
     const known = classification.known;
-    if (!known && value === undefined) return captureException(error, hint);
+    const warning =
+      known ||
+      (typeof hint === "object" && "level" in hint && typeof hint.level === "string" && hint.level === "warning");
+    const title =
+      (value?.[1] === "api" && typeof value[2] === "string" ? `${value[1]} ${value[2]}` : value?.[1]) ??
+      (parsed.name && parsed.name !== "Error" && parsed.name !== "APIError" ? parsed.name : undefined) ??
+      parsed.status ??
+      parsed.message;
+    if (!warning && value === undefined) return captureException(error, hint);
     let eventId: ReturnType<typeof captureException> | undefined;
     withScope((scope) => {
-      if (known) scope.setLevel("warning");
+      if (warning) scope.setLevel("warning");
       if (value !== undefined) scope.setFingerprint(value);
+      else if (warning) scope.setFingerprint(["{{ default }}", title ?? "unknown"]);
+      if (warning && title) {
+        scope.addEventProcessor((event) => {
+          const current = event.exception?.values?.[0];
+          if (current && (current.type === undefined || current.type === "Error" || current.type === "APIError")) {
+            current.type = title;
+          }
+          return event;
+        });
+      }
       eventId = captureException(error, hint);
     });
     return eventId;
@@ -107,11 +126,6 @@ function classify({ code, name, message, status }: ParsedError) {
     message === "Network request failed" ||
     network === "offline" ||
     network === "lost";
-  const fingerprintMessage =
-    message?.startsWith("Calling the 'get' function has failed") ||
-    message?.startsWith("The operation couldn’t be completed.")
-      ? message
-      : undefined;
   const value =
     (name === "APIError" && status !== undefined
       ? message === undefined || message.endsWith("[object Object]")
@@ -120,9 +134,9 @@ function classify({ code, name, message, status }: ParsedError) {
       : undefined) ??
     (code === undefined || code === "ERR_UNKNOWN"
       ? network === undefined
-        ? fingerprintMessage === undefined
+        ? message === undefined
           ? undefined
-          : ["{{ default }}", fingerprintMessage]
+          : ["{{ default }}", message]
         : ["{{ default }}", network]
       : ["{{ default }}", code]);
   return { passkeyKnown, passkeyCancelled, passkeyNotAllowed, passkeyWarning, authKnown, known, fingerprint: value };
