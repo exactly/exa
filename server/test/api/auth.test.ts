@@ -18,7 +18,6 @@ import { Address } from "@exactly/common/validation";
 import app, { type Authentication } from "../../api/auth/authentication";
 import database, { credentials } from "../../database";
 import * as publicClient from "../../utils/publicClient";
-import redis from "../../utils/redis";
 import validFactories from "../../utils/validFactories";
 
 import type * as SimpleWebAuthn from "@simplewebauthn/server";
@@ -104,7 +103,7 @@ describe("authentication", () => {
       {
         json: {
           method: "webauthn",
-          id: "bWlzc2luZy1jcmVk",
+          id: "bWlzc2luZy1jcmVk", //cspell:ignore Wlzc
           rawId: "bWlzc2luZy1jcmVk",
           response: { clientDataJSON: "dGVzdA", authenticatorData: "dGVzdA", signature: "dGVzdA" },
           clientExtensionResults: {},
@@ -279,13 +278,13 @@ vi.mock("@simplewebauthn/server", async (importOriginal) => {
   };
 });
 
-vi.mock("../../utils/redis", () => ({
-  default: {
-    get: vi.fn<() => string | null>().mockResolvedValue("test-challenge"),
-    set: vi.fn<() => boolean>().mockResolvedValue(true),
-    del: vi.fn<() => boolean>().mockResolvedValue(true),
-  },
+const redis = vi.hoisted(() => ({
+  get: vi.fn<() => Promise<null | string>>().mockResolvedValue("test-challenge"),
+  set: vi.fn<() => Promise<boolean>>().mockResolvedValue(true),
+  del: vi.fn<() => Promise<number>>().mockResolvedValue(1),
 }));
+
+vi.mock("../../utils/redis", () => ({ default: redis, requestRedis: redis }));
 
 vi.mock("@simplewebauthn/server/helpers", async (importOriginal) => {
   const original = await importOriginal<typeof SimpleWebAuthnHelpers>();
