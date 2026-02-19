@@ -297,7 +297,7 @@ app.onError((error, c) => {
               ? [json.message]
               : typeof json.error === "string"
                 ? [json.error]
-                : []),
+                : [body]),
         ];
       } catch {
         fingerprint = ["{{ default }}", status, body];
