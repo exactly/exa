@@ -51,7 +51,7 @@ import ensClient from "../utils/ensClient";
 import keeper from "../utils/keeper";
 import { sendPushNotification } from "../utils/onesignal";
 import publicClient from "../utils/publicClient";
-import redis from "../utils/redis";
+import redis, { requestRedis } from "../utils/redis";
 import revertFingerprint from "../utils/revertFingerprint";
 import revertReason from "../utils/revertReason";
 import validatorHook from "../utils/validatorHook";
@@ -182,7 +182,7 @@ export default new Hono().post(
             withdraw.sentryBaggage = sentryBaggage;
             const message = serialize(withdraw);
             getActiveSpan()?.setAttribute("messaging.message.body.size", Buffer.byteLength(message));
-            const added = await redis.zadd("withdraw", Number(event.args.unlock), message);
+            const added = await requestRedis.zadd("withdraw", Number(event.args.unlock), message);
             if (added) scheduleWithdraw(message);
             return added;
           },
@@ -219,7 +219,7 @@ function scheduleProposal(proposal: v.InferOutput<typeof Proposal>) {
       proposal.sentryBaggage = sentryBaggage;
       const message = serialize(proposal);
       getActiveSpan()?.setAttribute("messaging.message.body.size", Buffer.byteLength(message));
-      const added = await redis.zadd("proposals", Number(proposal.unlock + proposal.nonce), message);
+      const added = await requestRedis.zadd("proposals", Number(proposal.unlock + proposal.nonce), message);
       if (added) scheduleMessage(message);
       return added;
     },

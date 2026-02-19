@@ -23,12 +23,26 @@ import database, { credentials } from "../../database";
 import * as publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
 
+import type * as AlchemyQueue from "../../queues/alchemyQueue";
 import type * as SimpleWebAuthn from "@simplewebauthn/server";
 import type * as SimpleWebAuthnHelpers from "@simplewebauthn/server/helpers";
 import type * as ViemSiwe from "viem/siwe";
 
 const appClient = testClient(app);
 const registrationAppClient = testClient(registrationApp);
+
+vi.mock("../../utils/redis", () => {
+  const redisMock = {
+    getdel: vi.fn<() => Promise<null | string>>().mockResolvedValue("test-challenge"),
+    set: vi.fn<() => Promise<boolean>>().mockResolvedValue(true),
+  };
+  return { default: redisMock, requestRedis: redisMock };
+});
+
+vi.mock("../../queues/alchemyQueue", async (importOriginal) => {
+  const actual = await importOriginal<typeof AlchemyQueue>();
+  return { ...actual, getAlchemyQueue: vi.fn(() => ({ add: vi.fn().mockResolvedValue({}) })) };
+});
 
 describe("authentication", () => {
   beforeAll(async () => {
@@ -614,13 +628,6 @@ vi.mock("@simplewebauthn/server", async (importOriginal) => {
       ),
   };
 });
-
-vi.mock("../../utils/redis", () => ({
-  default: {
-    getdel: vi.fn<() => Promise<null | string>>().mockResolvedValue("test-challenge"),
-    set: vi.fn<() => Promise<boolean>>().mockResolvedValue(true),
-  },
-}));
 
 vi.mock("@simplewebauthn/server/helpers", async (importOriginal) => {
   const original = await importOriginal<typeof SimpleWebAuthnHelpers>();

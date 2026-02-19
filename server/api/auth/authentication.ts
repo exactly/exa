@@ -44,11 +44,11 @@ import database, { credentials } from "../../database";
 import androidOrigins from "../../utils/android/origins";
 import appOrigin from "../../utils/appOrigin";
 import authSecret from "../../utils/authSecret";
-import createCredential from "../../utils/createCredential";
+import createCredential, { WebhookNotReadyError } from "../../utils/createCredential";
 import decodePublicKey from "../../utils/decodePublicKey";
 import getIntercomToken from "../../utils/intercom";
 import publicClient from "../../utils/publicClient";
-import redis from "../../utils/redis";
+import { requestRedis as redis } from "../../utils/redis";
 import validatorHook from "../../utils/validatorHook";
 
 const Cookie = object({
@@ -341,6 +341,14 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
             200,
           );
         } catch (error) {
+          if (error instanceof WebhookNotReadyError) {
+            // cspell:ignore retriable
+            captureException(error, { level: "warning", tags: { retriable: true } });
+            return c.json(
+              { code: "service unavailable", legacy: "service temporarily unavailable, please retry" },
+              503,
+            );
+          }
           captureException(error, { level: "error", tags: { unhandled: true } });
           return c.json({ code: "ouch", legacy: "ouch" }, 500);
         }
