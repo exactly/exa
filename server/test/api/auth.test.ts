@@ -21,7 +21,6 @@ import app, { type Authentication } from "../../api/auth/authentication";
 import registrationApp from "../../api/auth/registration";
 import database, { credentials } from "../../database";
 import * as publicClient from "../../utils/publicClient";
-import redis from "../../utils/redis";
 import validFactories from "../../utils/validFactories";
 
 import type * as SimpleWebAuthn from "@simplewebauthn/server";
@@ -700,12 +699,14 @@ vi.mock("@simplewebauthn/server", async (importOriginal) => {
   };
 });
 
-vi.mock("../../utils/redis", () => ({
-  default: {
-    getdel: vi.fn<() => Promise<null | string>>().mockResolvedValue("test-challenge"),
-    set: vi.fn<() => Promise<boolean>>().mockResolvedValue(true),
-  },
+const redis = vi.hoisted(() => ({
+  get: vi.fn<() => Promise<null | string>>().mockResolvedValue("test-challenge"),
+  getdel: vi.fn<() => Promise<null | string>>().mockResolvedValue("test-challenge"),
+  set: vi.fn<() => Promise<boolean>>().mockResolvedValue(true),
+  del: vi.fn<() => Promise<number>>().mockResolvedValue(1),
 }));
+
+vi.mock("../../utils/redis", () => ({ default: redis, requestRedis: redis }));
 
 vi.mock("@simplewebauthn/server/helpers", async (importOriginal) => {
   const original = await importOriginal<typeof SimpleWebAuthnHelpers>();
