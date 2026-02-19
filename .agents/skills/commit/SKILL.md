@@ -255,7 +255,7 @@ the developer picks 1 or 2 gitmojis. **do not proceed until they respond.**
 
 **this step is mandatory and interactive.** never auto-select a message — always present options and wait for the developer to choose.
 
-present exactly **9** commit message options — always 9, no less — using the gitmojis the developer chose. number them 1–9. output the 9 options as a **plain numbered list** (one per line) and let the developer reply with their choice. do not use a structured selection tool for this step — plain text is intentional because most selection tools cap at 4 options.
+present exactly **9** commit message options — always 9, no less — using the gitmojis the developer chose. number them 1–9. output the 9 options as a **plain numbered list** (one per line) in a regular text message and let the developer reply with their choice. **do not use any interactive tool that cannot display all 9 options at once** — most selection widgets cap below 9, so plain text is the only reliable format.
 
 format: `<emoji> <scope>: <message>` — **scope is mandatory in every option, never omit it**.
 
@@ -327,7 +327,7 @@ if a changeset is needed:
 ## invariants
 
 - **gitmoji selection is always interactive** — never auto-select a gitmoji. even if only one seems to fit, present the options and wait for the developer to pick. skipping this step or choosing on behalf of the developer is a workflow violation
-- **message selection is always interactive** — never auto-select a commit message. always present all 9 options and wait for the developer to pick or write their own. an agent that composes a message and commits it without presenting options is violating this workflow
+- **message selection is always interactive** — never auto-select a commit message. always present all 9 options and wait for the developer to pick or write their own. an agent that composes a message and commits it without presenting options is violating this workflow. **no interactive tool that caps below 9 options may be used** — output them as a plain numbered list in a regular text message
 - **signing is mandatory** — never run `git commit` without `-S`, never use `--no-gpg-sign`, never commit unsigned
 - never amend a previous commit unless the developer explicitly requests it
 - never skip git hooks (no `--no-verify`)
