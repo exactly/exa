@@ -237,17 +237,25 @@ the main agent receives the compact summary and continues with the developer.
 
 #### step 5: gitmoji selection
 
-use `AskUserQuestion` with `multiSelect: true` to present the suggested gitmojis. each option:
+**this step is mandatory and interactive.** the developer must explicitly choose the gitmoji — never auto-select, never skip, never pick "the obvious one" on the developer's behalf. even if only one gitmoji seems to fit, present the options and wait for a response.
 
-- **label**: `<emoji> <name>` — some emojis are multi-codepoint: they contain a zero-width joiner (ZWJ, U+200D) or a variation selector (VS16, U+FE0F). terminals often render these as two visible glyphs instead of one. append `*` to the label of any such emoji so the developer isn't confused (e.g., 🧑‍💻\*, ⚗️\*, ♻️\*, 🏷️\*, 🏗️\*, ✏️\*)
-- **description**: a short argument for why this gitmoji fits the change
+present the suggested gitmojis using whatever interactive selection mechanism is available. the goal is a clear, scannable list where the developer can respond with minimal effort (a number, a click, or a short reply). guidelines:
+
+- **use the best interactive tool available** — if the environment provides a structured selection ui (e.g., `AskUserQuestion`, a picker widget, a multi-select prompt), use it. if not, fall back to a **numbered list** where each option is on its own line and the developer can reply with a number
+- **allow multi-select** (1 or 2 gitmojis) — enable multi-select in the tool if supported, or instruct the developer to reply with multiple numbers
+- **each option must include**:
+  - **label**: `<emoji> <name>` — some emojis are multi-codepoint: they contain a zero-width joiner (ZWJ, U+200D) or a variation selector (VS16, U+FE0F). terminals often render these as two visible glyphs instead of one. append `*` to the label of any such emoji so the developer isn't confused (e.g., 🧑‍💻\*, ⚗️\*, ♻️\*, 🏷️\*, 🏗️\*, ✏️\*)
+  - **description**: a short argument for why this gitmoji fits the change
 - **question text**: only if at least one option label ends with `*`, append `(* may display as two emojis — it's one)` to the question. if no option has `*`, do NOT include this footnote
+- **scannable formatting** — one option per line, consistent alignment, no walls of text. the developer should be able to scan all options in under 5 seconds
 
-the developer picks 1 or 2 gitmojis.
+the developer picks 1 or 2 gitmojis. **do not proceed until they respond.**
 
 #### step 6: message options
 
-present exactly **9** commit message options — always 9, no less — using the gitmojis the developer chose. number them 1–9. **do NOT use `AskUserQuestion` for this step** — it only supports 4 options. output the 9 options as plain numbered text and let the developer reply with their choice.
+**this step is mandatory and interactive.** never auto-select a message — always present options and wait for the developer to choose.
+
+present exactly **9** commit message options — always 9, no less — using the gitmojis the developer chose. number them 1–9. output the 9 options as a **plain numbered list** (one per line) and let the developer reply with their choice. do not use a structured selection tool for this step — plain text is intentional because most selection tools cap at 4 options.
 
 format: `<emoji> <scope>: <message>` — **scope is mandatory in every option, never omit it**.
 
@@ -273,11 +281,12 @@ rules for messages:
 - prefer single words; use kebab-case only when a compound term is unavoidable
 - remove filler words (a, the, for, with, of, etc.)
 - be keyword-driven — details belong in the commit body, not the subject
-- concise — aim for under 50 characters total
+- **concise** — the message (after `<emoji> <scope>:`) should be short. most options 3–5 words, a couple tighter, at most 1–2 slightly longer when extra context genuinely earns its place. if it feels long, cut harder
+- **varied perspectives** — the 9 options must not be synonyms of each other. vary the angle: what was done, what it affects, what problem it solves, what it enables. each option should frame the change differently so the developer has a real choice, not the same sentence said 9 ways
 
 if the scope is obvious (one clear scope from the diff), use it for all 9 options. if ambiguous, use 2-3 different scopes across the options, but this is rare.
 
-the developer picks one option (or writes their own).
+the developer picks one option (or writes their own). **do not proceed until they respond.**
 
 #### step 7: changeset decision
 
@@ -317,6 +326,8 @@ if a changeset is needed:
 
 ## invariants
 
+- **gitmoji selection is always interactive** — never auto-select a gitmoji. even if only one seems to fit, present the options and wait for the developer to pick. skipping this step or choosing on behalf of the developer is a workflow violation
+- **message selection is always interactive** — never auto-select a commit message. always present all 9 options and wait for the developer to pick or write their own. an agent that composes a message and commits it without presenting options is violating this workflow
 - **signing is mandatory** — never run `git commit` without `-S`, never use `--no-gpg-sign`, never commit unsigned
 - never amend a previous commit unless the developer explicitly requests it
 - never skip git hooks (no `--no-verify`)
