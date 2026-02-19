@@ -476,7 +476,7 @@ const OnboardingTaskInfo = optional(
     rejectionReason: optional(string()),
   }),
 );
-const UserOnboardingTasks = object({
+export const UserOnboardingTasks = object({
   EMAIL_VALIDATION: OnboardingTaskInfo,
   IDENTITY_DECLARATION: OnboardingTaskInfo,
   BASIC_PERSONAL_DATA_DEFINITION: OnboardingTaskInfo,
