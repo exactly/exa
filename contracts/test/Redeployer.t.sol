@@ -18,6 +18,7 @@ import { EXA } from "@exactly/protocol/periphery/EXA.sol";
 
 import { AdminIsDeployer, Redeployer, TargetNonceTooLow } from "../script/Redeployer.s.sol";
 import { EXY } from "../src/EXY.sol";
+import { EXYv2 } from "../src/EXYv2.sol";
 import { ExaAccountFactory } from "../src/ExaAccountFactory.sol";
 import { ExaPlugin } from "../src/ExaPlugin.sol";
 import { ProposalManager } from "../src/ProposalManager.sol";
@@ -231,6 +232,76 @@ contract RedeployerTest is ForkTest {
     vm.prank(account);
     UpgradeableModularAccount(payable(account)).execute(receiver, 1 ether, new bytes(4));
     assertEq(receiver.balance, 1 ether, "receiver should have ETH");
+  }
+
+  function test_upgradeEXY_addsBridgeRole_onOptimism() external {
+    vm.createSelectFork("optimism", 147_965_000);
+
+    address proxy = 0xE86f49CB2D19e5Dfc38baCCCa721B28Abc70527c;
+    ProxyAdmin pa = ProxyAdmin(0x6B40e8F40DA63E57b1AbCF1ce0Bb376832A4D7bE);
+    address admin = acct("admin");
+
+    assertEq(EXY(proxy).name(), "exy");
+    assertEq(EXY(proxy).totalSupply(), 10_000_000e18);
+
+    EXYv2 impl = new EXYv2();
+    vm.prank(acct("deployer"));
+    pa.upgradeAndCall(ITransparentUpgradeableProxy(proxy), address(impl), abi.encodeCall(EXYv2.initializeV2, (admin)));
+
+    EXYv2 token = EXYv2(proxy);
+    assertEq(token.name(), "exy");
+    assertEq(token.totalSupply(), 10_000_000e18);
+    assertTrue(token.hasRole(token.DEFAULT_ADMIN_ROLE(), admin));
+
+    address bridge = makeAddr("bridge");
+    vm.prank(admin);
+    token.grantRole(keccak256("BRIDGE_ROLE"), bridge);
+
+    address receiver = makeAddr("receiver");
+    vm.startPrank(bridge);
+    token.mint(receiver, 1e18);
+    assertEq(token.totalSupply(), 10_000_001e18);
+    token.burn(receiver, 1e18);
+    assertEq(token.totalSupply(), 10_000_000e18);
+    vm.stopPrank();
+  }
+
+  function test_deployEXYv2_deploysAtSameAddress_onBase() external {
+    address exyOP = 0xE86f49CB2D19e5Dfc38baCCCa721B28Abc70527c;
+
+    vm.createSelectFork("base", 42_370_000);
+
+    redeployer = new Redeployer();
+
+    address deployer = acct("deployer");
+    address admin = acct("admin");
+    uint256 targetNonce = redeployer.findNonce(deployer, exyOP, 1_000_000);
+
+    redeployer.prepare();
+    redeployer.run(targetNonce + 1);
+
+    assertTrue(exyOP.code.length > 0, "proxy not deployed at same address");
+
+    EXYv2 impl = new EXYv2();
+    redeployer.upgrade(exyOP, address(impl), abi.encodeCall(EXYv2.initialize, (admin)));
+
+    EXYv2 token = EXYv2(exyOP);
+    assertEq(token.name(), "exy");
+    assertEq(token.symbol(), "EXY");
+    assertEq(token.totalSupply(), 0, "base should have zero supply");
+    assertTrue(token.hasRole(token.DEFAULT_ADMIN_ROLE(), admin));
+
+    address bridge = makeAddr("bridge");
+    vm.prank(admin);
+    token.grantRole(keccak256("BRIDGE_ROLE"), bridge);
+
+    address receiver = makeAddr("receiver");
+    vm.startPrank(bridge);
+    token.mint(receiver, 1e18);
+    assertEq(token.totalSupply(), 1e18);
+    token.burn(receiver, 1e18);
+    assertEq(token.totalSupply(), 0);
+    vm.stopPrank();
   }
 
   // solhint-enable func-name-mixedcase

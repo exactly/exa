@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.0;
 
-import { ERC20VotesUpgradeable } from
-  "@openzeppelin/contracts-upgradeable-v4/token/ERC20/extensions/ERC20VotesUpgradeable.sol";
+import {
+  ERC20VotesUpgradeable
+} from "@openzeppelin/contracts-upgradeable-v4/token/ERC20/extensions/ERC20VotesUpgradeable.sol";
 
 contract EXY is ERC20VotesUpgradeable {
   function initialize() external initializer {
