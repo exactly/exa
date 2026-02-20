@@ -449,7 +449,7 @@ describe("address activity", () => {
     const deposit = parseEther("5");
     await anvilClient.setBalance({ address: account, value: deposit });
 
-    const [response] = await Promise.all([
+    const [response, market] = await Promise.all([
       appClient.index.$post({
         ...activityPayload,
         json: {
@@ -460,13 +460,11 @@ describe("address activity", () => {
           },
         },
       }),
-      waitForWethMarket(account, deposit),
+      waitForWETHMarket(account, deposit),
     ]);
 
-    const market = await getWethMarket(account);
-
-    expect(market?.floatingDepositAssets).toBe(deposit);
-    expect(market?.isCollateral).toBe(true);
+    expect(market.floatingDepositAssets).toBe(deposit);
+    expect(market.isCollateral).toBe(true);
     expect(response.status).toBe(200);
   });
 
@@ -480,7 +478,7 @@ describe("address activity", () => {
       { address: inject("WETH"), abi: mockERC20Abi, functionName: "mint", args: [account, weth] },
     );
 
-    const [response] = await Promise.all([
+    const [response, market] = await Promise.all([
       appClient.index.$post({
         ...activityPayload,
         json: {
@@ -498,13 +496,11 @@ describe("address activity", () => {
           },
         },
       }),
-      waitForWethMarket(account, eth + weth),
+      waitForWETHMarket(account, eth + weth),
     ]);
 
-    const market = await getWethMarket(account);
-
-    expect(market?.floatingDepositAssets).toBe(eth + weth);
-    expect(market?.isCollateral).toBe(true);
+    expect(market.floatingDepositAssets).toBe(eth + weth);
+    expect(market.isCollateral).toBe(true);
     expect(response.status).toBe(200);
   });
 
@@ -609,7 +605,7 @@ describe("address activity", () => {
   });
 });
 
-async function getWethMarket(account: Address) {
+async function getWETHMarket(account: Address) {
   const exactly = await publicClient.readContract({
     address: inject("Previewer"),
     functionName: "exactly",
@@ -620,11 +616,20 @@ async function getWethMarket(account: Address) {
   return exactly.find((m) => m.asset === inject("WETH"));
 }
 
-async function waitForWethMarket(account: Address, floatingDepositAssets: bigint) {
-  await vi.waitUntil(async () => {
-    const market = await getWethMarket(account);
-
-    return market?.floatingDepositAssets === floatingDepositAssets && market.isCollateral;
+async function waitForWETHMarket(account: Address, floatingDepositAssets: bigint) {
+  return vi.waitUntil(async () => {
+    try {
+      const market = await getWETHMarket(account);
+      if (!market) return false;
+      return market.floatingDepositAssets === floatingDepositAssets && market.isCollateral ? market : false;
+    } catch (error) {
+      if (
+        error instanceof BaseError &&
+        error.shortMessage.includes("Arithmetic operation resulted in underflow or overflow.")
+      )
+        return false;
+      throw error;
+    }
   }, 26_666);
 }
 
