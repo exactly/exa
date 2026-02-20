@@ -106,7 +106,7 @@ jobs:
             [ $i -eq 180 ] && cat server.log && exit 1
             sleep 1
           done
-          CHROME_LOG_FILE=$PWD/chrome.log xvfb-run maestro test .maestro/flows/web.yaml -e "APP_ID=http://localhost:3000"
+          CHROME_LOG_FILE=$PWD/chrome.log xvfb-run maestro test .maestro/flows/web.yaml -e "APP_ID=http://localhost:3000" --format junit --output .maestro/junit.xml
         env: { APP_DOMAIN: localhost, EXPO_PUBLIC_ENV: e2e }
       - if: always()
         run: |
@@ -123,7 +123,7 @@ jobs:
         if: ${{ !cancelled() }}
         with:
           report_type: test_results
-          files: server/coverage/junit.xml
+          files: .maestro/junit.xml
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: e2e
           name: web
