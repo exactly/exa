@@ -23,7 +23,7 @@ import WeightedRate from "../shared/WeightedRate";
 
 export default function Portfolio() {
   const { address } = useAccount();
-  const { averageRate, portfolio, totalBalanceUSD } = usePortfolio(address);
+  const { averageRate, portfolio, totalBalanceUSD } = usePortfolio();
   const router = useRouter();
   const {
     t,
@@ -40,7 +40,14 @@ export default function Portfolio() {
   return (
     <SafeView fullScreen backgroundColor="$backgroundMild">
       <View position="absolute" top={0} left={0} right={0} height="50%" backgroundColor="$backgroundSoft" />
-      <View padded flexDirection="row" gap={10} paddingBottom="$s4" justifyContent="space-between" alignItems="center">
+      <View
+        padded
+        flexDirection="row"
+        gap="$s3_5"
+        paddingBottom="$s4"
+        justifyContent="space-between"
+        alignItems="center"
+      >
         <Pressable
           onPress={() => {
             if (router.canGoBack()) {
@@ -86,7 +93,6 @@ export default function Portfolio() {
           <Text
             sensitive
             textAlign="center"
-            fontFamily="$mono"
             fontSize={40}
             overflow="hidden"
             maxFontSizeMultiplier={1}

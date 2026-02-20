@@ -22,4 +22,5 @@ tags: [critical]
 - runFlow: ../subflows/repay.yaml
 - runFlow: ../subflows/verifyIdentity.yaml
 - runFlow: ../subflows/activateCard.yaml
+- runFlow: ../subflows/readHome.yaml
 - runFlow: ../subflows/storeCoverage.yaml

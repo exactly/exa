@@ -1,7 +1,6 @@
 import React, { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import { scheduleOnRN } from "react-native-worklets";
 
 import { ChevronRight } from "@tamagui/lucide-icons";
 import { XStack, YStack } from "tamagui";
@@ -21,10 +20,7 @@ export default memo(function BenefitCard({ benefit, onPress }: BenefitCardProper
   const tap = useMemo(
     () =>
       /* istanbul ignore next */
-      Gesture.Tap().onEnd(() => {
-        "worklet";
-        scheduleOnRN(onPress);
-      }),
+      Gesture.Tap().runOnJS(true).onEnd(onPress),
     [onPress],
   );
   return (
@@ -47,7 +43,7 @@ export default memo(function BenefitCard({ benefit, onPress }: BenefitCardProper
         </YStack>
         <XStack justifyContent="space-between">
           <XStack alignItems="center" gap="$s2">
-            <BenefitLogo width={24} height={24} />
+            <BenefitLogo width={20} height={20} />
             <Text emphasized callout>
               {t(benefit.partner)}
             </Text>
@@ -56,7 +52,7 @@ export default memo(function BenefitCard({ benefit, onPress }: BenefitCardProper
             <Text emphasized footnote color="$interactiveBaseBrandDefault">
               {benefit.linkText ? t(benefit.linkText) : t("Get now")}
             </Text>
-            <ChevronRight color="$uiBrandSecondary" size={16} />
+            <ChevronRight color="$interactiveBaseBrandDefault" size={16} />
           </XStack>
         </XStack>
       </YStack>

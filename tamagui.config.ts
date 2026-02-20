@@ -1,3 +1,5 @@
+import { Easing } from "react-native-reanimated";
+
 import { createAnimations } from "@tamagui/animations-moti";
 import { config } from "@tamagui/config/v3";
 import { createFont, createTamagui, createTokens } from "tamagui";
@@ -190,9 +192,7 @@ const tokens = createTokens({
     s0: 0,
     true: 0,
     s1: 2,
-    s1_5: 3,
     s2: 4,
-    s2_5: 6,
     s3: 8,
     s3_5: 12,
     s4: 16,
@@ -202,11 +202,11 @@ const tokens = createTokens({
     s7: 40,
     s8: 48,
     s9: 64,
-    s10: 104,
-    s11: 120,
-    s12: 144,
-    s13: 160,
-    s14: 184,
+    s10: 80,
+    s11: 96,
+    s12: 120,
+    s13: 144,
+    s14: 208,
   },
   radius: { r0: 0, true: 4, r1: 2, r2: 4, r3: 8, r4: 12, r5: 16, r6: 20, r_0: 9999 },
   size: config.tokens.size,
@@ -215,36 +215,32 @@ const tokens = createTokens({
   zIndex: config.tokens.zIndex,
 });
 
+const sizes = config.fonts.body.size;
 const body = createFont({
-  family: "BDOGrotesk-Regular",
+  family: "SplineSans-Regular",
   face: {
-    400: { normal: "BDOGrotesk-Regular" },
-    600: { normal: "BDOGrotesk-DemiBold" },
-    700: { normal: "BDOGrotesk-DemiBold" },
+    400: { normal: "SplineSans-Regular" },
+    600: { normal: "SplineSans-SemiBold" },
+    700: { normal: "SplineSans-SemiBold" },
   },
-  size: config.fonts.body.size,
-  weight: { regular: 400, semibold: 600 },
+  size: sizes,
+  lineHeight: Object.fromEntries(
+    Object.entries(sizes).map(([k, v]) => [k, Math.round(Number(v) * 1.3)]),
+  ) as typeof sizes,
+  letterSpacing: Object.fromEntries(Object.entries(sizes).map(([k, v]) => [k, Number(v) * -0.002])) as typeof sizes,
+  weight: { regular: 400, semibold: 600, bold: 700 },
 });
 
 const tamagui = createTamagui({
   ...config,
   tokens,
-  fonts: {
-    body,
-    heading: body,
-    mono: createFont({
-      family: "IBMPlexMono-Medm",
-      face: { 500: { normal: "IBMPlexMono-Medm" } },
-      weight: { medium: 500 },
-      size: config.fonts.mono.size,
-    }),
-  },
+  fonts: { body, heading: body },
   defaultFont: "body",
   animations: createAnimations({
     bouncy: { type: "spring", damping: 9, mass: 0.9, stiffness: 150 },
     lazy: { type: "spring", damping: 18, stiffness: 50 },
     slow: { type: "spring", damping: 15, stiffness: 40 },
-    moderate: { type: "spring", damping: 15, mass: 0.2, stiffness: 100 },
+    default: { type: "timing", duration: 512, easing: Easing.bezier(0.7, 0, 0.3, 1) },
     quick: { type: "spring", damping: 25, mass: 1.2, stiffness: 250 },
     tooltip: { type: "spring", damping: 10, mass: 0.9, stiffness: 100 },
   }),
@@ -389,9 +385,9 @@ const tamagui = createTamagui({
       backgroundColor: "",
       backgroundHover: "",
       backgroundPress: "",
-      borderColor: "",
-      borderColorFocus: "",
-      borderColorPress: "",
+      borderColor: "transparent",
+      borderColorFocus: "transparent",
+      borderColorPress: "transparent",
       outlineColor: "",
     },
     dark: {
@@ -429,7 +425,7 @@ const tamagui = createTamagui({
       uiWarningSecondary: tokens.color.feedbackWarningDark9,
       uiWarningTertiary: tokens.color.feedbackWarningDark7,
       uiInfoPrimary: tokens.color.feedbackInformationDark11,
-      uiInfoSecondary: tokens.color.feedbackInformationLight9,
+      uiInfoSecondary: tokens.color.feedbackInformationDark9,
       uiInfoTertiary: tokens.color.feedbackInformationDark7,
       interactiveBaseBrandDefault: tokens.color.primaryDark9,
       interactiveBaseBrandHover: tokens.color.primaryDark10,
@@ -438,8 +434,8 @@ const tamagui = createTamagui({
       interactiveBaseBrandSoftHover: tokens.color.primaryDark4,
       interactiveBaseBrandSoftPressed: tokens.color.primaryDark5,
       interactiveBaseSuccessDefault: tokens.color.feedbackSuccessDark9,
-      interactiveBaseSuccessHover: tokens.color.feedbackSuccessLight10,
-      interactiveBaseSuccessPressed: tokens.color.feedbackSuccessLight11,
+      interactiveBaseSuccessHover: tokens.color.feedbackSuccessDark10,
+      interactiveBaseSuccessPressed: tokens.color.feedbackSuccessDark11,
       interactiveBaseSuccessSoftDefault: tokens.color.feedbackSuccessDark3,
       interactiveBaseSuccessSoftHover: tokens.color.feedbackSuccessDark4,
       interactiveBaseSuccessSoftPressed: tokens.color.feedbackSuccessDark5,
@@ -485,7 +481,7 @@ const tamagui = createTamagui({
       interactiveTextWarningHover: tokens.color.feedbackWarningDark10,
       interactiveTextWarningPressed: tokens.color.feedbackWarningDark11,
       interactiveTextInfoDefault: tokens.color.feedbackInformationDark9,
-      interactiveTextInfoHover: tokens.color.feedbackInformationLight10,
+      interactiveTextInfoHover: tokens.color.feedbackInformationDark10,
       interactiveTextInfoPressed: tokens.color.feedbackInformationDark11,
       interactiveDisabled: tokens.color.grayscaleDark4,
       interactiveOnDisabled: tokens.color.grayscaleDark8,
@@ -533,9 +529,9 @@ const tamagui = createTamagui({
       backgroundColor: "",
       backgroundHover: "",
       backgroundPress: "",
-      borderColor: "",
-      borderColorFocus: "",
-      borderColorPress: "",
+      borderColor: "transparent",
+      borderColorFocus: "transparent",
+      borderColorPress: "transparent",
       outlineColor: "",
     },
   },
@@ -543,6 +539,6 @@ const tamagui = createTamagui({
 
 export type Config = typeof tamagui;
 declare module "tamagui" {
-  interface TamaguiCustomConfig extends Config {} // eslint-disable-line @typescript-eslint/no-empty-interface
+  interface TamaguiCustomConfig extends Config {} // eslint-disable-line @typescript-eslint/no-empty-interface, @typescript-eslint/consistent-type-definitions
 }
 export default tamagui;

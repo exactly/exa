@@ -71,7 +71,7 @@ export default function Success({
           >
             <View flex={1}>
               <YStack gap="$s7" paddingBottom="$s9">
-                <Pressable onPress={onClose} accessibilityLabel={t("Close")} accessibilityRole="button">
+                <Pressable onPress={onClose} aria-label={t("Close")}>
                   <X size={24} color="$uiNeutralPrimary" />
                 </Pressable>
                 <XStack justifyContent="center" alignItems="center">

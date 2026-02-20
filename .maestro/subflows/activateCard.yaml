@@ -42,4 +42,12 @@ appId: ${APP_ID ?? "app.exactly"}
           text: \$[\s\d,.\xa0]+
           above: Available balance
 - tapOn: Home
-- assertVisible: SPENDING LIMIT
+- runFlow:
+    when: { visible: Tap here to change the number of installments }
+    commands:
+      - tapOn: Tap here to change the number of installments
+      - extendedWaitUntil:
+          visible: Set installments
+          timeout: 5000
+      - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
+- assertVisible: Spending limit

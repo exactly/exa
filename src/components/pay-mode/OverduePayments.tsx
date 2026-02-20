@@ -7,7 +7,7 @@ import { XStack, YStack } from "tamagui";
 import { isBefore } from "date-fns";
 import { useBytecode } from "wagmi";
 
-import { exaPreviewerAddress, previewerAddress } from "@exactly/common/generated/chain";
+import { exaPreviewerAddress, marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import { useReadExaPreviewerPendingProposals, useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import ProposalType, {
   decodeCrossRepayAtMaturity,
@@ -40,7 +40,8 @@ export default function OverduePayments({ onSelect }: { onSelect: (maturity: big
   });
   const overduePayments = new Map<bigint, { amount: bigint; discount: number }>();
   if (markets) {
-    for (const { fixedBorrowPositions } of markets) {
+    for (const { market, fixedBorrowPositions } of markets) {
+      if (market !== marketUSDCAddress) continue;
       for (const { maturity, previewValue, position } of fixedBorrowPositions) {
         if (!previewValue) continue;
         const positionAmount = position.principal + position.fee;
