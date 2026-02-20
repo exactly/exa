@@ -1,5 +1,14 @@
 # @exactly/mobile
 
+## 1.1.19
+
+### Patch Changes
+
+- [#811](https://github.com/exactly/exa/pull/811) [`74e5a0f`](https://github.com/exactly/exa/commit/74e5a0f5cd1876cc6faef73784531558fcd96f44) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 name and fingerprint warning-level reports
+
+- Updated dependencies [[`6b15e0a`](https://github.com/exactly/exa/commit/6b15e0a40b4af18fe4e5301436e2bf140e1a9ddf), [`2cc0413`](https://github.com/exactly/exa/commit/2cc0413334d13d84291b21e3896f5e4a10e29cff), [`77098a5`](https://github.com/exactly/exa/commit/77098a571fa3de10fac4d3949a95f3d398ee0f66), [`bd0caf0`](https://github.com/exactly/exa/commit/bd0caf04a7c48dac951f987ab92d9ef4d70a982c), [`55ccd09`](https://github.com/exactly/exa/commit/55ccd098724872f3f0ab78a80c4faeda9a60d372)]:
+  - @exactly/server@0.2.69
+
 ## 1.1.18
 
 ### Patch Changes
