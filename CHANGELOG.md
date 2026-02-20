@@ -1,5 +1,13 @@
 # @exactly/mobile
 
+## 1.1.20
+
+### Patch Changes
+
+- [#769](https://github.com/exactly/exa/pull/769) [`fce5e1c`](https://github.com/exactly/exa/commit/fce5e1cfe5e8ee876438a46cbe70e545ca4ac3fd) Thanks [@franm91](https://github.com/franm91)! - 🚸 handle invalid id flow
+
+- [#804](https://github.com/exactly/exa/pull/804) [`d0a47b7`](https://github.com/exactly/exa/commit/d0a47b79cfe2288cda8cca6ff11bce98d291c60a) Thanks [@franm91](https://github.com/franm91)! - ✨ add qr code for pix
+
 ## 1.1.19
 
 ### Patch Changes
