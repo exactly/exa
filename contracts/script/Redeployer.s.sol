@@ -16,7 +16,11 @@ import { WebauthnOwnerPlugin } from "webauthn-owner-plugin/WebauthnOwnerPlugin.s
 
 import { EXA } from "@exactly/protocol/periphery/EXA.sol";
 
+import { HypERC20Collateral } from "@hyperlane-xyz/core/contracts/token/HypERC20Collateral.sol";
+import { HypXERC20 } from "@hyperlane-xyz/core/contracts/token/extensions/HypXERC20.sol";
+
 import { EXY } from "../src/EXY.sol";
+import { EXYv2 } from "../src/EXYv2.sol";
 import { ExaAccountFactory } from "../src/ExaAccountFactory.sol";
 import {
   ExaPlugin,
@@ -109,11 +113,49 @@ contract Redeployer is BaseScript {
     address deployer = acct("deployer");
     vm.startBroadcast(deployer);
     ProxyAdmin pa = new ProxyAdmin(deployer);
-    proxy = address(
+    proxy =
+      address(new TransparentUpgradeableProxy(address(new EXY()), address(pa), abi.encodeCall(EXY.initialize, ())));
+    vm.stopBroadcast();
+  }
+
+  function deployEXYv2() external returns (address) {
+    address admin = acct("admin");
+    vm.startBroadcast(admin);
+    address proxy = address(
       new TransparentUpgradeableProxy(
-        address(new EXY()), address(pa), abi.encodeCall(EXY.initialize, ())
+        address(new EXYv2()), address(proxyAdmin), abi.encodeCall(EXYv2.initialize, (admin))
       )
     );
+    vm.stopBroadcast();
+    return proxy;
+  }
+
+  function deployRouter(address token, uint256 scale, address mailbox) external returns (HypXERC20) {
+    address admin = acct("admin");
+    vm.startBroadcast(admin);
+    HypXERC20 router = HypXERC20(
+      CREATE3_FACTORY.deploy(
+        keccak256(abi.encode("HypEXY")),
+        abi.encodePacked(
+          type(TransparentUpgradeableProxy).creationCode,
+          abi.encode(
+            address(new HypXERC20(token, scale, mailbox)),
+            address(proxyAdmin),
+            abi.encodeCall(HypERC20Collateral.initialize, (address(0), address(0), admin))
+          )
+        )
+      )
+    );
+    vm.stopBroadcast();
+    return router;
+  }
+
+  function setupRouter(address token, uint32 remoteDomain) external {
+    address admin = acct("admin");
+    address router = CREATE3_FACTORY.getDeployed(admin, keccak256(abi.encode("HypEXY")));
+    vm.startBroadcast(admin);
+    EXYv2(token).grantRole(keccak256("BRIDGE_ROLE"), router);
+    HypXERC20(router).enrollRemoteRouter(remoteDomain, bytes32(uint256(uint160(router))));
     vm.stopBroadcast();
   }
 
