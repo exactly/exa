@@ -24,7 +24,6 @@ jobs:
             type=sha,format=long
             type=ref,event=pr
             type=ref,event=branch
-            type=match,pattern=^(?!@)(.*)$,group=1,event=tag
             type=match,pattern=@exactly\/server@(\d+\.\d+\.\d+.*),group=1
             type=match,pattern=@exactly\/server@(\d+\.\d+),group=1
             type=match,pattern=@exactly\/server@(\d+),group=1
