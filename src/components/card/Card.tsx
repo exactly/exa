@@ -31,9 +31,9 @@ import reportError from "../../utils/reportError";
 import {
   APIError,
   createCard,
-  getActivity,
   getKYCStatus,
   setCardStatus,
+  type CardActivity,
   type CardDetails as CardDetailsData,
 } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
@@ -66,13 +66,8 @@ export default function Card() {
   const { data: hidden } = useQuery<boolean>({ queryKey: ["settings", "sensitive"] });
 
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
-  const {
-    data: purchases,
-    refetch: refetchPurchases,
-    isFetching: isFetchingPurchases,
-  } = useQuery({
+  const { data: purchases, isFetching: isFetchingPurchases } = useQuery<CardActivity[]>({
     queryKey: ["activity", "card"],
-    queryFn: () => getActivity({ include: "card" }),
   });
 
   const {
@@ -83,7 +78,7 @@ export default function Card() {
 
   const limit = cardDetails?.limit.amount ? cardDetails.limit.amount / 100 : undefined;
   const weeklyPurchases = purchases
-    ? purchases.filter((item) => {
+    ? purchases.filter((item): item is Extract<CardActivity, { type: "panda" }> => {
         if (item.type !== "panda") return false;
         const elapsedTime = (Date.now() - new Date(item.timestamp).getTime()) / 1000;
         return elapsedTime <= 604_800;
@@ -135,7 +130,7 @@ export default function Card() {
   const scrollRef = useRef<ScrollView>(null);
   const refresh = () => {
     refetchCard().catch(reportError);
-    refetchPurchases().catch(reportError);
+    queryClient.invalidateQueries({ queryKey: ["activity", "card"], exact: true }).catch(reportError);
     refetchKYCStatus().catch(reportError);
     if (address) refetchMarkets().catch(reportError);
     if (address && credential) refetchInstalledPlugins().catch(reportError);

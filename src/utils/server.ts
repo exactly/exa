@@ -228,19 +228,22 @@ export async function createCredential() {
   return parse(Credential, credential);
 }
 
-export async function getActivity(
+export type Activity = Exclude<InferResponseType<typeof api.activity.$get, 200>, string | Uint8Array>;
+export type CardActivity = Extract<Activity[number], { type: "card" | "panda" }>;
+
+async function getActivity(
   parameters: NonNullable<NonNullable<Parameters<typeof api.activity.$get>[0]>["query"]> & {
     maturity: NonNullable<NonNullable<NonNullable<Parameters<typeof api.activity.$get>[0]>["query"]>["maturity"]>;
   },
   accept: "application/pdf",
 ): Promise<Uint8Array>;
-export async function getActivity(
+async function getActivity(
   parameters?: NonNullable<Parameters<typeof api.activity.$get>[0]>["query"],
-): Promise<Exclude<InferResponseType<typeof api.activity.$get, 200>, string | Uint8Array>>;
-export async function getActivity(
+): Promise<Activity>;
+async function getActivity(
   parameters?: NonNullable<Parameters<typeof api.activity.$get>[0]>["query"],
   accept?: "application/pdf",
-): Promise<Exclude<InferResponseType<typeof api.activity.$get, 200>, string | Uint8Array> | Uint8Array> {
+): Promise<Activity | Uint8Array> {
   await auth();
   const response = await api.activity.$get(parameters === undefined ? undefined : { query: parameters }, {
     headers: { accept: accept ?? "application/json" },
@@ -254,6 +257,20 @@ export async function getActivity(
   if (typeof activity === "string" || activity instanceof Uint8Array) throw new Error("bad activity response");
   return activity;
 }
+queryClient.setQueryDefaults(["activity"], { staleTime: 60_000, gcTime: 60 * 60_000, queryFn: () => getActivity() });
+queryClient.setQueryDefaults(["activity", "card"], {
+  queryFn: async () => {
+    const activity = await getActivity({ include: "card" });
+    return activity.filter((item): item is CardActivity => item.type === "card" || item.type === "panda");
+  },
+});
+queryClient.setQueryDefaults(["activity", "details"], {
+  staleTime: Infinity,
+  gcTime: Infinity,
+  queryFn: () => {
+    throw new Error("don't refetch");
+  },
+});
 
 let authenticating: Promise<void> | undefined;
 export async function auth() {

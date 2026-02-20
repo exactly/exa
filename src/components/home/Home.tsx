@@ -31,7 +31,7 @@ import VisaSignatureBanner from "./VisaSignatureBanner";
 import VisaSignatureModal from "./VisaSignatureSheet";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
-import { getActivity, getKYCStatus, type CardDetails } from "../../utils/server";
+import { getKYCStatus, type CardDetails } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
 import usePortfolio from "../../utils/usePortfolio";
 import useTabPress from "../../utils/useTabPress";
@@ -46,6 +46,7 @@ import ProfileHeader from "../shared/ProfileHeader";
 import SafeView from "../shared/SafeView";
 import View from "../shared/View";
 
+import type { ActivityItem } from "../../utils/queryClient";
 import type { Credential } from "@exactly/common/validation";
 
 const HEALTH_FACTOR_THRESHOLD = (WAD * 11n) / 10n;
@@ -90,15 +91,11 @@ export default function Home() {
     args: account ? [account] : undefined,
     query: { enabled: !!account && !!bytecode, gcTime: 0, refetchInterval: 30_000 },
   });
-  const {
-    data: activity,
-    refetch: refetchActivity,
-    isPending: isPendingActivity,
-  } = useQuery({ queryKey: ["activity"], queryFn: () => getActivity() });
+  const { data: activity, isFetching: isFetchingActivity } = useQuery<ActivityItem[]>({ queryKey: ["activity"] });
   const {
     data: markets,
     refetch: refetchMarkets,
-    isPending: isPendingPreviewer,
+    isFetching: isFetchingPreviewer,
   } = useReadPreviewerExactly({
     address: previewerAddress,
     args: account ? [account] : undefined,
@@ -117,8 +114,8 @@ export default function Home() {
 
   const scrollRef = useRef<ScrollView>(null);
   const refresh = () => {
-    refetchActivity().catch(reportError);
     refetchKYCStatus().catch(reportError);
+    queryClient.invalidateQueries({ queryKey: ["activity"], exact: true }).catch(reportError);
     if (account) refetchMarkets().catch(reportError);
     if (account) refetchBytecode().catch(reportError);
     if (account && bytecode) refetchPendingProposals().catch(reportError);
@@ -128,7 +125,7 @@ export default function Home() {
     refresh();
   });
 
-  const isPending = isPendingActivity || isPendingPreviewer;
+  const isFetching = isFetchingActivity || isFetchingPreviewer;
   const showKycMigration = isKYCFetched && needsMigration;
   const showPluginOutdated = !!bytecode && !!installedPlugins && !isLatestPlugin;
   return (
@@ -140,7 +137,7 @@ export default function Home() {
           backgroundColor="transparent"
           contentContainerStyle={{ backgroundColor: "$backgroundMild" }}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={isPending} onRefresh={refresh} />}
+          refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refresh} />}
         >
           <ProfileHeader />
           <View flex={1}>

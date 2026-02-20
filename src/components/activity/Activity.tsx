@@ -9,9 +9,8 @@ import { format } from "date-fns";
 
 import ActivityItem from "./ActivityItem";
 import Empty from "./Empty";
-import queryClient from "../../utils/queryClient";
+import queryClient, { type ActivityItem as ActivityEvent } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
-import { getActivity } from "../../utils/server";
 import useAsset from "../../utils/useAsset";
 import useTabPress from "../../utils/useTabPress";
 import ProcessingBalanceBanner from "../shared/ProcessingBalanceBanner";
@@ -20,10 +19,8 @@ import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-type ActivityEvent = Awaited<ReturnType<typeof getActivity>>[number];
-
 export default function Activity() {
-  const { data: activity, refetch, isPending } = useQuery({ queryKey: ["activity"], queryFn: () => getActivity() });
+  const { data: activity, isFetching } = useQuery<ActivityEvent[]>({ queryKey: ["activity"] });
   const { queryKey } = useAsset();
   const { t } = useTranslation();
   const theme = useTheme();
@@ -55,7 +52,7 @@ export default function Activity() {
 
   const listRef = useRef<FlatList<ActivityItemType>>(null);
   const refresh = () => {
-    refetch().catch(reportError);
+    queryClient.invalidateQueries({ queryKey: ["activity"], exact: true }).catch(reportError);
     queryClient.refetchQueries({ queryKey }).catch(reportError);
   };
   useTabPress("activity", () => {
@@ -76,7 +73,7 @@ export default function Activity() {
             backgroundColor: data.length > 0 ? theme.backgroundMild.val : theme.backgroundSoft.val,
           }}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={isPending} onRefresh={refresh} />}
+          refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refresh} />}
           ListHeaderComponent={
             <>
               <View padded gap="$s5" backgroundColor="$backgroundSoft">

@@ -43,7 +43,7 @@ export default function Loans() {
               refreshing={isPending}
               onRefresh={() => {
                 if (account) refetch().catch(reportError);
-                queryClient.refetchQueries({ queryKey: ["activity"] }).catch(reportError);
+                queryClient.invalidateQueries({ queryKey: ["activity"], exact: true }).catch(reportError);
               }}
             />
           }

@@ -1,4 +1,5 @@
 import "../utils/onesignal";
+import "../utils/server";
 
 import React, { useLayoutEffect as useClientLayoutEffect, useEffect } from "react";
 import { initReactI18next } from "react-i18next";

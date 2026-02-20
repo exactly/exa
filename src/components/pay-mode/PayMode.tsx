@@ -35,7 +35,7 @@ export default function PayMode() {
   const scrollRef = useRef<ScrollView>(null);
   const refresh = () => {
     if (account) refetch().catch(reportError);
-    queryClient.refetchQueries({ queryKey: ["activity"] }).catch(reportError);
+    queryClient.invalidateQueries({ queryKey: ["activity"], exact: true }).catch(reportError);
   };
   useTabPress("pay-mode", () => {
     scrollRef.current?.scrollTo({ y: 0, animated: true });

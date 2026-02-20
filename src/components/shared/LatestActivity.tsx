@@ -7,18 +7,18 @@ import { useRouter } from "expo-router";
 import { ChevronRight } from "@tamagui/lucide-icons";
 import { XStack, YStack } from "tamagui";
 
-import ActivityItem from "../activity/ActivityItem";
+import ActivityItemView from "../activity/ActivityItem";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-import type { getActivity } from "../../utils/server";
+import type { ActivityItem } from "../../utils/queryClient";
 
 export default function LatestActivity({
   activity,
   title,
   emptyComponent,
 }: {
-  activity?: Awaited<ReturnType<typeof getActivity>>;
+  activity?: ActivityItem[];
   emptyComponent?: React.ReactNode;
   title?: string;
 }) {
@@ -62,7 +62,7 @@ export default function LatestActivity({
             </YStack>
           ))}
         {activity?.slice(0, 4).map((item, index, items) => (
-          <ActivityItem
+          <ActivityItemView
             key={item.id}
             item={item}
             isLast={index === items.length - 1}

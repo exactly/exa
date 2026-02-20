@@ -11,7 +11,7 @@ import reportError from "./reportError";
 import { isAvailable as isOwnerAvailable } from "./wagmi/owner";
 import release from "../generated/release";
 
-import type { getActivity } from "./server";
+import type { Activity } from "./server";
 import type { PersistedClient } from "@tanstack/query-persist-client-core";
 import type { Address } from "viem";
 
@@ -158,11 +158,6 @@ queryClient.setQueryDefaults(["loan"], {
     throw new Error("don't refetch");
   },
 });
-queryClient.setQueryDefaults(["activity", "details"], {
-  queryFn: () => {
-    throw new Error("don't refetch");
-  },
-});
 queryClient.setQueryDefaults(["card-upgrade"], {
   initialData: undefined,
   retry: false,
@@ -293,7 +288,7 @@ export type EmbeddingContext =
   | "phantom"
   | "unknown"
   | null;
-export type ActivityItem = Awaited<ReturnType<typeof getActivity>>[number];
+export type ActivityItem = Activity[number];
 
 export type Loan = {
   amount?: bigint;
