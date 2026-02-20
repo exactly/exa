@@ -654,6 +654,7 @@ describe("card operations", () => {
             declinedReason: "collection:created:collectCredit:timeout",
             id: cardId,
             reasonName: "Error",
+            source: null,
             updated: false,
             usdAmount: 0.6,
             merchant: {
@@ -1321,6 +1322,7 @@ describe("card operations", () => {
             declinedReason: "collection:completed:collectDebit:settlement failed",
             id: cardId,
             reasonName: "Error",
+            source: null,
             updated: true,
             usdAmount: capture / 100,
             merchant: {
