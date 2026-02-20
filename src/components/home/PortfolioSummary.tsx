@@ -8,10 +8,11 @@ import { XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 
-import isProcessing from "../../utils/isProcessing";
-import { getActivity } from "../../utils/server";
+import { selectBalance } from "../../utils/isProcessing";
 import Text from "../shared/Text";
 import WeightedRate from "../shared/WeightedRate";
+
+import type { ActivityItem } from "../../utils/queryClient";
 
 export default function PortfolioSummary({
   averageRate,
@@ -31,15 +32,10 @@ export default function PortfolioSummary({
     i18n: { language },
   } = useTranslation();
 
-  const { data: processingBalance } = useQuery({
-    queryKey: ["processing-balance"],
-    queryFn: () => getActivity(),
-    select: (activity) =>
-      activity.reduce(
-        (total, item) => (item.type === "panda" && isProcessing(item.timestamp) ? total + item.usdAmount : total),
-        0,
-      ),
+  const { data: processingBalance } = useQuery<ActivityItem[], Error, number>({
+    queryKey: ["activity"],
     enabled: country === "US",
+    select: selectBalance,
   });
   return (
     <YStack
@@ -70,7 +66,7 @@ export default function PortfolioSummary({
       >
         {`$${(Number(totalBalanceUSD) / 1e18).toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
       </Text>
-      {processingBalance ? (
+      {country === "US" && processingBalance ? (
         <XStack
           borderWidth={1}
           borderColor="$borderNeutralSoft"

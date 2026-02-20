@@ -6,8 +6,9 @@ import { XStack } from "tamagui";
 import { useQuery } from "@tanstack/react-query";
 
 import Text from "./Text";
-import isProcessing from "../../utils/isProcessing";
-import { getActivity } from "../../utils/server";
+import { selectBalance } from "../../utils/isProcessing";
+
+import type { ActivityItem } from "../../utils/queryClient";
 
 export default function ProcessingBalance() {
   const {
@@ -15,17 +16,12 @@ export default function ProcessingBalance() {
     i18n: { language },
   } = useTranslation();
   const { data: country } = useQuery({ queryKey: ["user", "country"] });
-  const { data: processingBalance } = useQuery({
-    queryKey: ["processing-balance"],
-    queryFn: () => getActivity(),
-    select: (activity) =>
-      activity.reduce(
-        (total, item) => (item.type === "panda" && isProcessing(item.timestamp) ? total + item.usdAmount : total),
-        0,
-      ),
+  const { data: processingBalance } = useQuery<ActivityItem[], Error, number>({
+    queryKey: ["activity"],
     enabled: country === "US",
+    select: selectBalance,
   });
-  if (!processingBalance) return null;
+  if (country !== "US" || !processingBalance) return null;
   return (
     <XStack cursor="pointer">
       <Text emphasized subHeadline secondary>
