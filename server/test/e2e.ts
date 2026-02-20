@@ -180,6 +180,10 @@ vi.mock("../utils/persona", async (importOriginal: () => Promise<typeof persona>
   };
 });
 
+vi.mock("../utils/allower", () => ({
+  default: vi.fn(() => Promise.resolve({ allow: vi.fn().mockResolvedValue({}) })),
+}));
+
 vi.mock("@sentry/node", async (importOriginal) => {
   const { captureException, ...original } = await importOriginal<typeof sentry>();
   return {
