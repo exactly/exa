@@ -11,7 +11,7 @@ import Progression from "./Progression";
 import { cancelKYC, startKYC } from "../../../utils/persona";
 import queryClient from "../../../utils/queryClient";
 import reportError from "../../../utils/reportError";
-import { APIError, getKYCStatus } from "../../../utils/server";
+import { APIError, type KYCStatus } from "../../../utils/server";
 import Button from "../../shared/Button";
 import Text from "../../shared/Text";
 import View from "../../shared/View";
@@ -26,7 +26,7 @@ export default function VerifyIdentity() {
     mutationKey: ["kyc"],
     async mutationFn() {
       try {
-        const status = await getKYCStatus();
+        const status = await queryClient.fetchQuery<KYCStatus>({ queryKey: ["kyc", "status"], staleTime: 0 });
         if ("code" in status && (status.code === "ok" || status.code === "legacy kyc")) {
           queryClient.setQueryData(["card-upgrade"], 1);
           return;

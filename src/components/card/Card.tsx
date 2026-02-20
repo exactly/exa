@@ -31,10 +31,10 @@ import reportError from "../../utils/reportError";
 import {
   APIError,
   createCard,
-  getKYCStatus,
   setCardStatus,
   type CardActivity,
   type CardDetails as CardDetailsData,
+  type KYCStatus,
 } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
@@ -89,13 +89,12 @@ export default function Card() {
   const { queryKey, isFetching: isFetchingAsset } = useAsset(marketUSDCAddress);
   const { address } = useAccount();
   const {
-    data: KYCStatus,
-    refetch: refetchKYCStatus,
+    data: kycStatus,
     isFetching: isFetchingKYC,
     isPending: isPendingKYC,
-  } = useQuery({ queryKey: ["kyc", "status"], queryFn: async () => getKYCStatus() });
+  } = useQuery<KYCStatus>({ queryKey: ["kyc", "status"] });
   const isKYCApproved = Boolean(
-    KYCStatus && "code" in KYCStatus && (KYCStatus.code === "ok" || KYCStatus.code === "legacy kyc"),
+    kycStatus && "code" in kycStatus && (kycStatus.code === "ok" || kycStatus.code === "legacy kyc"),
   );
   const { refetch: refetchInstalledPlugins, isFetching: isFetchingPlugins } =
     useReadUpgradeableModularAccountGetInstalledPlugins({
@@ -131,7 +130,7 @@ export default function Card() {
   const refresh = () => {
     refetchCard().catch(reportError);
     queryClient.invalidateQueries({ queryKey: ["activity", "card"], exact: true }).catch(reportError);
-    refetchKYCStatus().catch(reportError);
+    queryClient.invalidateQueries({ queryKey: ["kyc", "status"], exact: true }).catch(reportError);
     if (address) refetchMarkets().catch(reportError);
     if (address && credential) refetchInstalledPlugins().catch(reportError);
     queryClient.refetchQueries({ queryKey }).catch(reportError);
@@ -160,7 +159,7 @@ export default function Card() {
           queryClient.setQueryData(["card-details-open"], true);
           return;
         }
-        const status = await getKYCStatus();
+        const status = await queryClient.fetchQuery<KYCStatus>({ queryKey: ["kyc", "status"], staleTime: 0 });
         if ("code" in status && (status.code === "ok" || status.code === "legacy kyc")) {
           setDisclaimerShown(true);
           return;

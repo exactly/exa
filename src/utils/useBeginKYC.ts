@@ -8,7 +8,7 @@ import { useMutation } from "@tanstack/react-query";
 import { cancelKYC, startKYC } from "./persona";
 import queryClient from "./queryClient";
 import reportError from "./reportError";
-import { APIError, getKYCStatus } from "./server";
+import { APIError, type KYCStatus } from "./server";
 
 export default function useBeginKYC() {
   const toast = useToastController();
@@ -20,7 +20,7 @@ export default function useBeginKYC() {
     mutationKey: ["kyc"],
     async mutationFn() {
       try {
-        const status = await getKYCStatus();
+        const status = await queryClient.fetchQuery<KYCStatus>({ queryKey: ["kyc", "status"], staleTime: 0 });
         if ("code" in status && (status.code === "ok" || status.code === "legacy kyc")) return;
       } catch (error) {
         if (!(error instanceof APIError)) throw error;

@@ -14,7 +14,7 @@ import { Credential } from "@exactly/common/validation";
 
 import { login as loginIntercom, logout as logoutIntercom } from "./intercom";
 import { decrypt, decryptPIN, encryptPIN, session } from "./panda";
-import queryClient, { APIError, type AuthMethod } from "./queryClient";
+import queryClient, { APIError, triage, type AuthMethod } from "./queryClient";
 import { classifyError } from "./reportError";
 import ownerConfig from "./wagmi/owner";
 
@@ -171,6 +171,15 @@ export async function getKYCStatus(scope: "basic" | "manteca" = "basic", include
   }
   return response.json();
 }
+
+queryClient.setQueryDefaults(["kyc", "status"], {
+  staleTime: 5 * 60_000,
+  gcTime: 60 * 60_000,
+  retry: (count, error) => count < 3 && triage(error) === undefined,
+  meta: { warnError: (error) => triage(error) === "warn" },
+  queryFn: () => getKYCStatus("basic", true),
+});
+export type KYCStatus = Awaited<ReturnType<typeof getKYCStatus>>;
 
 export async function getMantecaKYCStatus() {
   return getKYCStatus("manteca");

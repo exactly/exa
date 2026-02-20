@@ -31,7 +31,6 @@ import VisaSignatureBanner from "./VisaSignatureBanner";
 import VisaSignatureModal from "./VisaSignatureSheet";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
-import { getKYCStatus, type CardDetails } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
 import usePortfolio from "../../utils/usePortfolio";
 import useTabPress from "../../utils/useTabPress";
@@ -47,6 +46,7 @@ import SafeView from "../shared/SafeView";
 import View from "../shared/View";
 
 import type { ActivityItem } from "../../utils/queryClient";
+import type { CardDetails, KYCStatus } from "../../utils/server";
 import type { Credential } from "@exactly/common/validation";
 
 const HEALTH_FACTOR_THRESHOLD = (WAD * 11n) / 10n;
@@ -102,20 +102,20 @@ export default function Home() {
     query: { enabled: !!account },
   });
   const {
-    data: KYCStatus,
+    data: kycStatus,
     isFetched: isKYCFetched,
-    refetch: refetchKYCStatus,
-  } = useQuery({ queryKey: ["kyc", "status"], queryFn: () => getKYCStatus("basic") });
-  const needsMigration = Boolean(KYCStatus && "code" in KYCStatus && KYCStatus.code === "legacy kyc");
+    isFetching: isFetchingKYC,
+  } = useQuery<KYCStatus>({ queryKey: ["kyc", "status"] });
+  const needsMigration = Boolean(kycStatus && "code" in kycStatus && kycStatus.code === "legacy kyc");
   const isKYCApproved = Boolean(
-    KYCStatus && "code" in KYCStatus && (KYCStatus.code === "ok" || KYCStatus.code === "legacy kyc"),
+    kycStatus && "code" in kycStatus && (kycStatus.code === "ok" || kycStatus.code === "legacy kyc"),
   );
   const { data: card } = useQuery<CardDetails>({ queryKey: ["card", "details"], enabled: !!account && !!bytecode });
 
   const scrollRef = useRef<ScrollView>(null);
   const refresh = () => {
-    refetchKYCStatus().catch(reportError);
     queryClient.invalidateQueries({ queryKey: ["activity"], exact: true }).catch(reportError);
+    queryClient.invalidateQueries({ queryKey: ["kyc", "status"], exact: true }).catch(reportError);
     if (account) refetchMarkets().catch(reportError);
     if (account) refetchBytecode().catch(reportError);
     if (account && bytecode) refetchPendingProposals().catch(reportError);
@@ -125,8 +125,8 @@ export default function Home() {
     refresh();
   });
 
-  const isFetching = isFetchingActivity || isFetchingPreviewer;
-  const showKycMigration = isKYCFetched && needsMigration;
+  const isFetching = isFetchingActivity || isFetchingPreviewer || isFetchingKYC;
+  const showKYCMigration = isKYCFetched && needsMigration;
   const showPluginOutdated = !!bytecode && !!installedPlugins && !isLatestPlugin;
   return (
     <SafeView fullScreen tab backgroundColor="$backgroundSoft">
@@ -143,7 +143,7 @@ export default function Home() {
           <View flex={1}>
             <YStack backgroundColor="$backgroundSoft" padding="$s4" gap="$s4">
               {markets && healthFactor(markets) < HEALTH_FACTOR_THRESHOLD && <LiquidationAlert />}
-              {(showKycMigration || showPluginOutdated) && (
+              {(showKYCMigration || showPluginOutdated) && (
                 <InfoAlert
                   title={t(
                     "We're upgrading all Exa Cards by migrating them to a new and improved card issuer. Existing cards will work until {{deadline}}, and upgrading will be required after this date.",

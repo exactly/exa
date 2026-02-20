@@ -13,7 +13,6 @@ import { useBytecode } from "wagmi";
 import Step from "./Step";
 import { presentArticle } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
-import { getKYCStatus } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
 import useBeginKYC from "../../utils/useBeginKYC";
 import useOnboardingSteps from "../../utils/useOnboardingSteps";
@@ -22,10 +21,12 @@ import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
+import type { KYCStatus } from "../../utils/server";
+
 function useOnboardingState() {
   const { address: account } = useAccount();
   const { data: bytecode } = useBytecode({ address: account, query: { enabled: !!account } });
-  const { data: kycStatus } = useQuery({ queryKey: ["kyc", "status"], queryFn: async () => getKYCStatus() });
+  const { data: kycStatus } = useQuery<KYCStatus>({ queryKey: ["kyc", "status"] });
   const isDeployed = !!bytecode;
   const hasKYC = Boolean(
     kycStatus &&

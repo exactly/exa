@@ -17,7 +17,7 @@ import type { Address } from "viem";
 
 const INVALIDATE_ON_UPGRADE = new Set(["kyc", "card", "pax"]);
 
-function triage(error: unknown) {
+export function triage(error: unknown) {
   if (!(error instanceof APIError)) return;
   if (error.text === "bad kyc") return "warn";
   if (error.text === "no kyc" || error.text === "not started" || error.text === "kyc required") return "drop";
@@ -271,13 +271,6 @@ queryClient.setQueryDefaults<EmbeddingContext>(["embedding-context"], {
     return null;
   },
 });
-queryClient.setQueryDefaults(["kyc", "status"], {
-  staleTime: 5 * 60_000,
-  gcTime: 60 * 60_000,
-  retry: (count, error) => count < 3 && triage(error) === undefined,
-  meta: { warnError: (error) => triage(error) === "warn" },
-});
-
 export type AuthMethod = "siwe" | "webauthn";
 export type EmbeddingContext =
   | "base"

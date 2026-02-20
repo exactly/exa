@@ -203,12 +203,12 @@ async function isLegacy(
     });
     if (installedPlugin.length === 0) return false;
     if (installedPlugin.includes(exaPluginAddress)) return false;
-    const [legacyKyc, inquiry] = await Promise.all([
+    const [legacyKYC, inquiry] = await Promise.all([
       getInquiry(credentialId, CRYPTOMATE_TEMPLATE),
       getInquiry(credentialId, PANDA_TEMPLATE),
     ]);
 
-    return legacyKyc?.attributes.status === "approved" && !inquiry;
+    return legacyKYC?.attributes.status === "approved" && !inquiry;
   });
 }
 
