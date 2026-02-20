@@ -74,7 +74,7 @@ jobs:
           adb reverse tcp:3000 tcp:3000 && adb reverse tcp:8545 tcp:8545 && adb reverse tcp:8969 tcp:8969
           adb install "${{ steps.download.outputs.artifact_path }}"
           adb logcat -v time > emulator.log 2>&1 &
-      - run: pnpm e2e:maestro -e "EXPO_PUBLIC_E2E_MNEMONIC=${{ env.EXPO_PUBLIC_E2E_MNEMONIC }}"
+      - run: pnpm e2e:maestro -e "EXPO_PUBLIC_E2E_MNEMONIC=${{ env.EXPO_PUBLIC_E2E_MNEMONIC }}" --format junit --output .maestro/junit.xml
       - name: exa teardown
         if: always()
         run: | # cspell:ignore pkill
@@ -82,7 +82,7 @@ jobs:
           for i in {1..60}; do [ -f server/coverage/lcov.info ] && break; sleep 1; done
           curl -Os https://cli.codecov.io/latest/linux/codecov && chmod +x codecov
           ./codecov upload-process -t ${{ env.CODECOV_TOKEN }} -f server/coverage/lcov.info -f server/coverage/app.json -F e2e -n android --build-url ${{ workflow.url }}
-          ./codecov do-upload -t ${{ env.CODECOV_TOKEN }} --report-type test_results -f server/coverage/junit.xml -F e2e -n android --build-url ${{ workflow.url }}
+          ./codecov do-upload -t ${{ env.CODECOV_TOKEN }} --report-type test_results -f .maestro/junit.xml -F e2e -n android --build-url ${{ workflow.url }}
           pkill -f "adb logcat" || true
       - uses: eas/upload_artifact
         if: always()
@@ -153,7 +153,7 @@ jobs:
         run: |
           xcrun simctl install booted "${{ steps.download.outputs.artifact_path }}"
           xcrun simctl spawn booted log stream --predicate 'subsystem contains "app.exactly" or process == "Exa"' > simulator.log 2>&1 &
-      - run: pnpm e2e:maestro -e "EXPO_PUBLIC_E2E_MNEMONIC=${{ env.EXPO_PUBLIC_E2E_MNEMONIC }}"
+      - run: pnpm e2e:maestro -e "EXPO_PUBLIC_E2E_MNEMONIC=${{ env.EXPO_PUBLIC_E2E_MNEMONIC }}" --format junit --output .maestro/junit.xml
       - name: exa teardown
         if: always()
         run: | # cspell:ignore pkill
@@ -161,7 +161,7 @@ jobs:
           for i in {1..60}; do [ -f server/coverage/lcov.info ] && break; sleep 1; done
           curl -Os https://cli.codecov.io/latest/macos/codecov && chmod +x codecov
           ./codecov upload-process -t ${{ env.CODECOV_TOKEN }} -f server/coverage/lcov.info -f server/coverage/app.json -F e2e -n ios --build-url ${{ workflow.url }}
-          ./codecov do-upload -t ${{ env.CODECOV_TOKEN }} --report-type test_results -f server/coverage/junit.xml -F e2e -n ios --build-url ${{ workflow.url }}
+          ./codecov do-upload -t ${{ env.CODECOV_TOKEN }} --report-type test_results -f .maestro/junit.xml -F e2e -n ios --build-url ${{ workflow.url }}
           pkill -f "log stream" || true
           xcrun simctl diagnose -b --no-archive --output=simulator-diagnose || true
       - uses: eas/upload_artifact
