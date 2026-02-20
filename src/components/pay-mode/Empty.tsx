@@ -18,7 +18,7 @@ export default function Empty() {
           <View width="100%" height="100%">
             <Blob width="100%" height="100%" />
           </View>
-          <View width="100%" height="100%" style={StyleSheet.absoluteFillObject}>
+          <View style={StyleSheet.absoluteFillObject}>
             <ExaCard width="100%" height="100%" />
           </View>
         </View>
