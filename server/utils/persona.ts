@@ -31,6 +31,7 @@ export const CRYPTOMATE_TEMPLATE = "itmpl_8uim4FvD5P3kFpKHX37CW817";
 export const PANDA_TEMPLATE = "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2";
 export const MANTECA_TEMPLATE_EXTRA_FIELDS = "itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo";
 export const MANTECA_TEMPLATE_WITH_ID_CLASS = "itmpl_TjaqJdQYkht17v645zNFUfkaWNan";
+export const ADDRESS_TEMPLATE = "itmpl_FTHNSXqJjoMvUTBc85QECGHogrZx";
 
 const PERSONA_API_VERSION = "2023-01-05";
 
@@ -133,7 +134,7 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
   return result.output;
 }
 
-export const IdentificationClasses = ["pp", "dl", "id", "wp", "rp"] as const;
+export const IdentificationClasses = ["pp", "dl", "id", "wp", "rp", "pr", "visa"] as const;
 
 const File = object({
   filename: string(),
@@ -258,6 +259,7 @@ const UnknownAccount = object({
 });
 
 const accountScopeSchemas = {
+  bridge: object({ data: array(BaseAccount) }),
   basic: object({ data: array(BaseAccount) }),
   manteca: object({ data: array(MantecaAccount) }),
   document: object({ data: array(DocumentAccount) }),
@@ -342,6 +344,22 @@ export async function evaluateAccount(
         throw new Error(scopeValidationErrors.INVALID_SCOPE_VALIDATION);
       }
       if (!hasValidDocument) return MANTECA_TEMPLATE_WITH_ID_CLASS;
+
+      return;
+    }
+    case "bridge": {
+      const requiredTemplate = await evaluateAccount(unknownAccount, "basic");
+      if (requiredTemplate) return requiredTemplate;
+
+      const bridgeAccount = safeParse(accountScopeSchemas.bridge, unknownAccount);
+      if (!bridgeAccount.success) {
+        setContext("validation", { ...bridgeAccount, flatten: flatten(bridgeAccount.issues) });
+        throw new Error(scopeValidationErrors.INVALID_SCOPE_VALIDATION);
+      }
+
+      const documents = bridgeAccount.output.data[0]?.attributes.fields.documents.value ?? [];
+      const validDocument = getValidDocumentForBridge(documents);
+      if (!validDocument) throw new Error(scopeValidationErrors.NOT_SUPPORTED);
 
       return;
     }
@@ -472,6 +490,12 @@ export async function getDocumentForManteca(
   const allowedIds = getAllowedMantecaIds(country);
   if (!allowedIds) return undefined;
   return getValidDocumentForManteca(documents, allowedIds);
+}
+
+export function getValidDocumentForBridge(
+  documents: InferOutput<typeof AccountBasicFields>["documents"]["value"],
+): InferOutput<typeof IdentityDocument> | undefined {
+  return documents.at(-1)?.value;
 }
 
 export const scopeValidationErrors = {

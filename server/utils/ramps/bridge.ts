@@ -1,8 +1,9 @@
-import { captureException, captureMessage } from "@sentry/core";
+import { captureException } from "@sentry/core";
+import { eq } from "drizzle-orm";
+import { alpha2ToAlpha3 } from "i18n-iso-countries";
 import crypto from "node:crypto";
 import {
   array,
-  boolean,
   literal,
   nullish,
   number,
@@ -24,7 +25,15 @@ import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 import chain from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
-import type * as common from "./shared";
+import database, { credentials } from "../../database";
+import {
+  getAccount,
+  getDocument,
+  getValidDocumentForBridge,
+  type IdentificationClasses as PersonaIdentificationClasses,
+} from "../persona";
+
+import type * as shared from "./shared";
 
 if (!process.env.BRIDGE_API_URL) throw new Error("missing bridge api url");
 const baseURL = process.env.BRIDGE_API_URL;
@@ -35,9 +44,18 @@ const apiKey = process.env.BRIDGE_API_KEY;
 // #region services
 export async function createCustomer(user: InferInput<typeof CreateCustomer>) {
   return await request(NewCustomer, "/customers", {}, user, "POST").catch((error: unknown) => {
-    if (error instanceof Error && error.message.includes(BridgeApiErrorCodes.EMAIL_ALREADY_EXISTS)) {
-      captureMessage("email_already_exists", { contexts: { user }, level: "error" });
-      throw new Error(ErrorCodes.EMAIL_ALREADY_EXISTS);
+    if (error instanceof Error) {
+      if (error.message.includes(BridgeApiErrorCodes.EMAIL_ALREADY_EXISTS)) {
+        captureException(new Error("email already exists"), { contexts: { user }, level: "error" });
+        throw new Error(ErrorCodes.EMAIL_ALREADY_EXISTS);
+      }
+      if (
+        error.message.includes(BridgeApiErrorCodes.INVALID_PARAMETERS) &&
+        error.message.includes("residential_address")
+      ) {
+        captureException(new Error("invalid address"), { contexts: { user }, level: "warning" });
+        throw new Error(ErrorCodes.INVALID_ADDRESS);
+      }
     }
     throw error;
   });
@@ -62,44 +80,52 @@ export async function getCustomer(customerId: string) {
 export async function getQuote(
   from: (typeof QuoteCurrency)[number],
   to: (typeof QuoteCurrency)[number],
-): Promise<InferOutput<typeof common.QuoteResponse>> {
+): Promise<InferOutput<typeof shared.QuoteResponse>> {
   const quote = await request(Quote, `/exchange_rates?from=${CurrencyMapping[from]}&to=${CurrencyMapping[to]}`).catch(
     (error: unknown) => {
-      captureException(error);
+      captureException(error, { level: "error" });
     },
   );
   if (!quote) return;
-  return {
-    buyRate: quote.buy_rate,
-    sellRate: quote.sell_rate,
-  };
+  return { buyRate: quote.buy_rate, sellRate: quote.sell_rate };
 }
 
 export async function createVirtualAccount(customerId: string, data: InferInput<typeof CreateVirtualAccount>) {
   return await request(VirtualAccount, `/customers/${customerId}/virtual_accounts`, {}, data, "POST");
 }
 
-// TODO pagination
 export async function getVirtualAccounts(customerId: string) {
-  return await request(VirtualAccounts, `/customers/${customerId}/virtual_accounts`);
-}
-
-export async function createTransfer(data: InferInput<typeof CreateTransfer>) {
-  return await request(Transfer, "/transfers", {}, data, "POST");
-}
-
-// TODO pagination
-export async function getStaticTransferTemplates(customerId: string) {
-  return await request(StaticTransferTemplates, `/customers/${customerId}/static_templates`);
+  const path = `/customers/${customerId}/virtual_accounts` as const;
+  const first = await request(VirtualAccounts, `${path}?limit=20`);
+  const all = [...first.data];
+  while (all.length < first.count) {
+    const last = all.at(-1);
+    if (!last) break;
+    captureException(new Error("bridge virtual accounts pagination"), { level: "warning" });
+    const page = await request(VirtualAccounts, `${path}?limit=20&starting_after=${last.id}`);
+    if (page.data.length === 0) break;
+    all.push(...page.data);
+  }
+  return all;
 }
 
 export async function createLiquidationAddress(customerId: string, data: InferInput<typeof CreateLiquidationAddress>) {
   return await request(LiquidationAddress, `/customers/${customerId}/liquidation_addresses`, {}, data, "POST");
 }
 
-// TODO pagination
 export async function getLiquidationAddresses(customerId: string) {
-  return await request(LiquidationAddresses, `/customers/${customerId}/liquidation_addresses`);
+  const path = `/customers/${customerId}/liquidation_addresses` as const;
+  const first = await request(LiquidationAddresses, `${path}?limit=20`);
+  const all = [...first.data];
+  while (all.length < first.count) {
+    const last = all.at(-1);
+    if (!last) break;
+    captureException(new Error("bridge liquidation addresses pagination"), { level: "warning" });
+    const page = await request(LiquidationAddresses, `${path}?limit=20&starting_after=${last.id}`);
+    if (page.data.length === 0) break;
+    all.push(...page.data);
+  }
+  return all;
 }
 
 type GetProvider = {
@@ -109,8 +135,119 @@ type GetProvider = {
   redirectURL?: string;
 };
 
-export async function getProvider(_data: GetProvider): Promise<InferOutput<typeof common.ProviderInfo>> {
-  return await Promise.resolve({ status: "NOT_AVAILABLE", onramp: { currencies: [], cryptoCurrencies: [] } });
+export async function getProvider(data: GetProvider): Promise<InferOutput<typeof shared.ProviderInfo>> {
+  const currencies: (typeof SupportedCurrency)[number][] = [];
+  const cryptoCurrencies: {
+    cryptoCurrency: (typeof SupportedCrypto)[number];
+    network: (typeof shared.CryptoNetwork)[number];
+  }[] = [];
+
+  const supportedChainId = SupportedOnRampChainId[chain.id as (typeof shared.SupportedChainId)[number]];
+  if (!supportedChainId) {
+    captureException(new Error("bridge not supported chain id"), { contexts: { chain }, level: "error" });
+    return { onramp: { currencies: [], cryptoCurrencies: [] }, status: "NOT_AVAILABLE" };
+  }
+
+  for (const cryptoRail of SupportedCryptoPaymentRail) {
+    for (const cryptoCurrency of CryptoCurrencyByPaymentRail[cryptoRail]) {
+      cryptoCurrencies.push({ cryptoCurrency, network: CryptoPaymentRailMapping[cryptoRail] });
+    }
+  }
+  const basicCurrencies = (["base", "sepa"] as const).flatMap((endorsement) => CurrencyByEndorsement[endorsement]);
+
+  if (data.customerId) {
+    const bridgeUser = await getCustomer(data.customerId);
+    if (!bridgeUser) throw new Error(ErrorCodes.BAD_BRIDGE_ID);
+    switch (bridgeUser.status) {
+      case "offboarded":
+      case "rejected":
+      case "paused":
+        captureException(new Error("bridge user not available"), { contexts: { bridgeUser }, level: "warning" });
+        return { status: "NOT_AVAILABLE", onramp: { currencies: [], cryptoCurrencies: [] } };
+      case "under_review":
+      case "awaiting_questionnaire":
+      case "awaiting_ubo":
+      case "incomplete":
+      case "not_started":
+        captureException(new Error("bridge user onboarding"), { contexts: { bridgeUser }, level: "warning" });
+        return { status: "ONBOARDING", onramp: { currencies: basicCurrencies, cryptoCurrencies } };
+      case "active":
+        break;
+    }
+
+    if (bridgeUser.future_requirements_due?.length) {
+      // TODO handle future requirements
+      captureException(new Error("bridge future requirements due"), {
+        contexts: { bridge: { bridgeId: data.customerId, futureRequirementsDue: bridgeUser.future_requirements_due } },
+        level: "warning",
+      });
+    }
+
+    if (bridgeUser.requirements_due?.length) {
+      // TODO handle requirements due
+      captureException(new Error("bridge requirements due"), {
+        contexts: { bridge: { bridgeId: data.customerId, requirementsDue: bridgeUser.requirements_due } },
+        level: "warning",
+      });
+    }
+
+    for (const endorsement of bridgeUser.endorsements) {
+      if (endorsement.status !== "approved") {
+        // TODO handle pending tasks
+        captureException(new Error("endorsement not approved"), {
+          contexts: { bridge: { bridgeId: data.customerId, endorsement } },
+          level: "warning",
+        });
+        break;
+      }
+
+      currencies.push(...CurrencyByEndorsement[endorsement.name]);
+
+      if (endorsement.additional_requirements?.length) {
+        // TODO handle additional requirements
+        captureException(new Error("additional requirements"), {
+          contexts: { bridge: { bridgeId: data.customerId, endorsement } },
+          level: "warning",
+        });
+      }
+
+      if (endorsement.requirements.missing) {
+        captureException(new Error("requirements missing"), {
+          contexts: { bridge: { bridgeId: data.customerId, endorsement } },
+          level: "warning",
+        });
+      }
+    }
+
+    return { status: "ACTIVE", onramp: { currencies, cryptoCurrencies } };
+  }
+
+  const personaAccount = await getAccount(data.credentialId, "bridge");
+  if (!personaAccount) throw new Error(ErrorCodes.NO_PERSONA_ACCOUNT);
+
+  const countryCode = personaAccount.attributes["country-code"];
+  const validDocument = getValidDocumentForBridge(personaAccount.attributes.fields.documents.value);
+  if (!validDocument) throw new Error(ErrorCodes.NO_DOCUMENT);
+
+  const country = alpha2ToAlpha3(countryCode);
+  if (!country) throw new Error(ErrorCodes.NO_COUNTRY_ALPHA3);
+
+  if (countryCode === "US" && !personaAccount.attributes["social-security-number"]) {
+    throw new Error(ErrorCodes.NO_SOCIAL_SECURITY_NUMBER);
+  }
+
+  const endorsements: (typeof Endorsements)[number][] = ["base", "sepa"];
+  if (countryCode === "MX") endorsements.push("spei");
+  if (countryCode === "BR") endorsements.push("pix");
+  for (const endorsement of endorsements) currencies.push(...CurrencyByEndorsement[endorsement]);
+
+  let bridgeRedirectURL: undefined | URL = undefined;
+  if (data.redirectURL) {
+    bridgeRedirectURL = new URL(data.redirectURL);
+    bridgeRedirectURL.searchParams.set("provider", "bridge" satisfies (typeof shared.RampProvider)[number]);
+  }
+  const tosLink = await agreementLink(bridgeRedirectURL?.toString());
+  return { status: "NOT_STARTED", tosLink, onramp: { currencies: basicCurrencies, cryptoCurrencies } };
 }
 
 type Onboarding = {
@@ -119,29 +256,106 @@ type Onboarding = {
   customerId: null | string;
 };
 
-export async function onboarding(_data: Onboarding): Promise<void> {
-  await Promise.reject(new Error("not implemented"));
+export async function onboarding(data: Onboarding): Promise<void> {
+  if (data.customerId) throw new Error(ErrorCodes.ALREADY_ONBOARDED);
+
+  const supportedChainId = SupportedOnRampChainId[chain.id as (typeof shared.SupportedChainId)[number]];
+  if (!supportedChainId) {
+    captureException(new Error("bridge not supported chain id"), { contexts: { chain }, level: "error" });
+    throw new Error(ErrorCodes.NOT_SUPPORTED_CHAIN_ID);
+  }
+
+  const personaAccount = await getAccount(data.credentialId, "bridge");
+  if (!personaAccount) throw new Error(ErrorCodes.NO_PERSONA_ACCOUNT);
+
+  const countryCode = personaAccount.attributes["country-code"];
+
+  const validDocument = getValidDocumentForBridge(personaAccount.attributes.fields.documents.value);
+  if (!validDocument) throw new Error(ErrorCodes.NO_DOCUMENT);
+
+  const endorsements: (typeof Endorsements)[number][] = ["base", "sepa"];
+  if (countryCode === "MX") endorsements.push("spei");
+  if (countryCode === "BR") endorsements.push("pix");
+
+  const identityDocument = await getDocument(validDocument.id_document_id.value);
+  const frontDocumentURL = identityDocument.attributes["front-photo"]?.url;
+  if (!frontDocumentURL) throw new Error(ErrorCodes.NO_DOCUMENT_FILE);
+  const backDocumentURL = identityDocument.attributes["back-photo"]?.url;
+
+  const [frontFileEncoded, backFileEncoded] = await Promise.all([
+    fetchAndEncodeFile(frontDocumentURL, identityDocument.attributes["front-photo"]?.filename ?? "front-photo.jpg"),
+    backDocumentURL
+      ? fetchAndEncodeFile(backDocumentURL, identityDocument.attributes["back-photo"]?.filename ?? "back-photo.jpg")
+      : undefined,
+  ]);
+
+  const bridgeIdType = idClassToBridge(validDocument.id_class.value);
+  if (!bridgeIdType) throw new Error(ErrorCodes.NOT_FOUND_IDENTIFICATION_CLASS);
+  const country = alpha2ToAlpha3(countryCode);
+  if (!country) throw new Error(ErrorCodes.NO_COUNTRY_ALPHA3);
+
+  const identifyingInformation: (InferInput<typeof IdentityDocument> | InferInput<typeof TIN>)[] = [
+    {
+      type: bridgeIdType,
+      issuing_country: validDocument.id_issuing_country.value,
+      number: validDocument.id_number.value,
+      image_front: frontFileEncoded,
+      image_back: backFileEncoded,
+    },
+  ];
+
+  if (countryCode === "US") {
+    const ssn = personaAccount.attributes["social-security-number"];
+    if (!ssn) throw new Error(ErrorCodes.NO_SOCIAL_SECURITY_NUMBER);
+
+    identifyingInformation.push({
+      type: "ssn",
+      number: ssn,
+      issuing_country: "USA",
+    });
+  }
+
+  const customer = await createCustomer({
+    type: "individual",
+    first_name: personaAccount.attributes.fields.name.value.first.value,
+    last_name: personaAccount.attributes.fields.name.value.last.value,
+    email: personaAccount.attributes["email-address"],
+    phone: personaAccount.attributes.fields.phone_number.value,
+    residential_address: {
+      street_line_1: personaAccount.attributes["address-street-1"],
+      street_line_2: personaAccount.attributes["address-street-2"] ?? undefined,
+      postal_code: personaAccount.attributes["address-postal-code"],
+      subdivision: personaAccount.attributes["address-subdivision"],
+      country,
+      city: personaAccount.attributes["address-city"],
+    },
+    birth_date: personaAccount.attributes.fields.birthdate.value,
+    signed_agreement_id: data.acceptedTermsId,
+    endorsements,
+    nationality: country,
+    identifying_information: identifyingInformation,
+  });
+
+  await database.update(credentials).set({ bridgeId: customer.id }).where(eq(credentials.id, data.credentialId));
 }
 
 export async function getDepositDetails(
   currency: (typeof SupportedCurrency)[number],
   account: string,
   customer: InferOutput<typeof CustomerResponse>,
-): Promise<InferOutput<typeof common.DepositDetails>[]> {
-  const supportedChainId = SupportedOnRampChainId[chain.id as (typeof common.SupportedChainId)[number]];
+): Promise<InferOutput<typeof shared.DepositDetails>[]> {
+  const supportedChainId = SupportedOnRampChainId[chain.id as (typeof shared.SupportedChainId)[number]];
   if (!supportedChainId) {
-    captureMessage("bridge_not_supported_chain_id", { contexts: { chain }, level: "error" });
+    captureException(new Error("bridge not supported chain id"), { contexts: { chain }, level: "error" });
     throw new Error(ErrorCodes.NOT_SUPPORTED_CHAIN_ID);
   }
+  if (customer.status !== "active") throw new Error(ErrorCodes.NOT_ACTIVE_CUSTOMER);
 
-  if (customer.status !== "active") {
-    throw new Error(ErrorCodes.NOT_ACTIVE_CUSTOMER);
-  }
   const approvedEndorsements = customer.endorsements.filter((endorsement) => endorsement.status === "approved");
   const availableCurrencies = approvedEndorsements.flatMap((endorsement) => CurrencyByEndorsement[endorsement.name]);
   if (!availableCurrencies.includes(currency)) throw new Error(ErrorCodes.NOT_AVAILABLE_CURRENCY);
   const virtualAccounts = await getVirtualAccounts(customer.id);
-  let virtualAccount = virtualAccounts.data.find(
+  let virtualAccount = virtualAccounts.find(
     ({ source_deposit_instructions, status }) =>
       source_deposit_instructions.currency === CurrencyMapping[currency] && status === "activated",
   );
@@ -157,25 +371,26 @@ export async function getDepositDetails(
 
 export async function getCryptoDepositDetails(
   cryptoCurrency: (typeof SupportedCrypto)[number],
-  paymentRail: (typeof common.CryptoNetwork)[number],
+  network: (typeof shared.CryptoNetwork)[number],
   account: string,
   customer: InferOutput<typeof CustomerResponse>,
-): Promise<InferOutput<typeof common.DepositDetails>[]> {
-  const supportedChainId = SupportedOnRampChainId[chain.id as (typeof common.SupportedChainId)[number]];
+): Promise<InferOutput<typeof shared.DepositDetails>[]> {
+  const supportedChainId = SupportedOnRampChainId[chain.id as (typeof shared.SupportedChainId)[number]];
   if (!supportedChainId) {
-    captureMessage("bridge_not_supported_chain_id", { contexts: { chain }, level: "error" });
+    captureException(new Error("bridge not supported chain id"), { contexts: { chain }, level: "error" });
     throw new Error(ErrorCodes.NOT_SUPPORTED_CHAIN_ID);
   }
+  if (customer.status !== "active") throw new Error(ErrorCodes.NOT_ACTIVE_CUSTOMER);
 
-  if (customer.status !== "active") {
-    throw new Error(ErrorCodes.NOT_ACTIVE_CUSTOMER);
+  const paymentRail = NetworkToCryptoPaymentRail[network];
+  if (!CryptoCurrencyByPaymentRail[paymentRail].includes(cryptoCurrency)) {
+    throw new Error(ErrorCodes.NOT_AVAILABLE_CRYPTO_PAYMENT_RAIL);
   }
 
   const liquidationAddresses = await getLiquidationAddresses(customer.id);
-  let liquidationAddress = liquidationAddresses.data.find(
+  let liquidationAddress = liquidationAddresses.find(
     ({ chain: bridgeChain, currency }) =>
-      CryptoPaymentRailMapping[bridgeChain as (typeof SupportedCryptoPaymentRail)[number]] === paymentRail &&
-      currency === CryptocurrencyMapping[cryptoCurrency],
+      bridgeChain === paymentRail && currency === CryptocurrencyMapping[cryptoCurrency],
   );
 
   liquidationAddress ??= await createLiquidationAddress(customer.id, {
@@ -183,7 +398,7 @@ export async function getCryptoDepositDetails(
     destination_currency: "usdc",
     destination_payment_rail: supportedChainId,
     currency: CryptocurrencyMapping[cryptoCurrency],
-    chain: NetworkToCryptoPaymentRail[paymentRail],
+    chain: paymentRail,
   });
 
   return getDepositDetailsFromLiquidationAddress(liquidationAddress, account);
@@ -203,7 +418,7 @@ export const SupportedCurrency = [
   "USD",
   "MXN",
   "BRL",
-] as const satisfies readonly (typeof common.Currency)[number][];
+] as const satisfies readonly (typeof shared.Currency)[number][];
 
 export const QuoteCurrency = [
   "BRL",
@@ -228,7 +443,7 @@ const CurrencyByEndorsement: Record<(typeof Endorsements)[number], (typeof Suppo
 // #endregion fiat currencies
 
 // #region crypto currencies
-export const SupportedCrypto = ["USDT", "USDC"] as const satisfies readonly (typeof common.Cryptocurrency)[number][];
+export const SupportedCrypto = ["USDT", "USDC"] as const satisfies readonly (typeof shared.Cryptocurrency)[number][];
 
 export const CryptocurrencyMapping: Record<(typeof SupportedCrypto)[number], (typeof BridgeCryptocurrency)[number]> = {
   USDT: "usdt",
@@ -253,9 +468,18 @@ export const SupportedCryptoPaymentRail = [
   "stellar",
 ] as const satisfies readonly (typeof CryptoPaymentRail)[number][];
 
+const CryptoCurrencyByPaymentRail: Record<
+  (typeof SupportedCryptoPaymentRail)[number],
+  (typeof SupportedCrypto)[number][]
+> = {
+  tron: ["USDT"],
+  solana: ["USDC"],
+  stellar: ["USDC"],
+};
+
 const CryptoPaymentRailMapping: Record<
   (typeof SupportedCryptoPaymentRail)[number],
-  (typeof common.CryptoNetwork)[number]
+  (typeof shared.CryptoNetwork)[number]
 > = {
   tron: "TRON",
   stellar: "STELLAR",
@@ -267,7 +491,7 @@ const NetworkToCryptoPaymentRail = createReverseMapping(CryptoPaymentRailMapping
 
 // #region schemas
 const SupportedOnRampChainId: Record<
-  (typeof common.SupportedChainId)[number],
+  (typeof shared.SupportedChainId)[number],
   (typeof CryptoPaymentRail)[number] | undefined
 > = {
   [optimism.id]: "optimism",
@@ -282,6 +506,9 @@ export const IdentityDocumentType = [
   "military_id",
   "national_id",
   "passport",
+  "permanent_residency_id",
+  "state_or_provincial_id",
+  "visa",
 ] as const;
 
 export const TINType = [
@@ -432,17 +659,6 @@ export const TINType = [
   "y_tunnus", // cspell:ignore y_tunnus
 ] as const;
 
-export const DocumentType = [
-  "proof_of_account_purpose",
-  "proof_of_address",
-  "proof_of_individual_name_change",
-  "proof_of_relationship",
-  "proof_of_source_of_funds",
-  "proof_of_source_of_wealth",
-  "proof_of_tax_identification",
-  "other",
-] as const;
-
 const CustomerStatus = [
   "awaiting_questionnaire",
   "awaiting_ubo",
@@ -465,17 +681,18 @@ const AdditionalRequirements = [
 const CapabilitiesStatus = ["pending", "active", "inactive", "rejected"] as const;
 const EndorsementStatus = ["incomplete", "approved", "revoked"] as const;
 
-const TransferState = [
-  "payment_processed",
-  "payment_submitted",
-  "awaiting_funds",
-  "funds_received",
-  "undeliverable",
-  "in_review",
-  "canceled",
-  "refunded",
-  "returned",
-] as const;
+const IdClassToBridge: Record<
+  (typeof PersonaIdentificationClasses)[number],
+  (typeof IdentityDocumentType)[number] | undefined
+> = {
+  id: "national_id",
+  pp: "passport",
+  dl: "drivers_license",
+  wp: undefined,
+  rp: undefined,
+  pr: "permanent_residency_id",
+  visa: "visa",
+};
 
 const Quote = object({ midmarket_rate: string(), buy_rate: string(), sell_rate: string() }); // cspell:ignore midmarket
 
@@ -525,12 +742,6 @@ const TIN = object({
   issuing_country: string(),
 });
 
-const Document = object({
-  type: picklist(DocumentType),
-  file: string(),
-  description: optional(string()),
-});
-
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const CreateCustomer = object({
   type: literal("individual"),
@@ -566,34 +777,6 @@ const CreateCustomer = object({
 
   identifying_information: array(union([IdentityDocument, TIN])),
   endorsements: optional(array(picklist(Endorsements))),
-  documents: optional(array(Document)),
-
-  // only for high risk populations
-  account_purpose: optional(string()), // TODO only an enum, check
-  account_purpose_other: optional(string()), // required if account_purpose is other
-  employment_status: optional(string()), // TODO only an enum, check
-  expected_monthly_payments_usd: optional(picklist(["0_4999", "5000_9999", "10000_49999", "50000_plus"])),
-  acting_as_intermediary: optional(boolean()),
-  most_recent_occupation: optional(string()),
-  source_of_funds: optional(
-    picklist([
-      "company_funds",
-      "ecommerce_reseller",
-      "gambling_proceeds",
-      "gifts",
-      "government_benefits",
-      "inheritance",
-      "investments_loans",
-      "pension_retirement",
-      "salary",
-      "sale_of_assets_real_estate",
-      "savings",
-      "someone_elses_funds",
-    ]),
-  ),
-  verified_govid_at: optional(string()), // cspell:ignore verified_govid_at
-  verified_selfie_at: optional(string()),
-  completed_customer_safety_check_at: optional(string()),
 });
 
 const NewCustomer = object({
@@ -652,68 +835,7 @@ const VirtualAccount = object({
     address: string(),
   }),
 });
-
 const VirtualAccounts = object({ count: number(), data: array(VirtualAccount) });
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const CreateTransfer = object({
-  id: optional(string()),
-  client_reference_id: optional(string()),
-  developer_fee_percentage: optional(string()),
-  developer_fee: optional(string()),
-  on_behalf_of: string(),
-  source: object({
-    currency: picklist([...BridgeCurrency, ...BridgeCryptocurrency]),
-    payment_rail: picklist([...PaymentRail, ...CryptoPaymentRail]),
-    external_account_id: optional(string()),
-  }),
-  destination: object({
-    currency: picklist([...BridgeCurrency, ...BridgeCryptocurrency]),
-    payment_rail: picklist([...PaymentRail, ...CryptoPaymentRail]),
-    to_address: optional(string()),
-
-    external_account_id: optional(string()),
-    ach_reference: optional(string()),
-    swift_charges: optional(picklist(["our", "sha"])),
-    imad: optional(string()), // cspell:ignore imad
-  }),
-  features: object({
-    flexible_amount: optional(boolean()),
-    static_template: optional(boolean()),
-    allow_any_from_address: optional(boolean()),
-  }),
-});
-
-const Transfer = object({
-  id: string(),
-  state: picklist(TransferState),
-  source_deposit_instructions: optional(
-    object({
-      payment_rail: optional(picklist([...PaymentRail, ...CryptoPaymentRail])),
-      currency: optional(picklist([...BridgeCurrency, ...BridgeCryptocurrency])),
-      to_address: optional(string()),
-      blockchain_memo: optional(string()),
-
-      deposit_message: optional(string()),
-      bank_name: optional(string()),
-      bank_address: optional(string()),
-      bank_routing_number: optional(string()),
-      bank_account_number: optional(string()),
-      bank_beneficiary_name: optional(string()),
-      bank_beneficiary_address: optional(string()),
-      account_holder_name: optional(string()),
-      iban: optional(string()), // cspell:ignore iban
-      bic: optional(string()),
-      clabe: optional(string()), // cspell:ignore clabe
-    }),
-  ),
-  return_details: optional(object({ reason: optional(string()), refund_reference_id: optional(string()) })),
-});
-
-const StaticTransferTemplates = object({
-  count: number(),
-  data: array(Transfer),
-});
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const CreateLiquidationAddress = object({
@@ -749,7 +871,7 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
     headers: {
       ...headers,
       "api-key": apiKey,
-      ...(method === "POST" && { "Idempotency-Key": generateUUID() }),
+      ...(method === "POST" && { "Idempotency-Key": crypto.randomUUID() }),
       accept: "application/json",
       "content-type": "application/json",
     },
@@ -764,14 +886,26 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
   return parse(schema, JSON.parse(new TextDecoder().decode(rawBody)));
 }
 
-function generateUUID() {
-  return crypto.randomUUID();
+async function encodeFile(file: File): Promise<string> {
+  const buffer = await file.arrayBuffer();
+  const base64 = Buffer.from(buffer).toString("base64");
+  const type = file.type === "" ? "image/jpg" : file.type;
+  return `data:${type};base64,${base64}`;
+}
+
+async function fetchAndEncodeFile(url: string, fileName: string): Promise<string> {
+  const file = await fetch(url).then((document) => document.blob());
+  return encodeFile(new File([file], fileName));
+}
+
+function idClassToBridge(idClass: string): (typeof IdentityDocumentType)[number] | undefined {
+  return IdClassToBridge[idClass as keyof typeof IdClassToBridge];
 }
 
 function getDepositDetailsFromVirtualAccount(
   virtualAccount: InferOutput<typeof VirtualAccount>,
   account: string,
-): InferOutput<typeof common.DepositDetails>[] {
+): InferOutput<typeof shared.DepositDetails>[] {
   if (virtualAccount.destination.address.toLowerCase() !== account.toLowerCase()) {
     throw new Error(ErrorCodes.INVALID_ACCOUNT);
   }
@@ -829,7 +963,7 @@ function getDepositDetailsFromVirtualAccount(
 function getDepositDetailsFromLiquidationAddress(
   liquidationAddress: InferOutput<typeof LiquidationAddress>,
   account: string,
-): InferOutput<typeof common.DepositDetails>[] {
+): InferOutput<typeof shared.DepositDetails>[] {
   if (liquidationAddress.destination_address.toLowerCase() !== account.toLowerCase()) {
     throw new Error(ErrorCodes.INVALID_ACCOUNT);
   }
@@ -875,38 +1009,25 @@ function createReverseMapping<T extends Record<string, string>>(mapping: T) {
 // #endregion utils
 
 export const ErrorCodes = {
-  NOT_SUPPORTED_IDENTIFICATION_CLASS: "not supported identification class",
-  NOT_AVAILABLE_CRYPTO_PAYMENT_RAIL: "not available crypto payment rail",
-  MULTIPLE_IDENTIFICATION_NUMBERS: "multiple identification numbers",
-  NOT_FOUND_IDENTIFICATION_CLASS: "not found identification class",
-  NO_SOCIAL_SECURITY_NUMBER: "no social security number",
-  NO_IDENTIFICATION_NUMBER: "no identification number",
-  NO_IDENTIFICATION_CLASS: "no identification class",
-  MULTIPLE_IDENTIFICATION: "multiple identification",
-  NOT_AVAILABLE_CURRENCY: "not available currency",
-  NOT_SUPPORTED_CHAIN_ID: "not supported chain id",
-  EMAIL_ALREADY_EXISTS: "email already exists",
-  NOT_ACTIVE_CUSTOMER: "not active customer",
-  MULTIPLE_DOCUMENTS: "multiple documents",
-  NO_FIAT_CAPABILITY: "no fiat capability",
-  NO_PERSONA_ACCOUNT: "no persona account",
   ALREADY_ONBOARDED: "already onboarded",
-  NO_COUNTRY_ALPHA3: "no country alpha3",
-  KYC_NOT_APPROVED: "kyc not approved",
-  NO_DOCUMENT_FILE: "no document file",
-  INVALID_ACCOUNT: "invalid destination account",
-  NO_DOCUMENT_ID: "no document id",
-  NO_POSTAL_CODE: "no postal code",
-  NO_SUBDIVISION: "no subdivision",
   BAD_BRIDGE_ID: "bad bridge id",
+  EMAIL_ALREADY_EXISTS: "email already exists",
+  INVALID_ACCOUNT: "invalid destination account",
+  INVALID_ADDRESS: "invalid address",
+  NOT_ACTIVE_CUSTOMER: "not active customer",
+  NOT_AVAILABLE_CRYPTO_PAYMENT_RAIL: "not available crypto payment rail",
+  NOT_AVAILABLE_CURRENCY: "not available currency",
+  NOT_FOUND_IDENTIFICATION_CLASS: "not found identification class",
+  NOT_SUPPORTED_CHAIN_ID: "not supported chain id",
+  NO_COUNTRY_ALPHA3: "no country alpha3",
   NO_DOCUMENT: "no document",
-  NO_ADDRESS: "no address",
-  NO_COUNTRY: "no country",
-  NO_CITY: "no city",
-  NO_KYC: "no kyc",
+  NO_DOCUMENT_FILE: "no document file",
+  NO_PERSONA_ACCOUNT: "no persona account",
+  NO_SOCIAL_SECURITY_NUMBER: "no social security number",
 };
 
 const BridgeApiErrorCodes = {
-  NOT_FOUND: "not_found",
   EMAIL_ALREADY_EXISTS: "A customer with this email already exists",
+  INVALID_PARAMETERS: "invalid_parameters",
+  NOT_FOUND: "not_found",
 } as const;
