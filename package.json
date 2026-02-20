@@ -168,6 +168,7 @@
       "@modelcontextprotocol/sdk": "^1.26.0",
       "@wagmi/core": "catalog:",
       "axios@1.13.2": "^1.13.5",
+      "bn.js": "^5.2.3",
       "esbuild@0.18.20": "^0.25.0",
       "glob@11.0.3": "^11.1.0",
       "ioredis": "catalog:",
