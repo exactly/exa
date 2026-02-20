@@ -968,8 +968,6 @@ describe("proposal", () => {
       const idle = proposals[1]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
       const withdraw = proposals[3]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
       const another = proposals[4]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-      const match = matchProposal(another.args.account, another.args.nonce);
-      const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
 
       const expected = [
         {
@@ -1006,6 +1004,75 @@ describe("proposal", () => {
         proposalExecutions,
       ]);
       expect(hasExpectedTransfers(receipts, expected)).toBe(true);
+    });
+
+    it("captures NotNext warning for out-of-order proposal execution", async () => {
+      const idle = proposals[1]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
+      const withdraw = proposals[3]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
+      const another = proposals[4]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
+      const match = matchProposal(another.args.account, another.args.nonce);
+      const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
+      const notNextAbi = [{ type: "error", name: "NotNext", inputs: [] }] as const;
+      const { simulateContract } = publicClient;
+      let injected = false;
+      vi.spyOn(publicClient, "simulateContract").mockImplementation((params) => {
+        if (
+          !injected &&
+          params.functionName === "executeProposal" &&
+          params.args?.length === 1 &&
+          params.args[0] === another.args.nonce
+        ) {
+          injected = true;
+          // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
+          throw getContractError(
+            new RawContractError({ data: encodeErrorResult({ abi: notNextAbi, errorName: "NotNext" }) }),
+            { abi: notNextAbi, address: bobAccount, functionName: "executeProposal", args: [another.args.nonce] },
+          );
+        }
+        return simulateContract(params);
+      });
+
+      const proposalExecutions = waitForSuccessfulProposalExecutions([withdraw.args.nonce, idle.args.nonce]);
+      const notNextCapture = vi.waitUntil(
+        () =>
+          vi
+            .mocked(captureException)
+            .mock.calls.slice(initialCaptureExceptionCalls)
+            .filter((call) => match.capture(call))
+            .some(
+              ([, hint]) =>
+                typeof hint === "object" &&
+                "fingerprint" in hint &&
+                Array.isArray(hint.fingerprint) &&
+                hint.fingerprint[1] === "NotNext",
+            ),
+        26_666,
+      );
+
+      await Promise.all([
+        appClient.index.$post({
+          ...withdrawProposal,
+          json: {
+            ...withdrawProposal.json,
+            event: {
+              ...withdrawProposal.json.event,
+              data: {
+                ...withdrawProposal.json.event.data,
+                block: {
+                  ...withdrawProposal.json.event.data.block,
+                  logs: [
+                    { topics: withdraw.topics, data: withdraw.data, account: { address: withdraw.address } },
+                    { topics: another.topics, data: another.data, account: { address: another.address } },
+                  ],
+                },
+              },
+            },
+          },
+        }),
+        proposalExecutions,
+        notNextCapture,
+      ]);
+
       const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
       const proposalCaptureCalls = captureExceptionCalls.filter((call) => match.capture(call));
       expect(proposalCaptureCalls).toContainEqual([
