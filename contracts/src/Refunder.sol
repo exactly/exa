@@ -37,11 +37,13 @@ contract Refunder is AccessControl {
     IERC20(asset).safeTransfer(to, amount);
   }
 
+  /// forge-lint: disable-next-item(unwrapped-modifier-logic)
   modifier onlyKeeper() {
     if (!hasRole(KEEPER_ROLE, msg.sender)) revert Unauthorized();
     _;
   }
 
+  /// forge-lint: disable-next-item(unwrapped-modifier-logic)
   modifier onlyIssuer(address account, uint256 amount, uint256 timestamp, bytes calldata signature) {
     ISSUER_CHECKER.check(account, amount, timestamp, true, signature);
     _;

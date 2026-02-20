@@ -38,7 +38,7 @@ contract IssuerChecker is AccessControl, EIP712 {
     if (timestamp > block.timestamp + MAX_TIME_DRIFT) revert Timelocked();
     if (timestamp + operationExpiry < block.timestamp) revert Expired();
 
-    bytes32 hash = keccak256(abi.encode(amount, timestamp));
+    bytes32 hash = keccak256(abi.encode(amount, timestamp)); // forge-lint: disable-line(asm-keccak256)
     address recovered;
     // solhint-disable gas-small-strings
     if (refund) {

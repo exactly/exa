@@ -11,7 +11,7 @@ contract DeployIssuerChecker is BaseScript {
   IssuerChecker public issuerChecker;
 
   function run() external {
-    string memory deploy = vm.readFile("deploy.json");
+    string memory deploy = vm.readFile("deploy.json"); // forge-lint: disable-line(unsafe-cheatcode)
     vm.broadcast(acct("deployer"));
     issuerChecker = new IssuerChecker(
       acct("admin"),

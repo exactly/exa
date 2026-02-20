@@ -23,7 +23,7 @@ contract DeployProposalManager is BaseScript {
   mapping(address asset => bool supported) private protocolAssets;
 
   function run() external {
-    string memory deploy = vm.readFile("deploy.json");
+    string memory deploy = vm.readFile("deploy.json"); // forge-lint: disable-line(unsafe-cheatcode)
     IAuditor auditor = IAuditor(protocol("Auditor"));
     IMarket[] memory markets = auditor.allMarkets();
     for (uint256 i = 0; i < markets.length; ++i) {

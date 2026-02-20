@@ -140,7 +140,7 @@ contract Redeployer is BaseScript {
   }
 
   function _allowlist() internal returns (address[] memory targets) {
-    string memory deploy = vm.readFile("deploy.json");
+    string memory deploy = vm.readFile("deploy.json"); // forge-lint: disable-line(unsafe-cheatcode)
     string memory key = string.concat(".proposalManager.allowlist.", vm.toString(block.chainid));
     string[] memory keys = vm.keyExistsJson(deploy, key) ? vm.parseJsonKeys(deploy, key) : new string[](0);
     targets = new address[](keys.length + 1);
@@ -206,6 +206,7 @@ contract StubAuditor {
 }
 
 contract StubMarket {
+  /// forge-lint: disable-next-item(screaming-snake-case-immutable)
   address public immutable asset; // solhint-disable-line immutable-vars-naming
 
   constructor(address asset_) {
