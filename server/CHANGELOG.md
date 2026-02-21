@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.70
+
+### Patch Changes
+
+- [#770](https://github.com/exactly/exa/pull/770) [`dffa26b`](https://github.com/exactly/exa/commit/dffa26b2d6b16c862f9e69c81ddcbe8bdb43f3b8) Thanks [@nfmelendez](https://github.com/nfmelendez)! - ✨ add card statement
+
 ## 0.2.69
 
 ### Patch Changes
