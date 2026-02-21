@@ -26,6 +26,30 @@ init({
     extraErrorDataIntegration({ depth: 69 }),
     ...(development ? [consoleLoggingIntegration()] : []),
   ],
+  beforeSend: (event, hint) => {
+    const exception = event.exception?.values?.[0];
+    if (
+      exception &&
+      event.fingerprint?.[0] === "{{ default }}" &&
+      (exception.type === "ContractFunctionExecutionError" ||
+        exception.type === "ContractFunctionRevertedError" ||
+        exception.type === "BaseError")
+    ) {
+      /** @typedef {{ cause?: unknown; data?: { errorName?: string }; reason?: string; signature?: string }} RevertError */
+      for (
+        let error = /** @type {RevertError | undefined} */ (hint.originalException);
+        error;
+        error = /** @type {RevertError | undefined} */ (error.cause)
+      ) {
+        const reason = error.data?.errorName ?? error.reason ?? error.signature;
+        if (reason) {
+          exception.type = reason;
+          break;
+        }
+      }
+    }
+    return event;
+  },
   beforeSendTransaction: (transaction) => (transaction.extra?.["exa.ignore"] ? null : transaction),
   spotlight: development,
 });
