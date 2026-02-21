@@ -167,6 +167,7 @@
       "@isaacs/brace-expansion": "^5.0.1",
       "@modelcontextprotocol/sdk": "^1.26.0",
       "@wagmi/core": "catalog:",
+      "abitype>zod": "^4.0.0",
       "axios@1.13.2": "^1.13.5",
       "bn.js": "^5.2.3",
       "esbuild@0.18.20": "^0.25.0",
