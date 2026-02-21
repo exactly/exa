@@ -46,6 +46,7 @@ import {
   usdcAddress,
 } from "@exactly/common/generated/chain";
 import MIN_BORROW_INTERVAL from "@exactly/common/MIN_BORROW_INTERVAL";
+import revertReason from "@exactly/common/revertReason";
 import { Address, type Hash, type Hex } from "@exactly/common/validation";
 import { MATURITY_INTERVAL, splitInstallments } from "@exactly/lib";
 
@@ -55,7 +56,6 @@ import { sendPushNotification } from "../utils/onesignal";
 import { collectors, createMutex, getMutex, getUser, headerValidator, signIssuerOp, updateUser } from "../utils/panda";
 import publicClient from "../utils/publicClient";
 import revertFingerprint from "../utils/revertFingerprint";
-import revertReason from "../utils/revertReason";
 import risk, { feedback } from "../utils/sardine";
 import { track } from "../utils/segment";
 import traceClient, { type CallFrame } from "../utils/traceClient";

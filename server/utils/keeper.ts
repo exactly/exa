@@ -24,12 +24,12 @@ import { privateKeyToAccount } from "viem/accounts";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import chain from "@exactly/common/generated/chain";
+import revertReason from "@exactly/common/revertReason";
 import { Hash } from "@exactly/common/validation";
 
 import nonceManager from "./nonceManager";
 import publicClient, { captureRequests, Requests } from "./publicClient";
 import revertFingerprint from "./revertFingerprint";
-import revertReason from "./revertReason";
 import traceClient from "./traceClient";
 
 if (!chain.rpcUrls.alchemy.http[0]) throw new Error("missing alchemy rpc url");

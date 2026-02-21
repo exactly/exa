@@ -1,6 +1,6 @@
 import { BaseError, ContractFunctionRevertedError } from "viem";
 
-import revertReason from "./revertReason";
+import revertReason from "@exactly/common/revertReason";
 
 export default function revertFingerprint(error?: unknown) {
   return [

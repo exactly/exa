@@ -6,10 +6,11 @@ export default function revertReason(
   error?: unknown,
   { fallback = "name", withArguments = false }: { fallback?: Fallback; withArguments?: boolean } = {},
 ): string {
-  return error instanceof BaseError && error.cause instanceof ContractFunctionRevertedError
-    ? withArguments && error.cause.data?.errorName
-      ? `${error.cause.data.errorName}(${error.cause.data.args?.map(String).join(",") ?? ""})`
-      : (error.cause.data?.errorName ?? error.cause.reason ?? error.cause.signature ?? "unknown")
+  const cause = error instanceof BaseError ? error.walk((r) => r instanceof ContractFunctionRevertedError) : undefined;
+  return cause instanceof ContractFunctionRevertedError
+    ? withArguments && cause.data?.errorName
+      ? `${cause.data.errorName}(${cause.data.args?.map(String).join(",") ?? ""})`
+      : (cause.data?.errorName ?? cause.reason ?? cause.signature ?? "unknown")
     : fallback === "message"
       ? error instanceof Error
         ? error.message

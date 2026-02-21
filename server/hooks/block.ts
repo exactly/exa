@@ -42,6 +42,7 @@ import chain, {
   upgradeableModularAccountAbi,
 } from "@exactly/common/generated/chain";
 import ProposalType, { decodeWithdraw } from "@exactly/common/ProposalType";
+import revertReason from "@exactly/common/revertReason";
 import shortenHex from "@exactly/common/shortenHex";
 import { Address, Hash, Hex } from "@exactly/common/validation";
 
@@ -53,7 +54,6 @@ import { sendPushNotification } from "../utils/onesignal";
 import publicClient from "../utils/publicClient";
 import redis from "../utils/redis";
 import revertFingerprint from "../utils/revertFingerprint";
-import revertReason from "../utils/revertReason";
 import validatorHook from "../utils/validatorHook";
 
 const debug = createDebug("exa:block");
