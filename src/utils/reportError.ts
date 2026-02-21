@@ -1,4 +1,7 @@
 import { captureException, withScope } from "@sentry/react-native";
+import { BaseError, ContractFunctionRevertedError } from "viem";
+
+import revertReason from "@exactly/common/revertReason";
 
 export default function reportError(error: unknown, hint?: Parameters<typeof captureException>[1]) {
   console.error(error); // eslint-disable-line no-console
@@ -11,7 +14,7 @@ export default function reportError(error: unknown, hint?: Parameters<typeof cap
       known ||
       (typeof hint === "object" && "level" in hint && typeof hint.level === "string" && hint.level === "warning");
     const title =
-      (value?.[1] === "api" && typeof value[2] === "string" ? `${value[1]} ${value[2]}` : value?.[1]) ??
+      (value?.[0] !== undefined && value[0] !== "{{ default }}" ? value[0] : value?.[1]) ??
       (parsed.name && parsed.name !== "Error" && parsed.name !== "APIError" ? parsed.name : undefined) ??
       parsed.status ??
       parsed.message;
@@ -50,10 +53,11 @@ const passkeyKnownMessages = new Set([
 ]);
 const authPrefixes = ["androidx.credentials.exceptions.domerrors.NotAllowedError"];
 const networkTypes = [
-  ["offline", /internet connection appears to be offline/i],
-  ["timeout", /request timed out|request took too long to respond/i],
-  ["tls", /tls error caused the secure connection to fail/i],
-  ["lost", /network connection was lost/i],
+  ["ConnectionLost", /network connection was lost/i],
+  ["Offline", /internet connection appears to be offline/i],
+  ["RequestFailed", /^Network request failed$/],
+  ["TLSFailure", /tls error caused the secure connection to fail/i],
+  ["Timeout", /request timed out|request took too long to respond/i],
 ] as const;
 type ParsedError = ReturnType<typeof parseError>;
 
@@ -102,10 +106,13 @@ function parseError(error: unknown) {
             error.message.length > 0
           ? normalizeMessage(error.message)
           : undefined;
-  return { code, name, message, status };
+  const contractRevert =
+    error instanceof BaseError && error.walk((r) => r instanceof ContractFunctionRevertedError) !== null;
+  const reason = contractRevert ? revertReason(error, { fallback: "unknown" }) : undefined;
+  return { code, name, message, status, contractRevert, reason };
 }
 
-function classify({ code, name, message, status }: ParsedError) {
+function classify({ code, name, message, status, contractRevert, reason }: ParsedError) {
   const passkeyNotAllowed =
     name === "NotAllowedError" || (message !== undefined && authPrefixes.some((prefix) => message.startsWith(prefix)));
   const passkeyCancelled = message !== undefined && passkeyCancelledMessages.has(message);
@@ -123,23 +130,34 @@ function classify({ code, name, message, status }: ParsedError) {
     passkeyKnown ||
     biometric ||
     message === "invalid operation" ||
-    message === "Network request failed" ||
-    network === "offline" ||
-    network === "lost";
+    network === "RequestFailed" ||
+    network === "Offline" ||
+    network === "ConnectionLost";
   const value =
     (name === "APIError" && status !== undefined
       ? message === undefined || message.endsWith("[object Object]")
-        ? ["{{ default }}", "api", status]
-        : ["{{ default }}", "api", status, message]
+        ? [status]
+        : [status, message]
       : undefined) ??
+    (contractRevert ? [reason ?? "unknown"] : undefined) ??
+    (authKnown ? [code ?? message ?? "unknown"] : undefined) ??
     (code === undefined || code === "ERR_UNKNOWN"
       ? network === undefined
         ? message === undefined
           ? undefined
           : ["{{ default }}", message]
-        : ["{{ default }}", network]
-      : ["{{ default }}", code]);
-  return { passkeyKnown, passkeyCancelled, passkeyNotAllowed, passkeyWarning, authKnown, known, fingerprint: value };
+        : [network]
+      : [code]);
+  return {
+    authKnown,
+    contractRevert,
+    fingerprint: value,
+    known,
+    passkeyCancelled,
+    passkeyKnown,
+    passkeyNotAllowed,
+    passkeyWarning,
+  };
 }
 
 function normalizeMessage(message: string) {

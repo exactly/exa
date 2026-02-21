@@ -26,6 +26,21 @@ init({
     extraErrorDataIntegration({ depth: 69 }),
     ...(development ? [consoleLoggingIntegration()] : []),
   ],
+  beforeSend: (event) => {
+    const exception = event.exception?.values?.[0];
+    const reason = event.fingerprint?.[1];
+    if (
+      exception &&
+      reason &&
+      event.fingerprint?.[0] === "{{ default }}" &&
+      (exception.type === "ContractFunctionExecutionError" ||
+        exception.type === "ContractFunctionRevertedError" ||
+        exception.type === "BaseError")
+    ) {
+      exception.type = reason;
+    }
+    return event;
+  },
   beforeSendTransaction: (transaction) => (transaction.extra?.["exa.ignore"] ? null : transaction),
   spotlight: development,
 });

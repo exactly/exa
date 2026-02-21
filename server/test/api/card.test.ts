@@ -20,6 +20,7 @@ import keeper from "../../utils/keeper";
 import * as panda from "../../utils/panda";
 import * as pax from "../../utils/pax";
 import * as persona from "../../utils/persona";
+import ServiceError from "../../utils/ServiceError";
 
 const appClient = testClient(app);
 
@@ -204,9 +205,13 @@ describe("authenticated", () => {
     vi.spyOn(panda, "getPIN").mockResolvedValueOnce(pinTemplate);
     vi.spyOn(panda, "getCard").mockResolvedValueOnce(cardTemplate);
     vi.spyOn(panda, "getUser").mockRejectedValueOnce(
-      new Error('404 {"message":"Not Found","error":"NotFoundError","statusCode":404}', {
-        cause: { message: "Not Found", status: 404, type: "NotFoundError" },
-      }),
+      new ServiceError(
+        "Panda",
+        404,
+        '{"message":"Not Found","error":"NotFoundError","statusCode":404}',
+        "NotFoundError",
+        "Not Found",
+      ),
     );
 
     const response = await appClient.index.$get(
@@ -223,9 +228,13 @@ describe("authenticated", () => {
     vi.spyOn(panda, "getPIN").mockResolvedValueOnce(pinTemplate);
     vi.spyOn(panda, "getCard").mockResolvedValueOnce(cardTemplate);
     vi.spyOn(panda, "getUser").mockRejectedValueOnce(
-      new Error('403 {"message":"User exists but is not approved yet","error":"ForbiddenError","statusCode":403}', {
-        cause: { message: "User exists but is not approved yet", status: 403, type: "ForbiddenError" },
-      }),
+      new ServiceError(
+        "Panda",
+        403,
+        '{"message":"User exists but is not approved yet","error":"ForbiddenError","statusCode":403}',
+        "ForbiddenError",
+        "User exists but is not approved yet",
+      ),
     );
 
     const response = await appClient.index.$get(
@@ -243,9 +252,13 @@ describe("authenticated", () => {
     vi.spyOn(panda, "getPIN").mockResolvedValueOnce(pinTemplate);
     vi.spyOn(panda, "getCard").mockResolvedValueOnce(cardTemplate);
     vi.spyOn(panda, "getUser").mockRejectedValueOnce(
-      new Error("403 user exists but is not approved", {
-        cause: { message: "user exists but is not approved", status: 403, type: "ForbiddenError" },
-      }),
+      new ServiceError(
+        "Panda",
+        403,
+        "user exists but is not approved",
+        "ForbiddenError",
+        "user exists but is not approved",
+      ),
     );
 
     const response = await appClient.index.$get(
@@ -262,9 +275,7 @@ describe("authenticated", () => {
     vi.spyOn(panda, "getSecrets").mockResolvedValueOnce(panTemplate);
     vi.spyOn(panda, "getPIN").mockResolvedValueOnce(pinTemplate);
     vi.spyOn(panda, "getCard").mockResolvedValueOnce(cardTemplate);
-    vi.spyOn(panda, "getUser").mockRejectedValueOnce(
-      new Error("404 ", { cause: { message: "", status: 404, type: "NotFoundError" } }),
-    );
+    vi.spyOn(panda, "getUser").mockRejectedValueOnce(new ServiceError("Panda", 404, "", "NotFoundError"));
 
     const response = await appClient.index.$get(
       { header: { sessionid: "fakeSession" } },
@@ -280,9 +291,7 @@ describe("authenticated", () => {
     vi.spyOn(panda, "getSecrets").mockResolvedValueOnce(panTemplate);
     vi.spyOn(panda, "getPIN").mockResolvedValueOnce(pinTemplate);
     vi.spyOn(panda, "getCard").mockResolvedValueOnce(cardTemplate);
-    vi.spyOn(panda, "getUser").mockRejectedValueOnce(
-      new Error("403 ", { cause: { message: "", status: 403, type: "ForbiddenError" } }),
-    );
+    vi.spyOn(panda, "getUser").mockRejectedValueOnce(new ServiceError("Panda", 403, "", "ForbiddenError"));
 
     const response = await appClient.index.$get(
       { header: { sessionid: "fakeSession" } },
@@ -297,9 +306,13 @@ describe("authenticated", () => {
     vi.spyOn(panda, "getPIN").mockResolvedValueOnce(pinTemplate);
     vi.spyOn(panda, "getCard").mockResolvedValueOnce(cardTemplate);
     vi.spyOn(panda, "getUser").mockRejectedValueOnce(
-      new Error('403 {"message":"User exists, but is not approved","error":"ForbiddenError","statusCode":403}', {
-        cause: { message: "User exists, but is not approved", status: 403, type: "ForbiddenError" },
-      }),
+      new ServiceError(
+        "Panda",
+        403,
+        '{"message":"User exists, but is not approved","error":"ForbiddenError","statusCode":403}',
+        "ForbiddenError",
+        "User exists, but is not approved",
+      ),
     );
 
     const response = await appClient.index.$get(
@@ -316,7 +329,7 @@ describe("authenticated", () => {
     vi.spyOn(panda, "getSecrets").mockResolvedValueOnce(panTemplate);
     vi.spyOn(panda, "getPIN").mockResolvedValueOnce(pinTemplate);
     vi.spyOn(panda, "getCard").mockResolvedValueOnce(cardTemplate);
-    vi.spyOn(panda, "getUser").mockRejectedValueOnce(new Error("500 internal server error"));
+    vi.spyOn(panda, "getUser").mockRejectedValueOnce(new ServiceError("Panda", 500, "internal server error"));
 
     const response = await appClient.index.$get(
       { header: { sessionid: "fakeSession" } },
@@ -775,7 +788,7 @@ describe("authenticated", () => {
     it("creates a panda card having a cm card with upgraded plugin", async () => {
       await database.insert(cards).values([{ id: "cm", credentialId: "default", lastFour: "1234" }]);
 
-      vi.spyOn(panda, "getCard").mockRejectedValueOnce(new Error("404 card not found"));
+      vi.spyOn(panda, "getCard").mockRejectedValueOnce(new ServiceError("Panda", 404, "card not found"));
       vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: "migration:cm" });
       vi.spyOn(panda, "isPanda").mockResolvedValueOnce(true);
 
