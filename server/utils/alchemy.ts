@@ -5,6 +5,7 @@ import { anvil, base, baseSepolia, optimism, optimismSepolia } from "viem/chains
 
 import chain from "@exactly/common/generated/chain";
 
+import ServiceError from "./ServiceError";
 import verifySignature from "./verifySignature";
 
 import type { Address } from "@exactly/common/validation";
@@ -35,7 +36,7 @@ export async function findWebhook(predicate: (webhook: Webhook) => unknown) {
   const webhooks = await withRetry(
     async () => {
       const response = await fetch("https://dashboard.alchemy.com/api/team-webhooks", { headers });
-      if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);
+      if (!response.ok) throw new ServiceError("Alchemy", response.status, await response.text());
       return parse(WebhooksResponse, await response.json()).data;
     },
     { retryCount: 10 },

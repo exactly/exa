@@ -36,6 +36,7 @@ import { addCapita, deriveAssociateId } from "../utils/pax";
 import { getAccount } from "../utils/persona";
 import { customer } from "../utils/sardine";
 import { track } from "../utils/segment";
+import ServiceError from "../utils/ServiceError";
 import validatorHook from "../utils/validatorHook";
 
 const mutexes = new Map<string, Mutex>();
@@ -329,8 +330,8 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
               await getCard(parse(CardUUID, card.id));
             } catch (error) {
               if (
-                error instanceof Error &&
-                (error.message.startsWith("Invalid UUID") || error.message.startsWith("404"))
+                (error instanceof Error && error.message.startsWith("Invalid UUID")) ||
+                (error instanceof ServiceError && error.status === 404)
               ) {
                 await database.update(cards).set({ status: "DELETED" }).where(eq(cards.id, card.id));
                 cardCount--;
@@ -566,18 +567,14 @@ async function encryptPIN(pin: string) {
 const CardUUID = pipe(string(), uuid());
 
 function noUser(error: unknown) {
-  if (!(error instanceof Error)) return;
-  const { cause } = error;
-  if (typeof cause !== "object" || cause === null) return;
-  const { message, status, type } = cause as { message?: unknown; status?: unknown; type?: unknown };
-  if (status === 404 && type === "NotFoundError") return { error, type } as const;
+  if (!(error instanceof ServiceError)) return;
+  if (error.status === 404 && error.name.includes("NotFound")) return { error, type: "NotFoundError" as const };
   if (
-    status === 403 &&
-    type === "ForbiddenError" &&
-    typeof message === "string" &&
-    message.toLowerCase().includes("not approved")
+    error.status === 403 &&
+    error.name.includes("Forbidden") &&
+    error.message.toLowerCase().includes("not approved")
   ) {
-    return { error, type } as const;
+    return { error, type: "ForbiddenError" as const };
   }
 }
 

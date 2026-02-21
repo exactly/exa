@@ -35,6 +35,7 @@ import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda
 import { Address, Hash } from "@exactly/common/validation";
 import { proposalManager } from "@exactly/plugin/deploy.json";
 
+import ServiceError from "./ServiceError";
 import verifySignature from "./verifySignature";
 import database, { credentials } from "../database";
 import publicClient from "../utils/publicClient";
@@ -139,7 +140,7 @@ export async function getPIN(cardId: string, sessionId: string) {
   try {
     return await request(PINResponse, `/issuing/cards/${cardId}/pin`, { SessionId: sessionId });
   } catch (error) {
-    if (error instanceof Error && error.message.includes("Failed to get PIN, card does not have PIN set")) {
+    if (error instanceof ServiceError && error.message.includes("Failed to get PIN, card does not have PIN set")) {
       return parse(PINResponse, { encryptedPin: null });
     }
     throw error;
@@ -193,7 +194,7 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
       if (response.status === 404 && (!raw || lower.includes("not found"))) type = "NotFoundError";
       if (response.status === 403 && (!raw || lower.includes("not approved"))) type = "ForbiddenError";
     }
-    throw new Error(`${response.status} ${raw}`, { cause: { message, status: response.status, type } });
+    throw new ServiceError("Panda", response.status, raw, type, message);
   }
   const rawBody = await response.arrayBuffer();
   if (rawBody.byteLength === 0) return parse(schema, {});
