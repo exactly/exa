@@ -114,6 +114,7 @@ init({
   _experiments: __DEV__ || e2e ? undefined : { replaysOnErrorSampleRate: 1, replaysSessionSampleRate: 0.01 },
   beforeSend: (event, hint) => {
     let known = false;
+    let contractRevert = false;
     for (const source of [
       hint.originalException,
       ...(event.exception?.values?.map(({ value }) => value) ?? []),
@@ -121,9 +122,18 @@ init({
     ]) {
       const classification = classifyError(source);
       if (classification.known) known = true;
+      if (classification.contractRevert) contractRevert = true;
       event.fingerprint ??= classification.fingerprint;
     }
     if (known) event.level = "warning";
+    if (contractRevert && event.fingerprint) {
+      const views = event.contexts?.app?.view_names;
+      const route = Array.isArray(views) && typeof views[0] === "string" ? views[0].replace(/\?.*$/, "") : "unknown";
+      const reason = event.fingerprint[0];
+      event.fingerprint = [route, ...event.fingerprint];
+      const exception = event.exception?.values?.[0];
+      if (exception) exception.type = reason ?? "unknown";
+    }
     return event;
   },
   spotlight: __DEV__ || !!e2e,
