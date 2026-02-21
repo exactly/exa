@@ -5,6 +5,7 @@ import { anvil, base, baseSepolia, optimism, optimismSepolia } from "viem/chains
 
 import chain from "@exactly/common/generated/chain";
 
+import ServiceError from "./ServiceError";
 import verifySignature from "./verifySignature";
 
 import type { Address } from "@exactly/common/validation";
@@ -35,7 +36,7 @@ export async function findWebhook(predicate: (webhook: Webhook) => unknown) {
   const webhooks = await withRetry(
     async () => {
       const response = await fetch("https://dashboard.alchemy.com/api/team-webhooks", { headers });
-      if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);
+      if (!response.ok) throw new ServiceError("Alchemy", response.status, await response.text());
       return parse(WebhooksResponse, await response.json()).data;
     },
     { retryCount: 10 },
@@ -54,7 +55,7 @@ export async function createWebhook(
     method: "POST",
     body: JSON.stringify({ ...options, network }),
   });
-  if (!create.ok) throw new Error(`${create.status} ${await create.text()}`);
+  if (!create.ok) throw new ServiceError("Alchemy", create.status, await create.text());
   return parse(WebhookResponse, await create.json()).data;
 }
 
@@ -65,7 +66,7 @@ export async function updateWebhookAddresses(id: string | undefined, add: Addres
     method: "PATCH",
     body: JSON.stringify({ webhook_id: id, addresses_to_add: add, addresses_to_remove: remove }),
   });
-  if (!update.ok) throw new Error(`${update.status} ${await update.text()}`);
+  if (!update.ok) throw new ServiceError("Alchemy", update.status, await update.text());
 }
 
 const Webhook = object({

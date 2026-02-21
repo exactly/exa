@@ -22,6 +22,7 @@ import { Address } from "@exactly/common/validation";
 
 import * as shared from "./shared";
 import { getAccount, getDocument, getDocumentForManteca, MantecaCountryCode } from "../persona";
+import ServiceError from "../ServiceError";
 
 if (!process.env.MANTECA_API_URL) throw new Error("missing manteca api url");
 const baseURL = process.env.MANTECA_API_URL;
@@ -33,7 +34,13 @@ const apiKey = process.env.MANTECA_API_KEY;
 export async function getUser(account: Address): Promise<InferInput<typeof UserResponse> | null> {
   const externalId = account.replace("0x", "");
   return await request(UserResponse, `/crypto/v2/users/${externalId}`).catch((error: unknown) => {
-    if (error instanceof Error && error.message.includes(MantecaApiErrorCodes.USER_NOT_FOUND)) return null;
+    if (
+      error instanceof ServiceError &&
+      typeof error.cause === "string" &&
+      error.cause.includes(MantecaApiErrorCodes.USER_NOT_FOUND)
+    ) {
+      return null;
+    }
     throw error;
   });
 }
@@ -182,7 +189,11 @@ export async function convertBalanceToUsdc(userNumberId: string, against: string
     against,
     againstAmount: assetBalance,
   }).catch((error: unknown) => {
-    if (error instanceof Error && error.message.includes(MantecaApiErrorCodes.INVALID_ORDER_SIZE)) {
+    if (
+      error instanceof ServiceError &&
+      typeof error.cause === "string" &&
+      error.cause.includes(MantecaApiErrorCodes.INVALID_ORDER_SIZE)
+    ) {
       throw new Error(ErrorCodes.INVALID_ORDER_SIZE);
     }
     throw error;
@@ -326,7 +337,11 @@ export async function mantecaOnboarding(account: Address, credentialId: string) 
         work: personaAccount.attributes.fields.economic_activity.value,
       },
     }).catch((error: unknown) => {
-      if (error instanceof Error && error.message.includes(MantecaApiErrorCodes.INVALID_LEGAL_ID)) {
+      if (
+        error instanceof ServiceError &&
+        typeof error.cause === "string" &&
+        error.cause.includes(MantecaApiErrorCodes.INVALID_LEGAL_ID)
+      ) {
         throw new Error(ErrorCodes.INVALID_LEGAL_ID);
       }
       throw error;
@@ -711,7 +726,7 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
     signal: AbortSignal.timeout(timeout),
   });
 
-  if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);
+  if (!response.ok) throw new ServiceError("Manteca", response.status, await response.text());
   const rawBody = await response.arrayBuffer();
   if (rawBody.byteLength === 0) return parse(schema, {});
   return parse(schema, JSON.parse(new TextDecoder().decode(rawBody)));

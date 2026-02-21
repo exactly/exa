@@ -2,6 +2,8 @@ import { captureException, setContext } from "@sentry/node";
 import { flatten, object, safeParse, ValiError, type BaseIssue, type BaseSchema } from "valibot";
 import { encodePacked, keccak256 } from "viem";
 
+import ServiceError from "./ServiceError";
+
 import type { Address } from "@exactly/common/validation";
 
 if (!process.env.PAX_API_URL) throw new Error("missing pax api url");
@@ -49,7 +51,7 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
     signal: AbortSignal.timeout(timeout),
   });
 
-  if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);
+  if (!response.ok) throw new ServiceError("Pax", response.status, await response.text());
 
   const rawBody = await response.arrayBuffer();
   if (rawBody.byteLength === 0) return {};

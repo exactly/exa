@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Address } from "@exactly/common/validation";
 
 import * as pax from "../../utils/pax";
+import ServiceError from "../../utils/ServiceError";
 
 describe("pax integration", () => {
   beforeEach(() => {
@@ -70,18 +71,23 @@ describe("pax integration", () => {
         text: () => Promise.resolve("Bad Request"),
       } as Response);
 
-      await expect(
-        pax.addCapita({
-          firstName: "Juan",
-          lastName: "Doe",
-          document: "32323",
-          birthdate: "1997-01-01",
-          email: "test@test.com",
-          phone: "+54111212112121",
-          product: "PRODUCT_NAME",
-          internalId: "test-id",
-        }),
-      ).rejects.toThrow("400 Bad Request");
+      const rejection = pax.addCapita({
+        firstName: "Juan",
+        lastName: "Doe",
+        document: "32323",
+        birthdate: "1997-01-01",
+        email: "test@test.com",
+        phone: "+54111212112121",
+        product: "PRODUCT_NAME",
+        internalId: "test-id",
+      });
+      await expect(rejection).rejects.toBeInstanceOf(ServiceError);
+      await expect(rejection).rejects.toMatchObject({
+        name: "Pax400",
+        status: 400,
+        message: "Bad Request",
+        cause: "Bad Request",
+      });
     });
   });
 
@@ -105,7 +111,14 @@ describe("pax integration", () => {
         text: () => Promise.resolve("Not Found"),
       } as Response);
 
-      await expect(pax.removeCapita("missing-id")).rejects.toThrow("404 Not Found");
+      const rejection = pax.removeCapita("missing-id");
+      await expect(rejection).rejects.toBeInstanceOf(ServiceError);
+      await expect(rejection).rejects.toMatchObject({
+        name: "Pax404",
+        status: 404,
+        message: "Not Found",
+        cause: "Not Found",
+      });
     });
   });
 

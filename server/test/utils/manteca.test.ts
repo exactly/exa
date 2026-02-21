@@ -10,6 +10,7 @@ import { Address } from "@exactly/common/validation";
 import * as persona from "../../utils/persona";
 import * as manteca from "../../utils/ramps/manteca";
 import { ErrorCodes } from "../../utils/ramps/manteca";
+import ServiceError from "../../utils/ServiceError";
 
 const chainMock = vi.hoisted(() => ({ id: 10 }));
 
@@ -110,7 +111,14 @@ describe("manteca utils", () => {
     it("throws on other errors", async () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(mockFetchError(500, "internal error"));
 
-      await expect(manteca.getUser(account)).rejects.toThrow("500 internal error");
+      const rejection = manteca.getUser(account);
+      await expect(rejection).rejects.toBeInstanceOf(ServiceError);
+      await expect(rejection).rejects.toMatchObject({
+        name: "Manteca500",
+        status: 500,
+        message: "internal error",
+        cause: "internal error",
+      });
     });
   });
 

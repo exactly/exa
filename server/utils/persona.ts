@@ -22,6 +22,7 @@ import chain from "@exactly/common/generated/chain";
 
 import appOrigin from "./appOrigin";
 import { DevelopmentChainIds } from "./ramps/shared";
+import ServiceError from "./ServiceError";
 
 if (!process.env.PERSONA_API_KEY) throw new Error("missing persona api key");
 if (!process.env.PERSONA_URL) throw new Error("missing persona url");
@@ -124,7 +125,7 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
     body: body ? JSON.stringify(body) : undefined,
     signal: AbortSignal.timeout(timeout),
   });
-  if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);
+  if (!response.ok) throw new ServiceError("Persona", response.status, await response.text());
   const result = safeParse(schema, await response.json());
   if (!result.success) {
     setContext("validation", { ...result, flatten: flatten(result.issues) });

@@ -24,6 +24,8 @@ import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 import chain from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
+import ServiceError from "../ServiceError";
+
 import type * as common from "./shared";
 
 if (!process.env.BRIDGE_API_URL) throw new Error("missing bridge api url");
@@ -35,7 +37,11 @@ const apiKey = process.env.BRIDGE_API_KEY;
 // #region services
 export async function createCustomer(user: InferInput<typeof CreateCustomer>) {
   return await request(NewCustomer, "/customers", {}, user, "POST").catch((error: unknown) => {
-    if (error instanceof Error && error.message.includes(BridgeApiErrorCodes.EMAIL_ALREADY_EXISTS)) {
+    if (
+      error instanceof ServiceError &&
+      typeof error.cause === "string" &&
+      error.cause.includes(BridgeApiErrorCodes.EMAIL_ALREADY_EXISTS)
+    ) {
       captureMessage("email_already_exists", { contexts: { user }, level: "error" });
       throw new Error(ErrorCodes.EMAIL_ALREADY_EXISTS);
     }
@@ -54,7 +60,13 @@ export async function agreementLink(redirectUri?: string): Promise<string> {
 
 export async function getCustomer(customerId: string) {
   return await request(CustomerResponse, `/customers/${customerId}`).catch((error: unknown) => {
-    if (error instanceof Error && error.message.includes(BridgeApiErrorCodes.NOT_FOUND)) return;
+    if (
+      error instanceof ServiceError &&
+      typeof error.cause === "string" &&
+      error.cause.includes(BridgeApiErrorCodes.NOT_FOUND)
+    ) {
+      return;
+    }
     throw error;
   });
 }
@@ -758,7 +770,7 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
   };
   const response = await fetch(`${baseURL}${url}`, payload);
 
-  if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);
+  if (!response.ok) throw new ServiceError("Bridge", response.status, await response.text());
   const rawBody = await response.arrayBuffer();
   if (rawBody.byteLength === 0) return parse(schema, {});
   return parse(schema, JSON.parse(new TextDecoder().decode(rawBody)));
