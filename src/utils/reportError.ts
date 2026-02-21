@@ -1,4 +1,7 @@
 import { captureException, withScope } from "@sentry/react-native";
+import { BaseError, ContractFunctionRevertedError } from "viem";
+
+import revertReason from "@exactly/common/revertReason";
 
 export default function reportError(error: unknown, hint?: Parameters<typeof captureException>[1]) {
   console.error(error); // eslint-disable-line no-console
@@ -102,10 +105,12 @@ function parseError(error: unknown) {
             error.message.length > 0
           ? normalizeMessage(error.message)
           : undefined;
-  return { code, name, message, status };
+  const revert = error instanceof BaseError && error.walk((r) => r instanceof ContractFunctionRevertedError) !== null;
+  const reason = revertReason(error, { fallback: "unknown" });
+  return { code, message, name, reason, revert, status };
 }
 
-function classify({ code, name, message, status }: ParsedError) {
+function classify({ code, message, name, reason, revert, status }: ParsedError) {
   const passkeyNotAllowed =
     name === "NotAllowedError" || (message !== undefined && authPrefixes.some((prefix) => message.startsWith(prefix)));
   const passkeyCancelled = message !== undefined && passkeyCancelledMessages.has(message);
@@ -132,6 +137,7 @@ function classify({ code, name, message, status }: ParsedError) {
         ? ["{{ default }}", "api", status]
         : ["{{ default }}", "api", status, message]
       : undefined) ??
+    (revert ? [reason] : undefined) ??
     (code === undefined || code === "ERR_UNKNOWN"
       ? network === undefined
         ? message === undefined
@@ -139,7 +145,16 @@ function classify({ code, name, message, status }: ParsedError) {
           : ["{{ default }}", message]
         : ["{{ default }}", network]
       : ["{{ default }}", code]);
-  return { passkeyKnown, passkeyCancelled, passkeyNotAllowed, passkeyWarning, authKnown, known, fingerprint: value };
+  return {
+    authKnown,
+    fingerprint: value,
+    known,
+    passkeyCancelled,
+    passkeyKnown,
+    passkeyNotAllowed,
+    passkeyWarning,
+    revert,
+  };
 }
 
 function normalizeMessage(message: string) {
