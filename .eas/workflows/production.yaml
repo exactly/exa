@@ -29,8 +29,9 @@ jobs:
     params: { build_id: "${{ needs.ios_get.outputs.build_id }}" }
 
   ios_e2e:
-    after: [ios_repack, ios_build]
+    after: [ios_build, ios_repack]
     needs: [fingerprint]
+    if: ${{ after.ios_build.status == 'success' || after.ios_repack.status == 'success' }}
     environment: development
     runs_on: macos-large
     image: latest
@@ -41,7 +42,7 @@ jobs:
       - uses: eas/install_maestro
       - uses: eas/download_build
         id: download
-        with: { build_id: "${{ needs.ios_build.outputs.build_id || needs.ios_repack.outputs.build_id }}" }
+        with: { build_id: "${{ after.ios_build.outputs.build_id || after.ios_repack.outputs.build_id }}" }
       - uses: eas/start_ios_simulator
       - name: prepare device
         run: |

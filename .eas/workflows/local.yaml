@@ -34,8 +34,9 @@ jobs:
     params: { build_id: "${{ needs.android_get.outputs.build_id }}" }
 
   android_e2e:
-    after: [android_repack, android_build]
+    after: [android_build, android_repack]
     needs: [android_get]
+    if: ${{ after.android_build.status == 'success' || after.android_repack.status == 'success' }}
     environment: development
     runs_on: linux-large-nested-virtualization
     image: latest
@@ -60,7 +61,7 @@ jobs:
           done
       - uses: eas/download_build
         id: download
-        with: { build_id: "${{ needs.android_build.outputs.build_id || needs.android_repack.outputs.build_id }}" }
+        with: { build_id: "${{ after.android_build.outputs.build_id || after.android_repack.outputs.build_id }}" }
       - name: start emulator # cspell:ignore avdmanager getprop logcat setsid swiftshader
         run: |
           avdmanager -s create avd -n e2e -k "system-images;android-32;google_apis;x86_64" --force
@@ -120,8 +121,9 @@ jobs:
     params: { build_id: "${{ needs.ios_get.outputs.build_id }}" }
 
   ios_e2e:
-    after: [ios_repack, ios_build]
+    after: [ios_build, ios_repack]
     needs: [ios_get]
+    if: ${{ after.ios_build.status == 'success' || after.ios_repack.status == 'success' }}
     environment: development
     runs_on: macos-large
     image: latest
@@ -146,7 +148,7 @@ jobs:
           done
       - uses: eas/download_build
         id: download
-        with: { build_id: "${{ needs.ios_build.outputs.build_id || needs.ios_repack.outputs.build_id }}" }
+        with: { build_id: "${{ after.ios_build.outputs.build_id || after.ios_repack.outputs.build_id }}" }
       - uses: eas/start_ios_simulator
       - name: prepare device
         run: |
