@@ -70,13 +70,23 @@ const { enablePrompt, login, logout } = (
         const ready =
           appId && process.env.EXPO_PUBLIC_ENV === "e2e"
             ? new Promise<void>((resolve) => {
-                const listener: Parameters<typeof OneSignal.User.addEventListener>[1] = (event) => {
-                  if (!event.current.onesignalId) return;
+                let done = false;
+                const finish = () => {
+                  if (done) return;
+                  done = true;
                   OneSignal.User.removeEventListener("change", listener);
                   OneSignal.login(Math.random().toString(36).slice(2));
                   resolve();
                 };
+                const listener: Parameters<typeof OneSignal.User.addEventListener>[1] = (event) => {
+                  if (!event.current.onesignalId) return;
+                  finish();
+                };
                 OneSignal.User.addEventListener("change", listener);
+                OneSignal.User.getOnesignalId().then((onesignalId) => {
+                  if (!onesignalId) return;
+                  finish();
+                }, reportError);
               })
             : Promise.resolve();
         OneSignal.InAppMessages.addEventListener("didDismiss", () => {
