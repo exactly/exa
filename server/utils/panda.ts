@@ -194,6 +194,10 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
       if (response.status === 404 && (!raw || lower.includes("not found"))) type = "NotFoundError";
       if (response.status === 403 && (!raw || lower.includes("not approved"))) type = "ForbiddenError";
     }
+    if (message === "Not Found") {
+      const entity = url.split("/")[2]?.replace(/s$/, "");
+      if (entity) message = entity;
+    }
     throw new ServiceError("Panda", response.status, raw, type, message);
   }
   const rawBody = await response.arrayBuffer();

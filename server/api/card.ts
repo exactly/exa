@@ -220,7 +220,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
           getUser(credential.pandaId).catch((error: unknown) => {
             const issue = noUser(error);
             if (!issue) throw error;
-            const shouldCapture = issue.type === "NotFoundError" || status === "ACTIVE";
+            const shouldCapture = issue.error.status === 404 || status === "ACTIVE";
             if (shouldCapture) {
               withScope((scope) => {
                 scope.addEventProcessor((event) => {
@@ -392,7 +392,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
             const issue = noUser(error);
             if (!issue) throw error;
             const hasCardHistory = credential.cards.length > 0;
-            const shouldCapture = issue.type === "NotFoundError" || hasCardHistory;
+            const shouldCapture = issue.error.status === 404 || hasCardHistory;
             if (shouldCapture) {
               withScope((scope) => {
                 scope.addEventProcessor((event) => {
@@ -568,13 +568,13 @@ const CardUUID = pipe(string(), uuid());
 
 function noUser(error: unknown) {
   if (!(error instanceof ServiceError)) return;
-  if (error.status === 404 && error.name.includes("NotFound")) return { error, type: "NotFoundError" as const };
+  if (error.status === 404 && error.name.includes("NotFound")) return { error, type: error.name };
   if (
     error.status === 403 &&
     error.name.includes("Forbidden") &&
     error.message.toLowerCase().includes("not approved")
   ) {
-    return { error, type: "ForbiddenError" as const };
+    return { error, type: error.name };
   }
 }
 
