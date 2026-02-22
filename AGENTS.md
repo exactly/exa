@@ -100,6 +100,9 @@ this codebase does not use comments. the only exception is static analysis annot
   - ✅ `// @ts-expect-error third-party lib expects wrong type`
   - ❌ `// @ts-expect-error: incorrect type`
   - ❌ `// @ts-expect-error - incorrect type`
+- **`cspell:ignore`**: place the annotation on the same line as the unknown word. only add words to `cspell.json` when the term is a real project-relevant word that appears broadly (e.g., a protocol name, a library, a domain term) or when the file format has no comment syntax (json). one-off occurrences (variable names, company names, urls, hashes, identifiers) stay as inline `cspell:ignore` — never pollute the global dictionary with them.
+  - ✅ `const rpc = "https://satanco.io"; // cspell:ignore satanco`
+  - ❌ adding `satanco` to `cspell.json`
 - **TODO/HACK/FIXME**: use sparingly. uppercase tag, single space, no colon, lowercase explanation.
   - ✅ `// TODO implement retry logic`
   - ❌ `// TODO: implement retry logic`
