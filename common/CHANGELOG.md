@@ -1,5 +1,11 @@
 # @exactly/common
 
+## 0.0.13
+
+### Patch Changes
+
+- [#820](https://github.com/exactly/exa/pull/820) [`1902307`](https://github.com/exactly/exa/commit/190230741a8bfa0d8cb1318e33cf155525517fb3) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚚 extract revert reason for cross-package reuse
+
 ## 0.0.12
 
 ### Patch Changes

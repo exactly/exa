@@ -1,5 +1,17 @@
 # @exactly/mobile
 
+## 1.1.21
+
+### Patch Changes
+
+- [#820](https://github.com/exactly/exa/pull/820) [`cce29b9`](https://github.com/exactly/exa/commit/cce29b9c8745ffccca195b4e08f1a71770326e87) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 stabilize error fingerprints and titles
+
+- [#820](https://github.com/exactly/exa/pull/820) [`d1e6bec`](https://github.com/exactly/exa/commit/d1e6beccadde14ddfc685cce9640eb14be0cf505) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 distinguish contract reverts by route and reason
+
+- Updated dependencies [[`4b635eb`](https://github.com/exactly/exa/commit/4b635eb55dd7e6dcb4e6998cf33126b63697e35d), [`709cd32`](https://github.com/exactly/exa/commit/709cd32805e47b58b42d6c5573234d5a51c127d7), [`1902307`](https://github.com/exactly/exa/commit/190230741a8bfa0d8cb1318e33cf155525517fb3), [`dffa26b`](https://github.com/exactly/exa/commit/dffa26b2d6b16c862f9e69c81ddcbe8bdb43f3b8)]:
+  - @exactly/server@0.2.70
+  - @exactly/common@0.0.13
+
 ## 1.1.20
 
 ### Patch Changes

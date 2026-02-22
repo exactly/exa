@@ -1,6 +1,6 @@
 {
   "name": "@exactly/common",
-  "version": "0.0.12",
+  "version": "0.0.13",
   "private": true,
   "scripts": {
     "prepare": "nx prepare common",

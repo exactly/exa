@@ -1,5 +1,15 @@
 # @exactly/server
 
+## 0.2.70
+
+### Patch Changes
+
+- [#820](https://github.com/exactly/exa/pull/820) [`4b635eb`](https://github.com/exactly/exa/commit/4b635eb55dd7e6dcb4e6998cf33126b63697e35d) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 improve sentry grouping for external service failures
+
+- [#820](https://github.com/exactly/exa/pull/820) [`709cd32`](https://github.com/exactly/exa/commit/709cd32805e47b58b42d6c5573234d5a51c127d7) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 normalize contract reverts on sentry
+
+- [#770](https://github.com/exactly/exa/pull/770) [`dffa26b`](https://github.com/exactly/exa/commit/dffa26b2d6b16c862f9e69c81ddcbe8bdb43f3b8) Thanks [@nfmelendez](https://github.com/nfmelendez)! - ✨ add card statement
+
 ## 0.2.69
 
 ### Patch Changes
