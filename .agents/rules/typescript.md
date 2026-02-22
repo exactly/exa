@@ -89,5 +89,5 @@ the `plugin:unicorn/recommended` ruleset enforces strict modern javascript best 
   - ❌ `// @ts-ignore`
   - ❌ `// @ts-expect-error: incorrect type`
   - ❌ `// @ts-expect-error` (missing explanation)
-- **eslint suppressions**: use `-- reason` separator only when required by the tool.
-  - ✅ `// eslint-disable-next-line no-console -- debug output for ci`
+- **eslint suppressions**: always use same-line disable annotations. use `-- reason` separator only when required by the tool.
+  - ✅ `console.log("debug"); // eslint-disable-line no-console -- debug output for ci`

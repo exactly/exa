@@ -52,16 +52,16 @@ this project follows bob nystrom's "long names are long" philosophy. names must 
 
 a core principle is specific capitalization for different contexts. this must be followed with obsessive precision.
 
-- **internal documentation prose (`.agents/rules/*.md` files, `README.md`):** all narrative text (headings, paragraphs, list items, proper nouns, brand names) must be **lowercase**. there are no exceptions.
+- **internal documentation prose (`.agents/rules/*.md` files, `README.md`)**: all narrative text (headings, paragraphs, list items, proper nouns, brand names) must be **lowercase**. there are no exceptions.
   - ✅ `...built with astro and the starlight theme.`
   - ❌ `...built with Astro and the Starlight theme.`
-- **referring to code in prose:** when discussing a code concept (like a variable or function name) in a sentence, use regular lowercase words. the correctly-cased identifier itself must only appear inside backticks.
+- **referring to code in prose**: when discussing a code concept (like a variable or function name) in a sentence, use regular lowercase words. the correctly-cased identifier itself must only appear inside backticks.
   - ✅ `for boolean props, the name should indicate a positive condition (e.g., \`isActive\`).`
   - ❌ `for boolean props, the name should be isActive.`
-- **code examples:** any identifier inside backticks (`` ` ``) or a code fence (` ``` `) is considered code, not prose. it must strictly follow the casing rules for that language.
-- **code comments:** all code comments must be lowercase.
-- **user-facing documentation (`docs/`):** use proper sentence case.
-- **changeset summaries:** use a lowercase sentence in the imperative present tense (e.g., `implement x feature for y`).
+- **code examples**: any identifier inside backticks (`` ` ``) or a code fence (` ``` `) is considered code, not prose. it must strictly follow the casing rules for that language.
+- **code comments**: all code comments must be lowercase.
+- **user-facing documentation (`docs/`)**: use proper sentence case.
+- **changeset summaries**: use a lowercase sentence in the imperative present tense (e.g., `implement x feature for y`).
 - **git commit messages**: must be lowercase.
 
 ## file naming
@@ -95,9 +95,9 @@ a core principle is specific capitalization for different contexts. this must be
 
 this codebase does not use comments. the only exception is static analysis annotations (`@ts-expect-error`, `eslint-disable`, `slither-disable`, `solhint-disable`, `cspell:ignore`) and `TODO`/`HACK`/`FIXME` markers. everything else—jsdoc, explanatory prose, region markers, inline labels—is noise that masks unclear code. if code needs explanation, rewrite it until it doesn't.
 
-- **static analysis annotations only**: use `@ts-expect-error` (never `@ts-ignore`), eslint/slither/solhint disable comments, and `cspell:ignore`. explanations must be brutally concise, lowercase, and use `--` only when required by the tool.
+- **static analysis annotations only**: suppress lint/type errors with the tool's disable comment (`eslint-disable-line`, `@ts-expect-error`, `solhint-disable`, etc.) and `cspell:ignore`. always use same-line form; use next-line or block only when the tool has no same-line variant. use `@ts-expect-error` (never `@ts-ignore`). explanations must be brutally concise, lowercase, and use `--` only when required by the tool.
+  - ✅ `console.log("debug"); // eslint-disable-line no-console -- debug output for ci`
   - ✅ `// @ts-expect-error third-party lib expects wrong type`
-  - ✅ `// eslint-disable-next-line no-console -- debug output for ci`
   - ❌ `// @ts-expect-error: incorrect type`
   - ❌ `// @ts-expect-error - incorrect type`
 - **TODO/HACK/FIXME**: use sparingly. uppercase tag, single space, no colon, lowercase explanation.
