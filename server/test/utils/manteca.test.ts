@@ -120,6 +120,48 @@ describe("manteca utils", () => {
         cause: "internal error",
       });
     });
+
+    it("extracts field path from errors array stripping pii", async () => {
+      const body =
+        '{"internalStatus":"BAD_REQUEST","message":"Bad request.","errors":["personalData..phoneNumber has wrong value *1234567890"]}';
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(mockFetchError(400, body));
+
+      const rejection = manteca.getUser(account);
+      await expect(rejection).rejects.toBeInstanceOf(ServiceError);
+      await expect(rejection).rejects.toMatchObject({
+        name: "MantecaBadRequest",
+        status: 400,
+        message: "personalData..phoneNumber has wrong value",
+        cause: body,
+      });
+    });
+
+    it("falls back to message when errors array is absent", async () => {
+      const body = '{"internalStatus":"BAD_REQUEST","message":"Bad request."}';
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(mockFetchError(400, body));
+
+      const rejection = manteca.getUser(account);
+      await expect(rejection).rejects.toMatchObject({ name: "MantecaBadRequest", message: "Bad request." });
+    });
+
+    it("keeps errors entry without has wrong value pattern", async () => {
+      const body = '{"internalStatus":"BAD_REQUEST","errors":["personalData..email is required"]}';
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(mockFetchError(400, body));
+
+      const rejection = manteca.getUser(account);
+      await expect(rejection).rejects.toMatchObject({
+        name: "MantecaBadRequest",
+        message: "personalData..email is required",
+      });
+    });
+
+    it("falls back to generic classification without internalStatus", async () => {
+      const body = '{"message":"something went wrong"}';
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(mockFetchError(422, body));
+
+      const rejection = manteca.getUser(account);
+      await expect(rejection).rejects.toMatchObject({ name: "Manteca422", message: "something went wrong" });
+    });
   });
 
   describe("getQuote", () => {

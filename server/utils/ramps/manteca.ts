@@ -726,7 +726,23 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
     signal: AbortSignal.timeout(timeout),
   });
 
-  if (!response.ok) throw new ServiceError("Manteca", response.status, await response.text());
+  if (!response.ok) {
+    const raw = await response.text();
+    let type: string | undefined;
+    let detail: string | undefined;
+    try {
+      const payload = JSON.parse(raw) as unknown;
+      if (typeof payload === "object" && payload !== null && !Array.isArray(payload)) {
+        const p = payload as Record<string, unknown>;
+        if (typeof p.internalStatus === "string" && p.internalStatus)
+          type = p.internalStatus.toLowerCase().replaceAll(/(?:^|_)\w/g, (c) => c.slice(-1).toUpperCase());
+        if (Array.isArray(p.errors) && typeof p.errors[0] === "string" && p.errors[0])
+          detail = p.errors[0].replace(/(has wrong value).*/, "$1");
+        else if (typeof p.message === "string" && p.message) detail = p.message;
+      }
+    } catch {} // eslint-disable-line no-empty -- non-json manteca errors use fallback classification
+    throw new ServiceError("Manteca", response.status, raw, type, detail);
+  }
   const rawBody = await response.arrayBuffer();
   if (rawBody.byteLength === 0) return parse(schema, {});
   return parse(schema, JSON.parse(new TextDecoder().decode(rawBody)));
