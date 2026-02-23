@@ -9,22 +9,23 @@ export default function reportError(error: unknown, hint?: Parameters<typeof cap
   const classification = classify(parsed);
   try {
     const value = classification.fingerprint;
-    const known = classification.known;
-    const warning =
-      known ||
-      (typeof hint === "object" && "level" in hint && typeof hint.level === "string" && hint.level === "warning");
+    const level =
+      hint && typeof hint === "object" && "level" in hint && typeof hint.level === "string" ? hint.level : undefined;
+    const warning = classification.knownWarning || level === "warning";
+    const info = classification.knownInfo || level === "info";
     const title =
       (value?.[0] !== undefined && value[0] !== "{{ default }}" ? value[0] : value?.[1]) ??
       (parsed.name && parsed.name !== "Error" && parsed.name !== "APIError" ? parsed.name : undefined) ??
       parsed.status ??
       parsed.message;
-    if (!warning && value === undefined) return captureException(error, hint);
+    if (!warning && !info && value === undefined) return captureException(error, hint);
     let eventId: ReturnType<typeof captureException> | undefined;
     withScope((scope) => {
       if (warning) scope.setLevel("warning");
+      else if (info) scope.setLevel("info");
       if (value !== undefined) scope.setFingerprint(value);
-      else if (warning) scope.setFingerprint(["{{ default }}", title ?? "unknown"]);
-      if (warning && title) {
+      else if (warning || info) scope.setFingerprint(["{{ default }}", title ?? "unknown"]);
+      if ((warning || info) && title) {
         scope.addEventProcessor((event) => {
           const current = event.exception?.values?.[0];
           if (current && (current.type === undefined || current.type === "Error" || current.type === "APIError")) {
@@ -125,13 +126,9 @@ function classify({ code, message, name, reason, revert, status }: ParsedError) 
   const biometric = code === "ERR_BIOMETRIC";
   const authKnown = passkeyKnown || passkeyNotAllowed || biometric || message === "invalid operation";
   const network = classifyNetwork(message);
-  const known =
-    passkeyKnown ||
-    biometric ||
-    message === "invalid operation" ||
-    network === "RequestFailed" ||
-    network === "Offline" ||
-    network === "ConnectionLost";
+  const knownWarning = passkeyKnown || biometric || message === "invalid operation";
+  const knownInfo = network !== undefined;
+  const known = knownWarning || knownInfo;
   const value =
     (name === "APIError" && status !== undefined
       ? message === undefined || message.endsWith("[object Object]")
@@ -151,6 +148,8 @@ function classify({ code, message, name, reason, revert, status }: ParsedError) 
     authKnown,
     fingerprint: value,
     known,
+    knownInfo,
+    knownWarning,
     passkeyCancelled,
     passkeyKnown,
     passkeyNotAllowed,

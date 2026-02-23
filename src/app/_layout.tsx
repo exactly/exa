@@ -114,7 +114,8 @@ init({
   integrations: [routingInstrumentation, userFeedback, ...(__DEV__ || e2e ? [] : [mobileReplayIntegration()])],
   _experiments: __DEV__ || e2e ? undefined : { replaysOnErrorSampleRate: 1, replaysSessionSampleRate: 0.01 },
   beforeSend: (event, hint) => {
-    let known = false;
+    let knownInfo = false;
+    let knownWarning = false;
     let revert = false;
     for (const source of [
       hint.originalException,
@@ -122,11 +123,13 @@ init({
       event.message,
     ]) {
       const classification = classifyError(source);
-      if (classification.known) known = true;
+      if (classification.knownInfo) knownInfo = true;
+      if (classification.knownWarning) knownWarning = true;
       if (classification.revert) revert = true;
       event.fingerprint ??= classification.fingerprint;
     }
-    if (known) event.level = "warning";
+    if (knownWarning) event.level = "warning";
+    else if (knownInfo) event.level = "info";
     if (revert && event.fingerprint) {
       const views = event.contexts?.app?.view_names;
       const route = Array.isArray(views) && typeof views[0] === "string" ? views[0].replace(/\?.*$/, "") : "unknown";
@@ -175,7 +178,7 @@ export default wrap(function RootLayout() {
             await fetchUpdateAsync();
             shouldReload = true;
           })
-          .catch(reportError);
+          .catch((error: unknown) => reportError(error, { level: "info" }));
       }
     });
     return () => {
