@@ -193,6 +193,8 @@ frontend.use(
         "'self'",
         "blob:",
         "data:",
+        "https://app.exact.ly",
+        "https://assets.exactly.app",
         "https://static.debank.com",
         "https://storage.googleapis.com",
         "https://optimistic.etherscan.io",
