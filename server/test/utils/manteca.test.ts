@@ -350,6 +350,22 @@ describe("manteca utils", () => {
       expect(result.status).toBe("NOT_AVAILABLE");
     });
 
+    it("returns ONBOARDING when user has failed required tasks", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        mockFetchResponse({
+          ...mockOnboardingUser,
+          onboarding: {
+            EMAIL_VALIDATION: { required: true, status: "COMPLETED" },
+            IDENTITY_VALIDATION: { required: true, status: "FAILED" },
+          },
+        }),
+      );
+
+      const result = await manteca.getProvider(account, "AR");
+
+      expect(result.status).toBe("ONBOARDING");
+    });
+
     it("returns NOT_STARTED when user has pending required tasks", async () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
         mockFetchResponse({
