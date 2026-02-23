@@ -35,7 +35,7 @@ jobs:
       - run: |
           mkdir -p $HOME/.local/bin && cd $HOME/.local/bin
           for repo in firehose-ethereum substreams substreams-sink-sql; do
-            curl -L "$(curl -sH 'Authorization: token ${{ github.token }}' https://api.github.com/repos/streamingfast/$repo/releases/latest | jq --arg arch "$(uname -m | sed 's/aarch64/arm64/')" -r '.assets[] | select(.browser_download_url | test("linux_" + $arch)) | .browser_download_url')" | tar zxf -
+            curl --retry 5 --retry-all-errors --retry-delay 2 -L "$(curl --retry 5 --retry-all-errors --retry-delay 2 -sH 'Authorization: token ${{ github.token }}' https://api.github.com/repos/streamingfast/$repo/releases/latest | jq --arg arch "$(uname -m | sed 's/aarch64/arm64/')" -r '.assets[] | select(.browser_download_url | test("linux_" + $arch)) | .browser_download_url')" | tar zxf -
           done
       - run: echo ::add-matcher::.github/matcher.json
       - run: pnpm install --frozen-lockfile
@@ -89,7 +89,7 @@ jobs:
           set -o pipefail
           mkdir -p $HOME/.local/bin && cd $HOME/.local/bin
           for repo in firehose-ethereum substreams substreams-sink-sql; do
-            curl -L "$(curl -sH 'Authorization: token ${{ github.token }}' https://api.github.com/repos/streamingfast/$repo/releases/latest | jq --arg arch "$(uname -m | sed 's/aarch64/arm64/')" -r '.assets[] | select(.browser_download_url | test("linux_" + $arch)) | .browser_download_url')" | tar zxf -
+            curl --retry 5 --retry-all-errors --retry-delay 2 -L "$(curl --retry 5 --retry-all-errors --retry-delay 2 -sH 'Authorization: token ${{ github.token }}' https://api.github.com/repos/streamingfast/$repo/releases/latest | jq --arg arch "$(uname -m | sed 's/aarch64/arm64/')" -r '.assets[] | select(.browser_download_url | test("linux_" + $arch)) | .browser_download_url')" | tar zxf -
           done
           for attempt in {1..5}; do
             curl -fsSL "https://get.maestro.mobile.dev" | bash || true
