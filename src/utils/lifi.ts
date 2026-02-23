@@ -1,4 +1,4 @@
-import { optimism } from "@account-kit/infra";
+import * as infra from "@account-kit/infra";
 import {
   ChainType,
   config,
@@ -53,9 +53,9 @@ export const lifiTokensOptions = queryOptions({
     if (chain.testnet || chain.id === anvil.id) return [];
     try {
       ensureConfig();
-      const { tokens } = await getTokens({ chains: [chain.id] });
-      const allTokens = tokens[chain.id] ?? [];
-      if (chain.id !== optimism.id) return allTokens;
+      const { tokens } = await getTokens({ chainTypes: [ChainType.EVM] });
+      const allTokens = Object.values(tokens).flat();
+      if (chain.id !== infra.optimism.id) return allTokens;
       const exa = await getToken(chain.id, "0x1e925De1c68ef83bD98eE3E130eF14a50309C01B").catch((error: unknown) => {
         reportError(error);
       });
@@ -81,7 +81,7 @@ export function balancesOptions(account: Address | undefined) {
           reportError(error);
           return {} as Record<number, TokenAmount[]>;
         }),
-        chain.id === optimism.id
+        chain.id === infra.optimism.id
           ? getToken(chain.id, "0x1e925De1c68ef83bD98eE3E130eF14a50309C01B")
               .then((token) => getTokenBalancesByChain(account, { [chain.id]: [token] }))
               .then((result) => result[chain.id]?.[0])
@@ -116,13 +116,28 @@ function ensureConfig() {
   createLifiConfig({
     integrator: "exa_app",
     apiKey: "4bdb54aa-4f28-4c61-992a-a2fdc87b0a0b.251e33ad-ef5e-40cb-9b0f-52d634b99e8f",
+    preloadChains: false,
     providers: [EVM({ getWalletClient: () => Promise.resolve(publicClient) })],
-    rpcUrls: {
-      [optimism.id]: [`${optimism.rpcUrls.alchemy?.http[0]}/${alchemyAPIKey}`],
-      [chain.id]: [publicClient.transport.alchemyRpcUrl],
-    },
+    rpcUrls: Object.values(infra).reduce<Record<number, string[]>>((result, item) => {
+      if (typeof item !== "object" || !("id" in item) || !("rpcUrls" in item)) return result;
+      const { id, rpcUrls } = item as { id: number; rpcUrls: { alchemy?: { http?: readonly string[] } } };
+      const url = rpcUrls.alchemy?.http?.[0];
+      if (!url) return result;
+      result[id] = [`${url}/${alchemyAPIKey}`];
+      return result;
+    }, {}),
   });
+  config.loading = getChains({ chainTypes: [ChainType.EVM] })
+    .then((availableChains) => {
+      config.setChains(availableChains);
+      queryClient.setQueryData(lifiChainsOptions.queryKey, availableChains);
+    })
+    .catch((error: unknown) => {
+      configured = false;
+      reportError(error);
+    });
   configured = true;
+  queryClient.prefetchQuery(lifiTokensOptions).catch(reportError);
 }
 
 export async function getRoute(
