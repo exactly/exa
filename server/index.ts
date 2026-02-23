@@ -3,6 +3,7 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { captureException, close as closeSentry } from "@sentry/node";
 import { isoBase64URL } from "@simplewebauthn/server/helpers";
 import { Hono } from "hono";
+import { secureHeaders } from "hono/secure-headers";
 import { trimTrailingSlash } from "hono/trailing-slash";
 
 import domain from "@exactly/common/domain";
@@ -87,7 +88,9 @@ app.get("/.well-known/farcaster.json", (c) =>
 );
 
 const frontend = new Hono();
-/*
+const reportUri = `https://o1351734.ingest.us.sentry.io/api/4506186349674496/security/?sentry_key=ac8875331e4cecd67dd0a7519a36dfeb&sentry_environment=${
+  { "web.exactly.app": "production" }[domain] ?? /^(.+)\.exactly\.app$/.exec(domain)?.[1] ?? domain
+}`;
 frontend.use(
   "/assets/*",
   secureHeaders({
@@ -100,15 +103,8 @@ frontend.use(
   secureHeaders({
     xFrameOptions: false,
     referrerPolicy: "strict-origin-when-cross-origin",
-    reportingEndpoints: [
-      {
-        name: "sentry",
-        url: `https://o1351734.ingest.us.sentry.io/api/4506186349674496/security/?sentry_key=ac8875331e4cecd67dd0a7519a36dfeb&sentry_environment=${
-          { "web.exactly.app": "production", "sandbox.exactly.app": "sandbox" }[domain] ?? domain
-        }`,
-      },
-    ],
-    contentSecurityPolicy: {
+    reportingEndpoints: [{ name: "sentry", url: reportUri }],
+    contentSecurityPolicyReportOnly: {
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://onesignal.com"],
       scriptSrc: [
@@ -162,7 +158,7 @@ frontend.use(
         "'self'",
         // #region intercom https://www.intercom.com/help/en/articles/3894-using-intercom-with-content-security-policy
         "https://intercom-sheets.com",
-        "https://www.intercom-reporting.com ",
+        "https://www.intercom-reporting.com",
         "https://www.youtube.com",
         "https://player.vimeo.com",
         "https://fast.wistia.net",
@@ -209,7 +205,7 @@ frontend.use(
         "https://downloads.intercomcdn.eu",
         "https://downloads.au.intercomcdn.com",
         "https://uploads.intercomusercontent.com",
-        "https://gifs.intercomcdn.com ",
+        "https://gifs.intercomcdn.com",
         "https://video-messages.intercomcdn.com",
         "https://messenger-apps.intercom.io",
         "https://messenger-apps.eu.intercom.io",
@@ -242,10 +238,10 @@ frontend.use(
       objectSrc: ["'none'"],
       baseUri: ["'none'"],
       reportTo: "sentry",
+      reportUri,
     },
   }),
 );
-*/
 frontend.use(
   serveStatic({
     root: "app",
