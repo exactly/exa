@@ -1,5 +1,13 @@
 # @exactly/server
 
+## 0.2.72
+
+### Patch Changes
+
+- [#825](https://github.com/exactly/exa/pull/825) [`9300107`](https://github.com/exactly/exa/commit/93001072f7e12540734656eabc0c3983b0e913e4) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🔒️ activate report-only csp for frontend assets
+
+- [#823](https://github.com/exactly/exa/pull/823) [`67b9523`](https://github.com/exactly/exa/commit/67b95239733fe5fd211859e2693a55e2679925b7) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 handle zero rate in panda activity response
+
 ## 0.2.71
 
 ### Patch Changes
