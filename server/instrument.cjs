@@ -28,8 +28,16 @@ init({
   ],
   beforeSend: (event, hint) => {
     const exception = event.exception?.values?.[0];
+    if (!exception) return event;
+    const error = hint.originalException;
     if (
-      exception &&
+      error instanceof Error &&
+      typeof (/** @type {{ status?: unknown }} */ (error).status) === "number" &&
+      !(event.fingerprint && event.fingerprint.length > 1)
+    ) {
+      event.fingerprint = ["{{ default }}", error.name, error.message];
+    }
+    if (
       event.fingerprint?.[0] === "{{ default }}" &&
       (exception.type === "ContractFunctionExecutionError" ||
         exception.type === "ContractFunctionRevertedError" ||
@@ -37,11 +45,11 @@ init({
     ) {
       /** @typedef {{ cause?: unknown; data?: { errorName?: string }; reason?: string; signature?: string }} RevertError */
       for (
-        let error = /** @type {RevertError | undefined} */ (hint.originalException);
-        error;
-        error = /** @type {RevertError | undefined} */ (error.cause)
+        let revert = /** @type {RevertError | undefined} */ (hint.originalException);
+        revert;
+        revert = /** @type {RevertError | undefined} */ (revert.cause)
       ) {
-        const reason = error.data?.errorName ?? error.reason ?? error.signature;
+        const reason = revert.data?.errorName ?? revert.reason ?? revert.signature;
         if (reason) {
           exception.type = reason;
           break;

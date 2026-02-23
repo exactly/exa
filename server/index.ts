@@ -19,6 +19,7 @@ import persona from "./hooks/persona";
 import androidFingerprints from "./utils/android/fingerprints";
 import appOrigin from "./utils/appOrigin";
 import { closeAndFlush as closeSegment } from "./utils/segment";
+import ServiceError from "./utils/ServiceError";
 
 import type { UnofficialStatusCode } from "hono/utils/http-status";
 
@@ -273,36 +274,11 @@ frontend.use(
 app.route("/", frontend);
 
 app.onError((error, c) => {
-  let fingerprint: string[] | undefined;
-  if (error instanceof Error) {
-    const message = error.message
-      .split("Error:")
-      .reduce((result, part) => (result ? `${result}Error:${part}` : part.trimStart()), "");
-    const status = message.slice(0, 3);
-    const hasStatus = /^\d{3}$/.test(status);
-    const hasBodyFormat = message.length === 3 || message[3] === " ";
-    const body = hasBodyFormat && message.length > 3 ? message.slice(4).trim() : undefined;
-    if (hasStatus && hasBodyFormat) fingerprint = ["{{ default }}", status];
-    if (hasStatus && hasBodyFormat && body) {
-      try {
-        const json = JSON.parse(body) as { code?: unknown; error?: unknown; message?: unknown };
-        fingerprint = [
-          "{{ default }}",
-          status,
-          ...("code" in json
-            ? [String(json.code)]
-            : typeof json.message === "string"
-              ? [json.message]
-              : typeof json.error === "string"
-                ? [json.error]
-                : [body]),
-        ];
-      } catch {
-        fingerprint = ["{{ default }}", status, body];
-      }
-    }
-  }
-  captureException(error, { level: "error", tags: { unhandled: true }, fingerprint });
+  captureException(error, {
+    level: "error",
+    tags: { unhandled: true },
+    fingerprint: error instanceof ServiceError ? ["{{ default }}", error.name, error.message] : undefined,
+  });
   return c.json({ code: "unexpected error", legacy: "unexpected error" }, 555 as UnofficialStatusCode);
 });
 
