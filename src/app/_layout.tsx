@@ -103,7 +103,16 @@ init({
   dsn:
     process.env.EXPO_PUBLIC_SENTRY_DSN ??
     "https://ac8875331e4cecd67dd0a7519a36dfeb@o1351734.ingest.us.sentry.io/4506186349674496",
-  environment: e2e ? "e2e" : __DEV__ ? "development" : (channel ?? "production"),
+  environment: e2e
+    ? "e2e"
+    : (channel ??
+      (Platform.OS === "web"
+        ? ({ "web.exactly.app": "production" }[domain] ??
+          /^(?<subdomain>.+)\.exactly\.app$/.exec(domain)?.groups?.subdomain ??
+          "development")
+        : __DEV__
+          ? "development"
+          : "production")),
   tracesSampleRate: 1,
   attachStacktrace: true,
   attachViewHierarchy: true,
