@@ -200,6 +200,20 @@ describe("ramp api", () => {
         await expect(response.json()).resolves.toStrictEqual({ code: "not started" });
       });
 
+      it("returns 400 if manteca user is not active", async () => {
+        vi.spyOn(manteca, "getUser").mockResolvedValue({ ...mantecaUser, status: "ONBOARDING" });
+        const quoteSpy = vi.spyOn(manteca, "getQuote");
+
+        const response = await appClient.quote.$get(
+          { query: { provider: "manteca", currency: "ARS" } },
+          { headers: { "test-credential-id": "ramp-test" } },
+        );
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({ code: "not approved" });
+        expect(quoteSpy).not.toHaveBeenCalled();
+      });
+
       it("returns quote and deposit info for manteca ARS", async () => {
         vi.spyOn(manteca, "getUser").mockResolvedValue(mantecaUser);
         vi.spyOn(manteca, "getQuote").mockResolvedValue({ buyRate: "1000", sellRate: "1010" });
