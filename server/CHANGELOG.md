@@ -1,5 +1,13 @@
 # @exactly/server
 
+## 0.2.71
+
+### Patch Changes
+
+- [#821](https://github.com/exactly/exa/pull/821) [`06edd30`](https://github.com/exactly/exa/commit/06edd30f397f0e094d8622fab3069f3a8a0ae904) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 improve manteca error fingerprinting
+
+- [#821](https://github.com/exactly/exa/pull/821) [`faae22f`](https://github.com/exactly/exa/commit/faae22f2fd70255008e519b4f8b97da9db8fd39a) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 classify panda errors by name and status
+
 ## 0.2.70
 
 ### Patch Changes
