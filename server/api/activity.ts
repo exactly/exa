@@ -586,7 +586,7 @@ export const PandaActivity = pipe(
     } = details;
     const usdAmount = operations.reduce((sum, { usdAmount: amount }) => sum + amount, 0);
     const exchangeRate = flow.completed?.exchangeRate ?? [flow.created, ...flow.updates].at(-1)?.exchangeRate;
-    if (!exchangeRate) throw new Error("no exchange rate");
+    if (exchangeRate === undefined) throw new Error("no exchange rate");
     return {
       id,
       currency,

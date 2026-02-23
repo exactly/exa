@@ -194,6 +194,27 @@ describe.concurrent("authenticated", () => {
       await expect(response.json()).resolves.toStrictEqual(activity);
     });
 
+    it("accepts panda activity with zero exchange rate", () => {
+      const panda = safeParse(PandaActivity, {
+        type: "panda",
+        hashes: [zeroHash],
+        borrows: [null],
+        bodies: [
+          {
+            action: "created",
+            resource: "transaction",
+            createdAt: new Date(0).toISOString(),
+            body: { id: "zero-rate", type: "spend", spend: { ...spendTemplate, amount: 100, localAmount: 0 } },
+          },
+        ],
+      });
+
+      expect(panda.success).toBe(true);
+      if (!panda.success) return;
+      expect(panda.output.amount).toBe(0);
+      expect(panda.output.usdAmount).toBe(1);
+    });
+
     it("reports bad transaction", async () => {
       await database
         .insert(transactions)
