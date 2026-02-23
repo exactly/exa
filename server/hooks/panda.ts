@@ -465,10 +465,10 @@ export default new Hono().post(
             }),
             getUser(payload.body.spend.userId),
           ]);
-          if (!user.isActive) throw new Error("user is not active");
           if (!card) throw new Error("card not found");
           const account = v.parse(Address, card.credential.account);
           setUser({ id: account });
+          if (!user.isActive) throw new Error("user is not active");
 
           const tx = await database.query.transactions.findFirst({
             where: and(eq(transactions.id, payload.body.id), eq(transactions.cardId, payload.body.spend.cardId)),

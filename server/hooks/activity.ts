@@ -1,5 +1,5 @@
 import { vValidator } from "@hono/valibot-validator";
-import { SPAN_STATUS_ERROR, SPAN_STATUS_OK, type SpanStatus } from "@sentry/core";
+import { SPAN_STATUS_ERROR, SPAN_STATUS_OK } from "@sentry/core";
 import {
   captureException,
   continueTrace,
@@ -7,6 +7,7 @@ import {
   getTraceData,
   SEMANTIC_ATTRIBUTE_SENTRY_OP,
   setContext,
+  setUser,
   startSpan,
   withScope,
 } from "@sentry/node";
@@ -108,6 +109,7 @@ export default new Hono().post(
           ),
         ),
       );
+    if (Object.keys(accounts).length === 1) setUser({ id: v.parse(Address, Object.keys(accounts)[0]) });
 
     const marketsByAsset = await publicClient
       .readContract({ address: exaPreviewerAddress, functionName: "assets", abi: exaPreviewerAbi })
@@ -136,14 +138,13 @@ export default new Hono().post(
     }
     const { "sentry-trace": sentryTrace, baggage } = getTraceData();
     Promise.allSettled(
-      [...pokes.entries()].map(([account, { publicKey, factory, assets }]) =>
+      [...pokes].map(([account, { publicKey, factory, assets }]) =>
         continueTrace({ sentryTrace, baggage }, () =>
           withScope((scope) =>
             startSpan(
               { name: "account activity", op: "exa.activity", attributes: { account }, forceTransaction: true },
               async (span) => {
                 scope.setUser({ id: account });
-                scope.setTag("exa.account", account);
                 const isDeployed = !!(await publicClient.getCode({ address: account }));
                 scope.setTag("exa.new", !isDeployed);
                 if (!isDeployed) {
@@ -194,7 +195,10 @@ export default new Hono().post(
                           retryCount: 5,
                           shouldRetry: ({ error }) => {
                             if (error instanceof Error && error.message === "NoBalance()") return true;
-                            captureException(error, { level: "error", fingerprint: revertFingerprint(error) });
+                            withScope((captureScope) => {
+                              captureScope.setUser({ id: account });
+                              captureException(error, { level: "error", fingerprint: revertFingerprint(error) });
+                            });
                             return true;
                           },
                         },
@@ -205,6 +209,7 @@ export default new Hono().post(
                   if (result.status === "fulfilled") continue;
                   if (result.reason instanceof Error && result.reason.message === "NoBalance()") {
                     withScope((captureScope) => {
+                      captureScope.setUser({ id: account });
                       captureScope.addEventProcessor((event) => {
                         if (event.exception?.values?.[0]) event.exception.values[0].type = "NoBalance";
                         return event;
@@ -250,17 +255,21 @@ export default new Hono().post(
               },
             ),
           ),
-        ),
+        ).catch((error: unknown) => {
+          withScope((scope) => {
+            scope.setUser({ id: account });
+            captureException(error, { level: "error", fingerprint: revertFingerprint(error) });
+          });
+          throw error;
+        }),
       ),
     )
       .then((results) => {
-        let status: SpanStatus = { code: SPAN_STATUS_OK };
-        for (const result of results) {
-          if (result.status === "fulfilled") continue;
-          status = { code: SPAN_STATUS_ERROR, message: "activity_failed" };
-          captureException(result.reason, { level: "error", fingerprint: revertFingerprint(result.reason) });
-        }
-        getActiveSpan()?.setStatus(status);
+        getActiveSpan()?.setStatus(
+          results.every((result) => result.status === "fulfilled")
+            ? { code: SPAN_STATUS_OK }
+            : { code: SPAN_STATUS_ERROR, message: "activity_failed" },
+        );
       })
       .catch((error: unknown) => captureException(error));
     return c.json({});

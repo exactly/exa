@@ -2,7 +2,7 @@ import "../mocks/deployments";
 import { keeperClient, nonceSource } from "../mocks/keeper";
 import "../mocks/sentry";
 
-import { captureException } from "@sentry/node";
+import { captureException, withScope } from "@sentry/node";
 import { setImmediate } from "node:timers/promises";
 import { encodeErrorResult, getContractError, RawContractError } from "viem";
 import { afterEach, describe, expect, inject, it, vi } from "vitest";
@@ -13,6 +13,7 @@ import keeper from "../../utils/keeper";
 import nonceManager from "../../utils/nonceManager";
 import publicClient from "../../utils/publicClient";
 
+import type * as sentry from "@sentry/node";
 import type * as timers from "node:timers/promises";
 import type { Hex } from "viem";
 
@@ -205,6 +206,39 @@ describe("fault tolerance", () => {
   });
 });
 
+describe("user identity", () => {
+  it("sets sentry user when account attribute is valid address", async () => {
+    const setUser = await spyScopeSetUser();
+    const account = inject("Auditor");
+    const receipt = await keeper.exaSend(
+      { name: "test transfer", op: "test.transfer", attributes: { account } },
+      { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+    );
+    expect(receipt?.status).toBe("success");
+    expect(setUser).toHaveBeenCalledWith({ id: account });
+  });
+
+  it("skips sentry user without account attribute", async () => {
+    const setUser = await spyScopeSetUser();
+    const receipt = await keeper.exaSend(
+      { name: "test transfer", op: "test.transfer" },
+      { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+    );
+    expect(receipt?.status).toBe("success");
+    expect(setUser).not.toHaveBeenCalled();
+  });
+
+  it("skips sentry user with invalid account attribute", async () => {
+    const setUser = await spyScopeSetUser();
+    const receipt = await keeper.exaSend(
+      { name: "test transfer", op: "test.transfer", attributes: { account: "0xInvalid" } },
+      { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+    );
+    expect(receipt?.status).toBe("success");
+    expect(setUser).not.toHaveBeenCalled();
+  });
+});
+
 describe("level option", () => {
   it("defaults to error", async () => {
     vi.spyOn(publicClient, "simulateContract").mockImplementationOnce(() => {
@@ -315,3 +349,19 @@ vi.mock("node:timers/promises", async (importOriginal) => {
 });
 
 afterEach(() => vi.restoreAllMocks());
+
+async function spyScopeSetUser() {
+  const { withScope: realWithScope } = await vi.importActual<typeof sentry>("@sentry/node");
+  const setUser = vi.fn();
+  vi.mocked(withScope).mockImplementationOnce((_scopeOrCallback, _callback?) =>
+    realWithScope((scope) => {
+      const originalSetUser = scope.setUser.bind(scope);
+      scope.setUser = (...args: Parameters<typeof scope.setUser>) => {
+        setUser(...args);
+        return originalSetUser(...args);
+      };
+      return ((_callback ?? _scopeOrCallback) as NonNullable<typeof _callback>)(scope);
+    }),
+  );
+  return setUser;
+}

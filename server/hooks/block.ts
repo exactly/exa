@@ -247,7 +247,6 @@ function scheduleMessage(message: string) {
   const processProposal = () =>
     withScope((scope) => {
       scope.setUser({ id: account });
-      scope.setTag("exa.account", account);
       scope.setContext("proposal", {
         account,
         nonce: Number(nonce),
@@ -456,16 +455,24 @@ function scheduleMessage(message: string) {
     .then(() => {
       const mutex = mutexes.get(account) ?? createMutex(account);
       return continueTrace({ sentryTrace, baggage: sentryBaggage }, () =>
-        startSpan(
-          { name: "acquire mutex", op: "lock.acquire", attributes: { account, "lock.name": `proposal:${account}` } },
-          () =>
-            mutex.runExclusive(processProposal, -Number(nonce)).finally(() => {
-              if (!mutex.isLocked()) mutexes.delete(account);
-            }),
-        ),
+        withScope((scope) => {
+          scope.setUser({ id: account });
+          return startSpan(
+            { name: "acquire mutex", op: "lock.acquire", attributes: { account, "lock.name": `proposal:${account}` } },
+            () =>
+              mutex.runExclusive(processProposal, -Number(nonce)).finally(() => {
+                if (!mutex.isLocked()) mutexes.delete(account);
+              }),
+          );
+        }),
       );
     })
-    .catch((error: unknown) => captureException(error, { level: "error", fingerprint: revertFingerprint(error) }));
+    .catch((error: unknown) => {
+      withScope((scope) => {
+        scope.setUser({ id: account });
+        captureException(error, { level: "error", fingerprint: revertFingerprint(error) });
+      });
+    });
 }
 
 function scheduleWithdraw(message: string) {
@@ -476,7 +483,6 @@ function scheduleWithdraw(message: string) {
   const processWithdraw = () =>
     withScope((scope) => {
       scope.setUser({ id: account });
-      scope.setTag("exa.account", account);
       return startSpan({ name: "exa.withdraw", op: "exa.withdraw", forceTransaction: true }, (parent) =>
         startSpan(
           {
@@ -556,8 +562,20 @@ function scheduleWithdraw(message: string) {
     });
 
   setTimeout(Math.max(0, (Number(unlock) + 10) * 1000 - Date.now()))
-    .then(() => continueTrace({ sentryTrace, baggage: sentryBaggage }, processWithdraw))
-    .catch((error: unknown) => captureException(error, { level: "error", fingerprint: revertFingerprint(error) }));
+    .then(() =>
+      continueTrace({ sentryTrace, baggage: sentryBaggage }, () =>
+        withScope((scope) => {
+          scope.setUser({ id: account });
+          return processWithdraw();
+        }),
+      ),
+    )
+    .catch((error: unknown) => {
+      withScope((scope) => {
+        scope.setUser({ id: account });
+        captureException(error, { level: "error", fingerprint: revertFingerprint(error) });
+      });
+    });
 }
 
 const isTerminalWithdrawReason = (reason: string) =>

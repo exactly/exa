@@ -4,7 +4,7 @@ import "../mocks/keeper";
 import "../mocks/onesignal";
 import "../mocks/sentry";
 
-import { captureException } from "@sentry/node";
+import { captureException, setUser } from "@sentry/node";
 import { testClient } from "hono/testing";
 import {
   BaseError,
@@ -85,6 +85,7 @@ describe("address activity", () => {
     expect(
       vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "error")),
     ).toHaveLength(0);
+    expect(setUser).toHaveBeenCalledWith({ id: account });
     expect(response.status).toBe(200);
   });
 
@@ -113,6 +114,7 @@ describe("address activity", () => {
       vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "warning")),
     ).toHaveLength(0);
 
+    expect(setUser).toHaveBeenCalledWith({ id: account });
     expect(response.status).toBe(200);
   });
 
@@ -145,6 +147,7 @@ describe("address activity", () => {
       vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "warning")),
     ).toHaveLength(0);
 
+    expect(setUser).toHaveBeenCalledWith({ id: account });
     expect(response.status).toBe(200);
   });
 
@@ -184,6 +187,7 @@ describe("address activity", () => {
     expect(
       vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "warning")),
     ).toHaveLength(0);
+    expect(setUser).toHaveBeenCalledWith({ id: account });
     expect(response.status).toBe(200);
   });
 
@@ -218,6 +222,7 @@ describe("address activity", () => {
     expect(
       vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "warning")),
     ).toHaveLength(0);
+    expect(setUser).toHaveBeenCalledWith({ id: account });
     expect(response.status).toBe(200);
   });
 
@@ -250,6 +255,7 @@ describe("address activity", () => {
     expect(
       vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "warning")),
     ).toHaveLength(0);
+    expect(setUser).toHaveBeenCalledWith({ id: account });
     expect(response.status).toBe(200);
   });
 
@@ -288,6 +294,7 @@ describe("address activity", () => {
     expect(
       vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "warning")),
     ).toHaveLength(0);
+    expect(setUser).toHaveBeenCalledWith({ id: account });
     expect(response.status).toBe(200);
   });
 
@@ -324,6 +331,7 @@ describe("address activity", () => {
     expect(
       vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "warning")),
     ).toHaveLength(0);
+    expect(setUser).toHaveBeenCalledWith({ id: account });
     expect(response.status).toBe(200);
   });
 
@@ -355,6 +363,7 @@ describe("address activity", () => {
     expect(
       vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "warning")),
     ).toHaveLength(0);
+    expect(setUser).toHaveBeenCalledWith({ id: account });
     expect(response.status).toBe(200);
   });
 
@@ -386,6 +395,7 @@ describe("address activity", () => {
     expect(
       vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "warning")),
     ).toHaveLength(0);
+    expect(setUser).toHaveBeenCalledWith({ id: account });
     expect(response.status).toBe(200);
   });
 
@@ -415,6 +425,7 @@ describe("address activity", () => {
     expect(
       vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "warning")),
     ).toHaveLength(0);
+    expect(setUser).toHaveBeenCalledWith({ id: account });
     expect(response.status).toBe(200);
   });
 
@@ -442,6 +453,7 @@ describe("address activity", () => {
     expect(
       vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "warning")),
     ).toHaveLength(0);
+    expect(setUser).toHaveBeenCalledWith({ id: account });
     expect(response.status).toBe(200);
   });
 
@@ -465,6 +477,7 @@ describe("address activity", () => {
 
     expect(market.floatingDepositAssets).toBe(deposit);
     expect(market.isCollateral).toBe(true);
+    expect(setUser).toHaveBeenCalledWith({ id: account });
     expect(response.status).toBe(200);
   });
 
@@ -602,6 +615,7 @@ describe("address activity", () => {
 
     expect(market.floatingDepositAssets).toBe(eth + weth);
     expect(market.isCollateral).toBe(true);
+    expect(setUser).toHaveBeenCalledWith({ id: account });
     expect(response.status).toBe(200);
   });
 
@@ -743,6 +757,7 @@ describe("address activity", () => {
       ),
     ]);
 
+    expect(setUser).not.toHaveBeenCalled();
     expect(response.status).toBe(200);
   });
 
@@ -764,6 +779,7 @@ describe("address activity", () => {
     const deployed = !!(await publicClient.getCode({ address: account }));
 
     expect(deployed).toBe(true);
+    expect(setUser).toHaveBeenCalledWith({ id: account });
     expect(response.status).toBe(200);
   });
 
@@ -788,6 +804,7 @@ describe("address activity", () => {
     });
 
     expect(sendPushNotification).not.toHaveBeenCalled();
+    expect(setUser).toHaveBeenCalledWith({ id: account });
     expect(response.status).toBe(200);
   });
 });

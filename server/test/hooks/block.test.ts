@@ -4,7 +4,7 @@ import "../mocks/onesignal";
 import "../mocks/redis";
 import "../mocks/sentry";
 
-import { captureException, continueTrace } from "@sentry/node";
+import { captureException, continueTrace, withScope } from "@sentry/node";
 import { deserialize } from "@wagmi/core";
 import { testClient } from "hono/testing";
 import {
@@ -56,6 +56,8 @@ import redis from "../../utils/redis";
 import revertFingerprint from "../../utils/revertFingerprint";
 import anvilClient from "../anvilClient";
 
+import type * as sentry from "@sentry/node";
+
 const bob = createWalletClient({
   chain,
   transport: http(),
@@ -102,6 +104,7 @@ describe("proposal", () => {
     afterEach(() => vi.useRealTimers());
 
     it("execute withdraws", async () => {
+      const setUser = await spyScopeSetUser();
       const withdraw = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
       const anotherWithdraw = proposals[1]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
 
@@ -144,6 +147,7 @@ describe("proposal", () => {
         proposalExecutions,
       ]);
       expect(hasExpectedTransfers(receipts, expected)).toBe(true);
+      expect(setUser).toHaveBeenCalledWith({ id: bobAccount });
     });
   });
 
@@ -251,6 +255,7 @@ describe("proposal", () => {
     });
 
     it("handles NonceTooLow as success in outer catch", async () => {
+      const setUser = await spyScopeSetUser();
       const proposal = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
       const match = matchProposal(proposal.args.account, proposal.args.nonce);
       const errorAbi = [{ type: "error", name: "NonceTooLow", inputs: [] }] as const;
@@ -285,6 +290,7 @@ describe("proposal", () => {
 
       const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
       expect(captureExceptionCalls.filter((call) => match.capture(call))).toEqual([]);
+      expect(setUser).toHaveBeenCalledWith({ id: bobAccount });
     });
 
     it("handles NoProposal as success in outer catch", async () => {
@@ -329,6 +335,7 @@ describe("proposal", () => {
     });
 
     it("requeues Timelocked proposals without nonce skipping", async () => {
+      const setUser = await spyScopeSetUser();
       const proposal = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
       const match = matchProposal(proposal.args.account, proposal.args.nonce);
       const timelockedAbi = [{ type: "error", name: "Timelocked", inputs: [] }] as const;
@@ -400,9 +407,11 @@ describe("proposal", () => {
         expect.objectContaining({ level: "warning", fingerprint: ["{{ default }}", "Timelocked"] }),
       ]);
       expect(exaSendSpy.mock.calls.some(([, call]) => call.functionName === "setProposalNonce")).toBe(false);
+      expect(setUser).toHaveBeenCalledWith({ id: bobAccount });
     });
 
     it("fingerprints outer catch by reason", async () => {
+      const setUser = await spyScopeSetUser();
       const proposal = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
       const simulateContract = vi.spyOn(publicClient, "simulateContract");
       const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
@@ -465,6 +474,7 @@ describe("proposal", () => {
           fingerprint: ["{{ default }}", "execution reverted: proposal outer reason fallback"],
         }),
       );
+      expect(setUser).toHaveBeenCalledWith({ id: bobAccount });
     });
 
     it("fingerprints outer catch by signature", async () => {
@@ -965,6 +975,7 @@ describe("proposal", () => {
     afterEach(() => vi.useRealTimers());
 
     it("executes proposal", async () => {
+      const setUser = await spyScopeSetUser();
       const idle = proposals[1]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
       const withdraw = proposals[3]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
       const another = proposals[4]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
@@ -1004,6 +1015,7 @@ describe("proposal", () => {
         proposalExecutions,
       ]);
       expect(hasExpectedTransfers(receipts, expected)).toBe(true);
+      expect(setUser).toHaveBeenCalledWith({ id: bobAccount });
     });
 
     it("captures NotNext warning for out-of-order proposal execution", async () => {
@@ -1120,6 +1132,7 @@ describe("legacy withdraw", () => {
   }
 
   it("removes withdraw from queue on InsufficientAccountLiquidity", async () => {
+    const setUser = await spyScopeSetUser();
     const amount = 1_000_000n;
     const match = matchWithdraw(amount, withdrawAccount, withdrawMarket, withdrawReceiver);
     const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
@@ -1146,6 +1159,7 @@ describe("legacy withdraw", () => {
       "{{ default }}",
       "InsufficientAccountLiquidity",
     ]);
+    expect(setUser).toHaveBeenCalledWith({ id: withdrawAccount });
   });
 
   it("removes withdraw from queue on NoProposal", async () => {
@@ -1219,6 +1233,7 @@ describe("legacy withdraw", () => {
   });
 
   it("sends withdraw notification when keeper returns receipt", async () => {
+    const setUser = await spyScopeSetUser();
     const amount = 1_375_000n;
     const match = matchWithdraw(amount, withdrawAccount, withdrawMarket, withdrawReceiver);
     const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
@@ -1248,6 +1263,7 @@ describe("legacy withdraw", () => {
     });
     const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
     expect(captureExceptionCalls.filter((call) => match.capture(call))).toEqual([]);
+    expect(setUser).toHaveBeenCalledWith({ id: withdrawAccount });
   });
 
   it("removes withdraw from queue when keeper returns reverted receipt", async () => {
@@ -1828,6 +1844,7 @@ describe("legacy withdraw", () => {
   });
 
   it("fingerprints withdraw outer catch by reason", async () => {
+    const setUser = await spyScopeSetUser();
     const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
     vi.mocked(continueTrace).mockImplementationOnce(() => {
       throw new ContractFunctionExecutionError(
@@ -1872,6 +1889,7 @@ describe("legacy withdraw", () => {
         fingerprint: ["{{ default }}", "execution reverted: outer withdraw reason fallback"],
       }),
     );
+    expect(setUser).toHaveBeenCalledWith({ id: withdrawAccount });
   });
 
   it("fingerprints withdraw outer catch by signature", async () => {
@@ -2197,4 +2215,20 @@ function matchWithdraw(amount: bigint, account: Address, market: Address, receiv
       );
     },
   };
+}
+
+async function spyScopeSetUser() {
+  const { withScope: realWithScope } = await vi.importActual<typeof sentry>("@sentry/node");
+  const setUser = vi.fn();
+  vi.mocked(withScope).mockImplementation((_scopeOrCallback, _callback?) =>
+    realWithScope((scope) => {
+      const originalSetUser = scope.setUser.bind(scope);
+      scope.setUser = (...args: Parameters<typeof scope.setUser>) => {
+        setUser(...args);
+        return originalSetUser(...args);
+      };
+      return ((_callback ?? _scopeOrCallback) as NonNullable<typeof _callback>)(scope);
+    }),
+  );
+  return setUser;
 }

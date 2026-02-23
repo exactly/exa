@@ -1,7 +1,7 @@
 import { SPAN_STATUS_ERROR, SPAN_STATUS_OK } from "@sentry/core";
 import { captureException, startSpan, withScope } from "@sentry/node";
 import { setTimeout } from "node:timers/promises";
-import { parse } from "valibot";
+import { parse, safeParse } from "valibot";
 import {
   createWalletClient,
   encodeFunctionData,
@@ -25,7 +25,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import chain from "@exactly/common/generated/chain";
 import revertReason from "@exactly/common/revertReason";
-import { Hash } from "@exactly/common/validation";
+import { Address, Hash } from "@exactly/common/validation";
 
 import nonceManager from "./nonceManager";
 import publicClient, { captureRequests, Requests } from "./publicClient";
@@ -63,6 +63,8 @@ export function extender(keeper: WalletClient<HttpTransport, typeof chain, Priva
     ) =>
       withScope((scope) =>
         startSpan({ forceTransaction: true, ...spanOptions }, async (span) => {
+          const account = safeParse(Address, spanOptions.attributes?.account);
+          if (account.success) scope.setUser({ id: account.output });
           try {
             scope.setContext("tx", { call });
             span.setAttributes({
