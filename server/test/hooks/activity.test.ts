@@ -468,6 +468,107 @@ describe("address activity", () => {
     expect(response.status).toBe(200);
   });
 
+  it("pokes eth with value when rawValue is missing", async () => {
+    const deposit = parseEther("5");
+    await anvilClient.setBalance({ address: account, value: deposit });
+
+    const [response, market] = await Promise.all([
+      appClient.index.$post({
+        ...activityPayload,
+        json: {
+          ...activityPayload.json,
+          event: {
+            ...activityPayload.json.event,
+            activity: [{ ...activityPayload.json.event.activity[0], toAddress: account, rawContract: {} }],
+          },
+        },
+      }),
+      waitForWETHMarket(account, deposit),
+    ]);
+
+    expect(market.floatingDepositAssets).toBe(deposit);
+    expect(market.isCollateral).toBe(true);
+    expect(response.status).toBe(200);
+  });
+
+  it("pokes eth with value when rawValue is 0x", async () => {
+    const exaSend = vi.spyOn(keeper, "exaSend");
+    const deposit = parseEther("5");
+    await anvilClient.setBalance({ address: account, value: deposit });
+
+    const [response, market] = await Promise.all([
+      appClient.index.$post({
+        ...activityPayload,
+        json: {
+          ...activityPayload.json,
+          event: {
+            ...activityPayload.json.event,
+            activity: [
+              { ...activityPayload.json.event.activity[0], toAddress: account, rawContract: { rawValue: "0x" } },
+            ],
+          },
+        },
+      }),
+      waitForWETHMarket(account, deposit),
+    ]);
+
+    expect(
+      exaSend.mock.calls.some(
+        ([spanOptions, request]) =>
+          spanOptions.op === "exa.poke" &&
+          request.address === account &&
+          "functionName" in request &&
+          request.functionName === "pokeETH",
+      ),
+    ).toBe(true);
+    expect(market.floatingDepositAssets).toBe(deposit);
+    expect(market.isCollateral).toBe(true);
+    expect(response.status).toBe(200);
+  });
+
+  it("pokes eth without value", async () => {
+    const exaSend = vi.spyOn(keeper, "exaSend");
+    const deposit = parseEther("5");
+    await anvilClient.setBalance({ address: account, value: deposit });
+
+    const eth = activityPayload.json.event.activity[0];
+    const transfer = {
+      fromAddress: eth.fromAddress,
+      toAddress: account,
+      hash: eth.hash,
+      asset: eth.asset,
+      category: eth.category,
+      rawContract: eth.rawContract,
+    };
+    expect("value" in transfer).toBe(false);
+    const [response, market] = await Promise.all([
+      appClient.index.$post({
+        ...activityPayload,
+        json: {
+          ...activityPayload.json,
+          event: {
+            ...activityPayload.json.event,
+            activity: [transfer],
+          },
+        },
+      }),
+      waitForWETHMarket(account, deposit),
+    ]);
+
+    expect(
+      exaSend.mock.calls.some(
+        ([spanOptions, request]) =>
+          spanOptions.op === "exa.poke" &&
+          request.address === account &&
+          "functionName" in request &&
+          request.functionName === "pokeETH",
+      ),
+    ).toBe(true);
+    expect(market.floatingDepositAssets).toBe(deposit);
+    expect(market.isCollateral).toBe(true);
+    expect(response.status).toBe(200);
+  });
+
   it("pokes weth and eth", async () => {
     const eth = parseEther("5");
     await anvilClient.setBalance({ address: account, value: eth });
@@ -501,6 +602,92 @@ describe("address activity", () => {
 
     expect(market.floatingDepositAssets).toBe(eth + weth);
     expect(market.isCollateral).toBe(true);
+    expect(response.status).toBe(200);
+  });
+
+  it("pokes token without value", async () => {
+    const exaSend = vi.spyOn(keeper, "exaSend");
+    const weth = parseEther("2");
+    await keeper.exaSend(
+      { name: "mint", op: "tx.mint" },
+      { address: inject("WETH"), abi: mockERC20Abi, functionName: "mint", args: [account, weth] },
+    );
+
+    const token = activityPayload.json.event.activity[1];
+    const transfer = {
+      fromAddress: token.fromAddress,
+      toAddress: account,
+      hash: token.hash,
+      asset: token.asset,
+      category: token.category,
+      rawContract: { ...token.rawContract, address: inject("WETH") },
+    };
+    expect("value" in transfer).toBe(false);
+    const [response, market] = await Promise.all([
+      appClient.index.$post({
+        ...activityPayload,
+        json: {
+          ...activityPayload.json,
+          event: {
+            ...activityPayload.json.event,
+            activity: [transfer],
+          },
+        },
+      }),
+      waitForWETHMarket(account, weth),
+    ]);
+
+    expect(
+      exaSend.mock.calls.some(
+        ([spanOptions, request]) =>
+          spanOptions.op === "exa.poke" &&
+          request.address === account &&
+          "functionName" in request &&
+          request.functionName === "poke",
+      ),
+    ).toBe(true);
+    expect(market.floatingDepositAssets).toBe(weth);
+    expect(market.isCollateral).toBe(true);
+    expect(response.status).toBe(200);
+  });
+
+  it("ignores token without value and zero rawValue", async () => {
+    vi.spyOn(publicClient, "getCode").mockResolvedValue("0x1");
+    const exaSend = vi.spyOn(keeper, "exaSend");
+    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+
+    const token = activityPayload.json.event.activity[1];
+    const transfer = {
+      fromAddress: token.fromAddress,
+      toAddress: account,
+      hash: token.hash,
+      asset: token.asset,
+      category: token.category,
+      rawContract: { address: inject("WETH"), rawValue: "0x0" as const },
+    };
+    expect("value" in transfer).toBe(false);
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: {
+          ...activityPayload.json.event,
+          activity: [transfer],
+        },
+      },
+    });
+    await vi.waitUntil(() => exaSend.mock.calls.length > 0, 333).catch(() => undefined);
+
+    expect(
+      exaSend.mock.calls.some(
+        ([spanOptions, request]) =>
+          spanOptions.op === "exa.poke" &&
+          request.address === account &&
+          "functionName" in request &&
+          request.functionName === "poke",
+      ),
+    ).toBe(false);
+    expect(sendPushNotification).not.toHaveBeenCalled();
     expect(response.status).toBe(200);
   });
 
@@ -593,7 +780,7 @@ describe("address activity", () => {
             {
               ...activityPayload.json.event.activity[1],
               toAddress: account,
-              rawContract: { address: inject("MarketWETH") },
+              rawContract: { address: inject("MarketWETH"), rawValue: "0x1" },
             },
           ],
         },
@@ -658,7 +845,7 @@ const activityPayload = {
           value: 0.000_001,
           asset: "ETH",
           category: "external",
-          rawContract: {},
+          rawContract: { rawValue: "0xe8d4a51000" },
         },
         {
           fromAddress: "0xacd03d601e5bb1b275bb94076ff46ed9d753435a",

@@ -14,7 +14,7 @@ import createDebug from "debug";
 import { eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import * as v from "valibot";
-import { bytesToBigInt, withRetry } from "viem";
+import { bytesToBigInt, hexToBigInt, withRetry } from "viem";
 
 import {
   auditorAbi,
@@ -26,7 +26,7 @@ import {
   upgradeableModularAccountAbi,
   wethAddress,
 } from "@exactly/common/generated/chain";
-import { Address, Hash } from "@exactly/common/validation";
+import { Address, Hash, Hex } from "@exactly/common/validation";
 
 import database, { cards, credentials } from "../database";
 import { createWebhook, findWebhook, headerValidator, network } from "../utils/alchemy";
@@ -68,13 +68,13 @@ export default new Hono().post(
               v.object({
                 category: v.picklist(["external", "internal"]),
                 asset: v.literal("ETH"),
-                rawContract: v.optional(v.object({ address: v.optional(v.undefined()) })),
-                value: v.number(),
+                rawContract: v.optional(v.object({ address: v.optional(v.undefined()), rawValue: v.optional(Hex) })),
+                value: v.optional(v.number()),
               }),
               v.object({
                 category: v.picklist(["token", "erc20", "erc721", "erc1155"]),
                 asset: v.optional(v.string()),
-                rawContract: v.object({ address: Address }),
+                rawContract: v.object({ address: Address, rawValue: v.optional(Hex) }),
                 value: v.optional(v.number()),
               }),
             ]),
@@ -89,7 +89,12 @@ export default new Hono().post(
     getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "alchemy.activity");
     const transfers = c.req
       .valid("json")
-      .event.activity.filter(({ category, value }) => category !== "erc721" && category !== "erc1155" && value);
+      .event.activity.filter(
+        ({ category, rawContract, value }) =>
+          category !== "erc721" &&
+          category !== "erc1155" &&
+          (rawContract?.rawValue && rawContract.rawValue !== "0x" ? hexToBigInt(rawContract.rawValue) > 0n : !!value),
+      );
     const accounts = await database.query.credentials
       .findMany({
         columns: { account: true, publicKey: true, factory: true },

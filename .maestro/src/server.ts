@@ -4,6 +4,7 @@ import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex, utf8ToBytes } from "@noble/hashes/utils.js";
 import {
   encodeAbiParameters,
+  erc20Abi,
   ethAddress,
   keccak256,
   pad,
@@ -16,6 +17,9 @@ import {
   type Hex,
 } from "viem";
 import { publicKeyToAddress } from "viem/accounts";
+import { parseUnits } from "viem/utils";
+
+import { readContract } from "./anvil";
 
 export function activity(asset: Address, toAddress: Address, value: number, hash: Hash = zeroHash) {
   const payload = JSON.stringify({
@@ -30,7 +34,15 @@ export function activity(asset: Address, toAddress: Address, value: number, hash
           hash,
           fromAddress: zeroAddress,
           category: asset === ethAddress ? "external" : "erc20",
-          rawContract: asset === ethAddress ? undefined : { address: asset },
+          rawContract: {
+            ...(asset === ethAddress ? {} : { address: asset }),
+            rawValue: toHex(
+              parseUnits(
+                value.toLocaleString("fullwide", { useGrouping: false, maximumFractionDigits: 18 }),
+                asset === ethAddress ? 18 : readContract({ address: asset, functionName: "decimals", abi: erc20Abi }),
+              ),
+            ),
+          },
         },
       ],
     },
