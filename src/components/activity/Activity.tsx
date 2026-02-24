@@ -20,7 +20,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function Activity() {
-  const { data: activity, isFetching } = useQuery<ActivityEvent[]>({ queryKey: ["activity"] });
+  const { data: activity, isPending } = useQuery<ActivityEvent[]>({ queryKey: ["activity"] });
   const { queryKey } = useAsset();
   const { t } = useTranslation();
   const theme = useTheme();
@@ -73,7 +73,7 @@ export default function Activity() {
             backgroundColor: data.length > 0 ? theme.backgroundMild.val : theme.backgroundSoft.val,
           }}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refresh} />}
+          refreshControl={<RefreshControl refreshing={isPending} onRefresh={refresh} />}
           ListHeaderComponent={
             <>
               <View padded gap="$s5" backgroundColor="$backgroundSoft">

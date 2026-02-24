@@ -17,13 +17,18 @@ export default function useAsset(address?: Address) {
     data: markets,
     queryKey,
     isFetching: isMarketsFetching,
+    isPending: isMarketsPending,
   } = useReadPreviewerExactly({
     address: previewerAddress,
     args: account ? [account] : undefined,
     query: { enabled: !!account },
   });
   const market = useMemo(() => markets?.find(({ market: m }) => m === address), [address, markets]);
-  const { data: tokenBalances, isFetching: isTokenBalancesFetching } = useQuery(tokenBalancesOptions(account));
+  const {
+    data: tokenBalances,
+    isFetching: isTokenBalancesFetching,
+    isPending: isTokenBalancesPending,
+  } = useQuery(tokenBalancesOptions(account));
   const externalAsset = useMemo(
     () => tokenBalances?.find((token) => token.address.toLowerCase() === address?.toLowerCase()) ?? null,
     [tokenBalances, address],
@@ -47,5 +52,6 @@ export default function useAsset(address?: Address) {
     externalAsset,
     queryKey,
     isFetching: isMarketsFetching || isTokenBalancesFetching,
+    isPending: isMarketsPending || isTokenBalancesPending,
   };
 }

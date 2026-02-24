@@ -66,7 +66,7 @@ export default function Card() {
   const { data: hidden } = useQuery<boolean>({ queryKey: ["settings", "sensitive"] });
 
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
-  const { data: purchases, isFetching: isFetchingPurchases } = useQuery<CardActivity[]>({
+  const { data: purchases, isPending: isPendingPurchases } = useQuery<CardActivity[]>({
     queryKey: ["activity", "card"],
   });
 
@@ -74,6 +74,7 @@ export default function Card() {
     data: cardDetails,
     refetch: refetchCard,
     isFetching: isFetchingCard,
+    isPending: isPendingCard,
   } = useQuery<CardDetailsData>({ queryKey: ["card", "details"], retry: false, gcTime: 0, staleTime: 0 });
 
   const limit = cardDetails?.limit.amount ? cardDetails.limit.amount / 100 : undefined;
@@ -86,17 +87,13 @@ export default function Card() {
     : [];
   const totalSpent = weeklyPurchases.reduce((accumulator, item) => accumulator + item.usdAmount, 0);
 
-  const { queryKey, isFetching: isFetchingAsset } = useAsset(marketUSDCAddress);
+  const { queryKey, isPending: isPendingAsset } = useAsset(marketUSDCAddress);
   const { address } = useAccount();
-  const {
-    data: kycStatus,
-    isFetching: isFetchingKYC,
-    isPending: isPendingKYC,
-  } = useQuery<KYCStatus>({ queryKey: ["kyc", "status"] });
+  const { data: kycStatus, isPending: isPendingKYC } = useQuery<KYCStatus>({ queryKey: ["kyc", "status"] });
   const isKYCApproved = Boolean(
     kycStatus && "code" in kycStatus && (kycStatus.code === "ok" || kycStatus.code === "legacy kyc"),
   );
-  const { refetch: refetchInstalledPlugins, isFetching: isFetchingPlugins } =
+  const { refetch: refetchInstalledPlugins, isPending: isPendingPlugins } =
     useReadUpgradeableModularAccountGetInstalledPlugins({
       address,
       factory: credential?.factory,
@@ -107,7 +104,7 @@ export default function Card() {
   const {
     data: markets,
     refetch: refetchMarkets,
-    isFetching: isFetchingMarkets,
+    isPending: isPendingMarkets,
   } = useReadPreviewerExactly({
     address: previewerAddress,
     args: address ? [address] : undefined,
@@ -124,7 +121,7 @@ export default function Card() {
   }
 
   const isRefreshing =
-    isFetchingCard || isFetchingPurchases || isFetchingMarkets || isFetchingKYC || isFetchingPlugins || isFetchingAsset;
+    isPendingCard || isPendingPurchases || isPendingMarkets || isPendingKYC || isPendingPlugins || isPendingAsset;
 
   const scrollRef = useRef<ScrollView>(null);
   const refresh = () => {
