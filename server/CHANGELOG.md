@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.74
+
+### Patch Changes
+
+- [#832](https://github.com/exactly/exa/pull/832) [`6d5d477`](https://github.com/exactly/exa/commit/6d5d47759606927aee133eac155437136b852c71) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 bind account address to sentry instrumentation scopes
+
 ## 0.2.73
 
 ### Patch Changes
