@@ -1,5 +1,16 @@
 # @exactly/mobile
 
+## 1.1.22
+
+### Patch Changes
+
+- [#826](https://github.com/exactly/exa/pull/826) [`820bee8`](https://github.com/exactly/exa/commit/820bee89fbde730d4bd997edd87dcd140d0d6b17) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 refine known error classification granularity
+
+- [#827](https://github.com/exactly/exa/pull/827) [`4494f62`](https://github.com/exactly/exa/commit/4494f62607e3c9d526e66104dbd88e1e56b93f3f) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 map web domains to sentry environments
+
+- Updated dependencies [[`f9b3b7b`](https://github.com/exactly/exa/commit/f9b3b7b8f6562b74f473716d002f9422d1d623c5), [`3b2b810`](https://github.com/exactly/exa/commit/3b2b8107414732327e329e3c6626efea1a16b57a), [`942f223`](https://github.com/exactly/exa/commit/942f22360b1696b7e0dfaac9e3b6cf39209b4b07)]:
+  - @exactly/server@0.2.73
+
 ## 1.1.21
 
 ### Patch Changes

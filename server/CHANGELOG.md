@@ -1,5 +1,15 @@
 # @exactly/server
 
+## 0.2.73
+
+### Patch Changes
+
+- [#835](https://github.com/exactly/exa/pull/835) [`f9b3b7b`](https://github.com/exactly/exa/commit/f9b3b7b8f6562b74f473716d002f9422d1d623c5) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚑 fix zero-amount transfer detection
+
+- [`3b2b810`](https://github.com/exactly/exa/commit/3b2b8107414732327e329e3c6626efea1a16b57a) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🔒️ allow exactly images in csp
+
+- [`942f223`](https://github.com/exactly/exa/commit/942f22360b1696b7e0dfaac9e3b6cf39209b4b07) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 rewrite contract error titles in all events
+
 ## 0.2.72
 
 ### Patch Changes
