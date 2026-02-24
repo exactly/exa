@@ -91,11 +91,11 @@ export default function Home() {
     args: account ? [account] : undefined,
     query: { enabled: !!account && !!bytecode, gcTime: 0, refetchInterval: 30_000 },
   });
-  const { data: activity, isFetching: isFetchingActivity } = useQuery<ActivityItem[]>({ queryKey: ["activity"] });
+  const { data: activity, isPending: isPendingActivity } = useQuery<ActivityItem[]>({ queryKey: ["activity"] });
   const {
     data: markets,
     refetch: refetchMarkets,
-    isFetching: isFetchingPreviewer,
+    isPending: isPendingPreviewer,
   } = useReadPreviewerExactly({
     address: previewerAddress,
     args: account ? [account] : undefined,
@@ -104,7 +104,7 @@ export default function Home() {
   const {
     data: kycStatus,
     isFetched: isKYCFetched,
-    isFetching: isFetchingKYC,
+    isPending: isPendingKYC,
   } = useQuery<KYCStatus>({ queryKey: ["kyc", "status"] });
   const needsMigration = Boolean(kycStatus && "code" in kycStatus && kycStatus.code === "legacy kyc");
   const isKYCApproved = Boolean(
@@ -125,7 +125,7 @@ export default function Home() {
     refresh();
   });
 
-  const isFetching = isFetchingActivity || isFetchingPreviewer || isFetchingKYC;
+  const isPending = isPendingActivity || isPendingPreviewer || isPendingKYC;
   const showKYCMigration = isKYCFetched && needsMigration;
   const showPluginOutdated = !!bytecode && !!installedPlugins && !isLatestPlugin;
   return (
@@ -137,7 +137,7 @@ export default function Home() {
           backgroundColor="transparent"
           contentContainerStyle={{ backgroundColor: "$backgroundMild" }}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refresh} />}
+          refreshControl={<RefreshControl refreshing={isPending} onRefresh={refresh} />}
         >
           <ProfileHeader />
           <View flex={1}>

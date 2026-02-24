@@ -31,7 +31,7 @@ export default function Portfolio() {
   } = useTranslation();
   const { balanceUSD } = portfolio;
 
-  const { refetch: refetchMarkets, isFetching: isFetchingMarkets } = useReadPreviewerExactly({
+  const { refetch: refetchMarkets, isPending: isPendingMarkets } = useReadPreviewerExactly({
     address: previewerAddress,
     args: address ? [address] : undefined,
     query: { enabled: !!address },
@@ -66,7 +66,7 @@ export default function Portfolio() {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={isFetchingMarkets}
+            refreshing={isPendingMarkets}
             onRefresh={() => {
               if (address) refetchMarkets().catch(reportError);
             }}
