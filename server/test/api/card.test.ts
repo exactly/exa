@@ -1,11 +1,13 @@
 import "../mocks/auth";
 import "../mocks/deployments";
 import "../mocks/keeper";
+import "../mocks/onesignal";
 import "../mocks/pax";
 import "../mocks/persona";
 
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
+import { parse } from "valibot";
 import { hexToBigInt, padHex, parseEther, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
@@ -13,6 +15,7 @@ import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 import deriveAddress from "@exactly/common/deriveAddress";
 import { exaAccountFactoryAbi, exaPluginAbi } from "@exactly/common/generated/chain";
 import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
+import { Address } from "@exactly/common/validation";
 
 import app from "../../api/card";
 import database, { cards, credentials } from "../../database";
@@ -491,6 +494,13 @@ describe("authenticated", () => {
 
   it("creates a panda debit card with signature product id", async () => {
     vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: "createCard" });
+    const sigCredential = await database.query.credentials.findFirst({
+      columns: { account: true },
+      where: eq(credentials.id, "sig"),
+    });
+    expect(sigCredential).toBeDefined();
+    if (!sigCredential) throw new Error("missing sig credential");
+    expect(await panda.autoCredit(parse(Address, sigCredential.account))).toBe(false);
 
     const response = await appClient.index.$post({ header: { "test-credential-id": "sig" } });
     const json = await response.json();
@@ -512,6 +522,14 @@ describe("authenticated", () => {
 
   it("creates a panda credit card with signature product id", async () => {
     vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: "createCreditCard", last4: "1224" });
+    const ethCredential = await database.query.credentials.findFirst({
+      columns: { account: true },
+      where: eq(credentials.id, "eth"),
+    });
+    expect(ethCredential).toBeDefined();
+    if (!ethCredential) throw new Error("missing eth credential");
+    const account = parse(Address, ethCredential.account);
+    await vi.waitUntil(async () => await panda.autoCredit(account).catch(() => false), 26_666);
 
     const response = await appClient.index.$post({ header: { "test-credential-id": "eth" } });
     const json = await response.json();
@@ -524,7 +542,7 @@ describe("authenticated", () => {
     });
 
     expect(created?.mode).toBe(1);
-
+    expect(captureException).not.toHaveBeenCalled();
     expect(json).toStrictEqual({ status: "ACTIVE", lastFour: "1224", productId: SIGNATURE_PRODUCT_ID });
   });
 
