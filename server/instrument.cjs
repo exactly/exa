@@ -30,7 +30,6 @@ init({
     const exception = event.exception?.values?.[0];
     if (
       exception &&
-      event.fingerprint?.[0] === "{{ default }}" &&
       (exception.type === "ContractFunctionExecutionError" ||
         exception.type === "ContractFunctionRevertedError" ||
         exception.type === "BaseError")
