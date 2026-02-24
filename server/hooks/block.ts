@@ -46,10 +46,10 @@ import revertReason from "@exactly/common/revertReason";
 import shortenHex from "@exactly/common/shortenHex";
 import { Address, Hash, Hex } from "@exactly/common/validation";
 
+import { keeper } from "../utils/accounts";
 import { headers as alchemyHeaders, createWebhook, findWebhook, headerValidator } from "../utils/alchemy";
 import appOrigin from "../utils/appOrigin";
 import ensClient from "../utils/ensClient";
-import keeper from "../utils/keeper";
 import { sendPushNotification } from "../utils/onesignal";
 import publicClient from "../utils/publicClient";
 import redis from "../utils/redis";
