@@ -92,14 +92,14 @@ export default new Hono().post(
       .event.activity.filter(({ category, value }) => category !== "erc721" && category !== "erc1155" && value);
     const accounts = await database.query.credentials
       .findMany({
-        columns: { account: true, publicKey: true, factory: true },
+        columns: { account: true, publicKey: true, factory: true, source: true },
         where: inArray(credentials.account, [...new Set(transfers.map(({ toAddress }) => toAddress))]),
       })
       .then((result) =>
         Object.fromEntries(
           result.map(
-            ({ account, publicKey, factory }) =>
-              [v.parse(Address, account), { publicKey, factory: v.parse(Address, factory) }] as const,
+            ({ account, publicKey, factory, source }) =>
+              [v.parse(Address, account), { publicKey, factory: v.parse(Address, factory), source }] as const,
           ),
         ),
       );
@@ -108,7 +108,10 @@ export default new Hono().post(
       .readContract({ address: exaPreviewerAddress, functionName: "assets", abi: exaPreviewerAbi })
       .then((p) => new Map<Address, Address>(p.map((m) => [v.parse(Address, m.asset), v.parse(Address, m.market)])));
     const markets = new Set(marketsByAsset.values());
-    const pokes = new Map<Address, { assets: Set<Address>; factory: Address; publicKey: Uint8Array<ArrayBuffer> }>();
+    const pokes = new Map<
+      Address,
+      { assets: Set<Address>; factory: Address; publicKey: Uint8Array<ArrayBuffer>; source: null | string }
+    >();
     for (const { toAddress: account, rawContract, value, asset: assetSymbol } of transfers) {
       if (!accounts[account]) continue;
       if (rawContract?.address && markets.has(rawContract.address)) continue;
@@ -125,13 +128,13 @@ export default new Hono().post(
       if (pokes.has(account)) {
         pokes.get(account)?.assets.add(asset);
       } else {
-        const { publicKey, factory } = accounts[account];
-        pokes.set(account, { publicKey, factory, assets: new Set([asset]) });
+        const { publicKey, factory, source } = accounts[account];
+        pokes.set(account, { publicKey, factory, source, assets: new Set([asset]) });
       }
     }
     const { "sentry-trace": sentryTrace, baggage } = getTraceData();
     Promise.allSettled(
-      [...pokes.entries()].map(([account, { publicKey, factory, assets }]) =>
+      [...pokes.entries()].map(([account, { publicKey, factory, source, assets }]) =>
         continueTrace({ sentryTrace, baggage }, () =>
           withScope((scope) =>
             startSpan(
@@ -152,7 +155,7 @@ export default new Hono().post(
                         abi: exaAccountFactoryAbi,
                       },
                     );
-                    track({ event: "AccountFunded", userId: account });
+                    track({ event: "AccountFunded", userId: account, properties: { source } });
                   } catch (error: unknown) {
                     span.setStatus({ code: SPAN_STATUS_ERROR, message: "account_failed" });
                     throw error;
