@@ -1,5 +1,5 @@
+import "../mocks/accounts";
 import "../mocks/deployments";
-import "../mocks/keeper";
 import "../mocks/onesignal";
 import "../mocks/panda";
 import "../mocks/redis";
@@ -47,7 +47,7 @@ import { proposalManager } from "@exactly/plugin/deploy.json";
 
 import database, { cards, credentials, transactions } from "../../database";
 import app from "../../hooks/panda";
-import keeper from "../../utils/keeper";
+import { keeper } from "../../utils/accounts";
 import * as panda from "../../utils/panda";
 import publicClient from "../../utils/publicClient";
 import * as sardine from "../../utils/sardine";

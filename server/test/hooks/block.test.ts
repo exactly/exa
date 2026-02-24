@@ -48,8 +48,8 @@ import ProposalType, { decodeWithdraw } from "@exactly/common/ProposalType";
 import deploy from "@exactly/plugin/deploy.json";
 
 import app from "../../hooks/block";
+import { keeper } from "../../utils/accounts";
 import ensClient from "../../utils/ensClient";
-import keeper from "../../utils/keeper";
 import * as onesignal from "../../utils/onesignal";
 import publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";

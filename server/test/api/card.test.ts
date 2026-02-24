@@ -1,7 +1,6 @@
+import "../mocks/accounts";
 import "../mocks/auth";
 import "../mocks/deployments";
-import "../mocks/keeper";
-import "../mocks/onesignal";
 import "../mocks/pax";
 import "../mocks/persona";
 
@@ -19,7 +18,7 @@ import { Address } from "@exactly/common/validation";
 
 import app from "../../api/card";
 import database, { cards, credentials } from "../../database";
-import keeper from "../../utils/keeper";
+import { keeper } from "../../utils/accounts";
 import * as panda from "../../utils/panda";
 import * as pax from "../../utils/pax";
 import * as persona from "../../utils/persona";

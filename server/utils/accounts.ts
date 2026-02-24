@@ -14,6 +14,7 @@ import {
   WaitForTransactionReceiptTimeoutError,
   withRetry,
   type HttpTransport,
+  type LocalAccount,
   type MaybePromise,
   type Prettify,
   type PrivateKeyAccount,
@@ -44,7 +45,7 @@ import traceClient from "./traceClient";
 
 if (!chain.rpcUrls.alchemy.http[0]) throw new Error("missing alchemy rpc url");
 
-export default createWalletClient({
+export const keeper = createWalletClient({
   chain,
   transport: http(`${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`, {
     batch: true,
@@ -63,153 +64,9 @@ export default createWalletClient({
 const ETH = parse(Address, "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
 const WETH = parse(Address, wethAddress);
 
-export function extender(keeper: WalletClient<HttpTransport, typeof chain, PrivateKeyAccount>) {
-  const base = {
-    exaSend: async (
-      spanOptions: Prettify<Omit<Parameters<typeof startSpan>[0], "name" | "op"> & { name: string; op: string }>,
-      call: Prettify<Pick<WriteContractParameters, "abi" | "address" | "args" | "functionName">>,
-      options?: {
-        ignore?: ((reason: string) => MaybePromise<boolean | TransactionReceipt | undefined>) | string[];
-        level?: "error" | "warning" | ((reason: string, error: unknown) => "error" | "warning" | false) | false;
-        onHash?: (hash: Hash) => MaybePromise<unknown>;
-      },
-    ) =>
-      withScope((scope) =>
-        startSpan({ forceTransaction: true, ...spanOptions }, async (span) => {
-          const account = safeParse(Address, spanOptions.attributes?.account);
-          if (account.success) scope.setUser({ id: account.output });
-          try {
-            scope.setContext("tx", { call });
-            span.setAttributes({
-              "tx.call": `${call.functionName}(${call.args?.map(String).join(", ") ?? ""})`,
-              "tx.from": keeper.account.address,
-              "tx.to": call.address,
-            });
-            const txOptions = {
-              type: "eip1559",
-              maxFeePerGas: 1_000_000_000n,
-              maxPriorityFeePerGas: 1_000_000n,
-              gas: 5_000_000n,
-            } as const;
-            const { request: writeRequest } = await startSpan({ name: "eth_call", op: "tx.simulate" }, () =>
-              publicClient.simulateContract({ account: keeper.account, ...txOptions, ...call }),
-            );
-            const {
-              abi: _,
-              account: __,
-              address: ___,
-              ...request
-            } = { from: writeRequest.account.address, to: writeRequest.address, ...writeRequest };
-            scope.setContext("tx", { request });
-            const prepared = await startSpan({ name: "prepare transaction", op: "tx.prepare" }, () =>
-              keeper.prepareTransactionRequest({
-                to: call.address,
-                data: encodeFunctionData(call),
-                ...txOptions,
-                nonceManager,
-              }),
-            );
-            scope.setContext("tx", { request, prepared });
-            span.setAttribute("tx.nonce", prepared.nonce);
-            const serializedTransaction = await startSpan({ name: "sign transaction", op: "tx.sign" }, () =>
-              keeper.signTransaction(prepared),
-            );
-            const hash = keccak256(serializedTransaction);
-            scope.setContext("tx", { request, prepared, hash });
-            span.setAttribute("tx.hash", hash);
-            const abortController = new AbortController();
-            const [, receiptResult] = await Promise.allSettled([
-              (async () => {
-                while (!abortController.signal.aborted) {
-                  await Promise.allSettled([
-                    startSpan({ name: "send transaction", op: "tx.send" }, () =>
-                      publicClient.sendRawTransaction({ serializedTransaction }),
-                    ).catch((error: unknown) => {
-                      captureException(error, { level: "error" });
-                      throw error;
-                    }),
-                    setTimeout(10_000, null, { signal: abortController.signal }),
-                  ]);
-                }
-              })(),
-              startSpan({ name: "wait for receipt", op: "tx.wait" }, () =>
-                publicClient.waitForTransactionReceipt({ hash, confirmations: 0 }),
-              )
-                .catch((error: unknown) => {
-                  if (error instanceof WaitForTransactionReceiptTimeoutError) {
-                    startSpan(
-                      { name: "nonce reset", op: "tx.reset", attributes: { "tx.nonce": prepared.nonce } },
-                      (resetSpan) => {
-                        const info = nonceManager.info({ address: keeper.account.address, chainId: chain.id });
-                        resetSpan.setAttribute("exa.reset", true);
-                        resetSpan.setAttribute("exa.delta", info.delta);
-                        resetSpan.setAttribute("exa.nonce", info.nonce);
-                        nonceManager.hardReset({ address: keeper.account.address, chainId: chain.id });
-                      },
-                    );
-                  }
-                  throw error;
-                })
-                .finally(() => {
-                  abortController.abort();
-                }),
-              Promise.resolve(options?.onHash?.(hash)).catch((error: unknown) =>
-                captureException(error, { level: "error" }),
-              ),
-            ]);
-            if (receiptResult.status === "rejected") throw receiptResult.reason;
-            const receipt = receiptResult.value;
-            scope.setContext("tx", { request, receipt });
-            const trace = await startSpan({ name: "trace transaction", op: "tx.trace" }, () =>
-              withRetry(() => traceClient.traceTransaction(hash), {
-                delay: 1000,
-                retryCount: 10,
-                shouldRetry: ({ error }) => error instanceof InvalidInputRpcError,
-              }).catch((error: unknown) => {
-                captureException(error, { level: "error" });
-                return null;
-              }),
-            );
-            scope.setContext("tx", { request, receipt, trace });
-            if (receipt.status !== "success") {
-              if (!trace) throw new Error("no trace");
-              // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
-              throw getContractError(new RawContractError({ data: trace.output }), { ...call, args: call.args ?? [] });
-            }
-            span.setStatus({ code: SPAN_STATUS_OK });
-            return receipt;
-          } catch (error: unknown) {
-            const reason = revertReason(error, { fallback: "message", withArguments: true });
-            if (options?.ignore) {
-              const ignore =
-                typeof options.ignore === "function" ? await options.ignore(reason) : options.ignore.includes(reason);
-              if (ignore) {
-                span.setAttribute("exa.error", reason);
-                span.setStatus({ code: SPAN_STATUS_OK });
-                return ignore === true ? null : ignore;
-              }
-            }
-            span.setStatus({ code: SPAN_STATUS_ERROR, message: reason });
-            const level =
-              typeof options?.level === "function" ? options.level(reason, error) : (options?.level ?? "error");
-            if (level) {
-              withScope((captureScope) => {
-                const fingerprint = revertFingerprint(error);
-                if (fingerprint[1] && fingerprint[1] !== "unknown") {
-                  const type = fingerprint.length > 2 ? `${fingerprint[1]}(${fingerprint[2]})` : fingerprint[1];
-                  captureScope.addEventProcessor((event) => {
-                    if (event.exception?.values?.[0]) event.exception.values[0].type = type;
-                    return event;
-                  });
-                }
-                captureException(error, { level, fingerprint });
-              });
-            }
-            throw error;
-          }
-        }),
-      ),
-  };
+export function extender(client: WalletClient<HttpTransport, typeof chain, PrivateKeyAccount>) {
+  const base = withExaSend(client);
+
   return {
     ...base,
     poke: async (
@@ -299,5 +156,164 @@ export function extender(keeper: WalletClient<HttpTransport, typeof chain, Priva
         }).catch((error: unknown) => captureException(error, { level: "error" }));
       }
     },
+  };
+}
+
+export function withExaSend(
+  client: WalletClient<HttpTransport, typeof chain, LocalAccount> & {
+    account: LocalAccount;
+  },
+) {
+  return {
+    exaSend: async (
+      spanOptions: Prettify<Omit<Parameters<typeof startSpan>[0], "name" | "op"> & { name: string; op: string }>,
+      call: Prettify<Pick<WriteContractParameters, "abi" | "address" | "args" | "functionName">>,
+      options?: {
+        ignore?: ((reason: string) => MaybePromise<boolean | TransactionReceipt | undefined>) | string[];
+        level?: "error" | "warning" | ((reason: string, error: unknown) => "error" | "warning" | false) | false;
+        onHash?: (hash: Hash) => MaybePromise<unknown>;
+        onReceipt?: (receipt: TransactionReceipt) => MaybePromise<unknown>;
+      },
+    ) =>
+      withScope((scope) =>
+        startSpan({ forceTransaction: true, ...spanOptions }, async (span) => {
+          const account = safeParse(Address, spanOptions.attributes?.account);
+          if (account.success) scope.setUser({ id: account.output });
+          try {
+            scope.setContext("tx", { call });
+            span.setAttributes({
+              "tx.call": `${call.functionName}(${call.args?.map(String).join(", ") ?? ""})`,
+              "tx.from": client.account.address,
+              "tx.to": call.address,
+            });
+            const txOptions = {
+              type: "eip1559",
+              maxFeePerGas: 1_000_000_000n,
+              maxPriorityFeePerGas: 1_000_000n,
+              gas: 5_000_000n,
+            } as const;
+            const { request: writeRequest } = await startSpan({ name: "eth_call", op: "tx.simulate" }, () =>
+              publicClient.simulateContract({ account: client.account, ...txOptions, ...call }),
+            );
+            const {
+              abi: _,
+              account: __,
+              address: ___,
+              ...request
+            } = { from: writeRequest.account.address, to: writeRequest.address, ...writeRequest };
+            scope.setContext("tx", { request });
+            const prepared = await startSpan({ name: "prepare transaction", op: "tx.prepare" }, () =>
+              client.prepareTransactionRequest({
+                to: call.address,
+                data: encodeFunctionData(call),
+                ...txOptions,
+                nonceManager,
+              }),
+            );
+            scope.setContext("tx", { request, prepared });
+            span.setAttribute("tx.nonce", prepared.nonce);
+            const serializedTransaction = await startSpan({ name: "sign transaction", op: "tx.sign" }, () =>
+              client.signTransaction(prepared),
+            );
+            const hash = keccak256(serializedTransaction);
+            scope.setContext("tx", { request, prepared, hash });
+            span.setAttribute("tx.hash", hash);
+            const abortController = new AbortController();
+            const [, receiptResult] = await Promise.allSettled([
+              (async () => {
+                while (!abortController.signal.aborted) {
+                  await Promise.allSettled([
+                    startSpan({ name: "send transaction", op: "tx.send" }, () =>
+                      publicClient.sendRawTransaction({ serializedTransaction }),
+                    ).catch((error: unknown) => {
+                      captureException(error, { level: "error" });
+                      throw error;
+                    }),
+                    setTimeout(10_000, null, { signal: abortController.signal }),
+                  ]);
+                }
+              })(),
+              startSpan({ name: "wait for receipt", op: "tx.wait" }, () =>
+                publicClient.waitForTransactionReceipt({ hash, confirmations: 0 }),
+              )
+                .catch((error: unknown) => {
+                  if (error instanceof WaitForTransactionReceiptTimeoutError) {
+                    startSpan(
+                      { name: "nonce reset", op: "tx.reset", attributes: { "tx.nonce": prepared.nonce } },
+                      (resetSpan) => {
+                        const info = nonceManager.info({ address: client.account.address, chainId: chain.id });
+                        resetSpan.setAttribute("exa.reset", true);
+                        resetSpan.setAttribute("exa.delta", info.delta);
+                        resetSpan.setAttribute("exa.nonce", info.nonce);
+                        nonceManager.hardReset({ address: client.account.address, chainId: chain.id });
+                      },
+                    );
+                  }
+                  throw error;
+                })
+                .finally(() => {
+                  abortController.abort();
+                }),
+              Promise.resolve(options?.onHash?.(hash)).catch((error: unknown) =>
+                captureException(error, { level: "error" }),
+              ),
+            ]);
+            if (receiptResult.status === "rejected") throw receiptResult.reason;
+            const receipt = receiptResult.value;
+            scope.setContext("tx", { request, receipt });
+            const [trace] = await Promise.all([
+              startSpan({ name: "trace transaction", op: "tx.trace" }, () =>
+                withRetry(() => traceClient.traceTransaction(hash), {
+                  delay: 1000,
+                  retryCount: 10,
+                  shouldRetry: ({ error }) => error instanceof InvalidInputRpcError,
+                }).catch((error: unknown) => {
+                  captureException(error, { level: "error" });
+                  return null;
+                }),
+              ),
+              Promise.resolve(options?.onReceipt?.(receipt)).catch((error: unknown) =>
+                captureException(error, { level: "error" }),
+              ),
+            ]);
+            scope.setContext("tx", { request, receipt, trace });
+            if (receipt.status !== "success") {
+              if (!trace) throw new Error("no trace");
+              // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
+              throw getContractError(new RawContractError({ data: trace.output }), { ...call, args: call.args ?? [] });
+            }
+            span.setStatus({ code: SPAN_STATUS_OK });
+            return receipt;
+          } catch (error: unknown) {
+            const reason = revertReason(error, { fallback: "message", withArguments: true });
+            if (options?.ignore) {
+              const ignore =
+                typeof options.ignore === "function" ? await options.ignore(reason) : options.ignore.includes(reason);
+              if (ignore) {
+                span.setAttribute("exa.error", reason);
+                span.setStatus({ code: SPAN_STATUS_OK });
+                return ignore === true ? null : ignore;
+              }
+            }
+            span.setStatus({ code: SPAN_STATUS_ERROR, message: reason });
+            const level =
+              typeof options?.level === "function" ? options.level(reason, error) : (options?.level ?? "error");
+            if (level) {
+              withScope((captureScope) => {
+                const fingerprint = revertFingerprint(error);
+                if (fingerprint[1] && fingerprint[1] !== "unknown") {
+                  const type = fingerprint.length > 2 ? `${fingerprint[1]}(${fingerprint[2]})` : fingerprint[1];
+                  captureScope.addEventProcessor((event) => {
+                    if (event.exception?.values?.[0]) event.exception.values[0].type = type;
+                    return event;
+                  });
+                }
+                captureException(error, { level, fingerprint });
+              });
+            }
+            throw error;
+          }
+        }),
+      ),
   };
 }
