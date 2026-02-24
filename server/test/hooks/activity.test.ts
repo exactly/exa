@@ -1,6 +1,6 @@
+import "../mocks/accounts";
 import "../mocks/alchemy";
 import "../mocks/deployments";
-import "../mocks/keeper";
 import "../mocks/onesignal";
 import "../mocks/sentry";
 
@@ -28,8 +28,8 @@ import { exaAccountFactoryAbi, previewerAbi } from "@exactly/common/generated/ch
 
 import database, { credentials } from "../../database";
 import app from "../../hooks/activity";
+import { keeper } from "../../utils/accounts";
 import * as decodePublicKey from "../../utils/decodePublicKey";
-import keeper from "../../utils/keeper";
 import * as onesignal from "../../utils/onesignal";
 import publicClient from "../../utils/publicClient";
 import anvilClient from "../anvilClient";

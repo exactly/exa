@@ -23,7 +23,7 @@ import {
 import { Address } from "@exactly/common/validation";
 
 import database, { credentials } from "../database/index";
-import keeper from "../utils/keeper";
+import { keeper } from "../utils/accounts";
 import { createUser } from "../utils/panda";
 import { addCapita, deriveAssociateId } from "../utils/pax";
 import { addDocument, headerValidator, MANTECA_TEMPLATE_WITH_ID_CLASS, PANDA_TEMPLATE } from "../utils/persona";

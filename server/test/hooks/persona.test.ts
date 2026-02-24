@@ -14,7 +14,7 @@ import { wethAddress } from "@exactly/common/generated/chain";
 
 import database, { credentials } from "../../database";
 import app from "../../hooks/persona";
-import keeper from "../../utils/keeper";
+import { keeper } from "../../utils/accounts";
 import * as panda from "../../utils/panda";
 import * as pax from "../../utils/pax";
 import * as persona from "../../utils/persona";
@@ -24,6 +24,13 @@ import * as sardine from "../../utils/sardine";
 const appClient = testClient(app);
 
 vi.mock("@sentry/node", { spy: true });
+vi.mock("@exactly/common/generated/chain", async () => {
+  const actual = await vi.importActual("@exactly/common/generated/chain");
+  return {
+    ...actual,
+    firewallAddress: "0x1234567890123456789012345678901234567890",
+  };
+});
 
 describe("with reference", () => {
   const referenceId = "hook-persona";
