@@ -3,6 +3,7 @@ import {
   bigint,
   char,
   customType,
+  index,
   integer,
   jsonb,
   pgEnum,
@@ -37,25 +38,33 @@ export const credentials = pgTable(
   ({ account }) => [uniqueIndex("account_index").on(account)],
 );
 
-export const cards = pgTable("cards", {
-  id: text("id").primaryKey(),
-  credentialId: text("credential_id")
-    .references(() => credentials.id)
-    .notNull(),
-  status: cardStatus("status").notNull().default("ACTIVE"),
-  lastFour: text("last_four").notNull(),
-  mode: integer("mode").notNull().default(0),
-  productId: text("product_id").notNull().default(PLATINUM_PRODUCT_ID),
-});
+export const cards = pgTable(
+  "cards",
+  {
+    id: text("id").primaryKey(),
+    credentialId: text("credential_id")
+      .references(() => credentials.id)
+      .notNull(),
+    status: cardStatus("status").notNull().default("ACTIVE"),
+    lastFour: text("last_four").notNull(),
+    mode: integer("mode").notNull().default(0),
+    productId: text("product_id").notNull().default(PLATINUM_PRODUCT_ID),
+  },
+  ({ credentialId }) => [index("cards_credential_id_index").on(credentialId)],
+);
 
-export const transactions = pgTable("transactions", {
-  id: text("id").primaryKey(),
-  cardId: text("card_id")
-    .references(() => cards.id)
-    .notNull(),
-  hashes: text("hashes").array().notNull(),
-  payload: jsonb("payload").notNull(),
-});
+export const transactions = pgTable(
+  "transactions",
+  {
+    id: text("id").primaryKey(),
+    cardId: text("card_id")
+      .references(() => cards.id)
+      .notNull(),
+    hashes: text("hashes").array().notNull(),
+    payload: jsonb("payload").notNull(),
+  },
+  ({ cardId }) => [index("transactions_card_id_index").on(cardId)],
+);
 
 export const credentialsRelations = relations(credentials, ({ many }) => ({ cards: many(cards) }));
 
