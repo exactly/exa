@@ -10,4 +10,4 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow:
     when: { true: "${output.portfolio === output.portfolioBefore}" }
     commands: [{ tapOn: Home }, { runFlow: ../subflows/readPortfolio.yaml }]
-- assertTrue: ${output.portfolio - output.portfolioBefore === Number(amount)}
+- assertTrue: ${output.portfolio - output.portfolioBefore === output.usd}

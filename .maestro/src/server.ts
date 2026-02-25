@@ -28,7 +28,7 @@ export function activity(asset: Address, toAddress: Address, value: number, hash
       network: "ANVIL",
       activity: [
         {
-          asset,
+          asset: asset === ethAddress ? "ETH" : asset,
           toAddress,
           value,
           hash,
