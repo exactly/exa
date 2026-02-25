@@ -439,8 +439,8 @@ export async function getCryptoDepositDetails(
 
 // #region fiat currencies
 const Endorsements = ["base", "faster_payments", "pix", "sepa", "spei"] as const; // cspell:ignore spei, sepa
-const BridgeCryptocurrency = ["usdc", "usdt"] as const;
-const BridgeCurrency = ["brl", "eur", "gbp", "mxn", "usd"] as const;
+export const BridgeCryptocurrency = ["usdc", "usdt"] as const;
+export const BridgeCurrency = ["brl", "eur", "gbp", "mxn", "usd"] as const;
 
 export const PaymentRail = ["ach_push", "faster_payments", "pix", "sepa", "spei", "wire"] as const;
 const VirtualAccountStatus = ["activated", "deactivated"] as const;

@@ -48,6 +48,15 @@ VuNOZKwaXFtqgA==
       PAX_ASSOCIATE_ID_KEY: "pax",
       PERSONA_API_KEY: "persona",
       PERSONA_URL: "https://persona.test",
+      BRIDGE_WEBHOOK_PUBLIC_KEY: `-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4f9QAuHfZxnrz+xXumvm
+3aHoAobU+aASjBn0d0UVKb5tGAd765+Ic7pyQEWcxjjAH1xQ/lVdpg0ny0QrWZSV
+FIWZm4jEt0ga/bWiB/5FnSk9OHEYwyIvzkUHp7VZf2PxGuT3LGxtk/yv/sMnZlE2
+nUkuPAVatx4t6MA6+jvjLADT3Lh3YIzlf87Gd8PdofY484S6YJteyJkT7ntfI+S/
+4XyFzQN7b1sSdLBSCsur+jc3Mib0tSQSr8mUf9TGrcB5yRGjEP7TJgMh7PfImEbq
+lX1hy8J7j7dpYYxGXZcUQuTL++du99Q9yxG/0oFrE9ILwqYZJScOlcAulfICkevJ
+YQIDAQAB
+-----END PUBLIC KEY-----`,
       PERSONA_WEBHOOK_SECRET: "persona",
       POSTGRES_URL: "postgres://postgres:postgres@localhost:8432/postgres?sslmode=disable", // cspell:ignore sslmode
       REDIS_URL: "redis",
