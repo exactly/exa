@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
+import "./mocks/accounts";
 import "./mocks/alchemy";
 import "./mocks/deployments";
-import "./mocks/keeper";
 import "./mocks/onesignal";
 import "./mocks/pax";
 import "./mocks/redis";
