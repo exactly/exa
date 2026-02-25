@@ -720,27 +720,25 @@ export default function Pay() {
             borderBottomRightRadius={0}
           >
             <YStack gap="$s4" paddingBottom={insets.bottom}>
-              <XStack justifyContent="space-between" gap="$s3" alignItems="center">
+              <XStack
+                justifyContent="space-between"
+                gap="$s3"
+                alignItems="center"
+                cursor="pointer"
+                onPress={() => {
+                  setAssetSelectionOpen(true);
+                }}
+              >
                 <Text secondary callout textAlign="left">
                   {t("Pay with")}
                 </Text>
-                <YStack>
-                  <XStack
-                    gap="$s3"
-                    alignItems="center"
-                    justifyContent="flex-end"
-                    cursor="pointer"
-                    onPress={() => {
-                      setAssetSelectionOpen(true);
-                    }}
-                  >
-                    <AssetLogo height={16} symbol={symbol} width={16} />
-                    <Text primary emphasized headline textAlign="right">
-                      {symbol}
-                    </Text>
-                    <ChevronRight size={24} color="$interactiveBaseBrandDefault" />
-                  </XStack>
-                </YStack>
+                <XStack gap="$s3" alignItems="center">
+                  <AssetLogo height={16} symbol={symbol} width={16} />
+                  <Text primary emphasized headline textAlign="right">
+                    {symbol}
+                  </Text>
+                  <ChevronRight size={24} color="$interactiveBaseBrandDefault" />
+                </XStack>
               </XStack>
               <XStack justifyContent="space-between" gap="$s3">
                 <Text secondary callout textAlign="left">
