@@ -51,7 +51,7 @@ import { decodeWithdraw } from "@exactly/common/ProposalType";
 import { Address, Hash, type Hex } from "@exactly/common/validation";
 import { effectiveRate, WAD } from "@exactly/lib";
 
-import database, { cards, credentials, transactions as transactionsSchema } from "../database";
+import database, { cards, credentials, transactions } from "../database";
 import auth from "../middleware/auth";
 import { collectors as cryptomateCollectors } from "../utils/cryptomate";
 import { collectors as pandaCollectors } from "../utils/panda";
@@ -277,10 +277,7 @@ export default new Hono().get(
         hashes.length === 0 || userCards.length === 0
           ? []
           : await database.query.transactions.findMany({
-              where: and(
-                arrayOverlaps(transactionsSchema.hashes, hashes),
-                inArray(transactionsSchema.cardId, userCards),
-              ),
+              where: and(arrayOverlaps(transactions.hashes, hashes), inArray(transactions.cardId, userCards)),
               columns: { cardId: true, hashes: true, payload: true },
             });
       statementCards = [...new Set(statementTransactions.map(({ cardId }) => cardId))];
@@ -297,8 +294,8 @@ export default new Hono().get(
     const pdf = accept === "application/pdf";
 
     const response = [
-      ...cardPurchases.flatMap(({ transactions }) =>
-        transactions.map(({ hashes, payload }) => {
+      ...cardPurchases.flatMap(({ transactions: txs }) =>
+        txs.map(({ hashes, payload }) => {
           const panda = safeParse(PandaActivity, {
             ...(payload as object),
             hashes,
