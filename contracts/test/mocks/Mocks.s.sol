@@ -15,7 +15,9 @@ import { MockVelodromeFactory, MockVelodromePool } from "./MockVelodromeFactory.
 
 contract DeployMocks is BaseScript {
   using FixedPointMathLib for uint256;
+  using LibString for address;
   using LibString for string;
+  using LibString for bytes;
 
   MockVelodromeFactory public velodromeFactory;
   MockSwapper public swapper;
@@ -49,5 +51,14 @@ contract DeployMocks is BaseScript {
     }
 
     vm.stopBroadcast();
+
+    if (block.chainid == getChain("anvil").chainId) {
+      address target = acct("swapper");
+      bytes memory code = address(swapper).code;
+      vm.etch(target, code);
+      try vm.activeFork() {
+        vm.rpc("anvil_setCode", string.concat('["', target.toHexString(), '","', code.toHexString(), '"]')); // solhint-disable-line quotes
+      } catch { } // solhint-disable-line no-empty-blocks
+    }
   }
 }
