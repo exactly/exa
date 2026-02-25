@@ -346,7 +346,7 @@ describe("manteca hook", () => {
       expect(segment.track).toHaveBeenCalledWith({
         userId: account,
         event: "Onramp",
-        properties: { currency: "ARS", fiatAmount: 100_000, provider: "manteca", source: null, usdcAmount: 100 },
+        properties: { currency: "ARS", amount: 100_000, provider: "manteca", source: null, usdcAmount: 100 },
       });
       expect(manteca.withdrawBalance).toHaveBeenCalledWith("456", "USDC", account);
     });

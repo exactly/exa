@@ -78,6 +78,9 @@ services:
       - key: BRIDGE_API_URL
         scope: RUN_TIME
         value: ${{ env.BRIDGE_API_URL }}
+      - key: BRIDGE_WEBHOOK_PUBLIC_KEY
+        scope: RUN_TIME
+        value: ${{ env.BRIDGE_WEBHOOK_PUBLIC_KEY }}
       - key: DEBUG
         scope: RUN_TIME
         value: ${{ env.DEBUG }}

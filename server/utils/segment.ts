@@ -42,8 +42,8 @@ export function track(
     | {
         event: "Onramp";
         properties: {
+          amount: number;
           currency: string;
-          fiatAmount: number;
           provider: "bridge" | "manteca";
           source: null | string;
           usdcAmount: number;

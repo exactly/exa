@@ -23,6 +23,7 @@ import {
 } from "valibot";
 import { optimism, optimismSepolia } from "viem/chains";
 
+import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
@@ -447,7 +448,7 @@ export async function getCryptoDepositDetails(
 }
 
 const Endorsements = ["base", "faster_payments", "pix", "sepa", "spei"] as const; // cspell:ignore spei, sepa
-const BridgeCurrency = ["brl", "eur", "gbp", "mxn", "usd", "usdc", "usdt"] as const;
+export const BridgeCurrency = ["brl", "eur", "gbp", "mxn", "usd", "usdc", "usdt"] as const;
 
 export const PaymentRail = ["ach_push", "faster_payments", "pix", "sepa", "spei", "wire"] as const;
 const VirtualAccountStatus = ["activated", "deactivated"] as const;
@@ -1031,3 +1032,37 @@ const BridgeApiErrorCodes = {
   INVALID_PARAMETERS: "invalid_parameters",
   NOT_FOUND: "not_found",
 } as const;
+
+/* eslint-disable @typescript-eslint/prefer-nullish-coalescing -- ignore empty string */
+export const publicKey =
+  process.env.BRIDGE_WEBHOOK_PUBLIC_KEY ||
+  {
+    "web.exactly.app": `-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA3iaPv91f5xNeSu41hSi/
+cMIvCPmrezsW/ZTzE8CxOTBTd+jFokCoOm5PCd6FKRz/So/gUeQP4ejvK81CVXTX
+gAnsg/+By1XUc0HFs6X8F8iQEgzpLlT47ulh1yIiTTop14QPwApG7b8YafvNZgdB
+LW/SeDREQ9RqxJCpCPboRrZGiD2JZzisrrk6uPuDLq4yy59uWg+EoIop/qSKjbe+
+ZNEUuNgaDl+kjNq7kDXsvyoKWeS05dtxpWljhxMCsBVTawiCWhg3wTEMPa+Ui8Gg
+PBs4homDyXrVIA3aw7JYEZJLtJkmWKgSyQtDc8yZnUPyBj+pNmWBqqq1IIeYJ4QF
+1QIDAQAB
+-----END PUBLIC KEY-----`,
+    "sandbox.exactly.app": `-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxrV+s8CvC0+s1W6vZG52
+5eozo6W6HzkTcLQMWDoEzQX+ulEoYH2fPuXeupi11MdVLpEqNqYas8LD3BIf/c9H
+kK54V8vnXNwoHa5ROp/Gjp3B17q3wGfjLa8bQJoJZFWd9W+e3TjUohCDNpeD/qv+
+bkY2y3b1QixmXKK3REw35sfiEe5NkGMU4aEfXhZieIZ1mKXLsIgsgrIpv9BFwQr5
++h3R7Vv3hGKVgSZHnRMa9F1/go8v5Au8gj+9w0LxxRJikoJCubI6igaTCivibxuo
+QXWfFylw6m7eQTvZDQz70pnUEakofRlvKasetbyKmvLzMhuRHeqsxgi8C4ZCx7MP
+dwIDAQAB
+-----END PUBLIC KEY-----`,
+  }[domain] ||
+  `-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxrV+s8CvC0+s1W6vZG52
+5eozo6W6HzkTcLQMWDoEzQX+ulEoYH2fPuXeupi11MdVLpEqNqYas8LD3BIf/c9H
+kK54V8vnXNwoHa5ROp/Gjp3B17q3wGfjLa8bQJoJZFWd9W+e3TjUohCDNpeD/qv+
+bkY2y3b1QixmXKK3REw35sfiEe5NkGMU4aEfXhZieIZ1mKXLsIgsgrIpv9BFwQr5
++h3R7Vv3hGKVgSZHnRMa9F1/go8v5Au8gj+9w0LxxRJikoJCubI6igaTCivibxuo
+QXWfFylw6m7eQTvZDQz70pnUEakofRlvKasetbyKmvLzMhuRHeqsxgi8C4ZCx7MP
+dwIDAQAB
+-----END PUBLIC KEY-----`;
+/* eslint-enable @typescript-eslint/prefer-nullish-coalescing */

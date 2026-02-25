@@ -14,6 +14,7 @@ import api from "./api";
 import database from "./database";
 import activityHook from "./hooks/activity";
 import block from "./hooks/block";
+import bridge from "./hooks/bridge";
 import manteca from "./hooks/manteca";
 import panda from "./hooks/panda";
 import persona from "./hooks/persona";
@@ -30,6 +31,7 @@ app.route("/api", api);
 
 app.route("/hooks/activity", activityHook);
 app.route("/hooks/block", block);
+app.route("/hooks/bridge", bridge);
 app.route("/hooks/manteca", manteca);
 app.route("/hooks/panda", panda);
 app.route("/hooks/persona", persona);

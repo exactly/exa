@@ -201,7 +201,7 @@ export default new Hono().post(
             event: "Onramp",
             properties: {
               currency: payload.data.against,
-              fiatAmount: Number(payload.data.assetAmount) * Number(payload.data.effectivePrice),
+              amount: Number(payload.data.assetAmount) * Number(payload.data.effectivePrice),
               provider: "manteca",
               source: credential.source,
               usdcAmount: Number(payload.data.assetAmount),
