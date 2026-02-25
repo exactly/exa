@@ -87,7 +87,7 @@
     "expo-updates": "~29.0.16",
     "expo-web-browser": "~15.0.10",
     "fast-text-encoding": "^1.0.6",
-    "hono": "^4.12.0",
+    "hono": "catalog:",
     "i18n-iso-countries": "^7.14.0",
     "i18next": "^25.7.4",
     "moti": "^0.30.0",

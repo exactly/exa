@@ -10,6 +10,7 @@ catalog:
   "@tamagui/lucide-icons": *tamagui
   "@tamagui/toast": *tamagui
   "@wagmi/core": ^3.2.2
+  hono: ^4.12.2
   ioredis: ^5.9.2
   react: &react "19.1.0"
   react-dom: *react
