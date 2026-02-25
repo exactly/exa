@@ -49,8 +49,10 @@ jobs:
         run: | # cspell:ignore tlsv1.2
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --profile minimal --default-toolchain none -y && . $HOME/.cargo/env
           mkdir -p $HOME/workingdir/bin && cd $HOME/workingdir/bin
-          for repo in firehose-ethereum substreams substreams-sink-sql; do
-            curl -L "$(curl -sH "Authorization: token $GITHUB_TOKEN" https://api.github.com/repos/streamingfast/$repo/releases/latest | jq --arg arch "$(uname -m | sed 's/aarch64/arm64/')" -r '.assets[] | select(.browser_download_url | test("linux_" + $arch)) | .browser_download_url')" | tar zxf -
+          for source in firehose-ethereum:latest substreams:latest substreams-sink-sql:tags/v4.12.0; do
+            repo="${source%%:*}"
+            release="${source#*:}"
+            curl -L "$(curl -sH "Authorization: token $GITHUB_TOKEN" https://api.github.com/repos/streamingfast/$repo/releases/$release | jq --arg arch "$(uname -m | sed 's/aarch64/arm64/')" -r '.assets[] | select(.browser_download_url | test("linux_" + $arch)) | .browser_download_url')" | tar zxf -
           done
           cd $HOME/workingdir/build
           pnpm nx e2e server > server.log 2>&1 &
@@ -136,8 +138,10 @@ jobs:
         run: | # cspell:ignore tlsv1.2
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --profile minimal --default-toolchain none -y && . $HOME/.cargo/env
           mkdir -p $HOME/workingdir/bin && cd $HOME/workingdir/bin
-          for repo in firehose-ethereum substreams substreams-sink-sql; do
-            curl -L "$(curl -sH "Authorization: token $GITHUB_TOKEN" https://api.github.com/repos/streamingfast/$repo/releases/latest | jq --arg arch "$(uname -m | sed 's/aarch64/arm64/')" -r '.assets[] | select(.browser_download_url | test("darwin_" + $arch)) | .browser_download_url')" | tar zxf -
+          for source in firehose-ethereum:latest substreams:latest substreams-sink-sql:tags/v4.12.0; do
+            repo="${source%%:*}"
+            release="${source#*:}"
+            curl -L "$(curl -sH "Authorization: token $GITHUB_TOKEN" https://api.github.com/repos/streamingfast/$repo/releases/$release | jq --arg arch "$(uname -m | sed 's/aarch64/arm64/')" -r '.assets[] | select(.browser_download_url | test("darwin_" + $arch)) | .browser_download_url')" | tar zxf -
           done
           cd $HOME/workingdir/build
           pnpm nx e2e server > server.log 2>&1 &
