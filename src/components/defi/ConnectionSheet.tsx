@@ -45,7 +45,7 @@ export default function ConnectionSheet({
           </Pressable>
         </View>
         <ScrollView $platform-web={{ maxHeight: "100vh" }}>
-          <View fullScreen flex={1}>
+          <View flex={1}>
             <YStack flex={1} padding="$s4" gap="$s6">
               <YStack flex={1} justifyContent="center">
                 <View width="100%" aspectRatio={1} justifyContent="center" alignItems="center">
