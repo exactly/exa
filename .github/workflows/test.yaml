@@ -34,8 +34,10 @@ jobs:
       - run: pip install -r contracts/requirements.txt
       - run: |
           mkdir -p $HOME/.local/bin && cd $HOME/.local/bin
-          for repo in firehose-ethereum substreams substreams-sink-sql; do
-            curl --retry 5 --retry-all-errors --retry-delay 2 -L "$(curl --retry 5 --retry-all-errors --retry-delay 2 -sH 'Authorization: token ${{ github.token }}' https://api.github.com/repos/streamingfast/$repo/releases/latest | jq --arg arch "$(uname -m | sed 's/aarch64/arm64/')" -r '.assets[] | select(.browser_download_url | test("linux_" + $arch)) | .browser_download_url')" | tar zxf -
+          for source in firehose-ethereum:latest substreams:latest substreams-sink-sql:tags/v4.12.0; do
+            repo="${source%%:*}"
+            release="${source#*:}"
+            curl --retry 5 --retry-all-errors --retry-delay 2 -L "$(curl --retry 5 --retry-all-errors --retry-delay 2 -sH 'Authorization: token ${{ github.token }}' https://api.github.com/repos/streamingfast/$repo/releases/$release | jq --arg arch "$(uname -m | sed 's/aarch64/arm64/')" -r '.assets[] | select(.browser_download_url | test("linux_" + $arch)) | .browser_download_url')" | tar zxf -
           done
       - run: echo ::add-matcher::.github/matcher.json
       - run: pnpm install --frozen-lockfile
@@ -88,8 +90,10 @@ jobs:
       - run: |
           set -o pipefail
           mkdir -p $HOME/.local/bin && cd $HOME/.local/bin
-          for repo in firehose-ethereum substreams substreams-sink-sql; do
-            curl --retry 5 --retry-all-errors --retry-delay 2 -L "$(curl --retry 5 --retry-all-errors --retry-delay 2 -sH 'Authorization: token ${{ github.token }}' https://api.github.com/repos/streamingfast/$repo/releases/latest | jq --arg arch "$(uname -m | sed 's/aarch64/arm64/')" -r '.assets[] | select(.browser_download_url | test("linux_" + $arch)) | .browser_download_url')" | tar zxf -
+          for source in firehose-ethereum:latest substreams:latest substreams-sink-sql:tags/v4.12.0; do
+            repo="${source%%:*}"
+            release="${source#*:}"
+            curl --retry 5 --retry-all-errors --retry-delay 2 -L "$(curl --retry 5 --retry-all-errors --retry-delay 2 -sH 'Authorization: token ${{ github.token }}' https://api.github.com/repos/streamingfast/$repo/releases/$release | jq --arg arch "$(uname -m | sed 's/aarch64/arm64/')" -r '.assets[] | select(.browser_download_url | test("linux_" + $arch)) | .browser_download_url')" | tar zxf -
           done
           for attempt in {1..5}; do
             curl -fsSL "https://get.maestro.mobile.dev" | bash || true
