@@ -20,7 +20,7 @@
     "e2e:android:proxy": "adb start-server && adb reverse tcp:3000 tcp:3000 && adb reverse tcp:8545 tcp:8545 && adb reverse tcp:8969 tcp:8969",
     "e2e:maestro": "maestro test .maestro/flows --include-tags=critical",
     "test": "nx test mobile",
-    "test:spell": "cspell --gitignore '**' '.agents/**' '.changeset/**' '.do/**' '.github/**'",
+    "test:spell": "cspell --gitignore '**' '.agents/**' '.changeset/**' '.do/**' '.eas/**' '.github/**' '.maestro/**'",
     "test:deps": "pnpm audit",
     "test:build": "expo export --platform web",
     "test:ts": "tsc --pretty ${GITHUB_ACTIONS:+false}",
