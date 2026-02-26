@@ -107,7 +107,7 @@ jobs:
           pnpm nx run-many -t build -p mobile e2e
           pnpm nx generate:app server
           pnpm nx e2e server > server.log 2>&1 &
-          pnpm dlx serve server/app -l 8081 -s &
+          pnpm dlx serve server/app -l 8081 -snL &
           for i in {1..420}; do
             curl -f http://localhost:3000/api/auth/authentication > /dev/null 2>&1 && break
             [ $i -eq 420 ] && cat server.log && exit 1
