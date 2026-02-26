@@ -103,12 +103,13 @@ jobs:
           pnpm nx run-many -t build -p mobile e2e
           pnpm nx generate:app server
           pnpm nx e2e server > server.log 2>&1 &
+          pnpm dlx serve server/app -l 8081 -s &
           for i in {1..420}; do
             curl -f http://localhost:3000/api/auth/authentication > /dev/null 2>&1 && break
             [ $i -eq 420 ] && cat server.log && exit 1
             sleep 1
           done
-          CHROME_LOG_FILE=$PWD/chrome.log xvfb-run maestro test .maestro/flows/web.yaml -e "APP_ID=http://localhost:3000" --format junit --output .maestro/junit.xml
+          CHROME_LOG_FILE=$PWD/chrome.log xvfb-run maestro test .maestro/flows/web.yaml --format junit --output .maestro/junit.xml
         env: { APP_DOMAIN: localhost, EXPO_PUBLIC_ENV: e2e }
       - if: always()
         run: |
