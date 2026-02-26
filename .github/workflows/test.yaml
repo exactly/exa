@@ -103,9 +103,9 @@ jobs:
           pnpm nx run-many -t build -p mobile e2e
           pnpm nx generate:app server
           pnpm nx e2e server > server.log 2>&1 &
-          for i in {1..180}; do
+          for i in {1..420}; do
             curl -f http://localhost:3000/api/auth/authentication > /dev/null 2>&1 && break
-            [ $i -eq 180 ] && cat server.log && exit 1
+            [ $i -eq 420 ] && cat server.log && exit 1
             sleep 1
           done
           CHROME_LOG_FILE=$PWD/chrome.log xvfb-run maestro test .maestro/flows/web.yaml -e "APP_ID=http://localhost:3000" --format junit --output .maestro/junit.xml
