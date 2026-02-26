@@ -105,14 +105,14 @@ init({
     "https://ac8875331e4cecd67dd0a7519a36dfeb@o1351734.ingest.us.sentry.io/4506186349674496",
   environment: e2e
     ? "e2e"
-    : (channel ??
+    : channel || // eslint-disable-line @typescript-eslint/prefer-nullish-coalescing -- ignore empty string
       (Platform.OS === "web"
         ? ({ "web.exactly.app": "production" }[domain] ??
           /^(?<subdomain>.+)\.exactly\.app$/.exec(domain)?.groups?.subdomain ??
           "development")
         : __DEV__
           ? "development"
-          : "production")),
+          : "production"),
   tracesSampleRate: 1,
   attachStacktrace: true,
   attachViewHierarchy: true,
