@@ -168,6 +168,8 @@
       "@modelcontextprotocol/sdk": "^1.26.0",
       "@wagmi/core": "catalog:",
       "abitype>zod": "^4.0.0",
+      "ajv@6": "^6.14.0",
+      "ajv@8": "^8.18.0",
       "axios@1.13.2": "^1.13.5",
       "bn.js": "^5.2.3",
       "esbuild@0.18.20": "^0.25.0",
@@ -175,6 +177,11 @@
       "ioredis": "catalog:",
       "lodash-es@4.17.21": "^4.17.23",
       "markdown-it@14.1.0": "^14.1.1",
+      "minimatch@3": "^3.1.4",
+      "minimatch@5": "^5.1.8",
+      "minimatch@8": "^8.0.6",
+      "minimatch@9": "^9.0.7",
+      "minimatch@10": "^10.2.3",
       "semver@7.3.2": "^7.5.2",
       "tar": "^7.5.8",
       "tmp@0.0.33": "^0.2.4",
@@ -263,8 +270,6 @@
     },
     "auditConfig": {
       "ignoreGhsas": [
-        "GHSA-2g4f-4pwh-qvx6",
-        "GHSA-3ppc-4f35-3m26",
         "GHSA-848j-6mx2-7j84"
       ]
     }
