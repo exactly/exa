@@ -136,7 +136,7 @@ export function persona(referenceId: string, event = "approved") {
                 identificationNumber: { value: "123456789" },
                 monthlyPurchasesRange: { value: "3000" },
                 identificationClass: { value: "pp" },
-                currentGovernmentId: { value: { id: "doc_yc294YWhCZi7YKxPnoxCGMmCH111" } },
+                currentGovernmentId: { value: { id: "doc_yc294YWhCZi7YKxPnoxCGMmCH111" } }, // cspell:ignore doc_yc294YWhCZi7YKxPnoxCGMmCH111
                 selectedCountryCode: { value: "TW" },
               },
             },
