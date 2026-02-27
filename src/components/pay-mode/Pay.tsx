@@ -303,6 +303,7 @@ export default function Pay() {
     market: selectedAsset.address,
     enabled: enableSimulations && mode === "crossRepay" && positionAssets > 0n,
     proposalType: ProposalType.CrossRepayAtMaturity,
+    marketOut: marketUSDCAddress,
     maturity,
     positionAssets,
     maxRepay,
