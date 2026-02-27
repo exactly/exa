@@ -16,7 +16,7 @@ import {
 } from "@lifi/sdk";
 import { queryOptions } from "@tanstack/react-query";
 import { parse } from "valibot";
-import { encodeFunctionData, formatUnits, type Address } from "viem";
+import { encodeFunctionData, formatUnits, getAddress, type Address } from "viem";
 import { anvil } from "viem/chains";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
@@ -288,6 +288,36 @@ export async function getRouteFrom({
   toTokenAddress: string;
 }): Promise<RouteFrom> {
   ensureConfig();
+  if (chain.testnet || chain.id === anvil.id) {
+    const from = getAddress(fromTokenAddress);
+    const to = getAddress(toTokenAddress);
+    const toAmount = await publicClient.readContract({
+      abi: mockSwapperAbi,
+      functionName: "getAmountOut",
+      address: swapperAddress,
+      args: [from, fromAmount, to],
+    });
+    return {
+      chainId: chain.id,
+      to: swapperAddress,
+      value: 0n,
+      toAmount,
+      tool: "mockSwapper",
+      data: encodeFunctionData({
+        abi: mockSwapperAbi,
+        functionName: "swapExactAmountIn",
+        args: [from, fromAmount, to, toAmount, toAddress],
+      }),
+      estimate: {
+        tool: "mockSwapper",
+        fromAmount: String(fromAmount),
+        toAmount: String(toAmount),
+        toAmountMin: String(toAmount),
+        approvalAddress: swapperAddress,
+        executionDuration: 0,
+      },
+    };
+  }
   config.set({ integrator: "exa_app", userId: fromAddress });
   const { estimate, transactionRequest, tool } = await getQuote({
     fee: 0.0025,
