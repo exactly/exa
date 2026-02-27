@@ -110,10 +110,11 @@ export default function Ramp() {
         ? depositInfo.pixKey
         : undefined;
   const depositAlias = depositInfo?.network === "ARG_FIAT_TRANSFER" ? depositInfo.depositAlias : undefined;
-  const limits = providers?.manteca.onramp.limits;
-  const limitCurrency = limits?.monthly?.symbol;
+  const onramp = providers?.manteca.onramp;
+  const limits = onramp && "limits" in onramp ? onramp.limits : undefined;
+  const limitCurrency = limits?.monthly.symbol;
   const minAmount = quote?.buyRate ? Number(quote.buyRate) : undefined;
-  const maxAmount = limits?.monthly?.available ? Number(limits.monthly.available) : undefined;
+  const maxAmount = limits?.monthly.available ? Number(limits.monthly.available) : undefined;
 
   function formatAmount(amount: number) {
     return amount.toLocaleString(language, { style: "decimal", minimumFractionDigits: 0, maximumFractionDigits: 0 });

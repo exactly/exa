@@ -572,6 +572,252 @@ describe("evaluateAccount", () => {
       expect(result).toBe(persona.MANTECA_TEMPLATE_WITH_ID_CLASS);
     });
   });
+
+  describe("bridge", () => {
+    it("returns panda template when account not found", async () => {
+      const result = await persona.evaluateAccount({ data: [] }, "bridge");
+
+      expect(result).toBe(persona.PANDA_TEMPLATE);
+    });
+
+    it("returns panda template when all fields are missing", async () => {
+      const result = await persona.evaluateAccount(emptyAccount, "bridge");
+
+      expect(result).toBe(persona.PANDA_TEMPLATE);
+    });
+
+    it("returns undefined when account has a supported document", async () => {
+      const result = await persona.evaluateAccount(basicAccount, "bridge");
+
+      expect(result).toBeUndefined();
+    });
+
+    it("throws not supported when all documents have unsupported id classes", async () => {
+      await expect(
+        persona.evaluateAccount(
+          {
+            data: [
+              {
+                ...basicAccount.data[0],
+                type: "account" as const,
+                id: "test-account-id",
+                attributes: {
+                  ...basicAccount.data[0]?.attributes,
+                  fields: {
+                    ...basicAccount.data[0]?.attributes.fields,
+                    documents: {
+                      type: "array",
+                      value: [
+                        {
+                          type: "hash",
+                          value: {
+                            id_class: { type: "string", value: "wp" },
+                            id_number: { type: "string", value: "WP123456" },
+                            id_issuing_country: { type: "string", value: "AR" },
+                            id_document_id: { type: "string", value: "doc_wp_123" },
+                          },
+                        },
+                      ],
+                    },
+                  },
+                },
+              },
+            ],
+          },
+          "bridge",
+        ),
+      ).rejects.toThrow(persona.scopeValidationErrors.NOT_SUPPORTED);
+    });
+
+    it("throws not supported when newest document is unsupported and no supported documents exist", async () => {
+      await expect(
+        persona.evaluateAccount(
+          {
+            data: [
+              {
+                ...basicAccount.data[0],
+                type: "account" as const,
+                id: "test-account-id",
+                attributes: {
+                  ...basicAccount.data[0]?.attributes,
+                  fields: {
+                    ...basicAccount.data[0]?.attributes.fields,
+                    documents: {
+                      type: "array",
+                      value: [
+                        {
+                          type: "hash",
+                          value: {
+                            id_class: { type: "string", value: "rp" },
+                            id_number: { type: "string", value: "RP123456" },
+                            id_issuing_country: { type: "string", value: "AR" },
+                            id_document_id: { type: "string", value: "doc_rp_123" },
+                          },
+                        },
+                        {
+                          type: "hash",
+                          value: {
+                            id_class: { type: "string", value: "wp" },
+                            id_number: { type: "string", value: "WP789012" },
+                            id_issuing_country: { type: "string", value: "AR" },
+                            id_document_id: { type: "string", value: "doc_wp_456" },
+                          },
+                        },
+                      ],
+                    },
+                  },
+                },
+              },
+            ],
+          },
+          "bridge",
+        ),
+      ).rejects.toThrow(persona.scopeValidationErrors.NOT_SUPPORTED);
+    });
+
+    it("returns undefined when supported document exists among unsupported ones", async () => {
+      const result = await persona.evaluateAccount(
+        {
+          data: [
+            {
+              ...basicAccount.data[0],
+              type: "account" as const,
+              id: "test-account-id",
+              attributes: {
+                ...basicAccount.data[0]?.attributes,
+                fields: {
+                  ...basicAccount.data[0]?.attributes.fields,
+                  documents: {
+                    type: "array",
+                    value: [
+                      {
+                        type: "hash",
+                        value: {
+                          id_class: { type: "string", value: "pp" },
+                          id_number: { type: "string", value: "PP123456" },
+                          id_issuing_country: { type: "string", value: "AR" },
+                          id_document_id: { type: "string", value: "doc_pp_123" },
+                        },
+                      },
+                      {
+                        type: "hash",
+                        value: {
+                          id_class: { type: "string", value: "wp" },
+                          id_number: { type: "string", value: "WP789012" },
+                          id_issuing_country: { type: "string", value: "AR" },
+                          id_document_id: { type: "string", value: "doc_wp_456" },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+          ],
+        },
+        "bridge",
+      );
+
+      expect(result).toBeUndefined();
+    });
+
+    it("throws not supported when documents list is empty", async () => {
+      await expect(
+        persona.evaluateAccount(
+          {
+            data: [
+              {
+                ...basicAccount.data[0],
+                type: "account" as const,
+                id: "test-account-id",
+                attributes: {
+                  ...basicAccount.data[0]?.attributes,
+                  fields: {
+                    ...basicAccount.data[0]?.attributes.fields,
+                    documents: { type: "array", value: [] },
+                  },
+                },
+              },
+            ],
+          },
+          "bridge",
+        ),
+      ).rejects.toThrow(persona.scopeValidationErrors.NOT_SUPPORTED);
+    });
+
+    it("throws when account exists but is invalid", async () => {
+      await expect(
+        persona.evaluateAccount(
+          { data: [{ id: "acc-123", type: "account", attributes: { "country-code": 3 } }] },
+          "bridge",
+        ),
+      ).rejects.toThrow(persona.scopeValidationErrors.INVALID_SCOPE_VALIDATION);
+    });
+  });
+});
+
+describe("getDocumentForBridge", () => {
+  it("returns undefined for empty documents", () => {
+    expect(persona.getDocumentForBridge([])).toBeUndefined();
+  });
+
+  it("returns supported document value", () => {
+    const document = {
+      id_class: { value: "pp" },
+      id_number: { value: "PP123456" },
+      id_issuing_country: { value: "AR" },
+      id_document_id: { value: "doc_pp_123" },
+    };
+    expect(persona.getDocumentForBridge([{ value: document }])).toBe(document);
+  });
+
+  it("returns undefined when all documents have unsupported id classes", () => {
+    const wpDocument = {
+      id_class: { value: "wp" },
+      id_number: { value: "WP123456" },
+      id_issuing_country: { value: "AR" },
+      id_document_id: { value: "doc_wp_123" },
+    };
+    const rpDocument = {
+      id_class: { value: "rp" },
+      id_number: { value: "RP123456" },
+      id_issuing_country: { value: "AR" },
+      id_document_id: { value: "doc_rp_123" },
+    };
+    expect(persona.getDocumentForBridge([{ value: wpDocument }, { value: rpDocument }])).toBeUndefined();
+  });
+
+  it("returns the last supported document, ignoring unsupported ones", () => {
+    const ppDocument = {
+      id_class: { value: "pp" },
+      id_number: { value: "PP123456" },
+      id_issuing_country: { value: "AR" },
+      id_document_id: { value: "doc_pp_123" },
+    };
+    const wpDocument = {
+      id_class: { value: "wp" },
+      id_number: { value: "WP789012" },
+      id_issuing_country: { value: "AR" },
+      id_document_id: { value: "doc_wp_456" },
+    };
+    expect(persona.getDocumentForBridge([{ value: ppDocument }, { value: wpDocument }])).toBe(ppDocument);
+  });
+
+  it("returns the last supported document when multiple supported documents exist", () => {
+    const dlDocument = {
+      id_class: { value: "dl" },
+      id_number: { value: "DL123456" },
+      id_issuing_country: { value: "US" },
+      id_document_id: { value: "doc_dl_123" },
+    };
+    const ppDocument = {
+      id_class: { value: "pp" },
+      id_number: { value: "PP123456" },
+      id_issuing_country: { value: "US" },
+      id_document_id: { value: "doc_pp_123" },
+    };
+    expect(persona.getDocumentForBridge([{ value: dlDocument }, { value: ppDocument }])).toBe(ppDocument);
+  });
 });
 
 describe("getAllowedMantecaIds", () => {

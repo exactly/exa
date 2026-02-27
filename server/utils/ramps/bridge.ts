@@ -1,4 +1,4 @@
-import { captureException } from "@sentry/core";
+import { captureException, withScope } from "@sentry/core";
 import { eq } from "drizzle-orm";
 import { alpha2ToAlpha3 } from "i18n-iso-countries";
 import crypto from "node:crypto";
@@ -11,6 +11,7 @@ import {
   optional,
   parse,
   picklist,
+  safeParse,
   string,
   union,
   unknown,
@@ -20,7 +21,7 @@ import {
   type InferInput,
   type InferOutput,
 } from "valibot";
-import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
+import { optimism, optimismSepolia } from "viem/chains";
 
 import chain from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
@@ -29,15 +30,9 @@ import database, { credentials } from "../../database";
 import * as persona from "../persona";
 import ServiceError from "../ServiceError";
 
-import type {
-  Cryptocurrency,
-  CryptoNetwork,
-  Currency,
-  DepositDetails,
-  ProviderInfo,
-  QuoteResponse,
-  RampProvider,
-} from "./shared";
+export const name = "bridge" as const;
+
+export const Network = ["SOLANA", "STELLAR", "TRON"] as const;
 
 if (!process.env.BRIDGE_API_URL) throw new Error("missing bridge api url");
 const baseURL = process.env.BRIDGE_API_URL;
@@ -45,16 +40,33 @@ const baseURL = process.env.BRIDGE_API_URL;
 if (!process.env.BRIDGE_API_KEY) throw new Error("missing bridge api key");
 const apiKey = process.env.BRIDGE_API_KEY;
 
-// #region services
 export async function createCustomer(user: InferInput<typeof CreateCustomer>) {
   return await request(NewCustomer, "/customers", {}, user, "POST").catch((error: unknown) => {
     if (error instanceof ServiceError && typeof error.cause === "string") {
       if (error.cause.includes(BridgeApiErrorCodes.EMAIL_ALREADY_EXISTS)) {
-        captureException(new Error("email already exists"), { level: "error" });
+        withScope((scope) => {
+          scope.addEventProcessor((event) => {
+            if (event.exception?.values?.[0]) event.exception.values[0].type = "email already exists";
+            return event;
+          });
+          captureException(error, {
+            level: "error",
+            fingerprint: ["{{ default }}", "email already exists"],
+          });
+        });
         throw new Error(ErrorCodes.EMAIL_ALREADY_EXISTS);
       }
       if (error.cause.includes(BridgeApiErrorCodes.INVALID_PARAMETERS) && error.cause.includes("residential_address")) {
-        captureException(new Error("invalid address"), { level: "warning" });
+        withScope((scope) => {
+          scope.addEventProcessor((event) => {
+            if (event.exception?.values?.[0]) event.exception.values[0].type = "invalid address";
+            return event;
+          });
+          captureException(error, {
+            level: "warning",
+            fingerprint: ["{{ default }}", "invalid address"],
+          });
+        });
         throw new Error(ErrorCodes.INVALID_ADDRESS);
       }
     }
@@ -84,11 +96,9 @@ export async function getCustomer(customerId: string) {
   });
 }
 
-export async function getQuote(
-  from: (typeof QuoteCurrency)[number],
-  to: (typeof QuoteCurrency)[number],
-): Promise<InferOutput<typeof QuoteResponse>> {
-  const quote = await request(Quote, `/exchange_rates?from=${CurrencyMapping[from]}&to=${CurrencyMapping[to]}`).catch(
+export async function getQuote(from: "USD", to: (typeof QuoteCurrency)[number]) {
+  if (to === "USDC") return { buyRate: "1.0", sellRate: "1.0" };
+  const quote = await request(Quote, `/exchange_rates?from=${CurrencyToBridge[from]}&to=${CurrencyToBridge[to]}`).catch(
     (error: unknown) => {
       captureException(error, { level: "error" });
     },
@@ -150,23 +160,24 @@ export async function getProvider(params: {
   credentialId: string;
   customerId?: null | string;
   redirectURL?: string;
-}): Promise<InferOutput<typeof ProviderInfo>> {
-  const currencies: (typeof SupportedCurrency)[number][] = [];
-  const cryptoCurrencies: {
-    cryptoCurrency: (typeof SupportedCrypto)[number];
-    network: (typeof CryptoNetwork)[number];
-  }[] = [];
+}) {
+  const currencies: (
+    | (typeof FiatCurrency)[number]
+    | { currency: "USDC"; network: "SOLANA" }
+    | { currency: "USDC"; network: "STELLAR" }
+    | { currency: "USDT"; network: "TRON" }
+  )[] = [];
 
   if (!Supported[chain.id]) {
     captureException(new Error("bridge not supported chain id"), { contexts: { chain }, level: "error" });
-    return { onramp: { currencies: [], cryptoCurrencies: [] }, status: "NOT_AVAILABLE" };
+    return { onramp: { currencies: [] }, status: "NOT_AVAILABLE" as const };
   }
 
-  for (const cryptoRail of SupportedCryptoPaymentRail) {
-    for (const cryptoCurrency of CryptoCurrencyByPaymentRail[cryptoRail]) {
-      cryptoCurrencies.push({ cryptoCurrency, network: CryptoPaymentRailToNetwork[cryptoRail] });
-    }
-  }
+  currencies.push(
+    { currency: "USDC", network: "SOLANA" },
+    { currency: "USDC", network: "STELLAR" },
+    { currency: "USDT", network: "TRON" },
+  );
 
   if (params.customerId) {
     const bridgeUser = await getCustomer(params.customerId);
@@ -176,7 +187,7 @@ export async function getProvider(params: {
       case "rejected":
       case "paused":
         captureException(new Error("bridge user not available"), { contexts: { bridgeUser }, level: "warning" });
-        return { status: "NOT_AVAILABLE", onramp: { currencies: [], cryptoCurrencies: [] } };
+        return { status: "NOT_AVAILABLE" as const, onramp: { currencies: [] } };
       case "under_review":
       case "awaiting_questionnaire":
       case "awaiting_ubo":
@@ -184,10 +195,9 @@ export async function getProvider(params: {
       case "not_started":
         captureException(new Error("bridge user onboarding"), { contexts: { bridgeUser }, level: "warning" });
         return {
-          status: "ONBOARDING",
+          status: "ONBOARDING" as const,
           onramp: {
-            currencies: (["base", "sepa"] as const).flatMap((endorsement) => CurrencyByEndorsement[endorsement]),
-            cryptoCurrencies,
+            currencies: [...currencies, ...CurrencyByEndorsement.base],
           },
         };
       case "active":
@@ -240,7 +250,7 @@ export async function getProvider(params: {
       }
     }
 
-    return { status: "ACTIVE", onramp: { currencies, cryptoCurrencies } };
+    return { status: "ACTIVE" as const, onramp: { currencies } };
   }
 
   const personaAccount = await persona.getAccount(params.credentialId, "bridge");
@@ -249,13 +259,14 @@ export async function getProvider(params: {
   const countryCode = personaAccount.attributes["country-code"];
   const validDocument = persona.getDocumentForBridge(personaAccount.attributes.fields.documents.value);
   if (!validDocument) throw new Error(ErrorCodes.NO_DOCUMENT);
-  const bridgeIdType = idClassToBridge(validDocument.id_class.value);
+  const idClass = safeParse(picklist(persona.IdentificationClasses), validDocument.id_class.value);
+  const bridgeIdType = idClass.success && persona.IdClassToBridge[idClass.output];
   if (!bridgeIdType) {
     captureException(new Error("bridge not found identification class"), {
       contexts: { bridge: { credentialId: params.credentialId, idClass: validDocument.id_class.value } },
       level: "warning",
     });
-    return { onramp: { currencies: [], cryptoCurrencies: [] }, status: "NOT_AVAILABLE" };
+    return { onramp: { currencies: [] }, status: "NOT_AVAILABLE" as const };
   }
 
   const country = alpha2ToAlpha3(countryCode);
@@ -271,15 +282,15 @@ export async function getProvider(params: {
   if (countryCode === "GB") endorsements.push("faster_payments");
   for (const endorsement of endorsements) currencies.push(...CurrencyByEndorsement[endorsement]);
 
-  let bridgeRedirectURL: undefined | URL = undefined;
+  let bridgeRedirectURL: undefined | URL;
   if (params.redirectURL) {
     bridgeRedirectURL = new URL(params.redirectURL);
-    bridgeRedirectURL.searchParams.set("provider", "bridge" satisfies (typeof RampProvider)[number]);
+    bridgeRedirectURL.searchParams.set("provider", "bridge");
   }
   return {
-    status: "NOT_STARTED",
+    status: "NOT_STARTED" as const,
     tosLink: await agreementLink(bridgeRedirectURL?.toString()),
-    onramp: { currencies, cryptoCurrencies },
+    onramp: { currencies },
   };
 }
 
@@ -316,7 +327,8 @@ export async function onboarding(params: { acceptedTermsId: string; credentialId
       : undefined,
   ]);
 
-  const bridgeIdType = idClassToBridge(validDocument.id_class.value);
+  const idClass = safeParse(picklist(persona.IdentificationClasses), validDocument.id_class.value);
+  const bridgeIdType = idClass.success && persona.IdClassToBridge[idClass.output];
   if (!bridgeIdType) throw new Error(ErrorCodes.NOT_FOUND_IDENTIFICATION_CLASS);
   const country = alpha2ToAlpha3(countryCode);
   if (!country) throw new Error(ErrorCodes.NO_COUNTRY_ALPHA3);
@@ -367,10 +379,10 @@ export async function onboarding(params: { acceptedTermsId: string; credentialId
 }
 
 export async function getDepositDetails(
-  currency: (typeof SupportedCurrency)[number],
+  currency: (typeof FiatCurrency)[number],
   account: string,
   customer: InferOutput<typeof CustomerResponse>,
-): Promise<InferOutput<typeof DepositDetails>[]> {
+) {
   const supportedChainId = Supported[chain.id];
   if (!supportedChainId) {
     captureException(new Error("bridge not supported chain id"), { contexts: { chain }, level: "error" });
@@ -384,11 +396,11 @@ export async function getDepositDetails(
   const virtualAccounts = await getVirtualAccounts(customer.id);
   let virtualAccount = virtualAccounts.find(
     ({ source_deposit_instructions, status }) =>
-      source_deposit_instructions.currency === CurrencyMapping[currency] && status === "activated",
+      source_deposit_instructions.currency === CurrencyToBridge[currency] && status === "activated",
   );
 
   virtualAccount ??= await createVirtualAccount(customer.id, {
-    source: { currency: CurrencyMapping[currency] },
+    source: { currency: CurrencyToBridge[currency] },
     developer_fee_percentage: "0.0",
     destination: { currency: "usdc", payment_rail: supportedChainId, address: account },
   });
@@ -397,11 +409,11 @@ export async function getDepositDetails(
 }
 
 export async function getCryptoDepositDetails(
-  cryptoCurrency: (typeof SupportedCrypto)[number],
-  network: (typeof CryptoNetwork)[number],
+  currency: "USDC" | "USDT",
+  network: (typeof Network)[number],
   account: string,
   customer: InferOutput<typeof CustomerResponse>,
-): Promise<InferOutput<typeof DepositDetails>[]> {
+) {
   const supportedChainId = Supported[chain.id];
   if (!supportedChainId) {
     captureException(new Error("bridge not supported chain id"), { contexts: { chain }, level: "error" });
@@ -410,43 +422,39 @@ export async function getCryptoDepositDetails(
   if (customer.status !== "active") throw new Error(ErrorCodes.NOT_ACTIVE_CUSTOMER);
 
   const paymentRail = NetworkToCryptoPaymentRail[network];
-  if (!CryptoCurrencyByPaymentRail[paymentRail].includes(cryptoCurrency)) {
+  if (!CurrencyByPaymentRail[paymentRail].includes(currency)) {
     throw new Error(ErrorCodes.NOT_AVAILABLE_CRYPTO_PAYMENT_RAIL);
   }
 
   const liquidationAddresses = await getLiquidationAddresses(customer.id);
   let liquidationAddress = liquidationAddresses.find(
-    ({ chain: bridgeChain, currency }) =>
-      bridgeChain === paymentRail && currency === CryptocurrencyMapping[cryptoCurrency],
+    ({ chain: bridgeChain, currency: bridgeCurrency }) =>
+      bridgeChain === paymentRail && CurrencyToBridge[currency] === bridgeCurrency,
   );
 
-  liquidationAddress ??= await createLiquidationAddress(customer.id, {
-    destination_address: account,
-    destination_currency: "usdc",
-    destination_payment_rail: supportedChainId,
-    currency: CryptocurrencyMapping[cryptoCurrency],
-    chain: paymentRail,
-  });
+  liquidationAddress ??= await createLiquidationAddress(
+    customer.id,
+    parse(CreateLiquidationAddress, {
+      destination_address: account,
+      destination_currency: "usdc",
+      destination_payment_rail: supportedChainId,
+      currency: CurrencyToBridge[currency],
+      chain: paymentRail,
+    }),
+  );
 
   return getDepositDetailsFromLiquidationAddress(liquidationAddress, account);
 }
-// #endregion services
 
-// #region fiat currencies
 const Endorsements = ["base", "faster_payments", "pix", "sepa", "spei"] as const; // cspell:ignore spei, sepa
-const BridgeCryptocurrency = ["usdc", "usdt"] as const;
-const BridgeCurrency = ["brl", "eur", "gbp", "mxn", "usd"] as const;
+const BridgeCurrency = ["brl", "eur", "gbp", "mxn", "usd", "usdc", "usdt"] as const;
 
 export const PaymentRail = ["ach_push", "faster_payments", "pix", "sepa", "spei", "wire"] as const;
 const VirtualAccountStatus = ["activated", "deactivated"] as const;
 
-export const SupportedCurrency = [
-  "BRL",
-  "EUR",
-  "GBP",
-  "MXN",
-  "USD",
-] as const satisfies readonly (typeof Currency)[number][];
+export const FiatCurrency = ["BRL", "EUR", "GBP", "MXN", "USD"] as const;
+export const CryptoCurrency = ["USDT", "USDC"] as const;
+export const SupportedCurrency = [...FiatCurrency, ...CryptoCurrency] as const;
 
 export const QuoteCurrency = [
   "BRL",
@@ -454,88 +462,47 @@ export const QuoteCurrency = [
   "GBP",
   "MXN",
   "USD",
+  "USDC",
+  "USDT",
 ] as const satisfies readonly (typeof SupportedCurrency)[number][];
 
-const CurrencyMapping: Record<(typeof SupportedCurrency)[number], (typeof BridgeCurrency)[number]> = {
+const CurrencyToBridge: Record<(typeof SupportedCurrency)[number], (typeof BridgeCurrency)[number]> = {
   BRL: "brl",
   EUR: "eur",
   GBP: "gbp",
   MXN: "mxn",
   USD: "usd",
+  USDC: "usdc",
+  USDT: "usdt",
 } as const;
 
-const CurrencyByEndorsement: Record<(typeof Endorsements)[number], (typeof SupportedCurrency)[number][]> = {
+const CurrencyByEndorsement: Record<(typeof Endorsements)[number], (typeof FiatCurrency)[number][]> = {
   base: ["USD"],
   faster_payments: ["GBP"],
   pix: ["BRL"],
   sepa: ["EUR"],
   spei: ["MXN"],
 };
-// #endregion fiat currencies
 
-// #region crypto currencies
-export const SupportedCrypto = ["USDC", "USDT"] as const satisfies readonly (typeof Cryptocurrency)[number][];
+export const CryptoPaymentRail = ["solana", "stellar", "tron"] as const;
+export const BridgeChain = ["optimism"] as const;
 
-export const CryptocurrencyMapping: Record<(typeof SupportedCrypto)[number], (typeof BridgeCryptocurrency)[number]> = {
-  USDC: "usdc",
-  USDT: "usdt",
-} as const;
-
-export const CryptoPaymentRail = [
-  "arbitrum",
-  "avalanche_c_chain",
-  "base",
-  "ethereum",
-  "optimism",
-  "polygon",
-  "solana",
-  "stellar",
-  "tron",
-] as const;
-
-export const SupportedCryptoPaymentRail = [
-  "solana",
-  "stellar",
-  "tron",
-] as const satisfies readonly (typeof CryptoPaymentRail)[number][];
-
-const CryptoCurrencyByPaymentRail: Record<
-  (typeof SupportedCryptoPaymentRail)[number],
-  (typeof SupportedCrypto)[number][]
-> = {
+const CurrencyByPaymentRail: Record<(typeof CryptoPaymentRail)[number], (typeof CryptoCurrency)[number][]> = {
   solana: ["USDC"],
   stellar: ["USDC"],
   tron: ["USDT"],
 };
 
-const CryptoPaymentRailToNetwork: Record<(typeof SupportedCryptoPaymentRail)[number], (typeof CryptoNetwork)[number]> =
-  {
-    solana: "SOLANA",
-    stellar: "STELLAR",
-    tron: "TRON",
-  } as const;
-
-const NetworkToCryptoPaymentRail = createReverseMapping(CryptoPaymentRailToNetwork);
-// #endregion crypto currencies
-
-// #region schemas
-const Supported: Record<number, (typeof CryptoPaymentRail)[number]> = {
-  [optimism.id]: "optimism",
-  [base.id]: "base",
-  [baseSepolia.id]: "base",
-  [optimismSepolia.id]: "optimism",
+const NetworkToCryptoPaymentRail: Record<(typeof Network)[number], (typeof CryptoPaymentRail)[number]> = {
+  SOLANA: "solana",
+  STELLAR: "stellar",
+  TRON: "tron",
 } as const;
 
-export const IdentityDocumentType = [
-  "drivers_license",
-  "matriculate_id",
-  "military_id",
-  "national_id",
-  "passport",
-  "permanent_residency_id",
-  "state_or_provincial_id",
-  "visa",
-] as const;
+const Supported: Record<number, (typeof BridgeChain)[number]> = {
+  [optimism.id]: "optimism",
+  [optimismSepolia.id]: "optimism",
+} as const;
 
 export const TINType = [
   "drivers_license",
@@ -707,19 +674,6 @@ const AdditionalRequirements = [
 const CapabilitiesStatus = ["pending", "active", "inactive", "rejected"] as const;
 const EndorsementStatus = ["incomplete", "approved", "revoked"] as const;
 
-const IdClassToBridge: Record<
-  (typeof persona.IdentificationClasses)[number],
-  (typeof IdentityDocumentType)[number] | undefined
-> = {
-  id: "national_id",
-  pp: "passport",
-  dl: "drivers_license",
-  wp: undefined,
-  rp: undefined,
-  pr: "permanent_residency_id",
-  visa: "visa",
-};
-
 const Quote = object({ midmarket_rate: string(), buy_rate: string(), sell_rate: string() }); // cspell:ignore midmarket
 
 const AgreementLinkResponse = object({ url: string() });
@@ -754,7 +708,7 @@ const CustomerResponse = object({
 });
 
 const IdentityDocument = object({
-  type: picklist(IdentityDocumentType),
+  type: string(),
   issuing_country: string(),
   number: string(),
   image_front: string(),
@@ -805,10 +759,7 @@ const CreateCustomer = object({
   endorsements: optional(array(picklist(Endorsements))),
 });
 
-const NewCustomer = object({
-  status: picklist(CustomerStatus),
-  id: string(),
-});
+const NewCustomer = object({ status: picklist(CustomerStatus), id: string() });
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const CreateVirtualAccount = object({
@@ -817,8 +768,8 @@ const CreateVirtualAccount = object({
     currency: picklist(BridgeCurrency),
   }),
   destination: object({
-    currency: picklist(BridgeCryptocurrency),
-    payment_rail: picklist(CryptoPaymentRail),
+    currency: picklist(["usdc"]),
+    payment_rail: picklist(BridgeChain),
     address: Address,
   }),
 });
@@ -828,6 +779,12 @@ const VirtualAccount = object({
   status: picklist(VirtualAccountStatus),
   developer_fee_percentage: optional(string()),
   source_deposit_instructions: variant("currency", [
+    object({
+      currency: literal("brl" as const satisfies (typeof BridgeCurrency)[number]),
+      payment_rails: array(picklist(["pix"] as const satisfies (typeof PaymentRail)[number][])),
+      account_holder_name: string(),
+      br_code: string(),
+    }),
     object({
       currency: literal("usd" as const satisfies (typeof BridgeCurrency)[number]),
       payment_rails: array(picklist(["ach_push", "wire"] as const satisfies (typeof PaymentRail)[number][])),
@@ -869,27 +826,24 @@ const VirtualAccount = object({
 });
 const VirtualAccounts = object({ count: number(), data: array(VirtualAccount) });
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const CreateLiquidationAddress = object({
-  currency: picklist([...BridgeCryptocurrency, "any"]),
+  currency: picklist(["usdc", "usdt"]),
   chain: picklist([...CryptoPaymentRail, "evm"]),
-  destination_payment_rail: picklist([...PaymentRail, ...CryptoPaymentRail]),
-  destination_currency: picklist([...BridgeCurrency, ...BridgeCryptocurrency]),
+  destination_payment_rail: picklist(BridgeChain),
+  destination_currency: picklist(["usdc"]),
   destination_address: Address,
 });
 
 const LiquidationAddress = object({
   id: string(),
-  currency: picklist([...BridgeCryptocurrency, "any"]),
+  currency: picklist(["usdc", "usdt", "any"]),
   chain: picklist([...CryptoPaymentRail, "evm"]),
   address: string(),
   destination_address: string(),
 });
 
 const LiquidationAddresses = object({ count: number(), data: array(LiquidationAddress) });
-// #endregion schemas
 
-// #region utils
 async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
   schema: BaseSchema<TInput, TOutput, TIssue>,
   url: `/${string}`,
@@ -931,14 +885,7 @@ async function fetchAndEncodeFile(url: string, fileName: string) {
   return encodeFile(new File([file], fileName));
 }
 
-function idClassToBridge(idClass: string): (typeof IdentityDocumentType)[number] | undefined {
-  return IdClassToBridge[idClass as keyof typeof IdClassToBridge];
-}
-
-function getDepositDetailsFromVirtualAccount(
-  virtualAccount: InferOutput<typeof VirtualAccount>,
-  account: string,
-): InferOutput<typeof DepositDetails>[] {
+function getDepositDetailsFromVirtualAccount(virtualAccount: InferOutput<typeof VirtualAccount>, account: string) {
   if (virtualAccount.destination.address.toLowerCase() !== account.toLowerCase()) {
     throw new Error(ErrorCodes.INVALID_ACCOUNT);
   }
@@ -946,8 +893,8 @@ function getDepositDetailsFromVirtualAccount(
     case "usd":
       return [
         {
-          network: "ACH",
-          displayName: "ACH",
+          network: "ACH" as const,
+          displayName: "ACH" as const,
           beneficiaryName: virtualAccount.source_deposit_instructions.bank_beneficiary_name,
           routingNumber: virtualAccount.source_deposit_instructions.bank_routing_number,
           accountNumber: virtualAccount.source_deposit_instructions.bank_account_number,
@@ -957,8 +904,8 @@ function getDepositDetailsFromVirtualAccount(
           estimatedProcessingTime: "1 - 3 business days",
         },
         {
-          network: "WIRE",
-          displayName: "WIRE",
+          network: "WIRE" as const,
+          displayName: "WIRE" as const,
           beneficiaryName: virtualAccount.source_deposit_instructions.bank_beneficiary_name,
           routingNumber: virtualAccount.source_deposit_instructions.bank_routing_number,
           accountNumber: virtualAccount.source_deposit_instructions.bank_account_number,
@@ -971,8 +918,8 @@ function getDepositDetailsFromVirtualAccount(
     case "eur":
       return [
         {
-          network: "SEPA",
-          displayName: "SEPA",
+          network: "SEPA" as const,
+          displayName: "SEPA" as const,
           beneficiaryName: virtualAccount.source_deposit_instructions.account_holder_name,
           iban: virtualAccount.source_deposit_instructions.iban,
           fee: "0.0",
@@ -982,10 +929,21 @@ function getDepositDetailsFromVirtualAccount(
     case "mxn":
       return [
         {
-          network: "SPEI",
-          displayName: "SPEI",
+          network: "SPEI" as const,
+          displayName: "SPEI" as const,
           beneficiaryName: virtualAccount.source_deposit_instructions.account_holder_name,
           clabe: virtualAccount.source_deposit_instructions.clabe,
+          fee: "0.0",
+          estimatedProcessingTime: "300",
+        },
+      ];
+    case "brl":
+      return [
+        {
+          network: "PIX-BR" as const,
+          displayName: "PIX BR" as const,
+          beneficiaryName: virtualAccount.source_deposit_instructions.account_holder_name,
+          brCode: virtualAccount.source_deposit_instructions.br_code,
           fee: "0.0",
           estimatedProcessingTime: "300",
         },
@@ -993,8 +951,8 @@ function getDepositDetailsFromVirtualAccount(
     case "gbp":
       return [
         {
-          network: "FASTER_PAYMENTS",
-          displayName: "Faster Payments",
+          network: "FASTER_PAYMENTS" as const,
+          displayName: "Faster Payments" as const,
           accountNumber: virtualAccount.source_deposit_instructions.account_number,
           sortCode: virtualAccount.source_deposit_instructions.sort_code,
           accountHolderName: virtualAccount.source_deposit_instructions.account_holder_name,
@@ -1010,7 +968,7 @@ function getDepositDetailsFromVirtualAccount(
 function getDepositDetailsFromLiquidationAddress(
   liquidationAddress: InferOutput<typeof LiquidationAddress>,
   account: string,
-): InferOutput<typeof DepositDetails>[] {
+) {
   if (liquidationAddress.destination_address.toLowerCase() !== account.toLowerCase()) {
     throw new Error(ErrorCodes.INVALID_ACCOUNT);
   }
@@ -1019,8 +977,8 @@ function getDepositDetailsFromLiquidationAddress(
     case "tron":
       return [
         {
-          network: "TRON",
-          displayName: "TRON",
+          network: "TRON" as const,
+          displayName: "TRON" as const,
           address: liquidationAddress.address,
           fee: "0.0",
           estimatedProcessingTime: "300",
@@ -1029,8 +987,8 @@ function getDepositDetailsFromLiquidationAddress(
     case "solana":
       return [
         {
-          network: "SOLANA",
-          displayName: "SOLANA",
+          network: "SOLANA" as const,
+          displayName: "SOLANA" as const,
           address: liquidationAddress.address,
           fee: "0.0",
           estimatedProcessingTime: "300",
@@ -1039,8 +997,8 @@ function getDepositDetailsFromLiquidationAddress(
     case "stellar":
       return [
         {
-          network: "STELLAR",
-          displayName: "STELLAR",
+          network: "STELLAR" as const,
+          displayName: "STELLAR" as const,
           address: liquidationAddress.address,
           fee: "0.0",
           estimatedProcessingTime: "300",
@@ -1049,11 +1007,6 @@ function getDepositDetailsFromLiquidationAddress(
   }
   throw new Error(ErrorCodes.NOT_AVAILABLE_CRYPTO_PAYMENT_RAIL);
 }
-
-function createReverseMapping<T extends Record<string, string>>(mapping: T) {
-  return Object.fromEntries(Object.entries(mapping).map(([key, value]) => [value, key])) as Record<T[keyof T], keyof T>;
-}
-// #endregion utils
 
 export const ErrorCodes = {
   ALREADY_ONBOARDED: "already onboarded",

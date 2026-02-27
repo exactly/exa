@@ -2,7 +2,7 @@ import "../mocks/sentry";
 
 import { parse } from "valibot";
 import { padHex } from "viem";
-import { baseSepolia, optimism } from "viem/chains";
+import { optimism, optimismSepolia } from "viem/chains";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Address } from "@exactly/common/validation";
@@ -79,13 +79,15 @@ describe("manteca utils", () => {
       expect(details).toHaveLength(1);
       expect(details[0]).toMatchObject({
         pixKey: "100d6f24-c507-43a1-935c-ba3fb9d1c16d", // gitleaks:allow public PIX deposit key; not a credential
+        merchantCity: "São Paulo",
         network: "PIX",
         displayName: "PIX KEY",
+        postalCode: "09751-000",
       });
     });
 
     it("throws for unsupported currency-exchange combination", () => {
-      expect(() => manteca.getDepositDetails("CLP", "CHILE")).toThrow(ErrorCodes.NOT_SUPPORTED_CURRENCY);
+      expect(() => manteca.getDepositDetails("ARS", "BRAZIL")).toThrow(ErrorCodes.NOT_SUPPORTED_CURRENCY);
     });
   });
 
@@ -264,8 +266,8 @@ describe("manteca utils", () => {
       await expect(manteca.withdrawBalance("456", "USDC", address)).rejects.toThrow(ErrorCodes.NOT_SUPPORTED_CHAIN_ID);
     });
 
-    it("withdraws with BASE network on development chain", async () => {
-      chainMock.id = baseSepolia.id;
+    it("withdraws with OPTIMISM network on development chain", async () => {
+      chainMock.id = optimismSepolia.id;
       const fetchSpy = vi
         .spyOn(globalThis, "fetch")
         .mockResolvedValueOnce(mockFetchResponse({ ...mockBalanceBase, balance: { USDC: "100.00" } }))
@@ -276,7 +278,7 @@ describe("manteca utils", () => {
       const withdrawCall = fetchSpy.mock.calls[1];
       const body = JSON.parse(withdrawCall?.[1]?.body as string) as Record<string, unknown>;
       expect(body).toMatchObject({
-        destination: { address, network: "BASE" },
+        destination: { address, network: "OPTIMISM" },
       });
     });
   });
@@ -304,7 +306,7 @@ describe("manteca utils", () => {
       const result = await manteca.getProvider(account, "AR");
 
       expect(result.status).toBe("ACTIVE");
-      expect(result.onramp.limits).toEqual({
+      expect((result.onramp as Record<string, unknown>).limits).toEqual({
         monthly: { available: "8000.00", limit: "10000.00", symbol: "USD" },
         yearly: { available: "95000.00", limit: "100000.00", symbol: "USD" },
       });
@@ -317,7 +319,7 @@ describe("manteca utils", () => {
 
       const result = await manteca.getProvider(account, "AR");
 
-      expect(result.onramp.limits).toBeUndefined();
+      expect((result.onramp as Record<string, unknown>).limits).toBeUndefined();
     });
 
     it("returns no limits when no EXCHANGE type limit found", async () => {
@@ -328,7 +330,7 @@ describe("manteca utils", () => {
 
       const result = await manteca.getProvider(account, "AR");
 
-      expect(result.onramp.limits).toBeUndefined();
+      expect((result.onramp as Record<string, unknown>).limits).toBeUndefined();
     });
 
     it("returns ACTIVE with no limits when limits fetch fails", async () => {
@@ -339,7 +341,7 @@ describe("manteca utils", () => {
       const result = await manteca.getProvider(account, "AR");
 
       expect(result.status).toBe("ACTIVE");
-      expect(result.onramp.limits).toBeUndefined();
+      expect((result.onramp as Record<string, unknown>).limits).toBeUndefined();
     });
 
     it("returns NOT_AVAILABLE when user status is INACTIVE", async () => {
@@ -414,7 +416,7 @@ describe("manteca utils", () => {
     });
 
     it("returns currencies on development chain", async () => {
-      chainMock.id = baseSepolia.id;
+      chainMock.id = optimismSepolia.id;
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
         ok: false,
         status: 404,
@@ -504,26 +506,26 @@ describe("manteca utils", () => {
     it("throws for unsupported chain id", async () => {
       chainMock.id = 1;
 
-      await expect(manteca.mantecaOnboarding(account, credentialId)).rejects.toThrow(ErrorCodes.NOT_SUPPORTED_CHAIN_ID);
+      await expect(manteca.onboarding(account, credentialId)).rejects.toThrow(ErrorCodes.NOT_SUPPORTED_CHAIN_ID);
     });
 
     it("returns early when user is already active", async () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(mockFetchResponse(mockActiveUser));
 
-      await expect(manteca.mantecaOnboarding(account, credentialId)).resolves.toBeUndefined();
+      await expect(manteca.onboarding(account, credentialId)).resolves.toBeUndefined();
     });
 
     it("throws when user is inactive", async () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(mockFetchResponse(mockInactiveUser));
 
-      await expect(manteca.mantecaOnboarding(account, credentialId)).rejects.toThrow(ErrorCodes.MANTECA_USER_INACTIVE);
+      await expect(manteca.onboarding(account, credentialId)).rejects.toThrow(ErrorCodes.MANTECA_USER_INACTIVE);
     });
 
     it("throws when no persona account found", async () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(mockFetchError(404, "USER_NF"));
       vi.spyOn(persona, "getAccount").mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
 
-      await expect(manteca.mantecaOnboarding(account, credentialId)).rejects.toThrow(ErrorCodes.NO_PERSONA_ACCOUNT);
+      await expect(manteca.onboarding(account, credentialId)).rejects.toThrow(ErrorCodes.NO_PERSONA_ACCOUNT);
     });
 
     it("throws when no identity document found", async () => {
@@ -533,7 +535,7 @@ describe("manteca utils", () => {
       vi.spyOn(persona, "getAccount").mockResolvedValueOnce(mockPersonaAccount);
       vi.spyOn(persona, "getDocumentForManteca").mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
 
-      await expect(manteca.mantecaOnboarding(account, credentialId)).rejects.toThrow(ErrorCodes.NO_DOCUMENT);
+      await expect(manteca.onboarding(account, credentialId)).rejects.toThrow(ErrorCodes.NO_DOCUMENT);
     });
 
     it("throws when front document URL not found", async () => {
@@ -547,7 +549,7 @@ describe("manteca utils", () => {
         attributes: { ...mockDocument.attributes, "front-photo": null },
       });
 
-      await expect(manteca.mantecaOnboarding(account, credentialId)).rejects.toThrow("front document URL not found");
+      await expect(manteca.onboarding(account, credentialId)).rejects.toThrow("front document URL not found");
     });
 
     it("throws INVALID_LEGAL_ID when initiateOnboarding returns legalId error", async () => {
@@ -562,7 +564,7 @@ describe("manteca utils", () => {
       vi.spyOn(persona, "getAccount").mockResolvedValueOnce(mockPersonaAccount);
       vi.spyOn(persona, "getDocumentForManteca").mockResolvedValueOnce(mockIdentityDocument);
 
-      await expect(manteca.mantecaOnboarding(account, credentialId)).rejects.toThrow(ErrorCodes.INVALID_LEGAL_ID);
+      await expect(manteca.onboarding(account, credentialId)).rejects.toThrow(ErrorCodes.INVALID_LEGAL_ID);
     });
 
     it("initiates onboarding for new user", async () => {
@@ -577,7 +579,7 @@ describe("manteca utils", () => {
       vi.spyOn(persona, "getDocumentForManteca").mockResolvedValueOnce(mockIdentityDocument);
       vi.spyOn(persona, "getDocument").mockResolvedValueOnce(mockDocument);
 
-      await expect(manteca.mantecaOnboarding(account, credentialId)).resolves.toBeUndefined();
+      await expect(manteca.onboarding(account, credentialId)).resolves.toBeUndefined();
     });
 
     it("skips initiateOnboarding for existing onboarding user", async () => {
@@ -591,7 +593,7 @@ describe("manteca utils", () => {
       vi.spyOn(persona, "getDocumentForManteca").mockResolvedValueOnce(mockIdentityDocument);
       vi.spyOn(persona, "getDocument").mockResolvedValueOnce(mockDocument);
 
-      await expect(manteca.mantecaOnboarding(account, credentialId)).resolves.toBeUndefined();
+      await expect(manteca.onboarding(account, credentialId)).resolves.toBeUndefined();
     });
 
     it("handles female sex mapping", async () => {
@@ -615,7 +617,7 @@ describe("manteca utils", () => {
       vi.spyOn(persona, "getDocumentForManteca").mockResolvedValueOnce(mockIdentityDocument);
       vi.spyOn(persona, "getDocument").mockResolvedValueOnce(mockDocument);
 
-      await manteca.mantecaOnboarding(account, credentialId);
+      await manteca.onboarding(account, credentialId);
 
       const initiateCall = fetchSpy.mock.calls[1];
       const body = JSON.parse(initiateCall?.[1]?.body as string) as { personalData: { sex: string } };
@@ -643,7 +645,7 @@ describe("manteca utils", () => {
       vi.spyOn(persona, "getDocumentForManteca").mockResolvedValueOnce(mockIdentityDocument);
       vi.spyOn(persona, "getDocument").mockResolvedValueOnce(mockDocument);
 
-      await manteca.mantecaOnboarding(account, credentialId);
+      await manteca.onboarding(account, credentialId);
 
       const initiateCall = fetchSpy.mock.calls[1];
       const body = JSON.parse(initiateCall?.[1]?.body as string) as { personalData: { sex: string } };

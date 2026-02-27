@@ -1,8 +1,7 @@
-import { captureException, captureMessage, withScope } from "@sentry/core";
+import { captureException, withScope } from "@sentry/core";
 import {
   array,
   boolean,
-  number,
   object,
   optional,
   parse,
@@ -12,17 +11,17 @@ import {
   type BaseIssue,
   type BaseSchema,
   type InferInput,
-  type InferOutput,
 } from "valibot";
 import { withRetry } from "viem";
-import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
+import { optimism, optimismSepolia } from "viem/chains";
 
 import chain from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
-import * as shared from "./shared";
 import { getAccount, getDocument, getDocumentForManteca, MantecaCountryCode } from "../persona";
 import ServiceError from "../ServiceError";
+
+export const name = "manteca" as const;
 
 if (!process.env.MANTECA_API_URL) throw new Error("missing manteca api url");
 const baseURL = process.env.MANTECA_API_URL;
@@ -86,7 +85,7 @@ export async function balances(userAnyId: string) {
   return await request(BalancesResponse, `/crypto/v2/user-balances/${userAnyId}`, {}, undefined, "GET");
 }
 
-export async function getQuote(coinPair: string): Promise<InferOutput<typeof shared.QuoteResponse> | undefined> {
+export async function getQuote(coinPair: string) {
   const quote = await request(QuoteResponse, `/crypto/v2/prices/direct/${coinPair}`, {}, undefined, "GET").catch(
     (error: unknown) => {
       captureException(error, { level: "error" });
@@ -94,18 +93,6 @@ export async function getQuote(coinPair: string): Promise<InferOutput<typeof sha
   );
   if (!quote) return;
   return { buyRate: quote.buy, sellRate: quote.sell };
-}
-
-export async function lockPrice(side: "BUY" | "SELL", asset: string, against: string, userAnyId: string) {
-  return await request(PriceLockResponse, `/crypto/v2/price-locks`, {}, { side, asset, against, userAnyId }, "POST");
-}
-
-export async function createOnRampSynthetic(order: InferInput<typeof OnRampSynthetic>) {
-  return await request(OnRampSyntheticResponse, "/crypto/v2/synthetics/ramp-on", {}, order, "POST");
-}
-
-export async function getSynthetic(syntheticId: string) {
-  return await request(OnRampSyntheticResponse, `/crypto/v2/synthetics/${syntheticId}`, {}, undefined, "GET");
 }
 
 export async function getLimits(userNumberId: string) {
@@ -130,48 +117,50 @@ export async function lockQrPayment(userAnyId: string, paymentDestination: strin
   );
 }
 
-export function getDepositDetails(
-  currency: (typeof MantecaCurrency)[number],
-  exchange: (typeof Exchange)[number],
-): InferOutput<typeof shared.DepositDetails>[] {
+export function getDepositDetails(currency: (typeof MantecaCurrency)[number], exchange: (typeof Exchange)[number]) {
   const network: `${(typeof MantecaCurrency)[number]}-${(typeof Exchange)[number]}` = `${currency}-${exchange}`;
   switch (network) {
     case "ARS-ARGENTINA":
       return [
         {
-          depositAlias: "exa.ars",
-          cbu: "0000234100000000000529",
-          network: "ARG_FIAT_TRANSFER",
-          fee: "0.0",
-          estimatedProcessingTime: "300",
-          displayName: "CVU",
           beneficiaryName: "Sixalime Sas", // cspell:ignore Sixalime
+          cbu: "0000234100000000000529",
+          depositAlias: "exa.ars",
+          displayName: "CVU",
+          estimatedProcessingTime: "300",
+          fee: "0.0",
+          network: "ARG_FIAT_TRANSFER",
         } as const,
       ];
     case "USD-ARGENTINA":
       return [
         {
-          cbu: "4310009942700000065019",
-          network: "ARG_FIAT_TRANSFER",
-          fee: "0.0",
-          estimatedProcessingTime: "300",
-          displayName: "CBU",
           beneficiaryName: "Sixalime Sas", // cspell:ignore Sixalime
+          cbu: "4310009942700000065019",
+          displayName: "CBU",
+          estimatedProcessingTime: "300",
+          fee: "0.0",
+          network: "ARG_FIAT_TRANSFER",
         } as const,
       ];
     case "BRL-BRAZIL":
       return [
         {
-          pixKey: "100d6f24-c507-43a1-935c-ba3fb9d1c16d", // gitleaks:allow public PIX deposit key; not a credential
-          network: "PIX",
-          fee: "0.0",
-          estimatedProcessingTime: "300",
-          displayName: "PIX KEY",
           beneficiaryName: "JUST PAGAMENTOS LTDA", // cspell:ignore PAGAMENTOS LTDA
+          merchantCity: "São Paulo",
+          displayName: "PIX KEY",
+          estimatedProcessingTime: "300",
+          fee: "0.0",
+          network: "PIX",
+          pixKey: "100d6f24-c507-43a1-935c-ba3fb9d1c16d", // gitleaks:allow public PIX deposit key; not a credential
+          postalCode: "09751-000",
         } as const,
       ];
     default:
-      captureMessage(`${network} not supported`);
+      captureException(new Error("manteca not supported currency"), {
+        level: "error",
+        contexts: { details: { currency, exchange } },
+      });
       throw new Error(ErrorCodes.NOT_SUPPORTED_CURRENCY);
   }
 }
@@ -205,9 +194,9 @@ export async function withdrawBalance(userNumberId: string, asset: string, addre
   const assetBalance = userBalances.balance[asset as keyof typeof userBalances.balance];
   if (!assetBalance) throw new Error("asset balance not found");
 
-  const supportedChainId = SupportedOnRampChainId[chain.id as (typeof shared.SupportedChainId)[number]];
-  if (!supportedChainId) {
-    captureMessage("manteca_not_supported_chain_id", { level: "error", contexts: { chain } });
+  const supportedChain = Supported[chain.id];
+  if (!supportedChain) {
+    captureException(new Error("manteca not supported chain id"), { level: "error", contexts: { chain } });
     throw new Error(ErrorCodes.NOT_SUPPORTED_CHAIN_ID);
   }
 
@@ -215,24 +204,20 @@ export async function withdrawBalance(userNumberId: string, asset: string, addre
     userAnyId: userNumberId,
     asset,
     amount: assetBalance,
-    destination: { address, network: supportedChainId },
+    destination: { address, network: supportedChain },
   });
 }
 
-export async function getProvider(
-  account: Address,
-  countryCode?: string,
-): Promise<InferOutput<typeof shared.ProviderInfo>> {
-  const supportedChainId = SupportedOnRampChainId[chain.id as (typeof shared.SupportedChainId)[number]];
-  if (!supportedChainId) {
-    captureMessage("manteca_not_supported_chain_id", { level: "error", contexts: { chain } });
-    return { onramp: { currencies: [], cryptoCurrencies: [] }, status: "NOT_AVAILABLE" };
+export async function getProvider(account: Address, countryCode?: string) {
+  if (!Supported[chain.id]) {
+    captureException(new Error("manteca not supported chain id"), { level: "error", contexts: { chain } });
+    return { onramp: { currencies: [] }, status: "NOT_AVAILABLE" as const };
   }
 
-  const currencies = getSupportedByCountry(countryCode);
+  const currencies = getSupported(countryCode);
   const mantecaUser = await getUser(account);
   if (!mantecaUser) {
-    return { onramp: { currencies, cryptoCurrencies: [] }, status: "NOT_STARTED" };
+    return { onramp: { currencies }, status: "NOT_STARTED" as const };
   }
   if (mantecaUser.status === "ACTIVE") {
     const exchange = mantecaUser.exchange;
@@ -243,7 +228,6 @@ export async function getProvider(
     return {
       onramp: {
         currencies: CurrenciesByExchange[exchange],
-        cryptoCurrencies: [],
         ...(exchangeLimits
           ? {
               limits: {
@@ -261,11 +245,11 @@ export async function getProvider(
             }
           : {}),
       },
-      status: "ACTIVE",
+      status: "ACTIVE" as const,
     };
   }
   if (mantecaUser.status === "INACTIVE") {
-    return { onramp: { currencies: [], cryptoCurrencies: [] }, status: "NOT_AVAILABLE" };
+    return { onramp: { currencies: [] }, status: "NOT_AVAILABLE" as const };
   }
   const hasPendingTasks = Object.values(mantecaUser.onboarding).some(
     (task) => task.required && task.status === "PENDING",
@@ -282,16 +266,15 @@ export async function getProvider(
         contexts: { mantecaUser },
       });
     });
-    return { onramp: { currencies, cryptoCurrencies: [] }, status: "NOT_STARTED" };
+    return { onramp: { currencies }, status: "NOT_STARTED" as const };
   }
-  return { onramp: { currencies, cryptoCurrencies: [] }, status: "ONBOARDING" };
+  return { onramp: { currencies }, status: "ONBOARDING" as const };
 }
 
-export async function mantecaOnboarding(account: Address, credentialId: string) {
+export async function onboarding(account: Address, credentialId: string) {
   const externalId = account.replace("0x", "");
-  const supportedChainId = SupportedOnRampChainId[chain.id as (typeof shared.SupportedChainId)[number]];
-  if (!supportedChainId) {
-    captureMessage("manteca_not_supported_chain_id", { level: "error", contexts: { chain } });
+  if (!Supported[chain.id]) {
+    captureException(new Error("manteca not supported chain id"), { level: "error", contexts: { chain } });
     throw new Error(ErrorCodes.NOT_SUPPORTED_CHAIN_ID);
   }
 
@@ -376,22 +359,21 @@ export async function mantecaOnboarding(account: Address, credentialId: string) 
 // #endregion services
 
 // #region schemas
-const Networks = ["OPTIMISM", "BASE"] as const;
+export const Currency = ["ARS", "BRL", "USD"] as const;
+const DevelopmentChainIds = [optimismSepolia.id] as const;
+const Network = ["OPTIMISM"] as const;
 
-const SupportedOnRampChainId: Record<(typeof shared.SupportedChainId)[number], (typeof Networks)[number] | undefined> =
-  {
-    [optimism.id]: "OPTIMISM",
-    [base.id]: "BASE",
-    [baseSepolia.id]: "BASE",
-    [optimismSepolia.id]: "OPTIMISM",
-  } as const;
+const Supported: Record<number, (typeof Network)[number] | undefined> = {
+  [optimism.id]: "OPTIMISM",
+  [optimismSepolia.id]: "OPTIMISM",
+} as const;
 
 export const WithdrawStatus = ["PENDING", "EXECUTED", "CANCELLED"] as const;
 export const Withdraw = object({
   userAnyId: string(),
   asset: string(),
   amount: string(),
-  destination: object({ address: Address, network: picklist(Networks) }),
+  destination: object({ address: Address, network: picklist(Network) }),
 });
 
 export const WithdrawResponse = object({
@@ -430,66 +412,6 @@ export const OnRampSynthetic = object({
     address: Address,
     network: picklist(["ETHEREUM", "BINANCE", "POLYGON", "OPTIMISM", "INTERNAL"]),
   }),
-});
-
-export const OnRampSyntheticResponse = object({
-  id: string(),
-  numberId: string(),
-  userNumberId: string(),
-  status: picklist(["STARTING", "ACTIVE", "WAITING", "PAUSED", "COMPLETED", "CANCELLED"]),
-  details: object({
-    depositAddress: string(),
-    depositAlias: string(),
-    withdrawCostInAgainst: string(),
-    withdrawCostInAsset: string(),
-    price: string(),
-    priceExpireAt: string(),
-  }),
-  currentStage: number(),
-  stages: object({
-    1: object({
-      stageType: picklist(["DEPOSIT"]),
-      asset: string(),
-      thresholdAmount: string(),
-      useOverflow: boolean(),
-      expireAt: string(),
-    }),
-    2: object({
-      stageType: picklist(["ORDER"]),
-      side: picklist(["BUY", "SELL"]),
-      type: picklist(["MARKET"]),
-      asset: string(),
-      against: string(),
-      assetAmount: string(),
-      price: string(),
-      priceCode: string(),
-      disallowDebt: boolean(),
-    }),
-    3: object({
-      stageType: picklist(["WITHDRAW"]),
-      network: picklist(["ETHEREUM", "BINANCE", "POLYGON", "OPTIMISM", "INTERNAL"]),
-      asset: string(),
-      amount: string(),
-      to: Address,
-      destination: object({
-        address: Address,
-        network: picklist(["ETHEREUM", "BINANCE", "POLYGON", "OPTIMISM", "INTERNAL"]),
-      }),
-    }),
-  }),
-  creationTime: string(),
-  updatedAt: string(),
-});
-
-export const PriceLockResponse = object({
-  code: string(),
-  userId: string(),
-  userNumberId: string(),
-  userExternalId: optional(string()),
-  side: picklist(["BUY", "SELL"]),
-  asset: string(),
-  against: string(),
-  price: string(),
 });
 
 export const QrPaymentResponse = object({
@@ -609,31 +531,19 @@ export const Nationality: Record<CountryCode, string> = {
   BO: "Bolivia",
 };
 
-export const MantecaCurrency = [
-  "ARS",
-  "USD",
-  "BRL",
-  "CLP",
-  "COP",
-  "PUSD",
-  "CRC",
-  "GTQ",
-  "MXN",
-  "PHP",
-  "BOB",
-] as const satisfies readonly (typeof shared.Currency)[number][];
+export const MantecaCurrency = ["ARS", "USD", "BRL"] as const satisfies readonly (typeof Currency)[number][];
 
 export const CurrenciesByExchange: Record<(typeof Exchange)[number], (typeof MantecaCurrency)[number][]> = {
   ARGENTINA: ["ARS", "USD"],
-  CHILE: ["CLP"],
+  CHILE: [],
   BRAZIL: ["BRL"],
-  COLOMBIA: ["COP"],
-  PANAMA: ["PUSD"],
-  COSTA_RICA: ["CRC"],
-  GUATEMALA: ["GTQ"],
-  MEXICO: ["MXN"],
-  PHILIPPINES: ["PHP"],
-  BOLIVIA: ["BOB"],
+  COLOMBIA: [],
+  PANAMA: [],
+  COSTA_RICA: [],
+  GUATEMALA: [],
+  MEXICO: [],
+  PHILIPPINES: [],
+  BOLIVIA: [],
 };
 
 export const NewUserResponse = object({
@@ -749,10 +659,10 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
 }
 
 function isDevelopment(): boolean {
-  return shared.DevelopmentChainIds.includes(chain.id as (typeof shared.DevelopmentChainIds)[number]);
+  return DevelopmentChainIds.includes(chain.id as (typeof DevelopmentChainIds)[number]);
 }
 
-function getSupportedByCountry(countryCode?: string): (typeof MantecaCurrency)[number][] {
+function getSupported(countryCode?: string): (typeof MantecaCurrency)[number][] {
   if (!countryCode) return [];
   if (isDevelopment()) return CurrenciesByExchange.ARGENTINA;
   const result = safeParse(picklist(MantecaCountryCode), countryCode);

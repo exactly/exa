@@ -987,6 +987,281 @@ describe("authenticated", () => {
       });
     });
   });
+
+  describe("bridge scope", () => {
+    describe("getting kyc", () => {
+      it("returns ok when account has a supported document", async () => {
+        await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "bob"));
+        const getPendingInquiryTemplate = vi
+          .spyOn(persona, "getPendingInquiryTemplate")
+          .mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
+
+        const response = await appClient.index.$get(
+          { query: { scope: "bridge" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(getPendingInquiryTemplate).toHaveBeenCalledWith("bob", "bridge");
+        await expect(response.json()).resolves.toStrictEqual({ code: "ok", legacy: "ok" });
+        expect(response.status).toBe(200);
+      });
+
+      it("returns ok with country code header when account has a supported document", async () => {
+        await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "bob"));
+        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(basicAccount as persona.AccountOutput<"bridge">);
+        const getPendingInquiryTemplate = vi
+          .spyOn(persona, "getPendingInquiryTemplate")
+          .mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
+
+        const response = await appClient.index.$get(
+          { query: { scope: "bridge", countryCode: "true" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(getPendingInquiryTemplate).toHaveBeenCalledWith("bob", "bridge");
+        await expect(response.json()).resolves.toStrictEqual({ code: "ok", legacy: "ok" });
+        expect(response.headers.get("User-Country")).toBe("AR");
+        expect(response.status).toBe(200);
+      });
+
+      it("returns not supported when documents only have unsupported id classes", async () => {
+        await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "bob"));
+        vi.spyOn(persona, "getPendingInquiryTemplate").mockRejectedValueOnce(
+          new Error(scopeValidationErrors.NOT_SUPPORTED),
+        );
+
+        const response = await appClient.index.$get(
+          { query: { scope: "bridge" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        await expect(response.json()).resolves.toStrictEqual({ code: "not supported" });
+        expect(response.status).toBe(400);
+      });
+
+      it("returns not started when panda inquiry is not required", async () => {
+        await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "bob"));
+        const getPendingInquiryTemplate = vi
+          .spyOn(persona, "getPendingInquiryTemplate")
+          .mockResolvedValueOnce(persona.PANDA_TEMPLATE);
+        const getInquiry = vi.spyOn(persona, "getInquiry").mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
+
+        const response = await appClient.index.$get(
+          { query: { scope: "bridge" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(getPendingInquiryTemplate).toHaveBeenCalledWith("bob", "bridge");
+        expect(getInquiry).toHaveBeenCalledWith("bob", persona.PANDA_TEMPLATE);
+        await expect(response.json()).resolves.toStrictEqual({ code: "not started", legacy: "kyc not started" });
+        expect(response.status).toBe(400);
+      });
+
+      it("returns ok and sends sentry error when inquiry is approved but account not updated", async () => {
+        await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "bob"));
+        const getPendingInquiryTemplate = vi
+          .spyOn(persona, "getPendingInquiryTemplate")
+          .mockResolvedValueOnce(persona.PANDA_TEMPLATE);
+        vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({
+          ...personaTemplate,
+          attributes: { ...personaTemplate.attributes, status: "approved" },
+        });
+
+        const response = await appClient.index.$get(
+          { query: { scope: "bridge" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(getPendingInquiryTemplate).toHaveBeenCalledWith("bob", "bridge");
+        await expect(response.json()).resolves.toStrictEqual({ code: "ok", legacy: "ok" });
+        expect(response.status).toBe(200);
+        expect(captureException).toHaveBeenCalledWith(new Error("inquiry approved but account not updated"), {
+          level: "error",
+          contexts: { inquiry: { templateId: persona.PANDA_TEMPLATE, referenceId: "bob" } },
+        });
+      });
+
+      it("returns not started when inquiry is pending", async () => {
+        await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "bob"));
+        const getPendingInquiryTemplate = vi
+          .spyOn(persona, "getPendingInquiryTemplate")
+          .mockResolvedValueOnce(persona.PANDA_TEMPLATE);
+        vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({
+          ...personaTemplate,
+          attributes: { ...personaTemplate.attributes, status: "pending" },
+        });
+
+        const response = await appClient.index.$get(
+          { query: { scope: "bridge" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(getPendingInquiryTemplate).toHaveBeenCalledWith("bob", "bridge");
+        await expect(response.json()).resolves.toStrictEqual({ code: "not started", legacy: "kyc not started" });
+        expect(response.status).toBe(400);
+      });
+
+      it("returns bad kyc when inquiry failed", async () => {
+        await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "bob"));
+        const getPendingInquiryTemplate = vi
+          .spyOn(persona, "getPendingInquiryTemplate")
+          .mockResolvedValueOnce(persona.PANDA_TEMPLATE);
+        vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({
+          ...personaTemplate,
+          attributes: { ...personaTemplate.attributes, status: "failed" },
+        });
+
+        const response = await appClient.index.$get(
+          { query: { scope: "bridge" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(getPendingInquiryTemplate).toHaveBeenCalledWith("bob", "bridge");
+        await expect(response.json()).resolves.toStrictEqual({ code: "bad kyc", legacy: "kyc not approved" });
+        expect(response.status).toBe(400);
+      });
+    });
+
+    describe("posting kyc", () => {
+      it("returns already approved when account has a supported document", async () => {
+        await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "bob"));
+        const getPendingInquiryTemplate = vi
+          .spyOn(persona, "getPendingInquiryTemplate")
+          .mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
+
+        const response = await appClient.index.$post(
+          { json: { scope: "bridge" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(getPendingInquiryTemplate).toHaveBeenCalledWith("bob", "bridge");
+        await expect(response.json()).resolves.toStrictEqual({
+          code: "already approved",
+          legacy: "kyc already approved",
+        });
+        expect(response.status).toBe(400);
+      });
+
+      it("returns not supported when documents only have unsupported id classes", async () => {
+        vi.spyOn(persona, "getPendingInquiryTemplate").mockRejectedValueOnce(
+          new Error(scopeValidationErrors.NOT_SUPPORTED),
+        );
+
+        const response = await appClient.index.$post(
+          { json: { scope: "bridge" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        await expect(response.json()).resolves.toStrictEqual({ code: "not supported" });
+        expect(response.status).toBe(400);
+      });
+
+      it("returns session token when creating panda inquiry for bridge", async () => {
+        await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "bob"));
+
+        const sessionToken = "bridge-session-token";
+
+        vi.spyOn(persona, "getInquiry").mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
+        vi.spyOn(persona, "resumeInquiry").mockResolvedValueOnce({
+          ...resumeTemplate,
+          meta: { ...resumeTemplate.meta, "session-token": sessionToken },
+        });
+
+        const getPendingInquiryTemplate = vi
+          .spyOn(persona, "getPendingInquiryTemplate")
+          .mockResolvedValueOnce(persona.PANDA_TEMPLATE);
+        const createInquiry = vi.spyOn(persona, "createInquiry").mockResolvedValueOnce(inquiry);
+
+        const response = await appClient.index.$post(
+          { json: { scope: "bridge" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(getPendingInquiryTemplate).toHaveBeenCalledWith("bob", "bridge");
+        expect(createInquiry).toHaveBeenCalledWith("bob", persona.PANDA_TEMPLATE, undefined);
+        await expect(response.json()).resolves.toStrictEqual({
+          sessionToken,
+          inquiryId: resumeTemplate.data.id,
+        });
+        expect(response.status).toBe(200);
+      });
+
+      it("returns session token when resuming pending bridge inquiry", async () => {
+        const sessionToken = "resume-bridge-session-token";
+
+        vi.spyOn(persona, "resumeInquiry").mockResolvedValueOnce({
+          ...resumeTemplate,
+          meta: { ...resumeTemplate.meta, "session-token": sessionToken },
+        });
+        const getPendingInquiryTemplate = vi
+          .spyOn(persona, "getPendingInquiryTemplate")
+          .mockResolvedValueOnce(persona.PANDA_TEMPLATE);
+        const getInquiry = vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({
+          ...personaTemplate,
+          attributes: { ...personaTemplate.attributes, status: "pending" },
+        });
+
+        const response = await appClient.index.$post(
+          { json: { scope: "bridge" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(getPendingInquiryTemplate).toHaveBeenCalledWith("bob", "bridge");
+        expect(getInquiry).toHaveBeenCalledWith("bob", persona.PANDA_TEMPLATE);
+        await expect(response.json()).resolves.toStrictEqual({
+          sessionToken,
+          inquiryId: resumeTemplate.data.id,
+        });
+        expect(response.status).toBe(200);
+      });
+
+      it("returns failed when bridge inquiry failed", async () => {
+        const getPendingInquiryTemplate = vi
+          .spyOn(persona, "getPendingInquiryTemplate")
+          .mockResolvedValueOnce(persona.PANDA_TEMPLATE);
+        const getInquiry = vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({
+          ...personaTemplate,
+          attributes: { ...personaTemplate.attributes, status: "failed" },
+        });
+
+        const response = await appClient.index.$post(
+          { json: { scope: "bridge" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(getPendingInquiryTemplate).toHaveBeenCalledWith("bob", "bridge");
+        expect(getInquiry).toHaveBeenCalledWith("bob", persona.PANDA_TEMPLATE);
+        await expect(response.json()).resolves.toStrictEqual({ code: "failed", legacy: "kyc failed" });
+        expect(response.status).toBe(400);
+      });
+
+      it("returns already approved and sends sentry error when bridge inquiry is approved but account not updated", async () => {
+        const getPendingInquiryTemplate = vi
+          .spyOn(persona, "getPendingInquiryTemplate")
+          .mockResolvedValueOnce(persona.PANDA_TEMPLATE);
+        vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({
+          ...personaTemplate,
+          attributes: { ...personaTemplate.attributes, status: "approved" },
+        });
+
+        const response = await appClient.index.$post(
+          { json: { scope: "bridge" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(getPendingInquiryTemplate).toHaveBeenCalledWith("bob", "bridge");
+        await expect(response.json()).resolves.toStrictEqual({
+          code: "already approved",
+          legacy: "kyc already approved",
+        });
+        expect(response.status).toBe(400);
+        expect(captureException).toHaveBeenCalledWith(new Error("inquiry approved but account not updated"), {
+          level: "error",
+          contexts: { inquiry: { templateId: persona.PANDA_TEMPLATE, referenceId: "bob" } },
+        });
+      });
+    });
+  });
 });
 
 const basicAccount = {

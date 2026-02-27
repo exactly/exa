@@ -1,9 +1,9 @@
 import { vValidator } from "@hono/valibot-validator";
 import { captureException, setUser } from "@sentry/core";
-import createDebug from "debug";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import {
+  array,
   literal,
   object,
   optional,
@@ -28,29 +28,12 @@ import {
   resumeInquiry,
 } from "../utils/persona";
 import * as bridge from "../utils/ramps/bridge";
-import {
-  getDepositDetails as getMantecaDepositDetails,
-  getProvider as getMantecaProvider,
-  getQuote as getMantecaQuote,
-  getUser as getMantecaUser,
-  MantecaCurrency,
-  ErrorCodes as MantecaErrorCodes,
-  mantecaOnboarding,
-} from "../utils/ramps/manteca";
+import * as manteca from "../utils/ramps/manteca";
 import validatorHook from "../utils/validatorHook";
 
-import type { DepositDetails, ProviderInfo, RampProvider } from "../utils/ramps/shared";
-
-const debug = createDebug("exa:ramp");
-Object.assign(debug, { inspectOpts: { depth: undefined } });
-
 const ErrorCodes = {
-  ALREADY_CREATED: "already created",
   NO_CREDENTIAL: "no credential",
   NOT_STARTED: "not started",
-  ONBOARDING: "onboarding",
-  PENDING: "pending",
-  ...MantecaErrorCodes,
 };
 
 export default new Hono()
@@ -72,9 +55,9 @@ export default new Hono()
 
       const redirectURL = c.req.valid("query").redirectURL;
       const [mantecaProvider, bridgeProvider] = await Promise.all([
-        getMantecaProvider(account, countryCode).catch((error: unknown) => {
+        manteca.getProvider(account, countryCode).catch((error: unknown) => {
           captureException(error, { level: "error", contexts: { credential, params: { countryCode } } });
-          return { onramp: { currencies: [], cryptoCurrencies: [] }, status: "NOT_AVAILABLE" as const };
+          return { onramp: { currencies: [] }, status: "NOT_AVAILABLE" as const };
         }),
         bridge
           .getProvider({
@@ -85,15 +68,15 @@ export default new Hono()
           })
           .catch((error: unknown) => {
             captureException(error, { level: "error", contexts: { credential, params: { countryCode } } });
-            return { onramp: { currencies: [], cryptoCurrencies: [] }, status: "NOT_AVAILABLE" as const };
+            return { onramp: { currencies: [] }, status: "NOT_AVAILABLE" as const };
           }),
       ]);
 
       return c.json(
         {
-          manteca: mantecaProvider,
-          bridge: bridgeProvider,
-        } satisfies Record<(typeof RampProvider)[number], InferInput<typeof ProviderInfo>>,
+          manteca: { provider: "manteca" as const, ...mantecaProvider } satisfies InferInput<typeof ProviderInfo>,
+          bridge: { provider: "bridge" as const, ...bridgeProvider } satisfies InferInput<typeof ProviderInfo>,
+        },
         200,
       );
     },
@@ -103,12 +86,12 @@ export default new Hono()
     auth(),
     vValidator(
       "query",
-      union([
-        object({ provider: literal("manteca"), currency: picklist(MantecaCurrency) }),
-        object({ provider: literal("bridge"), currency: picklist(bridge.SupportedCurrency) }),
-        object({ provider: literal("bridge"), cryptoCurrency: literal("USDT"), network: literal("TRON") }),
-        object({ provider: literal("bridge"), cryptoCurrency: literal("USDC"), network: literal("SOLANA") }),
-        object({ provider: literal("bridge"), cryptoCurrency: literal("USDC"), network: literal("STELLAR") }),
+      variant("provider", [
+        object({ provider: literal("manteca"), currency: picklist(manteca.Currency) }),
+        object({ provider: literal("bridge"), currency: picklist(bridge.FiatCurrency) }),
+        object({ provider: literal("bridge"), currency: literal("USDT"), network: literal("TRON") }),
+        object({ provider: literal("bridge"), currency: literal("USDC"), network: literal("SOLANA") }),
+        object({ provider: literal("bridge"), currency: literal("USDC"), network: literal("STELLAR") }),
       ]),
       validatorHook(),
     ),
@@ -126,34 +109,42 @@ export default new Hono()
       let depositInfo: InferOutput<typeof DepositDetails>[];
       switch (query.provider) {
         case "manteca": {
-          const mantecaUser = await getMantecaUser(account);
+          const mantecaUser = await manteca.getUser(account);
           if (!mantecaUser) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
           try {
-            depositInfo = getMantecaDepositDetails(query.currency, mantecaUser.exchange);
+            depositInfo = manteca.getDepositDetails(query.currency, mantecaUser.exchange);
           } catch (error) {
             captureException(error, { level: "error", contexts: { credential } });
-            if (error instanceof Error && Object.values(MantecaErrorCodes).includes(error.message)) {
+            if (error instanceof Error && Object.values(manteca.ErrorCodes).includes(error.message)) {
               switch (error.message) {
-                case MantecaErrorCodes.NOT_SUPPORTED_CURRENCY:
+                case manteca.ErrorCodes.NOT_SUPPORTED_CURRENCY:
                   return c.json({ code: error.message }, 400);
               }
             }
             throw error;
           }
-          return c.json({ quote: await getMantecaQuote(`USDC_${query.currency}`), depositInfo }, 200);
+          return c.json(
+            {
+              quote: (await manteca.getQuote(`USDC_${query.currency}`)) satisfies QuoteResponse,
+              depositInfo,
+            },
+            200,
+          );
         }
         case "bridge": {
           if (!credential.bridgeId) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
           const bridgeUser = await bridge.getCustomer(credential.bridgeId);
           if (!bridgeUser) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
 
-          depositInfo = await ("cryptoCurrency" in query && "network" in query
-            ? bridge.getCryptoDepositDetails(query.cryptoCurrency, query.network, credential.account, bridgeUser)
+          depositInfo = await ("currency" in query && "network" in query
+            ? bridge.getCryptoDepositDetails(query.currency, query.network, credential.account, bridgeUser)
             : bridge.getDepositDetails(query.currency, credential.account, bridgeUser));
 
           return c.json(
             {
-              quote: "currency" in query ? await bridge.getQuote(query.currency, query.currency) : undefined,
+              quote: ("currency" in query && "network" in query
+                ? undefined
+                : await bridge.getQuote("USD", query.currency)) satisfies QuoteResponse,
               depositInfo,
             },
             200,
@@ -187,14 +178,14 @@ export default new Hono()
       switch (onboarding.provider) {
         case "manteca":
           try {
-            await mantecaOnboarding(account, credentialId);
+            await manteca.onboarding(account, credentialId);
           } catch (error) {
             captureException(error, { level: "error", contexts: { credential } });
-            if (error instanceof Error && Object.values(MantecaErrorCodes).includes(error.message)) {
+            if (error instanceof Error && Object.values(manteca.ErrorCodes).includes(error.message)) {
               switch (error.message) {
-                case MantecaErrorCodes.NO_DOCUMENT:
+                case manteca.ErrorCodes.NO_DOCUMENT:
                   return c.json({ code: error.message }, 400);
-                case MantecaErrorCodes.INVALID_LEGAL_ID: {
+                case manteca.ErrorCodes.INVALID_LEGAL_ID: {
                   const { inquiryId, sessionToken } = await getOrCreateInquiry(
                     credentialId,
                     MANTECA_TEMPLATE_EXTRA_FIELDS,
@@ -244,3 +235,142 @@ async function getOrCreateInquiry(credentialId: string, template: string) {
   const { meta } = await resumeInquiry(inquiry.id);
   return { inquiryId: inquiry.id, sessionToken: meta["session-token"] };
 }
+
+type QuoteResponse = undefined | { buyRate: string; sellRate: string };
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const DepositDetails = variant("network", [
+  object({
+    network: literal("ARG_FIAT_TRANSFER"),
+    depositAlias: optional(string()),
+    cbu: string(),
+    displayName: picklist(["CBU", "CVU"]),
+    beneficiaryName: string(),
+    fee: string(),
+    estimatedProcessingTime: string(),
+  }),
+  object({
+    network: literal("PIX"),
+    pixKey: string(),
+    displayName: literal("PIX KEY"),
+    beneficiaryName: string(),
+    postalCode: string(),
+    merchantCity: string(),
+    fee: string(),
+    estimatedProcessingTime: string(),
+  }),
+  object({
+    network: literal("PIX-BR"),
+    brCode: string(),
+    displayName: literal("PIX BR"),
+    beneficiaryName: string(),
+    fee: string(),
+    estimatedProcessingTime: string(),
+  }),
+  object({
+    network: literal("ACH"),
+    displayName: literal("ACH"),
+    beneficiaryName: string(),
+    routingNumber: string(),
+    accountNumber: string(),
+    bankName: string(),
+    bankAddress: string(),
+    fee: string(),
+    estimatedProcessingTime: string(),
+  }),
+  object({
+    network: literal("WIRE"),
+    displayName: literal("WIRE"),
+    beneficiaryName: string(),
+    routingNumber: string(),
+    accountNumber: string(),
+    bankAddress: string(),
+    bankName: string(),
+    fee: string(),
+    estimatedProcessingTime: string(),
+  }),
+  object({
+    network: literal("SEPA"), // cspell:ignore sepa
+    displayName: literal("SEPA"),
+    beneficiaryName: string(),
+    iban: string(), // cspell:ignore iban
+    fee: string(),
+    estimatedProcessingTime: string(),
+  }),
+  object({
+    network: literal("SPEI"), // cspell:ignore spei
+    displayName: literal("SPEI"),
+    beneficiaryName: string(),
+    clabe: string(), // cspell:ignore clabe
+    fee: string(),
+    estimatedProcessingTime: string(),
+  }),
+  object({
+    network: literal("TRON"),
+    displayName: literal("TRON"),
+    address: string(),
+    fee: string(),
+    estimatedProcessingTime: string(),
+  }),
+  object({
+    network: literal("SOLANA"),
+    displayName: literal("SOLANA"),
+    address: string(),
+    fee: string(),
+    estimatedProcessingTime: string(),
+  }),
+  object({
+    network: literal("STELLAR"),
+    displayName: literal("STELLAR"),
+    address: string(),
+    fee: string(),
+    estimatedProcessingTime: string(),
+  }),
+  object({
+    network: literal("FASTER_PAYMENTS"),
+    displayName: literal("Faster Payments"),
+    accountNumber: string(),
+    sortCode: string(),
+    accountHolderName: string(),
+    bankName: string(),
+    bankAddress: string(),
+    fee: string(),
+    estimatedProcessingTime: string(),
+  }),
+]);
+
+const ProviderStatus = picklist(["ACTIVE", "NOT_AVAILABLE", "NOT_STARTED", "ONBOARDING"]);
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const ProviderInfo = variant("provider", [
+  object({
+    provider: literal("manteca"),
+    onramp: object({
+      currencies: array(picklist(manteca.Currency)),
+      limits: optional(
+        object({
+          monthly: object({ available: string(), limit: string(), symbol: string() }),
+          yearly: object({ available: string(), limit: string(), symbol: string() }),
+        }),
+      ),
+    }),
+    status: ProviderStatus,
+  }),
+  object({
+    provider: literal("bridge"),
+    onramp: object({
+      currencies: array(
+        union([
+          picklist(bridge.FiatCurrency),
+          variant("currency", [
+            object({ currency: literal("USDT"), network: literal("TRON") }),
+            object({ currency: literal("USDC"), network: literal("SOLANA") }),
+            object({ currency: literal("USDC"), network: literal("STELLAR") }),
+          ]),
+        ]),
+      ),
+    }),
+    status: ProviderStatus,
+    tosLink: optional(string()),
+  }),
+]);

@@ -17,12 +17,14 @@ import {
   type BaseSchema,
   type InferOutput,
 } from "valibot";
+import { baseSepolia, optimismSepolia } from "viem/chains";
 
 import chain from "@exactly/common/generated/chain";
 
 import appOrigin from "./appOrigin";
-import { DevelopmentChainIds } from "./ramps/shared";
 import ServiceError from "./ServiceError";
+
+const DevelopmentChainIds = [baseSepolia.id, optimismSepolia.id] as const;
 
 if (!process.env.PERSONA_API_KEY) throw new Error("missing persona api key");
 if (!process.env.PERSONA_URL) throw new Error("missing persona url");
@@ -493,8 +495,37 @@ export async function getDocumentForManteca(
   return getValidDocumentForManteca(documents, allowedIds);
 }
 
+export const BridgeIdentityDocumentType = [
+  "drivers_license",
+  "matriculate_id",
+  "military_id",
+  "national_id",
+  "passport",
+  "permanent_residency_id",
+  "state_or_provincial_id",
+  "visa",
+] as const;
+
+export const IdClassToBridge: Record<
+  (typeof IdentificationClasses)[number],
+  (typeof BridgeIdentityDocumentType)[number] | undefined
+> = {
+  id: "national_id",
+  pp: "passport",
+  dl: "drivers_license",
+  wp: undefined,
+  rp: undefined,
+  pr: "permanent_residency_id",
+  visa: "visa",
+};
+
 export function getDocumentForBridge(documents: InferOutput<typeof AccountBasicFields>["documents"]["value"]) {
-  return documents.at(-1)?.value;
+  const classDocuments = documents.filter(({ value: { id_class } }) => {
+    const result = safeParse(picklist(IdentificationClasses), id_class.value);
+    return result.success && IdClassToBridge[result.output];
+  });
+  if (classDocuments.length === 0) return;
+  return classDocuments.at(-1)?.value;
 }
 
 export const scopeValidationErrors = {

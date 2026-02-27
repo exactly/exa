@@ -5,7 +5,7 @@ import { captureException } from "@sentry/core";
 import { parse } from "valibot";
 import { hexToBytes, padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
-import { baseSepolia, optimism } from "viem/chains";
+import { optimism, optimismSepolia } from "viem/chains";
 import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
@@ -109,9 +109,10 @@ describe("bridge utils", () => {
       await expect(bridge.createCustomer(createCustomerPayload)).rejects.toThrow(
         bridge.ErrorCodes.EMAIL_ALREADY_EXISTS,
       );
-      expect(captureException).toHaveBeenLastCalledWith(expect.objectContaining({ message: "email already exists" }), {
-        level: "error",
-      });
+      expect(captureException).toHaveBeenLastCalledWith(
+        expect.objectContaining({ message: "A customer with this email already exists" }),
+        expect.objectContaining({ level: "error" }),
+      );
     });
 
     it("throws INVALID_ADDRESS when residential_address is invalid", async () => {
@@ -120,9 +121,10 @@ describe("bridge utils", () => {
       );
 
       await expect(bridge.createCustomer(createCustomerPayload)).rejects.toThrow(bridge.ErrorCodes.INVALID_ADDRESS);
-      expect(captureException).toHaveBeenLastCalledWith(expect.objectContaining({ message: "invalid address" }), {
-        level: "warning",
-      });
+      expect(captureException).toHaveBeenLastCalledWith(
+        expect.objectContaining({ message: "invalid_parameters: residential_address is not valid" }),
+        expect.objectContaining({ level: "warning" }),
+      );
     });
 
     it("throws on other errors", async () => {
@@ -140,7 +142,6 @@ describe("bridge utils", () => {
 
       expect(result.status).toBe("NOT_AVAILABLE");
       expect(result.onramp.currencies).toStrictEqual([]);
-      expect(result.onramp.cryptoCurrencies).toStrictEqual([]);
       expect(captureException).toHaveBeenCalledWith(
         expect.objectContaining({ message: "bridge not supported chain id" }),
         expect.objectContaining({ level: "error" }),
@@ -192,8 +193,12 @@ describe("bridge utils", () => {
         const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
 
         expect(result.status).toBe("ONBOARDING");
-        expect(result.onramp.currencies).toStrictEqual(["USD", "EUR"]);
-        expect(result.onramp.cryptoCurrencies).toHaveLength(3);
+        expect(result.onramp.currencies).toStrictEqual([
+          { currency: "USDC", network: "SOLANA" },
+          { currency: "USDC", network: "STELLAR" },
+          { currency: "USDT", network: "TRON" },
+          "USD",
+        ]);
       });
 
       it("returns ONBOARDING when customer is incomplete", async () => {
@@ -215,7 +220,13 @@ describe("bridge utils", () => {
         const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
 
         expect(result.status).toBe("ACTIVE");
-        expect(result.onramp.currencies).toStrictEqual(["USD", "GBP"]);
+        expect(result.onramp.currencies).toStrictEqual([
+          { currency: "USDC", network: "SOLANA" },
+          { currency: "USDC", network: "STELLAR" },
+          { currency: "USDT", network: "TRON" },
+          "USD",
+          "GBP",
+        ]);
       });
 
       it("returns ACTIVE with currencies from approved endorsements", async () => {
@@ -229,11 +240,12 @@ describe("bridge utils", () => {
         const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
 
         expect(result.status).toBe("ACTIVE");
-        expect(result.onramp.currencies).toStrictEqual(["USD", "EUR"]);
-        expect(result.onramp.cryptoCurrencies).toStrictEqual([
-          { cryptoCurrency: "USDC", network: "SOLANA" },
-          { cryptoCurrency: "USDC", network: "STELLAR" },
-          { cryptoCurrency: "USDT", network: "TRON" },
+        expect(result.onramp.currencies).toStrictEqual([
+          { currency: "USDC", network: "SOLANA" },
+          { currency: "USDC", network: "STELLAR" },
+          { currency: "USDT", network: "TRON" },
+          "USD",
+          "EUR",
         ]);
       });
 
@@ -248,11 +260,11 @@ describe("bridge utils", () => {
         const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
 
         expect(result.status).toBe("ACTIVE");
-        expect(result.onramp.currencies).toStrictEqual(["USD"]);
-        expect(result.onramp.cryptoCurrencies).toStrictEqual([
-          { cryptoCurrency: "USDC", network: "SOLANA" },
-          { cryptoCurrency: "USDC", network: "STELLAR" },
-          { cryptoCurrency: "USDT", network: "TRON" },
+        expect(result.onramp.currencies).toStrictEqual([
+          { currency: "USDC", network: "SOLANA" },
+          { currency: "USDC", network: "STELLAR" },
+          { currency: "USDT", network: "TRON" },
+          "USD",
         ]);
         expect(captureException).toHaveBeenCalledWith(
           expect.objectContaining({ message: "endorsement not approved" }),
@@ -359,10 +371,32 @@ describe("bridge utils", () => {
 
         const result = await bridge.getProvider({ credentialId: "cred-1" });
 
-        expect(result).toStrictEqual({ onramp: { currencies: [], cryptoCurrencies: [] }, status: "NOT_AVAILABLE" });
+        expect(result).toStrictEqual({ onramp: { currencies: [] }, status: "NOT_AVAILABLE" });
         expect(captureException).toHaveBeenCalledWith(
           expect.objectContaining({ message: "bridge not found identification class" }),
-          { contexts: { bridge: { credentialId: "cred-1", idClass: "wp" } }, level: "warning" },
+          expect.objectContaining({
+            contexts: { bridge: { credentialId: "cred-1", idClass: "wp" } },
+            level: "warning",
+          }),
+        );
+      });
+
+      it("returns NOT_AVAILABLE when id class is not listed in IdentificationClasses", async () => {
+        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(personaAccount);
+        vi.spyOn(persona, "getDocumentForBridge").mockReturnValueOnce({
+          ...identityDocument,
+          id_class: { value: "unknown_type" },
+        });
+
+        const result = await bridge.getProvider({ credentialId: "cred-1" });
+
+        expect(result).toStrictEqual({ onramp: { currencies: [] }, status: "NOT_AVAILABLE" });
+        expect(captureException).toHaveBeenCalledWith(
+          expect.objectContaining({ message: "bridge not found identification class" }),
+          expect.objectContaining({
+            contexts: { bridge: { credentialId: "cred-1", idClass: "unknown_type" } },
+            level: "warning",
+          }),
         );
       });
 
@@ -395,11 +429,12 @@ describe("bridge utils", () => {
         const result = await bridge.getProvider({ credentialId: "cred-1" });
 
         expect(result.status).toBe("NOT_STARTED");
-        expect(result.onramp.currencies).toStrictEqual(["USD", "EUR"]);
-        expect(result.onramp.cryptoCurrencies).toStrictEqual([
-          { cryptoCurrency: "USDC", network: "SOLANA" },
-          { cryptoCurrency: "USDC", network: "STELLAR" },
-          { cryptoCurrency: "USDT", network: "TRON" },
+        expect(result.onramp.currencies).toStrictEqual([
+          { currency: "USDC", network: "SOLANA" },
+          { currency: "USDC", network: "STELLAR" },
+          { currency: "USDT", network: "TRON" },
+          "USD",
+          "EUR",
         ]);
       });
 
@@ -413,11 +448,13 @@ describe("bridge utils", () => {
         const result = await bridge.getProvider({ credentialId: "cred-1" });
 
         expect(persona.getAccount).toHaveBeenCalledWith("cred-1", "bridge");
-        expect(result.onramp.currencies).toStrictEqual(["USD", "EUR", "MXN"]);
-        expect(result.onramp.cryptoCurrencies).toStrictEqual([
-          { cryptoCurrency: "USDC", network: "SOLANA" },
-          { cryptoCurrency: "USDC", network: "STELLAR" },
-          { cryptoCurrency: "USDT", network: "TRON" },
+        expect(result.onramp.currencies).toStrictEqual([
+          { currency: "USDC", network: "SOLANA" },
+          { currency: "USDC", network: "STELLAR" },
+          { currency: "USDT", network: "TRON" },
+          "USD",
+          "EUR",
+          "MXN",
         ]);
       });
 
@@ -431,11 +468,13 @@ describe("bridge utils", () => {
         const result = await bridge.getProvider({ credentialId: "cred-1" });
 
         expect(persona.getAccount).toHaveBeenCalledWith("cred-1", "bridge");
-        expect(result.onramp.currencies).toStrictEqual(["USD", "EUR", "BRL"]);
-        expect(result.onramp.cryptoCurrencies).toStrictEqual([
-          { cryptoCurrency: "USDC", network: "SOLANA" },
-          { cryptoCurrency: "USDC", network: "STELLAR" },
-          { cryptoCurrency: "USDT", network: "TRON" },
+        expect(result.onramp.currencies).toStrictEqual([
+          { currency: "USDC", network: "SOLANA" },
+          { currency: "USDC", network: "STELLAR" },
+          { currency: "USDT", network: "TRON" },
+          "USD",
+          "EUR",
+          "BRL",
         ]);
       });
 
@@ -449,11 +488,13 @@ describe("bridge utils", () => {
         const result = await bridge.getProvider({ credentialId: "cred-1" });
 
         expect(persona.getAccount).toHaveBeenCalledWith("cred-1", "bridge");
-        expect(result.onramp.currencies).toStrictEqual(["USD", "EUR", "GBP"]);
-        expect(result.onramp.cryptoCurrencies).toStrictEqual([
-          { cryptoCurrency: "USDC", network: "SOLANA" },
-          { cryptoCurrency: "USDC", network: "STELLAR" },
-          { cryptoCurrency: "USDT", network: "TRON" },
+        expect(result.onramp.currencies).toStrictEqual([
+          { currency: "USDC", network: "SOLANA" },
+          { currency: "USDC", network: "STELLAR" },
+          { currency: "USDT", network: "TRON" },
+          "USD",
+          "EUR",
+          "GBP",
         ]);
       });
 
@@ -471,7 +512,7 @@ describe("bridge utils", () => {
       });
 
       it("works on development chain", async () => {
-        chainMock.id = baseSepolia.id;
+        chainMock.id = optimismSepolia.id;
         vi.spyOn(persona, "getAccount").mockResolvedValueOnce(personaAccount);
         vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ url: "https://tos.link" }));
 
@@ -530,7 +571,7 @@ describe("bridge utils", () => {
       ).rejects.toThrow(bridge.ErrorCodes.NO_DOCUMENT_FILE);
     });
 
-    it("throws when id class is not mappable to bridge type", async () => {
+    it("throws NO_DOCUMENT when only document has unsupported id class", async () => {
       vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
         ...personaAccount,
         attributes: {
@@ -540,6 +581,32 @@ describe("bridge utils", () => {
             documents: { value: [{ value: { ...identityDocument, id_class: { value: "wp" } } }] },
           },
         },
+      });
+
+      await expect(
+        bridge.onboarding({ credentialId: "cred-1", customerId: null, acceptedTermsId: "terms-1" }),
+      ).rejects.toThrow(bridge.ErrorCodes.NO_DOCUMENT);
+    });
+
+    it("throws NOT_FOUND_IDENTIFICATION_CLASS when getDocumentForBridge returns not supported class", async () => {
+      vi.spyOn(persona, "getAccount").mockResolvedValueOnce(personaAccount);
+      vi.spyOn(persona, "getDocumentForBridge").mockReturnValueOnce({
+        ...identityDocument,
+        id_class: { value: "wp" },
+      });
+      vi.spyOn(persona, "getDocument").mockResolvedValueOnce(documentResponse);
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(blobResponse()).mockResolvedValueOnce(blobResponse());
+
+      await expect(
+        bridge.onboarding({ credentialId: "cred-1", customerId: null, acceptedTermsId: "terms-1" }),
+      ).rejects.toThrow(bridge.ErrorCodes.NOT_FOUND_IDENTIFICATION_CLASS);
+    });
+
+    it("throws NOT_FOUND_IDENTIFICATION_CLASS when id class is not listed in IdentificationClasses", async () => {
+      vi.spyOn(persona, "getAccount").mockResolvedValueOnce(personaAccount);
+      vi.spyOn(persona, "getDocumentForBridge").mockReturnValueOnce({
+        ...identityDocument,
+        id_class: { value: "unknown_type" },
       });
       vi.spyOn(persona, "getDocument").mockResolvedValueOnce(documentResponse);
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(blobResponse()).mockResolvedValueOnce(blobResponse());
@@ -762,6 +829,47 @@ describe("bridge utils", () => {
         fee: "0.0",
         estimatedProcessingTime: "300",
       });
+    });
+
+    it("returns BRL deposit details with PIX BR code info", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        fetchResponse({ count: 1, data: [brlVirtualAccount(account)] }),
+      );
+
+      const customer = {
+        ...activeCustomer,
+        endorsements: [endorsement("base", "approved"), endorsement("pix", "approved")],
+      };
+
+      const result = await bridge.getDepositDetails("BRL", account, customer);
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toStrictEqual({
+        network: "PIX-BR",
+        displayName: "PIX BR",
+        beneficiaryName: "Test Holder BR",
+        brCode: "00020126580014br.gov.bcb.pix", // cspell:ignore bcb
+        fee: "0.0",
+        estimatedProcessingTime: "300",
+      });
+    });
+
+    it("creates BRL virtual account when none exists", async () => {
+      vi.spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(fetchResponse({ count: 0, data: [] }))
+        .mockResolvedValueOnce(fetchResponse(brlVirtualAccount(account)));
+
+      const customer = {
+        ...activeCustomer,
+        endorsements: [endorsement("base", "approved"), endorsement("pix", "approved")],
+      };
+
+      const result = await bridge.getDepositDetails("BRL", account, customer);
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toStrictEqual(
+        expect.objectContaining({ network: "PIX-BR", brCode: "00020126580014br.gov.bcb.pix" }),
+      );
     });
 
     it("returns GBP deposit details with Faster Payments info", async () => {
@@ -1131,6 +1239,20 @@ function mxnVirtualAccount(account: string) {
       payment_rails: ["spei"],
       account_holder_name: "Test Holder MX",
       clabe: "646180171800000178", // cspell:ignore clabe
+    },
+    destination: { address: account },
+  };
+}
+
+function brlVirtualAccount(account: string) {
+  return {
+    id: "va-brl",
+    status: "activated",
+    source_deposit_instructions: {
+      currency: "brl",
+      payment_rails: ["pix"],
+      account_holder_name: "Test Holder BR",
+      br_code: "00020126580014br.gov.bcb.pix", // cspell:ignore bcb
     },
     destination: { address: account },
   };

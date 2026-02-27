@@ -111,16 +111,19 @@ export default function AddFunds() {
               ) : (
                 providers && (
                   <YStack gap="$s4">
-                    {Object.entries(providers).flatMap(([providerKey, provider]) => {
-                      const currencies = provider.onramp.currencies;
-                      return currencies.map((currency) => (
-                        <AddFiatButton
-                          key={`${providerKey}-${currency}`}
-                          currency={currency}
-                          status={provider.status}
-                        />
-                      ));
-                    })}
+                    {Object.entries(providers).flatMap(([providerKey, provider]) =>
+                      provider.onramp.currencies.flatMap((currency) =>
+                        typeof currency === "string"
+                          ? [
+                              <AddFiatButton
+                                key={`${providerKey}-${currency}`}
+                                currency={currency}
+                                status={provider.status}
+                              />,
+                            ]
+                          : [],
+                      ),
+                    )}
                   </YStack>
                 )
               )}
