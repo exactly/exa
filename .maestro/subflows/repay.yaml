@@ -31,6 +31,16 @@ appId: ${APP_ID ?? "app.exactly"}
       - inputText: ${amount}
       - tapOn: Subtotal # HACK
 - waitForAnimationToEnd
+- runFlow:
+    when: { true: "${asset}" }
+    commands:
+      - tapOn: Pay with
+      - runFlow:
+          when: { platform: web }
+          commands: [{ tapOn: "^${asset}$" }]
+      - runFlow:
+          when: { true: "${maestro.platform != 'web'}" }
+          commands: [{ tapOn: "^${asset}, [\\s\\d,.\\xa0]+ available$" }]
 - tapOn: Confirm payment
 - assertVisible: Processing.*
 - tapOn: Close

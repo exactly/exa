@@ -23,6 +23,7 @@ tags: [critical]
 - runFlow:
     file: ../subflows/mint.yaml
     env: { asset: ETH, to: "${output.account}", amount: "0.1" }
+- runFlow: { file: ../subflows/repay.yaml, env: { amount: "13", asset: ETH } }
 - runFlow: ../subflows/verifyIdentity.yaml
 - runFlow: ../subflows/activateCard.yaml
 - runFlow: ../subflows/storeCoverage.yaml
