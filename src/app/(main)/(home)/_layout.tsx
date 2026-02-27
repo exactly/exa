@@ -2,24 +2,26 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { Platform } from "react-native";
 
+import { selectionAsync } from "expo-haptics";
 import Head from "expo-router/head";
 import { TabList, Tabs, TabSlot, TabTrigger, useTabTrigger } from "expo-router/ui";
 
-import { Boxes, Coins, CreditCard, FileText, Home } from "@tamagui/lucide-icons";
+import { Boxes, CalendarCheck, CreditCard, History, Home } from "@tamagui/lucide-icons";
 import { YStack } from "tamagui";
 
 import SafeView from "../../../components/shared/SafeView";
 import StatusIndicator from "../../../components/shared/StatusIndicator";
 import Text from "../../../components/shared/Text";
+import reportError from "../../../utils/reportError";
 import usePendingOperations from "../../../utils/usePendingOperations";
 import { emitTabPress } from "../../../utils/useTabPress";
 
 const tabs = [
   { name: "index", title: "Home", href: "/", Icon: Home },
   { name: "card", title: "Card", href: "/card", Icon: CreditCard },
-  { name: "pay-mode", title: "Pay Mode", href: "/pay-mode", Icon: Coins },
+  { name: "pay-mode", title: "Payments", href: "/pay-mode", Icon: CalendarCheck },
   { name: "defi", title: "DeFi", href: "/defi", Icon: Boxes },
-  { name: "activity", title: "Activity", href: "/activity", Icon: FileText },
+  { name: "activity", title: "Activity", href: "/activity", Icon: History },
 ] as const;
 
 function TabItem({
@@ -41,7 +43,12 @@ function TabItem({
         {showNotification && <StatusIndicator type="notification" />}
         <Icon size={24} color={isFocused ? "$uiBrandSecondary" : "$uiNeutralSecondary"} />
       </YStack>
-      <Text primary={false} textAlign="center" color={isFocused ? "$uiBrandSecondary" : "$uiNeutralSecondary"}>
+      <Text
+        emphasized={isFocused}
+        textAlign="center"
+        caption2
+        color={isFocused ? "$uiBrandSecondary" : "$uiNeutralSecondary"}
+      >
         {title}
       </Text>
     </YStack>
@@ -72,7 +79,16 @@ export default function HomeLayout() {
             borderTopColor="$borderNeutralSoft"
           >
             {tabs.map(({ name, title, href, Icon }) => (
-              <TabTrigger key={name} name={name} href={href} style={{ flex: 1 }} onPress={() => emitTabPress(name)}>
+              <TabTrigger
+                key={name}
+                name={name}
+                href={href}
+                style={{ flex: 1 }}
+                onPress={() => {
+                  selectionAsync().catch(reportError);
+                  emitTabPress(name);
+                }}
+              >
                 <TabItem name={name} title={t(title)} Icon={Icon} showNotification={name === "activity" && count > 0} />
               </TabTrigger>
             ))}

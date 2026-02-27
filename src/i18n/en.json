@@ -9,6 +9,8 @@
   "You repay {{count}} installments of_other": "You repay {{count}} installments of",
   "{{count}} installments of_one": "{{count}} installment of",
   "{{count}} installments of_other": "{{count}} installments of",
+  "in {{count}} payments_one": "in {{count}} payment",
+  "in {{count}} payments_other": "in {{count}} payments",
   "{{count}} step remaining_one": "{{count}} step remaining",
   "{{count}} step remaining_other": "{{count}} steps remaining",
   "Pending requests → {{count}}_one": "Pending request → {{count}}",

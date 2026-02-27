@@ -4,7 +4,7 @@ import { StyleSheet } from "react-native";
 
 import { YStack } from "tamagui";
 
-import Blob from "../../assets/images/exa-card-blob.svg";
+import ExaCardBlob from "../../assets/images/exa-card-blob.svg";
 import ExaCard from "../../assets/images/exa-card.svg";
 import Text from "../shared/Text";
 import View from "../shared/View";
@@ -15,8 +15,8 @@ export default function Empty() {
     <View fullScreen padding="$s5" alignItems="center" justifyContent="center" backgroundColor="$backgroundSoft">
       <YStack gap="$s6" alignItems="center" justifyContent="center">
         <View width="100%" aspectRatio={1} justifyContent="center" alignItems="center">
-          <View width="100%" height="100%">
-            <Blob width="100%" height="100%" />
+          <View style={StyleSheet.absoluteFillObject}>
+            <ExaCardBlob width="100%" height="100%" />
           </View>
           <View style={StyleSheet.absoluteFillObject}>
             <ExaCard width="100%" height="100%" />
@@ -27,7 +27,7 @@ export default function Empty() {
             {t("No payments pending")}
           </Text>
           <Text footnote secondary textAlign="center">
-            {t("You're all caught up! Start using your card to see payments listed here.")}
+            {t("You're all caught up! Start using your card in Pay Later mode to see payments listed here.")}
           </Text>
         </YStack>
       </YStack>
