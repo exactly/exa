@@ -3,13 +3,14 @@ import { useMemo } from "react";
 import { encodeAbiParameters, encodeFunctionData, zeroAddress, type Address, type Hex } from "viem";
 import { useBytecode } from "wagmi";
 
-import { proposalManagerAddress } from "@exactly/common/generated/chain";
+import { exaPluginAddress, proposalManagerAddress } from "@exactly/common/generated/chain";
 import {
   auditorAbi,
   exaPluginAbi,
   marketAbi,
   proposalManagerAbi,
   upgradeableModularAccountAbi,
+  useReadExaPluginPluginMetadata,
   useReadProposalManagerDelay,
   useReadProposalManagerQueueNonces,
 } from "@exactly/common/generated/hooks";
@@ -25,6 +26,11 @@ export default function useSimulateProposal(
   const { account, enabled = true } = parameters;
   const proposals = useMemo(() => ("proposals" in parameters ? parameters.proposals : [parameters]), [parameters]);
   const { data: deployed } = useBytecode({ address: account ?? zeroAddress, query: { enabled: enabled && !!account } });
+  const isCrossRepay = proposals.some((p) => p.proposalType === ProposalType.CrossRepayAtMaturity);
+  const { data: pluginMetadata } = useReadExaPluginPluginMetadata({
+    address: exaPluginAddress,
+    query: { enabled: enabled && isCrossRepay },
+  });
   const proposalEntries = useMemo(
     () =>
       proposals.map((proposal) => {
@@ -47,7 +53,8 @@ export default function useSimulateProposal(
                   [{ maturity: proposal.maturity, maxAssets: proposal.maxAssets, receiver: proposal.receiver }],
                 )
             : proposal.proposalType === ProposalType.CrossRepayAtMaturity
-              ? proposal.maturity === undefined ||
+              ? !pluginMetadata?.version ||
+                proposal.maturity === undefined ||
                 proposal.positionAssets === undefined ||
                 proposal.maxRepay === undefined ||
                 proposal.route === undefined
@@ -56,21 +63,38 @@ export default function useSimulateProposal(
                     [
                       {
                         type: "tuple",
-                        components: [
-                          { name: "maturity", type: "uint256" },
-                          { name: "positionAssets", type: "uint256" },
-                          { name: "maxRepay", type: "uint256" },
-                          { name: "route", type: "bytes" },
-                        ],
+                        components:
+                          pluginMetadata.version >= "1.1.0"
+                            ? [
+                                { name: "maturity", type: "uint256" },
+                                { name: "positionAssets", type: "uint256" },
+                                { name: "marketOut", type: "address" },
+                                { name: "maxRepay", type: "uint256" },
+                                { name: "route", type: "bytes" },
+                              ]
+                            : [
+                                { name: "maturity", type: "uint256" },
+                                { name: "positionAssets", type: "uint256" },
+                                { name: "maxRepay", type: "uint256" },
+                                { name: "route", type: "bytes" },
+                              ],
                       },
                     ],
                     [
-                      {
-                        maturity: proposal.maturity,
-                        positionAssets: proposal.positionAssets,
-                        maxRepay: proposal.maxRepay,
-                        route: proposal.route,
-                      },
+                      pluginMetadata.version >= "1.1.0" && proposal.marketOut
+                        ? {
+                            maturity: proposal.maturity,
+                            positionAssets: proposal.positionAssets,
+                            marketOut: proposal.marketOut,
+                            maxRepay: proposal.maxRepay,
+                            route: proposal.route,
+                          }
+                        : {
+                            maturity: proposal.maturity,
+                            positionAssets: proposal.positionAssets,
+                            maxRepay: proposal.maxRepay,
+                            route: proposal.route,
+                          },
                     ],
                   )
               : proposal.proposalType === ProposalType.RepayAtMaturity
@@ -189,7 +213,7 @@ export default function useSimulateProposal(
             (legacyWithdraw ? proposal.receiver !== undefined : proposalData !== undefined),
         };
       }),
-    [account, proposals],
+    [account, pluginMetadata?.version, proposals],
   );
   const { data: proposalDelay } = useReadProposalManagerDelay({ address: proposalManagerAddress, query: { enabled } });
   const { data: nonce } = useReadProposalManagerQueueNonces({
@@ -338,14 +362,15 @@ type Proposal = { amount?: bigint; market?: Address } & (
       repayMaturity?: bigint;
     }
   | { legacy?: boolean; proposalType: typeof ProposalType.Withdraw; receiver?: Address }
-  | { maturity?: bigint; maxAssets?: bigint; proposalType: typeof ProposalType.BorrowAtMaturity; receiver?: Address }
   | {
+      marketOut?: Address;
       maturity?: bigint;
       maxRepay?: bigint;
       positionAssets?: bigint;
       proposalType: typeof ProposalType.CrossRepayAtMaturity;
       route?: Hex;
     }
+  | { maturity?: bigint; maxAssets?: bigint; proposalType: typeof ProposalType.BorrowAtMaturity; receiver?: Address }
   | { maturity?: bigint; positionAssets?: bigint; proposalType: typeof ProposalType.RepayAtMaturity }
   | { proposalType: typeof ProposalType.Redeem; receiver?: Address }
 );
