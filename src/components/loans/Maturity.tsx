@@ -49,7 +49,7 @@ export default function Maturity() {
       <View padded flexDirection="row" gap={10} paddingBottom="$s4" justifyContent="space-between" alignItems="center">
         <Pressable
           onPress={() => {
-            queryClient.setQueryData(["loan"], (old: Loan) => ({ ...old, maturity: undefined }));
+            queryClient.setQueryData<Loan>(["loan"], (old) => ({ ...old, maturity: undefined }));
             if (router.canGoBack()) {
               router.back();
               return;
@@ -89,7 +89,7 @@ export default function Maturity() {
                         key={maturity}
                         onPress={() => {
                           if (invalid) return;
-                          queryClient.setQueryData(["loan"], (old: Loan) => ({ ...old, maturity }));
+                          queryClient.setQueryData<Loan>(["loan"], (old) => ({ ...old, maturity: BigInt(maturity) }));
                         }}
                         flex={1}
                         gap="$s4"

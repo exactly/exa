@@ -63,7 +63,7 @@ export default function Amount() {
       <View padded flexDirection="row" gap={10} paddingBottom="$s4" justifyContent="space-between" alignItems="center">
         <Pressable
           onPress={() => {
-            queryClient.setQueryData(["loan"], (old: Loan) => ({ ...old, amount: null }));
+            queryClient.setQueryData<Loan>(["loan"], (old) => ({ ...old, amount: undefined }));
             if (router.canGoBack()) {
               router.back();
               return;
@@ -161,7 +161,7 @@ export default function Amount() {
             )}
             <Button
               onPress={() => {
-                queryClient.setQueryData(["loan"], (old: Loan) => ({ ...old, amount: state.amount }));
+                queryClient.setQueryData<Loan>(["loan"], (old) => ({ ...old, amount: state.amount }));
                 router.push("/loan/installments");
               }}
               primary={!state.warning || !acknowledged}

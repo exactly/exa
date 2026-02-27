@@ -20,11 +20,13 @@ import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
+import type { Address } from "viem";
+
 export default function Asset() {
   const router = useRouter();
   const { t } = useTranslation();
   const { address } = useAccount();
-  const [selectedMarket, setSelectedMarket] = useState<string>();
+  const [selectedMarket, setSelectedMarket] = useState<Address>();
   const { data: markets } = useReadPreviewerExactly({
     address: previewerAddress,
     args: address ? [address] : undefined,
@@ -111,7 +113,7 @@ export default function Asset() {
           <YStack>
             <Button
               onPress={() => {
-                queryClient.setQueryData(["loan"], (old: Loan) => ({ ...old, market: selectedMarket }));
+                queryClient.setQueryData<Loan>(["loan"], (old) => ({ ...old, market: selectedMarket }));
                 router.push("/loan/amount");
               }}
               main

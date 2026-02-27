@@ -45,7 +45,7 @@ export default function Receiver() {
     onSubmit: ({ value }) => {
       try {
         const receiver = parse(Address, value.receiver);
-        queryClient.setQueryData(["loan"], (old: Loan) => ({ ...old, receiver }));
+        queryClient.setQueryData<Loan>(["loan"], (old) => ({ ...old, receiver }));
         router.push("/loan/review");
       } catch {
         toast.show(t("Invalid address"), {
@@ -73,7 +73,7 @@ export default function Receiver() {
       <View padded flexDirection="row" gap={10} paddingBottom="$s4" justifyContent="space-between" alignItems="center">
         <Pressable
           onPress={() => {
-            queryClient.setQueryData(["loan"], (old: Loan) => ({ ...old, receiver: undefined }));
+            queryClient.setQueryData<Loan>(["loan"], (old) => ({ ...old, receiver: undefined }));
             if (router.canGoBack()) {
               router.back();
               return;

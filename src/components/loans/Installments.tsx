@@ -74,7 +74,7 @@ export default function Installments() {
                   <InstallmentSelector
                     value={loan.installments ?? 0}
                     onSelect={(installments) => {
-                      queryClient.setQueryData(["loan"], (old: Loan) => ({ ...old, installments }));
+                      queryClient.setQueryData<Loan>(["loan"], (old) => ({ ...old, installments }));
                     }}
                     totalAmount={loan.amount}
                     market={loan.market}
