@@ -566,7 +566,7 @@ export default function Bridge() {
         <View
           padded
           flexDirection="row"
-          gap={10}
+          gap="$s3_5"
           paddingBottom="$s4"
           justifyContent="space-between"
           alignItems="center"

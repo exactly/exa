@@ -1,0 +1,34 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+- assertVisible: ${output.account.slice(0, 6)}…${output.account.slice(-4)}
+- runFlow:
+    when: { true: "${maestro.platform != 'web'}" }
+    commands: [{ assertVisible: Settings }]
+- runFlow:
+    when: { platform: web }
+    commands: [{ assertVisible: { id: Settings } }]
+- runFlow: { file: tapAria.yaml, env: { aria: Hide sensitive } }
+- assertNotVisible:
+    text: \$[\s\d,.\xa0]+
+    below: Portfolio
+- runFlow: { file: tapAria.yaml, env: { aria: Show sensitive } }
+- assertVisible:
+    text: \$[\s\d,.\xa0]+
+    below: Portfolio
+- runFlow: readPortfolio.yaml
+- assertTrue: ${output.portfolio > 0}
+- tapOn: Manage portfolio
+- assertVisible: Your Portfolio
+- runFlow: { file: tapAria.yaml, env: { aria: Back } }
+- assertVisible: Add funds
+- assertVisible: Send
+- assertVisible: Swap
+- assertNotVisible: Getting Started
+- runFlow: { file: scrollTo.yaml, env: { element: Upcoming payments } }
+- runFlow: { file: scrollTo.yaml, env: { element: Latest activity } }
+- assertNotVisible: No activity yet
+- tapOn: View all
+- tapOn: Home
+- tapOn: Home
+- waitForAnimationToEnd
+- assertVisible: Portfolio

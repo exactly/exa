@@ -27,7 +27,7 @@ export default function ActivityDetails() {
   if (!item) return null;
   return (
     <GradientScrollView variant="neutral" stickyHeader>
-      <XStack gap={10} justifyContent="space-between" alignItems="center">
+      <XStack gap="$s3_5" justifyContent="space-between" alignItems="center">
         <Pressable
           onPress={() => {
             if (router.canGoBack()) {

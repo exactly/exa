@@ -22,7 +22,7 @@ export default function ModalSheet({
       dismissOnSnapToBottom
       unmountChildrenWhenHidden
       forceRemoveScrollEnabled={open}
-      animation="moderate"
+      animation="default"
       dismissOnOverlayPress
       onOpenChange={(isOpen: boolean) => {
         if (!isOpen) onClose();

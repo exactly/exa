@@ -130,7 +130,7 @@ export default function DeFi() {
           </Text>
         }
         terms={
-          <XStack alignItems="center" cursor="pointer">
+          <XStack alignItems="center" cursor="pointer" flex={1}>
             <Text caption secondary>
               <Trans
                 i18nKey="I accept the <link>Terms and Conditions</link> of Exactly Protocol."
@@ -182,7 +182,7 @@ export default function DeFi() {
           </Text>
         }
         terms={
-          <XStack alignItems="center" cursor="pointer">
+          <XStack alignItems="center" cursor="pointer" flex={1}>
             <Text caption secondary>
               <Trans
                 i18nKey="I accept the <link>Terms and Conditions</link> of LI.FI."

@@ -52,7 +52,7 @@ export default function CardContents({
   return (
     <XStack
       height={160}
-      animation="moderate"
+      animation="default"
       animateOnly={["opacity"]}
       justifyContent="space-between"
       padding="$s4"
@@ -72,7 +72,7 @@ export default function CardContents({
             ) : isCredit ? (
               <View
                 key="credit"
-                animation="moderate"
+                animation="default"
                 enterStyle={{ opacity: 0, transform: [{ translateX: -100 }] }}
                 exitStyle={{ opacity: 0, transform: [{ translateX: -100 }] }}
                 transform={[{ translateX: 0 }]}
@@ -93,7 +93,7 @@ export default function CardContents({
             ) : (
               <View
                 key="debit"
-                animation="moderate"
+                animation="default"
                 enterStyle={{ opacity: 0, transform: [{ translateX: 100 }] }}
                 exitStyle={{ opacity: 0, transform: [{ translateX: 100 }] }}
                 transform={[{ translateX: 0 }]}
@@ -118,7 +118,7 @@ export default function CardContents({
           </>
         </AnimatePresence>
       </YStack>
-      <XStack animation="moderate" position="absolute" right={0} left={0} top={0} bottom={0} justifyContent="flex-end">
+      <XStack animation="default" position="absolute" right={0} left={0} top={0} bottom={0} justifyContent="flex-end">
         {productId === PLATINUM_PRODUCT_ID ? (
           <Card
             width="100%"

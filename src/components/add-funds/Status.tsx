@@ -57,9 +57,9 @@ export default function Status() {
 
   return (
     <SafeView fullScreen>
-      <View gap={20} fullScreen padded>
+      <View gap="$s4_5" fullScreen padded>
         <ScrollView flex={1}>
-          <View flex={1} gap={20}>
+          <View flex={1} gap="$s4_5">
             <YStack flex={1} padding="$s4" gap="$s6">
               <YStack flex={1} justifyContent="center">
                 <View width="100%" aspectRatio={1} justifyContent="center" alignItems="center">

@@ -23,9 +23,9 @@ export default function AddFundsOption({
       backgroundColor="$backgroundSoft"
       borderRadius="$r5"
       cursor="pointer"
+      onPress={onPress}
       borderWidth={1}
       borderColor="$borderNeutralSoft"
-      onPress={onPress}
     >
       <XStack alignItems="center" gap="$s3_5" justifyContent="space-between">
         <XStack gap="$s3_5" alignItems="center" flex={1}>

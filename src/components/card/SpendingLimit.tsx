@@ -27,7 +27,7 @@ export default function SpendingLimit({
   return (
     <YStack justifyContent="flex-start" paddingHorizontal="$s3">
       <XStack flex={1} height={46} alignItems="center" justifyContent="space-between">
-        <XStack gap={5} alignItems="center">
+        <XStack gap="$s2" alignItems="center">
           <Text emphasized callout>
             {title}
           </Text>
@@ -42,7 +42,7 @@ export default function SpendingLimit({
             <Skeleton width={100} height={16} />
           )}
         </XStack>
-        <XStack gap={5} alignItems="center">
+        <XStack gap="$s2" alignItems="center">
           {limit ? (
             <Text callout sensitive color="$uiBrandSecondary">
               {t("{{amount}} left", {

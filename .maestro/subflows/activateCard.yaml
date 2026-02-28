@@ -1,16 +1,10 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
 - tapOn: Card
-- runFlow:
-    when: { true: "${maestro.platform != 'web'}" }
-    commands:
-      - tapOn: \$[\s\d,.\xa0]+, AVAILABLE BALANCE
-- runFlow:
-    when: { platform: web }
-    commands: [{ tapOn: Available balance }]
-- runFlow:
-    when: { visible: Accept and enable card }
-    commands: [{ tapOn: Accept and enable card }]
+- tapOn: Card details
+- waitForAnimationToEnd
+- runFlow: { file: scrollTo.yaml, env: { element: Accept and enable card } }
+- tapOn: Accept and enable card
 - assertVisible: Manually add your card to Apple Pay & Google Pay to make contactless payments.
 - tapOn: Close
 - tapOn: Freeze card
@@ -42,4 +36,30 @@ appId: ${APP_ID ?? "app.exactly"}
           text: \$[\s\d,.\xa0]+
           above: Available balance
 - tapOn: Home
-- assertVisible: SPENDING LIMIT
+- runFlow:
+    when: { visible: Tap here to change the number of installments }
+    commands:
+      - tapOn: Tap here to change the number of installments
+      - assertVisible: Set installments
+      - tapOn: "3"
+      - tapOn: Set Pay Later in 3
+      - tapOn: Later in 3
+      - assertVisible: Set installments
+      - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
+      - assertVisible: Exa Card pay mode
+- tapOn: Now
+- runFlow: { file: scrollTo.yaml, env: { element: Spending limit info } }
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Spending limit info } }
+- assertVisible: It's based on the USDC available in your balance.
+- tapOn: Close
+- tapOn: Later in \d+
+- runFlow: { file: scrollTo.yaml, env: { element: Credit limit info } }
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Credit limit info } }
+- assertVisible: It's based on the value of your collateral assets and updates as their value changes.
+- tapOn: Close
+- runFlow: { file: scrollTo.yaml, env: { element: Learn more } }
+- tapOn:
+    text: Learn more
+    rightOf: Exa Card pay mode
+- assertVisible: Change the pay mode before each purchase and pay how you want.
+- tapOn: Close

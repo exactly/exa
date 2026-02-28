@@ -1,7 +1,7 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
 - waitForAnimationToEnd
-- scrollUntilVisible: { element: Upcoming payments }
+- runFlow: { file: scrollTo.yaml, env: { element: Repay } }
 - copyTextFrom:
     text: \d+[,.]\d{2}
     below: Upcoming payments
@@ -28,7 +28,7 @@ appId: ${APP_ID ?? "app.exactly"}
     file: ../subflows/tapWhileAria.yaml
     env: { aria: Pending proposals, tap: Home }
 - waitForAnimationToEnd
-- scrollUntilVisible: { element: Upcoming payments }
+- runFlow: { file: scrollTo.yaml, env: { element: Repay } }
 - copyTextFrom:
     text: \d+[,.]\d{2}
     below: Upcoming payments

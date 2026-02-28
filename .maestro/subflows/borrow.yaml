@@ -7,7 +7,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: DeFi
 - runFlow:
     when: { visible: Explore decentralized services }
-    commands: [{ tapOn: "Explore decentralized services" }]
+    commands: [{ tapOn: 'Explore decentralized services' }]
 - tapOn: USDC funding
 - runFlow:
     when: { visible: Connect wallet to Exactly Protocol }
@@ -32,7 +32,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - runScript: ../dist/getAccount.js
 - runScript:
     file: ../dist/hookProposals.js
-    env: { account: "${output.account}" }
+    env: { account: '${output.account}' }
 - tapOn: Close
 - tapOn: Home
 - runFlow:

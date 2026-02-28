@@ -1,6 +1,6 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
-- copyTextFrom:
-    below: Your portfolio
-    text: ^(US)?\$[\s\d,.\xa0]+$
+- runFlow:
+    file: copyAria.yaml
+    env: { aria: "^(US)?\\$[\\s\\d,.\\xa0]+$" }
 - evalScript: ${output.portfolio = Number(maestro.copiedText.replace(/\D/g, "")) / 100}

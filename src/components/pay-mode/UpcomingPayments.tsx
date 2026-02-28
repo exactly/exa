@@ -41,7 +41,8 @@ export default function UpcomingPayments({ onSelect }: { onSelect: (maturity: bi
   const exaUSDC = markets?.find(({ market }) => market === marketUSDCAddress);
   const duePayments = new Map<bigint, { amount: bigint; discount: number; positionAmount: bigint }>();
   if (markets) {
-    for (const { fixedBorrowPositions } of markets) {
+    for (const { market, fixedBorrowPositions } of markets) {
+      if (market !== marketUSDCAddress) continue;
       for (const { maturity, previewValue, position } of fixedBorrowPositions) {
         if (!previewValue) continue;
 
