@@ -1,6 +1,6 @@
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
-import { captureException, close as closeSentry } from "@sentry/node";
+import { captureException, close as closeSentry, setExtra } from "@sentry/node";
 import { isoBase64URL } from "@simplewebauthn/server/helpers";
 import { Hono } from "hono";
 import { secureHeaders } from "hono/secure-headers";
@@ -88,6 +88,10 @@ app.get("/.well-known/farcaster.json", (c) =>
 );
 
 const frontend = new Hono();
+frontend.use((_, next) => {
+  setExtra("exa.ignore", true);
+  return next();
+});
 const reportUri = `https://o1351734.ingest.us.sentry.io/api/4506186349674496/security/?sentry_key=ac8875331e4cecd67dd0a7519a36dfeb&sentry_environment=${
   { "web.exactly.app": "production" }[domain] ?? /^(.+)\.exactly\.app$/.exec(domain)?.[1] ?? domain
 }`;
