@@ -1,5 +1,11 @@
 # @exactly/common
 
+## 0.0.14
+
+### Patch Changes
+
+- [`8a0ed97`](https://github.com/exactly/exa/commit/8a0ed9799a52b491d2a9bff9f0b3b77818515c46) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🔧 setup all onesignal domains
+
 ## 0.0.13
 
 ### Patch Changes

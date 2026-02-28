@@ -1,5 +1,17 @@
 # @exactly/mobile
 
+## 1.1.23
+
+### Patch Changes
+
+- [#846](https://github.com/exactly/exa/pull/846) [`8405759`](https://github.com/exactly/exa/commit/840575920a701bd55bdecfea3725fa4746b35da4) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🧵 fix onesignal init race condition
+
+- [#847](https://github.com/exactly/exa/pull/847) [`fb12f95`](https://github.com/exactly/exa/commit/fb12f95fc83271e426b105f8fac47c7e02839ed0) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚸 expand pay asset selector hit area
+
+- Updated dependencies [[`a2b93e2`](https://github.com/exactly/exa/commit/a2b93e28405c67018d7c3c1eb7a31616119f6cf7), [`8a0ed97`](https://github.com/exactly/exa/commit/8a0ed9799a52b491d2a9bff9f0b3b77818515c46), [`9dcaf93`](https://github.com/exactly/exa/commit/9dcaf936486704edaab88656502344631215a7b6)]:
+  - @exactly/server@0.2.75
+  - @exactly/common@0.0.14
+
 ## 1.1.22
 
 ### Patch Changes

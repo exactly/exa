@@ -1,5 +1,13 @@
 # @exactly/server
 
+## 0.2.75
+
+### Patch Changes
+
+- [#837](https://github.com/exactly/exa/pull/837) [`a2b93e2`](https://github.com/exactly/exa/commit/a2b93e28405c67018d7c3c1eb7a31616119f6cf7) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🗃️ index foreign keys on cards and transactions
+
+- [#848](https://github.com/exactly/exa/pull/848) [`9dcaf93`](https://github.com/exactly/exa/commit/9dcaf936486704edaab88656502344631215a7b6) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 📈 skip sentry tracing for static assets
+
 ## 0.2.74
 
 ### Patch Changes
