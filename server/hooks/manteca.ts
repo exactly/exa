@@ -28,6 +28,7 @@ import {
   convertBalanceToUsdc,
   ErrorCodes,
   OrderStatus,
+  UserOnboardingTasks,
   UserStatus,
   withdrawBalance,
   WithdrawStatus,
@@ -66,6 +67,7 @@ const Payload = variant("event", [
           externalId: string(),
           exchange: string(),
           status: picklist(UserStatus),
+          onboarding: UserOnboardingTasks,
         }),
       }),
       transform((data) => ({ ...data, userExternalId: data.user.externalId })),
@@ -218,7 +220,11 @@ export default new Hono().post(
         }
         return c.json({ code: "ok" }, 200);
       case "USER_ONBOARDING_UPDATE":
-        if (payload.data.user.status === "ACTIVE") {
+        if (
+          payload.data.user.status === "ACTIVE" &&
+          payload.data.updatedTasks.includes("IDENTITY_VALIDATION") &&
+          payload.data.user.onboarding.IDENTITY_VALIDATION?.status === "COMPLETED"
+        ) {
           track({
             userId: account,
             event: "RampAccount",
