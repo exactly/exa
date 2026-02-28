@@ -16,8 +16,10 @@ import block from "./hooks/block";
 import manteca from "./hooks/manteca";
 import panda from "./hooks/panda";
 import persona from "./hooks/persona";
+import { close as closeAlchemyQueue, initializeWorker } from "./queues/alchemyQueue";
 import androidFingerprints from "./utils/android/fingerprints";
 import appOrigin from "./utils/appOrigin";
+import { closeRedis } from "./utils/redis";
 import { closeAndFlush as closeSegment } from "./utils/segment";
 
 import type { UnofficialStatusCode } from "hono/utils/http-status";
@@ -317,7 +319,7 @@ const server = serve(app);
 export async function close() {
   return new Promise((resolve, reject) => {
     server.close((error) => {
-      Promise.allSettled([closeSentry(), closeSegment(), database.$client.end()])
+      Promise.allSettled([closeSentry(), closeSegment(), database.$client.end(), closeAlchemyQueue(), closeRedis()])
         .then((results) => {
           if (error) reject(error);
           else if (results.some((result) => result.status === "rejected")) reject(new Error("closing services failed"));
@@ -329,6 +331,8 @@ export async function close() {
 }
 
 if (!process.env.VITEST) {
+  initializeWorker();
+
   ["SIGINT", "SIGTERM"].map((code) => {
     process.on(code, () => {
       close()
