@@ -1,4 +1,4 @@
-import { optimism } from "@account-kit/infra";
+import * as infra from "@account-kit/infra";
 import {
   ChainType,
   config,
@@ -51,7 +51,7 @@ export const lifiTokensOptions = queryOptions({
     try {
       const { tokens } = await getTokens({ chainTypes: [ChainType.EVM] });
       const allTokens = Object.values(tokens).flat();
-      if (chain.id !== optimism.id) return allTokens;
+      if (chain.id !== infra.optimism.id) return allTokens;
       const exa = await getToken(chain.id, "0x1e925De1c68ef83bD98eE3E130eF14a50309C01B").catch((error: unknown) => {
         reportError(error);
       });
@@ -91,15 +91,34 @@ export function tokenBalancesOptions(account: Address | undefined) {
 let configured = false;
 function ensureConfig() {
   if (configured || chain.testnet || chain.id === anvil.id) return;
+  const rpcUrls = {
+    ...Object.values(infra).reduce<Record<number, string[]>>((result, item) => {
+      if (typeof item !== "object" || !("id" in item) || !("rpcUrls" in item)) return result;
+      const candidate = item as { id: number; rpcUrls: { alchemy?: { http?: string[] } } };
+      const alchemyRpcUrl = candidate.rpcUrls.alchemy?.http?.[0];
+      if (!alchemyRpcUrl) return result;
+      result[candidate.id] = [`${alchemyRpcUrl}/${alchemyAPIKey}`];
+      return result;
+    }, {}),
+    [chain.id]: [publicClient.transport.alchemyRpcUrl],
+  };
   createLifiConfig({
     integrator: "exa_app",
     apiKey: "4bdb54aa-4f28-4c61-992a-a2fdc87b0a0b.251e33ad-ef5e-40cb-9b0f-52d634b99e8f",
+    preloadChains: false,
     providers: [EVM({ getWalletClient: () => Promise.resolve(publicClient) })],
-    rpcUrls: {
-      [optimism.id]: [`${optimism.rpcUrls.alchemy?.http[0]}/${alchemyAPIKey}`],
-      [chain.id]: [publicClient.transport.alchemyRpcUrl],
-    },
+    rpcUrls,
   });
+  config.loading = getChains({ chainTypes: [ChainType.EVM] })
+    .then((availableChains) => {
+      const rpcs = config.get().rpcUrls as Partial<Record<number, readonly string[]>>;
+      config.setChains(
+        availableChains.map((c) => (rpcs[c.id]?.length ? { ...c, metamask: { ...c.metamask, rpcUrls: [] } } : c)),
+      );
+    })
+    .catch((error: unknown) => {
+      reportError(error);
+    });
   configured = true;
   queryClient.prefetchQuery(lifiTokensOptions).catch(reportError);
   queryClient.prefetchQuery(lifiChainsOptions).catch(reportError);
