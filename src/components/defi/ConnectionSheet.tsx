@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Pressable } from "react-native";
 
 import { ArrowRight, Check, Info, X } from "@tamagui/lucide-icons";
-import { ScrollView, XStack, YStack } from "tamagui";
+import { XStack, YStack } from "tamagui";
 
 import Connect from "../../assets/images/connect.svg";
 import ModalSheet from "../shared/ModalSheet";
@@ -30,7 +30,7 @@ export default function ConnectionSheet({
 }) {
   const [acknowledged, setAcknowledged] = useState(true);
   return (
-    <ModalSheet open={open} onClose={onClose} disableDrag>
+    <ModalSheet open={open} onClose={onClose} disableDrag heightPercent={90}>
       <SafeView
         paddingTop={0}
         $platform-web={{ paddingBottom: "$s4" }}
@@ -44,61 +44,61 @@ export default function ConnectionSheet({
             <X size={25} color="$uiNeutralSecondary" />
           </Pressable>
         </View>
-        <ScrollView $platform-web={{ maxHeight: "100vh" }}>
-          <View flex={1}>
-            <YStack flex={1} padding="$s4" gap="$s6">
-              <YStack flex={1} justifyContent="center">
-                <View width="100%" aspectRatio={1} justifyContent="center" alignItems="center">
-                  <Connect width="100%" height="100%" />
-                </View>
-                <YStack gap="$s4" alignSelf="center">
-                  <Text emphasized textAlign="center" color="$interactiveTextBrandDefault" title>
-                    {title}
-                  </Text>
-                </YStack>
-              </YStack>
-              <YStack gap="$s4_5">
-                <XStack alignItems="center" gap="$s4">
-                  <XStack>
-                    <Info size="$iconSize.md" strokeWidth="$iconStroke.md" color="$uiInfoSecondary" />
-                  </XStack>
-                  <XStack flex={1}>{disclaimer}</XStack>
-                </XStack>
-                <XStack
+        <YStack flex={1} padding="$s4" gap="$s4_5">
+          <YStack flex={1} gap="$s4">
+            <View flex={1} width="100%">
+              <Connect width="100%" height="100%" />
+            </View>
+            <Text
+              emphasized
+              textAlign="center"
+              color="$interactiveTextBrandDefault"
+              title
+              adjustsFontSizeToFit
+              numberOfLines={2}
+            >
+              {title}
+            </Text>
+          </YStack>
+          <YStack gap="$s4_5">
+            <XStack alignItems="center" gap="$s4">
+              <XStack>
+                <Info size="$iconSize.md" strokeWidth="$iconStroke.md" color="$uiInfoSecondary" />
+              </XStack>
+              <XStack flex={1}>{disclaimer}</XStack>
+            </XStack>
+            <XStack
+              alignItems="center"
+              gap="$s4"
+              justifyContent="flex-start"
+              onPress={() => {
+                setAcknowledged(!acknowledged);
+              }}
+            >
+              <XStack cursor="pointer">
+                <View
+                  width={16}
+                  height={16}
+                  backgroundColor={acknowledged ? "$backgroundBrand" : "transparent"}
+                  borderColor="$backgroundBrand"
+                  borderWidth={1}
+                  borderRadius="$r2"
+                  justifyContent="center"
                   alignItems="center"
-                  gap="$s4"
-                  flex={1}
-                  justifyContent="flex-start"
-                  onPress={() => {
-                    setAcknowledged(!acknowledged);
-                  }}
                 >
-                  <XStack cursor="pointer">
-                    <View
-                      width={16}
-                      height={16}
-                      backgroundColor={acknowledged ? "$backgroundBrand" : "transparent"}
-                      borderColor="$backgroundBrand"
-                      borderWidth={1}
-                      borderRadius="$r2"
-                      justifyContent="center"
-                      alignItems="center"
-                    >
-                      {acknowledged && <Check size="$iconSize.xs" color="white" />}
-                    </View>
-                  </XStack>
-                  {terms}
-                </XStack>
-                <Button onPress={onActionPress} primary disabled={!acknowledged}>
-                  <Button.Text>{actionText}</Button.Text>
-                  <Button.Icon>
-                    <ArrowRight />
-                  </Button.Icon>
-                </Button>
-              </YStack>
-            </YStack>
-          </View>
-        </ScrollView>
+                  {acknowledged && <Check size="$iconSize.xs" color="white" />}
+                </View>
+              </XStack>
+              {terms}
+            </XStack>
+            <Button onPress={onActionPress} primary disabled={!acknowledged}>
+              <Button.Text>{actionText}</Button.Text>
+              <Button.Icon>
+                <ArrowRight />
+              </Button.Icon>
+            </Button>
+          </YStack>
+        </YStack>
       </SafeView>
     </ModalSheet>
   );

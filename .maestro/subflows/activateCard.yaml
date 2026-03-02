@@ -40,16 +40,13 @@ appId: ${APP_ID ?? "app.exactly"}
           above: Available balance
 - tapOn: Home
 - runFlow:
-    when: { visible: Tap here to change the number of installments }
+    when: { visible: Spending limit }
     commands:
+      - tapOn: Later in 1
+      - assertVisible: How installment repayment works
+      - tapOn: Close
       - tapOn: Tap here to change the number of installments
-      - assertVisible: Set installments
-      - tapOn: "3"
-      - tapOn: Set Pay Later in 3
-      - tapOn: Later in 3
-      - assertVisible: Set installments
       - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
-      - assertVisible: Exa Card pay mode
 - runFlow: { file: scrollTo.yaml, env: { element: Learn more } }
 - tapOn:
     text: Learn more
