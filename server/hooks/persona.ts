@@ -320,7 +320,7 @@ export default new Hono().post(
       phone: fields.phoneNumber?.value ?? "",
       internalId: deriveAssociateId(account),
       product: "travel insurance",
-    }).catch((error: unknown) => captureException(error, { level: "error", extra: { pandaId: id, referenceId } }));
+    }).catch((error: unknown) => captureException(error, { level: "error" }));
 
     // TODO implement error handling to return 200 if event should not be retried
     const { id } = await createUser({
