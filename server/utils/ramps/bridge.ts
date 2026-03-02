@@ -19,7 +19,7 @@ import {
   type InferInput,
   type InferOutput,
 } from "valibot";
-import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
+import { optimism, optimismSepolia } from "viem/chains";
 
 import chain from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
@@ -283,8 +283,6 @@ const SupportedOnRampChainId: Record<
   (typeof CryptoPaymentRail)[number] | undefined
 > = {
   [optimism.id]: "optimism",
-  [base.id]: "base",
-  [baseSepolia.id]: "base",
   [optimismSepolia.id]: "optimism",
 } as const;
 

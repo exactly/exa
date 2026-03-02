@@ -2,7 +2,7 @@ import "../mocks/persona";
 import "../mocks/sentry";
 
 import { array, minLength, number, object, optional, pipe, safeParse, string, union } from "valibot";
-import { baseSepolia, optimism } from "viem/chains";
+import { optimism, optimismSepolia } from "viem/chains";
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 
 import * as persona from "../../utils/persona";
@@ -577,7 +577,7 @@ describe("evaluateAccount", () => {
 describe("getAllowedMantecaIds", () => {
   describe("development mode", () => {
     beforeEach(() => {
-      chainMock.id = baseSepolia.id;
+      chainMock.id = optimismSepolia.id;
     });
 
     it("returns allowed ids for supported countries (AR)", () => {

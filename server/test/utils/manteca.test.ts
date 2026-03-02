@@ -2,7 +2,7 @@ import "../mocks/sentry";
 
 import { parse } from "valibot";
 import { padHex } from "viem";
-import { baseSepolia, optimism } from "viem/chains";
+import { optimism, optimismSepolia } from "viem/chains";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Address } from "@exactly/common/validation";
@@ -264,8 +264,8 @@ describe("manteca utils", () => {
       await expect(manteca.withdrawBalance("456", "USDC", address)).rejects.toThrow(ErrorCodes.NOT_SUPPORTED_CHAIN_ID);
     });
 
-    it("withdraws with BASE network on development chain", async () => {
-      chainMock.id = baseSepolia.id;
+    it("withdraws with OPTIMISM network on development chain", async () => {
+      chainMock.id = optimismSepolia.id;
       const fetchSpy = vi
         .spyOn(globalThis, "fetch")
         .mockResolvedValueOnce(mockFetchResponse({ ...mockBalanceBase, balance: { USDC: "100.00" } }))
@@ -276,7 +276,7 @@ describe("manteca utils", () => {
       const withdrawCall = fetchSpy.mock.calls[1];
       const body = JSON.parse(withdrawCall?.[1]?.body as string) as Record<string, unknown>;
       expect(body).toMatchObject({
-        destination: { address, network: "BASE" },
+        destination: { address, network: "OPTIMISM" },
       });
     });
   });
@@ -414,7 +414,7 @@ describe("manteca utils", () => {
     });
 
     it("returns currencies on development chain", async () => {
-      chainMock.id = baseSepolia.id;
+      chainMock.id = optimismSepolia.id;
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
         ok: false,
         status: 404,

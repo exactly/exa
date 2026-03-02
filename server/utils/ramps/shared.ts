@@ -1,12 +1,12 @@
 import { array, literal, object, optional, picklist, string, variant } from "valibot";
-import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
+import { optimism, optimismSepolia } from "viem/chains";
 
 export const Currency = ["ARS", "USD", "CLP", "BRL", "COP", "PUSD", "CRC", "GTQ", "MXN", "PHP", "BOB", "EUR"] as const;
 export const Cryptocurrency = ["USDC", "USDT", "ETH", "SOL", "BTC", "DAI", "PYUSD", "USDP"] as const; // cspell:ignore usdp
 export const RampProvider = ["manteca", "bridge"] as const;
 
-export const SupportedChainId = [optimism.id, base.id, baseSepolia.id, optimismSepolia.id] as const;
-export const DevelopmentChainIds = [baseSepolia.id, optimismSepolia.id] as const;
+export const SupportedChainId = [optimism.id, optimismSepolia.id] as const;
+export const DevelopmentChainIds = [optimismSepolia.id] as const;
 
 export const FiatNetwork = [
   "ARG_FIAT_TRANSFER",

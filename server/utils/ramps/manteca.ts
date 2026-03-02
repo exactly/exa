@@ -15,7 +15,7 @@ import {
   type InferOutput,
 } from "valibot";
 import { withRetry } from "viem";
-import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
+import { optimism, optimismSepolia } from "viem/chains";
 
 import chain from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
@@ -376,13 +376,11 @@ export async function mantecaOnboarding(account: Address, credentialId: string) 
 // #endregion services
 
 // #region schemas
-const Networks = ["OPTIMISM", "BASE"] as const;
+const Networks = ["OPTIMISM"] as const;
 
 const SupportedOnRampChainId: Record<(typeof shared.SupportedChainId)[number], (typeof Networks)[number] | undefined> =
   {
     [optimism.id]: "OPTIMISM",
-    [base.id]: "BASE",
-    [baseSepolia.id]: "BASE",
     [optimismSepolia.id]: "OPTIMISM",
   } as const;
 
