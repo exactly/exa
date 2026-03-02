@@ -1395,7 +1395,13 @@ async function publish(payload: v.InferOutput<typeof Payload>, receipt?: Transac
             throw new Error("WebhookFailed", {
               cause: {
                 code: response.status,
-                response: await response.json(),
+                response: await response.text().then((text) => {
+                  try {
+                    return JSON.parse(text) as unknown;
+                  } catch {
+                    return text;
+                  }
+                }),
                 payload: webhookPayload,
               },
             });
@@ -1414,7 +1420,13 @@ async function publish(payload: v.InferOutput<typeof Payload>, receipt?: Transac
       );
       debugWebhook({
         code: result.status,
-        response: await result.json(),
+        response: await result.text().then((text) => {
+          try {
+            return JSON.parse(text) as unknown;
+          } catch {
+            return text;
+          }
+        }),
         payload: webhookPayload,
       });
     } catch (error) {
