@@ -134,25 +134,32 @@ export function extender(client: WalletClient<HttpTransport, typeof chain, Priva
 
       const pokes = await Promise.allSettled(
         assetsToPoke.map(({ asset, market }) =>
-          send.exaSend(
-            {
-              name: "poke account",
-              op: "exa.poke",
-              attributes: { account: accountAddress, asset },
-            },
-            asset === ETH
-              ? {
-                  address: accountAddress,
-                  abi: combinedAccountAbi,
-                  functionName: "pokeETH",
-                }
-              : {
-                  address: accountAddress,
-                  abi: combinedAccountAbi,
-                  functionName: "poke",
-                  args: [market],
+          withRetry(
+            () =>
+              send.exaSend(
+                {
+                  name: "poke account",
+                  op: "exa.poke",
+                  attributes: { account: accountAddress, asset },
                 },
-            ...(options?.ignore ? [{ ignore: options.ignore }] : []),
+                asset === ETH
+                  ? {
+                      address: accountAddress,
+                      abi: combinedAccountAbi,
+                      functionName: "pokeETH",
+                    }
+                  : {
+                      address: accountAddress,
+                      abi: combinedAccountAbi,
+                      functionName: "poke",
+                      args: [market],
+                    },
+                ...(options?.ignore ? [{ ignore: options.ignore }] : []),
+              ),
+            {
+              retryCount: 10,
+              delay: ({ count }) => Math.trunc(1 << count) * 60,
+            },
           ),
         ),
       ).then((r) => {
