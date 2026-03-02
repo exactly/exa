@@ -2912,7 +2912,7 @@ describe("webhooks", () => {
     const mockFetch = vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
       if (url === "https://exa.test") {
         publish = true;
-        return { ok: true, status: 200 } as Response;
+        return { ok: true, status: 200, text: () => Promise.resolve("OK") } as Response;
       }
       return fetch(url, init);
     });
@@ -2950,7 +2950,7 @@ describe("webhooks", () => {
     const mockFetch = vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
       if (url === "https://exa.test") {
         publish = true;
-        return { ok: true, status: 200 } as Response;
+        return { ok: true, status: 200, text: () => Promise.resolve("OK") } as Response;
       }
       return fetch(url, init);
     });
@@ -2990,7 +2990,7 @@ describe("webhooks", () => {
     const mockFetch = vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
       if (url === "https://exa.test") {
         publishCounter++;
-        return { ok: true, status: 200 } as Response;
+        return { ok: true, status: 200, text: () => Promise.resolve("OK") } as Response;
       }
       return fetch(url, init);
     });
@@ -3043,8 +3043,8 @@ describe("webhooks", () => {
     const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json() {
-        return Promise.resolve({});
+      text() {
+        return Promise.resolve("{}");
       },
     } as Response);
 
@@ -3071,8 +3071,8 @@ describe("webhooks", () => {
     const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json() {
-        return Promise.resolve({});
+      text() {
+        return Promise.resolve("{}");
       },
     } as Response);
 
@@ -3098,8 +3098,8 @@ describe("webhooks", () => {
     const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json() {
-        return Promise.resolve({});
+      text() {
+        return Promise.resolve("{}");
       },
     } as Response);
 
@@ -3119,6 +3119,52 @@ describe("webhooks", () => {
     const headers = parse(object({ Signature: string() }), options?.headers);
 
     expect(createHmac("sha256", secret).update(parse(string(), options?.body)).digest("hex")).toBe(headers.Signature);
+  });
+
+  it("logs text on webhook ok response", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: () => Promise.resolve("OK"),
+    } as unknown as Response);
+
+    await appClient.index.$post({
+      ...cardUpdated,
+      json: {
+        ...cardUpdated.json,
+        body: {
+          ...cardUpdated.json.body,
+          userId: webhookAccount,
+          tokenWallets: ["Apple"],
+        },
+      },
+    });
+
+    await vi.waitUntil(() => webhookLogger.mock.calls.length > 0, 10_000);
+    expect(webhookLogger).toHaveBeenCalledWith(expect.objectContaining({ response: "OK" }));
+  });
+
+  it("logs json on webhook ok response", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: () => Promise.resolve(JSON.stringify({ status: 200, message: "OK" })),
+    } as unknown as Response);
+
+    await appClient.index.$post({
+      ...cardUpdated,
+      json: {
+        ...cardUpdated.json,
+        body: {
+          ...cardUpdated.json.body,
+          userId: webhookAccount,
+          tokenWallets: ["Apple"],
+        },
+      },
+    });
+
+    await vi.waitUntil(() => webhookLogger.mock.calls.length > 0, 10_000);
+    expect(webhookLogger).toHaveBeenCalledWith(expect.objectContaining({ response: { status: 200, message: "OK" } }));
   });
 });
 
@@ -3432,6 +3478,13 @@ const userResponseTemplate = {
 } as const;
 
 vi.mock("@sentry/node", { spy: true });
+
+const webhookLogger = vi.hoisted(() => vi.fn());
+
+vi.mock("debug", () => {
+  const createDebug = vi.fn().mockReturnValueOnce(vi.fn()).mockReturnValueOnce(webhookLogger);
+  return { default: createDebug };
+});
 
 afterEach(() => {
   vi.clearAllMocks();
