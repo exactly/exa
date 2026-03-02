@@ -45,6 +45,7 @@ import useAccount from "../../utils/useAccount";
 import usePortfolio from "../../utils/usePortfolio";
 import useTabPress from "../../utils/useTabPress";
 import BenefitsSection from "../benefits/BenefitsSection";
+import ManualRepaymentSheet from "../pay-mode/ManualRepaymentSheet";
 import OverduePayments from "../pay-mode/OverduePayments";
 import PaymentSheet from "../pay-mode/PaymentSheet";
 import UpcomingPayments from "../pay-mode/UpcomingPayments";
@@ -72,6 +73,8 @@ export default function Home() {
   const [payModeSheetOpen, setPayModeSheetOpen] = useState(false);
   const [spendingLimitSheetOpen, setSpendingLimitSheetOpen] = useState(false);
   const [visaSignatureModalOpen, setVisaSignatureModalOpen] = useState(false);
+  const [manualRepaymentSheetOpen, setManualRepaymentSheetOpen] = useState(false);
+  const pendingModeRef = useRef<number>(0);
 
   const [focused, setFocused] = useState(false);
   useFocusEffect(
@@ -155,6 +158,16 @@ export default function Home() {
       if (data && "mode" in data && data.mode > 0) queryClient.setQueryData(["settings", "installments"], data.mode);
     },
   });
+
+  const { data: manualRepaymentAcknowledged } = useQuery<boolean>({ queryKey: ["manual-repayment-acknowledged"] });
+  function handleModeChange(mode: number) {
+    if (mode === 0 || manualRepaymentAcknowledged) {
+      mutateMode(mode).catch(reportError);
+      return;
+    }
+    pendingModeRef.current = mode;
+    setManualRepaymentSheetOpen(true);
+  }
 
   const collateralUSD = useMemo(
     () =>
@@ -254,9 +267,7 @@ export default function Home() {
                       onLearnMorePress={() => {
                         setPayModeSheetOpen(true);
                       }}
-                      onModeChange={(mode) => {
-                        mutateMode(mode).catch(reportError);
-                      }}
+                      onModeChange={handleModeChange}
                       onSpendingLimitInfoPress={() => {
                         setSpendingLimitSheetOpen(true);
                       }}
@@ -300,15 +311,25 @@ export default function Home() {
             onClose={() => {
               setInstallmentsSheetOpen(false);
             }}
-            onModeChange={(mode) => {
-              mutateMode(mode).catch(reportError);
-            }}
+            onModeChange={handleModeChange}
           />
           <CreditLimitSheet
             open={creditLimitSheetOpen}
             onClose={() => {
               setCreditLimitSheetOpen(false);
             }}
+          />
+          <ManualRepaymentSheet
+            open={manualRepaymentSheetOpen}
+            onClose={() => {
+              setManualRepaymentSheetOpen(false);
+            }}
+            onActionPress={() => {
+              queryClient.setQueryData(["manual-repayment-acknowledged"], true);
+              mutateMode(pendingModeRef.current).catch(reportError);
+              setManualRepaymentSheetOpen(false);
+            }}
+            penaltyRate={markets?.find(({ market }) => market === marketUSDCAddress)?.penaltyRate}
           />
           <PayModeSheet
             open={payModeSheetOpen}
@@ -328,7 +349,7 @@ export default function Home() {
               setVisaSignatureModalOpen(false);
             }}
           />
-          {card && !spotlightShown && focused && (
+          {card && card.mode > 0 && !spotlightShown && focused && (
             <InstallmentsSpotlight
               scrollOffset={scrollOffsetRef}
               scrollRef={scrollRef}
