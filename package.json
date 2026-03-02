@@ -257,7 +257,7 @@
         "react-native-worklets"
       ]
     },
-    "neverBuiltDependencies": [],
+    "onlyBuiltDependencies": ["@exactly/protocol"],
     "peerDependencyRules": {
       "allowedVersions": {
         "typescript": "$typescript"
