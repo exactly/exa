@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.76
+
+### Patch Changes
+
+- [#759](https://github.com/exactly/exa/pull/759) [`952963f`](https://github.com/exactly/exa/commit/952963f6850efd6df957ce2364ad3777b0285bc5) Thanks [@aguxez](https://github.com/aguxez)! - 📈 add source to segment events
+
 ## 0.2.75
 
 ### Patch Changes
