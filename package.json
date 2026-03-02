@@ -249,7 +249,7 @@
         "typescript"
       ]
     },
-    "neverBuiltDependencies": [],
+    "onlyBuiltDependencies": ["@exactly/protocol"],
     "peerDependencyRules": {
       "allowedVersions": {
         "@hono/mcp>hono-rate-limiter": "0.5",
