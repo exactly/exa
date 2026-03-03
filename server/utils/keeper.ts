@@ -4,6 +4,7 @@ import {
   createWalletClient,
   erc20Abi,
   http,
+  withRetry,
   type HttpTransport,
   type PrivateKeyAccount,
   type WalletClient,
@@ -100,25 +101,32 @@ export function extender(keeper: WalletClient<HttpTransport, typeof chain, Priva
 
       const pokes = await Promise.allSettled(
         assetsToPoke.map(({ asset, market }) =>
-          base.exaSend(
-            {
-              name: "poke account",
-              op: "exa.poke",
-              attributes: { account: accountAddress, asset },
-            },
-            asset === ETH
-              ? {
-                  address: accountAddress,
-                  abi: combinedAccountAbi,
-                  functionName: "pokeETH",
-                }
-              : {
-                  address: accountAddress,
-                  abi: combinedAccountAbi,
-                  functionName: "poke",
-                  args: [market],
+          withRetry(
+            () =>
+              base.exaSend(
+                {
+                  name: "poke account",
+                  op: "exa.poke",
+                  attributes: { account: accountAddress, asset },
                 },
-            ...(options?.ignore ? [{ ignore: options.ignore }] : []),
+                asset === ETH
+                  ? {
+                      address: accountAddress,
+                      abi: combinedAccountAbi,
+                      functionName: "pokeETH",
+                    }
+                  : {
+                      address: accountAddress,
+                      abi: combinedAccountAbi,
+                      functionName: "poke",
+                      args: [market],
+                    },
+                ...(options?.ignore ? [{ ignore: options.ignore }] : []),
+              ),
+            {
+              retryCount: 10,
+              delay: ({ count }) => Math.trunc(1 << count) * 60,
+            },
           ),
         ),
       ).then((r) => {
