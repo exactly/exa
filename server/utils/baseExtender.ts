@@ -7,6 +7,7 @@ import {
   InvalidInputRpcError,
   keccak256,
   RawContractError,
+  ResourceNotFoundRpcError,
   WaitForTransactionReceiptTimeoutError,
   withRetry,
   type HttpTransport,
@@ -134,7 +135,8 @@ export default function baseExtender<TAccount extends LocalAccount>(
                 withRetry(() => traceClient.traceTransaction(hash), {
                   delay: 1000,
                   retryCount: 10,
-                  shouldRetry: ({ error }) => error instanceof InvalidInputRpcError,
+                  shouldRetry: ({ error }) =>
+                    error instanceof InvalidInputRpcError || error instanceof ResourceNotFoundRpcError,
                 }).catch((error: unknown) => {
                   captureException(error, { level: "error" });
                   return null;

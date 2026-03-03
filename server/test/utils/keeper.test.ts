@@ -4,7 +4,14 @@ import "../mocks/sentry";
 
 import { captureException } from "@sentry/node";
 import { setImmediate } from "node:timers/promises";
-import { encodeErrorResult, getContractError, RawContractError } from "viem";
+import {
+  encodeErrorResult,
+  getContractError,
+  HttpRequestError,
+  InvalidInputRpcError,
+  RawContractError,
+  ResourceNotFoundRpcError,
+} from "viem";
 import { afterEach, describe, expect, inject, it, vi } from "vitest";
 
 import { auditorAbi } from "@exactly/common/generated/chain";
@@ -12,6 +19,7 @@ import { auditorAbi } from "@exactly/common/generated/chain";
 import keeper from "../../utils/keeper";
 import nonceManager from "../../utils/nonceManager";
 import publicClient from "../../utils/publicClient";
+import traceClient from "../../utils/traceClient";
 
 import type { Hash, Hex } from "@exactly/common/validation";
 import type * as timers from "node:timers/promises";
@@ -305,6 +313,69 @@ describe("level option", () => {
         ([error]) => error instanceof Error && "functionName" in error && error.functionName === "enterMarket",
       ),
     ).toBe(false);
+  });
+});
+
+describe("trace transaction retry", () => {
+  it("retries on ResourceNotFoundRpcError", async () => {
+    const traceTransaction = vi.spyOn(traceClient, "traceTransaction");
+    traceTransaction
+      .mockRejectedValueOnce(new ResourceNotFoundRpcError(new HttpRequestError({ body: {}, url: "" })))
+      .mockResolvedValueOnce({
+        from: "0x",
+        gas: "0x0",
+        gasUsed: "0x0",
+        input: "0x",
+        output: "0x",
+        to: "0x",
+        type: "CALL",
+      });
+    const receipt = await keeper.exaSend(
+      { name: "test transfer", op: "test.transfer" },
+      { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+    );
+
+    expect(receipt?.status).toBe("success");
+    expect(traceTransaction).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries on InvalidInputRpcError", async () => {
+    const traceTransaction = vi.spyOn(traceClient, "traceTransaction");
+    traceTransaction
+      .mockRejectedValueOnce(new InvalidInputRpcError(new HttpRequestError({ body: {}, url: "" })))
+      .mockResolvedValueOnce({
+        from: "0x",
+        gas: "0x0",
+        gasUsed: "0x0",
+        input: "0x",
+        output: "0x",
+        to: "0x",
+        type: "CALL",
+      });
+    const receipt = await keeper.exaSend(
+      { name: "test transfer", op: "test.transfer" },
+      { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+    );
+
+    expect(receipt?.status).toBe("success");
+    expect(traceTransaction).toHaveBeenCalledTimes(2);
+  });
+
+  it("captures exception when trace fails with non-retryable error", async () => {
+    const traceTransaction = vi.spyOn(traceClient, "traceTransaction");
+    traceTransaction.mockRejectedValue(new Error("debug_traceTransaction unavailable"));
+    const initialCalls = vi.mocked(captureException).mock.calls.length;
+    const receipt = await keeper.exaSend(
+      { name: "test transfer", op: "test.transfer" },
+      { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+    );
+
+    expect(receipt?.status).toBe("success");
+    const calls = vi.mocked(captureException).mock.calls.slice(initialCalls);
+    expect(calls).toContainEqual([
+      expect.objectContaining({ message: "debug_traceTransaction unavailable" }),
+      expect.objectContaining({ level: "error" }),
+    ]);
   });
 });
 
