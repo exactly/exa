@@ -61,7 +61,7 @@ import e2e from "./e2e";
 import { login } from "./onesignal";
 import publicClient from "./publicClient";
 import queryClient, { type AuthMethod } from "./queryClient";
-import { isPasskeyCancelled } from "./reportError";
+import reportError, { isPasskeyCancelled } from "./reportError";
 import ownerConfig from "./wagmi/owner";
 
 import type { Credential } from "@exactly/common/validation";
@@ -180,7 +180,8 @@ export default async function createAccountClient({ credentialId, factory, x, y 
                   },
                 },
               });
-            } catch {
+            } catch (error) {
+              reportError(error, { level: "warning" });
               // TODO filter errors
               const hash = await sendTransaction(ownerConfig, execute);
               return { id: concat([hash, numberToHex(chain.id, { size: 32 }), TX_MAGIC_ID]) };
@@ -225,7 +226,8 @@ export default async function createAccountClient({ credentialId, factory, x, y 
                   },
                 });
                 return id;
-              } catch {
+              } catch (error) {
+                reportError(error, { level: "warning" });
                 // TODO filter errors
                 return client.request({ method: method as never, params: params as never });
               }
