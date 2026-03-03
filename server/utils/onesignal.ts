@@ -1,6 +1,6 @@
 import { createConfiguration, DefaultApi, Notification } from "@onesignal/node-onesignal";
 
-import appId from "@exactly/common/onesignalAppId";
+import appId from "@exactly/common/onesignalAppId.web";
 
 const client = new DefaultApi(createConfiguration({ restApiKey: process.env.ONESIGNAL_API_KEY }));
 
