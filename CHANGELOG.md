@@ -1,5 +1,14 @@
 # @exactly/mobile
 
+## 1.1.25
+
+### Patch Changes
+
+- [`7dd758c`](https://github.com/exactly/exa/commit/7dd758c4af22a21b47c4a47239c02c1cff0c7417) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 report fallback error with cause context
+
+- Updated dependencies [[`5bfabfd`](https://github.com/exactly/exa/commit/5bfabfdb5448acef603ca51d6e35d47c4038051e)]:
+  - @exactly/server@0.2.78
+
 ## 1.1.24
 
 ### Patch Changes
