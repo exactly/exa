@@ -590,6 +590,68 @@ describe("persona hook", () => {
     });
   });
 
+  it("retries poke on error", async () => {
+    const account = deriveAddress(inject("ExaAccountFactory"), {
+      x: padHex(privateKeyToAddress(padHex("0x420"))),
+      y: zeroHash,
+    });
+    const exaSendSpy = vi
+      .spyOn(keeper, "exaSend")
+      .mockRejectedValueOnce(new Error("rpc error"))
+      .mockResolvedValue({} as never);
+    const sendPushNotificationSpy = vi.spyOn(onesignal, "sendPushNotification").mockResolvedValue({} as never);
+
+    vi.spyOn(publicClient, "readContract")
+      .mockResolvedValueOnce([{ asset: wethAddress, market: "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd" }])
+      .mockResolvedValueOnce(0n);
+
+    vi.spyOn(publicClient, "getBalance").mockResolvedValue(parseEther("1"));
+
+    vi.spyOn(panda, "createUser").mockResolvedValue({ id: "new-panda-id" });
+    vi.spyOn(pax, "addCapita").mockResolvedValue({});
+    vi.spyOn(persona, "addDocument").mockResolvedValueOnce({ data: { id: "doc_123" } });
+    vi.spyOn(sardine, "customer").mockResolvedValueOnce({ sessionKey: "test", status: "Success", level: "low" });
+
+    const response = await appClient.index.$post({
+      header: {
+        "persona-signature": "t=1733865120,v1=debbacfe1b0c5f8797a1d68e8428fba435aa4ca3b5d9a328c3c96ee4d04d84df",
+      },
+      json: {
+        ...validPayload,
+        data: {
+          ...validPayload.data,
+          attributes: {
+            ...validPayload.data.attributes,
+            payload: {
+              ...validPayload.data.attributes.payload,
+              included: [...validPayload.data.attributes.payload.included],
+            },
+          },
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+
+    await vi.waitUntil(() => exaSendSpy.mock.calls.filter(([options]) => options.op === "exa.poke").length === 2, {
+      timeout: 5000,
+    });
+
+    expect(exaSendSpy.mock.calls.filter(([options]) => options.op === "exa.poke")).toHaveLength(2);
+    expect(exaSendSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        op: "exa.poke",
+        attributes: { account, asset: getAddress("0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee") },
+      }),
+      expect.objectContaining({ address: account, functionName: "pokeETH" }),
+    );
+    expect(sendPushNotificationSpy).toHaveBeenCalledWith({
+      userId: account,
+      headings: t("Account assets updated"),
+      contents: t("Your funds are ready to use"),
+    });
+  });
+
   it("skips weth when eth balance is positive", async () => {
     const account = deriveAddress(inject("ExaAccountFactory"), {
       x: padHex(privateKeyToAddress(padHex("0x420"))),

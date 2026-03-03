@@ -24,7 +24,7 @@ import {
   transform,
   union,
 } from "valibot";
-import { erc20Abi } from "viem";
+import { erc20Abi, withRetry } from "viem";
 
 import {
   auditorAbi,
@@ -492,11 +492,15 @@ async function poke(account: Address) {
   const assetsToPoke = settled.filter(({ asset, balance }) => balance > 0n && !(hasETH && asset === WETH));
   const pokes = await Promise.allSettled(
     assetsToPoke.map(({ asset, market }) =>
-      keeper.exaSend(
-        { name: "poke account", op: "exa.poke", attributes: { account, asset } },
-        asset === ETH
-          ? { address: account, abi: combinedAccountAbi, functionName: "pokeETH" }
-          : { address: account, abi: combinedAccountAbi, functionName: "poke", args: [market] },
+      withRetry(
+        () =>
+          keeper.exaSend(
+            { name: "poke account", op: "exa.poke", attributes: { account, asset } },
+            asset === ETH
+              ? { address: account, abi: combinedAccountAbi, functionName: "pokeETH" }
+              : { address: account, abi: combinedAccountAbi, functionName: "poke", args: [market] },
+          ),
+        { retryCount: 10, delay: ({ count }) => Math.trunc(1 << count) * 60 },
       ),
     ),
   ).then((r) =>
