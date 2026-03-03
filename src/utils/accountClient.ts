@@ -181,7 +181,10 @@ export default async function createAccountClient({ credentialId, factory, x, y 
                 },
               });
             } catch (error) {
-              reportError(error, { level: "warning" });
+              reportError(error, {
+                level: "warning",
+                extra: error instanceof Error ? { cause: error.cause } : undefined,
+              });
               // TODO filter errors
               const hash = await sendTransaction(ownerConfig, execute);
               return { id: concat([hash, numberToHex(chain.id, { size: 32 }), TX_MAGIC_ID]) };
