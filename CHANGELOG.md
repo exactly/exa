@@ -1,5 +1,14 @@
 # @exactly/mobile
 
+## 1.1.24
+
+### Patch Changes
+
+- [`8aaf845`](https://github.com/exactly/exa/commit/8aaf845b33f6bb9919023900bd5a3516be2966c4) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 warn on transaction fallback errors
+
+- Updated dependencies [[`c5f1d50`](https://github.com/exactly/exa/commit/c5f1d50c30ac63b6db56a0111fea5fb82271a805)]:
+  - @exactly/server@0.2.77
+
 ## 1.1.23
 
 ### Patch Changes
