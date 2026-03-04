@@ -55,6 +55,7 @@ import { keeper } from "../utils/accounts";
 import { sendPushNotification } from "../utils/onesignal";
 import { collectors, createMutex, getMutex, getUser, headerValidator, signIssuerOp, updateUser } from "../utils/panda";
 import publicClient from "../utils/publicClient";
+import refunder from "../utils/refunder";
 import revertFingerprint from "../utils/revertFingerprint";
 import risk, { feedback } from "../utils/sardine";
 import { track } from "../utils/segment";
@@ -488,76 +489,106 @@ export default new Hono().post(
             Number(BigInt(`0x${payload.id.replaceAll(/[^0-9a-f]/g, "")}`) % 3600n);
           const signature = await signIssuerOp({ account, amount: -refundAmount, timestamp }); // TODO replace with payload signature
           try {
-            await keeper.exaSend(
-              { name: "exa.refund", op: "exa.refund", attributes: { account } },
-              {
-                address: v.parse(Address, refunderAddress),
-                functionName: "refund",
-                args: [account, refundAmount, timestamp, signature],
-                abi: [
-                  ...auditorAbi,
-                  ...exaPluginAbi,
-                  ...issuerCheckerAbi,
-                  ...marketAbi,
-                  ...refunderAbi,
-                  ...upgradeableModularAccountAbi,
-                ],
-              },
-              {
-                async onHash(hash) {
-                  const createdAt = getCreatedAt(payload) ?? new Date().toISOString();
-                  await (tx
-                    ? database
-                        .update(transactions)
-                        .set({
-                          hashes: [...tx.hashes, hash],
-                          payload: {
-                            ...(tx.payload as object),
-                            bodies: [...v.parse(TransactionPayload, tx.payload).bodies, { ...jsonBody, createdAt }],
-                          },
-                        })
-                        .where(
-                          and(eq(transactions.id, payload.body.id), eq(transactions.cardId, payload.body.spend.cardId)),
-                        )
-                    : database.insert(transactions).values([
-                        {
-                          id: payload.body.id,
-                          cardId: payload.body.spend.cardId,
-                          hashes: [hash],
-                          payload: {
-                            bodies: [{ ...jsonBody, createdAt }],
-                            type: "panda",
-                          },
-                        },
-                      ]));
+            const eventMutex = getMutex(payload.id) ?? createMutex(payload.id);
+            await eventMutex.runExclusive(async () => {
+              await keeper.exaSend(
+                { name: "exa.refund", op: "exa.refund", attributes: { account } },
+                {
+                  address: v.parse(Address, refunderAddress),
+                  functionName: "refund",
+                  args: [account, refundAmount, timestamp, signature],
+                  abi: [
+                    ...auditorAbi,
+                    ...exaPluginAbi,
+                    ...issuerCheckerAbi,
+                    ...marketAbi,
+                    ...refunderAbi,
+                    ...upgradeableModularAccountAbi,
+                  ],
                 },
-              },
-            );
-            sendPushNotification({
-              userId: account,
-              headings: { en: "Refund processed" },
-              contents: {
-                en: `${refundAmountUsd} USDC from ${payload.body.spend.merchantName.trim()} have been refunded to your account`,
-              },
-            }).catch((error: unknown) => captureException(error));
-            trackTransactionRefund(account, refundAmountUsd, payload, card.credential.source);
-            if (payload.action === "completed") {
-              if (payload.body.spend.amount < 0) {
-                feedback({
-                  kind: "issuing",
-                  customer: { id: card.credential.id },
-                  transaction: { id: payload.body.id },
-                  feedback: { type: "settlement", status: "refund" },
-                }).catch((error: unknown) => captureException(error, { level: "error" }));
-              } else {
-                feedback({
-                  kind: "issuing",
-                  customer: { id: card.credential.id },
-                  transaction: { id: payload.body.id, amount: payload.body.spend.amount / 100 },
-                  feedback: { type: "settlement", status: "settled" },
-                }).catch((error: unknown) => captureException(error, { level: "error" }));
+                { simulate: true },
+              );
+
+              await startSpan({ name: "panda.refunder", op: "panda.refunder" }, () =>
+                refunder()
+                  .then((r) => r.withdraw(refundAmount, v.parse(Address, refunderAddress)))
+                  .catch((error: unknown) => captureException(error, { level: "error" })),
+              );
+              await keeper.exaSend(
+                { name: "exa.refund", op: "exa.refund", attributes: { account } },
+                {
+                  address: v.parse(Address, refunderAddress),
+                  functionName: "refund",
+                  args: [account, refundAmount, timestamp, signature],
+                  abi: [
+                    ...auditorAbi,
+                    ...exaPluginAbi,
+                    ...issuerCheckerAbi,
+                    ...marketAbi,
+                    ...refunderAbi,
+                    ...upgradeableModularAccountAbi,
+                  ],
+                },
+                {
+                  async onHash(hash) {
+                    const createdAt = getCreatedAt(payload) ?? new Date().toISOString();
+                    await (tx
+                      ? database
+                          .update(transactions)
+                          .set({
+                            hashes: [...tx.hashes, hash],
+                            payload: {
+                              ...(tx.payload as object),
+                              bodies: [...v.parse(TransactionPayload, tx.payload).bodies, { ...jsonBody, createdAt }],
+                            },
+                          })
+                          .where(
+                            and(
+                              eq(transactions.id, payload.body.id),
+                              eq(transactions.cardId, payload.body.spend.cardId),
+                            ),
+                          )
+                      : database.insert(transactions).values([
+                          {
+                            id: payload.body.id,
+                            cardId: payload.body.spend.cardId,
+                            hashes: [hash],
+                            payload: {
+                              bodies: [{ ...jsonBody, createdAt }],
+                              type: "panda",
+                            },
+                          },
+                        ]));
+                  },
+                },
+              );
+              sendPushNotification({
+                userId: account,
+                headings: { en: "Refund processed" },
+                contents: {
+                  en: `${refundAmountUsd} USDC from ${payload.body.spend.merchantName.trim()} have been refunded to your account`,
+                },
+              }).catch((error: unknown) => captureException(error));
+              trackTransactionRefund(account, refundAmountUsd, payload, card.credential.source);
+              if (payload.action === "completed") {
+                if (payload.body.spend.amount < 0) {
+                  feedback({
+                    kind: "issuing",
+                    customer: { id: card.credential.id },
+                    transaction: { id: payload.body.id },
+                    feedback: { type: "settlement", status: "refund" },
+                  }).catch((error: unknown) => captureException(error, { level: "error" }));
+                } else {
+                  feedback({
+                    kind: "issuing",
+                    customer: { id: card.credential.id },
+                    transaction: { id: payload.body.id, amount: payload.body.spend.amount / 100 },
+                    feedback: { type: "settlement", status: "settled" },
+                  }).catch((error: unknown) => captureException(error, { level: "error" }));
+                }
               }
-            }
+            });
+
             return c.json({ code: "ok" });
           } catch (error: unknown) {
             if (

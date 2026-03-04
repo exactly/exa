@@ -354,15 +354,15 @@ export function signIssuerOp({ account, amount, timestamp }: { account: Address;
   });
 }
 
-const mutexes = new Map<Address, MutexInterface>();
-export function createMutex(address: Address) {
+const mutexes = new Map<Address | string, MutexInterface>();
+export function createMutex(item: Address | string) {
   const mutex = withTimeout(
     new Mutex(),
     (proposalManager.delay as Record<number, number>)[chain.id] ?? proposalManager.delay.default * 1000,
   );
-  mutexes.set(address, mutex);
+  mutexes.set(item, mutex);
   return mutex;
 }
-export function getMutex(address: Address) {
-  return mutexes.get(address);
+export function getMutex(item: Address | string) {
+  return mutexes.get(item);
 }

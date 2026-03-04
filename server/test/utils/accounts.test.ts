@@ -342,6 +342,48 @@ describe("level option", () => {
   });
 });
 
+describe("simulate option", () => {
+  it("returns write request without sending transaction", async () => {
+    const sendRawTransaction = vi.spyOn(publicClient, "sendRawTransaction");
+    const result = await keeper.exaSend(
+      { name: "test transfer", op: "test.transfer" },
+      { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+      { simulate: true },
+    );
+    expect(result).toMatchObject({ functionName: "enterMarket", address: inject("Auditor"), args: [inject("MarketUSDC")] });
+    expect(sendRawTransaction).not.toHaveBeenCalled();
+  });
+
+  it("does not call onHash or onReceipt when simulating", async () => {
+    const onHash = vi.fn();
+    const onReceipt = vi.fn();
+    await keeper.exaSend(
+      { name: "test transfer", op: "test.transfer" },
+      { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+      { simulate: true, onHash, onReceipt },
+    );
+    expect(onHash).not.toHaveBeenCalled();
+    expect(onReceipt).not.toHaveBeenCalled();
+  });
+
+  it("throws on simulation failure with simulate option", async () => {
+    vi.spyOn(publicClient, "simulateContract").mockRejectedValueOnce(new Error("simulation failure"));
+    const initialCalls = vi.mocked(captureException).mock.calls.length;
+    await expect(
+      keeper.exaSend(
+        { name: "test transfer", op: "test.transfer" },
+        { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+        { simulate: true },
+      ),
+    ).rejects.toThrow("simulation failure");
+    const calls = vi.mocked(captureException).mock.calls.slice(initialCalls);
+    expect(calls).toContainEqual([
+      expect.objectContaining({ message: "simulation failure" }),
+      expect.objectContaining({ level: "error" }),
+    ]);
+  });
+});
+
 vi.mock("@sentry/node", { spy: true });
 vi.mock("node:timers/promises", async (importOriginal) => {
   const original = await importOriginal<typeof timers>();

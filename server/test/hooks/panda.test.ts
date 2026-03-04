@@ -39,6 +39,7 @@ import chain, {
   issuerCheckerAbi,
   marketAbi,
   marketUSDCAddress,
+  refunderAddress,
   upgradeableModularAccountAbi,
 } from "@exactly/common/generated/chain";
 import ProposalType from "@exactly/common/ProposalType";
@@ -54,6 +55,11 @@ import * as sardine from "../../utils/sardine";
 import * as segment from "../../utils/segment";
 import traceClient from "../../utils/traceClient";
 import anvilClient from "../anvilClient";
+
+const withdraw = vi.fn<(amount: bigint, recipient: string) => Promise<void>>();
+vi.mock("../../utils/refunder", () => ({
+  default: () => Promise.resolve({ withdraw, exaSend: vi.fn().mockResolvedValue({}) }),
+}));
 
 const appClient = testClient(app);
 const owner = createWalletClient({ chain, transport: http(), account: privateKeyToAccount(generatePrivateKey()) });
@@ -897,6 +903,7 @@ describe("card operations", () => {
       });
 
       beforeEach(() => {
+        withdraw.mockClear();
         vi.spyOn(panda, "getUser").mockResolvedValue(userResponseTemplate);
       });
 
@@ -950,6 +957,7 @@ describe("card operations", () => {
           .map((l) => decodeEventLog({ abi: marketAbi, eventName: "Deposit", topics: l.topics, data: l.data }))
           .find((l) => l.args.owner === account);
 
+        expect(withdraw).toHaveBeenCalledWith(BigInt(amount * 1e4), refunderAddress);
         expect(deposit?.args.assets).toBe(BigInt(amount * 1e4));
         expect(response.status).toBe(200);
       });
@@ -1147,6 +1155,7 @@ describe("card operations", () => {
           .map((l) => decodeEventLog({ abi: marketAbi, eventName: "Deposit", topics: l.topics, data: l.data }))
           .find((l) => l.args.owner === account);
 
+        expect(withdraw).toHaveBeenCalledWith(BigInt(amount * 1e4), refunderAddress);
         expect(transaction?.payload).toMatchObject({
           bodies: [
             { action: "created", createdAt },
@@ -1194,11 +1203,115 @@ describe("card operations", () => {
           .map((l) => decodeEventLog({ abi: marketAbi, eventName: "Deposit", topics: l.topics, data: l.data }))
           .find((l) => l.args.owner === account);
 
+        expect(withdraw).toHaveBeenCalledWith(BigInt(amount * 1e4), refunderAddress);
         expect(transaction?.payload).toMatchObject({
           bodies: [{ action: "completed", createdAt }],
         });
         expect(deposit?.args.assets).toBe(BigInt(amount * 1e4));
         expect(response.status).toBe(200);
+      });
+
+      it("simulation prevents withdraw on replay", async () => {
+        const amount = 100;
+        const cardId = "sim-replay";
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "4444" }]);
+
+        const createdAt = new Date();
+        await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "created",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: {
+                ...authorization.json.body.spend,
+                cardId,
+                amount,
+                localAmount: amount,
+                authorizedAt: createdAt.toISOString(),
+              },
+            },
+          },
+        });
+
+        const reversal = {
+          ...authorization.json,
+          action: "updated" as const,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: {
+              ...authorization.json.body.spend,
+              cardId,
+              authorizationUpdateAmount: -amount,
+              authorizedAt: new Date(createdAt.getTime() + 30_000).toISOString(),
+              status: "reversed" as const,
+            },
+          },
+        };
+
+        const first = await appClient.index.$post({ ...authorization, json: reversal });
+        const tx = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
+        await publicClient.waitForTransactionReceipt({ hash: tx?.hashes[1] as Hex, confirmations: 0 });
+        expect(first.status).toBe(200);
+
+        withdraw.mockClear();
+        const second = await appClient.index.$post({ ...authorization, json: reversal });
+
+        expect(second.status).toBe(200);
+        expect(withdraw).not.toHaveBeenCalled();
+        expect(captureException).toHaveBeenCalledWith(
+          expect.any(BaseError),
+          expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "Replay"] }),
+        );
+      });
+
+      it("withdraw error is captured but does not stop the refund", async () => {
+        const amount = 200;
+        const withdrawError = new Error("withdraw failed");
+        withdraw.mockRejectedValueOnce(withdrawError);
+
+        const createdAt = new Date().toISOString();
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "completed",
+            body: {
+              ...authorization.json.body,
+              id: "withdraw-error",
+              spend: {
+                ...authorization.json.body.spend,
+                cardId: "card",
+                amount: -amount,
+                localAmount: -amount,
+                authorizedAmount: -amount,
+                authorizedAt: createdAt,
+                postedAt: createdAt,
+                status: "completed",
+              },
+            },
+          },
+        });
+
+        const transaction = await database.query.transactions.findFirst({
+          where: eq(transactions.id, "withdraw-error"),
+        });
+        const refundReceipt = await publicClient.waitForTransactionReceipt({
+          hash: transaction?.hashes[0] as Hex,
+          confirmations: 0,
+        });
+        const deposit = refundReceipt.logs
+          .filter((l) => l.address.toLowerCase() === inject("MarketUSDC").toLowerCase())
+          .map((l) => decodeEventLog({ abi: marketAbi, eventName: "Deposit", topics: l.topics, data: l.data }))
+          .find((l) => l.args.owner === account);
+
+        expect(response.status).toBe(200);
+        expect(captureException).toHaveBeenCalledWith(withdrawError, expect.objectContaining({ level: "error" }));
+        expect(transaction).toBeDefined();
+        expect(deposit?.args.assets).toBe(BigInt(amount * 1e4));
       });
     });
   });

@@ -198,6 +198,7 @@ export function withExaSend(
         level?: "error" | "warning" | ((reason: string, error: unknown) => "error" | "warning" | false) | false;
         onHash?: (hash: Hash) => MaybePromise<unknown>;
         onReceipt?: (receipt: TransactionReceipt) => MaybePromise<unknown>;
+        simulate?: boolean;
       },
     ) =>
       withScope((scope) =>
@@ -220,6 +221,7 @@ export function withExaSend(
             const { request: writeRequest } = await startSpan({ name: "eth_call", op: "tx.simulate" }, () =>
               publicClient.simulateContract({ account: client.account, ...txOptions, ...call }),
             );
+            if (options?.simulate) return writeRequest;
             const {
               abi: _,
               account: __,
@@ -343,7 +345,8 @@ export function withExaSend(
   };
 }
 
-export async function getAccount(): Promise<LocalAccount> {
+export async function getAccount(name: string): Promise<LocalAccount> {
+  console.log(`getting account ${name}`);
   await initializeGcpCredentials();
 
   if (!(await hasCredentials())) {
@@ -357,7 +360,7 @@ export async function getAccount(): Promise<LocalAccount> {
     const account = await withRetry(
       () =>
         gcpHsmToAccount({
-          hsmKeyVersion: `projects/${projectId}/locations/us-west2/keyRings/${keyRing}/cryptoKeys/allower/cryptoKeyVersions/${version}`,
+          hsmKeyVersion: `projects/${projectId}/locations/us-west2/keyRings/${keyRing}/cryptoKeys/${name}/cryptoKeyVersions/${version}`,
           kmsClient: new KeyManagementServiceClient({
             keyFilename: GOOGLE_APPLICATION_CREDENTIALS,
           }),
@@ -393,7 +396,7 @@ export async function allower() {
         }
       },
     }),
-    account: await getAccount(),
+    account: await getAccount("allower"),
   }).extend((client: WalletClient<HttpTransport, typeof chain, LocalAccount>) => {
     const send = withExaSend(client);
     return {
