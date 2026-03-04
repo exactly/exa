@@ -1,0 +1,68 @@
+diff --git a/dist/ethereumProvider.js b/dist/ethereumProvider.js
+index a610b1ca8df86c4e156cdb3a925bcf25fee0bd3b..781b021d6b99a7f8d8b04d8d14d9b8dd22f02c5d 100644
+--- a/dist/ethereumProvider.js
++++ b/dist/ethereumProvider.js
+@@ -4,21 +4,32 @@ import * as RpcResponse from 'ox/RpcResponse';
+ import { miniAppHost } from "./miniAppHost.js";
+ const emitter = Provider.createEmitter();
+ const store = RpcRequest.createStore();
+-function toProviderRpcError({ code, details, }) {
++const replacer = (_, v) => typeof v === 'bigint' ? `0x${v.toString(16)}` : v;
++function toProviderRpcError(error, context) {
++    const { code, details } = error;
++    let e;
+     switch (code) {
+         case 4001:
+-            return new Provider.UserRejectedRequestError();
++            e = new Provider.UserRejectedRequestError({ message: details });
++            break;
+         case 4100:
+-            return new Provider.UnauthorizedError();
++            e = new Provider.UnauthorizedError();
++            break;
+         case 4200:
+-            return new Provider.UnsupportedMethodError();
++            e = new Provider.UnsupportedMethodError();
++            break;
+         case 4900:
+-            return new Provider.DisconnectedError();
++            e = new Provider.DisconnectedError();
++            break;
+         case 4901:
+-            return new Provider.ChainDisconnectedError();
++            e = new Provider.ChainDisconnectedError();
++            break;
+         default:
+-            return new Provider.ProviderRpcError(code, details ?? 'Unknown provider RPC error');
++            e = new Provider.ProviderRpcError(code, details ?? 'Unknown provider RPC error');
++            break;
+     }
++    try { e.cause = new Error(JSON.stringify(context, replacer)); } catch {}
++    return e;
+ }
+ export const ethereumProvider = Provider.from({
+     ...emitter,
+@@ -26,11 +37,11 @@ export const ethereumProvider = Provider.from({
+         // @ts-expect-error
+         const request = store.prepare(args);
+         try {
+-            const response = await miniAppHost
+-                .ethProviderRequestV2(request)
+-                .then((res) => RpcResponse.parse(res, { request, raw: true }));
++            const raw = await miniAppHost.ethProviderRequestV2(request);
++            const response = RpcResponse.parse(raw, { request, raw: true });
+             if (response.error) {
+-                throw toProviderRpcError(response.error);
++                globalThis.__captureProviderError__?.(args.method, { request: args, raw });
++                throw toProviderRpcError(response.error, { request: args, raw });
+             }
+             return response.result;
+         }
+@@ -44,6 +55,7 @@ export const ethereumProvider = Provider.from({
+                 e instanceof RpcResponse.BaseError) {
+                 throw e;
+             }
++            globalThis.__captureProviderError__?.(args.method, { request: args, error: e instanceof Error ? { message: e.message, name: e.name, stack: e.stack } : e });
+             throw new RpcResponse.InternalError({
+                 message: e instanceof Error ? e.message : undefined,
+             });
