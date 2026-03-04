@@ -81,21 +81,15 @@ describe("validation", () => {
 
 describe("card operations", () => {
   beforeAll(async () => {
-    await Promise.all([
-      keeper.exaSend(
-        { name: "create account", op: "exa.account" },
-        {
-          address: inject("ExaAccountFactory"),
-          abi: exaAccountFactoryAbi,
-          functionName: "createAccount",
-          args: [0n, [{ x: hexToBigInt(owner.account.address), y: 0n }]],
-        },
-      ),
-      keeper.exaSend(
-        { name: "mint usdc", op: "tx.mint" },
-        { address: inject("USDC"), abi: mockERC20Abi, functionName: "mint", args: [inject("Refunder"), 100_000_000n] },
-      ),
-    ]);
+    await keeper.exaSend(
+      { name: "create account", op: "exa.account" },
+      {
+        address: inject("ExaAccountFactory"),
+        abi: exaAccountFactoryAbi,
+        functionName: "createAccount",
+        args: [0n, [{ x: hexToBigInt(owner.account.address), y: 0n }]],
+      },
+    );
   });
 
   describe("authorization", () => {
@@ -905,6 +899,15 @@ describe("card operations", () => {
       it("handles reversal", async () => {
         const amount = 2073;
         const cardId = "card";
+        await keeper.exaSend(
+          { name: "mint usdc", op: "tx.mint" },
+          {
+            address: inject("USDC"),
+            abi: mockERC20Abi,
+            functionName: "mint",
+            args: [inject("Refunder"), 100_000_000n],
+          },
+        );
 
         const createdAt = new Date().toISOString();
         await appClient.index.$post({
@@ -957,6 +960,15 @@ describe("card operations", () => {
       it("returns ok on reversal replay", async () => {
         const amount = 1500;
         const cardId = "reversal-replay";
+        await keeper.exaSend(
+          { name: "mint usdc", op: "tx.mint" },
+          {
+            address: inject("USDC"),
+            abi: mockERC20Abi,
+            functionName: "mint",
+            args: [inject("Refunder"), 100_000_000n],
+          },
+        );
         await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "3333" }]);
 
         const createdAt = new Date();
@@ -1011,6 +1023,15 @@ describe("card operations", () => {
 
       it("fails with unexpected reversal error", async () => {
         const cardId = "reversal-unexpected";
+        await keeper.exaSend(
+          { name: "mint usdc", op: "tx.mint" },
+          {
+            address: inject("USDC"),
+            abi: mockERC20Abi,
+            functionName: "mint",
+            args: [inject("Refunder"), 100_000_000n],
+          },
+        );
         await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "7777" }]);
 
         const createdAt = new Date();
@@ -1072,6 +1093,15 @@ describe("card operations", () => {
       it("fails with spending transaction not found", async () => {
         const amount = 5;
         const cardId = "card";
+        await keeper.exaSend(
+          { name: "mint usdc", op: "tx.mint" },
+          {
+            address: inject("USDC"),
+            abi: mockERC20Abi,
+            functionName: "mint",
+            args: [inject("Refunder"), 100_000_000n],
+          },
+        );
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -1099,6 +1129,15 @@ describe("card operations", () => {
       it("handles refund", async () => {
         const amount = 2000;
         const cardId = "card";
+        await keeper.exaSend(
+          { name: "mint usdc", op: "tx.mint" },
+          {
+            address: inject("USDC"),
+            abi: mockERC20Abi,
+            functionName: "mint",
+            args: [inject("Refunder"), 100_000_000n],
+          },
+        );
 
         const createdAt = new Date().toISOString();
         await appClient.index.$post({
@@ -1160,6 +1199,15 @@ describe("card operations", () => {
       it("refunds without traceable spending", async () => {
         const amount = 3000;
         const cardId = "card";
+        await keeper.exaSend(
+          { name: "mint usdc", op: "tx.mint" },
+          {
+            address: inject("USDC"),
+            abi: mockERC20Abi,
+            functionName: "mint",
+            args: [inject("Refunder"), 100_000_000n],
+          },
+        );
 
         const createdAt = new Date().toISOString();
         const response = await appClient.index.$post({
@@ -1643,6 +1691,15 @@ describe("card operations", () => {
         const capture = 40;
         const cardId = "partial-capture-debit";
         vi.spyOn(panda, "getUser").mockResolvedValue(userResponseTemplate);
+        await keeper.exaSend(
+          { name: "mint usdc", op: "tx.mint" },
+          {
+            address: inject("USDC"),
+            abi: mockERC20Abi,
+            functionName: "mint",
+            args: [inject("Refunder"), 100_000_000n],
+          },
+        );
         await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
         const createResponse = await appClient.index.$post({
           ...authorization,
