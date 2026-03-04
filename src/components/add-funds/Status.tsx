@@ -8,6 +8,9 @@ import { ScrollView, Spinner, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 
+import domain from "@exactly/common/domain";
+
+import BridgeDisclaimer from "./BridgeDisclaimer";
 import MantecaDisclaimer from "./MantecaDisclaimer";
 import Denied from "../../assets/images/denied.svg";
 import FaceId from "../../assets/images/face-id.svg";
@@ -22,10 +25,18 @@ export default function Status() {
   const { t } = useTranslation();
   const router = useRouter();
 
-  const { currency, status, pending } = useLocalSearchParams<{ currency: string; pending: string; status: string }>();
+  const { currency, network, status, pending, provider } = useLocalSearchParams<{
+    currency?: string;
+    network?: string;
+    pending?: string;
+    provider?: string;
+    status: string;
+  }>();
   const validCurrency = isValidCurrency(currency);
+  const isCrypto = !!network;
   const isOnboarding = status === "ONBOARDING";
   const isPending = pending === "true";
+  const typedProvider = provider === "bridge" ? provider : "manteca";
 
   const [timedOut, setTimedOut] = useState(!isPending);
   useEffect(() => {
@@ -35,21 +46,29 @@ export default function Status() {
   }, [isPending]);
 
   const { data: countryCode } = useQuery<string>({ queryKey: ["user", "country"] });
+  const redirectURL = `https://${domain}/add-funds`;
   const { data: providers, isFetching } = useQuery({
-    queryKey: ["ramp", "providers", countryCode],
-    queryFn: () => getRampProviders(countryCode),
+    queryKey: ["ramp", "providers", countryCode, redirectURL],
+    queryFn: () => getRampProviders(countryCode, redirectURL),
     enabled: isPending && timedOut && !!countryCode,
   });
 
   useEffect(() => {
-    if (isPending && providers?.manteca.status === "ACTIVE" && currency) {
-      router.replace({ pathname: "/add-funds/ramp", params: { currency } });
+    if (isPending && providers?.[typedProvider].status === "ACTIVE" && currency) {
+      if (isCrypto) {
+        router.replace({
+          pathname: "/add-funds/add-crypto",
+          params: { provider: typedProvider, currency, network },
+        });
+      } else {
+        router.replace({ pathname: "/add-funds/ramp", params: { currency, provider: typedProvider } });
+      }
     }
-  }, [isPending, providers, currency, router]);
+  }, [isPending, providers, currency, isCrypto, network, router, typedProvider]);
 
   const ready = !isPending || (timedOut && !isFetching);
 
-  if (!validCurrency) return <Redirect href="/add-funds" />;
+  if (!validCurrency && !isCrypto) return <Redirect href="/add-funds" />;
 
   function handleClose() {
     router.replace("/(main)/(home)");
@@ -79,7 +98,7 @@ export default function Status() {
             </YStack>
           </View>
         </ScrollView>
-        <MantecaDisclaimer />
+        {typedProvider === "bridge" ? <BridgeDisclaimer /> : <MantecaDisclaimer />}
         {ready ? (
           <Button onPress={handleClose} primary>
             <Button.Text>{t("Close")}</Button.Text>

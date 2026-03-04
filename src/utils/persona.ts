@@ -13,15 +13,15 @@ import { getKYCTokens } from "./server";
 
 export const environment = (__DEV__ || process.env.EXPO_PUBLIC_ENV === "e2e" ? "sandbox" : "production") as Environment;
 
-type MantecaKYCResult = { status: "cancel" } | { status: "complete" } | { status: "error" };
+type RampKYCResult = { status: "cancel" } | { status: "complete" } | { status: "error" };
 
 let current:
   | undefined
   | {
       controller: AbortController;
-      promise: Promise<MantecaKYCResult>;
+      promise: Promise<RampKYCResult>;
       tokens?: { inquiryId: string; sessionToken: string };
-      type: "manteca";
+      type: "bridge" | "manteca";
     }
   | { controller: AbortController; promise: Promise<void>; type: "basic" };
 
@@ -123,11 +123,20 @@ export function cancelKYC() {
 }
 
 export function startMantecaKYC(tokens?: { inquiryId: string; sessionToken: string }) {
-  if (current && !current.controller.signal.aborted && current.type === "manteca" && current.tokens === tokens)
+  return startRampKYC("manteca", tokens);
+}
+
+export function startAddressKYC(tokens?: { inquiryId: string; sessionToken: string }) {
+  return startRampKYC("bridge", tokens);
+}
+
+function startRampKYC(type: "bridge" | "manteca", tokens?: { inquiryId: string; sessionToken: string }) {
+  if (current && !current.controller.signal.aborted && current.type === type && current.tokens === tokens)
     return current.promise;
 
   current?.controller.abort(new Error("persona inquiry aborted"));
   const controller = new AbortController();
+  const invalidationKey = ["kyc", type];
 
   const promise = (async () => {
     const { signal } = controller;
@@ -141,11 +150,11 @@ export function startMantecaKYC(tokens?: { inquiryId: string; sessionToken: stri
     if (Platform.OS === "web") {
       const [{ Client }, { inquiryId, sessionToken }] = await Promise.all([
         import("persona"),
-        tokens ?? getKYCTokens("manteca", await getRedirectURI()),
+        tokens ?? getKYCTokens(type, await getRedirectURI()),
       ]);
       if (signal.aborted) throw signal.reason;
 
-      return new Promise<MantecaKYCResult>((resolve, reject) => {
+      return new Promise<RampKYCResult>((resolve, reject) => {
         const onAbort = () => {
           client.destroy();
           reject(new Error("persona inquiry aborted", { cause: signal.reason }));
@@ -159,14 +168,14 @@ export function startMantecaKYC(tokens?: { inquiryId: string; sessionToken: stri
             signal.removeEventListener("abort", onAbort);
             globalThis.removeEventListener("pagehide", onPageHide);
             client.destroy();
-            queryClient.invalidateQueries({ queryKey: ["kyc", "manteca"] }).catch(reportError);
+            queryClient.invalidateQueries({ queryKey: invalidationKey }).catch(reportError);
             resolve({ status: "complete" });
           },
           onCancel: () => {
             signal.removeEventListener("abort", onAbort);
             globalThis.removeEventListener("pagehide", onPageHide);
             client.destroy();
-            queryClient.invalidateQueries({ queryKey: ["kyc", "manteca"] }).catch(reportError);
+            queryClient.invalidateQueries({ queryKey: invalidationKey }).catch(reportError);
             resolve({ status: "cancel" });
           },
           onError: (error) => {
@@ -181,23 +190,23 @@ export function startMantecaKYC(tokens?: { inquiryId: string; sessionToken: stri
       });
     }
 
-    const { inquiryId, sessionToken } = tokens ?? (await getKYCTokens("manteca", await getRedirectURI()));
+    const { inquiryId, sessionToken } = tokens ?? (await getKYCTokens(type, await getRedirectURI()));
     if (signal.aborted) throw signal.reason;
 
     const { Inquiry } = await import("react-native-persona");
-    return new Promise<MantecaKYCResult>((resolve, reject) => {
+    return new Promise<RampKYCResult>((resolve, reject) => {
       const onAbort = () => reject(new Error("persona inquiry aborted", { cause: signal.reason }));
       signal.addEventListener("abort", onAbort, { once: true });
       Inquiry.fromInquiry(inquiryId)
         .sessionToken(sessionToken)
         .onCanceled(() => {
           signal.removeEventListener("abort", onAbort);
-          queryClient.invalidateQueries({ queryKey: ["kyc", "manteca"] }).catch(reportError);
+          queryClient.invalidateQueries({ queryKey: invalidationKey }).catch(reportError);
           resolve({ status: "cancel" });
         })
         .onComplete(() => {
           signal.removeEventListener("abort", onAbort);
-          queryClient.invalidateQueries({ queryKey: ["kyc", "manteca"] }).catch(reportError);
+          queryClient.invalidateQueries({ queryKey: invalidationKey }).catch(reportError);
           resolve({ status: "complete" });
         })
         .onError((error) => {
@@ -212,7 +221,7 @@ export function startMantecaKYC(tokens?: { inquiryId: string; sessionToken: stri
     if (current?.controller === controller) current = undefined;
   });
 
-  current = { type: "manteca", controller, promise, tokens };
+  current = { type, controller, promise, tokens };
   return promise;
 }
 

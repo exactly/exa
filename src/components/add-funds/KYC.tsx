@@ -9,11 +9,12 @@ import { ScrollView, YStack } from "tamagui";
 
 import { useMutation } from "@tanstack/react-query";
 
+import BridgeDisclaimer from "./BridgeDisclaimer";
 import MantecaDisclaimer from "./MantecaDisclaimer";
 import FaceId from "../../assets/images/face-id.svg";
 import completeOnboarding from "../../utils/completeOnboarding";
 import { isValidCurrency } from "../../utils/currencies";
-import { startMantecaKYC } from "../../utils/persona";
+import { startAddressKYC, startMantecaKYC } from "../../utils/persona";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import SafeView from "../shared/SafeView";
@@ -24,30 +25,39 @@ import View from "../shared/View";
 export default function KYC() {
   const { t } = useTranslation();
   const router = useRouter();
-  const { currency } = useLocalSearchParams<{ currency: string }>();
+  const { currency, network, provider, kycCode, acceptedTermsId } = useLocalSearchParams();
   const validCurrency = isValidCurrency(currency);
-  const invalidLegalId = queryClient.getQueryData<{ inquiryId: string; sessionToken: string }>([
-    "ramp",
-    "invalid-legal-id",
-  ]);
+  const isCrypto = !!network;
+  const isBridge = provider === "bridge";
+  const isAddress = kycCode === "invalid address";
+  const storedTokens = queryClient.getQueryData<{ inquiryId: string; sessionToken: string }>(["ramp", "kyc-tokens"]);
 
   const { mutateAsync: handleContinue, isPending } = useMutation({
-    mutationKey: ["kyc", "complete", "manteca"],
+    mutationKey: ["kyc", "complete", provider],
     async mutationFn() {
-      if (!currency) return;
-      const result = await startMantecaKYC(invalidLegalId);
+      if (typeof currency !== "string") return;
+      const result = isAddress ? await startAddressKYC(storedTokens) : await startMantecaKYC(storedTokens);
       if (result.status === "cancel") return;
       if (result.status !== "complete") {
-        queryClient.removeQueries({ queryKey: ["ramp", "invalid-legal-id"] });
-        router.replace({ pathname: "/add-funds/status", params: { status: "error", currency } });
+        queryClient.removeQueries({ queryKey: ["ramp", "kyc-tokens"] });
+        router.replace({
+          pathname: "/add-funds/status",
+          params: { status: "error", currency, provider, network },
+        });
         return;
       }
-      queryClient.removeQueries({ queryKey: ["ramp", "invalid-legal-id"] });
-      await completeOnboarding(router, currency);
+      queryClient.removeQueries({ queryKey: ["ramp", "kyc-tokens"] });
+      await completeOnboarding(
+        router,
+        currency,
+        isBridge ? "bridge" : "manteca",
+        typeof acceptedTermsId === "string" ? acceptedTermsId : undefined,
+        typeof network === "string" ? network : undefined,
+      );
     },
   });
 
-  if (!validCurrency) return <Redirect href="/add-funds" />;
+  if (!validCurrency && !isCrypto) return <Redirect href="/add-funds" />;
 
   function handlePress() {
     handleContinue().catch(reportError);
@@ -60,7 +70,7 @@ export default function KYC() {
           <View flexDirection="row" gap="$s3" justifyContent="space-between" alignItems="center">
             <Pressable
               onPress={() => {
-                queryClient.removeQueries({ queryKey: ["ramp", "invalid-legal-id"] });
+                queryClient.removeQueries({ queryKey: ["ramp", "kyc-tokens"] });
                 if (router.canGoBack()) {
                   router.back();
                 } else {
@@ -81,22 +91,28 @@ export default function KYC() {
                 </View>
                 <YStack gap="$s4" alignSelf="center">
                   <Text title emphasized textAlign="center" color="$interactiveTextBrandDefault">
-                    {invalidLegalId ? t("Your ID needs to be updated") : t("We need more information about you")}
+                    {storedTokens
+                      ? isAddress
+                        ? t("Your address needs to be verified")
+                        : t("Your ID needs to be updated")
+                      : t("We need more information about you")}
                   </Text>
                   <Text color="$uiNeutralPlaceholder" footnote textAlign="center">
-                    {invalidLegalId
-                      ? t("There was an issue with your tax ID. Please update your information to continue.")
-                      : t("You’ll be able to add funds soon.")}
+                    {storedTokens
+                      ? isAddress
+                        ? t("There was an issue with your address. Please update your information to continue.")
+                        : t("There was an issue with your tax ID. Please update your information to continue.")
+                      : t("You'll be able to add funds soon.")}
                   </Text>
                 </YStack>
               </YStack>
             </YStack>
           </View>
         </ScrollView>
-        <MantecaDisclaimer />
+        {isBridge ? <BridgeDisclaimer /> : <MantecaDisclaimer />}
         <Button onPress={handlePress} primary disabled={isPending} loading={isPending}>
           <Button.Text>
-            {isPending ? t("Starting...") : invalidLegalId ? t("Update information") : t("Continue verification")}
+            {isPending ? t("Starting...") : storedTokens ? t("Update information") : t("Continue verification")}
           </Button.Text>
           <Button.Icon>
             <ArrowRight />
