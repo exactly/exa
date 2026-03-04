@@ -3,6 +3,17 @@ import { BaseError, ContractFunctionRevertedError } from "viem";
 
 import revertReason from "@exactly/common/revertReason";
 
+const bigintReplacer = (_: string, v: unknown) => (typeof v === "bigint" ? `0x${v.toString(16)}` : v);
+
+(globalThis as Record<string, unknown>).__captureProviderError__ = (method: string, data: unknown) =>
+  withScope((scope) => {
+    scope.setTag("provider.method", method);
+    scope.setLevel("warning");
+    captureException(new Error(`[farcaster-provider] ${method}`), {
+      extra: { providerError: JSON.stringify(data, bigintReplacer) },
+    });
+  });
+
 export default function reportError(error: unknown, hint?: Parameters<typeof captureException>[1]) {
   console.error(error); // eslint-disable-line no-console
   const parsed = parseError(error);

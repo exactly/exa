@@ -92,6 +92,9 @@ overrides:
   solidity-coverage: npm:@favware/skip-dependency@1.2.2
 
 patchedDependencies:
+  '@farcaster/miniapp-sdk':
+    hash: c779770b62e09976bdb62d23f50ed7922449031159c67766586c0e76f41acb7e
+    path: patches/@farcaster__miniapp-sdk.patch
   '@lifi/sdk':
     hash: ee16233f297d9a6c8a8320b5dc2b4bf47b7be8b481d79e3d54108cd77775b45b
     path: patches/@lifi__sdk.patch
@@ -135,10 +138,10 @@ importers:
         version: 0.1.12(typescript@5.9.3)(zod@4.3.5)
       '@farcaster/miniapp-sdk':
         specifier: ^0.2.1
-        version: 0.2.1(typescript@5.9.3)(zod@4.3.5)
+        version: 0.2.1(patch_hash=c779770b62e09976bdb62d23f50ed7922449031159c67766586c0e76f41acb7e)(typescript@5.9.3)(zod@4.3.5)
       '@farcaster/miniapp-wagmi-connector':
         specifier: ^1.1.0
-        version: 1.1.0(@farcaster/miniapp-sdk@0.2.1(typescript@5.9.3)(zod@4.3.5))(@wagmi/core@3.2.2(@tanstack/query-core@5.90.19)(@types/react@19.1.17)(ox@0.11.3(typescript@5.9.3)(zod@4.3.5))(react@19.1.0)(typescript@5.9.3)(use-sync-external-store@1.6.0(react@19.1.0))(viem@2.44.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.5)))(viem@2.44.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.5))
+        version: 1.1.0(@farcaster/miniapp-sdk@0.2.1(patch_hash=c779770b62e09976bdb62d23f50ed7922449031159c67766586c0e76f41acb7e)(typescript@5.9.3)(zod@4.3.5))(@wagmi/core@3.2.2(@tanstack/query-core@5.90.19)(@types/react@19.1.17)(ox@0.11.3(typescript@5.9.3)(zod@4.3.5))(react@19.1.0)(typescript@5.9.3)(use-sync-external-store@1.6.0(react@19.1.0))(viem@2.44.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.5)))(viem@2.44.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.5))
       '@intercom/intercom-react-native':
         specifier: ^9.4.0
         version: 9.4.0(react-native@0.81.5(@babel/core@7.28.6)(@types/react@19.1.17)(bufferutil@4.1.0)(react@19.1.0)(utf-8-validate@5.0.10))(react@19.1.0)
@@ -16627,7 +16630,7 @@ snapshots:
 
   '@farcaster/frame-sdk@0.1.12(typescript@5.9.3)(zod@4.3.5)':
     dependencies:
-      '@farcaster/miniapp-sdk': 0.2.1(typescript@5.9.3)(zod@4.3.5)
+      '@farcaster/miniapp-sdk': 0.2.1(patch_hash=c779770b62e09976bdb62d23f50ed7922449031159c67766586c0e76f41acb7e)(typescript@5.9.3)(zod@4.3.5)
       '@farcaster/quick-auth': 0.0.8(typescript@5.9.3)
       comlink: 4.4.2
       eventemitter3: 5.0.4
@@ -16644,7 +16647,7 @@ snapshots:
     transitivePeerDependencies:
       - typescript
 
-  '@farcaster/miniapp-sdk@0.2.1(typescript@5.9.3)(zod@4.3.5)':
+  '@farcaster/miniapp-sdk@0.2.1(patch_hash=c779770b62e09976bdb62d23f50ed7922449031159c67766586c0e76f41acb7e)(typescript@5.9.3)(zod@4.3.5)':
     dependencies:
       '@farcaster/miniapp-core': 0.4.1(typescript@5.9.3)
       '@farcaster/quick-auth': 0.0.6(typescript@5.9.3)
@@ -16655,9 +16658,9 @@ snapshots:
       - typescript
       - zod
 
-  '@farcaster/miniapp-wagmi-connector@1.1.0(@farcaster/miniapp-sdk@0.2.1(typescript@5.9.3)(zod@4.3.5))(@wagmi/core@3.2.2(@tanstack/query-core@5.90.19)(@types/react@19.1.17)(ox@0.11.3(typescript@5.9.3)(zod@4.3.5))(react@19.1.0)(typescript@5.9.3)(use-sync-external-store@1.6.0(react@19.1.0))(viem@2.44.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.5)))(viem@2.44.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.5))':
+  '@farcaster/miniapp-wagmi-connector@1.1.0(@farcaster/miniapp-sdk@0.2.1(patch_hash=c779770b62e09976bdb62d23f50ed7922449031159c67766586c0e76f41acb7e)(typescript@5.9.3)(zod@4.3.5))(@wagmi/core@3.2.2(@tanstack/query-core@5.90.19)(@types/react@19.1.17)(ox@0.11.3(typescript@5.9.3)(zod@4.3.5))(react@19.1.0)(typescript@5.9.3)(use-sync-external-store@1.6.0(react@19.1.0))(viem@2.44.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.5)))(viem@2.44.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.5))':
     dependencies:
-      '@farcaster/miniapp-sdk': 0.2.1(typescript@5.9.3)(zod@4.3.5)
+      '@farcaster/miniapp-sdk': 0.2.1(patch_hash=c779770b62e09976bdb62d23f50ed7922449031159c67766586c0e76f41acb7e)(typescript@5.9.3)(zod@4.3.5)
       '@wagmi/core': 3.2.2(@tanstack/query-core@5.90.19)(@types/react@19.1.17)(ox@0.11.3(typescript@5.9.3)(zod@4.3.5))(react@19.1.0)(typescript@5.9.3)(use-sync-external-store@1.6.0(react@19.1.0))(viem@2.44.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.5))
       viem: 2.44.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.5)
 
