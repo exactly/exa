@@ -8,6 +8,7 @@ import chain from "@exactly/common/generated/chain";
 
 import AssetLogo from "./AssetLogo";
 import ChainLogo from "./ChainLogo";
+import Image from "./Image";
 import ModalSheet from "./ModalSheet";
 import assetLogos from "../../utils/assetLogos";
 import useAccount from "../../utils/useAccount";
@@ -17,8 +18,23 @@ import Text from "../shared/Text";
 
 const supportedAssets = Object.keys(assetLogos).filter((s) => s !== "USDC.e" && s !== "DAI");
 
-export default function CopyAddressSheet({ open, onClose }: { onClose: () => void; open: boolean }) {
-  const { address } = useAccount();
+export default function CopyAddressSheet({
+  open,
+  onClose,
+  address: overrideAddress,
+  network,
+  networkLogo,
+  assets,
+}: {
+  address?: string;
+  assets?: string[];
+  network?: string;
+  networkLogo?: string;
+  onClose: () => void;
+  open: boolean;
+}) {
+  const { address: accountAddress } = useAccount();
+  const displayAssets = assets ?? supportedAssets;
   const { t } = useTranslation();
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
@@ -43,8 +59,8 @@ export default function CopyAddressSheet({ open, onClose }: { onClose: () => voi
                 {t("Double-check your address before sending funds to avoid losing them.")}
               </Text>
             </YStack>
-            <Text primary title mono textAlign="center">
-              {address}
+            <Text primary title2 mono textAlign="center">
+              {overrideAddress ?? accountAddress}
             </Text>
             <YStack
               gap="$s5"
@@ -58,14 +74,18 @@ export default function CopyAddressSheet({ open, onClose }: { onClose: () => voi
                   {t("Network")}
                 </Text>
                 <Text emphasized footnote color="$uiNeutralSecondary" textAlign="right">
-                  {t("Supported Assets")}
+                  {displayAssets.length === 1 ? t("Asset") : t("Supported Assets")}
                 </Text>
               </XStack>
               <XStack gap="$s5" justifyContent="space-between" alignItems="center" width="100%">
                 <XStack alignItems="center" gap="$s3" flex={1}>
-                  <ChainLogo size={32} />
+                  {networkLogo ? (
+                    <Image source={{ uri: networkLogo }} width={32} height={32} borderRadius="$r_0" overflow="hidden" />
+                  ) : (
+                    <ChainLogo size={32} />
+                  )}
                   <Text emphasized primary headline>
-                    {chain.name}
+                    {network ?? chain.name}
                   </Text>
                 </XStack>
                 <XStack
@@ -75,8 +95,8 @@ export default function CopyAddressSheet({ open, onClose }: { onClose: () => voi
                   padding="$s3_5"
                   alignSelf="flex-end"
                 >
-                  {supportedAssets.map((symbol, index) => (
-                    <XStack key={symbol} marginRight={index < supportedAssets.length - 1 ? -12 : 0} zIndex={index}>
+                  {displayAssets.map((symbol, index) => (
+                    <XStack key={symbol} marginRight={index < displayAssets.length - 1 ? -12 : 0} zIndex={index}>
                       <AssetLogo symbol={symbol} width={32} height={32} />
                     </XStack>
                   ))}

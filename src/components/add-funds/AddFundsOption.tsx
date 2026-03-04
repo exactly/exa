@@ -10,8 +10,10 @@ export default function AddFundsOption({
   icon,
   title,
   subtitle,
+  disabled,
   onPress,
 }: {
+  disabled?: boolean;
   icon: React.ReactElement;
   onPress: () => void;
   subtitle: string;
@@ -22,10 +24,12 @@ export default function AddFundsOption({
       padding="$s4_5"
       backgroundColor="$backgroundSoft"
       borderRadius="$r5"
-      cursor="pointer"
-      onPress={onPress}
       borderWidth={1}
       borderColor="$borderNeutralSoft"
+      cursor={disabled ? "default" : "pointer"}
+      opacity={disabled ? 0.5 : 1}
+      aria-disabled={disabled}
+      onPress={disabled ? undefined : onPress}
     >
       <XStack alignItems="center" gap="$s3_5" justifyContent="space-between">
         <XStack gap="$s3_5" alignItems="center" flex={1}>

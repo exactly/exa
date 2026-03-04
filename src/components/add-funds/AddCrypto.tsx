@@ -3,34 +3,56 @@ import { useTranslation } from "react-i18next";
 import { PixelRatio, Pressable, Share } from "react-native";
 
 import { setStringAsync } from "expo-clipboard";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 
-import { AlertTriangle, ArrowLeft, Files, Share as ShareIcon } from "@tamagui/lucide-icons";
+import { AlertTriangle, ArrowLeft, Files, RefreshCw, Share as ShareIcon } from "@tamagui/lucide-icons";
 import { ScrollView, XStack, YStack } from "tamagui";
 
-import chain from "@exactly/common/generated/chain";
-import shortenHex from "@exactly/common/shortenHex";
+import { useQuery } from "@tanstack/react-query";
 
+import chain from "@exactly/common/generated/chain";
+
+import BridgeDisclaimer from "./BridgeDisclaimer";
 import SupportedAssetsSheet from "./SupportedAssetsSheet";
 import assetLogos from "../../utils/assetLogos";
 import { presentArticle } from "../../utils/intercom";
+import networkLogos from "../../utils/networkLogos";
 import reportError from "../../utils/reportError";
+import { getRampQuote } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
 import AssetLogo from "../shared/AssetLogo";
 import ChainLogo from "../shared/ChainLogo";
 import CopyAddressSheet from "../shared/CopyAddressSheet";
+import Image from "../shared/Image";
 import SafeView from "../shared/SafeView";
+import Skeleton from "../shared/Skeleton";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-const supportedAssets = Object.keys(assetLogos).filter((s) => s !== "USDC.e" && s !== "DAI");
+const defaultAssets = Object.keys(assetLogos).filter((s) => s !== "USDC.e" && s !== "DAI");
 
 export default function AddCrypto() {
   const router = useRouter();
   const fontScale = PixelRatio.getFontScale();
-  const { address } = useAccount();
+  const { address: accountAddress } = useAccount();
   const { t } = useTranslation();
+  const { provider, currency, network } = useLocalSearchParams();
+  const isBridge = provider === "bridge" && !!currency && !!network;
+
+  const { data, isError, isFetching, refetch } = useQuery({
+    queryKey: ["ramp", "quote", "bridge", currency, network],
+    queryFn: () => getRampQuote({ provider: "bridge", currency, network } as Parameters<typeof getRampQuote>[0]),
+    enabled: isBridge,
+    retry: false,
+    staleTime: 10_000,
+  });
+  const deposit = data?.depositInfo.at(0);
+  const depositAddress = deposit && "address" in deposit ? deposit.address : undefined;
+
+  const address = isBridge ? depositAddress : accountAddress;
+  const networkName = isBridge && typeof network === "string" ? network : chain.name;
+  const assets = isBridge && typeof currency === "string" ? [currency] : defaultAssets;
 
   const [copyAddressShown, setCopyAddressShown] = useState(false);
   const [supportedAssetsShown, setSupportedAssetsShown] = useState(false);
@@ -43,8 +65,9 @@ export default function AddCrypto() {
 
   const share = useCallback(async () => {
     if (!address) return;
-    await Share.share({ message: address, title: t("Share {{chain}} address", { chain: chain.name }) });
-  }, [address, t]);
+    await Share.share({ message: address, title: t("Share {{chain}} address", { chain: networkName }) });
+  }, [address, networkName, t]);
+
   return (
     <SafeView fullScreen>
       <View gap="$s5" fullScreen padded>
@@ -80,61 +103,97 @@ export default function AddCrypto() {
               gap="$s5"
             >
               <Text emphasized subHeadline secondary>
-                {t("Your {{chain}} address", { chain: chain.name })}
+                {isBridge
+                  ? t("{{network}} deposit address", { network: networkName })
+                  : t("Your {{chain}} address", { chain: networkName })}
               </Text>
-              <Pressable hitSlop={15} onPress={copy}>
-                {address && (
-                  <Text body mono>
-                    {shortenHex(address, 10, 12)}
-                  </Text>
+              <Pressable hitSlop={15} onPress={copy} disabled={!address}>
+                {address ? (
+                  <Text mono>{address}</Text>
+                ) : isBridge && isError && !isFetching ? (
+                  <Text color="$uiErrorSecondary">{t("Failed to load deposit address.")}</Text>
+                ) : (
+                  <Skeleton width="100%" height={24} />
                 )}
               </Pressable>
-              <XStack alignItems="center" gap="$s4">
-                <Button primary flex={1} onPress={copy}>
-                  <Button.Text>{t("Copy")}</Button.Text>
-                  <Button.Icon>
-                    <Files size={18 * fontScale} />
-                  </Button.Icon>
-                </Button>
+              {isBridge && isError && !isFetching ? (
                 <Button
                   secondary
                   flex={1}
                   onPress={() => {
-                    share().catch(reportError);
+                    refetch().catch(reportError);
                   }}
                 >
-                  <Button.Text>{t("Share")}</Button.Text>
+                  <Button.Text>{t("Retry")}</Button.Text>
                   <Button.Icon>
-                    <ShareIcon size={18 * fontScale} />
+                    <RefreshCw size={18 * fontScale} />
                   </Button.Icon>
                 </Button>
-              </XStack>
+              ) : (
+                <XStack alignItems="center" gap="$s4">
+                  <Button primary flex={1} onPress={copy} disabled={!address}>
+                    <Button.Text>{t("Copy")}</Button.Text>
+                    <Button.Icon>
+                      <Files size={18 * fontScale} />
+                    </Button.Icon>
+                  </Button>
+                  <Button
+                    secondary
+                    flex={1}
+                    disabled={!address}
+                    onPress={() => {
+                      share().catch(reportError);
+                    }}
+                  >
+                    <Button.Text>{t("Share")}</Button.Text>
+                    <Button.Icon>
+                      <ShareIcon size={18 * fontScale} />
+                    </Button.Icon>
+                  </Button>
+                </XStack>
+              )}
             </YStack>
             <CopyAddressSheet
               open={copyAddressShown}
               onClose={() => {
                 setCopyAddressShown(false);
               }}
+              address={isBridge ? depositAddress : undefined}
+              network={isBridge && typeof network === "string" ? network : undefined}
+              networkLogo={isBridge && typeof network === "string" ? networkLogos[network] : undefined}
+              assets={isBridge ? assets : undefined}
             />
-            <SupportedAssetsSheet
-              open={supportedAssetsShown}
-              onClose={() => {
-                setSupportedAssetsShown(false);
-              }}
-            />
+            {!isBridge && (
+              <SupportedAssetsSheet
+                open={supportedAssetsShown}
+                onClose={() => {
+                  setSupportedAssetsShown(false);
+                }}
+              />
+            )}
             <XStack justifyContent="space-between" alignItems="center">
               <Text emphasized footnote color="$uiNeutralSecondary" textAlign="left">
                 {t("Network")}
               </Text>
               <Text emphasized footnote color="$uiNeutralSecondary" textAlign="right">
-                {t("Supported Assets")}
+                {isBridge ? t("Asset") : t("Supported Assets")}
               </Text>
             </XStack>
             <XStack gap="$s5" justifyContent="space-between" alignItems="center">
               <XStack alignItems="center" gap="$s3" flex={1}>
-                <ChainLogo size={32} />
+                {isBridge && typeof network === "string" && network in networkLogos ? (
+                  <Image
+                    source={{ uri: networkLogos[network] }}
+                    width={32}
+                    height={32}
+                    borderRadius="$r_0"
+                    overflow="hidden"
+                  />
+                ) : (
+                  <ChainLogo size={32} />
+                )}
                 <Text emphasized primary headline>
-                  {chain.name}
+                  {networkName}
                 </Text>
               </XStack>
               <XStack
@@ -144,12 +203,10 @@ export default function AddCrypto() {
                 padding="$s3_5"
                 alignSelf="flex-end"
                 cursor="pointer"
-                onPress={() => {
-                  setSupportedAssetsShown(true);
-                }}
+                onPress={isBridge ? undefined : () => setSupportedAssetsShown(true)}
               >
-                {supportedAssets.map((symbol, index) => (
-                  <XStack key={symbol} marginRight={index < supportedAssets.length - 1 ? -12 : 0} zIndex={index}>
+                {assets.map((symbol, index) => (
+                  <XStack key={symbol} marginRight={index < assets.length - 1 ? -12 : 0} zIndex={index}>
                     <AssetLogo symbol={symbol} width={32} height={32} />
                   </XStack>
                 ))}
@@ -157,36 +214,38 @@ export default function AddCrypto() {
             </XStack>
           </YStack>
         </ScrollView>
-        <XStack
-          gap="$s4"
-          alignItems="flex-start"
-          borderTopWidth={1}
-          borderTopColor="$borderNeutralSoft"
-          paddingTop="$s3"
-        >
-          <View>
-            <AlertTriangle size={16} width={16} height={16} color="$uiWarningSecondary" />
-          </View>
-          <XStack flex={1}>
-            <Text emphasized caption2 color="$uiNeutralPlaceholder" textAlign="justify">
-              {t("Only send assets on {{chain}}. Sending funds from other networks may cause permanent loss.", {
-                chain: chain.name,
-              })}
-              <Text
-                cursor="pointer"
-                emphasized
-                caption2
-                color="$uiBrandSecondary"
-                onPress={() => {
-                  presentArticle("8950801").catch(reportError);
-                }}
-              >
-                {" "}
-                {t("Learn more about adding funds.")}
+        <YStack gap="$s4" padding="$s2" borderTopWidth={1} borderTopColor="$borderNeutralSoft" paddingTop="$s3">
+          {isBridge && <BridgeDisclaimer />}
+          <XStack gap="$s4" alignItems="flex-start">
+            <View>
+              <AlertTriangle size={16} width={16} height={16} color="$uiWarningSecondary" />
+            </View>
+            <XStack flex={1}>
+              <Text emphasized caption2 color="$uiNeutralPlaceholder" textAlign="justify">
+                {isBridge
+                  ? t(
+                      "Only send {{crypto}} on {{network}}. Sending other assets or using other networks may cause permanent loss.",
+                      { crypto: currency, network: networkName },
+                    )
+                  : t("Only send assets on {{chain}}. Sending funds from other networks may cause permanent loss.", {
+                      chain: networkName,
+                    })}
+                <Text
+                  cursor="pointer"
+                  emphasized
+                  caption2
+                  color="$uiBrandSecondary"
+                  onPress={() => {
+                    presentArticle("8950801").catch(reportError);
+                  }}
+                >
+                  {" "}
+                  {t("Learn more about adding funds.")}
+                </Text>
               </Text>
-            </Text>
+            </XStack>
           </XStack>
-        </XStack>
+        </YStack>
       </View>
     </SafeView>
   );

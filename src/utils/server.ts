@@ -3,7 +3,7 @@ import { get as assert, create } from "react-native-passkeys";
 
 import { sdk } from "@farcaster/miniapp-sdk";
 import { getConnection, signMessage } from "@wagmi/core";
-import { hc, parseResponse, type InferResponseType } from "hono/client";
+import { hc, parseResponse, type InferRequestType, type InferResponseType } from "hono/client";
 import { check, number, object, parse, pipe, safeParse, string, ValiError } from "valibot";
 import { UserRejectedRequestError } from "viem";
 
@@ -168,7 +168,10 @@ export async function setCardPIN(pin: string) {
   if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
 }
 
-export async function getKYCTokens(scope: "basic" | "manteca" = "basic", redirectURI?: string) {
+export async function getKYCTokens(
+  scope: InferRequestType<typeof api.kyc.$post>["json"]["scope"] = "basic",
+  redirectURI?: string,
+) {
   await auth();
   const response = await api.kyc.$post({ json: { scope, redirectURI } });
   if (!response.ok) {
@@ -178,7 +181,10 @@ export async function getKYCTokens(scope: "basic" | "manteca" = "basic", redirec
   return response.json();
 }
 
-export async function getKYCStatus(scope: "basic" | "manteca" = "basic", includeCountryCode?: boolean) {
+export async function getKYCStatus(
+  scope: InferRequestType<typeof api.kyc.$get>["query"]["scope"] = "basic",
+  includeCountryCode?: boolean,
+) {
   await auth();
   const query = { scope, countryCode: includeCountryCode ? "true" : undefined };
   const response = await api.kyc.$get({ query });
@@ -201,20 +207,6 @@ queryClient.setQueryDefaults(["kyc", "status"], {
   queryFn: () => getKYCStatus("basic", true),
 });
 export type KYCStatus = Awaited<ReturnType<typeof getKYCStatus>>;
-
-export async function getMantecaKYCStatus() {
-  return getKYCStatus("manteca");
-}
-
-export async function createMantecaKYC(redirectURI?: string) {
-  await auth();
-  const response = await api.kyc.$post({ json: { scope: "manteca", redirectURI } });
-  if (!response.ok) {
-    const { code } = await response.json();
-    throw new APIError(response.status, code);
-  }
-  return response.json();
-}
 
 export async function getCredential() {
   const cached = queryClient.getQueryData<Credential>(["credential"]);
@@ -361,12 +353,12 @@ export async function getRampQuote(query: NonNullable<Parameters<typeof api.ramp
   return response.json();
 }
 
-export async function startRampOnboarding(onboarding: { provider: "manteca" }) {
+export async function startRampOnboarding(onboarding: InferRequestType<typeof api.ramp.$post>["json"]) {
   await auth();
   const response = await api.ramp.$post({ json: onboarding });
   if (!response.ok) {
     const body = await response.json();
-    if (body.code === "invalid legal id") {
+    if (body.code === "invalid legal id" || body.code === "invalid address") {
       const { inquiryId, sessionToken } = parse(object({ inquiryId: string(), sessionToken: string() }), body);
       return { code: body.code, inquiryId, sessionToken };
     }

@@ -8,7 +8,7 @@ import openBrowser from "../../utils/openBrowser";
 import reportError from "../../utils/reportError";
 import Text from "../shared/Text";
 
-export default function MantecaDisclaimer({ primary }: { primary?: boolean }) {
+export default function BridgeDisclaimer({ primary }: { primary?: boolean }) {
   const {
     i18n: { language },
   } = useTranslation();
@@ -20,7 +20,7 @@ export default function MantecaDisclaimer({ primary }: { primary?: boolean }) {
       <YStack flex={1} flexShrink={1}>
         <Text color="$uiNeutralPlaceholder" caption2>
           <Trans
-            i18nKey="The fiat deposit services are provided by <provider>Manteca</provider> (Sixalime SAS) and are subject to <terms>Terms and Conditions</terms>. Exa Labs SAS does not custody fiat funds."
+            i18nKey="The deposit services are provided by <provider>Bridge</provider> and are subject to <terms>Terms and Conditions</terms>. Exa Labs SAS does not custody fiat funds."
             components={{
               provider: (
                 <Text
@@ -28,7 +28,7 @@ export default function MantecaDisclaimer({ primary }: { primary?: boolean }) {
                   caption2
                   cursor="pointer"
                   onPress={() => {
-                    openBrowser("https://manteca.dev/").catch(reportError);
+                    openBrowser("https://www.bridge.xyz/").catch(reportError);
                   }}
                 />
               ),
@@ -39,7 +39,7 @@ export default function MantecaDisclaimer({ primary }: { primary?: boolean }) {
                   cursor="pointer"
                   onPress={() => {
                     openBrowser(
-                      `https://help.exactly.app/${language.split("-")[0] ?? "en"}/articles/13616694-fiat-on-ramp-terms-and-conditions`,
+                      `https://help.exactly.app/${language.split("-")[0] ?? "en"}/articles/13862897-bridge-terms-and-conditions`,
                     ).catch(reportError);
                   }}
                 />

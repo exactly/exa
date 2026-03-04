@@ -1,71 +1,49 @@
-import React, { useState } from "react";
-import { Trans, useTranslation } from "react-i18next";
+import React from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft, ArrowRight, Check } from "@tamagui/lucide-icons";
-import { ScrollView, XStack, YStack } from "tamagui";
+import { ArrowLeft, ArrowRight } from "@tamagui/lucide-icons";
+import { ScrollView, YStack } from "tamagui";
 
-import { useMutation } from "@tanstack/react-query";
-
-import MantecaDisclaimer from "./MantecaDisclaimer";
-import ARS from "../../assets/images/ars-usdc.svg";
-import BRL from "../../assets/images/brl-usdc.svg";
-import USD from "../../assets/images/usd-usdc.svg";
-import completeOnboarding from "../../utils/completeOnboarding";
+import ARS from "../../assets/images/ars.svg";
+import Background from "../../assets/images/background.svg";
+import BRL from "../../assets/images/brl.svg";
+import EUR from "../../assets/images/euro.svg";
+import MXN from "../../assets/images/mxn.svg";
+import GBP from "../../assets/images/pounds.svg";
+import Solana from "../../assets/images/solana.svg";
+import Stellar from "../../assets/images/stellar.svg";
+import Tron from "../../assets/images/tron.svg";
+import USD from "../../assets/images/usd.svg";
+import USDC from "../../assets/images/usdc.svg";
+import USDT from "../../assets/images/usdt.svg";
 import { isValidCurrency } from "../../utils/currencies";
-import openBrowser from "../../utils/openBrowser";
-import { APIError } from "../../utils/queryClient";
-import reportError from "../../utils/reportError";
-import { getKYCStatus } from "../../utils/server";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-const currencyImages: Record<string, React.FC<{ height: string; width: string }>> = { ARS, BRL, USD };
+type SvgComponent = React.FC<{ height: string; viewBox?: string; width: string }>;
+type Layer = { Svg: SvgComponent; viewBox?: string };
+
+const fiat: Record<string, SvgComponent> = { ARS, BRL, EUR, GBP, MXN, USD };
+const networks: Record<string, SvgComponent> = { SOLANA: Solana, STELLAR: Stellar, TRON: Tron };
+const crypto: Record<string, SvgComponent> = { USDC, USDT };
+
+const NATIVE = "0 0 390 390";
+const FRONT = "-40 -36 390 390";
 
 export default function Onboard() {
   const { t } = useTranslation();
   const router = useRouter();
 
-  const { currency } = useLocalSearchParams<{ currency: string }>();
+  const { currency, network, provider } = useLocalSearchParams();
   const validCurrency = isValidCurrency(currency);
+  const isCrypto = !!network;
 
-  const [acknowledged, setAcknowledged] = useState(true);
-
-  const { mutateAsync: handleOnboarding, isPending } = useMutation({
-    mutationKey: ["ramp", "onboarding", "manteca"],
-    async mutationFn() {
-      if (!currency) return;
-      const status = await getKYCStatus("manteca").catch((error: unknown) => {
-        if (error instanceof APIError) return { code: error.text };
-        throw error;
-      });
-      const kycCode = "code" in status && typeof status.code === "string" ? status.code : "not started";
-
-      if (kycCode === "not started") {
-        router.replace({ pathname: "/add-funds/kyc", params: { currency } });
-        return;
-      }
-
-      if (kycCode === "ok") {
-        await completeOnboarding(router, currency);
-        return;
-      }
-
-      router.replace({ pathname: "/add-funds/status", params: { status: "error", currency } });
-    },
-  });
-
-  if (!validCurrency) return <Redirect href="/add-funds" />;
-
-  const CurrencyImage = currencyImages[currency] ?? ARS;
-
-  function handleContinue() {
-    handleOnboarding().catch(reportError);
-  }
+  if (!validCurrency && !isCrypto) return <Redirect href="/add-funds" />;
 
   return (
     <SafeView fullScreen>
@@ -89,15 +67,43 @@ export default function Onboard() {
           <View flex={1} gap="$s4_5">
             <YStack flex={1} padding="$s4" gap="$s6">
               <YStack flex={1} justifyContent="center">
-                <View width="100%" aspectRatio={1} justifyContent="center" alignItems="center">
-                  <CurrencyImage width="100%" height="100%" />
+                <View width="100%" aspectRatio={1}>
+                  {(
+                    [
+                      { Svg: Background },
+                      typeof currency === "string"
+                        ? isCrypto
+                          ? crypto[currency] && { Svg: crypto[currency] }
+                          : fiat[currency] && { Svg: fiat[currency], viewBox: NATIVE }
+                        : undefined,
+                      isCrypto && typeof network === "string"
+                        ? networks[network] && { Svg: networks[network], viewBox: NATIVE }
+                        : typeof currency === "string" && fiat[currency]
+                          ? { Svg: USDC, viewBox: FRONT }
+                          : undefined,
+                    ] as (Layer | undefined)[]
+                  )
+                    .filter((v): v is Layer => !!v)
+                    .map(({ Svg, viewBox }, index) => (
+                      // eslint-disable-next-line @eslint-react/no-array-index-key -- stateless svg layers, never reordered
+                      <View key={index} position="absolute" width="100%" height="100%">
+                        <Svg width="100%" height="100%" {...(viewBox && { viewBox })} />
+                      </View>
+                    ))}
                 </View>
                 <YStack gap="$s4" alignSelf="center">
                   <Text title emphasized textAlign="center" color="$interactiveTextBrandDefault">
-                    {t("Turn {{currency}} transfers to onchain USDC", { currency })}
+                    {isCrypto
+                      ? t("Deposit {{crypto}} via {{network}}", { crypto: currency, network })
+                      : t("Turn {{currency}} transfers to onchain USDC", { currency })}
                   </Text>
                   <Text color="$uiNeutralPlaceholder" footnote textAlign="center">
-                    {t("Transfer from accounts in your name and automatically receive USDC in your Exa account.")}
+                    {isCrypto
+                      ? t("Send {{crypto}} on {{network}} and receive funds in your Exa account.", {
+                          crypto: currency,
+                          network,
+                        })
+                      : t("Transfer from accounts in your name and automatically receive USDC in your Exa account.")}
                   </Text>
                 </YStack>
               </YStack>
@@ -106,50 +112,13 @@ export default function Onboard() {
         </ScrollView>
 
         <YStack gap="$s4_5">
-          <MantecaDisclaimer />
-          <XStack alignItems="center" gap="$s4" justifyContent="flex-start">
-            <XStack
-              cursor="pointer"
-              onPress={() => {
-                setAcknowledged(!acknowledged);
-              }}
-            >
-              <View
-                width={16}
-                height={16}
-                backgroundColor={acknowledged ? "$backgroundBrand" : "transparent"}
-                borderColor="$backgroundBrand"
-                borderWidth={1}
-                borderRadius="$r2"
-                justifyContent="center"
-                alignItems="center"
-              >
-                {acknowledged && <Check size="$iconSize.xs" color="white" />}
-              </View>
-            </XStack>
-            <XStack alignItems="center" cursor="pointer">
-              <Text caption secondary>
-                <Trans
-                  i18nKey="I accept the <terms>Terms and Conditions</terms>."
-                  components={{
-                    terms: (
-                      <Text
-                        color="$interactiveTextBrandDefault"
-                        cursor="pointer"
-                        onPress={() => {
-                          openBrowser(
-                            "https://help.exactly.app/en/articles/13616694-fiat-on-ramp-terms-and-conditions",
-                          ).catch(reportError);
-                        }}
-                      />
-                    ),
-                  }}
-                />
-              </Text>
-            </XStack>
-          </XStack>
-          <Button onPress={handleContinue} primary disabled={isPending || !acknowledged} loading={isPending}>
-            <Button.Text>{isPending ? t("Starting...") : t("Accept and continue")}</Button.Text>
+          <Button
+            onPress={() => {
+              router.push({ pathname: "/add-funds/fees", params: { currency, provider, ...(network && { network }) } });
+            }}
+            primary
+          >
+            <Button.Text>{t("Continue")}</Button.Text>
             <Button.Icon>
               <ArrowRight />
             </Button.Icon>

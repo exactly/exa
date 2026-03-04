@@ -38,6 +38,7 @@
     "cheatcode",
     "checkpointing",
     "checksummed",
+    "CLABE",
     "clippy",
     "codegen",
     "codepoint",
@@ -77,6 +78,7 @@
     "hexlify",
     "hideable",
     "hono",
+    "IBAN",
     "IERC",
     "indoc",
     "infinitism",
@@ -282,7 +284,8 @@
       "filename": "**/i18n/**/pt.json",
       "language": "en,pt",
       "words": [
-        "autocustódia"
+        "autocustódia",
+        "criptomoedas"
       ]
     }
   ],
