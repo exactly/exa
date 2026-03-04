@@ -1,5 +1,11 @@
 # @exactly/mobile
 
+## 1.1.26
+
+### Patch Changes
+
+- [#863](https://github.com/exactly/exa/pull/863) [`24cc666`](https://github.com/exactly/exa/commit/24cc6666c659f796da914a151df3e57e501fcc54) Thanks [@franm91](https://github.com/franm91)! - 🚑 hotfix show only manteca ramp
+
 ## 1.1.25
 
 ### Patch Changes
