@@ -236,7 +236,7 @@ export function allower() {
   }));
 }
 
-async function buildAllower() {
+export async function getAccount(name: string): Promise<LocalAccount> {
   const projectId = parse(pipe(string(), regex(/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/)), process.env.GCP_PROJECT_ID, {
     message: "invalid GCP_PROJECT_ID",
   });
@@ -249,12 +249,16 @@ async function buildAllower() {
   const signer = await withRetry(
     () =>
       gcpHsmToAccount({
-        hsmKeyVersion: `projects/${projectId}/locations/us-west2/keyRings/${keyRing}/cryptoKeys/allower/cryptoKeyVersions/${version}`,
+        hsmKeyVersion: `projects/${projectId}/locations/us-west2/keyRings/${keyRing}/cryptoKeys/${name}/cryptoKeyVersions/${version}`,
         kmsClient: new KeyManagementServiceClient({ keyFilename: GOOGLE_APPLICATION_CREDENTIALS }),
       }),
     { delay: 2000, retryCount: 3, shouldRetry: ({ error }) => isRetryableKmsError(error) },
   );
   signer.nonceManager = nonceManager;
+  return signer;
+}
+
+async function buildAllower() {
   return createWalletClient({
     chain,
     transport: http(`${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`, {
@@ -263,7 +267,7 @@ async function buildAllower() {
         captureRequests(parse(Requests, await request.json()));
       },
     }),
-    account: signer,
+    account: await getAccount("allower"),
   }).extend((client) => {
     const base = extender(client);
     return {

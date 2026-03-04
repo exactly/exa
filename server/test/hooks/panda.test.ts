@@ -1,10 +1,10 @@
 import "../mocks/deployments";
 import "../mocks/keeper";
 import "../mocks/onesignal";
-import "../mocks/panda";
 import "../mocks/sardine";
 import "../mocks/sentry";
 
+import { vValidator } from "@hono/valibot-validator";
 import { captureException, setUser } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
@@ -40,6 +40,7 @@ import chain, {
   exaPluginAbi,
   issuerCheckerAbi,
   marketAbi,
+  refunderAddress,
   upgradeableModularAccountAbi,
 } from "@exactly/common/generated/chain";
 import ProposalType from "@exactly/common/ProposalType";
@@ -57,6 +58,17 @@ import * as sardine from "../../utils/sardine";
 import * as segment from "../../utils/segment";
 import traceClient from "../../utils/traceClient";
 import anvilClient from "../anvilClient";
+
+const withdraw = vi.hoisted(() => vi.fn<(amount: bigint, recipient: string) => Promise<void>>());
+vi.mock("../../utils/panda", async (importOriginal) => ({
+  ...(await importOriginal<typeof panda>()),
+  withdraw,
+  headerValidator: () =>
+    vValidator("header", object({ signature: string() }), (r, c) => {
+      if (!r.success) return c.text("bad request", 400);
+      return r.output.signature === "bad" ? c.text("unauthorized", 401) : undefined;
+    }),
+}));
 
 const appClient = testClient(app);
 const owner = createWalletClient({ chain, transport: http(), account: privateKeyToAccount(generatePrivateKey()) });
@@ -1117,6 +1129,7 @@ describe("card operations", () => {
       });
 
       beforeEach(() => {
+        withdraw.mockClear().mockResolvedValue();
         vi.spyOn(panda, "getUser").mockResolvedValue(userResponseTemplate);
       });
 
@@ -1180,6 +1193,7 @@ describe("card operations", () => {
           .map((l) => decodeEventLog({ abi: marketAbi, eventName: "Deposit", topics: l.topics, data: l.data }))
           .find((l) => l.args.owner === account);
 
+        expect(withdraw).toHaveBeenCalledWith(BigInt(amount * 1e4), refunderAddress);
         expect(deposit?.args.assets).toBe(BigInt(amount * 1e4));
         await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0);
         expect(sendPushNotification).toHaveBeenCalledWith({
@@ -1582,6 +1596,7 @@ describe("card operations", () => {
           .map((l) => decodeEventLog({ abi: marketAbi, eventName: "Deposit", topics: l.topics, data: l.data }))
           .find((l) => l.args.owner === account);
 
+        expect(withdraw).toHaveBeenCalledWith(BigInt(amount * 1e4), refunderAddress);
         expect(transaction?.payload).toMatchObject({
           bodies: [
             { action: "created", createdAt },
@@ -1638,11 +1653,58 @@ describe("card operations", () => {
           .map((l) => decodeEventLog({ abi: marketAbi, eventName: "Deposit", topics: l.topics, data: l.data }))
           .find((l) => l.args.owner === account);
 
+        expect(withdraw).toHaveBeenCalledWith(BigInt(amount * 1e4), refunderAddress);
         expect(transaction?.payload).toMatchObject({
           bodies: [{ action: "completed", createdAt }],
         });
         expect(deposit?.args.assets).toBe(BigInt(amount * 1e4));
         expect(response.status).toBe(200);
+      });
+
+      it("withdraw error is captured but does not stop the refund", async () => {
+        const amount = 200;
+        const withdrawError = new Error("withdraw failed");
+        withdraw.mockRejectedValueOnce(withdrawError);
+
+        const createdAt = new Date().toISOString();
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "completed",
+            body: {
+              ...authorization.json.body,
+              id: "withdraw-error",
+              spend: {
+                ...authorization.json.body.spend,
+                cardId: "card",
+                amount: -amount,
+                localAmount: -amount,
+                authorizedAmount: -amount,
+                authorizedAt: createdAt,
+                postedAt: createdAt,
+                status: "completed",
+              },
+            },
+          },
+        });
+
+        const transaction = await database.query.transactions.findFirst({
+          where: eq(transactions.id, "withdraw-error"),
+        });
+        const refundReceipt = await publicClient.waitForTransactionReceipt({
+          hash: transaction?.hashes[0] as Hex,
+          confirmations: 0,
+        });
+        const deposit = refundReceipt.logs
+          .filter((l) => l.address.toLowerCase() === inject("MarketUSDC").toLowerCase())
+          .map((l) => decodeEventLog({ abi: marketAbi, eventName: "Deposit", topics: l.topics, data: l.data }))
+          .find((l) => l.args.owner === account);
+
+        expect(response.status).toBe(200);
+        expect(captureException).toHaveBeenCalledWith(withdrawError, expect.objectContaining({ level: "error" }));
+        expect(transaction).toBeDefined();
+        expect(deposit?.args.assets).toBe(BigInt(amount * 1e4));
       });
     });
   });

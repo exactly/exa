@@ -1,14 +1,22 @@
 import "../mocks/sentry";
 
+import { parse } from "valibot";
+import { toHex } from "viem";
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import chain from "@exactly/common/generated/chain";
 import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
+import { Address } from "@exactly/common/validation";
 
+import * as keeperModule from "../../utils/keeper";
 import * as panda from "../../utils/panda";
 import ServiceError from "../../utils/ServiceError";
 
 const chainMock = vi.hoisted(() => ({ id: 0 }));
+const exaSend = vi.hoisted(() => vi.fn());
+const testAccount = privateKeyToAccount(generatePrivateKey());
 
 vi.mock("@exactly/common/generated/chain", async (importOriginal) => ({
   ...(await importOriginal()),
@@ -16,6 +24,15 @@ vi.mock("@exactly/common/generated/chain", async (importOriginal) => ({
     rpcUrls: { ...baseSepolia.rpcUrls, alchemy: baseSepolia.rpcUrls.default },
   }),
 }));
+
+vi.mock("../../utils/keeper", async (importOriginal) => {
+  const original = await importOriginal<typeof keeperModule>();
+  return {
+    ...original,
+    extender: vi.fn((): { exaSend: typeof exaSend } => ({ exaSend })),
+    getAccount: vi.fn(),
+  };
+});
 
 describe("panda request", () => {
   it("extracts entity from url on not found", async () => {
@@ -198,5 +215,102 @@ describe("siwe", () => {
       expect.stringContaining("/issuing/users/e5cd86bb-a19e-4a66-9728-9e6c5d97e616/signatures/verify"),
       expect.objectContaining({ method: "PUT", body: JSON.stringify(payload) }),
     );
+  });
+});
+
+describe("mutex", () => {
+  it("creates and retrieves mutex with string key", () => {
+    const mutex = panda.createMutex("event-id");
+    expect(panda.getMutex("event-id")).toBe(mutex);
+  });
+
+  it("creates and retrieves mutex with address key", () => {
+    const address = "0x1234567890123456789012345678901234567890";
+    const mutex = panda.createMutex(address as `0x${string}`);
+    expect(panda.getMutex(address as `0x${string}`)).toBe(mutex);
+  });
+
+  it("returns undefined for unknown key", () => {
+    expect(panda.getMutex("nonexistent")).toBeUndefined();
+  });
+
+  it("string and address keys are independent", () => {
+    const stringMutex = panda.createMutex("some-key");
+    const addressMutex = panda.createMutex("0xabcdefabcdefabcdefabcdefabcdefabcdefabcd" as `0x${string}`);
+    expect(stringMutex).not.toBe(addressMutex);
+  });
+});
+
+describe("withdraw", () => {
+  const recipient = parse(Address, testAccount.address);
+  const signature = {
+    parameters: [
+      testAccount.address,
+      testAccount.address,
+      1_000_000,
+      testAccount.address,
+      1_700_000_000,
+      [1, 2, 3],
+      "0x1234",
+    ],
+  };
+  const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+  beforeEach(() => {
+    chainMock.id = baseSepolia.id;
+    fetchSpy.mockReset();
+    exaSend.mockClear().mockResolvedValue({});
+    vi.mocked(keeperModule.getAccount).mockReset().mockResolvedValue(testAccount);
+  });
+
+  it("retries account init after a failed first attempt", async () => {
+    vi.mocked(keeperModule.getAccount).mockRejectedValueOnce(new Error("kms down"));
+    fetchSpy.mockResolvedValue(Response.json(signature));
+
+    await expect(panda.withdraw(1_000_000n, recipient)).rejects.toThrow("kms down");
+    expect(exaSend).not.toHaveBeenCalled();
+
+    await panda.withdraw(1_000_000n, recipient);
+    expect(vi.mocked(keeperModule.getAccount)).toHaveBeenCalledTimes(2);
+    expect(exaSend).toHaveBeenCalledOnce();
+  });
+
+  it("fetches the signature in base units and submits withdrawAsset", async () => {
+    fetchSpy.mockResolvedValue(Response.json(signature));
+
+    await panda.withdraw(1_000_000n, recipient);
+
+    const url = fetchSpy.mock.calls[0]?.[0];
+    expect(url).toContain("/issuing/tenants/signatures/withdrawals");
+    expect(url).toContain("amount=1000000");
+    expect(url).toContain(`chainId=${chain.id}`);
+    expect(url).toContain(`recipientAddress=${recipient}`);
+    expect(exaSend).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ name: "panda.withdraw", op: "panda.withdraw", attributes: { account: recipient } }),
+      expect.objectContaining({
+        functionName: "withdrawAsset",
+        args: [
+          testAccount.address,
+          testAccount.address,
+          1_000_000n,
+          testAccount.address,
+          1_700_000_000n,
+          toHex(Buffer.from([1, 2, 3])),
+          "0x1234",
+        ],
+      }),
+    );
+  });
+
+  it("propagates signature fetch failure without submitting", async () => {
+    fetchSpy.mockResolvedValue(new Response("server error", { status: 500 }));
+    await expect(panda.withdraw(500_000n, recipient)).rejects.toBeInstanceOf(ServiceError);
+    expect(exaSend).not.toHaveBeenCalled();
+  });
+
+  it("propagates malformed signature response without submitting", async () => {
+    fetchSpy.mockResolvedValue(Response.json({ parameters: [] }));
+    await expect(panda.withdraw(500_000n, recipient)).rejects.toThrow();
+    expect(exaSend).not.toHaveBeenCalled();
   });
 });

@@ -1,4 +1,5 @@
 import { vValidator } from "@hono/valibot-validator";
+import { captureException } from "@sentry/node";
 import { Mutex, withTimeout, type MutexInterface } from "async-mutex";
 import { eq } from "drizzle-orm";
 import {
@@ -25,15 +26,24 @@ import {
   regex,
   string,
   transform,
+  tuple,
   union,
   type BaseIssue,
   type BaseSchema,
   type InferInput,
 } from "valibot";
-import { BaseError, ContractFunctionZeroDataError, recoverTypedDataAddress } from "viem";
+import {
+  BaseError,
+  ContractFunctionZeroDataError,
+  createWalletClient,
+  http,
+  recoverTypedDataAddress,
+  toHex,
+} from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
+import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import chain, {
   exaAccountFactoryAddress,
   exaPluginAddress,
@@ -42,17 +52,17 @@ import chain, {
   previewerAbi,
   previewerAddress,
   upgradeableModularAccountAbi,
+  usdcAddress,
 } from "@exactly/common/generated/chain";
 import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
-import { Address, Hash } from "@exactly/common/validation";
+import { Address, Hash, Hex } from "@exactly/common/validation";
 import { proposalManager } from "@exactly/plugin/deploy.json";
 
+import { extender, getAccount } from "./keeper";
 import ServiceError from "./ServiceError";
 import verifySignature from "./verifySignature";
 import database, { credentials } from "../database";
-import publicClient from "../utils/publicClient";
-
-import type { Hex } from "@exactly/common/validation";
+import publicClient, { captureRequests, Requests } from "../utils/publicClient";
 
 const plugin = exaPluginAddress.toLowerCase();
 
@@ -217,6 +227,71 @@ export function verify(
     | { authType: "siwe"; message: string; signature: string },
 ) {
   return request(object({}), `/issuing/users/${userId}/signatures/verify`, {}, payload, "PUT");
+}
+
+export async function withdraw(amount: bigint, recipient: Address) {
+  const refunder = createWalletClient({
+    chain,
+    transport: http(`${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`, {
+      batch: true,
+      async onFetchRequest(fetchRequest) {
+        try {
+          captureRequests(parse(Requests, await fetchRequest.clone().json()));
+        } catch (error: unknown) {
+          captureException(error);
+        }
+      },
+    }),
+    account: await getAccount("refunder"),
+  }).extend(extender);
+
+  const { parameters } = await request(
+    object({
+      parameters: tuple([Address, Address, number(), Address, number(), array(number()), Hex]),
+    }),
+    `/issuing/tenants/signatures/withdrawals?token=${usdcAddress}&amount=${amount}&recipientAddress=${recipient}&adminAddress=${refunder.account.address}&chainId=${chain.id}`,
+  );
+
+  return refunder.exaSend(
+    { name: "panda.withdraw", op: "panda.withdraw", attributes: { account: recipient } },
+    {
+      address: parse(
+        Address,
+        { [baseSepolia.id]: "0x54d02DcB38B76A67dC9368D8457D1F384B865c70",
+          [optimismSepolia.id]: "0x4A6321D536a510cfE95A919DE869C4179bFb4856",
+          [base.id]: "0x753Fb325Ca30f229E616eA8E6Eb620D0Bb29D0Df",
+          [optimism.id]: "0x753Fb325Ca30f229E616eA8E6Eb620D0Bb29D0Df",
+         }[chain.id],
+      ),
+      functionName: "withdrawAsset",
+      args: [
+        parameters[0],
+        parameters[1],
+        BigInt(parameters[2]),
+        parameters[3],
+        BigInt(parameters[4]),
+        toHex(Buffer.from(parameters[5])),
+        parameters[6],
+      ],
+      abi: [
+        {
+          inputs: [
+            { internalType: "address", name: "_collateralProxy", type: "address" },
+            { internalType: "address", name: "_asset", type: "address" },
+            { internalType: "uint256", name: "_amount", type: "uint256" },
+            { internalType: "address", name: "_recipient", type: "address" },
+            { internalType: "uint256", name: "_expiresAt", type: "uint256" },
+            { internalType: "bytes32", name: "_salt", type: "bytes32" },
+            { internalType: "bytes", name: "_signature", type: "bytes" },
+          ],
+          name: "withdrawAsset" as const,
+          outputs: [] as const,
+          stateMutability: "nonpayable" as const,
+          type: "function" as const,
+        },
+      ],
+    },
+  );
 }
 
 async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
@@ -467,17 +542,17 @@ export function verifyPandaSignature({
   );
 }
 
-const mutexes = new Map<Address, MutexInterface>();
-export function createMutex(address: Address) {
+const mutexes = new Map<Address | string, MutexInterface>();
+export function createMutex(item: Address | string) {
   const mutex = withTimeout(
     new Mutex(),
     (proposalManager.delay as Record<number, number>)[chain.id] ?? proposalManager.delay.default * 1000,
   );
-  mutexes.set(address, mutex);
+  mutexes.set(item, mutex);
   return mutex;
 }
-export function getMutex(address: Address) {
-  return mutexes.get(address);
+export function getMutex(item: Address | string) {
+  return mutexes.get(item);
 }
 
 export async function submitApplication(payload: InferInput<typeof SubmitApplicationRequest>) {
