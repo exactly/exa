@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.79
+
+### Patch Changes
+
+- [#814](https://github.com/exactly/exa/pull/814) [`09409f6`](https://github.com/exactly/exa/commit/09409f628779ebe0457fe106e080be7233e29d02) Thanks [@mainqueg](https://github.com/mainqueg)! - ✨ implement bridge onramp
+
 ## 0.2.78
 
 ### Patch Changes
