@@ -16,7 +16,7 @@ import { PublicKey } from "webauthn-owner-plugin/IWebauthnOwnerPlugin.sol";
 
 import { EXA } from "@exactly/protocol/periphery/EXA.sol";
 
-import { AdminIsDeployer, Redeployer, TargetNonceTooLow } from "../script/Redeployer.s.sol";
+import { AdminIsDeployer, NotPrepared, Redeployer, TargetNonceTooLow } from "../script/Redeployer.s.sol";
 import { ExaAccountFactory } from "../src/ExaAccountFactory.sol";
 import { ExaPlugin } from "../src/ExaPlugin.sol";
 import { ProposalManager } from "../src/ProposalManager.sol";
@@ -188,6 +188,20 @@ contract RedeployerTest is ForkTest {
     assertEq(usdc.balanceOf(receiver), amount, "receiver should have USDC");
   }
 
+  function test_deployExaFactory_reverts_whenNotPrepared() external {
+    vm.createSelectFork("polygon", 82_000_000);
+    redeployer = new Redeployer();
+    vm.expectRevert(NotPrepared.selector);
+    redeployer.deployExaFactory();
+  }
+
+  function test_deployExaFactoryWithProxy_reverts_whenNotPrepared() external {
+    vm.createSelectFork("polygon", 82_000_000);
+    redeployer = new Redeployer();
+    vm.expectRevert(NotPrepared.selector);
+    redeployer.deployExaFactory(address(1));
+  }
+
   function test_deployExaFactory_deploysViaCreate3AtSameAddress_onPolygon() external {
     address factoryBase = 0xAd92a288CE0cc869129cDA518Af2baaf69fFa026;
     address accountBase = 0xeC6EE8939C1230742eCe9571319037767F574754;
@@ -195,6 +209,7 @@ contract RedeployerTest is ForkTest {
     vm.createSelectFork("polygon", 82_000_000);
 
     redeployer = new Redeployer();
+    redeployer.prepare();
     ExaAccountFactory factory = redeployer.deployExaFactory();
 
     assertEq(address(factory), factoryBase, "factory != expected");
@@ -213,6 +228,7 @@ contract RedeployerTest is ForkTest {
     vm.deal(accountBase, 1 ether);
 
     redeployer = new Redeployer();
+    redeployer.prepare();
     ExaAccountFactory factory = redeployer.deployExaFactory();
 
     PublicKey[] memory owners = new PublicKey[](1);
