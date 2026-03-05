@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.80
+
+### Patch Changes
+
+- [`72ccdc7`](https://github.com/exactly/exa/commit/72ccdc79df14e781d0d89bce3ba40707476702e1) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚩 toggle miniapp manifest indexing
+
 ## 0.2.79
 
 ### Patch Changes

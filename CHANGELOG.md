@@ -1,5 +1,28 @@
 # @exactly/mobile
 
+## 1.1.27
+
+### Patch Changes
+
+- [#867](https://github.com/exactly/exa/pull/867) [`1d34248`](https://github.com/exactly/exa/commit/1d34248ca620beaea21c9ee17d924551db60365c) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🩹 add missing flex props
+
+- [#867](https://github.com/exactly/exa/pull/867) [`2ca277c`](https://github.com/exactly/exa/commit/2ca277c3ead8a5c4c2eeda7f2b36ca618bb5c89d) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🌐 capitalize spanish translations
+
+- [#867](https://github.com/exactly/exa/pull/867) [`de25b94`](https://github.com/exactly/exa/commit/de25b944046766422dcfd155b5872fc7a06e7795) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🔥 drop redundant account parameter from portfolio hook
+
+- [#867](https://github.com/exactly/exa/pull/867) [`3365a9d`](https://github.com/exactly/exa/commit/3365a9de7bc19ff4b34d4d750b578c664e4b1890) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ♿️ prefer aria label on close button
+
+- [#867](https://github.com/exactly/exa/pull/867) [`1f7e1c9`](https://github.com/exactly/exa/commit/1f7e1c985139e0115f611a1807e665e3bb1ef5e7) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix protocol asset logos
+
+- [#867](https://github.com/exactly/exa/pull/867) [`0fc232e`](https://github.com/exactly/exa/commit/0fc232e0aa4b96b2d39005e024410a6eb5d71d45) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🩹 guard against invalid markets
+
+- [#867](https://github.com/exactly/exa/pull/867) [`05716e4`](https://github.com/exactly/exa/commit/05716e47aef0d871fc2a6a24a9f0fdd6df8b7b55) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 unify add funds gap value
+
+- [#867](https://github.com/exactly/exa/pull/867) [`ab5fab5`](https://github.com/exactly/exa/commit/ab5fab55b5509b62456c81897da0b93382cc12fe) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🔥 drop redundant dimensions props
+
+- Updated dependencies [[`72ccdc7`](https://github.com/exactly/exa/commit/72ccdc79df14e781d0d89bce3ba40707476702e1)]:
+  - @exactly/server@0.2.80
+
 ## 1.1.26
 
 ### Patch Changes
