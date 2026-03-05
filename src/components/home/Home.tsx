@@ -46,6 +46,7 @@ import useAccount from "../../utils/useAccount";
 import usePortfolio from "../../utils/usePortfolio";
 import useTabPress from "../../utils/useTabPress";
 import BenefitsSection from "../benefits/BenefitsSection";
+import CardDetailsSheet from "../card/CardDetails";
 import ManualRepaymentSheet from "../pay/ManualRepaymentSheet";
 import OverduePayments from "../pay/OverduePayments";
 import PaymentSheet from "../pay/PaymentSheet";
@@ -74,6 +75,7 @@ export default function Home() {
   const [installmentsSheetOpen, setInstallmentsSheetOpen] = useState(false);
   const [payModeSheetOpen, setPayModeSheetOpen] = useState(false);
   const [spendingLimitSheetOpen, setSpendingLimitSheetOpen] = useState(false);
+  const [cardDetailsOpen, setCardDetailsOpen] = useState(false);
   const [visaSignatureModalOpen, setVisaSignatureModalOpen] = useState(false);
   const [manualRepaymentSheetOpen, setManualRepaymentSheetOpen] = useState(false);
   const [rolloverIntroMaturity, setRolloverIntroMaturity] = useState<string>();
@@ -256,11 +258,14 @@ export default function Home() {
                       creditLimit={markets ? borrowLimit(markets, marketUSDCAddress) : 0n}
                       spotlightRef={spotlightRef}
                       mode={card.mode}
+                      onCardPress={() => {
+                        router.push("/card");
+                      }}
                       onCreditLimitInfoPress={() => {
                         setCreditLimitSheetOpen(true);
                       }}
                       onDetailsPress={() => {
-                        router.push("/card");
+                        setCardDetailsOpen(true);
                       }}
                       onInstallmentsPress={() => {
                         setInstallmentsSheetOpen(true);
@@ -298,6 +303,12 @@ export default function Home() {
               <HomeDisclaimer />
             </View>
           </View>
+          <CardDetailsSheet
+            open={cardDetailsOpen}
+            onClose={() => {
+              setCardDetailsOpen(false);
+            }}
+          />
           <PaymentSheet onRolloverIntro={setRolloverIntroMaturity} />
           <RolloverIntroSheet maturity={rolloverIntroMaturity} onClose={() => setRolloverIntroMaturity(undefined)} />
           <CardUpgradeSheet

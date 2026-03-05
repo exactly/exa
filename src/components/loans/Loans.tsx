@@ -1,4 +1,4 @@
-import React, { type RefObject } from "react";
+import React, { useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, RefreshControl } from "react-native";
 
@@ -16,6 +16,7 @@ import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAsset from "../../utils/useAsset";
 import PaymentSheet from "../pay/PaymentSheet";
+import RolloverIntroSheet from "../pay/RolloverIntroSheet";
 import UpcomingPayments from "../pay/UpcomingPayments";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
@@ -25,6 +26,7 @@ export default function Loans() {
   const { t } = useTranslation();
   const { account } = useAsset(marketUSDCAddress);
   const router = useRouter();
+  const [rolloverIntroMaturity, setRolloverIntroMaturity] = useState<string>();
   const { refetch, isPending } = useReadPreviewerExactly({
     address: previewerAddress,
     args: account ? [account] : undefined,
@@ -92,7 +94,8 @@ export default function Loans() {
                 )}
               </Text>
             </XStack>
-            <PaymentSheet />
+            <PaymentSheet onRolloverIntro={setRolloverIntroMaturity} />
+            <RolloverIntroSheet maturity={rolloverIntroMaturity} onClose={() => setRolloverIntroMaturity(undefined)} />
           </>
         </ScrollView>
       </View>
