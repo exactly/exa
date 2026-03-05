@@ -156,9 +156,9 @@
     "nx": "22.4.5",
     "onesignal-expo-plugin": "^2.0.3",
     "prettier": "^3.8.0",
-    "react-native-svg-transformer": "^1.5.2",
+    "react-native-svg-transformer": "^1.5.3",
     "sharp-cli": "^5.2.0",
-    "svgo": "^4.0.0",
+    "svgo": "^4.0.1",
     "typescript": "catalog:"
   },
   "packageManager": "pnpm@10.28.1",
@@ -172,6 +172,7 @@
       "ajv@8": "^8.18.0",
       "axios@1.13.2": "^1.13.5",
       "bn.js": "^5.2.3",
+      "dompurify@3": "^3.3.2",
       "esbuild@0.18.20": "^0.25.0",
       "glob@11.0.3": "^11.1.0",
       "ioredis": "catalog:",
@@ -183,7 +184,8 @@
       "minimatch@9": "^9.0.7",
       "minimatch@10": "^10.2.3",
       "semver@7.3.2": "^7.5.2",
-      "tar": "^7.5.8",
+      "svgo@3": "^3.3.3",
+      "tar": "^7.5.10",
       "tmp@0.0.33": "^0.2.4",
       "typescript@5.8.3": "catalog:",
       "unicorn-magic@0.3.0": "^0.2.0",
@@ -211,8 +213,7 @@
     "patchedDependencies": {
       "@lifi/sdk": "patches/@lifi__sdk.patch",
       "embedded-postgres": "patches/embedded-postgres.patch",
-      "eslint-config-universe": "patches/eslint-config-universe.patch",
-      "react-native-svg-transformer": "patches/react-native-svg-transformer.patch"
+      "eslint-config-universe": "patches/eslint-config-universe.patch"
     },
     "updateConfig": {
       "ignoreDependencies": [
