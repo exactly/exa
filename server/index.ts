@@ -5,6 +5,7 @@ import { isoBase64URL } from "@simplewebauthn/server/helpers";
 import { Hono } from "hono";
 import { secureHeaders } from "hono/secure-headers";
 import { trimTrailingSlash } from "hono/trailing-slash";
+import { base } from "viem/chains";
 
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
@@ -71,6 +72,7 @@ app.get("/.well-known/farcaster.json", (c) =>
       requiredChains: [`eip155:${chain.id}`],
       primaryCategory: "finance",
       tags: ["defi", "card", "yield", "credit", "earn"],
+      noindex: chain.id !== base.id,
     },
     accountAssociation: {
       header: isoBase64URL.fromUTF8String(
