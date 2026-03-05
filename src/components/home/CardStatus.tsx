@@ -30,6 +30,7 @@ export default function CardStatus({
   creditLimit,
   spotlightRef,
   mode,
+  onCardPress,
   onCreditLimitInfoPress,
   onDetailsPress,
   onInstallmentsPress,
@@ -41,6 +42,7 @@ export default function CardStatus({
   collateral: bigint;
   creditLimit: bigint;
   mode: number;
+  onCardPress: () => void;
   onCreditLimitInfoPress: () => void;
   onDetailsPress: () => void;
   onInstallmentsPress: () => void;
@@ -79,7 +81,7 @@ export default function CardStatus({
         <Pressable
           onPress={() => {
             selectionAsync().catch(reportError);
-            onDetailsPress();
+            onCardPress();
           }}
         >
           <XStack
@@ -100,12 +102,22 @@ export default function CardStatus({
               {...(Platform.OS === "web" ? undefined : { shouldRasterizeIOS: true })}
             />
             <XStack
+              hitSlop={15}
               style={styles.details}
               borderRadius="$r3"
               paddingVertical="$s2"
               paddingHorizontal="$s3"
               alignItems="center"
               gap="$s2"
+              animation="quick"
+              animateOnly={["transform", "backgroundColor"]}
+              pressStyle={{ scale: 0.92, backgroundColor: "rgba(255,255,255,0.15)" }}
+              cursor="pointer"
+              onPress={(event) => {
+                event.stopPropagation();
+                selectionAsync().catch(reportError);
+                onDetailsPress();
+              }}
             >
               <CreditCard size={14} color="white" />
               <Text footnote emphasized color="white">
