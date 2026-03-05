@@ -9,7 +9,7 @@ import {
   ITransparentUpgradeableProxy
 } from "openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
-import { IPlugin, PluginMetadata } from "modular-account-libs/interfaces/IPlugin.sol";
+import { IPlugin } from "modular-account-libs/interfaces/IPlugin.sol";
 
 import { ACCOUNT_IMPL, ENTRYPOINT } from "webauthn-owner-plugin/../script/Factory.s.sol";
 import { WebauthnOwnerPlugin } from "webauthn-owner-plugin/WebauthnOwnerPlugin.sol";
@@ -135,14 +135,13 @@ contract Redeployer is BaseScript {
   }
 
   /// @notice Deploys ExaAccountFactory with all dependencies via CREATE3.
-  function deployExaFactory() external returns (ExaAccountFactory factory) {
+  function deployExaFactory(string memory version) external returns (ExaAccountFactory factory) {
     address admin = acct("admin");
     vm.startBroadcast(admin);
     (IPlugin ownerPlugin, IPlugin exaPlugin) = _deployPlugins(admin);
-    PluginMetadata memory metadata = exaPlugin.pluginMetadata();
     factory = ExaAccountFactory(
       payable(CREATE3_FACTORY.deploy(
-          keccak256(abi.encode(metadata.name, metadata.version)),
+          keccak256(abi.encode("Exa Plugin", version)),
           abi.encodePacked(
             vm.getCode("ExaAccountFactory.sol:ExaAccountFactory"),
             abi.encode(admin, ownerPlugin, exaPlugin, ACCOUNT_IMPL, ENTRYPOINT)
