@@ -40,7 +40,7 @@ export default function Contact({
     >
       <XStack alignItems="center" gap="$s2">
         <View borderRadius="$r_0" overflow="hidden">
-          <Blocky seed={address} size={8} scale={6} />
+          <Blocky seed={address} size={8} scale={4} />
         </View>
         {ens ? (
           <Text textAlign="right" subHeadline color="$uiNeutralSecondary">
@@ -48,7 +48,12 @@ export default function Contact({
           </Text>
         ) : null}
       </XStack>
-      <Text textAlign="right" subHeadline color="$uiNeutralSecondary">
+      <Text
+        textAlign="right"
+        subHeadline
+        color="$uiNeutralSecondary"
+        fontVariant={["tabular-nums"]} // cspell:ignore nums
+      >
         {shortenHex(address)}
       </Text>
     </XStack>

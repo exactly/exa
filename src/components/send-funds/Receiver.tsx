@@ -75,7 +75,7 @@ export default function ReceiverSelection() {
             {t("Send to")}
           </Text>
         </View>
-        <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
+        <ScrollView contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false}>
           <YStack flex={1} justifyContent="space-between">
             <YStack gap="$s5">
               <form.Field name="receiver" validators={{ onChange: Address }}>
@@ -118,7 +118,7 @@ export default function ReceiverSelection() {
                 )}
               </form.Field>
               {(recentContacts ?? savedContacts) && (
-                <ScrollView maxHeight={350} gap="$s4">
+                <ScrollView maxHeight={350} gap="$s4" showsVerticalScrollIndicator={false}>
                   {recentContacts && recentContacts.length > 0 && (
                     <RecentContacts
                       onContactPress={(address) => {
