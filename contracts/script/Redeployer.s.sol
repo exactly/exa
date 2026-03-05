@@ -88,7 +88,7 @@ contract Redeployer is BaseScript {
   }
 
   /// @notice Deploys proxies with dummy implementation, consuming deployer nonces
-  /// @param targetNonce The nonce to stop at (exclusive)
+  /// @param targetNonce The nonce to stop at (inclusive)
   /// @return start The starting nonce
   function run(uint256 targetNonce) external returns (uint256 start) {
     if (address(dummy).code.length == 0) revert DummyNotDeployed();
@@ -97,10 +97,10 @@ contract Redeployer is BaseScript {
     address deployer = acct("deployer");
 
     start = vm.getNonce(deployer);
-    if (targetNonce < start + 1) revert TargetNonceTooLow();
+    if (targetNonce < start) revert TargetNonceTooLow();
 
     vm.startBroadcast(deployer);
-    for (uint256 nonce = start; nonce < targetNonce; ++nonce) {
+    for (uint256 nonce = start; nonce < targetNonce + 1; ++nonce) {
       address proxy = address(new TransparentUpgradeableProxy(address(dummy), address(proxyAdmin), ""));
       vm.label(proxy, string.concat("Proxy", vm.toString(nonce)));
     }
