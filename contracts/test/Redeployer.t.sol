@@ -195,7 +195,7 @@ contract RedeployerTest is ForkTest {
     vm.createSelectFork("polygon", 82_000_000);
     redeployer = new Redeployer();
     vm.expectRevert(NotPrepared.selector);
-    redeployer.deployExaFactory();
+    redeployer.deployExaFactory("1");
   }
 
   function test_deployExaFactoryWithProxy_reverts_whenNotPrepared() external {
@@ -213,7 +213,7 @@ contract RedeployerTest is ForkTest {
 
     redeployer = new Redeployer();
     redeployer.prepare();
-    ExaAccountFactory factory = redeployer.deployExaFactory();
+    ExaAccountFactory factory = redeployer.deployExaFactory("1.1.0");
 
     assertEq(address(factory), factoryBase, "factory != expected");
 
@@ -232,7 +232,7 @@ contract RedeployerTest is ForkTest {
 
     redeployer = new Redeployer();
     redeployer.prepare();
-    ExaAccountFactory factory = redeployer.deployExaFactory();
+    ExaAccountFactory factory = redeployer.deployExaFactory("1.1.0");
 
     PublicKey[] memory owners = new PublicKey[](1);
     owners[0] = PublicKey({ x: 1_377_837_249_724_728_941_829_967_018_498_619_894_891_941_074_907, y: 0 });
