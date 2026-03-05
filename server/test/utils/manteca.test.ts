@@ -67,7 +67,8 @@ describe("manteca utils", () => {
 
       expect(details).toHaveLength(1);
       expect(details[0]).toMatchObject({
-        cbu: "4310009942700000065019",
+        cbu: "4310009942700000124934",
+        depositAlias: "exa.usd",
         network: "ARG_FIAT_TRANSFER",
         displayName: "CBU",
       });

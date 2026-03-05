@@ -164,7 +164,8 @@ describe("ramp api", () => {
           depositInfo: [
             {
               beneficiaryName: "Sixalime Sas", // cspell:ignore Sixalime
-              cbu: "4310009942700000065019",
+              cbu: "4310009942700000124934",
+              depositAlias: "exa.usd",
               displayName: "CBU",
               estimatedProcessingTime: "300",
               fee: "0.0",
