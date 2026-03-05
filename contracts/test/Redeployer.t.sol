@@ -76,6 +76,17 @@ contract RedeployerTest is ForkTest {
     assertEq(EXA(proxy).name(), "exactly");
   }
 
+  function test_prepare_succeeds_whenCalledTwice() external {
+    vm.createSelectFork("polygon", 82_000_000);
+
+    redeployer = new Redeployer();
+    redeployer.prepare();
+    redeployer.prepare();
+
+    assertTrue(address(redeployer.exaPlugin()).code.length > 0, "exaPlugin not deployed");
+    assertTrue(address(redeployer.ownerPlugin()).code.length > 0, "ownerPlugin not deployed");
+  }
+
   function test_prepare_reverts_whenAdminIsDeployer() external {
     vm.createSelectFork("optimism_sepolia", 39_900_000);
 

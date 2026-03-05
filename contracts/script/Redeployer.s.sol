@@ -9,16 +9,14 @@ import {
   ITransparentUpgradeableProxy
 } from "openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
-import { IPlugin, PluginMetadata } from "modular-account-libs/interfaces/IPlugin.sol";
+import { IPlugin } from "modular-account-libs/interfaces/IPlugin.sol";
 
 import { ACCOUNT_IMPL, ENTRYPOINT } from "webauthn-owner-plugin/../script/Factory.s.sol";
-import { WebauthnOwnerPlugin } from "webauthn-owner-plugin/WebauthnOwnerPlugin.sol";
 
 import { EXA } from "@exactly/protocol/periphery/EXA.sol";
 
 import { ExaAccountFactory } from "../src/ExaAccountFactory.sol";
 import {
-  ExaPlugin,
   IAuditor,
   IDebtManager,
   IFlashLoaner,
@@ -41,6 +39,8 @@ contract Redeployer is BaseScript {
   IAuditor public auditor;
   IMarket public marketUSDC;
   IMarket public marketWETH;
+  IPlugin public ownerPlugin;
+  IPlugin public exaPlugin;
 
   /// @notice Loads pre-deployed contracts from CREATE3 and resolves protocol dependencies.
   function setUp() external {
@@ -48,23 +48,29 @@ contract Redeployer is BaseScript {
     exa = EXA(CREATE3_FACTORY.getDeployed(admin, keccak256(abi.encode("EXA"))));
     dummy = Dummy(CREATE3_FACTORY.getDeployed(admin, keccak256(abi.encode("Dummy"))));
     proxyAdmin = ProxyAdmin(CREATE3_FACTORY.getDeployed(admin, keccak256(abi.encode("ProxyAdmin"))));
+    ownerPlugin = IPlugin(CREATE3_FACTORY.getDeployed(admin, keccak256(abi.encode("WebauthnOwnerPlugin"))));
+    exaPlugin = IPlugin(CREATE3_FACTORY.getDeployed(admin, keccak256(abi.encode("ExaPlugin"))));
     auditor = IAuditor(_protocolOrStub("Auditor", "StubAuditor"));
     marketUSDC = IMarket(_protocolOrStub("MarketUSDC", "StubMarketUSDC"));
     marketWETH = IMarket(_protocolOrStub("MarketWETH", "StubMarketWETH"));
   }
 
-  /// @notice Deploys dummy implementation, proxy admin, and protocol stubs via CREATE3.
+  /// @notice Deploys all reusable contracts via CREATE3, skipping any already deployed.
   function prepare() external {
     address admin = acct("admin");
     if (admin == acct("deployer")) revert AdminIsDeployer();
     vm.startBroadcast(admin);
-    dummy = Dummy(CREATE3_FACTORY.deploy(keccak256(abi.encode("Dummy")), vm.getCode("Redeployer.s.sol:Dummy")));
-    proxyAdmin = ProxyAdmin(
-      CREATE3_FACTORY.deploy(
-        keccak256(abi.encode("ProxyAdmin")),
-        abi.encodePacked(vm.getCode("ProxyAdmin.sol:ProxyAdmin"), abi.encode(admin))
-      )
-    );
+    if (address(dummy).code.length == 0) {
+      dummy = Dummy(CREATE3_FACTORY.deploy(keccak256(abi.encode("Dummy")), vm.getCode("Redeployer.s.sol:Dummy")));
+    }
+    if (address(proxyAdmin).code.length == 0) {
+      proxyAdmin = ProxyAdmin(
+        CREATE3_FACTORY.deploy(
+          keccak256(abi.encode("ProxyAdmin")),
+          abi.encodePacked(vm.getCode("ProxyAdmin.sol:ProxyAdmin"), abi.encode(admin))
+        )
+      );
+    }
     if (address(auditor).code.length == 0) {
       auditor = IAuditor(
         CREATE3_FACTORY.deploy(keccak256(abi.encode("StubAuditor")), vm.getCode("Redeployer.s.sol:StubAuditor"))
@@ -83,6 +89,49 @@ contract Redeployer is BaseScript {
           abi.encodePacked(vm.getCode("Redeployer.s.sol:StubMarket"), abi.encode(stubAsset))
         )
       );
+    }
+    if (address(exaPlugin).code.length == 0) {
+      ownerPlugin = IPlugin(
+        CREATE3_FACTORY.deploy(
+          keccak256(abi.encode("WebauthnOwnerPlugin")), vm.getCode("WebauthnOwnerPlugin.sol:WebauthnOwnerPlugin")
+        )
+      );
+      ProposalManager proposalManager = ProposalManager(
+        CREATE3_FACTORY.deploy(
+          keccak256(abi.encode("ProposalManager")),
+          abi.encodePacked(
+            vm.getCode("ProposalManager.sol:ProposalManager"),
+            abi.encode(
+              admin, auditor, IDebtManager(address(1)), IInstallmentsRouter(address(1)), admin, _allowlist(), 1
+            )
+          )
+        )
+      );
+      exaPlugin = IPlugin(
+        CREATE3_FACTORY.deploy(
+          keccak256(abi.encode("ExaPlugin")),
+          abi.encodePacked(
+            vm.getCode("ExaPlugin.sol:ExaPlugin"),
+            abi.encode(
+              Parameters({
+                owner: admin,
+                auditor: auditor,
+                exaUSDC: marketUSDC,
+                exaWETH: marketWETH,
+                flashLoaner: IFlashLoaner(address(1)),
+                debtManager: IDebtManager(address(1)),
+                installmentsRouter: IInstallmentsRouter(address(1)),
+                issuerChecker: IssuerChecker(address(1)),
+                proposalManager: IProposalManager(address(proposalManager)),
+                collector: admin,
+                swapper: admin,
+                firstKeeper: admin
+              })
+            )
+          )
+        )
+      );
+      proposalManager.grantRole(keccak256("PROPOSER_ROLE"), address(exaPlugin));
     }
     vm.stopBroadcast();
   }
@@ -121,11 +170,11 @@ contract Redeployer is BaseScript {
     vm.stopBroadcast();
   }
 
-  /// @notice Deploys ExaAccountFactory with all dependencies and upgrades the proxy to it.
+  /// @notice Deploys ExaAccountFactory and upgrades the proxy to it.
   function deployExaFactory(address proxy) external {
+    if (address(exaPlugin).code.length == 0) revert NotPrepared();
     address admin = acct("admin");
     vm.startBroadcast(admin);
-    (IPlugin ownerPlugin, IPlugin exaPlugin) = _deployPlugins(admin);
     proxyAdmin.upgradeAndCall(
       ITransparentUpgradeableProxy(proxy),
       address(new ExaAccountFactory(admin, ownerPlugin, exaPlugin, ACCOUNT_IMPL, ENTRYPOINT)),
@@ -134,11 +183,11 @@ contract Redeployer is BaseScript {
     vm.stopBroadcast();
   }
 
-  /// @notice Deploys ExaAccountFactory with all dependencies via CREATE3.
-  function deployExaFactory(string memory version) external returns (ExaAccountFactory factory) {
+  /// @notice Deploys ExaAccountFactory via CREATE3.
+  function deployExaFactory(string calldata version) external returns (ExaAccountFactory factory) {
+    if (address(exaPlugin).code.length == 0) revert NotPrepared();
     address admin = acct("admin");
     vm.startBroadcast(admin);
-    (IPlugin ownerPlugin, IPlugin exaPlugin) = _deployPlugins(admin);
     factory = ExaAccountFactory(
       payable(CREATE3_FACTORY.deploy(
           keccak256(abi.encode("Exa Plugin", version)),
@@ -173,37 +222,6 @@ contract Redeployer is BaseScript {
     for (uint256 i = 0; i < keys.length; ++i) {
       targets[i + 1] = vm.parseAddress(keys[i]);
     }
-  }
-
-  function _deployPlugins(address admin) internal returns (IPlugin, IPlugin) {
-    if (address(auditor).code.length == 0) revert NotPrepared();
-
-    WebauthnOwnerPlugin ownerPlugin = new WebauthnOwnerPlugin();
-
-    ProposalManager proposalManager = new ProposalManager(
-      admin, auditor, IDebtManager(address(1)), IInstallmentsRouter(address(1)), admin, _allowlist(), 1
-    );
-
-    ExaPlugin exaPlugin = new ExaPlugin(
-      Parameters({
-        owner: admin,
-        auditor: auditor,
-        exaUSDC: marketUSDC,
-        exaWETH: marketWETH,
-        flashLoaner: IFlashLoaner(address(1)),
-        debtManager: IDebtManager(address(1)),
-        installmentsRouter: IInstallmentsRouter(address(1)),
-        issuerChecker: IssuerChecker(address(1)),
-        proposalManager: IProposalManager(address(proposalManager)),
-        collector: admin,
-        swapper: admin,
-        firstKeeper: admin
-      })
-    );
-
-    proposalManager.grantRole(keccak256("PROPOSER_ROLE"), address(exaPlugin));
-
-    return (IPlugin(address(ownerPlugin)), IPlugin(address(exaPlugin)));
   }
 }
 
