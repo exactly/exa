@@ -37,7 +37,7 @@ contract RedeployerTest is ForkTest {
     assertGt(targetNonce, currentNonce, "target nonce <= current nonce");
 
     redeployer.prepare();
-    redeployer.run(targetNonce + 1);
+    redeployer.run(targetNonce);
 
     assertTrue(exaOP.code.length > 0, "EXA not deployed at same address");
 
@@ -87,6 +87,9 @@ contract RedeployerTest is ForkTest {
   function test_run_reverts_whenTargetNonceTooLow() external {
     vm.createSelectFork("base", 41_053_217);
 
+    vm.prank(acct("deployer"));
+    new Redeployer();
+
     redeployer = new Redeployer();
     redeployer.prepare();
     vm.expectRevert(TargetNonceTooLow.selector);
@@ -106,7 +109,7 @@ contract RedeployerTest is ForkTest {
     assertGt(targetNonce, currentNonce, "target nonce <= current nonce");
 
     redeployer.prepare();
-    redeployer.run(targetNonce + 1);
+    redeployer.run(targetNonce);
 
     assertTrue(factoryOP.code.length > 0, "factory not deployed at same address");
 
@@ -155,7 +158,7 @@ contract RedeployerTest is ForkTest {
     IERC20 usdc = IERC20(0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359);
 
     redeployer.prepare();
-    redeployer.run(targetNonce + 1);
+    redeployer.run(targetNonce);
 
     assertTrue(factoryOP.code.length > 0, "factory not deployed at same address");
 
