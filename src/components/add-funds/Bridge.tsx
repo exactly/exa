@@ -263,6 +263,7 @@ export default function Bridge() {
     isPending: isSimulatingTransfer,
   } = useSimulateContract({
     config: senderConfig,
+    account: senderAddress,
     chainId: transferSimulationEnabled ? effectiveSource.chain : undefined,
     address: transferSimulationEnabled ? getAddress(effectiveSource.address) : undefined,
     abi: erc20Abi,
