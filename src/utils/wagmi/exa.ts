@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+import { base } from "viem/chains";
 import { createConfig, createStorage, custom } from "wagmi";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
@@ -17,10 +18,13 @@ export default createConfig({
   multiInjectedProviderDiscovery: false,
 });
 
-export const capabilities = {
-  paymasterService: {
-    optional: true,
-    url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
-    context: { policyId: alchemyGasPolicyId },
-  },
-};
+export const capabilities =
+  chain.id === base.id
+    ? undefined
+    : {
+        paymasterService: {
+          optional: true,
+          url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
+          context: { policyId: alchemyGasPolicyId },
+        },
+      };
