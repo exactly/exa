@@ -2,7 +2,7 @@ import { validator } from "hono/validator";
 import { vi } from "vitest";
 
 const { findWebhook, createWebhook } = vi.hoisted(() => ({
-  findWebhook: vi.fn().mockResolvedValue({}),
+  findWebhook: vi.fn().mockResolvedValue({ id: "activity", signing_key: "mock-signing-key" }),
   createWebhook: vi.fn().mockResolvedValue({ id: "mock-webhook-id", signing_key: "mock-signing-key" }),
 }));
 
