@@ -7,9 +7,7 @@ import { encodeAbiParameters, getAbiItem, keccak256 } from "viem";
 import { useBytecode, useSendCalls } from "wagmi";
 
 import accountInit from "@exactly/common/accountInit";
-import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
-import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
-import chain, { exaPluginAddress } from "@exactly/common/generated/chain";
+import { exaPluginAddress } from "@exactly/common/generated/chain";
 import {
   exaPluginAbi,
   upgradeableModularAccountAbi,
@@ -21,7 +19,7 @@ import {
 import InfoAlert from "./InfoAlert";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
-import exa from "../../utils/wagmi/exa";
+import exa, { capabilities } from "../../utils/wagmi/exa";
 
 import type { Credential } from "@exactly/common/validation";
 
@@ -73,12 +71,7 @@ export default function PluginUpgrade() {
             ],
           },
         ],
-        capabilities: {
-          paymasterService: {
-            url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
-            context: { policyId: alchemyGasPolicyId },
-          },
-        },
+        capabilities,
       });
       const { status } = await waitForCallsStatus(exa, { id });
       if (status === "failure") throw new Error("failed to upgrade plugin");

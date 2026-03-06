@@ -51,7 +51,6 @@ import {
 import { anvil } from "viem/chains";
 
 import accountInit from "@exactly/common/accountInit";
-import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
 import deriveAddress from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
@@ -62,6 +61,7 @@ import { login } from "./onesignal";
 import publicClient from "./publicClient";
 import queryClient, { type AuthMethod } from "./queryClient";
 import { isPasskeyCancelled } from "./reportError";
+import { capabilities } from "./wagmi/exa";
 import ownerConfig from "./wagmi/owner";
 
 import type { Credential } from "@exactly/common/validation";
@@ -169,17 +169,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
               abi: upgradeableModularAccountAbi,
             } as const;
             try {
-              return await sendCalls(ownerConfig, {
-                id,
-                calls: [execute],
-                capabilities: {
-                  paymasterService: {
-                    optional: true,
-                    url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
-                    context: { policyId: alchemyGasPolicyId },
-                  },
-                },
-              });
+              return await sendCalls(ownerConfig, { id, calls: [execute], capabilities });
             } catch {
               // TODO filter errors
               const hash = await sendTransaction(ownerConfig, execute);
@@ -216,13 +206,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
                       abi: upgradeableModularAccountAbi,
                     },
                   ],
-                  capabilities: {
-                    paymasterService: {
-                      optional: true,
-                      url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
-                      context: { policyId: alchemyGasPolicyId },
-                    },
-                  },
+                  capabilities,
                 });
                 return id;
               } catch {

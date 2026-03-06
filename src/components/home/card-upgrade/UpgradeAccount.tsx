@@ -11,9 +11,7 @@ import { encodeAbiParameters, getAbiItem, keccak256 } from "viem";
 import { useSendCalls } from "wagmi";
 
 import accountInit from "@exactly/common/accountInit";
-import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
-import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
-import chain, { exaPluginAddress } from "@exactly/common/generated/chain";
+import { exaPluginAddress } from "@exactly/common/generated/chain";
 import {
   exaPluginAbi,
   upgradeableModularAccountAbi,
@@ -25,7 +23,7 @@ import Progression from "./Progression";
 import queryClient from "../../../utils/queryClient";
 import reportError from "../../../utils/reportError";
 import useAccount from "../../../utils/useAccount";
-import exa from "../../../utils/wagmi/exa";
+import exa, { capabilities } from "../../../utils/wagmi/exa";
 import Button from "../../shared/Button";
 import Spinner from "../../shared/Spinner";
 import Text from "../../shared/Text";
@@ -84,12 +82,7 @@ export default function UpgradeAccount() {
             ],
           },
         ],
-        capabilities: {
-          paymasterService: {
-            url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
-            context: { policyId: alchemyGasPolicyId },
-          },
-        },
+        capabilities,
       });
 
       const { status } = await waitForCallsStatus(exa, { id });

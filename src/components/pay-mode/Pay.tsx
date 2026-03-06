@@ -15,9 +15,7 @@ import { ContractFunctionExecutionError, ContractFunctionRevertedError, erc20Abi
 import { useBytecode, useReadContract, useSendCalls, useSimulateContract, useWriteContract } from "wagmi";
 
 import accountInit from "@exactly/common/accountInit";
-import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
-import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
-import chain, {
+import {
   balancerVaultAddress,
   exaPluginAddress,
   integrationPreviewerAddress,
@@ -51,7 +49,7 @@ import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import usePortfolio from "../../utils/usePortfolio";
 import useSimulateProposal from "../../utils/useSimulateProposal";
-import exa from "../../utils/wagmi/exa";
+import exa, { capabilities } from "../../utils/wagmi/exa";
 import AssetLogo from "../shared/AssetLogo";
 import Failure from "../shared/Failure";
 import Pending from "../shared/Pending";
@@ -450,12 +448,7 @@ export default function Pay() {
             args: [maturity, positionAssets, maxRepay, account],
           },
         ],
-        capabilities: {
-          paymasterService: {
-            url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
-            context: { policyId: alchemyGasPolicyId },
-          },
-        },
+        capabilities,
       });
       setEnableSimulations(false);
       const { status } = await waitForCallsStatus(exa, { id });

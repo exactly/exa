@@ -13,9 +13,7 @@ import { encodeAbiParameters, encodeFunctionData, maxUint256, zeroAddress, type 
 import { useBytecode, useSendCalls } from "wagmi";
 
 import accountInit from "@exactly/common/accountInit";
-import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
-import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
-import chain, { exaPluginAddress, marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
+import { exaPluginAddress, marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import {
   exaPluginAbi,
   upgradeableModularAccountAbi,
@@ -31,7 +29,7 @@ import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useInstallments from "../../utils/useInstallments";
-import exa from "../../utils/wagmi/exa";
+import exa, { capabilities } from "../../utils/wagmi/exa";
 import AssetLogo from "../shared/AssetLogo";
 import GradientScrollView from "../shared/GradientScrollView";
 import PaymentScheduleSheet from "../shared/PaymentScheduleSheet";
@@ -142,15 +140,7 @@ export default function Review() {
         });
         calls.push({ to: address, data });
       }
-      const { id } = await mutateSendCalls({
-        calls,
-        capabilities: {
-          paymasterService: {
-            context: { policyId: alchemyGasPolicyId },
-            url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
-          },
-        },
-      });
+      const { id } = await mutateSendCalls({ calls, capabilities });
       const { status } = await waitForCallsStatus(exa, { id });
       if (status === "failure") throw new Error("failed to submit borrow proposal");
     },
