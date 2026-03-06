@@ -78,6 +78,7 @@ app.get("/.well-known/farcaster.json", (c) =>
       ),
       payload: isoBase64URL.fromUTF8String(`{"domain":"${domain}"}`),
       signature: {
+        "base.exactly.app": "0lyEaPuI4Z8Nrc1Yq9rqdPbsimYLnOzMYwv8z8GjwgUCzm4bGx/C1KylzUafPqS9bmtL/iaj0eNU1+MFZUXRGRs=",
         "web.exactly.app":
           "MHg1NDJkZTQ0ZGNkOThlMTBmMGI4NWMwY2I4YjU0ODliNTBlYWViYWY2YzE1YTk3NGVkNzk4NTY4ZmE2NDhiY2M2MDhlNWQ4NzliYTQ5M2E3NjhiMmQzYmM0YWZkN2U0ODNkMjQ1MDkxM2RjZDdlNTIzZWRhMzRkN2VlYjc0NmQ3ZjFi",
         "sandbox.exactly.app":
