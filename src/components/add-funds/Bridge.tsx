@@ -33,7 +33,7 @@ import AssetSelectSheet from "./AssetSelectSheet";
 import { getBridgeSources, getRouteFrom, tokenCorrelation, type BridgeSources, type RouteFrom } from "../../utils/lifi";
 import openBrowser from "../../utils/openBrowser";
 import queryClient from "../../utils/queryClient";
-import reportError from "../../utils/reportError";
+import reportError, { isPasskeyCancelled } from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import ownerConfig from "../../utils/wagmi/owner";
 import AssetLogo from "../shared/AssetLogo";
@@ -221,7 +221,7 @@ export default function Bridge() {
       sourceAmount,
       isSameChain,
     ],
-    queryFn: () => {
+    queryFn: async () => {
       if (
         !senderAddress ||
         !account ||
@@ -232,15 +232,20 @@ export default function Bridge() {
         isSameChain
       )
         throw new Error("invalid bridge parameters");
-      return getRouteFrom({
-        fromChainId: effectiveSource.chain,
-        toChainId: chain.id,
-        fromTokenAddress: sourceToken.address,
-        toTokenAddress: destinationToken.address,
-        fromAmount: sourceAmount,
-        fromAddress: senderAddress,
-        toAddress: account,
-      });
+      try {
+        return await getRouteFrom({
+          fromChainId: effectiveSource.chain,
+          toChainId: chain.id,
+          fromTokenAddress: sourceToken.address,
+          toTokenAddress: destinationToken.address,
+          fromAmount: sourceAmount,
+          fromAddress: senderAddress,
+          toAddress: account,
+        });
+      } catch (error) {
+        reportError(error, { level: "warning" });
+        throw error;
+      }
     },
     enabled: bridgeQuoteEnabled,
     refetchInterval: 15_000,
@@ -270,6 +275,10 @@ export default function Bridge() {
     args: transferSimulationEnabled ? ([getAddress(account), sourceAmount] as const) : undefined,
     query: { enabled: transferSimulationEnabled },
   });
+
+  useEffect(() => {
+    if (transferSimulationError) reportError(transferSimulationError, { level: "warning" });
+  }, [transferSimulationError]);
 
   const approvalTokenAddress =
     effectiveSource?.address && isAddress(effectiveSource.address) ? effectiveSource.address : undefined;
@@ -988,6 +997,7 @@ export default function Bridge() {
 function handleError(error: unknown, toast: ReturnType<typeof useToastController>, t: TFunction, isTransfer?: boolean) {
   if (error instanceof UserRejectedRequestError) return;
   if (error instanceof TransactionExecutionError && error.shortMessage === "User rejected the request.") return;
+  if (isPasskeyCancelled(error)) return;
   toast.show(isTransfer ? t("Transfer failed. Please try again.") : t("Bridge failed. Please try again."), {
     native: true,
     duration: 1000,
