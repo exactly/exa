@@ -4,7 +4,7 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
-    globalSetup: ["test/anvil.ts", "test/database.ts", "test/spotlight.ts"],
+    globalSetup: ["test/anvil.ts", "test/database.ts", "test/redis.ts", "test/spotlight.ts"],
     coverage: { enabled: true, reporter: ["lcov"] },
     reporters: ["default", "junit"],
     outputFile: { junit: "coverage/junit.xml" },
@@ -59,7 +59,7 @@ YQIDAQAB
 -----END PUBLIC KEY-----`,
       PERSONA_WEBHOOK_SECRET: "persona",
       POSTGRES_URL: "postgres://postgres:postgres@localhost:8432/postgres?sslmode=disable", // cspell:ignore sslmode
-      REDIS_URL: "redis",
+      REDIS_URL: "redis://localhost:8479",
       SARDINE_API_KEY: "sardine",
       SARDINE_API_URL: "https://api.sardine.ai",
       SEGMENT_WRITE_KEY: "segment",
