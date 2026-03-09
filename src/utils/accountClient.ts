@@ -25,7 +25,14 @@ import {
   bufferToBase64URLString,
   type AuthenticatorAssertionResponseJSON,
 } from "@simplewebauthn/browser";
-import { getCallsStatus, getConnection, sendCalls, sendTransaction, signMessage } from "@wagmi/core/actions";
+import {
+  getCallsStatus,
+  getConnection,
+  sendCalls,
+  sendTransaction,
+  signMessage,
+  switchChain,
+} from "@wagmi/core/actions";
 import {
   bytesToBigInt,
   bytesToHex,
@@ -33,6 +40,7 @@ import {
   concatHex,
   custom,
   encodeAbiParameters,
+  encodeFunctionData,
   encodePacked,
   ethAddress,
   hashMessage,
@@ -154,13 +162,19 @@ export default async function createAccountClient({ credentialId, factory, x, y 
         switch (method) {
           case "wallet_sendCalls": {
             if (!Array.isArray(params) || params.length !== 1) throw new Error("bad params");
-            const { calls, from, id } = params[0] as { calls: readonly Call[]; from?: Address; id?: string };
+            const { calls, chainId, from, id } = params[0] as {
+              calls: readonly Call[];
+              chainId?: Hex;
+              from?: Address;
+              id?: string;
+            };
             if (from && from !== accountAddress) throw new Error("bad account");
+            const requestedChainId = chainId ? hexToNumber(chainId) : chain.id;
             if (queryClient.getQueryData<AuthMethod>(["method"]) === "webauthn") {
               const { hash } = await client.sendUserOperation({
                 uo: calls.map(({ to, data = "0x", value }) => ({ from: accountAddress, target: to, data, value })),
               });
-              return { id: concat([hash, numberToHex(chain.id, { size: 32 }), UO_MAGIC_ID]) };
+              return { id: concat([hash, numberToHex(requestedChainId, { size: 32 }), UO_MAGIC_ID]) };
             }
             const execute = {
               to: accountAddress,
@@ -171,6 +185,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
             try {
               return await sendCalls(ownerConfig, {
                 id,
+                chainId: requestedChainId,
                 calls: [execute],
                 capabilities: {
                   paymasterService: {
@@ -186,8 +201,17 @@ export default async function createAccountClient({ credentialId, factory, x, y 
                 extra: error instanceof Error ? { cause: error.cause } : undefined,
               });
               // TODO filter errors
-              const hash = await sendTransaction(ownerConfig, execute);
-              return { id: concat([hash, numberToHex(chain.id, { size: 32 }), TX_MAGIC_ID]) };
+              await switchChain(ownerConfig, { chainId: requestedChainId });
+              try {
+                const hash = await sendTransaction(ownerConfig, {
+                  to: accountAddress,
+                  data: encodeFunctionData(execute),
+                  chainId: requestedChainId,
+                });
+                return { id: concat([hash, numberToHex(requestedChainId, { size: 32 }), TX_MAGIC_ID]) };
+              } finally {
+                await switchChain(ownerConfig, { chainId: chain.id }).catch(reportError);
+              }
             }
           }
           case "wallet_getCallsStatus": {
@@ -212,6 +236,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
               try {
                 const { to, data = "0x", value = 0n } = params[0] as TransactionRequest;
                 const { id } = await sendCalls(ownerConfig, {
+                  chainId: chain.id,
                   calls: [
                     {
                       to: accountAddress,
