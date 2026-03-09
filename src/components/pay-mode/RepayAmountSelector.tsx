@@ -146,7 +146,9 @@ export default function RepayAmountSelector({
               onChangeText={handleAmountChange}
               onFocus={() => setFocused(true)}
               placeholder="0"
-              style={{ fontSize: 34, fontWeight: 400, letterSpacing: -0.2 }}
+              fontSize={34}
+              fontWeight="400"
+              letterSpacing={-0.2}
               textAlign="center"
               value={displayValue}
             />
