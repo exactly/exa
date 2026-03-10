@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 
@@ -8,13 +8,23 @@ import { ArrowLeft, Check, Coins, FilePen, X } from "@tamagui/lucide-icons";
 import { Avatar, ScrollView, Square, XStack, YStack } from "tamagui";
 
 import { useForm, useStore } from "@tanstack/react-form";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { waitForCallsStatus } from "@wagmi/core/actions";
 import { bigint, check, parse, pipe, safeParse } from "valibot";
-import { encodeAbiParameters, erc20Abi, formatUnits, parseUnits, zeroAddress as viemZeroAddress } from "viem";
-import { useBytecode, useEstimateGas, useSendTransaction, useSimulateContract, useWriteContract } from "wagmi";
+import {
+  encodeAbiParameters,
+  encodeFunctionData,
+  erc20Abi,
+  formatUnits,
+  parseUnits,
+  zeroAddress as viemZeroAddress,
+} from "viem";
+import { useBytecode, useEstimateGas, useSendCalls, useSimulateContract } from "wagmi";
 
 import accountInit from "@exactly/common/accountInit";
-import { exaPluginAddress } from "@exactly/common/generated/chain";
+import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
+import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
+import chain, { exaPluginAddress } from "@exactly/common/generated/chain";
 import {
   exaPluginAbi,
   upgradeableModularAccountAbi,
@@ -27,8 +37,10 @@ import { WAD } from "@exactly/lib";
 
 import ReviewSheet from "./ReviewSheet";
 import queryClient from "../../utils/queryClient";
+import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
+import exa from "../../utils/wagmi/exa";
 import AmountSelector from "../shared/AmountSelector";
 import AssetLogo from "../shared/AssetLogo";
 import Blocky from "../shared/Blocky";
@@ -72,45 +84,46 @@ export default function Amount() {
   });
   const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
 
-  const { data: proposeSimulation } = useSimulateContract(
-    isLatestPlugin
-      ? {
-          address,
-          functionName: "propose",
-          abi: [...upgradeableModularAccountAbi, ...exaPluginAbi],
-          args: [
-            market?.market ?? zeroAddress,
-            formAmount,
-            ProposalType.Withdraw,
-            encodeAbiParameters([{ type: "address" }], [receiver ?? zeroAddress]),
-          ],
-          query: {
-            enabled: !!market && !!address && !!bytecode && formAmount > 0n && !!receiver && receiver !== zeroAddress,
-          },
-        }
-      : {
-          address,
-          functionName: "propose",
-          abi: [
-            ...upgradeableModularAccountAbi,
-            {
-              type: "function",
-              name: "propose",
-              inputs: [
-                { internalType: "contract IMarket", name: "market", type: "address" },
-                { internalType: "uint256", name: "amount", type: "uint256" },
-                { internalType: "address", name: "receiver", type: "address" },
-              ],
-              outputs: [],
-              stateMutability: "nonpayable",
-            },
-          ],
-          args: [withdrawAsset ?? zeroAddress, formAmount, receiver ?? zeroAddress],
-          query: {
-            enabled: !!market && !!address && !!bytecode && formAmount > 0n && !!receiver && receiver !== zeroAddress,
-          },
-        },
-  );
+  const proposeEnabled =
+    installedPlugins !== undefined &&
+    !!market &&
+    !!address &&
+    !!bytecode &&
+    formAmount > 0n &&
+    !!receiver &&
+    receiver !== zeroAddress;
+  const { data: proposeSimulation } = useSimulateContract({
+    address,
+    functionName: "propose",
+    abi: exaPluginAbi,
+    args: [
+      market?.market ?? zeroAddress,
+      formAmount,
+      ProposalType.Withdraw,
+      encodeAbiParameters([{ type: "address" }], [receiver ?? zeroAddress]),
+    ],
+    query: { enabled: isLatestPlugin && proposeEnabled },
+  });
+  const { data: legacyProposeSimulation } = useSimulateContract({
+    address,
+    functionName: "propose",
+    abi: [
+      ...upgradeableModularAccountAbi,
+      {
+        type: "function",
+        name: "propose",
+        inputs: [
+          { internalType: "contract IMarket", name: "market", type: "address" },
+          { internalType: "uint256", name: "amount", type: "uint256" },
+          { internalType: "address", name: "receiver", type: "address" },
+        ],
+        outputs: [],
+        stateMutability: "nonpayable",
+      },
+    ],
+    args: [withdrawAsset ?? zeroAddress, formAmount, receiver ?? zeroAddress],
+    query: { enabled: !isLatestPlugin && proposeEnabled },
+  });
 
   const externalAddress = useMemo(() => {
     const { success, output } = safeParse(Address, external?.address);
@@ -144,66 +157,68 @@ export default function Amount() {
     },
   });
 
+  const { mutateAsync: mutateSendCalls } = useSendCalls();
+  const sendCalls = async (calls: readonly { data?: `0x${string}`; to: `0x${string}`; value?: bigint }[]) => {
+    const { id } = await mutateSendCalls({
+      calls,
+      capabilities: {
+        paymasterService: {
+          url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
+          context: { policyId: alchemyGasPolicyId },
+        },
+      },
+    });
+    const result = await waitForCallsStatus(exa, { id });
+    if (result.status === "failure") throw new Error("failed to send");
+    return result.receipts?.[0]?.transactionHash;
+  };
   const {
-    mutate: sendNative,
-    data: nativeHash,
-    isPending: nativePending,
-    isSuccess: nativeSuccess,
-    isError: nativeError,
-    reset: nativeReset,
-  } = useSendTransaction();
-
-  const {
-    mutate: sendContract,
-    data: contractHash,
-    isPending: contractPending,
-    isSuccess: contractSuccess,
-    isError: contractError,
-    reset: contractReset,
-  } = useWriteContract();
-
-  const hash = isNativeTransfer ? nativeHash : contractHash;
-  const pending = isNativeTransfer ? nativePending : contractPending;
-  const success = isNativeTransfer ? nativeSuccess : contractSuccess;
-  const error = isNativeTransfer ? nativeError : contractError;
-  const reset = isNativeTransfer ? nativeReset : contractReset;
+    mutate: send,
+    data: hash,
+    isPending: pending,
+    isSuccess: success,
+    isError: sendError,
+    reset,
+  } = useMutation({
+    async mutationFn() {
+      if (!sendReady || !receiver) throw new Error("not ready");
+      if (proposeSimulation) {
+        const { address: to, abi, functionName, args } = proposeSimulation.request;
+        return sendCalls([{ to, data: encodeFunctionData({ abi, functionName, args }) }]);
+      }
+      if (legacyProposeSimulation) {
+        const { address: to, abi, functionName, args } = legacyProposeSimulation.request;
+        return sendCalls([{ to, data: encodeFunctionData({ abi, functionName, args }) }]);
+      }
+      if (isNativeTransfer) return sendCalls([{ to: receiver, value: formAmount }]);
+      if (erc20TransferSimulation) {
+        const { address: to, abi, functionName, args } = erc20TransferSimulation.request;
+        return sendCalls([{ to, data: encodeFunctionData({ abi, functionName, args }) }]);
+      }
+      throw new Error("no simulation ready");
+    },
+    onError(error) {
+      reportError(error);
+    },
+  });
 
   const sendReady = useMemo(
     () =>
       formAmount > 0n &&
       (market
-        ? !!proposeSimulation
+        ? !!(proposeSimulation ?? legacyProposeSimulation)
         : !!external && (isNativeTransfer ? !!nativeTransferEstimate : !!erc20TransferSimulation)),
     [
       external,
       formAmount,
       isNativeTransfer,
+      legacyProposeSimulation,
       market,
       nativeTransferEstimate,
       proposeSimulation,
       erc20TransferSimulation,
     ],
   );
-
-  const handleSubmit = useCallback(() => {
-    if (!sendReady || !receiver) return;
-    if (proposeSimulation) {
-      sendContract(proposeSimulation.request);
-    } else if (isNativeTransfer) {
-      sendNative({ to: receiver, value: formAmount });
-    } else if (erc20TransferSimulation) {
-      sendContract(erc20TransferSimulation.request);
-    }
-  }, [
-    erc20TransferSimulation,
-    formAmount,
-    isNativeTransfer,
-    proposeSimulation,
-    receiver,
-    sendContract,
-    sendNative,
-    sendReady,
-  ]);
 
   const details: {
     amount: string;
@@ -272,7 +287,7 @@ export default function Amount() {
     );
   }
 
-  if (!pending && !error && !success) {
+  if (!pending && !sendError && !success) {
     return (
       <SafeView fullScreen>
         <View gap={20} fullScreen padded>
@@ -407,7 +422,7 @@ export default function Amount() {
           }}
           onSend={() => {
             setReviewOpen(false);
-            handleSubmit();
+            send();
           }}
           open={reviewOpen}
           receiver={receiver}
@@ -420,7 +435,7 @@ export default function Amount() {
   }
 
   return (
-    <GradientScrollView variant={error ? "error" : success ? (isLatestPlugin ? "info" : "success") : "neutral"}>
+    <GradientScrollView variant={sendError ? "error" : success ? (isLatestPlugin ? "info" : "success") : "neutral"}>
       <View flex={1}>
         <YStack gap="$s7" paddingBottom="$s9">
           <Pressable
@@ -436,7 +451,7 @@ export default function Amount() {
               size={80}
               borderRadius="$r4"
               backgroundColor={
-                error
+                sendError
                   ? "$interactiveBaseErrorSoftDefault"
                   : success
                     ? isLatestPlugin
@@ -448,7 +463,7 @@ export default function Amount() {
               {pending && <ExaSpinner backgroundColor="transparent" color="$uiNeutralPrimary" />}
               {success && isLatestPlugin && <ExaSpinner backgroundColor="transparent" color="$uiInfoSecondary" />}
               {success && !isLatestPlugin && <Check size={48} color="$uiSuccessSecondary" strokeWidth={2} />}
-              {error && <X size={48} color="$uiErrorSecondary" strokeWidth={2} />}
+              {sendError && <X size={48} color="$uiErrorSecondary" strokeWidth={2} />}
             </Square>
           </XStack>
           <YStack gap="$s4_5" justifyContent="center" alignItems="center">
@@ -469,7 +484,7 @@ export default function Amount() {
                   </Text>
                 </>
               )}
-              {error && (
+              {sendError && (
                 <>
                   {t("Failed")}{" "}
                   <Text emphasized primary body color="$uiNeutralPrimary">
@@ -492,7 +507,7 @@ export default function Amount() {
             </XStack>
           </YStack>
         </YStack>
-        {(success || error) && <TransactionDetails hash={hash} />}
+        {(success || sendError) && <TransactionDetails hash={hash} />}
       </View>
       {!pending && (
         <YStack flex={2} justifyContent="flex-end" gap="$s5">
@@ -513,7 +528,7 @@ export default function Amount() {
               </Text>
             </View>
           )}
-          {error && (
+          {sendError && (
             <YStack alignItems="center" gap="$s4">
               <Pressable onPress={reset}>
                 <Text emphasized footnote color="$uiBrandSecondary">
