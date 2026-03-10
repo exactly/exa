@@ -11,8 +11,8 @@ import { ScrollView, Separator, XStack, YStack } from "tamagui";
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { waitForCallsStatus } from "@wagmi/core/actions";
 import { digits, nonEmpty, parse, pipe, safeParse, string, transform } from "valibot";
-import { ContractFunctionExecutionError, ContractFunctionRevertedError, erc20Abi } from "viem";
-import { useBytecode, useReadContract, useSendCalls, useSimulateContract, useWriteContract } from "wagmi";
+import { ContractFunctionExecutionError, ContractFunctionRevertedError, encodeFunctionData, erc20Abi } from "viem";
+import { useBytecode, useReadContract, useSendCalls, useSimulateContract } from "wagmi";
 
 import accountInit from "@exactly/common/accountInit";
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
@@ -362,54 +362,70 @@ export default function Repay() {
   });
 
   const {
-    mutate,
+    mutate: repay,
     isPending: isRepaying,
     isSuccess: isRepaySuccess,
     error: writeContractError,
-  } = useWriteContract({
-    mutation: {
-      onSuccess: () => queryClient.invalidateQueries({ queryKey: assetQueryKey }).catch(reportError),
+  } = useMutation({
+    async mutationFn() {
+      if (!repayMarket) throw new Error("no repay market");
+      setDisplayValues({
+        amount: Number(withUSDC ? repayAssets : route?.fromAmount) / 10 ** repayMarket.decimals,
+        usdAmount: Number(previewValueUSD) / 1e18,
+      });
+      const call = (() => {
+        switch (mode) {
+          case "repay": {
+            if (!repayPropose) throw new Error("no repay simulation");
+            const { address, abi, functionName, args } = repayPropose;
+            return { to: address, data: encodeFunctionData({ abi, functionName, args }) };
+          }
+
+          case "legacyRepay": {
+            if (!legacyRepaySimulation) throw new Error("no legacy repay simulation");
+            const { address, abi, functionName, args } = legacyRepaySimulation.request;
+            return { to: address, data: encodeFunctionData({ abi, functionName, args }) };
+          }
+          case "crossRepay": {
+            if (!crossRepayPropose) throw new Error("no cross repay simulation");
+            const { address, abi, functionName, args } = crossRepayPropose;
+            return { to: address, data: encodeFunctionData({ abi, functionName, args }) };
+          }
+
+          case "legacyCrossRepay": {
+            if (!legacyCrossRepaySimulation) throw new Error("no legacy cross repay simulation");
+            const { address, abi, functionName, args } = legacyCrossRepaySimulation.request;
+            return { to: address, data: encodeFunctionData({ abi, functionName, args }) };
+          }
+          default:
+            throw new Error("unexpected mode");
+        }
+      })();
+      const { id } = await mutateSendCalls({
+        calls: [call],
+        capabilities: {
+          paymasterService: {
+            url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
+            context: { policyId: alchemyGasPolicyId },
+          },
+        },
+      });
+      const { status } = await waitForCallsStatus(exa, { id });
+      if (status === "failure") throw new Error("failed to repay");
+    },
+    onMutate() {
+      setEnableSimulations(false);
+    },
+    onSuccess() {
+      queryClient.invalidateQueries({ queryKey: assetQueryKey }).catch(reportError);
+    },
+    onSettled() {
+      setEnableSimulations(true);
+    },
+    onError(error) {
+      reportError(error);
     },
   });
-
-  const handlePayment = useCallback(() => {
-    if (!repayMarket) return;
-    setDisplayValues({
-      amount: Number(withUSDC ? repayAssets : route?.fromAmount) / 10 ** repayMarket.decimals,
-      usdAmount: Number(previewValueUSD) / 1e18,
-    });
-    switch (mode) {
-      case "repay":
-        if (!repayPropose) throw new Error("no repay simulation");
-        mutate(repayPropose);
-        break;
-      case "legacyRepay":
-        if (!legacyRepaySimulation) throw new Error("no legacy repay simulation");
-        mutate(legacyRepaySimulation.request);
-        break;
-      case "crossRepay":
-        if (!crossRepayPropose) throw new Error("no cross repay simulation");
-        mutate(crossRepayPropose);
-        break;
-      case "legacyCrossRepay":
-        if (!legacyCrossRepaySimulation) throw new Error("no legacy cross repay simulation");
-        mutate(legacyCrossRepaySimulation.request);
-        break;
-    }
-    setEnableSimulations(false);
-  }, [
-    crossRepayPropose,
-    legacyCrossRepaySimulation,
-    legacyRepaySimulation,
-    mode,
-    previewValueUSD,
-    repayAssets,
-    repayMarket,
-    repayPropose,
-    route?.fromAmount,
-    withUSDC,
-    mutate,
-  ]);
 
   const {
     mutateAsync: repayWithExternalAsset,
@@ -460,9 +476,14 @@ export default function Repay() {
           },
         },
       });
-      setEnableSimulations(false);
       const { status } = await waitForCallsStatus(exa, { id });
       if (status === "failure") throw new Error("failed to repay with external asset");
+    },
+    onMutate() {
+      setEnableSimulations(false);
+    },
+    onSettled() {
+      setEnableSimulations(true);
     },
     onError(error) {
       reportError(error);
@@ -801,7 +822,7 @@ export default function Repay() {
                 primary
                 loading={loading && positionAssets > 0n}
                 disabled={disabled}
-                onPress={selectedAsset.external ? () => repayWithExternalAsset() : handlePayment}
+                onPress={selectedAsset.external ? () => repayWithExternalAsset() : () => repay()}
               >
                 <Button.Text>{handleButtonText()}</Button.Text>
                 <Button.Icon>
