@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from "react";
+import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -8,11 +8,15 @@ import { ArrowLeft, ArrowRight } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, Separator, XStack, YStack } from "tamagui";
 
+import { useMutation } from "@tanstack/react-query";
+import { waitForCallsStatus } from "@wagmi/core/actions";
 import { nonEmpty, pipe, safeParse, string } from "valibot";
-import { ContractFunctionExecutionError } from "viem";
-import { useWriteContract } from "wagmi";
+import { ContractFunctionExecutionError, encodeFunctionData } from "viem";
+import { useSendCalls } from "wagmi";
 
-import { exaPreviewerAddress, marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
+import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
+import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
+import chain, { exaPreviewerAddress, marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import {
   useReadExaPreviewerPendingProposals,
   useReadPreviewerPreviewBorrowAtMaturity,
@@ -28,6 +32,7 @@ import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useSimulateProposal from "../../utils/useSimulateProposal";
+import exa from "../../utils/wagmi/exa";
 import Skeleton from "../shared/Skeleton";
 import Button from "../shared/StyledButton";
 
@@ -247,41 +252,51 @@ function RolloverButton({
     isPending: isPendingProposalsPending,
   } = useReadExaPreviewerPendingProposals({
     address: exaPreviewerAddress,
+    chainId: chain.id,
     args: address ? [address] : undefined,
     query: { enabled: !!address, gcTime: 0, refetchInterval: 30_000 },
   });
 
+  const { mutateAsync: mutateSendCalls } = useSendCalls();
   const {
-    mutate,
+    mutate: proposeRollDebt,
     isPending: isProposeRollDebtPending,
     error: proposeRollDebtError,
-  } = useWriteContract({
-    mutation: {
-      onSuccess: () => {
-        toast.show(t("Processing rollover"), {
-          native: true,
-          duration: 1000,
-          burntOptions: { haptic: "success", preset: "done" },
-        });
-        if (address) refetchPendingProposals().catch(reportError);
-        router.dismissTo("/activity");
-      },
-      onError: (error) => {
-        toast.show(t("Rollover failed"), {
-          native: true,
-          duration: 1000,
-          burntOptions: { haptic: "error", preset: "error" },
-        });
-        reportError(error);
-      },
+  } = useMutation({
+    async mutationFn() {
+      if (!address) throw new Error("no address");
+      if (!proposeSimulation) throw new Error("no propose roll debt simulation");
+      const { address: to, abi, functionName, args } = proposeSimulation;
+      const { id } = await mutateSendCalls({
+        calls: [{ to, data: encodeFunctionData({ abi, functionName, args }) }],
+        capabilities: {
+          paymasterService: {
+            url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
+            context: { policyId: alchemyGasPolicyId },
+          },
+        },
+      });
+      const { status } = await waitForCallsStatus(exa, { id });
+      if (status === "failure") throw new Error("failed to propose rollover");
+    },
+    onSuccess() {
+      toast.show(t("Processing rollover"), {
+        native: true,
+        duration: 1000,
+        burntOptions: { haptic: "success", preset: "done" },
+      });
+      if (address) refetchPendingProposals().catch(reportError);
+      router.dismissTo("/activity");
+    },
+    onError(error) {
+      toast.show(t("Rollover failed"), {
+        native: true,
+        duration: 1000,
+        burntOptions: { haptic: "error", preset: "error" },
+      });
+      reportError(error);
     },
   });
-
-  const proposeRollDebt = useCallback(() => {
-    if (!address) throw new Error("no address");
-    if (!proposeSimulation) throw new Error("no propose roll debt simulation");
-    mutate(proposeSimulation);
-  }, [address, proposeSimulation, mutate]);
 
   const hasProposed = pendingProposals?.some(
     ({ proposal }) =>
@@ -305,7 +320,7 @@ function RolloverButton({
     !proposeSimulation ||
     hasProposed;
   return (
-    <Button secondary disabled={disabled} loading={isProposeRollDebtPending} onPress={proposeRollDebt}>
+    <Button secondary disabled={disabled} loading={isProposeRollDebtPending} onPress={() => proposeRollDebt()}>
       <Button.Text>{t("Confirm rollover")}</Button.Text>
       <Button.Icon>
         <ArrowRight />
