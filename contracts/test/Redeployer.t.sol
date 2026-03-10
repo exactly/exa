@@ -83,8 +83,9 @@ contract RedeployerTest is ForkTest {
     redeployer.prepare();
     redeployer.prepare();
 
-    assertTrue(address(redeployer.exaPlugin()).code.length > 0, "exaPlugin not deployed");
     assertTrue(address(redeployer.ownerPlugin()).code.length > 0, "ownerPlugin not deployed");
+    assertTrue(address(redeployer.exaPlugin()).code.length > 0, "exaPlugin not deployed");
+    assertTrue(address(redeployer.factory()).code.length > 0, "factory not deployed");
   }
 
   function test_prepare_reverts_whenAdminIsDeployer() external {
