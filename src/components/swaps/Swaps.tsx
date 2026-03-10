@@ -8,14 +8,18 @@ import { router } from "expo-router";
 import { ArrowLeft, Check, CircleHelp, Repeat, TriangleAlert } from "@tamagui/lucide-icons";
 import { Checkbox, ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { waitForCallsStatus } from "@wagmi/core/actions";
 import { parse } from "valibot";
-import { formatUnits, parseUnits, zeroAddress } from "viem";
-import { useSimulateContract, useWriteContract } from "wagmi";
+import { encodeFunctionData, formatUnits, parseUnits, zeroAddress } from "viem";
+import { useSendCalls, useSimulateContract } from "wagmi";
 
-import { previewerAddress } from "@exactly/common/generated/chain";
+import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
+import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
+import chain, { previewerAddress } from "@exactly/common/generated/chain";
 import {
   auditorAbi,
+  exaPluginAbi,
   marketAbi,
   upgradeableModularAccountAbi,
   useReadPreviewerExactly,
@@ -39,6 +43,7 @@ import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import usePortfolio from "../../utils/usePortfolio";
 import useSimulateProposal from "../../utils/useSimulateProposal";
+import exaConfig from "../../utils/wagmi/exa";
 import Button from "../shared/Button";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
@@ -255,6 +260,7 @@ export default function Swaps() {
   const {
     propose: { data: swapPropose },
     executeProposal: { error: swapExecuteProposalError, isPending: isSimulatingSwap },
+    proposalData: swapProposalData,
   } = useSimulateProposal({
     account,
     amount: activeInput === "from" ? fromAmount : (fromAmount * (WAD * (1000n + SLIPPAGE_PERCENT))) / 1000n / WAD,
@@ -338,17 +344,58 @@ export default function Swaps() {
     protocol: isSimulatingSwap,
   }[fromToken?.external ? "external" : "protocol"];
 
-  const { mutate, isPending: isSwapping, isSuccess: isSwapSuccess, error: writeContractError } = useWriteContract({});
-
-  const handleSwap = useCallback(() => {
-    if (!route) return;
-    if (fromToken?.external && externalSwap) {
-      mutate(externalSwap.request);
-    } else if (swapPropose) {
-      mutate(swapPropose.request);
-    }
-    updateSwap((old) => ({ ...old, enableSimulations: false }));
-  }, [route, fromToken?.external, externalSwap, swapPropose, mutate]);
+  const { mutateAsync: mutateSendCalls } = useSendCalls();
+  const {
+    mutate: swap,
+    isPending: isSwapping,
+    isSuccess: isSwapSuccess,
+    error: writeContractError,
+  } = useMutation({
+    async mutationFn() {
+      if (!route) throw new Error("no route");
+      const call = (() => {
+        if (fromToken?.external) {
+          if (!externalSwap) throw new Error("no external swap simulation");
+          const { address, abi, functionName, args } = externalSwap.request;
+          return { to: address, data: encodeFunctionData({ abi, functionName, args }) };
+        }
+        if (!swapPropose) throw new Error("no swap proposal simulation");
+        const market = getSwapAddress(fromToken);
+        if (!market) throw new Error("no swap market");
+        return {
+          to: swapPropose.request.address,
+          data: encodeFunctionData({
+            abi: exaPluginAbi,
+            functionName: "propose",
+            args: [
+              market,
+              activeInput === "from" ? fromAmount : (fromAmount * (WAD * (1000n + SLIPPAGE_PERCENT))) / 1000n / WAD,
+              ProposalType.Swap,
+              swapProposalData ?? "0x",
+            ],
+          }),
+        };
+      })();
+      const { id } = await mutateSendCalls({
+        calls: [call],
+        capabilities: {
+          paymasterService: {
+            url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
+            context: { policyId: alchemyGasPolicyId },
+          },
+        },
+      });
+      const { status } = await waitForCallsStatus(exaConfig, { id });
+      if (status === "failure") throw new Error("failed to swap");
+    },
+    onMutate() {
+      updateSwap((old) => ({ ...old, enableSimulations: false }));
+    },
+    onSettled() {
+      updateSwap((old) => ({ ...old, enableSimulations: true }));
+    },
+    onError: (error) => reportError(error),
+  });
 
   const toTokenIsUSDC = toToken?.token.symbol === "USDC";
   const caution =
@@ -517,7 +564,7 @@ export default function Swaps() {
             </XStack>
           </YStack>
           <Button
-            onPress={handleSwap}
+            onPress={() => swap()}
             contained
             main
             spaced
