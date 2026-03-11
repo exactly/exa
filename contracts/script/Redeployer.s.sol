@@ -216,6 +216,16 @@ contract Redeployer is BaseScript {
     vm.stopBroadcast();
   }
 
+  /// @notice Upgrades all factory proxies and deploys versioned factories via CREATE3.
+  function deployExaFactories() external {
+    this.deployExaFactory(0x8D493AF799162Ac3f273e8918B2842447f702163);
+    this.deployExaFactory(0x6E1b5A67adD32E8dC034c23b8022b54821ED297b);
+    this.deployExaFactory(0x3427a595eD6E05Cc2D8115e28BAd151cB879616e);
+    this.deployExaFactory(0xcbeaAF42Cc39c17e84cBeFe85160995B515A9668);
+    this.deployExaFactory("1.0.0");
+    this.deployExaFactory("1.1.0");
+  }
+
   /// @notice Finds the nonce at which `account` would deploy to `target` via CREATE.
   function findNonce(address account, address target, uint256 stop) public pure returns (uint256) {
     for (uint256 nonce = 0; nonce < stop; ++nonce) {
