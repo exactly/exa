@@ -68,6 +68,7 @@ export default function Amount() {
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
     address,
+    chainId: chain.id,
     factory: credential?.factory,
     factoryData: credential && accountInit(credential),
     query: { enabled: !!address && !!credential },
@@ -92,6 +93,7 @@ export default function Amount() {
 
   const { data: erc20TransferSimulation } = useSimulateContract({
     address: externalAddress,
+    chainId: chain.id,
     abi: erc20Abi,
     functionName: "transfer",
     args: receiver ? [receiver, formAmount] : undefined,
@@ -102,6 +104,7 @@ export default function Amount() {
   });
 
   const { data: nativeTransferEstimate } = useEstimateGas({
+    chainId: chain.id,
     to: receiver,
     value: formAmount,
     query: {

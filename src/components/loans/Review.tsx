@@ -72,10 +72,11 @@ export default function Review() {
   const singleInstallment = count === 1;
 
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
-  const { data: bytecode } = useBytecode({ address, query: { enabled: !!address } });
+  const { data: bytecode } = useBytecode({ address, chainId: chain.id, query: { enabled: !!address } });
 
   const { data: borrow, isPending: isBorrowPending } = useReadPreviewerPreviewBorrowAtMaturity({
     address: previewerAddress,
+    chainId: chain.id,
     args: [marketUSDCAddress, maturity ?? 0n, amount ?? 0n],
     query: { enabled: !!address && !!bytecode && !!maturity && !!amount && singleInstallment },
   });
@@ -186,6 +187,7 @@ export default function Review() {
 
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
     address,
+    chainId: chain.id,
     factory: credential?.factory,
     factoryData: credential && accountInit(credential),
     query: { enabled: !!address && !!credential },
