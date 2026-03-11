@@ -333,9 +333,8 @@ export default new Hono()
                 ...attestation,
                 response: {
                   ...attestation.response,
-                  transports: attestation.response.transports
-                    ? (attestation.response.transports as AuthenticatorTransportFuture[])
-                    : undefined,
+                  transports:
+                    (attestation.response.transports as AuthenticatorTransportFuture[] | undefined) ?? undefined,
                 },
               },
               expectedRPID: domain,

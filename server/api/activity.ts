@@ -803,7 +803,7 @@ export const WithdrawActivity = pipe(
 );
 
 function forbid<T extends object>(value: T) {
-  return new Proxy<T>(value, {
+  return new Proxy(value, {
     /* v8 ignore start */
     get(target, property) {
       // @ts-expect-error forward the getter

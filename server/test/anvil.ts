@@ -84,19 +84,19 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
     JSON.parse(await readFile("node_modules/@exactly/plugin/broadcast/Protocol.s.sol/31337/run-latest.json", "utf8")),
   ).transactions;
   const auditor = protocol[1].contractAddress;
-  const exa = protocol[3].contractAddress;
-  const marketEXA = protocol[5].contractAddress;
-  const usdc = protocol[11].contractAddress;
-  const marketUSDC = protocol[13].contractAddress;
-  const weth = protocol[19].contractAddress;
-  const marketWETH = protocol[21].contractAddress;
-  const balancer = protocol[27].contractAddress;
-  const debtManager = protocol[28].contractAddress;
-  const previewer = protocol[32].contractAddress;
-  const integrationPreviewer = protocol[33].contractAddress;
-  const ratePreviewer = protocol[34].contractAddress;
-  const installmentsRouter = protocol[35].contractAddress;
-  const firewall = protocol[37].contractAddress;
+  const exa = protocol[2].contractAddress;
+  const marketEXA = protocol[4].contractAddress;
+  const usdc = protocol[9].contractAddress;
+  const marketUSDC = protocol[11].contractAddress;
+  const weth = protocol[16].contractAddress;
+  const marketWETH = protocol[18].contractAddress;
+  const balancer = protocol[23].contractAddress;
+  const debtManager = protocol[24].contractAddress;
+  const previewer = protocol[28].contractAddress;
+  const integrationPreviewer = protocol[29].contractAddress;
+  const ratePreviewer = protocol[30].contractAddress;
+  const installmentsRouter = protocol[31].contractAddress;
+  const firewall = protocol[33].contractAddress;
 
   // cspell:ignoreRegExp [\b_][A-Z]+_ADDRESS\b
   shell.env.PROTOCOL_AUDITOR_ADDRESS = auditor;
@@ -313,11 +313,9 @@ const Protocol = object({
   transactions: tuple([
     object({ transactionType: literal("CREATE"), contractName: literal("Auditor") }),
     object({ transactionType: literal("CREATE"), contractName: literal("ERC1967Proxy"), contractAddress: Address }),
-    object({ transactionType: literal("CALL") }),
     object({ transactionType: literal("CREATE"), contractName: literal("MockERC20"), contractAddress: Address }),
     object({ transactionType: literal("CREATE"), contractName: literal("Market") }),
     object({ transactionType: literal("CREATE"), contractName: literal("ERC1967Proxy"), contractAddress: Address }),
-    object({ transactionType: literal("CALL") }),
     object({ transactionType: literal("CREATE"), contractName: literal("InterestRateModel") }),
     object({ transactionType: literal("CALL") }),
     object({ transactionType: literal("CREATE"), contractName: literal("MockPriceFeed") }),
@@ -325,7 +323,6 @@ const Protocol = object({
     object({ transactionType: literal("CREATE"), contractName: literal("MockERC20"), contractAddress: Address }),
     object({ transactionType: literal("CREATE"), contractName: literal("Market") }),
     object({ transactionType: literal("CREATE"), contractName: literal("ERC1967Proxy"), contractAddress: Address }),
-    object({ transactionType: literal("CALL") }),
     object({ transactionType: literal("CREATE"), contractName: literal("InterestRateModel") }),
     object({ transactionType: literal("CALL") }),
     object({ transactionType: literal("CREATE"), contractName: literal("MockPriceFeed") }),
@@ -333,7 +330,6 @@ const Protocol = object({
     object({ transactionType: literal("CREATE"), contractName: literal("MockWETH"), contractAddress: Address }),
     object({ transactionType: literal("CREATE"), contractName: literal("Market") }),
     object({ transactionType: literal("CREATE"), contractName: literal("ERC1967Proxy"), contractAddress: Address }),
-    object({ transactionType: literal("CALL") }),
     object({ transactionType: literal("CREATE"), contractName: literal("InterestRateModel") }),
     object({ transactionType: literal("CALL") }),
     object({ transactionType: literal("CREATE"), contractName: literal("MockPriceFeed") }),

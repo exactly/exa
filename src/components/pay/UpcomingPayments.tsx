@@ -50,7 +50,7 @@ export default function UpcomingPayments({
       totalPosition: (existing?.totalPosition ?? 0n) + positionAmount,
     });
   }
-  const blockDate = new Date(Number(timestamp) * 1000);
+  const blockDate = React.useMemo(() => new Date(Number(timestamp) * 1000), [timestamp]);
   const payments = [...dueMaturities].map(
     ([maturity, { totalPreview, totalPosition }]) =>
       [

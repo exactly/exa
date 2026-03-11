@@ -47,6 +47,8 @@ export default function CardUpgradeSheet({ open, onClose }: { onClose: () => voi
   );
 }
 
+export { UPGRADE_DEADLINE } from "./Intro";
+
 const components = [VerifyIdentity, UpgradeAccount, ActivateCard];
 
 function Step({ step }: { step: number }) {

@@ -21,18 +21,14 @@ jobs:
       CHAIN_ID: ${{ vars.CHAIN_ID }}
       APP_DOMAIN: ${{ vars.APP_DOMAIN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
           fetch-tags: true
-      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
         with:
-          version: "10.28.1"
-          run_install: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "^24.13.0"
-          cache: pnpm
+          node-version: "^24.14.1"
+      - run: corepack enable
       - uses: foundry-rs/foundry-toolchain@v1
         with:
           version: v1.5.1
@@ -41,7 +37,7 @@ jobs:
           packager: pnpm
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: .nx/cache
           key: nx-${{ runner.os }}-${{ github.sha }}
@@ -52,7 +48,7 @@ jobs:
       - run: eas update --auto --channel ${{ inputs.profile }} --platform all --non-interactive
       - run: echo "release=$(node -e 'console.log(require(`./src/generated/release`))')" >> $GITHUB_OUTPUT
         id: release
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with: { name: "${{ steps.release.outputs.release }}", path: dist }
       - run: npx sentry-expo-upload-sourcemaps dist
         env:

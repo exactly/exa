@@ -41,8 +41,13 @@ contract DeployProtocol is BaseScript {
   function run() external {
     vm.startBroadcast(acct("deployer"));
 
-    auditor = Auditor(address(new ERC1967Proxy(address(new Auditor(18)), "")));
-    auditor.initialize(Auditor.LiquidationIncentive(0.09e18, 0.01e18));
+    auditor = Auditor(
+      address(
+        new ERC1967Proxy(
+          address(new Auditor(18)), abi.encodeCall(Auditor.initialize, (Auditor.LiquidationIncentive(0.09e18, 0.01e18)))
+        )
+      )
+    );
     vm.label(address(auditor), "Auditor");
 
     Parameters memory irmParams = Parameters({
@@ -62,24 +67,48 @@ contract DeployProtocol is BaseScript {
 
     exa = new MockERC20("exactly", "EXA", 18);
     vm.label(address(exa), "EXA");
-    exaEXA = Market(address(new ERC1967Proxy(address(new Market(exa, auditor)), "")));
-    exaEXA.initialize("EXA", 7, type(uint256).max, 1e18, irm, 0.02e18 / uint256(1 days), 1e17, 0, 1e18, 1e18);
+    exaEXA = Market(
+      address(
+        new ERC1967Proxy(
+          address(new Market(exa, auditor)),
+          abi.encodeCall(
+            Market.initialize, ("EXA", 7, type(uint256).max, 1e18, irm, 0.02e18 / uint256(1 days), 1e17, 0, 1e18, 1e18)
+          )
+        )
+      )
+    );
     exaEXA.setInterestRateModel(new InterestRateModel(irmParams, exaEXA));
     vm.label(address(exaEXA), "exaEXA");
     auditor.enableMarket(exaEXA, new MockPriceFeed(18, 5e18), 0.8e18);
 
     usdc = new MockERC20("USD Coin", "USDC", 6);
     vm.label(address(usdc), "USDC");
-    exaUSDC = Market(address(new ERC1967Proxy(address(new Market(usdc, auditor)), "")));
-    exaUSDC.initialize("USDC", 7, type(uint256).max, 1e6, irm, 0.02e18 / uint256(1 days), 1e17, 0, 1e18, 1e18);
+    exaUSDC = Market(
+      address(
+        new ERC1967Proxy(
+          address(new Market(usdc, auditor)),
+          abi.encodeCall(
+            Market.initialize, ("USDC", 7, type(uint256).max, 1e6, irm, 0.02e18 / uint256(1 days), 1e17, 0, 1e18, 1e18)
+          )
+        )
+      )
+    );
     exaUSDC.setInterestRateModel(new InterestRateModel(irmParams, exaUSDC));
     vm.label(address(exaUSDC), "exaUSDC");
     auditor.enableMarket(exaUSDC, new MockPriceFeed(18, 1e18), 0.9e18);
 
     weth = new MockWETH();
     vm.label(address(weth), "WETH");
-    exaWETH = Market(address(new ERC1967Proxy(address(new Market(weth, auditor)), "")));
-    exaWETH.initialize("WETH", 7, type(uint256).max, 1e6, irm, 0.02e18 / uint256(1 days), 1e17, 0, 1e18, 1e18);
+    exaWETH = Market(
+      address(
+        new ERC1967Proxy(
+          address(new Market(weth, auditor)),
+          abi.encodeCall(
+            Market.initialize, ("WETH", 7, type(uint256).max, 1e6, irm, 0.02e18 / uint256(1 days), 1e17, 0, 1e18, 1e18)
+          )
+        )
+      )
+    );
     exaWETH.setInterestRateModel(new InterestRateModel(irmParams, exaWETH));
     vm.label(address(exaWETH), "exaWETH");
     auditor.enableMarket(exaWETH, new MockPriceFeed(18, 2500e18), 0.86e18);
@@ -95,8 +124,7 @@ contract DeployProtocol is BaseScript {
 
     installmentsRouter = new InstallmentsRouter(auditor, exaWETH);
 
-    firewall = Firewall(address(new ERC1967Proxy(address(new Firewall()), "")));
-    firewall.initialize();
+    firewall = Firewall(address(new ERC1967Proxy(address(new Firewall()), abi.encodeCall(Firewall.initialize, ()))));
     vm.label(address(firewall), "Firewall");
 
     exa.mint(address(balancer), 1_000_000e18);

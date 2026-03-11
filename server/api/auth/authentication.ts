@@ -373,9 +373,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
               credential: {
                 id: assertion.id,
                 publicKey: credential.publicKey,
-                transports: credential.transports
-                  ? (credential.transports as AuthenticatorTransportFuture[])
-                  : undefined,
+                transports: (credential.transports as AuthenticatorTransportFuture[] | undefined) ?? undefined,
                 counter: credential.counter,
               },
             });

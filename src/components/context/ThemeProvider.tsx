@@ -12,7 +12,7 @@ import SafeToastViewport from "../shared/ToastViewport";
 export default function ThemeProvider({ children }: { children: ReactNode }) {
   const theme = useColorScheme();
   return (
-    <TamaguiProvider config={tamagui} defaultTheme={theme ?? "light"}>
+    <TamaguiProvider config={tamagui} defaultTheme={theme === "dark" ? "dark" : "light"}>
       {children}
       <NotificationToast />
       <SafeToastViewport />

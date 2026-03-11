@@ -19,7 +19,7 @@ export default function useMarkets(query?: { enabled?: boolean; gcTime?: number;
     ],
     query: { ...query, enabled: query?.enabled ?? true },
   });
-  const timestamp = data?.[2] ?? BigInt(Math.floor(Date.now() / 1000));
+  const timestamp = data?.[2] ?? BigInt(Math.floor(Date.now() / 1000)); // eslint-disable-line @eslint-react/purity -- fallback until onchain timestamp loads
   const now = Number(timestamp);
   const nextMaturity = now - (now % MATURITY_INTERVAL) + MATURITY_INTERVAL;
   return {

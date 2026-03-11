@@ -33,7 +33,7 @@ function ListItem({ item, animationValue }: ListItemProperties) {
       <AnimatedView style={rBackgroundStyle} width="100%" height="100%">
         <item.backgroundImage width="100%" height="100%" />
       </AnimatedView>
-      <AnimatedView style={[StyleSheet.absoluteFillObject, rImageStyle]} width="100%" height="100%">
+      <AnimatedView style={[StyleSheet.absoluteFill, rImageStyle]} width="100%" height="100%">
         <item.image width="100%" height="100%" />
       </AnimatedView>
     </View>

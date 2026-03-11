@@ -11,9 +11,6 @@ import versionCode from "./src/generated/versionCode.js";
 import type { IntercomPluginProps } from "@intercom/intercom-react-native/lib/typescript/module/expo-plugins/@types";
 import type { withSentry } from "@sentry/react-native/expo";
 import type { ExpoConfig } from "expo/config";
-import type * as OneSignalPlugin from "onesignal-expo-plugin/types/types";
-
-const { Mode } = require("onesignal-expo-plugin/build/types/types") as typeof OneSignalPlugin; // eslint-disable-line unicorn/prefer-module
 
 if (env.EAS_BUILD_RUNNER === "eas-build") env.APP_DOMAIN ??= "web.exactly.app";
 if (env.APP_DOMAIN) env.EXPO_PUBLIC_DOMAIN = env.APP_DOMAIN;
@@ -30,7 +27,6 @@ export default {
     adaptiveIcon: { foregroundImage: "src/assets/icon-adaptive.png", backgroundColor: "#1D1D1D" },
     permissions: ["android.permission.CAMERA"],
     userInterfaceStyle: "automatic",
-    edgeToEdgeEnabled: true,
     versionCode,
     splash: {
       backgroundColor: "#FCFCFC",
@@ -110,10 +106,10 @@ export default {
     [
       "onesignal-expo-plugin",
       {
-        mode: env.NODE_ENV === "production" ? Mode.Prod : Mode.Dev,
+        mode: env.NODE_ENV === "production" ? "production" : "development",
         smallIcons: ["src/assets/notifications_default.png"],
         largeIcons: ["src/assets/notifications_default_large.png"],
-      } satisfies OneSignalPlugin.OneSignalPluginProps,
+      },
     ],
     // @ts-expect-error inline plugin
     ((config) =>
@@ -122,6 +118,10 @@ export default {
           c.modResults.contents = c.modResults.contents.replace(
             /defaultConfig\s*\{/,
             '$& ndk { debugSymbolLevel "FULL" }',
+          );
+          c.modResults.contents = c.modResults.contents.replace(
+            /dependencies\s*\{/,
+            '$&\nimplementation(enforcedPlatform("com.squareup.okhttp3:okhttp-bom:4.12.0"))', // cspell:ignore okhttp
           );
           return c;
         }),
