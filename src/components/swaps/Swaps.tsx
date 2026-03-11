@@ -634,6 +634,7 @@ export default function Swaps() {
       return (
         <Success
           {...properties}
+          external={fromToken.external}
           onClose={() => {
             onClose();
           }}

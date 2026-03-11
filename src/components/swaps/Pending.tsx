@@ -50,55 +50,46 @@ export default function Pending({
         opacity={0.8}
         colors={[theme.backgroundStrong.val, theme.backgroundSoft.val]}
       />
-      <SafeView backgroundColor="transparent">
-        <View fullScreen padded>
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            stickyHeaderIndices={[0]}
-            contentContainerStyle={{ flexGrow: 1, flexDirection: "column", justifyContent: "space-between" }}
-            stickyHeaderHiddenOnScroll
-          >
-            <View flex={1}>
-              <YStack gap="$s7" paddingBottom="$s9">
-                <Pressable onPress={onClose}>
-                  <X size={24} color="$uiNeutralPrimary" />
-                </Pressable>
-                <XStack justifyContent="center" alignItems="center">
-                  <Square borderRadius="$r4" backgroundColor="$backgroundStrong" size={80}>
-                    <ExaSpinner backgroundColor="transparent" color="$uiNeutralPrimary" />
-                  </Square>
-                </XStack>
-                <YStack gap="$s4_5" justifyContent="center" alignItems="center">
-                  <Text secondary body>
-                    <Trans
-                      i18nKey="Processing <em>swap request</em>"
-                      components={{ em: <Text secondary body emphasized /> }}
-                    />
-                  </Text>
-                  <Text title primary color="$uiNeutralPrimary">
-                    {`$${fromUsdAmount.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-                  </Text>
-                  <XStack gap="$s2" alignItems="center">
-                    <AssetLogo symbol={fromToken.symbol} width={16} height={16} />
-                    <Text emphasized secondary subHeadline>
-                      {Number(formatUnits(fromAmount, fromToken.decimals)).toFixed(8)}
-                    </Text>
-                  </XStack>
-                  <ArrowDown size={24} color="$interactiveBaseBrandDefault" />
-                  <Text title primary color="$uiNeutralPrimary">
-                    {`$${toUsdAmount.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-                  </Text>
-                  <XStack gap="$s2" alignItems="center">
-                    <AssetLogo symbol={toToken.symbol} width={16} height={16} />
-                    <Text emphasized secondary subHeadline>
-                      {Number(formatUnits(toAmount, toToken.decimals)).toFixed(8)}
-                    </Text>
-                  </XStack>
-                </YStack>
-              </YStack>
-            </View>
-          </ScrollView>
-        </View>
+      <SafeView flex={1} backgroundColor="transparent">
+        <ScrollView showsVerticalScrollIndicator={false} flex={1} padding="$s4">
+          <YStack gap="$s7" paddingBottom="$s9">
+            <Pressable onPress={onClose}>
+              <X size={24} color="$uiNeutralPrimary" />
+            </Pressable>
+            <XStack justifyContent="center" alignItems="center">
+              <Square borderRadius="$r4" backgroundColor="$backgroundStrong" size={80}>
+                <ExaSpinner backgroundColor="transparent" color="$uiNeutralPrimary" />
+              </Square>
+            </XStack>
+            <YStack gap="$s4_5" justifyContent="center" alignItems="center">
+              <Text secondary body>
+                <Trans
+                  i18nKey="Processing <em>swap request</em>"
+                  components={{ em: <Text secondary body emphasized /> }}
+                />
+              </Text>
+              <Text title primary color="$uiNeutralPrimary">
+                {`$${fromUsdAmount.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+              </Text>
+              <XStack gap="$s2" alignItems="center">
+                <AssetLogo symbol={fromToken.symbol} width={16} height={16} />
+                <Text emphasized secondary subHeadline>
+                  {Number(formatUnits(fromAmount, fromToken.decimals)).toFixed(8)}
+                </Text>
+              </XStack>
+              <ArrowDown size={24} color="$interactiveBaseBrandDefault" />
+              <Text title primary color="$uiNeutralPrimary">
+                {`$${toUsdAmount.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+              </Text>
+              <XStack gap="$s2" alignItems="center">
+                <AssetLogo symbol={toToken.symbol} width={16} height={16} />
+                <Text emphasized secondary subHeadline>
+                  {Number(formatUnits(toAmount, toToken.decimals)).toFixed(8)}
+                </Text>
+              </XStack>
+            </YStack>
+          </YStack>
+        </ScrollView>
       </SafeView>
     </View>
   );
