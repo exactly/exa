@@ -25,6 +25,7 @@ export default function HTML({ children }: { children: ReactNode }) {
           name="fc:miniapp"
           content={`{"version":"1","imageUrl":"https://assets.exactly.app/miniapp-image.webp","button":{"title":"Get your card","action":{"type":"launch_miniapp","name":"${appMetadata.title}","url":"https://${domain}"}}}`}
         />
+        <meta name="base:app_id" content="69a9d841964308b7af99b1aa" />
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
         <meta name="color-scheme" content="light dark" />
