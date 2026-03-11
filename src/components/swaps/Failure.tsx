@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
 
 import { ArrowDown, X } from "@tamagui/lucide-icons";
 import { ScrollView, Square, styled, useTheme, XStack, YStack } from "tamagui";
@@ -38,7 +37,6 @@ export default function Failure({
   toUsdAmount: number;
 }) {
   const theme = useTheme();
-  const router = useRouter();
   const {
     t,
     i18n: { language },
@@ -55,70 +53,66 @@ export default function Failure({
         opacity={0.2}
         colors={[theme.uiErrorSecondary.val, theme.backgroundSoft.val]}
       />
-      <SafeView backgroundColor="transparent">
-        <View fullScreen padded>
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            stickyHeaderIndices={[0]}
-            contentContainerStyle={{ flexGrow: 1, flexDirection: "column", justifyContent: "space-between" }}
-            stickyHeaderHiddenOnScroll
+      <SafeView flex={1} backgroundColor="transparent">
+        <ScrollView showsVerticalScrollIndicator={false} flex={1} padding="$s4">
+          <YStack gap="$s7" paddingBottom="$s9">
+            <IconButton
+              icon={X}
+              aria-label={t("Close")}
+              onPress={() => {
+                queryClient.invalidateQueries({ queryKey: ["swap"] }).catch(reportError);
+                onClose();
+              }}
+            />
+            <XStack justifyContent="center" alignItems="center">
+              <Square borderRadius="$r4" backgroundColor="$interactiveBaseErrorSoftDefault" size={80}>
+                <X size={48} color="$uiErrorSecondary" strokeWidth={2} />
+              </Square>
+            </XStack>
+            <YStack gap="$s4_5" justifyContent="center" alignItems="center">
+              <Text secondary body>
+                {t("Failed")}
+              </Text>
+              <Text title primary color="$uiNeutralPrimary">
+                {`$${fromUsdAmount.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+              </Text>
+              <XStack gap="$s2" alignItems="center">
+                <Text emphasized secondary subHeadline>
+                  {Number(formatUnits(fromAmount, fromToken.decimals)).toFixed(8)}
+                </Text>
+                <Text emphasized secondary subHeadline>
+                  {fromToken.symbol}
+                </Text>
+                <AssetLogo symbol={fromToken.symbol} width={16} height={16} />
+              </XStack>
+              <ArrowDown size={24} color="$uiNeutralPrimary" />
+              <Text title primary color="$uiNeutralPrimary">
+                {`$${toUsdAmount.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+              </Text>
+              <XStack gap="$s2" alignItems="center">
+                <Text emphasized secondary subHeadline>
+                  {Number(formatUnits(toAmount, toToken.decimals)).toFixed(8)}
+                </Text>
+                <Text emphasized secondary subHeadline>
+                  {toToken.symbol}
+                </Text>
+                <AssetLogo symbol={toToken.symbol} width={16} height={16} />
+              </XStack>
+            </YStack>
+          </YStack>
+        </ScrollView>
+        <YStack alignItems="center" gap="$s4" padding="$s4">
+          <Pressable
+            onPress={() => {
+              queryClient.invalidateQueries({ queryKey: ["swap"] }).catch(reportError);
+              onClose();
+            }}
           >
-            <View flex={1}>
-              <YStack gap="$s7" paddingBottom="$s9">
-                <IconButton icon={X} aria-label={t("Close")} onPress={onClose} />
-                <XStack justifyContent="center" alignItems="center">
-                  <Square borderRadius="$r4" backgroundColor="$interactiveBaseErrorSoftDefault" size={80}>
-                    <X size={48} color="$uiErrorSecondary" strokeWidth={2} />
-                  </Square>
-                </XStack>
-                <YStack gap="$s4_5" justifyContent="center" alignItems="center">
-                  <Text secondary body>
-                    {t("Failed")}
-                  </Text>
-                  <Text title primary color="$uiNeutralPrimary">
-                    {`$${fromUsdAmount.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-                  </Text>
-                  <XStack gap="$s2" alignItems="center">
-                    <Text emphasized secondary subHeadline>
-                      {Number(formatUnits(fromAmount, fromToken.decimals)).toFixed(8)}
-                    </Text>
-                    <Text emphasized secondary subHeadline>
-                      {fromToken.symbol}
-                    </Text>
-                    <AssetLogo symbol={fromToken.symbol} width={16} height={16} />
-                  </XStack>
-                  <ArrowDown size={24} color="$uiNeutralPrimary" />
-                  <Text title primary color="$uiNeutralPrimary">
-                    {`$${toUsdAmount.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-                  </Text>
-                  <XStack gap="$s2" alignItems="center">
-                    <Text emphasized secondary subHeadline>
-                      {Number(formatUnits(toAmount, toToken.decimals)).toFixed(8)}
-                    </Text>
-                    <Text emphasized secondary subHeadline>
-                      {toToken.symbol}
-                    </Text>
-                    <AssetLogo symbol={toToken.symbol} width={16} height={16} />
-                  </XStack>
-                </YStack>
-              </YStack>
-            </View>
-            <View flex={2} justifyContent="flex-end">
-              <YStack alignItems="center" gap="$s4">
-                <Pressable
-                  onPress={() => {
-                    queryClient.invalidateQueries({ queryKey: ["swap"] }).catch(reportError);
-                    router.replace("/swaps");
-                  }}
-                >
-                  <Text emphasized footnote color="$uiBrandSecondary">
-                    {t("Close")}
-                  </Text>
-                </Pressable>
-              </YStack>
-            </View>
-          </ScrollView>
-        </View>
+            <Text emphasized footnote color="$uiBrandSecondary">
+              {t("Close")}
+            </Text>
+          </Pressable>
+        </YStack>
       </SafeView>
     </View>
   );
