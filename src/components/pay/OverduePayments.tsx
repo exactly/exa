@@ -8,7 +8,7 @@ import { Separator, XStack, YStack } from "tamagui";
 
 import { useBytecode } from "wagmi";
 
-import { marketUSDCAddress } from "@exactly/common/generated/chain";
+import chain, { marketUSDCAddress } from "@exactly/common/generated/chain";
 import { WAD } from "@exactly/lib";
 
 import reportError from "../../utils/reportError";
@@ -30,7 +30,7 @@ export default function OverduePayments({
     i18n: { language },
   } = useTranslation();
   const { address } = useAccount();
-  const { data: bytecode } = useBytecode({ address, query: { enabled: !!address } });
+  const { data: bytecode } = useBytecode({ address, chainId: chain.id, query: { enabled: !!address } });
   const { isProcessing } = usePendingOperations();
   const { markets, timestamp } = useMarkets({ enabled: !!bytecode, refetchInterval: 30_000 });
   const exaUSDC = markets?.find(({ market }) => market === marketUSDCAddress);
