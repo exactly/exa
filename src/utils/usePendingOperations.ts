@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import { useMutationState } from "@tanstack/react-query";
 import { useBytecode } from "wagmi";
 
-import { exaPreviewerAddress } from "@exactly/common/generated/chain";
+import chain, { exaPreviewerAddress } from "@exactly/common/generated/chain";
 import { useReadExaPreviewerPendingProposals } from "@exactly/common/generated/hooks";
 
 import useAccount from "./useAccount";
@@ -14,10 +14,11 @@ import type { MutationState } from "@tanstack/react-query";
 
 export default function usePendingOperations() {
   const { address: exaAccount } = useAccount({ config: exa });
-  const { data: bytecode } = useBytecode({ address: exaAccount, query: { enabled: !!exaAccount } });
+  const { data: bytecode } = useBytecode({ address: exaAccount, chainId: chain.id, query: { enabled: !!exaAccount } });
 
   const proposals = useReadExaPreviewerPendingProposals({
     address: exaPreviewerAddress,
+    chainId: chain.id,
     args: exaAccount ? [exaAccount] : undefined,
     query: { enabled: !!exaAccount && !!bytecode, gcTime: 0, refetchInterval: 30_000 },
   });

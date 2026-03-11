@@ -84,6 +84,7 @@ export default function Swaps() {
   const [activeInput, setActiveInput] = useState<"from" | "to">("from");
   const { data: markets } = useReadPreviewerExactly({
     address: previewerAddress,
+    chainId: chain.id,
     args: account ? [account] : undefined,
     query: { enabled: !!account },
   });
@@ -279,6 +280,7 @@ export default function Swaps() {
     isPending: isSimulatingExternalSwap,
   } = useSimulateContract({
     address: account,
+    chainId: chain.id,
     functionName: "swap",
     args: [
       parse(Address, fromToken?.token.address ?? zeroAddress),

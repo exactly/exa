@@ -56,10 +56,11 @@ export default function Pay() {
   const borrow = exaUSDC?.fixedBorrowPositions.find((b) => b.maturity === BigInt(success ? repayMaturity : 0));
   const rolloverMaturityBorrow = exaUSDC?.fixedBorrowPositions.find((b) => b.maturity === BigInt(borrowMaturity));
 
-  const { data: bytecode } = useBytecode({ address, query: { enabled: !!address } });
+  const { data: bytecode } = useBytecode({ address, chainId: chain.id, query: { enabled: !!address } });
 
   const { data: borrowPreview } = useReadPreviewerPreviewBorrowAtMaturity({
     address: previewerAddress,
+    chainId: chain.id,
     args: [marketUSDCAddress, BigInt(borrowMaturity), borrow?.previewValue ?? 0n],
     query: { enabled: !!bytecode && !!exaUSDC && !!borrow && !!address && !!borrowMaturity },
   });

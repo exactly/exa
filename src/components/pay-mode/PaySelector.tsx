@@ -9,7 +9,7 @@ import { XStack, YStack } from "tamagui";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { formatUnits, parseUnits } from "viem";
 
-import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
+import chain, { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerExactly, useReadPreviewerPreviewBorrowAtMaturity } from "@exactly/common/generated/hooks";
 import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
 import { borrowLimit, WAD, withdrawLimit } from "@exactly/lib";
@@ -41,6 +41,7 @@ export default function PaySelector() {
   const { address } = useAccount();
   const { data: markets } = useReadPreviewerExactly({
     address: previewerAddress,
+    chainId: chain.id,
     args: address ? [address] : undefined,
     query: { enabled: !!address },
   });
@@ -279,6 +280,7 @@ function InstallmentButton({
   });
   const { data: borrowPreview, isLoading: isBorrowPreviewLoading } = useReadPreviewerPreviewBorrowAtMaturity({
     address: previewerAddress,
+    chainId: chain.id,
     args:
       market && account && firstMaturity && calculationAssets
         ? [market.market, BigInt(firstMaturity), calculationAssets]

@@ -7,7 +7,7 @@ import { useRouter } from "expo-router";
 import { ArrowLeft, CircleHelp } from "@tamagui/lucide-icons";
 import { ScrollView, XStack, YStack } from "tamagui";
 
-import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
+import chain, { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 
 import CreditLine from "./CreditLine";
@@ -27,6 +27,7 @@ export default function Loans() {
   const router = useRouter();
   const { refetch, isPending } = useReadPreviewerExactly({
     address: previewerAddress,
+    chainId: chain.id,
     args: account ? [account] : undefined,
     query: { enabled: !!account },
   });

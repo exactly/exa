@@ -11,7 +11,7 @@ import { ScrollView, Separator, Spinner, Square, Switch, XStack, YStack } from "
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import accountInit from "@exactly/common/accountInit";
-import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
+import chain, { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import {
   useReadPreviewerExactly,
   useReadUpgradeableModularAccountGetInstalledPlugins,
@@ -99,6 +99,7 @@ export default function Card() {
   const { refetch: refetchInstalledPlugins, isFetching: isFetchingPlugins } =
     useReadUpgradeableModularAccountGetInstalledPlugins({
       address,
+      chainId: chain.id,
       factory: credential?.factory,
       factoryData: credential && accountInit(credential),
       query: { enabled: !!address && !!credential },
@@ -110,6 +111,7 @@ export default function Card() {
     isFetching: isFetchingMarkets,
   } = useReadPreviewerExactly({
     address: previewerAddress,
+    chainId: chain.id,
     args: address ? [address] : undefined,
     query: { enabled: !!address },
   });
