@@ -1258,8 +1258,8 @@ describe("legacy withdraw", () => {
     await vi.waitUntil(() => zrem.mock.calls.some((call) => match.zrem(call)), 26_666);
     expect(sendPushNotification).toHaveBeenCalledWith({
       userId: withdrawAccount,
-      headings: { en: "Withdraw completed" },
-      contents: { en: "1.375 USDC sent to alice.eth" },
+      headings: { en: "Withdraw completed", es: "Retiro completado" },
+      contents: { en: "1.375 USDC sent to alice.eth", es: "1.375 USDC enviados a alice.eth" },
     });
     const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
     expect(captureExceptionCalls.filter((call) => match.capture(call))).toEqual([]);

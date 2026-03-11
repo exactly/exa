@@ -358,9 +358,10 @@ function scheduleMessage(message: string) {
                   ]).then(([decimals, symbol, ensName]) =>
                     sendPushNotification({
                       userId: account,
-                      headings: { en: "Withdraw completed" },
+                      headings: { en: "Withdraw completed", es: "Retiro completado" },
                       contents: {
                         en: `${formatUnits(amount, decimals)} ${symbol.slice(3)} sent to ${ensName ?? shortenHex(receiver)}`,
+                        es: `${formatUnits(amount, decimals)} ${symbol.slice(3)} enviados a ${ensName ?? shortenHex(receiver)}`,
                       },
                     }),
                   ),
@@ -528,9 +529,10 @@ function scheduleWithdraw(message: string) {
                 ]).then(([decimals, symbol, ensName]) =>
                   sendPushNotification({
                     userId: account,
-                    headings: { en: "Withdraw completed" },
+                    headings: { en: "Withdraw completed", es: "Retiro completado" },
                     contents: {
                       en: `${formatUnits(amount, decimals)} ${symbol.slice(3)} sent to ${ensName ?? shortenHex(receiver)}`,
+                      es: `${formatUnits(amount, decimals)} ${symbol.slice(3)} enviados a ${ensName ?? shortenHex(receiver)}`,
                     },
                   }),
                 ),

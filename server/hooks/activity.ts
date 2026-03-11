@@ -126,9 +126,10 @@ export default new Hono().post(
       const underlying = asset === ETH ? WETH : asset;
       sendPushNotification({
         userId: account,
-        headings: { en: "Funds received" },
+        headings: { en: "Funds received", es: "Fondos recibidos" },
         contents: {
           en: `${value ? `${value} ` : ""}${assetSymbol} received${marketsByAsset.has(underlying) ? " and instantly started earning yield" : ""}`,
+          es: `${value ? `${value} ` : ""}${assetSymbol} recibidos${marketsByAsset.has(underlying) ? " y empezaron a generar rendimiento" : ""}`,
         },
       }).catch((error: unknown) => captureException(error));
 
@@ -249,8 +250,8 @@ export default new Hono().post(
                     span.setAttribute("exa.mode", 1);
                     sendPushNotification({
                       userId: account,
-                      headings: { en: "Card mode changed" },
-                      contents: { en: "Credit mode activated" },
+                      headings: { en: "Card mode changed", es: "Modo de tarjeta cambiado" },
+                      contents: { en: "Credit mode activated", es: "Modo crédito activado" },
                     }).catch((error: unknown) => captureException(error));
                   })
                   .catch((error: unknown) => captureException(error));

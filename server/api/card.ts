@@ -382,8 +382,8 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
             if (mode) {
               sendPushNotification({
                 userId: account,
-                headings: { en: "Card mode" },
-                contents: { en: "Credit mode is active" },
+                headings: { en: "Card mode", es: "Modo de tarjeta" },
+                contents: { en: "Credit mode is active", es: "El modo crédito está activo" },
               }).catch((error: unknown) => captureException(error));
             }
             return c.json(

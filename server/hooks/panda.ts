@@ -535,9 +535,10 @@ export default new Hono().post(
             );
             sendPushNotification({
               userId: account,
-              headings: { en: "Refund processed" },
+              headings: { en: "Refund processed", es: "Reembolso procesado" },
               contents: {
                 en: `${refundAmountUsd} USDC from ${payload.body.spend.merchantName.trim()} have been refunded to your account`,
+                es: `${refundAmountUsd} USDC de ${payload.body.spend.merchantName.trim()} fueron reembolsados a tu cuenta`,
               },
             }).catch((error: unknown) => captureException(error));
             trackTransactionRefund(account, refundAmountUsd, payload, card.credential.source);
@@ -753,12 +754,16 @@ export default new Hono().post(
             ) {
               sendPushNotification({
                 userId: account,
-                headings: { en: "Card purchase" },
+                headings: { en: "Card purchase", es: "Compra con tarjeta" },
                 contents: {
                   en: `${(payload.body.spend.localAmount / 100).toLocaleString(undefined, {
                     style: "currency",
                     currency: payload.body.spend.localCurrency,
                   })} at ${payload.body.spend.merchantName.trim()}. Paid ${{ 0: "with USDC", 1: "with credit" }[card.mode] ?? `in ${card.mode} installments`}`,
+                  es: `${(payload.body.spend.localAmount / 100).toLocaleString(undefined, {
+                    style: "currency",
+                    currency: payload.body.spend.localCurrency,
+                  })} en ${payload.body.spend.merchantName.trim()}. Pagado ${{ 0: "con USDC", 1: "con crédito" }[card.mode] ?? `en ${card.mode} cuotas`}`,
                 },
               }).catch((error: unknown) => captureException(error, { level: "error" }));
             }

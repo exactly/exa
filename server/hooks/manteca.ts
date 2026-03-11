@@ -226,8 +226,11 @@ export default new Hono().post(
           });
           sendPushNotification({
             userId: credential.account,
-            headings: { en: "Fiat onramp activated" },
-            contents: { en: "Your fiat onramp account has been activated" },
+            headings: { en: "Fiat onramp activated", es: "Rampa fiat activada" },
+            contents: {
+              en: "Your fiat onramp account has been activated",
+              es: "Tu cuenta de rampa fiat ha sido activada",
+            },
           }).catch((error: unknown) => captureException(error, { level: "error" }));
         }
         return c.json({ code: "ok" }, 200);
@@ -246,8 +249,8 @@ async function handleDepositDetected(data: InferInput<typeof DepositDetectedData
         .then(() => {
           sendPushNotification({
             userId: account,
-            headings: { en: "Deposited funds" },
-            contents: { en: `${data.amount} ${data.asset} deposited` },
+            headings: { en: "Deposited funds", es: "Fondos depositados" },
+            contents: { en: `${data.amount} ${data.asset} deposited`, es: `${data.amount} ${data.asset} depositados` },
           }).catch((error: unknown) => captureException(error, { level: "error" }));
         })
         .catch((error: unknown) => {
