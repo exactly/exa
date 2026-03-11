@@ -18,6 +18,7 @@ export default function useSimulateBlocks<const calls extends readonly unknown[]
   const config = useConfig({ config: configParameter });
   const chainId = useChainId({ config });
   const resolvedChainId = chainIdParameter ?? chainId;
+  // eslint-disable-next-line @tanstack/query/exhaustive-deps -- config has circular event emitters
   return useQuery({
     ...query,
     queryKey: ["simulateBlocks", { chainId: resolvedChainId, ...parameters }],

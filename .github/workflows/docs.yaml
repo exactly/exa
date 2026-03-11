@@ -13,30 +13,25 @@ jobs:
     runs-on: ubuntu-latest
     env: { NX_DAEMON: false }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
           fetch-tags: true
-      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
         with:
-          version: "10.28.1"
-          run_install: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "^24.13.0"
-          cache: pnpm
+          node-version: "^24.14.1"
       - uses: foundry-rs/foundry-toolchain@v1
         with:
           version: v1.5.1
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: .nx/cache
           key: nx-${{ runner.os }}-${{ github.sha }}
           restore-keys: nx-${{ runner.os }}-
+      - run: corepack enable
       - run: pnpm install --frozen-lockfile
-      - uses: nrwl/nx-set-shas@v4 # cspell:ignore nrwl
       - run: pnpm nx build docs
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v4
         with:
           path: docs/dist
       - uses: actions/deploy-pages@v4

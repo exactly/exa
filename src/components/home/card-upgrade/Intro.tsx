@@ -15,14 +15,12 @@ export default function Intro({ onPress }: { onPress: () => void }) {
     t,
     i18n: { language },
   } = useTranslation();
-  const upgradeDeadline = new Date(2025, 5, 21);
-  const formattedDate = new Intl.DateTimeFormat(language, { dateStyle: "long" }).format(upgradeDeadline);
   return (
     <View fullScreen flex={1} gap="$s7">
       <YStack flex={1} paddingHorizontal="$s6" gap="$s7">
         <YStack flex={1} justifyContent="center" gap="$s3_5">
           <View width="100%" aspectRatio={1.2} justifyContent="center" alignItems="center">
-            <View width="100%" height="100%" style={StyleSheet.absoluteFillObject}>
+            <View width="100%" height="100%" style={StyleSheet.absoluteFill}>
               <ExaCard width="100%" height="100%" />
             </View>
           </View>
@@ -33,7 +31,7 @@ export default function Intro({ onPress }: { onPress: () => void }) {
             <Text color="$uiNeutralPlaceholder" footnote textAlign="center">
               {t(
                 "Upgrade your Exa Card in 3 steps to keep spending seamlessly. Your current card works until {{date}}, but upgrading will be required after that.",
-                { date: formattedDate },
+                { date: new Intl.DateTimeFormat(language, { dateStyle: "long" }).format(UPGRADE_DEADLINE) },
               )}
             </Text>
           </YStack>
@@ -75,3 +73,5 @@ export default function Intro({ onPress }: { onPress: () => void }) {
     </View>
   );
 }
+
+export const UPGRADE_DEADLINE = new Date(2025, 5, 21);

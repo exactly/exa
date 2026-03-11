@@ -245,25 +245,18 @@ export default function Receiver() {
                 </XStack>
               </YStack>
             )}
-            <form.Subscribe>
-              {() => {
-                const disabled = !receiver || !isValid;
-                return (
-                  <Button
-                    primary
-                    onPress={() => {
-                      form.handleSubmit().catch(reportError);
-                    }}
-                    disabled={disabled}
-                  >
-                    <Button.Text>{t("Review loan terms")}</Button.Text>
-                    <Button.Icon>
-                      <ArrowRight />
-                    </Button.Icon>
-                  </Button>
-                );
+            <Button
+              primary
+              onPress={() => {
+                form.handleSubmit().catch(reportError);
               }}
-            </form.Subscribe>
+              disabled={!receiver || !isValid}
+            >
+              <Button.Text>{t("Review loan terms")}</Button.Text>
+              <Button.Icon>
+                <ArrowRight />
+              </Button.Icon>
+            </Button>
           </YStack>
         </YStack>
       </ScrollView>

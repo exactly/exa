@@ -33,9 +33,9 @@ import Text from "../shared/Text";
 import type { Credential } from "@exactly/common/validation";
 
 export default function PaymentSheet({ onRolloverIntro }: { onRolloverIntro?: (maturity: string) => void }) {
-  const parameters = useLocalSearchParams<{ maturity?: string }>();
+  const parameters = useLocalSearchParams();
   const router = useRouter();
-  const { maturity } = parameters;
+  const maturity = Array.isArray(parameters.maturity) ? parameters.maturity[0] : parameters.maturity;
   const { address } = useAccount();
   const toast = useToastController();
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });

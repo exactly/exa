@@ -94,7 +94,7 @@ export default function Repay() {
     isFetching: isFetchingAsset,
     queryKey: assetQueryKey,
   } = useAsset(selectedAsset.address);
-  const [displayValues, setDisplayValues] = useState<{ amount: number; usdAmount: number }>({
+  const [displayValues, setDisplayValues] = useState({
     amount: 0,
     usdAmount: 0,
   });
@@ -179,7 +179,8 @@ export default function Repay() {
       mode,
       account,
       selectedAsset.address,
-      repayMarket?.asset,
+      repayMarket,
+      denyExchanges,
       externalAsset ? !!externalAssetAvailable : !!repayMarketAvailable,
     ],
     queryFn: () => {
@@ -248,7 +249,7 @@ export default function Repay() {
     isPending: isRoutePending,
     isFetching: isRouteFetching,
   } = useQuery({
-    queryKey: ["lifi", "route", mode, account, selectedAsset.address, repayMarket?.asset, maxRepay],
+    queryKey: ["lifi", "route", mode, account, selectedAsset.address, repayMarket, denyExchanges, maxRepay],
     queryFn: () => {
       if (!maxRepay) throw new Error("no max repay");
       switch (mode) {

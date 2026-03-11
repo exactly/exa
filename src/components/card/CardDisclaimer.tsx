@@ -41,7 +41,7 @@ export default function CardDisclaimer({
                   <View width="100%" height="100%">
                     <Blob width="100%" height="100%" />
                   </View>
-                  <View width="100%" height="100%" style={StyleSheet.absoluteFillObject}>
+                  <View width="100%" height="100%" style={StyleSheet.absoluteFill}>
                     <ExaCard width="100%" height="100%" />
                   </View>
                 </View>
