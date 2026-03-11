@@ -457,7 +457,7 @@ export default function Swaps() {
             </YStack>
           </View>
         </ScrollView>
-        <YStack padding="$s4" paddingBottom={insets.bottom} gap="$s2_5">
+        <YStack padding="$s4" paddingBottom={insets.bottom} $platform-web={{ paddingBottom: "$s4" }} gap="$s2_5">
           <YStack gap="$s3">
             {(caution || danger) && showWarning && (
               <YStack gap="$s4_5">
