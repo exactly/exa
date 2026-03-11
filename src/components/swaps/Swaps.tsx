@@ -270,6 +270,7 @@ export default function Swaps() {
     isPending: isSimulatingExternalSwap,
   } = useSimulateContract({
     address: account,
+    chainId: chain.id,
     functionName: "swap",
     args: [
       parse(Address, fromToken?.token.address ?? zeroAddress),

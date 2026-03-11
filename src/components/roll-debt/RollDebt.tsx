@@ -72,6 +72,7 @@ export default function Pay() {
 
   const { data: borrowPreview } = useReadPreviewerPreviewBorrowAtMaturity({
     address: previewerAddress,
+    chainId: chain.id,
     args: [marketUSDCAddress, BigInt(borrowMaturity), borrow?.previewValue ?? 0n],
     query: { enabled: !!exaUSDC && !!borrow && !!address && !!borrowMaturity },
   });
