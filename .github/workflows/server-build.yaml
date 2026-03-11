@@ -13,10 +13,10 @@ jobs:
     env:
       IMAGE: ghcr.io/${{ github.repository }}-${{ inputs.environment }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with: { fetch-depth: 0, fetch-tags: true }
-      - uses: docker/setup-buildx-action@v3 # cspell:ignore buildx
-      - uses: docker/metadata-action@v5
+      - uses: docker/setup-buildx-action@v4 # cspell:ignore buildx
+      - uses: docker/metadata-action@v6
         id: meta
         with:
           images: ${{ env.IMAGE }}
@@ -27,9 +27,9 @@ jobs:
             type=match,pattern=@exactly\/server@(\d+\.\d+\.\d+.*),group=1
             type=match,pattern=@exactly\/server@(\d+\.\d+),group=1
             type=match,pattern=@exactly\/server@(\d+),group=1
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@v4
         with: { registry: ghcr.io, username: "${{ github.repository_owner }}", password: "${{ secrets.GITHUB_TOKEN }}" }
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v7
         id: build
         with:
           push: true
@@ -43,7 +43,7 @@ jobs:
             CHAIN_ID=${{ vars.CHAIN_ID }}
             APP_DOMAIN=${{ vars.APP_DOMAIN }}
             EXPO_PUBLIC_DEVTOOLS=${{ vars.EXPO_PUBLIC_DEVTOOLS }}
-      - uses: actions/attest-build-provenance@v2
+      - uses: actions/attest-build-provenance@v4
         with:
           subject-name: ${{ env.IMAGE }}
           subject-digest: ${{ steps.build.outputs.digest }}

@@ -22,7 +22,7 @@ export default function Intro({ onPress }: { onPress: () => void }) {
       <YStack flex={1} paddingHorizontal="$s6" gap="$s7">
         <YStack flex={1} justifyContent="center" gap="$s3_5">
           <View width="100%" aspectRatio={1.2} justifyContent="center" alignItems="center">
-            <View width="100%" height="100%" style={StyleSheet.absoluteFillObject}>
+            <View width="100%" height="100%" style={StyleSheet.absoluteFill}>
               <ExaCard width="100%" height="100%" />
             </View>
           </View>

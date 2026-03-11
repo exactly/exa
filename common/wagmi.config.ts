@@ -199,14 +199,14 @@ function loadDeployment<R extends boolean = true>(
       loadBroadcast("Protocol").transactions[
         {
           Auditor: 1,
-          Firewall: 37,
-          MarketUSDC: 13,
-          MarketWETH: 21,
-          IntegrationPreviewer: 33,
-          Previewer: 32,
-          RatePreviewer: 34,
-          USDC: 11,
-          WETH: 19,
+          Firewall: 33,
+          MarketUSDC: 11,
+          MarketWETH: 18,
+          IntegrationPreviewer: 29,
+          Previewer: 28,
+          RatePreviewer: 30,
+          USDC: 9,
+          WETH: 16,
         }[contract] ?? Infinity
       ]?.contractAddress;
     if (!address && required) throw new Error(`unknown contract: ${contract}`);

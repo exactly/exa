@@ -51,7 +51,7 @@ configI18n(initReactI18next)
   .use({
     type: "languageDetector",
     detect: () =>
-      getLocales()[0]?.languageCode ??
+      getLocales()[0].languageCode ??
       (typeof navigator === "undefined" ? undefined : navigator.language.split("-")[0]) ??
       "en",
   })
@@ -119,8 +119,9 @@ init({
   tracePropagationTargets: [domain],
   enableNativeFramesTracking: !isRunningInExpoGo(),
   enableUserInteractionTracing: true,
+  replaysOnErrorSampleRate: __DEV__ || e2e ? undefined : 1,
+  replaysSessionSampleRate: __DEV__ || e2e ? undefined : 0.01,
   integrations: [routingInstrumentation, userFeedback, ...(__DEV__ || e2e ? [] : [mobileReplayIntegration()])],
-  _experiments: __DEV__ || e2e ? undefined : { replaysOnErrorSampleRate: 1, replaysSessionSampleRate: 0.01 },
   beforeSend: (event, hint) => {
     let knownInfo = false;
     let knownWarning = false;

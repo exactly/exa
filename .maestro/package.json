@@ -9,14 +9,14 @@
     "dev": "nx dev e2e"
   },
   "engines": {
-    "node": "^24.13.0"
+    "node": "^24.14.0"
   },
   "devDependencies": {
     "@exactly/common": "workspace:^0.0.14",
     "@noble/curves": "^2.0.1",
     "@noble/hashes": "^2.0.1",
-    "esbuild": "^0.27.2",
-    "eslint": "^9.39.2",
+    "esbuild": "^0.27.4",
+    "eslint": "catalog:",
     "fast-text-encoding": "^1.0.6",
     "typescript": "catalog:",
     "viem": "catalog:"

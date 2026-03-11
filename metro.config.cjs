@@ -39,3 +39,27 @@ module.exports = {
     babelTransformerPath: require.resolve("react-native-svg-transformer/expo"),
   },
 };
+
+if (
+  process.argv.includes("export") &&
+  process.argv.some(
+    (argument, index, values) =>
+      argument === "-p=web" ||
+      argument === "--platform=web" ||
+      ((argument === "--platform" || argument === "-p") && values[index + 1] === "web"),
+  )
+) {
+  const { setInterval, setTimeout } = require("node:timers");
+  // @ts-expect-error implicit any is fine in shim
+  // eslint-disable-next-line jsdoc/require-jsdoc
+  function wrap(timer) {
+    // @ts-expect-error implicit any is fine in shim
+    return (...args) => {
+      const id = timer(...args); // eslint-disable-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
+      id.unref(); // eslint-disable-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+      return id; // eslint-disable-line @typescript-eslint/no-unsafe-return
+    };
+  }
+  global.setTimeout = Object.assign(wrap(setTimeout), { __promisify__: setTimeout.__promisify__ });
+  global.setInterval = wrap(setInterval);
+}

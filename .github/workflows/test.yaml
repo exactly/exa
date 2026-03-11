@@ -13,20 +13,18 @@ jobs:
       OPTIMISM_SEPOLIA_RPC_URL: ${{ secrets.OPTIMISM_SEPOLIA_RPC_URL }}
       POLYGON_RPC_URL: ${{ secrets.POLYGON_RPC_URL }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with: { fetch-depth: 0, fetch-tags: true }
-      - uses: pnpm/action-setup@v4
-        with: { version: "10.28.1", run_install: false }
-      - uses: actions/setup-node@v4
-        with: { node-version: "^24.13.0", cache: pnpm }
+      - uses: actions/setup-node@v6
+        with: { node-version: "^24.14.0" }
       - uses: foundry-rs/foundry-toolchain@v1
         with: { version: v1.5.1 }
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: contracts/requirements.txt
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: .nx/cache
           key: nx-${{ runner.os }}-${{ github.sha }}
@@ -43,8 +41,8 @@ jobs:
           done
           for pid in $streamingfast; do wait "$pid" || exit 1; done
       - run: echo ::add-matcher::.github/matcher.json
+      - run: corepack enable
       - run: pnpm install --frozen-lockfile
-      - uses: nrwl/nx-set-shas@v4 # cspell:ignore nrwl
       - run: pnpm nx run-many -t test
 
       - uses: codecov/codecov-action@v5
@@ -60,7 +58,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           name: test
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
           name: server-artifacts
@@ -75,20 +73,18 @@ jobs:
       CHAIN_ID: "31337"
       EXPO_PUBLIC_E2E_MNEMONIC: ${{ secrets.EXPO_PUBLIC_E2E_MNEMONIC }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with: { fetch-depth: 0, fetch-tags: true }
-      - uses: pnpm/action-setup@v4
-        with: { version: "10.28.1", run_install: false }
-      - uses: actions/setup-node@v4
-        with: { node-version: "^24.13.0", cache: pnpm }
+      - uses: actions/setup-node@v6
+        with: { node-version: "^24.14.0" }
       - uses: foundry-rs/foundry-toolchain@v1
         with: { version: v1.5.1 }
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: .nx/cache
           key: nx-${{ runner.os }}-${{ github.sha }}
           restore-keys: nx-${{ runner.os }}-
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with: { distribution: zulu, java-version: "17" }
       - run: |
           set -o pipefail
@@ -108,6 +104,7 @@ jobs:
             rm -rf $HOME/.maestro $HOME/.maestro.tmp
             sleep 2
           done
+      - run: corepack enable
       - run: pnpm install --frozen-lockfile
       - run: |
           pnpm nx run-many -t build -p mobile e2e
@@ -140,7 +137,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: e2e
           name: web
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
           name: e2e-artifacts

@@ -1,9 +1,11 @@
 autoInstallPeers: false
 catalog:
-  "@aa-sdk/core": &aaSDK ^4.82.1
+  "@aa-sdk/core": &aaSDK ^4.86.0
   "@account-kit/infra": *aaSDK
   "@account-kit/smart-contracts": *aaSDK
-  tamagui: &tamagui ^1.144.2
+  eslint: &eslint ^9.39.4
+  "@eslint/js": *eslint
+  tamagui: &tamagui ^1.144.4
   "@tamagui/animations-moti": *tamagui
   "@tamagui/babel-plugin": *tamagui
   "@tamagui/config": *tamagui
@@ -11,12 +13,12 @@ catalog:
   "@tamagui/toast": *tamagui
   "@wagmi/core": ^3.4.0
   hono: ^4.12.7
-  ioredis: ^5.9.2
-  react: &react "19.1.0"
+  ioredis: ^5.10.0
+  react: &react "19.2.0"
   react-dom: *react
   typescript: ^5.9.3
   valibot: ^1.2.0
-  viem: ^2.46.3
+  viem: ^2.47.2
   wagmi: ^3.5.0
 ignoreWorkspaceRootCheck: true
 includeWorkspaceRoot: true

@@ -74,7 +74,7 @@ export default function RolloverIntroSheet({ maturity, onClose }: { maturity?: s
         paddingBottom="$s7"
       >
         <View aspectRatio={2} justifyContent="center" alignItems="center">
-          <View width="100%" height="100%" style={StyleSheet.absoluteFillObject}>
+          <View width="100%" height="100%" style={StyleSheet.absoluteFill}>
             <CalendarImage width="100%" height="100%" />
           </View>
         </View>
