@@ -377,6 +377,7 @@ export default function Swaps() {
       });
       const { status } = await waitForCallsStatus(exaConfig, { id });
       if (status === "failure") throw new Error("failed to swap");
+      await queryClient.invalidateQueries({ queryKey: ["lifi", "tokenBalances"] });
     },
     onMutate() {
       updateSwap((old) => ({ ...old, enableSimulations: false }));
