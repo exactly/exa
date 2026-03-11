@@ -489,6 +489,10 @@ export default function Repay() {
         usdAmount: (Number(externalAsset.priceUSD) * Number(route.fromAmount)) / 10 ** externalAsset.decimals,
       });
     },
+    onSuccess() {
+      queryClient.invalidateQueries({ queryKey: assetQueryKey }).catch(reportError);
+      queryClient.invalidateQueries({ queryKey: ["lifi", "tokenBalances"] }).catch(reportError);
+    },
     onSettled() {
       setEnableSimulations(true);
     },
