@@ -376,7 +376,7 @@ export default function Swaps() {
     aboveThreshold(fromAmount, selectedTokenAvailable, 90, selectedTokenMarket?.decimals ?? 0);
 
   const showWarning = fromToken && !fromToken.external && fromAmount > 0n && (caution || danger);
-  const disabled = isSimulating || !!simulationError || danger;
+  const disabled = !route || isSimulating || !!simulationError || danger;
   const buttonLabel = useMemo(() => {
     if (isSimulating && route) return isInsufficientBalance ? t("Insufficient balance") : t("Please wait...");
     if (simulationError) return t("Cannot proceed");
@@ -602,6 +602,7 @@ export default function Swaps() {
       return (
         <Success
           {...properties}
+          external={fromToken.external}
           onClose={() => {
             onClose();
           }}
