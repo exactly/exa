@@ -160,10 +160,8 @@ contract Redeployer is BaseScript {
     vm.stopBroadcast();
   }
 
-  /// @notice Deploys proxies with dummy implementation, consuming deployer nonces
-  /// @param targetNonce The nonce to stop at (inclusive)
-  /// @return start The starting nonce
-  function run(uint256 targetNonce) external returns (uint256 start) {
+  /// @notice Deploys proxies with dummy implementation, consuming deployer nonces.
+  function proxyThrough(uint256 targetNonce) external returns (uint256 start) {
     if (address(dummy).code.length == 0) revert DummyNotDeployed();
     if (address(proxyAdmin).code.length == 0) revert ProxyAdminNotDeployed();
 
