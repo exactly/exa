@@ -15,7 +15,7 @@ import {
 } from "viem";
 import { useBytecode, useSimulateContract } from "wagmi";
 
-import {
+import chain, {
   exaPluginAddress,
   exaPreviewerAddress,
   proposalManagerAddress,
@@ -188,21 +188,35 @@ export default function useSimulateProposal({
                     [{ assetOut: proposal.assetOut, minAmountOut: proposal.minAmountOut, route: proposal.route }],
                   )
               : proposal.receiver && encodeAbiParameters([{ type: "address" }], [proposal.receiver]);
-  const { data: deployed } = useBytecode({ address: account, query: { enabled: enabled && !!account } });
+  const { data: deployed } = useBytecode({
+    address: account,
+    chainId: chain.id,
+    query: { enabled: enabled && !!account },
+  });
   const hasMarket = market !== undefined && market !== zeroAddress;
   const propose = useSimulateContract({
     account,
     address: account,
+    chainId: chain.id,
     functionName: "propose",
     abi: [...upgradeableModularAccountAbi, ...exaPluginAbi, ...proposalManagerAbi],
     args: hasMarket ? [market, amount ?? 0n, proposal.proposalType, proposalData ?? "0x"] : undefined,
     query: { enabled: enabled && !!deployed && !!account && !!amount && hasMarket },
   });
 
-  const { data: proposalDelay } = useReadProposalManagerDelay({ address: proposalManagerAddress, query: { enabled } });
-  const { data: assets } = useReadExaPreviewerAssets({ address: exaPreviewerAddress, query: { enabled } });
+  const { data: proposalDelay } = useReadProposalManagerDelay({
+    address: proposalManagerAddress,
+    chainId: chain.id,
+    query: { enabled },
+  });
+  const { data: assets } = useReadExaPreviewerAssets({
+    address: exaPreviewerAddress,
+    chainId: chain.id,
+    query: { enabled },
+  });
   const { data: nonce } = useReadProposalManagerQueueNonces({
     address: proposalManagerAddress,
+    chainId: chain.id,
     args: account ? [account] : undefined,
     query: { enabled: enabled && !!account },
   });
@@ -304,6 +318,7 @@ export default function useSimulateProposal({
   const executeProposal = useSimulateContract({
     account,
     address: account,
+    chainId: chain.id,
     functionName: "executeProposal",
     args: [nonce ?? 0n],
     abi: [...upgradeableModularAccountAbi, ...exaPluginAbi, ...proposalManagerAbi, ...auditorAbi, ...marketAbi],

@@ -74,9 +74,10 @@ export default function Amount() {
   const formAmount = useStore(form.store, (state) => state.values.amount);
 
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
-  const { data: bytecode } = useBytecode({ address, query: { enabled: !!address } });
+  const { data: bytecode } = useBytecode({ address, chainId: chain.id, query: { enabled: !!address } });
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
     address,
+    chainId: chain.id,
     factory: credential?.factory,
     factoryData: credential && accountInit(credential),
     query: { enabled: !!address && !!credential },
@@ -87,6 +88,7 @@ export default function Amount() {
     !!market && !!address && !!bytecode && formAmount > 0n && !!receiver && receiver !== zeroAddress;
   const { data: proposeSimulation } = useSimulateContract({
     address,
+    chainId: chain.id,
     functionName: "propose",
     abi: exaPluginAbi,
     args: [
@@ -99,6 +101,7 @@ export default function Amount() {
   });
   const { data: legacyProposeSimulation } = useSimulateContract({
     address,
+    chainId: chain.id,
     functionName: "propose",
     abi: [
       ...upgradeableModularAccountAbi,
@@ -127,6 +130,7 @@ export default function Amount() {
 
   const { data: erc20TransferSimulation } = useSimulateContract({
     address: externalAddress,
+    chainId: chain.id,
     abi: erc20Abi,
     functionName: "transfer",
     args: receiver ? [receiver, formAmount] : undefined,
@@ -143,6 +147,7 @@ export default function Amount() {
   });
 
   const { data: nativeTransferEstimate } = useEstimateGas({
+    chainId: chain.id,
     to: receiver,
     value: formAmount,
     query: {

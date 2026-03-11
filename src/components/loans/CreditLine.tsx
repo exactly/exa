@@ -9,7 +9,7 @@ import { Separator, XStack, YStack } from "tamagui";
 import { formatUnits } from "viem";
 import { useBytecode } from "wagmi";
 
-import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
+import chain, { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { borrowLimit } from "@exactly/lib";
 
@@ -27,9 +27,10 @@ export default function CreditLine() {
     t,
     i18n: { language },
   } = useTranslation();
-  const { data: bytecode } = useBytecode({ address, query: { enabled: !!address } });
+  const { data: bytecode } = useBytecode({ address, chainId: chain.id, query: { enabled: !!address } });
   const { data: markets } = useReadPreviewerExactly({
     address: previewerAddress,
+    chainId: chain.id,
     args: address ? [address] : undefined,
     query: { enabled: !!bytecode && !!address },
   });

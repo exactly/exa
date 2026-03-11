@@ -7,7 +7,7 @@ import { XStack, YStack } from "tamagui";
 import { isBefore } from "date-fns";
 import { useBytecode } from "wagmi";
 
-import { exaPreviewerAddress, previewerAddress } from "@exactly/common/generated/chain";
+import chain, { exaPreviewerAddress, previewerAddress } from "@exactly/common/generated/chain";
 import { useReadExaPreviewerPendingProposals, useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import ProposalType, {
   decodeCrossRepayAtMaturity,
@@ -27,14 +27,16 @@ export default function OverduePayments({ onSelect }: { onSelect: (maturity: big
     i18n: { language },
   } = useTranslation();
   const { address } = useAccount();
-  const { data: bytecode } = useBytecode({ address, query: { enabled: !!address } });
+  const { data: bytecode } = useBytecode({ address, chainId: chain.id, query: { enabled: !!address } });
   const { data: pendingProposals } = useReadExaPreviewerPendingProposals({
     address: exaPreviewerAddress,
+    chainId: chain.id,
     args: address ? [address] : undefined,
     query: { enabled: !!address && !!bytecode, gcTime: 0, refetchInterval: 30_000 },
   });
   const { data: markets } = useReadPreviewerExactly({
     address: previewerAddress,
+    chainId: chain.id,
     args: address ? [address] : undefined,
     query: { enabled: !!address && !!bytecode, refetchInterval: 30_000 },
   });

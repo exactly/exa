@@ -7,7 +7,7 @@ import { useRouter } from "expo-router";
 import { ArrowLeft, ArrowRight, Check, CircleHelp } from "@tamagui/lucide-icons";
 import { ScrollView, XStack, YStack } from "tamagui";
 
-import { previewerAddress } from "@exactly/common/generated/chain";
+import chain, { previewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 
 import { presentArticle } from "../../utils/intercom";
@@ -27,6 +27,7 @@ export default function Asset() {
   const [selectedMarket, setSelectedMarket] = useState<string>();
   const { data: markets } = useReadPreviewerExactly({
     address: previewerAddress,
+    chainId: chain.id,
     args: address ? [address] : undefined,
     query: { enabled: !!address },
   });

@@ -101,9 +101,10 @@ export default function Pay() {
   });
   const { mutateAsync: mutateSendCalls } = useSendCalls();
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
-  const { data: bytecode } = useBytecode({ address: account, query: { enabled: !!account } });
+  const { data: bytecode } = useBytecode({ address: account, chainId: chain.id, query: { enabled: !!account } });
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
     address: account,
+    chainId: chain.id,
     factory: credential?.factory,
     factoryData: credential && accountInit(credential),
     query: { enabled: !!account && !!credential },
@@ -133,6 +134,7 @@ export default function Pay() {
 
   const { data: fixedRepaySnapshot } = useReadContract({
     address: integrationPreviewerAddress,
+    chainId: chain.id,
     abi: integrationPreviewerAbi,
     functionName: "fixedRepaySnapshot",
     args: account ? [account, marketUSDCAddress, maturity ?? 0n] : undefined,
@@ -141,6 +143,7 @@ export default function Pay() {
 
   const { data: proposalDelay, isLoading: isProposalDelayLoading } = useReadProposalManagerDelay({
     address: proposalManagerAddress,
+    chainId: chain.id,
   });
   const simulationTimestamp =
     proposalDelay === undefined ? undefined : Math.floor(Date.now() / 1000) + Number(proposalDelay);
@@ -164,6 +167,7 @@ export default function Pay() {
 
   const { data: balancerUSDCBalance } = useReadContract({
     address: usdcAddress,
+    chainId: chain.id,
     abi: erc20Abi,
     functionName: "balanceOf",
     args: balancerVaultAddress ? [balancerVaultAddress] : undefined,
@@ -318,6 +322,7 @@ export default function Pay() {
     isPending: isSimulatingLegacyRepay,
   } = useSimulateContract({
     address: account,
+    chainId: chain.id,
     functionName: "repay",
     args: [maturity ?? 0n],
     abi: [
@@ -341,6 +346,7 @@ export default function Pay() {
     isPending: isSimulatingLegacyCrossRepay,
   } = useSimulateContract({
     address: account,
+    chainId: chain.id,
     functionName: "crossRepay",
     args: selectedAsset.address && maturity ? [maturity, selectedAsset.address] : undefined,
     abi: [

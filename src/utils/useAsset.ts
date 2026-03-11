@@ -2,7 +2,7 @@ import { useMemo } from "react";
 
 import { useQuery } from "@tanstack/react-query";
 
-import { previewerAddress } from "@exactly/common/generated/chain";
+import chain, { previewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { borrowLimit, withdrawLimit } from "@exactly/lib";
 
@@ -19,6 +19,7 @@ export default function useAsset(address?: Address) {
     isFetching: isMarketsFetching,
   } = useReadPreviewerExactly({
     address: previewerAddress,
+    chainId: chain.id,
     args: account ? [account] : undefined,
     query: { enabled: !!account },
   });

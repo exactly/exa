@@ -11,7 +11,7 @@ import { useQuery } from "@tanstack/react-query";
 import { formatUnits } from "viem";
 import { useBytecode } from "wagmi";
 
-import { previewerAddress } from "@exactly/common/generated/chain";
+import chain, { previewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 
 import AmountSelector from "./AmountSelector";
@@ -34,9 +34,10 @@ export default function Amount() {
     t,
     i18n: { language },
   } = useTranslation();
-  const { data: bytecode } = useBytecode({ address, query: { enabled: !!address } });
+  const { data: bytecode } = useBytecode({ address, chainId: chain.id, query: { enabled: !!address } });
   const { data: markets } = useReadPreviewerExactly({
     address: previewerAddress,
+    chainId: chain.id,
     args: address ? [address] : undefined,
     query: { enabled: !!bytecode && !!address },
   });

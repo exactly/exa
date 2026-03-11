@@ -10,6 +10,8 @@ import { ScrollView, XStack, YStack } from "tamagui";
 import { useQuery } from "@tanstack/react-query";
 import { useBytecode } from "wagmi";
 
+import chain from "@exactly/common/generated/chain";
+
 import Step from "./Step";
 import { presentArticle } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
@@ -25,7 +27,7 @@ import type { KYCStatus } from "../../utils/server";
 
 function useOnboardingState() {
   const { address: account } = useAccount();
-  const { data: bytecode } = useBytecode({ address: account, query: { enabled: !!account } });
+  const { data: bytecode } = useBytecode({ address: account, chainId: chain.id, query: { enabled: !!account } });
   const { data: kycStatus } = useQuery<KYCStatus>({ queryKey: ["kyc", "status"] });
   const isDeployed = !!bytecode;
   const hasKYC = Boolean(

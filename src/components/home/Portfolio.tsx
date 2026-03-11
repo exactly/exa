@@ -7,7 +7,7 @@ import { useRouter } from "expo-router";
 import { ArrowLeft, CircleHelp } from "@tamagui/lucide-icons";
 import { ScrollView, XStack } from "tamagui";
 
-import { previewerAddress } from "@exactly/common/generated/chain";
+import chain, { previewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 
 import AssetList from "./AssetList";
@@ -33,6 +33,7 @@ export default function Portfolio() {
 
   const { refetch: refetchMarkets, isFetching: isFetchingMarkets } = useReadPreviewerExactly({
     address: previewerAddress,
+    chainId: chain.id,
     args: address ? [address] : undefined,
     query: { enabled: !!address },
   });

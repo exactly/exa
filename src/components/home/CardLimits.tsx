@@ -8,7 +8,7 @@ import { XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 
-import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
+import chain, { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { borrowLimit, WAD, withdrawLimit } from "@exactly/lib";
 
@@ -28,6 +28,7 @@ export default function CardLimits({ onPress }: { onPress: () => void }) {
   const { data: card } = useQuery<CardDetails>({ queryKey: ["card", "details"] });
   const { data: markets } = useReadPreviewerExactly({
     address: previewerAddress,
+    chainId: chain.id,
     args: address ? [address] : undefined,
     query: { enabled: !!address },
   });

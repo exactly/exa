@@ -11,7 +11,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useBytecode } from "wagmi";
 
 import accountInit from "@exactly/common/accountInit";
-import { exaPluginAddress, exaPreviewerAddress, previewerAddress } from "@exactly/common/generated/chain";
+import chain, { exaPluginAddress, exaPreviewerAddress, previewerAddress } from "@exactly/common/generated/chain";
 import {
   useReadExaPreviewerPendingProposals,
   useReadPreviewerExactly,
@@ -64,10 +64,12 @@ export default function Home() {
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const { data: bytecode, refetch: refetchBytecode } = useBytecode({
     address: account,
+    chainId: chain.id,
     query: { enabled: !!account },
   });
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
     address: account,
+    chainId: chain.id,
     factory: credential?.factory,
     factoryData: credential && accountInit(credential),
     query: { enabled: !!account && !!credential },
@@ -88,6 +90,7 @@ export default function Home() {
   });
   const { refetch: refetchPendingProposals } = useReadExaPreviewerPendingProposals({
     address: exaPreviewerAddress,
+    chainId: chain.id,
     args: account ? [account] : undefined,
     query: { enabled: !!account && !!bytecode, gcTime: 0, refetchInterval: 30_000 },
   });
@@ -98,6 +101,7 @@ export default function Home() {
     isFetching: isFetchingPreviewer,
   } = useReadPreviewerExactly({
     address: previewerAddress,
+    chainId: chain.id,
     args: account ? [account] : undefined,
     query: { enabled: !!account },
   });
