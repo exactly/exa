@@ -3,6 +3,7 @@ import "../mocks/auth";
 import "../mocks/deployments";
 import "../mocks/sentry";
 
+import { HTTPException } from "hono/http-exception";
 import { testClient } from "hono/testing";
 import { hexToBytes, padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
@@ -217,7 +218,7 @@ describe("ramp api", () => {
       it("rethrows unknown manteca error", async () => {
         vi.spyOn(manteca, "getUser").mockResolvedValue(mantecaUser);
         vi.spyOn(manteca, "getDepositDetails").mockImplementation(() => {
-          throw new Error("unexpected manteca failure");
+          throw new HTTPException(500, { message: "unexpected manteca failure" });
         });
 
         const response = await appClient.quote.$get(
@@ -865,7 +866,9 @@ describe("ramp api", () => {
       });
 
       it("returns 500 on unknown bridge error", async () => {
-        vi.spyOn(bridge, "onboarding").mockRejectedValue(new Error("unexpected bridge failure"));
+        vi.spyOn(bridge, "onboarding").mockRejectedValue(
+          new HTTPException(500, { message: "unexpected bridge failure" }),
+        );
 
         const response = await appClient.index.$post(
           { json: { provider: "bridge", acceptedTermsId: "terms_123" } },

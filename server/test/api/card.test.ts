@@ -6,6 +6,7 @@ import "../mocks/pax";
 import "../mocks/persona";
 
 import { eq } from "drizzle-orm";
+import { HTTPException } from "hono/http-exception";
 import { testClient } from "hono/testing";
 import { parse } from "valibot";
 import { hexToBigInt, padHex, parseEther, zeroHash } from "viem";
@@ -294,7 +295,7 @@ describe("authenticated", () => {
     vi.spyOn(panda, "getSecrets").mockResolvedValueOnce(panTemplate);
     vi.spyOn(panda, "getPIN").mockResolvedValueOnce(pinTemplate);
     vi.spyOn(panda, "getCard").mockResolvedValueOnce(cardTemplate);
-    vi.spyOn(panda, "getUser").mockRejectedValueOnce(new ServiceError("Panda", 403, "", "ForbiddenError"));
+    vi.spyOn(panda, "getUser").mockRejectedValueOnce(new HTTPException(500, { message: "unexpected panda failure" }));
 
     const response = await appClient.index.$get(
       { header: { sessionid: "fakeSession" } },
@@ -332,7 +333,7 @@ describe("authenticated", () => {
     vi.spyOn(panda, "getSecrets").mockResolvedValueOnce(panTemplate);
     vi.spyOn(panda, "getPIN").mockResolvedValueOnce(pinTemplate);
     vi.spyOn(panda, "getCard").mockResolvedValueOnce(cardTemplate);
-    vi.spyOn(panda, "getUser").mockRejectedValueOnce(new ServiceError("Panda", 500, "internal server error"));
+    vi.spyOn(panda, "getUser").mockRejectedValueOnce(new HTTPException(500, { message: "internal server error" }));
 
     const response = await appClient.index.$get(
       { header: { sessionid: "fakeSession" } },
@@ -460,11 +461,9 @@ describe("authenticated", () => {
       pandaId: credentialId,
     });
 
-    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
-      ok: false,
-      status: 403,
-      text: () => Promise.resolve(""),
-    } as Response);
+    vi.spyOn(panda, "createCard").mockRejectedValueOnce(
+      new HTTPException(500, { message: "unexpected panda failure" }),
+    );
 
     const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
 
@@ -481,11 +480,7 @@ describe("authenticated", () => {
       pandaId: credentialId,
     });
 
-    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
-      ok: false,
-      status: 403,
-      text: () => Promise.resolve('{"message":"User is locked","error":"ForbiddenError","statusCode":403}'),
-    } as Response);
+    vi.spyOn(panda, "createCard").mockRejectedValueOnce(new HTTPException(500, { message: "User is locked" }));
 
     const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
 
