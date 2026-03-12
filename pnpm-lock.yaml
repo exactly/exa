@@ -869,9 +869,6 @@ importers:
       execa:
         specifier: ^9.6.1
         version: 9.6.1
-      ioredis-mock:
-        specifier: ^8.13.1
-        version: 8.13.1(@types/ioredis-mock@8.2.6(ioredis@5.9.2))(ioredis@5.9.2)
       openapi-types:
         specifier: ^12.1.3
         version: 12.1.3
@@ -3495,9 +3492,6 @@ packages:
 
   '@intercom/messenger-js-sdk@0.0.18':
     resolution: {integrity: sha512-OQbhnNh26cdI0ddIVh67JOGnSTFAHrbKF5atXuOeWpDF2Ups3O7Do1Oz42BrvQA/o0AZF+1Wqaxtc3kq70wc6w==}
-
-  '@ioredis/as-callback@3.0.0':
-    resolution: {integrity: sha512-Kqv1rZ3WbgOrS+hgzJ5xG5WQuhvzzSTRYvNeyPMLOAM78MHSnuKI20JeJGbpuAt//LCuP0vsexZcorqW7kWhJg==}
 
   '@ioredis/commands@1.5.0':
     resolution: {integrity: sha512-eUgLqrMf8nJkZxT24JvVRrQya1vZkQh8BBeYNwGDqa5I0VUi8ACx7uFvAaLxintokpTenkK6DASvo/bvNbBGow==}
@@ -8782,14 +8776,6 @@ packages:
       picomatch:
         optional: true
 
-  fengari-interop@0.1.4:
-    resolution: {integrity: sha512-4/CW/3PJUo3ebD4ACgE1g/3NGEYSq7OQAyETyypsAl/WeySDBbxExikkayNkZzbpgyC9GyJp8v1DU2VOXxNq7Q==}
-    peerDependencies:
-      fengari: ^0.1.0
-
-  fengari@0.1.5:
-    resolution: {integrity: sha512-0DS4Nn4rV8qyFlQCpKK8brT61EUtswynrpfFTcgLErcilBIBskSMQ86fO2WVuybr14ywyKdRjv91FiRZwnEuvQ==}
-
   fflate@0.8.2:
     resolution: {integrity: sha512-cPJU47OaAoCbg0pBvzsgpTPhmhqI5eJjh/JIu8tPj5q+T7iLvW/JAYUqmE7KOB4R1ZyEhzBaIQpQpardBF5z8A==}
 
@@ -9531,13 +9517,6 @@ packages:
 
   invariant@2.2.4:
     resolution: {integrity: sha512-phJfQVBuaJM5raOpJjSfkiD6BpbCE4Ns//LaXl6wGYtUBY83nWS6Rf9tXm2e8VaK60JEjYldbPif/A2B1C2gNA==}
-
-  ioredis-mock@8.13.1:
-    resolution: {integrity: sha512-Wsi50AU+cMiI32nAgfwpUaJVBtb4iQdVsOHl9M6R3tePCO/8vGsToCVIG82XWAxN4Se55TZoOzVseu+QngFLyw==}
-    engines: {node: '>=12.22'}
-    peerDependencies:
-      '@types/ioredis-mock': ^8
-      ioredis: ^5.9.2
 
   ioredis@5.9.2:
     resolution: {integrity: sha512-tAAg/72/VxOUW7RQSX1pIxJVucYKcjFjfvj60L57jrZpYCHC3XN0WCQ3sNYL4Gmvv+7GPvTAjc+KSdeNuE8oWQ==}
@@ -11779,10 +11758,6 @@ packages:
     resolution: {integrity: sha512-9u/XQ1pvrQtYyMpZe7DXKv2p5CNvyVwzUB6uhLAnQwHMSgKMBR62lc7AHljaeteeHXn11XTAaLLUVZYVZyuRBQ==}
     engines: {node: '>= 20.19.0'}
 
-  readline-sync@1.4.10:
-    resolution: {integrity: sha512-gNva8/6UAe8QYepIQH/jQ2qn91Qj0B9sYjMBBs3QOB8F2CXcKgLxQaJRP76sWVRQt+QU+8fAkCbCvjjMFu7Ycw==}
-    engines: {node: '>= 0.8.0'}
-
   recma-build-jsx@1.0.0:
     resolution: {integrity: sha512-8GtdyqaBcDfva+GUKDr3nev3VpKAhup1+RvkMvUxURHpW7QyIvk9F5wz7Vzo06CEMSilw6uArgRqhpiUcWp8ew==}
 
@@ -12368,9 +12343,6 @@ packages:
 
   sprintf-js@1.0.3:
     resolution: {integrity: sha512-D9cPgkvLlV3t3IzL0D0YLvGA9Ahk4PcvVwUbN0dSGr1aP0Nrt4AEnTUbuGvquEC0mA64Gqt1fzirlRs5ibXx8g==}
-
-  sprintf-js@1.1.3:
-    resolution: {integrity: sha512-Oo+0REFV59/rz3gfJNKQiBlwfHaSESl1pcGyABQsnnIfWOFt6JNj5gCog2U6MLZ//IGYD+nA8nI+mTShREReaA==}
 
   stable-hash-x@0.2.0:
     resolution: {integrity: sha512-o3yWv49B/o4QZk5ZcsALc6t0+eCelPc44zZsLtCQnZPDwFpDYSWcDnrv2TtMmMbQ7uKo3J0HTURCqckw23czNQ==}
@@ -16650,8 +16622,6 @@ snapshots:
       react-native: 0.81.5(@babel/core@7.28.6)(@types/react@19.1.17)(bufferutil@4.1.0)(react@19.1.0)(utf-8-validate@5.0.10)
 
   '@intercom/messenger-js-sdk@0.0.18': {}
-
-  '@ioredis/as-callback@3.0.0': {}
 
   '@ioredis/commands@1.5.0': {}
 
@@ -23791,16 +23761,6 @@ snapshots:
     optionalDependencies:
       picomatch: 4.0.3
 
-  fengari-interop@0.1.4(fengari@0.1.5):
-    dependencies:
-      fengari: 0.1.5
-
-  fengari@0.1.5:
-    dependencies:
-      readline-sync: 1.4.10
-      sprintf-js: 1.1.3
-      tmp: 0.2.5
-
   fflate@0.8.2: {}
 
   figures@3.2.0:
@@ -24679,16 +24639,6 @@ snapshots:
   invariant@2.2.4:
     dependencies:
       loose-envify: 1.4.0
-
-  ioredis-mock@8.13.1(@types/ioredis-mock@8.2.6(ioredis@5.9.2))(ioredis@5.9.2):
-    dependencies:
-      '@ioredis/as-callback': 3.0.0
-      '@ioredis/commands': 1.5.0
-      '@types/ioredis-mock': 8.2.6(ioredis@5.9.2)
-      fengari: 0.1.5
-      fengari-interop: 0.1.4(fengari@0.1.5)
-      ioredis: 5.9.2
-      semver: 7.7.3
 
   ioredis@5.9.2:
     dependencies:
@@ -27608,8 +27558,6 @@ snapshots:
 
   readdirp@5.0.0: {}
 
-  readline-sync@1.4.10: {}
-
   recma-build-jsx@1.0.0:
     dependencies:
       '@types/estree': 1.0.8
@@ -28431,8 +28379,6 @@ snapshots:
       through: 2.3.8
 
   sprintf-js@1.0.3: {}
-
-  sprintf-js@1.1.3: {}
 
   stable-hash-x@0.2.0: {}
 
