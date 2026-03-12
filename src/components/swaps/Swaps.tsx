@@ -346,6 +346,7 @@ export default function Swaps() {
         return { to: address, data: encodeFunctionData({ abi, functionName, args }) };
       })();
       const { id } = await mutateSendCalls({
+        chainId: chain.id,
         calls: [call],
         capabilities: {
           paymasterService: {

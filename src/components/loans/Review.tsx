@@ -143,6 +143,7 @@ export default function Review() {
         calls.push({ to: address, data });
       }
       const { id } = await mutateSendCalls({
+        chainId: chain.id,
         calls,
         capabilities: {
           paymasterService: {
