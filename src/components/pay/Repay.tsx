@@ -410,6 +410,7 @@ export default function Repay() {
         }
       })();
       const { id } = await mutateSendCalls({
+        chainId: chain.id,
         calls: [call],
         capabilities: {
           paymasterService: {
@@ -456,6 +457,7 @@ export default function Repay() {
         usdAmount: (Number(externalAsset.priceUSD) * Number(route.fromAmount)) / 10 ** externalAsset.decimals,
       });
       const { id } = await mutateSendCalls({
+        chainId: chain.id,
         calls: [
           {
             to: selectedAsset.address,

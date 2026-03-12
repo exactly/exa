@@ -114,6 +114,7 @@ export default function Amount() {
   const { mutateAsync: mutateSendCalls } = useSendCalls();
   const sendCalls = async (calls: readonly { data?: `0x${string}`; to: `0x${string}`; value?: bigint }[]) => {
     const { id } = await mutateSendCalls({
+      chainId: chain.id,
       calls,
       capabilities: {
         paymasterService: {
