@@ -39,6 +39,7 @@ import Error from "../components/shared/Error";
 import release from "../generated/release";
 import en from "../i18n/en.json";
 import es from "../i18n/es.json";
+import pt from "../i18n/pt.json";
 import e2e from "../utils/e2e";
 import queryClient, { persistOptions } from "../utils/queryClient";
 import reportError, { classifyError } from "../utils/reportError";
@@ -59,7 +60,7 @@ configI18n(initReactI18next)
     fallbackLng: "en",
     keySeparator: false,
     nsSeparator: false,
-    resources: { en: { translation: en }, es: { translation: es } },
+    resources: { en: { translation: en }, es: { translation: es }, pt: { translation: pt } },
   })
   .catch(reportError);
 
