@@ -145,6 +145,57 @@ describe("proposal", () => {
       ]);
       expect(hasExpectedTransfers(receipts, expected)).toBe(true);
     });
+
+    it("sends withdraw notification after proposal execution", async () => {
+      const [withdraw, anotherWithdraw] = proposals;
+      if (!withdraw || !anotherWithdraw) throw new Error("missing proposals");
+      const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification").mockResolvedValue({});
+      vi.spyOn(ensClient, "getEnsName").mockResolvedValue("alice.eth");
+      vi.spyOn(publicClient, "readContract").mockImplementation(({ functionName }) => {
+        if (functionName === "decimals") return Promise.resolve(6);
+        if (functionName === "symbol") return Promise.resolve("exaUSDC");
+        return Promise.reject(new Error("unexpected readContract call"));
+      });
+      const proposalExecutions = waitForSuccessfulProposalExecutions([withdraw.args.nonce, anotherWithdraw.args.nonce]);
+
+      await Promise.all([
+        appClient.index.$post({
+          ...withdrawProposal,
+          json: {
+            ...withdrawProposal.json,
+            event: {
+              ...withdrawProposal.json.event,
+              data: {
+                ...withdrawProposal.json.event.data,
+                block: {
+                  ...withdrawProposal.json.event.data.block,
+                  logs: [
+                    { topics: withdraw.topics, data: withdraw.data, account: { address: withdraw.address } },
+                    {
+                      topics: anotherWithdraw.topics,
+                      data: anotherWithdraw.data,
+                      account: { address: anotherWithdraw.address },
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        }),
+        proposalExecutions,
+      ]);
+      await vi.waitUntil(() => sendPushNotification.mock.calls.length >= 2, 26_666);
+      expect(sendPushNotification).toHaveBeenCalledWith({
+        userId: bobAccount,
+        headings: { en: "Withdraw completed", es: "Retiro completado" }, // cspell:ignore Retiro completado
+        contents: { en: "3 USDC sent to alice.eth", es: "3 USDC enviados a alice.eth" }, // cspell:ignore enviados
+      });
+      expect(sendPushNotification).toHaveBeenCalledWith({
+        userId: bobAccount,
+        headings: { en: "Withdraw completed", es: "Retiro completado" },
+        contents: { en: "4 USDC sent to alice.eth", es: "4 USDC enviados a alice.eth" },
+      });
+    });
   });
 
   describe("with weth withdraw proposal", () => {
@@ -1243,8 +1294,8 @@ describe("legacy withdraw", () => {
     await vi.waitUntil(() => zrem.mock.calls.some((call) => match.zrem(call)), 26_666);
     expect(sendPushNotification).toHaveBeenCalledWith({
       userId: withdrawAccount,
-      headings: { en: "Withdraw completed" },
-      contents: { en: "1.375 USDC sent to alice.eth" },
+      headings: { en: "Withdraw completed", es: "Retiro completado" }, // cspell:ignore Retiro completado
+      contents: { en: "1.375 USDC sent to alice.eth", es: "1,375 USDC enviados a alice.eth" }, // cspell:ignore enviados
     });
     const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
     expect(captureExceptionCalls.filter((call) => match.capture(call))).toEqual([]);

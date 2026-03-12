@@ -30,6 +30,9 @@ catalogs:
     '@tamagui/toast':
       specifier: ^1.144.2
       version: 1.144.2
+    i18next:
+      specifier: ^25.7.4
+      version: 25.7.4
     react:
       specifier: 19.1.0
       version: 19.1.0
@@ -55,7 +58,7 @@ catalogs:
 overrides:
   '@isaacs/brace-expansion': ^5.0.1
   '@modelcontextprotocol/sdk': ^1.26.0
-  '@wagmi/core': ^3.2.2
+  '@wagmi/core': ^3.4.0
   abitype>zod: ^4.0.0
   comlink: ^4.4.2
   axios@1.13.2: ^1.13.5
@@ -141,7 +144,7 @@ importers:
         version: 0.2.1(patch_hash=c779770b62e09976bdb62d23f50ed7922449031159c67766586c0e76f41acb7e)(typescript@5.9.3)(zod@4.3.5)
       '@farcaster/miniapp-wagmi-connector':
         specifier: ^1.1.0
-        version: 1.1.0(@farcaster/miniapp-sdk@0.2.1(patch_hash=c779770b62e09976bdb62d23f50ed7922449031159c67766586c0e76f41acb7e)(typescript@5.9.3)(zod@4.3.5))(@wagmi/core@3.2.2(@tanstack/query-core@5.90.19)(@types/react@19.1.17)(ox@0.11.3(typescript@5.9.3)(zod@4.3.5))(react@19.1.0)(typescript@5.9.3)(use-sync-external-store@1.6.0(react@19.1.0))(viem@2.44.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.5)))(viem@2.44.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.5))
+        version: 1.1.0(@farcaster/miniapp-sdk@0.2.1(patch_hash=c779770b62e09976bdb62d23f50ed7922449031159c67766586c0e76f41acb7e)(typescript@5.9.3)(zod@4.3.5))(@wagmi/core@3.4.0(@tanstack/query-core@5.90.19)(@types/react@19.1.17)(ox@0.11.3(typescript@5.9.3)(zod@4.3.5))(react@19.1.0)(typescript@5.9.3)(use-sync-external-store@1.6.0(react@19.1.0))(viem@2.44.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.5)))(viem@2.44.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.5))
       '@intercom/intercom-react-native':
         specifier: ^9.4.0
         version: 9.4.0(react-native@0.81.5(@babel/core@7.28.6)(@types/react@19.1.17)(bufferutil@4.1.0)(react@19.1.0)(utf-8-validate@5.0.10))(react@19.1.0)
@@ -206,8 +209,8 @@ importers:
         specifier: ^5.90.21
         version: 5.90.21(@tanstack/react-query@5.90.19(react@19.1.0))(react@19.1.0)
       '@wagmi/core':
-        specifier: ^3.2.2
-        version: 3.2.2(@tanstack/query-core@5.90.19)(@types/react@19.1.17)(ox@0.11.3(typescript@5.9.3)(zod@4.3.5))(react@19.1.0)(typescript@5.9.3)(use-sync-external-store@1.6.0(react@19.1.0))(viem@2.44.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.5))
+        specifier: ^3.4.0
+        version: 3.4.0(@tanstack/query-core@5.90.19)(@types/react@19.1.17)(ox@0.11.3(typescript@5.9.3)(zod@4.3.5))(react@19.1.0)(typescript@5.9.3)(use-sync-external-store@1.6.0(react@19.1.0))(viem@2.44.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.5))
       abitype:
         specifier: ^1.2.3
         version: 1.2.3(typescript@5.9.3)(zod@4.3.5)
@@ -290,7 +293,7 @@ importers:
         specifier: ^7.14.0
         version: 7.14.0
       i18next:
-        specifier: ^25.7.4
+        specifier: 'catalog:'
         version: 25.7.4(typescript@5.9.3)
       moti:
         specifier: ^0.30.0
@@ -802,6 +805,9 @@ importers:
       i18n-iso-countries:
         specifier: ^7.14.0
         version: 7.14.0
+      i18next:
+        specifier: 'catalog:'
+        version: 25.7.4(typescript@5.9.3)
       ioredis:
         specifier: ^5.9.2
         version: 5.9.2
@@ -858,8 +864,8 @@ importers:
         specifier: ^4.0.17
         version: 4.0.17(vitest@4.0.17)
       '@wagmi/core':
-        specifier: ^3.2.2
-        version: 3.2.2(@tanstack/query-core@5.90.19)(@types/react@19.1.17)(ox@0.11.3(typescript@5.9.3)(zod@4.3.5))(react@19.1.0)(typescript@5.9.3)(use-sync-external-store@1.6.0(react@19.1.0))(viem@2.44.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.5))
+        specifier: ^3.4.0
+        version: 3.4.0(@tanstack/query-core@5.90.19)(@types/react@19.1.17)(ox@0.11.3(typescript@5.9.3)(zod@4.3.5))(react@19.1.0)(typescript@5.9.3)(use-sync-external-store@1.6.0(react@19.1.0))(viem@2.44.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.5))
       better-sqlite3:
         specifier: ^12.6.2
         version: 12.6.2
@@ -3137,7 +3143,7 @@ packages:
     resolution: {integrity: sha512-gf0nDx9nNJ6hJXbFBCgiTitb0eEqBvCU/njcyTXf7ebZhT0pzOrarOod2dkeisU5Py+WWjFyOVcqmeo4G3IvDA==}
     peerDependencies:
       '@farcaster/miniapp-sdk': ^0.2.0
-      '@wagmi/core': ^3.2.2
+      '@wagmi/core': ^3.4.0
       viem: ^2.21.55
 
   '@farcaster/quick-auth@0.0.6':
@@ -6392,8 +6398,8 @@ packages:
       typescript:
         optional: true
 
-  '@wagmi/core@3.2.2':
-    resolution: {integrity: sha512-nCCza85tmE/lNorZemv0ah0OwOewMRiNJbSkIkGPr/mSH6mAy+/D/GbP8Gb3j2Nw85LuF5wxgG1fFiU6mB3CyQ==}
+  '@wagmi/core@3.4.0':
+    resolution: {integrity: sha512-EU5gDsUp5t7+cuLv12/L8hfyWfCIKsBNiiBqpOqxZJxvAcAiQk4xFe2jMgaQPqApc3Omvxrk032M8AQ4N0cQeg==}
     peerDependencies:
       '@tanstack/query-core': '>=5.0.0'
       ox: '>=0.11.1'
@@ -16658,10 +16664,10 @@ snapshots:
       - typescript
       - zod
 
-  '@farcaster/miniapp-wagmi-connector@1.1.0(@farcaster/miniapp-sdk@0.2.1(patch_hash=c779770b62e09976bdb62d23f50ed7922449031159c67766586c0e76f41acb7e)(typescript@5.9.3)(zod@4.3.5))(@wagmi/core@3.2.2(@tanstack/query-core@5.90.19)(@types/react@19.1.17)(ox@0.11.3(typescript@5.9.3)(zod@4.3.5))(react@19.1.0)(typescript@5.9.3)(use-sync-external-store@1.6.0(react@19.1.0))(viem@2.44.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.5)))(viem@2.44.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.5))':
+  '@farcaster/miniapp-wagmi-connector@1.1.0(@farcaster/miniapp-sdk@0.2.1(patch_hash=c779770b62e09976bdb62d23f50ed7922449031159c67766586c0e76f41acb7e)(typescript@5.9.3)(zod@4.3.5))(@wagmi/core@3.4.0(@tanstack/query-core@5.90.19)(@types/react@19.1.17)(ox@0.11.3(typescript@5.9.3)(zod@4.3.5))(react@19.1.0)(typescript@5.9.3)(use-sync-external-store@1.6.0(react@19.1.0))(viem@2.44.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.5)))(viem@2.44.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.5))':
     dependencies:
       '@farcaster/miniapp-sdk': 0.2.1(patch_hash=c779770b62e09976bdb62d23f50ed7922449031159c67766586c0e76f41acb7e)(typescript@5.9.3)(zod@4.3.5)
-      '@wagmi/core': 3.2.2(@tanstack/query-core@5.90.19)(@types/react@19.1.17)(ox@0.11.3(typescript@5.9.3)(zod@4.3.5))(react@19.1.0)(typescript@5.9.3)(use-sync-external-store@1.6.0(react@19.1.0))(viem@2.44.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.5))
+      '@wagmi/core': 3.4.0(@tanstack/query-core@5.90.19)(@types/react@19.1.17)(ox@0.11.3(typescript@5.9.3)(zod@4.3.5))(react@19.1.0)(typescript@5.9.3)(use-sync-external-store@1.6.0(react@19.1.0))(viem@2.44.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.5))
       viem: 2.44.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.5)
 
   '@farcaster/quick-auth@0.0.6(typescript@5.9.3)':
@@ -20984,7 +20990,7 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  '@wagmi/core@3.2.2(@tanstack/query-core@5.90.19)(@types/react@19.1.17)(ox@0.11.3(typescript@5.9.3)(zod@4.3.5))(react@19.1.0)(typescript@5.9.3)(use-sync-external-store@1.4.0(react@19.1.0))(viem@2.44.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.5))':
+  '@wagmi/core@3.4.0(@tanstack/query-core@5.90.19)(@types/react@19.1.17)(ox@0.11.3(typescript@5.9.3)(zod@4.3.5))(react@19.1.0)(typescript@5.9.3)(use-sync-external-store@1.4.0(react@19.1.0))(viem@2.44.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.5))':
     dependencies:
       eventemitter3: 5.0.1
       mipd: 0.0.7(typescript@5.9.3)
@@ -21000,7 +21006,7 @@ snapshots:
       - react
       - use-sync-external-store
 
-  '@wagmi/core@3.2.2(@tanstack/query-core@5.90.19)(@types/react@19.1.17)(ox@0.11.3(typescript@5.9.3)(zod@4.3.5))(react@19.1.0)(typescript@5.9.3)(use-sync-external-store@1.6.0(react@19.1.0))(viem@2.44.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.5))':
+  '@wagmi/core@3.4.0(@tanstack/query-core@5.90.19)(@types/react@19.1.17)(ox@0.11.3(typescript@5.9.3)(zod@4.3.5))(react@19.1.0)(typescript@5.9.3)(use-sync-external-store@1.6.0(react@19.1.0))(viem@2.44.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.5))':
     dependencies:
       eventemitter3: 5.0.1
       mipd: 0.0.7(typescript@5.9.3)
@@ -29956,7 +29962,7 @@ snapshots:
     dependencies:
       '@tanstack/react-query': 5.90.19(react@19.1.0)
       '@wagmi/connectors': '@favware/skip-dependency@1.2.2'
-      '@wagmi/core': 3.2.2(@tanstack/query-core@5.90.19)(@types/react@19.1.17)(ox@0.11.3(typescript@5.9.3)(zod@4.3.5))(react@19.1.0)(typescript@5.9.3)(use-sync-external-store@1.4.0(react@19.1.0))(viem@2.44.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.5))
+      '@wagmi/core': 3.4.0(@tanstack/query-core@5.90.19)(@types/react@19.1.17)(ox@0.11.3(typescript@5.9.3)(zod@4.3.5))(react@19.1.0)(typescript@5.9.3)(use-sync-external-store@1.4.0(react@19.1.0))(viem@2.44.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.5))
       react: 19.1.0
       use-sync-external-store: 1.4.0(react@19.1.0)
       viem: 2.44.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.5)

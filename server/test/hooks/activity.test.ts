@@ -707,6 +707,40 @@ describe("address activity", () => {
     expect(response.status).toBe(200);
   });
 
+  it("sends translated notification without symbol when asset is missing", async () => {
+    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+
+    const { asset: _, ...tokenWithoutAsset } = activityPayload.json.event.activity[1];
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: {
+          ...activityPayload.json.event,
+          activity: [
+            {
+              ...tokenWithoutAsset,
+              toAddress: account,
+              rawContract: { ...activityPayload.json.event.activity[1].rawContract, address: inject("WETH") },
+            },
+          ],
+        },
+      },
+    });
+
+    await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0);
+
+    expect(sendPushNotification).toHaveBeenCalledWith({
+      userId: account,
+      headings: { en: "Funds received", es: "Fondos recibidos" }, // cspell:ignore Fondos recibidos
+      contents: {
+        en: "99.973 received and instantly started earning yield",
+        es: "99,973 recibidos y empezaron a generar rendimiento", // cspell:ignore recibidos empezaron generar rendimiento
+      },
+    });
+    expect(response.status).toBe(200);
+  });
+
   it("doesn't send a notification for market shares", async () => {
     const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
 

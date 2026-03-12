@@ -25,6 +25,7 @@ import {
 import { Address, Hash, Hex } from "@exactly/common/validation";
 
 import database, { cards, credentials } from "../database";
+import t, { formatAmount } from "../i18n";
 import { createWebhook, findWebhook, headerValidator, network } from "../utils/alchemy";
 import appOrigin from "../utils/appOrigin";
 import decodePublicKey from "../utils/decodePublicKey";
@@ -118,10 +119,15 @@ export default new Hono().post(
       const underlying = asset === ETH ? WETH : asset;
       sendPushNotification({
         userId: account,
-        headings: { en: "Funds received" },
-        contents: {
-          en: `${value ? `${value} ` : ""}${assetSymbol} received${marketsByAsset.has(underlying) ? " and instantly started earning yield" : ""}`,
-        },
+        headings: t("Funds received"),
+        contents: t("fundsReceived", {
+          context:
+            [assetSymbol && "symbol", value && "value", marketsByAsset.has(underlying) && "yield"]
+              .filter(Boolean)
+              .join("_") || undefined,
+          value: value && formatAmount(value),
+          symbol: assetSymbol,
+        }),
       }).catch((error: unknown) => captureException(error));
       accounts.add(account);
     }
@@ -184,8 +190,8 @@ export default new Hono().post(
                       span.setAttribute("exa.mode", 1);
                       sendPushNotification({
                         userId: account,
-                        headings: { en: "Card mode changed" },
-                        contents: { en: "Credit mode activated" },
+                        headings: t("Card mode changed"),
+                        contents: t("Credit mode activated"),
                       }).catch((error: unknown) => captureException(error));
                     })
                     .catch((error: unknown) => captureException(error));
