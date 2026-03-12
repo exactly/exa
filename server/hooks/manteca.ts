@@ -23,6 +23,7 @@ import {
 import { Address } from "@exactly/common/validation";
 
 import database, { credentials } from "../database";
+import t, { formatAmount } from "../i18n";
 import { sendPushNotification } from "../utils/onesignal";
 import {
   convertBalanceToUsdc,
@@ -232,8 +233,8 @@ export default new Hono().post(
           });
           sendPushNotification({
             userId: credential.account,
-            headings: { en: "Fiat onramp activated" },
-            contents: { en: "Your fiat onramp account has been activated" },
+            headings: t("Fiat onramp activated"),
+            contents: t("Your fiat onramp account has been activated"),
           }).catch((error: unknown) => captureException(error, { level: "error" }));
         }
         return c.json({ code: "ok" }, 200);
@@ -252,8 +253,8 @@ async function handleDepositDetected(data: InferInput<typeof DepositDetectedData
         .then(() => {
           sendPushNotification({
             userId: account,
-            headings: { en: "Deposited funds" },
-            contents: { en: `${data.amount} ${data.asset} deposited` },
+            headings: t("Deposited funds"),
+            contents: t("{{amount}} {{asset}} deposited", { amount: formatAmount(data.amount), asset: data.asset }),
           }).catch((error: unknown) => captureException(error, { level: "error" }));
         })
         .catch((error: unknown) => {

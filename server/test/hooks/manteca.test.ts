@@ -481,8 +481,8 @@ describe("manteca hook", () => {
       });
       expect(sendPushNotification).toHaveBeenCalledWith({
         userId: account,
-        headings: { en: "Fiat onramp activated" },
-        contents: { en: "Your fiat onramp account has been activated" },
+        headings: { en: "Fiat onramp activated", es: "Rampa fiat activada" }, // cspell:ignore Rampa activada
+        contents: { en: "Your fiat onramp account has been activated", es: "Tu cuenta de rampa fiat ha sido activada" }, // cspell:ignore cuenta sido
       });
     });
 
