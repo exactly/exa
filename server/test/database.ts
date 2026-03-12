@@ -76,6 +76,44 @@ export default async function setup() {
   let substreamsExited: Promise<void> = Promise.resolve();
   let substreamsOutputFlushed: Promise<void> = Promise.resolve();
   try {
+    const warmupController = new AbortController();
+    const warmupLog = `${startupLogs}/firehose-warmup.log`;
+    const warmupOutput = createWriteStream(warmupLog);
+    const warmup = $({
+      cancelSignal: warmupController.signal,
+      forceKillAfterDelay: 33_333,
+      env: { ETH_RPC_SHORT_BLOCK_NUMBER_NOTATION: "true" },
+    })`fireeth start reader-node,merger --advertise-chain-name=anvil --config-file= --data-dir=node_modules/@exactly/.firehose --reader-node-path=bash --reader-node-arguments=${'-c "\
+      fireeth tools poll-rpc-blocks http://localhost:8545 0 | tsx script/firehose.ts"'}`;
+    const warmupLogWatcher = watchProcessOutput(warmup, warmupOutput, warmupController);
+    try {
+      await Promise.race([
+        waitOn({
+          resources: ["node_modules/@exactly/.firehose/storage/merged-blocks/0000000000.dbin.zst"], // cspell:ignore dbin
+          timeout: 120_000,
+        }),
+        postgresExited.then(() => {
+          throw new Error("postgres exited waiting fireeth warmup");
+        }),
+        warmupLogWatcher.exit.then(() => {
+          throw new Error("warmup exited before merged blocks");
+        }),
+        warmupLogWatcher.outputError,
+      ]);
+    } catch (error) {
+      warmupController.abort();
+      await warmupLogWatcher.exit.catch(() => undefined);
+      await warmupLogWatcher.outputFlushed;
+      const warmupText = await readFile(warmupLog, "utf8").catch(() => "");
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`wait firehose warmup: ${message}\nfirehose:\n${warmupText}`, { cause: error });
+    } finally {
+      warmupLogWatcher.stopWatchingOutput();
+      warmupController.abort();
+      await warmupLogWatcher.exit.catch(() => undefined);
+      await warmupLogWatcher.outputFlushed;
+    }
+
     const firehoseLog = `${startupLogs}/firehose.log`;
     const firehoseOutput = createWriteStream(firehoseLog);
     const firehose = $({
