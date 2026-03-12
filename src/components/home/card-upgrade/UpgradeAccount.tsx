@@ -102,12 +102,13 @@ export default function UpgradeAccount() {
       queryClient.setQueryData(["card-upgrade"], 2);
       await refetchInstalledPlugins();
     },
-    onError: () => {
-      toast.show(t("Error upgrading account"), {
-        native: true,
-        duration: 1000,
-        burntOptions: { haptic: "error", preset: "error" },
-      });
+    onError(error) {
+      if (!reportError(error).authKnown)
+        toast.show(t("Error upgrading account"), {
+          native: true,
+          duration: 1000,
+          burntOptions: { haptic: "error", preset: "error" },
+        });
     },
   });
   return (

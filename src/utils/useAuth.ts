@@ -4,7 +4,6 @@ import { useToastController } from "@tamagui/toast";
 
 import { useMutation } from "@tanstack/react-query";
 import { getConnection } from "@wagmi/core";
-import { UserRejectedRequestError } from "viem";
 import { base } from "viem/chains";
 import { useConnect } from "wagmi";
 
@@ -67,8 +66,8 @@ function handleError(
     return;
   }
   const { authKnown, passkeyCancelled, passkeyNotAllowed } = classifyError(error);
-  if (authKnown || error instanceof UserRejectedRequestError) {
-    const cancelled = passkeyCancelled || passkeyNotAllowed || error instanceof UserRejectedRequestError;
+  if (authKnown) {
+    const cancelled = passkeyCancelled || passkeyNotAllowed;
     if (!cancelled && !auth) reportError(error);
     queryClient.setQueryData(["method"], undefined);
     toast.show(t("Authentication cancelled"), {

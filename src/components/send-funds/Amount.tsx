@@ -149,7 +149,7 @@ export default function Amount() {
       throw new Error("no simulation ready");
     },
     onError(error) {
-      reportError(error);
+      if (reportError(error).authKnown) reset();
     },
   });
 

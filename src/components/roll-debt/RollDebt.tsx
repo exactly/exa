@@ -12,7 +12,7 @@ import { ScrollView, Separator, XStack, YStack } from "tamagui";
 import { useMutation } from "@tanstack/react-query";
 import { waitForCallsStatus } from "@wagmi/core/actions";
 import { nonEmpty, pipe, safeParse, string } from "valibot";
-import { ContractFunctionExecutionError, encodeFunctionData } from "viem";
+import { encodeFunctionData } from "viem";
 import { useSendCalls } from "wagmi";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
@@ -263,7 +263,8 @@ function RolloverButton({
   const {
     mutate: proposeRollDebt,
     isPending: isProposeRollDebtPending,
-    error: proposeRollDebtError,
+    isError,
+    reset: resetProposeRollDebt,
   } = useMutation({
     async mutationFn() {
       if (!address) throw new Error("no address");
@@ -292,12 +293,13 @@ function RolloverButton({
       router.dismissTo("/activity");
     },
     onError(error) {
-      toast.show(t("Rollover failed"), {
-        native: true,
-        duration: 1000,
-        burntOptions: { haptic: "error", preset: "error" },
-      });
-      reportError(error);
+      if (reportError(error).authKnown) resetProposeRollDebt();
+      else
+        toast.show(t("Rollover failed"), {
+          native: true,
+          duration: 1000,
+          burntOptions: { haptic: "error", preset: "error" },
+        });
     },
   });
 
@@ -308,15 +310,8 @@ function RolloverButton({
       proposal.amount === maxRepayAssets,
   );
 
-  const isError =
-    proposeRollDebtError &&
-    !(
-      proposeRollDebtError instanceof ContractFunctionExecutionError &&
-      proposeRollDebtError.shortMessage === "User rejected the request."
-    );
-
   const disabled =
-    !!isError ||
+    isError ||
     !!executeProposalError ||
     isProposeRollDebtPending ||
     isPendingProposalsPending ||
