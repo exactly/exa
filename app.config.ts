@@ -42,6 +42,7 @@ export default {
     buildNumber: String(versionCode),
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
+      CFBundleAllowMixedLocalizations: true,
       NSCameraUsageDescription: "Exa uses the camera to scan QR codes and verify your identity.",
       NSLocationWhenInUseUsageDescription: "Exa uses your location to verify your identity.",
     },
@@ -77,7 +78,7 @@ export default {
       } satisfies FontProps,
     ],
     "expo-asset",
-    "expo-localization",
+    ["expo-localization", { supportedLocales: ["en", "es", "pt"] }],
     "expo-router",
     [
       "@intercom/intercom-react-native",
@@ -145,4 +146,5 @@ export default {
   updates: { url: "https://u.expo.dev/06bc0158-d23b-430b-a7e8-802df03c450b" },
   runtimeVersion: { policy: "fingerprint" },
   owner: "exactly",
+  locales: { es: "src/i18n/native/es.json", pt: "src/i18n/native/pt.json" },
 } satisfies ExpoConfig;
