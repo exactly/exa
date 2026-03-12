@@ -287,7 +287,7 @@ export default function Pay() {
   const maxAmountIn = route?.fromAmount ? pad(route.fromAmount, SLIPPAGE_DIVISOR) + 69n : undefined; // HACK try to avoid ZERO_SHARES on dust deposit
 
   const {
-    propose: { data: repayPropose },
+    propose: { data: repayPropose, isPending: isRepayProposePending },
     executeProposal: { error: repayExecuteProposalError, isPending: isSimulatingRepay },
     proposalData: repayProposalData,
   } = useSimulateProposal({
@@ -301,7 +301,7 @@ export default function Pay() {
   });
 
   const {
-    propose: { data: crossRepayPropose },
+    propose: { data: crossRepayPropose, isPending: isCrossRepayProposePending },
     executeProposal: { error: crossRepayExecuteProposalError, isPending: isSimulatingCrossRepay },
     proposalData: crossRepayProposalData,
   } = useSimulateProposal({
@@ -375,8 +375,10 @@ export default function Pay() {
   } = useMutation({
     async mutationFn() {
       if (!repayMarket) throw new Error("no repay market");
+      const amount = withUSDC ? repayAssets : route?.fromAmount;
+      if (!amount) throw new Error("no route");
       setDisplayValues({
-        amount: Number(withUSDC ? repayAssets : route?.fromAmount) / 10 ** repayMarket.decimals,
+        amount: Number(amount) / 10 ** repayMarket.decimals,
         usdAmount: Number(previewValueUSD) / 1e18,
       });
       const call = (() => {
@@ -522,9 +524,9 @@ export default function Pay() {
     none: null,
   }[mode];
   const isSimulating = {
-    repay: isSimulatingRepay,
+    repay: isRepayProposePending || isSimulatingRepay,
     legacyRepay: isSimulatingLegacyRepay,
-    crossRepay: isSimulatingCrossRepay,
+    crossRepay: isCrossRepayProposePending || isSimulatingCrossRepay,
     legacyCrossRepay: isSimulatingLegacyCrossRepay,
     external: false,
     none: false,
@@ -551,8 +553,8 @@ export default function Pay() {
     setManuallySelectedAsset({ address, external });
   }, []);
 
-  const disabled =
-    isSimulating || !!simulationError || (selectedAsset.external && !route) || repayAssets > maxRepayInput;
+  const needsRoute = mode === "crossRepay" || mode === "legacyCrossRepay" || mode === "external";
+  const disabled = isSimulating || !!simulationError || (needsRoute && !route) || repayAssets > maxRepayInput;
   const loading = isSimulating || isPending || (selectedAsset.external && isRoutePending);
 
   const symbol =
