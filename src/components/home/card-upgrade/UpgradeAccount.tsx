@@ -62,6 +62,7 @@ export default function UpgradeAccount() {
       if (!pluginManifest) throw new Error("invalid manifest");
 
       const { id } = await mutateSendCalls({
+        chainId: chain.id,
         calls: [
           {
             to: address,

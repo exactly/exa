@@ -369,6 +369,7 @@ export default function Swaps() {
         };
       })();
       const { id } = await mutateSendCalls({
+        chainId: chain.id,
         calls: [call],
         capabilities: {
           paymasterService: {
