@@ -16,6 +16,9 @@ import { WebauthnOwnerPlugin } from "webauthn-owner-plugin/WebauthnOwnerPlugin.s
 
 import { EXA } from "@exactly/protocol/periphery/EXA.sol";
 
+import { HypERC20Collateral } from "@hyperlane-xyz/core/contracts/token/HypERC20Collateral.sol";
+import { HypXERC20 } from "@hyperlane-xyz/core/contracts/token/extensions/HypXERC20.sol";
+
 import { ExaAccountFactory } from "../src/ExaAccountFactory.sol";
 import {
   ExaPlugin,
@@ -90,9 +93,56 @@ contract Redeployer is BaseScript {
 
   /// @notice Deploys EXA token and upgrades the proxy to it.
   function deployEXA(address proxy) external {
-    vm.startBroadcast(acct("admin"));
+    address admin = acct("admin");
+    vm.startBroadcast(admin);
     exa = EXA(CREATE3_FACTORY.deploy(keccak256(abi.encode("EXA")), vm.getCode("EXA.sol:EXA")));
     proxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(proxy), address(exa), abi.encodeCall(EXA.initialize, ()));
+    proxyAdmin.upgradeAndCall(
+      ITransparentUpgradeableProxy(proxy), address(exa), abi.encodeCall(EXA.initialize2, (admin))
+    );
+    vm.stopBroadcast();
+  }
+
+  /// @notice Deploys the latest EXA implementation via CREATE3.
+  function deployEXAImpl() external {
+    vm.broadcast(acct("admin"));
+    exa = EXA(CREATE3_FACTORY.deploy(keccak256(abi.encode("EXA")), vm.getCode("EXA.sol:EXA")));
+  }
+
+  /// @notice Upgrades an existing EXA proxy to the latest implementation.
+  function upgradeEXA(address proxy) external {
+    address admin = acct("admin");
+    ProxyAdmin p =
+      ProxyAdmin(address(uint160(uint256(vm.load(proxy, bytes32(uint256(keccak256("eip1967.proxy.admin")) - 1))))));
+    vm.broadcast(p.owner());
+    p.upgradeAndCall(ITransparentUpgradeableProxy(proxy), address(exa), abi.encodeCall(EXA.initialize2, (admin)));
+  }
+
+  function deployRouter(address token) external returns (HypXERC20 router) {
+    address admin = acct("admin");
+    vm.startBroadcast(admin);
+    router = HypXERC20(
+      CREATE3_FACTORY.deploy(
+        keccak256(abi.encode("HypEXA")),
+        abi.encodePacked(
+          type(TransparentUpgradeableProxy).creationCode,
+          abi.encode(
+            address(new HypXERC20(token, 1, acct("mailbox"))),
+            address(proxyAdmin),
+            abi.encodeCall(HypERC20Collateral.initialize, (address(0), address(0), admin))
+          )
+        )
+      )
+    );
+    vm.stopBroadcast();
+  }
+
+  function setupRouter(address token, uint32 remoteDomain) external {
+    address admin = acct("admin");
+    address router = CREATE3_FACTORY.getDeployed(admin, keccak256(abi.encode("HypEXA")));
+    vm.startBroadcast(admin);
+    if (!EXA(token).hasRole(keccak256("BRIDGE_ROLE"), router)) EXA(token).grantRole(keccak256("BRIDGE_ROLE"), router);
+    HypXERC20(router).enrollRemoteRouter(remoteDomain, bytes32(uint256(uint160(router))));
     vm.stopBroadcast();
   }
 

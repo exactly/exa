@@ -38,6 +38,11 @@
       "84532": "0xE4F8C9904a79EBd88Ff73ed3F86a3CFd1b489eDf",
       "11155420": "0x3E2D4b69C52932CB5b2a9Ee744CB585bb201c771",
       "default": "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE"
+    },
+    "mailbox": {
+      "10": "0xd4C1905BB1D26BC93DAC913e13CaCC278CdCC80D",
+      "137": "0x5d934f4e2f797775e53561bB72aca21ba36B96BB",
+      "8453": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D"
     }
   },
   "issuerChecker": { "operationExpiry": 4838400, "prevIssuerWindow": 4838400 },
