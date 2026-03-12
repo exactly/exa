@@ -369,6 +369,8 @@ export default function Repay() {
   } = useMutation({
     async mutationFn() {
       if (!repayMarket) throw new Error("no repay market");
+      const amount = withUSDC ? repayAssets : route?.fromAmount;
+      if (!amount) throw new Error("no route");
       const call = (() => {
         switch (mode) {
           case "repay": {
@@ -535,8 +537,8 @@ export default function Repay() {
     setManuallySelectedAsset({ address, external });
   }, []);
 
-  const disabled =
-    isSimulating || !!simulationError || (selectedAsset.external && !route) || repayAssets > maxRepayInput;
+  const needsRoute = mode === "crossRepay" || mode === "legacyCrossRepay" || mode === "external";
+  const disabled = isSimulating || !!simulationError || (needsRoute && !route) || repayAssets > maxRepayInput;
   const loading = isSimulating || isPending || (selectedAsset.external && isRoutePending);
 
   const symbol =
