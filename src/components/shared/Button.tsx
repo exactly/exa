@@ -5,6 +5,8 @@ export default styled(Button, {
   fontWeight: "bold",
   flexBasis: "auto",
   defaultVariants: { contained: true },
+  borderWidth: 0,
+  borderColor: "transparent",
   fontSize: 15,
   padding: "$s3",
   variants: {
@@ -25,7 +27,7 @@ export default styled(Button, {
       },
     },
     disabled: {
-      true: { backgroundColor: "$interactiveDisabled", color: "$interactiveOnDisabled", borderColor: "transparent" },
+      true: { backgroundColor: "$interactiveDisabled", color: "$interactiveOnDisabled" },
     },
     danger: {
       true: {
@@ -45,7 +47,6 @@ export default styled(Button, {
     },
     main: {
       true: {
-        borderColor: "transparent",
         fontSize: 15,
         fontWeight: "bold",
         height: 64,
