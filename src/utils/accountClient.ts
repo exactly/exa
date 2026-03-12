@@ -69,7 +69,7 @@ import e2e from "./e2e";
 import { login } from "./onesignal";
 import publicClient from "./publicClient";
 import queryClient, { type AuthMethod } from "./queryClient";
-import reportError, { isPasskeyCancelled } from "./reportError";
+import reportError from "./reportError";
 import ownerConfig from "./wagmi/owner";
 
 import type { Credential } from "@exactly/common/validation";
@@ -91,33 +91,28 @@ export default async function createAccountClient({ credentialId, factory, x, y 
     getAccountInitCode: () => Promise.resolve(concatHex([factory, accountInit({ x, y })])),
     getDummySignature: () => DUMMY_SIGNATURE,
     signUserOperationHash: async (uoHash) => {
-      try {
-        if (queryClient.getQueryData<AuthMethod>(["method"]) === "siwe" && getConnection(ownerConfig).address) {
-          return wrapSignature(0, await signMessage(ownerConfig, { message: { raw: uoHash } }));
-        }
-        const credential = await get({
-          rpId: domain,
-          challenge: bufferToBase64URLString(
-            hexToBytes(hashMessage({ raw: uoHash }), { size: 32 }).buffer as ArrayBuffer,
-          ),
-          allowCredentials: Platform.OS === "android" ? [] : [{ id: credentialId, type: "public-key" }], // HACK fix android credential filtering
-          userVerification: "preferred",
-        });
-        if (!credential) throw new Error("no credential");
-        const response: AuthenticatorAssertionResponseJSON = credential.response;
-        const clientDataJSON = new TextDecoder().decode(base64URLStringToBuffer(response.clientDataJSON));
-        const typeIndex = BigInt(clientDataJSON.indexOf('"type":"'));
-        const challengeIndex = BigInt(clientDataJSON.indexOf('"challenge":"'));
-        const authenticatorData = bytesToHex(new Uint8Array(base64URLStringToBuffer(response.authenticatorData)));
-        const signature = AsnParser.parse(base64URLStringToBuffer(response.signature), ECDSASigValue);
-        const r = bytesToBigInt(new Uint8Array(signature.r));
-        let s = bytesToBigInt(new Uint8Array(signature.s));
-        if (s > P256_N / 2n) s = P256_N - s; // pass malleability guard
-        return webauthn({ authenticatorData, clientDataJSON, challengeIndex, typeIndex, r, s });
-      } catch (error: unknown) {
-        if (isPasskeyCancelled(error)) return "0x";
-        throw error;
+      if (queryClient.getQueryData<AuthMethod>(["method"]) === "siwe" && getConnection(ownerConfig).address) {
+        return wrapSignature(0, await signMessage(ownerConfig, { message: { raw: uoHash } }));
       }
+      const credential = await get({
+        rpId: domain,
+        challenge: bufferToBase64URLString(
+          hexToBytes(hashMessage({ raw: uoHash }), { size: 32 }).buffer as ArrayBuffer,
+        ),
+        allowCredentials: Platform.OS === "android" ? [] : [{ id: credentialId, type: "public-key" }], // HACK fix android credential filtering
+        userVerification: "preferred",
+      });
+      if (!credential) throw new Error("no credential");
+      const response: AuthenticatorAssertionResponseJSON = credential.response;
+      const clientDataJSON = new TextDecoder().decode(base64URLStringToBuffer(response.clientDataJSON));
+      const typeIndex = BigInt(clientDataJSON.indexOf('"type":"'));
+      const challengeIndex = BigInt(clientDataJSON.indexOf('"challenge":"'));
+      const authenticatorData = bytesToHex(new Uint8Array(base64URLStringToBuffer(response.authenticatorData)));
+      const signature = AsnParser.parse(base64URLStringToBuffer(response.signature), ECDSASigValue);
+      const r = bytesToBigInt(new Uint8Array(signature.r));
+      let s = bytesToBigInt(new Uint8Array(signature.s));
+      if (s > P256_N / 2n) s = P256_N - s; // pass malleability guard
+      return webauthn({ authenticatorData, clientDataJSON, challengeIndex, typeIndex, r, s });
     },
     signMessage: () => Promise.reject(new Error("not implemented")),
     signTypedData: () => Promise.reject(new Error("not implemented")),
