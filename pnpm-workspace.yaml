@@ -11,6 +11,7 @@ catalog:
   "@tamagui/toast": *tamagui
   "@wagmi/core": ^3.4.0
   hono: ^4.12.7
+  i18next: ^25.7.4
   ioredis: ^5.9.2
   react: &react "19.1.0"
   react-dom: *react

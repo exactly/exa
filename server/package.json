@@ -52,6 +52,7 @@
     "hono": "catalog:",
     "hono-openapi": "^0.4.8",
     "i18n-iso-countries": "^7.14.0",
+    "i18next": "catalog:",
     "ioredis": "^5.9.2",
     "jose": "^6.1.3",
     "pg": "^8.17.1",
