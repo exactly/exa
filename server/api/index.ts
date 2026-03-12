@@ -10,6 +10,7 @@ import kyc from "./kyc";
 import passkey from "./passkey";
 import pax from "./pax";
 import ramp from "./ramp";
+import webhook from "./webhook";
 import appOrigin from "../utils/appOrigin";
 import auth from "../utils/auth";
 
@@ -28,6 +29,7 @@ const api = new Hono()
   .route("/passkey", passkey) // eslint-disable-line @typescript-eslint/no-deprecated -- // TODO remove
   .route("/pax", pax)
   .route("/ramp", ramp)
+  .route("/webhook", webhook)
   .on(["POST", "GET"], "/auth/*", (c) => auth.handler(c.req.raw));
 
 export default api;
