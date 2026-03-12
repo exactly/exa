@@ -315,6 +315,14 @@
       ]
     },
     "targets": {
+      "test:eslint": {
+        "executor": "@nx/eslint:lint",
+        "options": {
+          "lintFilePatterns": [
+            "{projectRoot}"
+          ]
+        }
+      },
       "prepare": {
         "dependsOn": [
           "generate:expo",
