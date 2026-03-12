@@ -17,8 +17,6 @@ import {
   getAddress,
   isAddress,
   parseUnits,
-  TransactionExecutionError,
-  UserRejectedRequestError,
   zeroAddress,
   type Hex,
 } from "viem";
@@ -32,7 +30,7 @@ import AssetSelectSheet from "./AssetSelectSheet";
 import { getBridgeSources, getRouteFrom, tokenCorrelation, type BridgeSources, type RouteFrom } from "../../utils/lifi";
 import openBrowser from "../../utils/openBrowser";
 import queryClient from "../../utils/queryClient";
-import reportError from "../../utils/reportError";
+import reportError, { classifyError } from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useMarkets from "../../utils/useMarkets";
 import ownerConfig from "../../utils/wagmi/owner";
@@ -357,12 +355,11 @@ export default function Bridge() {
         });
         id = result.id;
       } catch (error) {
-        if (
-          error instanceof UserRejectedRequestError ||
-          (error instanceof TransactionExecutionError && error.shortMessage === "User rejected the request.")
-        )
-          throw error;
-        reportError(error, { level: "warning" });
+        if (classifyError(error).authKnown) throw error;
+        reportError(error, {
+          level: "warning",
+          extra: error instanceof Error ? { cause: error.cause } : undefined,
+        });
         await switchChain(senderConfig, { chainId: source.chain });
         try {
           if (approval) {
@@ -1000,12 +997,10 @@ export default function Bridge() {
 }
 
 function handleError(error: unknown, toast: ReturnType<typeof useToastController>, t: TFunction, isTransfer?: boolean) {
-  if (error instanceof UserRejectedRequestError) return;
-  if (error instanceof TransactionExecutionError && error.shortMessage === "User rejected the request.") return;
-  toast.show(isTransfer ? t("Transfer failed. Please try again.") : t("Bridge failed. Please try again."), {
-    native: true,
-    duration: 1000,
-    burntOptions: { haptic: "error", preset: "error" },
-  });
-  reportError(error);
+  if (!reportError(error).authKnown)
+    toast.show(isTransfer ? t("Transfer failed. Please try again.") : t("Bridge failed. Please try again."), {
+      native: true,
+      duration: 1000,
+      burntOptions: { haptic: "error", preset: "error" },
+    });
 }

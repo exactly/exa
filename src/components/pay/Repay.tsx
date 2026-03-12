@@ -372,6 +372,7 @@ export default function Repay() {
     isPending: isRepaying,
     isSuccess: isRepaySuccess,
     error: writeContractError,
+    reset: resetRepay,
   } = useMutation({
     async mutationFn() {
       if (!repayMarket) throw new Error("no repay market");
@@ -435,7 +436,7 @@ export default function Repay() {
       setEnableSimulations(true);
     },
     onError(error) {
-      reportError(error);
+      if (reportError(error).authKnown) resetRepay();
     },
   });
 
@@ -444,6 +445,7 @@ export default function Repay() {
     isPending: isExternalRepaying,
     isSuccess: isExternalRepaySuccess,
     error: externalRepayError,
+    reset: resetExternalRepay,
   } = useMutation({
     async mutationFn() {
       if (!account) throw new Error("no account");
@@ -505,7 +507,7 @@ export default function Repay() {
       setEnableSimulations(true);
     },
     onError(error) {
-      reportError(error);
+      if (reportError(error).authKnown) resetExternalRepay();
     },
   });
 
