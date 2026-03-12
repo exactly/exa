@@ -29,6 +29,7 @@ import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda
 import { Address } from "@exactly/common/validation";
 
 import database, { cards, credentials } from "../database";
+import t from "../i18n";
 import auth from "../middleware/auth";
 import { sendPushNotification } from "../utils/onesignal";
 import { autoCredit, createCard, getCard, getPIN, getSecrets, getUser, setPIN, updateCard } from "../utils/panda";
@@ -382,8 +383,8 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
             if (mode) {
               sendPushNotification({
                 userId: account,
-                headings: { en: "Card mode" },
-                contents: { en: "Credit mode is active" },
+                headings: t("Card mode"),
+                contents: t("Credit mode is active"),
               }).catch((error: unknown) => captureException(error));
             }
             return c.json(
