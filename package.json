@@ -125,6 +125,7 @@
     "@changesets/cli": "^2.30.0",
     "@changesets/types": "^6.1.0",
     "@cspell/dict-es-es": "^3.0.8",
+    "@cspell/dict-pt-br": "^2.4.2",
     "@eslint/mcp": "^0.3.2",
     "@expo/fingerprint": "^0.16.6",
     "@nx/esbuild": "22.6.2",
