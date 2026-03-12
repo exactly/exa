@@ -4,7 +4,6 @@ import "./mocks/deployments";
 import "./mocks/keeper";
 import "./mocks/onesignal";
 import "./mocks/pax";
-import "./mocks/redis";
 import "./mocks/sardine";
 import "./mocks/sentry";
 

@@ -1,6 +1,5 @@
 import "../expect";
 
-import "../mocks/redis";
 import customer from "../mocks/sardine";
 import "../mocks/sentry";
 
@@ -11,7 +10,7 @@ import { decodeJwt } from "jose";
 import assert from "node:assert";
 import { parse, type InferOutput } from "valibot";
 import { zeroAddress } from "viem";
-import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
 import * as derive from "@exactly/common/deriveAddress";
 import chain from "@exactly/common/generated/chain";
@@ -44,7 +43,14 @@ describe("authentication", () => {
     ]);
   });
 
-  afterEach(() => vi.clearAllMocks());
+  beforeEach(async () => {
+    await redis.set("test-session", "test-challenge");
+  });
+
+  afterEach(async () => {
+    vi.clearAllMocks();
+    await redis.del("test-session");
+  });
 
   it("returns intercom token on successful login", async () => {
     const response = await appClient.index.$post(
@@ -75,11 +81,11 @@ describe("authentication", () => {
     expect(payload.sub).toBe(zeroAddress);
     expect(payload.exp).toBeGreaterThan(nowInSeconds + 86_000);
     expect(payload.exp).toBeLessThan(nowInSeconds + 86_500);
-    expect(vi.mocked(redis).getdel.mock.calls).toContainEqual(["test-session"]);
+    expect(await redis.exists("test-session")).toBe(0);
   });
 
   it("returns 400 if authentication challenge is missing", async () => {
-    vi.mocked(redis).getdel.mockResolvedValueOnce(null);
+    await redis.del("test-session");
 
     const response = await appClient.index.$post(
       {
@@ -97,7 +103,6 @@ describe("authentication", () => {
 
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual(expect.objectContaining({ code: "no authentication" }));
-    expect(vi.mocked(redis).getdel.mock.calls).toContainEqual(["test-session"]);
   });
 
   it("returns 400 for missing credential with non-siwe assertion", async () => {
@@ -117,12 +122,10 @@ describe("authentication", () => {
 
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual(expect.objectContaining({ code: "no credential" }));
-    expect(vi.mocked(redis).getdel.mock.calls).toContainEqual(["test-session"]);
+    expect(await redis.exists("test-session")).toBe(0);
   });
 
   it("consumes challenge after failed authentication to prevent replay", async () => {
-    vi.mocked(redis).getdel.mockResolvedValueOnce("test-challenge").mockResolvedValueOnce(null);
-
     const firstResponse = await appClient.index.$post(
       {
         json: {
@@ -157,7 +160,6 @@ describe("authentication", () => {
   });
 
   it("consumes challenge before verifier exceptions", async () => {
-    vi.mocked(redis).getdel.mockResolvedValueOnce("test-challenge").mockResolvedValueOnce(null);
     vi.mocked(verifyAuthenticationResponse).mockRejectedValueOnce(new Error("boom"));
 
     const firstResponse = await appClient.index.$post(
@@ -194,7 +196,6 @@ describe("authentication", () => {
   });
 
   it("consumes challenge after unverified authentication response to prevent replay", async () => {
-    vi.mocked(redis).getdel.mockResolvedValueOnce("test-challenge").mockResolvedValueOnce(null);
     vi.mocked(verifyAuthenticationResponse).mockResolvedValueOnce({
       verified: false,
       authenticationInfo: { credentialID: "dGVzdC1jcmVkLWlk", newCounter: 1 },
@@ -234,7 +235,6 @@ describe("authentication", () => {
   });
 
   it("consumes challenge after mismatched authentication credential id to prevent replay", async () => {
-    vi.mocked(redis).getdel.mockResolvedValueOnce("test-challenge").mockResolvedValueOnce(null);
     vi.mocked(verifyAuthenticationResponse).mockResolvedValueOnce({
       verified: true,
       authenticationInfo: { credentialID: "another-credential", newCounter: 1 },
@@ -274,7 +274,6 @@ describe("authentication", () => {
   });
 
   it("handles exceptions in no-credential siwe authentication path", async () => {
-    vi.mocked(redis).getdel.mockResolvedValueOnce("test-challenge").mockResolvedValueOnce(null);
     const { parseSiweMessage } = await import("viem/siwe");
     vi.mocked(parseSiweMessage).mockImplementationOnce(() => {
       throw new Error("boom");
@@ -318,7 +317,7 @@ describe("authentication", () => {
       columns: { source: true },
     });
     expect(credential?.source).toBe("12345");
-    expect(vi.mocked(redis).getdel.mock.calls).toContainEqual(["test-session"]);
+    expect(await redis.exists("test-session")).toBe(0);
   });
 
   it("creates a credential using siwe", async () => {
@@ -344,7 +343,7 @@ describe("authentication", () => {
       columns: { id: true },
     });
     expect(credential?.id).toBe(id);
-    expect(vi.mocked(redis).getdel.mock.calls).toContainEqual(["test-session"]);
+    expect(await redis.exists("test-session")).toBe(0);
   });
 
   it("returns 400 if the siwe message is invalid", async () => {
@@ -356,11 +355,10 @@ describe("authentication", () => {
       { headers: { cookie: "session_id=test-session" } },
     );
     expect(response.status).toBe(400);
-    expect(vi.mocked(redis).getdel.mock.calls).toContainEqual(["test-session"]);
+    expect(await redis.exists("test-session")).toBe(0);
   });
 
   it("consumes challenge after failed siwe authentication to prevent replay", async () => {
-    vi.mocked(redis).getdel.mockResolvedValueOnce("test-challenge").mockResolvedValueOnce(null);
     vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(false);
     const id = "0x1234567890123456789012345678901234567894";
 
@@ -381,19 +379,24 @@ describe("authentication", () => {
 });
 
 describe("registration", () => {
-  afterEach(() => vi.clearAllMocks());
+  beforeEach(async () => {
+    await redis.set("test-session", "test-challenge");
+  });
+
+  afterEach(async () => {
+    vi.clearAllMocks();
+    await redis.del("test-session");
+  });
 
   it("returns 400 if registration challenge is missing", async () => {
-    vi.mocked(redis).getdel.mockResolvedValueOnce(null);
+    await redis.del("test-session");
     const response = await postRegistrationWebauthn();
 
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual(expect.objectContaining({ code: "no registration" }));
-    expect(vi.mocked(redis).getdel.mock.calls).toContainEqual(["test-session"]);
   });
 
   it("consumes challenge before verifier exceptions", async () => {
-    vi.mocked(redis).getdel.mockResolvedValueOnce("test-challenge").mockResolvedValueOnce(null);
     vi.mocked(verifyRegistrationResponse).mockRejectedValueOnce(new Error("boom"));
 
     const firstResponse = await postRegistrationWebauthn();
@@ -406,7 +409,6 @@ describe("registration", () => {
   });
 
   it("consumes challenge after bad registration to prevent replay", async () => {
-    vi.mocked(redis).getdel.mockResolvedValueOnce("test-challenge").mockResolvedValueOnce(null);
     vi.mocked(verifyRegistrationResponse).mockResolvedValueOnce({
       verified: false,
     } as Awaited<ReturnType<typeof verifyRegistrationResponse>>);
@@ -421,7 +423,6 @@ describe("registration", () => {
   });
 
   it("consumes challenge after mismatched registration credential id to prevent replay", async () => {
-    vi.mocked(redis).getdel.mockResolvedValueOnce("test-challenge").mockResolvedValueOnce(null);
     vi.mocked(verifyRegistrationResponse).mockResolvedValueOnce({
       verified: true,
       registrationInfo: {
@@ -445,7 +446,6 @@ describe("registration", () => {
   });
 
   it("consumes challenge after single-device registration to prevent replay", async () => {
-    vi.mocked(redis).getdel.mockResolvedValueOnce("test-challenge").mockResolvedValueOnce(null);
     vi.mocked(verifyRegistrationResponse).mockResolvedValueOnce({
       verified: true,
       registrationInfo: {
@@ -469,7 +469,6 @@ describe("registration", () => {
   });
 
   it("handles exceptions in post-verification registration path", async () => {
-    vi.mocked(redis).getdel.mockResolvedValueOnce("test-challenge").mockResolvedValueOnce(null);
     vi.spyOn(derive, "default").mockImplementationOnce(() => {
       throw new Error("boom");
     });
@@ -504,11 +503,10 @@ describe("registration", () => {
       columns: { id: true },
     });
     expect(credential?.id).toBe(id);
-    expect(vi.mocked(redis).getdel.mock.calls).toContainEqual(["test-session"]);
+    expect(await redis.exists("test-session")).toBe(0);
   });
 
   it("consumes challenge after failed siwe registration to prevent replay", async () => {
-    vi.mocked(redis).getdel.mockResolvedValueOnce("test-challenge").mockResolvedValueOnce(null);
     vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(false);
     const id = "0x1234567890123456789012345678901234567896";
 
@@ -549,7 +547,7 @@ describe("registration", () => {
       columns: { source: true },
     });
     expect(credential?.source).toBe("12345");
-    expect(vi.mocked(redis).getdel.mock.calls).toContainEqual(["test-session"]);
+    expect(await redis.exists("test-session")).toBe(0);
   });
 
   it("creates a credential using webauthn", async () => {
@@ -574,7 +572,7 @@ describe("registration", () => {
     });
     expect(credential).toBeDefined();
     expect(credential?.source).toBeNull();
-    expect(vi.mocked(redis).getdel.mock.calls).toContainEqual(["test-session"]);
+    expect(await redis.exists("test-session")).toBe(0);
   });
 });
 
@@ -614,13 +612,6 @@ vi.mock("@simplewebauthn/server", async (importOriginal) => {
       ),
   };
 });
-
-vi.mock("../../utils/redis", () => ({
-  default: {
-    getdel: vi.fn<() => Promise<null | string>>().mockResolvedValue("test-challenge"),
-    set: vi.fn<() => Promise<boolean>>().mockResolvedValue(true),
-  },
-}));
 
 vi.mock("@simplewebauthn/server/helpers", async (importOriginal) => {
   const original = await importOriginal<typeof SimpleWebAuthnHelpers>();

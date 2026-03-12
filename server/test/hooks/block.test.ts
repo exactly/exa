@@ -1,7 +1,6 @@
 import "../mocks/alchemy";
 import "../mocks/deployments";
 import "../mocks/onesignal";
-import "../mocks/redis";
 import "../mocks/sentry";
 
 import { captureException, continueTrace, withScope } from "@sentry/node";

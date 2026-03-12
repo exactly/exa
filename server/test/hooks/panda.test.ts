@@ -2,7 +2,6 @@ import "../mocks/deployments";
 import "../mocks/keeper";
 import "../mocks/onesignal";
 import "../mocks/panda";
-import "../mocks/redis";
 import "../mocks/sardine";
 import "../mocks/sentry";
 
