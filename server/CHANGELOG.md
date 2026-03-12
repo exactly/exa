@@ -1,5 +1,15 @@
 # @exactly/server
 
+## 0.2.81
+
+### Patch Changes
+
+- [#866](https://github.com/exactly/exa/pull/866) [`3b75acd`](https://github.com/exactly/exa/commit/3b75acd68adfdf903e1e0632c5df384c79ffce95) Thanks [@mainqueg](https://github.com/mainqueg)! - 🔧 update manteca usd deposit details
+
+- [#861](https://github.com/exactly/exa/pull/861) [`7672e26`](https://github.com/exactly/exa/commit/7672e26e37d474ca243f0b9b084d8add789a09c5) Thanks [@mainqueg](https://github.com/mainqueg)! - 🗃️ add bridge id index to credentials
+
+- [#861](https://github.com/exactly/exa/pull/861) [`fb49ad2`](https://github.com/exactly/exa/commit/fb49ad223e8717db4d9bdd27ee1ac202e3c89f77) Thanks [@mainqueg](https://github.com/mainqueg)! - ✨ handle bridge webhook events
+
 ## 0.2.80
 
 ### Patch Changes
