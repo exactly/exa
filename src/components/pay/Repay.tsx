@@ -538,7 +538,13 @@ export default function Repay() {
   }, []);
 
   const needsRoute = mode === "crossRepay" || mode === "legacyCrossRepay" || mode === "external";
-  const disabled = isSimulating || !!simulationError || (needsRoute && !route) || repayAssets > maxRepayInput;
+  const disabled =
+    mode === "none" ||
+    repayAssets === 0n ||
+    isSimulating ||
+    !!simulationError ||
+    (needsRoute && !route) ||
+    repayAssets > maxRepayInput;
   const loading = isSimulating || isPending || (selectedAsset.external && isRoutePending);
 
   const symbol =
