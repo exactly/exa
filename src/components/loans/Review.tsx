@@ -105,6 +105,7 @@ export default function Review() {
     isPending: isProposingBorrowInstallments,
     isSuccess: isProposingBorrowInstallmentsSuccess,
     error: proposeBorrowInstallmentsError,
+    reset: resetProposal,
   } = useMutation({
     async mutationFn() {
       if (!address) throw new Error("no account");
@@ -148,7 +149,9 @@ export default function Review() {
       const { status } = await waitForCallsStatus(exa, { id });
       if (status === "failure") throw new Error("failed to submit borrow proposal");
     },
-    onError: reportError,
+    onError(error) {
+      if (reportError(error).authKnown) resetProposal();
+    },
   });
 
   const maturityLabel = useMemo(

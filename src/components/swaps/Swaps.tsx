@@ -331,6 +331,7 @@ export default function Swaps() {
     isPending: isSwapping,
     isSuccess: isSwapSuccess,
     error: writeContractError,
+    reset: resetSwap,
   } = useMutation({
     async mutationFn() {
       if (!route) throw new Error("no route");
@@ -369,7 +370,9 @@ export default function Swaps() {
       queryClient.removeQueries({ queryKey: ["lifi", "route"] });
       updateSwap((old) => ({ ...old, fromAmount: 0n, toAmount: 0n, enableSimulations: true }));
     },
-    onError: (error) => reportError(error),
+    onError(error) {
+      if (reportError(error).authKnown) resetSwap();
+    },
   });
 
   const toTokenIsUSDC = toToken?.token.symbol === "USDC";

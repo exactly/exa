@@ -5,7 +5,6 @@ import { sdk } from "@farcaster/miniapp-sdk";
 import { getConnection, signMessage } from "@wagmi/core";
 import { hc, parseResponse, type InferRequestType, type InferResponseType } from "hono/client";
 import { check, number, object, parse, pipe, safeParse, string, ValiError } from "valibot";
-import { UserRejectedRequestError } from "viem";
 
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 import deriveAddress from "@exactly/common/deriveAddress";
@@ -65,7 +64,6 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
   meta: {
     dropError: (error) => {
       if (error instanceof ValiError) return true;
-      if (error instanceof UserRejectedRequestError) return true;
       const { passkeyCancelled, passkeyNotAllowed } = classifyError(error);
       return passkeyCancelled || passkeyNotAllowed;
     },
