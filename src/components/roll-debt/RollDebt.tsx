@@ -269,6 +269,7 @@ function RolloverButton({
       if (!proposeSimulation) throw new Error("no propose roll debt simulation");
       const { address: to, abi, functionName, args } = proposeSimulation;
       const { id } = await mutateSendCalls({
+        chainId: chain.id,
         calls: [{ to, data: encodeFunctionData({ abi, functionName, args }) }],
         capabilities: {
           paymasterService: {

@@ -57,6 +57,7 @@ export default function PluginUpgrade() {
       if (!pluginManifest) throw new Error("invalid manifest");
 
       const { id } = await mutateSendCalls({
+        chainId: chain.id,
         calls: [
           { ...uninstallPluginSimulation.request, to: address },
           {

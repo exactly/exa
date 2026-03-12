@@ -406,6 +406,7 @@ export default function Repay() {
         }
       })();
       const { id } = await mutateSendCalls({
+        chainId: chain.id,
         calls: [call],
         capabilities: {
           paymasterService: {
@@ -455,6 +456,7 @@ export default function Repay() {
       if (!positionAssets) throw new Error("no position assets");
       if (!maxRepay) throw new Error("no max repay");
       const { id } = await mutateSendCalls({
+        chainId: chain.id,
         calls: [
           {
             to: selectedAsset.address,
