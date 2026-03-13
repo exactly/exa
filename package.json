@@ -190,6 +190,7 @@
       "tmp@0.0.33": "^0.2.4",
       "typescript@5.8.3": "catalog:",
       "unicorn-magic@0.3.0": "^0.2.0",
+      "yauzl": "^3.2.1",
       "@anthropic-ai/claude-code": "npm:@favware/skip-dependency@1.2.2",
       "@bigmi/core": "npm:@favware/skip-dependency@1.2.2",
       "@gnosis.pm/safe-contracts": "npm:@favware/skip-dependency@1.2.2",
