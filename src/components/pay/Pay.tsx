@@ -10,7 +10,6 @@ import { ScrollView, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 import { formatDistance, isBefore } from "date-fns";
-import { enUS, es } from "date-fns/locale";
 import { optimismSepolia } from "viem/chains";
 
 import accountInit from "@exactly/common/accountInit";
@@ -26,6 +25,7 @@ import OverduePayments from "./OverduePayments";
 import PaymentSheet from "./PaymentSheet";
 import RolloverIntroSheet from "./RolloverIntroSheet";
 import UpcomingPayments from "./UpcomingPayments";
+import { date } from "../../i18n";
 import { presentArticle } from "../../utils/intercom";
 import openBrowser from "../../utils/openBrowser";
 import queryClient from "../../utils/queryClient";
@@ -358,9 +358,8 @@ function FirstMaturityCard({
   const { previewValue, positionAmount, isOverdue } = summary;
   const maturityDate = new Date(Number(maturity) * 1000);
   const now = new Date();
-  const dateFnsLocale = language === "es" ? es : enUS;
   const timeDistance = formatDistance(isOverdue ? maturityDate : now, isOverdue ? now : maturityDate, {
-    locale: dateFnsLocale,
+    locale: date(language),
   });
 
   const discount = Number(WAD - (previewValue * WAD) / positionAmount) / 1e18;

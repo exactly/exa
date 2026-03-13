@@ -10,7 +10,6 @@ import { XStack, YStack, type YStackProps } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 import { formatDistance, isAfter } from "date-fns";
-import { enUS, es } from "date-fns/locale";
 import { digits, pipe, safeParse, string } from "valibot";
 import { optimismSepolia } from "viem/chains";
 
@@ -19,6 +18,7 @@ import chain, { exaPluginAddress, marketUSDCAddress } from "@exactly/common/gene
 import { useReadUpgradeableModularAccountGetInstalledPlugins } from "@exactly/common/generated/hooks";
 import { WAD } from "@exactly/lib";
 
+import { date } from "../../i18n";
 import { presentArticle } from "../../utils/intercom";
 import openBrowser from "../../utils/openBrowser";
 import reportError from "../../utils/reportError";
@@ -55,8 +55,6 @@ export default function PaymentSheet({ onRolloverIntro }: { onRolloverIntro?: (m
     t,
     i18n: { language },
   } = useTranslation();
-  const dateFnsLocale = language === "es" ? es : enUS;
-
   useEffect(() => {
     if (maturity) {
       setDisplayMaturity(maturity); // eslint-disable-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect -- sync from url param
@@ -88,13 +86,13 @@ export default function PaymentSheet({ onRolloverIntro }: { onRolloverIntro?: (m
     const now = new Date();
     const isUpcoming = isAfter(dueDate, now);
     const timeDistance = formatDistance(isUpcoming ? now : dueDate, isUpcoming ? dueDate : now, {
-      locale: dateFnsLocale,
+      locale: date(language),
     });
     const dueStatus = isUpcoming
       ? t("Due in {{time}}", { time: timeDistance })
       : t("{{time}} past due", { time: timeDistance });
     return { discount, dueDate, dueStatus, isUpcoming, positionValue, previewValue };
-  }, [displayMaturity, USDCMarket, dateFnsLocale, t]);
+  }, [displayMaturity, USDCMarket, language, t]);
 
   const close = useCallback(() => {
     setInfoOpen(false);
