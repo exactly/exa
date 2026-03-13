@@ -114,7 +114,7 @@ export default function QR() {
               )}
             </Text>
             <Text secondary footnote textAlign="center">
-              {t("Press 'Continue' to proceed or 'Back' to cancel.")}
+              {t("Press “Continue” to proceed or “Back” to cancel.")}
             </Text>
             <Button
               alignSelf="center"

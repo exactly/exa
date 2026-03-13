@@ -87,7 +87,7 @@ export default function PasskeysAbout() {
 }
 
 const advantages = [
-  { title: "Strong credentials.", body: "Every passkey is strong. They're never guessable, reused, or weak." },
+  { title: "Strong credentials.", body: "Every passkey is strong. They’re never guessable, reused, or weak." },
   {
     title: "Safe from server leaks.",
     body: "Because servers only keep public keys, servers are less valuable targets for hackers.",

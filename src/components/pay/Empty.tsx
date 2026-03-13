@@ -27,7 +27,7 @@ export default function Empty() {
             {t("No payments pending")}
           </Text>
           <Text footnote secondary textAlign="center">
-            {t("You're all caught up! Start using your card in Pay Later mode to see payments listed here.")}
+            {t("You’re all caught up! Start using your card in Pay Later mode to see payments listed here.")}
           </Text>
         </YStack>
       </YStack>

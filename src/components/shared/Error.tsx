@@ -28,7 +28,7 @@ export default function Error({ resetError }: { resetError: () => void }) {
           </View>
           <YStack gap="$s5">
             <Text emphasized textAlign="center" color="$interactiveTextBrandDefault" title>
-              {t("Something's not working as expected")}
+              {t("Something’s not working as expected")}
             </Text>
             <Text color="$uiNeutralSecondary" footnote textAlign="center">
               <Trans

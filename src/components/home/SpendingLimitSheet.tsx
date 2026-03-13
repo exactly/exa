@@ -40,7 +40,7 @@ export default function SpendingLimitSheet({ onClose, open }: { onClose: () => v
                 />
               </Text>
               <Text subHeadline secondary>
-                {t("It's based on the USDC available in your balance.")}
+                {t("It’s based on the USDC available in your balance.")}
               </Text>
             </YStack>
           </YStack>

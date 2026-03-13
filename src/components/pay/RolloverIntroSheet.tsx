@@ -87,7 +87,7 @@ export default function RolloverIntroSheet({ maturity, onClose }: { maturity?: s
               </Text>
               <Text secondary subHeadline>
                 {t(
-                  "Roll over your debt to avoid penalties and gain more time to repay. It's a smart way to manage your cash flow and possibly reduce your rate.",
+                  "Roll over your debt to avoid penalties and gain more time to repay. It’s a smart way to manage your cash flow and possibly reduce your rate.",
                 )}
               </Text>
             </YStack>

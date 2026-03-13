@@ -35,7 +35,7 @@ export default function Contact({
       }}
       onLongPress={() => {
         setStringAsync(address).catch(reportError);
-        Alert.alert(t("Address copied"), t("The contact's address has been copied to the clipboard."));
+        Alert.alert(t("Address copied"), t("The contact’s address has been copied to the clipboard."));
       }}
     >
       <XStack alignItems="center" gap="$s2">

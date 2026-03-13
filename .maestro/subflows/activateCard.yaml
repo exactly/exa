@@ -57,7 +57,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: Close
 - runFlow: { file: scrollTo.yaml, env: { element: Credit limit info } }
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Credit limit info } }
-- assertVisible: It's based on the value of your collateral assets and updates as their value changes.
+- assertVisible: It’s based on the value of your collateral assets and updates as their value changes.
 - tapOn: Close
 - tapOn: Now
 - runFlow: { file: scrollTo.yaml, env: { element: Spending limit info } }

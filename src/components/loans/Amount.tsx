@@ -134,7 +134,7 @@ export default function Amount() {
                 <XStack gap="$s3" flex={1} alignItems="center">
                   <TriangleAlert size={16} color="$uiErrorSecondary" />
                   <Text secondary caption flex={1}>
-                    {t("You're trying to borrow more than your collateral allows. Please enter a lower amount.")}
+                    {t("You’re trying to borrow more than your collateral allows. Please enter a lower amount.")}
                   </Text>
                 </XStack>
               )}
