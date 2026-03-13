@@ -198,7 +198,7 @@
   ],
   "overrides": [
     {
-      "filename": "src/i18n/es.json",
+      "filename": "**/i18n/**/es.json",
       "language": "en,es",
       "words": [
         "autocustodia",
