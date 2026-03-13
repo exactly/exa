@@ -157,8 +157,10 @@ export default async function createAccountClient({ credentialId, factory, x, y 
     // @ts-expect-error -- bad alchemy types
     account,
     type: "SmartAccountClient",
-    transport: custom({
-      async request({ method, params }) {
+    transport: custom(
+      // prettier-ignore
+      {
+        async request({ method, params }) {
         switch (method) {
           case "wallet_sendCalls": {
             if (!Array.isArray(params) || params.length !== 1) throw new Error("bad params");
@@ -296,7 +298,9 @@ export default async function createAccountClient({ credentialId, factory, x, y 
             return client.request({ method: method as never, params: params as never });
         }
       },
-    }),
+      },
+      { retryCount: 0 },
+    ),
   }).extend(smartAccountClientActions) as unknown as typeof client;
 }
 
