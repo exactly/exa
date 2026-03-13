@@ -210,7 +210,7 @@ export default function Home() {
               {(showKYCMigration || showPluginOutdated) && (
                 <InfoAlert
                   title={t(
-                    "We're upgrading all Exa Cards by migrating them to a new and improved card issuer. Existing cards will work until {{deadline}}, and upgrading will be required after this date.",
+                    "We’re upgrading all Exa Cards by migrating them to a new and improved card issuer. Existing cards will work until {{deadline}}, and upgrading will be required after this date.",
                     {
                       deadline: UPGRADE_DEADLINE.toLocaleDateString(language, {
                         year: "numeric",

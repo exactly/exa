@@ -86,7 +86,7 @@ export default function KYC() {
                   <Text color="$uiNeutralPlaceholder" footnote textAlign="center">
                     {invalidLegalId
                       ? t("There was an issue with your tax ID. Please update your information to continue.")
-                      : t("You'll be able to add funds soon.")}
+                      : t("You’ll be able to add funds soon.")}
                   </Text>
                 </YStack>
               </YStack>

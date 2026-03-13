@@ -63,10 +63,10 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: Home
 - runFlow: { file: scrollTo.yaml, env: { element: Credit limit } }
 - tapOn: Credit limit
-- assertVisible: It's based on the value of your collateral assets and updates as their value changes.
+- assertVisible: It’s based on the value of your collateral assets and updates as their value changes.
 - tapOn: Close
 - tapOn: Now
 - tapOn: Spending limit
-- assertVisible: It's based on the USDC available in your balance.
+- assertVisible: It’s based on the USDC available in your balance.
 - tapOn: Close
 - tapOn: Home

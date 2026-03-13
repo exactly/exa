@@ -73,7 +73,7 @@ export default function UpcomingPayments({
             🎉
           </Text>
           <Text textAlign="center" color="$uiBrandSecondary" emphasized headline>
-            {t("You're all set!")}
+            {t("You’re all set!")}
           </Text>
           <Text textAlign="center" color="$uiNeutralSecondary" subHeadline>
             {t("Any funding or purchases will show up here.")}
