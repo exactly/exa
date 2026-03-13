@@ -12,6 +12,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 
 import Progression from "./Progression";
 import { presentArticle } from "../../../utils/intercom";
+import openBrowser from "../../../utils/openBrowser";
 import queryClient from "../../../utils/queryClient";
 import reportError from "../../../utils/reportError";
 import { APIError, createCard } from "../../../utils/server";
@@ -139,9 +140,22 @@ export default function ActivateCard() {
         </YStack>
         {!isActivating && (
           <Text color="$interactiveOnDisabled" caption textAlign="justify">
-            {t(
-              "*The Exa Card is issued by Third National pursuant to a license from Visa. Any credit issued by Exactly Protocol subject to its separate terms and conditions. Third National is not a party to any agreement with Exactly Protocol and is not responsible for any funding or credit arrangement between user and Exactly Protocol.",
-            )}
+            <Trans
+              i18nKey="The Exa Card is issued by Third National pursuant to a license from Visa. Any credit issued by <link>Exactly Protocol</link> subject to its separate terms and conditions. Third National is not a party to any agreement with <link>Exactly Protocol</link> and is not responsible for any funding or credit arrangement between user and <link>Exactly Protocol</link>."
+              components={{
+                link: (
+                  <Text
+                    cursor="pointer"
+                    caption
+                    color="$interactiveOnDisabled"
+                    textDecorationLine="underline"
+                    onPress={() => {
+                      openBrowser("https://exact.ly/").catch(reportError);
+                    }}
+                  />
+                ),
+              }}
+            />
           </Text>
         )}
       </YStack>
