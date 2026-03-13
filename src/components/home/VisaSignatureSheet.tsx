@@ -139,7 +139,7 @@ export default function VisaSignatureSheet({ open, onClose }: { onClose: () => v
                       </XStack>
                       <Text color="white" caption flex={1}>
                         {t(
-                          "I understand that my current card will be deactivated. After the upgrade, I'll need to remove it from my digital wallet and add the new one.",
+                          "I understand that my current card will be deactivated. After the upgrade, I’ll need to remove it from my digital wallet and add the new one.",
                         )}
                       </Text>
                     </XStack>
@@ -159,7 +159,7 @@ export default function VisaSignatureSheet({ open, onClose }: { onClose: () => v
                     </Button>
                   </YStack>
                   <Text onPress={close} color="$interactiveBaseBrandDefault" emphasized footnote alignSelf="center">
-                    {t("I'll upgrade later")}
+                    {t("I’ll upgrade later")}
                   </Text>
                 </YStack>
               </>

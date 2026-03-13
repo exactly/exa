@@ -40,7 +40,7 @@ export default function CreditLimitSheet({ onClose, open }: { onClose: () => voi
                 />
               </Text>
               <Text subHeadline secondary>
-                {t("It's based on the value of your collateral assets and updates as their value changes.")}
+                {t("It’s based on the value of your collateral assets and updates as their value changes.")}
               </Text>
             </YStack>
           </YStack>
