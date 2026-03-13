@@ -149,7 +149,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
     // @ts-expect-error -- bad alchemy types
     account,
     type: "SmartAccountClient",
-    transport: custom({
+    transport: noRetry({
       async request({ method, params }) {
         switch (method) {
           case "wallet_sendCalls": {
@@ -273,6 +273,10 @@ export default async function createAccountClient({ credentialId, factory, x, y 
       },
     }),
   }).extend(smartAccountClientActions) as unknown as typeof client;
+}
+
+function noRetry(provider: Parameters<typeof custom>[0]) {
+  return custom(provider, { retryCount: 0 });
 }
 
 function wrapSignature(ownerIndex: number, signature: Hex) {
