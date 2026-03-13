@@ -569,7 +569,7 @@
   "We need more information about you": "Necesitamos más información sobre ti",
   "We’re upgrading all Exa Cards by migrating them to a new and improved card issuer. Existing cards will work until {{deadline}}, and upgrading will be required after this date.": "Estamos actualizando todas las Exa Cards migrándolas a un nuevo y mejor emisor de tarjetas. Las tarjetas existentes funcionarán hasta el {{deadline}} y será necesario actualizarlas después de esa fecha.",
   "We’re verifying your information. You’ll be able to add funds soon.": "Estamos verificando tu información. Pronto podrás agregar fondos.",
-  "Weekly spending limit": "Límite de gasto",
+  "Weekly spending limit": "Límite de gasto semanal",
   "Weekly": "Semanal",
   "Welcome to DeFi": "Bienvenido a DeFi",
   "When you make a purchase using an installment plan, <highlight>you must pay each installment manually before the due date.</highlight> Otherwise, a daily penalty of {{rate}} is added while the payment is late.": "Cuando haces una compra usando un plan de cuotas, <highlight>debes pagar cada cuota manualmente antes de la fecha de vencimiento.</highlight> De lo contrario, se agrega una penalidad diaria de {{rate}} mientras el pago esté atrasado.",
