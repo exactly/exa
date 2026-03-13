@@ -1,7 +1,7 @@
 import { renderToBuffer } from "@react-pdf/renderer";
 
 import { captureException, setUser } from "@sentry/node";
-import { and, arrayOverlaps, eq, inArray } from "drizzle-orm";
+import { arrayOverlaps, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { accepts } from "hono/accepts";
 import { validator as vValidator } from "hono-openapi/valibot";
@@ -51,7 +51,7 @@ import { decodeWithdraw } from "@exactly/common/ProposalType";
 import { Address, Hash, type Hex } from "@exactly/common/validation";
 import { effectiveRate, WAD } from "@exactly/lib";
 
-import database, { cards, credentials, transactions as transactionsSchema } from "../database";
+import database, { cards, credentials, transactions } from "../database";
 import auth from "../middleware/auth";
 import { collectors as cryptomateCollectors } from "../utils/cryptomate";
 import { collectors as pandaCollectors } from "../utils/panda";
@@ -90,7 +90,7 @@ export default new Hono().get(
       columns: { account: true },
       with: {
         cards: {
-          columns: {},
+          columns: { id: true, lastFour: true },
           with: { transactions: { columns: { hashes: true, payload: true } } },
           limit: ignore("card") || maturity !== undefined ? 0 : undefined,
         },
@@ -262,32 +262,27 @@ export default new Hono().get(
       ].map((blockNumber) => publicClient.getBlock({ blockNumber })),
     );
     const timestamps = new Map(blocks.map(({ number: block, timestamp }) => [block, timestamp]));
-    let statementCards: string[] = [];
-    let cardPurchases: typeof credential.cards;
-    if (!ignore("card") && maturity !== undefined && borrows) {
-      const hashes = borrows
-        .entries()
-        .filter(([_, { events }]) => events.some(({ maturity: m }) => Number(m) === maturity))
-        .map(([hash]) => hash)
-        .toArray();
-      const userCards = await database.query.cards
-        .findMany({ columns: { id: true }, where: eq(cards.credentialId, credentialId) })
-        .then((rows) => rows.map(({ id }) => id));
-      const statementTransactions =
-        hashes.length === 0 || userCards.length === 0
-          ? []
-          : await database.query.transactions.findMany({
-              where: and(
-                arrayOverlaps(transactionsSchema.hashes, hashes),
-                inArray(transactionsSchema.cardId, userCards),
-              ),
-              columns: { cardId: true, hashes: true, payload: true },
+    const purchases =
+      !ignore("card") && borrows && maturity !== undefined
+        ? await (() => {
+            const hashes = borrows
+              .entries()
+              .filter(([_, { events }]) => events.some(({ maturity: m }) => Number(m) === maturity))
+              .map(([hash]) => hash)
+              .toArray();
+            if (hashes.length === 0) return [];
+            return database.query.cards.findMany({
+              where: eq(cards.credentialId, credentialId),
+              columns: { id: true, lastFour: true },
+              with: {
+                transactions: {
+                  columns: { hashes: true, payload: true },
+                  where: arrayOverlaps(transactions.hashes, hashes),
+                },
+              },
             });
-      statementCards = [...new Set(statementTransactions.map(({ cardId }) => cardId))];
-      cardPurchases = [{ transactions: statementTransactions }];
-    } else {
-      cardPurchases = credential.cards;
-    }
+          })()
+        : credential.cards;
 
     const accept = accepts(c, {
       header: "Accept",
@@ -297,8 +292,8 @@ export default new Hono().get(
     const pdf = accept === "application/pdf";
 
     const response = [
-      ...cardPurchases.flatMap(({ transactions }) =>
-        transactions.map(({ hashes, payload }) => {
+      ...purchases.flatMap(({ transactions: txs }) =>
+        txs.map(({ hashes, payload }) => {
           const panda = safeParse(PandaActivity, {
             ...(payload as object),
             hashes,
@@ -426,20 +421,16 @@ export default new Hono().get(
       .toSorted((a, b) => b.timestamp.localeCompare(a.timestamp) || b.id.localeCompare(a.id));
 
     if (maturity !== undefined && pdf) {
-      if (statementCards.length > 1) return c.json({ code: "multiple cards" }, 400);
-      const statementCurrency = market(marketUSDCAddress).symbol;
-      const card =
-        statementCards.length === 0
-          ? undefined
-          : await database.query.cards.findFirst({
-              columns: { lastFour: true },
-              where: and(eq(cards.credentialId, credentialId), inArray(cards.id, statementCards)),
-            });
-      const statement = {
-        maturity,
-        lastFour: card?.lastFour ?? "",
-        data: response.flatMap((item): Parameters<typeof Statement>[0]["data"] => {
+      const cardLookup = new Map(
+        purchases.flatMap(({ id, transactions: txs }) =>
+          txs.flatMap(({ hashes }) => hashes.map((hash) => [hash, id] as const)),
+        ),
+      );
+      const purchasesByCard = Map.groupBy(
+        response.flatMap((item) => {
           if (item.type === "panda") {
+            const cardId = item.operations[0] && cardLookup.get(item.operations[0].transactionHash);
+            if (!cardId) return [];
             const installments = item.operations
               .reduce((accumulator, operation) => {
                 if ("borrow" in operation) {
@@ -473,6 +464,7 @@ export default new Hono().get(
             if (installments.length === 0) return [];
             return [
               {
+                cardId,
                 id: item.id,
                 timestamp: item.timestamp,
                 description: `${item.merchant.name}${item.merchant.city ? `, ${item.merchant.city}` : ""}`,
@@ -481,6 +473,8 @@ export default new Hono().get(
             ];
           }
           if (item.type === "card" && "borrow" in item) {
+            const cardId = cardLookup.get(item.transactionHash);
+            if (!cardId) return [];
             if ("installments" in item.borrow) {
               const events = borrows?.get(item.transactionHash)?.events;
               if (!events) return [];
@@ -493,6 +487,7 @@ export default new Hono().get(
               if (installments.length === 0) return [];
               return [
                 {
+                  cardId,
                   id: item.id,
                   timestamp: item.timestamp,
                   description: `${item.merchant.name}${item.merchant.city ? `, ${item.merchant.city}` : ""}`,
@@ -504,6 +499,7 @@ export default new Hono().get(
             if (!borrow || Number(borrow.maturity) !== maturity) return [];
             return [
               {
+                cardId,
                 id: item.id,
                 timestamp: item.timestamp,
                 description: `${item.merchant.name}${item.merchant.city ? `, ${item.merchant.city}` : ""}`,
@@ -511,20 +507,30 @@ export default new Hono().get(
               },
             ];
           }
-          if (item.type === "repay") {
-            if (item.currency !== statementCurrency) return [];
-            return [
-              {
-                id: item.id,
-                timestamp: item.timestamp,
-                currency: item.currency,
-                positionAmount: item.positionAmount,
-                amount: item.amount,
-              },
-            ];
-          }
           return [];
         }),
+        ({ cardId }) => cardId,
+      );
+      const statement = {
+        account: `${account.slice(0, 6)}...${account.slice(-6)}`,
+        maturity,
+        cards: purchases
+          .filter(({ id }) => purchasesByCard.has(id))
+          .toSorted((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+          .map(({ id, lastFour }) => ({
+            id,
+            lastFour,
+            purchases: (purchasesByCard.get(id) ?? []).map(({ cardId: _, ...rest }) => rest),
+          })),
+        payments: response
+          .filter((item) => item.type === "repay")
+          .filter((repay) => repay.currency === market(marketUSDCAddress).symbol)
+          .map(({ id, timestamp, amount, positionAmount }) => ({
+            id,
+            timestamp,
+            amount,
+            positionAmount,
+          })),
       };
       return c.body(new Uint8Array(await renderToBuffer(Statement(statement))), 200, {
         "content-type": "application/pdf",
