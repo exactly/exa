@@ -108,6 +108,7 @@ jobs:
             rm -rf $HOME/.maestro $HOME/.maestro.tmp
             sleep 2
           done
+      - run: echo ::add-matcher::.github/matcher.json
       - run: pnpm install --frozen-lockfile
       - run: |
           pnpm nx run-many -t build -p mobile e2e
