@@ -21,9 +21,8 @@ import versionCode from "./src/generated/versionCode.js";
 import type { IntercomPluginProps } from "@intercom/intercom-react-native/lib/typescript/module/expo-plugins/@types";
 import type { withSentry } from "@sentry/react-native/expo";
 import type { ExpoConfig } from "expo/config";
-import type * as OneSignalPlugin from "onesignal-expo-plugin/types/types";
+import type * as OneSignalPlugin from "onesignal-expo-plugin/build/types/types";
 
-const { Mode } = require("onesignal-expo-plugin/build/types/types") as typeof OneSignalPlugin; // eslint-disable-line unicorn/prefer-module
 
 if (env.EAS_BUILD_RUNNER === "eas-build") env.APP_DOMAIN ??= "web.exactly.app";
 if (env.APP_DOMAIN) env.EXPO_PUBLIC_DOMAIN = env.APP_DOMAIN;
@@ -121,7 +120,7 @@ export default {
     [
       "onesignal-expo-plugin",
       {
-        mode: env.NODE_ENV === "production" ? Mode.Prod : Mode.Dev,
+        mode: env.NODE_ENV === "production" ? "production" : "development",
         smallIcons: ["src/assets/notifications_default.png"],
         largeIcons: ["src/assets/notifications_default_large.png"],
       } satisfies OneSignalPlugin.OneSignalPluginProps,
@@ -168,7 +167,7 @@ export default {
     }`;
           let contents = readFileSync(buildGradle, "utf8");
           if (!contents.includes("nexus.ext.meawallet.com")) {
-            contents = contents.replace(/(allprojects[\s\S]*?repositories\s*\{)/, `$1\n${meaRepo}`);
+            contents = contents.replace(/(allprojects[\s\S]*?repositories\s*\{)/, `$1\n${meaRepo}`); // cspell:ignore allprojects
             writeFileSync(buildGradle, contents);
           }
           return c;

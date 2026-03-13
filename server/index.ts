@@ -21,6 +21,7 @@ import androidFingerprints from "./utils/android/fingerprints";
 import appOrigin from "./utils/appOrigin";
 import auth from "./utils/auth";
 import { closeQueue as closeAccountQueue } from "./utils/createCredential";
+import { closeQueue as closeMaturityQueue, scheduleMaturityChecks } from "./utils/maturity";
 import { close as closeRedis } from "./utils/redis";
 import { closeAndFlush as closeSegment } from "./utils/segment";
 
@@ -319,20 +320,29 @@ export default app;
 const server = serve(app);
 
 export async function close() {
-  return new Promise((resolve, reject) => {
-    server.close((error) => {
-      Promise.allSettled([closeSentry(), closeRedis(), closeSegment(), database.$client.end(), closeAccountQueue()])
-        .then((results) => {
-          if (error) reject(error);
-          else if (results.some((result) => result.status === "rejected")) reject(new Error("closing services failed"));
-          else resolve(null);
-        })
-        .catch(reject);
-    });
+  const serverError = await new Promise<Error | undefined>((resolve) => {
+    server.close((error) => resolve(error));
   });
+  const results = await Promise.allSettled([
+    closeSentry(),
+    closeSegment(),
+    database.$client.end(),
+    closeAccountQueue(),
+    closeMaturityQueue(),
+    closeRedis(),
+  ]);
+  const errors = [
+    ...(serverError ? [serverError] : []),
+    ...results.filter((r): r is PromiseRejectedResult => r.status === "rejected").map((r) => r.reason as unknown),
+  ];
+  if (errors.length > 0) throw new AggregateError(errors, "closing services failed");
 }
 
 if (!process.env.VITEST) {
+  scheduleMaturityChecks().catch((error: unknown) => {
+    captureException(error, { level: "error", tags: { unhandled: true } });
+  });
+
   ["SIGINT", "SIGTERM"].map((code) => {
     process.on(code, () => {
       close()

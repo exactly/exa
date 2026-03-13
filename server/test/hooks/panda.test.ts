@@ -1169,6 +1169,7 @@ describe("card operations", () => {
       });
 
       it("captures partial refund feedback errors", async () => {
+        const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
         const error = new Error("feedback failed");
         vi.spyOn(sardine, "feedback").mockRejectedValue(error);
         const cardId = "partial-refund-feedback-error";
@@ -1213,6 +1214,14 @@ describe("card operations", () => {
 
         expect(captureException).toHaveBeenCalledWith(error, { level: "error" });
         expect(response.status).toBe(200);
+        expect(sendPushNotification).toHaveBeenCalledWith({
+          userId: account,
+          headings: t("Refund processed"),
+          contents: t("{{refundAmount}} USDC from {{merchantName}} have been refunded to your account", {
+            refundAmount: f(0.05),
+            merchantName: "99999",
+          }),
+        });
       });
 
       it("returns ok on reversal replay", async () => {

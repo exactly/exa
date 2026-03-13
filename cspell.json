@@ -1,8 +1,6 @@
 {
   "language": "en",
-  "import": [
-    "@cspell/dict-es-es/cspell-ext.json"
-  ],
+  "import": ["@cspell/dict-es-es/cspell-ext.json", "@cspell/dict-pt-br/cspell-ext.json"],
   "ignorePaths": [
     "*.svg",
     "*.local.yaml",
@@ -213,13 +211,85 @@
         "montos",
         "refinancia",
         "refinanciamiento",
-        "refinanciar"
+        "refinanciar",
+        "repágala",
+        "verifícate"
       ]
+    },
+    {
+      "filename": "**/i18n/**/es-AR.json",
+      "language": "en,es",
+      "words": [
+        "accedé",
+        "aceptás",
+        "activá",
+        "actualizá",
+        "agregá",
+        "ahorrá",
+        "ajustá",
+        "aprendé",
+        "asegurate",
+        "biometría",
+        "cambiá",
+        "completá",
+        "conectate",
+        "conectá",
+        "conectás",
+        "configurá",
+        "conocé",
+        "conservá",
+        "copiá",
+        "creá",
+        "cripto",
+        "debés",
+        "depositá",
+        "desbloqueá",
+        "empezá",
+        "enviá",
+        "enviás",
+        "esperá",
+        "evitá",
+        "habilitá",
+        "hacé",
+        "hacés",
+        "ingresá",
+        "iniciá",
+        "intentalo",
+        "intentá",
+        "introducí",
+        "mantenete",
+        "maximizá",
+        "mejorá",
+        "montos",
+        "obtené",
+        "pagá",
+        "pasá",
+        "podés",
+        "ponete",
+        "presioná",
+        "probá",
+        "querés",
+        "recargá",
+        "refinanciar",
+        "refinanciá",
+        "registrate",
+        "renová",
+        "reportá",
+        "revisá",
+        "seleccioná",
+        "simulá",
+        "tocá",
+        "usalo",
+        "usás",
+        "verificate",
+        "verificá"
+      ]
+    },
+    {
+      "filename": "**/i18n/**/pt.json",
+      "language": "en,pt",
+      "words": ["autocustódia", "criptomoedas"]
     }
   ],
-  "ignoreRegExpList": [
-    "\\bitmpl_\\w+\\b",
-    "\\b(w|stat)?aBas\\w+\\b",
-    "\\baOpt\\w+\\b"
-  ]
+  "ignoreRegExpList": ["\\bitmpl_\\w+\\b", "\\b(w|stat)?aBas\\w+\\b", "\\baOpt\\w+\\b"]
 }
