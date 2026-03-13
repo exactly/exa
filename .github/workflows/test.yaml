@@ -104,6 +104,7 @@ jobs:
             rm -rf $HOME/.maestro $HOME/.maestro.tmp
             sleep 2
           done
+      - run: echo ::add-matcher::.github/matcher.json
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
       - run: |
