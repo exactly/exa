@@ -1,5 +1,4 @@
 import type { PluginConfigType as BuildPropertiesConfig } from "expo-build-properties/build/pluginConfig";
-import type withCamera from "expo-camera/plugin/build/withCamera";
 import type { FontProps } from "expo-font/plugin/build/withFonts";
 
 import { AndroidConfig, withAndroidManifest, withAppBuildGradle, type ConfigPlugin } from "expo/config-plugins";
@@ -43,8 +42,8 @@ export default {
     buildNumber: String(versionCode),
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
-      NSCameraUsageDescription: "This app uses the camera to verify your identity.",
-      NSLocationWhenInUseUsageDescription: "This app uses your location to verify your identity.",
+      NSCameraUsageDescription: "Exa uses the camera to scan QR codes and verify your identity.",
+      NSLocationWhenInUseUsageDescription: "Exa uses your location to verify your identity.",
     },
     userInterfaceStyle: "automatic",
     splash: {
@@ -66,12 +65,7 @@ export default {
         },
       } satisfies BuildPropertiesConfig,
     ],
-    [
-      "expo-camera",
-      {
-        cameraPermission: "Exactly needs your permission to scan QR codes.",
-      } satisfies Parameters<typeof withCamera>[1],
-    ],
+    "expo-camera",
     [
       "expo-font",
       {
