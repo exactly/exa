@@ -11,6 +11,10 @@
       "pattern": [{ "regexp": "^(.*):(\\d+):(\\d+) - (.*)$", "file": 1, "line": 2, "column": 3, "message": 4 }]
     },
     {
+      "owner": "maestro",
+      "pattern": [{ "regexp": "^\\[Failed\\] (\\S+) \\([^)]+\\) \\((.+)\\)$", "message": 2 }]
+    },
+    {
       "owner": "markdownlint",
       "pattern": [
         {
