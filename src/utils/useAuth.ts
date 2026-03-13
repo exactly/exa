@@ -65,9 +65,9 @@ function handleError(
     });
     return;
   }
-  const { authKnown, passkeyCancelled, passkeyNotAllowed } = classifyError(error);
+  const { authKnown, bundleCancelled, passkeyCancelled, passkeyNotAllowed, walletRejected } = classifyError(error);
   if (authKnown) {
-    const cancelled = passkeyCancelled || passkeyNotAllowed;
+    const cancelled = bundleCancelled || passkeyCancelled || passkeyNotAllowed || walletRejected;
     if (!cancelled && !auth) reportError(error);
     queryClient.setQueryData(["method"], undefined);
     toast.show(t("Authentication cancelled"), {
