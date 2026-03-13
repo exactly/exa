@@ -88,7 +88,10 @@ describe.concurrent("authenticated", () => {
     let maturity: string;
 
     beforeAll(async () => {
-      await database.insert(cards).values([{ id: "activity", credentialId: "bob", lastFour: "1234" }]);
+      await database.insert(cards).values([
+        { id: "first-activity-card", credentialId: "bob", lastFour: "1234" },
+        { id: "second-activity-card", credentialId: "bob", lastFour: "6789" },
+      ]);
       const borrows = await anvilClient.getContractEvents({
         abi: marketAbi,
         eventName: "BorrowAtMaturity",
@@ -167,7 +170,7 @@ describe.concurrent("authenticated", () => {
                 };
           return {
             id: String(index),
-            cardId: "activity",
+            cardId: index === 0 ? "first-activity-card" : "second-activity-card",
             hashes,
             payload,
             hash,
@@ -179,7 +182,7 @@ describe.concurrent("authenticated", () => {
         }),
         {
           id: "transaction-declined",
-          cardId: "activity",
+          cardId: "first-activity-card",
           hashes: [zeroHash],
           hash: zeroHash,
           blockNumber: 0n,
@@ -300,7 +303,7 @@ describe.concurrent("authenticated", () => {
     it("reports bad transaction", async () => {
       await database
         .insert(transactions)
-        .values([{ id: "bad-transaction", cardId: "activity", hashes: ["0x1"], payload: {} }]);
+        .values([{ id: "bad-transaction", cardId: "first-activity-card", hashes: ["0x1"], payload: {} }]);
       const response = await appClient.index.$get(
         { query: { include: "card" } },
         { headers: { "test-credential-id": "bob" } },
@@ -331,6 +334,17 @@ describe.concurrent("authenticated", () => {
 
       const json = (await response.json()) as { borrow?: { maturity: number } }[];
       expect(json.every((item) => !item.borrow || item.borrow.maturity === Number(maturity))).toBe(true);
+    });
+
+    it("returns empty card activity for unmatched maturity", async () => {
+      expect.hasAssertions();
+      const response = await appClient.index.$get(
+        { query: { include: "card", maturity: "0" } },
+        { headers: { "test-credential-id": "bob" } },
+      );
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual([]);
     });
 
     it("returns statement pdf", async () => {

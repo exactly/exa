@@ -1,132 +1,251 @@
 import { renderToBuffer } from "@react-pdf/renderer";
 import { isValidElement, type ReactNode } from "react";
 
-import { describe, expect, it } from "vitest";
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { beforeAll, describe, expect, it } from "vitest";
 
 import { MATURITY_INTERVAL } from "@exactly/lib";
 
 import Statement, { format } from "../../utils/Statement";
 
+const directory = path.join("node_modules/@exactly/.runtime");
+
 describe("statement rendering", () => {
+  beforeAll(async () => {
+    await mkdir(directory, { recursive: true });
+  });
   it("renders with purchases", async () => {
     const statement = {
-      data: [
+      account: "0x92bD...e82BA8",
+      cards: [
         {
-          id: "purchase-1",
-          description: "grocery store",
-          installments: [{ amount: 50.25, current: 1, total: 3 }],
-          timestamp: "2025-12-19T11:35:11.030Z",
-        },
-        {
-          id: "purchase-2",
-          description: "gas station",
-          installments: [{ amount: 30.5, current: 2, total: 2 }],
-          timestamp: "2025-12-19T11:22:49.412Z",
+          id: "card-1",
+          lastFour: "1234",
+          purchases: [
+            {
+              id: "purchase-1",
+              description: "grocery store",
+              installments: [{ amount: 50.25, current: 1, total: 3 }],
+              timestamp: "2025-12-19T11:35:11.030Z",
+            },
+            {
+              id: "purchase-2",
+              description: "gas station",
+              installments: [{ amount: 30.5, current: 2, total: 2 }],
+              timestamp: "2025-12-19T11:22:49.412Z",
+            },
+          ],
         },
       ],
-      lastFour: "1234",
       maturity: 1_768_435_200,
+      payments: [],
     };
     const pdf = await renderToBuffer(Statement(statement));
     expect(pdf.byteLength).toBeGreaterThan(0);
+    await writeFile(path.join(directory, `statement-purchases-${Date.now()}.pdf`), new Uint8Array(pdf)); // eslint-disable-line security/detect-non-literal-fs-filename -- test artifact
 
     const text = collectText(Statement(statement));
-    expect(text).toContain("Exa App");
-    expect(text).toContain("Card Statement");
-    expect(text).toContain("1768435200");
-    expect(text).toContain("**** **** **** 1234");
-    expect(text).toContain(format(1_768_435_200));
-    expect(text).toContain(format(1_768_435_200 - MATURITY_INTERVAL));
-    expect(text).toContain("Purchases");
+    expect(text).toContain("Statement");
+    expect(text).toContain("Account 0x92bD...e82BA8");
+    expect(text).toContain("Card **** 1234");
+    expect(text).toContain(format(1_768_435_200 * 1000));
+    expect(text).toContain(format((1_768_435_200 - MATURITY_INTERVAL) * 1000));
     expect(text).toContain("grocery store");
-    expect(text).toContain("Installment 1 of 3");
-    expect(text).toContain("USDC 50.25");
+    expect(text).toContain("$50.25");
     expect(text).toContain("gas station");
-    expect(text).toContain("Installment 2 of 2");
-    expect(text).toContain("USDC 30.50");
+    expect(text).toContain("$30.50");
+    expect(text).toContain("Summary");
+    expect(text).toContain("Due balance");
   });
 
-  it("renders with repayments", async () => {
+  it("renders with payments", async () => {
     const statement = {
-      data: [
+      account: "0x92bD...e82BA8",
+      cards: [
         {
-          id: "repay-1",
-          amount: 100,
-          currency: "USDC",
-          positionAmount: 105.82,
-          timestamp: "2025-12-19T11:35:11.030Z",
+          id: "card-1",
+          lastFour: "1234",
+          purchases: [
+            {
+              id: "purchase-1",
+              description: "coffee shop",
+              installments: [{ amount: 100, current: 1, total: 1 }],
+              timestamp: "2025-12-19T11:35:11.030Z",
+            },
+          ],
         },
       ],
-      lastFour: "1234",
       maturity: 1_768_435_200,
+      payments: [{ id: "repay-1", amount: 100, positionAmount: 100, timestamp: "2025-12-19T11:35:11.030Z" }],
     };
     const pdf = await renderToBuffer(Statement(statement));
     expect(pdf.byteLength).toBeGreaterThan(0);
+    await writeFile(path.join(directory, `statement-payments-${Date.now()}.pdf`), new Uint8Array(pdf)); // eslint-disable-line security/detect-non-literal-fs-filename -- test artifact
     const text = collectText(Statement(statement));
-    expect(text).toContain("Exa App");
-    expect(text).toContain("Card Statement");
-    expect(text).toContain("1768435200");
-    expect(text).toContain("**** **** **** 1234");
-    expect(text).toContain(format(1_768_435_200));
-    expect(text).toContain(format(1_768_435_200 - MATURITY_INTERVAL));
+    expect(text).toContain("Statement");
+    expect(text).toContain("Account 0x92bD...e82BA8");
+    expect(text).toContain("Card **** 1234");
+    expect(text).toContain(format(1_768_435_200 * 1000));
+    expect(text).toContain(format((1_768_435_200 - MATURITY_INTERVAL) * 1000));
     expect(text).toContain("Payments");
-    expect(text).toContain("5.50% discount applied");
-    expect(text).toContain("USDC 100.00");
+    expect(text).toContain("$100.00");
   });
 
   it("renders with empty data", async () => {
     const statement = {
-      data: [],
-      lastFour: "",
+      account: "0x92bD...e82BA8",
+      cards: [],
       maturity: 1_768_435_200,
+      payments: [],
     };
     const pdf = await renderToBuffer(Statement(statement));
     expect(pdf.byteLength).toBeGreaterThan(0);
+    await writeFile(path.join(directory, `statement-empty-${Date.now()}.pdf`), new Uint8Array(pdf)); // eslint-disable-line security/detect-non-literal-fs-filename -- test artifact
     const text = collectText(Statement(statement));
-    expect(text).toContain("Exa App");
-    expect(text).toContain("Card Statement");
-    expect(text).toContain("1768435200");
-    expect(text).toContain(format(1_768_435_200));
-    expect(text).toContain(format(1_768_435_200 - MATURITY_INTERVAL));
+    expect(text).toContain("Statement");
+    expect(text).toContain("Account 0x92bD...e82BA8");
+    expect(text).toContain(format(1_768_435_200 * 1000));
+    expect(text).toContain(format((1_768_435_200 - MATURITY_INTERVAL) * 1000));
+    expect(text).toContain("Summary");
+    expect(text).toContain("Due balance");
   });
 
-  it("renders with both purchases and repayments", async () => {
+  it("renders with multiple cards", async () => {
     const statement = {
-      data: [
+      account: "0x92bD...e82BA8",
+      cards: [
         {
-          id: "purchase-3",
-          description: "online purchase",
-          installments: [{ amount: 75, current: 1, total: 1 }],
-          timestamp: "2025-12-19T11:35:11.030Z",
+          id: "card-1",
+          lastFour: "1234",
+          purchases: [
+            {
+              id: "purchase-1",
+              description: "grocery store",
+              installments: [{ amount: 50, current: 1, total: 1 }],
+              timestamp: "2025-12-19T11:35:11.030Z",
+            },
+          ],
         },
         {
-          id: "repay-2",
-          amount: 200,
-          currency: "USDC",
-          positionAmount: 206.6,
-          timestamp: "2025-12-20T10:00:00.000Z",
+          id: "card-2",
+          lastFour: "5678",
+          purchases: [
+            {
+              id: "purchase-2",
+              description: "online purchase",
+              installments: [{ amount: 75, current: 1, total: 1 }],
+              timestamp: "2025-12-19T11:22:49.412Z",
+            },
+          ],
         },
       ],
-      lastFour: "5678",
       maturity: 1_768_435_200,
+      payments: [{ id: "repay-1", amount: 25, positionAmount: 25, timestamp: "2025-12-20T10:00:00.000Z" }],
     };
     const pdf = await renderToBuffer(Statement(statement));
     expect(pdf.byteLength).toBeGreaterThan(0);
+    await writeFile(path.join(directory, `statement-multiple-cards-${Date.now()}.pdf`), new Uint8Array(pdf)); // eslint-disable-line security/detect-non-literal-fs-filename -- test artifact
     const text = collectText(Statement(statement));
-    expect(pdf.byteLength).toBeGreaterThan(0);
-    expect(text).toContain("Exa App");
-    expect(text).toContain("Card Statement");
-    expect(text).toContain("1768435200");
-    expect(text).toContain("**** **** **** 5678");
-    expect(text).toContain(format(1_768_435_200));
-    expect(text).toContain(format(1_768_435_200 - MATURITY_INTERVAL));
-    expect(text).toContain("Purchases");
+    expect(text).toContain("Statement");
+    expect(text).toContain("Account 0x92bD...e82BA8");
+    expect(text).toContain("Card **** 1234");
+    expect(text).toContain("Card **** 5678");
+    expect(text).toContain(format(1_768_435_200 * 1000));
+    expect(text).toContain(format((1_768_435_200 - MATURITY_INTERVAL) * 1000));
+    expect(text).toContain("grocery store");
+    expect(text).toContain("$50.00");
     expect(text).toContain("online purchase");
-    expect(text).toContain("Installment 1 of 1");
-    expect(text).toContain("USDC 75.00");
+    expect(text).toContain("$75.00");
+    expect(text).toContain("Summary");
+    expect(text).toContain("Due balance");
     expect(text).toContain("Payments");
-    expect(text).toContain("% discount applied");
-    expect(text).toContain("USDC 200.00");
+    expect(text).toContain("$25.00");
+  });
+
+  it("renders discount chip for early payment", async () => {
+    const statement = {
+      account: "0x92bD...e82BA8",
+      cards: [
+        {
+          id: "card-1",
+          lastFour: "1234",
+          purchases: [
+            {
+              id: "purchase-1",
+              description: "coffee shop",
+              installments: [{ amount: 105.82, current: 1, total: 1 }],
+              timestamp: "2025-12-19T11:35:11.030Z",
+            },
+          ],
+        },
+      ],
+      maturity: 1_768_435_200,
+      payments: [{ id: "repay-1", amount: 100, positionAmount: 105.82, timestamp: "2025-12-19T11:35:11.030Z" }],
+    };
+    const pdf = await renderToBuffer(Statement(statement));
+    expect(pdf.byteLength).toBeGreaterThan(0);
+    await writeFile(path.join(directory, `statement-discount-${Date.now()}.pdf`), new Uint8Array(pdf)); // eslint-disable-line security/detect-non-literal-fs-filename -- test artifact
+    const text = collectText(Statement(statement));
+    expect(text).toContain("5.50% discount");
+    expect(text).not.toContain("penalty");
+    expect(text).toContain("$0.00");
+  });
+
+  it("renders penalty chip for late payment", async () => {
+    const statement = {
+      account: "0x92bD...e82BA8",
+      cards: [
+        {
+          id: "card-1",
+          lastFour: "1234",
+          purchases: [
+            {
+              id: "purchase-1",
+              description: "coffee shop",
+              installments: [{ amount: 100, current: 1, total: 1 }],
+              timestamp: "2025-12-19T11:35:11.030Z",
+            },
+          ],
+        },
+      ],
+      maturity: 1_768_435_200,
+      payments: [{ id: "repay-1", amount: 102.31, positionAmount: 100, timestamp: "2025-12-19T11:35:11.030Z" }],
+    };
+    const pdf = await renderToBuffer(Statement(statement));
+    expect(pdf.byteLength).toBeGreaterThan(0);
+    await writeFile(path.join(directory, `statement-penalty-${Date.now()}.pdf`), new Uint8Array(pdf)); // eslint-disable-line security/detect-non-literal-fs-filename -- test artifact
+    const text = collectText(Statement(statement));
+    expect(text).toContain("2.31% penalty");
+    expect(text).not.toContain("discount");
+    expect(text).toContain("$0.00");
+  });
+
+  it("renders no chip when amount equals positionAmount", async () => {
+    const statement = {
+      account: "0x92bD...e82BA8",
+      cards: [
+        {
+          id: "card-1",
+          lastFour: "1234",
+          purchases: [
+            {
+              id: "purchase-1",
+              description: "coffee shop",
+              installments: [{ amount: 100, current: 1, total: 1 }],
+              timestamp: "2025-12-19T11:35:11.030Z",
+            },
+          ],
+        },
+      ],
+      maturity: 1_768_435_200,
+      payments: [{ id: "repay-1", amount: 100, positionAmount: 100, timestamp: "2025-12-19T11:35:11.030Z" }],
+    };
+    const pdf = await renderToBuffer(Statement(statement));
+    await writeFile(path.join(directory, `statement-no-chip-${Date.now()}.pdf`), new Uint8Array(pdf)); // eslint-disable-line security/detect-non-literal-fs-filename -- test artifact
+    const text = collectText(Statement(statement));
+    expect(text).not.toContain("discount");
+    expect(text).not.toContain("penalty");
   });
 });
 
