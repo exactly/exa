@@ -115,9 +115,18 @@ function classify({ code, message, name, reason, revert, status }: ParsedError) 
       authPrefixes.some((prefix) => message.startsWith(prefix)));
   const passkeyWarning = passkeyKnown && !passkeyCancelled && !passkeyNotAllowed;
   const biometric = code === "ERR_BIOMETRIC";
-  const authKnown = passkeyKnown || passkeyNotAllowed || biometric || message === "invalid operation";
+  const walletRejected = status === "4001" || status === "5000";
+  const bundleCancelled = status === "5730";
+  const authKnown =
+    passkeyKnown ||
+    passkeyNotAllowed ||
+    biometric ||
+    walletRejected ||
+    bundleCancelled ||
+    message === "invalid operation";
   const network = classifyNetwork(message);
-  const knownWarning = passkeyKnown || biometric || message === "invalid operation";
+  const knownWarning =
+    passkeyKnown || biometric || walletRejected || bundleCancelled || message === "invalid operation";
   const knownInfo = network !== undefined;
   const known = knownWarning || knownInfo;
   const value =
