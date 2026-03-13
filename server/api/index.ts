@@ -11,6 +11,7 @@ import passkey from "./passkey";
 import pax from "./pax";
 import ramp from "./ramp";
 import appOrigin from "../utils/appOrigin";
+import auth from "../utils/auth";
 
 const api = new Hono()
   .use(cors({ origin: [appOrigin, "http://localhost:8081"], credentials: true, exposeHeaders: ["X-Session-Id"] }))
@@ -26,7 +27,8 @@ const api = new Hono()
   .route("/kyc", kyc)
   .route("/passkey", passkey) // eslint-disable-line @typescript-eslint/no-deprecated -- // TODO remove
   .route("/pax", pax)
-  .route("/ramp", ramp);
+  .route("/ramp", ramp)
+  .on(["POST", "GET"], "/auth/*", (c) => auth.handler(c.req.raw));
 
 export default api;
 export type ExaAPI = typeof api;
