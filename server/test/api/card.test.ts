@@ -616,7 +616,7 @@ describe("authenticated", () => {
       },
     };
 
-    vi.spyOn(persona, "getAccount").mockResolvedValueOnce(mockAccount);
+    vi.spyOn(persona, "getAccount").mockResolvedValueOnce(undefined).mockResolvedValueOnce(mockAccount); // eslint-disable-line unicorn/no-useless-undefined
     vi.spyOn(pax, "addCapita").mockResolvedValueOnce({});
     vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: "pax-card", last4: "5555" });
 
@@ -734,7 +734,7 @@ describe("authenticated", () => {
       },
     };
 
-    vi.spyOn(persona, "getAccount").mockResolvedValueOnce(mockAccount);
+    vi.spyOn(persona, "getAccount").mockResolvedValueOnce(undefined).mockResolvedValueOnce(mockAccount); // eslint-disable-line unicorn/no-useless-undefined
     vi.spyOn(pax, "addCapita").mockRejectedValueOnce(new Error("pax api error"));
     vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: "error-card", last4: "6666" });
 
