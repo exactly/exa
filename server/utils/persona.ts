@@ -28,6 +28,9 @@ if (!process.env.PERSONA_API_KEY) throw new Error("missing persona api key");
 if (!process.env.PERSONA_URL) throw new Error("missing persona url");
 if (!process.env.PERSONA_WEBHOOK_SECRET) throw new Error("missing persona webhook secret");
 
+export const ADDRESS_TEMPLATE = "itmpl_FTHNSXqJjoMvUTBc85QECGHogrZx";
+export const CARD_LIMIT_CASE_TEMPLATE = "ctmpl_5cCoj56PD6NpsX3H3ZoMynZVfXbF"; // cspell:ignore ctmpl_5cCoj56PD6NpsX3H3ZoMynZVfXbF
+export const CARD_LIMIT_TEMPLATE = "itmpl_bB6kkMytjE1PiwwCHnFhSqAQoB1b"; // cspell:ignore itmpl_bB6kkMytjE1PiwwCHnFhSqAQoB1b
 export const CRYPTOMATE_TEMPLATE = "itmpl_8uim4FvD5P3kFpKHX37CW817";
 export const PANDA_TEMPLATE = "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2";
 export const MANTECA_TEMPLATE_EXTRA_FIELDS = "itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo";
@@ -52,13 +55,25 @@ export async function getInquiry(referenceId: string, templateId: string) {
   return inquiries[0];
 }
 
+export async function getInquiryById(inquiryId: string) {
+  return request(
+    object({ data: object({ attributes: object({ "reference-id": string() }) }) }),
+    `/inquiries/${inquiryId}`,
+  );
+}
+
 export function resumeInquiry(inquiryId: string) {
   return request(ResumeInquiryResponse, `/inquiries/${inquiryId}/resume`, undefined, "POST");
 }
 
-export function createInquiry(referenceId: string, templateId: string, redirectURI?: string) {
+export function createInquiry(
+  referenceId: string,
+  templateId: string,
+  redirectURI?: string,
+  fields?: Record<string, string>,
+) {
   return request(CreateInquiryResponse, "/inquiries", {
-    data: { attributes: { "inquiry-template-id": templateId, "redirect-uri": `${redirectURI ?? appOrigin}/card` } },
+    data: { attributes: { "inquiry-template-id": templateId, "redirect-uri": `${redirectURI ?? appOrigin}/card`, ...fields && { fields } } },
     meta: { "auto-create-account": true, "auto-create-account-reference-id": referenceId },
   });
 }

@@ -29,6 +29,7 @@ import {
   updateApplication,
 } from "../utils/panda";
 import {
+  CARD_LIMIT_TEMPLATE,
   createInquiry,
   CRYPTOMATE_TEMPLATE,
   getAccount,
@@ -155,7 +156,7 @@ export default new Hono()
       "json",
       object({
         redirectURI: optional(string()),
-        scope: optional(picklist(["basic", "manteca"])),
+        scope: optional(picklist(["basic", "bridge", "cardLimit", "manteca"])),
       }),
       validatorHook({ debug }),
     ),
@@ -171,6 +172,39 @@ export default new Hono()
       if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
       setUser({ id: parse(Address, credential.account) });
       setContext("exa", { credential });
+
+      if (scope === "cardLimit") {
+        if (!credential.pandaId) return c.json({ code: "no panda" }, 400);
+        const inquiry = await getInquiry(credentialId, CARD_LIMIT_TEMPLATE);
+        if (!inquiry) {
+          const account = await getAccount(credentialId, "basic");
+          const fields = account
+            ? { "name-first": account.attributes["name-first"], "name-last": account.attributes["name-last"] }
+            : undefined;
+          const { data } = await createInquiry(credentialId, CARD_LIMIT_TEMPLATE, redirectURI, fields);
+          const { inquiryId, sessionToken } = await generateInquiryTokens(data.id);
+          return c.json({ inquiryId, sessionToken }, 200);
+        }
+        switch (inquiry.attributes.status) {
+          case "created":
+          case "pending":
+          case "expired": {
+            const { inquiryId, sessionToken } = await generateInquiryTokens(inquiry.id);
+            return c.json({ inquiryId, sessionToken }, 200);
+          }
+          case "approved":
+            captureException(new Error("inquiry approved but account not updated"), {
+              level: "error",
+              contexts: { inquiry: { templateId: CARD_LIMIT_TEMPLATE, referenceId: credentialId } },
+            });
+            return c.json({ code: "already approved" }, 400);
+          case "completed":
+          case "needs_review":
+            return c.json({ code: "pending" }, 400);
+          default:
+            return c.json({ code: "failed" }, 400);
+        }
+      }
 
       let inquiryTemplateId: Awaited<ReturnType<typeof getPendingInquiryTemplate>>;
       try {

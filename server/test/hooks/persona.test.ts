@@ -7,12 +7,12 @@ import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { hexToBytes, padHex, parseEther, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
-import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import { wethAddress } from "@exactly/common/generated/chain";
 
-import database, { credentials } from "../../database";
+import database, { cards, credentials } from "../../database";
 import app from "../../hooks/persona";
 import keeper from "../../utils/keeper";
 import * as panda from "../../utils/panda";
@@ -54,6 +54,7 @@ describe("with reference", () => {
 
   afterEach(async () => {
     vi.resetAllMocks();
+    await database.delete(cards).where(eq(cards.credentialId, referenceId));
     await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, referenceId));
   });
 
@@ -220,6 +221,61 @@ describe("with reference", () => {
     expect(panda.createUser).not.toHaveBeenCalled();
   });
 
+  it("updates card limit after second panda approval", async () => {
+    await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, referenceId));
+    await database.insert(cards).values([{ id: "limit-card", credentialId: referenceId, lastFour: "9999" }]);
+    vi.spyOn(persona, "getInquiryById").mockResolvedValueOnce({
+      data: { attributes: { "reference-id": referenceId } },
+    });
+    vi.spyOn(panda, "updateCard").mockResolvedValueOnce({} as Awaited<ReturnType<typeof panda.updateCard>>);
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: casePayload({ status: "Approved", cardLimitUsd: 20_000 }),
+    });
+
+    expect(panda.updateCard).toHaveBeenCalledExactlyOnceWith({
+      id: "limit-card",
+      limit: { amount: 2_000_000, frequency: "per7DayPeriod" },
+    });
+    expect(response.status).toBe(200);
+    expect(panda.createUser).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("returns 200 without updating card when no card exists", async () => {
+    await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, referenceId));
+    vi.spyOn(persona, "getInquiryById").mockResolvedValueOnce({
+      data: { attributes: { "reference-id": referenceId } },
+    });
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: casePayload({ status: "Approved", cardLimitUsd: 20_000 }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(panda.updateCard).not.toHaveBeenCalled();
+    expect(panda.createUser).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("captures exception when updateCard fails", async () => {
+    await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, referenceId));
+    await database.insert(cards).values([{ id: "fail-card", credentialId: referenceId, lastFour: "8888" }]);
+    vi.spyOn(persona, "getInquiryById").mockResolvedValueOnce({
+      data: { attributes: { "reference-id": referenceId } },
+    });
+    const error = new Error("panda update failed");
+    vi.spyOn(panda, "updateCard").mockRejectedValueOnce(error);
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: casePayload({ status: "Approved", cardLimitUsd: 20_000 }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(error);
+    expect(panda.createUser).not.toHaveBeenCalled();
+  });
+
   it("returns 200 if no credential", async () => {
     vi.spyOn(database.query.credentials, "findFirst").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
 
@@ -283,6 +339,11 @@ describe("with reference", () => {
           'data/attributes/fields/currentGovernmentId1 Invalid key: Expected "currentGovernmentId1" but received undefined',
           'data/attributes/fields/selectedIdClass1 Invalid key: Expected "selectedIdClass1" but received undefined',
           'data/relationships/inquiryTemplate/data/id Invalid type: Expected "itmpl_TjaqJdQYkht17v645zNFUfkaWNan" but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
+          'data/type Invalid type: Expected "case" but received "inquiry"',
+          'data/attributes/status Invalid type: Expected ("Approved" | "Declined" | "Open" | "Pending") but received "approved"',
+          'data/relationships/caseTemplate Invalid key: Expected "caseTemplate" but received undefined',
+          'data/relationships/inquiries Invalid key: Expected "inquiries" but received undefined',
+          'data/relationships/inquiryTemplate/data/id Invalid type: Expected ("itmpl_FTHNSXqJjoMvUTBc85QECGHogrZx" | "itmpl_bB6kkMytjE1PiwwCHnFhSqAQoB1b" | "itmpl_8uim4FvD5P3kFpKHX37CW817" | "itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo") but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
         ],
       });
       expect(panda.createUser).not.toHaveBeenCalled();
@@ -331,6 +392,11 @@ describe("with reference", () => {
           'data/attributes/fields/currentGovernmentId1 Invalid key: Expected "currentGovernmentId1" but received undefined',
           'data/attributes/fields/selectedIdClass1 Invalid key: Expected "selectedIdClass1" but received undefined',
           'data/relationships/inquiryTemplate/data/id Invalid type: Expected "itmpl_TjaqJdQYkht17v645zNFUfkaWNan" but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
+          'data/type Invalid type: Expected "case" but received "inquiry"',
+          'data/attributes/status Invalid type: Expected ("Approved" | "Declined" | "Open" | "Pending") but received "approved"',
+          'data/relationships/caseTemplate Invalid key: Expected "caseTemplate" but received undefined',
+          'data/relationships/inquiries Invalid key: Expected "inquiries" but received undefined',
+          'data/relationships/inquiryTemplate/data/id Invalid type: Expected ("itmpl_FTHNSXqJjoMvUTBc85QECGHogrZx" | "itmpl_bB6kkMytjE1PiwwCHnFhSqAQoB1b" | "itmpl_8uim4FvD5P3kFpKHX37CW817" | "itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo") but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
         ],
       });
       expect(panda.createUser).not.toHaveBeenCalled();
@@ -379,6 +445,11 @@ describe("with reference", () => {
           'data/attributes/fields/currentGovernmentId1 Invalid key: Expected "currentGovernmentId1" but received undefined',
           'data/attributes/fields/selectedIdClass1 Invalid key: Expected "selectedIdClass1" but received undefined',
           'data/relationships/inquiryTemplate/data/id Invalid type: Expected "itmpl_TjaqJdQYkht17v645zNFUfkaWNan" but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
+          'data/type Invalid type: Expected "case" but received "inquiry"',
+          'data/attributes/status Invalid type: Expected ("Approved" | "Declined" | "Open" | "Pending") but received "approved"',
+          'data/relationships/caseTemplate Invalid key: Expected "caseTemplate" but received undefined',
+          'data/relationships/inquiries Invalid key: Expected "inquiries" but received undefined',
+          'data/relationships/inquiryTemplate/data/id Invalid type: Expected ("itmpl_FTHNSXqJjoMvUTBc85QECGHogrZx" | "itmpl_bB6kkMytjE1PiwwCHnFhSqAQoB1b" | "itmpl_8uim4FvD5P3kFpKHX37CW817" | "itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo") but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
         ],
       });
       expect(panda.createUser).not.toHaveBeenCalled();
@@ -409,6 +480,7 @@ describe("persona hook", () => {
     vi.spyOn(panda, "createUser").mockResolvedValue({ id: "new-panda-id" });
     vi.spyOn(pax, "addCapita").mockResolvedValue({});
     vi.spyOn(sardine, "customer").mockResolvedValueOnce({ sessionKey: "test", status: "Success", level: "low" });
+    vi.spyOn(persona, "addDocument").mockResolvedValueOnce({ data: { id: "doc_123" } });
 
     const response = await appClient.index.$post({
       header: {
@@ -719,6 +791,290 @@ describe("manteca template", () => {
     expect(panda.createUser).not.toHaveBeenCalled();
   });
 });
+
+describe("ignored template", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it("returns ok for address template", async () => {
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: ignoredPayload("itmpl_FTHNSXqJjoMvUTBc85QECGHogrZx"),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(panda.createUser).not.toHaveBeenCalled();
+    expect(persona.addDocument).not.toHaveBeenCalled();
+  });
+
+  it("returns ok for cryptomate template", async () => {
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: ignoredPayload("itmpl_8uim4FvD5P3kFpKHX37CW817"),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(panda.createUser).not.toHaveBeenCalled();
+    expect(persona.addDocument).not.toHaveBeenCalled();
+  });
+
+  it("returns ok for manteca extra fields template", async () => {
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: ignoredPayload("itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo"),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(panda.createUser).not.toHaveBeenCalled();
+    expect(persona.addDocument).not.toHaveBeenCalled();
+  });
+});
+
+describe("card limit case", () => {
+  const referenceId = "case-persona-ref";
+  const owner = privateKeyToAddress(padHex("0x456"));
+  const factory = inject("ExaAccountFactory");
+  const account = deriveAddress(factory, { x: padHex(owner), y: zeroHash });
+
+  beforeAll(async () => {
+    await database
+      .insert(credentials)
+      .values([{ id: referenceId, publicKey: new Uint8Array(hexToBytes(owner)), account, factory, pandaId: null }]);
+  });
+
+  afterEach(async () => {
+    vi.resetAllMocks();
+    await database.delete(cards).where(eq(cards.credentialId, referenceId));
+    await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, referenceId));
+  });
+
+  it("updates card with dynamic limit when approved", async () => {
+    await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, referenceId));
+    await database.insert(cards).values([{ id: "case-card", credentialId: referenceId, lastFour: "1234" }]);
+    vi.spyOn(persona, "getInquiryById").mockResolvedValueOnce({
+      data: { attributes: { "reference-id": referenceId } },
+    });
+    vi.spyOn(panda, "updateCard").mockResolvedValueOnce({} as Awaited<ReturnType<typeof panda.updateCard>>);
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: casePayload({ status: "Approved", cardLimitUsd: 20_000 }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(panda.updateCard).toHaveBeenCalledExactlyOnceWith({
+      id: "case-card",
+      limit: { amount: 2_000_000, frequency: "per7DayPeriod" },
+    });
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("captures exception and returns ok when updateCard fails", async () => {
+    await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, referenceId));
+    await database.insert(cards).values([{ id: "case-card", credentialId: referenceId, lastFour: "1234" }]);
+    vi.spyOn(persona, "getInquiryById").mockResolvedValueOnce({
+      data: { attributes: { "reference-id": referenceId } },
+    });
+    const error = new Error("panda api error");
+    vi.spyOn(panda, "updateCard").mockRejectedValueOnce(error);
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: casePayload({ status: "Approved", cardLimitUsd: 20_000 }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(panda.updateCard).toHaveBeenCalledExactlyOnceWith({
+      id: "case-card",
+      limit: { amount: 2_000_000, frequency: "per7DayPeriod" },
+    });
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(error);
+  });
+
+  it("returns ok without updating card when declined", async () => {
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: casePayload({ status: "Declined", cardLimitUsd: 20_000 }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(panda.updateCard).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("returns no limit when card-limit-usd field is missing", async () => {
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: casePayload({ status: "Approved" }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "no limit" });
+    expect(panda.updateCard).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("returns no limit when card-limit-usd value is null", async () => {
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: casePayload({ status: "Approved", cardLimitUsd: null }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "no limit" });
+    expect(panda.updateCard).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("captures exception when no credential found", async () => {
+    vi.spyOn(persona, "getInquiryById").mockResolvedValueOnce({
+      data: { attributes: { "reference-id": "nonexistent" } },
+    });
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: casePayload({ status: "Approved", cardLimitUsd: 20_000 }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ message: "no credential" }),
+      expect.objectContaining({ level: "error", contexts: { credential: { referenceId: "nonexistent" } } }),
+    );
+    expect(panda.updateCard).not.toHaveBeenCalled();
+  });
+
+  it("returns no panda when credential has no pandaId", async () => {
+    vi.spyOn(persona, "getInquiryById").mockResolvedValueOnce({
+      data: { attributes: { "reference-id": referenceId } },
+    });
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: casePayload({ status: "Approved", cardLimitUsd: 20_000 }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "no panda" });
+    expect(panda.updateCard).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("returns ok without updating card when no active card exists", async () => {
+    await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, referenceId));
+    vi.spyOn(persona, "getInquiryById").mockResolvedValueOnce({
+      data: { attributes: { "reference-id": referenceId } },
+    });
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: casePayload({ status: "Approved", cardLimitUsd: 20_000 }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(panda.updateCard).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("falls through to bad persona for unknown case template", async () => {
+    const payload = casePayload({ status: "Approved", cardLimitUsd: 20_000 });
+    // @ts-expect-error override template id for test
+    payload.data.attributes.payload.data.relationships.caseTemplate.data.id = "ctmpl_unknown"; // cspell:ignore ctmpl
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: payload,
+    });
+
+    expect(response.status).toBe(200);
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ message: "bad persona" }),
+      expect.anything(),
+    );
+    expect(panda.updateCard).not.toHaveBeenCalled();
+  });
+
+  it("captures exception when getInquiryById fails", async () => {
+    vi.spyOn(persona, "getInquiryById").mockRejectedValueOnce(new Error("persona api error"));
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: casePayload({ status: "Approved", cardLimitUsd: 20_000 }),
+    });
+
+    expect(response.status).toBe(500);
+    expect(panda.updateCard).not.toHaveBeenCalled();
+  });
+});
+
+describe("ignored card limit inquiry template", () => {
+  beforeEach(() => vi.resetAllMocks());
+
+  it("returns ok for card limit inquiry template", async () => {
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: ignoredPayload("itmpl_bB6kkMytjE1PiwwCHnFhSqAQoB1b"), // cspell:ignore itmpl_bB6kkMytjE1PiwwCHnFhSqAQoB1b
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(panda.createUser).not.toHaveBeenCalled();
+    expect(persona.addDocument).not.toHaveBeenCalled();
+  });
+});
+
+function casePayload({
+  status,
+  cardLimitUsd,
+}: {
+  cardLimitUsd?: null | number;
+  status: "Approved" | "Declined" | "Open" | "Pending";
+}) {
+  return {
+    template: "cardLimit" as const,
+    data: {
+      attributes: {
+        payload: {
+          data: {
+            type: "case" as const,
+            id: "case_abc123",
+            attributes: {
+              status,
+              fields: {
+                ...(cardLimitUsd == null
+                  ? cardLimitUsd === null
+                    ? { cardLimitUsd: { type: "integer" as const, value: null } }
+                    : {}
+                  : { cardLimitUsd: { type: "integer" as const, value: cardLimitUsd } }),
+              },
+            },
+            relationships: {
+              caseTemplate: { data: { id: "ctmpl_5cCoj56PD6NpsX3H3ZoMynZVfXbF" as const } }, // cspell:ignore ctmpl_5cCoj56PD6NpsX3H3ZoMynZVfXbF
+              inquiries: { data: [{ type: "inquiry" as const, id: "inq_case_inquiry_123" }] },
+            },
+          },
+        },
+      },
+    },
+  };
+}
+
+function ignoredPayload<T extends string>(templateId: T) {
+  return {
+    data: {
+      attributes: {
+        payload: {
+          data: {
+            id: "inq_ignored_123",
+            attributes: { status: "approved", referenceId: "ignored-ref" },
+            relationships: { inquiryTemplate: { data: { id: templateId } } },
+          },
+        },
+      },
+    },
+  } as const;
+}
 
 const validPayload = {
   data: {
