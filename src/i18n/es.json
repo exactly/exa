@@ -304,7 +304,6 @@
   "Amount is required": "El monto es obligatorio",
   "Maximum balance reached": "Se alcanzó el saldo máximo",
   "Limit {{amount}} per repay. Please split larger amounts into smaller payments.": "Límite de {{amount}} por pago. Divide montos mayores en pagos más pequeños.",
-  "{{apr}} APR": "{{apr}} TNA",
   "Auto-pay": "Pago automático",
   "Collateral": "Garantía",
   "Manage": "Administrar",

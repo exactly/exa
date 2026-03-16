@@ -358,8 +358,8 @@ function InstallmentButton({
               <Skeleton height={20} />
             ) : (
               <Text footnote color="$uiNeutralSecondary">
-                {t("{{apr}} APR", {
-                  apr: apr.toLocaleString(language, {
+                {t("{{rate}} APR", {
+                  rate: apr.toLocaleString(language, {
                     style: "percent",
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,

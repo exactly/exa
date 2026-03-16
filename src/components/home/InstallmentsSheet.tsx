@@ -135,8 +135,8 @@ export default function InstallmentsSheet({
                                   color={isSelected ? "$cardCreditText" : "$uiNeutralSecondary"}
                                   numberOfLines={1}
                                 >
-                                  {t("{{apr}} APR", {
-                                    apr: (Number(rates.installments[installment - 1]?.rate) / 1e18).toLocaleString(
+                                  {t("{{rate}} APR", {
+                                    rate: (Number(rates.installments[installment - 1]?.rate) / 1e18).toLocaleString(
                                       language,
                                       { style: "percent", minimumFractionDigits: 2, maximumFractionDigits: 2 },
                                     ),
