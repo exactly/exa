@@ -39,6 +39,7 @@ import ThemeProvider from "../components/context/ThemeProvider";
 import Error from "../components/shared/Error";
 import release from "../generated/release";
 import en from "../i18n/en.json";
+import esAR from "../i18n/es-AR.json";
 import es from "../i18n/es.json";
 import pt from "../i18n/pt.json";
 import e2e from "../utils/e2e";
@@ -54,7 +55,9 @@ configI18n(initReactI18next)
   .init({
     load: "currentOnly",
     fallbackLng: (code) => {
-      const [language] = code.split("-");
+      const [language, region] = code.split("-");
+      if (language === "es" && region && ["AR", "CR", "GT", "HN", "NI", "PY", "SV", "UY"].includes(region))
+        return ["es-AR", "es", "en"];
       if (language === "es") return ["es", "en"];
       if (language === "pt") return ["pt", "en"];
       return ["en"];
@@ -65,6 +68,7 @@ configI18n(initReactI18next)
       en: { translation: en },
       es: { translation: es },
       pt: { translation: pt },
+      "es-AR": { translation: esAR },
     },
   })
   .catch(reportError);
