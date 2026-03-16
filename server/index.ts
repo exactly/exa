@@ -21,6 +21,7 @@ import androidFingerprints from "./utils/android/fingerprints";
 import appOrigin from "./utils/appOrigin";
 import auth from "./utils/auth";
 import { closeQueue as closeAccountQueue } from "./utils/createCredential";
+import { closeQueue as closeMaturityQueue, scheduleMaturityChecks } from "./utils/maturity";
 import { close as closeRedis } from "./utils/redis";
 import { closeAndFlush as closeSegment } from "./utils/segment";
 
@@ -321,8 +322,15 @@ const server = serve(app);
 export async function close() {
   return new Promise((resolve, reject) => {
     server.close((error) => {
-      Promise.allSettled([closeSentry(), closeRedis(), closeSegment(), database.$client.end(), closeAccountQueue()])
-        .then((results) => {
+      Promise.allSettled([
+        closeSentry(),
+        closeSegment(),
+        database.$client.end(),
+        closeMaturityQueue(),
+        closeAccountQueue(),
+      ])
+        .then(async (results) => {
+          await closeRedis();
           if (error) reject(error);
           else if (results.some((result) => result.status === "rejected")) reject(new Error("closing services failed"));
           else resolve(null);
@@ -333,6 +341,10 @@ export async function close() {
 }
 
 if (!process.env.VITEST) {
+  scheduleMaturityChecks().catch((error: unknown) => {
+    captureException(error, { level: "error", tags: { unhandled: true } });
+  });
+
   ["SIGINT", "SIGTERM"].map((code) => {
     process.on(code, () => {
       close()
