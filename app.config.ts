@@ -78,7 +78,10 @@ export default {
       } satisfies FontProps,
     ],
     "expo-asset",
-    ["expo-localization", { supportedLocales: ["en", "es", "pt"] }],
+    [
+      "expo-localization",
+      { supportedLocales: ["en", "es", "es-AR", "es-CR", "es-GT", "es-HN", "es-NI", "es-PY", "es-SV", "es-UY", "pt"] },
+    ],
     "expo-router",
     [
       "@intercom/intercom-react-native",
