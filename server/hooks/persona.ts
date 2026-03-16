@@ -1,6 +1,6 @@
 import { vValidator } from "@hono/valibot-validator";
 import { captureException, getActiveSpan, SEMANTIC_ATTRIBUTE_SENTRY_OP, setContext, setUser } from "@sentry/node";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import {
   array,
@@ -10,7 +10,9 @@ import {
   literal,
   looseObject,
   minLength,
+  minValue,
   nullable,
+  number,
   object,
   optional,
   picklist,
@@ -23,13 +25,16 @@ import {
 
 import { Address } from "@exactly/common/validation";
 
-import database, { credentials } from "../database/index";
-import { createUser } from "../utils/panda";
+import database, { cards, credentials } from "../database/index";
+import { createUser, updateCard } from "../utils/panda";
 import { addCapita, deriveAssociateId } from "../utils/pax";
 import {
   addDocument,
   ADDRESS_TEMPLATE,
+  CARD_LIMIT_CASE_TEMPLATE,
+  CARD_LIMIT_TEMPLATE,
   CRYPTOMATE_TEMPLATE,
+  getInquiryById,
   headerValidator,
   MANTECA_TEMPLATE_EXTRA_FIELDS,
   MANTECA_TEMPLATE_WITH_ID_CLASS,
@@ -187,12 +192,40 @@ export default new Hono().post(
             pipe(
               object({
                 data: object({
+                  type: literal("case"),
+                  id: string(),
+                  attributes: object({
+                    status: picklist(["Approved", "Declined", "Open", "Pending"]),
+                    fields: object({
+                      cardLimitUsd: optional(
+                        object({ type: literal("integer"), value: nullable(pipe(number(), minValue(1))) }),
+                      ),
+                    }),
+                  }),
+                  relationships: object({
+                    caseTemplate: object({ data: object({ id: literal(CARD_LIMIT_CASE_TEMPLATE) }) }),
+                    inquiries: object({
+                      data: array(object({ type: literal("inquiry"), id: string() })),
+                    }),
+                  }),
+                }),
+              }),
+              transform((payload) => ({ template: "cardLimit" as const, ...payload })),
+            ),
+            pipe(
+              object({
+                data: object({
                   id: string(),
                   attributes: object({ status: string(), referenceId: string() }),
                   relationships: object({
                     inquiryTemplate: object({
                       data: object({
-                        id: picklist([ADDRESS_TEMPLATE, CRYPTOMATE_TEMPLATE, MANTECA_TEMPLATE_EXTRA_FIELDS]),
+                        id: picklist([
+                          ADDRESS_TEMPLATE,
+                          CARD_LIMIT_TEMPLATE,
+                          CRYPTOMATE_TEMPLATE,
+                          MANTECA_TEMPLATE_EXTRA_FIELDS,
+                        ]),
                       }),
                     }),
                   }),
@@ -210,6 +243,38 @@ export default new Hono().post(
     const payload = c.req.valid("json").data.attributes.payload;
 
     if (payload.template === "ignored") return c.json({ code: "ok" }, 200);
+
+    if (payload.template === "cardLimit") {
+      getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "persona.case.card-limit");
+      if (payload.data.attributes.status !== "Approved") return c.json({ code: "ok" }, 200);
+      const cardLimitUsd = payload.data.attributes.fields.cardLimitUsd?.value;
+      if (cardLimitUsd == null) return c.json({ code: "no limit" }, 200);
+      const inquiryId = payload.data.relationships.inquiries.data[0]?.id;
+      if (!inquiryId) return c.json({ code: "no inquiry" }, 200);
+      const {
+        data: {
+          attributes: { "reference-id": referenceId },
+        },
+      } = await getInquiryById(inquiryId);
+      const [credential, card] = await Promise.all([
+        database.query.credentials.findFirst({ columns: { pandaId: true }, where: eq(credentials.id, referenceId) }),
+        database.query.cards.findFirst({
+          columns: { id: true },
+          where: and(eq(cards.credentialId, referenceId), eq(cards.status, "ACTIVE")),
+        }),
+      ]);
+      if (!credential) {
+        captureException(new Error("no credential"), { level: "error", contexts: { credential: { referenceId } } });
+        return c.json({ code: "no credential" }, 200);
+      }
+      if (!credential.pandaId) return c.json({ code: "no panda" }, 200);
+      if (!card) {
+        captureException(new Error("no card"), { level: "error", contexts: { card: { referenceId } } });
+        return c.json({ code: "no card" }, 200);
+      }
+      await updateCard({ id: card.id, limit: { amount: cardLimitUsd * 100, frequency: "per7DayPeriod" } });
+      return c.json({ code: "ok" }, 200);
+    }
 
     if (payload.template === "manteca") {
       getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "persona.inquiry.manteca");
