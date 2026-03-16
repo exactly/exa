@@ -465,7 +465,22 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
           }
           if (cardCount > 0) return c.json({ code: "already created" }, 400);
           try {
-            const card = await createCard(credential.pandaId, SIGNATURE_PRODUCT_ID);
+            const card = await createCard(
+              credential.pandaId,
+              SIGNATURE_PRODUCT_ID,
+              await getAccount(credentialId, "cardLimit")
+                .then((persona) =>
+                  persona?.attributes.fields.card_limit_usd?.value == null
+                    ? undefined
+                    : persona.attributes.fields.card_limit_usd.value * 100,
+                )
+                .catch((error: unknown): undefined => {
+                  captureException(error, {
+                    level: "error",
+                    contexts: { details: { credentialId, scope: "cardLimit" } },
+                  });
+                }),
+            );
             let mode = 0;
             try {
               if (await autoCredit(account)) mode = 1;

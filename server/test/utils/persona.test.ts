@@ -1,6 +1,7 @@
 import "../mocks/persona";
 import "../mocks/sentry";
 
+import { captureException } from "@sentry/node";
 import { array, minLength, number, object, optional, pipe, safeParse, string, union } from "valibot";
 import { baseSepolia, optimism } from "viem/chains";
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
@@ -753,6 +754,186 @@ describe("evaluateAccount", () => {
         ),
       ).rejects.toThrow(persona.scopeValidationErrors.INVALID_SCOPE_VALIDATION);
     });
+  });
+});
+
+describe("updateCardLimit", () => {
+  let fetchSpy: MockInstance<typeof fetch>;
+  beforeEach(() => {
+    fetchSpy = vi.spyOn(globalThis, "fetch");
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("patches persona account with card_limit_usd", async () => {
+    fetchSpy
+      .mockResolvedValueOnce(
+        Response.json({
+          data: [{ id: "acct_123", type: "account", attributes: { fields: { card_limit_usd: { value: null } } } }],
+        }),
+      )
+      .mockResolvedValueOnce(Response.json({ data: { id: "acct_123" } }));
+
+    await persona.updateCardLimit("ref_123", 20_000);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    const patchCall = fetchSpy.mock.calls[1];
+    expect(patchCall?.[0]).toContain("/accounts/acct_123");
+    expect(patchCall?.[1]).toMatchObject({
+      method: "PATCH",
+      body: JSON.stringify({ data: { attributes: { fields: { card_limit_usd: 20_000 } } } }),
+    });
+  });
+
+  it("throws when account not found", async () => {
+    fetchSpy.mockResolvedValueOnce(Response.json({ data: [] }));
+
+    await expect(persona.updateCardLimit("ref_123", 20_000)).rejects.toThrow("account not found");
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends only card_limit_usd in patch body", async () => {
+    fetchSpy
+      .mockResolvedValueOnce(
+        Response.json({
+          data: [{ id: "acct_456", type: "account", attributes: { fields: { card_limit_usd: { value: 10_000 } } } }],
+        }),
+      )
+      .mockResolvedValueOnce(Response.json({ data: { id: "acct_456" } }));
+
+    await persona.updateCardLimit("ref_456", 30_000);
+
+    expect(fetchSpy.mock.calls[1]?.[1]).toMatchObject({
+      body: JSON.stringify({ data: { attributes: { fields: { card_limit_usd: 30_000 } } } }),
+    });
+  });
+});
+
+describe("getUnknownAccount", () => {
+  let fetchSpy: MockInstance<typeof fetch>;
+  beforeEach(() => {
+    fetchSpy = vi.spyOn(globalThis, "fetch");
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("fetches accounts filtered by reference id and returns parsed result", async () => {
+    const account = { id: "acct_123", type: "account" as const, attributes: {} };
+    fetchSpy.mockResolvedValueOnce(Response.json({ data: [account] }));
+
+    const result = await persona.getUnknownAccount("ref_123");
+
+    expect(fetchSpy).toHaveBeenCalledOnce();
+    expect(fetchSpy.mock.calls[0]?.[0]).toContain("/accounts?page[size]=1&filter[reference-id]=ref_123");
+    expect(result).toStrictEqual({ data: [account] });
+  });
+});
+
+describe("getCardLimitStatus", () => {
+  let fetchSpy: MockInstance<typeof fetch>;
+  beforeEach(() => {
+    fetchSpy = vi.spyOn(globalThis, "fetch");
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("returns resolved when card_limit_usd value is set", async () => {
+    fetchSpy.mockResolvedValueOnce(
+      Response.json({
+        data: [{ id: "acct_123", type: "account", attributes: { fields: { card_limit_usd: { value: 20_000 } } } }],
+      }),
+    );
+
+    const status = await persona.getCardLimitStatus("ref_123");
+
+    expect(status).toStrictEqual({ status: "resolved" });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("reuses preloaded account when card_limit_usd value is set", async () => {
+    const status = await persona.getCardLimitStatus("ref_123", {
+      data: [{ id: "acct_123", type: "account", attributes: { fields: { card_limit_usd: { value: 20_000 } } } }],
+    });
+
+    expect(status).toStrictEqual({ status: "resolved" });
+    expect(fetchSpy).toHaveBeenCalledTimes(0);
+  });
+
+  it("returns noTemplate when basic kyc is not approved", async () => {
+    fetchSpy.mockResolvedValueOnce(Response.json({ data: [] }));
+
+    const status = await persona.getCardLimitStatus("ref_123");
+
+    expect(status).toStrictEqual({ status: "noTemplate" });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns noInquiry when template matches but inquiry is missing", async () => {
+    fetchSpy
+      .mockResolvedValueOnce(Response.json(basicAccount))
+      .mockResolvedValueOnce(Response.json({ data: [] }))
+      .mockResolvedValueOnce(Response.json({ data: [] }));
+
+    const status = await persona.getCardLimitStatus("ref_123");
+
+    expect(status).toStrictEqual({ status: "noInquiry" });
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+  });
+
+  it("reuses preloaded account and only fetches inquiries when card limit is pending", async () => {
+    fetchSpy.mockResolvedValueOnce(Response.json({ data: [] })).mockResolvedValueOnce(Response.json({ data: [] }));
+
+    const status = await persona.getCardLimitStatus("ref_123", basicAccount);
+
+    expect(status).toStrictEqual({ status: "noInquiry" });
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("returns inquiry with status when inquiry exists", async () => {
+    const inquiry = {
+      id: "inq_1",
+      type: "inquiry",
+      attributes: { status: "pending", "reference-id": "ref_123" },
+    };
+    fetchSpy
+      .mockResolvedValueOnce(Response.json(basicAccount))
+      .mockResolvedValueOnce(Response.json({ data: [] }))
+      .mockResolvedValueOnce(Response.json({ data: [inquiry] }));
+
+    const status = await persona.getCardLimitStatus("ref_123");
+
+    expect(status).toStrictEqual({ status: "pending", id: inquiry.id });
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+  });
+
+  it("captures and rethrows exception when fetch rejects", async () => {
+    const error = new Error("network error");
+    fetchSpy.mockRejectedValueOnce(error);
+
+    await expect(persona.getCardLimitStatus("ref_123")).rejects.toThrow("network error");
+    expect(captureException).toHaveBeenCalledWith(error, {
+      level: "error",
+      contexts: { details: { referenceId: "ref_123", scope: "cardLimit" } },
+    });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("evaluateAccount cardLimit", () => {
+  it("returns panda template when basic is not done", async () => {
+    const result = await persona.evaluateAccount(emptyAccount, "cardLimit");
+
+    expect(result).toBe(persona.PANDA_TEMPLATE);
+  });
+
+  it("returns card limit template when basic is done", async () => {
+    const result = await persona.evaluateAccount(basicAccount, "cardLimit");
+
+    expect(result).toBe(persona.CARD_LIMIT_TEMPLATE);
   });
 });
 
@@ -1831,6 +2012,45 @@ const accountWithIdDocument = {
     },
   ],
 };
+
+describe("parseAccount", () => {
+  it("returns the first account when basic scope matches", () => {
+    const result = persona.parseAccount(basicAccount, "basic");
+    expect(result?.id).toBe("test-account-id");
+    expect(result?.attributes["country-code"]).toBeDefined();
+  });
+
+  it("returns undefined when basic scope does not match", () => {
+    expect(persona.parseAccount({ data: [{ id: "x", type: "account", attributes: {} }] }, "basic")).toBeUndefined();
+  });
+
+  it("returns undefined when data array is empty", () => {
+    expect(persona.parseAccount({ data: [] }, "basic")).toBeUndefined();
+    expect(persona.parseAccount({ data: [] }, "cardLimit")).toBeUndefined();
+  });
+
+  it("returns the first account when cardLimit scope matches", () => {
+    const account = {
+      data: [{ id: "cl-id", type: "account" as const, attributes: { fields: { card_limit_usd: { value: 5000 } } } }],
+    };
+    const result = persona.parseAccount(account, "cardLimit");
+    expect(result?.id).toBe("cl-id");
+    expect(result?.attributes.fields.card_limit_usd?.value).toBe(5000);
+  });
+
+  it("returns undefined when cardLimit scope value is not positive", () => {
+    expect(
+      persona.parseAccount(
+        { data: [{ id: "cl-id", type: "account" as const, attributes: { fields: { card_limit_usd: { value: 0 } } } }] },
+        "cardLimit",
+      ),
+    ).toBeUndefined();
+  });
+
+  it("returns undefined when cardLimit scope does not match", () => {
+    expect(persona.parseAccount({ data: [{ id: "x", type: "account", attributes: {} }] }, "cardLimit")).toBeUndefined();
+  });
+});
 
 const accountWithIdAndPpDocuments = {
   data: [

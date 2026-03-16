@@ -178,7 +178,7 @@ vi.mock("../utils/persona", async (importOriginal: () => Promise<typeof persona>
       attributes: { "back-photo": null, "front-photo": null, "selfie-photo": null, "id-class": "dl" },
     }),
     addDocument: vi.fn().mockResolvedValue({ data: { id: "acc_mock" } }),
-    getAccounts: vi.fn().mockResolvedValue({ data: [] }),
+    getCardLimitStatus: vi.fn().mockResolvedValue({ status: "noTemplate" as const }),
     getAccount: vi.fn().mockResolvedValue(null),
   };
 });
