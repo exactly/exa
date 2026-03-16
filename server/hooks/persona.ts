@@ -13,6 +13,7 @@ import {
   nullable,
   object,
   optional,
+  picklist,
   pipe,
   safeParse,
   string,
@@ -25,7 +26,15 @@ import { Address } from "@exactly/common/validation";
 import database, { credentials } from "../database/index";
 import { createUser } from "../utils/panda";
 import { addCapita, deriveAssociateId } from "../utils/pax";
-import { addDocument, headerValidator, MANTECA_TEMPLATE_WITH_ID_CLASS, PANDA_TEMPLATE } from "../utils/persona";
+import {
+  addDocument,
+  ADDRESS_TEMPLATE,
+  CRYPTOMATE_TEMPLATE,
+  headerValidator,
+  MANTECA_TEMPLATE_EXTRA_FIELDS,
+  MANTECA_TEMPLATE_WITH_ID_CLASS,
+  PANDA_TEMPLATE,
+} from "../utils/persona";
 import { customer } from "../utils/sardine";
 import validatorHook from "../utils/validatorHook";
 
@@ -175,6 +184,22 @@ export default new Hono().post(
               }),
               transform((payload) => ({ template: "manteca" as const, ...payload })),
             ),
+            pipe(
+              object({
+                data: object({
+                  id: string(),
+                  attributes: object({ status: string(), referenceId: string() }),
+                  relationships: object({
+                    inquiryTemplate: object({
+                      data: object({
+                        id: picklist([ADDRESS_TEMPLATE, CRYPTOMATE_TEMPLATE, MANTECA_TEMPLATE_EXTRA_FIELDS]),
+                      }),
+                    }),
+                  }),
+                }),
+              }),
+              transform((payload) => ({ template: "ignored" as const, ...payload })),
+            ),
           ]),
         }),
       }),
@@ -183,6 +208,8 @@ export default new Hono().post(
   ),
   async (c) => {
     const payload = c.req.valid("json").data.attributes.payload;
+
+    if (payload.template === "ignored") return c.json({ code: "ok" }, 200);
 
     if (payload.template === "manteca") {
       getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "persona.inquiry.manteca");

@@ -7,7 +7,7 @@ import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { hexToBytes, padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
-import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 
@@ -264,6 +264,7 @@ describe("with reference", () => {
           'data/attributes/fields/currentGovernmentId1 Invalid key: Expected "currentGovernmentId1" but received undefined',
           'data/attributes/fields/selectedIdClass1 Invalid key: Expected "selectedIdClass1" but received undefined',
           'data/relationships/inquiryTemplate/data/id Invalid type: Expected "itmpl_TjaqJdQYkht17v645zNFUfkaWNan" but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
+          'data/relationships/inquiryTemplate/data/id Invalid type: Expected ("itmpl_FTHNSXqJjoMvUTBc85QECGHogrZx" | "itmpl_8uim4FvD5P3kFpKHX37CW817" | "itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo") but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
         ],
       });
       expect(panda.createUser).not.toHaveBeenCalled();
@@ -312,6 +313,7 @@ describe("with reference", () => {
           'data/attributes/fields/currentGovernmentId1 Invalid key: Expected "currentGovernmentId1" but received undefined',
           'data/attributes/fields/selectedIdClass1 Invalid key: Expected "selectedIdClass1" but received undefined',
           'data/relationships/inquiryTemplate/data/id Invalid type: Expected "itmpl_TjaqJdQYkht17v645zNFUfkaWNan" but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
+          'data/relationships/inquiryTemplate/data/id Invalid type: Expected ("itmpl_FTHNSXqJjoMvUTBc85QECGHogrZx" | "itmpl_8uim4FvD5P3kFpKHX37CW817" | "itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo") but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
         ],
       });
       expect(panda.createUser).not.toHaveBeenCalled();
@@ -360,6 +362,7 @@ describe("with reference", () => {
           'data/attributes/fields/currentGovernmentId1 Invalid key: Expected "currentGovernmentId1" but received undefined',
           'data/attributes/fields/selectedIdClass1 Invalid key: Expected "selectedIdClass1" but received undefined',
           'data/relationships/inquiryTemplate/data/id Invalid type: Expected "itmpl_TjaqJdQYkht17v645zNFUfkaWNan" but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
+          'data/relationships/inquiryTemplate/data/id Invalid type: Expected ("itmpl_FTHNSXqJjoMvUTBc85QECGHogrZx" | "itmpl_8uim4FvD5P3kFpKHX37CW817" | "itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo") but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
         ],
       });
       expect(panda.createUser).not.toHaveBeenCalled();
@@ -464,6 +467,64 @@ describe("manteca template", () => {
     expect(panda.createUser).not.toHaveBeenCalled();
   });
 });
+
+describe("ignored template", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it("returns ok for address template", async () => {
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: ignoredPayload("itmpl_FTHNSXqJjoMvUTBc85QECGHogrZx"),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(panda.createUser).not.toHaveBeenCalled();
+    expect(persona.addDocument).not.toHaveBeenCalled();
+  });
+
+  it("returns ok for cryptomate template", async () => {
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: ignoredPayload("itmpl_8uim4FvD5P3kFpKHX37CW817"),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(panda.createUser).not.toHaveBeenCalled();
+    expect(persona.addDocument).not.toHaveBeenCalled();
+  });
+
+  it("returns ok for manteca extra fields template", async () => {
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: ignoredPayload("itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo"),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(panda.createUser).not.toHaveBeenCalled();
+    expect(persona.addDocument).not.toHaveBeenCalled();
+  });
+});
+
+function ignoredPayload<T extends string>(templateId: T) {
+  return {
+    data: {
+      attributes: {
+        payload: {
+          data: {
+            id: "inq_ignored_123",
+            attributes: { status: "approved", referenceId: "ignored-ref" },
+            relationships: { inquiryTemplate: { data: { id: templateId } } },
+          },
+        },
+      },
+    },
+  } as const;
+}
 
 const validPayload = {
   data: {
