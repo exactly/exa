@@ -1,7 +1,8 @@
 import "../mocks/onesignal";
 import "../mocks/sentry";
 
-import { captureException } from "@sentry/core";
+import { captureEvent, captureException } from "@sentry/core";
+import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { createHash, createPrivateKey, createSign, generateKeyPairSync } from "node:crypto";
 import { hexToBytes, padHex, zeroHash } from "viem";
@@ -13,14 +14,19 @@ import deriveAddress from "@exactly/common/deriveAddress";
 import database, { credentials } from "../../database";
 import app from "../../hooks/bridge";
 import * as onesignal from "../../utils/onesignal";
+import * as persona from "../../utils/persona";
+import * as bridge from "../../utils/ramps/bridge";
 import * as segment from "../../utils/segment";
 
 const appClient = testClient(app);
 
 describe("bridge hook", () => {
   const owner = privateKeyToAddress(padHex("0xb1e"));
+  const fallbackOwner = privateKeyToAddress(padHex("0xfa11"));
+  const conflictOwner = privateKeyToAddress(padHex("0xc0f1"));
   const factory = inject("ExaAccountFactory");
   const account = deriveAddress(factory, { x: padHex(owner), y: zeroHash });
+  const fallbackAccount = deriveAddress(factory, { x: padHex(fallbackOwner), y: zeroHash });
 
   beforeAll(async () => {
     await database.insert(credentials).values([
@@ -31,6 +37,19 @@ describe("bridge hook", () => {
         factory,
         pandaId: "bridgePandaId",
         bridgeId: "bridgeCustomerId",
+      },
+      {
+        id: "fallback-test",
+        publicKey: new Uint8Array(hexToBytes(fallbackOwner)),
+        account: fallbackAccount,
+        factory,
+      },
+      {
+        id: "conflict-test",
+        publicKey: new Uint8Array(hexToBytes(conflictOwner)),
+        account: deriveAddress(factory, { x: padHex(conflictOwner), y: zeroHash }),
+        factory,
+        bridgeId: "conflict-bridge-id",
       },
     ]);
   });
@@ -217,6 +236,155 @@ describe("bridge hook", () => {
     );
   });
 
+  it("resolves credential via persona email fallback on status_transitioned", async () => {
+    vi.spyOn(segment, "track").mockReturnValue();
+    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    vi.spyOn(bridge, "getCustomer").mockResolvedValue({
+      id: "fallback-bridge-id",
+      email: "fallback@example.com",
+      status: "active",
+      endorsements: [],
+    });
+    vi.spyOn(persona, "searchAccounts").mockResolvedValue([{ attributes: { "reference-id": "fallback-test" } }]);
+    const payload = {
+      ...statusTransitioned,
+      event_object: { ...statusTransitioned.event_object, id: "fallback-bridge-id" },
+    };
+    const response = await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(payload) },
+      json: payload as never,
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(captureException).not.toHaveBeenCalled();
+    expect(captureEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: "bridge credential paired",
+        level: "warning",
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        contexts: expect.objectContaining({
+          details: { bridgeId: "fallback-bridge-id", referenceId: "fallback-test" },
+        }),
+      }),
+    );
+    const updated = await database.query.credentials.findFirst({
+      columns: { bridgeId: true },
+      where: eq(credentials.id, "fallback-test"),
+    });
+    expect(updated?.bridgeId).toBe("fallback-bridge-id");
+    expect(segment.track).toHaveBeenCalledWith({
+      userId: fallbackAccount,
+      event: "RampAccount",
+      properties: { provider: "bridge", source: null },
+    });
+    expect(sendPushNotification).toHaveBeenCalledWith({
+      userId: fallbackAccount,
+      headings: { en: "Fiat onramp activated" },
+      contents: { en: "Your fiat onramp account has been activated" },
+    });
+  });
+
+  it("returns 500 when fallback credential already paired", async () => {
+    vi.spyOn(database.query.credentials, "findFirst").mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
+    vi.spyOn(bridge, "getCustomer").mockResolvedValue({
+      id: "conflict-bridge-id",
+      email: "conflict@example.com",
+      status: "active",
+      endorsements: [],
+    });
+    vi.spyOn(persona, "searchAccounts").mockResolvedValue([{ attributes: { "reference-id": "fallback-test" } }]);
+    const payload = {
+      ...statusTransitioned,
+      event_object: { ...statusTransitioned.event_object, id: "conflict-bridge-id" },
+    };
+    const response = await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(payload) },
+      json: payload as never,
+    });
+
+    expect(response.status).toBe(500);
+    expect(captureEvent).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("returns credential not found when multiple persona accounts found on status_transitioned fallback", async () => {
+    vi.spyOn(bridge, "getCustomer").mockResolvedValue({
+      id: "multi-bridge-id",
+      email: "multi@example.com",
+      status: "active",
+      endorsements: [],
+    });
+    vi.spyOn(persona, "searchAccounts").mockResolvedValue([
+      { attributes: { "reference-id": "ref-1" } },
+      { attributes: { "reference-id": "ref-2" } },
+    ]);
+    const payload = {
+      ...statusTransitioned,
+      event_object: { ...statusTransitioned.event_object, id: "multi-bridge-id" },
+    };
+    const response = await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(payload) },
+      json: payload as never,
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "credential not found" });
+    expect(captureException).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "multiple persona accounts found" }),
+      { level: "fatal", contexts: { details: { bridgeId: "multi-bridge-id", matches: 2 } } },
+    );
+  });
+
+  it("returns credential not found when status_transitioned fallback finds no accounts", async () => {
+    vi.spyOn(bridge, "getCustomer").mockResolvedValue({
+      id: "empty-bridge-id",
+      email: "empty@example.com",
+      status: "active",
+      endorsements: [],
+    });
+    vi.spyOn(persona, "searchAccounts").mockResolvedValue([]);
+    const payload = {
+      ...statusTransitioned,
+      event_object: { ...statusTransitioned.event_object, id: "empty-bridge-id" },
+    };
+    const response = await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(payload) },
+      json: payload as never,
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "credential not found" });
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ message: "credential not found" }),
+      { level: "error", contexts: { details: { bridgeId: "empty-bridge-id" } } },
+    );
+  });
+
+  it("returns 500 when fallback reference-id has no credential", async () => {
+    vi.spyOn(bridge, "getCustomer").mockResolvedValue({
+      id: "orphan-bridge-id",
+      email: "orphan@example.com",
+      status: "active",
+      endorsements: [],
+    });
+    vi.spyOn(persona, "searchAccounts").mockResolvedValue([
+      { attributes: { "reference-id": "nonexistent-credential" } },
+    ]);
+    const payload = {
+      ...statusTransitioned,
+      event_object: { ...statusTransitioned.event_object, id: "orphan-bridge-id" },
+    };
+    const response = await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(payload) },
+      json: payload as never,
+    });
+
+    expect(response.status).toBe(500);
+    expect(captureEvent).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
   it("tracks RampAccount and sends notification on status_transitioned to active", async () => {
     vi.spyOn(segment, "track").mockReturnValue();
     const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
@@ -272,7 +440,8 @@ describe("bridge hook", () => {
     expect(sendPushNotification).not.toHaveBeenCalled();
   });
 
-  it("captures sentry exception when status_transitioned credential not found", async () => {
+  it("captures sentry exception when status_transitioned credential not found and customer not in bridge", async () => {
+    vi.spyOn(bridge, "getCustomer").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
     const payload = {
       ...statusTransitioned,
       event_object: { ...statusTransitioned.event_object, id: "unknown-customer" },

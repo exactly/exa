@@ -21,6 +21,7 @@ import {
   type InferInput,
   type InferOutput,
 } from "valibot";
+import { withRetry } from "viem";
 import { optimism, optimismSepolia } from "viem/chains";
 
 import domain from "@exactly/common/domain";
@@ -41,8 +42,8 @@ const baseURL = process.env.BRIDGE_API_URL;
 if (!process.env.BRIDGE_API_KEY) throw new Error("missing bridge api key");
 const apiKey = process.env.BRIDGE_API_KEY;
 
-export async function createCustomer(user: InferInput<typeof CreateCustomer>) {
-  return await request(NewCustomer, "/customers", {}, user, "POST").catch((error: unknown) => {
+export function createCustomer(user: InferInput<typeof CreateCustomer>, idempotencyKey?: string) {
+  return request(NewCustomer, "/customers", {}, user, "POST", 15_000, idempotencyKey).catch((error: unknown) => {
     if (error instanceof ServiceError && typeof error.cause === "string") {
       if (error.cause.includes(BridgeApiErrorCodes.EMAIL_ALREADY_EXISTS)) {
         withScope((scope) => {
@@ -355,27 +356,43 @@ export async function onboarding(params: { acceptedTermsId: string; credentialId
     });
   }
 
-  const customer = await createCustomer({
-    type: "individual",
-    first_name: personaAccount.attributes.fields.name.value.first.value,
-    last_name: personaAccount.attributes.fields.name.value.last.value,
-    email: personaAccount.attributes["email-address"],
-    phone: personaAccount.attributes.fields.phone_number.value,
-    residential_address: {
-      street_line_1: personaAccount.attributes["address-street-1"],
-      street_line_2: personaAccount.attributes["address-street-2"] ?? undefined,
-      postal_code: personaAccount.attributes["address-postal-code"],
-      subdivision: countryCode === "US" ? personaAccount.attributes["address-subdivision"] : undefined,
-      country,
-      city: personaAccount.attributes["address-city"],
+  const idempotencyKey = crypto.randomUUID();
+  const customer = await withRetry(
+    () =>
+      createCustomer(
+        {
+          type: "individual",
+          first_name: personaAccount.attributes.fields.name.value.first.value,
+          last_name: personaAccount.attributes.fields.name.value.last.value,
+          email: personaAccount.attributes["email-address"],
+          phone: personaAccount.attributes.fields.phone_number.value,
+          residential_address: {
+            street_line_1: personaAccount.attributes["address-street-1"],
+            street_line_2: personaAccount.attributes["address-street-2"] ?? undefined,
+            postal_code: personaAccount.attributes["address-postal-code"],
+            subdivision: countryCode === "US" ? personaAccount.attributes["address-subdivision"] : undefined,
+            country,
+            city: personaAccount.attributes["address-city"],
+          },
+          birth_date: personaAccount.attributes.fields.birthdate.value,
+          signed_agreement_id: params.acceptedTermsId,
+          endorsements,
+          nationality: country,
+          identifying_information: identifyingInformation,
+        },
+        idempotencyKey,
+      ),
+    {
+      retryCount: 2,
+      shouldRetry: ({ error }) => {
+        const retryable =
+          (error instanceof Error && error.name === "TimeoutError") ||
+          (error instanceof ServiceError && error.status >= 500);
+        if (retryable) captureException(error, { level: "warning" });
+        return retryable;
+      },
     },
-    birth_date: personaAccount.attributes.fields.birthdate.value,
-    signed_agreement_id: params.acceptedTermsId,
-    endorsements,
-    nationality: country,
-    identifying_information: identifyingInformation,
-  });
-
+  );
   await database.update(credentials).set({ bridgeId: customer.id }).where(eq(credentials.id, params.credentialId));
 }
 
@@ -681,6 +698,7 @@ const AgreementLinkResponse = object({ url: string() });
 
 const CustomerResponse = object({
   id: string(),
+  email: string(),
   status: picklist(CustomerStatus),
   capabilities: optional(
     object({
@@ -852,13 +870,14 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
   body?: unknown,
   method: "GET" | "PATCH" | "POST" | "PUT" = body === undefined ? "GET" : "POST",
   timeout = 10_000,
+  idempotencyKey?: string,
 ) {
   const response = await fetch(`${baseURL}${url}`, {
     method,
     headers: {
       ...headers,
       "api-key": apiKey,
-      ...(method === "POST" && { "Idempotency-Key": crypto.randomUUID() }),
+      ...(method === "POST" && { "Idempotency-Key": idempotencyKey ?? crypto.randomUUID() }),
       accept: "application/json",
       "content-type": "application/json",
     },

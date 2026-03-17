@@ -276,6 +276,16 @@ export function getAccounts<T extends AccountScope>(referenceId: string, scope: 
   return request(accountScopeSchemas[scope], `/accounts?page[size]=1&filter[reference-id]=${referenceId}`);
 }
 
+export async function searchAccounts(email: string) {
+  const { data } = await request(
+    object({ data: array(object({ attributes: object({ "reference-id": string() }) })) }),
+    "/accounts/search",
+    { query: { attribute: "fields.email_address", operator: "eq", value: email } },
+    "POST",
+  );
+  return data;
+}
+
 export async function getAccount<T extends AccountScope>(
   referenceId: string,
   scope: T,

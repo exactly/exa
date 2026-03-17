@@ -2,6 +2,7 @@
 import "../mocks/sentry";
 
 import { captureException } from "@sentry/core";
+import { eq } from "drizzle-orm";
 import { parse } from "valibot";
 import { hexToBytes, padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
@@ -25,15 +26,25 @@ vi.mock("@sentry/core", { spy: true });
 
 describe("bridge utils", () => {
   const owner = privateKeyToAddress(padHex("0xb1d"));
+  const conflictOwner = privateKeyToAddress(padHex("0xb1f"));
   const factory = inject("ExaAccountFactory");
 
   beforeAll(async () => {
-    await database.insert(credentials).values({
-      id: "cred-1",
-      publicKey: new Uint8Array(hexToBytes(owner)),
-      account: deriveAddress(factory, { x: padHex(owner), y: zeroHash }),
-      factory,
-    });
+    await database.insert(credentials).values([
+      {
+        id: "cred-1",
+        publicKey: new Uint8Array(hexToBytes(owner)),
+        account: deriveAddress(factory, { x: padHex(owner), y: zeroHash }),
+        factory,
+      },
+      {
+        id: "cred-conflict",
+        publicKey: new Uint8Array(hexToBytes(conflictOwner)),
+        account: deriveAddress(factory, { x: padHex(conflictOwner), y: zeroHash }),
+        factory,
+        bridgeId: "taken-bridge-id",
+      },
+    ]);
   });
 
   beforeEach(() => {
@@ -756,6 +767,110 @@ describe("bridge utils", () => {
       const body = JSON.parse(createCall?.[1]?.body as string) as { endorsements: string[] };
       expect(body.endorsements).toContain("pix");
     });
+
+    it("retries on timeout and succeeds", async () => {
+      vi.spyOn(persona, "getAccount").mockResolvedValueOnce(personaAccount);
+      vi.spyOn(persona, "getDocument").mockResolvedValueOnce(documentResponse);
+      const timeout = Object.assign(new Error("signal timed out"), { name: "TimeoutError" });
+      vi.spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(blobResponse())
+        .mockResolvedValueOnce(blobResponse())
+        .mockRejectedValueOnce(timeout)
+        .mockResolvedValueOnce(fetchResponse({ id: "cust-retry", status: "not_started" }));
+
+      await bridge.onboarding({ credentialId: "cred-1", customerId: null, acceptedTermsId: "terms-1" });
+
+      expect(captureException).toHaveBeenCalledWith(timeout, { level: "warning" });
+      const updated = await database.query.credentials.findFirst({
+        columns: { bridgeId: true },
+        where: eq(credentials.id, "cred-1"),
+      });
+      expect(updated?.bridgeId).toBe("cust-retry");
+    });
+
+    it("retries on 500 and succeeds", async () => {
+      vi.spyOn(persona, "getAccount").mockResolvedValueOnce(personaAccount);
+      vi.spyOn(persona, "getDocument").mockResolvedValueOnce(documentResponse);
+      vi.spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(blobResponse())
+        .mockResolvedValueOnce(blobResponse())
+        .mockResolvedValueOnce(fetchError(500, "internal server error"))
+        .mockResolvedValueOnce(fetchResponse({ id: "cust-retry-500", status: "not_started" }));
+
+      await bridge.onboarding({ credentialId: "cred-1", customerId: null, acceptedTermsId: "terms-1" });
+
+      expect(captureException).toHaveBeenCalledWith(expect.any(Error), { level: "warning" });
+      const updated = await database.query.credentials.findFirst({
+        columns: { bridgeId: true },
+        where: eq(credentials.id, "cred-1"),
+      });
+      expect(updated?.bridgeId).toBe("cust-retry-500");
+    });
+
+    it("throws after exhausting retries on timeout", async () => {
+      vi.spyOn(persona, "getAccount").mockResolvedValueOnce(personaAccount);
+      vi.spyOn(persona, "getDocument").mockResolvedValueOnce(documentResponse);
+      const timeout = Object.assign(new Error("signal timed out"), { name: "TimeoutError" });
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(blobResponse())
+        .mockResolvedValueOnce(blobResponse())
+        .mockRejectedValueOnce(timeout)
+        .mockRejectedValueOnce(timeout)
+        .mockRejectedValueOnce(timeout);
+
+      await expect(
+        bridge.onboarding({ credentialId: "cred-1", customerId: null, acceptedTermsId: "terms-1" }),
+      ).rejects.toThrow("signal timed out");
+      expect(fetchSpy).toHaveBeenCalledTimes(5);
+    });
+
+    it("does not retry on non-retryable errors", async () => {
+      vi.spyOn(persona, "getAccount").mockResolvedValueOnce(personaAccount);
+      vi.spyOn(persona, "getDocument").mockResolvedValueOnce(documentResponse);
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(blobResponse())
+        .mockResolvedValueOnce(blobResponse())
+        .mockResolvedValueOnce(fetchError(400, '{"message":"A customer with this email already exists"}'));
+
+      await expect(
+        bridge.onboarding({ credentialId: "cred-1", customerId: null, acceptedTermsId: "terms-1" }),
+      ).rejects.toThrow(bridge.ErrorCodes.EMAIL_ALREADY_EXISTS);
+      expect(fetchSpy).toHaveBeenCalledTimes(3);
+    });
+
+    it("rejects duplicate bridgeId on customer creation", async () => {
+      vi.spyOn(persona, "getAccount").mockResolvedValueOnce(personaAccount);
+      vi.spyOn(persona, "getDocument").mockResolvedValueOnce(documentResponse);
+      vi.spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(blobResponse())
+        .mockResolvedValueOnce(blobResponse())
+        .mockResolvedValueOnce(fetchResponse({ id: "taken-bridge-id", status: "not_started" }));
+
+      await expect(
+        bridge.onboarding({ credentialId: "cred-1", customerId: null, acceptedTermsId: "terms-1" }),
+      ).rejects.toThrow("Failed query");
+    });
+
+    it("uses same idempotency key across retries", async () => {
+      vi.spyOn(persona, "getAccount").mockResolvedValueOnce(personaAccount);
+      vi.spyOn(persona, "getDocument").mockResolvedValueOnce(documentResponse);
+      const timeout = Object.assign(new Error("signal timed out"), { name: "TimeoutError" });
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(blobResponse())
+        .mockResolvedValueOnce(blobResponse())
+        .mockRejectedValueOnce(timeout)
+        .mockResolvedValueOnce(fetchResponse({ id: "cust-idem", status: "not_started" }));
+
+      await bridge.onboarding({ credentialId: "cred-1", customerId: null, acceptedTermsId: "terms-1" });
+
+      const firstKey = (fetchSpy.mock.calls[2]?.[1]?.headers as Record<string, string>)["Idempotency-Key"];
+      const retryKey = (fetchSpy.mock.calls[3]?.[1]?.headers as Record<string, string>)["Idempotency-Key"];
+      expect(firstKey).toBeDefined();
+      expect(firstKey).toBe(retryKey);
+    });
   });
 
   describe("getDepositDetails", () => {
@@ -1211,6 +1326,7 @@ function endorsement(
 
 const activeCustomer = {
   id: "cust-123",
+  email: "test@example.com",
   status: "active" as const,
   endorsements: [] as ReturnType<typeof endorsement>[],
 };
