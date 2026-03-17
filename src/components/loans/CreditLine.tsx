@@ -17,7 +17,7 @@ import queryClient, { type Loan } from "../../utils/queryClient";
 import useAccount from "../../utils/useAccount";
 import useInstallments from "../../utils/useInstallments";
 import AssetLogo from "../shared/AssetLogo";
-import Button from "../shared/Button";
+import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 
 export default function CreditLine() {
@@ -76,6 +76,7 @@ export default function CreditLine() {
             </XStack>
           </YStack>
           <Button
+            aria-label={t("Explore funding options")}
             onPress={() => {
               queryClient.setQueryData<Loan>(["loan"], () => ({
                 market: marketUSDCAddress,
@@ -86,16 +87,12 @@ export default function CreditLine() {
               }));
               router.push("/loan/amount");
             }}
-            main
-            spaced
-            iconAfter={<ArrowRight color="$interactiveOnBaseBrandDefault" strokeWidth={2.5} />}
-            flex={0}
-            contained
-            height={64}
-            maxFontSizeMultiplier={1.1}
-            borderRadius="$r3"
+            primary
           >
-            {t("Explore funding options")}
+            <Button.Text>{t("Explore funding options")}</Button.Text>
+            <Button.Icon>
+              <ArrowRight />
+            </Button.Icon>
           </Button>
         </YStack>
       </YStack>
