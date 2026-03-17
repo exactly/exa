@@ -49,18 +49,21 @@ import ownerConfig from "../utils/wagmi/owner";
 SplashScreen.preventAutoHideAsync().catch(reportError);
 
 configI18n(initReactI18next)
-  .use({
-    type: "languageDetector",
-    detect: () =>
-      getLocales()[0].languageCode ??
-      (typeof navigator === "undefined" ? undefined : navigator.language.split("-")[0]) ??
-      "en",
-  })
+  .use({ type: "languageDetector", detect: () => getLocales()[0].languageTag })
   .init({
-    fallbackLng: "en",
+    load: "currentOnly",
+    fallbackLng: (code) => {
+      const [language] = code.split("-");
+      if (language === "es") return ["es", "en"];
+      if (language === "pt") return ["pt", "en"];
+      return ["en"];
+    },
     keySeparator: false,
     nsSeparator: false,
-    resources: { en: { translation: en }, es: { translation: es } },
+    resources: {
+      en: { translation: en },
+      es: { translation: es },
+    },
   })
   .catch(reportError);
 
