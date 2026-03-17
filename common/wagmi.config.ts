@@ -167,8 +167,12 @@ function chain(): Plugin {
         content: `import { anvil, type Chain } from "viem/chains"
 const chain = anvil as Chain
 chain.rpcUrls.alchemy = chain.rpcUrls.default
+chain.contracts = { multicall3: { address: "${optimism.contracts.multicall3.address}" } }
 chain.blockExplorers = { default: { name: "Otterscan", url: "http://localhost:5100" } }
-export default chain as Chain & { rpcUrls: { alchemy: { http: readonly [string] } } }`,
+export default chain as Chain & {
+  contracts: { multicall3: { address: \`0x\${string}\` } }
+  rpcUrls: { alchemy: { http: readonly [string] } }
+}`,
       }),
     };
   }
@@ -185,7 +189,10 @@ export default chain as Chain & { rpcUrls: { alchemy: { http: readonly [string] 
     run: () => ({
       content: `import { ${importName} } from "@account-kit/infra"
 import { type Chain } from "viem/chains"
-export default ${importName} as Chain & { rpcUrls: { alchemy: { http: readonly [string] } } }`,
+export default ${importName} as Chain & {
+  contracts: { multicall3: { address: \`0x\${string}\` } }
+  rpcUrls: { alchemy: { http: readonly [string] } }
+}`,
     }),
   };
 }
