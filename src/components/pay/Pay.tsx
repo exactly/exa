@@ -350,7 +350,7 @@ function FirstMaturityCard({
   const maturityDate = useMemo(() => new Date(Number(maturity) * 1000), [maturity]);
   const now = useMemo(() => new Date(Number(timestamp) * 1000), [timestamp]);
   const timeDistance = formatDistanceStrict(isOverdue ? maturityDate : now, isOverdue ? now : maturityDate, {
-    locale: date(language),
+    locale: date(),
   });
 
   const discount = Number(WAD - (previewValue * WAD) / positionAmount) / 1e18;

@@ -84,13 +84,13 @@ export default function PaymentSheet({ onRolloverIntro }: { onRolloverIntro?: (m
     const now = new Date(Number(timestamp) * 1000);
     const isUpcoming = isAfter(dueDate, now);
     const timeDistance = formatDistanceStrict(isUpcoming ? now : dueDate, isUpcoming ? dueDate : now, {
-      locale: date(language),
+      locale: date(),
     });
     const dueStatus = isUpcoming
       ? t("Due in {{time}}", { time: timeDistance })
       : t("{{time}} past due", { time: timeDistance });
     return { discount, dueDate, dueStatus, isUpcoming, positionValue, previewValue };
-  }, [displayMaturity, USDCMarket, timestamp, language, t]);
+  }, [displayMaturity, USDCMarket, timestamp, t]);
 
   const close = useCallback(() => {
     setInfoOpen(false);
