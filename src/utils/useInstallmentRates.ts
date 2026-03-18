@@ -38,6 +38,13 @@ export default function useInstallmentRates(amount = 100_000_000n) {
       totalFloatingBorrowAssets,
       totalFloatingDepositAssets,
     } = market;
+    if (totalFloatingDepositAssets === 0n) {
+      const installments = [];
+      for (let count = 1; count <= MAX_INSTALLMENTS; count++) {
+        installments.push({ count, payments: undefined, rate: 0n, total: 0n });
+      }
+      return { installments, firstMaturity };
+    }
     const marketUtilization = globalUtilization(
       totalFloatingDepositAssets,
       totalFloatingBorrowAssets,
