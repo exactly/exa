@@ -32,21 +32,14 @@ export default function IntroSheet({ open, onClose }: { onClose: () => void; ope
         </View>
         <YStack flex={1} padding="$s4" gap="$s4_5">
           <YStack flex={1} gap="$s4">
-            <View flex={1} width="100%">
+            <View flexShrink={1} width="100%">
               <Defi width="100%" height="100%" />
             </View>
-            <YStack gap="$s4" alignSelf="center">
-              <Text
-                emphasized
-                textAlign="center"
-                color="$interactiveTextBrandDefault"
-                title
-                adjustsFontSizeToFit
-                numberOfLines={1}
-              >
+            <YStack flexShrink={1} gap="$s4" alignSelf="center">
+              <Text emphasized textAlign="center" color="$interactiveTextBrandDefault" title adjustsFontSizeToFit>
                 {t("Welcome to DeFi")}
               </Text>
-              <Text color="$uiNeutralPlaceholder" footnote textAlign="center" adjustsFontSizeToFit numberOfLines={2}>
+              <Text color="$uiNeutralPlaceholder" footnote textAlign="center" adjustsFontSizeToFit>
                 {t("Access decentralized services provided by third-party DeFi protocols.")}
               </Text>
             </YStack>
