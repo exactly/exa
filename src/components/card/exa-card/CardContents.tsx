@@ -6,7 +6,7 @@ import { useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 import { Loader, LockKeyhole, Snowflake } from "@tamagui/lucide-icons";
 import { AnimatePresence, XStack, YStack } from "tamagui";
 
-import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
+import chain, { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
 import { borrowLimit, withdrawLimit } from "@exactly/lib";
@@ -34,6 +34,7 @@ export default function CardContents({
   const { address } = useAccount();
   const { data: markets } = useReadPreviewerExactly({
     address: previewerAddress,
+    chainId: chain.id,
     args: address ? [address] : undefined,
     query: { enabled: !!address },
   });

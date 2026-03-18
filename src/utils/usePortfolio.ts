@@ -2,7 +2,7 @@ import { useMemo } from "react";
 
 import { useQuery } from "@tanstack/react-query";
 
-import { previewerAddress, ratePreviewerAddress } from "@exactly/common/generated/chain";
+import chain, { previewerAddress, ratePreviewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerExactly, useReadRatePreviewerSnapshot } from "@exactly/common/generated/hooks";
 import { floatingDepositRates, withdrawLimit } from "@exactly/lib";
 
@@ -42,9 +42,11 @@ export default function usePortfolio(options?: { sortBy?: "usdcFirst" | "usdValu
 
   const { data: rateSnapshot, dataUpdatedAt: rateDataUpdatedAt } = useReadRatePreviewerSnapshot({
     address: ratePreviewerAddress,
+    chainId: chain.id,
   });
   const { data: markets, isPending: isMarketsPending } = useReadPreviewerExactly({
     address: previewerAddress,
+    chainId: chain.id,
     args: account ? [account] : undefined,
     query: { enabled: !!account },
   });

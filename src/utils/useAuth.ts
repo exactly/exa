@@ -27,8 +27,11 @@ export default function useAuth(onDomainError: () => void, onSuccess?: (credenti
   const { mutate: signIn, ...mutation } = useMutation({
     mutationFn: async ({ method, register }: { method: AuthMethod; register?: boolean }) => {
       queryClient.setQueryData(["method"], chain.id === base.id ? "siwe" : method);
-      if (method === "siwe" && getConnection(ownerConfig).isDisconnected) {
-        await connectOwner({ connector: await getOwnerConnector() });
+      if (method === "siwe") {
+        const connection = getConnection(ownerConfig);
+        if (connection.isDisconnected || !connection.address) {
+          await connectOwner({ connector: await getOwnerConnector() });
+        }
       }
       const credential = method === "siwe" || !register ? await getCredential() : await createCredential();
       queryClient.setQueryData<Credential>(["credential"], credential);

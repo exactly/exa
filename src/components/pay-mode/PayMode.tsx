@@ -6,7 +6,7 @@ import { useRouter } from "expo-router";
 
 import { ScrollView, XStack } from "tamagui";
 
-import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
+import chain, { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 
 import OverduePayments from "./OverduePayments";
@@ -28,6 +28,7 @@ export default function PayMode() {
   const router = useRouter();
   const { refetch, isPending } = useReadPreviewerExactly({
     address: previewerAddress,
+    chainId: chain.id,
     args: account ? [account] : undefined,
     query: { enabled: !!account },
   });
