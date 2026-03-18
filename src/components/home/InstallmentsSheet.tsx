@@ -6,7 +6,7 @@ import Carousel, { type ICarouselInstance } from "react-native-reanimated-carous
 import { impactAsync, ImpactFeedbackStyle } from "expo-haptics";
 import { useRouter } from "expo-router";
 
-import { Check, X } from "@tamagui/lucide-icons";
+import { X } from "@tamagui/lucide-icons";
 import { View, XStack, YStack } from "tamagui";
 
 import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
@@ -16,17 +16,14 @@ import useInstallmentRates from "../../utils/useInstallmentRates";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
-import StyledButton from "../shared/StyledButton";
 import Text from "../shared/Text";
 
 export default function InstallmentsSheet({
   mode,
-  isPending,
   onClose,
   onModeChange,
   open,
 }: {
-  isPending: boolean;
   mode: number;
   onClose: () => void;
   onModeChange: (mode: number) => void;
@@ -112,6 +109,7 @@ export default function InstallmentsSheet({
                             cursor="pointer"
                             onPress={() => {
                               setSelected(installment);
+                              if (installment !== mode) onModeChange(installment);
                               impactAsync(ImpactFeedbackStyle.Medium).catch(reportError);
                               const target = Math.floor((installment - 1) / perPage);
                               if (target !== carouselRef.current?.getCurrentIndex()) {
@@ -159,32 +157,17 @@ export default function InstallmentsSheet({
               )}
             </View>
           </YStack>
-          <YStack gap="$s4" paddingHorizontal="$s4">
-            <StyledButton
-              primary
-              disabled={selected === mode || isPending}
-              loading={isPending}
-              onPress={() => {
-                onModeChange(selected);
-              }}
-            >
-              <StyledButton.Text>{t("Set Pay Later in {{count}}", { count: selected })}</StyledButton.Text>
-              <StyledButton.Icon>
-                <Check />
-              </StyledButton.Icon>
-            </StyledButton>
-            <Pressable
-              hitSlop={15}
-              onPress={() => {
-                onClose();
-                router.push("/calculator");
-              }}
-            >
-              <Text footnote emphasized brand textAlign="center">
-                {t("Installments calculator")}
-              </Text>
-            </Pressable>
-          </YStack>
+          <Pressable
+            hitSlop={15}
+            onPress={() => {
+              onClose();
+              router.push("/calculator");
+            }}
+          >
+            <Text footnote emphasized brand textAlign="center" paddingHorizontal="$s4">
+              {t("Installments calculator")}
+            </Text>
+          </Pressable>
         </YStack>
       </SafeView>
     </ModalSheet>

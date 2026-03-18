@@ -146,10 +146,9 @@ export default function Home() {
   const { data: card } = useQuery<CardDetails>({ queryKey: ["card", "details"], enabled: !!account && !!bytecode });
   const { data: spotlightShown } = useQuery<boolean>({ queryKey: ["settings", "installments-spotlight"] });
   const toast = useToastController();
-  const { mutate: mutateMode, isPending: isModePending } = useMutation({
+  const { mutate: mutateMode } = useMutation({
     ...cardModeMutationOptions,
     onSuccess: (_data, mode) => {
-      setInstallmentsSheetOpen(false);
       toast.show(mode === 0 ? t("Pay Now selected") : t("Installments selected", { count: mode }), {
         native: true,
         burntOptions: { haptic: "success", preset: "done" },
@@ -164,7 +163,7 @@ export default function Home() {
 
   const { data: manualRepaymentAcknowledged } = useQuery<boolean>({ queryKey: ["manual-repayment-acknowledged"] });
   function handleModeChange(mode: number) {
-    if (mode === 0 || manualRepaymentAcknowledged) {
+    if (mode === 0 || manualRepaymentAcknowledged || (card?.mode ?? 0) > 0) {
       mutateMode(mode);
       return;
     }
@@ -321,7 +320,6 @@ export default function Home() {
           <InstallmentsSheet
             mode={card?.mode ?? 1}
             open={installmentsSheetOpen}
-            isPending={isModePending}
             onClose={() => {
               setInstallmentsSheetOpen(false);
             }}
