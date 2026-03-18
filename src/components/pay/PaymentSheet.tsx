@@ -152,7 +152,7 @@ export default function PaymentSheet({ onRolloverIntro }: { onRolloverIntro?: (m
       <ModalSheet open={open} onClose={close}>
         {renderContent()}
       </ModalSheet>
-      {borrow && (
+      {open && borrow && (
         <InfoSheet
           open={infoOpen}
           onClose={() => setInfoOpen(false)}
