@@ -642,12 +642,13 @@ describe("bridge utils", () => {
       ).rejects.toThrow(bridge.ErrorCodes.NO_SOCIAL_SECURITY_NUMBER);
     });
 
-    it("includes ssn for US country", async () => {
+    it("includes ssn and subdivision for US country", async () => {
       vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
         ...personaAccount,
         attributes: {
           ...personaAccount.attributes,
           "country-code": "US",
+          "address-subdivision": "CA",
           "social-security-number": "123456789",
         },
       });
@@ -663,8 +664,28 @@ describe("bridge utils", () => {
       const createCall = fetchSpy.mock.calls[2];
       const body = JSON.parse(createCall?.[1]?.body as string) as {
         identifying_information: { issuing_country: string; number: string; type: string }[];
+        residential_address: { subdivision?: string };
       };
       expect(body.identifying_information).toContainEqual({ type: "ssn", number: "123456789", issuing_country: "USA" });
+      expect(body.residential_address.subdivision).toBe("CA");
+    });
+
+    it("omits subdivision for non-US country", async () => {
+      vi.spyOn(persona, "getAccount").mockResolvedValueOnce(personaAccount);
+      vi.spyOn(persona, "getDocument").mockResolvedValueOnce(documentResponse);
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce({ ok: true, blob: () => Promise.resolve(new Blob(["front"])) } as Response)
+        .mockResolvedValueOnce({ ok: true, blob: () => Promise.resolve(new Blob(["back"])) } as Response)
+        .mockResolvedValueOnce(fetchResponse({ id: "cust-new", status: "not_started" }));
+
+      await bridge.onboarding({ credentialId: "cred-1", customerId: null, acceptedTermsId: "terms-1" });
+
+      const createCall = fetchSpy.mock.calls[2];
+      const { residential_address: address } = JSON.parse(createCall?.[1]?.body as string) as {
+        residential_address: { subdivision?: string };
+      };
+      expect(address.subdivision).toBeUndefined();
     });
 
     it("includes spei endorsement for MX country", async () => {

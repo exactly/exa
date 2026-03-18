@@ -365,7 +365,7 @@ export async function onboarding(params: { acceptedTermsId: string; credentialId
       street_line_1: personaAccount.attributes["address-street-1"],
       street_line_2: personaAccount.attributes["address-street-2"] ?? undefined,
       postal_code: personaAccount.attributes["address-postal-code"],
-      subdivision: personaAccount.attributes["address-subdivision"],
+      subdivision: countryCode === "US" ? personaAccount.attributes["address-subdivision"] : undefined,
       country,
       city: personaAccount.attributes["address-city"],
     },
