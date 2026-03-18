@@ -1,6 +1,7 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
 - tapOn: Home
+- runScript: ../dist/getAccount.js
 - assertVisible: ${output.account.slice(0, 6)}…${output.account.slice(-4)}
 - runFlow:
     when: { true: "${maestro.platform != 'web'}" }
