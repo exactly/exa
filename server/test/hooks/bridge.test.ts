@@ -119,7 +119,7 @@ describe("bridge hook", () => {
     await expect(response.json()).resolves.toMatchObject({ code: "bad bridge" });
   });
 
-  it("returns 200 without tracking for non-payment_submitted virtual account types", async () => {
+  it("returns 200 without side effects for non-payment virtual account types", async () => {
     vi.spyOn(segment, "track").mockReturnValue();
     const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
     const response = await appClient.index.$post({
@@ -134,7 +134,7 @@ describe("bridge hook", () => {
     expect(captureException).not.toHaveBeenCalled();
   });
 
-  it("returns 200 and tracks onramp for payment_submitted virtual account", async () => {
+  it("does not track onramp for payment_submitted virtual account", async () => {
     vi.spyOn(segment, "track").mockReturnValue();
     const response = await appClient.index.$post({
       header: { "x-webhook-signature": createSignature(paymentSubmitted) },
@@ -143,11 +143,7 @@ describe("bridge hook", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-    expect(segment.track).toHaveBeenCalledWith({
-      userId: account,
-      event: "Onramp",
-      properties: { currency: "usd", amount: 1000, provider: "bridge", source: null, usdcAmount: 1000 },
-    });
+    expect(segment.track).not.toHaveBeenCalled();
   });
 
   it("sends push notification on payment_submitted virtual account", async () => {
@@ -165,6 +161,25 @@ describe("bridge hook", () => {
       headings: { en: "Deposited funds" },
       contents: { en: "1000 USD deposited" },
     });
+  });
+
+  it("tracks onramp for payment_processed virtual account", async () => {
+    vi.spyOn(segment, "track").mockReturnValue();
+    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const response = await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(paymentProcessed) },
+      json: paymentProcessed as never,
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(segment.track).toHaveBeenCalledWith({
+      userId: account,
+      event: "Onramp",
+      properties: { currency: "usd", amount: 1000, provider: "bridge", source: null, usdcAmount: 995 },
+    });
+    expect(sendPushNotification).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
   });
 
   it("returns 200 with credential not found when bridgeId does not match", async () => {
@@ -471,7 +486,18 @@ const paymentSubmitted = {
     type: "payment_submitted",
     currency: "usd",
     customer_id: "bridgeCustomerId",
-    receipt: { initial_amount: "1000", final_amount: "1000" },
+    receipt: { initial_amount: "1000" },
+  },
+};
+
+const paymentProcessed = {
+  event_type: "virtual_account.activity.created",
+  event_object: {
+    id: "evt_123",
+    type: "payment_processed",
+    currency: "usd",
+    customer_id: "bridgeCustomerId",
+    receipt: { initial_amount: "1000", final_amount: "995" },
   },
 };
 

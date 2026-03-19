@@ -68,13 +68,19 @@ export default new Hono().post(
           object({ type: literal("funds_scheduled"), id: string(), customer_id: string() }),
           object({ type: literal("in_review"), id: string(), customer_id: string() }),
           object({ type: literal("microdeposit"), id: string(), customer_id: string() }), // cspell:ignore microdeposit
-          object({ type: literal("payment_processed"), id: string(), customer_id: string() }),
+          object({
+            customer_id: string(),
+            currency: picklist(BridgeCurrency),
+            id: string(),
+            type: literal("payment_processed"),
+            receipt: object({ initial_amount: string(), final_amount: string() }),
+          }),
           object({
             customer_id: string(),
             currency: picklist(BridgeCurrency),
             id: string(),
             type: literal("payment_submitted"),
-            receipt: object({ initial_amount: string(), final_amount: string() }),
+            receipt: object({ initial_amount: string() }),
           }),
           object({ type: literal("refund"), id: string(), customer_id: string() }),
         ]),
@@ -127,25 +133,28 @@ export default new Hono().post(
         }).catch((error: unknown) => captureException(error, { level: "error" }));
         return c.json({ code: "ok" }, 200);
       case "virtual_account.activity.created":
-        if (payload.event_object.type !== "payment_submitted") return c.json({ code: "ok" }, 200);
-        sendPushNotification({
-          userId: account,
-          headings: { en: "Deposited funds" },
-          contents: {
-            en: `${payload.event_object.receipt.initial_amount} ${payload.event_object.currency.toUpperCase()} deposited`,
-          },
-        }).catch((error: unknown) => captureException(error, { level: "error" }));
-        track({
-          userId: account,
-          event: "Onramp",
-          properties: {
-            currency: payload.event_object.currency,
-            amount: Number(payload.event_object.receipt.initial_amount),
-            provider: "bridge",
-            source: credential.source,
-            usdcAmount: Number(payload.event_object.receipt.final_amount),
-          },
-        });
+        if (payload.event_object.type === "payment_submitted") {
+          sendPushNotification({
+            userId: account,
+            headings: { en: "Deposited funds" },
+            contents: {
+              en: `${payload.event_object.receipt.initial_amount} ${payload.event_object.currency.toUpperCase()} deposited`,
+            },
+          }).catch((error: unknown) => captureException(error, { level: "error" }));
+        }
+        if (payload.event_object.type === "payment_processed") {
+          track({
+            userId: account,
+            event: "Onramp",
+            properties: {
+              currency: payload.event_object.currency,
+              amount: Number(payload.event_object.receipt.initial_amount),
+              provider: "bridge",
+              source: credential.source,
+              usdcAmount: Number(payload.event_object.receipt.final_amount),
+            },
+          });
+        }
         return c.json({ code: "ok" }, 200);
       case "liquidation_address.drain.updated.status_transitioned":
         if (payload.event_object.state !== "payment_submitted") return c.json({ code: "ok" }, 200);
