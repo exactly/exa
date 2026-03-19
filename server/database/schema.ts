@@ -35,7 +35,7 @@ export const credentials = pgTable(
     bridgeId: text("bridge_id"),
     source: text("source"),
   },
-  ({ account, bridgeId }) => [uniqueIndex("account_index").on(account), index("bridge_id_index").on(bridgeId)],
+  ({ account, bridgeId }) => [uniqueIndex("account_index").on(account), uniqueIndex("bridge_id_index").on(bridgeId)],
 );
 
 export const cards = pgTable(
