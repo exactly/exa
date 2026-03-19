@@ -47,6 +47,7 @@ import { proposalManager } from "@exactly/plugin/deploy.json";
 import database, { cards, credentials, transactions } from "../../database";
 import app from "../../hooks/panda";
 import keeper from "../../utils/keeper";
+import * as onesignal from "../../utils/onesignal";
 import * as panda from "../../utils/panda";
 import publicClient from "../../utils/publicClient";
 import * as sardine from "../../utils/sardine";
@@ -601,6 +602,44 @@ describe("card operations", () => {
         expect(response.status).toBe(200);
       });
 
+      it("sends locale-aware card purchase notification", async () => {
+        const sendPushNotificationSpy = vi
+          .spyOn(onesignal, "sendPushNotification")
+          .mockImplementation(() => Promise.resolve(undefined as never));
+        // @ts-expect-error mock implementation
+        vi.spyOn(keeper, "exaSend").mockImplementation(async (...args) => {
+          await args[2]?.onHash?.(zeroHash as Hash);
+        });
+        const localAmount = 123_456;
+        const cardId = "locale-notify";
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "9999", mode: 0 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "created",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: { ...authorization.json.body.spend, cardId, localAmount, localCurrency: "ars" },
+            },
+          },
+        });
+
+        expect(response.status).toBe(200);
+        await vi.waitFor(() => expect(sendPushNotificationSpy).toHaveBeenCalled());
+        const call = sendPushNotificationSpy.mock.calls[0]?.[0];
+        expect(call?.headings).toStrictEqual({ en: "Card purchase", es: "Compra con tarjeta" }); // cspell:ignore Compra tarjeta
+        const enAmount = (localAmount / 100).toLocaleString("en-US", { style: "currency", currency: "ars" });
+        const esAmount = (localAmount / 100).toLocaleString("es-AR", { style: "currency", currency: "ars" });
+        expect(enAmount).not.toBe(esAmount);
+        expect(call?.contents).toStrictEqual({
+          en: `${enAmount} at 99999. Paid with USDC`,
+          es: `${esAmount} en 99999. Pagado con USDC`, // cspell:ignore Pagado
+        });
+      });
+
       it("fails with transaction timeout", async () => {
         const error = new Error("timeout");
         const track = vi.spyOn(segment, "track").mockReturnValue();
@@ -896,6 +935,7 @@ describe("card operations", () => {
       afterEach(() => vi.restoreAllMocks());
 
       it("handles reversal", async () => {
+        const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
         const amount = 2073;
         const cardId = "card";
         await keeper.exaSend(
@@ -954,6 +994,14 @@ describe("card operations", () => {
 
         expect(deposit?.args.assets).toBe(BigInt(amount * 1e4));
         expect(response.status).toBe(200);
+        expect(sendPushNotification).toHaveBeenCalledWith({
+          userId: account,
+          headings: { en: "Refund processed", es: "Reembolso procesado" }, // cspell:ignore Reembolso procesado
+          contents: {
+            en: "20.73 USDC from 99999 have been refunded to your account",
+            es: "20,73 USDC de 99999 fueron reembolsados a tu cuenta", // cspell:ignore reembolsados cuenta fueron
+          },
+        });
       });
 
       it("returns ok on reversal replay", async () => {

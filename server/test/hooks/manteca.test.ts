@@ -173,6 +173,7 @@ describe("manteca hook", () => {
   describe("when a deposit is detected", () => {
     it("converts to USDC", async () => {
       vi.spyOn(manteca, "convertBalanceToUsdc").mockResolvedValue();
+      const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
       const payload = {
         event: "DEPOSIT_DETECTED",
         data: {
@@ -193,6 +194,11 @@ describe("manteca hook", () => {
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
       expect(manteca.convertBalanceToUsdc).toHaveBeenCalledWith("456", "ARS");
+      expect(sendPushNotification).toHaveBeenCalledWith({
+        userId: account,
+        headings: { en: "Deposited funds", es: "Fondos depositados" }, // cspell:ignore Fondos depositados
+        contents: { en: "1,000 ARS deposited", es: "1.000 ARS depositados" }, // cspell:ignore depositados
+      });
     });
 
     it("returns ok if credential does not exist", async () => {
