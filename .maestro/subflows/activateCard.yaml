@@ -59,12 +59,11 @@ appId: ${APP_ID ?? "app.exactly"}
       - assertVisible: Enter a purchase amount
       - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Go back } }
 - runFlow: { file: scrollTo.yaml, env: { element: Credit limit } }
-- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Credit limit info } }
+- tapOn: Credit limit
 - assertVisible: It's based on the value of your collateral assets and updates as their value changes.
 - tapOn: Close
 - tapOn: Now
-- runFlow: { file: scrollTo.yaml, env: { element: Spending limit } }
-- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Spending limit info } }
+- tapOn: Spending limit
 - assertVisible: It's based on the USDC available in your balance.
 - tapOn: Close
 - tapOn: Home

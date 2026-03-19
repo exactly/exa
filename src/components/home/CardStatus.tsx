@@ -284,15 +284,22 @@ function LimitPaginator({
     >
       {width > 0 && (
         <XStack width={width * 2} x={mode > 0 ? -width : 0} animation="default" animateOnly={["transform"]}>
-          <XStack width={width} height={48} alignItems="center" gap="$s3" paddingHorizontal="$s4">
+          <XStack
+            width={width}
+            height={48}
+            alignItems="center"
+            gap="$s3"
+            paddingHorizontal="$s4"
+            hitSlop={15}
+            onPress={onSpendingLimitInfoPress}
+            aria-label={t("Spending limit info")}
+          >
             <Wallet size={20} color="$uiNeutralSecondary" />
             <XStack flex={1} alignItems="center" gap="$s2">
               <Text callout emphasized>
                 {t("Spending limit")}
               </Text>
-              <Pressable hitSlop={15} onPress={onSpendingLimitInfoPress} aria-label={t("Spending limit info")}>
-                <Info size={16} color="$interactiveBaseBrandDefault" />
-              </Pressable>
+              <Info size={16} color="$interactiveBaseBrandDefault" />
             </XStack>
             <Text title3 aria-label={hidden ? "***" : `$${spending}`}>
               <Text aria-hidden secondary>
@@ -303,16 +310,23 @@ function LimitPaginator({
               </Text>
             </Text>
           </XStack>
-          <XStack width={width} height={48} alignItems="center" gap="$s3" paddingHorizontal="$s4">
+          <XStack
+            width={width}
+            height={48}
+            alignItems="center"
+            gap="$s3"
+            paddingHorizontal="$s4"
+            hitSlop={15}
+            onPress={onCreditLimitInfoPress}
+            aria-label={t("Credit limit info")}
+          >
             <CreditCard size={20} color="$uiNeutralSecondary" />
             <YStack flex={1} justifyContent="center">
               <XStack alignItems="center" gap="$s2">
                 <Text callout emphasized>
                   {t("Credit limit")}
                 </Text>
-                <Pressable hitSlop={15} onPress={onCreditLimitInfoPress} aria-label={t("Credit limit info")}>
-                  <Info size={16} color="$interactiveBaseBrandDefault" />
-                </Pressable>
+                <Info size={16} color="$interactiveBaseBrandDefault" />
               </XStack>
               <Text sensitive footnote secondary>
                 {t("Collateral {{value}}", {
