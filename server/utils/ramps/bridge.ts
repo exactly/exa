@@ -98,7 +98,7 @@ export async function getCustomer(customerId: string) {
 }
 
 export async function getQuote(from: "USD", to: (typeof QuoteCurrency)[number]) {
-  if (to === "USDC") return { buyRate: "1.0", sellRate: "1.0" };
+  if (["USDC", "USD"].includes(to)) return { buyRate: "1.0", sellRate: "1.0" };
   const quote = await request(Quote, `/exchange_rates?from=${CurrencyToBridge[from]}&to=${CurrencyToBridge[to]}`).catch(
     (error: unknown) => {
       captureException(error, { level: "error" });

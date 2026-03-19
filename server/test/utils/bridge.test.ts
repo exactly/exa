@@ -74,12 +74,24 @@ describe("bridge utils", () => {
   });
 
   describe("getQuote", () => {
+    it("returns 1:1 rate for USD", async () => {
+      const result = await bridge.getQuote("USD", "USD");
+
+      expect(result).toStrictEqual({ buyRate: "1.0", sellRate: "1.0" });
+    });
+
+    it("returns 1:1 rate for USDC", async () => {
+      const result = await bridge.getQuote("USD", "USDC");
+
+      expect(result).toStrictEqual({ buyRate: "1.0", sellRate: "1.0" });
+    });
+
     it("returns transformed quote", async () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
         fetchResponse({ midmarket_rate: "1.00", buy_rate: "0.99", sell_rate: "1.01" }),
       );
 
-      const result = await bridge.getQuote("USD", "USD");
+      const result = await bridge.getQuote("USD", "EUR");
 
       expect(result).toStrictEqual({ buyRate: "0.99", sellRate: "1.01" });
     });
@@ -87,7 +99,7 @@ describe("bridge utils", () => {
     it("returns undefined on error", async () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchError(500, "error"));
 
-      const result = await bridge.getQuote("USD", "USD");
+      const result = await bridge.getQuote("USD", "EUR");
 
       expect(result).toBeUndefined();
       expect(captureException).toHaveBeenCalled();
