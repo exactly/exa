@@ -1,5 +1,23 @@
 # @exactly/server
 
+## 0.2.82
+
+### Patch Changes
+
+- [#897](https://github.com/exactly/exa/pull/897) [`1e5616a`](https://github.com/exactly/exa/commit/1e5616a71542ed4c89b661787751890a25f08b47) Thanks [@mainqueg](https://github.com/mainqueg)! - 🐛 omit subdivision for non-us onboarding
+
+- [#894](https://github.com/exactly/exa/pull/894) [`d2c5fd2`](https://github.com/exactly/exa/commit/d2c5fd2624373791be24dcf3cde1c128037b6af0) Thanks [@mainqueg](https://github.com/mainqueg)! - ✨ add bank beneficiary address to deposit details
+
+- [#899](https://github.com/exactly/exa/pull/899) [`737e332`](https://github.com/exactly/exa/commit/737e33262b8504f4eda35f49c44780f933562659) Thanks [@mainqueg](https://github.com/mainqueg)! - 🐛 fix quote short-circuit missing usd
+
+- [#812](https://github.com/exactly/exa/pull/812) [`d599828`](https://github.com/exactly/exa/commit/d59982869a5afef76517007f58985dc2829326df) Thanks [@mainqueg](https://github.com/mainqueg)! - 🐛 require identity-validation completion for ramp tracking
+
+- [#882](https://github.com/exactly/exa/pull/882) [`5347cf3`](https://github.com/exactly/exa/commit/5347cf38ccc9d2795a04ba2251fee3a8b2a47453) Thanks [@mainqueg](https://github.com/mainqueg)! - 🩹 close redis connections on shutdown
+
+- [#891](https://github.com/exactly/exa/pull/891) [`f9f0d0a`](https://github.com/exactly/exa/commit/f9f0d0ab502223e17a4045b726ed4c429a34a0d7) Thanks [@mainqueg](https://github.com/mainqueg)! - 🦺 return ok for non-processed persona templates
+
+- [#899](https://github.com/exactly/exa/pull/899) [`ac40943`](https://github.com/exactly/exa/commit/ac409434a13fe6cd87975a0def34bc23d4c2465c) Thanks [@mainqueg](https://github.com/mainqueg)! - 🐛 track onramp completion on processed instead of submitted
+
 ## 0.2.81
 
 ### Patch Changes
