@@ -309,7 +309,7 @@ function TotalOutstandingCard({
           <Text emphasized headline>
             {t("Total outstanding")}
           </Text>
-          <Pressable onPress={onInfoPress} hitSlop={15}>
+          <Pressable aria-label={t("Total outstanding info")} onPress={onInfoPress} hitSlop={15}>
             <Info size={16} color="$interactiveBaseBrandDefault" />
           </Pressable>
         </XStack>
@@ -439,7 +439,7 @@ function FirstMaturityCard({
             </>
           ) : null}
         </YStack>
-        <Pressable onPress={onInfoPress} hitSlop={15}>
+        <Pressable aria-label={t("Payment info")} onPress={onInfoPress} hitSlop={15}>
           <Info size={16} color="$interactiveBaseBrandDefault" />
         </Pressable>
       </XStack>

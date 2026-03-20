@@ -55,8 +55,10 @@ appId: ${APP_ID ?? "app.exactly"}
     when: { visible: Tap here to change the number of installments }
     commands:
       - tapOn: Tap here to change the number of installments
+      - assertVisible: Choose how many installments to use for future card purchases. You can always change this before each purchase.
       - tapOn: Installments calculator
       - assertVisible: Enter a purchase amount
+      - assertVisible: to estimate installment options
       - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Go back } }
 - runFlow: { file: scrollTo.yaml, env: { element: Credit limit } }
 - tapOn: Credit limit

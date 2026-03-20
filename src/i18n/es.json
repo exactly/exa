@@ -110,6 +110,8 @@
   "Available for {{count}} installments or less_one": "Disponible para {{count}} cuota",
   "Available for {{count}} installments or less_other": "Disponible para {{count}} cuotas o menos",
   "Total outstanding": "Total pendiente",
+  "Total outstanding info": "Información del total pendiente",
+  "Payment info": "Información del pago",
   "This total includes all your purchases, loans, interest, and any applicable late fees.": "Este total incluye todas tus compras, préstamos, intereses y cualquier cargo por pago tardío.",
   "Got it!": "¡Entendido!",
   "Early repayment discount": "Descuento por pago anticipado",

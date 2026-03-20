@@ -19,7 +19,11 @@ appId: ${APP_ID ?? "app.exactly"}
 - assertVisible: { text: Pay, leftOf: Rollover }
 - assertVisible: Rollover
 - assertVisible: View statement
-- scrollUntilVisible: { element: Upcoming payments }
-- assertVisible: Upcoming payments
+- runFlow: { file: tapAria.yaml, env: { aria: Total outstanding info } }
+- assertVisible: This total includes all your purchases, loans, interest, and any applicable late fees.
+- tapOn: Got it!
+- runFlow: { file: tapAria.yaml, env: { aria: Payment info } }
+- assertVisible: You can repay early and save on interest. The final amount updates automatically before you confirm.
+- tapOn: Close
 - tapOn: Home
 - waitForAnimationToEnd
