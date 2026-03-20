@@ -11,7 +11,7 @@ import { testClient } from "hono/testing";
 import { parse } from "valibot";
 import { hexToBigInt, padHex, parseEther, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
-import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import { exaAccountFactoryAbi, exaPluginAbi } from "@exactly/common/generated/chain";
@@ -93,6 +93,9 @@ describe("authenticated", () => {
   });
 
   afterEach(() => vi.resetAllMocks());
+  beforeEach(() => {
+    vi.spyOn(persona, "getAccount").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
+  });
 
   it("returns 404 card not found", async () => {
     const response = await appClient.index.$get(
@@ -517,6 +520,7 @@ describe("authenticated", () => {
 
   it("creates a panda credit card with signature product id", async () => {
     vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: "createCreditCard", last4: "1224" });
+
     const ethCredential = await database.query.credentials.findFirst({
       columns: { account: true },
       where: eq(credentials.id, "eth"),
@@ -795,6 +799,87 @@ describe("authenticated", () => {
     });
 
     expect(card?.status).toBe("DELETED");
+  });
+
+  describe("card limit sync", () => {
+    it("passes persona card limit to createCard", async () => {
+      const credentialId = "limit-sync-test";
+      await database.insert(credentials).values({
+        id: credentialId,
+        publicKey: new Uint8Array(),
+        account: padHex("0xaaa1", { size: 20 }),
+        factory: inject("ExaAccountFactory"),
+        pandaId: "limit-sync-panda",
+      });
+
+      const createCardSpy = vi
+        .spyOn(panda, "createCard")
+        .mockResolvedValueOnce({ ...cardTemplate, id: "limit-sync-card", last4: "1111" });
+      vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
+        id: "acc_limit",
+        type: "account",
+        attributes: { fields: { card_limit_usd: { value: 20_000 } } },
+      });
+
+      const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+
+      expect(response.status).toBe(200);
+      expect(createCardSpy).toHaveBeenCalledWith("limit-sync-panda", SIGNATURE_PRODUCT_ID, 2_000_000);
+    });
+
+    it("uses default limit when persona account has no card limit", async () => {
+      const credentialId = "limit-null-test";
+      await database.insert(credentials).values({
+        id: credentialId,
+        publicKey: new Uint8Array(),
+        account: padHex("0xaaa2", { size: 20 }),
+        factory: inject("ExaAccountFactory"),
+        pandaId: "limit-null-panda",
+      });
+
+      const createCardSpy = vi
+        .spyOn(panda, "createCard")
+        .mockResolvedValueOnce({ ...cardTemplate, id: "limit-null-card", last4: "2222" });
+      vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
+        id: "acc_no_limit",
+        type: "account",
+        attributes: { fields: { card_limit_usd: { value: null } } },
+      });
+
+      const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+
+      expect(response.status).toBe(200);
+      expect(createCardSpy).toHaveBeenCalledWith("limit-null-panda", SIGNATURE_PRODUCT_ID, undefined);
+    });
+
+    it("falls back to default limit and captures when getAccount fails", async () => {
+      const credentialId = "limit-fail-test";
+      await database.insert(credentials).values({
+        id: credentialId,
+        publicKey: new Uint8Array(),
+        account: padHex("0xaaa3", { size: 20 }),
+        factory: inject("ExaAccountFactory"),
+        pandaId: "limit-fail-panda",
+      });
+
+      const createCardSpy = vi
+        .spyOn(panda, "createCard")
+        .mockResolvedValueOnce({ ...cardTemplate, id: "limit-fail-card", last4: "3333" });
+      const error = new Error("persona api error");
+      vi.spyOn(persona, "getAccount").mockRejectedValueOnce(error);
+
+      const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+
+      expect(response.status).toBe(200);
+      expect(createCardSpy).toHaveBeenCalledWith("limit-fail-panda", SIGNATURE_PRODUCT_ID, undefined);
+      expect(captureException).toHaveBeenCalledWith(
+        error,
+        expect.objectContaining({
+          level: "error",
+          contexts: { details: { credentialId, scope: "cardLimit" } },
+        }),
+      );
+    });
   });
 
   describe("migration", () => {
