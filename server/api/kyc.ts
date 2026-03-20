@@ -156,7 +156,7 @@ export default new Hono()
       "json",
       object({
         redirectURI: optional(string()),
-        scope: optional(picklist(["basic", "bridge", "cardLimit", "manteca"])),
+        scope: optional(picklist(["basic", "cardLimit", "manteca"])),
       }),
       validatorHook({ debug }),
     ),
