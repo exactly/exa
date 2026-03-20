@@ -47,6 +47,7 @@ export default function UpcomingPayments({
     if (isBefore(new Date(Number(maturity) * 1000), new Date())) continue;
     if (maturity === excludeMaturity) continue;
     const positionAmount = position.principal + position.fee;
+    if (positionAmount === 0n) continue;
     const existing = dueMaturities.get(maturity);
     dueMaturities.set(maturity, {
       totalPreview: (existing?.totalPreview ?? 0n) + previewValue,

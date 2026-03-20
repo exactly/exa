@@ -48,6 +48,7 @@ export default function OverduePayments({
         if (maturity === excludeMaturity) continue;
         if (isBefore(new Date(Number(maturity) * 1000), new Date())) {
           const positionAmount = position.principal + position.fee;
+          if (positionAmount === 0n) continue;
           const existing = overdueMaturities.get(maturity);
           overdueMaturities.set(maturity, {
             totalPreview: (existing?.totalPreview ?? 0n) + previewValue,
