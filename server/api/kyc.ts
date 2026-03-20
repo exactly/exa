@@ -3,7 +3,7 @@ import createDebug from "debug";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { validator as vValidator } from "hono-openapi/valibot";
-import { literal, object, optional, parse, picklist, string } from "valibot";
+import { literal, object, optional, parse, picklist, string, type InferOutput } from "valibot";
 import { getAddress } from "viem";
 
 import accountInit from "@exactly/common/accountInit";
@@ -18,6 +18,7 @@ import database, { credentials } from "../database/index";
 import auth from "../middleware/auth";
 import decodePublicKey from "../utils/decodePublicKey";
 import {
+  CARD_LIMIT_TEMPLATE,
   createInquiry,
   CRYPTOMATE_TEMPLATE,
   getAccount,
@@ -30,6 +31,8 @@ import {
 import publicClient from "../utils/publicClient";
 import validatorHook from "../utils/validatorHook";
 
+import type { Inquiry } from "../utils/persona";
+
 const debug = createDebug("exa:kyc");
 Object.assign(debug, { inspectOpts: { depth: undefined } });
 
@@ -41,7 +44,7 @@ export default new Hono()
       "query",
       object({
         countryCode: optional(literal("true")),
-        scope: optional(picklist(["basic", "bridge", "manteca"])),
+        scope: optional(picklist(["basic", "bridge", "cardLimit", "manteca"])),
       }),
       validatorHook(),
     ),
@@ -58,6 +61,13 @@ export default new Hono()
       const account = parse(Address, credential.account);
       setUser({ id: account });
       setContext("exa", { credential });
+
+      if (scope === "cardLimit") {
+        if (!credential.pandaId) return c.json({ code: "no panda" }, 400);
+        const inquiry = await getInquiry(credentialId, CARD_LIMIT_TEMPLATE);
+        if (!inquiry) return c.json({ code: "not started" }, 200);
+        return c.json({ code: cardLimitGetCode[inquiry.attributes.status] }, 200);
+      }
 
       if (scope === "basic" && credential.pandaId) {
         if (c.req.valid("query").countryCode) {
@@ -113,7 +123,7 @@ export default new Hono()
         case "declined":
           return c.json({ code: "bad kyc", legacy: "kyc not approved" }, 400);
         default:
-          throw new Error("Unknown inquiry status");
+          throw new Error("unknown inquiry status");
       }
     },
   )
@@ -124,7 +134,7 @@ export default new Hono()
       "json",
       object({
         redirectURI: optional(string()),
-        scope: optional(picklist(["basic", "bridge", "manteca"])),
+        scope: optional(picklist(["basic", "bridge", "cardLimit", "manteca"])),
       }),
       validatorHook({ debug }),
     ),
@@ -140,6 +150,34 @@ export default new Hono()
       if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
       setUser({ id: parse(Address, credential.account) });
       setContext("exa", { credential });
+
+      if (scope === "cardLimit") {
+        if (!credential.pandaId) return c.json({ code: "no panda" }, 400);
+        const inquiry = await getInquiry(credentialId, CARD_LIMIT_TEMPLATE);
+        if (!inquiry) {
+          const account = await getAccount(credentialId, "basic").catch((error: unknown) => {
+            captureException(error, { level: "error", contexts: { details: { credentialId, scope } } });
+          });
+          const { data } = await createInquiry(
+            credentialId,
+            CARD_LIMIT_TEMPLATE,
+            redirectURI,
+            account
+              ? { "name-first": account.attributes["name-first"], "name-last": account.attributes["name-last"] }
+              : undefined,
+          );
+          return c.json(await generateInquiryTokens(data.id), 200);
+        }
+        if (inquiry.attributes.status === "approved") {
+          captureException(new Error("inquiry approved but account not updated"), {
+            level: "error",
+            contexts: { inquiry: { templateId: CARD_LIMIT_TEMPLATE, referenceId: credentialId } },
+          });
+        }
+        const result = cardLimitPostCode[inquiry.attributes.status];
+        if (result === null) return c.json(await generateInquiryTokens(inquiry.id), 200);
+        return c.json({ code: result }, 400);
+      }
 
       let inquiryTemplateId: Awaited<ReturnType<typeof getPendingInquiryTemplate>>;
       try {
@@ -157,8 +195,7 @@ export default new Hono()
       const inquiry = await getInquiry(credentialId, inquiryTemplateId);
       if (!inquiry) {
         const { data } = await createInquiry(credentialId, inquiryTemplateId, redirectURI);
-        const { inquiryId, sessionToken } = await generateInquiryTokens(data.id);
-        return c.json({ inquiryId, sessionToken }, 200);
+        return c.json(await generateInquiryTokens(data.id), 200);
       }
 
       switch (inquiry.attributes.status) {
@@ -176,12 +213,10 @@ export default new Hono()
           return c.json({ code: "failed", legacy: "kyc failed" }, 400); // TODO send a different response
         case "pending":
         case "created":
-        case "expired": {
-          const { inquiryId, sessionToken } = await generateInquiryTokens(inquiry.id);
-          return c.json({ inquiryId, sessionToken }, 200);
-        }
+        case "expired":
+          return c.json(await generateInquiryTokens(inquiry.id), 200);
         default:
-          throw new Error("Unknown inquiry status");
+          throw new Error("unknown inquiry status");
       }
     },
   );
@@ -216,3 +251,27 @@ async function generateInquiryTokens(inquiryId: string): Promise<{ inquiryId: st
   const { meta: sessionTokenMeta } = await resumeInquiry(inquiryId);
   return { inquiryId, sessionToken: sessionTokenMeta["session-token"] };
 }
+
+type InquiryStatus = InferOutput<typeof Inquiry>["attributes"]["status"];
+
+const cardLimitGetCode = {
+  approved: "ok",
+  completed: "pending",
+  needs_review: "pending",
+  created: "not started",
+  pending: "not started",
+  expired: "not started",
+  failed: "failed",
+  declined: "failed",
+} as const satisfies Record<InquiryStatus, string>;
+
+const cardLimitPostCode = {
+  approved: "already approved",
+  completed: "pending",
+  needs_review: "pending",
+  created: null,
+  pending: null,
+  expired: null,
+  failed: "failed",
+  declined: "failed",
+} as const satisfies Record<InquiryStatus, null | string>;
