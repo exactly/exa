@@ -205,6 +205,15 @@ queryClient.setQueryDefaults(["kyc", "status"], {
   meta: { warnError: (error) => triage(error) === "warn" },
   queryFn: () => getKYCStatus("basic", true),
 });
+queryClient.setQueryDefaults(["kyc", "cardLimit"], {
+  staleTime: 5 * 60_000,
+  gcTime: 60 * 60_000,
+  queryFn: () =>
+    getKYCStatus("cardLimit").catch((error: unknown) => {
+      if (error instanceof APIError && error.code === 400) return { code: error.text };
+      throw error;
+    }),
+});
 export type KYCStatus = Awaited<ReturnType<typeof getKYCStatus>>;
 
 export async function getCredential() {

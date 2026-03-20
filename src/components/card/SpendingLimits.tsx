@@ -3,16 +3,23 @@ import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 
 import { Plus } from "@tamagui/lucide-icons";
+import { useToastController } from "@tamagui/toast";
 import { ScrollView, XStack, YStack } from "tamagui";
+
+import { useQuery } from "@tanstack/react-query";
 
 import SpendingLimit from "./SpendingLimit";
 import { newMessage } from "../../utils/intercom";
+import { startCardLimitKYC } from "../../utils/persona";
 import reportError from "../../utils/reportError";
+import InfoAlert from "../shared/InfoAlert";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
+
+import type { KYCStatus } from "../../utils/server";
 
 export default function SpendingLimits({
   open,
@@ -26,6 +33,10 @@ export default function SpendingLimits({
   totalSpent: number;
 }) {
   const { t } = useTranslation();
+  const toast = useToastController();
+  const { data: cardLimitStatus } = useQuery<KYCStatus>({ queryKey: ["kyc", "cardLimit"], enabled: limit != null });
+  const processing = cardLimitStatus?.code === "processing";
+  const alreadyApproved = cardLimitStatus?.code === "ok";
   return (
     <ModalSheet open={open} onClose={onClose}>
       <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
@@ -44,17 +55,42 @@ export default function SpendingLimits({
                 <YStack paddingBottom="$s4">
                   <SpendingLimit title={t("Weekly")} limit={limit} totalSpent={totalSpent} />
                 </YStack>
-                <Button
-                  onPress={() => {
-                    newMessage(t("I want to increase my spending limit")).catch(reportError);
-                  }}
-                  primary
-                >
-                  <Button.Text>{t("Increase spending limit")}</Button.Text>
-                  <Button.Icon>
-                    <Plus />
-                  </Button.Icon>
-                </Button>
+                {processing ? (
+                  <InfoAlert
+                    title={t(
+                      "Your limit increase request is under review. We'll let you know once it's been processed.",
+                    )}
+                  />
+                ) : (
+                  <Button
+                    onPress={() => {
+                      onClose();
+                      if (alreadyApproved) newMessage(t("I want to increase my spending limit")).catch(reportError);
+                      else
+                        startCardLimitKYC()
+                          .then((result) => {
+                            if (result.status === "error")
+                              toast.show(t("Something went wrong. Please try again."), {
+                                native: true,
+                                burntOptions: { haptic: "error", preset: "error" },
+                              });
+                          })
+                          .catch((error: unknown) => {
+                            reportError(error);
+                            toast.show(t("Something went wrong. Please try again."), {
+                              native: true,
+                              burntOptions: { haptic: "error", preset: "error" },
+                            });
+                          });
+                    }}
+                    primary
+                  >
+                    <Button.Text>{t("Increase spending limit")}</Button.Text>
+                    <Button.Icon>
+                      <Plus />
+                    </Button.Icon>
+                  </Button>
+                )}
                 <XStack alignSelf="center">
                   <Pressable onPress={onClose} hitSlop={20}>
                     <Text emphasized footnote color="$interactiveTextBrandDefault">
