@@ -3,10 +3,12 @@ import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 
 import { Plus } from "@tamagui/lucide-icons";
+import { useToastController } from "@tamagui/toast";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import SpendingLimit from "./SpendingLimit";
-import { newMessage } from "../../utils/intercom";
+import { startCardLimitKYC } from "../../utils/persona";
+import { APIError } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
@@ -26,6 +28,7 @@ export default function SpendingLimits({
   totalSpent: number;
 }) {
   const { t } = useTranslation();
+  const toast = useToastController();
   return (
     <ModalSheet open={open} onClose={onClose}>
       <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
@@ -46,7 +49,31 @@ export default function SpendingLimits({
                 </YStack>
                 <Button
                   onPress={() => {
-                    newMessage(t("I want to increase my spending limit")).catch(reportError);
+                    onClose();
+                    startCardLimitKYC()
+                      .then((result) => {
+                        if (result.status === "error")
+                          toast.show(t("Error verifying identity"), {
+                            native: true,
+                            burntOptions: { haptic: "error", preset: "error" },
+                          });
+                      })
+                      .catch((error: unknown) => {
+                        if (
+                          error instanceof APIError &&
+                          (error.text === "already approved" || error.text === "pending")
+                        )
+                          toast.show(t("Your request is being reviewed"), {
+                            native: true,
+                            burntOptions: { haptic: "success" },
+                          });
+                        else
+                          toast.show(t("Error verifying identity"), {
+                            native: true,
+                            burntOptions: { haptic: "error", preset: "error" },
+                          });
+                        reportError(error);
+                      });
                   }}
                   primary
                 >
