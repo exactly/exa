@@ -40,9 +40,9 @@ export default function RolloverIntroSheet({ maturity, onClose }: { maturity?: s
   const [open, setOpen] = useState(false);
   const [displayMaturity, setDisplayMaturity] = useState(maturity);
 
-  if (maturity && !open) {
-    setDisplayMaturity(maturity);
-    setOpen(true);
+  if (maturity) {
+    if (maturity !== displayMaturity) setDisplayMaturity(maturity);
+    if (!open) setOpen(true);
   }
 
   const close = useCallback(() => {

@@ -57,9 +57,9 @@ export default function PaymentSheet({ onRolloverIntro }: { onRolloverIntro?: (m
   } = useTranslation();
   const dateFnsLocale = language === "es" ? es : enUS;
 
-  if (maturity && !open) {
-    setDisplayMaturity(maturity);
-    setOpen(true);
+  if (maturity) {
+    if (maturity !== displayMaturity) setDisplayMaturity(maturity);
+    if (!open) setOpen(true);
   }
 
   const borrow = useMemo<
