@@ -38,6 +38,7 @@ import {
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useBeginKYC from "../../utils/useBeginKYC";
+import useCardLimit from "../../utils/useCardLimit";
 import useMarkets from "../../utils/useMarkets";
 import useTabPress from "../../utils/useTabPress";
 import FundingAlert from "../shared/FundingAlert";
@@ -82,15 +83,7 @@ export default function Card() {
     isFetching: isFetchingCard,
   } = useQuery<CardDetailsData>({ queryKey: ["card", "details"], retry: false, gcTime: 0, staleTime: 0 });
 
-  const limit = cardDetails?.limit.amount ? cardDetails.limit.amount / 100 : undefined;
-  const weeklyPurchases = purchases
-    ? purchases.filter((item): item is Extract<CardActivity, { type: "panda" }> => {
-        if (item.type !== "panda" || item.status === "declined") return false;
-        const elapsedTime = (Date.now() - new Date(item.timestamp).getTime()) / 1000;
-        return elapsedTime <= 604_800;
-      })
-    : [];
-  const totalSpent = weeklyPurchases.reduce((accumulator, item) => accumulator + item.usdAmount, 0);
+  const { increase, limit, spent, pending, processing } = useCardLimit(cardDetails?.limit.amount, spendingLimitsOpen);
 
   const { queryKey } = useAsset(marketUSDCAddress);
   const { address } = useAccount();
@@ -122,6 +115,7 @@ export default function Card() {
     Promise.all([
       refetchCard(),
       queryClient.invalidateQueries({ queryKey: ["activity", "card"], exact: true }),
+      queryClient.invalidateQueries({ queryKey: ["kyc", "cardLimit"], exact: true }),
       queryClient.invalidateQueries({ queryKey: ["kyc", "status"], exact: true }),
       address ? refetchBytecode() : undefined,
       address ? refetchMarkets() : undefined,
@@ -455,7 +449,7 @@ export default function Card() {
                       {limit ? (
                         <>
                           <Text caption emphasized color="$uiBrandSecondary">
-                            {`$${(limit - totalSpent).toLocaleString(language, {
+                            {`$${(limit - spent).toLocaleString(language, {
                               style: "decimal",
                               maximumFractionDigits: 0,
                             })}`}
@@ -524,8 +518,11 @@ export default function Card() {
         />
         <SpendingLimits
           open={spendingLimitsOpen}
-          totalSpent={totalSpent}
           limit={limit}
+          spent={spent}
+          increase={increase}
+          pending={pending}
+          processing={processing}
           onClose={() => {
             setSpendingLimitsOpen(false);
           }}

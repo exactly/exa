@@ -40,6 +40,7 @@ import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { cardModeMutationOptions } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
+import useCardLimit from "../../utils/useCardLimit";
 import useMarkets from "../../utils/useMarkets";
 import usePendingOperations from "../../utils/usePendingOperations";
 import usePortfolio from "../../utils/usePortfolio";
@@ -138,6 +139,12 @@ export default function Home() {
     kycStatus && "code" in kycStatus && (kycStatus.code === "ok" || kycStatus.code === "legacy kyc"),
   );
   const { data: card } = useQuery<CardDetails>({ queryKey: ["card", "details"], enabled: !!account && !!bytecode });
+  const {
+    increase: increaseLimit,
+    usage,
+    pending: cardLimitPending,
+    processing: cardLimitProcessing,
+  } = useCardLimit(card?.limit.amount);
   const { data: spotlightShown } = useQuery<boolean>({ queryKey: ["settings", "installments-spotlight"] });
   const { data: lastInstallments } = useQuery<number>({ queryKey: ["settings", "installments"] });
   const { data: promoSeen } = useQuery<boolean>({ queryKey: ["settings", "promo-seen", PROMO.id] });
@@ -212,6 +219,8 @@ export default function Home() {
   const refresh = () =>
     Promise.all([
       queryClient.invalidateQueries({ queryKey: ["activity"], exact: true }),
+      queryClient.invalidateQueries({ queryKey: ["card", "details"], exact: true }),
+      queryClient.invalidateQueries({ queryKey: ["kyc", "cardLimit"], exact: true }),
       queryClient.invalidateQueries({ queryKey: ["kyc", "status"], exact: true }),
       revalidateUnsupported(),
       account ? refetchMarkets() : undefined,
@@ -245,7 +254,7 @@ export default function Home() {
             <YStack backgroundColor="$backgroundSoft" padding="$s4" gap="$s4">
               {overdueMaturity !== undefined && (
                 <InfoAlert
-                  error
+                  variant="error"
                   title={t("You have an overdue payment. Pay now to avoid additional interest.")}
                   actionText={t("Pay now")}
                   onPress={() => {
@@ -254,6 +263,14 @@ export default function Home() {
                 />
               )}
               {markets && healthFactor(markets) < HEALTH_FACTOR_THRESHOLD && <LiquidationAlert />}
+              {usage >= 0.9 && !cardLimitPending && !cardLimitProcessing && (
+                <InfoAlert
+                  variant="warning"
+                  title={t("You've reached 90% of your weekly card spending limit.")}
+                  actionText={t("Increase spending limit")}
+                  onPress={increaseLimit}
+                />
+              )}
               {(showKYCMigration || showPluginOutdated) && (
                 <InfoAlert
                   title={t(

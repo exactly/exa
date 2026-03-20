@@ -7,22 +7,14 @@ import { Skeleton } from "moti/skeleton";
 
 import Text from "../shared/Text";
 
-export default function SpendingLimit({
-  title,
-  limit,
-  totalSpent,
-}: {
-  limit?: number;
-  title: string;
-  totalSpent: number;
-}) {
+export default function SpendingLimit({ title, limit, spent }: { limit?: number; spent: number; title: string }) {
   const {
     t,
     i18n: { language },
   } = useTranslation();
   const percent =
     limit !== undefined && Number.isFinite(limit) && limit > 0
-      ? Math.max(0, Math.min(100, (totalSpent / limit) * 100))
+      ? Math.max(0, Math.min(100, (spent / limit) * 100))
       : undefined;
   return (
     <YStack justifyContent="flex-start" paddingHorizontal="$s3">
@@ -46,7 +38,7 @@ export default function SpendingLimit({
           {limit ? (
             <Text callout sensitive color="$uiBrandSecondary">
               {t("{{amount}} left", {
-                amount: `$${(limit - totalSpent).toLocaleString(language, {
+                amount: `$${(limit - spent).toLocaleString(language, {
                   style: "decimal",
                   maximumFractionDigits: 0,
                 })}`,

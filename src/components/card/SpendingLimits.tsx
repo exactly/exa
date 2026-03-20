@@ -6,8 +6,7 @@ import { Plus } from "@tamagui/lucide-icons";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import SpendingLimit from "./SpendingLimit";
-import { newMessage } from "../../utils/intercom";
-import reportError from "../../utils/reportError";
+import InfoAlert from "../shared/InfoAlert";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
@@ -17,13 +16,19 @@ import View from "../shared/View";
 export default function SpendingLimits({
   open,
   onClose,
-  totalSpent,
+  increase,
   limit,
+  spent,
+  pending,
+  processing,
 }: {
+  increase: () => void;
   limit?: number;
   onClose: () => void;
   open: boolean;
-  totalSpent: number;
+  pending: boolean;
+  processing: boolean;
+  spent: number;
 }) {
   const { t } = useTranslation();
   return (
@@ -42,19 +47,30 @@ export default function SpendingLimits({
                   </Text>
                 </YStack>
                 <YStack paddingBottom="$s4">
-                  <SpendingLimit title={t("Weekly")} limit={limit} totalSpent={totalSpent} />
+                  <SpendingLimit title={t("Weekly")} limit={limit} spent={spent} />
                 </YStack>
-                <Button
-                  onPress={() => {
-                    newMessage(t("I want to increase my spending limit")).catch(reportError);
-                  }}
-                  primary
-                >
-                  <Button.Text>{t("Increase spending limit")}</Button.Text>
-                  <Button.Icon>
-                    <Plus />
-                  </Button.Icon>
-                </Button>
+                {processing ? (
+                  <InfoAlert
+                    title={t(
+                      "Your limit increase request is under review. We'll let you know once it's been processed.",
+                    )}
+                  />
+                ) : (
+                  <Button
+                    onPress={() => {
+                      onClose();
+                      increase();
+                    }}
+                    primary
+                    disabled={pending}
+                    loading={pending}
+                  >
+                    <Button.Text>{t("Increase spending limit")}</Button.Text>
+                    <Button.Icon>
+                      <Plus />
+                    </Button.Icon>
+                  </Button>
+                )}
                 <XStack alignSelf="center">
                   <Pressable onPress={onClose} hitSlop={20}>
                     <Text emphasized footnote color="$interactiveTextBrandDefault">
