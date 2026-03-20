@@ -253,7 +253,16 @@ function LimitPaginator({
     t,
     i18n: { language },
   } = useTranslation();
+  const { data: hidden } = useQuery<boolean>({ queryKey: ["settings", "sensitive"] });
   const [width, setWidth] = useState(0);
+  const spending = (Number(spendingLimit) / 1e6).toLocaleString(language, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  const credit = (Number(creditLimit) / 1e6).toLocaleString(language, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
   return (
     <View
       height={48}
@@ -273,20 +282,14 @@ function LimitPaginator({
                 <Info size={16} color="$interactiveBaseBrandDefault" />
               </Pressable>
             </XStack>
-            <XStack
-              alignItems="center"
-              aria-label={`$${(Number(spendingLimit) / 1e6).toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-            >
-              <Text aria-hidden title3 secondary>
+            <Text title3 aria-label={hidden ? "***" : `$${spending}`}>
+              <Text aria-hidden secondary>
                 $
               </Text>
-              <Text sensitive aria-hidden title3 emphasized>
-                {(Number(spendingLimit) / 1e6).toLocaleString(language, {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
+              <Text aria-hidden sensitive emphasized>
+                {spending}
               </Text>
-            </XStack>
+            </Text>
           </XStack>
           <XStack width={width} height={48} alignItems="center" gap="$s3" paddingHorizontal="$s4">
             <CreditCard size={20} color="$uiNeutralSecondary" />
@@ -305,20 +308,14 @@ function LimitPaginator({
                 })}
               </Text>
             </YStack>
-            <XStack
-              alignItems="center"
-              aria-label={`$${(Number(creditLimit) / 1e6).toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-            >
-              <Text aria-hidden title3 secondary>
+            <Text title3 aria-label={hidden ? "***" : `$${credit}`}>
+              <Text aria-hidden secondary>
                 $
               </Text>
-              <Text sensitive aria-hidden title3 emphasized>
-                {(Number(creditLimit) / 1e6).toLocaleString(language, {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
+              <Text aria-hidden sensitive emphasized>
+                {credit}
               </Text>
-            </XStack>
+            </Text>
           </XStack>
         </XStack>
       )}
