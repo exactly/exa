@@ -1262,10 +1262,314 @@ describe("authenticated", () => {
       });
     });
   });
+
+  describe("cardLimit scope", () => {
+    beforeEach(async () => {
+      await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, "bob"));
+    });
+
+    it("returns no panda when pandaId is missing", async () => {
+      await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "bob"));
+
+      const response = await appClient.index.$post(
+        { json: { scope: "cardLimit" } },
+        { headers: { "test-credential-id": "bob" } },
+      );
+
+      await expect(response.json()).resolves.toStrictEqual({ code: "no panda" });
+      expect(response.status).toBe(400);
+    });
+
+    describe("getting kyc", () => {
+      it("returns no panda when pandaId is missing", async () => {
+        await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "bob"));
+
+        const response = await appClient.index.$get(
+          { query: { scope: "cardLimit" } },
+          { headers: { "test-credential-id": "bob", SessionID: "fakeSession" } },
+        );
+
+        await expect(response.json()).resolves.toStrictEqual({ code: "no panda" });
+        expect(response.status).toBe(400);
+      });
+
+      it("returns not started when no inquiry exists", async () => {
+        vi.spyOn(persona, "getInquiry").mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
+
+        const response = await appClient.index.$get(
+          { query: { scope: "cardLimit" } },
+          { headers: { "test-credential-id": "bob", SessionID: "fakeSession" } },
+        );
+
+        expect(persona.getInquiry).toHaveBeenCalledWith("bob", persona.CARD_LIMIT_TEMPLATE);
+        await expect(response.json()).resolves.toStrictEqual({ code: "not started" });
+        expect(response.status).toBe(200);
+      });
+
+      it("returns ok when inquiry is approved", async () => {
+        vi.spyOn(persona, "getInquiry").mockResolvedValueOnce(personaTemplate);
+
+        const response = await appClient.index.$get(
+          { query: { scope: "cardLimit" } },
+          { headers: { "test-credential-id": "bob", SessionID: "fakeSession" } },
+        );
+
+        expect(persona.getInquiry).toHaveBeenCalledWith("bob", persona.CARD_LIMIT_TEMPLATE);
+        await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+        expect(response.status).toBe(200);
+      });
+
+      it.each(["created", "pending", "expired"] as const)("returns not started when inquiry is %s", async (status) => {
+        vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({
+          ...personaTemplate,
+          attributes: { ...personaTemplate.attributes, status },
+        });
+
+        const response = await appClient.index.$get(
+          { query: { scope: "cardLimit" } },
+          { headers: { "test-credential-id": "bob", SessionID: "fakeSession" } },
+        );
+
+        await expect(response.json()).resolves.toStrictEqual({ code: "not started" });
+        expect(response.status).toBe(200);
+      });
+
+      it.each(["completed", "needs_review"] as const)("returns pending when inquiry is %s", async (status) => {
+        vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({
+          ...personaTemplate,
+          attributes: { ...personaTemplate.attributes, status },
+        });
+
+        const response = await appClient.index.$get(
+          { query: { scope: "cardLimit" } },
+          { headers: { "test-credential-id": "bob", SessionID: "fakeSession" } },
+        );
+
+        await expect(response.json()).resolves.toStrictEqual({ code: "pending" });
+        expect(response.status).toBe(200);
+      });
+
+      it.each(["failed", "declined"] as const)("returns failed when inquiry is %s", async (status) => {
+        vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({
+          ...personaTemplate,
+          attributes: { ...personaTemplate.attributes, status },
+        });
+
+        const response = await appClient.index.$get(
+          { query: { scope: "cardLimit" } },
+          { headers: { "test-credential-id": "bob", SessionID: "fakeSession" } },
+        );
+
+        await expect(response.json()).resolves.toStrictEqual({ code: "failed" });
+        expect(response.status).toBe(200);
+      });
+    });
+
+    describe("posting kyc", () => {
+      it("creates a new inquiry when none exists", async () => {
+        const sessionToken = "persona-session-token";
+
+        vi.spyOn(persona, "getInquiry").mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
+        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(basicAccount);
+        vi.spyOn(persona, "createInquiry").mockResolvedValueOnce(inquiry);
+        vi.spyOn(persona, "resumeInquiry").mockResolvedValueOnce({
+          ...resumeTemplate,
+          meta: { ...resumeTemplate.meta, "session-token": sessionToken },
+        });
+
+        const response = await appClient.index.$post(
+          { json: { scope: "cardLimit" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(persona.getAccount).toHaveBeenCalledWith("bob", "basic");
+        expect(persona.getInquiry).toHaveBeenCalledWith("bob", persona.CARD_LIMIT_TEMPLATE);
+        expect(persona.createInquiry).toHaveBeenCalledWith("bob", persona.CARD_LIMIT_TEMPLATE, undefined, {
+          "name-first": "ALEXANDER J",
+          "name-last": "SAMPLE",
+        });
+        await expect(response.json()).resolves.toStrictEqual({ inquiryId: resumeTemplate.data.id, sessionToken });
+        expect(response.status).toBe(200);
+      });
+
+      it("creates inquiry without name when account is not found", async () => {
+        const sessionToken = "persona-session-token";
+
+        vi.spyOn(persona, "getInquiry").mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
+        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
+        vi.spyOn(persona, "createInquiry").mockResolvedValueOnce(inquiry);
+        vi.spyOn(persona, "resumeInquiry").mockResolvedValueOnce({
+          ...resumeTemplate,
+          meta: { ...resumeTemplate.meta, "session-token": sessionToken },
+        });
+
+        const response = await appClient.index.$post(
+          { json: { scope: "cardLimit" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(persona.getAccount).toHaveBeenCalledWith("bob", "basic");
+        expect(persona.createInquiry).toHaveBeenCalledWith("bob", persona.CARD_LIMIT_TEMPLATE, undefined, undefined);
+        await expect(response.json()).resolves.toStrictEqual({ inquiryId: resumeTemplate.data.id, sessionToken });
+        expect(response.status).toBe(200);
+      });
+
+      it("creates inquiry without name when getAccount fails", async () => {
+        const sessionToken = "persona-session-token";
+
+        vi.spyOn(persona, "getInquiry").mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
+        vi.spyOn(persona, "getAccount").mockRejectedValueOnce(new Error("network error"));
+        vi.spyOn(persona, "createInquiry").mockResolvedValueOnce(inquiry);
+        vi.spyOn(persona, "resumeInquiry").mockResolvedValueOnce({
+          ...resumeTemplate,
+          meta: { ...resumeTemplate.meta, "session-token": sessionToken },
+        });
+
+        const response = await appClient.index.$post(
+          { json: { scope: "cardLimit" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(persona.getAccount).toHaveBeenCalledWith("bob", "basic");
+        expect(captureException).toHaveBeenCalledWith(expect.objectContaining({ message: "network error" }), {
+          level: "error",
+          contexts: { details: { credentialId: "bob", scope: "cardLimit" } },
+        });
+        expect(persona.createInquiry).toHaveBeenCalledWith("bob", persona.CARD_LIMIT_TEMPLATE, undefined, undefined);
+        await expect(response.json()).resolves.toStrictEqual({ inquiryId: resumeTemplate.data.id, sessionToken });
+        expect(response.status).toBe(200);
+      });
+
+      it.each(["created", "pending", "expired"] as const)("resumes a %s inquiry", async (status) => {
+        const sessionToken = "persona-session-token";
+
+        vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({
+          ...personaTemplate,
+          attributes: { ...personaTemplate.attributes, status },
+        });
+        vi.spyOn(persona, "resumeInquiry").mockResolvedValueOnce({
+          ...resumeTemplate,
+          meta: { ...resumeTemplate.meta, "session-token": sessionToken },
+        });
+
+        const response = await appClient.index.$post(
+          { json: { scope: "cardLimit" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(persona.getInquiry).toHaveBeenCalledWith("bob", persona.CARD_LIMIT_TEMPLATE);
+        await expect(response.json()).resolves.toStrictEqual({ inquiryId: personaTemplate.id, sessionToken });
+        expect(response.status).toBe(200);
+      });
+
+      it.each(["failed", "declined"] as const)("returns failed for %s inquiry", async (status) => {
+        vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({
+          ...personaTemplate,
+          attributes: { ...personaTemplate.attributes, status },
+        });
+
+        const response = await appClient.index.$post(
+          { json: { scope: "cardLimit" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(persona.getInquiry).toHaveBeenCalledWith("bob", persona.CARD_LIMIT_TEMPLATE);
+        await expect(response.json()).resolves.toStrictEqual({ code: "failed" });
+        expect(response.status).toBe(400);
+      });
+
+      it("returns already approved for approved inquiry", async () => {
+        vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({
+          ...personaTemplate,
+          attributes: { ...personaTemplate.attributes, status: "approved" },
+        });
+
+        const response = await appClient.index.$post(
+          { json: { scope: "cardLimit" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(persona.getInquiry).toHaveBeenCalledWith("bob", persona.CARD_LIMIT_TEMPLATE);
+        await expect(response.json()).resolves.toStrictEqual({ code: "already approved" });
+        expect(response.status).toBe(400);
+        expect(captureException).toHaveBeenCalledWith(new Error("inquiry approved but account not updated"), {
+          level: "error",
+          contexts: { inquiry: { templateId: persona.CARD_LIMIT_TEMPLATE, referenceId: "bob" } },
+        });
+      });
+
+      it("returns pending for completed inquiry", async () => {
+        vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({
+          ...personaTemplate,
+          attributes: { ...personaTemplate.attributes, status: "completed" },
+        });
+
+        const response = await appClient.index.$post(
+          { json: { scope: "cardLimit" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(persona.getInquiry).toHaveBeenCalledWith("bob", persona.CARD_LIMIT_TEMPLATE);
+        await expect(response.json()).resolves.toStrictEqual({ code: "pending" });
+        expect(response.status).toBe(400);
+      });
+
+      it("returns pending for needs_review inquiry", async () => {
+        vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({
+          ...personaTemplate,
+          attributes: { ...personaTemplate.attributes, status: "needs_review" },
+        });
+
+        const response = await appClient.index.$post(
+          { json: { scope: "cardLimit" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(persona.getInquiry).toHaveBeenCalledWith("bob", persona.CARD_LIMIT_TEMPLATE);
+        await expect(response.json()).resolves.toStrictEqual({ code: "pending" });
+        expect(response.status).toBe(400);
+      });
+
+      it("returns no credential for missing credential", async () => {
+        const response = await appClient.index.$post(
+          { json: { scope: "cardLimit" } },
+          { headers: { "test-credential-id": "unknown" } },
+        );
+
+        await expect(response.json()).resolves.toStrictEqual({ code: "no credential", legacy: "no credential" });
+        expect(response.status).toBe(500);
+      });
+
+      it("passes redirect uri to create inquiry", async () => {
+        const sessionToken = "persona-session-token";
+
+        vi.spyOn(persona, "getInquiry").mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
+        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(basicAccount);
+        vi.spyOn(persona, "createInquiry").mockResolvedValueOnce(inquiry);
+        vi.spyOn(persona, "resumeInquiry").mockResolvedValueOnce({
+          ...resumeTemplate,
+          meta: { ...resumeTemplate.meta, "session-token": sessionToken },
+        });
+
+        const response = await appClient.index.$post(
+          { json: { scope: "cardLimit", redirectURI: "https://example.com" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(persona.getAccount).toHaveBeenCalledWith("bob", "basic");
+        expect(persona.createInquiry).toHaveBeenCalledWith("bob", persona.CARD_LIMIT_TEMPLATE, "https://example.com", {
+          "name-first": "ALEXANDER J",
+          "name-last": "SAMPLE",
+        });
+        await expect(response.json()).resolves.toStrictEqual({ inquiryId: resumeTemplate.data.id, sessionToken });
+        expect(response.status).toBe(200);
+      });
+    });
+  });
 });
 
 const basicAccount = {
-  type: "account",
+  type: "account" as const,
   id: "test-account-id",
   attributes: {
     "reference-id": "test-reference-id",
