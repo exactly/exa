@@ -1,5 +1,68 @@
 # @exactly/mobile
 
+## 1.1.28
+
+### Patch Changes
+
+- [#810](https://github.com/exactly/exa/pull/810) [`4b27765`](https://github.com/exactly/exa/commit/4b277655514f23aeccd6304e5455b2fcfad0492f) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 guard against division by zero
+
+- [#810](https://github.com/exactly/exa/pull/810) [`5b4399a`](https://github.com/exactly/exa/commit/5b4399a6463c699f1f675118e83ac8e7d29395b9) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 polish contact list layout
+
+- [#775](https://github.com/exactly/exa/pull/775) [`232c526`](https://github.com/exactly/exa/commit/232c5261ea3a007c11707fd0ae7b60da431f9da7) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 adjust tamagui tokens
+
+- [#810](https://github.com/exactly/exa/pull/810) [`5c192fc`](https://github.com/exactly/exa/commit/5c192fcedd460a5d1c875494a65785fa9578e08f) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 app: widen limit info hit area to full row
+
+- [#810](https://github.com/exactly/exa/pull/810) [`66c27bb`](https://github.com/exactly/exa/commit/66c27bb5a27886fe48bdb451d1a44ddd36681ca3) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 update tab bar ui
+
+- [#775](https://github.com/exactly/exa/pull/775) [`4074417`](https://github.com/exactly/exa/commit/40744174000f39930d7ff1bfc7379b2ac9f74719) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 restyle card status component
+
+- [#775](https://github.com/exactly/exa/pull/775) [`e049f48`](https://github.com/exactly/exa/commit/e049f48ca406858cc31133cdfff70d9af6c5ce29) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 restyle action buttons
+
+- [#810](https://github.com/exactly/exa/pull/810) [`767e311`](https://github.com/exactly/exa/commit/767e3112a544d9a763f7325ee2a3b06fe07e3090) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ♿️ label payment info buttons and extend e2e coverage
+
+- [#775](https://github.com/exactly/exa/pull/775) [`a6f6f2c`](https://github.com/exactly/exa/commit/a6f6f2cad8b685539af5e089f8ec7a2f363bbfb7) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 restructure sheets layout
+
+- [#775](https://github.com/exactly/exa/pull/775) [`7af3244`](https://github.com/exactly/exa/commit/7af32449adab4187366490e311ac6378df305ccd) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 adjust home scroll view gaps
+
+- [#810](https://github.com/exactly/exa/pull/810) [`4452873`](https://github.com/exactly/exa/commit/445287389d4233cc9feb097b6cf3e97fc103e1ba) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ implement new pay screen
+
+- [#810](https://github.com/exactly/exa/pull/810) [`4c90b56`](https://github.com/exactly/exa/commit/4c90b565704928ba5205c73491239695c2355e2f) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 skip zero amount positions in payment lists
+
+- [#810](https://github.com/exactly/exa/pull/810) [`3fa9407`](https://github.com/exactly/exa/commit/3fa9407588dd5abbdac2bcea4f4b0178ad8e0651) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ♻️ unify card mode mutation
+
+- [#775](https://github.com/exactly/exa/pull/775) [`7f89100`](https://github.com/exactly/exa/commit/7f89100abf46427354e05087abe3acddb3c0d488) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 apply tamagui spacing tokens
+
+- [#775](https://github.com/exactly/exa/pull/775) [`f33941d`](https://github.com/exactly/exa/commit/f33941d9a5a22fd2c43d4533ef17378e3733ad0f) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 refine benefits carousel
+
+- [#775](https://github.com/exactly/exa/pull/775) [`16d516e`](https://github.com/exactly/exa/commit/16d516e914919b106cffb17b436302b2df84f2bb) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 replace fonts
+
+- [#810](https://github.com/exactly/exa/pull/810) [`8b19bd9`](https://github.com/exactly/exa/commit/8b19bd9d2ab617d5694a6b34c73b9cee489067d8) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 update credit line component button
+
+- [#810](https://github.com/exactly/exa/pull/810) [`1b99377`](https://github.com/exactly/exa/commit/1b993771b24c4f2a0275c26099f15109200143a2) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 prevent stale nested modal in payment sheet
+
+- [#810](https://github.com/exactly/exa/pull/810) [`68952d6`](https://github.com/exactly/exa/commit/68952d6e8a9d71c7702afbda6357758151248a92) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix text visibility in sheets
+
+- [#810](https://github.com/exactly/exa/pull/810) [`301f00d`](https://github.com/exactly/exa/commit/301f00db0dcc6ee61edf3198e3e3b55924544fcc) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add installments calculator
+
+- [#775](https://github.com/exactly/exa/pull/775) [`4875d6f`](https://github.com/exactly/exa/commit/4875d6fe66ae826fe18ed5ebe3afb54329b2455e) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 add vertical frame to styled button
+
+- [#810](https://github.com/exactly/exa/pull/810) [`f7c100e`](https://github.com/exactly/exa/commit/f7c100e83e97eb1f94d74b24c2cdd2909a905ea0) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 restyle overdue and upcoming payments
+
+- [#810](https://github.com/exactly/exa/pull/810) [`58cfb58`](https://github.com/exactly/exa/commit/58cfb58cbe446a60686fb56144ba86bbf8b8943a) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🩹 sync display maturity while sheet is visible
+
+- [#775](https://github.com/exactly/exa/pull/775) [`dd4fe91`](https://github.com/exactly/exa/commit/dd4fe916ee1d2765735efffeacf8f1e3954a2f15) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💫 unify animation parameters
+
+- [#775](https://github.com/exactly/exa/pull/775) [`cec7a5c`](https://github.com/exactly/exa/commit/cec7a5cb1a0595fc221c2b1b1b9f650004b52869) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 restyle portfolio summary
+
+- [#810](https://github.com/exactly/exa/pull/810) [`57e9bb1`](https://github.com/exactly/exa/commit/57e9bb1d507c9e2282bed278caca10555ef63cd6) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🌐 update spanish translation for statements
+
+- [#810](https://github.com/exactly/exa/pull/810) [`9d5e287`](https://github.com/exactly/exa/commit/9d5e287d0b221641f96b361aaedde5ad98bf3fef) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ display card details in home screen
+
+- [#810](https://github.com/exactly/exa/pull/810) [`42684c1`](https://github.com/exactly/exa/commit/42684c17534841998859793e5c60888bb6fc1532) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚸 simplify installment selection
+
+- Updated dependencies [[`c88f654`](https://github.com/exactly/exa/commit/c88f6547302d1e5295fcb667e5d6b860adfa4524)]:
+  - @exactly/server@0.2.83
+
 ## 1.1.27
 
 ### Patch Changes
