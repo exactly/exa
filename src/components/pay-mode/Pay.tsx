@@ -28,7 +28,6 @@ import chain, {
 } from "@exactly/common/generated/chain";
 import {
   auditorAbi,
-  exaPluginAbi,
   integrationPreviewerAbi,
   marketAbi,
   upgradeableModularAccountAbi,
@@ -287,33 +286,34 @@ export default function Pay() {
   const maxAmountIn = route?.fromAmount ? pad(route.fromAmount, SLIPPAGE_DIVISOR) + 69n : undefined; // HACK try to avoid ZERO_SHARES on dust deposit
 
   const {
-    propose: { data: repayPropose },
-    executeProposal: { error: repayExecuteProposalError, isPending: isSimulatingRepay },
-    proposalData: repayProposalData,
+    request: repayPropose,
+    error: repayExecuteProposalError,
+    isPending: isSimulatingRepay,
   } = useSimulateProposal({
     account,
     amount: maxRepay,
     market: selectedAsset.address,
-    enabled: enableSimulations && mode === "repay" && positionAssets > 0n,
     proposalType: ProposalType.RepayAtMaturity,
     maturity,
     positionAssets,
+    enabled: enableSimulations && mode === "repay" && positionAssets > 0n,
   });
 
   const {
-    propose: { data: crossRepayPropose },
-    executeProposal: { error: crossRepayExecuteProposalError, isPending: isSimulatingCrossRepay },
-    proposalData: crossRepayProposalData,
+    request: crossRepayPropose,
+    error: crossRepayExecuteProposalError,
+    isPending: isSimulatingCrossRepay,
   } = useSimulateProposal({
     account,
     amount: maxAmountIn,
     market: selectedAsset.address,
-    enabled: enableSimulations && mode === "crossRepay" && positionAssets > 0n,
     proposalType: ProposalType.CrossRepayAtMaturity,
+    marketOut: marketUSDCAddress,
     maturity,
     positionAssets,
     maxRepay,
     route: route?.data,
+    enabled: enableSimulations && mode === "crossRepay" && positionAssets > 0n && !!route,
   });
 
   const {
@@ -382,14 +382,10 @@ export default function Pay() {
       const call = (() => {
         switch (mode) {
           case "repay":
-            if (!repayPropose || !selectedAsset.address) throw new Error("no repay simulation");
+            if (!repayPropose) throw new Error("no repay simulation");
             return {
-              to: repayPropose.request.address,
-              data: encodeFunctionData({
-                abi: exaPluginAbi,
-                functionName: "propose",
-                args: [selectedAsset.address, maxRepay ?? 0n, ProposalType.RepayAtMaturity, repayProposalData ?? "0x"],
-              }),
+              to: repayPropose.address,
+              data: encodeFunctionData(repayPropose),
             };
 
           case "legacyRepay": {
@@ -398,19 +394,10 @@ export default function Pay() {
             return { to: address, data: encodeFunctionData({ abi, functionName, args }) };
           }
           case "crossRepay":
-            if (!crossRepayPropose || !selectedAsset.address) throw new Error("no cross repay simulation");
+            if (!crossRepayPropose) throw new Error("no cross repay simulation");
             return {
-              to: crossRepayPropose.request.address,
-              data: encodeFunctionData({
-                abi: exaPluginAbi,
-                functionName: "propose",
-                args: [
-                  selectedAsset.address,
-                  maxAmountIn ?? 0n,
-                  ProposalType.CrossRepayAtMaturity,
-                  crossRepayProposalData ?? "0x",
-                ],
-              }),
+              to: crossRepayPropose.address,
+              data: encodeFunctionData(crossRepayPropose),
             };
 
           case "legacyCrossRepay": {

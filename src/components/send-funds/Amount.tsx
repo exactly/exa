@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 
@@ -8,28 +8,14 @@ import { ArrowLeft, Check, Coins, FilePen, X } from "@tamagui/lucide-icons";
 import { Avatar, ScrollView, Square, XStack, YStack } from "tamagui";
 
 import { useForm, useStore } from "@tanstack/react-form";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { waitForCallsStatus } from "@wagmi/core/actions";
+import { useQuery } from "@tanstack/react-query";
 import { bigint, check, parse, pipe, safeParse } from "valibot";
-import {
-  encodeAbiParameters,
-  encodeFunctionData,
-  erc20Abi,
-  formatUnits,
-  parseUnits,
-  zeroAddress as viemZeroAddress,
-} from "viem";
-import { useBytecode, useEstimateGas, useSendCalls, useSimulateContract } from "wagmi";
+import { erc20Abi, formatUnits, parseUnits, zeroAddress as viemZeroAddress } from "viem";
+import { useEstimateGas, useSendTransaction, useSimulateContract, useWriteContract } from "wagmi";
 
 import accountInit from "@exactly/common/accountInit";
-import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
-import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
-import chain, { exaPluginAddress } from "@exactly/common/generated/chain";
-import {
-  exaPluginAbi,
-  upgradeableModularAccountAbi,
-  useReadUpgradeableModularAccountGetInstalledPlugins,
-} from "@exactly/common/generated/hooks";
+import { exaPluginAddress } from "@exactly/common/generated/chain";
+import { useReadUpgradeableModularAccountGetInstalledPlugins } from "@exactly/common/generated/hooks";
 import ProposalType from "@exactly/common/ProposalType";
 import shortenHex from "@exactly/common/shortenHex";
 import { Address, type Credential } from "@exactly/common/validation";
@@ -39,7 +25,7 @@ import ReviewSheet from "./ReviewSheet";
 import queryClient from "../../utils/queryClient";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
-import exa from "../../utils/wagmi/exa";
+import useSimulateProposal from "../../utils/useSimulateProposal";
 import AmountSelector from "../shared/AmountSelector";
 import AssetLogo from "../shared/AssetLogo";
 import Blocky from "../shared/Blocky";
@@ -74,51 +60,21 @@ export default function Amount() {
   const formAmount = useStore(form.store, (state) => state.values.amount);
 
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
-  const { data: bytecode } = useBytecode({ address, chainId: chain.id, query: { enabled: !!address } });
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
     address,
-    chainId: chain.id,
     factory: credential?.factory,
     factoryData: credential && accountInit(credential),
     query: { enabled: !!address && !!credential },
   });
   const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
 
-  const proposeEnabled =
-    !!market && !!address && !!bytecode && formAmount > 0n && !!receiver && receiver !== zeroAddress;
-  const { data: proposeSimulation } = useSimulateContract({
-    address,
-    chainId: chain.id,
-    functionName: "propose",
-    abi: exaPluginAbi,
-    args: [
-      market?.market ?? zeroAddress,
-      formAmount,
-      ProposalType.Withdraw,
-      encodeAbiParameters([{ type: "address" }], [receiver ?? zeroAddress]),
-    ],
-    query: { enabled: isLatestPlugin && proposeEnabled },
-  });
-  const { data: legacyProposeSimulation } = useSimulateContract({
-    address,
-    chainId: chain.id,
-    functionName: "propose",
-    abi: [
-      ...upgradeableModularAccountAbi,
-      {
-        type: "function",
-        name: "propose",
-        inputs: [
-          { internalType: "contract IMarket", name: "market", type: "address" },
-          { internalType: "uint256", name: "amount", type: "uint256" },
-          { internalType: "address", name: "receiver", type: "address" },
-        ],
-        outputs: [],
-        stateMutability: "nonpayable",
-      },
-    ],
-    args: [withdrawAsset ?? zeroAddress, formAmount, receiver ?? zeroAddress],
-    query: { enabled: !isLatestPlugin && proposeEnabled },
+  const { request: proposeSimulation } = useSimulateProposal({
+    account: address,
+    amount: formAmount,
+    market: market?.market,
+    proposalType: ProposalType.Withdraw,
+    receiver,
+    enabled: !!market && !!address && formAmount > 0n && !!receiver && receiver !== zeroAddress,
   });
 
   const externalAddress = useMemo(() => {
@@ -130,24 +86,16 @@ export default function Amount() {
 
   const { data: erc20TransferSimulation } = useSimulateContract({
     address: externalAddress,
-    chainId: chain.id,
     abi: erc20Abi,
     functionName: "transfer",
     args: receiver ? [receiver, formAmount] : undefined,
     query: {
       enabled:
-        !!external &&
-        !isNativeTransfer &&
-        !!address &&
-        !!bytecode &&
-        formAmount > 0n &&
-        !!receiver &&
-        receiver !== zeroAddress,
+        !!external && !isNativeTransfer && !!address && formAmount > 0n && !!receiver && receiver !== zeroAddress,
     },
   });
 
   const { data: nativeTransferEstimate } = useEstimateGas({
-    chainId: chain.id,
     to: receiver,
     value: formAmount,
     query: {
@@ -155,66 +103,66 @@ export default function Amount() {
     },
   });
 
-  const { mutateAsync: mutateSendCalls } = useSendCalls();
-  const sendCalls = async (calls: readonly { data?: `0x${string}`; to: `0x${string}`; value?: bigint }[]) => {
-    const { id } = await mutateSendCalls({
-      calls,
-      capabilities: {
-        paymasterService: {
-          url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
-          context: { policyId: alchemyGasPolicyId },
-        },
-      },
-    });
-    const result = await waitForCallsStatus(exa, { id });
-    if (result.status === "failure") throw new Error("failed to send");
-    return result.receipts?.[0]?.transactionHash;
-  };
   const {
-    mutate: send,
-    data: hash,
-    isPending: pending,
-    isSuccess: success,
-    isError: error,
-    reset,
-  } = useMutation({
-    async mutationFn() {
-      if (!sendReady || !receiver) throw new Error("not ready");
-      if (proposeSimulation) {
-        const { address: to, abi, functionName, args } = proposeSimulation.request;
-        return sendCalls([{ to, data: encodeFunctionData({ abi, functionName, args }) }]);
-      }
-      if (legacyProposeSimulation) {
-        const { address: to, abi, functionName, args } = legacyProposeSimulation.request;
-        return sendCalls([{ to, data: encodeFunctionData({ abi, functionName, args }) }]);
-      }
-      if (isNativeTransfer) return sendCalls([{ to: receiver, value: formAmount }]);
-      if (erc20TransferSimulation) {
-        const { address: to, abi, functionName, args } = erc20TransferSimulation.request;
-        return sendCalls([{ to, data: encodeFunctionData({ abi, functionName, args }) }]);
-      }
-      throw new Error("no simulation ready");
-    },
-    onError: reportError,
-  });
+    mutate: sendNative,
+    data: nativeHash,
+    isPending: nativePending,
+    isSuccess: nativeSuccess,
+    isError: nativeError,
+    reset: nativeReset,
+  } = useSendTransaction();
+
+  const {
+    mutate: sendContract,
+    data: contractHash,
+    isPending: contractPending,
+    isSuccess: contractSuccess,
+    isError: contractError,
+    reset: contractReset,
+  } = useWriteContract();
+
+  const hash = isNativeTransfer ? nativeHash : contractHash;
+  const pending = isNativeTransfer ? nativePending : contractPending;
+  const success = isNativeTransfer ? nativeSuccess : contractSuccess;
+  const error = isNativeTransfer ? nativeError : contractError;
+  const reset = isNativeTransfer ? nativeReset : contractReset;
 
   const sendReady = useMemo(
     () =>
       formAmount > 0n &&
       (market
-        ? !!(proposeSimulation ?? legacyProposeSimulation)
+        ? !!proposeSimulation
         : !!external && (isNativeTransfer ? !!nativeTransferEstimate : !!erc20TransferSimulation)),
     [
       external,
       formAmount,
       isNativeTransfer,
-      legacyProposeSimulation,
       market,
       nativeTransferEstimate,
       proposeSimulation,
       erc20TransferSimulation,
     ],
   );
+
+  const handleSubmit = useCallback(() => {
+    if (!sendReady || !receiver) return;
+    if (proposeSimulation) {
+      sendContract(proposeSimulation);
+    } else if (isNativeTransfer) {
+      sendNative({ to: receiver, value: formAmount });
+    } else if (erc20TransferSimulation) {
+      sendContract(erc20TransferSimulation.request);
+    }
+  }, [
+    erc20TransferSimulation,
+    formAmount,
+    isNativeTransfer,
+    proposeSimulation,
+    receiver,
+    sendContract,
+    sendNative,
+    sendReady,
+  ]);
 
   const details: {
     amount: string;
@@ -286,8 +234,8 @@ export default function Amount() {
   if (!pending && !error && !success) {
     return (
       <SafeView fullScreen>
-        <View gap={20} fullScreen padded>
-          <View flexDirection="row" gap={10} justifyContent="space-around" alignItems="center">
+        <View gap="$s4_5" fullScreen padded>
+          <View flexDirection="row" gap="$s3_5" justifyContent="space-around" alignItems="center">
             <View position="absolute" left={0}>
               <Pressable
                 onPress={() => {
@@ -418,7 +366,7 @@ export default function Amount() {
           }}
           onSend={() => {
             setReviewOpen(false);
-            send();
+            handleSubmit();
           }}
           open={reviewOpen}
           receiver={receiver}
