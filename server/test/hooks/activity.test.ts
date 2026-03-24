@@ -40,6 +40,7 @@ import redis from "../../utils/redis";
 import anvilClient from "../anvilClient";
 
 const appClient = testClient(app);
+const originalFetch = globalThis.fetch;
 
 describe("address activity", () => {
   let owner: PrivateKeyAccount;
@@ -49,6 +50,13 @@ describe("address activity", () => {
     owner = privateKeyToAccount(generatePrivateKey());
     account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(owner.address), y: zeroHash });
     vi.spyOn(decodePublicKey, "default").mockImplementation((bytes) => ({ x: padHex(bytesToHex(bytes)), y: zeroHash }));
+    await clearLifiTokens();
+    mockLifiTokens({
+      31_337: [
+        { address: "0x0000000000000000000000000000000000000000", priceUSD: "3000" },
+        { address: inject("WETH"), priceUSD: "3000" },
+      ],
+    });
 
     await database.insert(credentials).values([
       {
@@ -61,8 +69,7 @@ describe("address activity", () => {
   });
 
   afterEach(async () => {
-    const keys = await redis.keys("lifi:tokens:*");
-    if (keys.length > 0) await redis.del(...keys);
+    await clearLifiTokens();
   });
 
   it("captures no balance once after retries", async () => {
@@ -794,7 +801,7 @@ describe("address activity", () => {
     const eventExaSend = vi.fn<typeof keeper.exaSend>().mockResolvedValue(null);
     vi.spyOn(keeperUtilities, "extender").mockReturnValueOnce({ exaSend: eventExaSend });
     const keeperSend = vi.spyOn(keeper, "exaSend");
-    mockLifiTokens({ 1: [{ address: inject("WETH") }] });
+    mockLifiTokens({ 1: [{ address: inject("WETH"), priceUSD: "3000" }] });
 
     const response = await appClient.index.$post({
       ...activityPayload,
@@ -835,7 +842,7 @@ describe("address activity", () => {
     expect(response.status).toBe(200);
   });
 
-  it("omits the formatted amount when value is 0", async () => {
+  it("suppresses notification when value is 0", async () => {
     const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
     const chain = NETWORKS.get("ANVIL");
     if (!chain) throw new Error("missing anvil");
@@ -845,7 +852,7 @@ describe("address activity", () => {
     const eventExaSend = vi.fn<typeof keeper.exaSend>().mockResolvedValue(null);
     vi.spyOn(keeperUtilities, "extender").mockReturnValueOnce({ exaSend: eventExaSend });
     const keeperSend = vi.spyOn(keeper, "exaSend");
-    mockLifiTokens({ 1: [{ address: inject("WETH") }] });
+    mockLifiTokens({ 1: [{ address: inject("WETH"), priceUSD: "3000" }] });
 
     const response = await appClient.index.$post({
       ...activityPayload,
@@ -879,11 +886,7 @@ describe("address activity", () => {
       { fees: "auto" },
     );
     expect(keeperSend).not.toHaveBeenCalled();
-    expect(sendPushNotification).toHaveBeenCalledWith({
-      userId: account,
-      headings: t("Funds received"),
-      contents: t("{{amount}} received", { amount: "WETH" }),
-    });
+    expect(sendPushNotification).not.toHaveBeenCalled();
     expect(response.status).toBe(200);
   });
 
@@ -1104,9 +1107,9 @@ describe("address activity", () => {
       };
     }
 
-    it("fetches from lifi on cache miss and sends notification for known token", async () => {
+    it("fetches from lifi on cache miss and sends notification for token worth at least two dollars", async () => {
       const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
-      mockLifiTokens({ [optMainnet.id]: [{ address: tokenAddress }] });
+      mockLifiTokens({ [optMainnet.id]: [{ address: tokenAddress, priceUSD: "1" }] });
 
       const response = await appClient.index.$post(lifiPayload(account));
 
@@ -1126,7 +1129,7 @@ describe("address activity", () => {
 
     it("uses redis cache and skips fetch for known token on cache hit", async () => {
       const fetchSpy = vi.spyOn(globalThis, "fetch");
-      await redis.multi().sadd(optKey, tokenAddress).expire(optKey, 120).exec(); // cspell:ignore sadd
+      await redis.set(optKey, JSON.stringify({ [tokenAddress.toLowerCase()]: { priceUsd: 1 } }), "EX", 120);
 
       const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
       const response = await appClient.index.$post(lifiPayload(account));
@@ -1144,22 +1147,33 @@ describe("address activity", () => {
 
     it("suppresses notification for unknown token when cache is initialized", async () => {
       const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+      const get = vi.spyOn(redis, "get");
 
-      await redis.multi().sadd(optKey, "0x2222222222222222222222222222222222222222").expire(optKey, 120).exec(); // cspell:ignore sadd
+      await redis.set(
+        optKey,
+        JSON.stringify({ "0x2222222222222222222222222222222222222222": { priceUsd: 1 } }),
+        "EX",
+        120,
+      );
 
       const response = await appClient.index.$post(lifiPayload(account));
+
+      await vi.waitUntil(() => get.mock.results.length > 0, 5000);
+      await get.mock.results[0]?.value;
+      await Promise.resolve();
 
       expect(sendPushNotification).not.toHaveBeenCalled();
       expect(response.status).toBe(200);
     });
 
-    it("fails open and captures exception when lifi fetch throws", async () => {
+    it("sends notification and captures exception when lifi fetch throws", async () => {
       const fetchError = new Error("network failure");
       mockLifiTokens(fetchError);
       const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
 
       const response = await appClient.index.$post(lifiPayload(account));
 
+      await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([error]) => error === fetchError), 5000);
       await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0, 5000);
 
       expect(captureException).toHaveBeenCalledWith(fetchError, { level: "error" });
@@ -1171,12 +1185,13 @@ describe("address activity", () => {
       expect(response.status).toBe(200);
     });
 
-    it("fails open and captures exception when lifi returns non ok", async () => {
+    it("sends notification and captures exception when lifi returns non ok", async () => {
       mockLifiTokens(Response.json({}, { status: 503 }));
       const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
 
       const response = await appClient.index.$post(lifiPayload(account));
 
+      await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0, 5000);
       await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0, 5000);
 
       expect(captureException).toHaveBeenCalledWith(expect.objectContaining({ message: "lifi tokens 503" }), {
@@ -1190,15 +1205,49 @@ describe("address activity", () => {
       expect(response.status).toBe(200);
     });
 
-    it("fails open and captures exception when redis errors", async () => {
+    it("sends notification when rawValue is positive and value is omitted", async () => {
+      const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+      const payload = lifiPayload(account);
+      const activity = payload.json.event.activity[0];
+      if (!activity) throw new Error("missing activity");
+      const { value: _, ...transfer } = activity;
+
+      const response = await appClient.index.$post({
+        ...payload,
+        json: {
+          ...payload.json,
+          event: {
+            ...payload.json.event,
+            activity: [
+              {
+                ...transfer,
+                asset: "USDT",
+              },
+            ],
+          },
+        },
+      });
+
+      await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0, 5000);
+
+      expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith({
+        userId: account,
+        headings: t("Funds received"),
+        contents: t("{{amount}} received", { amount: "USDT" }),
+      });
+      expect(response.status).toBe(200);
+    });
+
+    it("sends notification and captures exception when redis errors", async () => {
       const redisError = new Error("redis connection refused");
-      vi.spyOn(redis, "pipeline").mockImplementationOnce(() => {
+      vi.spyOn(redis, "get").mockImplementationOnce(() => {
         throw redisError;
       });
       const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
 
       const response = await appClient.index.$post(lifiPayload(account));
 
+      await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([error]) => error === redisError), 5000);
       await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0, 5000);
 
       expect(captureException).toHaveBeenCalledWith(redisError, { level: "error" });
@@ -1210,19 +1259,33 @@ describe("address activity", () => {
       expect(response.status).toBe(200);
     });
 
-    it("fails open when lifi returns empty token list", async () => {
-      mockLifiTokens({});
+    it("suppresses notification when lifi returns empty token list", async () => {
+      const fetch = mockLifiTokens({});
       const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
 
       const response = await appClient.index.$post(lifiPayload(account));
 
-      await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0, 5000);
+      await vi.waitUntil(() => fetch.mock.results.length > 0, 5000);
+      await fetch.mock.results[0]?.value;
+      await Promise.resolve();
+      await Promise.resolve();
 
-      expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith({
-        userId: account,
-        headings: t("Funds received"),
-        contents: t("{{amount}} received", { amount: { en: "5 USDT", es: "5 USDT", pt: "5 USDT" } }),
-      });
+      expect(sendPushNotification).not.toHaveBeenCalled();
+      expect(response.status).toBe(200);
+    });
+
+    it("suppresses notification for token dust below configured amount", async () => {
+      mockLifiTokens({ [optMainnet.id]: [{ address: tokenAddress, priceUSD: "0.1" }] });
+      const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+      const set = vi.spyOn(redis, "set");
+
+      const response = await appClient.index.$post(lifiPayload(account));
+
+      await vi.waitUntil(() => set.mock.results.length > 0, 5000);
+      await set.mock.results[0]?.value;
+      await Promise.resolve();
+
+      expect(sendPushNotification).not.toHaveBeenCalled();
       expect(response.status).toBe(200);
     });
 
@@ -1230,9 +1293,9 @@ describe("address activity", () => {
       const arbMainnet = NETWORKS.get("ARB_MAINNET");
       if (!arbMainnet) throw new Error("missing ARB_MAINNET");
       const arbKey = `lifi:tokens:${arbMainnet.id}`;
-      await redis.multi().sadd(arbKey, tokenAddress).expire(arbKey, 120).exec(); // cspell:ignore sadd
+      await redis.set(arbKey, JSON.stringify({ [tokenAddress.toLowerCase()]: { priceUsd: 1 } }), "EX", 120);
 
-      mockLifiTokens({ [optMainnet.id]: [{ address: tokenAddress }] });
+      mockLifiTokens({ [optMainnet.id]: [{ address: tokenAddress, priceUSD: "1" }] });
       const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
 
       const response = await appClient.index.$post(lifiPayload(account));
@@ -1292,9 +1355,8 @@ function isNoBalance(error: unknown, hint: unknown, level: "error" | "warning") 
   );
 }
 
-function mockLifiTokens(response: Error | Record<string, { address: string }[]> | Response) {
-  const originalFetch = globalThis.fetch;
-  vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+function mockLifiTokens(response: Error | Record<string, { address: string; priceUSD?: string }[]> | Response) {
+  return vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
     if ((input instanceof Request ? input.url : String(input)).includes("li.quest")) {
       return response instanceof Error
         ? Promise.reject(response)
@@ -1304,6 +1366,11 @@ function mockLifiTokens(response: Error | Record<string, { address: string }[]> 
     }
     return originalFetch(input, init);
   });
+}
+
+async function clearLifiTokens() {
+  const keys = await redis.keys("lifi:tokens:*");
+  if (keys.length > 0) await redis.del(...keys);
 }
 
 const activityPayload = {

@@ -17,7 +17,6 @@ import { eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import * as v from "valibot";
 import { bytesToBigInt, createPublicClient, createWalletClient, hexToBigInt, http, rpcSchema, withRetry } from "viem";
-import { anvil } from "viem/chains";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import exaChain, {
@@ -48,6 +47,8 @@ import { trace, type RpcSchema } from "../utils/traceClient";
 import validatorHook from "../utils/validatorHook";
 
 const ETH = v.parse(Address, "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
+const LIFI_NATIVE = v.parse(Address, "0x0000000000000000000000000000000000000000");
+const MIN_NOTIFICATION_USD = 2;
 const WETH = v.parse(Address, wethAddress);
 
 const debug = createDebug("exa:activity");
@@ -140,6 +141,13 @@ export default new Hono().post(
       if (chain.id === exaChain.id && rawContract?.address && markets.has(rawContract.address)) continue;
       const asset = rawContract?.address ?? ETH;
       const underlying = asset === ETH ? WETH : asset;
+      const quantity = value ?? 0;
+      const priced =
+        value === undefined
+          ? Promise.resolve(true)
+          : quantity > 0
+            ? getToken(chain.id, asset === ETH ? LIFI_NATIVE : underlying)
+            : Promise.resolve();
       const notification = {
         userId: account,
         headings: t("Funds received"),
@@ -150,18 +158,21 @@ export default new Hono().post(
           {
             amount: value
               ? Object.fromEntries(
-                  Object.entries(f(value)).map(([language, amount]) => [
+                  Object.entries(f(value)).map(([language, formatted]) => [
                     language,
-                    assetSymbol ? `${amount} ${assetSymbol}` : amount,
+                    assetSymbol ? `${formatted} ${assetSymbol}` : formatted,
                   ]),
                 )
               : assetSymbol,
           },
         ),
       };
-      const known = marketsByAsset.has(underlying) ? Promise.resolve(true) : isKnownToken(chain.id, underlying);
-      known
-        .then((isKnown) => (isKnown ? sendPushNotification(notification) : undefined))
+      priced
+        .then((metadata) =>
+          metadata === true || (metadata && quantity * metadata.priceUsd >= MIN_NOTIFICATION_USD)
+            ? sendPushNotification(notification)
+            : null,
+        )
         .catch((error: unknown) => captureException(error, { level: "error" }));
 
       if (pokes.has(account)) {
@@ -337,33 +348,30 @@ findWebhook(({ webhook_type, webhook_url }) => webhook_type === "ADDRESS_ACTIVIT
   })
   .catch((error: unknown) => captureException(error));
 
-async function isKnownToken(chainId: number, address: Address) {
-  if (chainId === anvil.id) return true;
+async function getToken(chainId: number, address: Address) {
   const key = `lifi:tokens:${chainId}`;
+  const id = address.toLowerCase();
   try {
-    const [[, isMember], [, count]] = v.parse(
-      v.tuple([v.tuple([v.null(), v.number()]), v.tuple([v.null(), v.number()])]),
-      await redis.pipeline().sismember(key, address).scard(key).exec(),
-    );
-    if (isMember) return true;
-    if (count > 0) return false;
+    const cached = await redis.get(key);
+    if (cached) return v.parse(v.record(v.string(), v.object({ priceUsd: v.number() })), JSON.parse(cached))[id];
     const response = await fetch(`https://li.quest/v1/tokens?chains=${chainId}`, {
       signal: AbortSignal.timeout(5000),
     });
     if (!response.ok) throw new Error(`lifi tokens ${response.status}`);
     const { tokens } = v.parse(
-      v.object({ tokens: v.record(v.string(), v.array(v.object({ address: v.string() }))) }),
+      v.object({
+        tokens: v.record(v.string(), v.array(v.object({ address: Address, priceUSD: v.optional(v.string()) }))),
+      }),
       await response.json(),
     );
-    const addresses = (tokens[String(chainId)] ?? []).map((token) => v.parse(Address, token.address));
-    if (addresses.length === 0) return true;
-    await redis
-      .multi()
-      .del(key)
-      .sadd(key, ...addresses)
-      .expire(key, 3600)
-      .exec();
-    return addresses.includes(address);
+    const prices = Object.fromEntries(
+      (tokens[String(chainId)] ?? []).flatMap(({ address: tokenAddress, priceUSD }) => {
+        const priceUsd = Number(priceUSD);
+        return Number.isFinite(priceUsd) ? [[tokenAddress.toLowerCase(), { priceUsd }]] : [];
+      }),
+    );
+    if (Object.keys(prices).length > 0) await redis.set(key, JSON.stringify(prices), "EX", 3600);
+    return prices[id];
   } catch (error: unknown) {
     captureException(error, { level: "error" });
     return true;

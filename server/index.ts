@@ -20,6 +20,7 @@ import panda from "./hooks/panda";
 import persona from "./hooks/persona";
 import androidFingerprints from "./utils/android/fingerprints";
 import appOrigin from "./utils/appOrigin";
+import { closeQueue as closeMaturityQueue, scheduleMaturityChecks } from "./utils/maturity";
 import { close as closeRedis } from "./utils/redis";
 import { closeAndFlush as closeSegment } from "./utils/segment";
 
@@ -320,7 +321,7 @@ const server = serve(app);
 export async function close() {
   return new Promise((resolve, reject) => {
     server.close((error) => {
-      Promise.allSettled([closeSentry(), closeRedis(), closeSegment(), database.$client.end()])
+      Promise.allSettled([closeSentry(), closeRedis(), closeSegment(), database.$client.end(), closeMaturityQueue()])
         .then((results) => {
           if (error) reject(error);
           else if (results.some((result) => result.status === "rejected")) reject(new Error("closing services failed"));
@@ -330,6 +331,10 @@ export async function close() {
     });
   });
 }
+
+scheduleMaturityChecks().catch((error: unknown) => {
+  captureException(error, { level: "error", tags: { unhandled: true } });
+});
 
 if (!process.env.VITEST) {
   ["SIGINT", "SIGTERM"].map((code) => {
