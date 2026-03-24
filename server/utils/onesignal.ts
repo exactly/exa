@@ -9,9 +9,13 @@ export async function sendPushNotification({
   userId,
   headings,
   contents,
+  idempotencyKey,
+  ttl,
 }: {
   contents: NonNullable<Notification["contents"]>;
   headings: NonNullable<Notification["headings"]>;
+  idempotencyKey?: string;
+  ttl?: number;
   userId: string;
 }) {
   if (!appId) return;
@@ -22,5 +26,7 @@ export async function sendPushNotification({
   notification.include_aliases = { external_id: [userId] };
   notification.headings = headings;
   notification.contents = contents;
+  if (idempotencyKey !== undefined) notification.idempotency_key = idempotencyKey;
+  if (ttl !== undefined) notification.ttl = ttl;
   return client.createNotification(notification);
 }
