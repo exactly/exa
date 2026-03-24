@@ -10,14 +10,13 @@ import { useToastController } from "@tamagui/toast";
 import { ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
 
 import { nonEmpty, pipe, safeParse, string } from "valibot";
-import { ContractFunctionExecutionError, encodeAbiParameters } from "viem";
-import { useBytecode, useWriteContract } from "wagmi";
+import { ContractFunctionExecutionError } from "viem";
+import { useWriteContract } from "wagmi";
 
 import { exaPreviewerAddress, marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import {
   useReadExaPreviewerPendingProposals,
   useReadPreviewerPreviewBorrowAtMaturity,
-  useSimulateExaPluginPropose,
 } from "@exactly/common/generated/hooks";
 import ProposalType from "@exactly/common/ProposalType";
 import { MATURITY_INTERVAL, WAD } from "@exactly/lib";
@@ -28,6 +27,7 @@ import View from "../../components/shared/View";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
+import useSimulateProposal from "../../utils/useSimulateProposal";
 import Button from "../shared/Button";
 import Skeleton from "../shared/Skeleton";
 
@@ -51,12 +51,10 @@ export default function Pay() {
   const borrow = exaUSDC?.fixedBorrowPositions.find((b) => b.maturity === BigInt(success ? repayMaturity : 0));
   const rolloverMaturityBorrow = exaUSDC?.fixedBorrowPositions.find((b) => b.maturity === BigInt(borrowMaturity));
 
-  const { data: bytecode } = useBytecode({ address, query: { enabled: !!address } });
-
   const { data: borrowPreview } = useReadPreviewerPreviewBorrowAtMaturity({
     address: previewerAddress,
     args: [marketUSDCAddress, BigInt(borrowMaturity), borrow?.previewValue ?? 0n],
-    query: { enabled: !!bytecode && !!exaUSDC && !!borrow && !!address && !!borrowMaturity },
+    query: { enabled: !!exaUSDC && !!borrow && !!address && !!borrowMaturity },
   });
 
   if (!success || !exaUSDC || !borrow) return null;
@@ -228,35 +226,22 @@ function RolloverButton({
   const { t } = useTranslation();
   const { address } = useAccount();
   const router = useRouter();
-  const { data: bytecode } = useBytecode({ address, query: { enabled: !!address } });
   const toast = useToastController();
 
   const slippage = (WAD * 105n) / 100n;
   const maxRepayAssets = (borrow.previewValue * slippage) / WAD;
   const percentage = WAD;
 
-  const { data: proposeSimulation } = useSimulateExaPluginPropose({
-    address,
-    args: [
-      marketUSDCAddress,
-      maxRepayAssets,
-      ProposalType.RollDebt,
-      encodeAbiParameters(
-        [
-          {
-            type: "tuple",
-            components: [
-              { name: "repayMaturity", type: "uint256" },
-              { name: "borrowMaturity", type: "uint256" },
-              { name: "maxRepayAssets", type: "uint256" },
-              { name: "percentage", type: "uint256" },
-            ],
-          },
-        ],
-        [{ repayMaturity, borrowMaturity, maxRepayAssets, percentage }],
-      ),
-    ],
-    query: { enabled: !!address && !!bytecode },
+  const { request: proposeSimulation, error: executeProposalError } = useSimulateProposal({
+    account: address,
+    amount: maxRepayAssets,
+    market: marketUSDCAddress,
+    proposalType: ProposalType.RollDebt,
+    borrowMaturity,
+    maxRepayAssets,
+    percentage,
+    repayMaturity,
+    enabled: !!address,
   });
 
   const {
@@ -266,7 +251,7 @@ function RolloverButton({
   } = useReadExaPreviewerPendingProposals({
     address: exaPreviewerAddress,
     args: address ? [address] : undefined,
-    query: { enabled: !!address && !!bytecode, gcTime: 0, refetchInterval: 30_000 },
+    query: { enabled: !!address, gcTime: 0, refetchInterval: 30_000 },
   });
 
   const {
@@ -281,7 +266,7 @@ function RolloverButton({
           duration: 1000,
           burntOptions: { haptic: "success", preset: "done" },
         });
-        if (address && bytecode) refetchPendingProposals().catch(reportError);
+        if (address) refetchPendingProposals().catch(reportError);
         router.dismissTo("/activity");
       },
       onError: (error) => {
@@ -298,7 +283,7 @@ function RolloverButton({
   const proposeRollDebt = useCallback(() => {
     if (!address) throw new Error("no address");
     if (!proposeSimulation) throw new Error("no propose roll debt simulation");
-    mutate(proposeSimulation.request);
+    mutate(proposeSimulation);
   }, [address, proposeSimulation, mutate]);
 
   const hasProposed = pendingProposals?.some(
@@ -316,7 +301,12 @@ function RolloverButton({
     );
 
   const disabled =
-    !!isError || isProposeRollDebtPending || isPendingProposalsPending || !proposeSimulation || hasProposed;
+    !!isError ||
+    !!executeProposalError ||
+    isProposeRollDebtPending ||
+    isPendingProposalsPending ||
+    !proposeSimulation ||
+    hasProposed;
   return (
     <Button
       onPress={proposeRollDebt}

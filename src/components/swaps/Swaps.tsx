@@ -111,7 +111,7 @@ export default function Swaps() {
     (token: undefined | { external: boolean; token: Token }) => {
       if (!token) return;
       if (token.external) return parse(Address, token.token.address);
-      return protocolAssets.find((a) => a.asset === token.token.address)?.market ?? zeroAddress;
+      return protocolAssets.find((a) => a.asset === token.token.address)?.market;
     },
     [protocolAssets],
   );
@@ -253,8 +253,9 @@ export default function Swaps() {
   }, [activeInput, route]);
 
   const {
-    propose: { data: swapPropose },
-    executeProposal: { error: swapExecuteProposalError, isPending: isSimulatingSwap },
+    request: swapPropose,
+    error: swapExecuteProposalError,
+    isPending: isSimulatingSwap,
   } = useSimulateProposal({
     account,
     amount: activeInput === "from" ? fromAmount : (fromAmount * (WAD * (1000n + SLIPPAGE_PERCENT))) / 1000n / WAD,
@@ -345,7 +346,7 @@ export default function Swaps() {
     if (fromToken?.external && externalSwap) {
       mutate(externalSwap.request);
     } else if (swapPropose) {
-      mutate(swapPropose.request);
+      mutate(swapPropose);
     }
     updateSwap((old) => ({ ...old, enableSimulations: false }));
   }, [route, fromToken?.external, externalSwap, swapPropose, mutate]);

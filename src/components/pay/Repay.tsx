@@ -282,31 +282,34 @@ export default function Repay() {
   const maxAmountIn = route?.fromAmount ? pad(route.fromAmount, SLIPPAGE_DIVISOR) + 69n : undefined; // HACK try to avoid ZERO_SHARES on dust deposit
 
   const {
-    propose: { data: repayPropose },
-    executeProposal: { error: repayExecuteProposalError, isPending: isSimulatingRepay },
+    request: repayPropose,
+    error: repayExecuteProposalError,
+    isPending: isSimulatingRepay,
   } = useSimulateProposal({
     account,
     amount: maxRepay,
     market: selectedAsset.address,
-    enabled: enableSimulations && mode === "repay" && positionAssets > 0n,
     proposalType: ProposalType.RepayAtMaturity,
     maturity,
     positionAssets,
+    enabled: enableSimulations && mode === "repay" && positionAssets > 0n,
   });
 
   const {
-    propose: { data: crossRepayPropose },
-    executeProposal: { error: crossRepayExecuteProposalError, isPending: isSimulatingCrossRepay },
+    request: crossRepayPropose,
+    error: crossRepayExecuteProposalError,
+    isPending: isSimulatingCrossRepay,
   } = useSimulateProposal({
     account,
     amount: maxAmountIn,
     market: selectedAsset.address,
-    enabled: enableSimulations && mode === "crossRepay" && positionAssets > 0n,
     proposalType: ProposalType.CrossRepayAtMaturity,
+    marketOut: marketUSDCAddress,
     maturity,
     positionAssets,
     maxRepay,
     route: route?.data,
+    enabled: enableSimulations && mode === "crossRepay" && positionAssets > 0n && !!route,
   });
 
   const {
@@ -378,7 +381,7 @@ export default function Repay() {
     switch (mode) {
       case "repay":
         if (!repayPropose) throw new Error("no repay simulation");
-        mutate(repayPropose.request);
+        mutate(repayPropose);
         break;
       case "legacyRepay":
         if (!legacyRepaySimulation) throw new Error("no legacy repay simulation");
@@ -386,7 +389,7 @@ export default function Repay() {
         break;
       case "crossRepay":
         if (!crossRepayPropose) throw new Error("no cross repay simulation");
-        mutate(crossRepayPropose.request);
+        mutate(crossRepayPropose);
         break;
       case "legacyCrossRepay":
         if (!legacyCrossRepaySimulation) throw new Error("no legacy cross repay simulation");
