@@ -71,6 +71,16 @@ export default function HTML({ children }: { children: ReactNode }) {
               max-width: min(100vw, calc(100dvh * 9 / 16));
               margin: 0 auto;
             }
+
+            .icon-slop {
+              position: relative;
+            }
+
+            .icon-slop::after {
+              content: "";
+              position: absolute;
+              inset: -12px;
+            }
             /* #endregion */
 
             /* #region aspect ratio */
