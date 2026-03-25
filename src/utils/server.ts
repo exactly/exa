@@ -168,7 +168,7 @@ export async function setCardPIN(pin: string) {
   if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
 }
 
-export async function getKYCTokens(scope: "basic" | "manteca" = "basic", redirectURI?: string) {
+export async function getKYCTokens(scope: "basic" | "cardLimit" | "manteca" = "basic", redirectURI?: string) {
   await auth();
   const response = await api.kyc.$post({ json: { scope, redirectURI } });
   if (!response.ok) {
