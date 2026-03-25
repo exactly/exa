@@ -79,12 +79,25 @@ export default function useSimulateProposal({
         args: account ? [account] : undefined,
       },
       { address: multicall3Address, abi: multicall3Abi, functionName: "getCurrentBlockTimestamp" },
+      {
+        address: multicall3Address,
+        abi: [
+          {
+            type: "function",
+            name: "getBlockNumber",
+            inputs: [],
+            outputs: [{ type: "uint256" }],
+            stateMutability: "view",
+          },
+        ],
+        functionName: "getBlockNumber",
+      },
       { address: exaPreviewerAddress, abi: exaPreviewerAbi, functionName: "assets" },
     ] as const,
     allowFailure: true,
     query: { enabled: enabled && !!account },
   });
-  const [plugins, delay, nonce, timestamp, assets] = reads ?? [];
+  const [plugins, delay, nonce, timestamp, blockNumber, assets] = reads ?? [];
   const installedPlugins = plugins?.status === "success" ? plugins.result : undefined;
   const { data: pluginMetadata } = useReadExaPluginPluginMetadata({
     address: installedPlugins?.[0],
@@ -153,8 +166,10 @@ export default function useSimulateProposal({
           args: [nonce.result] as const,
         };
   const simulation = useSimulateBlocks({
+    blockNumber: blockNumber?.status === "success" ? blockNumber.result : undefined,
     blocks: [
       {
+        blockOverrides: timestamp?.status === "success" ? { time: timestamp.result } : undefined,
         calls: request
           ? [
               {
@@ -167,7 +182,7 @@ export default function useSimulateProposal({
       },
       {
         blockOverrides:
-          delay?.status === "success" && timestamp?.status === "success"
+          timestamp?.status === "success" && delay?.status === "success"
             ? { time: timestamp.result + delay.result }
             : undefined,
         calls: executeRequest
@@ -192,7 +207,8 @@ export default function useSimulateProposal({
         request !== undefined &&
         executeRequest !== undefined &&
         delay?.status === "success" &&
-        timestamp?.status === "success",
+        timestamp?.status === "success" &&
+        blockNumber?.status === "success",
     },
   });
   const propose = simulation.data?.[0]?.calls[0];
