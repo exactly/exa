@@ -43,14 +43,15 @@ contract Redeployer is BaseScript {
   IPlugin public exaPlugin;
   ExaAccountFactory public factory;
 
-  /// @notice Loads pre-deployed contracts from CREATE3 and resolves protocol dependencies.
+  /// @notice Loads pre-deployed contracts and resolves protocol dependencies.
   function setUp() external {
     address admin = acct("admin");
     exa = EXA(CREATE3_FACTORY.getDeployed(admin, keccak256(abi.encode("EXA"))));
     dummy = Dummy(CREATE3_FACTORY.getDeployed(admin, keccak256(abi.encode("Dummy"))));
     proxyAdmin = ProxyAdmin(CREATE3_FACTORY.getDeployed(admin, keccak256(abi.encode("ProxyAdmin"))));
-    ownerPlugin = IPlugin(CREATE3_FACTORY.getDeployed(admin, keccak256(abi.encode("WebauthnOwnerPlugin"))));
-    exaPlugin = IPlugin(CREATE3_FACTORY.getDeployed(admin, keccak256(abi.encode("ExaPlugin"))));
+    ownerPlugin =
+      IPlugin(_broadcastOrCreate3("node_modules/webauthn-owner-plugin/broadcast/Plugin", "WebauthnOwnerPlugin"));
+    exaPlugin = IPlugin(_broadcastOrCreate3("broadcast/ExaPlugin", "ExaPlugin"));
     factory = ExaAccountFactory(payable(CREATE3_FACTORY.getDeployed(admin, keccak256(abi.encode("ExaAccountFactory")))));
     auditor = IAuditor(_protocolOrStub("Auditor", "StubAuditor"));
     marketUSDC = IMarket(_protocolOrStub("MarketUSDC", "StubMarketUSDC"));
@@ -107,7 +108,7 @@ contract Redeployer is BaseScript {
         )
       );
     }
-    address proposalManagerAddr = CREATE3_FACTORY.getDeployed(admin, keccak256(abi.encode("ProposalManager")));
+    address proposalManagerAddr = _broadcastOrCreate3("broadcast/ProposalManager", "ProposalManager");
     if (proposalManagerAddr.code.length == 0) {
       proposalManagerAddr = CREATE3_FACTORY.deploy(
         keccak256(abi.encode("ProposalManager")),
@@ -232,6 +233,18 @@ contract Redeployer is BaseScript {
       if (vm.computeCreateAddress(account, nonce) == target) return nonce;
     }
     revert NonceNotFound();
+  }
+
+  function _broadcastOrCreate3(string memory path, string memory salt) internal returns (address addr) {
+    // forge-lint: disable-next-line(unsafe-cheatcode)
+    try vm.readFile(string.concat(path, ".s.sol/", vm.toString(block.chainid), "/run-latest.json")) returns (
+      string memory json
+    ) {
+      try vm.parseJsonAddress(json, ".transactions[0].contractAddress") returns (address a) {
+        addr = a;
+      } catch { } // solhint-disable-line no-empty-blocks
+    } catch { } // solhint-disable-line no-empty-blocks
+    if (addr == address(0)) addr = CREATE3_FACTORY.getDeployed(acct("admin"), keccak256(abi.encode(salt)));
   }
 
   function _protocolOrStub(string memory name, string memory stub) internal returns (address addr) {
