@@ -88,6 +88,29 @@ contract RedeployerTest is ForkTest {
     assertTrue(address(redeployer.factory()).code.length > 0, "factory not deployed");
   }
 
+  function test_prepare_reusesExistingDeps_onBase() external {
+    vm.createSelectFork("base", 41_053_217);
+
+    redeployer = new Redeployer();
+    redeployer.setUp();
+
+    address ownerPluginBefore = address(redeployer.ownerPlugin());
+    address exaPluginBefore = address(redeployer.exaPlugin());
+
+    assertTrue(ownerPluginBefore.code.length > 0, "ownerPlugin not deployed");
+    assertTrue(exaPluginBefore.code.length > 0, "exaPlugin not deployed");
+
+    redeployer.prepare();
+
+    assertEq(address(redeployer.ownerPlugin()), ownerPluginBefore, "ownerPlugin != expected");
+    assertEq(address(redeployer.exaPlugin()), exaPluginBefore, "exaPlugin != expected");
+    assertEq(
+      CREATE3_FACTORY.getDeployed(acct("admin"), keccak256(abi.encode("ProposalManager"))).code.length,
+      0,
+      "proposalManager deployed via CREATE3"
+    );
+  }
+
   function test_prepare_reverts_whenAdminIsDeployer() external {
     vm.createSelectFork("optimism_sepolia", 39_900_000);
 
