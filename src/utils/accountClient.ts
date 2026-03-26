@@ -61,7 +61,7 @@ import { login } from "./onesignal";
 import publicClient from "./publicClient";
 import queryClient, { type AuthMethod } from "./queryClient";
 import reportError, { isPasskeyCancelled } from "./reportError";
-import { capabilities } from "./wagmi/exa";
+import { capabilities } from "./wagmi/capabilities";
 import ownerConfig from "./wagmi/owner";
 
 import type { Credential } from "@exactly/common/validation";
