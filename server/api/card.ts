@@ -5,6 +5,9 @@ import { Hono } from "hono";
 import { describeRoute } from "hono-openapi";
 import { resolver, validator as vValidator } from "hono-openapi/valibot";
 import {
+  any,
+  array,
+  check,
   integer,
   literal,
   maxValue,
@@ -13,6 +16,7 @@ import {
   nullable,
   number,
   object,
+  optional,
   parse,
   picklist,
   pipe,
@@ -21,12 +25,17 @@ import {
   transform,
   union,
   uuid,
+  variant,
+  type InferInput,
   type InferOutput,
 } from "valibot";
+import { createSiweMessage, parseSiweMessage, verifySiweMessage } from "viem/siwe";
 
+import chain from "@exactly/common/generated/chain";
+import domain from "@exactly/common/domain";
 import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
 import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
-import { Address } from "@exactly/common/validation";
+import { Address, Base64URL, Hex } from "@exactly/common/validation";
 
 import database, { cards, credentials } from "../database";
 import t from "../i18n";
@@ -37,6 +46,7 @@ import {
   createCard,
   getApplicationStatus,
   getCard,
+  getNonce,
   getPIN,
   getProcessorDetails,
   getSecrets,
@@ -44,9 +54,11 @@ import {
   setPIN,
   updateCard,
   USD_TO_CENTS,
+  verify,
 } from "../utils/panda";
 import { addCapita, deriveAssociateId } from "../utils/pax";
 import { getAccount, getCardLimitAccount } from "../utils/persona";
+import publicClient from "../utils/publicClient";
 import { customer } from "../utils/sardine";
 import { track } from "../utils/segment";
 import ServiceError from "../utils/ServiceError";
@@ -62,13 +74,13 @@ function createMutex(credentialId: string) {
 const CardResponse = object({
   cardId: pipe(string(), uuid(), metadata({ examples: ["123e4567-e89b-12d3-a456-426655440000"] })),
   displayName: pipe(string(), metadata({ examples: ["John Doe"] })),
-  encryptedPan: object({ data: string(), iv: string() }),
-  encryptedCvc: object({ data: string(), iv: string() }),
+  encryptedPan: optional(object({ data: string(), iv: string() })),
+  encryptedCvc: optional(object({ data: string(), iv: string() })),
   expirationMonth: pipe(string(), metadata({ examples: ["12"] })),
   expirationYear: pipe(string(), metadata({ examples: ["2025"] })),
   lastFour: pipe(string(), metadata({ examples: ["1234"] })),
   mode: pipe(number(), metadata({ examples: [0] })),
-  pin: nullable(object({ data: string(), iv: string() })),
+  pin: optional(nullable(object({ data: string(), iv: string() }))),
   provider: pipe(literal("panda"), metadata({ examples: ["panda"] })),
   status: pipe(picklist(["ACTIVE", "FROZEN"]), metadata({ examples: ["ACTIVE", "FROZEN"] })),
   limit: object({
@@ -85,6 +97,13 @@ const CardResponse = object({
   productId: pipe(
     picklist([PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID]),
     metadata({ examples: [PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID] }),
+  ),
+  challenge: optional(pipe(string(), metadata({ examples: ["1a2b3c"] }))),
+  provisioning: optional(
+    object({
+      id: pipe(string(), metadata({ examples: ["card_abc123"] })),
+      secret: pipe(string(), metadata({ examples: ["otp_xyz"] })),
+    }),
   ),
 });
 
@@ -111,6 +130,27 @@ const UpdateCard = union([
     strictObject({ data: string(), iv: string(), sessionId: string() }),
     transform((patch) => ({ ...patch, type: "pin" as const })),
   ),
+  pipe(
+    variant("method", [
+      object({ method: literal("siwe"), message: string(), signature: Hex }),
+      object({
+        method: literal("webauthn"),
+        assertion: object({
+          id: Base64URL,
+          rawId: Base64URL,
+          response: object({
+            clientDataJSON: Base64URL,
+            authenticatorData: Base64URL,
+            signature: Base64URL,
+            userHandle: optional(Base64URL),
+          }),
+          clientExtensionResults: any(),
+          type: literal("public-key"),
+        }),
+      }),
+    ]),
+    transform((signature) => ({ ...signature, type: "signature" as const })),
+  ),
 ]);
 
 const WalletCredentialsResponse = object({
@@ -124,17 +164,44 @@ const UpdatedCardResponse = union([
   object({
     status: pipe(picklist(["ACTIVE", "DELETED", "FROZEN"]), metadata({ examples: ["ACTIVE", "DELETED", "FROZEN"] })),
   }),
+  object({ verification: literal("OK") }),
 ]);
+
+const Scopes = picklist(["provisioning", "siwe", "webauthn"]);
 
 export default new Hono()
   .get(
     "/",
-    vValidator("header", object({ sessionid: string() }), validatorHook({ code: "bad session id", status: 400 })),
+    vValidator(
+      "header",
+      object({ sessionid: optional(string()) }),
+      validatorHook({ code: "bad session id", status: 400 }),
+    ),
+    vValidator(
+      "query",
+      optional(
+        object({
+          scope: optional(
+            union([
+              Scopes,
+              pipe(
+                array(Scopes),
+                check((scopes) => !(scopes.includes("siwe") && scopes.includes("webauthn")), "bad scope"),
+              ),
+            ]),
+          ),
+        }),
+        {},
+      ),
+      validatorHook(),
+    ),
     auth(),
     describeRoute({
       summary: "Get card information",
       description: `
 Retrieve the card profile and encrypted card data for an authenticated user.
+
+Successful responses include push-provisioning credentials in the \`provisioning\` field only when the \`scope=provisioning\` query parameter is sent.
 
 **Retrieving encrypted card details**
 1. **Generate a session ID**: Encrypt a 32‑character hexadecimal secret (no spaces/dashes) with the provided public RSA key using RSA‑OAEP.
@@ -222,6 +289,10 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
       },
     }),
     async (c) => {
+      const { scope } = c.req.valid("query");
+      function include(type: InferInput<typeof Scopes>) {
+        return Array.isArray(scope) ? scope.includes(type) : scope === type;
+      }
       const { credentialId } = c.req.valid("cookie");
       const credential = await database.query.credentials.findFirst({
         where: eq(credentials.id, credentialId),
@@ -237,41 +308,70 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
       const account = parse(Address, credential.account);
       setUser({ id: account });
       if (!credential.pandaId) return c.json({ code: "no panda" }, 403);
+      const sessionid = c.req.valid("header").sessionid;
       if (credential.cards.length > 0 && credential.cards[0]) {
         const { id, lastFour, status, mode, productId } = credential.cards[0];
         if (status === "DELETED") throw new Error("card deleted");
-        const [{ expirationMonth, expirationYear, limit }, pan, user, pin] = await Promise.all([
-          getCard(id),
-          getSecrets(id, c.req.valid("header").sessionid),
-          getUser(credential.pandaId).catch((error: unknown) => {
-            const issue = noUser(error);
-            if (!issue) throw error;
-            const shouldCapture = issue.error.status === 404 || status === "ACTIVE";
-            if (shouldCapture) {
-              withScope((scope) => {
-                scope.addEventProcessor((event) => {
-                  if (event.exception?.values?.[0]) event.exception.values[0].type = issue.type;
-                  return event;
+        const [{ expirationMonth, expirationYear, limit }, pan, user, pin, challenge, provisioning] = await Promise.all(
+          [
+            getCard(id),
+            sessionid && getSecrets(id, sessionid),
+            getUser(credential.pandaId).catch((error: unknown) => {
+              const issue = noUser(error);
+              if (!issue) throw error;
+              const shouldCapture = issue.error.status === 404 || status === "ACTIVE";
+              if (shouldCapture) {
+                withScope((s) => {
+                  s.addEventProcessor((event) => {
+                    if (event.exception?.values?.[0]) event.exception.values[0].type = issue.type;
+                    return event;
+                  });
+                  captureException(issue.error, {
+                    level: "warning",
+                    fingerprint: ["{{ default }}", issue.type],
+                    extra: {
+                      cardId: id,
+                      credentialId,
+                      pandaId: credential.pandaId,
+                      status,
+                      shouldCapture,
+                      userIssue: issue.type,
+                    },
+                  });
                 });
-                captureException(issue.error, {
-                  level: "warning",
-                  fingerprint: ["{{ default }}", issue.type],
-                  extra: {
-                    cardId: id,
-                    credentialId,
-                    pandaId: credential.pandaId,
-                    status,
-                    shouldCapture,
-                    userIssue: issue.type,
-                  },
-                });
-              });
-            }
-            return null;
-          }),
-          getPIN(id, c.req.valid("header").sessionid),
-        ]);
+              }
+              return null;
+            }),
+            sessionid && getPIN(id, sessionid),
+            (async () => {
+              if (include("siwe")) {
+                if (!credential.pandaId) return;
+                return getNonce(credential.pandaId).then(({ nonce }) =>
+                  createSiweMessage({
+                    domain,
+                    address: parse(Address, credentialId),
+                    statement: `I authorize the account ${account} to be linked with the card ending in ${lastFour} for my user (${credential.pandaId})`,
+                    uri: `https://${domain}`,
+                    version: "1",
+                    chainId: chain.id,
+                    nonce,
+                  }),
+                );
+              } else if (include("webauthn")) {
+                return `I authorize the account ${account} to be linked with the card ending in ${lastFour} for my user (${credential.pandaId})`;
+              }
+            })(),
+            include("provisioning")
+              ? getProcessorDetails(id).then(({ processorCardId, timeBasedSecret }) => ({
+                  id: processorCardId,
+                  secret: timeBasedSecret,
+                }))
+              : undefined,
+          ],
+        );
         if (!user) return c.json({ code: "no panda" }, 403);
+        if (include("siwe") || include("webauthn") || include("provisioning")) c.header("Cache-Control", "no-store");
+
         return c.json(
           {
             ...(pan && { ...pan }),
@@ -286,6 +386,8 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
             status,
             limit,
             productId: parse(CardResponse.entries.productId, productId),
+            ...(challenge && { challenge }),
+            ...(provisioning && { provisioning }),
           } satisfies InferOutput<typeof CardResponse>,
           200,
         );
@@ -476,7 +578,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
       validateResponse: true,
       security: [{ credentialAuth: [] }],
       description: `
-Update the card status, PIN, or installments mode.
+Update the card status, PIN, or installments mode, or submit a signed challenge to bind the card to the authenticated user.
 
 **Updating the card status**
 
@@ -488,6 +590,13 @@ Update the card status, PIN, or installments mode.
 
 1. **Encrypt the PIN**: Format and encrypt the PIN using the session secret.
 2. **Submit the update**: Send the encrypted PIN with the \`sessionId\` to update the card.
+
+**Submitting a signature**
+
+Use \`method: "siwe"\` or \`method: "webauthn"\` to verify the \`challenge\` previously obtained from \`GET /?scope=...\`. On success the response is \`{ "verification": "OK" }\`; an invalid or unverifiable signature returns \`{ "code": "bad signature" }\` with HTTP 400.
+
+- **siwe**: Sign the SIWE message with the account's wallet and submit \`{ method: "siwe", message, signature }\`. The server checks the message's \`statement\`, \`domain\`, and \`chainId\` against the expected values, validates the signature on-chain, and forwards it to the provider.
+- **webauthn**: Sign the statement with a passkey and submit \`{ method: "webauthn", assertion }\`, where \`assertion\` is the WebAuthn assertion (\`id\`, \`rawId\`, \`response\`, \`clientExtensionResults\`, \`type\`).
 
 **PIN Requirements**
 - Length must be between 4–12 digits.
@@ -536,6 +645,7 @@ async function encryptPIN(pin: string) {
               schema: resolver(
                 union([
                   object({ code: literal("bad request") }),
+                  object({ code: literal("bad signature") }),
                   object({ code: literal("already set"), mode: number() }),
                   object({ code: literal("already set"), status: picklist(["ACTIVE", "DELETED", "FROZEN"]) }),
                   object({ code: literal("weak pin") }),
@@ -543,6 +653,12 @@ async function encryptPIN(pin: string) {
                 { errorMode: "ignore" },
               ),
             },
+          },
+        },
+        403: {
+          description: "Forbidden",
+          content: {
+            "application/json": { schema: resolver(object({ code: literal("no panda") }), { errorMode: "ignore" }) },
           },
         },
         404: {
@@ -569,10 +685,18 @@ async function encryptPIN(pin: string) {
       return mutex
         .runExclusive(async () => {
           const credential = await database.query.credentials.findFirst({
-            columns: { account: true },
+            columns: {
+              account: true,
+              counter: true,
+              factory: true,
+              pandaId: true,
+              publicKey: true,
+              source: true,
+              transports: true,
+            },
             where: eq(credentials.id, credentialId),
             with: {
-              cards: { columns: { id: true, mode: true, status: true }, where: ne(cards.status, "DELETED") },
+              cards: { columns: { id: true, mode: true, status: true, lastFour: true }, where: ne(cards.status, "DELETED") },
             },
           });
           if (!credential) return c.json({ code: "no credential" }, 500);
@@ -618,6 +742,66 @@ async function encryptPIN(pin: string) {
                 throw error;
               }
               return c.json({ data, iv } satisfies InferOutput<typeof UpdatedCardResponse>, 200);
+            }
+            case "signature": {
+              if (!credential.pandaId) return c.json({ code: "no panda" }, 403);
+              const statement = `I authorize the account ${account} to be linked with the card ending in ${card.lastFour} for my user (${credential.pandaId})`;
+              switch (patch.method) {
+                case "siwe": {
+                  const verified = await Promise.resolve()
+                    .then(() => parseSiweMessage(patch.message))
+                    .then((m) => {
+                      if (m.statement !== statement || m.chainId !== chain.id || m.domain !== domain) {
+                        return false;
+                      }
+                      return verifySiweMessage(publicClient, {
+                        address: parse(Address, credentialId),
+                        domain,
+                        message: patch.message,
+                        signature: patch.signature,
+                      });
+                    })
+                    .catch((error: unknown) => {
+                      captureException(error, { level: "error" });
+                      return false;
+                    });
+                  if (!verified) return c.json({ code: "bad signature" }, 400);
+                  try {
+                    await verify(credential.pandaId, {
+                      message: patch.message,
+                      signature: patch.signature,
+                      authType: "siwe",
+                    });
+                  } catch (error) {
+                    if (error instanceof ServiceError && error.status === 401) {
+                      return c.json({ code: "bad signature" }, 400);
+                    }
+                    throw error;
+                  }
+                  return c.json({ verification: "OK" } satisfies InferOutput<typeof UpdatedCardResponse>, 200);
+                }
+
+                case "webauthn":
+                  try {
+                    await verify(credential.pandaId, {
+                      authType: "webauthn",
+                      credential: {
+                        publicKey: { type: "Buffer", data: [...credential.publicKey] },
+                        transports: credential.transports,
+                        counter: credential.counter,
+                      },
+                      assertion: patch.assertion,
+                      factory: credential.factory,
+                      statement,
+                    });
+                  } catch (error) {
+                    if (error instanceof ServiceError && error.status === 401) {
+                      return c.json({ code: "bad signature" }, 400);
+                    }
+                    throw error;
+                  }
+                  return c.json({ verification: "OK" } satisfies InferOutput<typeof UpdatedCardResponse>, 200);
+              }
             }
           }
         })

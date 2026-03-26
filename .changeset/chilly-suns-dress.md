@@ -2,4 +2,4 @@
 "@exactly/server": patch
 ---
 
-✨ add wallet provisioning endpoint
+✨ add card provisioning

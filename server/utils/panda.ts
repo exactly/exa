@@ -59,6 +59,7 @@ const baseURL = process.env.PANDA_API_URL;
 
 if (!process.env.PANDA_API_KEY) throw new Error("missing panda api key");
 const key = process.env.PANDA_API_KEY;
+export default key;
 
 
 export const USD_TO_CENTS = 100;
@@ -183,6 +184,35 @@ export async function setPIN(cardId: string, sessionId: string, pin: { data: str
     { encryptedPin: pin },
     "PUT",
   );
+}
+
+export function getNonce(userId: string) {
+  return request(object({ nonce: string() }), `/issuing/users/${userId}/signatures/generate-nonce`);
+}
+
+export function verify(
+  userId: string,
+  payload:
+    | {
+        assertion: {
+          clientExtensionResults: Record<string, unknown>;
+          id: string;
+          rawId: string;
+          response: { authenticatorData: string; clientDataJSON: string; signature: string; userHandle?: string };
+          type: "public-key";
+        };
+        authType: "webauthn";
+        credential: {
+          counter: number;
+          publicKey: { data: number[]; type: "Buffer" };
+          transports: null | string[];
+        };
+        factory: string;
+        statement: string;
+      }
+    | { authType: "siwe"; message: string; signature: string },
+) {
+  return request(object({}), `/issuing/users/${userId}/signatures/verify`, {}, payload, "PUT");
 }
 
 async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(

@@ -87,6 +87,11 @@ vi.mock("../utils/panda", async (importOriginal: () => Promise<typeof panda>) =>
     }),
     getCard: vi.fn().mockImplementation((cardId: string) => Promise.resolve(cards.get(cardId))),
     getPIN: vi.fn().mockResolvedValue({ pin: null }),
+    getProcessorDetails: vi
+      .fn()
+      .mockImplementation((cardId: string) =>
+        Promise.resolve({ processorCardId: `proc_${cardId}`, timeBasedSecret: `secret_${cardId}` }),
+      ),
     getSecrets: vi.fn().mockImplementation((_cardId: string, sessionId: string) => {
       const privateKey = process.env.PANDA_E2E_PRIVATE_KEY;
       if (!privateKey) throw new Error("PANDA_E2E_PRIVATE_KEY not set");

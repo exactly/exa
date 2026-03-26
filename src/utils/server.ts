@@ -96,7 +96,8 @@ async function getCard() {
     throw new APIError(response.status, code);
   }
   const card = await response.json();
-  return { ...card, secret };
+  if (!card.encryptedPan || !card.encryptedCvc) throw new Error("missing encrypted card data");
+  return { ...card, encryptedPan: card.encryptedPan, encryptedCvc: card.encryptedCvc, secret };
 }
 queryClient.setQueryDefaults(["card", "details"], { queryFn: getCard });
 export type CardDetails = Awaited<ReturnType<typeof getCard>>;
