@@ -2227,7 +2227,7 @@ describe("webhooks", () => {
 
   afterEach(() => vi.resetAllMocks());
 
-  it("forwards transaction created", async () => {
+  it("forwards transaction created with exchangeRate", async () => {
     const cardId = `${webhookAccount}-card`;
     const fetch = globalThis.fetch;
     let publish = false;
@@ -2251,6 +2251,9 @@ describe("webhooks", () => {
             cardId,
             userId: webhookAccount,
             amount: 100,
+            localAmount: 85,
+            localCurrency: "eur",
+            exchangeRate: 1.176_470_588_2,
             authorizedAt: new Date().toISOString(),
           },
         },
@@ -2259,11 +2262,48 @@ describe("webhooks", () => {
     await vi.waitUntil(() => publish, 60_000);
     const options = mockFetch.mock.calls.find(([url]) => url === "https://exa.test")?.[1];
     const headers = parse(object({ Signature: string() }), options?.headers);
-
     expect(createHmac("sha256", secret).update(parse(string(), options?.body)).digest("hex")).toBe(headers.Signature);
+    expect(JSON.parse(parse(string(), options?.body))).toMatchObject({
+      body: { spend: { exchangeRate: 1.176_470_588_2 } },
+    });
   });
 
-  it("forwards transaction updated", async () => {
+  it("forwards transaction created without exchangeRate when same currency", async () => {
+    const cardId = `${webhookAccount}-card`;
+    const fetch = globalThis.fetch;
+    let publish = false;
+    const mockFetch = vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      if (url === "https://exa.test") {
+        publish = true;
+        return { ok: true, status: 200, text: () => Promise.resolve("OK") } as Response;
+      }
+      return fetch(url, init);
+    });
+
+    await appClient.index.$post({
+      ...transactionCreated,
+      json: {
+        ...transactionCreated.json,
+        body: {
+          ...transactionCreated.json.body,
+          id: "same-currency-tx",
+          spend: {
+            ...transactionCreated.json.body.spend,
+            cardId,
+            userId: webhookAccount,
+            authorizedAt: new Date().toISOString(),
+          },
+        },
+      },
+    });
+    await vi.waitUntil(() => publish, 60_000);
+    const options = mockFetch.mock.calls.find(([url]) => url === "https://exa.test")?.[1];
+    const headers = parse(object({ Signature: string() }), options?.headers);
+    expect(createHmac("sha256", secret).update(parse(string(), options?.body)).digest("hex")).toBe(headers.Signature);
+    expect(JSON.parse(parse(string(), options?.body))).not.toHaveProperty("body.spend.exchangeRate");
+  });
+
+  it("forwards transaction updated without exchangeRate", async () => {
     vi.spyOn(panda, "getUser").mockResolvedValue(userResponseTemplate);
     const cardId = `${webhookAccount}-card`;
 
@@ -2288,6 +2328,8 @@ describe("webhooks", () => {
             ...transactionUpdated.json.body.spend,
             cardId,
             userId: webhookAccount,
+            localCurrency: "eur",
+            localAmount: 6800,
             authorizedAt: new Date().toISOString(),
             status: "pending",
             authorizationUpdateAmount: 98,
@@ -2299,11 +2341,11 @@ describe("webhooks", () => {
     await vi.waitUntil(() => publish, 60_000);
     const options = mockFetch.mock.calls.find(([url]) => url === "https://exa.test")?.[1];
     const headers = parse(object({ Signature: string() }), options?.headers);
-
     expect(createHmac("sha256", secret).update(parse(string(), options?.body)).digest("hex")).toBe(headers.Signature);
+    expect(JSON.parse(parse(string(), options?.body))).not.toHaveProperty("body.spend.exchangeRate");
   });
 
-  it("forwards transaction completed", async () => {
+  it("forwards transaction completed with exchangeRate", async () => {
     vi.spyOn(panda, "getUser").mockResolvedValue(userResponseTemplate);
     const cardId = `${webhookAccount}-card`;
 
@@ -2328,6 +2370,9 @@ describe("webhooks", () => {
             cardId,
             userId: webhookAccount,
             amount: 99,
+            localAmount: 84,
+            localCurrency: "eur",
+            exchangeRate: 1.178_571_428_6,
             authorizedAt: new Date().toISOString(),
           },
         },
@@ -2348,6 +2393,9 @@ describe("webhooks", () => {
             postedAt: new Date().toISOString(),
             status: "completed",
             amount: 99,
+            localAmount: 84,
+            localCurrency: "eur",
+            exchangeRate: 1.178_571_428_6,
             authorizedAmount: 99,
           },
         },
@@ -2357,8 +2405,10 @@ describe("webhooks", () => {
     await vi.waitUntil(() => publishCounter > 1, 60_000);
     const options = mockFetch.mock.calls.filter(([url]) => url === "https://exa.test")[1]?.[1];
     const headers = parse(object({ Signature: string() }), options?.headers);
-
     expect(createHmac("sha256", secret).update(parse(string(), options?.body)).digest("hex")).toBe(headers.Signature);
+    expect(JSON.parse(parse(string(), options?.body))).toMatchObject({
+      body: { spend: { exchangeRate: 1.178_571_428_6 } },
+    });
   });
 
   it("forwards card updated active", async () => {
