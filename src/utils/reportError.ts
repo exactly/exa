@@ -78,6 +78,14 @@ function parseError(error: unknown) {
     typeof root === "object" && root !== null && "code" in root && typeof root.code === "string" && root.code.length > 0
       ? root.code
       : undefined;
+  let domain =
+    typeof root === "object" &&
+    root !== null &&
+    "domain" in root &&
+    typeof root.domain === "string" &&
+    root.domain.length > 0
+      ? root.domain
+      : undefined;
   let status: string | undefined;
   for (
     let cause: unknown = error;
@@ -105,12 +113,15 @@ function parseError(error: unknown) {
             root.message.length > 0
           ? normalizeMessage(root.message)
           : undefined;
+  const passKit = message?.match(/\bError Domain=([^ ]+) Code=(-?\d+)\b/);
+  domain ??= passKit?.[1];
+  status ??= passKit?.[2];
   const revert = error instanceof BaseError && error.walk((r) => r instanceof ContractFunctionRevertedError) !== null;
   const reason = revertReason(error, { fallback: "unknown" });
-  return { code, message, name, reason, revert, status };
+  return { code, domain, message, name, reason, revert, status };
 }
 
-function classify({ code, message, name, reason, revert, status }: ParsedError) {
+function classify({ code, domain, message, name, reason, revert, status }: ParsedError) {
   const passkeyNotAllowed =
     name === "NotAllowedError" || (message !== undefined && authPrefixes.some((prefix) => message.startsWith(prefix)));
   const passkeyCancelled =
@@ -122,6 +133,7 @@ function classify({ code, message, name, reason, revert, status }: ParsedError) 
       (passkeyKnownPatterns.some((pattern) => pattern.test(message)) ||
         authPrefixes.some((prefix) => message.startsWith(prefix))));
   const passkeyWarning = passkeyKnown && !passkeyCancelled && !passkeyNotAllowed;
+  const walletCancelled = domain === "PKPassKitErrorDomain" && (status === "1" || status === "2");
   const biometric = code === "ERR_BIOMETRIC";
   const walletRejected = status === "4001" || status === "5000";
   const bundleCancelled = status === "5730";
@@ -131,10 +143,16 @@ function classify({ code, message, name, reason, revert, status }: ParsedError) 
     biometric ||
     walletRejected ||
     bundleCancelled ||
+    walletCancelled ||
     message === "invalid operation";
   const network = classifyNetwork(message);
   const knownWarning =
-    passkeyKnown || biometric || walletRejected || bundleCancelled || message === "invalid operation";
+    passkeyKnown ||
+    walletCancelled ||
+    biometric ||
+    walletRejected ||
+    bundleCancelled ||
+    message === "invalid operation";
   const knownInfo = network !== undefined;
   const known = knownWarning || knownInfo;
   const value =
@@ -164,6 +182,7 @@ function classify({ code, message, name, reason, revert, status }: ParsedError) 
     passkeyNotAllowed,
     passkeyWarning,
     revert,
+    walletCancelled,
     walletRejected,
   };
 }
