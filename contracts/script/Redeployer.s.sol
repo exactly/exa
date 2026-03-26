@@ -9,7 +9,7 @@ import {
   ITransparentUpgradeableProxy
 } from "openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
-import { IPlugin } from "modular-account-libs/interfaces/IPlugin.sol";
+import { IPlugin, PluginMetadata } from "modular-account-libs/interfaces/IPlugin.sol";
 
 import { ACCOUNT_IMPL, ENTRYPOINT } from "webauthn-owner-plugin/../script/Factory.s.sol";
 
@@ -52,10 +52,19 @@ contract Redeployer is BaseScript {
     ownerPlugin =
       IPlugin(_broadcastOrCreate3("node_modules/webauthn-owner-plugin/broadcast/Plugin", "WebauthnOwnerPlugin"));
     exaPlugin = IPlugin(_broadcastOrCreate3("broadcast/ExaPlugin", "ExaPlugin"));
-    factory = ExaAccountFactory(payable(CREATE3_FACTORY.getDeployed(admin, keccak256(abi.encode("ExaAccountFactory")))));
+    factory = _factory();
     auditor = IAuditor(_protocolOrStub("Auditor", "StubAuditor"));
     marketUSDC = IMarket(_protocolOrStub("MarketUSDC", "StubMarketUSDC"));
     marketWETH = IMarket(_protocolOrStub("MarketWETH", "StubMarketWETH"));
+  }
+
+  function _factory() internal returns (ExaAccountFactory) {
+    if (address(exaPlugin).code.length != 0) {
+      PluginMetadata memory metadata = exaPlugin.pluginMetadata();
+      address f = CREATE3_FACTORY.getDeployed(acct("admin"), keccak256(abi.encode(metadata.name, metadata.version)));
+      if (f.code.length != 0) return ExaAccountFactory(payable(f));
+    }
+    return ExaAccountFactory(payable(CREATE3_FACTORY.getDeployed(acct("admin"), keccak256(abi.encode("ExaAccountFactory")))));
   }
 
   /// @notice Deploys all reusable contracts via CREATE3, skipping any already deployed.
@@ -202,17 +211,21 @@ contract Redeployer is BaseScript {
 
   /// @notice Deploys ExaAccountFactory at a version-specific CREATE3 address.
   function deployExaFactory(string calldata version) external returns (ExaAccountFactory f) {
-    if (address(factory).code.length == 0) revert NotPrepared();
+    bytes32 salt = keccak256(abi.encode("Exa Plugin", version));
+    f = ExaAccountFactory(payable(CREATE3_FACTORY.getDeployed(acct("admin"), salt)));
+    if (address(f).code.length != 0) return f;
+    if (address(exaPlugin).code.length == 0) revert NotPrepared();
+
     address admin = acct("admin");
     vm.startBroadcast(admin);
     f = ExaAccountFactory(
       payable(CREATE3_FACTORY.deploy(
-          keccak256(abi.encode("Exa Plugin", version)),
-          abi.encodePacked(
-            vm.getCode("ExaAccountFactory.sol:ExaAccountFactory"),
-            abi.encode(admin, ownerPlugin, exaPlugin, ACCOUNT_IMPL, ENTRYPOINT)
-          )
-        ))
+        salt,
+        abi.encodePacked(
+          vm.getCode("ExaAccountFactory.sol:ExaAccountFactory"),
+          abi.encode(admin, ownerPlugin, exaPlugin, ACCOUNT_IMPL, ENTRYPOINT)
+        )
+      ))
     );
     vm.stopBroadcast();
   }
