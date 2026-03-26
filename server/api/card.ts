@@ -4,6 +4,7 @@ import { eq, inArray, ne } from "drizzle-orm";
 import { Hono } from "hono";
 import { describeRoute } from "hono-openapi";
 import { resolver, validator as vValidator } from "hono-openapi/valibot";
+import { randomUUID } from "node:crypto";
 import {
   integer,
   literal,
@@ -91,6 +92,11 @@ const UpdateCard = union([
     transform((patch) => ({ ...patch, type: "pin" as const })),
   ),
 ]);
+
+const WalletCredentialsResponse = object({
+  cardId: pipe(string(), uuid()),
+  cardSecret: string(),
+});
 
 const UpdatedCardResponse = union([
   object({ data: string(), iv: string() }),
@@ -565,6 +571,52 @@ async function encryptPIN(pin: string) {
         .finally(() => {
           if (!mutex.isLocked()) mutexes.delete(credentialId);
         });
+    },
+  )
+  .get(
+    "/wallet",
+    auth(),
+    describeRoute({
+      summary: "Get wallet provisioning credentials",
+      tags: ["Card"],
+      security: [{ credentialAuth: [] }],
+      validateResponse: true,
+      responses: {
+        200: {
+          description: "Wallet provisioning credentials",
+          content: { "application/json": { schema: resolver(WalletCredentialsResponse, { errorMode: "ignore" }) } },
+        },
+        403: {
+          description: "Forbidden",
+          content: {
+            "application/json": { schema: resolver(object({ code: literal("no panda") }), { errorMode: "ignore" }) },
+          },
+        },
+        404: {
+          description: "Not found",
+          content: {
+            "application/json": { schema: resolver(object({ code: literal("no card") }), { errorMode: "ignore" }) },
+          },
+        },
+      },
+    }),
+    async (c) => {
+      const { credentialId } = c.req.valid("cookie");
+      const credential = await database.query.credentials.findFirst({
+        where: eq(credentials.id, credentialId),
+        columns: { pandaId: true },
+        with: { cards: { columns: { id: true }, where: inArray(cards.status, ["ACTIVE", "FROZEN"]) } },
+      });
+      if (!credential) return c.json({ code: "no credential" }, 500);
+      if (!credential.pandaId) return c.json({ code: "no panda" }, 403);
+      if (!credential.cards[0]) return c.json({ code: "no card" }, 404);
+      // TODO call Rain/Panda API for card secret
+      return c.json(
+        { cardId: credential.cards[0].id, cardSecret: randomUUID() } satisfies InferOutput<
+          typeof WalletCredentialsResponse
+        >,
+        200,
+      );
     },
   );
 
