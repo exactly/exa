@@ -226,6 +226,27 @@ contract RedeployerTest is ForkTest {
     assertEq(usdc.balanceOf(receiver), amount, "receiver should have USDC");
   }
 
+  function test_deployExaFactory_succeeds_whenVersionAlreadyDeployed() external {
+    vm.createSelectFork("polygon", 82_000_000);
+    redeployer = new Redeployer();
+    redeployer.prepare();
+    ExaAccountFactory f1 = redeployer.deployExaFactory("1.1.0");
+    ExaAccountFactory f2 = redeployer.deployExaFactory("1.1.0");
+    assertEq(address(f1), address(f2));
+  }
+
+  function test_deployExaFactoryWithProxy_succeeds_whenAlreadyUpgraded() external {
+    vm.createSelectFork("polygon", 82_000_000);
+    redeployer = new Redeployer();
+    redeployer.prepare();
+    address deployer = acct("deployer");
+    uint256 nonce = vm.getNonce(deployer);
+    redeployer.proxyThrough(nonce);
+    address proxy = vm.computeCreateAddress(deployer, nonce);
+    redeployer.deployExaFactory(proxy);
+    redeployer.deployExaFactory(proxy);
+  }
+
   function test_deployExaFactory_reverts_whenNotPrepared() external {
     vm.createSelectFork("polygon", 82_000_000);
     redeployer = new Redeployer();

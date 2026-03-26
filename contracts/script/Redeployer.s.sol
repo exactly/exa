@@ -4,12 +4,13 @@ pragma solidity ^0.8.0;
 import {
   TransparentUpgradeableProxy
 } from "@openzeppelin/contracts-v4/proxy/transparent/TransparentUpgradeableProxy.sol";
+import { ERC1967Utils } from "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Utils.sol";
 import { ProxyAdmin } from "openzeppelin-contracts/contracts/proxy/transparent/ProxyAdmin.sol";
 import {
   ITransparentUpgradeableProxy
 } from "openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
-import { IPlugin } from "modular-account-libs/interfaces/IPlugin.sol";
+import { IPlugin, PluginMetadata } from "modular-account-libs/interfaces/IPlugin.sol";
 
 import { ACCOUNT_IMPL, ENTRYPOINT } from "webauthn-owner-plugin/../script/Factory.s.sol";
 
@@ -52,7 +53,7 @@ contract Redeployer is BaseScript {
     ownerPlugin =
       IPlugin(_broadcastOrCreate3("node_modules/webauthn-owner-plugin/broadcast/Plugin", "WebauthnOwnerPlugin"));
     exaPlugin = IPlugin(_broadcastOrCreate3("broadcast/ExaPlugin", "ExaPlugin"));
-    factory = ExaAccountFactory(payable(CREATE3_FACTORY.getDeployed(admin, keccak256(abi.encode("ExaAccountFactory")))));
+    factory = _factory();
     auditor = IAuditor(_protocolOrStub("Auditor", "StubAuditor"));
     marketUSDC = IMarket(_protocolOrStub("MarketUSDC", "StubMarketUSDC"));
     marketWETH = IMarket(_protocolOrStub("MarketWETH", "StubMarketWETH"));
@@ -196,18 +197,23 @@ contract Redeployer is BaseScript {
   /// @notice Upgrades a proxy to the cached ExaAccountFactory implementation.
   function deployExaFactory(address proxy) external {
     if (address(factory).code.length == 0) revert NotPrepared();
+    if (address(uint160(uint256(vm.load(proxy, ERC1967Utils.IMPLEMENTATION_SLOT)))) == address(factory)) return;
     vm.broadcast(acct("admin"));
     proxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(proxy), address(factory), "");
   }
 
   /// @notice Deploys ExaAccountFactory at a version-specific CREATE3 address.
   function deployExaFactory(string calldata version) external returns (ExaAccountFactory f) {
-    if (address(factory).code.length == 0) revert NotPrepared();
+    bytes32 salt = keccak256(abi.encode("Exa Plugin", version));
+    f = ExaAccountFactory(payable(CREATE3_FACTORY.getDeployed(acct("admin"), salt)));
+    if (address(f).code.length != 0) return f;
+    if (address(ownerPlugin).code.length == 0 || address(exaPlugin).code.length == 0) revert NotPrepared();
+
     address admin = acct("admin");
     vm.startBroadcast(admin);
     f = ExaAccountFactory(
       payable(CREATE3_FACTORY.deploy(
-          keccak256(abi.encode("Exa Plugin", version)),
+          salt,
           abi.encodePacked(
             vm.getCode("ExaAccountFactory.sol:ExaAccountFactory"),
             abi.encode(admin, ownerPlugin, exaPlugin, ACCOUNT_IMPL, ENTRYPOINT)
@@ -245,6 +251,16 @@ contract Redeployer is BaseScript {
       } catch { } // solhint-disable-line no-empty-blocks
     } catch { } // solhint-disable-line no-empty-blocks
     if (addr == address(0)) addr = CREATE3_FACTORY.getDeployed(acct("admin"), keccak256(abi.encode(salt)));
+  }
+
+  function _factory() internal returns (ExaAccountFactory) {
+    if (address(exaPlugin).code.length != 0) {
+      PluginMetadata memory metadata = exaPlugin.pluginMetadata();
+      address f = CREATE3_FACTORY.getDeployed(acct("admin"), keccak256(abi.encode(metadata.name, metadata.version)));
+      if (f.code.length != 0) return ExaAccountFactory(payable(f));
+    }
+    return
+      ExaAccountFactory(payable(CREATE3_FACTORY.getDeployed(acct("admin"), keccak256(abi.encode("ExaAccountFactory")))));
   }
 
   function _protocolOrStub(string memory name, string memory stub) internal returns (address addr) {
