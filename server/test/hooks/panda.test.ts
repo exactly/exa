@@ -3191,7 +3191,7 @@ describe("webhooks", () => {
     });
 
     await vi.waitUntil(() => webhookLogger.mock.calls.length > 0, 10_000);
-    expect(webhookLogger).toHaveBeenCalledWith(expect.objectContaining({ response: "OK" }));
+    expect(webhookLogger).toHaveBeenCalledWith("%j", expect.objectContaining({ response: "OK" }));
   });
 
   it("logs json on webhook ok response", async () => {
@@ -3214,7 +3214,10 @@ describe("webhooks", () => {
     });
 
     await vi.waitUntil(() => webhookLogger.mock.calls.length > 0, 10_000);
-    expect(webhookLogger).toHaveBeenCalledWith(expect.objectContaining({ response: { status: 200, message: "OK" } }));
+    expect(webhookLogger).toHaveBeenCalledWith(
+      "%j",
+      expect.objectContaining({ response: { status: 200, message: "OK" } }),
+    );
   });
 
   it("passes redirect error option to fetch", async () => {
