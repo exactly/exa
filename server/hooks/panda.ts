@@ -1260,7 +1260,7 @@ async function publish(payload: v.InferOutput<typeof Payload>, receipt?: Transac
           },
         },
       );
-      debugWebhook({
+      debugWebhook("%j", {
         code: result.status,
         response: await result.text().then((text) => {
           try {
@@ -1273,10 +1273,10 @@ async function publish(payload: v.InferOutput<typeof Payload>, receipt?: Transac
       });
     } catch (error) {
       if (error instanceof Error) {
-        if (error instanceof Error && error.message === "WebhookFailed") {
-          debugWebhook(error.cause);
+        if (error.message === "WebhookFailed") {
+          debugWebhook("%j", error.cause);
         } else {
-          debugWebhook({ error: error.message, payload: webhookPayload });
+          debugWebhook("%j", { error: error.message, payload: webhookPayload });
         }
       }
       throw error;
