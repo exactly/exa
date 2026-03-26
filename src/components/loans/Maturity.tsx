@@ -33,9 +33,7 @@ export default function Maturity() {
   } = useTranslation();
   const { address } = useAccount();
   const { data: loan } = useQuery<Loan>({ queryKey: ["loan"], enabled: !!address });
-  const { timestamp } = useMarkets();
-  const now = Number(timestamp);
-  const firstMaturity = now - (now % MATURITY_INTERVAL) + MATURITY_INTERVAL;
+  const { firstMaturity } = useMarkets();
 
   const disabled = !loan?.maturity;
 

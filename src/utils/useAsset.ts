@@ -12,7 +12,7 @@ import type { Address } from "viem";
 
 export default function useAsset(address?: Address) {
   const { address: account } = useAccount();
-  const { markets, timestamp, queryKey, isFetching: isMarketsFetching } = useMarkets();
+  const { markets, timestamp, firstMaturity, queryKey, isFetching: isMarketsFetching } = useMarkets();
   const market = useMemo(() => markets?.find(({ market: m }) => m === address), [address, markets]);
   const { data: tokenBalances, isFetching: isTokenBalancesFetching } = useQuery(tokenBalancesOptions(account));
   const externalAsset = useMemo(
@@ -34,6 +34,7 @@ export default function useAsset(address?: Address) {
     market,
     markets,
     timestamp,
+    firstMaturity,
     available,
     borrowAvailable,
     externalAsset,

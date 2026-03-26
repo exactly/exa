@@ -14,7 +14,6 @@ import { borrowLimit } from "@exactly/lib";
 
 import queryClient, { type Loan } from "../../utils/queryClient";
 import useAccount from "../../utils/useAccount";
-import useInstallments from "../../utils/useInstallments";
 import useMarkets from "../../utils/useMarkets";
 import AssetLogo from "../shared/AssetLogo";
 import Button from "../shared/StyledButton";
@@ -28,8 +27,7 @@ export default function CreditLine() {
     i18n: { language },
   } = useTranslation();
   const { data: bytecode } = useBytecode({ address, query: { enabled: !!address } });
-  const { markets } = useMarkets({ enabled: !!bytecode });
-  const { firstMaturity } = useInstallments({ totalAmount: 100n, installments: 1 });
+  const { markets, firstMaturity } = useMarkets({ enabled: !!bytecode });
   return (
     <YStack backgroundColor="$backgroundSoft" borderRadius="$s3">
       <XStack padding="$s4">

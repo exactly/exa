@@ -2,7 +2,6 @@ import { useMemo } from "react";
 
 import { marketUSDCAddress } from "@exactly/common/generated/chain";
 import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
-import MIN_BORROW_INTERVAL from "@exactly/common/MIN_BORROW_INTERVAL";
 import {
   fixedRate,
   fixedUtilization,
@@ -17,12 +16,10 @@ import reportError from "./reportError";
 import useAsset from "./useAsset";
 
 export default function useInstallmentRates(amount = 100_000_000n) {
-  const { market, timestamp } = useAsset(marketUSDCAddress);
+  const { market, timestamp, firstMaturity } = useAsset(marketUSDCAddress);
+  const now = Number(timestamp);
   return useMemo(() => {
     if (!market) return;
-    const now = Number(timestamp);
-    const nextMaturity = now - (now % MATURITY_INTERVAL) + MATURITY_INTERVAL;
-    const firstMaturity = nextMaturity - now < MIN_BORROW_INTERVAL ? nextMaturity + MATURITY_INTERVAL : nextMaturity;
     if (amount <= 0n) {
       const installments = [];
       for (let count = 1; count <= MAX_INSTALLMENTS; count++) {
@@ -93,5 +90,5 @@ export default function useInstallmentRates(amount = 100_000_000n) {
     } catch (error) {
       reportError(error);
     }
-  }, [market, timestamp, amount]);
+  }, [market, firstMaturity, now, amount]);
 }

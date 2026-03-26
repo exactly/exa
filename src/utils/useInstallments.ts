@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 
 import { marketUSDCAddress } from "@exactly/common/generated/chain";
-import MIN_BORROW_INTERVAL from "@exactly/common/MIN_BORROW_INTERVAL";
 import { fixedUtilization, globalUtilization, MATURITY_INTERVAL, splitInstallments } from "@exactly/lib";
 
 import reportError from "./reportError";
@@ -18,13 +17,11 @@ export default function useInstallments({
   marketAddress?: Hex;
   totalAmount: bigint;
 }) {
-  const { market, timestamp } = useAsset(marketAddress);
+  const { market, timestamp, firstMaturity } = useAsset(marketAddress);
   const now = Number(timestamp);
 
   return useMemo(() => {
     const isLoading = !market;
-    const nextMaturity = now - (now % MATURITY_INTERVAL) + MATURITY_INTERVAL;
-    const firstMaturity = nextMaturity - now < MIN_BORROW_INTERVAL ? nextMaturity + MATURITY_INTERVAL : nextMaturity;
     let data: ReturnType<typeof splitInstallments> | undefined;
 
     try {
@@ -59,5 +56,5 @@ export default function useInstallments({
       firstMaturity,
       isFetching: isLoading || (installments > 1 && !data && totalAmount > 0n),
     };
-  }, [market, now, installments, totalAmount]);
+  }, [market, firstMaturity, now, installments, totalAmount]);
 }
