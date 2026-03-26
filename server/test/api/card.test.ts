@@ -797,6 +797,103 @@ describe("authenticated", () => {
     expect(card?.status).toBe("DELETED");
   });
 
+  describe("wallet", () => {
+    const walletCardId = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
+    const walletFrozenCardId = "b2c3d4e5-f6a7-8901-bcde-f12345678901";
+
+    beforeAll(async () => {
+      await database.insert(credentials).values([
+        {
+          id: "wallet-active",
+          publicKey: new Uint8Array(),
+          account: padHex("0xaa01", { size: 20 }),
+          factory: inject("ExaAccountFactory"),
+          pandaId: "wallet-active",
+        },
+        {
+          id: "wallet-frozen",
+          publicKey: new Uint8Array(),
+          account: padHex("0xaa02", { size: 20 }),
+          factory: inject("ExaAccountFactory"),
+          pandaId: "wallet-frozen",
+        },
+        {
+          id: "wallet-no-card",
+          publicKey: new Uint8Array(),
+          account: padHex("0xaa03", { size: 20 }),
+          factory: inject("ExaAccountFactory"),
+          pandaId: "wallet-no-card",
+        },
+        {
+          id: "wallet-no-panda",
+          publicKey: new Uint8Array(),
+          account: padHex("0xaa04", { size: 20 }),
+          factory: inject("ExaAccountFactory"),
+        },
+      ]);
+      await database.insert(cards).values([
+        { id: walletCardId, credentialId: "wallet-active", lastFour: "0001" },
+        { id: walletFrozenCardId, credentialId: "wallet-frozen", lastFour: "0002", status: "FROZEN" },
+        { id: "wallet-deleted", credentialId: "wallet-no-card", lastFour: "0003", status: "DELETED" },
+      ]);
+    });
+
+    it("returns credentials for active card", async () => {
+      vi.spyOn(panda, "getProcessorDetails").mockResolvedValueOnce({
+        processorCardId: "proc-active",
+        timeBasedSecret: "secret-active",
+      });
+
+      const response = await appClient.wallet.$get({}, { headers: { "test-credential-id": "wallet-active" } });
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual({ cardId: "proc-active", cardSecret: "secret-active" });
+      expect(panda.getProcessorDetails).toHaveBeenCalledWith(walletCardId);
+    });
+
+    it("returns credentials for frozen card", async () => {
+      vi.spyOn(panda, "getProcessorDetails").mockResolvedValueOnce({
+        processorCardId: "proc-frozen",
+        timeBasedSecret: "secret-frozen",
+      });
+
+      const response = await appClient.wallet.$get({}, { headers: { "test-credential-id": "wallet-frozen" } });
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual({ cardId: "proc-frozen", cardSecret: "secret-frozen" });
+      expect(panda.getProcessorDetails).toHaveBeenCalledWith(walletFrozenCardId);
+    });
+
+    it("returns 500 when panda api fails", async () => {
+      vi.spyOn(panda, "getProcessorDetails").mockRejectedValueOnce(new ServiceError("Rain", 500, "internal error"));
+
+      const response = await appClient.wallet.$get({}, { headers: { "test-credential-id": "wallet-active" } });
+
+      expect(response.status).toBe(500);
+    });
+
+    it("returns 404 when only deleted card", async () => {
+      const response = await appClient.wallet.$get({}, { headers: { "test-credential-id": "wallet-no-card" } });
+
+      expect(response.status).toBe(404);
+      await expect(response.json()).resolves.toStrictEqual({ code: "no card" });
+    });
+
+    it("returns 403 when no panda customer", async () => {
+      const response = await appClient.wallet.$get({}, { headers: { "test-credential-id": "wallet-no-panda" } });
+
+      expect(response.status).toBe(403);
+      await expect(response.json()).resolves.toStrictEqual({ code: "no panda" });
+    });
+
+    it("returns 500 when credential not found", async () => {
+      const response = await appClient.wallet.$get({}, { headers: { "test-credential-id": "nonexistent" } });
+
+      expect(response.status).toBe(500);
+      await expect(response.json()).resolves.toStrictEqual({ code: "no credential" });
+    });
+  });
+
   describe("migration", () => {
     it("creates a panda card having a cm card with upgraded plugin", async () => {
       await database.insert(cards).values([{ id: "cm", credentialId: "default", lastFour: "1234" }]);

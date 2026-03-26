@@ -111,6 +111,13 @@ export async function getCard(cardId: string) {
   return await request(CardResponse, `/issuing/cards/${cardId}`);
 }
 
+export function getProcessorDetails(cardId: string) {
+  return request(
+    object({ processorCardId: string(), timeBasedSecret: string() }),
+    `/v1/issuing/cards/${cardId}/processorDetails`,
+  );
+}
+
 export async function updateCard(card: {
   billing?: {
     city: string;
