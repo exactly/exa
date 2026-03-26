@@ -6,14 +6,13 @@ import { useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 import { Loader, LockKeyhole, Snowflake } from "@tamagui/lucide-icons";
 import { AnimatePresence, XStack, YStack } from "tamagui";
 
-import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
-import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
+import { marketUSDCAddress } from "@exactly/common/generated/chain";
 import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
 import { borrowLimit, withdrawLimit } from "@exactly/lib";
 
 import SignatureCard from "../../../assets/images/card-signature.svg";
 import Card from "../../../assets/images/card.svg";
-import useAccount from "../../../utils/useAccount";
+import useMarkets from "../../../utils/useMarkets";
 import AnimatedView from "../../shared/AnimatedView";
 import Text from "../../shared/Text";
 import View from "../../shared/View";
@@ -31,12 +30,7 @@ export default function CardContents({
   productId?: string;
   revealing: boolean;
 }) {
-  const { address } = useAccount();
-  const { data: markets } = useReadPreviewerExactly({
-    address: previewerAddress,
-    args: address ? [address] : undefined,
-    query: { enabled: !!address },
-  });
+  const { markets } = useMarkets();
   const {
     t,
     i18n: { language },

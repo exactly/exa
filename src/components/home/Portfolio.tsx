@@ -7,14 +7,12 @@ import { useRouter } from "expo-router";
 import { ArrowLeft, CircleHelp } from "@tamagui/lucide-icons";
 import { ScrollView, XStack } from "tamagui";
 
-import { previewerAddress } from "@exactly/common/generated/chain";
-import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
-
 import AssetList from "./AssetList";
 import { presentArticle } from "../../utils/intercom";
 import openBrowser from "../../utils/openBrowser";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
+import useMarkets from "../../utils/useMarkets";
 import usePortfolio from "../../utils/usePortfolio";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
@@ -31,11 +29,7 @@ export default function Portfolio() {
   } = useTranslation();
   const { balanceUSD } = portfolio;
 
-  const { refetch: refetchMarkets, isFetching: isFetchingMarkets } = useReadPreviewerExactly({
-    address: previewerAddress,
-    args: address ? [address] : undefined,
-    query: { enabled: !!address },
-  });
+  const { refetch: refetchMarkets, isFetching: isFetchingMarkets } = useMarkets();
 
   return (
     <SafeView fullScreen backgroundColor="$backgroundMild">

@@ -13,13 +13,7 @@ import { parse } from "valibot";
 import { formatUnits, parseUnits, zeroAddress } from "viem";
 import { useSimulateContract, useWriteContract } from "wagmi";
 
-import { previewerAddress } from "@exactly/common/generated/chain";
-import {
-  auditorAbi,
-  marketAbi,
-  upgradeableModularAccountAbi,
-  useReadPreviewerExactly,
-} from "@exactly/common/generated/hooks";
+import { auditorAbi, marketAbi, upgradeableModularAccountAbi } from "@exactly/common/generated/hooks";
 import ProposalType from "@exactly/common/ProposalType";
 import { Address } from "@exactly/common/validation";
 import { WAD } from "@exactly/lib";
@@ -37,6 +31,7 @@ import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
+import useMarkets from "../../utils/useMarkets";
 import usePortfolio from "../../utils/usePortfolio";
 import useSimulateProposal from "../../utils/useSimulateProposal";
 import Button from "../shared/Button";
@@ -77,11 +72,7 @@ export default function Swaps() {
   const { externalAssets, protocolAssets } = usePortfolio();
   const [acknowledged, setAcknowledged] = useState(false);
   const [activeInput, setActiveInput] = useState<"from" | "to">("from");
-  const { data: markets } = useReadPreviewerExactly({
-    address: previewerAddress,
-    args: account ? [account] : undefined,
-    query: { enabled: !!account },
-  });
+  const { markets } = useMarkets();
   const { data: tokens, isLoading: isTokensLoading } = useQuery({ queryKey: ["allowTokens"], queryFn: getAllowTokens });
   const {
     data: {

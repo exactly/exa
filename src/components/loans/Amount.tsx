@@ -11,15 +11,13 @@ import { useQuery } from "@tanstack/react-query";
 import { formatUnits } from "viem";
 import { useBytecode } from "wagmi";
 
-import { previewerAddress } from "@exactly/common/generated/chain";
-import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
-
 import AmountSelector from "./AmountSelector";
 import { presentArticle } from "../../utils/intercom";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
+import useMarkets from "../../utils/useMarkets";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
@@ -35,11 +33,7 @@ export default function Amount() {
     i18n: { language },
   } = useTranslation();
   const { data: bytecode } = useBytecode({ address, query: { enabled: !!address } });
-  const { data: markets } = useReadPreviewerExactly({
-    address: previewerAddress,
-    args: address ? [address] : undefined,
-    query: { enabled: !!bytecode && !!address },
-  });
+  const { markets } = useMarkets({ enabled: !!bytecode });
   const { data: loan } = useQuery<Loan>({ queryKey: ["loan"], enabled: !!address });
   const { market, borrowAvailable } = useAsset(loan?.market);
 

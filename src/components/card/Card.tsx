@@ -11,11 +11,8 @@ import { ScrollView, Separator, Spinner, Square, Switch, XStack, YStack } from "
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import accountInit from "@exactly/common/accountInit";
-import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
-import {
-  useReadPreviewerExactly,
-  useReadUpgradeableModularAccountGetInstalledPlugins,
-} from "@exactly/common/generated/hooks";
+import { marketUSDCAddress } from "@exactly/common/generated/chain";
+import { useReadUpgradeableModularAccountGetInstalledPlugins } from "@exactly/common/generated/hooks";
 
 import CardDetails from "./CardDetails";
 import CardDisclaimer from "./CardDisclaimer";
@@ -38,6 +35,7 @@ import {
 } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
+import useMarkets from "../../utils/useMarkets";
 import useTabPress from "../../utils/useTabPress";
 import InfoAlert from "../shared/InfoAlert";
 import LatestActivity from "../shared/LatestActivity";
@@ -104,15 +102,7 @@ export default function Card() {
       query: { enabled: !!address && !!credential },
     });
 
-  const {
-    data: markets,
-    refetch: refetchMarkets,
-    isFetching: isFetchingMarkets,
-  } = useReadPreviewerExactly({
-    address: previewerAddress,
-    args: address ? [address] : undefined,
-    query: { enabled: !!address },
-  });
+  const { markets, refetch: refetchMarkets, isFetching: isFetchingMarkets } = useMarkets();
 
   let usdBalance = 0n;
   if (markets) {

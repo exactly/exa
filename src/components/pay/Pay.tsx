@@ -9,16 +9,13 @@ import { useToastController } from "@tamagui/toast";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
-import { formatDistanceStrict, isBefore } from "date-fns";
+import { formatDistanceStrict } from "date-fns";
 import { enUS, es } from "date-fns/locale";
 import { optimismSepolia } from "viem/chains";
 
 import accountInit from "@exactly/common/accountInit";
-import chain, { exaPluginAddress, marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
-import {
-  useReadPreviewerExactly,
-  useReadUpgradeableModularAccountGetInstalledPlugins,
-} from "@exactly/common/generated/hooks";
+import chain, { exaPluginAddress, marketUSDCAddress } from "@exactly/common/generated/chain";
+import { useReadUpgradeableModularAccountGetInstalledPlugins } from "@exactly/common/generated/hooks";
 import { WAD } from "@exactly/lib";
 
 import Empty from "./Empty";
@@ -32,6 +29,7 @@ import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
+import useMarkets from "../../utils/useMarkets";
 import usePendingOperations from "../../utils/usePendingOperations";
 import useTabPress from "../../utils/useTabPress";
 import Amount from "../shared/Amount";
@@ -60,15 +58,7 @@ export default function Pay() {
   });
   const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
   const { account, market: exaUSDC } = useAsset(marketUSDCAddress);
-  const {
-    data: markets,
-    refetch,
-    isPending,
-  } = useReadPreviewerExactly({
-    address: previewerAddress,
-    args: account ? [account] : undefined,
-    query: { enabled: !!account, refetchInterval: 30_000 },
-  });
+  const { markets, timestamp, refetch, isPending } = useMarkets({ refetchInterval: 30_000 });
 
   const { data: hidden } = useQuery<boolean>({ queryKey: ["settings", "sensitive"] });
   const { data: rolloverIntroShown } = useQuery<boolean>({ queryKey: ["settings", "rollover-intro-shown"] });
@@ -96,12 +86,12 @@ export default function Pay() {
         map.set(maturity, {
           previewValue: (existing?.previewValue ?? 0n) + previewValue,
           positionAmount: (existing?.positionAmount ?? 0n) + positionAmount,
-          isOverdue: isBefore(new Date(Number(maturity) * 1000), new Date()),
+          isOverdue: maturity < timestamp,
         });
       }
     }
     return [...map].sort(([a], [b]) => Number(a - b));
-  }, [markets]);
+  }, [markets, timestamp]);
 
   const hasPayments = allMaturities.length > 0;
   const firstMaturity = allMaturities[0];
@@ -356,8 +346,9 @@ function FirstMaturityCard({
   t: (key: string, options?: Record<string, unknown>) => string;
 }) {
   const { previewValue, positionAmount, isOverdue } = summary;
-  const maturityDate = new Date(Number(maturity) * 1000);
-  const now = new Date();
+  const { timestamp } = useMarkets();
+  const maturityDate = useMemo(() => new Date(Number(maturity) * 1000), [maturity]);
+  const now = useMemo(() => new Date(Number(timestamp) * 1000), [timestamp]);
   const dateFnsLocale = language === "es" ? es : enUS;
   const timeDistance = formatDistanceStrict(isOverdue ? maturityDate : now, isOverdue ? now : maturityDate, {
     locale: dateFnsLocale,

@@ -6,15 +6,14 @@ import { selectionAsync } from "expo-haptics";
 import { ChevronRight } from "@tamagui/lucide-icons";
 import { Separator, XStack, YStack } from "tamagui";
 
-import { isBefore } from "date-fns";
 import { useBytecode } from "wagmi";
 
-import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
-import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
+import { marketUSDCAddress } from "@exactly/common/generated/chain";
 import { WAD } from "@exactly/lib";
 
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
+import useMarkets from "../../utils/useMarkets";
 import usePendingOperations from "../../utils/usePendingOperations";
 import Text from "../shared/Text";
 import View from "../shared/View";
@@ -33,11 +32,7 @@ export default function OverduePayments({
   const { address } = useAccount();
   const { data: bytecode } = useBytecode({ address, query: { enabled: !!address } });
   const { isProcessing } = usePendingOperations();
-  const { data: markets } = useReadPreviewerExactly({
-    address: previewerAddress,
-    args: address ? [address] : undefined,
-    query: { enabled: !!address && !!bytecode, refetchInterval: 30_000 },
-  });
+  const { markets, timestamp } = useMarkets({ enabled: !!bytecode, refetchInterval: 30_000 });
   const exaUSDC = markets?.find(({ market }) => market === marketUSDCAddress);
   const overdueMaturities = new Map<bigint, { totalPosition: bigint; totalPreview: bigint }>();
   if (markets) {
@@ -46,7 +41,7 @@ export default function OverduePayments({
       for (const { maturity, previewValue, position } of fixedBorrowPositions) {
         if (!previewValue) continue;
         if (maturity === excludeMaturity) continue;
-        if (isBefore(new Date(Number(maturity) * 1000), new Date())) {
+        if (maturity < timestamp) {
           const positionAmount = position.principal + position.fee;
           if (positionAmount === 0n) continue;
           const existing = overdueMaturities.get(maturity);

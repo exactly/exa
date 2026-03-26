@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useRouter } from "expo-router";
@@ -9,13 +9,13 @@ import { Separator, XStack, YStack } from "tamagui";
 import { formatUnits } from "viem";
 import { useBytecode } from "wagmi";
 
-import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
-import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
+import { marketUSDCAddress } from "@exactly/common/generated/chain";
 import { borrowLimit } from "@exactly/lib";
 
 import queryClient, { type Loan } from "../../utils/queryClient";
 import useAccount from "../../utils/useAccount";
 import useInstallments from "../../utils/useInstallments";
+import useMarkets from "../../utils/useMarkets";
 import AssetLogo from "../shared/AssetLogo";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
@@ -28,11 +28,7 @@ export default function CreditLine() {
     i18n: { language },
   } = useTranslation();
   const { data: bytecode } = useBytecode({ address, query: { enabled: !!address } });
-  const { data: markets } = useReadPreviewerExactly({
-    address: previewerAddress,
-    args: address ? [address] : undefined,
-    query: { enabled: !!bytecode && !!address },
-  });
+  const { markets } = useMarkets({ enabled: !!bytecode });
   const { firstMaturity } = useInstallments({ totalAmount: 100n, installments: 1 });
   return (
     <YStack backgroundColor="$backgroundSoft" borderRadius="$s3">
@@ -59,11 +55,15 @@ export default function CreditLine() {
                 {t("Next due date:")}{" "}
               </Text>
               <Text primary footnote>
-                {new Date(firstMaturity * 1000).toLocaleDateString(language, {
-                  year: "numeric",
-                  month: "short",
-                  day: "numeric",
-                })}
+                {useMemo(
+                  () =>
+                    new Date(firstMaturity * 1000).toLocaleDateString(language, {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                    }),
+                  [firstMaturity, language],
+                )}
               </Text>
             </XStack>
             <XStack alignItems="center" flexWrap="wrap">

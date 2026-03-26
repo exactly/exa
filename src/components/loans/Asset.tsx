@@ -7,13 +7,10 @@ import { useRouter } from "expo-router";
 import { ArrowLeft, ArrowRight, Check, CircleHelp } from "@tamagui/lucide-icons";
 import { ScrollView, XStack, YStack } from "tamagui";
 
-import { previewerAddress } from "@exactly/common/generated/chain";
-import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
-
 import { presentArticle } from "../../utils/intercom";
 import queryClient, { type Loan } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
-import useAccount from "../../utils/useAccount";
+import useMarkets from "../../utils/useMarkets";
 import AssetLogo from "../shared/AssetLogo";
 import Button from "../shared/Button";
 import SafeView from "../shared/SafeView";
@@ -25,13 +22,8 @@ import type { Address } from "viem";
 export default function Asset() {
   const router = useRouter();
   const { t } = useTranslation();
-  const { address } = useAccount();
   const [selectedMarket, setSelectedMarket] = useState<Address>();
-  const { data: markets } = useReadPreviewerExactly({
-    address: previewerAddress,
-    args: address ? [address] : undefined,
-    query: { enabled: !!address },
-  });
+  const { markets } = useMarkets();
   return (
     <SafeView fullScreen>
       <View

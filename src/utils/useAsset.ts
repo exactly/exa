@@ -2,26 +2,17 @@ import { useMemo } from "react";
 
 import { useQuery } from "@tanstack/react-query";
 
-import { previewerAddress } from "@exactly/common/generated/chain";
-import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
 import { borrowLimit, withdrawLimit } from "@exactly/lib";
 
 import { tokenBalancesOptions } from "./lifi";
 import useAccount from "./useAccount";
+import useMarkets from "./useMarkets";
 
 import type { Address } from "viem";
 
 export default function useAsset(address?: Address) {
   const { address: account } = useAccount();
-  const {
-    data: markets,
-    queryKey,
-    isFetching: isMarketsFetching,
-  } = useReadPreviewerExactly({
-    address: previewerAddress,
-    args: account ? [account] : undefined,
-    query: { enabled: !!account },
-  });
+  const { markets, timestamp, queryKey, isFetching: isMarketsFetching } = useMarkets();
   const market = useMemo(() => markets?.find(({ market: m }) => m === address), [address, markets]);
   const { data: tokenBalances, isFetching: isTokenBalancesFetching } = useQuery(tokenBalancesOptions(account));
   const externalAsset = useMemo(
@@ -42,6 +33,7 @@ export default function useAsset(address?: Address) {
     account,
     market,
     markets,
+    timestamp,
     available,
     borrowAvailable,
     externalAsset,

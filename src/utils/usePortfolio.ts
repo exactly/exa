@@ -2,12 +2,11 @@ import { useMemo } from "react";
 
 import { useQuery } from "@tanstack/react-query";
 
-import { previewerAddress, ratePreviewerAddress } from "@exactly/common/generated/chain";
-import { useReadPreviewerExactly, useReadRatePreviewerSnapshot } from "@exactly/common/generated/hooks";
 import { floatingDepositRates, withdrawLimit } from "@exactly/lib";
 
 import { tokenBalancesOptions } from "./lifi";
 import useAccount from "./useAccount";
+import useMarkets from "./useMarkets";
 
 import type { Hex } from "@exactly/common/validation";
 
@@ -39,15 +38,7 @@ export type PortfolioAsset = ExternalAsset | ProtocolAsset;
 
 export default function usePortfolio(options?: { sortBy?: "usdcFirst" | "usdValue" }) {
   const { address: account } = useAccount();
-
-  const { data: rateSnapshot, dataUpdatedAt: rateDataUpdatedAt } = useReadRatePreviewerSnapshot({
-    address: ratePreviewerAddress,
-  });
-  const { data: markets, isPending: isMarketsPending } = useReadPreviewerExactly({
-    address: previewerAddress,
-    args: account ? [account] : undefined,
-    query: { enabled: !!account },
-  });
+  const { markets, rateSnapshot, timestamp, isPending: isMarketsPending } = useMarkets();
 
   const { data: tokenBalances, isPending: isExternalPending } = useQuery(tokenBalancesOptions(account));
 
@@ -68,8 +59,8 @@ export default function usePortfolio(options?: { sortBy?: "usdcFirst" | "usdValu
   }, [markets]);
 
   const rates = useMemo(
-    () => (rateSnapshot ? floatingDepositRates(rateSnapshot, Math.floor(rateDataUpdatedAt / 1000)) : []),
-    [rateSnapshot, rateDataUpdatedAt],
+    () => (rateSnapshot ? floatingDepositRates(rateSnapshot, Number(timestamp)) : []),
+    [rateSnapshot, timestamp],
   );
 
   const averageRate = useMemo(() => {

@@ -5,11 +5,9 @@ import { XStack, YStack } from "tamagui";
 
 import { parseUnits } from "viem";
 
-import { previewerAddress, ratePreviewerAddress } from "@exactly/common/generated/chain";
-import { useReadPreviewerExactly, useReadRatePreviewerSnapshot } from "@exactly/common/generated/hooks";
 import { floatingDepositRates } from "@exactly/lib";
 
-import useAccount from "../../utils/useAccount";
+import useMarkets from "../../utils/useMarkets";
 import usePortfolio from "../../utils/usePortfolio";
 import AssetLogo from "../shared/AssetLogo";
 import Skeleton from "../shared/Skeleton";
@@ -106,18 +104,10 @@ function AssetSection({ title, assets }: { assets: AssetItem[]; title: string })
 
 export default function AssetList() {
   const { t } = useTranslation();
-  const { address } = useAccount();
-  const { data: markets } = useReadPreviewerExactly({
-    address: previewerAddress,
-    args: address ? [address] : undefined,
-    query: { enabled: !!address },
-  });
+  const { markets, rateSnapshot, timestamp } = useMarkets();
   const { externalAssets } = usePortfolio();
-  const { data: snapshots, dataUpdatedAt } = useReadRatePreviewerSnapshot({
-    address: ratePreviewerAddress,
-  });
 
-  const rates = snapshots ? floatingDepositRates(snapshots, Math.floor(dataUpdatedAt / 1000)) : [];
+  const rates = rateSnapshot ? floatingDepositRates(rateSnapshot, Number(timestamp)) : [];
 
   const collateralAssets =
     markets

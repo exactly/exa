@@ -12,15 +12,9 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useBytecode } from "wagmi";
 
 import accountInit from "@exactly/common/accountInit";
-import {
-  exaPluginAddress,
-  exaPreviewerAddress,
-  marketUSDCAddress,
-  previewerAddress,
-} from "@exactly/common/generated/chain";
+import { exaPluginAddress, exaPreviewerAddress, marketUSDCAddress } from "@exactly/common/generated/chain";
 import {
   useReadExaPreviewerPendingProposals,
-  useReadPreviewerExactly,
   useReadUpgradeableModularAccountGetInstalledPlugins,
 } from "@exactly/common/generated/hooks";
 import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
@@ -43,6 +37,7 @@ import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { cardModeMutationOptions } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
+import useMarkets from "../../utils/useMarkets";
 import usePortfolio from "../../utils/usePortfolio";
 import useTabPress from "../../utils/useTabPress";
 import BenefitsSection from "../benefits/BenefitsSection";
@@ -125,15 +120,7 @@ export default function Home() {
     query: { enabled: !!account && !!bytecode, gcTime: 0, refetchInterval: 30_000 },
   });
   const { data: activity, isFetching: isFetchingActivity } = useQuery<ActivityItem[]>({ queryKey: ["activity"] });
-  const {
-    data: markets,
-    refetch: refetchMarkets,
-    isFetching: isFetchingPreviewer,
-  } = useReadPreviewerExactly({
-    address: previewerAddress,
-    args: account ? [account] : undefined,
-    query: { enabled: !!account },
-  });
+  const { markets, refetch: refetchMarkets, isFetching: isFetchingPreviewer } = useMarkets();
   const {
     data: kycStatus,
     isFetched: isKYCFetched,

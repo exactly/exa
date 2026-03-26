@@ -7,14 +7,14 @@ import { useRouter } from "expo-router";
 import { ArrowLeft, CircleHelp } from "@tamagui/lucide-icons";
 import { ScrollView, XStack, YStack } from "tamagui";
 
-import { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
-import { useReadPreviewerExactly } from "@exactly/common/generated/hooks";
+import { marketUSDCAddress } from "@exactly/common/generated/chain";
 
 import CreditLine from "./CreditLine";
 import { presentArticle } from "../../utils/intercom";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAsset from "../../utils/useAsset";
+import useMarkets from "../../utils/useMarkets";
 import PaymentSheet from "../pay/PaymentSheet";
 import RolloverIntroSheet from "../pay/RolloverIntroSheet";
 import UpcomingPayments from "../pay/UpcomingPayments";
@@ -27,11 +27,7 @@ export default function Loans() {
   const { account } = useAsset(marketUSDCAddress);
   const router = useRouter();
   const [rolloverIntroMaturity, setRolloverIntroMaturity] = useState<string>();
-  const { refetch, isPending } = useReadPreviewerExactly({
-    address: previewerAddress,
-    args: account ? [account] : undefined,
-    query: { enabled: !!account },
-  });
+  const { refetch, isPending } = useMarkets();
   return (
     <SafeView fullScreen tab backgroundColor="$backgroundSoft">
       <View fullScreen backgroundColor="$backgroundMild">
