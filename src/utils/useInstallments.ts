@@ -13,20 +13,18 @@ export default function useInstallments({
   totalAmount,
   installments,
   marketAddress = marketUSDCAddress,
-  timestamp = Math.floor(Date.now() / 1000),
 }: {
   installments: number;
   marketAddress?: Hex;
-  timestamp?: number;
   totalAmount: bigint;
 }) {
-  const { market } = useAsset(marketAddress);
+  const { market, timestamp } = useAsset(marketAddress);
+  const now = Number(timestamp);
 
   return useMemo(() => {
     const isLoading = !market;
-    const nextMaturity = timestamp - (timestamp % MATURITY_INTERVAL) + MATURITY_INTERVAL;
-    const firstMaturity =
-      nextMaturity - timestamp < MIN_BORROW_INTERVAL ? nextMaturity + MATURITY_INTERVAL : nextMaturity;
+    const nextMaturity = now - (now % MATURITY_INTERVAL) + MATURITY_INTERVAL;
+    const firstMaturity = nextMaturity - now < MIN_BORROW_INTERVAL ? nextMaturity + MATURITY_INTERVAL : nextMaturity;
     let data: ReturnType<typeof splitInstallments> | undefined;
 
     try {
@@ -49,7 +47,7 @@ export default function useInstallments({
             market.floatingBackupBorrowed,
           ),
           market.interestRateModel.parameters,
-          timestamp,
+          now,
         );
       }
     } catch (error) {
@@ -59,8 +57,7 @@ export default function useInstallments({
     return {
       data,
       firstMaturity,
-      timestamp,
       isFetching: isLoading || (installments > 1 && !data && totalAmount > 0n),
     };
-  }, [market, timestamp, installments, totalAmount]);
+  }, [market, now, installments, totalAmount]);
 }

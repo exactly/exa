@@ -17,10 +17,10 @@ import reportError from "./reportError";
 import useAsset from "./useAsset";
 
 export default function useInstallmentRates(amount = 100_000_000n) {
-  const { market } = useAsset(marketUSDCAddress);
+  const { market, timestamp } = useAsset(marketUSDCAddress);
   return useMemo(() => {
     if (!market) return;
-    const now = Math.floor(Date.now() / 1000);
+    const now = Number(timestamp);
     const nextMaturity = now - (now % MATURITY_INTERVAL) + MATURITY_INTERVAL;
     const firstMaturity = nextMaturity - now < MIN_BORROW_INTERVAL ? nextMaturity + MATURITY_INTERVAL : nextMaturity;
     if (amount <= 0n) {
@@ -93,5 +93,5 @@ export default function useInstallmentRates(amount = 100_000_000n) {
     } catch (error) {
       reportError(error);
     }
-  }, [market, amount]);
+  }, [market, timestamp, amount]);
 }

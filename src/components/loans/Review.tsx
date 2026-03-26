@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 
@@ -66,7 +66,7 @@ export default function Review() {
     market: zeroAddress,
     receiver: "",
   };
-  const { market: assetMarket, isFetching: isAssetPending } = useAsset(market);
+  const { market: assetMarket, timestamp, isFetching: isAssetPending } = useAsset(market);
 
   const symbol = assetMarket?.symbol.slice(3) === "WETH" ? "ETH" : assetMarket?.symbol.slice(3);
   const singleInstallment = count === 1;
@@ -84,7 +84,6 @@ export default function Review() {
     totalAmount: amount ?? 0n,
     installments: count ?? 0,
     marketAddress: market,
-    timestamp: Number(maturity),
   });
 
   const installmentsAmount = singleInstallment
@@ -157,11 +156,18 @@ export default function Review() {
     onError: reportError,
   });
 
-  const timestamp = Math.floor(Date.now() / 1000);
+  const maturityLabel = useMemo(
+    () =>
+      new Date(Number(maturity) * 1000).toLocaleDateString(language, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      }),
+    [maturity, language],
+  );
   const rate = borrow
     ? Number(
-        ((borrow.assets - (amount ?? 0n)) * WAD * 31_536_000n) /
-          ((amount ?? 0n) * (borrow.maturity - BigInt(timestamp))),
+        ((borrow.assets - (amount ?? 0n)) * WAD * 31_536_000n) / ((amount ?? 0n) * (borrow.maturity - timestamp)),
       ) / 1e18
     : split
       ? Number(split.effectiveRate) / 1e18
@@ -318,11 +324,7 @@ export default function Review() {
                   {singleInstallment ? t("Installment due") : t("First installment due")}
                 </Text>
                 <Text headline color="$uiNeutralPrimary">
-                  {new Date(Number(maturity) * 1000).toLocaleDateString(language, {
-                    year: "numeric",
-                    month: "short",
-                    day: "numeric",
-                  })}
+                  {maturityLabel}
                 </Text>
               </XStack>
               {!singleInstallment && (

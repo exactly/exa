@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 
@@ -6,7 +6,6 @@ import { Check, X } from "@tamagui/lucide-icons";
 import { Square, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
-import { isAfter } from "date-fns";
 
 import accountInit from "@exactly/common/accountInit";
 import { exaPluginAddress, marketUSDCAddress } from "@exactly/common/generated/chain";
@@ -27,6 +26,7 @@ export default function Success({
   repayAssets,
   currency,
   maturity,
+  timestamp,
   selectedAsset,
   onClose,
 }: {
@@ -36,6 +36,7 @@ export default function Success({
   onClose: () => void;
   repayAssets: bigint;
   selectedAsset?: Hex;
+  timestamp: bigint;
 }) {
   const {
     t,
@@ -77,16 +78,18 @@ export default function Success({
                     emphasized
                     primary
                     body
-                    color={
-                      isAfter(new Date(Number(maturity) * 1000), new Date()) ? "$uiNeutralPrimary" : "$uiErrorSecondary"
-                    }
+                    color={maturity <= timestamp ? "$uiErrorSecondary" : "$uiNeutralPrimary"}
                   >
                     {t("Due {{date}}", {
-                      date: new Date(Number(maturity) * 1000).toLocaleDateString(language, {
-                        year: "numeric",
-                        month: "short",
-                        day: "numeric",
-                      }),
+                      date: useMemo(
+                        () =>
+                          new Date(Number(maturity) * 1000).toLocaleDateString(language, {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                          }),
+                        [maturity, language],
+                      ),
                     })}
                   </Text>
                 </Text>

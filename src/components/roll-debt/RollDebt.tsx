@@ -1,4 +1,4 @@
-import React, { useCallback } from "react";
+import React, { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -39,15 +39,29 @@ export default function Pay() {
   const { address } = useAccount();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { market: exaUSDC } = useAsset(marketUSDCAddress);
+  const { market: exaUSDC, timestamp } = useAsset(marketUSDCAddress);
   const { success, output: repayMaturity } = safeParse(
     pipe(string(), nonEmpty("no maturity")),
     useLocalSearchParams().maturity,
   );
 
-  const timestamp = Math.floor(Date.now() / 1000);
-  const nextMaturity = timestamp - (timestamp % MATURITY_INTERVAL) + MATURITY_INTERVAL;
-  const borrowMaturity = Number(repayMaturity) < timestamp ? nextMaturity : Number(repayMaturity) + MATURITY_INTERVAL;
+  const now = Number(timestamp);
+  const nextMaturity = now - (now % MATURITY_INTERVAL) + MATURITY_INTERVAL;
+  const borrowMaturity = Number(repayMaturity) < now ? nextMaturity : Number(repayMaturity) + MATURITY_INTERVAL;
+  const repayLabel = useMemo(
+    () =>
+      new Date(Number(repayMaturity) * 1000).toLocaleDateString(language, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      }),
+    [repayMaturity, language],
+  );
+  const borrowLabel = useMemo(
+    () =>
+      new Date(borrowMaturity * 1000).toLocaleDateString(language, { year: "numeric", month: "short", day: "numeric" }),
+    [borrowMaturity, language],
+  );
   const borrow = exaUSDC?.fixedBorrowPositions.find((b) => b.maturity === BigInt(success ? repayMaturity : 0));
   const rolloverMaturityBorrow = exaUSDC?.fixedBorrowPositions.find((b) => b.maturity === BigInt(borrowMaturity));
 
@@ -99,13 +113,7 @@ export default function Pay() {
                     {t("Debt to rollover")}
                   </Text>
                   <Text secondary footnote textAlign="left">
-                    {t("due {{date}}", {
-                      date: new Date(Number(repayMaturity) * 1000).toLocaleDateString(language, {
-                        year: "numeric",
-                        month: "short",
-                        day: "numeric",
-                      }),
-                    })}
+                    {t("due {{date}}", { date: repayLabel })}
                   </Text>
                 </YStack>
                 <Text primary title3 textAlign="right">
@@ -127,7 +135,7 @@ export default function Pay() {
                         rate: (
                           Number(
                             ((borrowPreview.assets - borrow.previewValue) * WAD * 31_536_000n) /
-                              (borrow.previewValue * (borrowPreview.maturity - BigInt(timestamp))),
+                              (borrow.previewValue * (borrowPreview.maturity - timestamp)),
                           ) /
                           1e18 /
                           100
@@ -156,13 +164,7 @@ export default function Pay() {
                     {t("Current debt")}
                   </Text>
                   <Text secondary footnote textAlign="left">
-                    {t("due {{date}}", {
-                      date: new Date(borrowMaturity * 1000).toLocaleDateString(language, {
-                        year: "numeric",
-                        month: "short",
-                        day: "numeric",
-                      }),
-                    })}
+                    {t("due {{date}}", { date: borrowLabel })}
                   </Text>
                 </YStack>
                 <Text primary title3 textAlign="right">
@@ -180,11 +182,7 @@ export default function Pay() {
                     {t("Total after rollover")}
                   </Text>
                   <Text secondary footnote textAlign="left">
-                    {new Date(borrowMaturity * 1000).toLocaleDateString(language, {
-                      year: "numeric",
-                      month: "short",
-                      day: "numeric",
-                    })}
+                    {borrowLabel}
                   </Text>
                 </YStack>
                 <Text title color="$uiBrandSecondary" textAlign="right">

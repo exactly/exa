@@ -6,7 +6,7 @@ import { selectionAsync } from "expo-haptics";
 import { ChevronRight } from "@tamagui/lucide-icons";
 import { Separator, XStack, YStack } from "tamagui";
 
-import { isToday, isTomorrow } from "date-fns";
+import { addDays, isSameDay } from "date-fns";
 import { useBytecode } from "wagmi";
 
 import { marketUSDCAddress } from "@exactly/common/generated/chain";
@@ -50,6 +50,7 @@ export default function UpcomingPayments({
       totalPosition: (existing?.totalPosition ?? 0n) + positionAmount,
     });
   }
+  const blockDate = new Date(Number(timestamp) * 1000);
   const payments = [...dueMaturities].map(
     ([maturity, { totalPreview, totalPosition }]) =>
       [
@@ -92,9 +93,9 @@ export default function UpcomingPayments({
         {payments.map(([maturity, { amount, discount }], index) => {
           const processing = isProcessing(maturity);
           const maturityDate = new Date(Number(maturity) * 1000);
-          const formattedDate = isToday(maturityDate)
+          const formattedDate = isSameDay(maturityDate, blockDate)
             ? t("Due today")
-            : isTomorrow(maturityDate)
+            : isSameDay(maturityDate, addDays(blockDate, 1))
               ? t("Due tomorrow")
               : maturityDate.toLocaleDateString(language, { year: "2-digit", month: "short", day: "numeric" });
           const formattedAmount = `$${(Number(amount) / 10 ** (exaUSDC?.decimals ?? 6)).toLocaleString(language, {

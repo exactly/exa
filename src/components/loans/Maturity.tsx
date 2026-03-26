@@ -17,6 +17,7 @@ import { presentArticle } from "../../utils/intercom";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
+import useMarkets from "../../utils/useMarkets";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
@@ -32,8 +33,9 @@ export default function Maturity() {
   } = useTranslation();
   const { address } = useAccount();
   const { data: loan } = useQuery<Loan>({ queryKey: ["loan"], enabled: !!address });
-  const timestamp = Math.floor(Date.now() / 1000);
-  const firstMaturity = timestamp - (timestamp % MATURITY_INTERVAL) + MATURITY_INTERVAL;
+  const { timestamp } = useMarkets();
+  const now = Number(timestamp);
+  const firstMaturity = now - (now % MATURITY_INTERVAL) + MATURITY_INTERVAL;
 
   const disabled = !loan?.maturity;
 

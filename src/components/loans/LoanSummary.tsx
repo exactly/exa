@@ -7,7 +7,7 @@ import { useBytecode } from "wagmi";
 
 import { previewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerPreviewBorrowAtMaturity } from "@exactly/common/generated/hooks";
-import { MATURITY_INTERVAL, WAD } from "@exactly/lib";
+import { WAD } from "@exactly/lib";
 
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
@@ -25,20 +25,21 @@ export default function LoanSummary({ loan }: { loan: Loan }) {
   } = useTranslation();
   const { address } = useAccount();
   const { data: bytecode } = useBytecode({ address: previewerAddress, query: { enabled: !!address } });
-  const { market, isFetching: isMarketFetching } = useAsset(loan.market);
+  const { market, timestamp, isFetching: isMarketFetching } = useAsset(loan.market);
   const symbol = market?.symbol.slice(3) === "WETH" ? "ETH" : market?.symbol.slice(3);
   const isBorrow = loan.installments === 1;
-  const timestamp = useMemo(() => Math.floor(Date.now() / 1000), []);
-  const defaultMaturity = timestamp - (timestamp % MATURITY_INTERVAL) + MATURITY_INTERVAL;
-  const { data: installments, isFetching: isInstallmentsPending } = useInstallments({
-    timestamp: loan.maturity ? Number(loan.maturity) : defaultMaturity,
+  const {
+    data: installments,
+    firstMaturity,
+    isFetching: isInstallmentsPending,
+  } = useInstallments({
     totalAmount: loan.amount ?? 0n,
     installments: loan.installments ?? 1,
     marketAddress: market?.market,
   });
   const { data: borrow, isLoading: isBorrowPending } = useReadPreviewerPreviewBorrowAtMaturity({
     address: previewerAddress,
-    args: loan.market && loan.amount ? [loan.market, loan.maturity ?? BigInt(defaultMaturity), loan.amount] : undefined,
+    args: loan.market && loan.amount ? [loan.market, loan.maturity ?? BigInt(firstMaturity), loan.amount] : undefined,
     query: {
       enabled: isBorrow && !!loan.amount && !!loan.market && !!address && !!bytecode,
     },
@@ -48,10 +49,9 @@ export default function LoanSummary({ loan }: { loan: Loan }) {
     const value =
       !isBorrow && installments
         ? Number(installments.effectiveRate) / 1e18
-        : borrow && loan.amount && loan.amount > 0n && borrow.maturity > BigInt(timestamp)
+        : borrow && loan.amount && loan.amount > 0n && borrow.maturity > timestamp
           ? Number(
-              ((borrow.assets - loan.amount) * WAD * 31_536_000n) /
-                (loan.amount * (borrow.maturity - BigInt(timestamp))),
+              ((borrow.assets - loan.amount) * WAD * 31_536_000n) / (loan.amount * (borrow.maturity - timestamp)),
             ) / 1e18
           : null;
     return (

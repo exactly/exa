@@ -67,7 +67,7 @@ export default function Repay() {
   const { address: account } = useAccount();
   const router = useRouter();
   const { assets } = usePortfolio({ sortBy: "usdcFirst" });
-  const { market: exaUSDC } = useAsset(marketUSDCAddress);
+  const { market: exaUSDC, timestamp } = useAsset(marketUSDCAddress);
   const [enableSimulations, setEnableSimulations] = useState(true);
   const [assetSelectionOpen, setAssetSelectionOpen] = useState(false);
   const [denyExchanges, addDeniedExchange] = useReducer(
@@ -141,8 +141,7 @@ export default function Repay() {
   const { data: proposalDelay, isLoading: isProposalDelayLoading } = useReadProposalManagerDelay({
     address: proposalManagerAddress,
   });
-  const simulationTimestamp =
-    proposalDelay === undefined ? undefined : Math.floor(Date.now() / 1000) + Number(proposalDelay);
+  const simulationTimestamp = proposalDelay === undefined ? undefined : Number(timestamp) + Number(proposalDelay);
 
   const borrow = exaUSDC?.fixedBorrowPositions.find((b) => b.maturity === maturity);
   const previewValueUSD =
@@ -515,13 +514,17 @@ export default function Repay() {
 
   const symbol =
     repayMarket?.symbol.slice(3) === "WETH" ? "ETH" : (repayMarket?.symbol.slice(3) ?? externalAsset?.symbol);
-  const dueDateFormatted = maturity
-    ? new Date(Number(maturity) * 1000).toLocaleDateString(language, {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      })
-    : "";
+  const dueDateFormatted = useMemo(
+    () =>
+      maturity
+        ? new Date(Number(maturity) * 1000).toLocaleDateString(language, {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+          })
+        : "",
+    [maturity, language],
+  );
 
   const handleButtonText = () => {
     if (repayAssets === 0n) return t("Enter amount");
@@ -820,6 +823,7 @@ export default function Repay() {
     return (
       <Pending
         maturity={maturity}
+        timestamp={timestamp}
         amount={displayValues.amount}
         repayAssets={repayAssets}
         currency={symbol}
@@ -837,6 +841,7 @@ export default function Repay() {
     return (
       <Success
         maturity={maturity}
+        timestamp={timestamp}
         amount={displayValues.amount}
         repayAssets={repayAssets}
         currency={symbol}
@@ -850,6 +855,7 @@ export default function Repay() {
     return (
       <Failure
         maturity={maturity}
+        timestamp={timestamp}
         amount={displayValues.amount}
         repayAssets={repayAssets}
         currency={symbol}

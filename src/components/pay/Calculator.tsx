@@ -41,6 +41,17 @@ export default function Calculator() {
     }
     return minIndex !== undefined && (rates.installments[minIndex]?.rate ?? 0n) > 0n ? minIndex : undefined;
   }, [rates]);
+  const firstMaturityLabel = useMemo(
+    () =>
+      rates
+        ? new Date(rates.firstMaturity * 1000).toLocaleDateString(language, {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+          })
+        : undefined,
+    [rates, language],
+  );
 
   return (
     <SafeView fullScreen backgroundColor="$backgroundSoft" paddingBottom={0}>
@@ -207,11 +218,7 @@ export default function Calculator() {
             {rates && (
               <Text caption color="$uiNeutralSecondary">
                 {t("First due date: {{date}} - then every 28 days.", {
-                  date: new Date(rates.firstMaturity * 1000).toLocaleDateString(language, {
-                    year: "numeric",
-                    month: "short",
-                    day: "numeric",
-                  }),
+                  date: firstMaturityLabel,
                 })}
               </Text>
             )}

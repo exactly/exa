@@ -46,7 +46,7 @@ export default function PaymentSheet({ onRolloverIntro }: { onRolloverIntro?: (m
     query: { refetchOnMount: true, enabled: !!address && !!credential },
   });
   const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
-  const { market: USDCMarket } = useAsset(marketUSDCAddress);
+  const { market: USDCMarket, timestamp } = useAsset(marketUSDCAddress);
   const [infoOpen, setInfoOpen] = useState(false);
   const [open, setOpen] = useState(() => !!maturity);
   const [displayMaturity, setDisplayMaturity] = useState(maturity);
@@ -83,7 +83,7 @@ export default function PaymentSheet({ onRolloverIntro }: { onRolloverIntro?: (m
     const positionValue = ((position.position.principal + position.position.fee) * usdPrice) / 10n ** BigInt(decimals);
     const discount = Number(WAD - (previewValue * WAD) / positionValue) / 1e18;
     const dueDate = new Date(Number(displayMaturity) * 1000);
-    const now = new Date();
+    const now = new Date(Number(timestamp) * 1000);
     const isUpcoming = isAfter(dueDate, now);
     const timeDistance = formatDistanceStrict(isUpcoming ? now : dueDate, isUpcoming ? dueDate : now, {
       locale: dateFnsLocale,
@@ -92,7 +92,7 @@ export default function PaymentSheet({ onRolloverIntro }: { onRolloverIntro?: (m
       ? t("Due in {{time}}", { time: timeDistance })
       : t("{{time}} past due", { time: timeDistance });
     return { discount, dueDate, dueStatus, isUpcoming, positionValue, previewValue };
-  }, [displayMaturity, USDCMarket, dateFnsLocale, t]);
+  }, [displayMaturity, USDCMarket, timestamp, dateFnsLocale, t]);
 
   const close = useCallback(() => {
     setInfoOpen(false);
