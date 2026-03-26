@@ -2,7 +2,17 @@ import type { PluginConfigType as BuildPropertiesConfig } from "expo-build-prope
 import type withCamera from "expo-camera/plugin/build/withCamera";
 import type { FontProps } from "expo-font/plugin/build/withFonts";
 
-import { AndroidConfig, withAndroidManifest, withAppBuildGradle, type ConfigPlugin } from "expo/config-plugins";
+import {
+  AndroidConfig,
+  IOSConfig,
+  withAndroidManifest,
+  withAppBuildGradle,
+  withDangerousMod,
+  withXcodeProject,
+  type ConfigPlugin,
+} from "expo/config-plugins";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
 import { env } from "node:process";
 
 import metadata from "./package.json";
@@ -45,6 +55,7 @@ export default {
     associatedDomains: [`webcredentials:${env.APP_DOMAIN ?? "sandbox.exactly.app"}`],
     supportsTablet: false,
     buildNumber: String(versionCode),
+    entitlements: { "com.apple.developer.payment-pass-provisioning": true },
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
       NSCameraUsageDescription: "This app uses the camera to verify your identity.",
@@ -115,6 +126,54 @@ export default {
         largeIcons: ["src/assets/notifications_default_large.png"],
       } satisfies OneSignalPlugin.OneSignalPluginProps,
     ],
+    // @ts-expect-error inline plugin
+    ((config) => {
+      const withAndroid = withDangerousMod(config, [
+        "android",
+        (c) => {
+          const source = path.join(c.modRequest.projectRoot, "src/assets/mea_config");
+          const destination = path.join(c.modRequest.projectRoot, "android/app/src/main/assets/mea_config");
+          mkdirSync(path.dirname(destination), { recursive: true });
+          if (existsSync(source)) copyFileSync(source, destination);
+          return c;
+        },
+      ]);
+      return withXcodeProject(withAndroid, (c) => {
+        const source = path.join(c.modRequest.projectRoot, "src/assets/mea_config");
+        const destination = path.join(c.modRequest.projectRoot, "ios", c.modRequest.projectName ?? "", "mea_config");
+        if (existsSync(source)) {
+          copyFileSync(source, destination);
+          c.modResults = IOSConfig.XcodeUtils.addResourceFileToGroup({
+            filepath: `${c.modRequest.projectName ?? ""}/mea_config`,
+            groupName: c.modRequest.projectName ?? "",
+            project: c.modResults,
+            isBuildFile: true,
+          });
+        }
+        return c;
+      });
+    }) satisfies ConfigPlugin,
+    // @ts-expect-error inline plugin
+    ((config) =>
+      withDangerousMod(config, [
+        "android",
+        (c) => {
+          const buildGradle = path.join(c.modRequest.projectRoot, "android/build.gradle");
+          const meaRepo = `    maven {
+      url "https://nexus.ext.meawallet.com/repository/mpp-android-group/"
+      credentials {
+        username = "${env.MEAWALLET_ANDROID_USER}"
+        password = "${env.MEAWALLET_ANDROID_PASS}"
+      }
+    }`;
+          let contents = readFileSync(buildGradle, "utf8");
+          if (!contents.includes("nexus.ext.meawallet.com")) {
+            contents = contents.replace(/(allprojects[\s\S]*?repositories\s*\{)/, `$1\n${meaRepo}`);
+            writeFileSync(buildGradle, contents);
+          }
+          return c;
+        },
+      ])) satisfies ConfigPlugin,
     // @ts-expect-error inline plugin
     ((config) =>
       withAndroidManifest(

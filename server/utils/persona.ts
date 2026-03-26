@@ -73,7 +73,13 @@ export function createInquiry(
   fields?: Record<string, string>,
 ) {
   return request(CreateInquiryResponse, "/inquiries", {
-    data: { attributes: { "inquiry-template-id": templateId, "redirect-uri": `${redirectURI ?? appOrigin}/card`, ...fields && { fields } } },
+    data: {
+      attributes: {
+        "inquiry-template-id": templateId,
+        "redirect-uri": `${redirectURI ?? appOrigin}/card`,
+        ...(fields && { fields }),
+      },
+    },
     meta: { "auto-create-account": true, "auto-create-account-reference-id": referenceId },
   });
 }

@@ -19,7 +19,7 @@ export default defineConfig([
   ts.strictTypeChecked,
   ts.stylisticTypeChecked,
   importPlugin.recommended,
-  importPlugin.typescript,
+  { rules: importPlugin.typescript.rules },
   unicorn.configs.recommended,
   nx.configs["flat/base"],
   // @ts-expect-error bad config types
