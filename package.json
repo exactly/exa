@@ -44,6 +44,7 @@
     "@intercom/intercom-react-native": "^9.8.0",
     "@intercom/messenger-js-sdk": "^0.0.18",
     "@lifi/sdk": "3.7.7",
+    "@meawallet/react-native-mpp": "^2.2.2",
     "@peculiar/asn1-ecc": "^2.6.1",
     "@peculiar/asn1-schema": "^2.6.0",
     "@peculiar/webcrypto": "^1.5.0",
@@ -198,6 +199,7 @@
       "solidity-coverage": "npm:@favware/skip-dependency@1.2.2"
     },
     "patchedDependencies": {
+      "@meawallet/react-native-mpp": "patches/@meawallet__react-native-mpp.patch",
       "@lifi/sdk": "patches/@lifi__sdk.patch",
       "embedded-postgres": "patches/embedded-postgres.patch",
       "eslint-config-universe": "patches/eslint-config-universe.patch"
