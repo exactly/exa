@@ -553,6 +553,7 @@ The onchain receipt will be present only if a onchain transaction is necessary.
 | body.spend.authorizedAmount | integer | The authorized amount | 100 |
 | body.spend.status | "pending" \| "declined" | Can be pending or declined. In case of declined, the field `declinedReason` has the reason | pending |
 | body.spend.declinedReason? | string | Decline message | webhook declined |
+| body.spend.exchangeRate? | number | Present when `currency` differs from `localCurrency`. The exchange rate applied to the transaction | 1.1806900825 |
 
 ### Transaction updated event
 
@@ -620,6 +621,7 @@ if an onchain transaction is necessary.
 | body.spend.enrichedMerchantIcon? | string | url of the enriched merchant icon | <https://storage.googleapis.com/heron-merchant-assets/icons/mrc_BqxmeYFvJmCprexvXUDF7h.png> |
 | body.spend.enrichedMerchantName? | string | name of the enriched merchant | Jockey |
 | body.spend.enrichedMerchantCategory? | string | category of the enriched merchant | Shopping |
+| body.spend.exchangeRate? | number | Present when `currency` differs from `localCurrency`. The exchange rate applied to the transaction | 1.1806900825 |
 
 ### User updated
 
