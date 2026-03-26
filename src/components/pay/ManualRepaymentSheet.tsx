@@ -30,7 +30,6 @@ export default function ManualRepaymentSheet({
     <ModalSheet key={open ? "open" : "closed"} open={open} onClose={onClose} disableDrag>
       <SafeView
         paddingTop={0}
-        $platform-web={{ paddingBottom: "$s4" }}
         fullScreen
         borderTopLeftRadius="$r4"
         borderTopRightRadius="$r4"
@@ -38,7 +37,7 @@ export default function ManualRepaymentSheet({
       >
         <ScrollView $platform-web={{ maxHeight: "100vh" }}>
           <View fullScreen flex={1}>
-            <YStack flex={1} paddingHorizontal="$s5" paddingTop="$s7" gap="$s4">
+            <YStack flex={1} paddingHorizontal="$s5" paddingVertical="$s5" gap="$s4">
               <YStack flex={1} gap="$s5">
                 <Text emphasized headline>
                   {t("How installment repayment works")}
