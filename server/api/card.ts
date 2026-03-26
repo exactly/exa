@@ -47,6 +47,7 @@ import {
   getCard,
   getNonce,
   getPIN,
+  getProcessorDetails,
   getSecrets,
   getUser,
   setPIN,
@@ -92,6 +93,12 @@ const CardResponse = object({
   }),
   productId: pipe(string(), metadata({ examples: ["402"] })),
   challenge: optional(pipe(string(), metadata({ examples: ["1a2b3c"] }))),
+  provisioning: optional(
+    object({
+      id: pipe(string(), metadata({ examples: ["card_abc123"] })),
+      secret: pipe(string(), metadata({ examples: ["otp_xyz"] })),
+    }),
+  ),
 });
 
 const CreatedCardResponse = object({
@@ -145,7 +152,7 @@ const UpdatedCardResponse = union([
   object({ verification: literal("OK") }),
 ]);
 
-const Scopes = picklist(["siwe", "webauthn"]);
+const Scopes = picklist(["provisioning", "siwe", "webauthn"]);
 
 export default new Hono()
   .get(
@@ -182,6 +189,8 @@ Retrieve the card profile, encrypted card data, and (optionally) a signature cha
 The \`sessionid\` header and the \`scope\` query parameter are independent and may be used together or separately:
 - Provide \`sessionid\` to receive \`encryptedPan\`, \`encryptedCvc\`, and \`pin\`. Without it, only the card profile is returned.
 - Provide \`scope=siwe\` or \`scope=webauthn\` to receive a \`challenge\` to be signed and submitted via \`PATCH /\`. \`siwe\` and \`webauthn\` are mutually exclusive within a single request.
+
+Successful responses include push-provisioning credentials in the \`provisioning\` field only when the \`scope=provisioning\` query parameter is sent.
 
 **Retrieving encrypted card details**
 1. **Generate a session ID**: Encrypt a 32‑character hexadecimal secret (no spaces/dashes) with the provided public RSA key using RSA‑OAEP.
@@ -296,57 +305,65 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
       if (credential.cards.length > 0 && credential.cards[0]) {
         const { id, lastFour, status, mode, productId } = credential.cards[0];
         if (status === "DELETED") throw new Error("card deleted");
-        const [{ expirationMonth, expirationYear, limit }, pan, user, pin, challenge] = await Promise.all([
-          getCard(id),
-          sessionid && getSecrets(id, sessionid),
-          getUser(credential.pandaId).catch((error: unknown) => {
-            const issue = noUser(error);
-            if (!issue) throw error;
-            const shouldCapture = issue.error.status === 404 || status === "ACTIVE";
-            if (shouldCapture) {
-              withScope((s) => {
-                s.addEventProcessor((event) => {
-                  if (event.exception?.values?.[0]) event.exception.values[0].type = issue.type;
-                  return event;
+        const [{ expirationMonth, expirationYear, limit }, pan, user, pin, challenge, provisioning] = await Promise.all(
+          [
+            getCard(id),
+            sessionid && getSecrets(id, sessionid),
+            getUser(credential.pandaId).catch((error: unknown) => {
+              const issue = noUser(error);
+              if (!issue) throw error;
+              const shouldCapture = issue.error.status === 404 || status === "ACTIVE";
+              if (shouldCapture) {
+                withScope((s) => {
+                  s.addEventProcessor((event) => {
+                    if (event.exception?.values?.[0]) event.exception.values[0].type = issue.type;
+                    return event;
+                  });
+                  captureException(issue.error, {
+                    level: "warning",
+                    fingerprint: ["{{ default }}", issue.type],
+                    extra: {
+                      cardId: id,
+                      credentialId,
+                      pandaId: credential.pandaId,
+                      status,
+                      shouldCapture,
+                      userIssue: issue.type,
+                    },
+                  });
                 });
-                captureException(issue.error, {
-                  level: "warning",
-                  fingerprint: ["{{ default }}", issue.type],
-                  extra: {
-                    cardId: id,
-                    credentialId,
-                    pandaId: credential.pandaId,
-                    status,
-                    shouldCapture,
-                    userIssue: issue.type,
-                  },
-                });
-              });
-            }
-            return null;
-          }),
-          sessionid && getPIN(id, sessionid),
-          (async () => {
-            if (include("siwe")) {
-              if (!credential.pandaId) return;
-              return getNonce(credential.pandaId).then(({ nonce }) =>
-                createSiweMessage({
-                  domain,
-                  address: parse(Address, credentialId),
-                  statement: `I authorize the account ${account} to be linked with the card ending in ${lastFour} for my user (${credential.pandaId})`,
-                  uri: `https://${domain}`,
-                  version: "1",
-                  chainId: chain.id,
-                  nonce,
-                }),
-              );
-            } else if (include("webauthn")) {
-              return `I authorize the account ${account} to be linked with the card ending in ${lastFour} for my user (${credential.pandaId})`;
-            }
-          })(),
-        ]);
+              }
+              return null;
+            }),
+            sessionid && getPIN(id, sessionid),
+            (async () => {
+              if (include("siwe")) {
+                if (!credential.pandaId) return;
+                return getNonce(credential.pandaId).then(({ nonce }) =>
+                  createSiweMessage({
+                    domain,
+                    address: parse(Address, credentialId),
+                    statement: `I authorize the account ${account} to be linked with the card ending in ${lastFour} for my user (${credential.pandaId})`,
+                    uri: `https://${domain}`,
+                    version: "1",
+                    chainId: chain.id,
+                    nonce,
+                  }),
+                );
+              } else if (include("webauthn")) {
+                return `I authorize the account ${account} to be linked with the card ending in ${lastFour} for my user (${credential.pandaId})`;
+              }
+            })(),
+            include("provisioning")
+              ? getProcessorDetails(id).then(({ processorCardId, timeBasedSecret }) => ({
+                  id: processorCardId,
+                  secret: timeBasedSecret,
+                }))
+              : undefined,
+          ],
+        );
         if (!user) return c.json({ code: "no panda" }, 403);
-        if (include("siwe") || include("webauthn")) c.header("Cache-Control", "no-store");
+        if (include("siwe") || include("webauthn") || include("provisioning")) c.header("Cache-Control", "no-store");
 
         return c.json(
           {
@@ -362,6 +379,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
             limit,
             productId,
             ...(challenge && { challenge }),
+            ...(provisioning && { provisioning }),
           } satisfies InferOutput<typeof CardResponse>,
           200,
         );
