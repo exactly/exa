@@ -2,7 +2,17 @@ import type { PluginConfigType as BuildPropertiesConfig } from "expo-build-prope
 import type withCamera from "expo-camera/plugin/build/withCamera";
 import type { FontProps } from "expo-font/plugin/build/withFonts";
 
-import { AndroidConfig, withAndroidManifest, withAppBuildGradle, type ConfigPlugin } from "expo/config-plugins";
+import {
+  AndroidConfig,
+  withAndroidManifest,
+  withAppBuildGradle,
+  withDangerousMod,
+  withSettingsGradle,
+  withXcodeProject,
+  type ConfigPlugin,
+} from "expo/config-plugins";
+import { copyFileSync, existsSync, mkdirSync } from "node:fs";
+import path from "node:path";
 import { env } from "node:process";
 
 import metadata from "./package.json";
@@ -45,6 +55,7 @@ export default {
     associatedDomains: [`webcredentials:${env.APP_DOMAIN ?? "sandbox.exactly.app"}`],
     supportsTablet: false,
     buildNumber: String(versionCode),
+    entitlements: { "com.apple.developer.payment-pass-provisioning": true },
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
       NSCameraUsageDescription: "This app uses the camera to verify your identity.",
@@ -67,7 +78,9 @@ export default {
           packagingOptions: { pickFirst: ["**/libcrypto.so"] },
           extraMavenRepos: ["https://sdk.withpersona.com/android/releases"],
           usesCleartextTraffic: env.APP_DOMAIN === "localhost",
+          newArchEnabled: false,
         },
+        ios: { newArchEnabled: false },
       } satisfies BuildPropertiesConfig,
     ],
     [
@@ -115,6 +128,49 @@ export default {
         largeIcons: ["src/assets/notifications_default_large.png"],
       } satisfies OneSignalPlugin.OneSignalPluginProps,
     ],
+    // @ts-expect-error inline plugin
+    ((config) => {
+      const withAndroid = withDangerousMod(config, [
+        "android",
+        (c) => {
+          const source = path.join(c.modRequest.projectRoot, "src/assets/mea_config");
+          const destination = path.join(c.modRequest.projectRoot, "android/app/src/main/assets/mea_config");
+          mkdirSync(path.dirname(destination), { recursive: true });
+          if (existsSync(source)) copyFileSync(source, destination);
+          return c;
+        },
+      ]);
+      return withXcodeProject(withAndroid, (c) => {
+        const source = path.join(c.modRequest.projectRoot, "src/assets/mea_config");
+        const destination = path.join(c.modRequest.projectRoot, "ios", c.modRequest.projectName ?? "", "mea_config");
+        if (existsSync(source)) copyFileSync(source, destination);
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+        c.modResults.addResourceFile(
+          "mea_config",
+          { target: c.modResults.getFirstTarget().uuid }, // eslint-disable-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+          c.modRequest.projectName ?? "",
+        );
+        return c;
+      });
+    }) satisfies ConfigPlugin,
+    // @ts-expect-error inline plugin
+    ((config) =>
+      withSettingsGradle(config, (c) => {
+        const meaRepo = `maven {
+  url "https://nexus.ext.meawallet.com/repository/mpp-android-group/"
+  credentials {
+    username = "${env.MEAWALLET_ANDROID_USER}"
+    password = "${env.MEAWALLET_ANDROID_PASS}"
+  }
+}`;
+        if (!c.modResults.contents.includes("nexus.ext.meawallet.com")) {
+          c.modResults.contents = c.modResults.contents.replace(
+            /dependencyResolutionManagement\s*\{[^}]*repositories\s*\{/,
+            `$&\n        ${meaRepo}`,
+          );
+        }
+        return c;
+      })) satisfies ConfigPlugin,
     // @ts-expect-error inline plugin
     ((config) =>
       withAndroidManifest(

@@ -100,6 +100,16 @@ async function getCard() {
 queryClient.setQueryDefaults(["card", "details"], { queryFn: getCard });
 export type CardDetails = Awaited<ReturnType<typeof getCard>>;
 
+export async function fetchWalletCredentials() {
+  await auth();
+  const response = await api.card.wallet.$get();
+  if (!response.ok) {
+    const { code } = await response.json();
+    throw new APIError(response.status, code);
+  }
+  return response.json();
+}
+
 async function getPIN() {
   const result = await getCard();
   if (!result) return null;
