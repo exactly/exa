@@ -102,6 +102,9 @@ patchedDependencies:
   '@lifi/sdk':
     hash: ee16233f297d9a6c8a8320b5dc2b4bf47b7be8b481d79e3d54108cd77775b45b
     path: patches/@lifi__sdk.patch
+  '@meawallet/react-native-mpp':
+    hash: 1865bf0eddf3da8572a839f14e03cf34cf4753191421a4bc8704f22c8cdaa33b
+    path: patches/@meawallet__react-native-mpp.patch
   embedded-postgres:
     hash: cb5e37525b1810f2af136570b38d5e0cec4cc2455408896ed1943d27f3f61b38
     path: patches/embedded-postgres.patch
@@ -152,6 +155,9 @@ importers:
       '@lifi/sdk':
         specifier: 3.7.7
         version: 3.7.7(patch_hash=ee16233f297d9a6c8a8320b5dc2b4bf47b7be8b481d79e3d54108cd77775b45b)(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(viem@2.47.6(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.6))(zod@4.3.6)
+      '@meawallet/react-native-mpp':
+        specifier: ^2.2.2
+        version: 2.3.0(patch_hash=1865bf0eddf3da8572a839f14e03cf34cf4753191421a4bc8704f22c8cdaa33b)(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)
       '@peculiar/asn1-ecc':
         specifier: ^2.6.1
         version: 2.6.1
@@ -3671,6 +3677,13 @@ packages:
 
   '@mdx-js/mdx@3.1.1':
     resolution: {integrity: sha512-f6ZO2ifpwAQIpzGWaBQT2TXxPv6z3RBzQKpVftEWN78Vl/YweF1uwussDx8ECAXVtr3Rs89fKyG9YlzUs9DyGQ==}
+
+  '@meawallet/react-native-mpp@2.3.0':
+    resolution: {integrity: sha512-KuWSjSprQReFQUpcfdl83aX3y9irLkoCRGY3X9AzIUYusFat3PZbNstiRvkeSZ5Cpa6LStzAts+SC+niVd9t8g==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      react: '*'
+      react-native: '*'
 
   '@mermaid-js/parser@1.1.1':
     resolution: {integrity: sha512-VuHdsYMK1bT6X2JbcAaWAhugTRvRBRyuZgd+c22swUeI9g/ntaxF7CY7dYarhZovofCbUNO0G7JesfmNtjYOCw==}
@@ -17176,6 +17189,11 @@ snapshots:
       vfile: 6.0.3
     transitivePeerDependencies:
       - supports-color
+
+  '@meawallet/react-native-mpp@2.3.0(patch_hash=1865bf0eddf3da8572a839f14e03cf34cf4753191421a4bc8704f22c8cdaa33b)(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)':
+    dependencies:
+      react: 19.2.0
+      react-native: 0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10)
 
   '@mermaid-js/parser@1.1.1':
     dependencies:
