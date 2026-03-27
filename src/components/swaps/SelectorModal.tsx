@@ -3,17 +3,17 @@ import { useTranslation } from "react-i18next";
 import { FlatList, Pressable } from "react-native";
 
 import { Search } from "@tamagui/lucide-icons";
-import { ButtonIcon, XStack, YStack } from "tamagui";
+import { XStack, YStack } from "tamagui";
 
 import { formatUnits } from "viem";
 
 import usePortfolio, { type PortfolioAsset } from "../../utils/usePortfolio";
 import AssetLogo from "../shared/AssetLogo";
-import Button from "../shared/Button";
 import Input from "../shared/Input";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
+import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
@@ -153,16 +153,10 @@ export default function TokenSelectModal({
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
-            <Button
-              outlined
-              borderColor="$uiNeutralTertiary"
-              borderTopLeftRadius={0}
-              borderBottomLeftRadius={0}
-              borderLeftWidth={0}
-            >
-              <ButtonIcon>
-                <Search size={24} color="$interactiveOnBaseBrandSoft" />
-              </ButtonIcon>
+            <Button secondary minHeight="auto" padding="$s3" borderTopLeftRadius={0} borderBottomLeftRadius={0}>
+              <Button.Icon>
+                <Search />
+              </Button.Icon>
             </Button>
           </View>
           <View flex={1}>

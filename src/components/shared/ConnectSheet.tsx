@@ -8,9 +8,9 @@ import { base } from "viem/chains";
 
 import chain from "@exactly/common/generated/chain";
 
-import Button from "./Button";
 import ModalSheet from "./ModalSheet";
 import SafeView from "./SafeView";
+import Button from "./StyledButton";
 import Text from "./Text";
 
 import type { AuthMethod } from "../../utils/queryClient";
@@ -60,32 +60,28 @@ export default function ConnectSheet({
             <YStack gap="$s4" alignItems="stretch">
               {chain.id === base.id ? null : (
                 <Button
+                  primary
                   onPress={() => {
                     onClose("webauthn");
                   }}
-                  contained
-                  main
-                  spaced
-                  halfWidth
-                  iconAfter={<Fingerprint size={20} color="$interactiveOnBaseBrandDefault" />}
                 >
-                  {webAuthnText}
+                  <Button.Text>{webAuthnText}</Button.Text>
+                  <Button.Icon>
+                    <Fingerprint />
+                  </Button.Icon>
                 </Button>
               )}
               {isOwnerAvailable ? (
                 <Button
+                  secondary
                   onPress={() => {
                     onClose("siwe");
                   }}
-                  main
-                  spaced
-                  halfWidth
-                  outlined
-                  backgroundColor="$interactiveBaseBrandSoftDefault"
-                  color="$interactiveOnBaseBrandSoft"
-                  iconAfter={<Wallet size={20} color="$interactiveOnBaseBrandSoft" />}
                 >
-                  {siweText}
+                  <Button.Text>{siweText}</Button.Text>
+                  <Button.Icon>
+                    <Wallet />
+                  </Button.Icon>
                 </Button>
               ) : null}
             </YStack>

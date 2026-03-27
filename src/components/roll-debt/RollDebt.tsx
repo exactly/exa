@@ -7,7 +7,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { ArrowLeft, ArrowRight } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
-import { ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
+import { ScrollView, Separator, XStack, YStack } from "tamagui";
 
 import { nonEmpty, pipe, safeParse, string } from "valibot";
 import { ContractFunctionExecutionError } from "viem";
@@ -28,8 +28,8 @@ import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useSimulateProposal from "../../utils/useSimulateProposal";
-import Button from "../shared/Button";
 import Skeleton from "../shared/Skeleton";
+import Button from "../shared/StyledButton";
 
 export default function Pay() {
   const {
@@ -306,24 +306,11 @@ function RolloverButton({
     !proposeSimulation ||
     hasProposed;
   return (
-    <Button
-      onPress={proposeRollDebt}
-      main
-      spaced
-      outlined
-      disabled={disabled}
-      backgroundColor={disabled ? "$interactiveDisabled" : "$interactiveBaseBrandSoftDefault"}
-      color={disabled ? "$interactiveOnDisabled" : "$interactiveOnBaseBrandSoft"}
-      iconAfter={
-        isProposeRollDebtPending ? (
-          <Spinner color="$interactiveOnDisabled" />
-        ) : (
-          <ArrowRight color={disabled ? "$interactiveOnDisabled" : "$interactiveOnBaseBrandSoft"} strokeWidth={2.5} />
-        )
-      }
-      flex={0}
-    >
-      {t("Confirm rollover")}
+    <Button secondary disabled={disabled} loading={isProposeRollDebtPending} onPress={proposeRollDebt}>
+      <Button.Text>{t("Confirm rollover")}</Button.Text>
+      <Button.Icon>
+        <ArrowRight />
+      </Button.Icon>
     </Button>
   );
 }

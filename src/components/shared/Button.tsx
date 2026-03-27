@@ -18,14 +18,6 @@ export default styled(Button, {
         pressStyle: { backgroundColor: "$interactiveBaseBrandPressed" },
       },
     },
-    outlined: {
-      true: {
-        backgroundColor: "$interactiveBaseBrandSoftDefault",
-        color: "$interactiveOnBaseBrandSoft",
-        hoverStyle: { backgroundColor: "$interactiveBaseBrandSoftHover" },
-        pressStyle: { backgroundColor: "$interactiveBaseBrandSoftPressed", color: "$interactiveOnBaseBrandSoft" },
-      },
-    },
     disabled: {
       true: { backgroundColor: "$interactiveDisabled", color: "$interactiveOnDisabled" },
     },

@@ -5,7 +5,7 @@ import { Pressable } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { ArrowLeft, ArrowRight, QrCode } from "@tamagui/lucide-icons";
-import { ButtonIcon, ScrollView, Separator, XStack, YStack } from "tamagui";
+import { ScrollView, Separator, XStack, YStack } from "tamagui";
 
 import { useForm } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
@@ -19,9 +19,9 @@ import RecentContacts from "./RecentContacts";
 import { presentArticle } from "../../utils/intercom";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
-import Button from "../shared/Button";
 import Input from "../shared/Input";
 import SafeView from "../shared/SafeView";
+import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
@@ -96,17 +96,21 @@ export default function ReceiverSelection() {
                       />
                       <Button
                         outlined
+                        secondary
                         borderColor="$uiNeutralTertiary"
+                        borderLeftWidth={0}
+                        minHeight="auto"
+                        padding="$s3"
+                        aria-label={t("Scan QR code")}
                         borderTopLeftRadius={0}
                         borderBottomLeftRadius={0}
-                        borderLeftWidth={0}
                         onPress={() => {
                           router.push("/send-funds/qr");
                         }}
                       >
-                        <ButtonIcon>
-                          <QrCode size={32} color="$interactiveOnBaseBrandSoft" />
-                        </ButtonIcon>
+                        <Button.Icon>
+                          <QrCode />
+                        </Button.Icon>
                       </Button>
                     </XStack>
                     {meta.errors.length > 0 ? (
@@ -168,18 +172,16 @@ export default function ReceiverSelection() {
               {(canSubmit) => {
                 return (
                   <Button
-                    contained
-                    main
-                    spaced
+                    primary
                     disabled={!canSubmit}
-                    iconAfter={
-                      <ArrowRight color={canSubmit ? "$interactiveOnBaseBrandDefault" : "$interactiveOnDisabled"} />
-                    }
                     onPress={() => {
                       form.handleSubmit().catch(reportError);
                     }}
                   >
-                    {t("Next")}
+                    <Button.Text>{t("Next")}</Button.Text>
+                    <Button.Icon>
+                      <ArrowRight />
+                    </Button.Icon>
                   </Button>
                 );
               }}

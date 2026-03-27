@@ -12,8 +12,8 @@ import queryClient, { type Loan } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useMarkets from "../../utils/useMarkets";
 import AssetLogo from "../shared/AssetLogo";
-import Button from "../shared/Button";
 import SafeView from "../shared/SafeView";
+import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
@@ -111,25 +111,17 @@ export default function Asset() {
           </YStack>
           <YStack>
             <Button
+              secondary
+              disabled={!selectedMarket}
               onPress={() => {
                 queryClient.setQueryData<Loan>(["loan"], (old) => ({ ...old, market: selectedMarket }));
                 router.push("/loan/amount");
               }}
-              main
-              spaced
-              outlined
-              disabled={!selectedMarket}
-              backgroundColor={selectedMarket ? "$interactiveBaseBrandSoftDefault" : "$interactiveDisabled"}
-              color={selectedMarket ? "$interactiveOnBaseBrandSoft" : "$interactiveOnDisabled"}
-              iconAfter={
-                <ArrowRight
-                  color={selectedMarket ? "$interactiveOnBaseBrandSoft" : "$interactiveOnDisabled"}
-                  strokeWidth={2.5}
-                />
-              }
-              flex={0}
             >
-              {t("Continue")}
+              <Button.Text>{t("Continue")}</Button.Text>
+              <Button.Icon>
+                <ArrowRight />
+              </Button.Icon>
             </Button>
           </YStack>
         </YStack>

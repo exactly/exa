@@ -6,8 +6,8 @@ import { useRouter } from "expo-router";
 import { X } from "@tamagui/lucide-icons";
 import { ScrollView, YStack } from "tamagui";
 
-import Button from "../shared/Button";
 import SafeView from "../shared/SafeView";
+import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
@@ -64,9 +64,7 @@ export default function PasskeysAbout() {
               </View>
             </ScrollView>
             <Button
-              outlined
-              main
-              spaced
+              secondary
               onPress={() => {
                 if (router.canGoBack()) {
                   router.back();
@@ -74,10 +72,11 @@ export default function PasskeysAbout() {
                   router.replace("/passkeys");
                 }
               }}
-              fontWeight="bold"
-              iconAfter={<X color="$interactiveOnBaseBrandSoft" />}
             >
-              {t("Close")}
+              <Button.Text>{t("Close")}</Button.Text>
+              <Button.Icon>
+                <X />
+              </Button.Icon>
             </Button>
           </View>
         </View>

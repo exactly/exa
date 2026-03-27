@@ -15,7 +15,7 @@ import { zeroAddress } from "viem";
 import { Address } from "@exactly/common/validation";
 
 import reportError from "../../utils/reportError";
-import Button from "../shared/Button";
+import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
@@ -72,12 +72,14 @@ export default function QR() {
                 )}
               </Text>
               <Button
+                primary
+                minHeight="auto"
                 alignSelf="center"
                 onPress={() => {
                   Linking.openSettings().catch(reportError);
                 }}
               >
-                {t("Go to Settings")}
+                <Button.Text>{t("Go to Settings")}</Button.Text>
               </Button>
             </YStack>
           </View>
@@ -117,6 +119,7 @@ export default function QR() {
               {t("Press 'Continue' to proceed or 'Back' to cancel.")}
             </Text>
             <Button
+              secondary
               alignSelf="center"
               onPress={() => {
                 requestPermission().catch((error: unknown) => {
@@ -124,9 +127,8 @@ export default function QR() {
                   router.replace("/send-funds");
                 });
               }}
-              outlined
             >
-              {t("Continue")}
+              <Button.Text>{t("Continue")}</Button.Text>
             </Button>
           </YStack>
         </View>
@@ -152,18 +154,21 @@ export default function QR() {
         <BoxSelect size={Math.min(width, height) * 0.5} color="white" />
       </View>
       <Button
+        primary
+        minHeight="auto"
+        padding="$s3"
         position="absolute"
         borderRadius="$r_0"
-        backgroundColor="$interactiveBaseBrandDefault"
         bottom={bottom}
         right="$s4"
-        padding="$s3"
         hitSlop={15}
         onPress={() => {
           setCameraFacing(cameraFacing === "back" ? "front" : "back");
         }}
       >
-        <SwitchCamera size={24} color="$interactiveOnBaseBrandDefault" />
+        <Button.Icon>
+          <SwitchCamera />
+        </Button.Icon>
       </Button>
       <View position="absolute" borderRadius="$r_0" backgroundColor="transparent" top={top} left="$s4" padding="$s3">
         <Pressable
