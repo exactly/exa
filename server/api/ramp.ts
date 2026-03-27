@@ -5,6 +5,7 @@ import { Hono } from "hono";
 import {
   array,
   literal,
+  number,
   object,
   optional,
   parse,
@@ -238,6 +239,12 @@ async function getOrCreateInquiry(credentialId: string, template: string) {
 
 type QuoteResponse = undefined | { buyRate: string; sellRate: string };
 
+const SponsoredFees = object({
+  count: object({ available: string(), threshold: string() }),
+  volume: object({ available: string(), threshold: string(), symbol: string() }),
+  window: number(),
+});
+
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const DepositDetails = variant("network", [
   object({
@@ -265,6 +272,7 @@ const DepositDetails = variant("network", [
     displayName: literal("PIX BR"),
     beneficiaryName: string(),
     fee: string(),
+    sponsoredFees: optional(SponsoredFees),
     estimatedProcessingTime: string(),
   }),
   object({
@@ -277,6 +285,7 @@ const DepositDetails = variant("network", [
     bankAddress: string(),
     beneficiaryAddress: string(),
     fee: string(),
+    sponsoredFees: optional(SponsoredFees),
     estimatedProcessingTime: string(),
   }),
   object({
@@ -289,6 +298,7 @@ const DepositDetails = variant("network", [
     bankName: string(),
     beneficiaryAddress: string(),
     fee: string(),
+    sponsoredFees: optional(SponsoredFees),
     estimatedProcessingTime: string(),
   }),
   object({
@@ -297,6 +307,7 @@ const DepositDetails = variant("network", [
     beneficiaryName: string(),
     iban: string(), // cspell:ignore iban
     fee: string(),
+    sponsoredFees: optional(SponsoredFees),
     estimatedProcessingTime: string(),
   }),
   object({
@@ -305,6 +316,7 @@ const DepositDetails = variant("network", [
     beneficiaryName: string(),
     clabe: string(), // cspell:ignore clabe
     fee: string(),
+    sponsoredFees: optional(SponsoredFees),
     estimatedProcessingTime: string(),
   }),
   object({
@@ -312,6 +324,7 @@ const DepositDetails = variant("network", [
     displayName: literal("TRON"),
     address: string(),
     fee: string(),
+    sponsoredFees: optional(SponsoredFees),
     estimatedProcessingTime: string(),
   }),
   object({
@@ -319,6 +332,7 @@ const DepositDetails = variant("network", [
     displayName: literal("SOLANA"),
     address: string(),
     fee: string(),
+    sponsoredFees: optional(SponsoredFees),
     estimatedProcessingTime: string(),
   }),
   object({
@@ -326,6 +340,7 @@ const DepositDetails = variant("network", [
     displayName: literal("STELLAR"),
     address: string(),
     fee: string(),
+    sponsoredFees: optional(SponsoredFees),
     estimatedProcessingTime: string(),
   }),
   object({
@@ -337,6 +352,7 @@ const DepositDetails = variant("network", [
     bankName: string(),
     bankAddress: string(),
     fee: string(),
+    sponsoredFees: optional(SponsoredFees),
     estimatedProcessingTime: string(),
   }),
 ]);

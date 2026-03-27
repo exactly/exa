@@ -7,7 +7,7 @@ import { HTTPException } from "hono/http-exception";
 import { testClient } from "hono/testing";
 import { hexToBytes, padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
-import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 
@@ -16,6 +16,7 @@ import database, { credentials } from "../../database";
 import * as persona from "../../utils/persona";
 import * as bridge from "../../utils/ramps/bridge";
 import * as manteca from "../../utils/ramps/manteca";
+import { close as closeRedis } from "../../utils/redis";
 
 const appClient = testClient(app);
 
@@ -36,6 +37,11 @@ describe("ramp api", () => {
         bridgeId: "bridge-customer-123",
       },
     ]);
+  });
+
+  afterAll(async () => {
+    await bridge.feeRule.stop();
+    await closeRedis();
   });
 
   afterEach(() => {
@@ -265,7 +271,7 @@ describe("ramp api", () => {
             bankAddress: "123 Test St",
             beneficiaryAddress: "456 Beneficiary Ave",
             bankName: "Test Bank",
-            fee: "0.0",
+            ...defaultSponsoredFees(),
             estimatedProcessingTime: "1 - 3 business days",
           },
           {
@@ -277,8 +283,356 @@ describe("ramp api", () => {
             bankAddress: "123 Test St",
             beneficiaryAddress: "456 Beneficiary Ave",
             bankName: "Test Bank",
-            fee: "0.0",
+            ...defaultSponsoredFees(),
             estimatedProcessingTime: "300",
+          },
+        ]);
+        vi.spyOn(bridge, "getQuote").mockResolvedValue({ buyRate: "1.00", sellRate: "1.00" });
+
+        const response = await appClient.quote.$get(
+          { query: { provider: "bridge", currency: "USD" } },
+          { headers: { "test-credential-id": "ramp-bridge" } },
+        );
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({
+          quote: { buyRate: "1.00", sellRate: "1.00" },
+          depositInfo: [
+            {
+              network: "ACH",
+              displayName: "ACH",
+              beneficiaryName: "Test User",
+              routingNumber: "987654321",
+              accountNumber: "123456789",
+              bankAddress: "123 Test St",
+              beneficiaryAddress: "456 Beneficiary Ave",
+              bankName: "Test Bank",
+              ...defaultSponsoredFees(),
+              estimatedProcessingTime: "1 - 3 business days",
+            },
+            {
+              network: "WIRE",
+              displayName: "WIRE",
+              beneficiaryName: "Test User",
+              routingNumber: "987654321",
+              accountNumber: "123456789",
+              bankAddress: "123 Test St",
+              beneficiaryAddress: "456 Beneficiary Ave",
+              bankName: "Test Bank",
+              ...defaultSponsoredFees(),
+              estimatedProcessingTime: "300",
+            },
+          ],
+        });
+      });
+
+      it("returns quote and deposit info for bridge EUR with SEPA", async () => {
+        vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+        vi.spyOn(bridge, "getDepositDetails").mockResolvedValue([
+          {
+            network: "SEPA" as const,
+            displayName: "SEPA" as const,
+            beneficiaryName: "Test User",
+            iban: "DE89370400440532013000", // cspell:ignore iban
+            ...defaultSponsoredFees(),
+            estimatedProcessingTime: "300",
+          },
+        ]);
+        vi.spyOn(bridge, "getQuote").mockResolvedValue({ buyRate: "0.92", sellRate: "0.93" });
+
+        const response = await appClient.quote.$get(
+          { query: { provider: "bridge", currency: "EUR" } },
+          { headers: { "test-credential-id": "ramp-bridge" } },
+        );
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({
+          quote: { buyRate: "0.92", sellRate: "0.93" },
+          depositInfo: [
+            {
+              network: "SEPA",
+              displayName: "SEPA",
+              beneficiaryName: "Test User",
+              iban: "DE89370400440532013000",
+              ...defaultSponsoredFees(),
+              estimatedProcessingTime: "300",
+            },
+          ],
+        });
+      });
+
+      it("returns quote and deposit info for bridge MXN with SPEI", async () => {
+        vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+        vi.spyOn(bridge, "getDepositDetails").mockResolvedValue([
+          {
+            network: "SPEI" as const,
+            displayName: "SPEI" as const,
+            beneficiaryName: "Test User",
+            clabe: "032180000118359719", // cspell:ignore clabe
+            ...defaultSponsoredFees(),
+            estimatedProcessingTime: "300",
+          },
+        ]);
+        vi.spyOn(bridge, "getQuote").mockResolvedValue({ buyRate: "17.20", sellRate: "17.30" });
+
+        const response = await appClient.quote.$get(
+          { query: { provider: "bridge", currency: "MXN" } },
+          { headers: { "test-credential-id": "ramp-bridge" } },
+        );
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({
+          quote: { buyRate: "17.20", sellRate: "17.30" },
+          depositInfo: [
+            {
+              network: "SPEI",
+              displayName: "SPEI",
+              beneficiaryName: "Test User",
+              clabe: "032180000118359719",
+              ...defaultSponsoredFees(),
+              estimatedProcessingTime: "300",
+            },
+          ],
+        });
+      });
+
+      it("returns quote and deposit info for bridge BRL with PIX-BR", async () => {
+        vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+        vi.spyOn(bridge, "getDepositDetails").mockResolvedValue([
+          {
+            network: "PIX-BR" as const,
+            displayName: "PIX BR" as const,
+            beneficiaryName: "Test User",
+            brCode: "00020126360014BR.GOV.BCB.PIX", // cspell:ignore brCode
+            ...defaultSponsoredFees(),
+            estimatedProcessingTime: "300",
+          },
+        ]);
+        vi.spyOn(bridge, "getQuote").mockResolvedValue({ buyRate: "5.10", sellRate: "5.20" });
+
+        const response = await appClient.quote.$get(
+          { query: { provider: "bridge", currency: "BRL" } },
+          { headers: { "test-credential-id": "ramp-bridge" } },
+        );
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({
+          quote: { buyRate: "5.10", sellRate: "5.20" },
+          depositInfo: [
+            {
+              network: "PIX-BR",
+              displayName: "PIX BR",
+              beneficiaryName: "Test User",
+              brCode: "00020126360014BR.GOV.BCB.PIX",
+              ...defaultSponsoredFees(),
+              estimatedProcessingTime: "300",
+            },
+          ],
+        });
+      });
+
+      it("returns quote and deposit info for bridge GBP with faster payments", async () => {
+        vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+        vi.spyOn(bridge, "getDepositDetails").mockResolvedValue([
+          {
+            network: "FASTER_PAYMENTS" as const,
+            displayName: "Faster Payments" as const,
+            accountNumber: "12345678",
+            sortCode: "040004",
+            accountHolderName: "Test User",
+            bankName: "Test Bank",
+            bankAddress: "London, UK",
+            ...defaultSponsoredFees(),
+            estimatedProcessingTime: "300",
+          },
+        ]);
+        vi.spyOn(bridge, "getQuote").mockResolvedValue({ buyRate: "0.79", sellRate: "0.80" });
+
+        const response = await appClient.quote.$get(
+          { query: { provider: "bridge", currency: "GBP" } },
+          { headers: { "test-credential-id": "ramp-bridge" } },
+        );
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({
+          quote: { buyRate: "0.79", sellRate: "0.80" },
+          depositInfo: [
+            {
+              network: "FASTER_PAYMENTS",
+              displayName: "Faster Payments",
+              accountNumber: "12345678",
+              sortCode: "040004",
+              accountHolderName: "Test User",
+              bankName: "Test Bank",
+              bankAddress: "London, UK",
+              ...defaultSponsoredFees(),
+              estimatedProcessingTime: "300",
+            },
+          ],
+        });
+      });
+
+      it("returns deposit info with undefined quote for bridge USDT/TRON", async () => {
+        vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+        vi.spyOn(bridge, "getCryptoDepositDetails").mockResolvedValue([
+          {
+            network: "TRON" as const,
+            displayName: "TRON" as const,
+            address: "TXyz123456789",
+            ...defaultSponsoredFees(),
+            estimatedProcessingTime: "300",
+          },
+        ]);
+
+        const response = await appClient.quote.$get(
+          { query: { provider: "bridge", currency: "USDT", network: "TRON" } },
+          { headers: { "test-credential-id": "ramp-bridge" } },
+        );
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({
+          depositInfo: [
+            {
+              network: "TRON",
+              displayName: "TRON",
+              address: "TXyz123456789",
+              ...defaultSponsoredFees(),
+              estimatedProcessingTime: "300",
+            },
+          ],
+        });
+      });
+
+      it("returns deposit info with undefined quote for bridge USDC/SOLANA", async () => {
+        vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+        vi.spyOn(bridge, "getCryptoDepositDetails").mockResolvedValue([
+          {
+            network: "SOLANA" as const,
+            displayName: "SOLANA" as const,
+            address: "So1anaAddress123",
+            ...defaultSponsoredFees(),
+            estimatedProcessingTime: "300",
+          },
+        ]);
+
+        const response = await appClient.quote.$get(
+          { query: { provider: "bridge", currency: "USDC", network: "SOLANA" } },
+          { headers: { "test-credential-id": "ramp-bridge" } },
+        );
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({
+          depositInfo: [
+            {
+              network: "SOLANA",
+              displayName: "SOLANA",
+              address: "So1anaAddress123",
+              ...defaultSponsoredFees(),
+              estimatedProcessingTime: "300",
+            },
+          ],
+        });
+      });
+
+      it("returns deposit info with undefined quote for bridge USDC/STELLAR", async () => {
+        vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+        vi.spyOn(bridge, "getCryptoDepositDetails").mockResolvedValue([
+          {
+            network: "STELLAR" as const,
+            displayName: "STELLAR" as const,
+            address: "STELLAR123456",
+            ...defaultSponsoredFees(),
+            estimatedProcessingTime: "300",
+          },
+        ]);
+
+        const response = await appClient.quote.$get(
+          { query: { provider: "bridge", currency: "USDC", network: "STELLAR" } },
+          { headers: { "test-credential-id": "ramp-bridge" } },
+        );
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({
+          depositInfo: [
+            {
+              network: "STELLAR",
+              displayName: "STELLAR",
+              address: "STELLAR123456",
+              ...defaultSponsoredFees(),
+              estimatedProcessingTime: "300",
+            },
+          ],
+        });
+      });
+
+      it("returns deposit info with partially consumed sponsored fees", async () => {
+        vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+        vi.spyOn(bridge, "getDepositDetails").mockResolvedValue([
+          {
+            network: "ACH" as const,
+            displayName: "ACH" as const,
+            beneficiaryName: "Test User",
+            routingNumber: "987654321",
+            accountNumber: "123456789",
+            bankAddress: "123 Test St",
+            beneficiaryAddress: "456 Beneficiary Ave",
+            bankName: "Test Bank",
+            fee: "0.0",
+            sponsoredFees: {
+              window: 2_592_000_000,
+              volume: { available: "1500", threshold: "3000", symbol: "USD" },
+              count: { available: "50", threshold: "60" },
+            },
+            estimatedProcessingTime: "1 - 3 business days",
+          },
+        ]);
+        vi.spyOn(bridge, "getQuote").mockResolvedValue({ buyRate: "1.00", sellRate: "1.00" });
+
+        const response = await appClient.quote.$get(
+          { query: { provider: "bridge", currency: "USD" } },
+          { headers: { "test-credential-id": "ramp-bridge" } },
+        );
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({
+          quote: { buyRate: "1.00", sellRate: "1.00" },
+          depositInfo: [
+            {
+              network: "ACH",
+              displayName: "ACH",
+              beneficiaryName: "Test User",
+              routingNumber: "987654321",
+              accountNumber: "123456789",
+              bankAddress: "123 Test St",
+              beneficiaryAddress: "456 Beneficiary Ave",
+              bankName: "Test Bank",
+              fee: "0.0",
+              sponsoredFees: {
+                window: 2_592_000_000,
+                volume: { available: "1500", threshold: "3000", symbol: "USD" },
+                count: { available: "50", threshold: "60" },
+              },
+              estimatedProcessingTime: "1 - 3 business days",
+            },
+          ],
+        });
+      });
+
+      it("returns deposit info with undefined sponsored fees when fee window fails", async () => {
+        vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+        vi.spyOn(bridge, "getDepositDetails").mockResolvedValue([
+          {
+            network: "ACH" as const,
+            displayName: "ACH" as const,
+            beneficiaryName: "Test User",
+            routingNumber: "987654321",
+            accountNumber: "123456789",
+            bankAddress: "123 Test St",
+            beneficiaryAddress: "456 Beneficiary Ave",
+            bankName: "Test Bank",
+            fee: "0.0",
+            sponsoredFees: undefined,
+            estimatedProcessingTime: "1 - 3 business days",
           },
         ]);
         vi.spyOn(bridge, "getQuote").mockResolvedValue({ buyRate: "1.00", sellRate: "1.00" });
@@ -304,169 +658,11 @@ describe("ramp api", () => {
               fee: "0.0",
               estimatedProcessingTime: "1 - 3 business days",
             },
-            {
-              network: "WIRE",
-              displayName: "WIRE",
-              beneficiaryName: "Test User",
-              routingNumber: "987654321",
-              accountNumber: "123456789",
-              bankAddress: "123 Test St",
-              beneficiaryAddress: "456 Beneficiary Ave",
-              bankName: "Test Bank",
-              fee: "0.0",
-              estimatedProcessingTime: "300",
-            },
           ],
         });
       });
 
-      it("returns quote and deposit info for bridge EUR with SEPA", async () => {
-        vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
-        vi.spyOn(bridge, "getDepositDetails").mockResolvedValue([
-          {
-            network: "SEPA" as const,
-            displayName: "SEPA" as const,
-            beneficiaryName: "Test User",
-            iban: "DE89370400440532013000", // cspell:ignore iban
-            fee: "0.0",
-            estimatedProcessingTime: "300",
-          },
-        ]);
-        vi.spyOn(bridge, "getQuote").mockResolvedValue({ buyRate: "0.92", sellRate: "0.93" });
-
-        const response = await appClient.quote.$get(
-          { query: { provider: "bridge", currency: "EUR" } },
-          { headers: { "test-credential-id": "ramp-bridge" } },
-        );
-
-        expect(response.status).toBe(200);
-        await expect(response.json()).resolves.toStrictEqual({
-          quote: { buyRate: "0.92", sellRate: "0.93" },
-          depositInfo: [
-            {
-              network: "SEPA",
-              displayName: "SEPA",
-              beneficiaryName: "Test User",
-              iban: "DE89370400440532013000",
-              fee: "0.0",
-              estimatedProcessingTime: "300",
-            },
-          ],
-        });
-      });
-
-      it("returns quote and deposit info for bridge MXN with SPEI", async () => {
-        vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
-        vi.spyOn(bridge, "getDepositDetails").mockResolvedValue([
-          {
-            network: "SPEI" as const,
-            displayName: "SPEI" as const,
-            beneficiaryName: "Test User",
-            clabe: "032180000118359719", // cspell:ignore clabe
-            fee: "0.0",
-            estimatedProcessingTime: "300",
-          },
-        ]);
-        vi.spyOn(bridge, "getQuote").mockResolvedValue({ buyRate: "17.20", sellRate: "17.30" });
-
-        const response = await appClient.quote.$get(
-          { query: { provider: "bridge", currency: "MXN" } },
-          { headers: { "test-credential-id": "ramp-bridge" } },
-        );
-
-        expect(response.status).toBe(200);
-        await expect(response.json()).resolves.toStrictEqual({
-          quote: { buyRate: "17.20", sellRate: "17.30" },
-          depositInfo: [
-            {
-              network: "SPEI",
-              displayName: "SPEI",
-              beneficiaryName: "Test User",
-              clabe: "032180000118359719",
-              fee: "0.0",
-              estimatedProcessingTime: "300",
-            },
-          ],
-        });
-      });
-
-      it("returns quote and deposit info for bridge BRL with PIX-BR", async () => {
-        vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
-        vi.spyOn(bridge, "getDepositDetails").mockResolvedValue([
-          {
-            network: "PIX-BR" as const,
-            displayName: "PIX BR" as const,
-            beneficiaryName: "Test User",
-            brCode: "00020126360014BR.GOV.BCB.PIX", // cspell:ignore brCode
-            fee: "0.0",
-            estimatedProcessingTime: "300",
-          },
-        ]);
-        vi.spyOn(bridge, "getQuote").mockResolvedValue({ buyRate: "5.10", sellRate: "5.20" });
-
-        const response = await appClient.quote.$get(
-          { query: { provider: "bridge", currency: "BRL" } },
-          { headers: { "test-credential-id": "ramp-bridge" } },
-        );
-
-        expect(response.status).toBe(200);
-        await expect(response.json()).resolves.toStrictEqual({
-          quote: { buyRate: "5.10", sellRate: "5.20" },
-          depositInfo: [
-            {
-              network: "PIX-BR",
-              displayName: "PIX BR",
-              beneficiaryName: "Test User",
-              brCode: "00020126360014BR.GOV.BCB.PIX",
-              fee: "0.0",
-              estimatedProcessingTime: "300",
-            },
-          ],
-        });
-      });
-
-      it("returns quote and deposit info for bridge GBP with faster payments", async () => {
-        vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
-        vi.spyOn(bridge, "getDepositDetails").mockResolvedValue([
-          {
-            network: "FASTER_PAYMENTS" as const,
-            displayName: "Faster Payments" as const,
-            accountNumber: "12345678",
-            sortCode: "040004",
-            accountHolderName: "Test User",
-            bankName: "Test Bank",
-            bankAddress: "London, UK",
-            fee: "0.0",
-            estimatedProcessingTime: "300",
-          },
-        ]);
-        vi.spyOn(bridge, "getQuote").mockResolvedValue({ buyRate: "0.79", sellRate: "0.80" });
-
-        const response = await appClient.quote.$get(
-          { query: { provider: "bridge", currency: "GBP" } },
-          { headers: { "test-credential-id": "ramp-bridge" } },
-        );
-
-        expect(response.status).toBe(200);
-        await expect(response.json()).resolves.toStrictEqual({
-          quote: { buyRate: "0.79", sellRate: "0.80" },
-          depositInfo: [
-            {
-              network: "FASTER_PAYMENTS",
-              displayName: "Faster Payments",
-              accountNumber: "12345678",
-              sortCode: "040004",
-              accountHolderName: "Test User",
-              bankName: "Test Bank",
-              bankAddress: "London, UK",
-              fee: "0.0",
-              estimatedProcessingTime: "300",
-            },
-          ],
-        });
-      });
-
-      it("returns deposit info with undefined quote for bridge USDT/TRON", async () => {
+      it("returns crypto deposit info with undefined sponsored fees when fee window fails", async () => {
         vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
         vi.spyOn(bridge, "getCryptoDepositDetails").mockResolvedValue([
           {
@@ -474,6 +670,7 @@ describe("ramp api", () => {
             displayName: "TRON" as const,
             address: "TXyz123456789",
             fee: "0.0",
+            sponsoredFees: undefined,
             estimatedProcessingTime: "300",
           },
         ]);
@@ -490,68 +687,6 @@ describe("ramp api", () => {
               network: "TRON",
               displayName: "TRON",
               address: "TXyz123456789",
-              fee: "0.0",
-              estimatedProcessingTime: "300",
-            },
-          ],
-        });
-      });
-
-      it("returns deposit info with undefined quote for bridge USDC/SOLANA", async () => {
-        vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
-        vi.spyOn(bridge, "getCryptoDepositDetails").mockResolvedValue([
-          {
-            network: "SOLANA" as const,
-            displayName: "SOLANA" as const,
-            address: "So1anaAddress123",
-            fee: "0.0",
-            estimatedProcessingTime: "300",
-          },
-        ]);
-
-        const response = await appClient.quote.$get(
-          { query: { provider: "bridge", currency: "USDC", network: "SOLANA" } },
-          { headers: { "test-credential-id": "ramp-bridge" } },
-        );
-
-        expect(response.status).toBe(200);
-        await expect(response.json()).resolves.toStrictEqual({
-          depositInfo: [
-            {
-              network: "SOLANA",
-              displayName: "SOLANA",
-              address: "So1anaAddress123",
-              fee: "0.0",
-              estimatedProcessingTime: "300",
-            },
-          ],
-        });
-      });
-
-      it("returns deposit info with undefined quote for bridge USDC/STELLAR", async () => {
-        vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
-        vi.spyOn(bridge, "getCryptoDepositDetails").mockResolvedValue([
-          {
-            network: "STELLAR" as const,
-            displayName: "STELLAR" as const,
-            address: "STELLAR123456",
-            fee: "0.0",
-            estimatedProcessingTime: "300",
-          },
-        ]);
-
-        const response = await appClient.quote.$get(
-          { query: { provider: "bridge", currency: "USDC", network: "STELLAR" } },
-          { headers: { "test-credential-id": "ramp-bridge" } },
-        );
-
-        expect(response.status).toBe(200);
-        await expect(response.json()).resolves.toStrictEqual({
-          depositInfo: [
-            {
-              network: "STELLAR",
-              displayName: "STELLAR",
-              address: "STELLAR123456",
               fee: "0.0",
               estimatedProcessingTime: "300",
             },
@@ -894,6 +1029,17 @@ describe("ramp api", () => {
     });
   });
 });
+
+function defaultSponsoredFees() {
+  return {
+    fee: "0.0",
+    sponsoredFees: {
+      window: 2_592_000_000,
+      volume: { available: "3000", threshold: "3000", symbol: "USD" },
+      count: { available: "60", threshold: "60" },
+    },
+  };
+}
 
 const mantecaUser = {
   id: "user123",
