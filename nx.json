@@ -20,5 +20,6 @@
       "cache": true
     }
   },
+  "analytics": false,
   "tui": { "autoExit": true }
 }

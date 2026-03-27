@@ -20,7 +20,7 @@ import {
 import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
 import { borrowLimit, healthFactor, WAD, withdrawLimit } from "@exactly/lib";
 
-import CardUpgradeSheet from "./card-upgrade/CardUpgradeSheet";
+import CardUpgradeSheet, { UPGRADE_DEADLINE } from "./card-upgrade/CardUpgradeSheet";
 import CardStatus from "./CardStatus";
 import CreditLimitSheet from "./CreditLimitSheet";
 import GettingStarted from "./GettingStarted";
@@ -74,7 +74,7 @@ export default function Home() {
   const [visaSignatureModalOpen, setVisaSignatureModalOpen] = useState(false);
   const [manualRepaymentSheetOpen, setManualRepaymentSheetOpen] = useState(false);
   const [rolloverIntroMaturity, setRolloverIntroMaturity] = useState<string>();
-  const pendingModeRef = useRef<number>(0);
+  const pendingModeRef = useRef(0);
 
   const [focused, setFocused] = useState(false);
   useFocusEffect(
@@ -172,7 +172,7 @@ export default function Home() {
   );
 
   const scrollRef = useRef<ScrollView>(null);
-  const scrollOffsetRef = useRef<number>(0);
+  const scrollOffsetRef = useRef(0);
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ["activity"], exact: true }).catch(reportError);
     queryClient.invalidateQueries({ queryKey: ["kyc", "status"], exact: true }).catch(reportError);
@@ -212,7 +212,7 @@ export default function Home() {
                   title={t(
                     "We're upgrading all Exa Cards by migrating them to a new and improved card issuer. Existing cards will work until {{deadline}}, and upgrading will be required after this date.",
                     {
-                      deadline: new Date(2025, 4, 18).toLocaleDateString(language, {
+                      deadline: UPGRADE_DEADLINE.toLocaleDateString(language, {
                         year: "numeric",
                         month: "long",
                         day: "numeric",

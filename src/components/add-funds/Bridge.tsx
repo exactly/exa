@@ -66,7 +66,7 @@ export default function Bridge() {
 
   const [selectedSource, setSelectedSource] = useState<undefined | { address: string; chain: number }>();
   const [selectedDestinationAddress, setSelectedDestinationAddress] = useState<string | undefined>();
-  const [sourceAmount, setSourceAmount] = useState<bigint>(0n);
+  const [sourceAmount, setSourceAmount] = useState(0n);
 
   const [bridgeStatus, setBridgeStatus] = useState<string | undefined>();
   const [bridgePreview, setBridgePreview] = useState<undefined | { sourceAmount: bigint; sourceToken: Token }>();

@@ -45,10 +45,10 @@ export async function findWebhook(predicate: (webhook: Webhook) => unknown) {
 }
 
 export async function createWebhook(
-  options: { network?: never; webhook_url: string } & (
+  options: (
     | { addresses: string[]; webhook_type: "ADDRESS_ACTIVITY" }
     | { graphql_query: { query: string; skip_empty_messages: true }; webhook_type: "GRAPHQL" }
-  ),
+  ) & { network?: never; webhook_url: string },
 ) {
   const create = await fetch("https://dashboard.alchemy.com/api/create-webhook", {
     headers,

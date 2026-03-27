@@ -11,7 +11,7 @@
     "test:protolint": "protolint ."
   },
   "devDependencies": {
-    "@bufbuild/buf": "^1.63.0",
+    "@bufbuild/buf": "^1.66.1",
     "@exactly/plugin": "workspace:^1.1.0",
     "protolint": "^0.56.4"
   },
