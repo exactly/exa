@@ -4,21 +4,39 @@ import queryClient from "./queryClient";
 import reportError from "./reportError";
 import { startRampOnboarding } from "./server";
 
-export default async function completeOnboarding(router: Router, currency: string) {
+export default async function completeOnboarding(
+  router: Router,
+  currency: string,
+  provider: "bridge" | "manteca" = "manteca",
+  acceptedTermsId?: string,
+  network?: string,
+) {
   try {
-    const result = await startRampOnboarding({ provider: "manteca" });
+    if (provider === "bridge" && !acceptedTermsId) throw new Error("missing acceptedTermsId for bridge");
+    const onboarding: Parameters<typeof startRampOnboarding>[0] =
+      provider === "bridge" ? { provider: "bridge", acceptedTermsId: acceptedTermsId ?? "" } : { provider: "manteca" };
+    const result = await startRampOnboarding(onboarding);
     queryClient.invalidateQueries({ queryKey: ["ramp", "providers"] }).catch(reportError);
     if ("inquiryId" in result) {
-      queryClient.setQueryData(["ramp", "invalid-legal-id"], {
+      queryClient.setQueryData(["ramp", "kyc-tokens"], {
         inquiryId: result.inquiryId,
         sessionToken: result.sessionToken,
       });
-      router.replace({ pathname: "/add-funds/kyc", params: { currency } });
+      router.replace({
+        pathname: "/add-funds/kyc",
+        params: { currency, provider, network, kycCode: result.code, acceptedTermsId },
+      });
       return;
     }
-    router.replace({ pathname: "/add-funds/status", params: { status: "ONBOARDING", currency, pending: "true" } });
+    router.replace({
+      pathname: "/add-funds/status",
+      params: { status: "ONBOARDING", currency, provider, pending: "true", network },
+    });
   } catch (error) {
     reportError(error);
-    router.replace({ pathname: "/add-funds/status", params: { status: "error", currency } });
+    router.replace({
+      pathname: "/add-funds/status",
+      params: { status: "error", currency, provider, network },
+    });
   }
 }

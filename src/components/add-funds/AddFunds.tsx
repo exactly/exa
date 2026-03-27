@@ -2,19 +2,20 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft, CircleHelp, Info, Wallet } from "@tamagui/lucide-icons";
+import { ArrowLeft, Banknote, Blocks, CircleHelp, Info, Wallet } from "@tamagui/lucide-icons";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 import { isAddress } from "viem";
 
+import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
 import shortenHex from "@exactly/common/shortenHex";
 
-import AddFiatButton from "./AddFiatButton";
 import AddFundsOption from "./AddFundsOption";
+import AddRampButton from "./AddRampButton";
 import { presentArticle } from "../../utils/intercom";
 import queryClient, { type AuthMethod } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
@@ -28,6 +29,7 @@ import View from "../shared/View";
 import type { Credential } from "@exactly/common/validation";
 
 export default function AddFunds() {
+  const { type } = useLocalSearchParams();
   const router = useRouter();
   const { t } = useTranslation();
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
@@ -45,22 +47,59 @@ export default function AddFunds() {
     retry: false,
   });
 
+  const redirectURL = `https://${domain}/add-funds`;
   const { data: providers, isPending } = useQuery({
-    queryKey: ["ramp", "providers", countryCode],
-    queryFn: () => getRampProviders(countryCode),
+    queryKey: ["ramp", "providers", countryCode, redirectURL],
+    queryFn: () => getRampProviders(countryCode, redirectURL),
     enabled: !!countryCode,
     staleTime: 0,
   });
 
+  const hasFiat =
+    providers && Object.values(providers).some((p) => p.onramp.currencies.some((item) => typeof item === "string"));
+
+  function renderProviders(filter: "crypto" | "fiat") {
+    if (countryCode && isPending) {
+      return (
+        <View justifyContent="center" alignItems="center">
+          <Skeleton width="100%" height={82} />
+        </View>
+      );
+    }
+    if (!providers) return null;
+    return (
+      <YStack gap="$s4">
+        {Object.entries(providers).flatMap(([providerKey, provider]) =>
+          provider.onramp.currencies
+            .filter((item) => (filter === "crypto") === (typeof item === "object"))
+            .map((item) => {
+              const isCrypto = typeof item === "object";
+              const currency = isCrypto ? item.currency : item;
+              const network = isCrypto ? item.network : undefined;
+              return (
+                <AddRampButton
+                  key={`${providerKey}-${currency}-${network ?? "fiat"}`}
+                  currency={currency}
+                  network={network}
+                  provider={providerKey as "bridge" | "manteca"}
+                  status={provider.status}
+                />
+              );
+            }),
+        )}
+      </YStack>
+    );
+  }
+
   return (
     <SafeView fullScreen backgroundColor="$backgroundMild">
-      <View gap="$s4_5" fullScreen padded>
+      <View gap="$s6" fullScreen padded>
         <YStack gap="$s4_5">
           <XStack flexDirection="row" gap="$s3_5" justifyContent="space-between" alignItems="center">
             <Pressable
               onPress={() => {
-                if (router.canGoBack()) {
-                  router.back();
+                if (type === "crypto" || type === "fiat") {
+                  router.replace("/add-funds");
                 } else {
                   router.replace("/(main)/(home)");
                 }
@@ -69,11 +108,11 @@ export default function AddFunds() {
               <ArrowLeft size={24} color="$uiNeutralPrimary" />
             </Pressable>
             <Text emphasized subHeadline primary>
-              {t("Add Funds")}
+              {t(type === "crypto" ? "Cryptocurrencies" : type === "fiat" ? "Bank transfers" : "Add Funds")}
             </Text>
             <Pressable
               onPress={() => {
-                presentArticle("8950805").catch(reportError);
+                presentArticle("8950801").catch(reportError);
               }}
             >
               <CircleHelp color="$uiNeutralPrimary" />
@@ -82,54 +121,83 @@ export default function AddFunds() {
         </YStack>
         <ScrollView flex={1}>
           <YStack flex={1} gap="$s3_5">
-            {method === "siwe" && (
-              <AddFundsOption
-                icon={<Wallet width={40} height={40} color="$iconBrandDefault" />}
-                title={t("From connected wallet")}
-                subtitle={
-                  // TODO add support for ens resolution
-                  ownerAccount ? shortenHex(ownerAccount, 4, 6) : ""
-                }
-                onPress={() => {
-                  router.push("/add-funds/bridge");
-                }}
-              />
+            {type !== "crypto" && type !== "fiat" && (
+              <>
+                <AddFundsOption
+                  icon={<Blocks size={24} color="$iconBrandDefault" />}
+                  title={t("Cryptocurrencies")}
+                  subtitle={t("Multiple networks and wallets")}
+                  onPress={() => {
+                    router.push({ pathname: "/add-funds", params: { type: "crypto" } });
+                  }}
+                />
+                {hasFiat !== false && (
+                  <AddFundsOption
+                    icon={<Banknote size={24} color="$iconBrandDefault" />}
+                    title={t("Bank transfers")}
+                    subtitle={t("From a bank account")}
+                    disabled={!hasFiat}
+                    onPress={() => {
+                      router.push({ pathname: "/add-funds", params: { type: "fiat" } });
+                    }}
+                  />
+                )}
+              </>
             )}
-            <AddFundsOption
-              icon={<ChainLogo size={24} borderRadius="$r3" />}
-              title={t("From another wallet")}
-              subtitle={t("On {{chain}}", { chain: chain.name })}
-              onPress={() => {
-                router.push("/add-funds/add-crypto");
-              }}
-            />
-            <View flex={1} gap="$s4_5">
-              {countryCode && isPending ? (
-                <View justifyContent="center" alignItems="center">
-                  <Skeleton width="100%" height={82} />
-                </View>
-              ) : (
-                providers && (
-                  <YStack gap="$s3_5">
-                    {Object.entries(providers)
-                      .filter(([providerKey]) => providerKey === "manteca")
-                      .flatMap(([providerKey, provider]) =>
-                        provider.onramp.currencies.flatMap((currency) =>
-                          typeof currency === "string"
-                            ? [
-                                <AddFiatButton
-                                  key={`${providerKey}-${currency}`}
-                                  currency={currency}
-                                  status={provider.status}
-                                />,
-                              ]
-                            : [],
-                        ),
-                      )}
-                  </YStack>
-                )
-              )}
-            </View>
+            {type === "crypto" && (
+              <>
+                {method === "siwe" && (
+                  <AddFundsOption
+                    icon={<Wallet width={40} height={40} color="$iconBrandDefault" />}
+                    title={t("From connected wallet")}
+                    subtitle={
+                      // TODO add support for ens resolution
+                      ownerAccount ? shortenHex(ownerAccount, 4, 6) : ""
+                    }
+                    onPress={() => {
+                      router.push("/add-funds/bridge");
+                    }}
+                  />
+                )}
+                <AddFundsOption
+                  icon={<ChainLogo size={24} borderRadius="$r3" />}
+                  title={t("From another wallet")}
+                  subtitle={t("On {{chain}}", { chain: chain.name })}
+                  onPress={() => {
+                    router.push("/add-funds/add-crypto");
+                  }}
+                />
+
+                {renderProviders("crypto")}
+              </>
+            )}
+            {type === "fiat" && providers && (
+              <YStack gap="$s5">
+                {(["manteca", "bridge"] as const).map((key) => {
+                  const provider = providers[key];
+                  if (provider.status === "NOT_AVAILABLE") return null;
+                  const fiatCurrencies = provider.onramp.currencies.filter((item) => typeof item === "string");
+                  if (fiatCurrencies.length === 0) return null;
+                  return (
+                    <YStack key={key} gap="$s3_5">
+                      <Text footnote color="$uiNeutralSecondary">
+                        {key === "manteca"
+                          ? countryCode === "AR"
+                            ? t("From any Argentine bank account in your name")
+                            : t("From any account in your name")
+                          : t("From any account")}
+                      </Text>
+                      <YStack gap="$s3_5">
+                        {fiatCurrencies.map((item) => {
+                          if (typeof item !== "string") return null;
+                          return <AddRampButton key={item} currency={item} provider={key} status={provider.status} />;
+                        })}
+                      </YStack>
+                    </YStack>
+                  );
+                })}
+              </YStack>
+            )}
           </YStack>
         </ScrollView>
         <XStack
