@@ -16,7 +16,7 @@ import { PublicKey } from "webauthn-owner-plugin/IWebauthnOwnerPlugin.sol";
 
 import { EXA } from "@exactly/protocol/periphery/EXA.sol";
 
-import { AdminIsDeployer, Redeployer, TargetNonceTooLow } from "../script/Redeployer.s.sol";
+import { AdminIsDeployer, NotPrepared, Redeployer, TargetNonceTooLow } from "../script/Redeployer.s.sol";
 import { ExaAccountFactory } from "../src/ExaAccountFactory.sol";
 import { ExaPlugin } from "../src/ExaPlugin.sol";
 import { ProposalManager } from "../src/ProposalManager.sol";
@@ -37,7 +37,7 @@ contract RedeployerTest is ForkTest {
     assertGt(targetNonce, currentNonce, "target nonce <= current nonce");
 
     redeployer.prepare();
-    redeployer.run(targetNonce + 1);
+    redeployer.serialProxies(targetNonce);
 
     assertTrue(exaOP.code.length > 0, "EXA not deployed at same address");
 
@@ -51,14 +51,14 @@ contract RedeployerTest is ForkTest {
     assertEq(token.decimals(), 18, "token should have 18 decimals");
   }
 
-  function test_run_reverts_whenAttackerUpgradesProxy() external {
+  function test_serialProxies_reverts_whenAttackerUpgradesProxy() external {
     vm.createSelectFork("base", 41_053_217);
 
     address deployer = acct("deployer");
     uint256 target = vm.getNonce(deployer) + 10;
     redeployer = new Redeployer();
     redeployer.prepare();
-    redeployer.run(target);
+    redeployer.serialProxies(target);
 
     address proxy = vm.computeCreateAddress(deployer, target - 1);
     assertTrue(proxy.code.length > 0, "proxy not deployed");
@@ -76,6 +76,41 @@ contract RedeployerTest is ForkTest {
     assertEq(EXA(proxy).name(), "exactly");
   }
 
+  function test_prepare_succeeds_whenCalledTwice() external {
+    vm.createSelectFork("polygon", 82_000_000);
+
+    redeployer = new Redeployer();
+    redeployer.prepare();
+    redeployer.prepare();
+
+    assertTrue(address(redeployer.ownerPlugin()).code.length > 0, "ownerPlugin not deployed");
+    assertTrue(address(redeployer.exaPlugin()).code.length > 0, "exaPlugin not deployed");
+    assertTrue(address(redeployer.factory()).code.length > 0, "factory not deployed");
+  }
+
+  function test_prepare_reusesExistingDeps_onBase() external {
+    vm.createSelectFork("base", 41_053_217);
+
+    redeployer = new Redeployer();
+    redeployer.setUp();
+
+    address ownerPluginBefore = address(redeployer.ownerPlugin());
+    address exaPluginBefore = address(redeployer.exaPlugin());
+
+    assertTrue(ownerPluginBefore.code.length > 0, "ownerPlugin not deployed");
+    assertTrue(exaPluginBefore.code.length > 0, "exaPlugin not deployed");
+
+    redeployer.prepare();
+
+    assertEq(address(redeployer.ownerPlugin()), ownerPluginBefore, "ownerPlugin != expected");
+    assertEq(address(redeployer.exaPlugin()), exaPluginBefore, "exaPlugin != expected");
+    assertEq(
+      CREATE3_FACTORY.getDeployed(acct("admin"), keccak256(abi.encode("ProposalManager"))).code.length,
+      0,
+      "proposalManager deployed via CREATE3"
+    );
+  }
+
   function test_prepare_reverts_whenAdminIsDeployer() external {
     vm.createSelectFork("optimism_sepolia", 39_900_000);
 
@@ -84,13 +119,16 @@ contract RedeployerTest is ForkTest {
     redeployer.prepare();
   }
 
-  function test_run_reverts_whenTargetNonceTooLow() external {
+  function test_serialProxies_reverts_whenTargetNonceTooLow() external {
     vm.createSelectFork("base", 41_053_217);
+
+    vm.prank(acct("deployer"));
+    new Redeployer();
 
     redeployer = new Redeployer();
     redeployer.prepare();
     vm.expectRevert(TargetNonceTooLow.selector);
-    redeployer.run(0);
+    redeployer.serialProxies(0);
   }
 
   function test_deployExaFactory_deploysAtSameAddress_onEthereum() external {
@@ -106,7 +144,7 @@ contract RedeployerTest is ForkTest {
     assertGt(targetNonce, currentNonce, "target nonce <= current nonce");
 
     redeployer.prepare();
-    redeployer.run(targetNonce + 1);
+    redeployer.serialProxies(targetNonce);
 
     assertTrue(factoryOP.code.length > 0, "factory not deployed at same address");
 
@@ -155,7 +193,7 @@ contract RedeployerTest is ForkTest {
     IERC20 usdc = IERC20(0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359);
 
     redeployer.prepare();
-    redeployer.run(targetNonce + 1);
+    redeployer.serialProxies(targetNonce);
 
     assertTrue(factoryOP.code.length > 0, "factory not deployed at same address");
 
@@ -188,6 +226,41 @@ contract RedeployerTest is ForkTest {
     assertEq(usdc.balanceOf(receiver), amount, "receiver should have USDC");
   }
 
+  function test_deployExaFactory_succeeds_whenVersionAlreadyDeployed() external {
+    vm.createSelectFork("polygon", 82_000_000);
+    redeployer = new Redeployer();
+    redeployer.prepare();
+    ExaAccountFactory f1 = redeployer.deployExaFactory("1.1.0");
+    ExaAccountFactory f2 = redeployer.deployExaFactory("1.1.0");
+    assertEq(address(f1), address(f2));
+  }
+
+  function test_deployExaFactoryWithProxy_succeeds_whenAlreadyUpgraded() external {
+    vm.createSelectFork("polygon", 82_000_000);
+    redeployer = new Redeployer();
+    redeployer.prepare();
+    address deployer = acct("deployer");
+    uint256 nonce = vm.getNonce(deployer);
+    redeployer.serialProxies(nonce);
+    address proxy = vm.computeCreateAddress(deployer, nonce);
+    redeployer.deployExaFactory(proxy);
+    redeployer.deployExaFactory(proxy);
+  }
+
+  function test_deployExaFactory_reverts_whenNotPrepared() external {
+    vm.createSelectFork("polygon", 82_000_000);
+    redeployer = new Redeployer();
+    vm.expectRevert(NotPrepared.selector);
+    redeployer.deployExaFactory("1");
+  }
+
+  function test_deployExaFactoryWithProxy_reverts_whenNotPrepared() external {
+    vm.createSelectFork("polygon", 82_000_000);
+    redeployer = new Redeployer();
+    vm.expectRevert(NotPrepared.selector);
+    redeployer.deployExaFactory(address(1));
+  }
+
   function test_deployExaFactory_deploysViaCreate3AtSameAddress_onPolygon() external {
     address factoryBase = 0xAd92a288CE0cc869129cDA518Af2baaf69fFa026;
     address accountBase = 0xeC6EE8939C1230742eCe9571319037767F574754;
@@ -195,7 +268,8 @@ contract RedeployerTest is ForkTest {
     vm.createSelectFork("polygon", 82_000_000);
 
     redeployer = new Redeployer();
-    ExaAccountFactory factory = redeployer.deployExaFactory();
+    redeployer.prepare();
+    ExaAccountFactory factory = redeployer.deployExaFactory("1.1.0");
 
     assertEq(address(factory), factoryBase, "factory != expected");
 
@@ -213,7 +287,8 @@ contract RedeployerTest is ForkTest {
     vm.deal(accountBase, 1 ether);
 
     redeployer = new Redeployer();
-    ExaAccountFactory factory = redeployer.deployExaFactory();
+    redeployer.prepare();
+    ExaAccountFactory factory = redeployer.deployExaFactory("1.1.0");
 
     PublicKey[] memory owners = new PublicKey[](1);
     owners[0] = PublicKey({ x: 1_377_837_249_724_728_941_829_967_018_498_619_894_891_941_074_907, y: 0 });
