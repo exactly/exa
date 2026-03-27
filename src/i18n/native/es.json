@@ -1,0 +1,6 @@
+{
+  "ios": {
+    "NSCameraUsageDescription": "Exa usa la cámara para escanear códigos QR y verificar tu identidad.",
+    "NSLocationWhenInUseUsageDescription": "Exa usa tu ubicación para verificar tu identidad."
+  }
+}

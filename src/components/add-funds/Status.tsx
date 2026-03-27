@@ -71,7 +71,7 @@ export default function Status() {
                   </Text>
                   <Text color="$uiNeutralPlaceholder" footnote textAlign="center">
                     {isOnboarding
-                      ? t("We're verifying your information. You'll be able to add funds soon.")
+                      ? t("We’re verifying your information. You’ll be able to add funds soon.")
                       : t("There was an error verifying your information.")}
                   </Text>
                 </YStack>

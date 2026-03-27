@@ -20,7 +20,7 @@ export default function LoanActivity() {
             🎉
           </Text>
           <Text textAlign="center" color="$uiBrandSecondary" emphasized headline>
-            {t("You're all set!")}
+            {t("You’re all set!")}
           </Text>
           <Text textAlign="center" color="$uiNeutralSecondary" subHeadline>
             {t("Any purchases made with Pay Later will show up here.")}

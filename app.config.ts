@@ -1,5 +1,4 @@
 import type { PluginConfigType as BuildPropertiesConfig } from "expo-build-properties/build/pluginConfig";
-import type withCamera from "expo-camera/plugin/build/withCamera";
 import type { FontProps } from "expo-font/plugin/build/withFonts";
 
 import { AndroidConfig, withAndroidManifest, withAppBuildGradle, type ConfigPlugin } from "expo/config-plugins";
@@ -43,8 +42,9 @@ export default {
     buildNumber: String(versionCode),
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
-      NSCameraUsageDescription: "This app uses the camera to verify your identity.",
-      NSLocationWhenInUseUsageDescription: "This app uses your location to verify your identity.",
+      CFBundleAllowMixedLocalizations: true,
+      NSCameraUsageDescription: "Exa uses the camera to scan QR codes and verify your identity.",
+      NSLocationWhenInUseUsageDescription: "Exa uses your location to verify your identity.",
     },
     userInterfaceStyle: "automatic",
     splash: {
@@ -66,12 +66,7 @@ export default {
         },
       } satisfies BuildPropertiesConfig,
     ],
-    [
-      "expo-camera",
-      {
-        cameraPermission: "Exactly needs your permission to scan QR codes.",
-      } satisfies Parameters<typeof withCamera>[1],
-    ],
+    "expo-camera",
     [
       "expo-font",
       {
@@ -83,7 +78,10 @@ export default {
       } satisfies FontProps,
     ],
     "expo-asset",
-    "expo-localization",
+    [
+      "expo-localization",
+      { supportedLocales: ["en", "es", "es-AR", "es-CR", "es-GT", "es-HN", "es-NI", "es-PY", "es-SV", "es-UY", "pt"] },
+    ],
     "expo-router",
     [
       "@intercom/intercom-react-native",
@@ -151,4 +149,5 @@ export default {
   updates: { url: "https://u.expo.dev/06bc0158-d23b-430b-a7e8-802df03c450b" },
   runtimeVersion: { policy: "fingerprint" },
   owner: "exactly",
+  locales: { es: "src/i18n/native/es.json", pt: "src/i18n/native/pt.json" },
 } satisfies ExpoConfig;

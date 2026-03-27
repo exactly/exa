@@ -39,7 +39,9 @@ import ThemeProvider from "../components/context/ThemeProvider";
 import Error from "../components/shared/Error";
 import release from "../generated/release";
 import en from "../i18n/en.json";
+import esAR from "../i18n/es-AR.json";
 import es from "../i18n/es.json";
+import pt from "../i18n/pt.json";
 import e2e from "../utils/e2e";
 import queryClient, { persistOptions } from "../utils/queryClient";
 import reportError, { classifyError } from "../utils/reportError";
@@ -49,18 +51,25 @@ import ownerConfig from "../utils/wagmi/owner";
 SplashScreen.preventAutoHideAsync().catch(reportError);
 
 configI18n(initReactI18next)
-  .use({
-    type: "languageDetector",
-    detect: () =>
-      getLocales()[0].languageCode ??
-      (typeof navigator === "undefined" ? undefined : navigator.language.split("-")[0]) ??
-      "en",
-  })
+  .use({ type: "languageDetector", detect: () => getLocales()[0].languageTag })
   .init({
-    fallbackLng: "en",
+    load: "currentOnly",
+    fallbackLng: (code) => {
+      const [language, region] = code.split("-");
+      if (language === "es" && region && ["AR", "CR", "GT", "HN", "NI", "PY", "SV", "UY"].includes(region))
+        return ["es-AR", "es", "en"];
+      if (language === "es") return ["es", "en"];
+      if (language === "pt") return ["pt", "en"];
+      return ["en"];
+    },
     keySeparator: false,
     nsSeparator: false,
-    resources: { en: { translation: en }, es: { translation: es } },
+    resources: {
+      en: { translation: en },
+      es: { translation: es },
+      pt: { translation: pt },
+      "es-AR": { translation: esAR },
+    },
   })
   .catch(reportError);
 

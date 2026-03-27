@@ -8,6 +8,7 @@ import { ScrollView, YStack } from "tamagui";
 import Blob from "../../assets/images/exa-card-blob.svg";
 import ExaCard from "../../assets/images/exa-card.svg";
 import { presentArticle } from "../../utils/intercom";
+import openBrowser from "../../utils/openBrowser";
 import reportError from "../../utils/reportError";
 import Button from "../shared/Button";
 import ModalSheet from "../shared/ModalSheet";
@@ -46,7 +47,7 @@ export default function CardDisclaimer({
                   </View>
                 </View>
                 <Text emphasized textAlign="center" color="$interactiveTextBrandDefault" title>
-                  {t("Activate your new Exa Card*")}
+                  {t("Activate your new Exa Card")}
                 </Text>
               </YStack>
               <YStack gap="$s4_5">
@@ -78,9 +79,22 @@ export default function CardDisclaimer({
                   </Button>
                 </YStack>
                 <Text color="$interactiveOnDisabled" caption textAlign="justify">
-                  {t(
-                    "*The Exa Card is issued by Third National pursuant to a license from Visa. Any credit issued by Exactly Protocol subject to its separate terms and conditions. Third National is not a party to any agreement with Exactly Protocol and is not responsible for any funding or credit arrangement between user and Exactly Protocol.",
-                  )}
+                  <Trans
+                    i18nKey="The Exa Card is issued by Third National pursuant to a license from Visa. Any credit issued by <link>Exactly Protocol</link> subject to its separate terms and conditions. Third National is not a party to any agreement with <link>Exactly Protocol</link> and is not responsible for any funding or credit arrangement between user and <link>Exactly Protocol</link>."
+                    components={{
+                      link: (
+                        <Text
+                          cursor="pointer"
+                          caption
+                          color="$interactiveOnDisabled"
+                          textDecorationLine="underline"
+                          onPress={() => {
+                            openBrowser("https://exact.ly/").catch(reportError);
+                          }}
+                        />
+                      ),
+                    }}
+                  />
                 </Text>
               </YStack>
             </YStack>

@@ -1,5 +1,5 @@
 import React from "react";
-import { Trans } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 
 import { Info } from "@tamagui/lucide-icons";
 import { XStack, YStack } from "tamagui";
@@ -9,6 +9,9 @@ import reportError from "../../utils/reportError";
 import Text from "../shared/Text";
 
 export default function MantecaDisclaimer({ primary }: { primary?: boolean }) {
+  const {
+    i18n: { language },
+  } = useTranslation();
   return (
     <XStack alignItems="center" gap="$s3">
       <Info size={24} color={primary ? "$uiNeutralPrimary" : "$uiInfoSecondary"} />
@@ -34,7 +37,7 @@ export default function MantecaDisclaimer({ primary }: { primary?: boolean }) {
                   cursor="pointer"
                   onPress={() => {
                     openBrowser(
-                      "https://help.exactly.app/en/articles/13616694-fiat-on-ramp-terms-and-conditions",
+                      `https://help.exactly.app/${language.split("-")[0] ?? "en"}/articles/13616694-fiat-on-ramp-terms-and-conditions`,
                     ).catch(reportError);
                   }}
                 />

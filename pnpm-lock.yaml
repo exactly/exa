@@ -384,6 +384,9 @@ importers:
       '@cspell/dict-es-es':
         specifier: ^3.0.8
         version: 3.0.8
+      '@cspell/dict-pt-br':
+        specifier: ^2.4.2
+        version: 2.4.2
       '@eslint/mcp':
         specifier: ^0.3.2
         version: 0.3.2
@@ -1994,6 +1997,9 @@ packages:
 
   '@cspell/dict-powershell@5.0.15':
     resolution: {integrity: sha512-l4S5PAcvCFcVDMJShrYD0X6Huv9dcsQPlsVsBGbH38wvuN7gS7+GxZFAjTNxDmTY1wrNi1cCatSg6Pu2BW4rgg==}
+
+  '@cspell/dict-pt-br@2.4.2':
+    resolution: {integrity: sha512-kNhoNilURI4u8tOolguvKFntkzVA2EdSaoYIveHu6BVx1YAU/o7x6fJyIfSVHFYzGyCgXNXe18neIRPhnVoa5g==}
 
   '@cspell/dict-public-licenses@2.0.16':
     resolution: {integrity: sha512-EQRrPvEOmwhwWezV+W7LjXbIBjiy6y/shrET6Qcpnk3XANTzfvWflf9PnJ5kId/oKWvihFy0za0AV1JHd03pSQ==}
@@ -15179,6 +15185,8 @@ snapshots:
   '@cspell/dict-php@4.1.1': {}
 
   '@cspell/dict-powershell@5.0.15': {}
+
+  '@cspell/dict-pt-br@2.4.2': {}
 
   '@cspell/dict-public-licenses@2.0.16': {}
 
