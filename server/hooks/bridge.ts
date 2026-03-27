@@ -5,14 +5,14 @@ import { and, DrizzleQueryError, eq, isNull } from "drizzle-orm";
 import { Hono } from "hono";
 import { validator } from "hono/validator";
 import { createHash, createVerify } from "node:crypto";
-import { literal, object, parse, picklist, string, unknown, variant } from "valibot";
+import { check, literal, object, parse, picklist, pipe, string, unknown, variant } from "valibot";
 
 import { Address } from "@exactly/common/validation";
 
 import database, { credentials } from "../database";
 import { sendPushNotification } from "../utils/onesignal";
 import { searchAccounts } from "../utils/persona";
-import { BridgeCurrency, getCustomer, publicKey } from "../utils/ramps/bridge";
+import { BridgeCurrency, feeWindow, getCustomer, publicKey } from "../utils/ramps/bridge";
 import { track } from "../utils/segment";
 import validatorHook from "../utils/validatorHook";
 
@@ -52,6 +52,10 @@ export default new Hono().post(
       object({
         event_type: literal("liquidation_address.drain.updated.status_transitioned"),
         event_object: object({
+          created_at: pipe(
+            string(),
+            check((v) => !Number.isNaN(new Date(v).getTime()), "invalid date"),
+          ),
           currency: picklist(BridgeCurrency),
           customer_id: string(),
           id: string(),
@@ -77,6 +81,10 @@ export default new Hono().post(
             receipt: object({ initial_amount: string(), final_amount: string() }),
           }),
           object({
+            created_at: pipe(
+              string(),
+              check((v) => !Number.isNaN(new Date(v).getTime()), "invalid date"),
+            ),
             customer_id: string(),
             currency: picklist(BridgeCurrency),
             id: string(),
@@ -181,6 +189,10 @@ export default new Hono().post(
         return c.json({ code: "ok" }, 200);
       case "virtual_account.activity.created":
         if (payload.event_object.type === "payment_submitted") {
+          await feeWindow.report(
+            { bridgeId, eventId: payload.event_object.id, amount: payload.event_object.receipt.initial_amount },
+            new Date(payload.event_object.created_at),
+          );
           sendPushNotification({
             userId: account,
             headings: { en: "Deposited funds" },
@@ -205,6 +217,10 @@ export default new Hono().post(
         return c.json({ code: "ok" }, 200);
       case "liquidation_address.drain.updated.status_transitioned":
         if (payload.event_object.state !== "payment_submitted") return c.json({ code: "ok" }, 200);
+        await feeWindow.report(
+          { bridgeId, eventId: payload.event_object.id, amount: payload.event_object.receipt.outgoing_amount },
+          new Date(payload.event_object.created_at),
+        );
         sendPushNotification({
           userId: account,
           headings: { en: "Deposited funds" },

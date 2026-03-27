@@ -7,7 +7,7 @@ import { testClient } from "hono/testing";
 import { createHash, createPrivateKey, createSign, generateKeyPairSync } from "node:crypto";
 import { hexToBytes, padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
-import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 
@@ -16,6 +16,8 @@ import app from "../../hooks/bridge";
 import * as onesignal from "../../utils/onesignal";
 import * as persona from "../../utils/persona";
 import * as bridge from "../../utils/ramps/bridge";
+import { feeWindow } from "../../utils/ramps/bridge";
+import redis, { close as closeRedis } from "../../utils/redis";
 import * as segment from "../../utils/segment";
 
 const appClient = testClient(app);
@@ -54,9 +56,19 @@ describe("bridge hook", () => {
     ]);
   });
 
+  beforeEach(async () => {
+    const keys = await redis.keys("wr:bridge-fees:*");
+    if (keys.length > 0) await redis.del(...keys);
+  });
+
   afterEach(() => {
     vi.clearAllMocks();
     vi.restoreAllMocks();
+  });
+
+  afterAll(async () => {
+    await feeWindow.stop();
+    await closeRedis();
   });
 
   it("returns 200 with valid signature and payload", async () => {
@@ -138,6 +150,39 @@ describe("bridge hook", () => {
     await expect(response.json()).resolves.toMatchObject({ code: "bad bridge" });
   });
 
+  it("rejects payment_submitted with invalid created_at", async () => {
+    const payload = {
+      ...paymentSubmitted,
+      event_object: { ...paymentSubmitted.event_object, created_at: "not-a-date" },
+    };
+    const response = await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(payload) },
+      json: payload as never,
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({
+      code: "bad bridge",
+      legacy: "bad bridge",
+      message: expect.arrayContaining([expect.stringContaining("invalid date")]), // eslint-disable-line @typescript-eslint/no-unsafe-assignment
+    });
+  });
+
+  it("rejects drain with invalid created_at", async () => {
+    const payload = { ...drain, event_object: { ...drain.event_object, created_at: "invalid" } };
+    const response = await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(payload) },
+      json: payload as never,
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({
+      code: "bad bridge",
+      legacy: "bad bridge",
+      message: expect.arrayContaining([expect.stringContaining("invalid date")]), // eslint-disable-line @typescript-eslint/no-unsafe-assignment
+    });
+  });
+
   it("returns 200 without side effects for non-payment virtual account types", async () => {
     vi.spyOn(segment, "track").mockReturnValue();
     const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
@@ -150,6 +195,36 @@ describe("bridge hook", () => {
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
     expect(segment.track).not.toHaveBeenCalled();
     expect(sendPushNotification).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("returns 500 when feeWindow.report fails on payment_submitted", async () => {
+    vi.spyOn(segment, "track").mockReturnValue();
+    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    vi.spyOn(feeWindow, "report").mockRejectedValue(new Error("redis down"));
+    const response = await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(paymentSubmitted) },
+      json: paymentSubmitted as never,
+    });
+
+    expect(response.status).toBe(500);
+    expect(sendPushNotification).not.toHaveBeenCalled();
+    expect(segment.track).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("returns 500 when feeWindow.report fails on drain", async () => {
+    vi.spyOn(segment, "track").mockReturnValue();
+    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    vi.spyOn(feeWindow, "report").mockRejectedValue(new Error("redis down"));
+    const response = await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(drain) },
+      json: drain as never,
+    });
+
+    expect(response.status).toBe(500);
+    expect(sendPushNotification).not.toHaveBeenCalled();
+    expect(segment.track).not.toHaveBeenCalled();
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -185,6 +260,7 @@ describe("bridge hook", () => {
   it("tracks onramp for payment_processed virtual account", async () => {
     vi.spyOn(segment, "track").mockReturnValue();
     const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const reportSpy = vi.spyOn(feeWindow, "report");
     const response = await appClient.index.$post({
       header: { "x-webhook-signature": createSignature(paymentProcessed) },
       json: paymentProcessed as never,
@@ -198,6 +274,7 @@ describe("bridge hook", () => {
       properties: { currency: "usd", amount: 1000, provider: "bridge", source: null, usdcAmount: 995 },
     });
     expect(sendPushNotification).not.toHaveBeenCalled();
+    expect(reportSpy).not.toHaveBeenCalled();
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -600,6 +677,78 @@ describe("bridge hook", () => {
     expect(sendPushNotification).not.toHaveBeenCalled();
     expect(captureException).not.toHaveBeenCalled();
   });
+
+  it("tracks ramp amount via feeWindow.report on payment_submitted", async () => {
+    vi.spyOn(segment, "track").mockReturnValue();
+    const reportSpy = vi.spyOn(feeWindow, "report");
+    await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(paymentSubmitted) },
+      json: paymentSubmitted as never,
+    });
+
+    expect(reportSpy).toHaveBeenCalledExactlyOnceWith(
+      { amount: "1000", bridgeId: "bridgeCustomerId", eventId: "evt_123" },
+      new Date("2026-03-01T00:00:00.000Z"),
+    );
+  });
+
+  it("tracks ramp amount via feeWindow.report on drain payment_submitted", async () => {
+    vi.spyOn(segment, "track").mockReturnValue();
+    const reportSpy = vi.spyOn(feeWindow, "report");
+    await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(drain) },
+      json: drain as never,
+    });
+
+    expect(reportSpy).toHaveBeenCalledExactlyOnceWith(
+      { amount: "500", bridgeId: "bridgeCustomerId", eventId: "drain_123" },
+      new Date("2026-03-01T00:00:00.000Z"),
+    );
+  });
+
+  it("passes fractional amount to feeWindow.report on payment_submitted", async () => {
+    vi.spyOn(segment, "track").mockReturnValue();
+    const reportSpy = vi.spyOn(feeWindow, "report");
+    const payload = {
+      ...paymentSubmitted,
+      event_object: {
+        ...paymentSubmitted.event_object,
+        id: "evt_frac_1",
+        receipt: { initial_amount: "99.999", final_amount: "99.999" },
+      },
+    };
+    await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(payload) },
+      json: payload as never,
+    });
+
+    expect(reportSpy).toHaveBeenCalledExactlyOnceWith(
+      { amount: "99.999", bridgeId: "bridgeCustomerId", eventId: "evt_frac_1" },
+      expect.any(Date),
+    );
+  });
+
+  it("passes fractional amount to feeWindow.report on drain", async () => {
+    vi.spyOn(segment, "track").mockReturnValue();
+    const reportSpy = vi.spyOn(feeWindow, "report");
+    const payload = {
+      ...drain,
+      event_object: {
+        ...drain.event_object,
+        id: "drain_frac_1",
+        receipt: { initial_amount: "49.991", outgoing_amount: "49.991" },
+      },
+    };
+    await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(payload) },
+      json: payload as never,
+    });
+
+    expect(reportSpy).toHaveBeenCalledExactlyOnceWith(
+      { amount: "49.991", bridgeId: "bridgeCustomerId", eventId: "drain_frac_1" },
+      expect.any(Date),
+    );
+  });
 });
 
 const testSigningKey = createPrivateKey(`-----BEGIN PRIVATE KEY-----
@@ -651,6 +800,7 @@ const fundsReceived = {
 const paymentSubmitted = {
   event_type: "virtual_account.activity.created",
   event_object: {
+    created_at: "2026-03-01T00:00:00.000Z",
     id: "evt_123",
     type: "payment_submitted",
     currency: "usd",
@@ -678,6 +828,7 @@ const statusTransitioned = {
 const drain = {
   event_type: "liquidation_address.drain.updated.status_transitioned",
   event_object: {
+    created_at: "2026-03-01T00:00:00.000Z",
     id: "drain_123",
     state: "payment_submitted",
     currency: "usdc",
@@ -687,3 +838,8 @@ const drain = {
 };
 
 vi.mock("@sentry/core", { spy: true });
+vi.mock("../../utils/ramps/bridge", async (importOriginal) => ({
+  ...(await importOriginal()),
+  enableFees: vi.fn(),
+  disableFees: vi.fn(),
+}));

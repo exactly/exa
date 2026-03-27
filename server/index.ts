@@ -20,6 +20,7 @@ import panda from "./hooks/panda";
 import persona from "./hooks/persona";
 import androidFingerprints from "./utils/android/fingerprints";
 import appOrigin from "./utils/appOrigin";
+import { feeWindow } from "./utils/ramps/bridge";
 import { close as closeRedis } from "./utils/redis";
 import { closeAndFlush as closeSegment } from "./utils/segment";
 
@@ -322,8 +323,9 @@ const server = serve(app);
 export async function close() {
   return new Promise((resolve, reject) => {
     server.close((error) => {
-      Promise.allSettled([closeSentry(), closeRedis(), closeSegment(), database.$client.end()])
-        .then((results) => {
+      Promise.allSettled([feeWindow.stop(), closeSentry(), closeSegment(), database.$client.end()])
+        .then(async (results) => {
+          await closeRedis();
           if (error) reject(error);
           else if (results.some((result) => result.status === "rejected")) reject(new Error("closing services failed"));
           else resolve(null);

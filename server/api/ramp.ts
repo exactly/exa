@@ -5,6 +5,7 @@ import { Hono } from "hono";
 import {
   array,
   literal,
+  number,
   object,
   optional,
   parse,
@@ -370,6 +371,13 @@ const ProviderInfo = variant("provider", [
             object({ currency: literal("USDC"), network: literal("STELLAR") }),
           ]),
         ]),
+      ),
+      sponsoredFees: optional(
+        object({
+          windowMs: number(),
+          volume: object({ available: string(), threshold: string(), symbol: string() }),
+          count: object({ available: string(), threshold: string() }),
+        }),
       ),
     }),
     status: ProviderStatus,
