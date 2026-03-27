@@ -18,8 +18,7 @@ export default defineConfig([
   js.configs.recommended,
   ts.strictTypeChecked,
   ts.stylisticTypeChecked,
-  importPlugin.recommended,
-  importPlugin.typescript,
+  { ...importPlugin.typescript, plugins: {} }, // HACK @meawallet/react-native-mpp changed pnpm resolution of @nx/eslint-plugin to a variant without eslint-config-prettier peer, which now registers import plugin internally -- typescript is a superset of recommended so plugins: {} avoids re-registration
   unicorn.configs.recommended,
   nx.configs["flat/base"],
   // @ts-expect-error bad config types
