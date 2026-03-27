@@ -24,7 +24,6 @@ export default defineConfig({
       GCP_KMS_KEY_VERSION: "1",
       GCP_PROJECT_ID: "exa-dev",
       INTERCOM_IDENTITY_KEY: "a9cBeTfEtGPSQ58REZP35Bx00ofajvStEc8TTuBtSmk",
-      ISSUER_PRIVATE_KEY: padHex("0x420"),
       MANTECA_API_URL: "https://manteca.test",
       MANTECA_API_KEY: "manteca",
       MANTECA_WEBHOOKS_KEY: "manteca",

@@ -343,7 +343,7 @@ export function withExaSend(
   };
 }
 
-export async function getAccount(): Promise<LocalAccount> {
+export async function getAccount(key: "allower" | "issuer"): Promise<LocalAccount> {
   await initializeGcpCredentials();
 
   if (!(await hasCredentials())) {
@@ -354,10 +354,10 @@ export async function getAccount(): Promise<LocalAccount> {
   }
 
   try {
-    const account = await withRetry(
+    return await withRetry(
       () =>
         gcpHsmToAccount({
-          hsmKeyVersion: `projects/${projectId}/locations/us-west2/keyRings/${keyRing}/cryptoKeys/allower/cryptoKeyVersions/${version}`,
+          hsmKeyVersion: `projects/${projectId}/locations/us-west2/keyRings/${keyRing}/cryptoKeys/${key}/cryptoKeyVersions/${version}`,
           kmsClient: new KeyManagementServiceClient({
             keyFilename: GOOGLE_APPLICATION_CREDENTIALS,
           }),
@@ -368,13 +368,14 @@ export async function getAccount(): Promise<LocalAccount> {
         shouldRetry: ({ error }) => isRetryableKmsError(error),
       },
     );
-
-    account.nonceManager = nonceManager;
-    return account;
   } catch (error: unknown) {
     captureException(error, { level: "error" });
     throw error;
   }
+}
+
+export async function issuer(): Promise<LocalAccount> {
+  return getAccount("issuer");
 }
 
 export async function allower() {
@@ -393,7 +394,10 @@ export async function allower() {
         }
       },
     }),
-    account: await getAccount(),
+    account: await getAccount("allower").then((account) => {
+      account.nonceManager = nonceManager;
+      return account;
+    }),
   }).extend((client: WalletClient<HttpTransport, typeof chain, LocalAccount>) => {
     const send = withExaSend(client);
     return {

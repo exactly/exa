@@ -19,7 +19,6 @@ import {
   type BaseSchema,
 } from "valibot";
 import { BaseError, ContractFunctionZeroDataError } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
 import { base, optimism } from "viem/chains";
 
 import chain, {
@@ -32,9 +31,10 @@ import chain, {
   upgradeableModularAccountAbi,
 } from "@exactly/common/generated/chain";
 import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
-import { Address, Hash } from "@exactly/common/validation";
+import { Address } from "@exactly/common/validation";
 import { proposalManager } from "@exactly/plugin/deploy.json";
 
+import { issuer } from "./accounts";
 import ServiceError from "./ServiceError";
 import verifySignature from "./verifySignature";
 import database, { credentials } from "../database";
@@ -332,10 +332,21 @@ export const collectors: Address[] = (
   }[chain.id] ?? ["0xDb90CDB64CfF03f254e4015C4F705C3F3C834400"]
 ).map((address) => parse(Address, address));
 
-// TODO remove code below
-const issuer = privateKeyToAccount(parse(Hash, process.env.ISSUER_PRIVATE_KEY, { message: "invalid private key" }));
-export function signIssuerOp({ account, amount, timestamp }: { account: Address; amount: bigint; timestamp: number }) {
-  return issuer.signTypedData({
+let issuerPromise: ReturnType<typeof issuer> | undefined;
+export async function signIssuerOp({
+  account,
+  amount,
+  timestamp,
+}: {
+  account: Address;
+  amount: bigint;
+  timestamp: number;
+}) {
+  const issuerAccount = await (issuerPromise ??= issuer().catch((error: unknown) => {
+    issuerPromise = undefined;
+    throw error;
+  }));
+  return issuerAccount.signTypedData({
     domain: { chainId: chain.id, name: "IssuerChecker", version: "1", verifyingContract: issuerCheckerAddress },
     types: {
       Collection: [

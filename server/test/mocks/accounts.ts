@@ -1,7 +1,7 @@
 import "./deployments";
 
 import path from "node:path";
-import { createWalletClient, http, keccak256, toBytes, type NonceManagerSource } from "viem";
+import { createWalletClient, http, keccak256, padHex, toBytes, type NonceManagerSource } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { getTransactionCount } from "viem/actions";
 import { expect, vi } from "vitest";
@@ -21,6 +21,7 @@ vi.mock("../../utils/accounts", async (importOriginal) => {
   return {
     ...original,
     allower: vi.fn(() => Promise.resolve({ allow: vi.fn().mockResolvedValue({}) })),
+    issuer: vi.fn(() => Promise.resolve(privateKeyToAccount(padHex("0x420")))),
     keeper: createWalletClient({
       chain,
       transport: http(`${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`),
