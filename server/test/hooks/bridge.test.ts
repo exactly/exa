@@ -177,8 +177,8 @@ describe("bridge hook", () => {
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
     expect(sendPushNotification).toHaveBeenCalledWith({
       userId: account,
-      headings: { en: "Deposited funds" },
-      contents: { en: "1000 USD deposited" },
+      headings: { en: "Deposited funds", es: "Fondos depositados" }, // cspell:ignore Fondos
+      contents: { en: "1,000 USD deposited", es: "1.000 USD depositados" }, // cspell:ignore depositados
     });
   });
 
@@ -402,8 +402,8 @@ describe("bridge hook", () => {
     });
     expect(sendPushNotification).toHaveBeenCalledWith({
       userId: account,
-      headings: { en: "Fiat onramp activated" },
-      contents: { en: "Your fiat onramp account has been activated" },
+      headings: { en: "Fiat onramp activated", es: "Rampa fiat activada" }, // cspell:ignore Rampa activada
+      contents: { en: "Your fiat onramp account has been activated", es: "Tu cuenta de rampa fiat ha sido activada" }, // cspell:ignore cuenta sido
     });
   });
 
@@ -487,8 +487,8 @@ describe("bridge hook", () => {
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
     expect(sendPushNotification).toHaveBeenCalledWith({
       userId: account,
-      headings: { en: "Deposited funds" },
-      contents: { en: "500 USDC deposited" },
+      headings: { en: "Deposited funds", es: "Fondos depositados" }, // cspell:ignore Fondos
+      contents: { en: "500 USDC deposited", es: "500 USDC depositados" }, // cspell:ignore depositados -- unchanged, 500 has no thousands separator
     });
   });
 

@@ -20,6 +20,7 @@
     "api/**/*.ts",
     "database/**/*.ts",
     "hooks/**/*.ts",
+    "i18n/**/*.ts",
     "middleware/**/*.ts",
     "utils/**/*.ts",
     "script/**/*.ts",
