@@ -26,6 +26,13 @@ module.exports = {
     ],
     resolveRequest: (context, moduleName, platform) => {
       if (moduleName === "tslib") return context.resolveRequest(context, "tslib/tslib.es6.js", platform);
+      if (
+        /date-fns\/locale\.(?:js|cjs|mjs)$/.test(context.originModulePath) &&
+        moduleName.startsWith("./locale/") &&
+        !/^(?:en|es|pt)(?:-|$)/.test(moduleName.slice("./locale/".length).replace(/\.js$/, ""))
+      ) {
+        return { type: "empty" };
+      }
       try {
         return context.resolveRequest(context, moduleName, platform);
       } catch (error) {
