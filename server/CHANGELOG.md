@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.84
+
+### Patch Changes
+
+- [#896](https://github.com/exactly/exa/pull/896) [`504c9b6`](https://github.com/exactly/exa/commit/504c9b6e8a94962d728ccd8c86c32eccc9e2dd57) Thanks [@mainqueg](https://github.com/mainqueg)! - 🥅 add bridge credential fallback and retry on timeout
+
 ## 0.2.83
 
 ### Patch Changes

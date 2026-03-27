@@ -1,5 +1,34 @@
 # @exactly/mobile
 
+## 1.1.29
+
+### Patch Changes
+
+- [#907](https://github.com/exactly/exa/pull/907) [`ce222ba`](https://github.com/exactly/exa/commit/ce222ba723690bb3bf3a3fb201f446f69e0fef8e) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ♻️ flatten simulate-proposal api and batch contract reads
+
+- [#916](https://github.com/exactly/exa/pull/916) [`c7f7f41`](https://github.com/exactly/exa/commit/c7f7f415ff5641a44ec4b205b528406052aef059) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🩹 ground date calculations in block timestamp
+
+- [#918](https://github.com/exactly/exa/pull/918) [`9e6a32e`](https://github.com/exactly/exa/commit/9e6a32e71d3dd801ebc1010739d1521520aa8b97) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 normalize vertical padding in payment sheets
+
+- [#918](https://github.com/exactly/exa/pull/918) [`971efb2`](https://github.com/exactly/exa/commit/971efb2616bb35d6c5359004b4fb90a8d2c64c9d) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix owner wallet detection in siwe auth
+
+- [#918](https://github.com/exactly/exa/pull/918) [`ef7e133`](https://github.com/exactly/exa/commit/ef7e133e8f8bc9b06085cf5634c3c8a8f10cf4bc) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix bridge simulation falling back to default account
+
+- [#918](https://github.com/exactly/exa/pull/918) [`e93dbb5`](https://github.com/exactly/exa/commit/e93dbb5e29ad59a2bd7bfff2091d2afc1cd9e34f) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 fix repay amount selector font style
+
+- [#918](https://github.com/exactly/exa/pull/918) [`e483175`](https://github.com/exactly/exa/commit/e4831755315b95795cf167ef78119796360131bd) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 add bottom padding to swaps screen on web
+
+- [#921](https://github.com/exactly/exa/pull/921) [`d4ec64d`](https://github.com/exactly/exa/commit/d4ec64d8b3035acf840e9294e4702d4f8e5c43b0) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🩹 fix legacy read contract query error
+
+- [#907](https://github.com/exactly/exa/pull/907) [`b5c910f`](https://github.com/exactly/exa/commit/b5c910ffc3c07900d0f3f54346e5c891f693f360) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ♻️ replace proposal simulation with simulate blocks
+
+- [#914](https://github.com/exactly/exa/pull/914) [`02c436c`](https://github.com/exactly/exa/commit/02c436cf02475ed53d0e8dea48706f7814edb6d6) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 align propose and execute block timestamps
+
+- [#918](https://github.com/exactly/exa/pull/918) [`6344b7e`](https://github.com/exactly/exa/commit/6344b7e34542f5cea8c939fe78f0109710d10b23) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 fix legacy button press style
+
+- Updated dependencies [[`504c9b6`](https://github.com/exactly/exa/commit/504c9b6e8a94962d728ccd8c86c32eccc9e2dd57)]:
+  - @exactly/server@0.2.84
+
 ## 1.1.28
 
 ### Patch Changes
