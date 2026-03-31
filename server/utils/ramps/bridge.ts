@@ -1,4 +1,4 @@
-import { captureException, withScope } from "@sentry/core";
+import { captureEvent, captureException, withScope } from "@sentry/core";
 import { eq } from "drizzle-orm";
 import { alpha2ToAlpha3 } from "i18n-iso-countries";
 import crypto from "node:crypto";
@@ -30,7 +30,9 @@ import { Address } from "@exactly/common/validation";
 
 import database, { credentials } from "../../database";
 import * as persona from "../persona";
+import { queue } from "../redis";
 import ServiceError from "../ServiceError";
+import windowRule from "../windowRule";
 
 export const name = "bridge" as const;
 
@@ -252,7 +254,24 @@ export async function getProvider(params: {
       }
     }
 
-    return { status: "ACTIVE" as const, onramp: { currencies } };
+    const {
+      result: { volume, count },
+    } = await feeWindow.read(params.customerId);
+    return {
+      status: "ACTIVE" as const,
+      onramp: {
+        currencies,
+        sponsoredFees: {
+          windowMs: feeWindowMs,
+          volume: {
+            available: String(Math.max(0, Number(volumeThresholdCents - volume)) / 100),
+            threshold: String(Number(volumeThresholdCents) / 100),
+            symbol: "USD",
+          },
+          count: { available: String(Math.max(0, countThreshold - count)), threshold: String(countThreshold) },
+        },
+      },
+    };
   }
 
   const personaAccount = await persona.getAccount(params.credentialId, "bridge");
@@ -419,7 +438,7 @@ export async function getDepositDetails(
 
   virtualAccount ??= await createVirtualAccount(customer.id, {
     source: { currency: CurrencyToBridge[currency] },
-    developer_fee_percentage: "0.0",
+    developer_fee_percent: "0.0",
     destination: { currency: "usdc", payment_rail: supportedChainId, address: account },
   });
 
@@ -782,7 +801,7 @@ const NewCustomer = object({ status: picklist(CustomerStatus), id: string() });
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const CreateVirtualAccount = object({
-  developer_fee_percentage: optional(string()),
+  developer_fee_percent: optional(string()),
   source: object({
     currency: picklist(BridgeCurrency),
   }),
@@ -796,7 +815,7 @@ const CreateVirtualAccount = object({
 const VirtualAccount = object({
   id: string(),
   status: picklist(VirtualAccountStatus),
-  developer_fee_percentage: optional(string()),
+  developer_fee_percent: optional(string()),
   source_deposit_instructions: variant("currency", [
     object({
       currency: literal("brl" as const satisfies (typeof BridgeCurrency)[number]),
@@ -846,6 +865,7 @@ const VirtualAccount = object({
 const VirtualAccounts = object({ count: number(), data: array(VirtualAccount) });
 
 const CreateLiquidationAddress = object({
+  custom_developer_fee_percent: optional(string()),
   currency: picklist(["usdc", "usdt"]),
   chain: picklist([...CryptoPaymentRail, "evm"]),
   destination_payment_rail: picklist(BridgeChain),
@@ -862,6 +882,46 @@ const LiquidationAddress = object({
 });
 
 const LiquidationAddresses = object({ count: number(), data: array(LiquidationAddress) });
+
+const setFee = (customerId: string, fees?: Record<(typeof BridgeCurrency)[number], string>) =>
+  Promise.all([
+    getVirtualAccounts(customerId).then((accounts) =>
+      Promise.all(
+        accounts.map((account) =>
+          request(
+            VirtualAccount,
+            `/customers/${customerId}/virtual_accounts/${account.id}`,
+            {},
+            { developer_fee_percent: fees?.[account.source_deposit_instructions.currency] ?? "0.0" },
+            "PUT",
+          ),
+        ),
+      ),
+    ),
+    getLiquidationAddresses(customerId).then((addresses) =>
+      Promise.all(
+        addresses.map((address) => {
+          switch (address.currency) {
+            case "usdc":
+            case "usdt":
+              return request(
+                LiquidationAddress,
+                `/customers/${customerId}/liquidation_addresses/${address.id}`,
+                {},
+                { custom_developer_fee_percent: fees?.[address.currency] ?? "0.0" },
+                "PUT",
+              );
+            default:
+              captureException(new Error("bridge not supported currency"), {
+                contexts: { details: { currency: address.currency } },
+                level: "warning",
+              });
+              return Promise.resolve();
+          }
+        }),
+      ),
+    ),
+  ]);
 
 async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
   schema: BaseSchema<TInput, TOutput, TIssue>,
@@ -921,7 +981,7 @@ function getDepositDetailsFromVirtualAccount(virtualAccount: InferOutput<typeof 
           bankAddress: virtualAccount.source_deposit_instructions.bank_address,
           beneficiaryAddress: virtualAccount.source_deposit_instructions.bank_beneficiary_address,
           bankName: virtualAccount.source_deposit_instructions.bank_name,
-          fee: "0.0",
+          fee: fees.usd,
           estimatedProcessingTime: "1 - 3 business days",
         },
         {
@@ -933,7 +993,7 @@ function getDepositDetailsFromVirtualAccount(virtualAccount: InferOutput<typeof 
           bankAddress: virtualAccount.source_deposit_instructions.bank_address,
           beneficiaryAddress: virtualAccount.source_deposit_instructions.bank_beneficiary_address,
           bankName: virtualAccount.source_deposit_instructions.bank_name,
-          fee: "0.0",
+          fee: "1.0",
           estimatedProcessingTime: "300",
         },
       ];
@@ -944,7 +1004,7 @@ function getDepositDetailsFromVirtualAccount(virtualAccount: InferOutput<typeof 
           displayName: "SEPA" as const,
           beneficiaryName: virtualAccount.source_deposit_instructions.account_holder_name,
           iban: virtualAccount.source_deposit_instructions.iban,
-          fee: "0.0",
+          fee: fees.eur,
           estimatedProcessingTime: "300",
         },
       ];
@@ -955,7 +1015,7 @@ function getDepositDetailsFromVirtualAccount(virtualAccount: InferOutput<typeof 
           displayName: "SPEI" as const,
           beneficiaryName: virtualAccount.source_deposit_instructions.account_holder_name,
           clabe: virtualAccount.source_deposit_instructions.clabe,
-          fee: "0.0",
+          fee: fees.mxn,
           estimatedProcessingTime: "300",
         },
       ];
@@ -966,7 +1026,7 @@ function getDepositDetailsFromVirtualAccount(virtualAccount: InferOutput<typeof 
           displayName: "PIX BR" as const,
           beneficiaryName: virtualAccount.source_deposit_instructions.account_holder_name,
           brCode: virtualAccount.source_deposit_instructions.br_code,
-          fee: "0.0",
+          fee: fees.brl,
           estimatedProcessingTime: "300",
         },
       ];
@@ -980,7 +1040,7 @@ function getDepositDetailsFromVirtualAccount(virtualAccount: InferOutput<typeof 
           accountHolderName: virtualAccount.source_deposit_instructions.account_holder_name,
           bankName: virtualAccount.source_deposit_instructions.bank_name,
           bankAddress: virtualAccount.source_deposit_instructions.bank_address,
-          fee: "0.0",
+          fee: fees.gbp,
           estimatedProcessingTime: "300",
         },
       ];
@@ -1002,7 +1062,7 @@ function getDepositDetailsFromLiquidationAddress(
           network: "TRON" as const,
           displayName: "TRON" as const,
           address: liquidationAddress.address,
-          fee: "0.0",
+          fee: fees.usdt,
           estimatedProcessingTime: "300",
         },
       ];
@@ -1012,7 +1072,7 @@ function getDepositDetailsFromLiquidationAddress(
           network: "SOLANA" as const,
           displayName: "SOLANA" as const,
           address: liquidationAddress.address,
-          fee: "0.0",
+          fee: fees.usdc,
           estimatedProcessingTime: "300",
         },
       ];
@@ -1022,7 +1082,7 @@ function getDepositDetailsFromLiquidationAddress(
           network: "STELLAR" as const,
           displayName: "STELLAR" as const,
           address: liquidationAddress.address,
-          fee: "0.0",
+          fee: fees.usdc,
           estimatedProcessingTime: "300",
         },
       ];
@@ -1047,6 +1107,50 @@ export const ErrorCodes = {
   NO_PERSONA_ACCOUNT: "no persona account",
   NO_SOCIAL_SECURITY_NUMBER: "no social security number",
 };
+
+export const fees: Record<(typeof BridgeCurrency)[number], string> = {
+  usd: "0.4",
+  eur: "0.7",
+  mxn: "1.0",
+  brl: "0.5",
+  gbp: "1.0",
+  usdc: "0.3",
+  usdt: "0.3",
+};
+
+export const enableFees = (customerId: string) => setFee(customerId, fees);
+export const disableFees = (customerId: string) => setFee(customerId);
+
+export const volumeThresholdCents = 3000n * 100n;
+export const countThreshold = 60;
+export const feeWindowMs = 30 * 24 * 60 * 60 * 1000;
+
+export const feeWindow = windowRule(
+  {
+    name: "bridge-fees",
+    schema: object({ amount: string(), bridgeId: string(), eventId: string() }),
+    windowMs: feeWindowMs,
+    partition: (event) => event.bridgeId,
+    eventId: (event) => event.eventId,
+    evaluate: (events) => {
+      const count = events.length;
+      const volume = BigInt(Math.ceil(events.reduce((sum, event) => sum + Number(event.amount), 0) * 100));
+      return { trigger: volume >= volumeThresholdCents || count >= countThreshold, volume, count };
+    },
+    onTrigger: async (partition, result) => {
+      await enableFees(partition);
+      captureEvent({
+        message: "bridge fees enabled",
+        level: "warning",
+        contexts: { details: { bridgeId: partition, result } },
+      });
+    },
+    onTriggerExpire: async (partition) => {
+      await disableFees(partition);
+    },
+  },
+  queue,
+);
 
 const BridgeApiErrorCodes = {
   EMAIL_ALREADY_EXISTS: "A customer with this email already exists",

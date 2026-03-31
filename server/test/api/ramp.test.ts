@@ -7,7 +7,7 @@ import { HTTPException } from "hono/http-exception";
 import { testClient } from "hono/testing";
 import { hexToBytes, padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
-import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 
@@ -16,6 +16,7 @@ import database, { credentials } from "../../database";
 import * as persona from "../../utils/persona";
 import * as bridge from "../../utils/ramps/bridge";
 import * as manteca from "../../utils/ramps/manteca";
+import { close as closeRedis } from "../../utils/redis";
 
 const appClient = testClient(app);
 
@@ -36,6 +37,11 @@ describe("ramp api", () => {
         bridgeId: "bridge-customer-123",
       },
     ]);
+  });
+
+  afterAll(async () => {
+    await bridge.feeWindow.stop();
+    await closeRedis();
   });
 
   afterEach(() => {

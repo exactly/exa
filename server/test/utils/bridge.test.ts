@@ -2,12 +2,13 @@
 import "../mocks/sentry";
 
 import { captureException } from "@sentry/core";
+import { QueueEvents } from "bullmq";
 import { eq } from "drizzle-orm";
 import { parse } from "valibot";
 import { hexToBytes, padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { optimism, optimismSepolia } from "viem/chains";
-import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import { Address } from "@exactly/common/validation";
@@ -15,6 +16,27 @@ import { Address } from "@exactly/common/validation";
 import database, { credentials } from "../../database";
 import * as persona from "../../utils/persona";
 import * as bridge from "../../utils/ramps/bridge";
+import redis, { close as closeRedis, queue } from "../../utils/redis";
+
+const queueEvents = new QueueEvents("wr-bridge-fees", { connection: queue });
+
+function settled(silence = 250) {
+  return new Promise<void>((resolve) => {
+    let timer: NodeJS.Timeout;
+    const done = () => {
+      queueEvents.off("completed", reset);
+      queueEvents.off("failed", reset);
+      resolve();
+    };
+    const reset = () => {
+      clearTimeout(timer);
+      timer = setTimeout(done, silence);
+    };
+    queueEvents.on("completed", reset);
+    queueEvents.on("failed", reset);
+    reset();
+  });
+}
 
 const chainMock = vi.hoisted(() => ({ id: 10 }));
 
@@ -47,7 +69,15 @@ describe("bridge utils", () => {
     ]);
   });
 
-  beforeEach(() => {
+  afterAll(async () => {
+    await bridge.feeWindow.stop();
+    await queueEvents.close();
+    await closeRedis();
+  });
+
+  beforeEach(async () => {
+    const keys = await redis.keys("wr:bridge-fees:*");
+    if (keys.length > 0) await redis.del(...keys);
     chainMock.id = optimism.id;
     vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,
@@ -242,14 +272,139 @@ describe("bridge utils", () => {
 
         const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
 
-        expect(result.status).toBe("ACTIVE");
-        expect(result.onramp.currencies).toStrictEqual([
-          { currency: "USDC", network: "SOLANA" },
-          { currency: "USDC", network: "STELLAR" },
-          { currency: "USDT", network: "TRON" },
-          "USD",
-          "GBP",
-        ]);
+        expect(result).toStrictEqual({
+          status: "ACTIVE",
+          onramp: {
+            currencies: [
+              { currency: "USDC", network: "SOLANA" },
+              { currency: "USDC", network: "STELLAR" },
+              { currency: "USDT", network: "TRON" },
+              "USD",
+              "GBP",
+            ],
+            sponsoredFees: {
+              windowMs: 2_592_000_000,
+              volume: { available: "3000", threshold: "3000", symbol: "USD" },
+              count: { available: "60", threshold: "60" },
+            },
+          },
+        });
+      });
+
+      it("reflects consumed volume in fees after reported events", async () => {
+        await bridge.feeWindow.report({ amount: "500", bridgeId: "cust-1", eventId: "evt_1" }, new Date());
+        await bridge.feeWindow.report({ amount: "200.50", bridgeId: "cust-1", eventId: "evt_2" }, new Date());
+        await settled();
+        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+          fetchResponse({ ...activeCustomer, endorsements: [endorsement("base", "approved")] }),
+        );
+
+        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+
+        expect(result).toStrictEqual({
+          status: "ACTIVE",
+          onramp: {
+            currencies: [
+              { currency: "USDC", network: "SOLANA" },
+              { currency: "USDC", network: "STELLAR" },
+              { currency: "USDT", network: "TRON" },
+              "USD",
+            ],
+            sponsoredFees: {
+              windowMs: 2_592_000_000,
+              volume: { available: "2299.5", threshold: "3000", symbol: "USD" },
+              count: { available: "58", threshold: "60" },
+            },
+          },
+        });
+      });
+
+      it("clamps available volume to zero when threshold exceeded", async () => {
+        await bridge.feeWindow.report({ amount: "3000", bridgeId: "cust-1", eventId: "evt_big" }, new Date());
+        await settled();
+        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+          fetchResponse({ ...activeCustomer, endorsements: [endorsement("base", "approved")] }),
+        );
+
+        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+
+        expect(result).toStrictEqual({
+          status: "ACTIVE",
+          onramp: {
+            currencies: [
+              { currency: "USDC", network: "SOLANA" },
+              { currency: "USDC", network: "STELLAR" },
+              { currency: "USDT", network: "TRON" },
+              "USD",
+            ],
+            sponsoredFees: {
+              windowMs: 2_592_000_000,
+              volume: { available: "0", threshold: "3000", symbol: "USD" },
+              count: { available: "59", threshold: "60" },
+            },
+          },
+        });
+      });
+
+      it("rounds up total volume to nearest cent", async () => {
+        await bridge.feeWindow.report({ amount: "100.001", bridgeId: "cust-1", eventId: "evt_p1" }, new Date());
+        await bridge.feeWindow.report({ amount: "99.999", bridgeId: "cust-1", eventId: "evt_p2" }, new Date());
+        await bridge.feeWindow.report({ amount: "0.009", bridgeId: "cust-1", eventId: "evt_p3" }, new Date());
+        await settled();
+        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+          fetchResponse({ ...activeCustomer, endorsements: [endorsement("base", "approved")] }),
+        );
+
+        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+
+        expect(result).toStrictEqual({
+          status: "ACTIVE",
+          onramp: {
+            currencies: [
+              { currency: "USDC", network: "SOLANA" },
+              { currency: "USDC", network: "STELLAR" },
+              { currency: "USDT", network: "TRON" },
+              "USD",
+            ],
+            sponsoredFees: {
+              windowMs: 2_592_000_000,
+              volume: { available: "2799.99", threshold: "3000", symbol: "USD" },
+              count: { available: "57", threshold: "60" },
+            },
+          },
+        });
+      });
+
+      it("clamps available count to zero when threshold reached", async () => {
+        const now = new Date();
+        await Promise.all(
+          Array.from({ length: 60 }, (_, index) =>
+            bridge.feeWindow.report({ amount: "1", bridgeId: "cust-1", eventId: `evt_c_${index}` }, now),
+          ),
+        );
+        await settled();
+        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+          fetchResponse({ ...activeCustomer, endorsements: [endorsement("base", "approved")] }),
+        );
+
+        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+
+        expect(result).toStrictEqual({
+          status: "ACTIVE",
+          onramp: {
+            currencies: [
+              { currency: "USDC", network: "SOLANA" },
+              { currency: "USDC", network: "STELLAR" },
+              { currency: "USDT", network: "TRON" },
+              "USD",
+            ],
+            sponsoredFees: {
+              windowMs: 2_592_000_000,
+              volume: { available: "2940", threshold: "3000", symbol: "USD" },
+              count: { available: "0", threshold: "60" },
+            },
+          },
+        });
       });
 
       it("returns ACTIVE with currencies from approved endorsements", async () => {
@@ -913,7 +1068,7 @@ describe("bridge utils", () => {
         bankAddress: "123 Bank St",
         beneficiaryAddress: "456 Beneficiary Ave",
         bankName: "Test Bank",
-        fee: "0.0",
+        fee: "0.4",
         estimatedProcessingTime: "1 - 3 business days",
       });
       expect(result[1]).toStrictEqual({
@@ -925,7 +1080,7 @@ describe("bridge utils", () => {
         bankAddress: "123 Bank St",
         beneficiaryAddress: "456 Beneficiary Ave",
         bankName: "Test Bank",
-        fee: "0.0",
+        fee: "1.0",
         estimatedProcessingTime: "300",
       });
     });
@@ -953,7 +1108,7 @@ describe("bridge utils", () => {
         displayName: "SEPA",
         beneficiaryName: "Test Holder",
         iban: "DE89370400440532013000",
-        fee: "0.0",
+        fee: "0.7",
         estimatedProcessingTime: "300",
       });
     });
@@ -976,7 +1131,7 @@ describe("bridge utils", () => {
         displayName: "SPEI",
         beneficiaryName: "Test Holder MX",
         clabe: "646180171800000178", // cspell:ignore clabe
-        fee: "0.0",
+        fee: "1.0",
         estimatedProcessingTime: "300",
       });
     });
@@ -999,7 +1154,7 @@ describe("bridge utils", () => {
         displayName: "PIX BR",
         beneficiaryName: "Test Holder BR",
         brCode: "00020126580014br.gov.bcb.pix", // cspell:ignore bcb
-        fee: "0.0",
+        fee: "0.5",
         estimatedProcessingTime: "300",
       });
     });
@@ -1038,7 +1193,7 @@ describe("bridge utils", () => {
         accountHolderName: "Test Holder GB",
         bankName: "UK Bank",
         bankAddress: "10 Downing St",
-        fee: "0.0",
+        fee: "1.0",
         estimatedProcessingTime: "300",
       });
     });
@@ -1133,6 +1288,77 @@ describe("bridge utils", () => {
     });
   });
 
+  describe("enableFees", () => {
+    it("updates all virtual accounts and liquidation addresses with developer fee", async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(fetchResponse({ count: 2, data: [usdVirtualAccount("0x1"), eurVirtualAccount("0x1")] }))
+        .mockResolvedValueOnce(
+          fetchResponse({
+            count: 1,
+            data: [{ id: "la-1", currency: "usdt", chain: "tron", address: "TAddr1", destination_address: "0x1" }],
+          }),
+        )
+        .mockResolvedValueOnce(fetchResponse(usdVirtualAccount("0x1")))
+        .mockResolvedValueOnce(fetchResponse(eurVirtualAccount("0x1")))
+        .mockResolvedValueOnce(
+          fetchResponse({ id: "la-1", currency: "usdt", chain: "tron", address: "TAddr1", destination_address: "0x1" }),
+        );
+
+      await bridge.enableFees("cust-1");
+
+      expect(fetchSpy).toHaveBeenCalledWith(
+        expect.stringContaining("/virtual_accounts/va-usd"),
+        expect.objectContaining({ method: "PUT", body: JSON.stringify({ developer_fee_percent: "0.4" }) }),
+      );
+      expect(fetchSpy).toHaveBeenCalledWith(
+        expect.stringContaining("/virtual_accounts/va-eur"),
+        expect.objectContaining({ method: "PUT", body: JSON.stringify({ developer_fee_percent: "0.7" }) }),
+      );
+      expect(fetchSpy).toHaveBeenCalledWith(
+        expect.stringContaining("/liquidation_addresses/la-1"),
+        expect.objectContaining({ method: "PUT", body: JSON.stringify({ custom_developer_fee_percent: "0.3" }) }),
+      );
+    });
+
+    it("succeeds with no virtual accounts or liquidation addresses", async () => {
+      vi.spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(fetchResponse({ count: 0, data: [] }))
+        .mockResolvedValueOnce(fetchResponse({ count: 0, data: [] }));
+
+      await expect(bridge.enableFees("cust-empty")).resolves.toBeDefined();
+    });
+  });
+
+  describe("disableFees", () => {
+    it("updates all virtual accounts and liquidation addresses with zero fee", async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(fetchResponse({ count: 1, data: [usdVirtualAccount("0x1")] }))
+        .mockResolvedValueOnce(
+          fetchResponse({
+            count: 1,
+            data: [{ id: "la-1", currency: "usdt", chain: "tron", address: "TAddr1", destination_address: "0x1" }],
+          }),
+        )
+        .mockResolvedValueOnce(fetchResponse(usdVirtualAccount("0x1")))
+        .mockResolvedValueOnce(
+          fetchResponse({ id: "la-1", currency: "usdt", chain: "tron", address: "TAddr1", destination_address: "0x1" }),
+        );
+
+      await bridge.disableFees("cust-1");
+
+      expect(fetchSpy).toHaveBeenCalledWith(
+        expect.stringContaining("/virtual_accounts/va-usd"),
+        expect.objectContaining({ method: "PUT", body: JSON.stringify({ developer_fee_percent: "0.0" }) }),
+      );
+      expect(fetchSpy).toHaveBeenCalledWith(
+        expect.stringContaining("/liquidation_addresses/la-1"),
+        expect.objectContaining({ method: "PUT", body: JSON.stringify({ custom_developer_fee_percent: "0.0" }) }),
+      );
+    });
+  });
+
   describe("getCryptoDepositDetails", () => {
     const account = parse(Address, padHex("0x1", { size: 20 }));
 
@@ -1171,7 +1397,7 @@ describe("bridge utils", () => {
         network: "TRON",
         displayName: "TRON",
         address: "TAddr123",
-        fee: "0.0",
+        fee: "0.3",
         estimatedProcessingTime: "300",
       });
     });
@@ -1193,7 +1419,7 @@ describe("bridge utils", () => {
         network: "SOLANA",
         displayName: "SOLANA",
         address: "SolAddr456",
-        fee: "0.0",
+        fee: "0.3",
         estimatedProcessingTime: "300",
       });
     });
@@ -1221,7 +1447,7 @@ describe("bridge utils", () => {
         network: "STELLAR",
         displayName: "STELLAR",
         address: "StellarAddr789",
-        fee: "0.0",
+        fee: "0.3",
         estimatedProcessingTime: "300",
       });
     });
