@@ -29,7 +29,8 @@ function AssetRow({ asset }: { asset: AssetItem }) {
     t,
     i18n: { language },
   } = useTranslation();
-  const { symbol, amount, decimals, usdPrice, usdValue, rate } = asset;
+  const { symbol, amount, decimals, usdValue, usdPrice, rate } = asset;
+  const digits = Math.min(8, Math.max(0, decimals - Math.ceil(Math.log10(Math.max(1, Number(usdValue) / 1e18)))));
   return (
     <XStack alignItems="center" borderColor="$borderNeutralSoft" paddingVertical="$s3_5" gap="$s2" width="100%">
       <XStack gap="$s3_5" alignItems="center" flex={1}>
@@ -76,11 +77,8 @@ function AssetRow({ asset }: { asset: AssetItem }) {
         </Text>
         <Text caption color="$uiNeutralSecondary" textAlign="right">
           {(Number(amount) / 10 ** decimals).toLocaleString(language, {
-            minimumFractionDigits: 1,
-            maximumFractionDigits: Math.min(
-              8,
-              Math.max(0, decimals - Math.ceil(Math.log10(Math.max(1, Number(usdValue) / 1e18)))),
-            ),
+            minimumFractionDigits: Math.min(1, digits),
+            maximumFractionDigits: digits,
           })}
         </Text>
       </YStack>
