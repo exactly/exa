@@ -61,11 +61,13 @@ appId: ${APP_ID ?? "app.exactly"}
       - assertVisible: to estimate installment options
       - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Go back } }
 - tapOn: Home
-- runFlow: { file: scrollTo.yaml, env: { element: Credit limit } }
+- waitForAnimationToEnd
+- runFlow: { file: scrollTo.yaml, env: { element: Now } }
 - tapOn: Credit limit
 - assertVisible: It’s based on the value of your collateral assets and updates as their value changes.
 - tapOn: Close
 - tapOn: Now
+- waitForAnimationToEnd
 - tapOn: Spending limit
 - assertVisible: It’s based on the USDC available in your balance.
 - tapOn: Close
