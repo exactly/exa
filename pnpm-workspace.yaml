@@ -20,6 +20,7 @@ catalog:
   wagmi: ^3.5.0
 ignoreWorkspaceRootCheck: true
 includeWorkspaceRoot: true
+minimumReleaseAge: 1440
 packages:
   - "."
   - common
