@@ -1,5 +1,11 @@
 # @exactly/mobile
 
+## 1.1.30
+
+### Patch Changes
+
+- [`342ada1`](https://github.com/exactly/exa/commit/342ada1921bd9eb9bdd4ea84f5e4a0fca23cdeda) Thanks [@franm91](https://github.com/franm91)! - 🚑️ prevent range error in asset amount formatting
+
 ## 1.1.29
 
 ### Patch Changes
