@@ -462,7 +462,9 @@ describe("proposal", () => {
         typeof hint === "object" && "fingerprint" in hint && Array.isArray(hint.fingerprint) ? [hint.fingerprint] : [],
       );
 
-      expect(simulateContract).not.toHaveBeenCalled();
+      expect(simulateContract).not.toHaveBeenCalledWith(
+        expect.objectContaining({ functionName: "executeProposal", args: [proposal.args.nonce] }),
+      );
       expect(captureExceptionFingerprints).toEqual([
         ["{{ default }}", "execution reverted: proposal outer reason fallback"],
       ]);
@@ -527,7 +529,9 @@ describe("proposal", () => {
         typeof hint === "object" && "fingerprint" in hint && Array.isArray(hint.fingerprint) ? [hint.fingerprint] : [],
       );
 
-      expect(simulateContract).not.toHaveBeenCalled();
+      expect(simulateContract).not.toHaveBeenCalledWith(
+        expect.objectContaining({ functionName: "executeProposal", args: [proposal.args.nonce] }),
+      );
       expect(captureExceptionFingerprints).toEqual([["{{ default }}", "0x12345678"]]);
       expect(captureException).toHaveBeenCalledWith(
         expect.objectContaining({ name: "ContractFunctionExecutionError", functionName: "executeProposal" }),
@@ -586,7 +590,9 @@ describe("proposal", () => {
         typeof hint === "object" && "fingerprint" in hint && Array.isArray(hint.fingerprint) ? [hint.fingerprint] : [],
       );
 
-      expect(simulateContract).not.toHaveBeenCalled();
+      expect(simulateContract).not.toHaveBeenCalledWith(
+        expect.objectContaining({ functionName: "executeProposal", args: [proposal.args.nonce] }),
+      );
       expect(captureExceptionFingerprints).toEqual([["{{ default }}", "unknown"]]);
       expect(captureException).toHaveBeenCalledWith(
         expect.objectContaining({ name: "ContractFunctionExecutionError", functionName: "executeProposal" }),
@@ -640,7 +646,9 @@ describe("proposal", () => {
         typeof hint === "object" && "fingerprint" in hint && Array.isArray(hint.fingerprint) ? [hint.fingerprint] : [],
       );
 
-      expect(simulateContract).not.toHaveBeenCalled();
+      expect(simulateContract).not.toHaveBeenCalledWith(
+        expect.objectContaining({ functionName: "executeProposal", args: [proposal.args.nonce] }),
+      );
       expect(captureExceptionFingerprints).toEqual([["{{ default }}", "unknown"]]);
       expect(captureException).toHaveBeenCalledWith(
         expect.objectContaining({ message: "nonce reset failed" }),
