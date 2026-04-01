@@ -290,7 +290,7 @@ Final settlement at $90.00 with status "completed" and timestamp. The final amou
     "id": "be67eeb7-294a-42d9-b337-77bfad198aad",
     "type": "spend",
     "spend": {
-      "amount": 9000, // notice the partial capture
+      "amount": 9000,
       "currency": "usd",
       "cardId": "827c3893-d7c8-46d4-a518-744b016555bc",
       "localAmount": 9000,
@@ -367,7 +367,7 @@ Final settlement at $110.00 with status "completed" and timestamp. Note that the
     "id": "be67eeb7-294a-42d9-b337-77bfad198aad",
     "type": "spend",
     "spend": {
-      "amount": 11000, // notice the increase in the amount of settlement
+      "amount": 11000,
       "currency": "usd",
       "cardId": "827c3893-d7c8-46d4-a518-744b016555bc",
       "localAmount": 11000,
@@ -459,7 +459,7 @@ do sanity checks.
     }
   }
 }
- ```
+```
 
 #### Transaction Completed
 
@@ -506,18 +506,18 @@ There are 3 types of operations that return funds to the user: reversal, partial
 
 This occurs when the user calls an uber, for example. Authorizes $30 but then the travel is cancelled, so exa instantly return the funds to the user in a $30 reversal. This happens before the settlement and can happen many times. Timing: reversals are usually during the same day.
 
-#### Partial capture
+### Partial capture
 
 This happens when a transaction enters a terminal state, which means no more reversals or other event types are allowed. This is the last event. If the authorized amount is higher than the final amount, funds need to be returned to the user. This looks pretty much like a reversal but also signals to the user that no more assets will be requested or returned as part of the purchase flow. Timing: usually 2 or 3 business days after swiping the card.
 
-#### Refund
+### Refund
 
 Refunds come after the purchase enters a terminal state and could be associated with the purchase or not. That is not guaranteed, but if it is not the same, using the merchant name to link is suggested. Timing: more than a week.
 
 | Operation | Display | Time |
 | --- | --- | --- |
 | reversal | purchase details | same day |
-| partial | purchase details | 2 or 3 business day |
+| partial | purchase details | 2 or 3 business days |
 | refunds | activity | weeks |
 
 ## Event reference
@@ -584,7 +584,7 @@ Triggered for events such as incremental authorizations or reversals (a type of 
 | body.spend.authorizedAmount | number | amount authorized | 2499 |
 | body.spend.authorizationUpdateAmount | number | amount difference authorized. it can be positive in case of status pending or negative if is a reversal. will be declined if was not possible to authorize the increment or decrement of the authorization | 726 |
 | body.spend.status | "pending" \| "reversed" \| "declined" | current status of the transaction | pending |
-| body.spend.enrichedMerchantIcon? | string | url of the enriched merchant icon | <https://storage.googleapis.com/heron-merchant-assets/icons/mrc_Syjxck7oqeRQxzHAjc9XrD.png> |
+| body.spend.enrichedMerchantIcon? | string | url of the enriched merchant icon | `https://storage.googleapis.com/heron-merchant-assets/icons/mrc_Syjxck7oqeRQxzHAjc9XrD.png` |
 | body.spend.enrichedMerchantName? | string | name of the enriched merchant | Uber |
 | body.spend.enrichedMerchantCategory? | string | category of the enriched merchant | Transport - Rides |
 
@@ -617,7 +617,7 @@ if an onchain transaction is necessary.
 | body.spend.authorizedAt | string | time when purchase was authorized in ISO 8601 | 2025-08-08T17:55:14.312Z |
 | body.spend.authorizedAmount | number | original authorized amount | 1035 |
 | body.spend.status | "completed" | final status of the transaction | completed |
-| body.spend.enrichedMerchantIcon? | string | url of the enriched merchant icon | <https://storage.googleapis.com/heron-merchant-assets/icons/mrc_BqxmeYFvJmCprexvXUDF7h.png> |
+| body.spend.enrichedMerchantIcon? | string | url of the enriched merchant icon | `https://storage.googleapis.com/heron-merchant-assets/icons/mrc_BqxmeYFvJmCprexvXUDF7h.png` |
 | body.spend.enrichedMerchantName? | string | name of the enriched merchant | Jockey |
 | body.spend.enrichedMerchantCategory? | string | category of the enriched merchant | Shopping |
 
@@ -650,5 +650,5 @@ This webhook is currently triggered when a user adds their card to a digital wal
 | body.last4 | string | last 4 digits of the card | 7392 |
 | body.limit.amount | number | spending limit amount | 1000000 |
 | body.limit.frequency | "per24HourPeriod" \| "per7DayPeriod" \| "per30DayPeriod" \| "perYearPeriod" | frequency of the spending limit | per7DayPeriod |
-| body.status | "ACTIVE" \| "FROZEN" \| "DELETED" | current status of the card | ACTIVE |
+| body.status | "ACTIVE" \| "FROZEN" \| "DELETED" \| "INACTIVE" | current status of the card | ACTIVE |
 | body.tokenWallets | ["Apple"] \| ["Google Pay"] \| undefined | array of token wallets | ["Apple"] |
