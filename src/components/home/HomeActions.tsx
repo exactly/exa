@@ -10,7 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useBytecode, useReadContract } from "wagmi";
 
 import accountInit from "@exactly/common/accountInit";
-import { exaPluginAddress } from "@exactly/common/generated/chain";
+import chain, { exaPluginAddress } from "@exactly/common/generated/chain";
 import {
   upgradeableModularAccountAbi,
   useReadUpgradeableModularAccountGetInstalledPlugins,
@@ -26,7 +26,7 @@ export default function HomeActions() {
   const router = useRouter();
   const { address: account } = useAccount();
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
-  const { data: bytecode } = useBytecode({ address: account, query: { enabled: !!account } });
+  const { data: bytecode } = useBytecode({ address: account, chainId: chain.id, query: { enabled: !!account } });
   const { t } = useTranslation();
   const actions = useMemo(
     () => [
@@ -39,12 +39,14 @@ export default function HomeActions() {
 
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
     address: account,
+    chainId: chain.id,
     factory: credential?.factory,
     factoryData: credential && accountInit(credential),
     query: { enabled: !!account && !!credential },
   });
   const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
   const { refetch: fetchProposals, isPending } = useReadContract({
+    chainId: chain.id,
     functionName: "proposals",
     abi: [
       ...upgradeableModularAccountAbi,

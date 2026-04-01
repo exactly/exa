@@ -72,10 +72,11 @@ export default function Review() {
   const singleInstallment = count === 1;
 
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
-  const { data: bytecode } = useBytecode({ address, query: { enabled: !!address } });
+  const { data: bytecode } = useBytecode({ address, chainId: chain.id, query: { enabled: !!address } });
 
   const { data: borrow, isPending: isBorrowPending } = useReadPreviewerPreviewBorrowAtMaturity({
     address: previewerAddress,
+    chainId: chain.id,
     args: [marketUSDCAddress, maturity ?? 0n, amount ?? 0n],
     query: { enabled: !!address && !!bytecode && !!maturity && !!amount && singleInstallment },
   });
@@ -111,6 +112,7 @@ export default function Review() {
     isPending: isProposingBorrowInstallments,
     isSuccess: isProposingBorrowInstallmentsSuccess,
     error: proposeBorrowInstallmentsError,
+    reset: resetProposal,
   } = useMutation({
     async mutationFn() {
       if (!address) throw new Error("no account");
@@ -142,6 +144,7 @@ export default function Review() {
         calls.push({ to: address, data });
       }
       const { id } = await mutateSendCalls({
+        chainId: chain.id,
         calls,
         capabilities: {
           paymasterService: {
@@ -153,7 +156,9 @@ export default function Review() {
       const { status } = await waitForCallsStatus(exa, { id });
       if (status === "failure") throw new Error("failed to submit borrow proposal");
     },
-    onError: reportError,
+    onError(error) {
+      if (reportError(error).authKnown) resetProposal();
+    },
   });
 
   const maturityLabel = useMemo(
@@ -193,6 +198,7 @@ export default function Review() {
 
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
     address,
+    chainId: chain.id,
     factory: credential?.factory,
     factoryData: credential && accountInit(credential),
     query: { enabled: !!address && !!credential },

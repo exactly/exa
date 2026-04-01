@@ -13,9 +13,20 @@ export default function useMarkets(query?: { enabled?: boolean; gcTime?: number;
   const { data, ...rest } = useReadContracts({
     allowFailure: false,
     contracts: [
-      { address: previewerAddress, abi: previewerAbi, functionName: "exactly", args: [account ?? zeroAddress] },
-      { address: ratePreviewerAddress, abi: ratePreviewerAbi, functionName: "snapshot" },
-      { address: chain.contracts.multicall3.address, abi: multicall3Abi, functionName: "getCurrentBlockTimestamp" },
+      {
+        address: previewerAddress,
+        abi: previewerAbi,
+        functionName: "exactly",
+        args: [account ?? zeroAddress],
+        chainId: chain.id,
+      },
+      { address: ratePreviewerAddress, abi: ratePreviewerAbi, functionName: "snapshot", chainId: chain.id },
+      {
+        address: chain.contracts.multicall3.address,
+        abi: multicall3Abi,
+        functionName: "getCurrentBlockTimestamp",
+        chainId: chain.id,
+      },
     ],
     query: { ...query, enabled: query?.enabled ?? true },
   });

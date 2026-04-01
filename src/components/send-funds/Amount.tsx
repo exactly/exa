@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 
@@ -8,13 +8,16 @@ import { ArrowLeft, Check, Coins, FilePen, X } from "@tamagui/lucide-icons";
 import { Avatar, ScrollView, Square, XStack, YStack } from "tamagui";
 
 import { useForm, useStore } from "@tanstack/react-form";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { waitForCallsStatus } from "@wagmi/core/actions";
 import { bigint, check, parse, pipe, safeParse } from "valibot";
-import { erc20Abi, formatUnits, parseUnits, zeroAddress as viemZeroAddress } from "viem";
-import { useEstimateGas, useSendTransaction, useSimulateContract, useWriteContract } from "wagmi";
+import { encodeFunctionData, erc20Abi, formatUnits, parseUnits, zeroAddress as viemZeroAddress } from "viem";
+import { useEstimateGas, useSendCalls, useSimulateContract } from "wagmi";
 
 import accountInit from "@exactly/common/accountInit";
-import { exaPluginAddress } from "@exactly/common/generated/chain";
+import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
+import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
+import chain, { exaPluginAddress } from "@exactly/common/generated/chain";
 import { useReadUpgradeableModularAccountGetInstalledPlugins } from "@exactly/common/generated/hooks";
 import ProposalType from "@exactly/common/ProposalType";
 import shortenHex from "@exactly/common/shortenHex";
@@ -23,9 +26,11 @@ import { WAD } from "@exactly/lib";
 
 import ReviewSheet from "./ReviewSheet";
 import queryClient from "../../utils/queryClient";
+import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useSimulateProposal from "../../utils/useSimulateProposal";
+import exa from "../../utils/wagmi/exa";
 import AmountSelector from "../shared/AmountSelector";
 import AssetLogo from "../shared/AssetLogo";
 import Blocky from "../shared/Blocky";
@@ -62,6 +67,7 @@ export default function Amount() {
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
     address,
+    chainId: chain.id,
     factory: credential?.factory,
     factoryData: credential && accountInit(credential),
     query: { enabled: !!address && !!credential },
@@ -86,6 +92,7 @@ export default function Amount() {
 
   const { data: erc20TransferSimulation } = useSimulateContract({
     address: externalAddress,
+    chainId: chain.id,
     abi: erc20Abi,
     functionName: "transfer",
     args: receiver ? [receiver, formAmount] : undefined,
@@ -96,6 +103,7 @@ export default function Amount() {
   });
 
   const { data: nativeTransferEstimate } = useEstimateGas({
+    chainId: chain.id,
     to: receiver,
     value: formAmount,
     query: {
@@ -103,29 +111,47 @@ export default function Amount() {
     },
   });
 
+  const { mutateAsync: mutateSendCalls } = useSendCalls();
+  const sendCalls = async (calls: readonly { data?: `0x${string}`; to: `0x${string}`; value?: bigint }[]) => {
+    const { id } = await mutateSendCalls({
+      chainId: chain.id,
+      calls,
+      capabilities: {
+        paymasterService: {
+          url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
+          context: { policyId: alchemyGasPolicyId },
+        },
+      },
+    });
+    const result = await waitForCallsStatus(exa, { id });
+    if (result.status === "failure") throw new Error("failed to send");
+    return result.receipts?.[0]?.transactionHash;
+  };
   const {
-    mutate: sendNative,
-    data: nativeHash,
-    isPending: nativePending,
-    isSuccess: nativeSuccess,
-    isError: nativeError,
-    reset: nativeReset,
-  } = useSendTransaction();
-
-  const {
-    mutate: sendContract,
-    data: contractHash,
-    isPending: contractPending,
-    isSuccess: contractSuccess,
-    isError: contractError,
-    reset: contractReset,
-  } = useWriteContract();
-
-  const hash = isNativeTransfer ? nativeHash : contractHash;
-  const pending = isNativeTransfer ? nativePending : contractPending;
-  const success = isNativeTransfer ? nativeSuccess : contractSuccess;
-  const error = isNativeTransfer ? nativeError : contractError;
-  const reset = isNativeTransfer ? nativeReset : contractReset;
+    mutate: send,
+    data: hash,
+    isPending: pending,
+    isSuccess: success,
+    isError: sendError,
+    reset,
+  } = useMutation({
+    async mutationFn() {
+      if (!sendReady || !receiver) throw new Error("not ready");
+      if (proposeSimulation) {
+        const { address: to, abi, functionName, args } = proposeSimulation;
+        return sendCalls([{ to, data: encodeFunctionData({ abi, functionName, args }) }]);
+      }
+      if (isNativeTransfer) return sendCalls([{ to: receiver, value: formAmount }]);
+      if (erc20TransferSimulation) {
+        const { address: to, abi, functionName, args } = erc20TransferSimulation.request;
+        return sendCalls([{ to, data: encodeFunctionData({ abi, functionName, args }) }]);
+      }
+      throw new Error("no simulation ready");
+    },
+    onError(error) {
+      if (reportError(error).authKnown) reset();
+    },
+  });
 
   const sendReady = useMemo(
     () =>
@@ -143,26 +169,6 @@ export default function Amount() {
       erc20TransferSimulation,
     ],
   );
-
-  const handleSubmit = useCallback(() => {
-    if (!sendReady || !receiver) return;
-    if (proposeSimulation) {
-      sendContract(proposeSimulation);
-    } else if (isNativeTransfer) {
-      sendNative({ to: receiver, value: formAmount });
-    } else if (erc20TransferSimulation) {
-      sendContract(erc20TransferSimulation.request);
-    }
-  }, [
-    erc20TransferSimulation,
-    formAmount,
-    isNativeTransfer,
-    proposeSimulation,
-    receiver,
-    sendContract,
-    sendNative,
-    sendReady,
-  ]);
 
   const details: {
     amount: string;
@@ -231,7 +237,7 @@ export default function Amount() {
     );
   }
 
-  if (!pending && !error && !success) {
+  if (!pending && !sendError && !success) {
     return (
       <SafeView fullScreen>
         <View gap="$s4_5" fullScreen padded>
@@ -366,7 +372,7 @@ export default function Amount() {
           }}
           onSend={() => {
             setReviewOpen(false);
-            handleSubmit();
+            send();
           }}
           open={reviewOpen}
           receiver={receiver}
@@ -379,7 +385,7 @@ export default function Amount() {
   }
 
   return (
-    <GradientScrollView variant={error ? "error" : success ? (isLatestPlugin ? "info" : "success") : "neutral"}>
+    <GradientScrollView variant={sendError ? "error" : success ? (isLatestPlugin ? "info" : "success") : "neutral"}>
       <View flex={1}>
         <YStack gap="$s7" paddingBottom="$s9">
           <Pressable
@@ -395,7 +401,7 @@ export default function Amount() {
               size={80}
               borderRadius="$r4"
               backgroundColor={
-                error
+                sendError
                   ? "$interactiveBaseErrorSoftDefault"
                   : success
                     ? isLatestPlugin
@@ -407,7 +413,7 @@ export default function Amount() {
               {pending && <ExaSpinner backgroundColor="transparent" color="$uiNeutralPrimary" />}
               {success && isLatestPlugin && <ExaSpinner backgroundColor="transparent" color="$uiInfoSecondary" />}
               {success && !isLatestPlugin && <Check size={48} color="$uiSuccessSecondary" strokeWidth={2} />}
-              {error && <X size={48} color="$uiErrorSecondary" strokeWidth={2} />}
+              {sendError && <X size={48} color="$uiErrorSecondary" strokeWidth={2} />}
             </Square>
           </XStack>
           <YStack gap="$s4_5" justifyContent="center" alignItems="center">
@@ -428,7 +434,7 @@ export default function Amount() {
                   </Text>
                 </>
               )}
-              {error && (
+              {sendError && (
                 <>
                   {t("Failed")}{" "}
                   <Text emphasized primary body color="$uiNeutralPrimary">
@@ -451,7 +457,7 @@ export default function Amount() {
             </XStack>
           </YStack>
         </YStack>
-        {(success || error) && <TransactionDetails hash={hash} />}
+        {(success || sendError) && <TransactionDetails hash={hash} />}
       </View>
       {!pending && (
         <YStack flex={2} justifyContent="flex-end" gap="$s5">
@@ -472,7 +478,7 @@ export default function Amount() {
               </Text>
             </View>
           )}
-          {error && (
+          {sendError && (
             <YStack alignItems="center" gap="$s4">
               <Pressable onPress={reset}>
                 <Text emphasized footnote color="$uiBrandSecondary">
