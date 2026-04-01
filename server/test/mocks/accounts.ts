@@ -1,3 +1,5 @@
+import "./deployments";
+
 import path from "node:path";
 import { createWalletClient, http, keccak256, toBytes, type NonceManagerSource } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -7,23 +9,24 @@ import { expect, vi } from "vitest";
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import chain from "@exactly/common/generated/chain";
 
-import type * as keeper from "../../utils/keeper";
+import type * as accounts from "../../utils/accounts";
 import type * as nonceManager from "../../utils/nonceManager";
 
 export let keeperClient: ReturnType<
   typeof createWalletClient<ReturnType<typeof http>, typeof chain, ReturnType<typeof privateKeyToAccount>>
 >;
 
-vi.mock("../../utils/keeper", async (importOriginal) => {
-  const original = await importOriginal<typeof keeper>();
+vi.mock("../../utils/accounts", async (importOriginal) => {
+  const original = await importOriginal<typeof accounts>();
   return {
     ...original,
-    default: createWalletClient({
+    allower: vi.fn(() => Promise.resolve({ allow: vi.fn().mockResolvedValue({}) })),
+    keeper: createWalletClient({
       chain,
       transport: http(`${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`),
       account: privateKeyToAccount(
         keccak256(toBytes(path.relative(path.resolve(__dirname, ".."), expect.getState().testPath ?? ""))), // eslint-disable-line unicorn/prefer-module
-        { nonceManager: original.default.account.nonceManager },
+        { nonceManager: original.keeper.account.nonceManager },
       ),
     }).extend((closureClient) => {
       keeperClient = closureClient;

@@ -1,5 +1,5 @@
+import { keeperClient, nonceSource } from "../mocks/accounts";
 import "../mocks/deployments";
-import { keeperClient, nonceSource } from "../mocks/keeper";
 import "../mocks/sentry";
 
 import { captureException, withScope } from "@sentry/node";
@@ -9,13 +9,13 @@ import { afterEach, describe, expect, inject, it, vi } from "vitest";
 
 import { auditorAbi } from "@exactly/common/generated/chain";
 
-import keeper from "../../utils/keeper";
+import { keeper } from "../../utils/accounts";
 import nonceManager from "../../utils/nonceManager";
 import publicClient from "../../utils/publicClient";
 
+import type { Hex } from "@exactly/common/validation";
 import type * as sentry from "@sentry/node";
 import type * as timers from "node:timers/promises";
-import type { Hex } from "viem";
 
 describe("fault tolerance", () => {
   it("recovers if transaction is missing", async () => {
