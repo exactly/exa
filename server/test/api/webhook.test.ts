@@ -16,9 +16,11 @@ const appClient = testClient(app);
 
 const owner = mnemonicToAccount("test test test test test test test test test test test junk");
 const integratorAccount = mnemonicToAccount("test test test test test test test test test test test integrator");
+const memberAccount = mnemonicToAccount("test test test test test test test test test test test member");
 
 describe("webhook", () => {
   const integratorHeaders = new Headers();
+  const memberHeaders = new Headers();
 
   describe("authenticated", () => {
     beforeAll(async () => {
@@ -80,6 +82,36 @@ describe("webhook", () => {
       integratorHeaders.set("cookie", `${integratorResponse.headers.get("set-cookie")}`);
       const integrator = await auth.api.getSession({ headers: integratorHeaders });
       if (!integrator) throw new Error("integrator not found");
+
+      const memberNonceResult = await auth.api.getSiweNonce({
+        body: { walletAddress: memberAccount.address, chainId: chain.id },
+      });
+      const memberMessage = createSiweMessage({
+        statement,
+        resources: ["https://exactly.github.io/exa"],
+        nonce: memberNonceResult.nonce,
+        uri: `https://localhost`,
+        address: memberAccount.address,
+        chainId: chain.id,
+        scheme: "https",
+        version: "1",
+        domain: "localhost",
+      });
+      const memberResponse = await auth.api.verifySiweMessage({
+        body: {
+          message: memberMessage,
+          signature: await memberAccount.signMessage({ message: memberMessage }),
+          walletAddress: memberAccount.address,
+          chainId: chain.id,
+          email: "member@external.com",
+        },
+        request: new Request("https://localhost"),
+        asResponse: true,
+      });
+      memberHeaders.set("cookie", `${memberResponse.headers.get("set-cookie")}`);
+      const member = await auth.api.getSession({ headers: memberHeaders });
+      if (!member) throw new Error("member not found");
+
       const externalOrganization = await auth.api.createOrganization({
         headers: ownerHeaders,
         body: { name: "External Organization", slug: "external-organization" },
@@ -90,6 +122,12 @@ describe("webhook", () => {
         body: { email: integrator.user.email, role: "admin", organizationId: externalOrganization.id },
       });
       await auth.api.acceptInvitation({ headers: integratorHeaders, body: { invitationId: integratorInvitation.id } });
+
+      const memberInvitation = await auth.api.createInvitation({
+        headers: ownerHeaders,
+        body: { email: member.user.email, role: "member", organizationId: externalOrganization.id },
+      });
+      await auth.api.acceptInvitation({ headers: memberHeaders, body: { invitationId: memberInvitation.id } });
     });
 
     afterEach(async () => {
@@ -204,6 +242,32 @@ describe("webhook", () => {
       const getWebhook = await appClient.index.$get({}, { headers: { cookie: integratorHeaders.get("cookie") ?? "" } });
       expect(getWebhook.status).toBe(200);
       await expect(getWebhook.json()).resolves.toStrictEqual({});
+    });
+
+    describe("member", () => {
+      it("denies get webhook", async () => {
+        const response = await appClient.index.$get({}, { headers: { cookie: memberHeaders.get("cookie") ?? "" } });
+        expect(response.status).toBe(403);
+        await expect(response.json()).resolves.toStrictEqual({ code: "no permission" });
+      });
+
+      it("denies create webhook", async () => {
+        const response = await appClient.index.$post(
+          { json: { name: "test", url: "https://test.com" } },
+          { headers: { cookie: memberHeaders.get("cookie") ?? "" } },
+        );
+        expect(response.status).toBe(403);
+        await expect(response.json()).resolves.toStrictEqual({ code: "no permission" });
+      });
+
+      it("denies delete webhook", async () => {
+        const response = await appClient.index.$delete(
+          { json: { name: "test" } },
+          { headers: { cookie: memberHeaders.get("cookie") ?? "" } },
+        );
+        expect(response.status).toBe(403);
+        await expect(response.json()).resolves.toStrictEqual({ code: "no permission" });
+      });
     });
   });
 });
