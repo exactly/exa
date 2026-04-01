@@ -1,5 +1,46 @@
 # @exactly/mobile
 
+## 1.2.0
+
+### Minor Changes
+
+- [#877](https://github.com/exactly/exa/pull/877) [`794df1d`](https://github.com/exactly/exa/commit/794df1d14adf550f47b0eb2a49609739dbae95f7) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ⬆️ upgrade dependencies:
+  - expo 54 → 55
+  - react-native 0.81.5 → 0.83.2
+  - react 19.1.0 → 19.2.0
+  - @sentry/react-native 7 → 8
+  - @tanstack/react-form 1.3 → 1.28
+  - @eslint-react/eslint-plugin 2 → 3
+
+- [#884](https://github.com/exactly/exa/pull/884) [`0360965`](https://github.com/exactly/exa/commit/0360965158ed0d9a245c4297965983d49c1cc13d) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🌐 setup native locales
+
+### Patch Changes
+
+- [#884](https://github.com/exactly/exa/pull/884) [`5a251ef`](https://github.com/exactly/exa/commit/5a251ef8a03d88b59d3e8f23542e7aae69f0fa8c) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 💬 consolidate camera and location permission text
+
+- [#884](https://github.com/exactly/exa/pull/884) [`eb6b23c`](https://github.com/exactly/exa/commit/eb6b23cb1921b412f2262084ee9f6db511221ea9) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🌐 add argentinian spanish with regional normalization
+
+- [#884](https://github.com/exactly/exa/pull/884) [`6aa430a`](https://github.com/exactly/exa/commit/6aa430a0ec181c2c65664f7dfb13f763c8d9ee69) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🌐 translate camera and location permissions to spanish
+
+- [#884](https://github.com/exactly/exa/pull/884) [`451c861`](https://github.com/exactly/exa/commit/451c861969e037bf359514cc3ea78ac603b3efd8) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 💬 use typographic apostrophes and quotes
+
+- [#884](https://github.com/exactly/exa/pull/884) [`14cbe75`](https://github.com/exactly/exa/commit/14cbe75261062ef399d10cbb2e006d9c87eef542) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🌐 add missing weekly qualifier in spanish spending limit
+
+- [#884](https://github.com/exactly/exa/pull/884) [`88f3be9`](https://github.com/exactly/exa/commit/88f3be95045f4077ea6292b0aad2e056a4cf55c4) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🌐 add missing spanish help translation
+
+- [#884](https://github.com/exactly/exa/pull/884) [`70c942f`](https://github.com/exactly/exa/commit/70c942f117e05ca8b38e97c2bd16158854604329) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🌐 extend locale support for dates, ramps, benefits
+
+- [#884](https://github.com/exactly/exa/pull/884) [`068112f`](https://github.com/exactly/exa/commit/068112f57e9a0d72d33aa4e775ee7cf54ac53948) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🌐 add portuguese translations
+
+- [#885](https://github.com/exactly/exa/pull/885) [`1ee521f`](https://github.com/exactly/exa/commit/1ee521fcac3512110c5216adb9e0a8e9d2f8cca3) Thanks [@franm91](https://github.com/franm91)! - ✨ add bridge support
+
+- [#884](https://github.com/exactly/exa/pull/884) [`2ef75c9`](https://github.com/exactly/exa/commit/2ef75c9d840f8c14c600d43ed9e6bd6ad06024a5) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🌐 add missing spanish payment unavailable translation
+
+- [`835f89e`](https://github.com/exactly/exa/commit/835f89e9c8e8e8f1577957e7c9ab81c879795ea1) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🌐 add missing qr code translation
+
+- Updated dependencies [[`794df1d`](https://github.com/exactly/exa/commit/794df1d14adf550f47b0eb2a49609739dbae95f7)]:
+  - @exactly/server@0.2.85
+
 ## 1.1.29
 
 ### Patch Changes

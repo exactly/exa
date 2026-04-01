@@ -1,5 +1,13 @@
 # @exactly/docs
 
+## 0.1.3
+
+### Patch Changes
+
+- [#877](https://github.com/exactly/exa/pull/877) [`794df1d`](https://github.com/exactly/exa/commit/794df1d14adf550f47b0eb2a49609739dbae95f7) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ⬆️ upgrade dependencies:
+  - astro 5 → 6
+  - astro-mermaid 1 → 2
+
 ## 0.1.2
 
 ### Patch Changes

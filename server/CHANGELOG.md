@@ -1,5 +1,13 @@
 # @exactly/server
 
+## 0.2.85
+
+### Patch Changes
+
+- [#877](https://github.com/exactly/exa/pull/877) [`794df1d`](https://github.com/exactly/exa/commit/794df1d14adf550f47b0eb2a49609739dbae95f7) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ⬆️ upgrade dependencies:
+  - @segment/analytics-node 2 → 3
+  - sentry 10.35 → 10.46
+
 ## 0.2.84
 
 ### Patch Changes
