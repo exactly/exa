@@ -11,7 +11,6 @@ process.env.BRIDGE_API_KEY = "bridge";
 process.env.BRIDGE_API_URL = "https://bridge.test";
 process.env.EXPO_PUBLIC_ALCHEMY_API_KEY = " ";
 process.env.INTERCOM_IDENTITY_KEY = "intercom";
-process.env.ISSUER_PRIVATE_KEY = padHex("0x420");
 process.env.KEEPER_PRIVATE_KEY = padHex("0x420");
 process.env.MANTECA_API_KEY = "manteca";
 process.env.MANTECA_API_URL = "https://manteca.test";

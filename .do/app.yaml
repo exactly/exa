@@ -101,10 +101,6 @@ services:
         scope: RUN_TIME
         type: SECRET
         value: ${{ env.ENCRYPTED_INTERCOM_IDENTITY_KEY || env.INTERCOM_IDENTITY_KEY }}
-      - key: ISSUER_PRIVATE_KEY
-        scope: RUN_TIME
-        type: SECRET
-        value: ${{ env.ENCRYPTED_ISSUER_PRIVATE_KEY || env.ISSUER_PRIVATE_KEY }}
       - key: KEEPER_PRIVATE_KEY
         scope: RUN_TIME
         type: SECRET
