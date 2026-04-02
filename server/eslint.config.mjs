@@ -7,7 +7,7 @@ import * as drizzle from "eslint-plugin-drizzle";
 
 import baseConfig from "@exactly/common/eslint/base.mjs";
 import nodeConfig from "@exactly/common/eslint/node.mjs";
-import reactConfig from "@exactly/common/eslint/react.mjs";
+import reactConfig, { jsxRuntime } from "@exactly/common/eslint/react.mjs";
 
 export default defineConfig([
   globalIgnores(["app/"]),
@@ -24,7 +24,7 @@ export default defineConfig([
       "unicorn/prefer-top-level-await": "off", // unsupported in cjs
     },
   },
-  { files: ["**/*.tsx"], extends: [reactConfig], settings: { react: { version: "detect" } } },
+  { files: ["**/*.tsx"], extends: [reactConfig, jsxRuntime], settings: { react: { version: "detect" } } },
   {
     files: ["api/**"],
     rules: {

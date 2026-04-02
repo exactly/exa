@@ -11,3 +11,5 @@ export default defineConfig([
   eslintReact.configs["strict-type-checked"],
   tanstackQuery.configs["flat/recommended"],
 ]);
+
+export const jsxRuntime = react.configs.flat["jsx-runtime"];

@@ -1,5 +1,4 @@
 import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
-import React from "react";
 
 import { MATURITY_INTERVAL } from "@exactly/lib";
 
