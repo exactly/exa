@@ -170,6 +170,9 @@
   "pnpm": {
     "overrides": {
       "@opentelemetry/core@2": "^2.8.0",
+      "@typescript-eslint/eslint-plugin": "8.58.0",
+      "@typescript-eslint/parser": "8.58.0",
+      "eslint-plugin-n": "17.24.0",
       "@wagmi/core": "catalog:",
       "abitype>zod": "^4.0.0",
       "comlink": "$comlink",
