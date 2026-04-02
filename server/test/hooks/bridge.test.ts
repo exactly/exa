@@ -285,7 +285,7 @@ describe("bridge hook", () => {
     });
   });
 
-  it("returns 500 when fallback credential already paired", async () => {
+  it("returns 409 when fallback credential already paired", async () => {
     vi.spyOn(database.query.credentials, "findFirst").mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
     vi.spyOn(bridge, "getCustomer").mockResolvedValue({
       id: "conflict-bridge-id",
@@ -303,7 +303,7 @@ describe("bridge hook", () => {
       json: payload as never,
     });
 
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(409);
     expect(captureEvent).not.toHaveBeenCalled();
     expect(captureException).not.toHaveBeenCalled();
   });
@@ -361,7 +361,7 @@ describe("bridge hook", () => {
     );
   });
 
-  it("returns 500 when fallback reference-id has no credential", async () => {
+  it("returns 409 when fallback reference-id has no credential", async () => {
     vi.spyOn(bridge, "getCustomer").mockResolvedValue({
       id: "orphan-bridge-id",
       email: "orphan@example.com",
@@ -380,7 +380,7 @@ describe("bridge hook", () => {
       json: payload as never,
     });
 
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(409);
     expect(captureEvent).not.toHaveBeenCalled();
     expect(captureException).not.toHaveBeenCalled();
   });
