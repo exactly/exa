@@ -170,6 +170,7 @@
       "abitype>zod": "^4.0.0",
       "esbuild@0.18.20": "^0.25.0",
       "glob@11.0.3": "^11.1.0",
+      "lodash-es@4": "^4.18.0",
       "picomatch@4": "^4.0.4",
       "tar": "^7.5.11",
       "typescript@5": "catalog:",
@@ -250,7 +251,6 @@
       "allowedVersions": {
         "@hono/mcp>hono-rate-limiter": "0.5",
         "abitype>zod": "3",
-        "astro-mermaid>astro": "6",
         "hono-openapi>zod": "4",
         "rollup-plugin-import-trace>vite": "8"
       }
