@@ -6,7 +6,7 @@ import { Plus } from "@tamagui/lucide-icons";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import SpendingLimit from "./SpendingLimit";
-import { newMessage } from "../../utils/intercom";
+import { startCardLimitKYC } from "../../utils/persona";
 import reportError from "../../utils/reportError";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
@@ -46,7 +46,8 @@ export default function SpendingLimits({
                 </YStack>
                 <Button
                   onPress={() => {
-                    newMessage(t("I want to increase my spending limit")).catch(reportError);
+                    onClose();
+                    startCardLimitKYC().catch(reportError);
                   }}
                   primary
                 >
