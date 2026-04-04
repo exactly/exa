@@ -1,0 +1,12 @@
+{
+  "fundsReceived": "Funds received",
+  "fundsReceived_symbol": "{{symbol}} received",
+  "fundsReceived_symbol_value": "{{value}} {{symbol}} received",
+  "fundsReceived_symbol_value_yield": "{{value}} {{symbol}} received and instantly started earning yield",
+  "fundsReceived_symbol_yield": "{{symbol}} received and instantly started earning yield",
+  "fundsReceived_value": "{{value}} received",
+  "fundsReceived_value_yield": "{{value}} received and instantly started earning yield",
+  "fundsReceived_yield": "Funds received and instantly started earning yield",
+  "{{localAmount}} at {{merchantName}}. Paid in {{count}} installments_one": "{{localAmount}} at {{merchantName}}. Paid in {{count}} installment",
+  "{{localAmount}} at {{merchantName}}. Paid in {{count}} installments_other": "{{localAmount}} at {{merchantName}}. Paid in {{count}} installments"
+}
