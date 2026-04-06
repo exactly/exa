@@ -23,6 +23,8 @@ catalog:
 ignoreWorkspaceRootCheck: true
 includeWorkspaceRoot: true
 minimumReleaseAge: 1440
+minimumReleaseAgeExclude:
+  - vite
 packages:
   - "."
   - common
