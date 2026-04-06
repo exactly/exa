@@ -1,15 +1,17 @@
+import { captureException } from "@sentry/core";
 import { Mutex } from "async-mutex";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { describeRoute } from "hono-openapi";
 import { resolver, validator as vValidator } from "hono-openapi/valibot";
 import { randomBytes } from "node:crypto";
-import { literal, metadata, object, optional, parse, picklist, pipe, record, string, union } from "valibot";
+import { literal, metadata, object, optional, parse, picklist, pipe, record, string, union, url } from "valibot";
 
 import database, { sources } from "../database";
 import authValidator from "../middleware/auth";
 import auth from "../utils/auth";
 import validatorHook from "../utils/validatorHook";
+import isValid from "../utils/webhook";
 
 const BaseWebhook = object({
   url: string(),
@@ -128,6 +130,17 @@ export default new Hono()
             },
           },
         },
+        400: {
+          description: "Invalid webhook URL",
+          content: {
+            "application/json": {
+              schema: resolver(
+                object({ code: pipe(literal("invalid url"), metadata({ examples: ["https://example.com/webhook"] })) }),
+                { errorMode: "ignore" },
+              ),
+            },
+          },
+        },
         403: {
           description: "User doesn't belong to the organization",
           content: {
@@ -148,16 +161,16 @@ export default new Hono()
       "json",
       object({
         name: string(),
-        url: string(),
+        url: pipe(string(), url()),
         transaction: optional(
           object({
-            created: optional(string()),
-            updated: optional(string()),
-            completed: optional(string()),
+            created: optional(pipe(string(), url())),
+            updated: optional(pipe(string(), url())),
+            completed: optional(pipe(string(), url())),
           }),
         ),
-        card: optional(object({ updated: optional(string()) })),
-        user: optional(object({ updated: optional(string()) })),
+        card: optional(object({ updated: optional(pipe(string(), url())) })),
+        user: optional(object({ updated: optional(pipe(string(), url())) })),
       }),
       validatorHook(),
     ),
@@ -171,6 +184,24 @@ export default new Hono()
         body: { organizationId: id, permissions: { webhook: ["create"] } },
       });
       if (!canCreate) return c.json({ code: "no permission" }, 403);
+
+      try {
+        await Promise.all(
+          [
+            payload.url,
+            payload.transaction?.created,
+            payload.transaction?.updated,
+            payload.transaction?.completed,
+            payload.card?.updated,
+            payload.user?.updated,
+          ]
+            .filter((u): u is string => u !== undefined)
+            .map((u) => isValid(u)),
+        );
+      } catch (error) {
+        captureException(error, { level: "error" });
+        return c.json({ code: "invalid url" as const }, 400);
+      }
 
       const mutex = mutexes.get(id) ?? createMutex(id);
       return mutex.runExclusive(async () => {
