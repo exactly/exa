@@ -89,7 +89,7 @@
     "fast-text-encoding": "^1.0.6",
     "hono": "catalog:",
     "i18n-iso-countries": "^7.14.0",
-    "i18next": "^25.10.10",
+    "i18next": "catalog:",
     "moti": "^0.30.0",
     "persona": "^5.7.0",
     "react": "catalog:",

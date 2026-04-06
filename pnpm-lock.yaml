@@ -39,6 +39,9 @@ catalogs:
     hono:
       specifier: ^4.12.9
       version: 4.12.9
+    i18next:
+      specifier: ^25.10.10
+      version: 25.10.10
     react:
       specifier: 19.2.0
       version: 19.2.0
@@ -283,7 +286,7 @@ importers:
         specifier: ^7.14.0
         version: 7.14.0
       i18next:
-        specifier: ^25.10.10
+        specifier: 'catalog:'
         version: 25.10.10(typescript@5.9.3)
       moti:
         specifier: ^0.30.0
@@ -789,6 +792,9 @@ importers:
       i18n-iso-countries:
         specifier: ^7.14.0
         version: 7.14.0
+      i18next:
+        specifier: 'catalog:'
+        version: 25.10.10(typescript@5.9.3)
       ioredis:
         specifier: ^5.10.1
         version: 5.10.1
