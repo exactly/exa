@@ -30,18 +30,20 @@ export default function PluginUpgrade() {
   const { mutateAsync: mutateSendCalls } = useSendCalls();
   const { address } = useAccount();
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
-  const { data: bytecode } = useBytecode({ address, query: { enabled: !!address } });
+  const { data: bytecode } = useBytecode({ address, chainId: chain.id, query: { enabled: !!address } });
   const { data: installedPlugins, refetch: refetchInstalledPlugins } =
     useReadUpgradeableModularAccountGetInstalledPlugins({
       address,
+      chainId: chain.id,
       factory: credential?.factory,
       factoryData: credential && accountInit(credential),
       query: { refetchOnMount: true, enabled: !!address && !!credential },
     });
-  const { data: pluginManifest } = useReadExaPluginPluginManifest({ address: exaPluginAddress });
+  const { data: pluginManifest } = useReadExaPluginPluginManifest({ address: exaPluginAddress, chainId: chain.id });
   const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
   const { data: uninstallPluginSimulation } = useSimulateUpgradeableModularAccountUninstallPlugin({
     address,
+    chainId: chain.id,
     args: installedPlugins?.[0] ? [installedPlugins[0], "0x", "0x"] : undefined,
     query: { enabled: !!address && !!installedPlugins?.[0] && !!bytecode && !isLatestPlugin },
   });
@@ -55,6 +57,7 @@ export default function PluginUpgrade() {
       if (!pluginManifest) throw new Error("invalid manifest");
 
       const { id } = await mutateSendCalls({
+        chainId: chain.id,
         calls: [
           { ...uninstallPluginSimulation.request, to: address },
           {

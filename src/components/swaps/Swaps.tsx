@@ -8,11 +8,15 @@ import { router } from "expo-router";
 import { ArrowLeft, Check, CircleHelp, Repeat, TriangleAlert } from "@tamagui/lucide-icons";
 import { Checkbox, ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { waitForCallsStatus } from "@wagmi/core/actions";
 import { parse } from "valibot";
-import { formatUnits, parseUnits, zeroAddress } from "viem";
-import { useSimulateContract, useWriteContract } from "wagmi";
+import { encodeFunctionData, formatUnits, parseUnits, zeroAddress } from "viem";
+import { useSendCalls, useSimulateContract } from "wagmi";
 
+import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
+import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
+import chain from "@exactly/common/generated/chain";
 import { auditorAbi, marketAbi, upgradeableModularAccountAbi } from "@exactly/common/generated/hooks";
 import ProposalType from "@exactly/common/ProposalType";
 import { Address } from "@exactly/common/validation";
@@ -34,6 +38,7 @@ import useAsset from "../../utils/useAsset";
 import useMarkets from "../../utils/useMarkets";
 import usePortfolio from "../../utils/usePortfolio";
 import useSimulateProposal from "../../utils/useSimulateProposal";
+import exaConfig from "../../utils/wagmi/exa";
 import Button from "../shared/Button";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
@@ -72,18 +77,17 @@ export default function Swaps() {
   const { externalAssets, protocolAssets } = usePortfolio();
   const [acknowledged, setAcknowledged] = useState(false);
   const [activeInput, setActiveInput] = useState<"from" | "to">("from");
-  const { markets } = useMarkets();
+  const { markets, queryKey: marketsQueryKey } = useMarkets();
   const { data: tokens, isLoading: isTokensLoading } = useQuery({ queryKey: ["allowTokens"], queryFn: getAllowTokens });
   const {
     data: {
       fromToken,
       toToken,
-      fromAmount,
-      toAmount,
+      fromAmount: inputFromAmount,
+      toAmount: inputToAmount,
       tokenSelectionType,
       enableSimulations,
       tokenModalOpen,
-      tool,
     } = defaultSwap,
   } = useQuery<Swap>({
     queryKey: ["swap"],
@@ -120,11 +124,6 @@ export default function Swaps() {
 
   const { market: selectedTokenMarket, available: selectedTokenAvailable } = useAsset(getSwapAddress(fromToken));
 
-  const isInsufficientBalance = useMemo(() => {
-    if (!fromToken || !toToken) return false;
-    return fromAmount > getBalance(fromToken.token);
-  }, [fromToken, toToken, fromAmount, getBalance]);
-
   useEffect(() => {
     if (!fromToken && !toToken && tokens && markets) {
       const usdc = tokens.find(({ symbol }) => symbol === "USDC");
@@ -139,22 +138,27 @@ export default function Swaps() {
     }
   }, [fromToken, isExternal, markets, toToken, tokens]);
 
-  const handleTokenSelect = (token: Token) => {
+  const handleTokenSelect = (selected: Token) => {
     if (!fromToken || !toToken) return;
     updateSwap((old) => ({
       ...old,
-      fromAmount: 0n,
+      fromAmount:
+        tokenSelectionType === "to"
+          ? selected.address === fromToken.token.address
+            ? parseUnits(formatUnits(old.fromAmount, fromToken.token.decimals), toToken.token.decimals)
+            : old.fromAmount
+          : 0n,
       toAmount: 0n,
       fromToken:
         tokenSelectionType === "from"
-          ? { token, external: isExternal(token.address) }
-          : token.address === fromToken.token.address
+          ? { token: selected, external: isExternal(selected.address) }
+          : selected.address === fromToken.token.address
             ? { token: toToken.token, external: toToken.external }
             : fromToken,
       toToken:
         tokenSelectionType === "to"
-          ? { token, external: isExternal(token.address) }
-          : token.address === toToken.token.address
+          ? { token: selected, external: isExternal(selected.address) }
+          : selected.address === toToken.token.address
             ? { token: fromToken.token, external: fromToken.external }
             : toToken,
       tokenModalOpen: false,
@@ -193,7 +197,7 @@ export default function Swaps() {
       fromToken,
       toToken,
       activeInput,
-      activeInput === "from" ? fromAmount : toAmount,
+      activeInput === "from" ? inputFromAmount : inputToAmount,
     ],
     queryFn: async () => {
       if (!account || !fromToken || !toToken) throw new Error("implementation error");
@@ -203,13 +207,13 @@ export default function Swaps() {
         const result = await getRouteFrom({
           fromTokenAddress,
           toTokenAddress,
-          fromAmount,
+          fromAmount: inputFromAmount,
           fromAddress: account,
           toAddress: account,
         });
         return { ...result, toAmount: result.toAmount, fromAmount: undefined, tool: result.tool };
       } else {
-        const result = await getRoute(fromTokenAddress, toTokenAddress, toAmount, account, account);
+        const result = await getRoute(fromTokenAddress, toTokenAddress, inputToAmount, account, account);
         return { ...result, fromAmount: result.fromAmount, toAmount: undefined, tool: result.tool };
       }
     },
@@ -218,30 +222,19 @@ export default function Swaps() {
       !!account &&
       !!fromToken &&
       !!toToken &&
-      (activeInput === "from" ? !!fromAmount : !!toAmount),
+      (activeInput === "from" ? !!inputFromAmount : !!inputToAmount),
     refetchInterval: 20_000,
     staleTime: 10_000,
   });
 
-  useEffect(() => {
-    if (route) {
-      if (activeInput === "from") {
-        updateSwap((old) => ({ ...old, toAmount: route.toAmount ?? 0n, tool: route.tool ?? "" }));
-      } else {
-        updateSwap((old) => ({ ...old, fromAmount: route.fromAmount ?? 0n, tool: route.tool ?? "" }));
-      }
-    }
-  }, [activeInput, route]);
+  const fromAmount = activeInput === "to" && route?.fromAmount != null ? route.fromAmount : inputFromAmount;
+  const toAmount = activeInput === "from" && route?.toAmount != null ? route.toAmount : inputToAmount;
+  const tool = route?.tool ?? "";
 
-  useEffect(() => {
-    if (route) {
-      updateSwap((old) => {
-        return activeInput === "from"
-          ? { ...old, toAmount: route.toAmount ?? 0n, tool: route.tool ?? "" }
-          : { ...old, fromAmount: route.fromAmount ?? 0n, tool: route.tool ?? "" };
-      });
-    }
-  }, [activeInput, route]);
+  const isInsufficientBalance = useMemo(() => {
+    if (!fromToken || !toToken) return false;
+    return fromAmount > getBalance(fromToken.token);
+  }, [fromToken, toToken, fromAmount, getBalance]);
 
   const {
     request: swapPropose,
@@ -275,6 +268,7 @@ export default function Swaps() {
     isPending: isSimulatingExternalSwap,
   } = useSimulateContract({
     address: account,
+    chainId: chain.id,
     functionName: "swap",
     args: [
       parse(Address, fromToken?.token.address ?? zeroAddress),
@@ -330,17 +324,56 @@ export default function Swaps() {
     protocol: isSimulatingSwap,
   }[fromToken?.external ? "external" : "protocol"];
 
-  const { mutate, isPending: isSwapping, isSuccess: isSwapSuccess, error: writeContractError } = useWriteContract({});
-
-  const handleSwap = useCallback(() => {
-    if (!route) return;
-    if (fromToken?.external && externalSwap) {
-      mutate(externalSwap.request);
-    } else if (swapPropose) {
-      mutate(swapPropose);
-    }
-    updateSwap((old) => ({ ...old, enableSimulations: false }));
-  }, [route, fromToken?.external, externalSwap, swapPropose, mutate]);
+  const resultRef = useRef({ fromAmount: 0n, toAmount: 0n });
+  const { mutateAsync: mutateSendCalls } = useSendCalls();
+  const {
+    mutate: swap,
+    isPending: isSwapping,
+    isSuccess: isSwapSuccess,
+    error: writeContractError,
+    reset: resetSwap,
+  } = useMutation({
+    async mutationFn() {
+      if (!route) throw new Error("no route");
+      const call = (() => {
+        if (fromToken?.external) {
+          if (!externalSwap) throw new Error("no external swap simulation");
+          const { address, abi, functionName, args } = externalSwap.request;
+          return { to: address, data: encodeFunctionData({ abi, functionName, args }) };
+        }
+        if (!swapPropose) throw new Error("no swap proposal simulation");
+        const { address, abi, functionName, args } = swapPropose;
+        return { to: address, data: encodeFunctionData({ abi, functionName, args }) };
+      })();
+      const { id } = await mutateSendCalls({
+        chainId: chain.id,
+        calls: [call],
+        capabilities: {
+          paymasterService: {
+            url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
+            context: { policyId: alchemyGasPolicyId },
+          },
+        },
+      });
+      const { status } = await waitForCallsStatus(exaConfig, { id });
+      if (status === "failure") throw new Error("failed to swap");
+    },
+    onMutate() {
+      resultRef.current = { fromAmount, toAmount };
+      updateSwap((old) => ({ ...old, enableSimulations: false }));
+    },
+    onSuccess() {
+      queryClient.invalidateQueries({ queryKey: ["lifi", "tokenBalances"] }).catch(reportError);
+      queryClient.invalidateQueries({ queryKey: marketsQueryKey }).catch(reportError);
+    },
+    onSettled() {
+      queryClient.removeQueries({ queryKey: ["lifi", "route"] });
+      updateSwap((old) => ({ ...old, fromAmount: 0n, toAmount: 0n, enableSimulations: true }));
+    },
+    onError(error) {
+      if (reportError(error).authKnown) resetSwap();
+    },
+  });
 
   const toTokenIsUSDC = toToken?.token.symbol === "USDC";
   const caution =
@@ -353,9 +386,10 @@ export default function Swaps() {
     aboveThreshold(fromAmount, selectedTokenAvailable, 90, selectedTokenMarket?.decimals ?? 0);
 
   const showWarning = fromToken && !fromToken.external && fromAmount > 0n && (caution || danger);
-  const disabled = isSimulating || !!simulationError || danger;
+  const disabled = !route || isSimulating || !!simulationError || isInsufficientBalance || danger;
   const buttonLabel = useMemo(() => {
-    if (isSimulating && route) return isInsufficientBalance ? t("Insufficient balance") : t("Please wait...");
+    if (isInsufficientBalance) return t("Insufficient balance");
+    if (isSimulating && route) return t("Please wait...");
     if (simulationError) return t("Cannot proceed");
     if (danger) return t("Enter a lower amount to swap");
     if (fromToken && toToken) {
@@ -414,7 +448,7 @@ export default function Swaps() {
                       amount={amount}
                       balance={getBalance(tokenData?.token)}
                       disabled={type === "to"}
-                      isLoading={isTokensLoading || isRouteLoading}
+                      isLoading={isTokensLoading || (isRouteLoading && !fromAmount)}
                       isActive={isActive}
                       isDanger={type === "from" && showWarning}
                       onTokenSelect={() => {
@@ -509,7 +543,9 @@ export default function Swaps() {
             </XStack>
           </YStack>
           <Button
-            onPress={handleSwap}
+            onPress={() => {
+              swap();
+            }}
             contained
             main
             spaced
@@ -554,16 +590,17 @@ export default function Swaps() {
     );
   {
     if (!fromToken || !toToken) return null;
+    const { fromAmount: resultFromAmount, toAmount: resultToAmount } = resultRef.current;
     const properties = {
       fromUsdAmount: Number(
-        formatUnits((fromAmount * parseUnits(fromToken.token.priceUSD, 18)) / WAD, fromToken.token.decimals),
+        formatUnits((resultFromAmount * parseUnits(fromToken.token.priceUSD, 18)) / WAD, fromToken.token.decimals),
       ),
-      fromAmount,
+      fromAmount: resultFromAmount,
       fromToken: fromToken.token,
       toUsdAmount: Number(
-        formatUnits((toAmount * parseUnits(toToken.token.priceUSD, 18)) / WAD, toToken.token.decimals),
+        formatUnits((resultToAmount * parseUnits(toToken.token.priceUSD, 18)) / WAD, toToken.token.decimals),
       ),
-      toAmount,
+      toAmount: resultToAmount,
       toToken: toToken.token,
     };
     if (isSwapping)
@@ -579,6 +616,7 @@ export default function Swaps() {
       return (
         <Success
           {...properties}
+          external={fromToken.external}
           onClose={() => {
             onClose();
           }}

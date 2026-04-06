@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Check } from "@tamagui/lucide-icons";
 import { XStack, YStack } from "tamagui";
 
-import { previewerAddress } from "@exactly/common/generated/chain";
+import chain, { previewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerPreviewBorrowAtMaturity } from "@exactly/common/generated/hooks";
 import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
 
@@ -76,6 +76,7 @@ function Installment({
 
   const { data: borrow, isLoading: isBorrowPending } = useReadPreviewerPreviewBorrowAtMaturity({
     address: previewerAddress,
+    chainId: chain.id,
     args: market ? [market.market, BigInt(firstMaturity), totalAmount] : undefined,
     query: { enabled: isBorrow && totalAmount > 0n && !!market && !!account && !!firstMaturity },
   });

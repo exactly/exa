@@ -11,6 +11,8 @@ import { useQuery } from "@tanstack/react-query";
 import { formatUnits } from "viem";
 import { useBytecode } from "wagmi";
 
+import chain from "@exactly/common/generated/chain";
+
 import AmountSelector from "./AmountSelector";
 import { presentArticle } from "../../utils/intercom";
 import queryClient from "../../utils/queryClient";
@@ -32,7 +34,7 @@ export default function Amount() {
     t,
     i18n: { language },
   } = useTranslation();
-  const { data: bytecode } = useBytecode({ address, query: { enabled: !!address } });
+  const { data: bytecode } = useBytecode({ address, chainId: chain.id, query: { enabled: !!address } });
   const { markets } = useMarkets({ enabled: !!bytecode });
   const { data: loan } = useQuery<Loan>({ queryKey: ["loan"], enabled: !!address });
   const { market, borrowAvailable } = useAsset(loan?.market);

@@ -40,11 +40,12 @@ export default function UpgradeAccount() {
   const { data: installedPlugins, refetch: refetchInstalledPlugins } =
     useReadUpgradeableModularAccountGetInstalledPlugins({
       address,
+      chainId: chain.id,
       factory: credential?.factory,
       factoryData: credential && accountInit(credential),
       query: { refetchOnMount: true, enabled: !!address && !!credential },
     });
-  const { data: pluginManifest } = useReadExaPluginPluginManifest({ address: exaPluginAddress });
+  const { data: pluginManifest } = useReadExaPluginPluginManifest({ address: exaPluginAddress, chainId: chain.id });
   const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
 
   const toast = useToastController();
@@ -61,6 +62,7 @@ export default function UpgradeAccount() {
       if (!pluginManifest) throw new Error("invalid manifest");
 
       const { id } = await mutateSendCalls({
+        chainId: chain.id,
         calls: [
           {
             to: address,
@@ -100,12 +102,13 @@ export default function UpgradeAccount() {
       queryClient.setQueryData(["card-upgrade"], 2);
       await refetchInstalledPlugins();
     },
-    onError: () => {
-      toast.show(t("Error upgrading account"), {
-        native: true,
-        duration: 1000,
-        burntOptions: { haptic: "error", preset: "error" },
-      });
+    onError(error) {
+      if (!reportError(error).authKnown)
+        toast.show(t("Error upgrading account"), {
+          native: true,
+          duration: 1000,
+          burntOptions: { haptic: "error", preset: "error" },
+        });
     },
   });
   return (
