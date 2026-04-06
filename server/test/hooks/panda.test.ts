@@ -3166,6 +3166,26 @@ describe("webhooks", () => {
     await vi.waitUntil(() => webhookLogger.mock.calls.length > 0, 10_000);
     expect(webhookLogger).toHaveBeenCalledWith(expect.objectContaining({ response: { status: 200, message: "OK" } }));
   });
+
+  it("passes redirect error option to fetch", async () => {
+    const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: () => Promise.resolve("OK"),
+    } as unknown as Response);
+
+    await appClient.index.$post({
+      ...cardUpdated,
+      json: {
+        ...cardUpdated.json,
+        body: { ...cardUpdated.json.body, userId: webhookAccount, tokenWallets: ["Apple"] },
+      },
+    });
+
+    await vi.waitUntil(() => mockFetch.mock.calls.length > 0, 10_000);
+    const options = mockFetch.mock.calls.find(([url]) => url === "https://exa.test")?.[1];
+    expect(options).toStrictEqual(expect.objectContaining({ redirect: "error" }));
+  });
 });
 
 const authorization = {
@@ -3478,7 +3498,6 @@ const userResponseTemplate = {
 } as const;
 
 vi.mock("@sentry/node", { spy: true });
-
 const webhookLogger = vi.hoisted(() => vi.fn());
 
 vi.mock("debug", () => {

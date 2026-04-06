@@ -2,15 +2,21 @@ import "../mocks/sentry";
 
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
+import { resolve4, resolve6 } from "node:dns/promises";
 import { mnemonicToAccount } from "viem/accounts";
 import { createSiweMessage } from "viem/siwe";
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import chain from "@exactly/common/generated/chain";
 
 import app from "../../api/webhook";
 import database, { sources } from "../../database";
 import auth from "../../utils/auth";
+
+vi.mock("node:dns/promises", () => ({
+  resolve4: vi.fn<() => Promise<string[]>>(),
+  resolve6: vi.fn<() => Promise<string[]>>(),
+}));
 
 const appClient = testClient(app);
 
@@ -130,6 +136,11 @@ describe("webhook", () => {
       await auth.api.acceptInvitation({ headers: memberHeaders, body: { invitationId: memberInvitation.id } });
     });
 
+    beforeEach(() => {
+      vi.mocked(resolve4).mockResolvedValue(["93.184.216.34"]);
+      vi.mocked(resolve6).mockResolvedValue([]);
+    });
+
     afterEach(async () => {
       const organizations = await auth.api.listOrganizations({ headers: integratorHeaders });
       const id = organizations[0]?.id ?? "";
@@ -242,6 +253,26 @@ describe("webhook", () => {
       const getWebhook = await appClient.index.$get({}, { headers: { cookie: integratorHeaders.get("cookie") ?? "" } });
       expect(getWebhook.status).toBe(200);
       await expect(getWebhook.json()).resolves.toStrictEqual({});
+    });
+
+    it("rejects url resolving to private ip", async () => {
+      vi.mocked(resolve4).mockResolvedValue(["10.0.0.1"]);
+      const response = await appClient.index.$post(
+        { json: { name: "test", url: "https://test.com" } },
+        { headers: { cookie: integratorHeaders.get("cookie") ?? "" } },
+      );
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toStrictEqual({ code: "invalid url" });
+    });
+
+    it("rejects event-specific url resolving to private ip", async () => {
+      vi.mocked(resolve4).mockResolvedValueOnce(["93.184.216.34"]).mockResolvedValueOnce(["169.254.169.254"]);
+      const response = await appClient.index.$post(
+        { json: { name: "test", url: "https://test.com", transaction: { created: "https://evil.internal" } } },
+        { headers: { cookie: integratorHeaders.get("cookie") ?? "" } },
+      );
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toStrictEqual({ code: "invalid url" });
     });
 
     describe("member", () => {

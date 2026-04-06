@@ -1384,6 +1384,7 @@ async function publish(payload: v.InferOutput<typeof Payload>, receipt?: Transac
         async () => {
           const response = await fetch(url, {
             method: "POST",
+            redirect: "error",
             headers: {
               "Content-Type": "application/json",
               Signature: createHmac("sha256", secret).update(JSON.stringify(webhookPayload)).digest("hex"),
