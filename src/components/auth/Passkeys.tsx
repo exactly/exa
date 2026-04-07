@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { Pressable, StyleSheet } from "react-native";
+import { StyleSheet } from "react-native";
 
 import { useRouter } from "expo-router";
 
@@ -17,6 +17,7 @@ import useAuth from "../../utils/useAuth";
 import ActionButton from "../shared/ActionButton";
 import ConnectSheet from "../shared/ConnectSheet";
 import ErrorDialog from "../shared/ErrorDialog";
+import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
@@ -36,7 +37,11 @@ export default function Passkeys() {
     <SafeView fullScreen backgroundColor="$backgroundSoft">
       <View fullScreen padded>
         <View position="absolute" right="$s5" zIndex={1}>
-          <Pressable
+          <IconButton
+            icon={X}
+            size={25}
+            color="$uiNeutralSecondary"
+            aria-label={t("Close")}
             onPress={() => {
               if (router.canGoBack()) {
                 router.back();
@@ -44,9 +49,7 @@ export default function Passkeys() {
                 router.replace("/(auth)");
               }
             }}
-          >
-            <X size={25} color="$uiNeutralSecondary" />
-          </Pressable>
+          />
         </View>
         <View justifyContent="center" alignItems="center" flexGrow={1} flexShrink={1}>
           <View width="100%" aspectRatio={1} justifyContent="center" alignItems="center" flexShrink={1}>

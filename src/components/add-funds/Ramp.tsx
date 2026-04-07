@@ -21,6 +21,7 @@ import { isValidCurrency, fees as rampFees } from "../../utils/currencies";
 import reportError from "../../utils/reportError";
 import { getRampProviders, getRampQuote } from "../../utils/server";
 import Button from "../shared/Button";
+import IconButton from "../shared/IconButton";
 import InfoAlert from "../shared/InfoAlert";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
@@ -122,7 +123,9 @@ export default function Ramp() {
       <View gap="$s4_5" fullScreen padded>
         <View gap="$s4_5">
           <View flexDirection="row" gap="$s3_5" justifyContent="space-between" alignItems="center">
-            <Pressable
+            <IconButton
+              icon={ArrowLeft}
+              aria-label={t("Back")}
               onPress={() => {
                 if (router.canGoBack()) {
                   router.back();
@@ -130,9 +133,7 @@ export default function Ramp() {
                   router.replace("/(main)/add-funds");
                 }
               }}
-            >
-              <ArrowLeft size={24} color="$uiNeutralPrimary" />
-            </Pressable>
+            />
             <Text secondary emphasized>
               {deposits.length > 0
                 ? t("{{currency}} via {{methods}}", {
@@ -350,6 +351,7 @@ function DepositCard({ deposit, isLoading, copyToClipboard }: DepositCardPropert
 }
 
 function DetailRow({ label, value, isLoading, onCopy }: DetailRowProperties) {
+  const { t } = useTranslation();
   return (
     <XStack gap="$s3" alignItems="center" justifyContent="space-between">
       <YStack flex={1} minWidth={0}>
@@ -360,9 +362,14 @@ function DetailRow({ label, value, isLoading, onCopy }: DetailRowProperties) {
           {isLoading || !value ? <Skeleton width={100} height={16} /> : value}
         </Text>
       </YStack>
-      <Pressable disabled={isLoading || !value} onPress={onCopy} style={{ flexShrink: 0 }}>
-        <Copy size={24} color={isLoading || !value ? "$uiNeutralPlaceholder" : "$interactiveBaseBrandDefault"} />
-      </Pressable>
+      <IconButton
+        icon={Copy}
+        color={isLoading || !value ? "$uiNeutralPlaceholder" : "$interactiveBaseBrandDefault"}
+        disabled={isLoading || !value}
+        aria-label={t("Copy")}
+        flexShrink={0}
+        onPress={onCopy}
+      />
     </XStack>
   );
 }

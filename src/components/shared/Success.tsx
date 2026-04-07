@@ -12,6 +12,7 @@ import { exaPluginAddress, marketUSDCAddress } from "@exactly/common/generated/c
 import { useReadUpgradeableModularAccountGetInstalledPlugins } from "@exactly/common/generated/hooks";
 
 import GradientScrollView from "./GradientScrollView";
+import IconButton from "./IconButton";
 import SafeView from "./SafeView";
 import View from "./View";
 import useAccount from "../../utils/useAccount";
@@ -56,9 +57,7 @@ export default function Success({
       <SafeView flex={1} backgroundColor="transparent">
         <YStack gap="$s5" justifyContent="space-between">
           <YStack>
-            <Pressable onPress={onClose}>
-              <X size={24} color="$uiNeutralPrimary" />
-            </Pressable>
+            <IconButton icon={X} aria-label={t("Close")} onPress={onClose} />
             <YStack gap="$s7" paddingBottom="$s9">
               <XStack justifyContent="center" alignItems="center">
                 <Square

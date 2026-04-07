@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { Pressable, RefreshControl } from "react-native";
+import { RefreshControl } from "react-native";
 
 import { useRouter } from "expo-router";
 
@@ -37,6 +37,7 @@ import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useMarkets from "../../utils/useMarkets";
 import useTabPress from "../../utils/useTabPress";
+import IconButton from "../shared/IconButton";
 import InfoAlert from "../shared/InfoAlert";
 import LatestActivity from "../shared/LatestActivity";
 import PluginUpgrade from "../shared/PluginUpgrade";
@@ -260,27 +261,22 @@ export default function Card() {
                     {t("My Exa Card")}
                   </Text>
                   <View display="flex" flexDirection="row" alignItems="center" gap="$s4">
-                    <Pressable
+                    <IconButton
+                      icon={hidden ? EyeOff : Eye}
+                      color="$uiNeutralSecondary"
                       aria-label={hidden ? t("Show sensitive") : t("Hide sensitive")}
                       onPress={() => {
                         queryClient.setQueryData(["settings", "sensitive"], !hidden);
                       }}
-                      hitSlop={15}
-                    >
-                      {hidden ? (
-                        <EyeOff size={24} color="$uiNeutralSecondary" />
-                      ) : (
-                        <Eye size={24} color="$uiNeutralSecondary" />
-                      )}
-                    </Pressable>
-                    <Pressable
+                    />
+                    <IconButton
+                      icon={CircleHelp}
+                      color="$uiNeutralSecondary"
+                      aria-label={t("Help")}
                       onPress={() => {
                         presentArticle("10022626").catch(reportError);
                       }}
-                      hitSlop={15}
-                    >
-                      <CircleHelp size={24} color="$uiNeutralSecondary" />
-                    </Pressable>
+                    />
                   </View>
                 </XStack>
                 {!isPendingKYC && (usdBalance === 0n || !isKYCApproved) && (

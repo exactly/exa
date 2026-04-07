@@ -13,6 +13,7 @@ import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
 
 import reportError from "../../utils/reportError";
 import useInstallmentRates from "../../utils/useInstallmentRates";
+import IconButton from "../shared/IconButton";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
@@ -60,9 +61,7 @@ export default function InstallmentsSheet({
                 <Text emphasized headline flex={1}>
                   {t("Set installments")}
                 </Text>
-                <Pressable aria-label={t("Close")} role="button" hitSlop={15} onPress={onClose}>
-                  <X size={24} color="$uiNeutralPrimary" />
-                </Pressable>
+                <IconButton icon={X} aria-label={t("Close")} onPress={onClose} />
               </XStack>
               <Text subHeadline secondary>
                 {t(

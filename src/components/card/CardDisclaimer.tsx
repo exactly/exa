@@ -11,6 +11,7 @@ import { presentArticle } from "../../utils/intercom";
 import openBrowser from "../../utils/openBrowser";
 import reportError from "../../utils/reportError";
 import Button from "../shared/Button";
+import IconButton from "../shared/IconButton";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
@@ -30,9 +31,7 @@ export default function CardDisclaimer({
     <ModalSheet open={open} onClose={onClose}>
       <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
         <View position="absolute" top="$s5" right="$s5" zIndex={100_000}>
-          <Pressable onPress={onClose} hitSlop={15}>
-            <X size={25} color="$uiNeutralSecondary" />
-          </Pressable>
+          <IconButton icon={X} size={25} color="$uiNeutralSecondary" aria-label={t("Close")} onPress={onClose} />
         </View>
         <ScrollView $platform-web={{ maxHeight: "100vh" }}>
           <View fullScreen flex={1}>

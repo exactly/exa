@@ -1,6 +1,5 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable } from "react-native";
 
 import { useLocalSearchParams, useRouter } from "expo-router";
 
@@ -25,6 +24,7 @@ import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import Amount from "../shared/Amount";
+import IconButton from "../shared/IconButton";
 import InfoSheet from "../shared/InfoSheet";
 import ModalSheet from "../shared/ModalSheet";
 import Button from "../shared/StyledButton";
@@ -325,9 +325,13 @@ function DetailsView({
               </>
             )}
           </YStack>
-          <Pressable onPress={onInfoPress} hitSlop={15}>
-            <Info size={16} color="$interactiveBaseBrandDefault" />
-          </Pressable>
+          <IconButton
+            icon={Info}
+            size={16}
+            color="$interactiveBaseBrandDefault"
+            aria-label={t("Payment info")}
+            onPress={onInfoPress}
+          />
         </XStack>
         <YStack>
           <XStack gap="$s3">

@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable, RefreshControl } from "react-native";
+import { RefreshControl } from "react-native";
 
 import { useRouter } from "expo-router";
 
@@ -33,6 +33,7 @@ import useMarkets from "../../utils/useMarkets";
 import usePendingOperations from "../../utils/usePendingOperations";
 import useTabPress from "../../utils/useTabPress";
 import Amount from "../shared/Amount";
+import IconButton from "../shared/IconButton";
 import InfoSheet from "../shared/InfoSheet";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
@@ -141,15 +142,14 @@ export default function Pay() {
                 <Text emphasized title3>
                   {t("Payments")}
                 </Text>
-                <Pressable
+                <IconButton
+                  icon={hidden ? EyeOff : Eye}
+                  color="$uiNeutralSecondary"
                   aria-label={hidden ? t("Show sensitive") : t("Hide sensitive")}
                   onPress={() => {
                     queryClient.setQueryData(["settings", "sensitive"], !hidden);
                   }}
-                  hitSlop={15}
-                >
-                  {hidden ? <EyeOff color="$uiNeutralSecondary" /> : <Eye color="$uiNeutralSecondary" />}
-                </Pressable>
+                />
               </XStack>
               <TotalOutstandingCard
                 amount={totalOutstandingUSD}
@@ -299,9 +299,13 @@ function TotalOutstandingCard({
           <Text emphasized headline>
             {t("Total outstanding")}
           </Text>
-          <Pressable aria-label={t("Total outstanding info")} onPress={onInfoPress} hitSlop={15}>
-            <Info size={16} color="$interactiveBaseBrandDefault" />
-          </Pressable>
+          <IconButton
+            icon={Info}
+            size={16}
+            color="$interactiveBaseBrandDefault"
+            aria-label={t("Total outstanding info")}
+            onPress={onInfoPress}
+          />
         </XStack>
         <XStack gap="$s1" alignItems="center" cursor="pointer" onPress={onStatementsPress}>
           <Text emphasized footnote color="$interactiveBaseBrandDefault">
@@ -429,9 +433,13 @@ function FirstMaturityCard({
             </>
           ) : null}
         </YStack>
-        <Pressable aria-label={t("Payment info")} onPress={onInfoPress} hitSlop={15}>
-          <Info size={16} color="$interactiveBaseBrandDefault" />
-        </Pressable>
+        <IconButton
+          icon={Info}
+          size={16}
+          color="$interactiveBaseBrandDefault"
+          aria-label={t("Payment info")}
+          onPress={onInfoPress}
+        />
       </XStack>
       <View padding="$s4">
         <XStack gap="$s3">

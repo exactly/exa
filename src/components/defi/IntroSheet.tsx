@@ -1,6 +1,5 @@
 import React from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { Pressable } from "react-native";
 
 import { ArrowRight, Info, X } from "@tamagui/lucide-icons";
 import { XStack, YStack } from "tamagui";
@@ -8,6 +7,7 @@ import { XStack, YStack } from "tamagui";
 import Defi from "../../assets/images/defi.svg";
 import { presentArticle } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
+import IconButton from "../shared/IconButton";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
@@ -26,9 +26,7 @@ export default function IntroSheet({ open, onClose }: { onClose: () => void; ope
         backgroundColor="$backgroundSoft"
       >
         <View position="absolute" top="$s5" right="$s5" zIndex={100_000}>
-          <Pressable onPress={onClose} hitSlop={15}>
-            <X size={25} color="$uiNeutralSecondary" />
-          </Pressable>
+          <IconButton icon={X} size={25} color="$uiNeutralSecondary" aria-label={t("Close")} onPress={onClose} />
         </View>
         <YStack flex={1} padding="$s4" gap="$s4_5">
           <YStack flex={1} gap="$s4">

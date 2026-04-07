@@ -1,6 +1,5 @@
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable } from "react-native";
 
 import { X } from "@tamagui/lucide-icons";
 import { Square, XStack, YStack } from "tamagui";
@@ -8,6 +7,7 @@ import { Square, XStack, YStack } from "tamagui";
 import { marketUSDCAddress } from "@exactly/common/generated/chain";
 
 import GradientScrollView from "./GradientScrollView";
+import IconButton from "./IconButton";
 import AssetLogo from "../shared/AssetLogo";
 import ExaSpinner from "../shared/Spinner";
 import Text from "../shared/Text";
@@ -40,9 +40,7 @@ export default function Pending({
     <GradientScrollView variant="neutral">
       <View flex={1}>
         <YStack gap="$s7" paddingBottom="$s9">
-          <Pressable onPress={onClose}>
-            <X size={24} color="$uiNeutralPrimary" />
-          </Pressable>
+          <IconButton icon={X} aria-label={t("Close")} onPress={onClose} />
           <XStack justifyContent="center" alignItems="center">
             <Square borderRadius="$r4" backgroundColor="$backgroundStrong" size={80}>
               <ExaSpinner backgroundColor="transparent" color="$uiNeutralPrimary" />

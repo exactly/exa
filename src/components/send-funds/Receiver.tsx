@@ -1,6 +1,5 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable } from "react-native";
 
 import { useLocalSearchParams, useRouter } from "expo-router";
 
@@ -19,6 +18,7 @@ import RecentContacts from "./RecentContacts";
 import { presentArticle } from "../../utils/intercom";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
+import IconButton from "../shared/IconButton";
 import Input from "../shared/Input";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
@@ -57,7 +57,8 @@ export default function ReceiverSelection() {
       <View gap="$s4_5" fullScreen padded>
         <View flexDirection="row" gap="$s3_5" justifyContent="space-around" alignItems="center">
           <View position="absolute" left={0}>
-            <Pressable
+            <IconButton
+              icon={ArrowLeft}
               aria-label={t("Back")}
               onPress={() => {
                 queryClient.setQueryData(["withdrawal"], { receiver: undefined, market: undefined, amount: 0n });
@@ -67,9 +68,7 @@ export default function ReceiverSelection() {
                   router.replace("/(main)/(home)");
                 }
               }}
-            >
-              <ArrowLeft size={24} color="$uiNeutralPrimary" />
-            </Pressable>
+            />
           </View>
           <Text color="$uiNeutralPrimary" fontSize={15} fontWeight="bold">
             {t("Send to")}

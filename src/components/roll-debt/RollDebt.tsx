@@ -1,6 +1,5 @@
 import React, { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -21,6 +20,7 @@ import {
 import ProposalType from "@exactly/common/ProposalType";
 import { MATURITY_INTERVAL, WAD } from "@exactly/lib";
 
+import IconButton from "../../components/shared/IconButton";
 import SafeView from "../../components/shared/SafeView";
 import Text from "../../components/shared/Text";
 import View from "../../components/shared/View";
@@ -84,7 +84,8 @@ export default function Pay() {
       <View fullScreen gap="$s5" paddingTop="$s4_5">
         <View flexDirection="row" gap="$s3_5" justifyContent="space-around" alignItems="center">
           <View padded position="absolute" left={0}>
-            <Pressable
+            <IconButton
+              icon={ArrowLeft}
               aria-label={t("Back")}
               onPress={() => {
                 if (router.canGoBack()) {
@@ -93,9 +94,7 @@ export default function Pay() {
                   router.replace("/(main)/(home)");
                 }
               }}
-            >
-              <ArrowLeft size={24} color="$uiNeutralPrimary" />
-            </Pressable>
+            />
           </View>
         </View>
         <ScrollView
