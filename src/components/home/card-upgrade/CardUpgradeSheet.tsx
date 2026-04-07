@@ -1,5 +1,5 @@
 import React from "react";
-import { Pressable } from "react-native";
+import { useTranslation } from "react-i18next";
 
 import { X } from "@tamagui/lucide-icons";
 import { ScrollView } from "tamagui";
@@ -11,12 +11,14 @@ import Intro from "./Intro";
 import UpgradeAccount from "./UpgradeAccount";
 import VerifyIdentity from "./VerifyIdentity";
 import queryClient from "../../../utils/queryClient";
+import IconButton from "../../shared/IconButton";
 import ModalSheet from "../../shared/ModalSheet";
 import SafeView from "../../shared/SafeView";
 import View from "../../shared/View";
 
 export default function CardUpgradeSheet({ open, onClose }: { onClose: () => void; open: boolean }) {
   const { data: step } = useQuery<number | undefined>({ queryKey: ["card-upgrade"] });
+  const { t } = useTranslation();
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
       <SafeView
@@ -27,9 +29,7 @@ export default function CardUpgradeSheet({ open, onClose }: { onClose: () => voi
         backgroundColor="$backgroundSoft"
       >
         <View position="absolute" top="$s5" right="$s5" zIndex={100_000}>
-          <Pressable onPress={onClose} hitSlop={15}>
-            <X size={25} color="$uiNeutralSecondary" />
-          </Pressable>
+          <IconButton icon={X} size={25} color="$uiNeutralSecondary" aria-label={t("Close")} onPress={onClose} />
         </View>
         <ScrollView $platform-web={{ maxHeight: "100vh" }}>
           {step === undefined ? (

@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable } from "react-native";
 
 import { useRouter } from "expo-router";
 
@@ -18,6 +17,7 @@ import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useMarkets from "../../utils/useMarkets";
+import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
@@ -62,7 +62,9 @@ export default function Amount() {
         justifyContent="space-between"
         alignItems="center"
       >
-        <Pressable
+        <IconButton
+          icon={ArrowLeft}
+          aria-label={t("Back")}
           onPress={() => {
             queryClient.setQueryData<Loan>(["loan"], (old) => ({ ...old, amount: undefined }));
             if (router.canGoBack()) {
@@ -72,16 +74,14 @@ export default function Amount() {
             queryClient.resetQueries({ queryKey: ["loan"] }).catch(reportError);
             router.replace("/loan");
           }}
-        >
-          <ArrowLeft size={24} color="$uiNeutralPrimary" />
-        </Pressable>
-        <Pressable
+        />
+        <IconButton
+          icon={CircleHelp}
+          aria-label={t("Help")}
           onPress={() => {
             presentArticle("11541409").catch(reportError);
           }}
-        >
-          <CircleHelp color="$uiNeutralPrimary" />
-        </Pressable>
+        />
       </View>
       <ScrollView
         backgroundColor="$backgroundMild"
@@ -105,13 +105,15 @@ export default function Amount() {
                         maximumFractionDigits: 2,
                       })}
                     </Text>
-                    <Pressable
+                    <IconButton
+                      icon={CircleHelp}
+                      size={16}
+                      color="$uiNeutralSecondary"
+                      aria-label={t("Available funding info")}
                       onPress={() => {
                         presentArticle("11550408").catch(reportError);
                       }}
-                    >
-                      <CircleHelp size={16} color="$uiNeutralSecondary" />
-                    </Pressable>
+                    />
                   </XStack>
                 )}
               </YStack>

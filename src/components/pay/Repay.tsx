@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -54,6 +53,7 @@ import useSimulateProposal from "../../utils/useSimulateProposal";
 import exa from "../../utils/wagmi/exa";
 import AssetLogo from "../shared/AssetLogo";
 import Failure from "../shared/Failure";
+import IconButton from "../shared/IconButton";
 import Pending from "../shared/Pending";
 import Skeleton from "../shared/Skeleton";
 import Success from "../shared/Success";
@@ -541,7 +541,9 @@ export default function Repay() {
         <View fullScreen gap="$s5" paddingTop="$s4_5">
           <View flexDirection="row" gap="$s3_5" justifyContent="space-around" alignItems="center">
             <View padded position="absolute" left={0}>
-              <Pressable
+              <IconButton
+                icon={ArrowLeft}
+                aria-label={t("Back")}
                 onPress={() => {
                   if (router.canGoBack()) {
                     router.back();
@@ -549,9 +551,7 @@ export default function Repay() {
                     router.replace("/(main)/(home)");
                   }
                 }}
-              >
-                <ArrowLeft size={24} color="$uiNeutralPrimary" />
-              </Pressable>
+              />
             </View>
             <Text color="$uiNeutralPrimary" emphasized subHeadline textAlign="center">
               {t("Pay due {{date}}", { date: dueDateFormatted })}

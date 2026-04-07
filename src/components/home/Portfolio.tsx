@@ -1,6 +1,6 @@
 import React from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { Pressable, RefreshControl } from "react-native";
+import { RefreshControl } from "react-native";
 
 import { useRouter } from "expo-router";
 
@@ -14,6 +14,7 @@ import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useMarkets from "../../utils/useMarkets";
 import usePortfolio from "../../utils/usePortfolio";
+import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
@@ -42,7 +43,8 @@ export default function Portfolio() {
         justifyContent="space-between"
         alignItems="center"
       >
-        <Pressable
+        <IconButton
+          icon={ArrowLeft}
           aria-label={t("Back")}
           onPress={() => {
             if (router.canGoBack()) {
@@ -51,16 +53,14 @@ export default function Portfolio() {
               router.replace("/(main)/(home)");
             }
           }}
-        >
-          <ArrowLeft size={24} color="$uiNeutralPrimary" />
-        </Pressable>
-        <Pressable
+        />
+        <IconButton
+          icon={CircleHelp}
+          aria-label={t("Help")}
           onPress={() => {
             presentArticle("10985188").catch(reportError);
           }}
-        >
-          <CircleHelp color="$uiNeutralPrimary" />
-        </Pressable>
+        />
       </View>
       <ScrollView
         backgroundColor="transparent"

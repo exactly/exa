@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Platform, Pressable } from "react-native";
+import { Platform } from "react-native";
 import { SvgUri } from "react-native-svg";
 
 import { useRouter } from "expo-router";
@@ -15,6 +15,7 @@ import SignatureCard from "../../assets/images/signature-full.svg";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { setCardStatus } from "../../utils/server";
+import IconButton from "../shared/IconButton";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
@@ -73,9 +74,7 @@ export default function VisaSignatureSheet({ open, onClose }: { onClose: () => v
     <ModalSheet key={open ? "open" : "closed"} open={open} onClose={close} disableDrag heightPercent={90}>
       <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4" backgroundColor="black">
         <View position="absolute" top="$s5" right="$s5" zIndex={100_000}>
-          <Pressable onPress={close} hitSlop={15}>
-            <X size={25} color="$uiNeutralSecondary" />
-          </Pressable>
+          <IconButton icon={X} size={25} color="$uiNeutralSecondary" aria-label={t("Close")} onPress={close} />
         </View>
         <ScrollView contentContainerStyle={scrollContentContainerStyle} $platform-web={{ maxHeight: "100vh" }}>
           <YStack

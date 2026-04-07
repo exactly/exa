@@ -13,6 +13,7 @@ import shortenHex from "@exactly/common/shortenHex";
 
 import Blocky from "./Blocky";
 import CopyAddressSheet from "./CopyAddressSheet";
+import IconButton from "./IconButton";
 import StatusIndicator from "./StatusIndicator";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
@@ -62,9 +63,12 @@ export default function ProfileHeader() {
           )}
         </View>
         <View display="flex" flexDirection="row" alignItems="center" gap="$s4">
-          <Pressable aria-label={hidden ? t("Show sensitive") : t("Hide sensitive")} onPress={toggle} hitSlop={15}>
-            {hidden ? <EyeOff color="$uiNeutralSecondary" /> : <Eye color="$uiNeutralSecondary" />}
-          </Pressable>
+          <IconButton
+            icon={hidden ? EyeOff : Eye}
+            color="$uiNeutralSecondary"
+            aria-label={hidden ? t("Show sensitive") : t("Hide sensitive")}
+            onPress={toggle}
+          />
           {count > 0 && (
             <Pressable
               aria-label={t("Pending proposals")}
@@ -78,15 +82,14 @@ export default function ProfileHeader() {
               <ClockArrowUp color="$uiNeutralSecondary" />
             </Pressable>
           )}
-          <Pressable
+          <IconButton
+            icon={Settings}
+            color="$uiNeutralSecondary"
             aria-label={t("Settings")}
             onPress={() => {
               router.push("/settings");
             }}
-            hitSlop={15}
-          >
-            <Settings color="$uiNeutralSecondary" />
-          </Pressable>
+          />
         </View>
       </View>
       <CopyAddressSheet

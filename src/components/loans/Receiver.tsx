@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { Pressable } from "react-native";
 
 import { getStringAsync } from "expo-clipboard";
 import { useRouter } from "expo-router";
@@ -21,6 +20,7 @@ import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
+import IconButton from "../shared/IconButton";
 import Input from "../shared/Input";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
@@ -78,7 +78,9 @@ export default function Receiver() {
         justifyContent="space-between"
         alignItems="center"
       >
-        <Pressable
+        <IconButton
+          icon={ArrowLeft}
+          aria-label={t("Back")}
           onPress={() => {
             queryClient.setQueryData<Loan>(["loan"], (old) => ({ ...old, receiver: undefined }));
             if (router.canGoBack()) {
@@ -87,16 +89,14 @@ export default function Receiver() {
             }
             router.replace("/loan/installments");
           }}
-        >
-          <ArrowLeft size={24} color="$uiNeutralPrimary" />
-        </Pressable>
-        <Pressable
+        />
+        <IconButton
+          icon={CircleHelp}
+          aria-label={t("Help")}
           onPress={() => {
             presentArticle("11541409").catch(reportError);
           }}
-        >
-          <CircleHelp color="$uiNeutralPrimary" />
-        </Pressable>
+        />
       </View>
       <ScrollView
         backgroundColor="$backgroundMild"

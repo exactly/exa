@@ -12,6 +12,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import openBrowser from "../../utils/openBrowser";
 import reportError from "../../utils/reportError";
+import IconButton from "../shared/IconButton";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
@@ -61,9 +62,7 @@ export default function BenefitSheet({ benefit, open, onClose }: BenefitSheetPro
         backgroundColor="$backgroundSoft"
       >
         <View position="absolute" top="$s5" right="$s5" zIndex={10}>
-          <Pressable onPress={onClose} hitSlop={15} aria-label={t("Close")}>
-            <X size={25} color="$uiNeutralSecondary" />
-          </Pressable>
+          <IconButton icon={X} size={25} color="$uiNeutralSecondary" aria-label={t("Close")} onPress={onClose} />
         </View>
         <ScrollView $platform-web={{ maxHeight: "100vh" }}>
           <YStack gap="$s3" paddingHorizontal="$s5" paddingVertical="$s7">

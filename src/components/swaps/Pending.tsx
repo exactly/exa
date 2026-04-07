@@ -1,6 +1,5 @@
 import React from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { Pressable } from "react-native";
 
 import { LinearGradient } from "expo-linear-gradient";
 
@@ -10,6 +9,7 @@ import { ScrollView, Square, styled, useTheme, XStack, YStack } from "tamagui";
 import { formatUnits } from "viem";
 
 import AssetLogo from "../shared/AssetLogo";
+import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
 import ExaSpinner from "../shared/Spinner";
 import Text from "../shared/Text";
@@ -36,6 +36,7 @@ export default function Pending({
 }) {
   const theme = useTheme();
   const {
+    t,
     i18n: { language },
   } = useTranslation();
   return (
@@ -60,9 +61,7 @@ export default function Pending({
           >
             <View flex={1}>
               <YStack gap="$s7" paddingBottom="$s9">
-                <Pressable onPress={onClose}>
-                  <X size={24} color="$uiNeutralPrimary" />
-                </Pressable>
+                <IconButton icon={X} aria-label={t("Close")} onPress={onClose} />
                 <XStack justifyContent="center" alignItems="center">
                   <Square borderRadius="$r4" backgroundColor="$backgroundStrong" size={80}>
                     <ExaSpinner backgroundColor="transparent" color="$uiNeutralPrimary" />

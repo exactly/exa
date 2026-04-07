@@ -1,6 +1,6 @@
 import React, { useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable, RefreshControl } from "react-native";
+import { RefreshControl } from "react-native";
 
 import { useRouter } from "expo-router";
 
@@ -18,6 +18,7 @@ import useMarkets from "../../utils/useMarkets";
 import PaymentSheet from "../pay/PaymentSheet";
 import RolloverIntroSheet from "../pay/RolloverIntroSheet";
 import UpcomingPayments from "../pay/UpcomingPayments";
+import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
@@ -50,7 +51,9 @@ export default function Loans() {
             <View backgroundColor="$backgroundSoft" padded>
               <YStack paddingBottom="$s3" gap="$s4_5">
                 <XStack alignItems="center" justifyContent="space-between">
-                  <Pressable
+                  <IconButton
+                    icon={ArrowLeft}
+                    aria-label={t("Back")}
                     onPress={() => {
                       if (router.canGoBack()) {
                         router.back();
@@ -58,19 +61,18 @@ export default function Loans() {
                         router.replace("/defi");
                       }
                     }}
-                  >
-                    <ArrowLeft size={24} color="$uiNeutralPrimary" />
-                  </Pressable>
+                  />
                   <Text emphasized subHeadline textAlign="center">
                     {t("Exactly Protocol")}
                   </Text>
-                  <Pressable
+                  <IconButton
+                    icon={CircleHelp}
+                    color="$uiNeutralSecondary"
+                    aria-label={t("Help")}
                     onPress={() => {
                       presentArticle("11541409").catch(reportError);
                     }}
-                  >
-                    <CircleHelp color="$uiNeutralSecondary" />
-                  </Pressable>
+                  />
                 </XStack>
                 <Text subHeadline secondary>
                   {t(

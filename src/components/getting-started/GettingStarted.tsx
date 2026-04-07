@@ -1,6 +1,5 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable } from "react-native";
 
 import { useRouter } from "expo-router";
 
@@ -18,6 +17,7 @@ import useAccount from "../../utils/useAccount";
 import useBeginKYC from "../../utils/useBeginKYC";
 import useOnboardingSteps from "../../utils/useOnboardingSteps";
 import ActionButton from "../shared/ActionButton";
+import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
@@ -49,7 +49,8 @@ export default function GettingStarted() {
         <View gap="$s4_5" padded paddingBottom={0}>
           <View flexDirection="row" gap="$s3_5" justifyContent="space-around" alignItems="center">
             <View position="absolute" left={0}>
-              <Pressable
+              <IconButton
+                icon={ArrowLeft}
                 aria-label={t("Back")}
                 onPress={() => {
                   if (router.canGoBack()) {
@@ -58,9 +59,7 @@ export default function GettingStarted() {
                     router.replace("/(main)/(home)");
                   }
                 }}
-              >
-                <ArrowLeft size={24} color="$uiNeutralPrimary" />
-              </Pressable>
+              />
             </View>
             <Text color="$uiNeutralPrimary" fontSize={15} fontWeight="bold">
               {t("Getting started")}

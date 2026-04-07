@@ -8,6 +8,7 @@ import { Square, XStack, YStack } from "tamagui";
 import { marketUSDCAddress } from "@exactly/common/generated/chain";
 
 import GradientScrollView from "./GradientScrollView";
+import IconButton from "./IconButton";
 import SafeView from "./SafeView";
 import AssetLogo from "../shared/AssetLogo";
 import Text from "../shared/Text";
@@ -40,9 +41,7 @@ export default function Failure({
     <GradientScrollView variant="error">
       <SafeView flex={1} backgroundColor="transparent">
         <YStack gap="$s7" paddingBottom="$s9">
-          <Pressable onPress={onClose}>
-            <X size={24} color="$uiNeutralPrimary" />
-          </Pressable>
+          <IconButton icon={X} aria-label={t("Close")} onPress={onClose} />
           <XStack justifyContent="center" alignItems="center">
             <Square borderRadius="$r4" backgroundColor="$interactiveBaseErrorSoftDefault" size={80}>
               <X size={48} color="$uiErrorSecondary" strokeWidth={2} />

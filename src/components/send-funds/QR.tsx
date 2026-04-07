@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Linking, Pressable, StyleSheet } from "react-native";
+import { Linking, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { CameraView, useCameraPermissions } from "expo-camera";
@@ -15,6 +15,7 @@ import { zeroAddress } from "viem";
 import { Address } from "@exactly/common/validation";
 
 import reportError from "../../utils/reportError";
+import IconButton from "../shared/IconButton";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
@@ -171,8 +172,10 @@ export default function QR() {
         </Button.Icon>
       </Button>
       <View position="absolute" borderRadius="$r_0" backgroundColor="transparent" top={top} left="$s4" padding="$s3">
-        <Pressable
-          hitSlop={15}
+        <IconButton
+          icon={ArrowLeft}
+          color="white"
+          aria-label={t("Back")}
           onPress={() => {
             if (router.canGoBack()) {
               router.back();
@@ -180,9 +183,7 @@ export default function QR() {
               router.replace("/send-funds");
             }
           }}
-        >
-          <ArrowLeft size={24} color="white" />
-        </Pressable>
+        />
       </View>
     </View>
   );

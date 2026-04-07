@@ -1,6 +1,5 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable } from "react-native";
 
 import { useLocalSearchParams, useRouter } from "expo-router";
 
@@ -24,6 +23,7 @@ import reportError from "../../utils/reportError";
 import { getKYCStatus, getRampProviders } from "../../utils/server";
 import useBeginKYC from "../../utils/useBeginKYC";
 import ChainLogo from "../shared/ChainLogo";
+import IconButton from "../shared/IconButton";
 import InfoAlert from "../shared/InfoAlert";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
@@ -106,7 +106,9 @@ export default function AddFunds() {
       <View gap="$s6" fullScreen padded>
         <YStack gap="$s4_5">
           <XStack flexDirection="row" gap="$s3_5" justifyContent="space-between" alignItems="center">
-            <Pressable
+            <IconButton
+              icon={ArrowLeft}
+              aria-label={t("Back")}
               onPress={() => {
                 if (type === "crypto" || type === "fiat") {
                   if (router.canGoBack()) {
@@ -118,19 +120,17 @@ export default function AddFunds() {
                   router.replace("/(main)/(home)");
                 }
               }}
-            >
-              <ArrowLeft size={24} color="$uiNeutralPrimary" />
-            </Pressable>
+            />
             <Text emphasized subHeadline primary>
               {t(type === "crypto" ? "Cryptocurrencies" : type === "fiat" ? "Bank transfers" : "Add Funds")}
             </Text>
-            <Pressable
+            <IconButton
+              icon={CircleHelp}
+              aria-label={t("Help")}
               onPress={() => {
                 presentArticle("8950801").catch(reportError);
               }}
-            >
-              <CircleHelp color="$uiNeutralPrimary" />
-            </Pressable>
+            />
           </XStack>
         </YStack>
         <ScrollView flex={1}>

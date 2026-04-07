@@ -10,6 +10,7 @@ import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
 import { presentArticle } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
 import Button from "../shared/Button";
+import IconButton from "../shared/IconButton";
 import ModalSheet from "../shared/ModalSheet";
 import Text from "../shared/Text";
 
@@ -30,9 +31,7 @@ export default function PayModeSheet({ onClose, open }: { onClose: () => void; o
               <Text emphasized headline flex={1}>
                 {t("Exa Card pay mode")}
               </Text>
-              <Pressable hitSlop={15} onPress={onClose}>
-                <X size={24} color="$uiNeutralPrimary" />
-              </Pressable>
+              <IconButton icon={X} aria-label={t("Close")} onPress={onClose} />
             </XStack>
             <Text subHeadline secondary>
               {t("Change the pay mode before each purchase and pay how you want.")}

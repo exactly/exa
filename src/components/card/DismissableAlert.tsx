@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 
 import { Info, X } from "@tamagui/lucide-icons";
@@ -8,6 +9,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function DismissableAlert({ text, onDismiss }: { onDismiss: () => void; text: string }) {
+  const { t } = useTranslation();
   return (
     <XStack
       borderRadius="$r3"
@@ -30,19 +32,23 @@ export default function DismissableAlert({ text, onDismiss }: { onDismiss: () =>
         <Text fontSize={15} color="$interactiveOnBaseInformationDefault" paddingRight="$s4">
           {text}
         </Text>
-        <View
-          position="absolute"
-          right="$s3"
-          top="$s3"
-          backgroundColor="$interactiveBaseInformationSoftDefault"
-          borderRadius="$r_0"
-          width={24}
-          height={24}
-          alignItems="center"
-          justifyContent="center"
-        >
-          <Pressable hitSlop={10} onPress={onDismiss}>
-            <X size={18} color="$interactiveOnBaseInformationSoft" />
+        <View position="absolute" right="$s3" top="$s3">
+          <Pressable
+            aria-label={t("Dismiss")}
+            hitSlop={10}
+            onPress={onDismiss}
+            style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+          >
+            <View
+              width={24}
+              height={24}
+              borderRadius="$r_0"
+              backgroundColor="$interactiveBaseInformationSoftDefault"
+              justifyContent="center"
+              alignItems="center"
+            >
+              <X size={18} color="$interactiveOnBaseInformationSoft" />
+            </View>
           </Pressable>
         </View>
       </View>

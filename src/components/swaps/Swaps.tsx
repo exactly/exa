@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { router } from "expo-router";
@@ -35,6 +34,7 @@ import useMarkets from "../../utils/useMarkets";
 import usePortfolio from "../../utils/usePortfolio";
 import useSimulateProposal from "../../utils/useSimulateProposal";
 import Button from "../shared/Button";
+import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
@@ -375,7 +375,8 @@ export default function Swaps() {
           justifyContent="space-between"
           alignItems="center"
         >
-          <Pressable
+          <IconButton
+            icon={ArrowLeft}
             aria-label={t("Back")}
             onPress={() => {
               if (router.canGoBack()) {
@@ -384,19 +385,17 @@ export default function Swaps() {
                 router.replace("/(main)/(home)/defi");
               }
             }}
-          >
-            <ArrowLeft size={24} color="$uiNeutralPrimary" />
-          </Pressable>
+          />
           <Text primary emphasized subHeadline>
             {t("Swaps")}
           </Text>
-          <Pressable
+          <IconButton
+            icon={CircleHelp}
+            aria-label={t("Help")}
             onPress={() => {
               presentArticle("11757863").catch(reportError);
             }}
-          >
-            <CircleHelp color="$uiNeutralPrimary" />
-          </Pressable>
+          />
         </View>
         <ScrollView ref={swapsScrollReference} showsVerticalScrollIndicator={false} flex={1}>
           <View padded>
