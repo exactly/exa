@@ -263,7 +263,7 @@ export default function Home() {
                       onSpendingLimitInfoPress={() => {
                         setSpendingLimitSheetOpen(true);
                       }}
-                      spendingLimit={markets ? withdrawLimit(markets, marketUSDCAddress, WAD) : 0n}
+                      spendingLimit={markets ? withdrawLimit(markets, marketUSDCAddress) : 0n}
                     />
                   )}
                 </AnimatePresence>
