@@ -671,6 +671,9 @@ export default new Hono().post(
               reason: payload.body.spend.declinedReason ?? "unknown",
             },
           }).catch((error: unknown) => captureException(error, { level: "error" }));
+          startSpan({ name: "webhook", op: `panda.webhook.${payload.body.id}` }, () => publish(payload)).catch(
+            (error: unknown) => captureException(error, { level: "error" }),
+          );
           return c.json({ code: "ok" });
         }
         if (payload.body.spend.amount < 0) {
