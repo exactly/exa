@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.86
+
+### Patch Changes
+
+- [#940](https://github.com/exactly/exa/pull/940) [`23b261c`](https://github.com/exactly/exa/commit/23b261cd6508f533134052c5d02eca9b3dfa641d) Thanks [@mainqueg](https://github.com/mainqueg)! - 🩹 route paused and rejected bridge users to onboarding
+
 ## 0.2.85
 
 ### Patch Changes

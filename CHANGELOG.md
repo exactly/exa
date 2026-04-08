@@ -1,5 +1,14 @@
 # @exactly/mobile
 
+## 1.2.2
+
+### Patch Changes
+
+- [#944](https://github.com/exactly/exa/pull/944) [`03394a2`](https://github.com/exactly/exa/commit/03394a256ac7e7203b6c51f0669795a7ff0f6ece) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix spending limit calculation
+
+- Updated dependencies [[`23b261c`](https://github.com/exactly/exa/commit/23b261cd6508f533134052c5d02eca9b3dfa641d)]:
+  - @exactly/server@0.2.86
+
 ## 1.2.1
 
 ### Patch Changes
