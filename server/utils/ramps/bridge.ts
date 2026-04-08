@@ -186,10 +186,10 @@ export async function getProvider(params: {
     if (!bridgeUser) throw new Error(ErrorCodes.BAD_BRIDGE_ID);
     switch (bridgeUser.status) {
       case "offboarded":
-      case "rejected":
-      case "paused":
         captureException(new Error("bridge user not available"), { contexts: { bridgeUser }, level: "warning" });
         return { status: "NOT_AVAILABLE" as const, onramp: { currencies: [] } };
+      case "paused":
+      case "rejected":
       case "under_review":
       case "awaiting_questionnaire":
       case "awaiting_ubo":

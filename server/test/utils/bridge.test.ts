@@ -192,20 +192,28 @@ describe("bridge utils", () => {
         );
       });
 
-      it("returns NOT_AVAILABLE when customer is rejected", async () => {
+      it("returns ONBOARDING when customer is rejected", async () => {
         vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ ...activeCustomer, status: "rejected" }));
 
         const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
 
-        expect(result.status).toBe("NOT_AVAILABLE");
+        expect(result.status).toBe("ONBOARDING");
+        expect(captureException).toHaveBeenCalledWith(
+          expect.objectContaining({ message: "bridge user onboarding" }),
+          expect.objectContaining({ level: "warning" }),
+        );
       });
 
-      it("returns NOT_AVAILABLE when customer is paused", async () => {
+      it("returns ONBOARDING when customer is paused", async () => {
         vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ ...activeCustomer, status: "paused" }));
 
         const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
 
-        expect(result.status).toBe("NOT_AVAILABLE");
+        expect(result.status).toBe("ONBOARDING");
+        expect(captureException).toHaveBeenCalledWith(
+          expect.objectContaining({ message: "bridge user onboarding" }),
+          expect.objectContaining({ level: "warning" }),
+        );
       });
 
       it("returns ONBOARDING when customer is under_review", async () => {
