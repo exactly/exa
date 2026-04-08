@@ -7,7 +7,7 @@ import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { hexToBytes, padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
-import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 
@@ -524,6 +524,18 @@ describe("ignored template", () => {
   });
 });
 
+const cardLimitUpdateResponse = { data: { id: "acct_case" } };
+const cardUpdateResponse = {
+  id: "case-card",
+  userId: "pandaId",
+  type: "virtual",
+  status: "active",
+  limit: { amount: 2_000_000, frequency: "per7DayPeriod" },
+  last4: "1234",
+  expirationMonth: "9",
+  expirationYear: "2029",
+} as const;
+
 describe("card limit case", () => {
   const referenceId = "case-persona-ref";
   const owner = privateKeyToAddress(padHex("0x456"));
@@ -542,20 +554,23 @@ describe("card limit case", () => {
     await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, referenceId));
   });
 
+  afterAll(async () => {
+    await database.delete(credentials).where(eq(credentials.id, referenceId));
+  });
+
   it("updates card with dynamic limit when approved", async () => {
     await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, referenceId));
     await database.insert(cards).values([{ id: "case-card", credentialId: referenceId, lastFour: "1234" }]);
     vi.spyOn(persona, "getInquiryById").mockResolvedValueOnce({
       data: { attributes: { "reference-id": referenceId } },
     });
-    vi.spyOn(panda, "updateCard").mockResolvedValueOnce({} as Awaited<ReturnType<typeof panda.updateCard>>);
-    const response = await appClient.index.$post({
-      header: { "persona-signature": "t=1,v1=sha256" },
-      json: casePayload({ status: "Approved", cardLimitUsd: 20_000 }),
-    });
+    vi.spyOn(persona, "updateCardLimit").mockResolvedValueOnce(cardLimitUpdateResponse);
+    vi.spyOn(panda, "updateCard").mockResolvedValueOnce(cardUpdateResponse);
+    const response = await postCase(casePayload({ status: "Approved", cardLimitUsd: 20_000 }));
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000);
     expect(panda.updateCard).toHaveBeenCalledExactlyOnceWith({
       id: "case-card",
       limit: { amount: 2_000_000, frequency: "per7DayPeriod" },
@@ -563,30 +578,109 @@ describe("card limit case", () => {
     expect(captureException).not.toHaveBeenCalled();
   });
 
-  it("returns 500 when updateCard fails", async () => {
+  it("updates frozen card limit on panda", async () => {
+    await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, referenceId));
+    await database
+      .insert(cards)
+      .values([{ id: "case-card", credentialId: referenceId, lastFour: "1234", status: "FROZEN" }]);
+    vi.spyOn(persona, "getInquiryById").mockResolvedValueOnce({
+      data: { attributes: { "reference-id": referenceId } },
+    });
+    vi.spyOn(persona, "updateCardLimit").mockResolvedValueOnce(cardLimitUpdateResponse);
+    vi.spyOn(panda, "updateCard").mockResolvedValueOnce(cardUpdateResponse);
+    const response = await postCase(casePayload({ status: "Approved", cardLimitUsd: 20_000 }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000);
+    expect(panda.updateCard).toHaveBeenCalledExactlyOnceWith({
+      id: "case-card",
+      limit: { amount: 2_000_000, frequency: "per7DayPeriod" },
+    });
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("updates persona account when credential has no pandaId", async () => {
+    vi.spyOn(persona, "getInquiryById").mockResolvedValueOnce({
+      data: { attributes: { "reference-id": referenceId } },
+    });
+    vi.spyOn(persona, "updateCardLimit").mockResolvedValueOnce(cardLimitUpdateResponse);
+    const response = await postCase(casePayload({ status: "Approved", cardLimitUsd: 20_000 }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000);
+    expect(panda.updateCard).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("updates persona account when no active card exists", async () => {
+    await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, referenceId));
+    vi.spyOn(persona, "getInquiryById").mockResolvedValueOnce({
+      data: { attributes: { "reference-id": referenceId } },
+    });
+    vi.spyOn(persona, "updateCardLimit").mockResolvedValueOnce(cardLimitUpdateResponse);
+    const response = await postCase(casePayload({ status: "Approved", cardLimitUsd: 20_000 }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000);
+    expect(panda.updateCard).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("returns 500 and captures drift context when updateCard fails after updateCardLimit succeeds", async () => {
     await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, referenceId));
     await database.insert(cards).values([{ id: "case-card", credentialId: referenceId, lastFour: "1234" }]);
     vi.spyOn(persona, "getInquiryById").mockResolvedValueOnce({
       data: { attributes: { "reference-id": referenceId } },
     });
+    vi.spyOn(persona, "updateCardLimit").mockResolvedValueOnce(cardLimitUpdateResponse);
     vi.spyOn(panda, "updateCard").mockRejectedValueOnce(new Error("panda api error"));
-    const response = await appClient.index.$post({
-      header: { "persona-signature": "t=1,v1=sha256" },
-      json: casePayload({ status: "Approved", cardLimitUsd: 20_000 }),
-    });
+    const response = await postCase(casePayload({ status: "Approved", cardLimitUsd: 20_000 }));
 
     expect(response.status).toBe(500);
+    expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000);
     expect(panda.updateCard).toHaveBeenCalledExactlyOnceWith({
       id: "case-card",
       limit: { amount: 2_000_000, frequency: "per7DayPeriod" },
     });
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ message: "panda api error" }),
+      expect.objectContaining({
+        level: "error",
+        contexts: {
+          cardLimitDrift: { referenceId, limitUsd: 20_000, pandaId: "pandaId", cardId: "case-card" },
+        },
+      }),
+    );
+  });
+
+  it("returns 500 when updateCardLimit fails before updateCard", async () => {
+    await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, referenceId));
+    await database.insert(cards).values([{ id: "case-card", credentialId: referenceId, lastFour: "1234" }]);
+    vi.spyOn(persona, "getInquiryById").mockResolvedValueOnce({
+      data: { attributes: { "reference-id": referenceId } },
+    });
+    vi.spyOn(persona, "updateCardLimit").mockRejectedValueOnce(new Error("persona api error"));
+    const response = await postCase(casePayload({ status: "Approved", cardLimitUsd: 20_000 }));
+
+    expect(response.status).toBe(500);
+    expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000);
+    expect(panda.updateCard).not.toHaveBeenCalled();
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ message: "persona api error" }),
+      {
+        level: "error",
+        contexts: {
+          cardLimitDrift: { referenceId, limitUsd: 20_000, pandaId: "pandaId", cardId: "case-card" },
+        },
+      },
+    );
   });
 
   it("returns ok without updating card when declined", async () => {
-    const response = await appClient.index.$post({
-      header: { "persona-signature": "t=1,v1=sha256" },
-      json: casePayload({ status: "Declined", cardLimitUsd: 20_000 }),
-    });
+    const response = await postCase(casePayload({ status: "Declined", cardLimitUsd: 20_000 }));
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
@@ -595,10 +689,7 @@ describe("card limit case", () => {
   });
 
   it("returns no limit when card-limit-usd field is missing", async () => {
-    const response = await appClient.index.$post({
-      header: { "persona-signature": "t=1,v1=sha256" },
-      json: casePayload({ status: "Approved" }),
-    });
+    const response = await postCase(casePayload({ status: "Approved" }));
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "no limit" });
@@ -607,10 +698,7 @@ describe("card limit case", () => {
   });
 
   it("returns no limit when card-limit-usd value is null", async () => {
-    const response = await appClient.index.$post({
-      header: { "persona-signature": "t=1,v1=sha256" },
-      json: casePayload({ status: "Approved", cardLimitUsd: null }),
-    });
+    const response = await postCase(casePayload({ status: "Approved", cardLimitUsd: null }));
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "no limit" });
@@ -622,12 +710,10 @@ describe("card limit case", () => {
     vi.spyOn(persona, "getInquiryById").mockResolvedValueOnce({
       data: { attributes: { "reference-id": "nonexistent" } },
     });
-    const response = await appClient.index.$post({
-      header: { "persona-signature": "t=1,v1=sha256" },
-      json: casePayload({ status: "Approved", cardLimitUsd: 20_000 }),
-    });
+    const response = await postCase(casePayload({ status: "Approved", cardLimitUsd: 20_000 }));
 
     expect(response.status).toBe(200);
+    expect(persona.updateCardLimit).not.toHaveBeenCalled();
     expect(captureException).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ message: "no credential" }),
       expect.objectContaining({ level: "error", contexts: { credential: { referenceId: "nonexistent" } } }),
@@ -635,48 +721,25 @@ describe("card limit case", () => {
     expect(panda.updateCard).not.toHaveBeenCalled();
   });
 
-  it("returns no panda when credential has no pandaId", async () => {
-    vi.spyOn(persona, "getInquiryById").mockResolvedValueOnce({
-      data: { attributes: { "reference-id": referenceId } },
-    });
-    const response = await appClient.index.$post({
-      header: { "persona-signature": "t=1,v1=sha256" },
-      json: casePayload({ status: "Approved", cardLimitUsd: 20_000 }),
-    });
-
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toStrictEqual({ code: "no panda" });
-    expect(panda.updateCard).not.toHaveBeenCalled();
-    expect(captureException).not.toHaveBeenCalled();
-  });
-
-  it("captures exception when no active card exists", async () => {
+  it("skips panda when pandaId set but no active card exists", async () => {
     await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, referenceId));
     vi.spyOn(persona, "getInquiryById").mockResolvedValueOnce({
       data: { attributes: { "reference-id": referenceId } },
     });
-    const response = await appClient.index.$post({
-      header: { "persona-signature": "t=1,v1=sha256" },
-      json: casePayload({ status: "Approved", cardLimitUsd: 20_000 }),
-    });
+    vi.spyOn(persona, "updateCardLimit").mockResolvedValueOnce(cardLimitUpdateResponse);
+    const response = await postCase(casePayload({ status: "Approved", cardLimitUsd: 20_000 }));
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toStrictEqual({ code: "no card" });
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000);
     expect(panda.updateCard).not.toHaveBeenCalled();
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({ message: "no card" }),
-      expect.objectContaining({ level: "error", contexts: { card: { referenceId } } }),
-    );
+    expect(captureException).not.toHaveBeenCalled();
   });
 
   it("falls through to bad persona for unknown case template", async () => {
     const payload = casePayload({ status: "Approved", cardLimitUsd: 20_000 });
-    // @ts-expect-error override template id for test
     payload.data.attributes.payload.data.relationships.caseTemplate.data.id = "ctmpl_unknown"; // cspell:ignore ctmpl
-    const response = await appClient.index.$post({
-      header: { "persona-signature": "t=1,v1=sha256" },
-      json: payload,
-    });
+    const response = await postCase(payload);
 
     expect(response.status).toBe(200);
     expect(captureException).toHaveBeenCalledExactlyOnceWith(
@@ -689,10 +752,7 @@ describe("card limit case", () => {
   it("returns no inquiry when inquiries array is empty", async () => {
     const payload = casePayload({ status: "Approved", cardLimitUsd: 20_000 });
     payload.data.attributes.payload.data.relationships.inquiries.data = [];
-    const response = await appClient.index.$post({
-      header: { "persona-signature": "t=1,v1=sha256" },
-      json: payload,
-    });
+    const response = await postCase(payload);
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "no inquiry" });
@@ -718,12 +778,11 @@ describe("card limit case", () => {
 
   it("returns 500 when getInquiryById fails", async () => {
     vi.spyOn(persona, "getInquiryById").mockRejectedValueOnce(new Error("persona api error"));
-    const response = await appClient.index.$post({
-      header: { "persona-signature": "t=1,v1=sha256" },
-      json: casePayload({ status: "Approved", cardLimitUsd: 20_000 }),
-    });
+    const updateCardLimit = vi.spyOn(persona, "updateCardLimit");
+    const response = await postCase(casePayload({ status: "Approved", cardLimitUsd: 20_000 }));
 
     expect(response.status).toBe(500);
+    expect(updateCardLimit).not.toHaveBeenCalled();
     expect(panda.updateCard).not.toHaveBeenCalled();
   });
 });
@@ -760,9 +819,8 @@ function casePayload({
             id: "case_abc123",
             attributes: {
               status,
-              fields: {
-                ...(cardLimitUsd !== undefined && { cardLimitUsd: { type: "integer" as const, value: cardLimitUsd } }),
-              },
+              fields:
+                cardLimitUsd === undefined ? {} : { cardLimitUsd: { type: "integer" as const, value: cardLimitUsd } },
             },
             relationships: {
               caseTemplate: { data: { id: persona.CARD_LIMIT_CASE_TEMPLATE } },
@@ -774,7 +832,10 @@ function casePayload({
     },
   };
 }
-
+function postCase(json: ReturnType<typeof casePayload>) {
+  // @ts-expect-error hono client can't discriminate nested union for case payloads
+  return appClient.index.$post({ header: { "persona-signature": "t=1,v1=sha256" }, json });
+}
 function ignoredPayload<T extends string>(templateId: T) {
   return {
     data: {

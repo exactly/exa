@@ -258,11 +258,9 @@ export default new Hono().post(
         where: eq(credentials.id, referenceId),
         with: { cards: { columns: { id: true }, where: inArray(cards.status, ["ACTIVE", "FROZEN"]), limit: 1 } },
       });
-      if (credential?.pandaId && credential.cards[0]) {
-        await updateCard({
-          id: credential.cards[0].id,
-          limit: { amount: limitUsd * 100, frequency: "per7DayPeriod" },
-        });
+      if (!credential) {
+        captureException(new Error("no credential"), { level: "error", contexts: { credential: { referenceId } } });
+        return c.json({ code: "ok" }, 200);
       }
       await updateCardLimit(referenceId, limitUsd).catch((error: unknown) => {
         captureException(error, {
@@ -278,8 +276,24 @@ export default new Hono().post(
         });
         throw error;
       });
-      if (!credential) {
-        captureException(new Error("no credential"), { level: "error", contexts: { credential: { referenceId } } });
+      if (credential.pandaId && credential.cards[0]) {
+        await updateCard({
+          id: credential.cards[0].id,
+          limit: { amount: limitUsd * 100, frequency: "per7DayPeriod" },
+        }).catch((error: unknown) => {
+          captureException(error, {
+            level: "error",
+            contexts: {
+              cardLimitDrift: {
+                referenceId,
+                limitUsd,
+                pandaId: credential.pandaId,
+                cardId: credential.cards[0]?.id ?? null,
+              },
+            },
+          });
+          throw error;
+        });
       }
       return c.json({ code: "ok" }, 200);
     }
