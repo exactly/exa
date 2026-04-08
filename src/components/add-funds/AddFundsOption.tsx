@@ -1,7 +1,7 @@
 import React from "react";
 
 import { ChevronRight } from "@tamagui/lucide-icons";
-import { XStack, YStack } from "tamagui";
+import { Spinner, XStack, YStack } from "tamagui";
 
 import Text from "../shared/Text";
 import View from "../shared/View";
@@ -11,10 +11,12 @@ export default function AddFundsOption({
   title,
   subtitle,
   disabled,
+  loading,
   onPress,
 }: {
   disabled?: boolean;
   icon: React.ReactElement;
+  loading?: boolean;
   onPress: () => void;
   subtitle: string;
   title: string;
@@ -54,7 +56,11 @@ export default function AddFundsOption({
           </YStack>
         </XStack>
         <View>
-          <ChevronRight size={24} color="$uiBrandSecondary" />
+          {loading ? (
+            <Spinner size="small" color="$uiBrandSecondary" />
+          ) : (
+            <ChevronRight size={24} color="$uiBrandSecondary" />
+          )}
         </View>
       </XStack>
     </YStack>

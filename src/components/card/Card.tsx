@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { Pressable, RefreshControl } from "react-native";
 
@@ -22,7 +22,6 @@ import SpendingLimits from "./SpendingLimits";
 import VerificationFailure from "./VerificationFailure";
 import { presentArticle } from "../../utils/intercom";
 import openBrowser from "../../utils/openBrowser";
-import { cancelKYC, startKYC } from "../../utils/persona";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import {
@@ -35,6 +34,7 @@ import {
 } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
+import useBeginKYC from "../../utils/useBeginKYC";
 import useMarkets from "../../utils/useMarkets";
 import useTabPress from "../../utils/useTabPress";
 import InfoAlert from "../shared/InfoAlert";
@@ -58,7 +58,6 @@ export default function Card() {
   const [disclaimerShown, setDisclaimerShown] = useState(false);
   const [verificationFailureShown, setVerificationFailureShown] = useState(false);
 
-  useEffect(() => cancelKYC, []);
   const { data: cardDetailsOpen } = useQuery<boolean>({ queryKey: ["card-details-open"] });
   const [spendingLimitsOpen, setSpendingLimitsOpen] = useState(false);
   const { data: hidden } = useQuery<boolean>({ queryKey: ["settings", "sensitive"] });
@@ -130,6 +129,8 @@ export default function Card() {
     refresh();
   });
 
+  const beginKYC = useBeginKYC();
+
   const {
     mutateAsync: revealCard,
     isPending: isRevealing,
@@ -141,7 +142,7 @@ export default function Card() {
         router.push("/(main)/getting-started");
         return;
       }
-      if (isRevealing) return;
+      if (isRevealing || beginKYC.isPending) return;
       try {
         const { data, error } = await refetchCard();
         if (error && error instanceof APIError && error.code === 500) throw error;
@@ -174,16 +175,25 @@ export default function Card() {
           return;
         }
       }
-      try {
-        await startKYC();
-      } catch (error) {
-        toast.show(t("An error occurred. Please try again later."), {
-          native: true,
-          duration: 1000,
-          burntOptions: { haptic: "error", preset: "error" },
-        });
-        reportError(error);
-      }
+      beginKYC.mutate(undefined, {
+        onSuccess(result) {
+          if (result.status === "cancel") return;
+          const approved = "code" in result.kyc && (result.kyc.code === "ok" || result.kyc.code === "legacy kyc");
+          if (approved) setDisclaimerShown(true);
+        },
+        onError(error) {
+          if (error instanceof APIError && error.text === "bad kyc") {
+            setVerificationFailureShown(true);
+            return;
+          }
+          toast.show(t("An error occurred. Please try again later."), {
+            native: true,
+            duration: 1000,
+            burntOptions: { haptic: "error", preset: "error" },
+          });
+          reportError(error);
+        },
+      });
     },
   });
 
@@ -294,10 +304,10 @@ export default function Card() {
                 )}
                 <PluginUpgrade />
                 <ExaCard
-                  revealing={isRevealing || isGeneratingCard}
+                  revealing={isRevealing || isGeneratingCard || beginKYC.isPending}
                   frozen={cardDetails?.status === "FROZEN"}
                   onPress={() => {
-                    if (isRevealing || isGeneratingCard) return;
+                    if (isRevealing || isGeneratingCard || beginKYC.isPending) return;
                     revealCard().catch(reportError);
                   }}
                 />

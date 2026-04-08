@@ -5,6 +5,7 @@ import { Pressable } from "react-native";
 import { useRouter } from "expo-router";
 
 import { ArrowDownToLine, ArrowLeft, Check, IdCard } from "@tamagui/lucide-icons";
+import { useToastController } from "@tamagui/toast";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
@@ -141,15 +142,28 @@ export default function GettingStarted() {
 function CurrentStep({ hasKYC, isDeployed }: { hasKYC: boolean; isDeployed: boolean }) {
   const { t } = useTranslation();
   const router = useRouter();
+  const toast = useToastController();
   const { currentStep, completedSteps } = useOnboardingSteps({ hasKYC, isDeployed });
-  const { mutate: beginKYC } = useBeginKYC();
+  const beginKYC = useBeginKYC();
   function handleAction() {
     switch (currentStep?.id) {
       case "add-funds":
-        router.push("/add-funds/add-crypto");
+        router.push("/add-funds");
         break;
       case "verify-identity":
-        beginKYC();
+        beginKYC.mutate(undefined, {
+          onSuccess(result) {
+            if (result.status !== "cancel") router.replace("/(main)/(home)");
+          },
+          onError(error) {
+            toast.show(t("Error verifying identity"), {
+              native: true,
+              duration: 1000,
+              burntOptions: { haptic: "error", preset: "error" },
+            });
+            reportError(error);
+          },
+        });
         break;
     }
   }

@@ -5,10 +5,12 @@ import { Pressable } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { ArrowLeft, Banknote, Blocks, CircleHelp, Info, Wallet } from "@tamagui/lucide-icons";
+import { useToastController } from "@tamagui/toast";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 import { isAddress } from "viem";
+import { base } from "viem/chains";
 
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
@@ -20,22 +22,30 @@ import { presentArticle } from "../../utils/intercom";
 import queryClient, { type AuthMethod } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { getKYCStatus, getRampProviders } from "../../utils/server";
+import useBeginKYC from "../../utils/useBeginKYC";
 import ChainLogo from "../shared/ChainLogo";
+import InfoAlert from "../shared/InfoAlert";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
+import type { KYCStatus } from "../../utils/server";
 import type { Credential } from "@exactly/common/validation";
 
 export default function AddFunds() {
   const { type } = useLocalSearchParams();
   const router = useRouter();
+  const toast = useToastController();
   const { t } = useTranslation();
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const ownerAccount = credential && isAddress(credential.credentialId) ? credential.credentialId : undefined;
 
   const { data: method } = useQuery<AuthMethod>({ queryKey: ["method"] });
+  const { data: kycStatus } = useQuery<KYCStatus>({ queryKey: ["kyc", "status"] });
+  const beginKYC = useBeginKYC();
+  const isKYCApproved =
+    !!kycStatus && "code" in kycStatus && (kycStatus.code === "ok" || kycStatus.code === "legacy kyc");
 
   const { data: countryCode } = useQuery({
     queryKey: ["user", "country"],
@@ -135,14 +145,39 @@ export default function AddFunds() {
                     router.push({ pathname: "/add-funds", params: { type: "crypto" } });
                   }}
                 />
-                {hasFiat !== false && (
+                {hasFiat !== false && chain.id !== base.id && (
                   <AddFundsOption
                     icon={<Banknote size={24} color="$iconBrandDefault" />}
                     title={t("Bank transfers")}
                     subtitle={t("From a bank account")}
-                    disabled={!hasFiat}
+                    disabled={(isKYCApproved && !hasFiat) || beginKYC.isPending}
+                    loading={beginKYC.isPending}
                     onPress={() => {
-                      router.push({ pathname: "/add-funds", params: { type: "fiat" } });
+                      if (isKYCApproved) {
+                        router.push({ pathname: "/add-funds", params: { type: "fiat" } });
+                        return;
+                      }
+                      beginKYC.mutate(undefined, {
+                        onSuccess(result) {
+                          if (result.status === "cancel") return;
+                          const approved =
+                            "code" in result.kyc && (result.kyc.code === "ok" || result.kyc.code === "legacy kyc");
+                          if (approved) {
+                            queryClient.invalidateQueries({ queryKey: ["ramp", "providers"] }).catch(reportError);
+                            router.push({ pathname: "/add-funds", params: { type: "fiat" } });
+                          } else {
+                            router.replace("/(main)/(home)");
+                          }
+                        },
+                        onError(error) {
+                          toast.show(t("Error verifying identity"), {
+                            native: true,
+                            duration: 1000,
+                            burntOptions: { haptic: "error", preset: "error" },
+                          });
+                          reportError(error);
+                        },
+                      });
                     }}
                   />
                 )}
@@ -150,6 +185,25 @@ export default function AddFunds() {
             )}
             {type === "crypto" && (
               <>
+                {!isKYCApproved && chain.id !== base.id && (
+                  <InfoAlert
+                    title={t("Complete a quick identity check to access more networks.")}
+                    actionText={t("Get verified")}
+                    onPress={() => {
+                      beginKYC.mutate(undefined, {
+                        onError(error) {
+                          toast.show(t("Error verifying identity"), {
+                            native: true,
+                            duration: 1000,
+                            burntOptions: { haptic: "error", preset: "error" },
+                          });
+                          reportError(error);
+                        },
+                      });
+                    }}
+                    loading={beginKYC.isPending}
+                  />
+                )}
                 {method === "siwe" && (
                   <AddFundsOption
                     icon={<Wallet width={40} height={40} color="$iconBrandDefault" />}
@@ -174,6 +228,11 @@ export default function AddFunds() {
 
                 {renderProviders("crypto")}
               </>
+            )}
+            {type === "fiat" && countryCode && isPending && (
+              <View justifyContent="center" alignItems="center">
+                <Skeleton width="100%" height={82} />
+              </View>
             )}
             {type === "fiat" && providers && (
               <YStack gap="$s5">
