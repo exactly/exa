@@ -754,6 +754,20 @@ describe("evaluateAccount", () => {
       ).rejects.toThrow(persona.scopeValidationErrors.INVALID_SCOPE_VALIDATION);
     });
   });
+
+  describe("cardLimit", () => {
+    it("returns panda template when basic is not done", async () => {
+      const result = await persona.evaluateAccount(emptyAccount, "cardLimit");
+
+      expect(result).toBe(persona.PANDA_TEMPLATE);
+    });
+
+    it("returns card limit template when basic is done", async () => {
+      const result = await persona.evaluateAccount(basicAccount, "cardLimit");
+
+      expect(result).toBe(persona.CARD_LIMIT_TEMPLATE);
+    });
+  });
 });
 
 describe("getDocumentForBridge", () => {

@@ -289,6 +289,7 @@ const accountScopeSchemas = {
 } as const;
 
 export type AccountScope = keyof typeof accountScopeSchemas;
+export type TemplateScope = "cardLimit" | AccountScope;
 type AccountResponse<T extends AccountScope> = InferOutput<(typeof accountScopeSchemas)[T]>;
 export type AccountOutput<T extends AccountScope> = AccountResponse<T>["data"][number];
 
@@ -320,7 +321,7 @@ function getUnknownAccount(referenceId: string) {
 
 export async function getPendingInquiryTemplate(
   referenceId: string,
-  scope: AccountScope,
+  scope: TemplateScope,
 ): Promise<Awaited<ReturnType<typeof evaluateAccount>>> {
   const unknownAccount = await getUnknownAccount(referenceId);
   return evaluateAccount(unknownAccount, scope);
@@ -328,13 +329,22 @@ export async function getPendingInquiryTemplate(
 
 export async function evaluateAccount(
   unknownAccount: InferOutput<typeof UnknownAccount>,
-  scope: AccountScope,
+  scope: TemplateScope,
 ): Promise<
-  typeof MANTECA_TEMPLATE_EXTRA_FIELDS | typeof MANTECA_TEMPLATE_WITH_ID_CLASS | typeof PANDA_TEMPLATE | undefined
+  | typeof CARD_LIMIT_TEMPLATE
+  | typeof MANTECA_TEMPLATE_EXTRA_FIELDS
+  | typeof MANTECA_TEMPLATE_WITH_ID_CLASS
+  | typeof PANDA_TEMPLATE
+  | undefined
 > {
   switch (scope) {
     case "document":
       throw new Error("document account scope not supported");
+    case "cardLimit": {
+      const basicTemplate = await evaluateAccount(unknownAccount, "basic");
+      if (basicTemplate) return basicTemplate;
+      return CARD_LIMIT_TEMPLATE;
+    }
     case "basic": {
       const result = safeParse(accountScopeSchemas[scope], unknownAccount);
       if (!result.success) {

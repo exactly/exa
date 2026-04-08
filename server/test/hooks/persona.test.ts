@@ -759,7 +759,6 @@ function casePayload({
     },
   };
 }
-
 function ignoredPayload<T extends string>(templateId: T) {
   return {
     data: {
