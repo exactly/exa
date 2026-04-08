@@ -3089,6 +3089,50 @@ describe("webhooks", () => {
     });
   });
 
+  it("forwards declined transaction webhook", async () => {
+    const cardId = `${webhookAccount}-card`;
+    const fetch = globalThis.fetch;
+    let publish = false;
+    const mockFetch = vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      if (url === "https://exa.test") {
+        publish = true;
+        return { ok: true, status: 200, text: () => Promise.resolve("OK") } as Response;
+      }
+      return fetch(url, init);
+    });
+
+    const response = await appClient.index.$post({
+      ...authorization,
+      json: {
+        ...authorization.json,
+        action: "created",
+        body: {
+          ...authorization.json.body,
+          id: "declined-webhook-tx",
+          spend: {
+            ...authorization.json.body.spend,
+            cardId,
+            userId: webhookAccount,
+            status: "declined",
+            declinedReason: "webhook declined",
+          },
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await vi.waitUntil(() => publish, 60_000);
+    const options = mockFetch.mock.calls.find(([url]) => url === "https://exa.test")?.[1];
+    const headers = parse(object({ Signature: string() }), options?.headers);
+    expect(createHmac("sha256", secret).update(parse(string(), options?.body)).digest("hex")).toBe(headers.Signature);
+    expect(JSON.parse(parse(string(), options?.body))).toMatchObject({
+      resource: "transaction",
+      action: "created",
+      body: { spend: { status: "declined", declinedReason: "webhook declined" } },
+    });
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
   it("forwards card updated active", async () => {
     const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
       ok: true,
