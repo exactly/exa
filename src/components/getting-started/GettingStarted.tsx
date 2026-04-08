@@ -142,14 +142,19 @@ function CurrentStep({ hasKYC, isDeployed }: { hasKYC: boolean; isDeployed: bool
   const { t } = useTranslation();
   const router = useRouter();
   const { currentStep, completedSteps } = useOnboardingSteps({ hasKYC, isDeployed });
-  const { mutate: beginKYC } = useBeginKYC();
+  const beginKYC = useBeginKYC();
   function handleAction() {
     switch (currentStep?.id) {
       case "add-funds":
         router.push("/add-funds/add-crypto");
         break;
       case "verify-identity":
-        beginKYC();
+        beginKYC
+          .mutateAsync()
+          .then((result) => {
+            if (result?.status !== "cancel") router.replace("/(main)/(home)");
+          })
+          .catch(() => {}); // eslint-disable-line @typescript-eslint/no-empty-function -- error handled by useBeginKYC
         break;
     }
   }

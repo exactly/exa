@@ -175,7 +175,11 @@ export default function Card() {
         }
       }
       try {
-        await startKYC();
+        const result = await startKYC();
+        if (result.status === "complete") {
+          const status = await queryClient.fetchQuery<KYCStatus>({ queryKey: ["kyc", "status"], staleTime: 0 });
+          if ("code" in status && (status.code === "ok" || status.code === "legacy kyc")) setDisclaimerShown(true);
+        }
       } catch (error) {
         toast.show(t("An error occurred. Please try again later."), {
           native: true,
