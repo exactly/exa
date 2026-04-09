@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import * as honoOpenapi from "hono-openapi";
 import { resolver, validator as vValidator } from "hono-openapi/valibot";
-import { array, literal, metadata, object, optional, parse, picklist, pipe, string, union } from "valibot";
+import { array, literal, metadata, number, object, optional, parse, picklist, pipe, string, union } from "valibot";
 import { getAddress, sha256, verifyMessage } from "viem";
 import { parseSiweMessage } from "viem/siwe";
 
@@ -15,13 +15,13 @@ import chain, {
   exaPluginAddress,
   upgradeableModularAccountAbi,
 } from "@exactly/common/generated/chain";
-import { Address } from "@exactly/common/validation";
+import { Address, Hex } from "@exactly/common/validation";
 
 import database, { credentials, walletAddresses } from "../database/index";
 import auth from "../middleware/auth";
 import decodePublicKey from "../utils/decodePublicKey";
 import {
-  SubmitApplicationRequest as Application,
+  Application,
   UpdateApplicationRequest as ApplicationUpdate,
   getApplicationStatus,
   submitApplication,
@@ -476,7 +476,23 @@ The admin should add a member using [addMember method](https://www.better-auth.c
       },
       validateResponse: true,
     }),
-    vValidator("json", Application, validatorHook({ debug })),
+    vValidator(
+      "json",
+      union([
+        object({
+          ...Application.entries,
+          verify: object({ message: string(), signature: Hex, walletAddress: Address, chainId: number() }),
+        }),
+        object({
+          key: string(),
+          iv: string(),
+          ciphertext: string(),
+          tag: string(),
+          verify: object({ message: string(), signature: Hex, walletAddress: Address, chainId: number() }),
+        }),
+      ]),
+      validatorHook({ debug }),
+    ),
     vValidator("header", optional(object({ encrypted: optional(string()) })), validatorHook({ debug })),
     async (c) => {
       const payload = c.req.valid("json");
@@ -545,7 +561,7 @@ The admin should add a member using [addMember method](https://www.better-auth.c
       if (credential.pandaId) return c.json({ code: BadRequestCodes.ALREADY_STARTED }, 409);
 
       try {
-        const application = await submitApplication(payload, c.req.header("encrypted") === "true");
+        const application = await submitApplication(body, c.req.header("encrypted") === "true");
         await database
           .update(credentials)
           .set({ pandaId: application.id, source: member.organization.id })

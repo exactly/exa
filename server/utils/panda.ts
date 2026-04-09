@@ -43,7 +43,7 @@ import chain, {
   upgradeableModularAccountAbi,
 } from "@exactly/common/generated/chain";
 import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
-import { Address, Hash, Hex } from "@exactly/common/validation";
+import { Address, Hash } from "@exactly/common/validation";
 import { proposalManager } from "@exactly/plugin/deploy.json";
 
 import ServiceError from "./ServiceError";
@@ -547,18 +547,11 @@ export const Application = object({
     literal(true),
     metadata({ description: "Whether the user has accepted the terms of service" }),
   ),
-  verify: object({ message: string(), signature: Hex, walletAddress: Address, chainId: number() }),
 });
 
 export const SubmitApplicationRequest = union([
   Application,
-  object({
-    key: string(),
-    iv: string(),
-    ciphertext: string(),
-    tag: string(),
-    verify: object({ message: string(), signature: Hex, walletAddress: Address, chainId: number() }),
-  }),
+  object({ key: string(), iv: string(), ciphertext: string(), tag: string() }),
 ]);
 
 export const UpdateApplicationRequest = object({
@@ -588,5 +581,3 @@ const ApplicationStatusResponse = object({
   applicationStatus: picklist(kycStatus),
   applicationReason: optional(string()),
 });
-
-// #endregion schemas
