@@ -24,7 +24,6 @@ import {
   SubmitApplicationRequest as Application,
   UpdateApplicationRequest as ApplicationUpdate,
   getApplicationStatus,
-  KycError,
   submitApplication,
   updateApplication,
 } from "../utils/panda";
@@ -39,6 +38,7 @@ import {
   scopeValidationErrors,
 } from "../utils/persona";
 import publicClient from "../utils/publicClient";
+import ServiceError from "../utils/ServiceError";
 import validatorHook from "../utils/validatorHook";
 
 const debug = createDebug("exa:kyc");
@@ -464,14 +464,12 @@ The admin should add a member using [addMember method](https://www.better-auth.c
           .where(eq(credentials.id, credentialId));
         return c.json({ status: application.applicationStatus }, 200);
       } catch (error) {
-        if (error instanceof KycError) {
-          switch (error.statusCode) {
+        if (error instanceof ServiceError) {
+          switch (error.status) {
             case 400:
               return c.json({ code: "invalid encryption", message: error.message }, 400);
             case 401:
               return c.json({ code: "invalid payload", message: error.message }, 401);
-            default:
-              return c.json({ code: error.message }, 401);
           }
         }
         throw error;
