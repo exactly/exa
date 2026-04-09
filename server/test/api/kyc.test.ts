@@ -1492,7 +1492,7 @@ describe("authenticated", () => {
               method: "POST",
             }),
           );
-          expect(JSON.parse(body as string)).toStrictEqual({ ...applicationPayload, verify });
+          expect(JSON.parse(body as string)).toStrictEqual(applicationPayload);
           await expect(response.json()).resolves.toStrictEqual({ status: "approved" });
         });
 
@@ -1538,7 +1538,7 @@ describe("authenticated", () => {
 
         it("returns 400 when payload is invalid", async () => {
           const response = await appClient.application.$post(
-            { json: {} as unknown as v.InferOutput<typeof panda.SubmitApplicationRequest> },
+            { json: {} as unknown as NonNullable<Parameters<typeof appClient.application.$post>[0]["json"]> },
             { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
           );
 
@@ -1685,7 +1685,6 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
               iv: encryptedPayload.iv.toString("base64"),
               ciphertext: encryptedPayload.ciphertext.toString("base64"),
               tag: encryptedPayload.tag.toString("base64"),
-              verify,
             });
             await expect(response.json()).resolves.toStrictEqual({ status: "approved" });
           });
