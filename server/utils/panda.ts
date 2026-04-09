@@ -29,7 +29,7 @@ import {
   type BaseSchema,
   type InferInput,
 } from "valibot";
-import { BaseError, ContractFunctionZeroDataError, recoverTypedDataAddress, type MaybePromise } from "viem";
+import { BaseError, ContractFunctionZeroDataError, recoverTypedDataAddress } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { base, optimism } from "viem/chains";
 
@@ -216,7 +216,6 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
   body?: unknown,
   method: "GET" | "PATCH" | "POST" | "PUT" = body === undefined ? "GET" : "POST",
   timeout = 10_000,
-  onError?: (response: Response) => MaybePromise<TOutput>,
 ) {
   const response = await fetch(`${baseURL}${url}`, {
     method,
@@ -468,16 +467,6 @@ export async function submitApplication(payload: InferInput<typeof SubmitApplica
     payload,
     "POST",
     10_000,
-    async (response) => {
-      const text = await response.text();
-      try {
-        const error = parse(object({ message: string() }), JSON.parse(text));
-        throw new KycError(error.message, response.status);
-      } catch (error) {
-        if (error instanceof KycError) throw error;
-        throw new Error(`${response.status} ${text}`);
-      }
-    },
   );
 }
 
@@ -489,38 +478,11 @@ export async function getApplicationStatus(applicationId: string) {
     undefined,
     "GET",
     10_000,
-    async (response) => {
-      const text = await response.text();
-      try {
-        const error = parse(object({ message: string() }), JSON.parse(text));
-        throw new KycError(error.message, response.status);
-      } catch (error) {
-        if (error instanceof KycError) throw error;
-        throw new Error(`${response.status} ${text}`);
-      }
-    },
   );
 }
 
 export async function updateApplication(applicationId: string, payload: InferInput<typeof UpdateApplicationRequest>) {
-  return request(
-    object({}),
-    `/issuing/applications/user/${applicationId}`,
-    {},
-    payload,
-    "PATCH",
-    10_000,
-    async (response) => {
-      const text = await response.text();
-      try {
-        const error = parse(object({ message: string() }), JSON.parse(text));
-        throw new KycError(error.message, response.status);
-      } catch (error) {
-        if (error instanceof KycError) throw error;
-        throw new Error(`${response.status} ${text}`);
-      }
-    },
-  );
+  return request(object({}), `/issuing/applications/user/${applicationId}`, {}, payload, "PATCH", 10_000);
 }
 
 const AddressSchema = object({
@@ -626,15 +588,5 @@ const ApplicationStatusResponse = object({
   applicationStatus: picklist(kycStatus),
   applicationReason: optional(string()),
 });
-
-export class KycError extends Error {
-  constructor(
-    message: string,
-    public statusCode: number,
-  ) {
-    super(message);
-    this.name = "KycError";
-  }
-}
 
 // #endregion schemas

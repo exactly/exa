@@ -21,6 +21,7 @@ import * as panda from "../../utils/panda";
 import * as persona from "../../utils/persona";
 import { scopeValidationErrors } from "../../utils/persona";
 import publicClient from "../../utils/publicClient";
+import ServiceError from "../../utils/ServiceError";
 
 import type * as v from "valibot";
 
@@ -1903,7 +1904,7 @@ describe("authenticated", () => {
           const credential = await database.query.credentials.findFirst({
             where: eq(credentials.id, account),
           });
-          const statement = `I apply for KYC approval on behalf of address ${getAddress(credential?.account ?? "")} with payload hash ${sha256(Buffer.from(JSON.stringify(canonicalize(applicationPayload)), "utf8"))}`;
+          const statement = `I apply for KYC approval on behalf of address ${getAddress(credential?.account ?? "")} with payload hash ${sha256(Buffer.from(canonicalize(applicationPayload) ?? "", "utf8"))}`;
           const message = createSiweMessage({
             statement,
             resources: ["https://exactly.github.io/exa"],
@@ -2119,6 +2120,142 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
             } finally {
               await database.update(organizations).set({ role: "kyc" }).where(eq(organizations.id, organizationId));
             }
+          });
+        });
+
+        describe("panda errors", () => {
+          it("returns invalid encryption on bad request", async () => {
+            vi.spyOn(panda, "submitApplication").mockRejectedValueOnce(
+              new ServiceError("Panda", 400, '{"message":"bad encryption"}', undefined, "bad encryption"),
+            );
+            const credential = await database.query.credentials.findFirst({
+              where: eq(credentials.id, account),
+            });
+            const statement = `I apply for KYC approval on behalf of address ${getAddress(credential?.account ?? "")} with payload hash ${sha256(Buffer.from(canonicalize(applicationPayload) ?? "", "utf8"))}`;
+            const message = createSiweMessage({
+              statement,
+              resources: ["https://exactly.github.io/exa"],
+              nonce: generateSiweNonce(),
+              uri: `https://sandbox.exactly.app`,
+              address: owner.address,
+              chainId: chain.id,
+              scheme: "https",
+              version: "1",
+              domain: "sandbox.exactly.app",
+            });
+            const signature = await owner.signMessage({ message });
+            const verify = { message, signature, walletAddress: owner.address, chainId: chain.id };
+            await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, account));
+            const initialCalls = vi.mocked(captureException).mock.calls.length;
+
+            const response = await appClient.application.$post(
+              { json: { ...applicationPayload, verify } },
+              { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
+            );
+
+            expect(response.status).toBe(400);
+            await expect(response.json()).resolves.toStrictEqual({
+              code: "invalid encryption",
+              message: "bad encryption",
+            });
+            expect(vi.mocked(captureException).mock.calls.slice(initialCalls)).toStrictEqual([]);
+          });
+
+          it("returns invalid payload on unauthorized", async () => {
+            vi.spyOn(panda, "submitApplication").mockRejectedValueOnce(
+              new ServiceError("Panda", 401, '{"message":"invalid data"}', undefined, "invalid data"),
+            );
+            const credential = await database.query.credentials.findFirst({
+              where: eq(credentials.id, account),
+            });
+            const statement = `I apply for KYC approval on behalf of address ${getAddress(credential?.account ?? "")} with payload hash ${sha256(Buffer.from(canonicalize(applicationPayload) ?? "", "utf8"))}`;
+            const message = createSiweMessage({
+              statement,
+              resources: ["https://exactly.github.io/exa"],
+              nonce: generateSiweNonce(),
+              uri: `https://sandbox.exactly.app`,
+              address: owner.address,
+              chainId: chain.id,
+              scheme: "https",
+              version: "1",
+              domain: "sandbox.exactly.app",
+            });
+            const signature = await owner.signMessage({ message });
+            const verify = { message, signature, walletAddress: owner.address, chainId: chain.id };
+            await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, account));
+            const initialCalls = vi.mocked(captureException).mock.calls.length;
+
+            const response = await appClient.application.$post(
+              { json: { ...applicationPayload, verify } },
+              { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
+            );
+
+            expect(response.status).toBe(401);
+            await expect(response.json()).resolves.toStrictEqual({
+              code: "invalid payload",
+              message: "invalid data",
+            });
+            expect(vi.mocked(captureException).mock.calls.slice(initialCalls)).toStrictEqual([]);
+          });
+
+          it("propagates panda errors with unexpected status to global handler", async () => {
+            vi.spyOn(panda, "submitApplication").mockRejectedValueOnce(
+              new ServiceError("Panda", 500, '{"message":"server error"}', undefined, "server error"),
+            );
+            const credential = await database.query.credentials.findFirst({
+              where: eq(credentials.id, account),
+            });
+            const statement = `I apply for KYC approval on behalf of address ${getAddress(credential?.account ?? "")} with payload hash ${sha256(Buffer.from(canonicalize(applicationPayload) ?? "", "utf8"))}`;
+            const message = createSiweMessage({
+              statement,
+              resources: ["https://exactly.github.io/exa"],
+              nonce: generateSiweNonce(),
+              uri: `https://sandbox.exactly.app`,
+              address: owner.address,
+              chainId: chain.id,
+              scheme: "https",
+              version: "1",
+              domain: "sandbox.exactly.app",
+            });
+            const signature = await owner.signMessage({ message });
+            const verify = { message, signature, walletAddress: owner.address, chainId: chain.id };
+            await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, account));
+
+            const response = await appClient.application.$post(
+              { json: { ...applicationPayload, verify } },
+              { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
+            );
+
+            expect(response.status).toBe(500);
+          });
+
+          it("propagates non-panda errors to global handler", async () => {
+            vi.spyOn(panda, "submitApplication").mockRejectedValueOnce(new Error("network failure"));
+            const credential = await database.query.credentials.findFirst({
+              where: eq(credentials.id, account),
+            });
+            const statement = `I apply for KYC approval on behalf of address ${getAddress(credential?.account ?? "")} with payload hash ${sha256(Buffer.from(canonicalize(applicationPayload) ?? "", "utf8"))}`;
+            const message = createSiweMessage({
+              statement,
+              resources: ["https://exactly.github.io/exa"],
+              nonce: generateSiweNonce(),
+              uri: `https://sandbox.exactly.app`,
+              address: owner.address,
+              chainId: chain.id,
+              scheme: "https",
+              version: "1",
+              domain: "sandbox.exactly.app",
+            });
+            const signature = await owner.signMessage({ message });
+            const verify = { message, signature, walletAddress: owner.address, chainId: chain.id };
+            await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, account));
+
+            const response = await appClient.application.$post(
+              { json: { ...applicationPayload, verify } },
+              { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
+            );
+
+            expect(response.status).toBe(500);
           });
         });
       });
