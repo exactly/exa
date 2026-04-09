@@ -170,6 +170,57 @@ export default {
       ])) satisfies ConfigPlugin,
     // @ts-expect-error inline plugin
     ((config) =>
+      withDangerousMod(config, [
+        "ios",
+        (c) => {
+          const podfile = path.join(c.modRequest.projectRoot, "ios/Podfile");
+          if (!existsSync(podfile)) return c;
+          const workaround = `    rctHeaders = "#{installer.sandbox.root}/Headers/Public/React-RCTAppDelegate"
+    Dir.mkdir(rctHeaders) unless Dir.exist?(rctHeaders)
+    File.write("#{rctHeaders}/React-RCTAppDelegate-umbrella.h", <<~'H')
+      #ifdef __OBJC__
+      #import <UIKit/UIKit.h>
+      #endif
+      #import "RCTAppDelegate.h"
+      #import "RCTAppSetupUtils.h"
+      #import "RCTArchConfiguratorProtocol.h"
+      #import "RCTDefaultReactNativeFactoryDelegate.h"
+      #import "RCTDependencyProvider.h"
+      #import "RCTJSRuntimeConfiguratorProtocol.h"
+      #import "RCTReactNativeFactory.h"
+      #import "RCTRootViewFactory.h"
+      #import "RCTUIConfiguratorProtocol.h"
+    H
+    File.write("#{rctHeaders}/React_RCTAppDelegate.modulemap", <<~MAP)
+      module React_RCTAppDelegate {
+        umbrella header "React-RCTAppDelegate-umbrella.h"
+        export *
+        module * { export * }
+      }
+    MAP
+    installer.pods_project.targets.each do |target|
+      next unless target.name == "meawallet-react-native-mpp"
+      target.build_configurations.each do |buildConfiguration|
+        flags = buildConfiguration.build_settings["OTHER_SWIFT_FLAGS"] || "$(inherited)"
+        next if flags.include?("React_RCTAppDelegate.modulemap")
+        buildConfiguration.build_settings["OTHER_SWIFT_FLAGS"] =
+          "#{flags} -Xcc -fmodule-map-file=\\\"\${PODS_ROOT}/Headers/Public/React-RCTAppDelegate/React_RCTAppDelegate.modulemap\\\""
+      end
+    end
+`;
+          let contents = readFileSync(podfile, "utf8");
+          if (!contents.includes("React_RCTAppDelegate.modulemap")) {
+            contents = contents.replace(
+              /(    react_native_post_install\([\s\S]*?\n    \)\n)/,
+              `$1${workaround}`,
+            );
+            writeFileSync(podfile, contents);
+          }
+          return c;
+        },
+      ])) satisfies ConfigPlugin,
+    // @ts-expect-error inline plugin
+    ((config) =>
       withAndroidManifest(
         withAppBuildGradle(config, (c) => {
           c.modResults.contents = c.modResults.contents.replace(
