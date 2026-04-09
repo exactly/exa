@@ -206,6 +206,7 @@
     },
     "patchedDependencies": {
       "@lifi/sdk": "patches/@lifi__sdk.patch",
+      "@meawallet/react-native-mpp": "patches/@meawallet__react-native-mpp.patch",
       "embedded-postgres": "patches/embedded-postgres.patch",
       "eslint-config-universe": "patches/eslint-config-universe.patch"
     },
