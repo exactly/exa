@@ -13,6 +13,7 @@ import { formatUnits } from "viem";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import AssetLogo from "../shared/AssetLogo";
+import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
@@ -64,9 +65,7 @@ export default function Failure({
           >
             <View flex={1}>
               <YStack gap="$s7" paddingBottom="$s9">
-                <Pressable onPress={onClose}>
-                  <X size={24} color="$uiNeutralPrimary" />
-                </Pressable>
+                <IconButton icon={X} aria-label={t("Close")} onPress={onClose} />
                 <XStack justifyContent="center" alignItems="center">
                   <Square borderRadius="$r4" backgroundColor="$interactiveBaseErrorSoftDefault" size={80}>
                     <X size={48} color="$uiErrorSecondary" strokeWidth={2} />

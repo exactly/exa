@@ -14,6 +14,7 @@ import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import AssetLogo from "../shared/AssetLogo";
 import Button from "../shared/Button";
+import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
 import ExaSpinner from "../shared/Spinner";
 import Text from "../shared/Text";
@@ -71,9 +72,7 @@ export default function Success({
           >
             <View flex={1}>
               <YStack gap="$s7" paddingBottom="$s9">
-                <Pressable onPress={onClose} aria-label={t("Close")}>
-                  <X size={24} color="$uiNeutralPrimary" />
-                </Pressable>
+                <IconButton icon={X} aria-label={t("Close")} onPress={onClose} />
                 <XStack justifyContent="center" alignItems="center">
                   <Square borderRadius="$r4" backgroundColor="$interactiveBaseInformationSoftDefault" size={80}>
                     <ExaSpinner backgroundColor="transparent" color="$uiInfoSecondary" />

@@ -8,6 +8,7 @@ import { XStack, YStack } from "tamagui";
 import { presentArticle } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
 import Button from "../shared/Button";
+import IconButton from "../shared/IconButton";
 import ModalSheet from "../shared/ModalSheet";
 import Text from "../shared/Text";
 
@@ -28,9 +29,7 @@ export default function SpendingLimitSheet({ onClose, open }: { onClose: () => v
               <Text emphasized headline flex={1}>
                 {t("Spending limit")}
               </Text>
-              <Pressable hitSlop={15} onPress={onClose}>
-                <X size={24} color="$uiNeutralPrimary" />
-              </Pressable>
+              <IconButton icon={X} aria-label={t("Close")} onPress={onClose} />
             </XStack>
             <YStack gap="$s4">
               <Text subHeadline secondary>

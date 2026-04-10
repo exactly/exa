@@ -1,6 +1,5 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable } from "react-native";
 
 import { useRouter } from "expo-router";
 
@@ -17,6 +16,7 @@ import { present } from "../../../utils/intercom";
 import reportError from "../../../utils/reportError";
 import ActionButton from "../../shared/ActionButton";
 import GradientScrollView from "../../shared/GradientScrollView";
+import IconButton from "../../shared/IconButton";
 
 import type { ActivityItem } from "../../../utils/queryClient";
 
@@ -28,7 +28,9 @@ export default function ActivityDetails() {
   return (
     <GradientScrollView variant="neutral" stickyHeader>
       <XStack gap="$s3_5" justifyContent="space-between" alignItems="center">
-        <Pressable
+        <IconButton
+          icon={ArrowLeft}
+          aria-label={t("Back")}
           onPress={() => {
             if (router.canGoBack()) {
               router.back();
@@ -36,9 +38,7 @@ export default function ActivityDetails() {
               router.replace("/(main)/(home)");
             }
           }}
-        >
-          <ArrowLeft size={24} color="$uiNeutralPrimary" />
-        </Pressable>
+        />
       </XStack>
       {item.type === "card" && <CardActivity item={item} />}
       {item.type === "received" && <ReceivedActivity item={item} />}

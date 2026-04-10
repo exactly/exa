@@ -39,6 +39,7 @@ import ownerConfig from "../../utils/wagmi/owner";
 import AssetLogo from "../shared/AssetLogo";
 import ChainLogo from "../shared/ChainLogo";
 import GradientScrollView from "../shared/GradientScrollView";
+import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
 import ExaSpinner from "../shared/Spinner";
@@ -475,7 +476,9 @@ export default function Bridge() {
       <GradientScrollView variant={isError ? "error" : isSuccess ? "success" : "neutral"}>
         <View flex={1}>
           <YStack gap="$s7" paddingBottom="$s9">
-            <Pressable
+            <IconButton
+              icon={X}
+              aria-label={t("Close")}
               onPress={() => {
                 if (!isPending) {
                   setSourceAmount(0n);
@@ -485,9 +488,7 @@ export default function Bridge() {
                 }
                 router.dismissTo("/activity");
               }}
-            >
-              <X size={24} color="$uiNeutralPrimary" />
-            </Pressable>
+            />
             <YStack gap="$s4_5" justifyContent="center" alignItems="center">
               <Square
                 size={80}
@@ -572,7 +573,9 @@ export default function Bridge() {
           justifyContent="space-between"
           alignItems="center"
         >
-          <Pressable
+          <IconButton
+            icon={ArrowLeft}
+            aria-label={t("Back")}
             onPress={() => {
               if (router.canGoBack()) {
                 router.back();
@@ -580,19 +583,17 @@ export default function Bridge() {
                 router.replace("/(main)/(home)");
               }
             }}
-          >
-            <ArrowLeft size={24} color="$uiNeutralPrimary" />
-          </Pressable>
+          />
           <Text primary emphasized subHeadline>
             {t("Add funds")}
           </Text>
-          <Pressable
+          <IconButton
+            icon={CircleHelp}
+            aria-label={t("Help")}
             onPress={() => {
               openBrowser("https://li.fi/").catch(reportError); // TODO replace with article
             }}
-          >
-            <CircleHelp color="$uiNeutralPrimary" />
-          </Pressable>
+          />
         </View>
         <ScrollView showsVerticalScrollIndicator={false} flex={1}>
           <View padded>

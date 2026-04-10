@@ -17,6 +17,7 @@ import { logout as logoutOnesignal } from "../../utils/onesignal";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
+import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
@@ -32,7 +33,8 @@ export default function Settings() {
       <View fullScreen padded gap="$s5">
         <View flexDirection="row" gap="$s3" justifyContent="space-around" alignItems="center">
           <View position="absolute" left={0}>
-            <Pressable
+            <IconButton
+              icon={ArrowLeft}
               aria-label={t("Back")}
               onPress={() => {
                 if (router.canGoBack()) {
@@ -41,9 +43,7 @@ export default function Settings() {
                   router.replace("/(main)/(home)");
                 }
               }}
-            >
-              <ArrowLeft size={24} color="$uiNeutralPrimary" />
-            </Pressable>
+            />
           </View>
           <Text emphasized subHeadline color="$uiNeutralPrimary">
             {t("Settings")}

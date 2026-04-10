@@ -1,6 +1,6 @@
 import React, { useCallback, useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { Platform, Pressable } from "react-native";
+import { Platform } from "react-native";
 import { WebView } from "react-native-webview";
 
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
@@ -21,6 +21,7 @@ import openBrowser from "../../utils/openBrowser";
 import { APIError } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { getKYCStatus, getRampProviders } from "../../utils/server";
+import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
@@ -131,9 +132,7 @@ export default function Fees() {
     return (
       <SafeView fullScreen>
         <View padded>
-          <Pressable onPress={() => setTOSLink(undefined)}>
-            <ArrowLeft size={24} color="$uiNeutralPrimary" />
-          </Pressable>
+          <IconButton icon={ArrowLeft} aria-label={t("Back")} onPress={() => setTOSLink(undefined)} />
         </View>
         <TOSView
           uri={tosLink}
@@ -152,7 +151,9 @@ export default function Fees() {
       <View gap="$s4_5" fullScreen padded>
         <View gap="$s4_5">
           <View flexDirection="row" gap="$s3_5" justifyContent="space-between" alignItems="center">
-            <Pressable
+            <IconButton
+              icon={ArrowLeft}
+              aria-label={t("Back")}
               onPress={() => {
                 if (router.canGoBack()) {
                   router.back();
@@ -160,9 +161,7 @@ export default function Fees() {
                   router.replace("/(main)/(home)");
                 }
               }}
-            >
-              <ArrowLeft size={24} color="$uiNeutralPrimary" />
-            </Pressable>
+            />
           </View>
         </View>
         <ScrollView flex={1}>

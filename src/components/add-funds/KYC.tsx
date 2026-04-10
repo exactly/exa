@@ -1,6 +1,5 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable } from "react-native";
 
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
@@ -17,6 +16,7 @@ import { isValidCurrency } from "../../utils/currencies";
 import { startAddressKYC, startMantecaKYC } from "../../utils/persona";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
+import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
@@ -81,7 +81,9 @@ export default function KYC() {
       <View gap="$s4_5" fullScreen padded>
         <View gap="$s4_5">
           <View flexDirection="row" gap="$s3" justifyContent="space-between" alignItems="center">
-            <Pressable
+            <IconButton
+              icon={ArrowLeft}
+              aria-label={t("Back")}
               onPress={() => {
                 queryClient.removeQueries({ queryKey: ["ramp", "kyc-tokens", provider] });
                 if (router.canGoBack()) {
@@ -90,9 +92,7 @@ export default function KYC() {
                   router.replace("/(main)/(home)");
                 }
               }}
-            >
-              <ArrowLeft size={24} color="$uiNeutralPrimary" />
-            </Pressable>
+            />
           </View>
         </View>
         <ScrollView flex={1}>

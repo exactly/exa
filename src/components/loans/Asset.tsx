@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable } from "react-native";
 
 import { useRouter } from "expo-router";
 
@@ -12,6 +11,7 @@ import queryClient, { type Loan } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useMarkets from "../../utils/useMarkets";
 import AssetLogo from "../shared/AssetLogo";
+import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
@@ -34,7 +34,9 @@ export default function Asset() {
         justifyContent="space-between"
         alignItems="center"
       >
-        <Pressable
+        <IconButton
+          icon={ArrowLeft}
+          aria-label={t("Back")}
           onPress={() => {
             if (router.canGoBack()) {
               router.back();
@@ -42,16 +44,14 @@ export default function Asset() {
             }
             router.replace("/loan");
           }}
-        >
-          <ArrowLeft size={24} color="$uiNeutralPrimary" />
-        </Pressable>
-        <Pressable
+        />
+        <IconButton
+          icon={CircleHelp}
+          aria-label={t("Help")}
           onPress={() => {
             presentArticle("11541409").catch(reportError);
           }}
-        >
-          <CircleHelp color="$uiNeutralPrimary" />
-        </Pressable>
+        />
       </View>
       <ScrollView
         backgroundColor="$backgroundMild"

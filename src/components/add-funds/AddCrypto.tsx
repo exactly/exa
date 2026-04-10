@@ -23,6 +23,7 @@ import useAccount from "../../utils/useAccount";
 import AssetLogo from "../shared/AssetLogo";
 import ChainLogo from "../shared/ChainLogo";
 import CopyAddressSheet from "../shared/CopyAddressSheet";
+import IconButton from "../shared/IconButton";
 import Image from "../shared/Image";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
@@ -74,7 +75,9 @@ export default function AddCrypto() {
         <View gap="$s5">
           <XStack gap="$s3" justifyContent="space-around" alignItems="center">
             <View position="absolute" left={0}>
-              <Pressable
+              <IconButton
+                icon={ArrowLeft}
+                aria-label={t("Back")}
                 onPress={() => {
                   if (router.canGoBack()) {
                     router.back();
@@ -82,9 +85,7 @@ export default function AddCrypto() {
                     router.replace("/(main)/(home)");
                   }
                 }}
-              >
-                <ArrowLeft size={24} color="$uiNeutralPrimary" />
-              </Pressable>
+              />
             </View>
             <View flexDirection="row" alignItems="center" alignSelf="center">
               <Text emphasized subHeadline primary>

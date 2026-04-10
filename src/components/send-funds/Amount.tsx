@@ -30,6 +30,7 @@ import AmountSelector from "../shared/AmountSelector";
 import AssetLogo from "../shared/AssetLogo";
 import Blocky from "../shared/Blocky";
 import GradientScrollView from "../shared/GradientScrollView";
+import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
 import ExaSpinner from "../shared/Spinner";
@@ -237,7 +238,9 @@ export default function Amount() {
         <View gap="$s4_5" fullScreen padded>
           <View flexDirection="row" gap="$s3_5" justifyContent="space-around" alignItems="center">
             <View position="absolute" left={0}>
-              <Pressable
+              <IconButton
+                icon={ArrowLeft}
+                aria-label={t("Back")}
                 onPress={() => {
                   if (router.canGoBack()) {
                     router.back();
@@ -245,9 +248,7 @@ export default function Amount() {
                     router.replace("/send-funds/asset");
                   }
                 }}
-              >
-                <ArrowLeft size={24} color="$uiNeutralPrimary" />
-              </Pressable>
+              />
             </View>
             <Text color="$uiNeutralPrimary" fontSize={15} fontWeight="bold">
               {t("Enter amount")}
@@ -382,14 +383,13 @@ export default function Amount() {
     <GradientScrollView variant={error ? "error" : success ? (isLatestPlugin ? "info" : "success") : "neutral"}>
       <View flex={1}>
         <YStack gap="$s7" paddingBottom="$s9">
-          <Pressable
+          <IconButton
+            icon={X}
             aria-label={t("Close")}
             onPress={() => {
               router.dismissTo("/activity");
             }}
-          >
-            <X size={24} color="$uiNeutralPrimary" />
-          </Pressable>
+          />
           <XStack justifyContent="center" alignItems="center">
             <Square
               size={80}

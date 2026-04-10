@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable } from "react-native";
 
 import { useRouter } from "expo-router";
 
@@ -34,6 +33,7 @@ import useInstallments from "../../utils/useInstallments";
 import exa from "../../utils/wagmi/exa";
 import AssetLogo from "../shared/AssetLogo";
 import GradientScrollView from "../shared/GradientScrollView";
+import IconButton from "../shared/IconButton";
 import PaymentScheduleSheet from "../shared/PaymentScheduleSheet";
 import SafeView from "../shared/SafeView";
 import ExaSpinner from "../shared/Spinner";
@@ -210,7 +210,9 @@ export default function Review() {
           justifyContent="space-between"
           alignItems="center"
         >
-          <Pressable
+          <IconButton
+            icon={ArrowLeft}
+            aria-label={t("Back")}
             onPress={() => {
               if (router.canGoBack()) {
                 router.back();
@@ -218,16 +220,14 @@ export default function Review() {
               }
               router.replace("/loan/receiver");
             }}
-          >
-            <ArrowLeft size={24} color="$uiNeutralPrimary" />
-          </Pressable>
-          <Pressable
+          />
+          <IconButton
+            icon={CircleHelp}
+            aria-label={t("Help")}
             onPress={() => {
               presentArticle("11541409").catch(reportError);
             }}
-          >
-            <CircleHelp color="$uiNeutralPrimary" />
-          </Pressable>
+          />
         </View>
         <ScrollView
           backgroundColor="$backgroundMild"
@@ -401,7 +401,9 @@ export default function Review() {
     <GradientScrollView variant={error ? "error" : success ? (isLatestPlugin ? "info" : "success") : "neutral"}>
       <View flex={1}>
         <YStack gap="$s7" paddingBottom="$s9">
-          <Pressable
+          <IconButton
+            icon={X}
+            aria-label={t("Close")}
             onPress={() => {
               if (error && router.canGoBack()) {
                 router.back();
@@ -409,9 +411,7 @@ export default function Review() {
               }
               router.dismissTo("/activity");
             }}
-          >
-            <X size={24} color="$uiNeutralPrimary" />
-          </Pressable>
+          />
           <XStack justifyContent="center" alignItems="center">
             <Square
               size={80}

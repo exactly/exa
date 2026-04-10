@@ -1,6 +1,5 @@
 import React, { useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable } from "react-native";
 
 import { useRouter } from "expo-router";
 
@@ -14,6 +13,7 @@ import { presentArticle } from "../../utils/intercom";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
+import IconButton from "../shared/IconButton";
 import InstallmentSelector from "../shared/InstallmentSelector";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
@@ -46,7 +46,9 @@ export default function Installments() {
         justifyContent="space-between"
         alignItems="center"
       >
-        <Pressable
+        <IconButton
+          icon={ArrowLeft}
+          aria-label={t("Back")}
           onPress={() => {
             if (router.canGoBack()) {
               router.back();
@@ -54,16 +56,14 @@ export default function Installments() {
             }
             router.replace("/loan/amount");
           }}
-        >
-          <ArrowLeft size={24} color="$uiNeutralPrimary" />
-        </Pressable>
-        <Pressable
+        />
+        <IconButton
+          icon={CircleHelp}
+          aria-label={t("Help")}
           onPress={() => {
             presentArticle("11541409").catch(reportError);
           }}
-        >
-          <CircleHelp color="$uiNeutralPrimary" />
-        </Pressable>
+        />
       </View>
       <ScrollView
         backgroundColor="$backgroundMild"
