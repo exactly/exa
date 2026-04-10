@@ -23,9 +23,6 @@ catalog:
 ignoreWorkspaceRootCheck: true
 includeWorkspaceRoot: true
 minimumReleaseAge: 1440
-minimumReleaseAgeExclude:
-  - "@hono/node-server"
-  - hono
 packages:
   - "."
   - common
