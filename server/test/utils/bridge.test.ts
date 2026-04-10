@@ -82,6 +82,35 @@ describe("bridge utils", () => {
 
       await expect(bridge.getCustomer("cust-123")).rejects.toThrow("internal error");
     });
+
+    it("preserves unknown issues and missing requirements without throwing", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        fetchResponse({
+          ...activeCustomer,
+          endorsements: [
+            {
+              name: "base",
+              status: "approved",
+              requirements: {
+                complete: [],
+                pending: [],
+                missing: "unknown_requirement",
+                issues: ["government_id_verification_failed", "unknown_issue", { unknown: true }, 42],
+              },
+            },
+          ],
+        }),
+      );
+
+      const result = await bridge.getCustomer("cust-123");
+
+      expect(result?.endorsements[0]?.requirements).toStrictEqual({
+        complete: [],
+        pending: [],
+        missing: "unknown_requirement",
+        issues: ["government_id_verification_failed", "unknown_issue", { unknown: true }, 42],
+      });
+    });
   });
 
   describe("getQuote", () => {
@@ -163,8 +192,7 @@ describe("bridge utils", () => {
 
       const result = await bridge.getProvider({ credentialId: "cred-1" });
 
-      expect(result.status).toBe("NOT_AVAILABLE");
-      expect(result.onramp.currencies).toStrictEqual([]);
+      expect(result).toStrictEqual({ status: "NOT_AVAILABLE", onramp: { currencies: [] } });
       expect(captureException).toHaveBeenCalledWith(
         expect.objectContaining({ message: "bridge not supported chain id" }),
         expect.objectContaining({ level: "error" }),
@@ -185,7 +213,7 @@ describe("bridge utils", () => {
 
         const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
 
-        expect(result.status).toBe("NOT_AVAILABLE");
+        expect(result).toStrictEqual({ status: "NOT_AVAILABLE", onramp: { currencies: [] } });
         expect(captureException).toHaveBeenCalledWith(
           expect.objectContaining({ message: "bridge user not available" }),
           expect.objectContaining({ level: "warning" }),
@@ -197,7 +225,11 @@ describe("bridge utils", () => {
 
         const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
 
-        expect(result.status).toBe("ONBOARDING");
+        expect(result).toStrictEqual({
+          status: "ONBOARDING",
+          onramp: { currencies: onboardingCurrencies },
+          kycLink: undefined,
+        });
         expect(captureException).toHaveBeenCalledWith(
           expect.objectContaining({ message: "bridge user onboarding" }),
           expect.objectContaining({ level: "warning" }),
@@ -209,7 +241,11 @@ describe("bridge utils", () => {
 
         const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
 
-        expect(result.status).toBe("ONBOARDING");
+        expect(result).toStrictEqual({
+          status: "ONBOARDING",
+          onramp: { currencies: onboardingCurrencies },
+          kycLink: undefined,
+        });
         expect(captureException).toHaveBeenCalledWith(
           expect.objectContaining({ message: "bridge user onboarding" }),
           expect.objectContaining({ level: "warning" }),
@@ -223,13 +259,11 @@ describe("bridge utils", () => {
 
         const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
 
-        expect(result.status).toBe("ONBOARDING");
-        expect(result.onramp.currencies).toStrictEqual([
-          { currency: "USDC", network: "SOLANA" },
-          { currency: "USDC", network: "STELLAR" },
-          { currency: "USDT", network: "TRON" },
-          "USD",
-        ]);
+        expect(result).toStrictEqual({
+          status: "ONBOARDING",
+          onramp: { currencies: onboardingCurrencies },
+          kycLink: undefined,
+        });
       });
 
       it("returns ONBOARDING when customer is incomplete", async () => {
@@ -237,7 +271,725 @@ describe("bridge utils", () => {
 
         const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
 
+        expect(result).toStrictEqual({
+          status: "ONBOARDING",
+          onramp: { currencies: onboardingCurrencies },
+          kycLink: undefined,
+        });
+      });
+
+      it("returns ONBOARDING without kycLink when endorsements are empty", async () => {
+        const fetchSpy = vi
+          .spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(fetchResponse({ ...activeCustomer, status: "incomplete" }));
+
+        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+
+        expect(result).toStrictEqual({
+          status: "ONBOARDING",
+          onramp: { currencies: onboardingCurrencies },
+          kycLink: undefined,
+        });
+        expect(fetchSpy).toHaveBeenCalledOnce();
+      });
+
+      it("returns ONBOARDING without kycLink when no missing or issues", async () => {
+        const fetchSpy = vi
+          .spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(
+            fetchResponse({ ...activeCustomer, status: "incomplete", endorsements: [endorsement("base", "approved")] }),
+          );
+
+        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+
+        expect(result).toStrictEqual({
+          status: "ONBOARDING",
+          onramp: {
+            currencies: [
+              { currency: "USDC", network: "SOLANA" },
+              { currency: "USDC", network: "STELLAR" },
+              { currency: "USDT", network: "TRON" },
+              "USD",
+            ],
+          },
+          kycLink: undefined,
+        });
+        expect(fetchSpy).toHaveBeenCalledOnce();
+      });
+
+      it("returns ONBOARDING without kycLink when issues do not match allowlist", async () => {
+        const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+          fetchResponse({
+            ...activeCustomer,
+            status: "incomplete",
+            endorsements: [
+              {
+                name: "base",
+                status: "approved",
+                requirements: { complete: [], pending: [], missing: null, issues: [{ unknown: true }] },
+              },
+            ],
+          }),
+        );
+
+        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+
+        expect(result).toStrictEqual({
+          status: "ONBOARDING",
+          onramp: { currencies: onboardingCurrencies },
+          kycLink: undefined,
+        });
+        expect(fetchSpy).toHaveBeenCalledOnce();
+      });
+
+      it("returns ONBOARDING without kycLink when missing does not match allowlist", async () => {
+        const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+          fetchResponse({
+            ...activeCustomer,
+            status: "incomplete",
+            endorsements: [
+              {
+                name: "base",
+                status: "approved",
+                requirements: { complete: [], pending: [], missing: "address_of_residence", issues: [] },
+              },
+            ],
+          }),
+        );
+
+        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+
+        expect(result).toStrictEqual({
+          status: "ONBOARDING",
+          onramp: { currencies: onboardingCurrencies },
+          kycLink: undefined,
+        });
+        expect(fetchSpy).toHaveBeenCalledOnce();
+      });
+
+      it("returns ONBOARDING without kycLink when blocklist_check_failed", async () => {
+        const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+          fetchResponse({
+            ...activeCustomer,
+            status: "incomplete",
+            endorsements: [
+              {
+                name: "base",
+                status: "approved",
+                requirements: { complete: [], pending: [], missing: null, issues: ["blocklist_check_failed"] },
+              },
+            ],
+          }),
+        );
+
+        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+
+        expect(result).toStrictEqual({
+          status: "ONBOARDING",
+          onramp: { currencies: onboardingCurrencies },
+          kycLink: undefined,
+        });
+        expect(fetchSpy).toHaveBeenCalledOnce();
+      });
+
+      it("returns ONBOARDING without kycLink when issue is unknown", async () => {
+        const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+          fetchResponse({
+            ...activeCustomer,
+            status: "incomplete",
+            endorsements: [
+              {
+                name: "base",
+                status: "approved",
+                requirements: { complete: [], pending: [], missing: null, issues: ["unknown_issue"] },
+              },
+            ],
+          }),
+        );
+
+        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+
+        expect(result).toStrictEqual({
+          status: "ONBOARDING",
+          onramp: { currencies: onboardingCurrencies },
+          kycLink: undefined,
+        });
+        expect(fetchSpy).toHaveBeenCalledOnce();
+      });
+
+      it("returns ONBOARDING without kycLink when issue is non-string", async () => {
+        const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+          fetchResponse({
+            ...activeCustomer,
+            status: "incomplete",
+            endorsements: [
+              {
+                name: "base",
+                status: "approved",
+                requirements: { complete: [], pending: [], missing: null, issues: [{ unknown: true }, 42] },
+              },
+            ],
+          }),
+        );
+
+        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+
+        expect(result).toStrictEqual({
+          status: "ONBOARDING",
+          onramp: { currencies: onboardingCurrencies },
+          kycLink: undefined,
+        });
+        expect(fetchSpy).toHaveBeenCalledOnce();
+      });
+
+      it("returns ONBOARDING without kycLink when missing has unknown shape", async () => {
+        const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+          fetchResponse({
+            ...activeCustomer,
+            status: "incomplete",
+            endorsements: [
+              {
+                name: "base",
+                status: "approved",
+                requirements: { complete: [], pending: [], missing: { unexpected_shape: true }, issues: [] },
+              },
+            ],
+          }),
+        );
+
+        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+
+        expect(result).toStrictEqual({
+          status: "ONBOARDING",
+          onramp: { currencies: onboardingCurrencies },
+          kycLink: undefined,
+        });
+        expect(fetchSpy).toHaveBeenCalledOnce();
+      });
+
+      it("returns ONBOARDING without kycLink when missing is unknown string", async () => {
+        const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+          fetchResponse({
+            ...activeCustomer,
+            status: "incomplete",
+            endorsements: [
+              {
+                name: "base",
+                status: "approved",
+                requirements: { complete: [], pending: [], missing: "unknown_requirement", issues: [] },
+              },
+            ],
+          }),
+        );
+
+        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+
+        expect(result).toStrictEqual({
+          status: "ONBOARDING",
+          onramp: { currencies: onboardingCurrencies },
+          kycLink: undefined,
+        });
+        expect(fetchSpy).toHaveBeenCalledOnce();
+      });
+
+      it("returns ONBOARDING without kycLink when all endorsements have endorsement_not_available_in_customers_region", async () => {
+        const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+          fetchResponse({
+            ...activeCustomer,
+            status: "incomplete",
+            endorsements: [
+              {
+                name: "base",
+                status: "approved",
+                requirements: {
+                  complete: [],
+                  pending: [],
+                  missing: null,
+                  issues: ["endorsement_not_available_in_customers_region"],
+                },
+              },
+            ],
+          }),
+        );
+
+        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+
+        expect(result).toStrictEqual({
+          status: "ONBOARDING",
+          onramp: { currencies: onboardingCurrencies },
+          kycLink: undefined,
+        });
+        expect(fetchSpy).toHaveBeenCalledOnce();
+      });
+
+      it("returns ONBOARDING with kycLink when issues contain government_id_verification_failed", async () => {
+        vi.spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(
+            fetchResponse({
+              ...activeCustomer,
+              status: "incomplete",
+              endorsements: [
+                {
+                  name: "base",
+                  status: "approved",
+                  requirements: {
+                    complete: [],
+                    pending: [],
+                    missing: null,
+                    issues: ["government_id_verification_failed"],
+                  },
+                },
+              ],
+            }),
+          )
+          .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
+
+        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+          status: "ONBOARDING",
+          onramp: { currencies: onboardingCurrencies },
+          kycLink: "https://kyc.bridge.xyz/link",
+        });
+      });
+
+      it("returns ONBOARDING with kycLink when missing is tax_identification_number string", async () => {
+        vi.spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(
+            fetchResponse({
+              ...activeCustomer,
+              status: "incomplete",
+              endorsements: [
+                {
+                  name: "base",
+                  status: "approved",
+                  requirements: { complete: [], pending: [], missing: "tax_identification_number", issues: [] },
+                },
+              ],
+            }),
+          )
+          .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
+
+        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+          status: "ONBOARDING",
+          onramp: { currencies: onboardingCurrencies },
+          kycLink: "https://kyc.bridge.xyz/link",
+        });
+      });
+
+      it("returns ONBOARDING with kycLink when missing is source_of_funds_questionnaire string", async () => {
+        vi.spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(
+            fetchResponse({
+              ...activeCustomer,
+              status: "incomplete",
+              endorsements: [
+                {
+                  name: "base",
+                  status: "approved",
+                  requirements: {
+                    complete: [],
+                    pending: [],
+                    missing: "source_of_funds_questionnaire",
+                    issues: [],
+                  },
+                },
+              ],
+            }),
+          )
+          .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
+
+        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+          status: "ONBOARDING",
+          onramp: { currencies: onboardingCurrencies },
+          kycLink: "https://kyc.bridge.xyz/link",
+        });
+      });
+
+      it("returns ONBOARDING with kycLink when missing contains source_of_funds_questionnaire in all_of", async () => {
+        vi.spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(
+            fetchResponse({
+              ...activeCustomer,
+              status: "incomplete",
+              endorsements: [
+                {
+                  name: "base",
+                  status: "approved",
+                  requirements: {
+                    complete: [],
+                    pending: [],
+                    missing: { all_of: ["source_of_funds_questionnaire", "post_processing"] },
+                    issues: [],
+                  },
+                },
+              ],
+            }),
+          )
+          .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
+
+        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+          status: "ONBOARDING",
+          onramp: { currencies: onboardingCurrencies },
+          kycLink: "https://kyc.bridge.xyz/link",
+        });
+      });
+
+      it("returns ONBOARDING with kycLink when missing contains tax_identification_number in all_of", async () => {
+        vi.spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(
+            fetchResponse({
+              ...activeCustomer,
+              status: "incomplete",
+              endorsements: [
+                {
+                  name: "base",
+                  status: "approved",
+                  requirements: {
+                    complete: [],
+                    pending: [],
+                    missing: { all_of: ["address_of_residence", "tax_identification_number"] },
+                    issues: [],
+                  },
+                },
+              ],
+            }),
+          )
+          .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
+
+        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+          status: "ONBOARDING",
+          onramp: { currencies: onboardingCurrencies },
+          kycLink: "https://kyc.bridge.xyz/link",
+        });
+      });
+
+      it("returns ONBOARDING with kycLink when missing contains tax_identification_number in any_of", async () => {
+        vi.spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(
+            fetchResponse({
+              ...activeCustomer,
+              status: "incomplete",
+              endorsements: [
+                {
+                  name: "base",
+                  status: "approved",
+                  requirements: {
+                    complete: [],
+                    pending: [],
+                    missing: { any_of: ["source_of_funds_questionnaire", "tax_identification_number"] },
+                    issues: [],
+                  },
+                },
+              ],
+            }),
+          )
+          .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
+
+        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+          status: "ONBOARDING",
+          onramp: { currencies: onboardingCurrencies },
+          kycLink: "https://kyc.bridge.xyz/link",
+        });
+      });
+
+      it("returns ONBOARDING with kycLink when missing has nested all_of and any_of", async () => {
+        vi.spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(
+            fetchResponse({
+              ...activeCustomer,
+              status: "incomplete",
+              endorsements: [
+                {
+                  name: "base",
+                  status: "approved",
+                  requirements: {
+                    complete: [],
+                    pending: [],
+                    missing: {
+                      all_of: ["address_of_residence", { any_of: ["first_name", "tax_identification_number"] }],
+                    },
+                    issues: [],
+                  },
+                },
+              ],
+            }),
+          )
+          .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
+
+        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+          status: "ONBOARDING",
+          onramp: { currencies: onboardingCurrencies },
+          kycLink: "https://kyc.bridge.xyz/link",
+        });
+      });
+
+      it("encodes redirect_uri in kyc link request", async () => {
+        const fetchSpy = vi
+          .spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(
+            fetchResponse({
+              ...activeCustomer,
+              status: "incomplete",
+              endorsements: [
+                {
+                  name: "base",
+                  status: "approved",
+                  requirements: { complete: [], pending: [], missing: "tax_identification_number", issues: [] },
+                },
+              ],
+            }),
+          )
+          .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
+
+        await bridge.getProvider({
+          credentialId: "cred-1",
+          customerId: "cust-1",
+          redirectURL: "https://app.example.com/callback",
+        });
+
+        const kycCall = fetchSpy.mock.calls[1]?.[0] as string;
+        expect(kycCall).toContain("redirect_uri="); // cspell:ignore Fapp Fcallback Fprovider Dbridge
+        const parameter = new URL(kycCall).searchParams.get("redirect_uri");
+        expect(parameter).toBeDefined();
+        const redirect = new URL(parameter ?? "");
+        expect(redirect.origin + redirect.pathname).toBe("https://app.example.com/callback");
+        expect(redirect.searchParams.get("provider")).toBe("bridge");
+      });
+
+      it("omits redirect_uri from kyc link request when not provided", async () => {
+        const fetchSpy = vi
+          .spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(
+            fetchResponse({
+              ...activeCustomer,
+              status: "incomplete",
+              endorsements: [
+                {
+                  name: "base",
+                  status: "approved",
+                  requirements: { complete: [], pending: [], missing: "tax_identification_number", issues: [] },
+                },
+              ],
+            }),
+          )
+          .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
+
+        await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+
+        const kycCall = fetchSpy.mock.calls[1]?.[0] as string;
+        expect(kycCall).not.toContain("redirect_uri");
+      });
+
+      it("captures exception when kyc link url is invalid", async () => {
+        vi.spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(
+            fetchResponse({
+              ...activeCustomer,
+              status: "incomplete",
+              endorsements: [
+                {
+                  name: "base",
+                  status: "approved",
+                  requirements: { complete: [], pending: [], missing: "tax_identification_number", issues: [] },
+                },
+              ],
+            }),
+          )
+          .mockResolvedValueOnce(fetchResponse({ url: "not-a-valid-url" }));
+
+        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+
+        expect(result).toStrictEqual({
+          status: "ONBOARDING",
+          onramp: { currencies: onboardingCurrencies },
+          kycLink: undefined,
+        });
+        expect(captureException).toHaveBeenCalledWith(
+          expect.objectContaining({ message: 'Invalid URL: Received "not-a-valid-url"' }),
+          expect.objectContaining({ level: "error" }),
+        );
+      });
+
+      it("returns ONBOARDING without kycLink when nested missing has no matching targets", async () => {
+        const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+          fetchResponse({
+            ...activeCustomer,
+            status: "incomplete",
+            endorsements: [
+              {
+                name: "base",
+                status: "approved",
+                requirements: {
+                  complete: [],
+                  pending: [],
+                  missing: { all_of: ["address_of_residence", { any_of: ["first_name", "last_name"] }] },
+                  issues: [],
+                },
+              },
+            ],
+          }),
+        );
+
+        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+
+        expect(result).toStrictEqual({
+          status: "ONBOARDING",
+          onramp: { currencies: onboardingCurrencies },
+          kycLink: undefined,
+        });
+        expect(fetchSpy).toHaveBeenCalledOnce();
+      });
+
+      it("returns ONBOARDING without kycLink when getKycLink fails", async () => {
+        vi.spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(
+            fetchResponse({
+              ...activeCustomer,
+              status: "incomplete",
+              endorsements: [
+                {
+                  name: "base",
+                  status: "approved",
+                  requirements: { complete: [], pending: [], missing: "tax_identification_number", issues: [] },
+                },
+              ],
+            }),
+          )
+          .mockResolvedValueOnce(fetchError(500, "bridge kyc error"));
+
+        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+
+        expect(result).toStrictEqual({
+          status: "ONBOARDING",
+          onramp: { currencies: onboardingCurrencies },
+          kycLink: undefined,
+        });
+        expect(captureException).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ level: "error" }));
+      });
+
+      it("returns ONBOARDING without kycLink when blocklist overrides valid issue", async () => {
+        const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+          fetchResponse({
+            ...activeCustomer,
+            status: "incomplete",
+            endorsements: [
+              {
+                name: "base",
+                status: "approved",
+                requirements: {
+                  complete: [],
+                  pending: [],
+                  missing: null,
+                  issues: ["government_id_verification_failed", "blocklist_check_failed"],
+                },
+              },
+            ],
+          }),
+        );
+
+        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+
         expect(result.status).toBe("ONBOARDING");
+        expect(result.kycLink).toBeUndefined();
+        expect(fetchSpy).toHaveBeenCalledOnce();
+      });
+
+      it("returns ONBOARDING without kycLink when blocklist overrides valid missing", async () => {
+        const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+          fetchResponse({
+            ...activeCustomer,
+            status: "incomplete",
+            endorsements: [
+              {
+                name: "base",
+                status: "approved",
+                requirements: {
+                  complete: [],
+                  pending: [],
+                  missing: "tax_identification_number",
+                  issues: ["blocklist_check_failed"],
+                },
+              },
+            ],
+          }),
+        );
+
+        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+
+        expect(result).toStrictEqual({
+          status: "ONBOARDING",
+          onramp: { currencies: onboardingCurrencies },
+          kycLink: undefined,
+        });
+        expect(fetchSpy).toHaveBeenCalledOnce();
+      });
+
+      it("returns ONBOARDING without kycLink when region unavailable overrides valid issue", async () => {
+        const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+          fetchResponse({
+            ...activeCustomer,
+            status: "incomplete",
+            endorsements: [
+              {
+                name: "base",
+                status: "approved",
+                requirements: {
+                  complete: [],
+                  pending: [],
+                  missing: null,
+                  issues: ["government_id_verification_failed", "endorsement_not_available_in_customers_region"],
+                },
+              },
+            ],
+          }),
+        );
+
+        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+
+        expect(result).toStrictEqual({
+          status: "ONBOARDING",
+          onramp: { currencies: onboardingCurrencies },
+          kycLink: undefined,
+        });
+        expect(fetchSpy).toHaveBeenCalledOnce();
+      });
+
+      it("returns ONBOARDING with kycLink when only some endorsements have region issue", async () => {
+        vi.spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(
+            fetchResponse({
+              ...activeCustomer,
+              status: "incomplete",
+              endorsements: [
+                {
+                  name: "base",
+                  status: "approved",
+                  requirements: {
+                    complete: [],
+                    pending: [],
+                    missing: null,
+                    issues: ["endorsement_not_available_in_customers_region"],
+                  },
+                },
+                {
+                  name: "sepa",
+                  status: "approved",
+                  requirements: {
+                    complete: [],
+                    pending: [],
+                    missing: null,
+                    issues: ["government_id_verification_failed"],
+                  },
+                },
+              ],
+            }),
+          )
+          .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
+
+        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+          status: "ONBOARDING",
+          onramp: { currencies: onboardingCurrencies },
+          kycLink: "https://kyc.bridge.xyz/link",
+        });
       });
 
       it("returns ACTIVE with GBP from faster_payments endorsement", async () => {
@@ -248,16 +1000,10 @@ describe("bridge utils", () => {
           }),
         );
 
-        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
-
-        expect(result.status).toBe("ACTIVE");
-        expect(result.onramp.currencies).toStrictEqual([
-          { currency: "USDC", network: "SOLANA" },
-          { currency: "USDC", network: "STELLAR" },
-          { currency: "USDT", network: "TRON" },
-          "USD",
-          "GBP",
-        ]);
+        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+          status: "ACTIVE",
+          onramp: { currencies: [...baseCurrencies, "USD", "GBP"] },
+        });
       });
 
       it("returns ACTIVE with currencies from approved endorsements", async () => {
@@ -268,16 +1014,10 @@ describe("bridge utils", () => {
           }),
         );
 
-        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
-
-        expect(result.status).toBe("ACTIVE");
-        expect(result.onramp.currencies).toStrictEqual([
-          { currency: "USDC", network: "SOLANA" },
-          { currency: "USDC", network: "STELLAR" },
-          { currency: "USDT", network: "TRON" },
-          "USD",
-          "EUR",
-        ]);
+        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+          status: "ACTIVE",
+          onramp: { currencies: [...baseCurrencies, "USD", "EUR"] },
+        });
       });
 
       it("stops collecting currencies on first non-approved endorsement", async () => {
@@ -288,15 +1028,10 @@ describe("bridge utils", () => {
           }),
         );
 
-        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
-
-        expect(result.status).toBe("ACTIVE");
-        expect(result.onramp.currencies).toStrictEqual([
-          { currency: "USDC", network: "SOLANA" },
-          { currency: "USDC", network: "STELLAR" },
-          { currency: "USDT", network: "TRON" },
-          "USD",
-        ]);
+        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+          status: "ACTIVE",
+          onramp: { currencies: [...baseCurrencies, "USD"] },
+        });
         expect(captureException).toHaveBeenCalledWith(
           expect.objectContaining({ message: "endorsement not approved" }),
           expect.objectContaining({ level: "warning" }),
@@ -313,7 +1048,7 @@ describe("bridge utils", () => {
 
         const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
 
-        expect(result.status).toBe("ACTIVE");
+        expect(result).toStrictEqual({ status: "ACTIVE", onramp: { currencies: baseCurrencies } });
         expect(captureException).toHaveBeenCalledWith(
           expect.objectContaining({ message: "bridge future requirements due" }),
           expect.objectContaining({ level: "warning" }),
@@ -330,7 +1065,7 @@ describe("bridge utils", () => {
 
         const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
 
-        expect(result.status).toBe("ACTIVE");
+        expect(result).toStrictEqual({ status: "ACTIVE", onramp: { currencies: baseCurrencies } });
         expect(captureException).toHaveBeenCalledWith(
           expect.objectContaining({ message: "bridge requirements due" }),
           expect.objectContaining({ level: "warning" }),
@@ -347,7 +1082,7 @@ describe("bridge utils", () => {
 
         const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
 
-        expect(result.status).toBe("ACTIVE");
+        expect(result).toStrictEqual({ status: "ACTIVE", onramp: { currencies: [...baseCurrencies, "USD"] } });
         expect(captureException).toHaveBeenCalledWith(
           expect.objectContaining({ message: "additional requirements" }),
           expect.objectContaining({ level: "warning" }),
@@ -361,7 +1096,7 @@ describe("bridge utils", () => {
             endorsements: [
               {
                 ...endorsement("base", "approved"),
-                requirements: { complete: [], pending: [], missing: true, issues: [] },
+                requirements: { complete: [], pending: [], missing: "post_processing", issues: [] },
               },
             ],
           }),
@@ -369,7 +1104,7 @@ describe("bridge utils", () => {
 
         const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
 
-        expect(result.status).toBe("ACTIVE");
+        expect(result).toStrictEqual({ status: "ACTIVE", onramp: { currencies: [...baseCurrencies, "USD"] } });
         expect(captureException).toHaveBeenCalledWith(
           expect.objectContaining({ message: "requirements missing" }),
           expect.objectContaining({ level: "warning" }),
@@ -455,18 +1190,13 @@ describe("bridge utils", () => {
 
       it("returns NOT_STARTED with basic currencies for standard country", async () => {
         vi.spyOn(persona, "getAccount").mockResolvedValueOnce(personaAccount);
-        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ url: "https://tos.link" }));
+        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ url: "https://tos.link/agree" }));
 
-        const result = await bridge.getProvider({ credentialId: "cred-1" });
-
-        expect(result.status).toBe("NOT_STARTED");
-        expect(result.onramp.currencies).toStrictEqual([
-          { currency: "USDC", network: "SOLANA" },
-          { currency: "USDC", network: "STELLAR" },
-          { currency: "USDT", network: "TRON" },
-          "USD",
-          "EUR",
-        ]);
+        await expect(bridge.getProvider({ credentialId: "cred-1" })).resolves.toStrictEqual({
+          status: "NOT_STARTED",
+          tosLink: "https://tos.link/agree",
+          onramp: { currencies: [...baseCurrencies, "USD", "EUR"] },
+        });
       });
 
       it("appends spei endorsement for MX country", async () => {
@@ -474,19 +1204,16 @@ describe("bridge utils", () => {
           ...personaAccount,
           attributes: { ...personaAccount.attributes, "country-code": "MX" },
         });
-        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ url: "https://tos.link" }));
+        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ url: "https://tos.link/agree" }));
 
         const result = await bridge.getProvider({ credentialId: "cred-1" });
 
         expect(persona.getAccount).toHaveBeenCalledWith("cred-1", "bridge");
-        expect(result.onramp.currencies).toStrictEqual([
-          { currency: "USDC", network: "SOLANA" },
-          { currency: "USDC", network: "STELLAR" },
-          { currency: "USDT", network: "TRON" },
-          "USD",
-          "EUR",
-          "MXN",
-        ]);
+        expect(result).toStrictEqual({
+          status: "NOT_STARTED",
+          tosLink: "https://tos.link/agree",
+          onramp: { currencies: [...baseCurrencies, "USD", "EUR", "MXN"] },
+        });
       });
 
       it("appends pix endorsement for BR country", async () => {
@@ -494,19 +1221,16 @@ describe("bridge utils", () => {
           ...personaAccount,
           attributes: { ...personaAccount.attributes, "country-code": "BR" },
         });
-        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ url: "https://tos.link" }));
+        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ url: "https://tos.link/agree" }));
 
         const result = await bridge.getProvider({ credentialId: "cred-1" });
 
         expect(persona.getAccount).toHaveBeenCalledWith("cred-1", "bridge");
-        expect(result.onramp.currencies).toStrictEqual([
-          { currency: "USDC", network: "SOLANA" },
-          { currency: "USDC", network: "STELLAR" },
-          { currency: "USDT", network: "TRON" },
-          "USD",
-          "EUR",
-          "BRL",
-        ]);
+        expect(result).toStrictEqual({
+          status: "NOT_STARTED",
+          tosLink: "https://tos.link/agree",
+          onramp: { currencies: [...baseCurrencies, "USD", "EUR", "BRL"] },
+        });
       });
 
       it("appends faster_payments endorsement for GB country", async () => {
@@ -514,42 +1238,64 @@ describe("bridge utils", () => {
           ...personaAccount,
           attributes: { ...personaAccount.attributes, "country-code": "GB" },
         });
-        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ url: "https://tos.link" }));
+        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ url: "https://tos.link/agree" }));
 
         const result = await bridge.getProvider({ credentialId: "cred-1" });
 
         expect(persona.getAccount).toHaveBeenCalledWith("cred-1", "bridge");
-        expect(result.onramp.currencies).toStrictEqual([
-          { currency: "USDC", network: "SOLANA" },
-          { currency: "USDC", network: "STELLAR" },
-          { currency: "USDT", network: "TRON" },
-          "USD",
-          "EUR",
-          "GBP",
-        ]);
+        expect(result).toStrictEqual({
+          status: "NOT_STARTED",
+          tosLink: "https://tos.link/agree",
+          onramp: { currencies: [...baseCurrencies, "USD", "EUR", "GBP"] },
+        });
       });
 
       it("appends redirect URL with provider param", async () => {
         vi.spyOn(persona, "getAccount").mockResolvedValueOnce(personaAccount);
         const fetchSpy = vi
           .spyOn(globalThis, "fetch")
-          .mockResolvedValueOnce(fetchResponse({ url: "https://tos.link" }));
+          .mockResolvedValueOnce(fetchResponse({ url: "https://tos.link/agree" }));
 
-        await bridge.getProvider({ credentialId: "cred-1", redirectURL: "https://app.example.com/callback" });
+        const result = await bridge.getProvider({
+          credentialId: "cred-1",
+          redirectURL: "https://app.example.com/callback",
+        });
 
         const tosCall = fetchSpy.mock.calls[0];
         const url = tosCall?.[0] as string;
         expect(url).toContain("/customers/tos_links");
+        expect(result).toMatchObject({
+          tosLink: "https://tos.link/agree?redirect_uri=https%3A%2F%2Fapp.example.com%2Fcallback%3Fprovider%3Dbridge",
+        });
+      });
+
+      it("preserves existing query params in tos URL when appending redirect_uri", async () => {
+        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(personaAccount);
+        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+          fetchResponse({ url: "https://tos.link/agree?session_token=abc" }),
+        );
+
+        const result = await bridge.getProvider({
+          credentialId: "cred-1",
+          redirectURL: "https://app.example.com/callback",
+        });
+
+        expect(result).toMatchObject({
+          tosLink:
+            "https://tos.link/agree?session_token=abc&redirect_uri=https%3A%2F%2Fapp.example.com%2Fcallback%3Fprovider%3Dbridge",
+        });
       });
 
       it("works on development chain", async () => {
         chainMock.id = optimismSepolia.id;
         vi.spyOn(persona, "getAccount").mockResolvedValueOnce(personaAccount);
-        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ url: "https://tos.link" }));
+        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ url: "https://tos.link/agree" }));
 
-        const result = await bridge.getProvider({ credentialId: "cred-1" });
-
-        expect(result.status).toBe("NOT_STARTED");
+        await expect(bridge.getProvider({ credentialId: "cred-1" })).resolves.toStrictEqual({
+          status: "NOT_STARTED",
+          tosLink: "https://tos.link/agree",
+          onramp: { currencies: [...baseCurrencies, "USD", "EUR"] },
+        });
       });
     });
   });
@@ -1354,6 +2100,13 @@ function endorsement(
 ) {
   return { name, status, requirements: { complete: [], pending: [], missing: null, issues: [] } };
 }
+
+const baseCurrencies = [
+  { currency: "USDC", network: "SOLANA" },
+  { currency: "USDC", network: "STELLAR" },
+  { currency: "USDT", network: "TRON" },
+];
+const onboardingCurrencies = [...baseCurrencies, "USD"];
 
 const activeCustomer = {
   id: "cust-123",

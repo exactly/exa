@@ -9,8 +9,10 @@ import {
   optional,
   parse,
   picklist,
+  pipe,
   string,
   union,
+  url,
   variant,
   type InferInput,
   type InferOutput,
@@ -40,7 +42,11 @@ export default new Hono()
   .get(
     "/",
     auth(),
-    vValidator("query", object({ countryCode: optional(string()), redirectURL: optional(string()) }), validatorHook()),
+    vValidator(
+      "query",
+      object({ countryCode: optional(string()), redirectURL: optional(pipe(string(), url())) }),
+      validatorHook(),
+    ),
     async (c) => {
       const { credentialId } = c.req.valid("cookie");
 
@@ -375,5 +381,6 @@ const ProviderInfo = variant("provider", [
     }),
     status: ProviderStatus,
     tosLink: optional(string()),
+    kycLink: optional(string()),
   }),
 ]);

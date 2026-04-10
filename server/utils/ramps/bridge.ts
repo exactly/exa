@@ -11,10 +11,12 @@ import {
   optional,
   parse,
   picklist,
+  pipe,
   safeParse,
   string,
   union,
   unknown,
+  url as urlValidator,
   variant,
   type BaseIssue,
   type BaseSchema,
@@ -82,7 +84,9 @@ export async function updateCustomer(customerId: string, user: Partial<InferInpu
 
 export async function agreementLink(redirectUri?: string) {
   const response = await request(AgreementLinkResponse, `/customers/tos_links`, {}, undefined, "POST");
-  return `${response.url}${redirectUri ? `&redirect_uri=${encodeURIComponent(redirectUri)}` : ""}`;
+  const url = new URL(response.url);
+  if (redirectUri) url.searchParams.set("redirect_uri", redirectUri);
+  return String(url);
 }
 
 export async function getCustomer(customerId: string) {
@@ -157,6 +161,16 @@ export async function getLiquidationAddresses(customerId: string) {
   return all;
 }
 
+export function getKYCLink(customerId: string, redirectUri?: string, endorsement?: (typeof Endorsements)[number]) {
+  const params = new URLSearchParams();
+  if (endorsement) params.set("endorsement", endorsement);
+  if (redirectUri) params.set("redirect_uri", redirectUri);
+  return request(
+    object({ url: pipe(string(), urlValidator()) }),
+    `/customers/${customerId}/kyc_link${String(params) ? `?${String(params)}` : ""}`,
+  ).then((result) => result.url);
+}
+
 export async function getProvider(params: {
   countryCode?: string;
   credentialId: string;
@@ -201,6 +215,15 @@ export async function getProvider(params: {
           onramp: {
             currencies: [...currencies, ...CurrencyByEndorsement.base],
           },
+          kycLink: await maybeKYCLink(
+            bridgeUser,
+            (() => {
+              if (!params.redirectURL) return;
+              const redirect = new URL(params.redirectURL);
+              redirect.searchParams.set("provider", "bridge");
+              return String(redirect);
+            })(),
+          ),
         };
       case "active":
         break;
@@ -284,14 +307,16 @@ export async function getProvider(params: {
   if (countryCode === "GB") endorsements.push("faster_payments");
   for (const endorsement of endorsements) currencies.push(...CurrencyByEndorsement[endorsement]);
 
-  let bridgeRedirectURL: undefined | URL;
-  if (params.redirectURL) {
-    bridgeRedirectURL = new URL(params.redirectURL);
-    bridgeRedirectURL.searchParams.set("provider", "bridge");
-  }
   return {
     status: "NOT_STARTED" as const,
-    tosLink: await agreementLink(bridgeRedirectURL?.toString()),
+    tosLink: await agreementLink(
+      (() => {
+        if (!params.redirectURL) return;
+        const redirect = new URL(params.redirectURL);
+        redirect.searchParams.set("provider", "bridge");
+        return String(redirect);
+      })(),
+    ),
     onramp: { currencies },
   };
 }
@@ -462,6 +487,43 @@ export async function getCryptoDepositDetails(
   );
 
   return getDepositDetailsFromLiquidationAddress(liquidationAddress, account);
+}
+
+const missing = new Set(["tax_identification_number", "source_of_funds_questionnaire"]);
+const issues = new Set(["government_id_verification_failed"]);
+
+function maybeKYCLink(bridgeUser: InferOutput<typeof CustomerResponse>, redirectUri?: string) {
+  if (bridgeUser.status === "offboarded") return;
+  if (
+    bridgeUser.endorsements.some((endorsement) => endorsement.requirements.issues.includes("blocklist_check_failed")) ||
+    (bridgeUser.endorsements.length > 0 &&
+      bridgeUser.endorsements.every((endorsement) =>
+        endorsement.requirements.issues.includes("endorsement_not_available_in_customers_region"),
+      ))
+  ) {
+    return;
+  }
+
+  if (
+    bridgeUser.endorsements.some(
+      (endorsement) =>
+        containsRequirement(endorsement.requirements.missing, missing) ||
+        endorsement.requirements.issues.some((issue) => typeof issue === "string" && issues.has(issue)),
+    )
+  ) {
+    return getKYCLink(bridgeUser.id, redirectUri).catch((error: unknown): undefined => {
+      captureException(error, { level: "error" });
+    });
+  }
+}
+
+function containsRequirement(node: unknown, targets: Set<string>): boolean {
+  if (typeof node === "string") return targets.has(node);
+  const allOf = safeParse(object({ all_of: array(unknown()) }), node);
+  if (allOf.success) return allOf.output.all_of.some((child) => containsRequirement(child, targets));
+  const anyOf = safeParse(object({ any_of: array(unknown()) }), node);
+  if (anyOf.success) return anyOf.output.any_of.some((child) => containsRequirement(child, targets));
+  return false;
 }
 
 const Endorsements = ["base", "faster_payments", "pix", "sepa", "spei"] as const; // cspell:ignore spei, sepa

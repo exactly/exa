@@ -108,6 +108,61 @@ describe("ramp api", () => {
         bridge: { provider: "bridge", onramp: { currencies: [] }, status: "NOT_AVAILABLE" },
       });
     });
+
+    it("forwards valid redirectURL to bridge provider", async () => {
+      const mantecaSpy = vi.spyOn(manteca, "getProvider").mockResolvedValue({
+        onramp: { currencies: [] },
+        status: "NOT_AVAILABLE",
+      });
+      const bridgeSpy = vi.spyOn(bridge, "getProvider").mockResolvedValue({
+        onramp: { currencies: [] },
+        status: "NOT_AVAILABLE",
+      });
+
+      const response = await appClient.index.$get(
+        { query: { redirectURL: "https://app.example.com/callback" } },
+        { headers: { "test-credential-id": "ramp-test" } },
+      );
+
+      expect(response.status).toBe(200);
+      expect(mantecaSpy).toHaveBeenCalledOnce();
+      expect(bridgeSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ redirectURL: "https://app.example.com/callback" }),
+      );
+    });
+
+    it("returns 400 when redirectURL is not absolute", async () => {
+      const mantecaSpy = vi.spyOn(manteca, "getProvider");
+      const bridgeSpy = vi.spyOn(bridge, "getProvider");
+
+      const response = await appClient.index.$get(
+        { query: { redirectURL: "/callback" } },
+        { headers: { "test-credential-id": "ramp-test" } },
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toStrictEqual({
+        code: "bad request",
+        legacy: "bad request",
+        message: ['redirectURL Invalid URL: Received "/callback"'],
+      });
+      expect(mantecaSpy).not.toHaveBeenCalled();
+      expect(bridgeSpy).not.toHaveBeenCalled();
+    });
+
+    it("returns 400 when redirectURL is malformed", async () => {
+      const mantecaSpy = vi.spyOn(manteca, "getProvider");
+      const bridgeSpy = vi.spyOn(bridge, "getProvider");
+
+      const response = await appClient.index.$get(
+        { query: { redirectURL: "not a url" } },
+        { headers: { "test-credential-id": "ramp-test" } },
+      );
+
+      expect(response.status).toBe(400);
+      expect(mantecaSpy).not.toHaveBeenCalled();
+      expect(bridgeSpy).not.toHaveBeenCalled();
+    });
   });
 
   describe("quote", () => {
