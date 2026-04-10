@@ -31,7 +31,17 @@ import { Address } from "@exactly/common/validation";
 import database, { cards, credentials } from "../database";
 import auth from "../middleware/auth";
 import { sendPushNotification } from "../utils/onesignal";
-import { autoCredit, createCard, getCard, getPIN, getSecrets, getUser, setPIN, updateCard } from "../utils/panda";
+import {
+  autoCredit,
+  createCard,
+  getCard,
+  getPIN,
+  getProcessorDetails,
+  getSecrets,
+  getUser,
+  setPIN,
+  updateCard,
+} from "../utils/panda";
 import { addCapita, deriveAssociateId } from "../utils/pax";
 import { getAccount } from "../utils/persona";
 import { customer } from "../utils/sardine";
@@ -76,6 +86,8 @@ const CreatedCardResponse = object({
   status: pipe(picklist(["ACTIVE", "FROZEN"]), metadata({ examples: ["ACTIVE", "FROZEN"] })),
   productId: pipe(string(), metadata({ examples: ["402"] })),
 });
+
+const WalletResponse = object({ cardId: string(), cardSecret: string() });
 
 const UpdateCard = union([
   pipe(
@@ -565,6 +577,57 @@ async function encryptPIN(pin: string) {
         .finally(() => {
           if (!mutex.isLocked()) mutexes.delete(credentialId);
         });
+    },
+  )
+  .get(
+    "/wallet",
+    auth(),
+    describeRoute({
+      summary: "Get wallet provisioning credentials",
+      tags: ["Card"],
+      security: [{ credentialAuth: [] }],
+      validateResponse: true,
+      responses: {
+        200: {
+          description: "Wallet provisioning credentials",
+          content: {
+            "application/json": {
+              schema: resolver(WalletResponse, { errorMode: "ignore" }),
+            },
+          },
+        },
+        403: {
+          description: "Forbidden",
+          content: {
+            "application/json": { schema: resolver(object({ code: literal("no panda") }), { errorMode: "ignore" }) },
+          },
+        },
+        404: {
+          description: "Not found",
+          content: {
+            "application/json": { schema: resolver(object({ code: literal("no card") }), { errorMode: "ignore" }) },
+          },
+        },
+      },
+    }),
+    async (c) => {
+      const { credentialId } = c.req.valid("cookie");
+      const credential = await database.query.credentials.findFirst({
+        where: eq(credentials.id, credentialId),
+        columns: { pandaId: true, account: true },
+        with: { cards: { columns: { id: true }, where: inArray(cards.status, ["ACTIVE", "FROZEN"]) } },
+      });
+      if (!credential) return c.json({ code: "no credential" }, 500);
+      setUser({ id: parse(Address, credential.account) });
+      if (!credential.pandaId) return c.json({ code: "no panda" }, 403);
+      if (!credential.cards[0]) return c.json({ code: "no card" }, 404);
+      try {
+        const provisioning = await getProcessorDetails(credential.cards[0].id);
+        return c.json({ cardId: provisioning.processorCardId, cardSecret: provisioning.timeBasedSecret } satisfies InferOutput<typeof WalletResponse>, 200);
+      } catch (error) {
+        if (error instanceof ServiceError && error.status === 404) return c.json({ code: "no card" }, 404);
+        throw error;
+      }
     },
   );
 
