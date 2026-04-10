@@ -9,6 +9,7 @@ import { ScrollView, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 import { isAddress } from "viem";
+import { base } from "viem/chains";
 
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
@@ -20,12 +21,15 @@ import { presentArticle } from "../../utils/intercom";
 import queryClient, { type AuthMethod } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { getKYCStatus, getRampProviders } from "../../utils/server";
+import useBeginKYC from "../../utils/useBeginKYC";
 import ChainLogo from "../shared/ChainLogo";
+import InfoAlert from "../shared/InfoAlert";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
+import type { KYCStatus } from "../../utils/server";
 import type { Credential } from "@exactly/common/validation";
 
 export default function AddFunds() {
@@ -36,6 +40,10 @@ export default function AddFunds() {
   const ownerAccount = credential && isAddress(credential.credentialId) ? credential.credentialId : undefined;
 
   const { data: method } = useQuery<AuthMethod>({ queryKey: ["method"] });
+  const { data: kycStatus } = useQuery<KYCStatus>({ queryKey: ["kyc", "status"] });
+  const beginKYC = useBeginKYC();
+  const isBase = chain.id === base.id;
+  const isKYCApproved = kycStatus?.code === "ok" || kycStatus?.code === "legacy kyc";
 
   const { data: countryCode } = useQuery({
     queryKey: ["user", "country"],
@@ -135,14 +143,32 @@ export default function AddFunds() {
                     router.push({ pathname: "/add-funds", params: { type: "crypto" } });
                   }}
                 />
-                {hasFiat !== false && (
+                {!isBase && hasFiat !== false && (
                   <AddFundsOption
                     icon={<Banknote size={24} color="$iconBrandDefault" />}
                     title={t("Bank transfers")}
                     subtitle={t("From a bank account")}
-                    disabled={!hasFiat}
+                    disabled={(isKYCApproved && !hasFiat) || beginKYC.isPending}
+                    loading={beginKYC.isPending}
                     onPress={() => {
-                      router.push({ pathname: "/add-funds", params: { type: "fiat" } });
+                      if (isKYCApproved) {
+                        router.push({ pathname: "/add-funds", params: { type: "fiat" } });
+                        return;
+                      }
+                      beginKYC
+                        .mutateAsync()
+                        .then(async (result) => {
+                          if (result?.status === "cancel") return;
+                          const status = await queryClient.fetchQuery<KYCStatus>({
+                            queryKey: ["kyc", "status"],
+                            staleTime: 0,
+                          });
+                          if ("code" in status && (status.code === "ok" || status.code === "legacy kyc")) {
+                            await queryClient.invalidateQueries({ queryKey: ["ramp", "providers"] });
+                            router.push({ pathname: "/add-funds", params: { type: "fiat" } });
+                          }
+                        })
+                        .catch(() => {}); // eslint-disable-line @typescript-eslint/no-empty-function -- error handled by useBeginKYC
                     }}
                   />
                 )}
@@ -150,6 +176,16 @@ export default function AddFunds() {
             )}
             {type === "crypto" && (
               <>
+                {!isBase && !isKYCApproved && (
+                  <InfoAlert
+                    title={t("Complete a quick identity check to access more networks.")}
+                    actionText={t("Get verified")}
+                    onPress={() => {
+                      beginKYC.mutate();
+                    }}
+                    loading={beginKYC.isPending}
+                  />
+                )}
                 {method === "siwe" && (
                   <AddFundsOption
                     icon={<Wallet width={40} height={40} color="$iconBrandDefault" />}
@@ -174,6 +210,11 @@ export default function AddFunds() {
 
                 {renderProviders("crypto")}
               </>
+            )}
+            {type === "fiat" && countryCode && isPending && (
+              <View justifyContent="center" alignItems="center">
+                <Skeleton width="100%" height={82} />
+              </View>
             )}
             {type === "fiat" && providers && (
               <YStack gap="$s5">

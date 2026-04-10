@@ -26,7 +26,7 @@ export default function useBeginKYC() {
         if (!(error instanceof APIError)) throw error;
         if (error.text !== "not started" && error.text !== "no kyc") throw error;
       }
-      await startKYC();
+      return startKYC();
     },
     async onSettled() {
       await queryClient.invalidateQueries({ queryKey: ["kyc", "status"] });

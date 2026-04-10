@@ -1,8 +1,6 @@
 import { Platform } from "react-native";
 import type { Environment } from "react-native-persona";
 
-import { router } from "expo-router";
-
 import { sdk } from "@farcaster/miniapp-sdk";
 
 import domain from "@exactly/common/domain";
@@ -13,17 +11,18 @@ import { getKYCTokens } from "./server";
 
 export const environment = (__DEV__ || process.env.EXPO_PUBLIC_ENV === "e2e" ? "sandbox" : "production") as Environment;
 
-type RampKYCResult = { status: "cancel" } | { status: "complete" } | { status: "error" };
+type KYCResult = { status: "cancel" } | { status: "complete" };
+type RampKYCResult = KYCResult | { status: "error" };
 
 let current:
   | undefined
+  | { controller: AbortController; promise: Promise<KYCResult>; type: "basic" }
   | {
       controller: AbortController;
       promise: Promise<RampKYCResult>;
       tokens?: { inquiryId: string; sessionToken: string };
       type: "bridge" | "manteca";
-    }
-  | { controller: AbortController; promise: Promise<void>; type: "basic" };
+    };
 
 export function startKYC() {
   if (current && !current.controller.signal.aborted && current.type === "basic") return current.promise;
@@ -47,7 +46,7 @@ export function startKYC() {
       ]);
       if (signal.aborted) throw signal.reason;
 
-      return new Promise<void>((resolve, reject) => {
+      return new Promise<KYCResult>((resolve, reject) => {
         const onAbort = () => {
           client.destroy();
           reject(new Error("persona inquiry aborted", { cause: signal.reason }));
@@ -62,14 +61,14 @@ export function startKYC() {
             globalThis.removeEventListener("pagehide", onPageHide);
             client.destroy();
             handleComplete();
-            resolve();
+            resolve({ status: "complete" });
           },
           onCancel: () => {
             signal.removeEventListener("abort", onAbort);
             globalThis.removeEventListener("pagehide", onPageHide);
             client.destroy();
             handleCancel();
-            resolve();
+            resolve({ status: "cancel" });
           },
           onError: (error) => {
             signal.removeEventListener("abort", onAbort);
@@ -87,7 +86,7 @@ export function startKYC() {
     if (signal.aborted) throw signal.reason;
 
     const { Inquiry } = await import("react-native-persona");
-    return new Promise<void>((resolve, reject) => {
+    return new Promise<KYCResult>((resolve, reject) => {
       const onAbort = () => reject(new Error("persona inquiry aborted", { cause: signal.reason }));
       signal.addEventListener("abort", onAbort, { once: true });
       Inquiry.fromInquiry(inquiryId)
@@ -95,12 +94,12 @@ export function startKYC() {
         .onCanceled(() => {
           signal.removeEventListener("abort", onAbort);
           handleCancel();
-          resolve();
+          resolve({ status: "cancel" });
         })
         .onComplete(() => {
           signal.removeEventListener("abort", onAbort);
           handleComplete();
-          resolve();
+          resolve({ status: "complete" });
         })
         .onError((error) => {
           signal.removeEventListener("abort", onAbort);
@@ -243,11 +242,10 @@ async function getRedirectURI() {
 
 function handleComplete() {
   queryClient.invalidateQueries({ queryKey: ["kyc", "status"] }).catch(reportError);
+  queryClient.invalidateQueries({ queryKey: ["user", "country"] }).catch(reportError);
   queryClient.setQueryData(["card-upgrade"], 1);
-  router.replace("/(main)/(home)");
 }
 
 function handleCancel() {
   queryClient.invalidateQueries({ queryKey: ["kyc", "status"] }).catch(reportError);
-  router.replace("/(main)/(home)");
 }
