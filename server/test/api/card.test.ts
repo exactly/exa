@@ -95,6 +95,7 @@ describe("authenticated", () => {
   afterEach(() => vi.resetAllMocks());
 
   it("returns 404 card not found", async () => {
+    vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
     const response = await appClient.index.$get(
       { header: { sessionid: "fakeSession" } },
       { headers: { "test-credential-id": "404" } },
@@ -115,13 +116,12 @@ describe("authenticated", () => {
   });
 
   it("returns panda card as default platinum product", async () => {
+    vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
     vi.spyOn(panda, "getSecrets").mockResolvedValueOnce(panTemplate);
     vi.spyOn(panda, "getPIN").mockResolvedValueOnce(pinTemplate);
 
     vi.spyOn(panda, "getCard").mockResolvedValueOnce(cardTemplate);
     vi.spyOn(panda, "getUser").mockResolvedValueOnce(userTemplate);
-
-    vi.spyOn(panda, "isPanda").mockResolvedValueOnce(true);
 
     const response = await appClient.index.$get(
       { header: { sessionid: "fakeSession" } },
@@ -190,11 +190,6 @@ describe("authenticated", () => {
         factory: inject("ExaAccountFactory"),
       },
     ]);
-    await database.insert(cards).values([{ id: `card-${foo}`, credentialId: foo, lastFour: "4567" }]);
-
-    vi.spyOn(panda, "getSecrets").mockResolvedValueOnce(panTemplate);
-    vi.spyOn(panda, "getCard").mockResolvedValueOnce(cardTemplate);
-    vi.spyOn(panda, "isPanda").mockResolvedValueOnce(true);
 
     const response = await appClient.index.$get(
       { header: { sessionid: "fakeSession" } },
@@ -202,6 +197,7 @@ describe("authenticated", () => {
     );
 
     expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toStrictEqual({ code: "no panda" });
   });
 
   it("returns 403 when panda user is not found", async () => {
@@ -344,6 +340,7 @@ describe("authenticated", () => {
   });
 
   it("returns 403 when panda user exists but is not approved", async () => {
+    vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "denied" });
     const credentialId = "not-approved";
     await database.insert(credentials).values({
       id: credentialId,
@@ -353,102 +350,11 @@ describe("authenticated", () => {
       pandaId: credentialId,
     });
 
-    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
-      ok: false,
-      status: 403,
-      text: () =>
-        Promise.resolve('{"message":"User exists, but is not approved","error":"ForbiddenError","statusCode":403}'),
-    } as Response);
-
     const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
 
     expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toStrictEqual({ code: "no panda" });
+    await expect(response.json()).resolves.toStrictEqual({ code: "kyc not approved" });
     expect(captureException).not.toHaveBeenCalled();
-  });
-
-  it("returns 403 when createCard fails with plain-text not approved", async () => {
-    const credentialId = "not-approved-plain";
-    await database.insert(credentials).values({
-      id: credentialId,
-      publicKey: new Uint8Array(),
-      account: padHex("0x4043", { size: 20 }),
-      factory: inject("ExaAccountFactory"),
-      pandaId: credentialId,
-    });
-
-    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
-      ok: false,
-      status: 403,
-      text: () => Promise.resolve("user exists but is not approved"),
-    } as Response);
-
-    const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
-
-    expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toStrictEqual({ code: "no panda" });
-    expect(captureException).not.toHaveBeenCalled();
-  });
-
-  it("returns 403 when createCard fails with panda user not found", async () => {
-    const credentialId = "panda-user-not-found";
-    await database.insert(credentials).values({
-      id: credentialId,
-      publicKey: new Uint8Array(),
-      account: padHex("0x4042", { size: 20 }),
-      factory: inject("ExaAccountFactory"),
-      pandaId: credentialId,
-    });
-
-    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
-      ok: false,
-      status: 404,
-      text: () => Promise.resolve('{"message":"User not found","error":"NotFoundError","statusCode":404}'),
-    } as Response);
-
-    const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
-
-    expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toStrictEqual({ code: "no panda" });
-    expect(captureException).toHaveBeenCalledOnce();
-  });
-
-  it("returns 403 when createCard fails with panda user not found and empty body", async () => {
-    const credentialId = "panda-user-not-found-empty";
-    await database.insert(credentials).values({
-      id: credentialId,
-      publicKey: new Uint8Array(),
-      account: padHex("0x4044", { size: 20 }),
-      factory: inject("ExaAccountFactory"),
-      pandaId: credentialId,
-    });
-
-    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
-      ok: false,
-      status: 404,
-      text: () => Promise.resolve(""),
-    } as Response);
-
-    const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
-
-    expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toStrictEqual({ code: "no panda" });
-    expect(captureException).toHaveBeenCalledOnce();
-  });
-
-  it("captures forbidden no-user on createCard when credential has card history", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
-      ok: false,
-      status: 403,
-      text: () =>
-        Promise.resolve('{"message":"User exists, but is not approved","error":"ForbiddenError","statusCode":403}'),
-    } as Response);
-
-    const response = await appClient.index.$post({ header: { "test-credential-id": "404" } });
-
-    expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toStrictEqual({ code: "no panda" });
-    expect(captureException).toHaveBeenCalledOnce();
   });
 
   it("throws when createCard fails with empty-body 403", async () => {
@@ -489,6 +395,7 @@ describe("authenticated", () => {
 
   it("creates a panda debit card with signature product id", async () => {
     vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: "createCard" });
+    vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
     const sigCredential = await database.query.credentials.findFirst({
       columns: { account: true },
       where: eq(credentials.id, "sig"),
@@ -517,6 +424,7 @@ describe("authenticated", () => {
 
   it("creates a panda credit card with signature product id", async () => {
     vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: "createCreditCard", last4: "1224" });
+    vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
     const ethCredential = await database.query.credentials.findFirst({
       columns: { account: true },
       where: eq(credentials.id, "eth"),
@@ -615,7 +523,7 @@ describe("authenticated", () => {
         },
       },
     };
-
+    vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
     vi.spyOn(persona, "getAccount").mockResolvedValueOnce(mockAccount);
     vi.spyOn(pax, "addCapita").mockResolvedValueOnce({});
     vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: "pax-card", last4: "5555" });
@@ -650,6 +558,7 @@ describe("authenticated", () => {
       pandaId: "new-user-panda",
     });
 
+    vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
     vi.spyOn(pax, "addCapita").mockResolvedValueOnce({});
     vi.spyOn(panda, "createCard").mockResolvedValueOnce({
       ...cardTemplate,
@@ -733,7 +642,7 @@ describe("authenticated", () => {
         },
       },
     };
-
+    vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
     vi.spyOn(persona, "getAccount").mockResolvedValueOnce(mockAccount);
     vi.spyOn(pax, "addCapita").mockRejectedValueOnce(new Error("pax api error"));
     vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: "error-card", last4: "6666" });
@@ -763,6 +672,7 @@ describe("authenticated", () => {
       productId: PLATINUM_PRODUCT_ID,
     });
 
+    vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
     vi.spyOn(pax, "addCapita").mockResolvedValueOnce({});
     vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: "no-account-card", last4: "7777" });
 
@@ -777,6 +687,7 @@ describe("authenticated", () => {
     const cardResponse = { ...cardTemplate, id: "cardForCancel", last4: "1224", status: "active" as const };
     vi.spyOn(panda, "createCard").mockResolvedValueOnce(cardResponse);
     vi.spyOn(panda, "updateCard").mockResolvedValueOnce({ ...cardResponse, status: "canceled" });
+    vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
 
     const response = await appClient.index.$post({ header: { "test-credential-id": "eth" } });
 
@@ -801,6 +712,7 @@ describe("authenticated", () => {
     it("creates a panda card having a cm card with upgraded plugin", async () => {
       await database.insert(cards).values([{ id: "cm", credentialId: "default", lastFour: "1234" }]);
 
+      vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
       vi.spyOn(panda, "getCard").mockRejectedValueOnce(new ServiceError("Panda", 404, "card not found"));
       vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: "migration:cm" });
       vi.spyOn(panda, "isPanda").mockResolvedValueOnce(true);
@@ -818,6 +730,7 @@ describe("authenticated", () => {
     it("creates a panda card having a cm card with invalid uuid", async () => {
       await database.insert(cards).values([{ id: "not-uuid", credentialId: "default", lastFour: "1234" }]);
 
+      vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
       vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: "migration:not-uuid" });
       vi.spyOn(panda, "isPanda").mockResolvedValueOnce(true);
 
