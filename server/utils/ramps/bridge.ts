@@ -157,6 +157,16 @@ export async function getLiquidationAddresses(customerId: string) {
   return all;
 }
 
+export function getKycLink(customerId: string, redirectUri?: string, endorsement?: (typeof Endorsements)[number]) {
+  const params = new URLSearchParams();
+  if (endorsement) params.set("endorsement", endorsement);
+  if (redirectUri) params.set("redirect_uri", encodeURIComponent(redirectUri));
+  return request(
+    object({ url: string() }),
+    `/customers/${customerId}/kyc_link${String(params) ? `?${String(params)}` : ""}`,
+  ).then((result) => result.url);
+}
+
 export async function getProvider(params: {
   countryCode?: string;
   credentialId: string;
@@ -201,6 +211,7 @@ export async function getProvider(params: {
           onramp: {
             currencies: [...currencies, ...CurrencyByEndorsement.base],
           },
+          kycLink: await maybeKycLink(bridgeUser, params.redirectURL),
         };
       case "active":
         break;
@@ -462,6 +473,42 @@ export async function getCryptoDepositDetails(
   );
 
   return getDepositDetailsFromLiquidationAddress(liquidationAddress, account);
+}
+
+const missing = new Set(["tax_identification_number", "source_of_funds_questionnaire"]);
+const issues = new Set(["government_id_verification_failed"]);
+
+function maybeKycLink(bridgeUser: InferOutput<typeof CustomerResponse>, redirectUri?: string) {
+  if (bridgeUser.status === "offboarded") return;
+  if (
+    bridgeUser.endorsements.some((endorsement) => endorsement.requirements.issues.includes("blocklist_check_failed")) ||
+    bridgeUser.endorsements.every((endorsement) =>
+      endorsement.requirements.issues.includes("endorsement_not_available_in_customers_region"),
+    )
+  ) {
+    return;
+  }
+
+  if (
+    bridgeUser.endorsements.some(
+      (endorsement) =>
+        containsRequirement(endorsement.requirements.missing, missing) ||
+        endorsement.requirements.issues.some((issue) => typeof issue === "string" && issues.has(issue)),
+    )
+  ) {
+    return getKycLink(bridgeUser.id, redirectUri).catch((error: unknown): undefined => {
+      captureException(error, { level: "error" });
+    });
+  }
+}
+
+function containsRequirement(node: unknown, targets: Set<string>): boolean {
+  if (typeof node === "string") return targets.has(node);
+  const allOf = safeParse(object({ all_of: array(unknown()) }), node);
+  if (allOf.success) return allOf.output.all_of.some((child) => containsRequirement(child, targets));
+  const anyOf = safeParse(object({ any_of: array(unknown()) }), node);
+  if (anyOf.success) return anyOf.output.any_of.some((child) => containsRequirement(child, targets));
+  return false;
 }
 
 const Endorsements = ["base", "faster_payments", "pix", "sepa", "spei"] as const; // cspell:ignore spei, sepa

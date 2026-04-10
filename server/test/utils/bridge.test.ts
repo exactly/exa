@@ -240,6 +240,477 @@ describe("bridge utils", () => {
         expect(result.status).toBe("ONBOARDING");
       });
 
+      it("returns ONBOARDING without kycLink when no missing or issues", async () => {
+        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+          fetchResponse({ ...activeCustomer, status: "incomplete", endorsements: [endorsement("base", "approved")] }),
+        );
+
+        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+
+        expect(result).toStrictEqual({
+          status: "ONBOARDING",
+          onramp: {
+            currencies: [
+              { currency: "USDC", network: "SOLANA" },
+              { currency: "USDC", network: "STELLAR" },
+              { currency: "USDT", network: "TRON" },
+              "USD",
+            ],
+          },
+          kycLink: undefined,
+        });
+      });
+
+      it("returns ONBOARDING without kycLink when issues do not match allowlist", async () => {
+        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+          fetchResponse({
+            ...activeCustomer,
+            status: "incomplete",
+            endorsements: [
+              {
+                name: "base",
+                status: "approved",
+                requirements: { complete: [], pending: [], missing: null, issues: ["some_other_issue"] },
+              },
+            ],
+          }),
+        );
+
+        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+
+        expect(result.status).toBe("ONBOARDING");
+        expect(result.kycLink).toBeUndefined();
+      });
+
+      it("returns ONBOARDING without kycLink when missing does not match allowlist", async () => {
+        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+          fetchResponse({
+            ...activeCustomer,
+            status: "incomplete",
+            endorsements: [
+              {
+                name: "base",
+                status: "approved",
+                requirements: { complete: [], pending: [], missing: "address_of_residence", issues: [] },
+              },
+            ],
+          }),
+        );
+
+        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+
+        expect(result.status).toBe("ONBOARDING");
+        expect(result.kycLink).toBeUndefined();
+      });
+
+      it("returns ONBOARDING without kycLink when blocklist_check_failed", async () => {
+        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+          fetchResponse({
+            ...activeCustomer,
+            status: "incomplete",
+            endorsements: [
+              {
+                name: "base",
+                status: "approved",
+                requirements: { complete: [], pending: [], missing: null, issues: ["blocklist_check_failed"] },
+              },
+            ],
+          }),
+        );
+
+        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+
+        expect(result.status).toBe("ONBOARDING");
+        expect(result.kycLink).toBeUndefined();
+      });
+
+      it("returns ONBOARDING without kycLink when all endorsements have endorsement_not_available_in_customers_region", async () => {
+        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+          fetchResponse({
+            ...activeCustomer,
+            status: "incomplete",
+            endorsements: [
+              {
+                name: "base",
+                status: "approved",
+                requirements: {
+                  complete: [],
+                  pending: [],
+                  missing: null,
+                  issues: ["endorsement_not_available_in_customers_region"],
+                },
+              },
+            ],
+          }),
+        );
+
+        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+
+        expect(result.status).toBe("ONBOARDING");
+        expect(result.kycLink).toBeUndefined();
+      });
+
+      it("returns ONBOARDING with kycLink when issues contain government_id_verification_failed", async () => {
+        vi.spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(
+            fetchResponse({
+              ...activeCustomer,
+              status: "incomplete",
+              endorsements: [
+                {
+                  name: "base",
+                  status: "approved",
+                  requirements: {
+                    complete: [],
+                    pending: [],
+                    missing: null,
+                    issues: ["government_id_verification_failed"],
+                  },
+                },
+              ],
+            }),
+          )
+          .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
+
+        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+
+        expect(result.status).toBe("ONBOARDING");
+        expect(result.kycLink).toBe("https://kyc.bridge.xyz/link");
+      });
+
+      it("returns ONBOARDING with kycLink when missing is tax_identification_number string", async () => {
+        vi.spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(
+            fetchResponse({
+              ...activeCustomer,
+              status: "incomplete",
+              endorsements: [
+                {
+                  name: "base",
+                  status: "approved",
+                  requirements: { complete: [], pending: [], missing: "tax_identification_number", issues: [] },
+                },
+              ],
+            }),
+          )
+          .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
+
+        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+
+        expect(result.status).toBe("ONBOARDING");
+        expect(result.kycLink).toBe("https://kyc.bridge.xyz/link");
+      });
+
+      it("returns ONBOARDING with kycLink when missing is source_of_funds_questionnaire string", async () => {
+        vi.spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(
+            fetchResponse({
+              ...activeCustomer,
+              status: "incomplete",
+              endorsements: [
+                {
+                  name: "base",
+                  status: "approved",
+                  requirements: {
+                    complete: [],
+                    pending: [],
+                    missing: "source_of_funds_questionnaire",
+                    issues: [],
+                  },
+                },
+              ],
+            }),
+          )
+          .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
+
+        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+
+        expect(result.status).toBe("ONBOARDING");
+        expect(result.kycLink).toBe("https://kyc.bridge.xyz/link");
+      });
+
+      it("returns ONBOARDING with kycLink when missing contains source_of_funds_questionnaire in all_of", async () => {
+        vi.spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(
+            fetchResponse({
+              ...activeCustomer,
+              status: "incomplete",
+              endorsements: [
+                {
+                  name: "base",
+                  status: "approved",
+                  requirements: {
+                    complete: [],
+                    pending: [],
+                    missing: { all_of: ["source_of_funds_questionnaire", "post_processing"] },
+                    issues: [],
+                  },
+                },
+              ],
+            }),
+          )
+          .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
+
+        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+
+        expect(result.status).toBe("ONBOARDING");
+        expect(result.kycLink).toBe("https://kyc.bridge.xyz/link");
+      });
+
+      it("returns ONBOARDING with kycLink when missing contains tax_identification_number in all_of", async () => {
+        vi.spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(
+            fetchResponse({
+              ...activeCustomer,
+              status: "incomplete",
+              endorsements: [
+                {
+                  name: "base",
+                  status: "approved",
+                  requirements: {
+                    complete: [],
+                    pending: [],
+                    missing: { all_of: ["address_of_residence", "tax_identification_number"] },
+                    issues: [],
+                  },
+                },
+              ],
+            }),
+          )
+          .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
+
+        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+
+        expect(result.status).toBe("ONBOARDING");
+        expect(result.kycLink).toBe("https://kyc.bridge.xyz/link");
+      });
+
+      it("returns ONBOARDING with kycLink when missing contains tax_identification_number in any_of", async () => {
+        vi.spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(
+            fetchResponse({
+              ...activeCustomer,
+              status: "incomplete",
+              endorsements: [
+                {
+                  name: "base",
+                  status: "approved",
+                  requirements: {
+                    complete: [],
+                    pending: [],
+                    missing: { any_of: ["source_of_funds_questionnaire", "tax_identification_number"] },
+                    issues: [],
+                  },
+                },
+              ],
+            }),
+          )
+          .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
+
+        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+
+        expect(result.status).toBe("ONBOARDING");
+        expect(result.kycLink).toBe("https://kyc.bridge.xyz/link");
+      });
+
+      it("returns ONBOARDING with kycLink when missing has nested all_of and any_of", async () => {
+        vi.spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(
+            fetchResponse({
+              ...activeCustomer,
+              status: "incomplete",
+              endorsements: [
+                {
+                  name: "base",
+                  status: "approved",
+                  requirements: {
+                    complete: [],
+                    pending: [],
+                    missing: {
+                      all_of: ["address_of_residence", { any_of: ["first_name", "tax_identification_number"] }],
+                    },
+                    issues: [],
+                  },
+                },
+              ],
+            }),
+          )
+          .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
+
+        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+
+        expect(result.status).toBe("ONBOARDING");
+        expect(result.kycLink).toBe("https://kyc.bridge.xyz/link");
+      });
+
+      it("returns ONBOARDING without kycLink when nested missing has no matching targets", async () => {
+        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+          fetchResponse({
+            ...activeCustomer,
+            status: "incomplete",
+            endorsements: [
+              {
+                name: "base",
+                status: "approved",
+                requirements: {
+                  complete: [],
+                  pending: [],
+                  missing: {
+                    all_of: ["address_of_residence", { any_of: ["first_name", "source_of_funds_questionnaire"] }],
+                  },
+                  issues: [],
+                },
+              },
+            ],
+          }),
+        );
+
+        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+
+        expect(result.status).toBe("ONBOARDING");
+        expect(result.kycLink).toBeUndefined();
+      });
+
+      it("returns ONBOARDING without kycLink when getKycLink fails", async () => {
+        vi.spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(
+            fetchResponse({
+              ...activeCustomer,
+              status: "incomplete",
+              endorsements: [
+                {
+                  name: "base",
+                  status: "approved",
+                  requirements: { complete: [], pending: [], missing: "tax_identification_number", issues: [] },
+                },
+              ],
+            }),
+          )
+          .mockResolvedValueOnce(fetchError(500, "bridge kyc error"));
+
+        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+
+        expect(result.status).toBe("ONBOARDING");
+        expect(result.kycLink).toBeUndefined();
+        expect(captureException).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ level: "error" }));
+      });
+
+      it("returns ONBOARDING without kycLink when blocklist overrides valid issue", async () => {
+        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+          fetchResponse({
+            ...activeCustomer,
+            status: "incomplete",
+            endorsements: [
+              {
+                name: "base",
+                status: "approved",
+                requirements: {
+                  complete: [],
+                  pending: [],
+                  missing: null,
+                  issues: ["government_id_verification_failed", "blocklist_check_failed"],
+                },
+              },
+            ],
+          }),
+        );
+
+        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+
+        expect(result.status).toBe("ONBOARDING");
+        expect(result.kycLink).toBeUndefined();
+      });
+
+      it("returns ONBOARDING without kycLink when blocklist overrides valid missing", async () => {
+        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+          fetchResponse({
+            ...activeCustomer,
+            status: "incomplete",
+            endorsements: [
+              {
+                name: "base",
+                status: "approved",
+                requirements: {
+                  complete: [],
+                  pending: [],
+                  missing: "tax_identification_number",
+                  issues: ["blocklist_check_failed"],
+                },
+              },
+            ],
+          }),
+        );
+
+        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+
+        expect(result.status).toBe("ONBOARDING");
+        expect(result.kycLink).toBeUndefined();
+      });
+
+      it("returns ONBOARDING without kycLink when region unavailable overrides valid issue", async () => {
+        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+          fetchResponse({
+            ...activeCustomer,
+            status: "incomplete",
+            endorsements: [
+              {
+                name: "base",
+                status: "approved",
+                requirements: {
+                  complete: [],
+                  pending: [],
+                  missing: null,
+                  issues: ["government_id_verification_failed", "endorsement_not_available_in_customers_region"],
+                },
+              },
+            ],
+          }),
+        );
+
+        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+
+        expect(result.status).toBe("ONBOARDING");
+        expect(result.kycLink).toBeUndefined();
+      });
+
+      it("returns ONBOARDING with kycLink when only some endorsements have region issue", async () => {
+        vi.spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(
+            fetchResponse({
+              ...activeCustomer,
+              status: "incomplete",
+              endorsements: [
+                {
+                  name: "base",
+                  status: "approved",
+                  requirements: {
+                    complete: [],
+                    pending: [],
+                    missing: null,
+                    issues: ["endorsement_not_available_in_customers_region"],
+                  },
+                },
+                {
+                  name: "sepa",
+                  status: "approved",
+                  requirements: {
+                    complete: [],
+                    pending: [],
+                    missing: null,
+                    issues: ["government_id_verification_failed"],
+                  },
+                },
+              ],
+            }),
+          )
+          .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
+
+        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+
+        expect(result.status).toBe("ONBOARDING");
+        expect(result.kycLink).toBe("https://kyc.bridge.xyz/link");
+      });
+
       it("returns ACTIVE with GBP from faster_payments endorsement", async () => {
         vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
           fetchResponse({
@@ -361,7 +832,7 @@ describe("bridge utils", () => {
             endorsements: [
               {
                 ...endorsement("base", "approved"),
-                requirements: { complete: [], pending: [], missing: true, issues: [] },
+                requirements: { complete: [], pending: [], missing: "post_processing", issues: [] },
               },
             ],
           }),
