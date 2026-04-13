@@ -1,5 +1,11 @@
 # @exactly/mobile
 
+## 1.2.3
+
+### Patch Changes
+
+- [#941](https://github.com/exactly/exa/pull/941) [`511c8db`](https://github.com/exactly/exa/commit/511c8db49879b7d7f7eb72c008f4ca0dd9321a40) Thanks [@franm91](https://github.com/franm91)! - ✨ enable kyc onboarding from add-funds
+
 ## 1.2.2
 
 ### Patch Changes
