@@ -314,7 +314,7 @@ Submit information for KYC application.
 
 **Encrypted kyc payload**
 
-When the header has encrypted=true, the payload should be encrypted.
+When the payload includes the \`ciphertext\` field (alongside \`key\`, \`iv\`, \`tag\`), it is treated as encrypted. Encryption is auto-detected from the payload shape.
 
 The steps to encrypt are:
 
@@ -322,8 +322,7 @@ The steps to encrypt are:
 2. Encrypt Payload: Use AES-256-GCM to encrypt your KYC JSON data
 3. Encrypt AES Key: Use Rain-provided RSA public key with OAEP padding
 4. Encode Components: Base64-encode all encrypted components
-5. Set Header: Include encrypted: "true" header in your request
-6. Submit Request
+5. Submit Request
 
 KYC Encryption Public Key for sandbox is:
 
@@ -493,7 +492,6 @@ The admin should add a member using [addMember method](https://www.better-auth.c
       ]),
       validatorHook({ debug }),
     ),
-    vValidator("header", optional(object({ encrypted: optional(string()) })), validatorHook({ debug })),
     async (c) => {
       const payload = c.req.valid("json");
       const { message, signature, walletAddress: address } = payload.verify;
@@ -561,7 +559,7 @@ The admin should add a member using [addMember method](https://www.better-auth.c
       if (credential.pandaId) return c.json({ code: BadRequestCodes.ALREADY_STARTED }, 409);
 
       try {
-        const application = await submitApplication(body, c.req.header("encrypted") === "true");
+        const application = await submitApplication(body);
         await database
           .update(credentials)
           .set({ pandaId: application.id, source: member.organization.id })

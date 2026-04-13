@@ -2012,7 +2012,7 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
                   verify,
                 },
               },
-              { headers: { "test-credential-id": account, SessionID: "fakeSession", encrypted: "true" } },
+              { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
             );
 
             const updatedCredential = await database.query.credentials.findFirst({
@@ -2025,9 +2025,9 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
             expect(updatedCredential?.pandaId).toBe("pandaId");
             expect(mockFetch).toHaveBeenCalledWith(
               expect.stringContaining("/issuing/applications/user"),
-              expect.objectContaining({ encrypted: "true" }),
               expect.objectContaining({
                 method: "POST",
+                headers: expect.objectContaining({ encrypted: "true" }), // eslint-disable-line @typescript-eslint/no-unsafe-assignment
               }),
             );
             expect(JSON.parse(body as string)).toStrictEqual({
@@ -2072,7 +2072,7 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
                   },
                 },
               },
-              { headers: { "test-credential-id": account, SessionID: "fakeSession", encrypted: "true" } },
+              { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
             );
 
             expect(response.status).toBe(403);

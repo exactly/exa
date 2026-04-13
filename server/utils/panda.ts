@@ -51,6 +51,8 @@ import verifySignature from "./verifySignature";
 import database, { credentials } from "../database";
 import publicClient from "../utils/publicClient";
 
+import type { Hex } from "@exactly/common/validation";
+
 const plugin = exaPluginAddress.toLowerCase();
 
 if (!process.env.PANDA_API_URL) throw new Error("missing panda api url");
@@ -459,11 +461,11 @@ export function getMutex(address: Address) {
   return mutexes.get(address);
 }
 
-export async function submitApplication(payload: InferInput<typeof SubmitApplicationRequest>, encrypted = false) {
+export async function submitApplication(payload: InferInput<typeof SubmitApplicationRequest>) {
   return request(
     ApplicationResponse,
     "/issuing/applications/user",
-    { ...(encrypted && { encrypted: "true" }) },
+    { ...("ciphertext" in payload && { encrypted: "true" }) },
     payload,
     "POST",
     10_000,
