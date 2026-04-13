@@ -118,7 +118,7 @@ export async function lockQrPayment(userAnyId: string, paymentDestination: strin
 }
 
 export function getDepositDetails(currency: (typeof MantecaCurrency)[number], exchange: (typeof Exchange)[number]) {
-  const network: `${(typeof MantecaCurrency)[number]}-${(typeof Exchange)[number]}` = `${currency}-${exchange}`;
+  const network = `${currency}-${exchange}` as const;
   switch (network) {
     case "ARS-ARGENTINA":
       return [

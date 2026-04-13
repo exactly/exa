@@ -36,7 +36,8 @@ import ServiceError from "../ServiceError";
 
 export const name = "bridge" as const;
 
-export const Network = ["SOLANA", "STELLAR", "TRON"] as const;
+export const EVMNetwork = ["BASE"] as const;
+export const Network = [...EVMNetwork, "SOLANA", "STELLAR", "TRON"] as const;
 
 if (!process.env.BRIDGE_API_URL) throw new Error("missing bridge api url");
 const baseURL = process.env.BRIDGE_API_URL;
@@ -177,23 +178,17 @@ export async function getProvider(params: {
   customerId?: null | string;
   redirectURL?: string;
 }) {
-  const currencies: (
-    | (typeof FiatCurrency)[number]
-    | { currency: "USDC"; network: "SOLANA" }
-    | { currency: "USDC"; network: "STELLAR" }
-    | { currency: "USDT"; network: "TRON" }
-  )[] = [];
-
   if (!Supported[chain.id]) {
     captureException(new Error("bridge not supported chain id"), { contexts: { chain }, level: "error" });
     return { onramp: { currencies: [] }, status: "NOT_AVAILABLE" as const };
   }
 
-  currencies.push(
-    { currency: "USDC", network: "SOLANA" },
-    { currency: "USDC", network: "STELLAR" },
-    { currency: "USDT", network: "TRON" },
-  );
+  const currencies = [
+    ...EVMNetwork.map((network) => ({ currency: "USDC" as const, network })),
+    { currency: "USDC" as const, network: "SOLANA" as const },
+    { currency: "USDC" as const, network: "STELLAR" as const },
+    { currency: "USDT" as const, network: "TRON" as const },
+  ];
 
   if (params.customerId) {
     const bridgeUser = await getCustomer(params.customerId);
@@ -247,35 +242,41 @@ export async function getProvider(params: {
       });
     }
 
-    for (const endorsement of bridgeUser.endorsements) {
-      if (endorsement.status !== "approved") {
-        // TODO handle pending tasks
-        captureException(new Error("endorsement not approved"), {
-          contexts: { bridge: { bridgeId: params.customerId, endorsement } },
-          level: "warning",
-        });
-        break;
-      }
+    return {
+      status: "ACTIVE" as const,
+      onramp: {
+        currencies: [
+          ...currencies,
+          ...bridgeUser.endorsements.flatMap((endorsement) => {
+            if (endorsement.status !== "approved") {
+              // TODO handle pending tasks
+              captureException(new Error("endorsement not approved"), {
+                contexts: { bridge: { bridgeId: params.customerId, endorsement } },
+                level: "warning",
+              });
+              return [];
+            }
 
-      currencies.push(...CurrencyByEndorsement[endorsement.name]);
+            if (endorsement.additional_requirements?.length) {
+              // TODO handle additional requirements
+              captureException(new Error("additional requirements"), {
+                contexts: { bridge: { bridgeId: params.customerId, endorsement } },
+                level: "warning",
+              });
+            }
 
-      if (endorsement.additional_requirements?.length) {
-        // TODO handle additional requirements
-        captureException(new Error("additional requirements"), {
-          contexts: { bridge: { bridgeId: params.customerId, endorsement } },
-          level: "warning",
-        });
-      }
+            if (endorsement.requirements.missing) {
+              captureException(new Error("requirements missing"), {
+                contexts: { bridge: { bridgeId: params.customerId, endorsement } },
+                level: "warning",
+              });
+            }
 
-      if (endorsement.requirements.missing) {
-        captureException(new Error("requirements missing"), {
-          contexts: { bridge: { bridgeId: params.customerId, endorsement } },
-          level: "warning",
-        });
-      }
-    }
-
-    return { status: "ACTIVE" as const, onramp: { currencies } };
+            return CurrencyByEndorsement[endorsement.name];
+          }),
+        ],
+      },
+    };
   }
 
   const personaAccount = await persona.getAccount(params.credentialId, "bridge");
@@ -301,11 +302,13 @@ export async function getProvider(params: {
     throw new Error(ErrorCodes.NO_SOCIAL_SECURITY_NUMBER);
   }
 
-  const endorsements: (typeof Endorsements)[number][] = ["base", "sepa"];
-  if (countryCode === "MX") endorsements.push("spei");
-  if (countryCode === "BR") endorsements.push("pix");
-  if (countryCode === "GB") endorsements.push("faster_payments");
-  for (const endorsement of endorsements) currencies.push(...CurrencyByEndorsement[endorsement]);
+  const endorsements = [
+    "base" as const,
+    "sepa" as const,
+    ...(countryCode === "MX" ? ["spei" as const] : []),
+    ...(countryCode === "BR" ? ["pix" as const] : []),
+    ...(countryCode === "GB" ? ["faster_payments" as const] : []),
+  ];
 
   return {
     status: "NOT_STARTED" as const,
@@ -317,7 +320,9 @@ export async function getProvider(params: {
         return String(redirect);
       })(),
     ),
-    onramp: { currencies },
+    onramp: {
+      currencies: [...currencies, ...endorsements.flatMap((endorsement) => CurrencyByEndorsement[endorsement])],
+    },
   };
 }
 
@@ -486,7 +491,11 @@ export async function getCryptoDepositDetails(
     }),
   );
 
-  return getDepositDetailsFromLiquidationAddress(liquidationAddress, account);
+  return getDepositDetailsFromLiquidationAddress(
+    liquidationAddress,
+    account,
+    paymentRail === "evm" ? parse(picklist(EVMNetwork), network) : undefined,
+  );
 }
 
 const missing = new Set(["tax_identification_number", "source_of_funds_questionnaire"]);
@@ -564,16 +573,18 @@ const CurrencyByEndorsement: Record<(typeof Endorsements)[number], (typeof FiatC
   spei: ["MXN"],
 };
 
-export const CryptoPaymentRail = ["solana", "stellar", "tron"] as const;
+export const CryptoPaymentRail = ["evm", "solana", "stellar", "tron"] as const;
 export const BridgeChain = ["optimism"] as const;
 
 const CurrencyByPaymentRail: Record<(typeof CryptoPaymentRail)[number], (typeof CryptoCurrency)[number][]> = {
+  evm: ["USDC"],
   solana: ["USDC"],
   stellar: ["USDC"],
   tron: ["USDT"],
 };
 
 const NetworkToCryptoPaymentRail: Record<(typeof Network)[number], (typeof CryptoPaymentRail)[number]> = {
+  BASE: "evm",
   SOLANA: "solana",
   STELLAR: "stellar",
   TRON: "tron",
@@ -902,14 +913,14 @@ const VirtualAccount = object({
     }),
   ]),
   destination: object({
-    address: string(),
+    address: Address,
   }),
 });
 const VirtualAccounts = object({ count: number(), data: array(VirtualAccount) });
 
 const CreateLiquidationAddress = object({
   currency: picklist(["usdc", "usdt"]),
-  chain: picklist([...CryptoPaymentRail, "evm"]),
+  chain: picklist([...CryptoPaymentRail]),
   destination_payment_rail: picklist(BridgeChain),
   destination_currency: picklist(["usdc"]),
   destination_address: Address,
@@ -918,9 +929,9 @@ const CreateLiquidationAddress = object({
 const LiquidationAddress = object({
   id: string(),
   currency: picklist(["usdc", "usdt", "any"]),
-  chain: picklist([...CryptoPaymentRail, "evm"]),
+  chain: picklist([...CryptoPaymentRail]),
   address: string(),
-  destination_address: string(),
+  destination_address: Address,
   blockchain_memo: optional(string()),
 });
 
@@ -1053,12 +1064,24 @@ function getDepositDetailsFromVirtualAccount(virtualAccount: InferOutput<typeof 
 function getDepositDetailsFromLiquidationAddress(
   liquidationAddress: InferOutput<typeof LiquidationAddress>,
   account: string,
+  evmNetwork?: (typeof EVMNetwork)[number],
 ) {
   if (liquidationAddress.destination_address.toLowerCase() !== account.toLowerCase()) {
     throw new Error(ErrorCodes.INVALID_ACCOUNT);
   }
 
   switch (liquidationAddress.chain) {
+    case "evm":
+      if (!evmNetwork) throw new Error(ErrorCodes.NOT_AVAILABLE_EVM_NETWORK);
+      return [
+        {
+          network: evmNetwork,
+          displayName: evmNetwork,
+          address: parse(Address, liquidationAddress.address),
+          fee: "0.0",
+          estimatedProcessingTime: "300",
+        },
+      ];
     case "tron":
       return [
         {
@@ -1105,6 +1128,7 @@ export const ErrorCodes = {
   NOT_AVAILABLE_CRYPTO_PAYMENT_RAIL: "not available crypto payment rail",
   NOT_AVAILABLE_CURRENCY: "not available currency",
   MISSING_STELLAR_MEMO: "missing stellar memo",
+  NOT_AVAILABLE_EVM_NETWORK: "not available evm network",
   NOT_FOUND_IDENTIFICATION_CLASS: "not found identification class",
   NOT_SUPPORTED_CHAIN_ID: "not supported chain id",
   NO_COUNTRY_ALPHA3: "no country alpha3",

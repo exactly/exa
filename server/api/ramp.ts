@@ -96,8 +96,11 @@ export default new Hono()
         object({ provider: literal("manteca"), currency: picklist(manteca.Currency) }),
         object({ provider: literal("bridge"), currency: picklist(bridge.FiatCurrency) }),
         object({ provider: literal("bridge"), currency: literal("USDT"), network: literal("TRON") }),
-        object({ provider: literal("bridge"), currency: literal("USDC"), network: literal("SOLANA") }),
-        object({ provider: literal("bridge"), currency: literal("USDC"), network: literal("STELLAR") }),
+        object({
+          provider: literal("bridge"),
+          currency: literal("USDC"),
+          network: picklist([...bridge.EVMNetwork, "SOLANA", "STELLAR"]),
+        }),
       ]),
       validatorHook(),
     ),
@@ -313,6 +316,15 @@ const DepositDetails = variant("network", [
     fee: string(),
     estimatedProcessingTime: string(),
   }),
+  ...bridge.EVMNetwork.map((network) =>
+    object({
+      network: literal(network),
+      displayName: literal(network),
+      address: Address,
+      fee: string(),
+      estimatedProcessingTime: string(),
+    }),
+  ),
   object({
     network: literal("TRON"),
     displayName: literal("TRON"),
@@ -373,8 +385,7 @@ const ProviderInfo = variant("provider", [
           picklist(bridge.FiatCurrency),
           variant("currency", [
             object({ currency: literal("USDT"), network: literal("TRON") }),
-            object({ currency: literal("USDC"), network: literal("SOLANA") }),
-            object({ currency: literal("USDC"), network: literal("STELLAR") }),
+            object({ currency: literal("USDC"), network: picklist([...bridge.EVMNetwork, "SOLANA", "STELLAR"]) }),
           ]),
         ]),
       ),

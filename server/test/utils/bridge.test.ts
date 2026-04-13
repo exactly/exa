@@ -304,14 +304,7 @@ describe("bridge utils", () => {
 
         expect(result).toStrictEqual({
           status: "ONBOARDING",
-          onramp: {
-            currencies: [
-              { currency: "USDC", network: "SOLANA" },
-              { currency: "USDC", network: "STELLAR" },
-              { currency: "USDT", network: "TRON" },
-              "USD",
-            ],
-          },
+          onramp: { currencies: onboardingCurrencies },
           kycLink: undefined,
         });
         expect(fetchSpy).toHaveBeenCalledOnce();
@@ -1020,17 +1013,21 @@ describe("bridge utils", () => {
         });
       });
 
-      it("stops collecting currencies on first non-approved endorsement", async () => {
+      it("skips non-approved endorsements and continues collecting", async () => {
         vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
           fetchResponse({
             ...activeCustomer,
-            endorsements: [endorsement("base", "approved"), endorsement("sepa", "incomplete")],
+            endorsements: [
+              endorsement("base", "approved"),
+              endorsement("sepa", "incomplete"),
+              endorsement("pix", "approved"),
+            ],
           }),
         );
 
         await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
           status: "ACTIVE",
-          onramp: { currencies: [...baseCurrencies, "USD"] },
+          onramp: { currencies: [...baseCurrencies, "USD", "BRL"] },
         });
         expect(captureException).toHaveBeenCalledWith(
           expect.objectContaining({ message: "endorsement not approved" }),
@@ -1812,10 +1809,10 @@ describe("bridge utils", () => {
   describe("getVirtualAccounts", () => {
     it("paginates when count exceeds first page", async () => {
       const page1 = Array.from({ length: 20 }, (_, index) => ({
-        ...usdVirtualAccount(`0x${String(index).padStart(40, "0")}`),
+        ...usdVirtualAccount(padHex(`0x${(index + 1).toString(16)}`, { size: 20 })),
         id: `va-${String(index)}`,
       }));
-      const page2 = [{ ...usdVirtualAccount("0x20"), id: "va-20" }];
+      const page2 = [{ ...usdVirtualAccount(padHex("0x15", { size: 20 })), id: "va-20" }];
       vi.spyOn(globalThis, "fetch")
         .mockResolvedValueOnce(fetchResponse({ count: 21, data: page1 }))
         .mockResolvedValueOnce(fetchResponse({ count: 21, data: page2 }));
@@ -1832,7 +1829,7 @@ describe("bridge utils", () => {
     it("does not paginate when all results fit in first page", async () => {
       const fetchSpy = vi
         .spyOn(globalThis, "fetch")
-        .mockResolvedValueOnce(fetchResponse({ count: 1, data: [usdVirtualAccount("0x1")] }));
+        .mockResolvedValueOnce(fetchResponse({ count: 1, data: [usdVirtualAccount(padHex("0x1", { size: 20 }))] }));
 
       const result = await bridge.getVirtualAccounts("cust-1");
 
@@ -1848,7 +1845,7 @@ describe("bridge utils", () => {
         currency: "usdt" as const,
         chain: "tron" as const,
         address: `TAddr${String(index)}`,
-        destination_address: `0x${String(index).padStart(40, "0")}`,
+        destination_address: padHex(`0x${(index + 1).toString(16)}`, { size: 20 }),
       }));
       const page2 = [
         {
@@ -1856,7 +1853,7 @@ describe("bridge utils", () => {
           currency: "usdt" as const,
           chain: "tron" as const,
           address: "TAddr20",
-          destination_address: "0x20",
+          destination_address: padHex("0x15", { size: 20 }),
         },
       ];
       vi.spyOn(globalThis, "fetch")
@@ -1876,7 +1873,15 @@ describe("bridge utils", () => {
       const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
         fetchResponse({
           count: 1,
-          data: [{ id: "la-1", currency: "usdt", chain: "tron", address: "TAddr1", destination_address: "0x1" }],
+          data: [
+            {
+              id: "la-1",
+              currency: "usdt",
+              chain: "tron",
+              address: "TAddr1",
+              destination_address: padHex("0x1", { size: 20 }),
+            },
+          ],
         }),
       );
 
@@ -1889,6 +1894,7 @@ describe("bridge utils", () => {
 
   describe("getCryptoDepositDetails", () => {
     const account = parse(Address, padHex("0x1", { size: 20 }));
+    const deposit = parse(Address, padHex("0xde9", { size: 20 }));
 
     it("throws NOT_SUPPORTED_CHAIN_ID for unsupported chain", async () => {
       chainMock.id = 1;
@@ -2037,6 +2043,57 @@ describe("bridge utils", () => {
         bridge.ErrorCodes.INVALID_ACCOUNT,
       );
     });
+
+    it("returns BASE deposit details from existing evm liquidation address", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        fetchResponse({
+          count: 1,
+          data: [{ id: "la-evm", currency: "usdc", chain: "evm", address: deposit, destination_address: account }],
+        }),
+      );
+
+      const result = await bridge.getCryptoDepositDetails("USDC", "BASE", account, activeCustomer);
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toStrictEqual({
+        network: "BASE",
+        displayName: "BASE",
+        address: deposit,
+        fee: "0.0",
+        estimatedProcessingTime: "300",
+      });
+    });
+
+    it("creates evm liquidation address when none exists for BASE", async () => {
+      vi.spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(fetchResponse({ count: 0, data: [] }))
+        .mockResolvedValueOnce(
+          fetchResponse({
+            id: "la-evm-new",
+            currency: "usdc",
+            chain: "evm",
+            address: deposit,
+            destination_address: account,
+          }),
+        );
+
+      const result = await bridge.getCryptoDepositDetails("USDC", "BASE", account, activeCustomer);
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toStrictEqual({
+        network: "BASE",
+        displayName: "BASE",
+        address: deposit,
+        fee: "0.0",
+        estimatedProcessingTime: "300",
+      });
+    });
+
+    it("throws NOT_AVAILABLE_CRYPTO_PAYMENT_RAIL for USDT on BASE", async () => {
+      await expect(bridge.getCryptoDepositDetails("USDT", "BASE", account, activeCustomer)).rejects.toThrow(
+        bridge.ErrorCodes.NOT_AVAILABLE_CRYPTO_PAYMENT_RAIL,
+      );
+    });
   });
 });
 
@@ -2102,6 +2159,7 @@ function endorsement(
 }
 
 const baseCurrencies = [
+  { currency: "USDC", network: "BASE" },
   { currency: "USDC", network: "SOLANA" },
   { currency: "USDC", network: "STELLAR" },
   { currency: "USDT", network: "TRON" },

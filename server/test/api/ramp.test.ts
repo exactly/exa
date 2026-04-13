@@ -5,11 +5,13 @@ import "../mocks/sentry";
 
 import { HTTPException } from "hono/http-exception";
 import { testClient } from "hono/testing";
+import { parse } from "valibot";
 import { hexToBytes, padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
+import { Address } from "@exactly/common/validation";
 
 import app from "../../api/ramp";
 import database, { credentials } from "../../database";
@@ -23,6 +25,7 @@ describe("ramp api", () => {
   const owner = privateKeyToAddress(padHex("0xdef"));
   const factory = inject("ExaAccountFactory");
   const account = deriveAddress(factory, { x: padHex(owner), y: zeroHash });
+  const deposit = parse(Address, padHex("0xde9", { size: 20 }));
 
   beforeAll(async () => {
     await database.insert(credentials).values([
@@ -611,6 +614,37 @@ describe("ramp api", () => {
               fee: "0.0",
               estimatedProcessingTime: "300",
               memo: "789012",
+            },
+          ],
+        });
+      });
+
+      it("returns deposit info with undefined quote for bridge USDC/BASE", async () => {
+        vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+        vi.spyOn(bridge, "getCryptoDepositDetails").mockResolvedValue([
+          {
+            network: "BASE" as const,
+            displayName: "BASE" as const,
+            address: deposit,
+            fee: "0.0",
+            estimatedProcessingTime: "300",
+          },
+        ]);
+
+        const response = await appClient.quote.$get(
+          { query: { provider: "bridge", currency: "USDC", network: "BASE" } },
+          { headers: { "test-credential-id": "ramp-bridge" } },
+        );
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({
+          depositInfo: [
+            {
+              network: "BASE",
+              displayName: "BASE",
+              address: deposit,
+              fee: "0.0",
+              estimatedProcessingTime: "300",
             },
           ],
         });
