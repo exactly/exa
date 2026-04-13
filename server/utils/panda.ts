@@ -377,11 +377,11 @@ export function getMutex(address: Address) {
   return mutexes.get(address);
 }
 
-export async function submitApplication(payload: InferInput<typeof SubmitApplicationRequest>, encrypted = false) {
+export async function submitApplication(payload: InferInput<typeof SubmitApplicationRequest>) {
   return request(
     ApplicationResponse,
     "/issuing/applications/user",
-    { ...(encrypted && { encrypted: "true" }) },
+    { ...("ciphertext" in payload && { encrypted: "true" }) },
     payload,
     "POST",
     10_000,
