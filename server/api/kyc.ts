@@ -260,15 +260,13 @@ export default new Hono()
           return c.json({ code: "failed", legacy: "kyc failed" }, 400);
         case "completed":
         case "needs_review":
-          return c.json({ code: "failed", legacy: "kyc failed" }, 400); // TODO send a different response
+          return c.json({ code: "processing", legacy: "kyc failed" }, 400);
         case "pending":
         case "created":
-        case "expired": {
-          const { inquiryId, sessionToken } = await generateInquiryTokens(inquiry.id);
-          return c.json({ inquiryId, sessionToken }, 200);
-        }
+        case "expired":
+          return c.json(await generateInquiryTokens(inquiry.id), 200);
         default:
-          throw new Error("Unknown inquiry status");
+          throw new Error("unknown inquiry status");
       }
     },
   );
