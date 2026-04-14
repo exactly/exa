@@ -74,14 +74,17 @@ function parseError(error: unknown) {
     typeof root === "object" && root !== null && "code" in root && typeof root.code === "string" && root.code.length > 0
       ? root.code
       : undefined;
-  const status =
-    typeof root === "object" &&
-    root !== null &&
-    "code" in root &&
-    typeof root.code === "number" &&
-    Number.isFinite(root.code)
-      ? String(root.code)
-      : undefined;
+  let status: string | undefined;
+  for (
+    let cause: unknown = error;
+    cause != null && typeof cause === "object";
+    cause = (cause as { cause?: unknown }).cause
+  ) {
+    if ("code" in cause && typeof cause.code === "number" && Number.isFinite(cause.code)) {
+      status = String(cause.code);
+      break;
+    }
+  }
   const name =
     typeof root === "object" && root !== null && "name" in root && typeof root.name === "string" && root.name.length > 0
       ? root.name
