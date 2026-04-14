@@ -1,3 +1,4 @@
+import "../mocks/deployments";
 import "../mocks/pax";
 import "../mocks/persona";
 import "../mocks/sentry";
@@ -13,6 +14,7 @@ import deriveAddress from "@exactly/common/deriveAddress";
 
 import database, { credentials } from "../../database";
 import app from "../../hooks/persona";
+import { kms } from "../../utils/gcp";
 import * as panda from "../../utils/panda";
 import * as pax from "../../utils/pax";
 import * as persona from "../../utils/persona";
@@ -21,6 +23,7 @@ import * as sardine from "../../utils/sardine";
 const appClient = testClient(app);
 
 vi.mock("@sentry/node", { spy: true });
+vi.mock("../../utils/gcp", () => ({ kms: vi.fn(() => Promise.resolve({ exaSend: vi.fn() })) }));
 
 describe("with reference", () => {
   const referenceId = "hook-persona";
@@ -384,7 +387,10 @@ describe("persona hook", () => {
     });
   });
 
-  afterEach(() => vi.resetAllMocks());
+  afterEach(async () => {
+    vi.resetAllMocks();
+    await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "persona-ref"));
+  });
 
   it("creates panda and pax user on valid inquiry", async () => {
     vi.spyOn(panda, "createUser").mockResolvedValue({ id: "new-panda-id" });
@@ -430,6 +436,98 @@ describe("persona hook", () => {
       ),
       product: "travel insurance",
     });
+  });
+
+  it("allows account on firewall after kyc approval", async () => {
+    const mockExaSend = vi.fn();
+    vi.mocked(kms).mockResolvedValueOnce({ exaSend: mockExaSend });
+    vi.spyOn(panda, "createUser").mockResolvedValue({ id: "new-panda-id" });
+    vi.spyOn(pax, "addCapita").mockResolvedValue({});
+    vi.spyOn(sardine, "customer").mockResolvedValueOnce({ sessionKey: "test", status: "Success", level: "low" });
+
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: {
+        ...validPayload,
+        data: {
+          ...validPayload.data,
+          attributes: {
+            ...validPayload.data.attributes,
+            payload: {
+              ...validPayload.data.attributes.payload,
+              included: [...validPayload.data.attributes.payload.included],
+            },
+          },
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(kms).toHaveBeenCalledWith("allower");
+    await vi.waitFor(() => expect(mockExaSend).toHaveBeenCalled());
+    const call = mockExaSend.mock.calls[0] as unknown[];
+    expect(call[1]).toHaveProperty("functionName", "allow");
+    expect(call[1]).toHaveProperty("address", inject("Firewall"));
+  });
+
+  it("captures allower init failure without blocking panda creation", async () => {
+    vi.mocked(kms).mockRejectedValueOnce(new Error("kms unavailable"));
+    vi.spyOn(panda, "createUser").mockResolvedValue({ id: "new-panda-id" });
+    vi.spyOn(pax, "addCapita").mockResolvedValue({});
+    vi.spyOn(sardine, "customer").mockResolvedValueOnce({ sessionKey: "test", status: "Success", level: "low" });
+
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: {
+        ...validPayload,
+        data: {
+          ...validPayload.data,
+          attributes: {
+            ...validPayload.data.attributes,
+            payload: {
+              ...validPayload.data.attributes.payload,
+              included: [...validPayload.data.attributes.payload.included],
+            },
+          },
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ id: "new-panda-id" });
+    expect(panda.createUser).toHaveBeenCalled();
+    await vi.waitFor(() =>
+      expect(captureException).toHaveBeenCalledWith(new Error("kms unavailable"), { level: "error" }),
+    );
+  });
+
+  it("captures exaSend failure without blocking panda creation", async () => {
+    vi.mocked(kms).mockResolvedValueOnce({ exaSend: vi.fn().mockRejectedValueOnce(new Error("revert")) });
+    vi.spyOn(panda, "createUser").mockResolvedValue({ id: "new-panda-id" });
+    vi.spyOn(pax, "addCapita").mockResolvedValue({});
+    vi.spyOn(sardine, "customer").mockResolvedValueOnce({ sessionKey: "test", status: "Success", level: "low" });
+
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: {
+        ...validPayload,
+        data: {
+          ...validPayload.data,
+          attributes: {
+            ...validPayload.data.attributes,
+            payload: {
+              ...validPayload.data.attributes.payload,
+              included: [...validPayload.data.attributes.payload.included],
+            },
+          },
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ id: "new-panda-id" });
+    expect(panda.createUser).toHaveBeenCalled();
+    await vi.waitFor(() => expect(captureException).toHaveBeenCalledWith(new Error("revert"), { level: "error" }));
   });
 });
 

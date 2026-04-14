@@ -21,9 +21,11 @@ import {
   union,
 } from "valibot";
 
+import { firewallAbi, firewallAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
 import database, { credentials } from "../database/index";
+import { kms } from "../utils/gcp";
 import { createUser } from "../utils/panda";
 import { addCapita, deriveAssociateId } from "../utils/pax";
 import {
@@ -298,6 +300,22 @@ export default new Hono().post(
     if (risk) {
       getActiveSpan()?.setAttributes({ "exa.risk": risk.level, "exa.score": risk.customer?.score });
       if (risk.level === "very_high") return c.json({ code: "very high risk" }, 200);
+    }
+
+    if (firewallAddress) {
+      const account = safeParse(Address, credential.account);
+      if (account.success) {
+        const address = firewallAddress;
+        kms("allower")
+          .then((allower) =>
+            allower.exaSend(
+              { name: "firewall.allow", op: "exa.firewall", attributes: { account: account.output } },
+              { address, functionName: "allow", args: [account.output, true], abi: firewallAbi },
+              { ignore: [`AlreadyAllowed(${account.output})`] },
+            ),
+          )
+          .catch((error: unknown) => captureException(error, { level: "error" }));
+      }
     }
 
     // TODO implement error handling to return 200 if event should not be retried
