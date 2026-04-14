@@ -201,6 +201,87 @@ describe("bridge hook", () => {
     expect(captureException).not.toHaveBeenCalled();
   });
 
+  it("sends push notification for microdeposit with sender name", async () => {
+    vi.spyOn(segment, "track").mockReturnValue();
+    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const response = await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(microdeposit) },
+      json: microdeposit as never,
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(sendPushNotification).toHaveBeenCalledWith({
+      userId: account,
+      headings: { en: "Microdeposit" },
+      contents: { en: "You received a microdeposit of 0.26 USD from Jane Doe" },
+    });
+    expect(segment.track).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("sends push notification for microdeposit without source", async () => {
+    vi.spyOn(segment, "track").mockReturnValue();
+    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const payload = {
+      ...microdeposit,
+      event_object: {
+        id: "evt_456",
+        type: "microdeposit",
+        currency: "usd",
+        customer_id: "bridgeCustomerId",
+        amount: "-0.26",
+      },
+    };
+    const response = await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(payload) },
+      json: payload as never,
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(sendPushNotification).toHaveBeenCalledWith({
+      userId: account,
+      headings: { en: "Microdeposit" },
+      contents: { en: "You received a microdeposit of 0.26 USD" },
+    });
+    expect(segment.track).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("sends push notification for microdeposit with source but no sender name", async () => {
+    vi.spyOn(segment, "track").mockReturnValue();
+    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const payload = { ...microdeposit, event_object: { ...microdeposit.event_object, source: {} } };
+    const response = await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(payload) },
+      json: payload as never,
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(sendPushNotification).toHaveBeenCalledWith({
+      userId: account,
+      headings: { en: "Microdeposit" },
+      contents: { en: "You received a microdeposit of 0.26 USD" },
+    });
+    expect(segment.track).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("captures exception when microdeposit push notification fails", async () => {
+    const error = new Error("push failed");
+    vi.spyOn(onesignal, "sendPushNotification").mockRejectedValue(error);
+    const response = await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(microdeposit) },
+      json: microdeposit as never,
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(error, { level: "error" });
+  });
+
   it("returns 200 with credential not found when bridgeId does not match", async () => {
     vi.spyOn(segment, "track").mockReturnValue();
     const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
@@ -673,6 +754,18 @@ const paymentProcessed = {
 const statusTransitioned = {
   event_type: "customer.updated.status_transitioned",
   event_object: { id: "bridgeCustomerId", status: "active" },
+};
+
+const microdeposit = {
+  event_type: "virtual_account.activity.created",
+  event_object: {
+    id: "evt_456",
+    type: "microdeposit",
+    currency: "usd",
+    customer_id: "bridgeCustomerId",
+    amount: "-0.26",
+    source: { sender_name: "Jane Doe" },
+  },
 };
 
 const drain = {

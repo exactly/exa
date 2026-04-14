@@ -5,7 +5,7 @@ import { and, DrizzleQueryError, eq, isNull } from "drizzle-orm";
 import { Hono } from "hono";
 import { validator } from "hono/validator";
 import { createHash, createVerify } from "node:crypto";
-import { literal, object, parse, picklist, string, unknown, variant } from "valibot";
+import { literal, object, optional, parse, picklist, string, unknown, variant } from "valibot";
 
 import { Address } from "@exactly/common/validation";
 
@@ -68,7 +68,14 @@ export default new Hono().post(
           object({ type: literal("funds_received"), id: string(), customer_id: string() }),
           object({ type: literal("funds_scheduled"), id: string(), customer_id: string() }),
           object({ type: literal("in_review"), id: string(), customer_id: string() }),
-          object({ type: literal("microdeposit"), id: string(), customer_id: string() }), // cspell:ignore microdeposit
+          object({
+            amount: string(),
+            currency: picklist(BridgeCurrency),
+            customer_id: string(),
+            id: string(),
+            source: optional(object({ sender_name: optional(string()) })),
+            type: literal("microdeposit"),
+          }),
           object({
             customer_id: string(),
             currency: picklist(BridgeCurrency),
@@ -201,6 +208,15 @@ export default new Hono().post(
               usdcAmount: Number(payload.event_object.receipt.final_amount),
             },
           });
+        }
+        if (payload.event_object.type === "microdeposit") {
+          sendPushNotification({
+            userId: account,
+            headings: { en: "Microdeposit" },
+            contents: {
+              en: `You received a microdeposit of ${payload.event_object.amount.replace("-", "")} ${payload.event_object.currency.toUpperCase()}${payload.event_object.source?.sender_name ? ` from ${payload.event_object.source.sender_name}` : ""}`,
+            },
+          }).catch((error: unknown) => captureException(error, { level: "error" }));
         }
         return c.json({ code: "ok" }, 200);
       case "liquidation_address.drain.updated.status_transitioned":
