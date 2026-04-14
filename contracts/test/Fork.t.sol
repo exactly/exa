@@ -19,6 +19,7 @@ abstract contract ForkTest is Test {
   ICreate3Factory internal immutable CREATE3_FACTORY;
 
   constructor() {
+    setChain("op_bnb", ChainData("opBNB", 204, "https://opbnb-mainnet-rpc.bnbchain.org")); // solhint-disable-line gas-small-strings
     // TODO remove after https://github.com/lifinance/create3-factory/issues/14
     if (block.chainid == 11_155_420) CREATE3_FACTORY = ICreate3Factory(0xcc3f41204a1324DD91F1Dbfc46208535293A371e);
     // TODO remove after https://github.com/lifinance/create3-factory/issues/18
