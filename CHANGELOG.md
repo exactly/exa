@@ -1,5 +1,18 @@
 # @exactly/mobile
 
+## 1.2.4
+
+### Patch Changes
+
+- [#946](https://github.com/exactly/exa/pull/946) [`83f28bd`](https://github.com/exactly/exa/commit/83f28bd456a02ce1db9a2aefa38f42b16d11ec6d) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚸 replace pressable icons with icon button component
+
+- [#946](https://github.com/exactly/exa/pull/946) [`6c0155d`](https://github.com/exactly/exa/commit/6c0155dd2677c41ce8b4b7a8a0b11a7cca5d2922) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ create icon button component
+
+- [#954](https://github.com/exactly/exa/pull/954) [`f3eff2b`](https://github.com/exactly/exa/commit/f3eff2b00563827736c974661ff32d48610ba78f) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ expose address and card status to miniapp host
+
+- Updated dependencies [[`bae8e19`](https://github.com/exactly/exa/commit/bae8e19c49720aba1cd21d9d7296978c150be1d4)]:
+  - @exactly/server@0.2.88
+
 ## 1.2.3
 
 ### Patch Changes
