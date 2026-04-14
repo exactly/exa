@@ -59,7 +59,13 @@ const baseURL = process.env.PANDA_API_URL;
 if (!process.env.PANDA_API_KEY) throw new Error("missing panda api key");
 const key = process.env.PANDA_API_KEY;
 
-export async function createCard(userId: string, productId: typeof PLATINUM_PRODUCT_ID | typeof SIGNATURE_PRODUCT_ID) {
+export const USD_TO_CENTS = 100;
+
+export async function createCard(
+  userId: string,
+  productId: typeof PLATINUM_PRODUCT_ID | typeof SIGNATURE_PRODUCT_ID,
+  limitAmountCents = 1_000_000,
+) {
   return await request(
     CardResponse,
     `/issuing/users/${userId}/cards`,
@@ -67,7 +73,7 @@ export async function createCard(userId: string, productId: typeof PLATINUM_PROD
     parse(CreateCardRequest, {
       type: "virtual",
       status: "active",
-      limit: { amount: 1_000_000, frequency: "per7DayPeriod" },
+      limit: { amount: limitAmountCents, frequency: "per7DayPeriod" },
       configuration: {
         productId,
         virtualCardArt:

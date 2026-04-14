@@ -41,9 +41,10 @@ import {
   getUser,
   setPIN,
   updateCard,
+  USD_TO_CENTS,
 } from "../utils/panda";
 import { addCapita, deriveAssociateId } from "../utils/pax";
-import { getAccount } from "../utils/persona";
+import { getAccount, getCardLimitAccount } from "../utils/persona";
 import { customer } from "../utils/sardine";
 import { track } from "../utils/segment";
 import ServiceError from "../utils/ServiceError";
@@ -372,7 +373,15 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
           }
           if (cardCount > 0) return c.json({ code: "already created" }, 400);
           try {
-            const card = await createCard(credential.pandaId, SIGNATURE_PRODUCT_ID);
+            const cardLimitAccount = await getCardLimitAccount(credentialId).catch((error: unknown) => {
+              captureException(error, { level: "error", contexts: { details: { credentialId, scope: "cardLimit" } } });
+            });
+            const limit = cardLimitAccount?.attributes.fields.card_limit_usd?.value;
+            const card = await createCard(
+              credential.pandaId,
+              SIGNATURE_PRODUCT_ID,
+              limit == null ? undefined : limit * USD_TO_CENTS,
+            );
             let mode = 0;
             try {
               if (await autoCredit(account)) mode = 1;

@@ -7,7 +7,9 @@ import {
   flatten,
   literal,
   nullable,
+  number,
   object,
+  optional,
   picklist,
   safeParse,
   string,
@@ -28,10 +30,13 @@ if (!process.env.PERSONA_API_KEY) throw new Error("missing persona api key");
 if (!process.env.PERSONA_URL) throw new Error("missing persona url");
 if (!process.env.PERSONA_WEBHOOK_SECRET) throw new Error("missing persona webhook secret");
 
+export const CARD_LIMIT_CASE_TEMPLATE = "ctmpl_5cCoj56PD6NpsX3H3ZoMynZVfXbF"; // cspell:ignore ctmpl_5cCoj56PD6NpsX3H3ZoMynZVfXbF
+export const CARD_LIMIT_TEMPLATE = "itmpl_HSA4M3SwiH2wiWVpvFn4ny1kPws2"; // cspell:ignore itmpl_HSA4M3SwiH2wiWVpvFn4ny1kPws2
 export const CRYPTOMATE_TEMPLATE = "itmpl_8uim4FvD5P3kFpKHX37CW817";
 export const PANDA_TEMPLATE = "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2";
 export const MANTECA_TEMPLATE_EXTRA_FIELDS = "itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo";
 export const MANTECA_TEMPLATE_WITH_ID_CLASS = "itmpl_TjaqJdQYkht17v645zNFUfkaWNan";
+export const ADDRESS_TEMPLATE = "itmpl_FTHNSXqJjoMvUTBc85QECGHogrZx";
 
 const PERSONA_API_VERSION = "2023-01-05";
 
@@ -52,13 +57,31 @@ export async function getInquiry(referenceId: string, templateId: string) {
   return inquiries[0];
 }
 
+export function getInquiryById(inquiryId: string) {
+  return request(
+    object({ data: object({ attributes: object({ "reference-id": string() }) }) }),
+    `/inquiries/${inquiryId}`,
+  );
+}
+
 export function resumeInquiry(inquiryId: string) {
   return request(ResumeInquiryResponse, `/inquiries/${inquiryId}/resume`, undefined, "POST");
 }
 
-export function createInquiry(referenceId: string, templateId: string, redirectURI?: string) {
+export function createInquiry(
+  referenceId: string,
+  templateId: string,
+  redirectURI?: string,
+  fields?: Record<string, string>,
+) {
   return request(CreateInquiryResponse, "/inquiries", {
-    data: { attributes: { "inquiry-template-id": templateId, "redirect-uri": `${redirectURI ?? appOrigin}/card` } },
+    data: {
+      attributes: {
+        "inquiry-template-id": templateId,
+        "redirect-uri": `${redirectURI ?? appOrigin}/card`,
+        ...(fields && { fields }),
+      },
+    },
     meta: { "auto-create-account": true, "auto-create-account-reference-id": referenceId },
   });
 }
@@ -258,10 +281,19 @@ const UnknownAccount = object({
   data: array(object({ id: string(), type: literal("account"), attributes: unknown() })),
 });
 
+const CardLimitAccount = object({
+  id: string(),
+  type: literal("account"),
+  attributes: object({
+    fields: object({ card_limit_usd: optional(object({ value: nullable(number()) })) }),
+  }),
+});
+
 const accountScopeSchemas = {
   basic: object({ data: array(BaseAccount) }),
   manteca: object({ data: array(MantecaAccount) }),
   document: object({ data: array(DocumentAccount) }),
+  cardLimit: object({ data: array(CardLimitAccount) }),
 } as const;
 
 export type AccountScope = keyof typeof accountScopeSchemas;
@@ -269,7 +301,10 @@ type AccountResponse<T extends AccountScope> = InferOutput<(typeof accountScopeS
 export type AccountOutput<T extends AccountScope> = AccountResponse<T>["data"][number];
 
 export function getAccounts<T extends AccountScope>(referenceId: string, scope: T): Promise<AccountResponse<T>> {
-  return request(accountScopeSchemas[scope], `/accounts?page[size]=1&filter[reference-id]=${referenceId}`);
+  return request(
+    accountScopeSchemas[scope] as BaseSchema<unknown, AccountResponse<T>, BaseIssue<unknown>>,
+    `/accounts?page[size]=1&filter[reference-id]=${referenceId}`,
+  );
 }
 
 export async function getAccount<T extends AccountScope>(
@@ -280,14 +315,26 @@ export async function getAccount<T extends AccountScope>(
   return data[0];
 }
 
+export function getCardLimitAccount(referenceId: string) {
+  return getAccount(referenceId, "cardLimit");
+}
+
+export async function updateCardLimit(referenceId: string, limitUsd: number) {
+  const account = await getCardLimitAccount(referenceId);
+  if (!account) throw new Error("account not found");
+  return request(
+    object({ data: object({ id: string() }) }),
+    `/accounts/${account.id}`,
+    { data: { attributes: { fields: { card_limit_usd: limitUsd } } } },
+    "PATCH",
+  );
+}
+
 function getUnknownAccount(referenceId: string) {
   return request(UnknownAccount, `/accounts?page[size]=1&filter[reference-id]=${referenceId}`);
 }
 
-export async function getPendingInquiryTemplate(
-  referenceId: string,
-  scope: AccountScope,
-): Promise<Awaited<ReturnType<typeof evaluateAccount>>> {
+export async function getPendingInquiryTemplate(referenceId: string, scope: AccountScope) {
   const unknownAccount = await getUnknownAccount(referenceId);
   return evaluateAccount(unknownAccount, scope);
 }
@@ -296,11 +343,20 @@ export async function evaluateAccount(
   unknownAccount: InferOutput<typeof UnknownAccount>,
   scope: AccountScope,
 ): Promise<
-  typeof MANTECA_TEMPLATE_EXTRA_FIELDS | typeof MANTECA_TEMPLATE_WITH_ID_CLASS | typeof PANDA_TEMPLATE | undefined
+  | typeof CARD_LIMIT_TEMPLATE
+  | typeof MANTECA_TEMPLATE_EXTRA_FIELDS
+  | typeof MANTECA_TEMPLATE_WITH_ID_CLASS
+  | typeof PANDA_TEMPLATE
+  | undefined
 > {
   switch (scope) {
     case "document":
       throw new Error("document account scope not supported");
+    case "cardLimit": {
+      const basicTemplate = await evaluateAccount(unknownAccount, "basic");
+      if (basicTemplate) return basicTemplate;
+      return CARD_LIMIT_TEMPLATE;
+    }
     case "basic": {
       const result = safeParse(accountScopeSchemas[scope], unknownAccount);
       if (!result.success) {

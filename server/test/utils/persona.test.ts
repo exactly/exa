@@ -574,6 +574,125 @@ describe("evaluateAccount", () => {
   });
 });
 
+describe("updateCardLimit", () => {
+  let fetchSpy: MockInstance<typeof fetch>;
+  beforeEach(() => {
+    fetchSpy = vi.spyOn(globalThis, "fetch");
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("patches persona account with card_limit_usd", async () => {
+    fetchSpy
+      .mockResolvedValueOnce(
+        Response.json({
+          data: [{ id: "acct_123", type: "account", attributes: { fields: { card_limit_usd: { value: null } } } }],
+        }),
+      )
+      .mockResolvedValueOnce(Response.json({ data: { id: "acct_123" } }));
+
+    await persona.updateCardLimit("ref_123", 20_000);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    const patchCall = fetchSpy.mock.calls[1];
+    expect(patchCall?.[0]).toContain("/accounts/acct_123");
+    expect(patchCall?.[1]).toMatchObject({
+      method: "PATCH",
+      body: JSON.stringify({ data: { attributes: { fields: { card_limit_usd: 20_000 } } } }),
+    });
+  });
+
+  it("throws when account not found", async () => {
+    fetchSpy.mockResolvedValueOnce(Response.json({ data: [] }));
+
+    await expect(persona.updateCardLimit("ref_123", 20_000)).rejects.toThrow("account not found");
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends only card_limit_usd in patch body", async () => {
+    fetchSpy
+      .mockResolvedValueOnce(
+        Response.json({
+          data: [{ id: "acct_456", type: "account", attributes: { fields: { card_limit_usd: { value: 10_000 } } } }],
+        }),
+      )
+      .mockResolvedValueOnce(Response.json({ data: { id: "acct_456" } }));
+
+    await persona.updateCardLimit("ref_456", 30_000);
+
+    const patchBody = JSON.parse(fetchSpy.mock.calls[1]?.[1]?.body as string) as unknown;
+    expect(patchBody).toStrictEqual({ data: { attributes: { fields: { card_limit_usd: 30_000 } } } });
+  });
+});
+
+describe("getCardLimitAccount", () => {
+  let fetchSpy: MockInstance<typeof fetch>;
+  beforeEach(() => {
+    fetchSpy = vi.spyOn(globalThis, "fetch");
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("returns account with card_limit_usd when set", async () => {
+    fetchSpy.mockResolvedValueOnce(
+      Response.json({
+        data: [{ id: "acct_123", type: "account", attributes: { fields: { card_limit_usd: { value: 20_000 } } } }],
+      }),
+    );
+
+    const account = await persona.getCardLimitAccount("ref_123");
+
+    expect(account?.attributes.fields.card_limit_usd?.value).toBe(20_000);
+  });
+
+  it("returns account with card_limit_usd null when unset", async () => {
+    fetchSpy.mockResolvedValueOnce(
+      Response.json({
+        data: [{ id: "acct_123", type: "account", attributes: { fields: { card_limit_usd: { value: null } } } }],
+      }),
+    );
+
+    const account = await persona.getCardLimitAccount("ref_123");
+
+    expect(account?.attributes.fields.card_limit_usd?.value).toBeNull();
+  });
+
+  it("returns account when card_limit_usd field is absent", async () => {
+    fetchSpy.mockResolvedValueOnce(
+      Response.json({ data: [{ id: "acct_123", type: "account", attributes: { fields: {} } }] }),
+    );
+
+    const account = await persona.getCardLimitAccount("ref_123");
+
+    expect(account?.attributes.fields.card_limit_usd).toBeUndefined();
+  });
+
+  it("returns undefined when no account exists", async () => {
+    fetchSpy.mockResolvedValueOnce(Response.json({ data: [] }));
+
+    const account = await persona.getCardLimitAccount("ref_123");
+
+    expect(account).toBeUndefined();
+  });
+});
+
+describe("evaluateAccount cardLimit", () => {
+  it("returns panda template when basic is not done", async () => {
+    const result = await persona.evaluateAccount(emptyAccount, "cardLimit");
+
+    expect(result).toBe(persona.PANDA_TEMPLATE);
+  });
+
+  it("returns card limit template when basic is done", async () => {
+    const result = await persona.evaluateAccount(basicAccount, "cardLimit");
+
+    expect(result).toBe(persona.CARD_LIMIT_TEMPLATE);
+  });
+});
+
 describe("getAllowedMantecaIds", () => {
   describe("development mode", () => {
     beforeEach(() => {
