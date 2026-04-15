@@ -17,6 +17,7 @@ import { eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import * as v from "valibot";
 import { bytesToBigInt, createPublicClient, createWalletClient, hexToBigInt, http, rpcSchema, withRetry } from "viem";
+import { anvil } from "viem/chains";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import exaChain, {
@@ -40,6 +41,7 @@ import keeper, { extender } from "../utils/keeper";
 import { sendPushNotification } from "../utils/onesignal";
 import { autoCredit } from "../utils/panda";
 import publicClient, { captureRequests, Request } from "../utils/publicClient";
+import redis from "../utils/redis";
 import revertFingerprint from "../utils/revertFingerprint";
 import { track } from "../utils/segment";
 import { trace, type RpcSchema } from "../utils/traceClient";
@@ -138,7 +140,7 @@ export default new Hono().post(
       if (chain.id === exaChain.id && rawContract?.address && markets.has(rawContract.address)) continue;
       const asset = rawContract?.address ?? ETH;
       const underlying = asset === ETH ? WETH : asset;
-      sendPushNotification({
+      const notification = {
         userId: account,
         headings: t("Funds received"),
         contents: t(
@@ -156,7 +158,11 @@ export default new Hono().post(
               : assetSymbol,
           },
         ),
-      }).catch((error: unknown) => captureException(error));
+      };
+      const known = marketsByAsset.has(underlying) ? Promise.resolve(true) : isKnownToken(chain.id, underlying);
+      known
+        .then((isKnown) => (isKnown ? sendPushNotification(notification) : undefined))
+        .catch((error: unknown) => captureException(error, { level: "error" }));
 
       if (pokes.has(account)) {
         pokes.get(account)?.assets.add(asset);
@@ -330,3 +336,36 @@ findWebhook(({ webhook_type, webhook_url }) => webhook_type === "ADDRESS_ACTIVIT
     signingKeys.add(newHook.signing_key);
   })
   .catch((error: unknown) => captureException(error));
+
+async function isKnownToken(chainId: number, address: Address) {
+  if (chainId === anvil.id) return true;
+  const key = `lifi:tokens:${chainId}`;
+  try {
+    const [[, isMember], [, count]] = v.parse(
+      v.tuple([v.tuple([v.null(), v.number()]), v.tuple([v.null(), v.number()])]),
+      await redis.pipeline().sismember(key, address).scard(key).exec(),
+    );
+    if (isMember) return true;
+    if (count > 0) return false;
+    const response = await fetch(`https://li.quest/v1/tokens?chains=${chainId}`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!response.ok) throw new Error(`lifi tokens ${response.status}`);
+    const { tokens } = v.parse(
+      v.object({ tokens: v.record(v.string(), v.array(v.object({ address: v.string() }))) }),
+      await response.json(),
+    );
+    const addresses = (tokens[String(chainId)] ?? []).map((token) => v.parse(Address, token.address));
+    if (addresses.length === 0) return true;
+    await redis
+      .multi()
+      .del(key)
+      .sadd(key, ...addresses)
+      .expire(key, 3600)
+      .exec();
+    return addresses.includes(address);
+  } catch (error: unknown) {
+    captureException(error, { level: "error" });
+    return true;
+  }
+}
