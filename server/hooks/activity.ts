@@ -15,7 +15,9 @@ import { eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import * as v from "valibot";
 import { bytesToBigInt, hexToBigInt } from "viem";
+import { anvil } from "viem/chains";
 
+import chain from "@exactly/common/generated/chain";
 import {
   exaAccountFactoryAbi,
   exaPreviewerAbi,
@@ -33,6 +35,7 @@ import keeper from "../utils/keeper";
 import { sendPushNotification } from "../utils/onesignal";
 import { autoCredit } from "../utils/panda";
 import publicClient from "../utils/publicClient";
+import redis from "../utils/redis";
 import revertFingerprint from "../utils/revertFingerprint";
 import { track } from "../utils/segment";
 import validatorHook from "../utils/validatorHook";
@@ -117,25 +120,65 @@ export default new Hono().post(
       if (rawContract?.address && markets.has(rawContract.address)) continue;
       const asset = rawContract?.address ?? ETH;
       const underlying = asset === ETH ? WETH : asset;
-      sendPushNotification({
-        userId: account,
-        headings: t("Funds received"),
-        contents: t(
-          marketsByAsset.has(underlying)
-            ? "{{amount}} received and instantly started earning yield"
-            : "{{amount}} received",
-          {
-            amount: value
-              ? Object.fromEntries(
-                  Object.entries(f(value)).map(([language, amount]) => [
-                    language,
-                    assetSymbol ? `${amount} ${assetSymbol}` : amount,
-                  ]),
-                )
-              : assetSymbol,
-          },
-        ),
-      }).catch((error: unknown) => captureException(error));
+      let knownToken = true;
+      if (chain.id !== anvil.id) {
+        const key = `lifi:tokens:${chain.id}`;
+        const address = underlying.toLowerCase();
+        try {
+          const [[, isMember], [, count]] = v.parse(
+            v.tuple([v.tuple([v.null(), v.number()]), v.tuple([v.null(), v.number()])]),
+            await redis.pipeline().sismember(key, address).scard(key).exec(),
+          );
+          if (!isMember) {
+            if (count > 0) {
+              knownToken = false;
+            } else {
+              const response = await fetch(`https://li.quest/v1/tokens?chains=${chain.id}`, {
+                signal: AbortSignal.timeout(5000),
+              });
+              if (response.ok) {
+                const { tokens } = v.parse(
+                  v.object({ tokens: v.record(v.string(), v.array(v.object({ address: v.string() }))) }),
+                  await response.json(),
+                );
+                const tokenList = (tokens[String(chain.id)] ?? []).map((t) => t.address.toLowerCase());
+                if (tokenList.length > 0) {
+                  await redis
+                    .multi()
+                    .del(key)
+                    .sadd(key, ...tokenList)
+                    .expire(key, 120)
+                    .exec();
+                  knownToken = tokenList.includes(address);
+                }
+              }
+            }
+          }
+        } catch (error: unknown) {
+          captureException(error, { level: "error" });
+        }
+      }
+      if (marketsByAsset.has(underlying) || knownToken) {
+        sendPushNotification({
+          userId: account,
+          headings: t("Funds received"),
+          contents: t(
+            marketsByAsset.has(underlying)
+              ? "{{amount}} received and instantly started earning yield"
+              : "{{amount}} received",
+            {
+              amount: value
+                ? Object.fromEntries(
+                    Object.entries(f(value)).map(([language, amount]) => [
+                      language,
+                      assetSymbol ? `${amount} ${assetSymbol}` : amount,
+                    ]),
+                  )
+                : assetSymbol,
+            },
+          ),
+        }).catch((error: unknown) => captureException(error));
+      }
       accounts.add(account);
     }
     const { "sentry-trace": sentryTrace, baggage } = getTraceData();
