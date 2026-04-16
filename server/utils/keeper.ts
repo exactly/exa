@@ -12,11 +12,13 @@ import {
   RawContractError,
   WaitForTransactionReceiptTimeoutError,
   withRetry,
-  type HttpTransport,
+  type Chain,
   type MaybePromise,
   type Prettify,
   type PrivateKeyAccount,
+  type PublicActions,
   type TransactionReceipt,
+  type Transport,
   type WalletClient,
   type WriteContractParameters,
 } from "viem";
@@ -28,9 +30,9 @@ import revertReason from "@exactly/common/revertReason";
 import { Address, Hash } from "@exactly/common/validation";
 
 import nonceManager from "./nonceManager";
-import publicClient, { captureRequests, Requests } from "./publicClient";
+import defaultPublicClient, { captureRequests, Requests } from "./publicClient";
 import revertFingerprint from "./revertFingerprint";
-import traceClient from "./traceClient";
+import defaultTraceClient from "./traceClient";
 
 if (!chain.rpcUrls.alchemy.http[0]) throw new Error("missing alchemy rpc url");
 
@@ -50,12 +52,25 @@ export default createWalletClient({
   ),
 }).extend(extender);
 
-export function extender(keeper: WalletClient<HttpTransport, typeof chain, PrivateKeyAccount>) {
+export function extender(
+  keeper: WalletClient<Transport, Chain, PrivateKeyAccount>,
+  {
+    publicClient = defaultPublicClient,
+    traceClient = defaultTraceClient,
+  }: {
+    publicClient?: Pick<
+      PublicActions<Transport, Chain>,
+      "sendRawTransaction" | "simulateContract" | "waitForTransactionReceipt"
+    >;
+    traceClient?: Pick<typeof defaultTraceClient, "traceTransaction">;
+  } = {},
+) {
   return {
     exaSend: async (
       spanOptions: Prettify<Omit<Parameters<typeof startSpan>[0], "name" | "op"> & { name: string; op: string }>,
       call: Prettify<Pick<WriteContractParameters, "abi" | "address" | "args" | "functionName">>,
       options?: {
+        fees?: "auto";
         ignore?: ((reason: string) => MaybePromise<boolean | TransactionReceipt | undefined>) | string[];
         level?: "error" | "warning" | ((reason: string, error: unknown) => "error" | "warning" | false) | false;
         onHash?: (hash: Hash) => MaybePromise<unknown>;
@@ -74,9 +89,11 @@ export function extender(keeper: WalletClient<HttpTransport, typeof chain, Priva
             });
             const txOptions = {
               type: "eip1559",
-              maxFeePerGas: 1_000_000_000n,
-              maxPriorityFeePerGas: 1_000_000n,
               gas: 5_000_000n,
+              ...(options?.fees !== "auto" && {
+                maxFeePerGas: 1_000_000_000n,
+                maxPriorityFeePerGas: 1_000_000n,
+              }),
             } as const;
             const { request: writeRequest } = await startSpan({ name: "eth_call", op: "tx.simulate" }, () =>
               publicClient.simulateContract({ account: keeper.account, ...txOptions, ...call }),
@@ -127,11 +144,11 @@ export function extender(keeper: WalletClient<HttpTransport, typeof chain, Priva
                     startSpan(
                       { name: "nonce reset", op: "tx.reset", attributes: { "tx.nonce": prepared.nonce } },
                       (resetSpan) => {
-                        const info = nonceManager.info({ address: keeper.account.address, chainId: chain.id });
+                        const info = nonceManager.info({ address: keeper.account.address, chainId: keeper.chain.id });
                         resetSpan.setAttribute("exa.reset", true);
                         resetSpan.setAttribute("exa.delta", info.delta);
                         resetSpan.setAttribute("exa.nonce", info.nonce);
-                        nonceManager.hardReset({ address: keeper.account.address, chainId: chain.id });
+                        nonceManager.hardReset({ address: keeper.account.address, chainId: keeper.chain.id });
                       },
                     );
                   }

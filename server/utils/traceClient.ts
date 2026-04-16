@@ -13,6 +13,8 @@ import {
   type BlockNumber,
   type BlockTag,
   type CallParameters,
+  type Chain,
+  type Client,
   type FormattedTransactionRequest,
   type Hash,
   type Hex,
@@ -23,6 +25,7 @@ import {
   type RpcTransactionRequest,
   type StateMapping,
   type StateOverride,
+  type Transport,
 } from "viem";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
@@ -32,15 +35,7 @@ import { captureRequests, Request } from "./publicClient";
 
 if (!chain.rpcUrls.alchemy.http[0]) throw new Error("missing alchemy rpc url");
 
-export default createPublicClient({
-  chain,
-  rpcSchema: rpcSchema<RpcSchema>(),
-  transport: http(`${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`, {
-    async onFetchRequest(request) {
-      captureRequests([parse(Request, await request.json())]);
-    },
-  }),
-}).extend((client) => ({
+export const trace = (client: Pick<Client<Transport, Chain | undefined, undefined, RpcSchema>, "request">) => ({
   traceCall: async ({
     blockNumber,
     blockTag = "latest",
@@ -63,7 +58,17 @@ export default createPublicClient({
       method: "debug_traceTransaction",
       params: [hash, { tracer: "callTracer", tracerConfig: { withLog: true } }],
     }),
-}));
+});
+
+export default createPublicClient({
+  chain,
+  rpcSchema: rpcSchema<RpcSchema>(),
+  transport: http(`${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`, {
+    async onFetchRequest(request) {
+      captureRequests([parse(Request, await request.json())]);
+    },
+  }),
+}).extend(trace);
 
 export type CallFrame = {
   calls?: CallFrame[];

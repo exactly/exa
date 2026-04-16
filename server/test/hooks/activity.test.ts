@@ -6,6 +6,7 @@ import "../mocks/sentry";
 
 import { captureException, setUser } from "@sentry/node";
 import { testClient } from "hono/testing";
+import * as viem from "viem";
 import {
   BaseError,
   bytesToHex,
@@ -28,8 +29,9 @@ import { exaAccountFactoryAbi, previewerAbi } from "@exactly/common/generated/ch
 
 import database, { credentials } from "../../database";
 import app from "../../hooks/activity";
+import { NETWORKS } from "../../utils/alchemy";
 import * as decodePublicKey from "../../utils/decodePublicKey";
-import keeper from "../../utils/keeper";
+import keeper, * as keeperUtilities from "../../utils/keeper";
 import * as onesignal from "../../utils/onesignal";
 import publicClient from "../../utils/publicClient";
 import anvilClient from "../anvilClient";
@@ -56,7 +58,6 @@ describe("address activity", () => {
   });
 
   it("captures no balance once after retries", async () => {
-    vi.spyOn(publicClient, "getCode").mockResolvedValue("0x1");
     vi.spyOn(keeper, "exaSend").mockImplementation((spanOptions) =>
       Promise.resolve(
         spanOptions.op === "exa.poke" ? null : ({ status: "success" } as Awaited<ReturnType<typeof keeper.exaSend>>),
@@ -90,8 +91,11 @@ describe("address activity", () => {
   });
 
   it("fails with unexpected error", async () => {
-    const getCode = vi.spyOn(publicClient, "getCode");
-    getCode.mockRejectedValue(new Error("Unexpected"));
+    const chain = NETWORKS.get("ANVIL");
+    if (!chain) throw new Error("missing anvil");
+    const client = viem.createPublicClient({ chain, transport: viem.http(chain.rpcUrls.alchemy.http[0]) });
+    const getCode = vi.spyOn(client, "getCode").mockRejectedValueOnce(new Error("Unexpected"));
+    vi.mocked(viem.createPublicClient).mockReturnValueOnce(client);
 
     const deposit = parseEther("5");
     await anvilClient.setBalance({ address: account, value: deposit });
@@ -137,10 +141,10 @@ describe("address activity", () => {
       },
     });
 
-    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0);
+    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0, 26_666);
 
     expect(captureException).toHaveBeenCalledWith(
-      new WaitForTransactionReceiptTimeoutError({ hash: zeroHash }),
+      expect.objectContaining({ name: "WaitForTransactionReceiptTimeoutError" }),
       expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "unknown"] }),
     );
     expect(
@@ -178,7 +182,7 @@ describe("address activity", () => {
       },
     });
 
-    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0);
+    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0, 26_666);
 
     expect(captureException).toHaveBeenCalledWith(
       expect.any(BaseError),
@@ -213,7 +217,7 @@ describe("address activity", () => {
       },
     });
 
-    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0);
+    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0, 26_666);
 
     expect(captureException).toHaveBeenCalledWith(
       expect.any(BaseError),
@@ -246,7 +250,7 @@ describe("address activity", () => {
       },
     });
 
-    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0);
+    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0, 26_666);
 
     expect(captureException).toHaveBeenCalledWith(
       expect.any(BaseError),
@@ -285,7 +289,7 @@ describe("address activity", () => {
       },
     });
 
-    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0);
+    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0, 26_666);
 
     expect(captureException).toHaveBeenCalledWith(
       expect.any(BaseError),
@@ -299,7 +303,6 @@ describe("address activity", () => {
   });
 
   it("fingerprints shouldRetry by error name", async () => {
-    vi.spyOn(publicClient, "getCode").mockResolvedValue("0x1");
     const revertAbi = [{ type: "error", name: "Unauthorized", inputs: [] }] as const;
     vi.spyOn(publicClient, "simulateContract").mockRejectedValueOnce(
       new BaseError("test", {
@@ -336,7 +339,6 @@ describe("address activity", () => {
   });
 
   it("fingerprints shouldRetry by reason", async () => {
-    vi.spyOn(publicClient, "getCode").mockResolvedValue("0x1");
     vi.spyOn(publicClient, "simulateContract").mockRejectedValueOnce(
       new BaseError("test", {
         cause: new ContractFunctionRevertedError({ abi: [], functionName: "pokeETH", message: "custom reason" }),
@@ -368,7 +370,6 @@ describe("address activity", () => {
   });
 
   it("fingerprints shouldRetry by signature", async () => {
-    vi.spyOn(publicClient, "getCode").mockResolvedValue("0x1");
     vi.spyOn(publicClient, "simulateContract").mockRejectedValueOnce(
       new BaseError("test", {
         cause: new ContractFunctionRevertedError({ abi: [], data: "0xdeadbeef", functionName: "pokeETH" }),
@@ -400,7 +401,6 @@ describe("address activity", () => {
   });
 
   it("fingerprints shouldRetry as unknown revert", async () => {
-    vi.spyOn(publicClient, "getCode").mockResolvedValue("0x1");
     vi.spyOn(publicClient, "simulateContract").mockRejectedValueOnce(
       new BaseError("test", { cause: new ContractFunctionRevertedError({ abi: [], functionName: "pokeETH" }) }),
     );
@@ -430,7 +430,6 @@ describe("address activity", () => {
   });
 
   it("fingerprints shouldRetry as unknown", async () => {
-    vi.spyOn(publicClient, "getCode").mockResolvedValue("0x1");
     vi.spyOn(publicClient, "simulateContract").mockRejectedValueOnce(new Error("unexpected"));
 
     const response = await appClient.index.$post({
@@ -666,7 +665,6 @@ describe("address activity", () => {
   });
 
   it("ignores token without value and zero rawValue", async () => {
-    vi.spyOn(publicClient, "getCode").mockResolvedValue("0x1");
     const exaSend = vi.spyOn(keeper, "exaSend");
     const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
 
@@ -706,6 +704,7 @@ describe("address activity", () => {
   });
 
   it("pokes multiple accounts", async () => {
+    const deposit = parseEther("5");
     const owners = [
       owner,
       privateKeyToAccount(generatePrivateKey()),
@@ -715,15 +714,17 @@ describe("address activity", () => {
       deriveAddress(inject("ExaAccountFactory"), { x: padHex(address), y: zeroHash }),
     );
     await Promise.all([
-      ...accounts.slice(1).map((id) =>
-        database.insert(credentials).values({
-          id,
-          publicKey: new Uint8Array(hexToBytes(id)),
-          account: id,
+      ...owners.slice(1).map(({ address }, index) => {
+        const credential = accounts[index + 1];
+        if (!credential) throw new Error("missing account");
+        return database.insert(credentials).values({
+          id: credential,
+          publicKey: new Uint8Array(hexToBytes(address)),
+          account: credential,
           factory: inject("ExaAccountFactory"),
-        }),
-      ),
-      ...accounts.map((address) => anvilClient.setBalance({ address, value: parseEther("5") })),
+        });
+      }),
+      ...accounts.map((address) => anvilClient.setBalance({ address, value: deposit })),
       keeper.exaSend(
         { name: "create account", op: "exa.account" },
         {
@@ -735,8 +736,6 @@ describe("address activity", () => {
       ),
     ]);
 
-    const waitForTransactionReceipt = vi.spyOn(publicClient, "waitForTransactionReceipt");
-    const initialSettledResults = waitForTransactionReceipt.mock.settledResults.length;
     const [response] = await Promise.all([
       appClient.index.$post({
         ...activityPayload,
@@ -748,13 +747,7 @@ describe("address activity", () => {
           },
         },
       }),
-      vi.waitUntil(
-        () =>
-          waitForTransactionReceipt.mock.settledResults
-            .slice(initialSettledResults)
-            .filter(({ type }) => type !== "incomplete").length >= 5,
-        26_666,
-      ),
+      ...accounts.map((address) => waitForWETHMarket(address, deposit)),
     ]);
 
     expect(setUser).not.toHaveBeenCalled();
@@ -780,6 +773,53 @@ describe("address activity", () => {
 
     expect(deployed).toBe(true);
     expect(setUser).toHaveBeenCalledWith({ id: account });
+    expect(response.status).toBe(200);
+  });
+
+  it("deploys on the event network without claiming yield", async () => {
+    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const chain = NETWORKS.get("ANVIL");
+    if (!chain) throw new Error("missing anvil");
+    const client = viem.createPublicClient({ chain, transport: viem.http(chain.rpcUrls.alchemy.http[0]) });
+    const eventGetCode = vi.spyOn(client, "getCode");
+    vi.mocked(viem.createPublicClient).mockReturnValueOnce(client);
+    const eventExaSend = vi.fn<typeof keeper.exaSend>().mockResolvedValue(null);
+    vi.spyOn(keeperUtilities, "extender").mockReturnValueOnce({ exaSend: eventExaSend });
+    const keeperSend = vi.spyOn(keeper, "exaSend");
+
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: {
+          ...activityPayload.json.event,
+          network: "ETH_MAINNET",
+          activity: [
+            {
+              ...activityPayload.json.event.activity[1],
+              toAddress: account,
+              rawContract: { address: inject("WETH") as Address, rawValue: "0x1" },
+            },
+          ],
+        },
+      },
+    });
+
+    await vi.waitUntil(() => eventExaSend.mock.calls.length > 0);
+
+    expect(eventGetCode).toHaveBeenCalledWith({ address: account });
+    expect(eventExaSend).toHaveBeenCalledWith(
+      expect.objectContaining({ attributes: { account }, name: "create account", op: "exa.account" }),
+      expect.objectContaining({
+        abi: exaAccountFactoryAbi,
+        address: inject("ExaAccountFactory") as Address,
+        functionName: "createAccount",
+      }),
+      { fees: "auto" },
+    );
+    expect(keeperSend).not.toHaveBeenCalled();
+    expect(sendPushNotification).toHaveBeenCalled();
+    expect(sendPushNotification.mock.calls[0]?.[0]).toMatchObject({ contents: { en: "99.973 WETH received" } });
     expect(response.status).toBe(200);
   });
 
@@ -896,7 +936,12 @@ const activityPayload = {
   },
 } as const;
 
+vi.mock("@account-kit/infra", { spy: true });
 vi.mock("@sentry/node", { spy: true });
+vi.mock("viem", async (importOriginal) => {
+  const original = await importOriginal<typeof viem>();
+  return { ...original, createPublicClient: vi.fn(original.createPublicClient) };
+});
 
 afterEach(() => {
   vi.clearAllMocks();

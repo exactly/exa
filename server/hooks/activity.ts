@@ -7,6 +7,7 @@ import {
   getTraceData,
   SEMANTIC_ATTRIBUTE_SENTRY_OP,
   setContext,
+  setTag,
   setUser,
   startSpan,
   withScope,
@@ -15,9 +16,10 @@ import createDebug from "debug";
 import { eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import * as v from "valibot";
-import { bytesToBigInt, hexToBigInt, withRetry } from "viem";
+import { bytesToBigInt, createPublicClient, createWalletClient, hexToBigInt, http, rpcSchema, withRetry } from "viem";
 
-import {
+import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
+import exaChain, {
   auditorAbi,
   exaAccountFactoryAbi,
   exaPluginAbi,
@@ -30,15 +32,16 @@ import {
 import { Address, Hash, Hex } from "@exactly/common/validation";
 
 import database, { cards, credentials } from "../database";
-import { createWebhook, findWebhook, headerValidator, network } from "../utils/alchemy";
+import { createWebhook, findWebhook, headerValidator, NETWORKS } from "../utils/alchemy";
 import appOrigin from "../utils/appOrigin";
 import decodePublicKey from "../utils/decodePublicKey";
-import keeper from "../utils/keeper";
+import keeper, { extender } from "../utils/keeper";
 import { sendPushNotification } from "../utils/onesignal";
 import { autoCredit } from "../utils/panda";
-import publicClient from "../utils/publicClient";
+import publicClient, { captureRequests, Request } from "../utils/publicClient";
 import revertFingerprint from "../utils/revertFingerprint";
 import { track } from "../utils/segment";
+import { trace, type RpcSchema } from "../utils/traceClient";
 import validatorHook from "../utils/validatorHook";
 
 const ETH = v.parse(Address, "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
@@ -61,7 +64,10 @@ export default new Hono().post(
     v.object({
       type: v.literal("ADDRESS_ACTIVITY"),
       event: v.object({
-        network: v.literal(network),
+        network: v.pipe(
+          v.string(),
+          v.check((input) => NETWORKS.has(input), "unsupported network"),
+        ),
         activity: v.array(
           v.intersect([
             v.object({ hash: Hash, fromAddress: Address, toAddress: Address }),
@@ -86,16 +92,18 @@ export default new Hono().post(
     validatorHook({ code: "bad alchemy", status: 200, debug }),
   ),
   async (c) => {
-    setContext("alchemy", await c.req.json());
+    const payload = c.req.valid("json");
+    const chain = NETWORKS.get(payload.event.network);
+    if (!chain) throw new Error("unsupported activity network");
+    setContext("alchemy", payload);
+    setTag("alchemy.network", payload.event.network);
     getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "alchemy.activity");
-    const transfers = c.req
-      .valid("json")
-      .event.activity.filter(
-        ({ category, rawContract, value }) =>
-          category !== "erc721" &&
-          category !== "erc1155" &&
-          (rawContract?.rawValue && rawContract.rawValue !== "0x" ? hexToBigInt(rawContract.rawValue) > 0n : !!value),
-      );
+    const transfers = payload.event.activity.filter(
+      ({ category, rawContract, value }) =>
+        category !== "erc721" &&
+        category !== "erc1155" &&
+        (rawContract?.rawValue && rawContract.rawValue !== "0x" ? hexToBigInt(rawContract.rawValue) > 0n : !!value),
+    );
     const accounts = await database.query.credentials
       .findMany({
         columns: { account: true, publicKey: true, factory: true, source: true },
@@ -111,9 +119,14 @@ export default new Hono().post(
       );
     if (Object.keys(accounts).length === 1) setUser({ id: v.parse(Address, Object.keys(accounts)[0]) });
 
-    const marketsByAsset = await publicClient
-      .readContract({ address: exaPreviewerAddress, functionName: "assets", abi: exaPreviewerAbi })
-      .then((p) => new Map<Address, Address>(p.map((m) => [v.parse(Address, m.asset), v.parse(Address, m.market)])));
+    const marketsByAsset =
+      chain.id === exaChain.id
+        ? await publicClient
+            .readContract({ address: exaPreviewerAddress, functionName: "assets", abi: exaPreviewerAbi })
+            .then(
+              (p) => new Map<Address, Address>(p.map((m) => [v.parse(Address, m.asset), v.parse(Address, m.market)])),
+            )
+        : new Map<Address, Address>();
     const markets = new Set(marketsByAsset.values());
     const pokes = new Map<
       Address,
@@ -121,15 +134,20 @@ export default new Hono().post(
     >();
     for (const { toAddress: account, rawContract, value, asset: assetSymbol } of transfers) {
       if (!accounts[account]) continue;
-      if (rawContract?.address && markets.has(rawContract.address)) continue;
+      if (chain.id === exaChain.id && rawContract?.address && markets.has(rawContract.address)) continue;
       const asset = rawContract?.address ?? ETH;
       const underlying = asset === ETH ? WETH : asset;
       sendPushNotification({
         userId: account,
         headings: { en: "Funds received" },
-        contents: {
-          en: `${value ? `${value} ` : ""}${assetSymbol} received${marketsByAsset.has(underlying) ? " and instantly started earning yield" : ""}`,
-        },
+        contents:
+          chain.id === exaChain.id && marketsByAsset.has(underlying)
+            ? {
+                en: value
+                  ? `${value} ${assetSymbol} received and instantly started earning yield`
+                  : `${assetSymbol} received and instantly started earning yield`,
+              }
+            : { en: value ? `${value} ${assetSymbol} received` : `${assetSymbol} received` },
       }).catch((error: unknown) => captureException(error));
 
       if (pokes.has(account)) {
@@ -140,6 +158,12 @@ export default new Hono().post(
       }
     }
     const { "sentry-trace": sentryTrace, baggage } = getTraceData();
+    const transport = http(`${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`, {
+      async onFetchRequest(request) {
+        captureRequests([v.parse(Request, await request.json())]);
+      },
+    });
+    const client = createPublicClient({ chain, transport, rpcSchema: rpcSchema<RpcSchema>() }).extend(trace);
     Promise.allSettled(
       [...pokes].map(([account, { publicKey, factory, source, assets }]) =>
         continueTrace({ sentryTrace, baggage }, () =>
@@ -148,24 +172,31 @@ export default new Hono().post(
               { name: "account activity", op: "exa.activity", attributes: { account }, forceTransaction: true },
               async (span) => {
                 scope.setUser({ id: account });
-                const isDeployed = !!(await publicClient.getCode({ address: account }));
+                const isDeployed = !!(await client.getCode({ address: account }));
                 scope.setTag("exa.new", !isDeployed);
                 if (!isDeployed) {
                   try {
-                    await keeper.exaSend(
-                      { name: "create account", op: "exa.account", attributes: { account } },
-                      {
-                        address: factory,
-                        functionName: "createAccount",
-                        args: [0n, [decodePublicKey(publicKey, bytesToBigInt)]],
-                        abi: exaAccountFactoryAbi,
-                      },
-                    );
+                    await createWalletClient({ chain, transport, account: keeper.account })
+                      .extend((wallet) => extender(wallet, { publicClient: client, traceClient: client }))
+                      .exaSend(
+                        { name: "create account", op: "exa.account", attributes: { account } },
+                        {
+                          address: factory,
+                          functionName: "createAccount",
+                          args: [0n, [decodePublicKey(publicKey, bytesToBigInt)]],
+                          abi: exaAccountFactoryAbi,
+                        },
+                        chain.id === exaChain.id ? undefined : { fees: "auto" },
+                      );
                     track({ event: "AccountFunded", userId: account, properties: { source } });
                   } catch (error: unknown) {
                     span.setStatus({ code: SPAN_STATUS_ERROR, message: "account_failed" });
                     throw error;
                   }
+                }
+                if (chain.id !== exaChain.id) {
+                  span.setStatus({ code: SPAN_STATUS_OK });
+                  return;
                 }
                 if (assets.has(ETH)) assets.delete(WETH);
                 const results = await Promise.allSettled(
