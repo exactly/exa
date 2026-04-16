@@ -228,9 +228,9 @@ export default function Swaps() {
   const tool = route?.tool ?? "";
 
   const isInsufficientBalance = useMemo(() => {
-    if (!fromToken || !toToken) return false;
+    if (!fromToken) return false;
     return fromAmount > getBalance(fromToken.token);
-  }, [fromToken, toToken, fromAmount, getBalance]);
+  }, [fromToken, fromAmount, getBalance]);
 
   const {
     request: swapPropose,
@@ -562,9 +562,7 @@ export default function Swaps() {
                       ? "$interactiveOnDisabled"
                       : caution && acknowledged
                         ? "$interactiveOnBaseErrorSoft"
-                        : caution && !acknowledged
-                          ? "$interactiveOnBaseErrorSoft"
-                          : "$interactiveOnBaseBrandDefault"
+                        : "$interactiveOnBaseBrandDefault"
                   }
                 />
               )
