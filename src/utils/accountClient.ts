@@ -11,10 +11,17 @@ import {
   resolveProperties,
   smartAccountClientActions,
   toSmartContractAccount,
+  type ClientMiddlewareFn,
+  type SmartAccountClient,
   type SmartContractAccount,
   type UserOperationStruct_v6,
 } from "@aa-sdk/core";
-import { alchemyGasManagerMiddleware } from "@account-kit/infra";
+import {
+  alchemy,
+  alchemyGasAndPaymasterAndDataMiddleware,
+  alchemyGasManagerMiddleware,
+  createAlchemyPublicRpcClient,
+} from "@account-kit/infra";
 // @ts-expect-error deep import to avoid broken dependency
 import { standardExecutor } from "@account-kit/smart-contracts/dist/esm/src/msca/account/standardExecutor"; // cspell:ignore msca
 import { ECDSASigValue } from "@peculiar/asn1-ecc";
@@ -53,10 +60,12 @@ import {
   trim,
   type Address,
   type Call,
+  type Chain,
   type Hex,
   type TransactionRequest,
+  type Transport,
 } from "viem";
-import { anvil } from "viem/chains";
+import { anvil, base } from "viem/chains";
 
 import accountInit from "@exactly/common/accountInit";
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
@@ -65,6 +74,7 @@ import deriveAddress from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
 import chain, { upgradeableModularAccountAbi } from "@exactly/common/generated/chain";
 
+import alchemyChainById from "./alchemyChains";
 import e2e from "./e2e";
 import { login } from "./onesignal";
 import publicClient from "./publicClient";
@@ -81,43 +91,40 @@ export default async function createAccountClient({ credentialId, factory, x, y 
   setUser({ id: accountAddress });
   login(accountAddress);
   const transport = custom(publicClient);
-  const entryPoint = getEntryPoint(chain);
-  const account = await toSmartContractAccount({
-    chain,
-    transport,
-    entryPoint,
+  const signUserOperationHash = async (uoHash: Hex): Promise<Hex> => {
+    if (queryClient.getQueryData<AuthMethod>(["method"]) === "siwe" && getConnection(ownerConfig).address) {
+      return wrapSignature(0, await signMessage(ownerConfig, { message: { raw: uoHash } }));
+    }
+    const credential = await get({
+      rpId: domain,
+      challenge: bufferToBase64URLString(hexToBytes(hashMessage({ raw: uoHash }), { size: 32 }).buffer as ArrayBuffer),
+      allowCredentials: Platform.OS === "android" ? [] : [{ id: credentialId, type: "public-key" }], // HACK fix android credential filtering
+      userVerification: "preferred",
+    });
+    if (!credential) throw new Error("no credential");
+    const response: AuthenticatorAssertionResponseJSON = credential.response;
+    const clientDataJSON = new TextDecoder().decode(base64URLStringToBuffer(response.clientDataJSON));
+    const typeIndex = BigInt(clientDataJSON.indexOf('"type":"'));
+    const challengeIndex = BigInt(clientDataJSON.indexOf('"challenge":"'));
+    const authenticatorData = bytesToHex(new Uint8Array(base64URLStringToBuffer(response.authenticatorData)));
+    const signature = AsnParser.parse(base64URLStringToBuffer(response.signature), ECDSASigValue);
+    const r = bytesToBigInt(new Uint8Array(signature.r));
+    let s = bytesToBigInt(new Uint8Array(signature.s));
+    if (s > P256_N / 2n) s = P256_N - s; // pass malleability guard
+    return webauthn({ authenticatorData, clientDataJSON, challengeIndex, typeIndex, r, s });
+  };
+  const accountOptions = {
     accountAddress,
     source: "WebauthnAccount" as const,
     getAccountInitCode: () => Promise.resolve(concatHex([factory, accountInit({ x, y })])),
     getDummySignature: () => DUMMY_SIGNATURE,
-    signUserOperationHash: async (uoHash) => {
-      if (queryClient.getQueryData<AuthMethod>(["method"]) === "siwe" && getConnection(ownerConfig).address) {
-        return wrapSignature(0, await signMessage(ownerConfig, { message: { raw: uoHash } }));
-      }
-      const credential = await get({
-        rpId: domain,
-        challenge: bufferToBase64URLString(
-          hexToBytes(hashMessage({ raw: uoHash }), { size: 32 }).buffer as ArrayBuffer,
-        ),
-        allowCredentials: Platform.OS === "android" ? [] : [{ id: credentialId, type: "public-key" }], // HACK fix android credential filtering
-        userVerification: "preferred",
-      });
-      if (!credential) throw new Error("no credential");
-      const response: AuthenticatorAssertionResponseJSON = credential.response;
-      const clientDataJSON = new TextDecoder().decode(base64URLStringToBuffer(response.clientDataJSON));
-      const typeIndex = BigInt(clientDataJSON.indexOf('"type":"'));
-      const challengeIndex = BigInt(clientDataJSON.indexOf('"challenge":"'));
-      const authenticatorData = bytesToHex(new Uint8Array(base64URLStringToBuffer(response.authenticatorData)));
-      const signature = AsnParser.parse(base64URLStringToBuffer(response.signature), ECDSASigValue);
-      const r = bytesToBigInt(new Uint8Array(signature.r));
-      let s = bytesToBigInt(new Uint8Array(signature.s));
-      if (s > P256_N / 2n) s = P256_N - s; // pass malleability guard
-      return webauthn({ authenticatorData, clientDataJSON, challengeIndex, typeIndex, r, s });
-    },
+    signUserOperationHash,
     signMessage: () => Promise.reject(new Error("not implemented")),
     signTypedData: () => Promise.reject(new Error("not implemented")),
     ...(standardExecutor as Pick<SmartContractAccount, "encodeBatchExecute" | "encodeExecute">),
-  });
+  };
+  const entryPoint = getEntryPoint(chain);
+  const account = await toSmartContractAccount({ chain, transport, entryPoint, ...accountOptions });
   const client = createSmartAccountClient({
     chain,
     transport,
@@ -134,22 +141,50 @@ export default async function createAccountClient({ credentialId, factory, x, y 
           dummyPaymasterAndData: (struct) => Promise.resolve({ ...struct, paymasterAndData: ethAddress }),
           paymasterAndData: (struct) => Promise.resolve({ ...struct, paymasterAndData: ethAddress }),
         }),
-    async customMiddleware(userOp) {
-      if ((await userOp.signature) === DUMMY_SIGNATURE) {
-        // dynamic dummy signature
-        userOp.signature = dummySignature(
-          bufferToBase64URLString(
-            hexToBytes(hashMessage({ raw: deepHexlify(await resolveProperties(userOp)) as Hex }), { size: 32 })
-              .buffer as ArrayBuffer,
-          ),
-        );
-      }
-      return userOp;
-    },
+    customMiddleware: dummySignatureMiddleware,
   });
+  const crossChainClients = new Map<number, Promise<SmartAccountClient<Transport, Chain, SmartContractAccount>>>();
+  function getCrossChainClient(targetChainId: number) {
+    const cached = crossChainClients.get(targetChainId);
+    if (cached) return cached;
+    const targetChain = alchemyChainById.get(targetChainId);
+    if (!targetChain) throw new Error(`unsupported chain ${targetChainId}`);
+    const config =
+      targetChain.id === base.id
+        ? { apiKey: "d_pBtamzsxX6zNEa5eQzT", gasPolicyId: "ac4d73b4-5e7d-404d-b972-55c99f14f134" } // cspell:ignore d_pBtamzsxX6zNEa5eQzT
+        : {
+            apiKey: alchemyAPIKey,
+            gasPolicyId: targetChain.testnet
+              ? "dc767b7d-9ce8-4512-ba67-ebe2cf7a1577"
+              : "cb9db554-658f-46eb-ae73-8bff8ed2556b",
+          };
+    const alchemyTransport = alchemy({ apiKey: config.apiKey });
+    const targetTransport = custom(createAlchemyPublicRpcClient({ chain: targetChain, transport: alchemyTransport }));
+    const promise = toSmartContractAccount({
+      chain: targetChain,
+      transport: targetTransport,
+      entryPoint: getEntryPoint(targetChain),
+      ...accountOptions,
+    })
+      .then((targetAccount) =>
+        createSmartAccountClient({
+          chain: targetChain,
+          transport: targetTransport,
+          account: targetAccount,
+          ...alchemyGasAndPaymasterAndDataMiddleware({ policyId: config.gasPolicyId, transport: alchemyTransport }),
+          customMiddleware: dummySignatureMiddleware,
+        }),
+      )
+      .catch((error: unknown) => {
+        crossChainClients.delete(targetChainId);
+        throw error;
+      });
+    crossChainClients.set(targetChainId, promise);
+    return promise;
+  }
   return createBundlerClient({
     chain,
-    // @ts-expect-error -- bad alchemy types
+    // @ts-expect-error bad alchemy types
     account,
     type: "SmartAccountClient",
     transport: noRetry({
@@ -164,9 +199,17 @@ export default async function createAccountClient({ credentialId, factory, x, y 
               id?: string;
             };
             if (from && from !== accountAddress) throw new Error("bad account");
-            const requestedChainId = chainId ? hexToNumber(chainId) : chain.id;
+            const targetChainId = chainId ? hexToNumber(chainId) : chain.id;
+            if (targetChainId !== chain.id) {
+              const crossClient = await getCrossChainClient(targetChainId);
+              const { hash } = await crossClient.sendUserOperation({
+                uo: calls.map(({ to, data = "0x", value }) => ({ from: accountAddress, target: to, data, value })),
+                overrides: { verificationGasLimit: { multiplier: 2 } },
+              });
+              return { id: concat([hash, numberToHex(targetChainId, { size: 32 }), UO_MAGIC_ID]) };
+            }
             if (queryClient.getQueryData<AuthMethod>(["method"]) === "webauthn") {
-              if (requestedChainId !== chain.id) throw new Error("unsupported chain");
+              if (targetChainId !== chain.id) throw new Error("unsupported chain");
               const { hash } = await client.sendUserOperation({
                 uo: calls.map(({ to, data = "0x", value }) => ({ from: accountAddress, target: to, data, value })),
               });
@@ -181,7 +224,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
             try {
               return await sendCalls(ownerConfig, {
                 id,
-                chainId: requestedChainId,
+                chainId: chain.id,
                 calls: [execute],
                 capabilities: {
                   paymasterService: {
@@ -198,30 +241,28 @@ export default async function createAccountClient({ credentialId, factory, x, y 
                 extra: error instanceof Error ? { cause: error.cause } : undefined,
               });
               // TODO filter errors
-              await switchChain(ownerConfig, { chainId: requestedChainId });
-              try {
-                const hash = await sendTransaction(ownerConfig, {
-                  to: accountAddress,
-                  data: encodeFunctionData(execute),
-                  chainId: requestedChainId,
-                });
-                return { id: concat([hash, numberToHex(requestedChainId, { size: 32 }), TX_MAGIC_ID]) };
-              } finally {
-                await switchChain(ownerConfig, { chainId: chain.id }).catch(reportError);
-              }
+              await switchChain(ownerConfig, { chainId: chain.id });
+              const hash = await sendTransaction(ownerConfig, {
+                to: accountAddress,
+                data: encodeFunctionData(execute),
+                chainId: chain.id,
+              });
+              return { id: concat([hash, numberToHex(chain.id, { size: 32 }), TX_MAGIC_ID]) };
             }
           }
           case "wallet_getCallsStatus": {
             if (!Array.isArray(params) || params.length !== 1 || typeof params[0] !== "string") throw new Error("bad");
             if (params[0].endsWith(UO_MAGIC_ID.slice(2)) && isHex(params[0]) && params[0].length === 194) {
-              const receipt = await client.getUserOperationReceipt(sliceHex(params[0], 0, 32));
+              const uoChainId = hexToNumber(trim(sliceHex(params[0], -64, -32)));
+              const uoClient = uoChainId === chain.id ? client : await getCrossChainClient(uoChainId);
+              const receipt = await uoClient.getUserOperationReceipt(sliceHex(params[0], 0, 32));
               return {
                 version: "2.0.0",
                 id: params[0],
                 atomic: true,
                 receipts: receipt ? [receipt.receipt] : [],
                 status: receipt ? (receipt.success ? 200 : 500) : 100,
-                chainId: hexToNumber(trim(sliceHex(params[0], -64, -32))),
+                chainId: uoChainId,
               };
             }
             const result = await getCallsStatus(ownerConfig, { id: params[0] });
@@ -314,6 +355,18 @@ function dummySignature(challenge: string) {
     r: maxUint256,
     s: P256_N / 2n,
   });
+}
+
+async function dummySignatureMiddleware<T extends Parameters<ClientMiddlewareFn>[0]>(userOp: T) {
+  if ((await userOp.signature) === DUMMY_SIGNATURE) {
+    userOp.signature = dummySignature(
+      bufferToBase64URLString(
+        hexToBytes(hashMessage({ raw: deepHexlify(await resolveProperties(userOp)) as Hex }), { size: 32 })
+          .buffer as ArrayBuffer,
+      ),
+    );
+  }
+  return userOp;
 }
 
 const UO_MAGIC_ID = "0x4337433743374337433743374337433743374337433743374337433743374337";
