@@ -64,8 +64,8 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
   meta: {
     dropError: (error) => {
       if (error instanceof ValiError) return true;
-      const { passkeyCancelled, passkeyNotAllowed } = classifyError(error);
-      return passkeyCancelled || passkeyNotAllowed;
+      const { bundleCancelled, passkeyCancelled, passkeyNotAllowed, walletRejected } = classifyError(error);
+      return bundleCancelled || passkeyCancelled || passkeyNotAllowed || walletRejected;
     },
     warnError: (error) => classifyError(error).passkeyWarning,
   },
