@@ -42,8 +42,11 @@ export default function PortfolioSummary({
     select: selectBalance,
   });
 
-  const visible = assets.slice(0, 3);
-  const extra = assets.length - 3;
+  const uniqueAssets = assets.filter(
+    (asset, index, all) => all.findIndex(({ symbol }) => symbol === asset.symbol) === index,
+  );
+  const visible = uniqueAssets.slice(0, 3);
+  const extra = uniqueAssets.length - 3;
 
   return (
     <YStack
@@ -106,7 +109,7 @@ export default function PortfolioSummary({
           <XStack alignItems="center">
             {visible.map((asset, index) => (
               <XStack
-                key={asset.type === "protocol" ? asset.market : asset.address}
+                key={asset.type === "protocol" ? asset.market : `${asset.chainId}:${asset.address}`}
                 marginRight={index < visible.length - 1 || extra > 0 ? -12 : 0}
                 zIndex={visible.length - index}
               >

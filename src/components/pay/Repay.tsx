@@ -501,7 +501,7 @@ export default function Repay() {
     },
     onSuccess() {
       queryClient.invalidateQueries({ queryKey: assetQueryKey }).catch(reportError);
-      queryClient.invalidateQueries({ queryKey: ["lifi", "tokenBalances"] }).catch(reportError);
+      queryClient.invalidateQueries({ queryKey: ["lifi", "balances"] }).catch(reportError);
     },
     onSettled() {
       setEnableSimulations(true);

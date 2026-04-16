@@ -2,9 +2,10 @@ import { useMemo } from "react";
 
 import { useQuery } from "@tanstack/react-query";
 
+import chain from "@exactly/common/generated/chain";
 import { borrowLimit, withdrawLimit } from "@exactly/lib";
 
-import { tokenBalancesOptions } from "./lifi";
+import { balancesOptions } from "./lifi";
 import useAccount from "./useAccount";
 import useMarkets from "./useMarkets";
 
@@ -14,10 +15,10 @@ export default function useAsset(address?: Address) {
   const { address: account } = useAccount();
   const { markets, timestamp, firstMaturity, queryKey, isFetching: isMarketsFetching } = useMarkets();
   const market = useMemo(() => markets?.find(({ market: m }) => m === address), [address, markets]);
-  const { data: tokenBalances, isFetching: isTokenBalancesFetching } = useQuery(tokenBalancesOptions(account));
+  const { data: balances, isFetching: isBalancesFetching } = useQuery(balancesOptions(account));
   const externalAsset = useMemo(
-    () => tokenBalances?.find((token) => token.address.toLowerCase() === address?.toLowerCase()) ?? null,
-    [tokenBalances, address],
+    () => balances?.[chain.id]?.find((token) => token.address.toLowerCase() === address?.toLowerCase()) ?? null,
+    [balances, address],
   );
   const available = useMemo(() => {
     if (markets && market) return withdrawLimit(markets, market.market);
@@ -39,6 +40,6 @@ export default function useAsset(address?: Address) {
     borrowAvailable,
     externalAsset,
     queryKey,
-    isFetching: isMarketsFetching || isTokenBalancesFetching,
+    isFetching: isMarketsFetching || isBalancesFetching,
   };
 }
