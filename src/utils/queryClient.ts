@@ -20,7 +20,7 @@ const INVALIDATE_ON_UPGRADE = new Set(["kyc", "card", "pax"]);
 export function triage(error: unknown) {
   if (!(error instanceof APIError)) return;
   if (error.text === "bad kyc") return "warn";
-  if (error.text === "no kyc" || error.text === "not started" || error.text === "kyc required") return "drop";
+  if (["no kyc", "not started", "kyc required"].includes(error.text)) return "drop";
 }
 
 function versionAwareDeserialize(cache: string): PersistedClient {
@@ -71,12 +71,7 @@ export const hydrated =
 const dehydrateOptions = {
   shouldDehydrateQuery: ({ queryKey, state }: Query) =>
     state.status === "success" &&
-    queryKey[0] !== "activity" &&
-    queryKey[0] !== "externalAssets" &&
-    queryKey[0] !== "kyc" &&
-    queryKey[0] !== "card" &&
-    queryKey[0] !== "pax" &&
-    queryKey[0] !== "lifi" &&
+    !["activity", "externalAssets", "kyc", "card", "pax", "lifi"].includes(queryKey[0] as string) &&
     !(queryKey[0] === "ramp" && queryKey[1] === "kyc-tokens"),
 };
 
