@@ -104,7 +104,7 @@ export default function Home() {
   const {
     portfolio: { balanceUSD },
     averageRate,
-    assets,
+    allAssets,
     totalBalanceUSD,
   } = usePortfolio();
 
@@ -232,7 +232,7 @@ export default function Home() {
                 <PortfolioSummary
                   balanceUSD={balanceUSD}
                   averageRate={averageRate}
-                  assets={assets}
+                  assets={allAssets}
                   totalBalanceUSD={totalBalanceUSD}
                 />
                 <HomeActions />
