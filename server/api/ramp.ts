@@ -327,6 +327,7 @@ const DepositDetails = variant("network", [
     address: string(),
     fee: string(),
     estimatedProcessingTime: string(),
+    memo: string(),
   }),
   object({
     network: literal("FASTER_PAYMENTS"),

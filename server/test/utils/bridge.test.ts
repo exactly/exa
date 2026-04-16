@@ -1217,6 +1217,7 @@ describe("bridge utils", () => {
               chain: "stellar",
               address: "StellarAddr789",
               destination_address: account,
+              destination_blockchain_memo: "123456",
             },
           ],
         }),
@@ -1231,7 +1232,29 @@ describe("bridge utils", () => {
         address: "StellarAddr789",
         fee: "0.0",
         estimatedProcessingTime: "300",
+        memo: "123456",
       });
+    });
+
+    it("throws when STELLAR liquidation address has no memo", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        fetchResponse({
+          count: 1,
+          data: [
+            {
+              id: "la-3",
+              currency: "usdc",
+              chain: "stellar",
+              address: "StellarAddr789",
+              destination_address: account,
+            },
+          ],
+        }),
+      );
+
+      await expect(bridge.getCryptoDepositDetails("USDC", "STELLAR", account, activeCustomer)).rejects.toThrow(
+        "missing stellar memo",
+      );
     });
 
     it("creates liquidation address when none exists", async () => {

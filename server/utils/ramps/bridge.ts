@@ -859,6 +859,7 @@ const LiquidationAddress = object({
   chain: picklist([...CryptoPaymentRail, "evm"]),
   address: string(),
   destination_address: string(),
+  destination_blockchain_memo: optional(string()),
 });
 
 const LiquidationAddresses = object({ count: number(), data: array(LiquidationAddress) });
@@ -1017,6 +1018,7 @@ function getDepositDetailsFromLiquidationAddress(
         },
       ];
     case "stellar":
+      if (!liquidationAddress.destination_blockchain_memo) throw new Error(ErrorCodes.MISSING_STELLAR_MEMO);
       return [
         {
           network: "STELLAR" as const,
@@ -1024,6 +1026,7 @@ function getDepositDetailsFromLiquidationAddress(
           address: liquidationAddress.address,
           fee: "0.0",
           estimatedProcessingTime: "300",
+          memo: liquidationAddress.destination_blockchain_memo,
         },
       ];
   }
@@ -1039,6 +1042,7 @@ export const ErrorCodes = {
   NOT_ACTIVE_CUSTOMER: "not active customer",
   NOT_AVAILABLE_CRYPTO_PAYMENT_RAIL: "not available crypto payment rail",
   NOT_AVAILABLE_CURRENCY: "not available currency",
+  MISSING_STELLAR_MEMO: "missing stellar memo",
   NOT_FOUND_IDENTIFICATION_CLASS: "not found identification class",
   NOT_SUPPORTED_CHAIN_ID: "not supported chain id",
   NO_COUNTRY_ALPHA3: "no country alpha3",

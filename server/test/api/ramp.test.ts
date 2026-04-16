@@ -537,6 +537,7 @@ describe("ramp api", () => {
             address: "STELLAR123456",
             fee: "0.0",
             estimatedProcessingTime: "300",
+            memo: "789012",
           },
         ]);
 
@@ -554,6 +555,7 @@ describe("ramp api", () => {
               address: "STELLAR123456",
               fee: "0.0",
               estimatedProcessingTime: "300",
+              memo: "789012",
             },
           ],
         });
