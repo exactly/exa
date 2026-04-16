@@ -169,7 +169,7 @@ export default function useSimulateProposal({
     blockNumber: blockNumber?.status === "success" ? blockNumber.result : undefined,
     blocks: [
       {
-        blockOverrides: timestamp?.status === "success" ? { time: timestamp.result } : undefined,
+        blockOverrides: timestamp?.status === "success" ? { time: timestamp.result + 1n } : undefined,
         calls: request
           ? [
               {
@@ -183,7 +183,7 @@ export default function useSimulateProposal({
       {
         blockOverrides:
           timestamp?.status === "success" && delay?.status === "success"
-            ? { time: timestamp.result + delay.result }
+            ? { time: timestamp.result + delay.result + 1n }
             : undefined,
         calls: executeRequest
           ? [
