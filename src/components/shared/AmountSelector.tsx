@@ -39,8 +39,7 @@ export default function AmountSelector({ onChange }: { onChange: (value: bigint)
       if (market) {
         setFieldValue("assetInput", text);
         const assets = parseUnits(text.replaceAll(/\D/g, ".").replaceAll(/\.(?=.*\.)/g, ""), market.decimals);
-        const assetsUSD = Number(formatUnits((assets * market.usdPrice) / WAD, market.decimals));
-        setFieldValue("usdInput", assets > 0n ? String(assetsUSD) : "");
+        setFieldValue("usdInput", assets > 0n ? formatUnits((assets * market.usdPrice) / WAD, market.decimals) : "");
         onChange(assets);
         return;
       }
@@ -48,8 +47,10 @@ export default function AmountSelector({ onChange }: { onChange: (value: bigint)
         setFieldValue("assetInput", text);
         const assets = parseUnits(text.replaceAll(/\D/g, ".").replaceAll(/\.(?=.*\.)/g, ""), externalAsset.decimals);
         const assetPriceUSD = parseUnits(externalAsset.priceUSD, 18);
-        const assetsUSD = Number(formatUnits((assets * assetPriceUSD) / WAD, externalAsset.decimals));
-        setFieldValue("usdInput", assets > 0n ? String(assetsUSD) : "");
+        setFieldValue(
+          "usdInput",
+          assets > 0n ? formatUnits((assets * assetPriceUSD) / WAD, externalAsset.decimals) : "",
+        );
         onChange(assets);
       }
     },
@@ -85,18 +86,17 @@ export default function AmountSelector({ onChange }: { onChange: (value: bigint)
     if (market) {
       setOverlayShown(true);
       setFieldValue("assetInput", formatUnits(available, market.decimals));
-      const assetsUSD = Number(formatUnits((available * market.usdPrice) / WAD, market.decimals));
-      setFieldValue("usdInput", String(assetsUSD));
+      setFieldValue("usdInput", formatUnits((available * market.usdPrice) / WAD, market.decimals));
       onChange(available);
       return;
     }
     if (externalAsset) {
       setOverlayShown(true);
       setFieldValue("assetInput", formatUnits(available, externalAsset.decimals));
-      const assetsUSD = Number(
+      setFieldValue(
+        "usdInput",
         formatUnits((available * parseUnits(externalAsset.priceUSD, 18)) / WAD, externalAsset.decimals),
       );
-      setFieldValue("usdInput", String(assetsUSD));
       onChange(available);
     }
   }, [available, market, externalAsset, onChange, setFieldValue]);
