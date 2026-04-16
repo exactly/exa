@@ -40,7 +40,15 @@ export default function usePortfolio(options?: { sortBy?: "usdcFirst" | "usdValu
   const { address: account } = useAccount();
   const { markets, rateSnapshot, timestamp, isPending: isMarketsPending } = useMarkets();
 
-  const { data: tokenBalances, isPending: isExternalPending } = useQuery(tokenBalancesOptions(account));
+  const { data: tokenBalances, isLoading: isExternalPending } = useQuery(tokenBalancesOptions(account));
+
+  const protocolSymbols = useMemo(() => {
+    if (!markets) return [];
+    const excluded = new Set(["USDC.e", "DAI", "WETH"]);
+    const symbols = new Set(markets.map((m) => m.symbol.slice(3)).filter((s) => !excluded.has(s)));
+    symbols.add("ETH");
+    return [...symbols];
+  }, [markets]);
 
   const portfolio = useMemo(() => {
     if (!markets) return { depositMarkets: [], balanceUSD: 0n };
@@ -93,9 +101,9 @@ export default function usePortfolio(options?: { sortBy?: "usdcFirst" | "usdValu
 
   const externalAssets = useMemo<ExternalAsset[]>(() => {
     const balances = tokenBalances ?? [];
-    if (balances.length === 0) return [];
+    if (!markets || balances.length === 0) return [];
 
-    const marketAddresses = new Set(markets?.map(({ market }) => market.toLowerCase()));
+    const marketAddresses = new Set(markets.map(({ market }) => market.toLowerCase()));
     return balances
       .filter(({ address }) => !marketAddresses.has(address.toLowerCase()))
       .map((token) => ({
@@ -109,10 +117,8 @@ export default function usePortfolio(options?: { sortBy?: "usdcFirst" | "usdValu
     const combined = [...protocolAssets, ...externalAssets];
     return combined.sort((a, b) => {
       if (options?.sortBy === "usdcFirst") {
-        const aSymbol = a.symbol;
-        const bSymbol = b.symbol;
-        if (aSymbol === "USDC" && bSymbol !== "USDC") return -1;
-        if (bSymbol === "USDC" && aSymbol !== "USDC") return 1;
+        if (a.symbol === "USDC" && b.symbol !== "USDC") return -1;
+        if (b.symbol === "USDC" && a.symbol !== "USDC") return 1;
       }
       return b.usdValue - a.usdValue;
     });
@@ -130,7 +136,9 @@ export default function usePortfolio(options?: { sortBy?: "usdcFirst" | "usdValu
     protocolAssets,
     externalAssets,
     totalBalanceUSD,
+    protocolSymbols,
     markets,
-    isPending: isExternalPending || isMarketsPending,
+    isPending: isMarketsPending,
+    isExternalPending,
   };
 }
