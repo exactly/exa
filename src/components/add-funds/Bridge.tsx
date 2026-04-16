@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { ArrowLeft, Check, CircleHelp, Clock, Repeat, X } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
@@ -27,12 +27,21 @@ import shortenHex from "@exactly/common/shortenHex";
 import { WAD } from "@exactly/lib";
 
 import AssetSelectSheet from "./AssetSelectSheet";
-import { getBridgeSources, getRouteFrom, tokenCorrelation, type BridgeSources, type RouteFrom } from "../../utils/lifi";
+import {
+  balancesOptions,
+  bridgeSourcesOptions,
+  getRouteFrom,
+  tokenAmountsToBalances,
+  tokenCorrelation,
+  type RouteFrom,
+  type TokenBalance,
+} from "../../utils/lifi";
 import openBrowser from "../../utils/openBrowser";
 import queryClient from "../../utils/queryClient";
 import reportError, { classifyError } from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
-import useMarkets from "../../utils/useMarkets";
+import usePortfolio from "../../utils/usePortfolio";
+import exaConfig from "../../utils/wagmi/exa";
 import ownerConfig from "../../utils/wagmi/owner";
 import AssetLogo from "../shared/AssetLogo";
 import ChainLogo from "../shared/ChainLogo";
@@ -51,6 +60,12 @@ import type { TFunction } from "i18next";
 
 export default function Bridge() {
   const router = useRouter();
+  const rawParameters = useLocalSearchParams();
+  const params = {
+    sender: Array.isArray(rawParameters.sender) ? rawParameters.sender[0] : rawParameters.sender,
+    sourceChain: Array.isArray(rawParameters.sourceChain) ? rawParameters.sourceChain[0] : rawParameters.sourceChain,
+    sourceToken: Array.isArray(rawParameters.sourceToken) ? rawParameters.sourceToken[0] : rawParameters.sourceToken,
+  };
   const toast = useToastController();
   const {
     t,
@@ -61,70 +76,74 @@ export default function Bridge() {
   const [destinationModalOpen, setDestinationModalOpen] = useState(false);
 
   const { address: account } = useAccount();
-  const { markets } = useMarkets();
 
-  const [selectedSource, setSelectedSource] = useState<undefined | { address: string; chain: number }>();
+  const [selectedSource, setSelectedSource] = useState(() => {
+    if (!params.sourceChain || !params.sourceToken) return;
+    const chainId = Number(params.sourceChain);
+    if (!Number.isInteger(chainId) || chainId <= 0) return;
+    if (!isAddress(params.sourceToken)) return;
+    return { chain: chainId, address: params.sourceToken.toLowerCase() };
+  });
   const [selectedDestinationAddress, setSelectedDestinationAddress] = useState<string | undefined>();
   const [sourceAmount, setSourceAmount] = useState(0n);
 
   const [bridgeStatus, setBridgeStatus] = useState<string | undefined>();
-  const [bridgePreview, setBridgePreview] = useState<undefined | { sourceAmount: bigint; sourceToken: Token }>();
+  const [bridgePreview, setBridgePreview] = useState<
+    undefined | { operation: "bridge" | "swap" | "transfer"; sourceAmount: bigint; sourceToken: Token }
+  >();
 
-  const senderConfig = ownerConfig;
+  const isExaSender = params.sender === "exa";
+  const senderConfig = isExaSender ? exaConfig : ownerConfig;
   const { address: senderAddress } = useAccount({ config: senderConfig });
   const { mutateAsync: sendTx } = useSendTransaction({ config: senderConfig });
   const { mutateAsync: sendCallsTx } = useSendCalls({ config: senderConfig });
   const { mutateAsync: transfer } = useWriteContract({ config: senderConfig });
+  const { protocolSymbols, protocolAssets, externalAssets } = usePortfolio();
 
-  const protocolSymbols = useMemo(() => {
-    if (!markets) return [];
-    return [
-      ...new Set([
-        ...markets
-          .map((market) => market.symbol.slice(3))
-          .filter((symbol) => symbol !== "USDC.e" && symbol !== "DAI" && symbol !== "WETH"),
-        "ETH",
-      ]),
-    ];
-  }, [markets]);
-
-  const { data: bridge, isPending: isSourcesPending } = useQuery<BridgeSources>({
-    queryKey: ["bridge", "sources", senderAddress, protocolSymbols],
-    queryFn: () => getBridgeSources(senderAddress ?? undefined, protocolSymbols),
-    staleTime: 60_000,
-    enabled: !!senderAddress && !!markets && protocolSymbols.length > 0,
+  const { data: bridge, isPending: isSourcesPending } = useQuery({
+    ...bridgeSourcesOptions(senderAddress, protocolSymbols),
     refetchInterval: 60_000,
     refetchIntervalInBackground: true,
   });
+  const { data: balances } = useQuery(balancesOptions(senderAddress));
+  const sameChainBalances = balances?.[chain.id];
 
   const chains = bridge?.chains;
-  const ownerAssetsByChain = bridge?.ownerAssetsByChain;
+  const balancesByChain = bridge?.balancesByChain;
   const usdByToken = bridge?.usdByToken;
 
+  const sameChainAssets = useMemo(
+    () => (sameChainBalances ? tokenAmountsToBalances(sameChainBalances) : []),
+    [sameChainBalances],
+  );
+
   const assetGroups = useMemo(() => {
-    if (!chains) return [];
-    return chains.reduce<{ assets: { balance: bigint; token: Token; usdValue: number }[]; chain: Chain }[]>(
-      (accumulator, chainItem) => {
-        const assets = ownerAssetsByChain?.[chainItem.id] ?? [];
-        if (assets.length > 0) accumulator.push({ chain: chainItem, assets });
-        return accumulator;
-      },
-      [],
-    );
-  }, [chains, ownerAssetsByChain]);
+    const next: { assets: TokenBalance[]; chain: Pick<Chain, "id" | "logoURI" | "name"> }[] = [];
+    const sameChainSource = sameChainAssets.length > 0 ? sameChainAssets : (balancesByChain?.[chain.id] ?? []);
+    if (sameChainSource.length > 0) {
+      const chainInfo = chains?.find((c) => c.id === chain.id) ?? { id: chain.id, name: chain.name };
+      next.push({ chain: chainInfo, assets: sameChainSource });
+    }
+    if (chains) {
+      for (const chainItem of chains) {
+        if (chainItem.id === chain.id) continue;
+        const assets = balancesByChain?.[chainItem.id] ?? [];
+        if (assets.length > 0) next.push({ chain: chainItem, assets });
+      }
+    }
+    return next;
+  }, [chains, balancesByChain, sameChainAssets]);
 
   const previousSourceRef = useRef<string | undefined>(undefined);
 
   const source = useMemo(() => {
     if (assetGroups.length === 0) return;
-    const isValid =
-      !!selectedSource &&
-      assetGroups.some(
-        (group) =>
-          group.chain.id === selectedSource.chain &&
-          group.assets.some((asset) => asset.token.address === selectedSource.address),
-      );
-    if (isValid) return selectedSource;
+    if (selectedSource) {
+      const matched = assetGroups
+        .find((group) => group.chain.id === selectedSource.chain)
+        ?.assets.find((asset) => asset.token.address.toLowerCase() === selectedSource.address);
+      if (matched) return { chain: selectedSource.chain, address: matched.token.address };
+    }
     const defaultGroup = bridge?.defaultChainId
       ? assetGroups.find((group) => group.chain.id === bridge.defaultChainId)
       : undefined;
@@ -144,10 +163,11 @@ export default function Bridge() {
 
   const insufficientBalance = sourceAmount > sourceBalance;
   const isSameChain = source?.chain === chain.id;
+  const isSwap = isSameChain && isExaSender;
+  const isTransfer = isSameChain && !isExaSender;
   const isNativeSource = source?.address === zeroAddress;
 
   const destinationTokens = useMemo(() => bridge?.tokensByChain[chain.id] ?? [], [bridge?.tokensByChain]);
-  const destinationBalances = useMemo(() => bridge?.balancesByChain[chain.id] ?? [], [bridge?.balancesByChain]);
 
   const effectiveDestinationAddress = useMemo(() => {
     if (!sourceTokenAddress) return;
@@ -167,8 +187,10 @@ export default function Bridge() {
   }, [sourceTokenAddress]);
 
   const destinationToken = destinationTokens.find((token) => token.address === effectiveDestinationAddress);
+  const destinationMarketSymbol = destinationToken?.symbol === "WETH" ? "ETH" : destinationToken?.symbol;
   const destinationBalance = destinationToken
-    ? (destinationBalances.find((item) => item.address === destinationToken.address)?.amount ?? 0n)
+    ? (externalAssets.find((asset) => asset.address.toLowerCase() === destinationToken.address.toLowerCase())?.amount ??
+        0n) + (protocolAssets.find((asset) => asset.symbol === destinationMarketSymbol)?.floatingDepositAssets ?? 0n)
     : 0n;
 
   const destinationAssetGroups = useMemo(() => {
@@ -182,7 +204,7 @@ export default function Bridge() {
     const assets = destinationTokens
       .filter((token) => token.logoURI && protocolSymbols.includes(token.symbol))
       .map((token) => {
-        const balance = destinationBalances.find((item) => item.address === token.address)?.amount ?? 0n;
+        const balance = sameChainBalances?.find((item) => item.address === token.address)?.amount ?? 0n;
         const usdKey = `${chain.id}:${token.address}`;
         const usdValue = usdByToken?.[usdKey] ?? 0;
         return {
@@ -192,7 +214,7 @@ export default function Bridge() {
         };
       });
     return [{ chain: chainData, assets }];
-  }, [chains, destinationBalances, destinationTokens, protocolSymbols, usdByToken]);
+  }, [chains, sameChainBalances, destinationTokens, protocolSymbols, usdByToken]);
 
   const bridgeQuoteEnabled =
     !!senderAddress &&
@@ -202,7 +224,7 @@ export default function Bridge() {
     !!destinationToken &&
     sourceAmount > 0n &&
     !insufficientBalance &&
-    !isSameChain;
+    !isTransfer;
 
   const {
     data: bridgeQuote,
@@ -218,7 +240,7 @@ export default function Bridge() {
       sourceToken,
       destinationToken,
       sourceAmount,
-      isSameChain,
+      isTransfer,
     ],
     queryFn: () => {
       if (
@@ -228,7 +250,7 @@ export default function Bridge() {
         !sourceToken ||
         !destinationToken ||
         sourceAmount === 0n ||
-        isSameChain
+        isTransfer
       )
         throw new Error("invalid bridge parameters");
       return getRouteFrom({
@@ -246,10 +268,11 @@ export default function Bridge() {
     meta: { warnError: () => true },
   });
 
-  const toAmount = bridgeQuote ? BigInt(bridgeQuote.estimate.toAmount) : sourceAmount;
+  const quote = bridgeQuote && !bridgeQuoteError ? bridgeQuote : undefined;
+  const toAmount = quote ? BigInt(quote.estimate.toAmount) : sourceAmount;
 
   const transferSimulationEnabled =
-    isSameChain &&
+    isTransfer &&
     !isNativeSource &&
     !!senderAddress &&
     !!account &&
@@ -273,8 +296,8 @@ export default function Bridge() {
   });
 
   const approvalTokenAddress = source?.address && isAddress(source.address) ? source.address : undefined;
-  const approvalSpenderAddress = bridgeQuote?.estimate.approvalAddress;
-  const approvalChainId = bridgeQuote?.chainId;
+  const approvalSpenderAddress = quote?.estimate.approvalAddress;
+  const approvalChainId = quote?.chainId;
 
   const canReadAllowance =
     !!senderAddress &&
@@ -306,11 +329,15 @@ export default function Bridge() {
     mutationKey: ["bridge", "execute"],
     onMutate: (route) => {
       if (!sourceToken || !destinationToken) return;
-      setBridgePreview({ sourceToken, sourceAmount: BigInt(route.estimate.fromAmount) });
+      setBridgePreview({
+        operation: isSwap ? "swap" : "bridge",
+        sourceToken,
+        sourceAmount: BigInt(route.estimate.fromAmount),
+      });
     },
     mutationFn: async (from) => {
       if (!senderAddress || !source || !account) throw new Error("missing bridge context");
-      if (isSameChain) throw new Error("invalid bridge context");
+      if (isTransfer) throw new Error("invalid bridge context");
       const spender = from.estimate.approvalAddress;
       const requiresApproval =
         !!spender &&
@@ -343,6 +370,12 @@ export default function Bridge() {
           });
         }
       }
+      if (!isExaSender) {
+        setBridgeStatus(
+          t("Switching to {{chain}}...", { chain: selectedGroup?.chain.name ?? `Chain ${from.chainId}` }),
+        );
+        await switchChain(senderConfig, { chainId: source.chain });
+      }
       setBridgeStatus(t("Submitting bridge transaction..."));
       let id: string | undefined;
       try {
@@ -355,6 +388,7 @@ export default function Bridge() {
         });
         id = result.id;
       } catch (error) {
+        if (isExaSender) throw error;
         if (classifyError(error).authKnown) throw error;
         reportError(error, {
           level: "warning",
@@ -380,15 +414,21 @@ export default function Bridge() {
       setBridgeStatus(t("Bridge transaction submitted"));
     },
     onSuccess: async () => {
-      toast.show(t("Bridge transaction submitted"), {
-        native: true,
-        duration: 1000,
-        burntOptions: { haptic: "success", preset: "done" },
-      });
-      await queryClient.invalidateQueries({ queryKey: ["bridge", "sources"] });
+      toast.show(
+        bridgePreview?.operation === "swap" ? t("Swap transaction submitted") : t("Bridge transaction submitted"),
+        {
+          native: true,
+          duration: 1000,
+          burntOptions: { haptic: "success", preset: "done" },
+        },
+      );
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["bridge", "sources"] }),
+        queryClient.invalidateQueries({ queryKey: ["lifi", "balances"] }),
+      ]);
     },
     onError: (error: unknown) => {
-      handleError(error, toast, t);
+      handleError(error, toast, t, bridgePreview?.operation === "swap" ? "swap" : "bridge");
     },
     onSettled: () => {
       setBridgeStatus(undefined);
@@ -406,17 +446,17 @@ export default function Bridge() {
     mutationKey: ["bridge", "transfer"],
     onMutate: () => {
       if (!sourceToken) return;
-      setBridgePreview({ sourceToken, sourceAmount });
+      setBridgePreview({ operation: "transfer", sourceToken, sourceAmount });
     },
     mutationFn: async () => {
       if (!senderAddress || !source || !account) throw new Error("missing transfer context");
-      if (!isSameChain) throw new Error("transfer mutation invoked for different chains");
-      setBridgeStatus(t("Submitting transfer transaction..."));
+      if (!isTransfer) throw new Error("transfer mutation invoked for different chains");
       await switchChain(senderConfig, { chainId: chain.id });
+      setBridgeStatus(t("Submitting transfer transaction..."));
       const recipient = getAddress(account);
       let hash: Hex;
       if (isNativeSource) {
-        hash = await sendTx({ chainId: source.chain, to: recipient, value: sourceAmount });
+        hash = await sendTx({ to: recipient, value: sourceAmount });
       } else {
         if (!transferSimulation) throw new Error("missing transfer simulation");
         hash = await transfer({ ...transferSimulation.request, chainId: source.chain });
@@ -430,10 +470,13 @@ export default function Bridge() {
         duration: 1000,
         burntOptions: { haptic: "success", preset: "done" },
       });
-      await queryClient.invalidateQueries({ queryKey: ["bridge", "sources"] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["bridge", "sources"] }),
+        queryClient.invalidateQueries({ queryKey: ["lifi", "balances"] }),
+      ]);
     },
     onError: (error: unknown) => {
-      handleError(error, toast, t, true);
+      handleError(error, toast, t, "transfer");
     },
     onSettled: () => {
       setBridgeStatus(undefined);
@@ -444,7 +487,8 @@ export default function Bridge() {
   const isTransferSimulationPending = transferSimulationEnabled && isSimulatingTransfer;
   const isBridgeQuoteLoading = bridgeQuoteEnabled && isBridgeQuoteFetching;
 
-  const canShowBridgeQuote = !isSameChain && !!bridgeQuote;
+  const bridgeQuoteReady = !!quote;
+  const canShowBridgeQuote = !isTransfer && bridgeQuoteReady;
   const processing =
     !!bridgePreview &&
     (isBridging || isBridgeSuccess || isBridgeError || isTransferring || isTransferSuccess || isTransferError);
@@ -459,10 +503,9 @@ export default function Bridge() {
     !senderAddress ||
     !account ||
     !sourceToken ||
-    !destinationToken ||
     sourceAmount === 0n ||
     insufficientBalance ||
-    (!isSameChain && !bridgeQuote);
+    (!isTransfer && !bridgeQuoteReady);
 
   const statusMessage =
     isBridging || isTransferring
@@ -477,7 +520,23 @@ export default function Bridge() {
     const isPending = isBridging || isTransferring;
     const isSuccess = isBridgeSuccess || isTransferSuccess;
     const isError = isBridgeError || isTransferError;
-    const isTransfer = isTransferring || isTransferSuccess || isTransferError;
+    const labels = {
+      bridge: {
+        error: t("Bridge failed"),
+        success: t("Bridge transaction submitted"),
+        processing: t("Processing bridge"),
+      },
+      swap: {
+        error: t("Swap failed"),
+        success: t("Swap transaction submitted"),
+        processing: t("Processing swap"),
+      },
+      transfer: {
+        error: t("Transfer failed"),
+        success: t("Transfer transaction submitted"),
+        processing: t("Processing transfer"),
+      },
+    }[bridgePreview.operation];
 
     const amount = Number(formatUnits(bridgePreview.sourceAmount, bridgePreview.sourceToken.decimals));
     const price = Number(bridgePreview.sourceToken.priceUSD);
@@ -518,17 +577,7 @@ export default function Bridge() {
               </Square>
               <YStack gap="$s3" justifyContent="center" alignItems="center">
                 <Text secondary body>
-                  {isError
-                    ? isTransfer
-                      ? t("Transfer failed")
-                      : t("Bridge failed")
-                    : isSuccess
-                      ? isTransfer
-                        ? t("Transfer transaction submitted")
-                        : t("Bridge transaction submitted")
-                      : isTransfer
-                        ? t("Processing transfer")
-                        : t("Processing bridge")}
+                  {isError ? labels.error : isSuccess ? labels.success : labels.processing}
                 </Text>
               </YStack>
               <XStack gap="$s3" alignItems="center">
@@ -679,14 +728,14 @@ export default function Bridge() {
                   <XStack alignItems="center" justifyContent="space-between">
                     <YStack gap="$s1">
                       <Text emphasized subHeadline color="$uiNeutralPrimary">
-                        {isSameChain ? t("Destination") : t("Destination asset")}
+                        {isTransfer ? t("Destination") : t("Destination asset")}
                       </Text>
                       <Text footnote color="$uiNeutralSecondary">
                         {t("Exa Account")} | {shortenHex(account ?? zeroAddress, 4, 6)}
                       </Text>
                     </YStack>
                   </XStack>
-                  {!isSameChain && (
+                  {!isTransfer && (
                     <YStack gap="$s3_5">
                       <Pressable
                         onPress={() => {
@@ -810,9 +859,9 @@ export default function Bridge() {
                         {t("Estimated arrival")}
                       </Text>
                       <Text caption color="$uiNeutralPrimary" textAlign="right" flexShrink={1}>
-                        {bridgeQuote.estimate.toAmount
+                        {quote.estimate.toAmount
                           ? `≈${Number(
-                              formatUnits(BigInt(bridgeQuote.estimate.toAmount), destinationToken.decimals),
+                              formatUnits(BigInt(quote.estimate.toAmount), destinationToken.decimals),
                             ).toLocaleString(language, {
                               minimumFractionDigits: 0,
                               maximumFractionDigits: destinationToken.decimals,
@@ -829,14 +878,14 @@ export default function Bridge() {
                         {chain.name}
                       </Text>
                     </XStack>
-                    {bridgeQuote.estimate.toAmountMin && (
+                    {quote.estimate.toAmountMin && (
                       <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
                         <Text caption color="$uiNeutralSecondary">
                           {t("Minimum received")}
                         </Text>
                         <Text caption color="$uiNeutralPrimary" textAlign="right" flexShrink={1}>
                           {`${Number(
-                            formatUnits(BigInt(bridgeQuote.estimate.toAmountMin), destinationToken.decimals),
+                            formatUnits(BigInt(quote.estimate.toAmountMin), destinationToken.decimals),
                           ).toLocaleString(language, {
                             minimumFractionDigits: 0,
                             maximumFractionDigits: destinationToken.decimals,
@@ -861,19 +910,19 @@ export default function Bridge() {
                         2%
                       </Text>
                     </XStack>
-                    {bridgeQuote.estimate.executionDuration ? (
+                    {quote.estimate.executionDuration ? (
                       <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
                         <Text caption color="$uiNeutralSecondary">
                           {t("Estimated time")}
                         </Text>
                         <Text caption color="$uiNeutralPrimary" textAlign="right" flexShrink={1}>
                           {t("~{{minutes}} min", {
-                            minutes: Math.max(1, Math.round(bridgeQuote.estimate.executionDuration / 60)),
+                            minutes: Math.max(1, Math.round(quote.estimate.executionDuration / 60)),
                           })}
                         </Text>
                       </XStack>
                     ) : null}
-                    {(bridgeQuote.tool ?? bridgeQuote.estimate.tool) && (
+                    {(quote.tool ?? quote.estimate.tool) && (
                       <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
                         <Text caption color="$uiNeutralSecondary">
                           {t("Exchange")}
@@ -885,7 +934,7 @@ export default function Bridge() {
                           flexShrink={1}
                           textTransform="uppercase"
                         >
-                          {bridgeQuote.tool ?? bridgeQuote.estimate.tool}
+                          {quote.tool ?? quote.estimate.tool}
                         </Text>
                       </XStack>
                     )}
@@ -905,7 +954,7 @@ export default function Bridge() {
                 </Text>
               )}
               {transferSimulationError &&
-                isSameChain &&
+                isTransfer &&
                 !isNativeSource &&
                 sourceAmount > 0n &&
                 !insufficientBalance && (
@@ -919,11 +968,11 @@ export default function Bridge() {
         <View padded>
           <YStack
             gap="$s4"
-            borderTopWidth={bridgeQuote?.estimate.approvalAddress ? 1 : 0}
+            borderTopWidth={quote?.estimate.approvalAddress ? 1 : 0}
             borderColor="$borderNeutralSoft"
             paddingTop="$s3"
           >
-            {bridgeQuote?.estimate.approvalAddress && (
+            {quote?.estimate.approvalAddress && (
               <YStack>
                 <XStack gap="$s4" alignItems="flex-start" paddingTop="$s3">
                   <View>
@@ -942,21 +991,23 @@ export default function Bridge() {
               width="100%"
               alignItems="center"
               onPress={() => {
-                if (isSameChain) {
+                if (isTransfer) {
                   executeTransfer().catch(reportError);
                   return;
                 }
-                if (!bridgeQuote) return;
-                executeBridge(bridgeQuote).catch(reportError);
+                if (!quote) return;
+                executeBridge(quote).catch(reportError);
               }}
               disabled={isActionDisabled}
               loading={isBridging || isTransferring}
             >
               <Button.Text>
                 {sourceToken
-                  ? isSameChain
+                  ? isTransfer
                     ? t("Transfer {{symbol}}", { symbol: sourceToken.symbol })
-                    : t("Bridge {{symbol}}", { symbol: sourceToken.symbol })
+                    : isSwap
+                      ? t("Swap {{symbol}}", { symbol: sourceToken.symbol })
+                      : t("Bridge {{symbol}}", { symbol: sourceToken.symbol })
                   : t("Select source asset")}
               </Button.Text>
               <Button.Icon>
@@ -975,7 +1026,7 @@ export default function Bridge() {
           selected={source}
           onSelect={(chainId, token) => {
             setSourceAmount(0n);
-            setSelectedSource({ chain: chainId, address: token.address });
+            setSelectedSource({ chain: chainId, address: token.address.toLowerCase() });
           }}
         />
         <AssetSelectSheet
@@ -997,11 +1048,21 @@ export default function Bridge() {
   );
 }
 
-function handleError(error: unknown, toast: ReturnType<typeof useToastController>, t: TFunction, isTransfer?: boolean) {
-  if (!reportError(error).authKnown)
-    toast.show(isTransfer ? t("Transfer failed. Please try again.") : t("Bridge failed. Please try again."), {
-      native: true,
-      duration: 1000,
-      burntOptions: { haptic: "error", preset: "error" },
-    });
+function handleError(
+  error: unknown,
+  toast: ReturnType<typeof useToastController>,
+  t: TFunction,
+  operation: "bridge" | "swap" | "transfer",
+) {
+  if (reportError(error).authKnown) return;
+  const message = {
+    bridge: t("Bridge failed. Please try again."),
+    swap: t("Swap failed. Please try again."),
+    transfer: t("Transfer failed. Please try again."),
+  }[operation];
+  toast.show(message, {
+    native: true,
+    duration: 1000,
+    burntOptions: { haptic: "error", preset: "error" },
+  });
 }

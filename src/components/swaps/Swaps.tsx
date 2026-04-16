@@ -359,7 +359,7 @@ export default function Swaps() {
       updateSwap((old) => ({ ...old, enableSimulations: false }));
     },
     onSuccess() {
-      queryClient.invalidateQueries({ queryKey: ["lifi", "tokenBalances"] }).catch(reportError);
+      queryClient.invalidateQueries({ queryKey: ["lifi", "balances"] }).catch(reportError);
       queryClient.invalidateQueries({ queryKey: marketsQueryKey }).catch(reportError);
       updateSwap((old) => ({ ...old, fromAmount: 0n, toAmount: 0n }));
     },
