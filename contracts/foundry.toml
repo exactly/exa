@@ -41,6 +41,7 @@ bytecode_hash = "none"
 arbitrum = "${ARBITRUM_RPC_URL}"
 base = "${BASE_RPC_URL}"
 base_sepolia = "${BASE_SEPOLIA_RPC_URL}"
+bnb_smart_chain = "${BNB_SMART_CHAIN_RPC_URL}"
 mainnet = "${ETHEREUM_RPC_URL}"
 optimism = "${OPTIMISM_RPC_URL}"
 optimism_sepolia = "${OPTIMISM_SEPOLIA_RPC_URL}"
@@ -52,6 +53,7 @@ anvil = "http://localhost:8545"
 arbitrum = { key = "${ETHERSCAN_KEY}" }
 base = { key = "${ETHERSCAN_KEY}" }
 base_sepolia = { key = "${ETHERSCAN_KEY}" }
+bnb_smart_chain = { key = "${ETHERSCAN_KEY}" }
 mainnet = { key = "${ETHERSCAN_KEY}" }
 optimism = { key = "${ETHERSCAN_KEY}" }
 optimism_sepolia = { key = "${ETHERSCAN_KEY}" }
