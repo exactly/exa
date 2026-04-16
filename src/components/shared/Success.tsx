@@ -57,7 +57,7 @@ export default function Success({
       <SafeView flex={1} backgroundColor="transparent">
         <YStack gap="$s5" justifyContent="space-between">
           <YStack>
-            <IconButton icon={X} aria-label={t("Close")} onPress={onClose} />
+            <IconButton alignSelf="flex-start" icon={X} aria-label={t("Close")} onPress={onClose} />
             <YStack gap="$s7" paddingBottom="$s9">
               <XStack justifyContent="center" alignItems="center">
                 <Square

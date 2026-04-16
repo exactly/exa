@@ -41,7 +41,7 @@ export default function Failure({
     <GradientScrollView variant="error">
       <SafeView flex={1} backgroundColor="transparent">
         <YStack gap="$s7" paddingBottom="$s9">
-          <IconButton icon={X} aria-label={t("Close")} onPress={onClose} />
+          <IconButton alignSelf="flex-start" icon={X} aria-label={t("Close")} onPress={onClose} />
           <XStack justifyContent="center" alignItems="center">
             <Square borderRadius="$r4" backgroundColor="$interactiveBaseErrorSoftDefault" size={80}>
               <X size={48} color="$uiErrorSecondary" strokeWidth={2} />

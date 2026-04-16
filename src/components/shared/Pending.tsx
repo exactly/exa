@@ -40,7 +40,7 @@ export default function Pending({
     <GradientScrollView variant="neutral">
       <View flex={1}>
         <YStack gap="$s7" paddingBottom="$s9">
-          <IconButton icon={X} aria-label={t("Close")} onPress={onClose} />
+          <IconButton alignSelf="flex-start" icon={X} aria-label={t("Close")} onPress={onClose} />
           <XStack justifyContent="center" alignItems="center">
             <Square borderRadius="$r4" backgroundColor="$backgroundStrong" size={80}>
               <ExaSpinner backgroundColor="transparent" color="$uiNeutralPrimary" />

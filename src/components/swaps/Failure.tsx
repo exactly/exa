@@ -57,6 +57,7 @@ export default function Failure({
         <ScrollView showsVerticalScrollIndicator={false} flex={1} padding="$s4">
           <YStack gap="$s7" paddingBottom="$s9">
             <IconButton
+              alignSelf="flex-start"
               icon={X}
               aria-label={t("Close")}
               onPress={() => {

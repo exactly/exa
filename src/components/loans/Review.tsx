@@ -402,6 +402,7 @@ export default function Review() {
       <View flex={1}>
         <YStack gap="$s7" paddingBottom="$s9">
           <IconButton
+            alignSelf="flex-start"
             icon={X}
             aria-label={t("Close")}
             onPress={() => {

@@ -54,7 +54,7 @@ export default function Pending({
       <SafeView flex={1} backgroundColor="transparent">
         <ScrollView showsVerticalScrollIndicator={false} flex={1} padding="$s4">
           <YStack gap="$s7" paddingBottom="$s9">
-            <IconButton icon={X} aria-label={t("Close")} onPress={onClose} />
+            <IconButton alignSelf="flex-start" icon={X} aria-label={t("Close")} onPress={onClose} />
             <XStack justifyContent="center" alignItems="center">
               <Square borderRadius="$r4" backgroundColor="$backgroundStrong" size={80}>
                 <ExaSpinner backgroundColor="transparent" color="$uiNeutralPrimary" />
