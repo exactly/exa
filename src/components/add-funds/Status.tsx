@@ -3,7 +3,8 @@ import { useTranslation } from "react-i18next";
 
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
-import { X } from "@tamagui/lucide-icons";
+import { ArrowLeft, ArrowRight, X } from "@tamagui/lucide-icons";
+import { useToastController } from "@tamagui/toast";
 import { ScrollView, Spinner, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
@@ -12,10 +13,15 @@ import domain from "@exactly/common/domain";
 
 import BridgeDisclaimer from "./BridgeDisclaimer";
 import MantecaDisclaimer from "./MantecaDisclaimer";
+import RampWebView from "./RampWebView";
 import Denied from "../../assets/images/denied.svg";
+import Documents from "../../assets/images/documents.svg";
 import FaceId from "../../assets/images/face-id.svg";
 import { isValidCurrency } from "../../utils/currencies";
+import queryClient from "../../utils/queryClient";
+import reportError from "../../utils/reportError";
 import { getRampProviders } from "../../utils/server";
+import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
@@ -24,6 +30,7 @@ import View from "../shared/View";
 export default function Status() {
   const { t } = useTranslation();
   const router = useRouter();
+  const toast = useToastController();
 
   const { currency, network, status, pending, provider } = useLocalSearchParams<{
     currency?: string;
@@ -39,6 +46,7 @@ export default function Status() {
   const typedProvider = provider === "bridge" ? provider : "manteca";
 
   const [timedOut, setTimedOut] = useState(!isPending);
+  const [openKYC, setOpenKYC] = useState(false);
   useEffect(() => {
     if (!isPending) return;
     const timeout = setTimeout(() => setTimedOut(true), 5000);
@@ -50,11 +58,14 @@ export default function Status() {
   const { data: providers, isFetching } = useQuery({
     queryKey: ["ramp", "providers", countryCode, redirectURL],
     queryFn: () => getRampProviders(countryCode, redirectURL),
-    enabled: isPending && timedOut && !!countryCode,
+    enabled: (isPending ? timedOut : isOnboarding && typedProvider === "bridge") && !!countryCode,
   });
+  const bridge = providers?.bridge;
+  const kycLink = bridge && "kycLink" in bridge ? bridge.kycLink : undefined;
+  const needsMoreInfo = isOnboarding && typedProvider === "bridge" && !!kycLink;
 
   useEffect(() => {
-    if (isPending && providers?.[typedProvider].status === "ACTIVE" && currency) {
+    if ((isOnboarding || isPending) && providers?.[typedProvider].status === "ACTIVE" && currency) {
       if (isCrypto) {
         router.replace({
           pathname: "/add-funds/add-crypto",
@@ -64,7 +75,7 @@ export default function Status() {
         router.replace({ pathname: "/add-funds/ramp", params: { currency, provider: typedProvider } });
       }
     }
-  }, [isPending, providers, currency, isCrypto, network, router, typedProvider]);
+  }, [isOnboarding, isPending, providers, currency, isCrypto, network, router, typedProvider]);
 
   const ready = !isPending || (timedOut && !isFetching);
 
@@ -74,24 +85,74 @@ export default function Status() {
     router.replace("/(main)/(home)");
   }
 
+  if (openKYC && kycLink) {
+    return (
+      <SafeView fullScreen>
+        <View padded alignSelf="flex-start">
+          <IconButton icon={ArrowLeft} aria-label={t("Back")} onPress={() => setOpenKYC(false)} />
+        </View>
+        <RampWebView
+          uri={kycLink}
+          redirectURL={redirectURL}
+          onRedirect={() => {
+            setOpenKYC(false);
+            queryClient.invalidateQueries({ queryKey: ["ramp", "providers"] }).catch(reportError);
+          }}
+          onError={() => {
+            setOpenKYC(false);
+            toast.show(t("Something went wrong. Please try again."), {
+              native: true,
+              duration: 1000,
+              burntOptions: { haptic: "error" },
+            });
+          }}
+        />
+      </SafeView>
+    );
+  }
+
   return (
     <SafeView fullScreen>
       <View gap="$s4_5" fullScreen padded>
+        {needsMoreInfo ? (
+          <View alignItems="flex-start">
+            <IconButton
+              icon={ArrowLeft}
+              aria-label={t("Back")}
+              onPress={() => {
+                if (router.canGoBack()) router.back();
+                else router.replace("/(main)/(home)");
+              }}
+            />
+          </View>
+        ) : null}
         <ScrollView flex={1}>
           <View flex={1} gap="$s4_5">
             <YStack flex={1} padding="$s4" gap="$s6">
               <YStack flex={1} justifyContent="center">
                 <View width="100%" aspectRatio={1} justifyContent="center" alignItems="center">
-                  {isOnboarding ? <FaceId width="100%" height="100%" /> : <Denied width="100%" height="100%" />}
+                  {needsMoreInfo ? (
+                    <Documents width="100%" height="100%" />
+                  ) : isOnboarding ? (
+                    <FaceId width="100%" height="100%" />
+                  ) : (
+                    <Denied width="100%" height="100%" />
+                  )}
                 </View>
                 <YStack gap="$s4" alignSelf="center">
                   <Text title emphasized textAlign="center" color="$interactiveTextBrandDefault">
-                    {isOnboarding ? t("Almost there!") : t("Verification failed")}
+                    {needsMoreInfo
+                      ? t("Bridge needs more information")
+                      : isOnboarding
+                        ? t("Almost there!")
+                        : t("Verification failed")}
                   </Text>
                   <Text color="$uiNeutralPlaceholder" footnote textAlign="center">
-                    {isOnboarding
-                      ? t("We’re verifying your information. You’ll be able to add funds soon.")
-                      : t("There was an error verifying your information.")}
+                    {needsMoreInfo
+                      ? t("Bridge needs a few more details before creating your account.")
+                      : isOnboarding
+                        ? t("We’re verifying your information. You’ll be able to add funds soon.")
+                        : t("There was an error verifying your information.")}
                   </Text>
                 </YStack>
               </YStack>
@@ -100,12 +161,21 @@ export default function Status() {
         </ScrollView>
         {typedProvider === "bridge" ? <BridgeDisclaimer /> : <MantecaDisclaimer />}
         {ready ? (
-          <Button onPress={handleClose} primary>
-            <Button.Text>{t("Close")}</Button.Text>
-            <Button.Icon>
-              <X size={24} />
-            </Button.Icon>
-          </Button>
+          needsMoreInfo ? (
+            <Button onPress={() => setOpenKYC(true)} primary>
+              <Button.Text>{t("Complete verification")}</Button.Text>
+              <Button.Icon>
+                <ArrowRight size={24} />
+              </Button.Icon>
+            </Button>
+          ) : (
+            <Button onPress={handleClose} primary>
+              <Button.Text>{t("Close")}</Button.Text>
+              <Button.Icon>
+                <X size={24} />
+              </Button.Icon>
+            </Button>
+          )
         ) : (
           <Button disabled primary>
             <Button.Text>{t("Verifying...")}</Button.Text>

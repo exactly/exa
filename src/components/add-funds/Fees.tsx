@@ -1,7 +1,5 @@
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { Platform } from "react-native";
-import { WebView } from "react-native-webview";
 
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
@@ -15,6 +13,7 @@ import domain from "@exactly/common/domain";
 
 import BridgeDisclaimer from "./BridgeDisclaimer";
 import MantecaDisclaimer from "./MantecaDisclaimer";
+import RampWebView from "./RampWebView";
 import completeOnboarding from "../../utils/completeOnboarding";
 import { bridgeMethods, isValidCurrency, fees as rampFees, type Currency } from "../../utils/currencies";
 import openBrowser from "../../utils/openBrowser";
@@ -131,15 +130,23 @@ export default function Fees() {
   if (tosLink) {
     return (
       <SafeView fullScreen>
-        <View padded>
+        <View padded alignSelf="flex-start">
           <IconButton icon={ArrowLeft} aria-label={t("Back")} onPress={() => setTOSLink(undefined)} />
         </View>
-        <TOSView
+        <RampWebView
           uri={tosLink}
-          redirectURL={`https://${domain}/add-funds`}
+          redirectURL={redirectURL}
           onRedirect={(url) => {
             setTOSLink(undefined);
             handleTOSRedirect(url);
+          }}
+          onError={() => {
+            setTOSLink(undefined);
+            toast.show(t("Something went wrong. Please try again."), {
+              native: true,
+              duration: 1000,
+              burntOptions: { haptic: "error" },
+            });
           }}
         />
       </SafeView>
@@ -316,49 +323,4 @@ function bridgeMethod(currency: Currency) {
   const method = bridgeMethods[currency];
   if (!method || !(method in rampFees.bridge)) return;
   return method as keyof typeof rampFees.bridge;
-}
-
-function TOSView({
-  uri,
-  redirectURL,
-  onRedirect,
-}: {
-  onRedirect: (url: string) => void;
-  redirectURL: string;
-  uri: string;
-}) {
-  const redirectedRef = useRef(false);
-  const handleRedirect = useCallback(
-    (url: string) => {
-      if (redirectedRef.current) return;
-      redirectedRef.current = true;
-      onRedirect(url);
-    },
-    [onRedirect],
-  );
-  if (Platform.OS === "web") {
-    return React.createElement("iframe", {
-      src: uri,
-      style: { flex: 1, border: "none", width: "100%", height: "100%" },
-      onLoad: (event: { target: { contentWindow?: { location: { href: string } } } }) => {
-        try {
-          const url = event.target.contentWindow?.location.href;
-          if (url?.startsWith(redirectURL)) handleRedirect(url);
-        } catch {} // eslint-disable-line no-empty -- cross-origin expected
-      },
-    });
-  }
-  return (
-    <WebView
-      source={{ uri }}
-      style={{ flex: 1 }}
-      onShouldStartLoadWithRequest={(request) => {
-        if (request.url.startsWith(redirectURL)) {
-          handleRedirect(request.url);
-          return false;
-        }
-        return true;
-      }}
-    />
-  );
 }
