@@ -118,6 +118,9 @@ services:
       - key: PANDA_API_URL
         scope: RUN_TIME
         value: ${{ env.PANDA_API_URL }}
+      - key: ISSUER_ADDRESS
+        scope: RUN_TIME
+        value: ${{ env.ISSUER_ADDRESS }}
       - key: PAX_API_KEY
         scope: RUN_TIME
         type: SECRET

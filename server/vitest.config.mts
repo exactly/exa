@@ -1,5 +1,6 @@
 import { env } from "node:process";
 import { padHex } from "viem";
+import { privateKeyToAddress } from "viem/accounts";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
@@ -27,6 +28,7 @@ export default defineConfig({
       KEEPER_PRIVATE_KEY: padHex("0x69"),
       PANDA_API_KEY: "panda",
       PANDA_API_URL: "https://panda.test",
+      ISSUER_ADDRESS: privateKeyToAddress(padHex("0x420")),
       PANDA_E2E_PRIVATE_KEY: `-----BEGIN PRIVATE KEY-----
 MIICdgIBADANBgkqhkiG9w0BAQEFAASCAmAwggJcAgEAAoGBAK7Zg545uRpiJCZz
 j23YKeTyzIDVQGoUExWGQlfK5ID1/6EYLbZ9eBC2l8CNCYVGm3mrh/qLSsbZtSLw

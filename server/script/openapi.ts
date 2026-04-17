@@ -1,6 +1,7 @@
 import { generateSpecs } from "hono-openapi";
 import { writeFile } from "node:fs/promises";
 import { padHex } from "viem";
+import { privateKeyToAddress } from "viem/accounts";
 
 import { version } from "../package.json";
 
@@ -18,6 +19,7 @@ process.env.MANTECA_API_URL = "https://manteca.test";
 process.env.MANTECA_WEBHOOKS_KEY = "manteca";
 process.env.PANDA_API_KEY = "panda";
 process.env.PANDA_API_URL = "https://panda.test";
+process.env.ISSUER_ADDRESS = privateKeyToAddress(padHex("0x420"));
 process.env.PAX_API_KEY = "pax";
 process.env.PAX_API_URL = "https://pax.test";
 process.env.PAX_ASSOCIATE_ID_KEY = "pax";

@@ -38,7 +38,7 @@ export default function CardDetails({ open, onClose }: { onClose: () => void; op
   const { data: card, isPending } = useQuery<CardDetailsData>({ queryKey: ["card", "details"] });
   const [details, setDetails] = useState({ pan: "", cvc: "" });
   useEffect(() => {
-    if (card) {
+    if (card?.encryptedPan && card.encryptedCvc) {
       Promise.all([
         decrypt(card.encryptedPan.data, card.encryptedPan.iv, card.secret),
         decrypt(card.encryptedCvc.data, card.encryptedCvc.iv, card.secret),
