@@ -365,10 +365,11 @@ export default function Swaps() {
     onSuccess() {
       queryClient.invalidateQueries({ queryKey: ["lifi", "tokenBalances"] }).catch(reportError);
       queryClient.invalidateQueries({ queryKey: marketsQueryKey }).catch(reportError);
+      updateSwap((old) => ({ ...old, fromAmount: 0n, toAmount: 0n }));
     },
     onSettled() {
       queryClient.removeQueries({ queryKey: ["lifi", "route"] });
-      updateSwap((old) => ({ ...old, fromAmount: 0n, toAmount: 0n, enableSimulations: true }));
+      updateSwap((old) => ({ ...old, enableSimulations: true }));
     },
     onError(error) {
       if (reportError(error).authKnown) resetSwap();
@@ -455,14 +456,15 @@ export default function Swaps() {
                         setAcknowledged(false);
                       }}
                       onFocus={() => {
-                        setActiveInput(type);
                         setAcknowledged(false);
                       }}
                       onChange={(value: bigint) => {
+                        setActiveInput(type);
                         handleAmountChange(value, type);
                         setAcknowledged(false);
                       }}
                       onUseMax={(value: bigint) => {
+                        setActiveInput(type);
                         handleAmountChange(value, type);
                         setAcknowledged(false);
                       }}
