@@ -5,6 +5,7 @@ import { Hono } from "hono";
 import { describeRoute } from "hono-openapi";
 import { resolver, validator as vValidator } from "hono-openapi/valibot";
 import {
+  any,
   integer,
   literal,
   maxValue,
@@ -13,6 +14,7 @@ import {
   nullable,
   number,
   object,
+  optional,
   parse,
   picklist,
   pipe,
@@ -21,12 +23,16 @@ import {
   transform,
   union,
   uuid,
+  variant,
   type InferOutput,
 } from "valibot";
+import { createSiweMessage } from "viem/siwe";
 
+import domain from "@exactly/common/domain";
+import chain from "@exactly/common/generated/chain";
 import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
 import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
-import { Address } from "@exactly/common/validation";
+import { Address, Base64URL } from "@exactly/common/validation";
 
 import database, { cards, credentials } from "../database";
 import t from "../i18n";
@@ -37,13 +43,14 @@ import {
   createCard,
   getApplicationStatus,
   getCard,
+  getNonce,
   getPIN,
   getProcessorDetails,
   getSecrets,
   getUser,
   setPIN,
   updateCard,
-  USD_TO_CENTS,
+  verify,
 } from "../utils/panda";
 import { addCapita, deriveAssociateId } from "../utils/pax";
 import { getAccount, getCardLimitAccount } from "../utils/persona";
@@ -111,6 +118,30 @@ const UpdateCard = union([
     strictObject({ data: string(), iv: string(), sessionId: string() }),
     transform((patch) => ({ ...patch, type: "pin" as const })),
   ),
+  pipe(
+    variant("action", [
+      object({ method: literal("siwe"), action: literal("challenge") }),
+      object({ method: literal("siwe"), action: literal("verify"), message: string(), signature: string() }),
+      object({ method: literal("webauthn"), action: literal("challenge") }),
+      object({
+        method: literal("webauthn"),
+        action: literal("verify"),
+        assertion: object({
+          id: Base64URL,
+          rawId: Base64URL,
+          response: object({
+            clientDataJSON: Base64URL,
+            authenticatorData: Base64URL,
+            signature: Base64URL,
+            userHandle: optional(Base64URL),
+          }),
+          clientExtensionResults: any(),
+          type: literal("public-key"),
+        }),
+      }),
+    ]),
+    transform((signature) => ({ ...signature, type: "signature" as const })),
+  ),
 ]);
 
 const WalletCredentialsResponse = object({
@@ -124,6 +155,8 @@ const UpdatedCardResponse = union([
   object({
     status: pipe(picklist(["ACTIVE", "DELETED", "FROZEN"]), metadata({ examples: ["ACTIVE", "DELETED", "FROZEN"] })),
   }),
+  object({ challenge: pipe(string(), metadata({ examples: ["1a2b3c"] })) }),
+  object({}),
 ]);
 
 export default new Hono()
@@ -545,6 +578,12 @@ async function encryptPIN(pin: string) {
             },
           },
         },
+        403: {
+          description: "Forbidden",
+          content: {
+            "application/json": { schema: resolver(object({ code: literal("no panda") }), { errorMode: "ignore" }) },
+          },
+        },
         404: {
           description: "Not found",
           content: {
@@ -569,10 +608,20 @@ async function encryptPIN(pin: string) {
       return mutex
         .runExclusive(async () => {
           const credential = await database.query.credentials.findFirst({
-            columns: { account: true },
+            columns: {
+              account: true,
+              pandaId: true,
+              factory: true,
+              publicKey: true,
+              transports: true,
+              counter: true,
+            },
             where: eq(credentials.id, credentialId),
             with: {
-              cards: { columns: { id: true, mode: true, status: true }, where: ne(cards.status, "DELETED") },
+              cards: {
+                columns: { id: true, mode: true, status: true, lastFour: true },
+                where: ne(cards.status, "DELETED"),
+              },
             },
           });
           if (!credential) return c.json({ code: "no credential" }, 500);
@@ -619,6 +668,63 @@ async function encryptPIN(pin: string) {
               }
               return c.json({ data, iv } satisfies InferOutput<typeof UpdatedCardResponse>, 200);
             }
+            case "signature":
+              if (!credential.pandaId) return c.json({ code: "no panda" }, 403);
+              switch (patch.method) {
+                case "siwe":
+                  switch (patch.action) {
+                    case "challenge": {
+                      const challenge = await getNonce(credential.pandaId).then(({ nonce }) =>
+                        createSiweMessage({
+                          domain,
+                          address: parse(Address, credentialId),
+                          statement: `I authorize the account ${account} to be linked with the card ending in ${card.lastFour} for my user (${credential.pandaId})`,
+                          uri: `https://${domain}`,
+                          version: "1",
+                          chainId: chain.id,
+                          nonce,
+                        }),
+                      );
+                      return c.json({ challenge } satisfies InferOutput<typeof UpdatedCardResponse>, 200);
+                    }
+                    case "verify":
+                      await verify(credential.pandaId, {
+                        message: patch.message,
+                        signature: patch.signature,
+                        authType: "siwe",
+                      });
+                      return c.json({}, 200);
+
+                    default:
+                      return c.json({ code: "bad request" }, 400);
+                  }
+
+                case "webauthn": {
+                  const challenge = `I authorize the account ${account} to be linked with the card ending in ${card.lastFour} for my user (${credential.pandaId})`;
+                  switch (patch.action) {
+                    case "challenge":
+                      return c.json({ challenge } satisfies InferOutput<typeof UpdatedCardResponse>, 200);
+                    case "verify":
+                      await verify(credential.pandaId, {
+                        authType: "webauthn",
+                        credential: {
+                          publicKey: { type: "Buffer", data: [...credential.publicKey] },
+                          transports: credential.transports,
+                          counter: credential.counter,
+                        },
+                        assertion: patch.assertion,
+                        factory: credential.factory,
+                        statement: challenge,
+                        challenge,
+                      });
+                      return c.json({}, 200);
+
+                    default:
+                      return c.json({ code: "bad request" }, 400);
+                  }
+                }
+              }
+              break;
           }
         })
         .finally(() => {

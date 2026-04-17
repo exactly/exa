@@ -51,14 +51,23 @@ import {
 } from "@exactly/common/generated/chain";
 import MIN_BORROW_INTERVAL from "@exactly/common/MIN_BORROW_INTERVAL";
 import revertReason from "@exactly/common/revertReason";
-import { Address, type Hash, type Hex } from "@exactly/common/validation";
+import { Address, Hex, type Hash } from "@exactly/common/validation";
 import { MATURITY_INTERVAL, splitInstallments } from "@exactly/lib";
 
 import database, { cards, credentials, transactions } from "../database/index";
 import t, { f } from "../i18n";
 import keeper from "../utils/keeper";
 import { sendPushNotification } from "../utils/onesignal";
-import { collectors, createMutex, getMutex, getUser, headerValidator, signIssuerOp, updateUser } from "../utils/panda";
+import {
+  collectors,
+  createMutex,
+  getMutex,
+  getUser,
+  headerValidator,
+  signIssuerOp,
+  updateUser,
+  verifyPandaSignature,
+} from "../utils/panda";
 import publicClient from "../utils/publicClient";
 import revertFingerprint from "../utils/revertFingerprint";
 import risk, { feedback } from "../utils/sardine";
@@ -94,6 +103,8 @@ const BaseTransaction = v.object({
     authorizedAmount: v.nullish(v.number()),
     authorizationMethod: v.optional(v.string()),
     userId: v.string(),
+    signature: v.optional(v.string()),
+    timestamp: v.optional(v.number()),
   }),
 });
 
@@ -535,6 +546,31 @@ export default new Hono().post(
             Math.floor(new Date(payload.body.spend.authorizedAt).getTime() / 1000) -
             Number(BigInt(`0x${payload.id.replaceAll(/[^0-9a-f]/g, "")}`) % 3600n);
           const signature = await signIssuerOp({ account, amount: -refundAmount, timestamp }); // TODO replace with payload signature
+          if (payload.body.spend.signature) {
+            await startSpan(
+              {
+                name: "panda.signature",
+                op: "panda.signature",
+                attributes: {
+                  account,
+                  amount: String(-refundAmount),
+                  timestamp: String(payload.body.spend.timestamp ?? 0),
+                  signature: payload.body.spend.signature,
+                },
+              },
+              (span) => {
+                return verifyPandaSignature({
+                  account,
+                  amount: -refundAmount,
+                  timestamp: payload.body.spend.timestamp ?? 0,
+                  signature: v.parse(Hex, payload.body.spend.signature),
+                }).then((valid) => {
+                  span.setAttribute("valid", valid);
+                  if (!valid) captureException(new Error("invalid panda signature"), { level: "error" });
+                });
+              },
+            ).catch((error: unknown) => captureException(error, { level: "error" }));
+          }
           try {
             await keeper.exaSend(
               { name: "exa.refund", op: "exa.refund", attributes: { account } },
@@ -1135,6 +1171,32 @@ async function prepareCollection(
       (payload.body.spend.authorizedAt ? new Date(payload.body.spend.authorizedAt) : new Date()).getTime() / 1000, // TODO remove fallback
     );
     const signature = await signIssuerOp({ account, amount, timestamp }); // TODO replace with payload signature
+    if (payload.body.spend.signature) {
+      await startSpan(
+        {
+          name: "panda.signature",
+          op: "panda.signature",
+          attributes: {
+            account,
+            amount: String(amount),
+            timestamp: String(payload.body.spend.timestamp ?? 0),
+            signature: payload.body.spend.signature,
+          },
+        },
+        (span) => {
+          return verifyPandaSignature({
+            account,
+            amount,
+            timestamp: payload.body.spend.timestamp ?? 0,
+            signature: v.parse(Hex, payload.body.spend.signature),
+          }).then((valid) => {
+            span.setAttribute("valid", valid);
+            if (!valid) captureException(new Error("invalid panda signature"), { level: "error" });
+          });
+        },
+      ).catch((error: unknown) => captureException(error, { level: "error" }));
+    }
+
     if (card.mode === 0) {
       return { functionName: "collectDebit", args: [amount, BigInt(timestamp), signature] } as const;
     }
