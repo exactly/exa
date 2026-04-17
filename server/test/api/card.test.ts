@@ -9,12 +9,14 @@ import { eq } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 import { testClient } from "hono/testing";
 import { parse } from "valibot";
-import { hexToBigInt, padHex, parseEther, zeroHash } from "viem";
-import { privateKeyToAddress } from "viem/accounts";
+import { checksumAddress, hexToBigInt, padHex, parseEther, zeroHash } from "viem";
+import { privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
+import { createSiweMessage, parseSiweMessage } from "viem/siwe";
 import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
-import { exaAccountFactoryAbi, exaPluginAbi } from "@exactly/common/generated/chain";
+import domain from "@exactly/common/domain";
+import chain, { exaAccountFactoryAbi, exaPluginAbi } from "@exactly/common/generated/chain";
 import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import { Address } from "@exactly/common/validation";
 
@@ -795,6 +797,639 @@ describe("authenticated", () => {
     });
 
     expect(card?.status).toBe("DELETED");
+  });
+
+  describe("signature", () => {
+    describe("siwe", () => {
+      it("returns a siwe message", async () => {
+        const credentialId = privateKeyToAddress(padHex("0xcafe"));
+        const account = padHex("0xbbb1", { size: 20 });
+        await database.insert(credentials).values({
+          id: credentialId,
+          publicKey: new Uint8Array(),
+          account,
+          factory: inject("ExaAccountFactory"),
+          pandaId: "siwe-ok-panda",
+        });
+        await database.insert(cards).values({ id: "siwe-ok-card", credentialId, lastFour: "7777" });
+        const nonceSpy = vi.spyOn(panda, "getNonce").mockResolvedValueOnce({ nonce: "Db2ItfTPLuZ2dV0ZQ" });
+        vi.spyOn(panda, "getCard").mockResolvedValueOnce({ ...cardTemplate, last4: "7777" });
+        vi.spyOn(panda, "getUser").mockResolvedValueOnce(userTemplate);
+
+        const response = await appClient.index.$get(
+          { header: {}, query: { scope: "siwe" } },
+          { headers: { "test-credential-id": credentialId } },
+        );
+
+        expect(response.status).toBe(200);
+        const body = (await response.json()) as { challenge: string };
+        expect(body).toStrictEqual({
+          displayName: `${userTemplate.firstName} ${userTemplate.lastName}`,
+          expirationMonth: cardTemplate.expirationMonth,
+          expirationYear: cardTemplate.expirationYear,
+          lastFour: "7777",
+          mode: 0,
+          provider: "panda",
+          status: "ACTIVE",
+          limit: cardTemplate.limit,
+          productId: PLATINUM_PRODUCT_ID,
+          challenge: expect.any(String), // eslint-disable-line @typescript-eslint/no-unsafe-assignment
+        });
+        expect(parseSiweMessage(body.challenge)).toStrictEqual({
+          domain,
+          address: credentialId,
+          statement: `I authorize the account ${checksumAddress(account)} to be linked with the card ending in 7777 for my user (siwe-ok-panda)`,
+          uri: `https://${domain}`,
+          version: "1",
+          chainId: chain.id,
+          nonce: "Db2ItfTPLuZ2dV0ZQ",
+          issuedAt: expect.any(Date), // eslint-disable-line @typescript-eslint/no-unsafe-assignment
+        });
+        expect(nonceSpy).toHaveBeenCalledWith("siwe-ok-panda");
+      });
+
+      it("returns 403 on message when credential has no panda id", async () => {
+        const credentialId = privateKeyToAddress(padHex("0xdeadbeef"));
+        await database.insert(credentials).values({
+          id: credentialId,
+          publicKey: new Uint8Array(),
+          account: padHex("0xbbb2", { size: 20 }),
+          factory: inject("ExaAccountFactory"),
+        });
+        await database.insert(cards).values({ id: "siwe-no-panda-card", credentialId, lastFour: "8888" });
+        const nonceSpy = vi.spyOn(panda, "getNonce").mockResolvedValue({ nonce: "unreachable" });
+
+        const response = await appClient.index.$get(
+          { header: {}, query: { scope: "siwe" } },
+          { headers: { "test-credential-id": credentialId } },
+        );
+
+        expect(response.status).toBe(403);
+        await expect(response.json()).resolves.toStrictEqual({ code: "no panda" });
+        expect(nonceSpy).not.toHaveBeenCalled();
+      });
+
+      it("propagates getNonce failure", async () => {
+        const credentialId = privateKeyToAddress(padHex("0xfeed"));
+        await database.insert(credentials).values({
+          id: credentialId,
+          publicKey: new Uint8Array(),
+          account: padHex("0xbbb3", { size: 20 }),
+          factory: inject("ExaAccountFactory"),
+          pandaId: "siwe-nonce-fail-panda",
+        });
+        await database.insert(cards).values({ id: "siwe-nonce-fail-card", credentialId, lastFour: "6666" });
+        const nonceSpy = vi.spyOn(panda, "getNonce").mockRejectedValueOnce(new Error("nonce unreachable"));
+        vi.spyOn(panda, "getCard").mockResolvedValueOnce({ ...cardTemplate, last4: "6666" });
+        vi.spyOn(panda, "getUser").mockResolvedValueOnce(userTemplate);
+
+        const response = await appClient.index.$get(
+          { header: {}, query: { scope: "siwe" } },
+          { headers: { "test-credential-id": credentialId } },
+        );
+
+        expect(response.status).toBe(500);
+        expect(nonceSpy).toHaveBeenCalledWith("siwe-nonce-fail-panda");
+        expect(captureException).not.toHaveBeenCalled();
+      });
+
+      it("verifies the signed message", async () => {
+        const owner = privateKeyToAccount(padHex("0xc0d1"));
+        const credentialId = owner.address;
+        const account = checksumAddress(padHex("0xbbc1", { size: 20 }));
+        await database.insert(credentials).values({
+          id: credentialId,
+          publicKey: new Uint8Array(),
+          account,
+          factory: inject("ExaAccountFactory"),
+          pandaId: "siwe-verify-panda",
+        });
+        await database.insert(cards).values({ id: "siwe-verify-card", credentialId, lastFour: "9999" });
+        const verifySpy = vi.spyOn(panda, "verify").mockResolvedValueOnce({});
+        const message = createSiweMessage({
+          domain,
+          address: credentialId,
+          statement: `I authorize the account ${account} to be linked with the card ending in 9999 for my user (siwe-verify-panda)`,
+          uri: `https://${domain}`,
+          version: "1",
+          chainId: chain.id,
+          nonce: "Db2ItfTPLuZ2dV0ZQ",
+        });
+        const signature = await owner.signMessage({ message });
+
+        const response = await appClient.index.$patch({
+          // @ts-expect-error - bad hono patch type
+          header: { "test-credential-id": credentialId },
+          json: { method: "siwe", message, signature },
+        });
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({ verification: "OK" });
+        expect(verifySpy).toHaveBeenCalledWith("siwe-verify-panda", { message, signature, authType: "siwe" });
+      });
+
+      it("rejects siwe message with non-canonical statement", async () => {
+        const owner = privateKeyToAccount(padHex("0xc0d3"));
+        const credentialId = owner.address;
+        const account = checksumAddress(padHex("0xbbc4", { size: 20 }));
+        await database.insert(credentials).values({
+          id: credentialId,
+          publicKey: new Uint8Array(),
+          account,
+          factory: inject("ExaAccountFactory"),
+          pandaId: "siwe-any-statement-panda",
+        });
+        await database.insert(cards).values({ id: "siwe-any-statement-card", credentialId, lastFour: "2020" });
+        const verifySpy = vi.spyOn(panda, "verify").mockResolvedValueOnce({});
+        const message = createSiweMessage({
+          domain,
+          address: credentialId,
+          statement: "arbitrary statement that does not match the canonical authorization phrase",
+          uri: `https://${domain}`,
+          version: "1",
+          chainId: chain.id,
+          nonce: "Db2ItfTPLuZ2dV0ZQ",
+        });
+        const signature = await owner.signMessage({ message });
+
+        const response = await appClient.index.$patch({
+          // @ts-expect-error - bad hono patch type
+          header: { "test-credential-id": credentialId },
+          json: { method: "siwe", message, signature },
+        });
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({ code: "bad signature" });
+        expect(verifySpy).not.toHaveBeenCalled();
+      });
+
+      it("rejects siwe message with mismatched chain id", async () => {
+        const owner = privateKeyToAccount(padHex("0xc0d8"));
+        const credentialId = owner.address;
+        const account = checksumAddress(padHex("0xbbc8", { size: 20 }));
+        await database.insert(credentials).values({
+          id: credentialId,
+          publicKey: new Uint8Array(),
+          account,
+          factory: inject("ExaAccountFactory"),
+          pandaId: "siwe-bad-chain-panda",
+        });
+        await database.insert(cards).values({ id: "siwe-bad-chain-card", credentialId, lastFour: "5050" });
+        const verifySpy = vi.spyOn(panda, "verify").mockResolvedValueOnce({});
+        const message = createSiweMessage({
+          domain,
+          address: credentialId,
+          statement: `I authorize the account ${account} to be linked with the card ending in 5050 for my user (siwe-bad-chain-panda)`,
+          uri: `https://${domain}`,
+          version: "1",
+          chainId: chain.id + 1,
+          nonce: "Db2ItfTPLuZ2dV0ZQ",
+        });
+        const signature = await owner.signMessage({ message });
+
+        const response = await appClient.index.$patch({
+          // @ts-expect-error - bad hono patch type
+          header: { "test-credential-id": credentialId },
+          json: { method: "siwe", message, signature },
+        });
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({ code: "bad signature" });
+        expect(verifySpy).not.toHaveBeenCalled();
+      });
+
+      it("rejects siwe message with mismatched domain", async () => {
+        const owner = privateKeyToAccount(padHex("0xc0d9"));
+        const credentialId = owner.address;
+        const account = checksumAddress(padHex("0xbbc9", { size: 20 }));
+        await database.insert(credentials).values({
+          id: credentialId,
+          publicKey: new Uint8Array(),
+          account,
+          factory: inject("ExaAccountFactory"),
+          pandaId: "siwe-bad-domain-panda",
+        });
+        await database.insert(cards).values({ id: "siwe-bad-domain-card", credentialId, lastFour: "6060" });
+        const verifySpy = vi.spyOn(panda, "verify").mockResolvedValueOnce({});
+        const message = createSiweMessage({
+          domain: "evil.example",
+          address: credentialId,
+          statement: `I authorize the account ${account} to be linked with the card ending in 6060 for my user (siwe-bad-domain-panda)`,
+          uri: `https://${domain}`,
+          version: "1",
+          chainId: chain.id,
+          nonce: "Db2ItfTPLuZ2dV0ZQ",
+        });
+        const signature = await owner.signMessage({ message });
+
+        const response = await appClient.index.$patch({
+          // @ts-expect-error - bad hono patch type
+          header: { "test-credential-id": credentialId },
+          json: { method: "siwe", message, signature },
+        });
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({ code: "bad signature" });
+        expect(verifySpy).not.toHaveBeenCalled();
+      });
+
+      it("rejects siwe signature from a different signer", async () => {
+        const owner = privateKeyToAccount(padHex("0xc0d4"));
+        const attacker = privateKeyToAccount(padHex("0xbad1"));
+        const credentialId = owner.address;
+        const account = checksumAddress(padHex("0xbbc5", { size: 20 }));
+        await database.insert(credentials).values({
+          id: credentialId,
+          publicKey: new Uint8Array(),
+          account,
+          factory: inject("ExaAccountFactory"),
+          pandaId: "siwe-bad-signer-panda",
+        });
+        await database.insert(cards).values({ id: "siwe-bad-signer-card", credentialId, lastFour: "3030" });
+        const verifySpy = vi.spyOn(panda, "verify").mockResolvedValue({});
+        const message = createSiweMessage({
+          domain,
+          address: credentialId,
+          statement: `I authorize the account ${account} to be linked with the card ending in 3030 for my user (siwe-bad-signer-panda)`,
+          uri: `https://${domain}`,
+          version: "1",
+          chainId: chain.id,
+          nonce: "Db2ItfTPLuZ2dV0ZQ",
+        });
+        const signature = await attacker.signMessage({ message });
+
+        const response = await appClient.index.$patch({
+          // @ts-expect-error - bad hono patch type
+          header: { "test-credential-id": credentialId },
+          json: { method: "siwe", message, signature },
+        });
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({ code: "bad signature" });
+        expect(verifySpy).not.toHaveBeenCalled();
+      });
+
+      it("returns 403 on verify when credential has no panda id", async () => {
+        const owner = privateKeyToAccount(padHex("0xc0d5"));
+        const credentialId = owner.address;
+        const account = checksumAddress(padHex("0xbbc2", { size: 20 }));
+        await database.insert(credentials).values({
+          id: credentialId,
+          publicKey: new Uint8Array(),
+          account,
+          factory: inject("ExaAccountFactory"),
+        });
+        await database.insert(cards).values({ id: "siwe-verify-no-panda-card", credentialId, lastFour: "1010" });
+        const verifySpy = vi.spyOn(panda, "verify").mockResolvedValue({});
+        const message = createSiweMessage({
+          domain,
+          address: credentialId,
+          statement: `I authorize the account ${account} to be linked with the card ending in 1010 for my user (none)`,
+          uri: `https://${domain}`,
+          version: "1",
+          chainId: chain.id,
+          nonce: "Db2ItfTPLuZ2dV0ZQ",
+        });
+        const signature = await owner.signMessage({ message });
+
+        const response = await appClient.index.$patch({
+          // @ts-expect-error - bad hono patch type
+          header: { "test-credential-id": credentialId },
+          json: { method: "siwe", message, signature },
+        });
+
+        expect(response.status).toBe(403);
+        await expect(response.json()).resolves.toStrictEqual({ code: "no panda" });
+        expect(verifySpy).not.toHaveBeenCalled();
+      });
+
+      it("returns 400 bad signature when panda rejects siwe verify with 401", async () => {
+        const owner = privateKeyToAccount(padHex("0xc0d6"));
+        const credentialId = owner.address;
+        const account = checksumAddress(padHex("0xbbc6", { size: 20 }));
+        await database.insert(credentials).values({
+          id: credentialId,
+          publicKey: new Uint8Array(),
+          account,
+          factory: inject("ExaAccountFactory"),
+          pandaId: "siwe-panda-401-panda",
+        });
+        await database.insert(cards).values({ id: "siwe-panda-401-card", credentialId, lastFour: "4040" });
+        const verifySpy = vi
+          .spyOn(panda, "verify")
+          .mockRejectedValueOnce(new ServiceError("Panda", 401, "invalid signature"));
+        const message = createSiweMessage({
+          domain,
+          address: credentialId,
+          statement: `I authorize the account ${account} to be linked with the card ending in 4040 for my user (siwe-panda-401-panda)`,
+          uri: `https://${domain}`,
+          version: "1",
+          chainId: chain.id,
+          nonce: "Db2ItfTPLuZ2dV0ZQ",
+        });
+        const signature = await owner.signMessage({ message });
+
+        const response = await appClient.index.$patch({
+          // @ts-expect-error - bad hono patch type
+          header: { "test-credential-id": credentialId },
+          json: { method: "siwe", message, signature },
+        });
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({ code: "bad signature" });
+        expect(verifySpy).toHaveBeenCalledWith("siwe-panda-401-panda", { message, signature, authType: "siwe" });
+      });
+
+      it("propagates non-401 panda errors from siwe verify", async () => {
+        const owner = privateKeyToAccount(padHex("0xc0d7"));
+        const credentialId = owner.address;
+        const account = checksumAddress(padHex("0xbbc7", { size: 20 }));
+        await database.insert(credentials).values({
+          id: credentialId,
+          publicKey: new Uint8Array(),
+          account,
+          factory: inject("ExaAccountFactory"),
+          pandaId: "siwe-panda-503-panda",
+        });
+        await database.insert(cards).values({ id: "siwe-panda-503-card", credentialId, lastFour: "5050" });
+        const verifySpy = vi
+          .spyOn(panda, "verify")
+          .mockRejectedValueOnce(new ServiceError("Panda", 503, "service unavailable"));
+        const message = createSiweMessage({
+          domain,
+          address: credentialId,
+          statement: `I authorize the account ${account} to be linked with the card ending in 5050 for my user (siwe-panda-503-panda)`,
+          uri: `https://${domain}`,
+          version: "1",
+          chainId: chain.id,
+          nonce: "Db2ItfTPLuZ2dV0ZQ",
+        });
+        const signature = await owner.signMessage({ message });
+
+        const response = await appClient.index.$patch({
+          // @ts-expect-error - bad hono patch type
+          header: { "test-credential-id": credentialId },
+          json: { method: "siwe", message, signature },
+        });
+
+        expect(response.status).toBe(500);
+        expect(verifySpy).toHaveBeenCalledWith("siwe-panda-503-panda", { message, signature, authType: "siwe" });
+      });
+    });
+
+    describe("webauthn", () => {
+      const assertion = {
+        id: "I8d7DPRtg1GZ83as5R9LWw",
+        rawId: "I8d7DPRtg1GZ83as5R9LWw",
+        response: {
+          clientDataJSON: "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0In0", // cspell:ignore eyJ0eXBlIjoid2ViYXV0aG4uZ2V0In0
+          authenticatorData: "5d85uxU17437HNUygAfwlrv58UORvl7p-OfSMVnQe64dAAAAAA", // cspell:ignore 5d85uxU17437HNUygAfwlrv58UORvl7p-OfSMVnQe64dAAAAAA
+          signature: "MEYCIQD2d5ovtuEXMvfRdJa4JiotIYLnCCR3oEWQRX0xggyfwA",
+          userHandle: "cv99bMRjY0w-G2076bDKKTbxiLDpv6_iI19xJRifYzM",
+        },
+        clientExtensionResults: {},
+        type: "public-key" as const,
+      };
+
+      it("returns the statement as the challenge", async () => {
+        const credentialId = "webauthn-challenge-ok";
+        const account = padHex("0xbbd1", { size: 20 });
+        await database.insert(credentials).values({
+          id: credentialId,
+          publicKey: new Uint8Array([1, 2, 3]),
+          account,
+          factory: inject("ExaAccountFactory"),
+          pandaId: "webauthn-challenge-panda",
+        });
+        await database.insert(cards).values({ id: "webauthn-challenge-card", credentialId, lastFour: "3377" });
+        const nonceSpy = vi.spyOn(panda, "getNonce").mockResolvedValue({ nonce: "unreachable" });
+        vi.spyOn(panda, "getCard").mockResolvedValueOnce({ ...cardTemplate, last4: "3377" });
+        vi.spyOn(panda, "getUser").mockResolvedValueOnce(userTemplate);
+
+        const response = await appClient.index.$get(
+          { header: {}, query: { scope: "webauthn" } },
+          { headers: { "test-credential-id": credentialId } },
+        );
+
+        const expectedStatement = `I authorize the account ${checksumAddress(account)} to be linked with the card ending in 3377 for my user (webauthn-challenge-panda)`;
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({
+          displayName: `${userTemplate.firstName} ${userTemplate.lastName}`,
+          expirationMonth: cardTemplate.expirationMonth,
+          expirationYear: cardTemplate.expirationYear,
+          lastFour: "3377",
+          mode: 0,
+          provider: "panda",
+          status: "ACTIVE",
+          limit: cardTemplate.limit,
+          productId: PLATINUM_PRODUCT_ID,
+          challenge: expectedStatement,
+        });
+        expect(nonceSpy).not.toHaveBeenCalled();
+      });
+
+      it("returns 403 on challenge when credential has no panda id", async () => {
+        const credentialId = "webauthn-challenge-no-panda";
+        await database.insert(credentials).values({
+          id: credentialId,
+          publicKey: new Uint8Array([1, 2, 3]),
+          account: padHex("0xbbd2", { size: 20 }),
+          factory: inject("ExaAccountFactory"),
+        });
+        await database.insert(cards).values({ id: "webauthn-challenge-no-panda-card", credentialId, lastFour: "4488" });
+
+        const response = await appClient.index.$get(
+          { header: {}, query: { scope: "webauthn" } },
+          { headers: { "test-credential-id": credentialId } },
+        );
+
+        expect(response.status).toBe(403);
+        await expect(response.json()).resolves.toStrictEqual({ code: "no panda" });
+      });
+
+      it("verifies the webauthn assertion", async () => {
+        const credentialId = "webauthn-verify-ok";
+        const account = padHex("0xbbe1", { size: 20 });
+        const factory = inject("ExaAccountFactory");
+        await database.insert(credentials).values({
+          id: credentialId,
+          publicKey: new Uint8Array([1, 2, 3]),
+          account,
+          factory,
+          pandaId: "webauthn-verify-panda",
+          transports: ["internal"],
+          counter: 5,
+        });
+        await database.insert(cards).values({ id: "webauthn-verify-card", credentialId, lastFour: "3377" });
+        const verifySpy = vi.spyOn(panda, "verify").mockResolvedValueOnce({});
+        const statement = `I authorize the account ${checksumAddress(account)} to be linked with the card ending in 3377 for my user (webauthn-verify-panda)`;
+
+        const response = await appClient.index.$patch({
+          // @ts-expect-error - bad hono patch type
+          header: { "test-credential-id": credentialId },
+          json: { method: "webauthn", assertion },
+        });
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({ verification: "OK" });
+        expect(verifySpy).toHaveBeenCalledWith("webauthn-verify-panda", {
+          authType: "webauthn",
+          credential: {
+            publicKey: { type: "Buffer", data: [1, 2, 3] },
+            transports: ["internal"],
+            counter: 5,
+          },
+          assertion,
+          factory,
+          statement,
+        });
+      });
+
+      it("forwards null transports verbatim", async () => {
+        const credentialId = "webauthn-verify-null-transports";
+        const account = padHex("0xbbe3", { size: 20 });
+        const factory = inject("ExaAccountFactory");
+        await database.insert(credentials).values({
+          id: credentialId,
+          publicKey: new Uint8Array([9, 8, 7]),
+          account,
+          factory,
+          pandaId: "webauthn-null-panda",
+          counter: 0,
+        });
+        await database.insert(cards).values({ id: "webauthn-null-card", credentialId, lastFour: "2020" });
+        const verifySpy = vi.spyOn(panda, "verify").mockResolvedValueOnce({});
+        const statement = `I authorize the account ${checksumAddress(account)} to be linked with the card ending in 2020 for my user (webauthn-null-panda)`;
+
+        const response = await appClient.index.$patch({
+          // @ts-expect-error - bad hono patch type
+          header: { "test-credential-id": credentialId },
+          json: { method: "webauthn", assertion },
+        });
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({ verification: "OK" });
+        expect(verifySpy).toHaveBeenCalledWith("webauthn-null-panda", {
+          authType: "webauthn",
+          credential: { publicKey: { type: "Buffer", data: [9, 8, 7] }, transports: null, counter: 0 },
+          assertion,
+          factory,
+          statement,
+        });
+      });
+
+      it("returns 403 on verify when credential has no panda id", async () => {
+        const credentialId = "webauthn-verify-no-panda";
+        await database.insert(credentials).values({
+          id: credentialId,
+          publicKey: new Uint8Array([1]),
+          account: padHex("0xbbe2", { size: 20 }),
+          factory: inject("ExaAccountFactory"),
+        });
+        await database.insert(cards).values({ id: "webauthn-verify-no-panda-card", credentialId, lastFour: "3030" });
+        const verifySpy = vi.spyOn(panda, "verify").mockResolvedValue({});
+
+        const response = await appClient.index.$patch({
+          // @ts-expect-error - bad hono patch type
+          header: { "test-credential-id": credentialId },
+          json: { method: "webauthn", assertion },
+        });
+
+        expect(response.status).toBe(403);
+        await expect(response.json()).resolves.toStrictEqual({ code: "no panda" });
+        expect(verifySpy).not.toHaveBeenCalled();
+      });
+
+      it("returns 400 bad signature when panda rejects webauthn verify with 401", async () => {
+        const credentialId = "webauthn-panda-401";
+        const account = padHex("0xbbe4", { size: 20 });
+        const factory = inject("ExaAccountFactory");
+        await database.insert(credentials).values({
+          id: credentialId,
+          publicKey: new Uint8Array([1, 2, 3]),
+          account,
+          factory,
+          pandaId: "webauthn-panda-401-panda",
+          transports: ["internal"],
+          counter: 0,
+        });
+        await database.insert(cards).values({ id: "webauthn-panda-401-card", credentialId, lastFour: "4141" });
+        const verifySpy = vi
+          .spyOn(panda, "verify")
+          .mockRejectedValueOnce(new ServiceError("Panda", 401, "invalid signature"));
+
+        const response = await appClient.index.$patch({
+          // @ts-expect-error - bad hono patch type
+          header: { "test-credential-id": credentialId },
+          json: { method: "webauthn", assertion },
+        });
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({ code: "bad signature" });
+        expect(verifySpy).toHaveBeenCalledWith("webauthn-panda-401-panda", {
+          authType: "webauthn",
+          credential: { publicKey: { type: "Buffer", data: [1, 2, 3] }, transports: ["internal"], counter: 0 },
+          assertion,
+          factory,
+          statement: `I authorize the account ${checksumAddress(account)} to be linked with the card ending in 4141 for my user (webauthn-panda-401-panda)`,
+        });
+      });
+
+      it("propagates non-401 panda errors from webauthn verify", async () => {
+        const credentialId = "webauthn-panda-503";
+        const account = padHex("0xbbe5", { size: 20 });
+        const factory = inject("ExaAccountFactory");
+        await database.insert(credentials).values({
+          id: credentialId,
+          publicKey: new Uint8Array([4, 5, 6]),
+          account,
+          factory,
+          pandaId: "webauthn-panda-503-panda",
+          transports: ["internal"],
+          counter: 0,
+        });
+        await database.insert(cards).values({ id: "webauthn-panda-503-card", credentialId, lastFour: "5151" });
+        const verifySpy = vi
+          .spyOn(panda, "verify")
+          .mockRejectedValueOnce(new ServiceError("Panda", 503, "service unavailable"));
+
+        const response = await appClient.index.$patch({
+          // @ts-expect-error - bad hono patch type
+          header: { "test-credential-id": credentialId },
+          json: { method: "webauthn", assertion },
+        });
+
+        expect(response.status).toBe(500);
+        expect(verifySpy).toHaveBeenCalledWith("webauthn-panda-503-panda", {
+          authType: "webauthn",
+          credential: { publicKey: { type: "Buffer", data: [4, 5, 6] }, transports: ["internal"], counter: 0 },
+          assertion,
+          factory,
+          statement: `I authorize the account ${checksumAddress(account)} to be linked with the card ending in 5151 for my user (webauthn-panda-503-panda)`,
+        });
+      });
+    });
+
+    it("rejects combined siwe and webauthn scope", async () => {
+      const credentialId = privateKeyToAddress(padHex("0xc0de"));
+      await database.insert(credentials).values({
+        id: credentialId,
+        publicKey: new Uint8Array(),
+        account: padHex("0xbbf1", { size: 20 }),
+        factory: inject("ExaAccountFactory"),
+        pandaId: "combined-scope-panda",
+      });
+      await database.insert(cards).values({ id: "combined-scope-card", credentialId, lastFour: "5050" });
+      const nonceSpy = vi.spyOn(panda, "getNonce").mockResolvedValue({ nonce: "unreachable" });
+
+      const response = await appClient.index.$get(
+        { header: {}, query: { scope: ["siwe", "webauthn"] } },
+        { headers: { "test-credential-id": credentialId } },
+      );
+
+      expect(response.status).toBe(400);
+      expect(nonceSpy).not.toHaveBeenCalled();
+    });
   });
 
   describe("migration", () => {
