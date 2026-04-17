@@ -51,6 +51,7 @@ import verifySignature from "./verifySignature";
 import database, { credentials } from "../database";
 import publicClient from "../utils/publicClient";
 
+
 const plugin = exaPluginAddress.toLowerCase();
 
 if (!process.env.PANDA_API_URL) throw new Error("missing panda api url");
@@ -58,6 +59,7 @@ const baseURL = process.env.PANDA_API_URL;
 
 if (!process.env.PANDA_API_KEY) throw new Error("missing panda api key");
 const key = process.env.PANDA_API_KEY;
+
 
 export const USD_TO_CENTS = 100;
 
@@ -378,6 +380,7 @@ export function signIssuerOp({ account, amount, timestamp }: { account: Address;
     message: { account, amount: amount < 0n ? -amount : amount, timestamp },
   });
 }
+
 
 const mutexes = new Map<Address, MutexInterface>();
 export function createMutex(address: Address) {

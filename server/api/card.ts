@@ -274,8 +274,8 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
         if (!user) return c.json({ code: "no panda" }, 403);
         return c.json(
           {
-            ...pan,
-            ...pin,
+            ...(pan && { ...pan }),
+            ...(pin && { ...pin }),
             cardId: id,
             displayName: `${user.firstName} ${user.lastName}`,
             expirationMonth,
