@@ -216,7 +216,6 @@ contract Redeployer is BaseScript {
   }
 
   function deployRouter(address token) external returns (HypXERC20 router) {
-    if (address(proxyAdmin).code.length == 0) revert ProxyAdminNotDeployed();
     address admin = acct("admin");
     router = HypXERC20(CREATE3_FACTORY.getDeployed(admin, keccak256(abi.encode("HypEXA"))));
     if (address(router).code.length != 0) return router;
@@ -228,23 +227,21 @@ contract Redeployer is BaseScript {
           type(TransparentUpgradeableProxy).creationCode,
           abi.encode(
             address(new HypXERC20(token, 1, 1, acct("mailbox"))),
-            address(proxyAdmin),
+            protocol("ProxyAdmin"),
             abi.encodeCall(HypERC20Collateral.initialize, (address(0), address(0), admin))
           )
         )
       )
     );
+    router.transferOwnership(acct("exactly"));
     vm.stopBroadcast();
   }
 
-  function setupRouter(address token, uint32 remoteDomain) external {
-    address admin = acct("admin");
-    address router = CREATE3_FACTORY.getDeployed(admin, keccak256(abi.encode("HypEXA")));
+  function setupRouter(uint32 remoteDomain) external {
+    address router = CREATE3_FACTORY.getDeployed(acct("admin"), keccak256(abi.encode("HypEXA")));
     if (router.code.length == 0) revert RouterNotDeployed();
-    vm.startBroadcast(admin);
-    if (!EXA(token).hasRole(keccak256("BRIDGE_ROLE"), router)) EXA(token).grantRole(keccak256("BRIDGE_ROLE"), router);
+    vm.broadcast(acct("exactly"));
     HypXERC20(router).enrollRemoteRouter(remoteDomain, bytes32(uint256(uint160(router))));
-    vm.stopBroadcast();
   }
 
   /// @notice Upgrades a proxy to the cached ExaAccountFactory implementation.
