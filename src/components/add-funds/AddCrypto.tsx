@@ -5,7 +5,8 @@ import { PixelRatio, Pressable, Share } from "react-native";
 import { setStringAsync } from "expo-clipboard";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
-import { AlertTriangle, ArrowLeft, Files, RefreshCw, Share as ShareIcon } from "@tamagui/lucide-icons";
+import { AlertTriangle, ArrowLeft, Copy, RefreshCw, Share as ShareIcon } from "@tamagui/lucide-icons";
+import { useToastController } from "@tamagui/toast";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
@@ -50,11 +51,13 @@ export default function AddCrypto() {
   });
   const deposit = data?.depositInfo.at(0);
   const depositAddress = deposit && "address" in deposit ? deposit.address : undefined;
+  const memo = deposit && "memo" in deposit ? deposit.memo : undefined;
 
   const address = isBridge ? depositAddress : accountAddress;
   const networkName = isBridge && typeof network === "string" ? network : chain.name;
   const assets = isBridge && typeof currency === "string" ? [currency] : defaultAssets;
 
+  const toast = useToastController();
   const [copyAddressShown, setCopyAddressShown] = useState(false);
   const [supportedAssetsShown, setSupportedAssetsShown] = useState(false);
 
@@ -135,7 +138,7 @@ export default function AddCrypto() {
                   <Button primary flex={1} onPress={copy} disabled={!address}>
                     <Button.Text>{t("Copy")}</Button.Text>
                     <Button.Icon>
-                      <Files size={18 * fontScale} />
+                      <Copy size={18 * fontScale} />
                     </Button.Icon>
                   </Button>
                   <Button
@@ -154,6 +157,34 @@ export default function AddCrypto() {
                 </XStack>
               )}
             </YStack>
+            {!!memo && (
+              <YStack gap="$s4" backgroundColor="$backgroundSoft" padding="$s4_5" borderRadius="$r3">
+                <Text emphasized secondary caption color="$uiNeutralPlaceholder">
+                  {t("Memo")}
+                </Text>
+                <XStack gap="$s3" alignItems="center" justifyContent="space-between">
+                  <Text emphasized secondary footnote>
+                    {memo}
+                  </Text>
+                  <IconButton
+                    icon={Copy}
+                    color="$interactiveBaseBrandDefault"
+                    aria-label={t("Copy memo")}
+                    onPress={() => {
+                      setStringAsync(memo).catch(reportError);
+                      toast.show(t("Memo copied!"), {
+                        native: true,
+                        duration: 1000,
+                        burntOptions: { haptic: "success" },
+                      });
+                    }}
+                  />
+                </XStack>
+                <Text caption2 color="$uiNeutralPlaceholder">
+                  {t("The memo is required. Deposits sent without it may be permanently lost.")}
+                </Text>
+              </YStack>
+            )}
             <CopyAddressSheet
               open={copyAddressShown}
               onClose={() => {
