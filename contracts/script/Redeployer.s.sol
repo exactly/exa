@@ -4,6 +4,8 @@ pragma solidity ^0.8.0;
 import {
   TransparentUpgradeableProxy
 } from "@openzeppelin/contracts-v4/proxy/transparent/TransparentUpgradeableProxy.sol";
+import { IAccessControl } from "openzeppelin-contracts/contracts/access/IAccessControl.sol";
+import { TimelockController } from "openzeppelin-contracts/contracts/governance/TimelockController.sol";
 import { ERC1967Utils } from "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Utils.sol";
 import { ProxyAdmin } from "openzeppelin-contracts/contracts/proxy/transparent/ProxyAdmin.sol";
 import {
@@ -244,6 +246,18 @@ contract Redeployer is BaseScript {
     HypXERC20(router).enrollRemoteRouter(remoteDomain, bytes32(uint256(uint160(router))));
   }
 
+  function proposeBridgeRole(address token, bytes32 salt) external {
+    address router = CREATE3_FACTORY.getDeployed(acct("admin"), keccak256(abi.encode("HypEXA")));
+    if (router.code.length == 0) revert RouterNotDeployed();
+    if (IAccessControl(token).hasRole(keccak256("BRIDGE_ROLE"), router)) revert AlreadyGranted();
+    TimelockController timelock = TimelockController(payable(protocol("TimelockController")));
+    uint256 delay = timelock.getMinDelay();
+    vm.broadcast(acct("deployer"));
+    timelock.schedule(
+      token, 0, abi.encodeCall(IAccessControl.grantRole, (keccak256("BRIDGE_ROLE"), router)), bytes32(0), salt, delay
+    );
+  }
+
   /// @notice Upgrades a proxy to the cached ExaAccountFactory implementation.
   function deployExaFactory(address proxy) external {
     if (address(factory).code.length == 0) revert NotPrepared();
@@ -331,6 +345,7 @@ contract Redeployer is BaseScript {
 }
 
 error AdminIsDeployer();
+error AlreadyGranted();
 error DummyNotDeployed();
 error NonceNotFound();
 error NotPrepared();
