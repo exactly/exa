@@ -1,6 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
+import { selectionAsync } from "expo-haptics";
 import { useRouter } from "expo-router";
 
 import { ChevronRight } from "@tamagui/lucide-icons";
@@ -9,6 +10,7 @@ import { View, XStack, YStack } from "tamagui";
 import { useQuery } from "@tanstack/react-query";
 
 import { selectBalance } from "../../utils/isProcessing";
+import reportError from "../../utils/reportError";
 import Amount from "../shared/Amount";
 import AssetLogo from "../shared/AssetLogo";
 import Text from "../shared/Text";
@@ -44,12 +46,20 @@ export default function PortfolioSummary({
   const extra = assets.length - 3;
 
   return (
-    <YStack gap="$s5" cursor="pointer" onPress={() => router.push("/portfolio")}>
+    <YStack
+      gap="$s5"
+      cursor="pointer"
+      group="portfolio"
+      onPress={() => {
+        selectionAsync().catch(reportError);
+        router.push("/portfolio");
+      }}
+    >
       <XStack justifyContent="space-between" alignItems="center" width="100%">
         <Text emphasized headline>
           {t("Portfolio")}
         </Text>
-        <XStack alignItems="center" gap="$s1">
+        <XStack alignItems="center" gap="$s1" $group-portfolio-press={{ opacity: 0.7 }}>
           <Text emphasized subHeadline color="$interactiveBaseBrandDefault">
             {t("Manage portfolio")}
           </Text>
