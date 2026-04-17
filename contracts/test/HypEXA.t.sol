@@ -36,9 +36,17 @@ contract HypEXATest is ForkTest {
     if (address(polygonRedeployer.proxyAdmin()).code.length == 0) polygonRedeployer.prepare();
     polygonRedeployer.proxyThrough(polygonRedeployer.findNonce(acct("deployer"), address(exa), 1000) + 1);
     polygonRedeployer.deployEXA(address(exa));
+    set("exactly", makeAddr("exactly")); // no exactly on polygon — test-only chain
+    set("ProxyAdmin", address(polygonRedeployer.proxyAdmin())); // no protocol deployment on polygon
     polygonRouter = polygonRedeployer.deployRouter(address(exa));
-    polygonRedeployer.setupRouter(address(exa), OP_DOMAIN);
-    polygonRedeployer.setupRouter(address(exa), BASE_DOMAIN);
+    unset("ProxyAdmin");
+    unset("exactly");
+    vm.prank(acct("admin"));
+    exa.grantRole(keccak256("BRIDGE_ROLE"), address(polygonRouter));
+    set("exactly", makeAddr("exactly"));
+    polygonRedeployer.setupRouter(OP_DOMAIN);
+    polygonRedeployer.setupRouter(BASE_DOMAIN);
+    unset("exactly");
 
     baseFork = vm.createSelectFork("base", 42_380_000);
     baseMailbox = acct("mailbox");
@@ -48,8 +56,10 @@ contract HypEXATest is ForkTest {
     baseRedeployer.proxyThrough(baseRedeployer.findNonce(acct("deployer"), address(exa), 1000) + 1);
     baseRedeployer.deployEXA(address(exa));
     baseRouter = baseRedeployer.deployRouter(address(exa));
-    baseRedeployer.setupRouter(address(exa), OP_DOMAIN);
-    baseRedeployer.setupRouter(address(exa), POLYGON_DOMAIN);
+    vm.prank(acct("admin"));
+    exa.grantRole(keccak256("BRIDGE_ROLE"), address(baseRouter));
+    baseRedeployer.setupRouter(OP_DOMAIN);
+    baseRedeployer.setupRouter(POLYGON_DOMAIN);
 
     opFork = vm.createSelectFork("optimism", 147_967_000);
     opMailbox = acct("mailbox");
@@ -60,8 +70,10 @@ contract HypEXATest is ForkTest {
     opRedeployer.deployEXAImpl();
     opRedeployer.upgradeEXA(address(exa));
     opRouter = opRedeployer.deployRouter(address(exa));
-    opRedeployer.setupRouter(address(exa), BASE_DOMAIN);
-    opRedeployer.setupRouter(address(exa), POLYGON_DOMAIN);
+    vm.prank(admin);
+    exa.grantRole(keccak256("BRIDGE_ROLE"), address(opRouter));
+    opRedeployer.setupRouter(BASE_DOMAIN);
+    opRedeployer.setupRouter(POLYGON_DOMAIN);
   }
 
   // solhint-disable func-name-mixedcase
@@ -178,7 +190,7 @@ contract HypEXATest is ForkTest {
     redeployer.setUp();
 
     vm.expectRevert(RouterNotDeployed.selector);
-    redeployer.setupRouter(address(exa), OP_DOMAIN);
+    redeployer.setupRouter(OP_DOMAIN);
   }
 
   // solhint-enable func-name-mixedcase
