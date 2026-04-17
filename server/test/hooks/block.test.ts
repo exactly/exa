@@ -45,9 +45,11 @@ import chain, {
   upgradeableModularAccountAbi,
 } from "@exactly/common/generated/chain";
 import ProposalType, { decodeWithdraw } from "@exactly/common/ProposalType";
+import shortenHex from "@exactly/common/shortenHex";
 import deploy from "@exactly/plugin/deploy.json";
 
 import app from "../../hooks/block";
+import t, { f } from "../../i18n";
 import ensClient from "../../utils/ensClient";
 import keeper from "../../utils/keeper";
 import * as onesignal from "../../utils/onesignal";
@@ -104,10 +106,13 @@ describe("proposal", () => {
     it("execute withdraws", async () => {
       const withdraw = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
       const anotherWithdraw = proposals[1]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
+      const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification").mockResolvedValue({});
+      const receiver = getAddress(decodeWithdraw(withdraw.args.data));
+      vi.spyOn(ensClient, "getEnsName").mockResolvedValueOnce("alice.eth").mockResolvedValueOnce(null);
 
       const expected = [
         {
-          receiver: getAddress(decodeWithdraw(withdraw.args.data)),
+          receiver,
           amount: withdraw.args.amount,
         },
         {
@@ -143,6 +148,27 @@ describe("proposal", () => {
         }),
         proposalExecutions,
       ]);
+
+      await vi.waitUntil(() => sendPushNotification.mock.calls.length === 2, 26_666);
+
+      expect(sendPushNotification).toHaveBeenCalledWith({
+        userId: bobAccount,
+        headings: t("Withdraw completed"),
+        contents: t("{{amount}} {{symbol}} sent to {{recipient}}", {
+          amount: f("3"),
+          symbol: "USDC",
+          recipient: "alice.eth",
+        }),
+      });
+      expect(sendPushNotification).toHaveBeenCalledWith({
+        userId: bobAccount,
+        headings: t("Withdraw completed"),
+        contents: t("{{amount}} {{symbol}} sent to {{recipient}}", {
+          amount: f("4"),
+          symbol: "USDC",
+          recipient: shortenHex(receiver),
+        }),
+      });
       expect(hasExpectedTransfers(receipts, expected)).toBe(true);
     });
   });
@@ -1243,11 +1269,115 @@ describe("legacy withdraw", () => {
     await vi.waitUntil(() => zrem.mock.calls.some((call) => match.zrem(call)), 26_666);
     expect(sendPushNotification).toHaveBeenCalledWith({
       userId: withdrawAccount,
-      headings: { en: "Withdraw completed" },
-      contents: { en: "1.375 USDC sent to alice.eth" },
+      headings: t("Withdraw completed"),
+      contents: t("{{amount}} {{symbol}} sent to {{recipient}}", {
+        amount: f("1.375"),
+        symbol: "USDC",
+        recipient: "alice.eth",
+      }),
     });
     const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
     expect(captureExceptionCalls.filter((call) => match.capture(call))).toEqual([]);
+  });
+
+  it("sends withdraw notification with shortened receiver when ens is missing", async () => {
+    const amount = 1_375_000n;
+    const match = matchWithdraw(amount, withdrawAccount, withdrawMarket, withdrawReceiver);
+    const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
+    const zrem = vi.spyOn(redis, "zrem");
+    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification").mockResolvedValue({});
+    vi.spyOn(ensClient, "getEnsName").mockResolvedValue(null);
+    if (vi.isMockFunction(keeper.exaSend)) throw new Error("unexpected keeper exaSend mock");
+    const exaSend = keeper.exaSend.bind(keeper);
+    vi.spyOn(keeper, "exaSend").mockImplementation((span, call, options) =>
+      call.functionName === "withdraw"
+        ? Promise.resolve({ status: "success" } as TransactionReceipt)
+        : exaSend(span, call, options),
+    );
+    vi.spyOn(publicClient, "readContract").mockImplementation(({ functionName }) => {
+      if (functionName === "decimals") return Promise.resolve(6);
+      if (functionName === "symbol") return Promise.resolve("exaUSDC");
+      return Promise.reject(new Error("unexpected readContract call"));
+    });
+
+    await appClient.index.$post(legacyPayload(amount));
+
+    await vi.waitUntil(() => zrem.mock.calls.some((call) => match.zrem(call)), 26_666);
+    expect(sendPushNotification).toHaveBeenCalledWith({
+      userId: withdrawAccount,
+      headings: t("Withdraw completed"),
+      contents: t("{{amount}} {{symbol}} sent to {{recipient}}", {
+        amount: f("1.375"),
+        symbol: "USDC",
+        recipient: shortenHex(withdrawReceiver),
+      }),
+    });
+    const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
+    expect(captureExceptionCalls.filter((call) => match.capture(call))).toEqual([]);
+  });
+
+  it("sends withdraw notification with shortened receiver when ens lookup fails", async () => {
+    const amount = 1_375_000n;
+    const match = matchWithdraw(amount, withdrawAccount, withdrawMarket, withdrawReceiver);
+    const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
+    const zrem = vi.spyOn(redis, "zrem");
+    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification").mockResolvedValue({});
+    vi.spyOn(ensClient, "getEnsName").mockRejectedValue(new Error("ens failed"));
+    if (vi.isMockFunction(keeper.exaSend)) throw new Error("unexpected keeper exaSend mock");
+    const exaSend = keeper.exaSend.bind(keeper);
+    vi.spyOn(keeper, "exaSend").mockImplementation((span, call, options) =>
+      call.functionName === "withdraw"
+        ? Promise.resolve({ status: "success" } as TransactionReceipt)
+        : exaSend(span, call, options),
+    );
+    vi.spyOn(publicClient, "readContract").mockImplementation(({ functionName }) => {
+      if (functionName === "decimals") return Promise.resolve(6);
+      if (functionName === "symbol") return Promise.resolve("exaUSDC");
+      return Promise.reject(new Error("unexpected readContract call"));
+    });
+
+    await appClient.index.$post(legacyPayload(amount));
+
+    await vi.waitUntil(() => zrem.mock.calls.some((call) => match.zrem(call)), 26_666);
+    expect(sendPushNotification).toHaveBeenCalledWith({
+      userId: withdrawAccount,
+      headings: t("Withdraw completed"),
+      contents: t("{{amount}} {{symbol}} sent to {{recipient}}", {
+        amount: f("1.375"),
+        symbol: "USDC",
+        recipient: shortenHex(withdrawReceiver),
+      }),
+    });
+    const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
+    expect(captureExceptionCalls.filter((call) => match.capture(call))).toEqual([]);
+  });
+
+  it("captures withdraw notification errors", async () => {
+    const error = new Error("push failed");
+    const amount = 1_375_000n;
+    const match = matchWithdraw(amount, withdrawAccount, withdrawMarket, withdrawReceiver);
+    const zrem = vi.spyOn(redis, "zrem");
+    vi.spyOn(onesignal, "sendPushNotification").mockRejectedValueOnce(error);
+    vi.spyOn(ensClient, "getEnsName").mockResolvedValue("alice.eth");
+    if (vi.isMockFunction(keeper.exaSend)) throw new Error("unexpected keeper exaSend mock");
+    const exaSend = keeper.exaSend.bind(keeper);
+    vi.spyOn(keeper, "exaSend").mockImplementation((span, call, options) =>
+      call.functionName === "withdraw"
+        ? Promise.resolve({ status: "success" } as TransactionReceipt)
+        : exaSend(span, call, options),
+    );
+    vi.spyOn(publicClient, "readContract").mockImplementation(({ functionName }) => {
+      if (functionName === "decimals") return Promise.resolve(6);
+      if (functionName === "symbol") return Promise.resolve("exaUSDC");
+      return Promise.reject(new Error("unexpected readContract call"));
+    });
+
+    await appClient.index.$post(legacyPayload(amount));
+
+    await vi.waitUntil(() => zrem.mock.calls.some((call) => match.zrem(call)), 26_666);
+    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([captured]) => captured === error), 26_666);
+
+    expect(captureException).toHaveBeenCalledWith(error);
   });
 
   it("removes withdraw from queue when keeper returns reverted receipt", async () => {

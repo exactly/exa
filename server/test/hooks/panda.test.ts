@@ -47,6 +47,7 @@ import { proposalManager } from "@exactly/plugin/deploy.json";
 
 import database, { cards, credentials, sources, transactions } from "../../database";
 import app from "../../hooks/panda";
+import t, { f } from "../../i18n";
 import keeper from "../../utils/keeper";
 import * as onesignal from "../../utils/onesignal";
 import * as panda from "../../utils/panda";
@@ -601,6 +602,105 @@ describe("card operations", () => {
         expect(response.status).toBe(200);
       });
 
+      it("sends locale-aware card purchase notification", async () => {
+        const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+        // @ts-expect-error mock implementation
+        vi.spyOn(keeper, "exaSend").mockImplementation(async (...args) => {
+          await args[2]?.onHash?.(zeroHash as Hash);
+        });
+        const localAmount = 123_456;
+        const cardId = "locale-notify";
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "9999", mode: 0 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "created",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: { ...authorization.json.body.spend, cardId, localAmount, localCurrency: "ars" },
+            },
+          },
+        });
+
+        expect(response.status).toBe(200);
+        expect(sendPushNotification).toHaveBeenCalledWith({
+          userId: account,
+          headings: t("Card purchase"),
+          contents: t("{{amount}} at {{merchantName}}. Paid in {{count}} installments", {
+            count: 0,
+            amount: f(localAmount / 100, "ARS"),
+            merchantName: authorization.json.body.spend.merchantName,
+          }),
+        });
+      });
+
+      it("captures card purchase notification errors", async () => {
+        const error = new Error("push failed");
+        vi.spyOn(onesignal, "sendPushNotification").mockRejectedValueOnce(error);
+        // @ts-expect-error mock implementation
+        vi.spyOn(keeper, "exaSend").mockImplementation(async (...args) => {
+          await args[2]?.onHash?.(zeroHash as Hash);
+        });
+        const cardId = "locale-notify-error";
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "9999", mode: 0 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "created",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: { ...authorization.json.body.spend, cardId },
+            },
+          },
+        });
+
+        await vi.waitUntil(
+          () => vi.mocked(captureException).mock.calls.some(([captured]) => captured === error),
+          15_000,
+        );
+
+        expect(captureException).toHaveBeenCalledWith(error, { level: "error" });
+        expect(response.status).toBe(200);
+      });
+
+      it("captures card purchase feedback errors", async () => {
+        const error = new Error("feedback failed");
+        vi.spyOn(sardine, "feedback").mockRejectedValue(error);
+        // @ts-expect-error mock implementation
+        vi.spyOn(keeper, "exaSend").mockImplementation(async (...args) => {
+          await args[2]?.onHash?.(zeroHash as Hash);
+        });
+        const cardId = "locale-feedback-error";
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "9999", mode: 0 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "created",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: { ...authorization.json.body.spend, cardId },
+            },
+          },
+        });
+
+        await vi.waitUntil(
+          () => vi.mocked(captureException).mock.calls.some(([captured]) => captured === error),
+          15_000,
+        );
+
+        expect(captureException).toHaveBeenCalledWith(error, { level: "error" });
+        expect(response.status).toBe(200);
+      });
+
       it("fails with transaction timeout", async () => {
         const error = new Error("timeout");
         const track = vi.spyOn(segment, "track").mockReturnValue();
@@ -894,6 +994,7 @@ describe("card operations", () => {
       afterEach(() => vi.restoreAllMocks());
 
       it("handles reversal", async () => {
+        const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
         const amount = 2073;
         const cardId = "card";
 
@@ -942,6 +1043,175 @@ describe("card operations", () => {
           .find((l) => l.args.owner === account);
 
         expect(deposit?.args.assets).toBe(BigInt(amount * 1e4));
+        await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0);
+        expect(sendPushNotification).toHaveBeenCalledWith({
+          userId: account,
+          headings: t("Refund processed"),
+          contents: t("{{refundAmount}} USDC from {{merchantName}} have been refunded to your account", {
+            refundAmount: f(amount / 100),
+            merchantName: authorization.json.body.spend.merchantName,
+          }),
+        });
+        expect(response.status).toBe(200);
+      });
+
+      it("captures refund notification errors", async () => {
+        const error = new Error("push failed");
+        vi.spyOn(onesignal, "sendPushNotification").mockRejectedValueOnce(error);
+        const amount = 2073;
+        const cardId = "refund-notify-error";
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "2222" }]);
+        await keeper.exaSend(
+          { name: "mint usdc", op: "tx.mint" },
+          {
+            address: inject("USDC"),
+            abi: mockERC20Abi,
+            functionName: "mint",
+            args: [inject("Refunder"), 100_000_000n],
+          },
+        );
+
+        const createdAt = new Date().toISOString();
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "completed",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: {
+                ...authorization.json.body.spend,
+                cardId,
+                amount: -amount,
+                localAmount: -amount,
+                authorizedAmount: -amount,
+                authorizedAt: createdAt,
+                postedAt: new Date(new Date(createdAt).getTime() + 1000 * 30).toISOString(),
+                status: "completed",
+              },
+            },
+          },
+        });
+
+        await vi.waitUntil(
+          () => vi.mocked(captureException).mock.calls.some(([captured]) => captured === error),
+          15_000,
+        );
+
+        expect(captureException).toHaveBeenCalledWith(error);
+        expect(response.status).toBe(200);
+      });
+
+      it("captures refund feedback errors", async () => {
+        const error = new Error("feedback failed");
+        const amount = 2191;
+        const cardId = "card";
+        const id = `refund-feedback-${Date.now()}`;
+        vi.mocked(captureException).mockClear();
+        await keeper.exaSend(
+          { name: "mint usdc", op: "tx.mint" },
+          {
+            address: inject("USDC"),
+            abi: mockERC20Abi,
+            functionName: "mint",
+            args: [inject("Refunder"), 100_000_000n],
+          },
+        );
+
+        const createdAt = new Date(Date.now() + 60_000).toISOString();
+        await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "created",
+            body: {
+              ...authorization.json.body,
+              id,
+              spend: { ...authorization.json.body.spend, cardId, amount, localAmount: amount, authorizedAt: createdAt },
+            },
+          },
+        });
+        vi.spyOn(sardine, "feedback").mockImplementation(
+          () =>
+            ({
+              catch(handler: (reason: unknown) => unknown) {
+                handler(error);
+                return Promise.resolve({ status: "Success" });
+              },
+            }) as unknown as ReturnType<typeof sardine.feedback>,
+        );
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "completed",
+            body: {
+              ...authorization.json.body,
+              id,
+              spend: {
+                ...authorization.json.body.spend,
+                cardId,
+                amount: -amount,
+                localAmount: -amount,
+                authorizedAmount: -amount,
+                authorizedAt: createdAt,
+                postedAt: new Date(new Date(createdAt).getTime() + 1000 * 30).toISOString(),
+                status: "completed",
+              },
+            },
+          },
+        });
+
+        expect(captureException).toHaveBeenCalledWith(error, { level: "error" });
+        expect(response.status).toBe(200);
+      });
+
+      it("captures partial refund feedback errors", async () => {
+        const error = new Error("feedback failed");
+        vi.spyOn(sardine, "feedback").mockRejectedValue(error);
+        const cardId = "partial-refund-feedback-error";
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "2222" }]);
+        await keeper.exaSend(
+          { name: "mint usdc", op: "tx.mint" },
+          {
+            address: inject("USDC"),
+            abi: mockERC20Abi,
+            functionName: "mint",
+            args: [inject("Refunder"), 100_000_000n],
+          },
+        );
+
+        const createdAt = new Date().toISOString();
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "completed",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: {
+                ...authorization.json.body.spend,
+                amount: 15,
+                localAmount: 15,
+                authorizedAmount: 20,
+                authorizedAt: createdAt,
+                postedAt: new Date(new Date(createdAt).getTime() + 1000 * 30).toISOString(),
+                cardId,
+                status: "completed",
+              },
+            },
+          },
+        });
+
+        await vi.waitUntil(
+          () => vi.mocked(captureException).mock.calls.some(([captured]) => captured === error),
+          15_000,
+        );
+
+        expect(captureException).toHaveBeenCalledWith(error, { level: "error" });
         expect(response.status).toBe(200);
       });
 
@@ -1715,7 +1985,57 @@ describe("card operations", () => {
         expect(spendFromPayload(transaction?.payload, "completed")).toMatchObject({ amount: capture });
       });
 
-      it("force-captures fraud", async () => {
+      it("captures settlement feedback errors on over capture", async () => {
+        const error = new Error("feedback failed");
+        const hold = 25;
+        const capture = 30;
+
+        vi.spyOn(sardine, "feedback").mockRejectedValue(error);
+        const cardId = "over-capture-feedback-error";
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "created",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: { ...authorization.json.body.spend, amount: hold, cardId, localAmount: hold },
+            },
+          },
+        });
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "completed",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: {
+                ...authorization.json.body.spend,
+                amount: capture,
+                authorizedAmount: hold,
+                authorizedAt: new Date().toISOString(),
+                postedAt: new Date().toISOString(),
+                cardId,
+                status: "completed",
+              },
+            },
+          },
+        });
+
+        await vi.waitUntil(
+          () => vi.mocked(captureException).mock.calls.some(([captured]) => captured === error),
+          15_000,
+        );
+
+        expect(captureException).toHaveBeenCalledWith(error, { level: "error" });
+        expect(response.status).toBe(200);
+      });
+
+      it("force capture fraud", async () => {
         const updateUser = vi.spyOn(panda, "updateUser").mockResolvedValue(userResponseTemplate);
         const currentFunds = await publicClient.readContract({
           address: inject("MarketUSDC"),

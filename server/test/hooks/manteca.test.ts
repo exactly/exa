@@ -1,6 +1,7 @@
 import "../mocks/onesignal";
 import "../mocks/sentry";
 
+import { captureException } from "@sentry/core";
 import { testClient } from "hono/testing";
 import { createHmac } from "node:crypto";
 import { hexToBytes, padHex, zeroHash } from "viem";
@@ -11,6 +12,8 @@ import deriveAddress from "@exactly/common/deriveAddress";
 
 import database, { credentials } from "../../database";
 import app from "../../hooks/manteca";
+import t, { f } from "../../i18n";
+import * as onesignal from "../../utils/onesignal";
 import * as manteca from "../../utils/ramps/manteca";
 import * as segment from "../../utils/segment";
 
@@ -172,6 +175,7 @@ describe("manteca hook", () => {
   describe("when a deposit is detected", () => {
     it("converts to USDC", async () => {
       vi.spyOn(manteca, "convertBalanceToUsdc").mockResolvedValue();
+      const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
       const payload = {
         event: "DEPOSIT_DETECTED",
         data: {
@@ -192,6 +196,11 @@ describe("manteca hook", () => {
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
       expect(manteca.convertBalanceToUsdc).toHaveBeenCalledWith("456", "ARS");
+      expect(sendPushNotification).toHaveBeenCalledWith({
+        userId: account,
+        headings: t("Deposited funds"),
+        contents: t("{{amount}} {{asset}} deposited", { amount: f("1000"), asset: "ARS" }),
+      });
     });
 
     it("returns ok if credential does not exist", async () => {
@@ -261,6 +270,34 @@ describe("manteca hook", () => {
         json: payload as never,
       });
 
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    });
+
+    it("captures deposit notification errors", async () => {
+      const error = new Error("push failed");
+      vi.spyOn(manteca, "convertBalanceToUsdc").mockResolvedValue();
+      vi.spyOn(onesignal, "sendPushNotification").mockRejectedValueOnce(error);
+      const payload = {
+        event: "DEPOSIT_DETECTED",
+        data: {
+          id: "deposit123",
+          asset: "ARS",
+          amount: "1000",
+          userExternalId,
+          userNumberId: "456",
+          userLegalId: "12345678",
+          network: "ARG_FIAT_TRANSFER",
+        },
+      };
+      const response = await appClient.index.$post({
+        header: { "md-webhook-signature": createSignature(payload) },
+        json: payload as never,
+      });
+
+      await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([captured]) => captured === error));
+
+      expect(captureException).toHaveBeenCalledWith(error, { level: "error" });
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
     });
@@ -476,9 +513,47 @@ describe("manteca hook", () => {
         event: "RampAccount",
         properties: { provider: "manteca", source: null },
       });
+      expect(sendPushNotification).toHaveBeenCalledWith({
+        userId: account,
+        headings: t("Fiat onramp activated"),
+        contents: t("Your fiat onramp account has been activated"),
+      });
     });
 
-    it("returns ok for onboarding status", async () => {
+    it("captures onboarding notification errors", async () => {
+      const error = new Error("push failed");
+      vi.spyOn(segment, "track").mockReturnValue();
+      vi.spyOn(onesignal, "sendPushNotification").mockRejectedValueOnce(error);
+      const payload = {
+        event: "USER_ONBOARDING_UPDATE",
+        data: {
+          updatedTasks: ["IDENTITY_VALIDATION"],
+          user: {
+            email: "test@example.com",
+            id: "user123",
+            numberId: "456",
+            externalId: userExternalId,
+            exchange: "ARGENTINA",
+            status: "ACTIVE",
+            onboarding: { IDENTITY_VALIDATION: { required: true, status: "COMPLETED" as const } },
+          },
+        },
+      };
+      const response = await appClient.index.$post({
+        header: { "md-webhook-signature": createSignature(payload) },
+        json: payload as never,
+      });
+
+      await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([captured]) => captured === error));
+
+      expect(captureException).toHaveBeenCalledWith(error, { level: "error" });
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    });
+
+    it("does not track or notify when updated task is not identity validation", async () => {
+      vi.spyOn(segment, "track").mockReturnValue();
+      const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
       const payload = {
         event: "USER_ONBOARDING_UPDATE",
         data: {
@@ -503,3 +578,5 @@ describe("manteca hook", () => {
     });
   });
 });
+
+vi.mock("@sentry/core", { spy: true });

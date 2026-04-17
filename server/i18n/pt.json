@@ -1,0 +1,21 @@
+{
+  "Card mode": "Modo de pagamento",
+  "Card mode changed": "Modo de pagamento atualizado",
+  "Card purchase": "Compra no cartão",
+  "Credit mode activated": "Modo crédito ativado",
+  "Credit mode is active": "O modo crédito está ativo",
+  "Deposited funds": "Fundos depositados",
+  "Fiat onramp activated": "Conta fiat ativada",
+  "Funds received": "Fundos recebidos",
+  "Refund processed": "Reembolso processado",
+  "Withdraw completed": "Saque concluído",
+  "Your fiat onramp account has been activated": "Sua conta para depositar dinheiro fiat foi ativada",
+  "{{amount}} at {{merchantName}}. Paid in {{count}} installments_zero": "{{amount}} em {{merchantName}}. Pago com USDC",
+  "{{amount}} at {{merchantName}}. Paid in {{count}} installments_one": "{{amount}} em {{merchantName}}. Pago no crédito",
+  "{{amount}} at {{merchantName}}. Paid in {{count}} installments_other": "{{amount}} em {{merchantName}}. Pago em {{count}} parcelas",
+  "{{amount}} received": "{{amount}} recebidos",
+  "{{amount}} received and instantly started earning yield": "{{amount}} recebidos e começaram a render",
+  "{{amount}} {{asset}} deposited": "{{amount}} {{asset}} depositados",
+  "{{amount}} {{symbol}} sent to {{recipient}}": "{{amount}} {{symbol}} enviados para {{recipient}}",
+  "{{refundAmount}} USDC from {{merchantName}} have been refunded to your account": "{{refundAmount}} USDC de {{merchantName}} foram reembolsados para sua conta"
+}

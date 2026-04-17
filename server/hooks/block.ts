@@ -46,6 +46,7 @@ import revertReason from "@exactly/common/revertReason";
 import shortenHex from "@exactly/common/shortenHex";
 import { Address, Hash, Hex } from "@exactly/common/validation";
 
+import t, { f } from "../i18n";
 import { headers as alchemyHeaders, createWebhook, findWebhook, headerValidator } from "../utils/alchemy";
 import appOrigin from "../utils/appOrigin";
 import ensClient from "../utils/ensClient";
@@ -359,10 +360,12 @@ function scheduleMessage(message: string) {
                   ]).then(([decimals, symbol, ensName]) =>
                     sendPushNotification({
                       userId: account,
-                      headings: { en: "Withdraw completed" },
-                      contents: {
-                        en: `${formatUnits(amount, decimals)} ${symbol.slice(3)} sent to ${ensName ?? shortenHex(receiver)}`,
-                      },
+                      headings: t("Withdraw completed"),
+                      contents: t("{{amount}} {{symbol}} sent to {{recipient}}", {
+                        amount: f(formatUnits(amount, decimals)),
+                        symbol: symbol.slice(3),
+                        recipient: ensName ?? shortenHex(receiver),
+                      }),
                     }),
                   ),
               ).catch((error: unknown) => captureException(error));
@@ -522,10 +525,12 @@ function scheduleWithdraw(message: string) {
                 ]).then(([decimals, symbol, ensName]) =>
                   sendPushNotification({
                     userId: account,
-                    headings: { en: "Withdraw completed" },
-                    contents: {
-                      en: `${formatUnits(amount, decimals)} ${symbol.slice(3)} sent to ${ensName ?? shortenHex(receiver)}`,
-                    },
+                    headings: t("Withdraw completed"),
+                    contents: t("{{amount}} {{symbol}} sent to {{recipient}}", {
+                      amount: f(formatUnits(amount, decimals)),
+                      symbol: symbol.slice(3),
+                      recipient: ensName ?? shortenHex(receiver),
+                    }),
                   }),
                 ),
             ).catch((error: unknown) => captureException(error));
