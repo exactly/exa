@@ -29,15 +29,15 @@ export default function IntroSheet({ open, onClose }: { onClose: () => void; ope
           <IconButton icon={X} size={25} color="$uiNeutralSecondary" aria-label={t("Close")} onPress={onClose} />
         </View>
         <YStack flex={1} padding="$s4" gap="$s4_5">
-          <YStack flex={1} gap="$s4">
-            <View flexShrink={1} width="100%">
+          <YStack flex={1} gap="$s5">
+            <View flex={1} width="100%">
               <Defi width="100%" height="100%" />
             </View>
-            <YStack flexShrink={1} gap="$s4" alignSelf="center">
+            <YStack gap="$s3">
               <Text emphasized textAlign="center" color="$interactiveTextBrandDefault" title adjustsFontSizeToFit>
                 {t("Welcome to DeFi")}
               </Text>
-              <Text color="$uiNeutralPlaceholder" footnote textAlign="center" adjustsFontSizeToFit>
+              <Text color="$uiNeutralPlaceholder" footnote textAlign="center">
                 {t("Access decentralized services provided by third-party DeFi protocols.")}
               </Text>
             </YStack>

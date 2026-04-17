@@ -46,7 +46,7 @@ export default function ConnectionSheet({
         </View>
         <YStack flex={1} padding="$s4" gap="$s4_5">
           <YStack flex={1} gap="$s4">
-            <View flexShrink={1} width="100%">
+            <View flex={1} width="100%">
               <Connect width="100%" height="100%" />
             </View>
             <Text emphasized textAlign="center" color="$interactiveTextBrandDefault" title adjustsFontSizeToFit>
