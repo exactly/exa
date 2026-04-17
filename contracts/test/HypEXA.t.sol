@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.0;
 
+import { IAccessControl } from "openzeppelin-contracts/contracts/access/IAccessControl.sol";
+import { TimelockController } from "openzeppelin-contracts/contracts/governance/TimelockController.sol";
+
 import { EXA } from "@exactly/protocol/periphery/EXA.sol";
 import { TypeCasts } from "@hyperlane-xyz/core/contracts/libs/TypeCasts.sol";
 import { HypXERC20 } from "@hyperlane-xyz/core/contracts/token/extensions/HypXERC20.sol";
 
-import { Redeployer, RouterNotDeployed } from "../script/Redeployer.s.sol";
+import { AlreadyGranted, Redeployer, RouterNotDeployed } from "../script/Redeployer.s.sol";
 import { ForkTest } from "./Fork.t.sol";
 
 contract HypEXATest is ForkTest {
@@ -17,6 +20,7 @@ contract HypEXATest is ForkTest {
   HypXERC20 internal opRouter;
   HypXERC20 internal baseRouter;
   HypXERC20 internal polygonRouter;
+  Redeployer internal opRedeployer;
   address internal admin;
   address internal opMailbox;
   address internal baseMailbox;
@@ -40,10 +44,8 @@ contract HypEXATest is ForkTest {
     set("ProxyAdmin", address(polygonRedeployer.proxyAdmin())); // no protocol deployment on polygon
     polygonRouter = polygonRedeployer.deployRouter(address(exa));
     unset("ProxyAdmin");
-    unset("exactly");
     vm.prank(acct("admin"));
     exa.grantRole(keccak256("BRIDGE_ROLE"), address(polygonRouter));
-    set("exactly", makeAddr("exactly"));
     polygonRedeployer.setupRouter(OP_DOMAIN);
     polygonRedeployer.setupRouter(BASE_DOMAIN);
     unset("exactly");
@@ -64,7 +66,7 @@ contract HypEXATest is ForkTest {
     opFork = vm.createSelectFork("optimism", 147_967_000);
     opMailbox = acct("mailbox");
     admin = acct("admin");
-    Redeployer opRedeployer = new Redeployer();
+    opRedeployer = new Redeployer();
     opRedeployer.setUp();
     opRedeployer.prepare();
     opRedeployer.deployEXAImpl();
@@ -191,6 +193,41 @@ contract HypEXATest is ForkTest {
 
     vm.expectRevert(RouterNotDeployed.selector);
     redeployer.setupRouter(OP_DOMAIN);
+  }
+
+  function test_proposeBridgeRole_reverts_whenRouterNotDeployed() external {
+    vm.createSelectFork("base", 42_380_001);
+
+    Redeployer redeployer = new Redeployer();
+    redeployer.setUp();
+
+    vm.expectRevert(RouterNotDeployed.selector);
+    redeployer.proposeBridgeRole(address(exa), keccak256("HypEXA.BRIDGE_ROLE"));
+  }
+
+  function test_proposeBridgeRole_schedulesGrantOnTimelock() external {
+    vm.selectFork(opFork);
+    vm.prank(admin);
+    exa.revokeRole(keccak256("BRIDGE_ROLE"), address(opRouter));
+
+    bytes32 salt = keccak256("HypEXA.BRIDGE_ROLE");
+    opRedeployer.proposeBridgeRole(address(exa), salt);
+
+    TimelockController timelock = TimelockController(payable(protocol("TimelockController")));
+    bytes32 id = timelock.hashOperation(
+      address(exa),
+      0,
+      abi.encodeCall(IAccessControl.grantRole, (keccak256("BRIDGE_ROLE"), address(opRouter))),
+      bytes32(0),
+      salt
+    );
+    assertTrue(timelock.isOperationPending(id), "grant not scheduled");
+  }
+
+  function test_proposeBridgeRole_reverts_whenAlreadyGranted() external {
+    vm.selectFork(opFork);
+    vm.expectRevert(AlreadyGranted.selector);
+    opRedeployer.proposeBridgeRole(address(exa), keccak256("HypEXA.BRIDGE_ROLE"));
   }
 
   // solhint-enable func-name-mixedcase
