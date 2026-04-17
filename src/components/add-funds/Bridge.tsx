@@ -57,7 +57,6 @@ import View from "../shared/View";
 import TokenInput from "../swaps/TokenInput";
 
 import type { Chain, Token } from "@lifi/sdk";
-import type { TFunction } from "i18next";
 
 export default function Bridge() {
   const router = useRouter();
@@ -385,41 +384,41 @@ export default function Bridge() {
         await switchChain(senderConfig, { chainId: source.chain });
       }
       setBridgeStatus(t("Submitting bridge transaction..."));
-      let id: string | undefined;
       try {
-        const result = await sendCallsTx({
-          chainId: source.chain,
-          calls: [
-            ...(approval ? [{ to: getAddress(source.address), data: approval }] : []),
-            { to: from.to, data: from.data, value: from.value },
-          ],
-        });
-        id = result.id;
-      } catch (error) {
-        if (isExaSender) throw error;
-        if (classifyError(error).authKnown) throw error;
-        reportError(error, {
-          level: "warning",
-          extra: error instanceof Error ? { cause: error.cause } : undefined,
-        });
-        await switchChain(senderConfig, { chainId: source.chain });
+        let id: string | undefined;
         try {
+          const result = await sendCallsTx({
+            chainId: source.chain,
+            calls: [
+              ...(approval ? [{ to: getAddress(source.address), data: approval }] : []),
+              { to: from.to, data: from.data, value: from.value },
+            ],
+          });
+          id = result.id;
+        } catch (error) {
+          if (isExaSender) throw error;
+          if (classifyError(error).authKnown) throw error;
+          reportError(error, {
+            level: "warning",
+            extra: error instanceof Error ? { cause: error.cause } : undefined,
+          });
+          await switchChain(senderConfig, { chainId: source.chain });
           if (approval) {
             const hash = await sendTx({ chainId: source.chain, to: getAddress(source.address), data: approval });
             await waitForTransactionReceipt(senderConfig, { hash, chainId: source.chain });
           }
           const hash = await sendTx({ chainId: source.chain, to: from.to, data: from.data, value: from.value });
           await waitForTransactionReceipt(senderConfig, { hash, chainId: source.chain });
-        } finally {
-          await switchChain(senderConfig, { chainId: chain.id }).catch(reportError);
+          setBridgeStatus(t("Bridge transaction submitted"));
+          return;
         }
+        if (!id) throw new Error("missing sendCalls id");
+        const { status } = await waitForCallsStatus(senderConfig, { id });
+        if (status === "failure") throw new Error("failed to submit bridge transaction");
         setBridgeStatus(t("Bridge transaction submitted"));
-        return;
+      } finally {
+        if (!isExaSender) await switchChain(senderConfig, { chainId: chain.id }).catch(reportError);
       }
-      if (!id) throw new Error("missing sendCalls id");
-      const { status } = await waitForCallsStatus(senderConfig, { id });
-      if (status === "failure") throw new Error("failed to submit bridge transaction");
-      setBridgeStatus(t("Bridge transaction submitted"));
     },
     onSuccess: async () => {
       toast.show(
@@ -435,8 +434,19 @@ export default function Bridge() {
         queryClient.invalidateQueries({ queryKey: ["lifi", "balances"] }),
       ]);
     },
-    onError: (error: unknown) => {
-      handleError(error, toast, t, bridgePreview?.operation === "swap" ? "swap" : "bridge");
+    onError(error) {
+      if (classifyError(error).authKnown) {
+        setBridgePreview(undefined);
+        resetBridgeMutation();
+        return;
+      }
+      reportError(error);
+      toast.show(
+        bridgePreview?.operation === "swap"
+          ? t("Swap failed. Please try again.")
+          : t("Bridge failed. Please try again."),
+        { native: true, duration: 1000, burntOptions: { haptic: "error", preset: "error" } },
+      );
     },
     onSettled: () => {
       setBridgeStatus(undefined);
@@ -483,8 +493,18 @@ export default function Bridge() {
         queryClient.invalidateQueries({ queryKey: ["lifi", "balances"] }),
       ]);
     },
-    onError: (error: unknown) => {
-      handleError(error, toast, t, "transfer");
+    onError(error) {
+      if (classifyError(error).authKnown) {
+        setBridgePreview(undefined);
+        resetTransferMutation();
+        return;
+      }
+      reportError(error);
+      toast.show(t("Transfer failed. Please try again."), {
+        native: true,
+        duration: 1000,
+        burntOptions: { haptic: "error", preset: "error" },
+      });
     },
     onSettled: () => {
       setBridgeStatus(undefined);
@@ -1073,23 +1093,4 @@ export default function Bridge() {
       </View>
     </SafeView>
   );
-}
-
-function handleError(
-  error: unknown,
-  toast: ReturnType<typeof useToastController>,
-  t: TFunction,
-  operation: "bridge" | "swap" | "transfer",
-) {
-  if (reportError(error).authKnown) return;
-  const message = {
-    bridge: t("Bridge failed. Please try again."),
-    swap: t("Swap failed. Please try again."),
-    transfer: t("Transfer failed. Please try again."),
-  }[operation];
-  toast.show(message, {
-    native: true,
-    duration: 1000,
-    burntOptions: { haptic: "error", preset: "error" },
-  });
 }
