@@ -1,0 +1,5 @@
+{
+  "{{amount}} at {{merchantName}}. Paid in {{count}} installments_zero": "{{amount}} at {{merchantName}}. Paid with USDC",
+  "{{amount}} at {{merchantName}}. Paid in {{count}} installments_one": "{{amount}} at {{merchantName}}. Paid with credit",
+  "{{amount}} at {{merchantName}}. Paid in {{count}} installments_other": "{{amount}} at {{merchantName}}. Paid in {{count}} installments"
+}

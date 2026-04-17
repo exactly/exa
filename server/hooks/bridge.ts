@@ -10,6 +10,7 @@ import { literal, object, parse, picklist, string, unknown, variant } from "vali
 import { Address } from "@exactly/common/validation";
 
 import database, { credentials } from "../database";
+import t, { f } from "../i18n";
 import { sendPushNotification } from "../utils/onesignal";
 import { searchAccounts } from "../utils/persona";
 import { BridgeCurrency, getCustomer, publicKey } from "../utils/ramps/bridge";
@@ -175,18 +176,19 @@ export default new Hono().post(
         });
         sendPushNotification({
           userId: account,
-          headings: { en: "Fiat onramp activated" },
-          contents: { en: "Your fiat onramp account has been activated" },
+          headings: t("Fiat onramp activated"),
+          contents: t("Your fiat onramp account has been activated"),
         }).catch((error: unknown) => captureException(error, { level: "error" }));
         return c.json({ code: "ok" }, 200);
       case "virtual_account.activity.created":
         if (payload.event_object.type === "payment_submitted") {
           sendPushNotification({
             userId: account,
-            headings: { en: "Deposited funds" },
-            contents: {
-              en: `${payload.event_object.receipt.initial_amount} ${payload.event_object.currency.toUpperCase()} deposited`,
-            },
+            headings: t("Deposited funds"),
+            contents: t("{{amount}} {{asset}} deposited", {
+              amount: f(payload.event_object.receipt.initial_amount),
+              asset: payload.event_object.currency.toUpperCase(),
+            }),
           }).catch((error: unknown) => captureException(error, { level: "error" }));
         }
         if (payload.event_object.type === "payment_processed") {
@@ -207,10 +209,11 @@ export default new Hono().post(
         if (payload.event_object.state !== "payment_submitted") return c.json({ code: "ok" }, 200);
         sendPushNotification({
           userId: account,
-          headings: { en: "Deposited funds" },
-          contents: {
-            en: `${payload.event_object.receipt.initial_amount} ${payload.event_object.currency.toUpperCase()} deposited`,
-          },
+          headings: t("Deposited funds"),
+          contents: t("{{amount}} {{asset}} deposited", {
+            amount: f(payload.event_object.receipt.initial_amount),
+            asset: payload.event_object.currency.toUpperCase(),
+          }),
         }).catch((error: unknown) => captureException(error, { level: "error" }));
         track({
           userId: account,

@@ -51,6 +51,7 @@ import { Address, type Hash, type Hex } from "@exactly/common/validation";
 import { MATURITY_INTERVAL, splitInstallments } from "@exactly/lib";
 
 import database, { cards, credentials, transactions } from "../database/index";
+import t, { f } from "../i18n";
 import keeper from "../utils/keeper";
 import { sendPushNotification } from "../utils/onesignal";
 import { collectors, createMutex, getMutex, getUser, headerValidator, signIssuerOp, updateUser } from "../utils/panda";
@@ -535,10 +536,11 @@ export default new Hono().post(
             );
             sendPushNotification({
               userId: account,
-              headings: { en: "Refund processed" },
-              contents: {
-                en: `${refundAmountUsd} USDC from ${payload.body.spend.merchantName.trim()} have been refunded to your account`,
-              },
+              headings: t("Refund processed"),
+              contents: t("{{refundAmount}} USDC from {{merchantName}} have been refunded to your account", {
+                refundAmount: f(refundAmountUsd),
+                merchantName: payload.body.spend.merchantName.trim(),
+              }),
             }).catch((error: unknown) => captureException(error));
             trackTransactionRefund(account, refundAmountUsd, payload, card.credential.source);
             if (payload.action === "completed") {
@@ -753,13 +755,12 @@ export default new Hono().post(
             ) {
               sendPushNotification({
                 userId: account,
-                headings: { en: "Card purchase" },
-                contents: {
-                  en: `${(payload.body.spend.localAmount / 100).toLocaleString(undefined, {
-                    style: "currency",
-                    currency: payload.body.spend.localCurrency,
-                  })} at ${payload.body.spend.merchantName.trim()}. Paid ${{ 0: "with USDC", 1: "with credit" }[card.mode] ?? `in ${card.mode} installments`}`,
-                },
+                headings: t("Card purchase"),
+                contents: t("{{amount}} at {{merchantName}}. Paid in {{count}} installments", {
+                  count: card.mode,
+                  amount: f(payload.body.spend.localAmount / 100, payload.body.spend.localCurrency),
+                  merchantName: payload.body.spend.merchantName.trim(),
+                }),
               }).catch((error: unknown) => captureException(error, { level: "error" }));
             }
             switch (payload.action) {
@@ -1048,7 +1049,7 @@ async function prepareCollection(
             columns: { payload: true },
             where: and(eq(transactions.id, payload.body.id), eq(transactions.cardId, payload.body.spend.cardId)),
           });
-          if (!tx || !v.parse(TransactionPayload, tx.payload).bodies.some((t) => t.action === "created")) {
+          if (!tx || !v.parse(TransactionPayload, tx.payload).bodies.some((b) => b.action === "created")) {
             getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "panda.tx.capture.force");
             return payload.body.spend.amount;
           }

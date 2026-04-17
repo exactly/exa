@@ -13,6 +13,7 @@ import deriveAddress from "@exactly/common/deriveAddress";
 
 import database, { credentials } from "../../database";
 import app from "../../hooks/bridge";
+import t, { f } from "../../i18n";
 import * as onesignal from "../../utils/onesignal";
 import * as persona from "../../utils/persona";
 import * as bridge from "../../utils/ramps/bridge";
@@ -177,9 +178,25 @@ describe("bridge hook", () => {
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
     expect(sendPushNotification).toHaveBeenCalledWith({
       userId: account,
-      headings: { en: "Deposited funds" },
-      contents: { en: "1000 USD deposited" },
+      headings: t("Deposited funds"),
+      contents: t("{{amount}} {{asset}} deposited", { amount: f("1000"), asset: "USD" }),
     });
+  });
+
+  it("captures payment_submitted notification errors", async () => {
+    const error = new Error("push failed");
+    vi.spyOn(segment, "track").mockReturnValue();
+    vi.spyOn(onesignal, "sendPushNotification").mockRejectedValueOnce(error);
+    const response = await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(paymentSubmitted) },
+      json: paymentSubmitted as never,
+    });
+
+    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([captured]) => captured === error));
+
+    expect(captureException).toHaveBeenCalledWith(error, { level: "error" });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
   });
 
   it("tracks onramp for payment_processed virtual account", async () => {
@@ -280,8 +297,8 @@ describe("bridge hook", () => {
     });
     expect(sendPushNotification).toHaveBeenCalledWith({
       userId: fallbackAccount,
-      headings: { en: "Fiat onramp activated" },
-      contents: { en: "Your fiat onramp account has been activated" },
+      headings: t("Fiat onramp activated"),
+      contents: t("Your fiat onramp account has been activated"),
     });
   });
 
@@ -402,9 +419,25 @@ describe("bridge hook", () => {
     });
     expect(sendPushNotification).toHaveBeenCalledWith({
       userId: account,
-      headings: { en: "Fiat onramp activated" },
-      contents: { en: "Your fiat onramp account has been activated" },
+      headings: t("Fiat onramp activated"),
+      contents: t("Your fiat onramp account has been activated"),
     });
+  });
+
+  it("captures status_transitioned notification errors", async () => {
+    const error = new Error("push failed");
+    vi.spyOn(segment, "track").mockReturnValue();
+    vi.spyOn(onesignal, "sendPushNotification").mockRejectedValueOnce(error);
+    const response = await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(statusTransitioned) },
+      json: statusTransitioned as never,
+    });
+
+    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([captured]) => captured === error));
+
+    expect(captureException).toHaveBeenCalledWith(error, { level: "error" });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
   });
 
   it("returns 200 without tracking for status_transitioned to non-active", async () => {
@@ -487,9 +520,25 @@ describe("bridge hook", () => {
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
     expect(sendPushNotification).toHaveBeenCalledWith({
       userId: account,
-      headings: { en: "Deposited funds" },
-      contents: { en: "500 USDC deposited" },
+      headings: t("Deposited funds"),
+      contents: t("{{amount}} {{asset}} deposited", { amount: f("500"), asset: "USDC" }),
     });
+  });
+
+  it("captures drain payment_submitted notification errors", async () => {
+    const error = new Error("push failed");
+    vi.spyOn(segment, "track").mockReturnValue();
+    vi.spyOn(onesignal, "sendPushNotification").mockRejectedValueOnce(error);
+    const response = await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(drain) },
+      json: drain as never,
+    });
+
+    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([captured]) => captured === error));
+
+    expect(captureException).toHaveBeenCalledWith(error, { level: "error" });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
   });
 
   it("returns 200 with credential not found for drain with unknown customer", async () => {
