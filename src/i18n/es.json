@@ -4,6 +4,8 @@
   "Swap": "Intercambiar",
   "Settings": "Configuración",
   "Support": "Soporte",
+  "Signature": "Firma",
+  "Signature webauthn": "Firma webauthn",
   "Logout": "Cerrar sesión",
   "Copied": "Copiado",
   "App version has been copied to the clipboard.": "La versión de la aplicación fue copiada al portapapeles.",
