@@ -72,7 +72,7 @@ export default function PaySelector() {
     },
     onSettled: async (data) => {
       await queryClient.invalidateQueries({ queryKey: ["card", "details"] });
-      if (data && "mode" in data && data.mode > 0) {
+      if (data && "mode" in data && typeof data.mode === "number" && data.mode > 0) {
         queryClient.setQueryData(["settings", "installments"], data.mode);
       }
     },

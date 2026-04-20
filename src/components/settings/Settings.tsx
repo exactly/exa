@@ -5,9 +5,18 @@ import { Alert, Pressable } from "react-native";
 import { setStringAsync } from "expo-clipboard";
 import { useRouter } from "expo-router";
 
-import { ArrowLeft, Check, HelpCircle, LogOut, SendHorizontal } from "@tamagui/lucide-icons";
+import {
+  ArrowLeft,
+  Check,
+  FileSignature,
+  Fingerprint,
+  HelpCircle,
+  LogOut,
+  SendHorizontal,
+} from "@tamagui/lucide-icons";
 import { ScrollView, Separator, XStack } from "tamagui";
 
+import { useMutation } from "@tanstack/react-query";
 import { useDisconnect } from "wagmi";
 
 import release from "../../generated/release";
@@ -16,6 +25,7 @@ import { logout as logoutIntercom, present } from "../../utils/intercom";
 import { logout as logoutOnesignal } from "../../utils/onesignal";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
+import { signCard, signCardWebauthn } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
@@ -27,6 +37,28 @@ export default function Settings() {
   const { t } = useTranslation();
   const { mutate: disconnectAccount } = useDisconnect();
   const { mutate: submitCoverage, isSuccess: coverageSuccess, isError: coverageError } = useSubmitCoverage();
+  const {
+    mutate: sign,
+    isPending: signingPending,
+    isSuccess: signingSuccess,
+    isError: signingError,
+  } = useMutation({
+    mutationFn: () => signCard(),
+    onError: (error) => {
+      reportError(error);
+    },
+  });
+  const {
+    mutate: signWebauthn,
+    isPending: signWebauthnPending,
+    isSuccess: signWebauthnSuccess,
+    isError: signWebauthnError,
+  } = useMutation({
+    mutationFn: () => signCardWebauthn(),
+    onError: (error) => {
+      reportError(error);
+    },
+  });
   return (
     <SafeView fullScreen tab>
       <View fullScreen padded gap="$s5">
@@ -64,6 +96,46 @@ export default function Settings() {
                     <Text subHeadline color="$uiNeutralPrimary">
                       {t("Support")}
                     </Text>
+                  </XStack>
+                </XStack>
+              </Pressable>
+              <Separator borderColor="$borderNeutralSoft" />
+              <Pressable
+                onPress={() => {
+                  if (!signingPending) sign();
+                }}
+              >
+                <XStack justifyContent="space-between" alignItems="center" padding="$s4">
+                  <XStack justifyContent="space-between" flex={1}>
+                    <XStack gap="$s3" justifyContent="flex-start" alignItems="center">
+                      <FileSignature color="$backgroundBrand" />
+                      <Text subHeadline color="$uiNeutralPrimary">
+                        {t("Signature")}
+                      </Text>
+                    </XStack>
+                    {(signingSuccess || signingError) && (
+                      <Check color={signingSuccess ? "$backgroundBrand" : "$interactiveBaseErrorDefault"} />
+                    )}
+                  </XStack>
+                </XStack>
+              </Pressable>
+              <Separator borderColor="$borderNeutralSoft" />
+              <Pressable
+                onPress={() => {
+                  if (!signWebauthnPending) signWebauthn();
+                }}
+              >
+                <XStack justifyContent="space-between" alignItems="center" padding="$s4">
+                  <XStack justifyContent="space-between" flex={1}>
+                    <XStack gap="$s3" justifyContent="flex-start" alignItems="center">
+                      <Fingerprint color="$backgroundBrand" />
+                      <Text subHeadline color="$uiNeutralPrimary">
+                        {t("Signature webauthn")}
+                      </Text>
+                    </XStack>
+                    {(signWebauthnSuccess || signWebauthnError) && (
+                      <Check color={signWebauthnSuccess ? "$backgroundBrand" : "$interactiveBaseErrorDefault"} />
+                    )}
                   </XStack>
                 </XStack>
               </Pressable>

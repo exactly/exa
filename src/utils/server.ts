@@ -2,22 +2,23 @@ import { Platform } from "react-native";
 import { get as assert, create } from "react-native-passkeys";
 
 import { sdk } from "@farcaster/miniapp-sdk";
+import { bufferToBase64URLString } from "@simplewebauthn/browser";
 import { getConnection, signMessage } from "@wagmi/core";
 import { hc, parseResponse, type InferResponseType } from "hono/client";
 import { check, number, object, parse, pipe, safeParse, string, ValiError } from "valibot";
-import { UserRejectedRequestError } from "viem";
 
+import { hashMessage, hexToBytes, UserRejectedRequestError } from "viem";
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 import deriveAddress from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
-import { Credential } from "@exactly/common/validation";
 
+import { Credential } from "@exactly/common/validation";
 import { login as loginIntercom, logout as logoutIntercom } from "./intercom";
 import { decrypt, decryptPIN, encryptPIN, session } from "./panda";
 import queryClient, { APIError, triage, type AuthMethod } from "./queryClient";
 import { classifyError } from "./reportError";
-import ownerConfig from "./wagmi/owner";
 
+import ownerConfig from "./wagmi/owner";
 import type { ExaAPI } from "@exactly/server/api"; // eslint-disable-line @nx/enforce-module-boundaries
 
 queryClient.setQueryDefaults<number | undefined>(["auth"], {
@@ -155,6 +156,37 @@ export async function setCardPIN(pin: string) {
   const json = await encryptPIN(pin);
   const response = await api.card.$patch({ json });
   if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
+}
+
+export async function signCard() {
+  await auth();
+  const address = getConnection(ownerConfig).address;
+  if (!address) throw new Error("no owner wallet connected");
+  const token = await api.card.$get({ header: {}, query: { scope: "siwe" } });
+  if (!token.ok) throw new APIError(token.status, stringOrLegacy(await token.json()));
+  const { challenge } = parse(object({ challenge: string() }), await token.json());
+  const signature = await signMessage(ownerConfig, { account: address, message: challenge });
+  const verify = await api.card.$patch({ json: { method: "siwe", message: challenge, signature } });
+  if (!verify.ok) throw new APIError(verify.status, stringOrLegacy(await verify.json()));
+}
+
+export async function signCardWebauthn() {
+  await auth();
+  const credential = await getCredential();
+  const challengeResponse = await api.card.$get({ header: {}, query: { scope: "webauthn" } });
+  if (!challengeResponse.ok) {
+    throw new APIError(challengeResponse.status, stringOrLegacy(await challengeResponse.json()));
+  }
+  const { challenge } = parse(object({ challenge: string() }), await challengeResponse.json());
+
+  const assertion = await assert({
+    challenge: bufferToBase64URLString(hexToBytes(hashMessage(challenge)).buffer as ArrayBuffer),
+    rpId: domain,
+    allowCredentials: Platform.OS === "android" ? undefined : [{ id: credential.credentialId, type: "public-key" }],
+  });
+  if (!assertion) throw new Error("bad assertion");
+  const verify = await api.card.$patch({ json: { method: "webauthn", assertion } });
+  if (!verify.ok) throw new APIError(verify.status, stringOrLegacy(await verify.json()));
 }
 
 export async function getKYCTokens(scope: "basic" | "cardLimit" | "manteca" = "basic", redirectURI?: string) {
