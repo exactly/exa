@@ -17,7 +17,7 @@ const config = createConfig({
     ...Object.fromEntries(Object.values(chains).map((c) => [c.id, http()])),
     [chain.id]: custom(publicClient),
   },
-  storage: createStorage({ key: "wagmi.owner", storage: AsyncStorage }),
+  storage: createStorage({ key: `wagmi.owner.${chain.id}`, storage: AsyncStorage }),
 });
 export default config;
 
