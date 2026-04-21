@@ -1217,7 +1217,7 @@ describe("bridge utils", () => {
               chain: "stellar",
               address: "StellarAddr789",
               destination_address: account,
-              destination_blockchain_memo: "123456",
+              blockchain_memo: "123456",
             },
           ],
         }),

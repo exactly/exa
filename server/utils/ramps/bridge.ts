@@ -859,7 +859,7 @@ const LiquidationAddress = object({
   chain: picklist([...CryptoPaymentRail, "evm"]),
   address: string(),
   destination_address: string(),
-  destination_blockchain_memo: optional(string()),
+  blockchain_memo: optional(string()),
 });
 
 const LiquidationAddresses = object({ count: number(), data: array(LiquidationAddress) });
@@ -1018,7 +1018,7 @@ function getDepositDetailsFromLiquidationAddress(
         },
       ];
     case "stellar":
-      if (!liquidationAddress.destination_blockchain_memo) throw new Error(ErrorCodes.MISSING_STELLAR_MEMO);
+      if (!liquidationAddress.blockchain_memo) throw new Error(ErrorCodes.MISSING_STELLAR_MEMO);
       return [
         {
           network: "STELLAR" as const,
@@ -1026,7 +1026,7 @@ function getDepositDetailsFromLiquidationAddress(
           address: liquidationAddress.address,
           fee: "0.0",
           estimatedProcessingTime: "300",
-          memo: liquidationAddress.destination_blockchain_memo,
+          memo: liquidationAddress.blockchain_memo,
         },
       ];
   }
