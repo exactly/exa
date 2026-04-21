@@ -8,7 +8,6 @@ import { ScrollView, Separator, XStack, YStack } from "tamagui";
 
 import { useForm } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
-import { safeParse } from "valibot";
 
 import chain from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
@@ -39,18 +38,11 @@ export default function ReceiverSelection() {
   });
 
   const form = useForm({
-    defaultValues: { receiver: typeof receiver === "string" ? receiver : undefined },
+    defaultValues: { receiver: typeof receiver === "string" ? receiver : "" },
     onSubmit: ({ value }) => {
-      router.push({ pathname: "/send-funds/asset", params: { receiver: String(value.receiver) } });
+      router.push({ pathname: "/send-funds/asset", params: { receiver: value.receiver } });
     },
   });
-
-  const { success, output } = safeParse(Address, receiver);
-
-  if (success) {
-    form.setFieldValue("receiver", output);
-    form.validateAllFields("change").catch(reportError);
-  }
 
   return (
     <SafeView fullScreen>
