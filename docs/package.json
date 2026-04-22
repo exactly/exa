@@ -20,7 +20,7 @@
     "@eslint/markdown": "^8.0.0",
     "@exactly/common": "workspace:^0.0.14",
     "@exactly/server": "workspace:^0.2.85",
-    "astro": "^6.1.1",
+    "astro": "^6.1.8",
     "astro-mermaid": "^2.0.1",
     "eslint": "catalog:",
     "eslint-config-universe": "^15.0.3",
