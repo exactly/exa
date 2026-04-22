@@ -38,6 +38,7 @@ runs = 66_666
 bytecode_hash = "none"
 
 [rpc_endpoints]
+arbitrum = "${ARBITRUM_RPC_URL}"
 base = "${BASE_RPC_URL}"
 base_sepolia = "${BASE_SEPOLIA_RPC_URL}"
 mainnet = "${ETHEREUM_RPC_URL}"
@@ -48,6 +49,7 @@ polygon = "${POLYGON_RPC_URL}"
 anvil = "http://localhost:8545"
 
 [etherscan]
+arbitrum = { key = "${ETHERSCAN_KEY}" }
 base = { key = "${ETHERSCAN_KEY}" }
 base_sepolia = { key = "${ETHERSCAN_KEY}" }
 mainnet = { key = "${ETHERSCAN_KEY}" }
