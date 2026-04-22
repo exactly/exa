@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 
 import { useQuery } from "@tanstack/react-query";
+import { formatUnits } from "viem";
 
 import chain from "@exactly/common/generated/chain";
 import { floatingDepositRates, withdrawLimit } from "@exactly/lib";
@@ -109,7 +110,7 @@ export default function usePortfolio(options?: { sortBy?: "usdcFirst" | "usdValu
     return tokens
       .filter((token) => !marketAddresses.has(token.address.toLowerCase()))
       .flatMap((token) => {
-        const asset = toExternalAsset(token, chain.id);
+        const asset = toExternalAsset(token);
         return asset ? [asset] : [];
       });
   }, [balances, markets]);
@@ -121,7 +122,7 @@ export default function usePortfolio(options?: { sortBy?: "usdcFirst" | "usdValu
       const chainId = Number(chainIdKey);
       if (!Number.isInteger(chainId) || chainId === chain.id) continue;
       for (const token of tokens) {
-        const asset = toExternalAsset(token, chainId);
+        const asset = toExternalAsset(token);
         if (asset) result.push(asset);
       }
     }
@@ -171,20 +172,9 @@ function compareAssets(sortBy: "usdcFirst" | "usdValue" | undefined) {
   };
 }
 
-function toExternalAsset(token: TokenAmount, chainId: number): ExternalAsset | undefined {
-  if (!token.amount || token.amount <= 0n) return undefined;
-  const rawUsd = (Number(token.priceUSD) * Number(token.amount)) / 10 ** token.decimals;
+function toExternalAsset(token: TokenAmount): ExternalAsset | undefined {
+  if (!token.amount) return undefined;
+  const rawUsd = Number(formatUnits(token.amount, token.decimals)) * Number(token.priceUSD);
   const usdValue = Number.isFinite(rawUsd) && rawUsd > 0 ? rawUsd : 0;
-  return {
-    address: token.address,
-    amount: token.amount,
-    chainId,
-    decimals: token.decimals,
-    logoURI: token.logoURI,
-    name: token.name,
-    priceUSD: token.priceUSD,
-    symbol: token.symbol,
-    type: "external",
-    usdValue,
-  };
+  return { ...token, type: "external", usdValue };
 }
