@@ -143,11 +143,7 @@ export default function Swaps() {
     updateSwap((old) => ({
       ...old,
       fromAmount:
-        tokenSelectionType === "to"
-          ? selected.address === fromToken.token.address
-            ? parseUnits(formatUnits(fromAmount, fromToken.token.decimals), toToken.token.decimals)
-            : fromAmount
-          : 0n,
+        tokenSelectionType === "to" ? (selected.address === fromToken.token.address ? toAmount : fromAmount) : 0n,
       toAmount: 0n,
       fromToken:
         tokenSelectionType === "from"
