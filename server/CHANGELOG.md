@@ -1,5 +1,19 @@
 # @exactly/server
 
+## 0.2.89
+
+### Patch Changes
+
+- [#622](https://github.com/exactly/exa/pull/622) [`8d828dc`](https://github.com/exactly/exa/commit/8d828dc408307a80f8fb4dfcc48738abc2424753) Thanks [@aguxez](https://github.com/aguxez)! - 🥅 improve activity api error context
+
+- [#965](https://github.com/exactly/exa/pull/965) [`e76f034`](https://github.com/exactly/exa/commit/e76f03477e086a8857eff6d78de84663d371524b) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ support multi-chain account creation in activity webhook
+
+- [#966](https://github.com/exactly/exa/pull/966) [`8e72192`](https://github.com/exactly/exa/commit/8e72192251913f1842d85f1339ed4d913041234a) Thanks [@mainqueg](https://github.com/mainqueg)! - 🐛 add missing stellar memo deposit field
+
+- [#878](https://github.com/exactly/exa/pull/878) [`3fa3252`](https://github.com/exactly/exa/commit/3fa3252499e12e26308fadfccf2831a7ed119f25) Thanks [@aguxez](https://github.com/aguxez)! - 🌐 translate notifications to spanish and portuguese
+
+- [#622](https://github.com/exactly/exa/pull/622) [`39b055d`](https://github.com/exactly/exa/commit/39b055d0690d447dfcaaa3586d342de7b076c8d0) Thanks [@aguxez](https://github.com/aguxez)! - ✨ add authorization declined handler
+
 ## 0.2.88
 
 ### Patch Changes
