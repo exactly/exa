@@ -192,14 +192,6 @@ stack-specific guidance lives in `.agents/rules/`. these files are glob-triggere
 - **respect the style guide**: you must follow all rules within the rule files for any code, documentation, or rules you write. this includes meta-rules like the "lowercase prose" convention for all internal documentation, including the rules themselves.
 - **understand the intent**: do not interpret rules in the most literal way possible. understand the spirit and goal behind them. for example, a rule for "concise" messages implies front-loading keywords and removing filler words, not just meeting a character count.
 
-### sentry mcp
-
-when using sentry mcp tools:
-
-- **never use seer tools**: `analyze_issue_with_seer` is non-functional and will fail. use `search_issues`, `get_issue_details`, and `search_issue_events` to investigate errors instead.
-- **never use `naturalLanguageQuery`**: this parameter is unsupported on all sentry mcp tools and will cause requests to fail. use the structured query parameters (`query`, `sort`, `project`, etc.) directly.
-- **always pass both issue and event ids**: `get_issue_details` returns only the latest event by default, which may not be the one you are investigating. when looking into a specific error occurrence, use `search_issue_events` to locate the exact event and pass its id explicitly.
-
 ### foundry `cast`
 
 foundry is a project dependency, so `cast` is always available. use it to investigate onchain state, decode transactions, and debug contract interactions — both against production chains and the local anvil node.
