@@ -27,8 +27,8 @@ contract ExaPluginExtension {
   uint256 private __gap1;
   // slither-disable-next-line uninitialized-state,constable-states -- implementation contract
   address private swapper;
-  // slither-disable-next-line unused-state -- storage gap
-  uint256[2] private __gap2;
+  // slither-disable-next-line unused-state,constable-states -- storage gap
+  uint256 private __gap2;
   bytes32 private callHash;
   bytes32 private flashLoaning;
 

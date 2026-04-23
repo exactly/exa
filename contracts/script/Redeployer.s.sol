@@ -136,7 +136,6 @@ contract Redeployer is BaseScript {
                 installmentsRouter: IInstallmentsRouter(address(1)),
                 issuerChecker: IssuerChecker(address(1)),
                 proposalManager: IProposalManager(proposalManagerAddr),
-                collector: admin,
                 swapper: admin,
                 firstKeeper: admin
               })

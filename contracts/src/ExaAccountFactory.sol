@@ -35,11 +35,19 @@ contract ExaAccountFactory is WebauthnModularAccountFactory {
     _EXA_PLUGIN_MANIFEST_HASH = keccak256(abi.encode(exaPlugin.pluginManifest()));
   }
 
+  function createAccount(address source, PublicKey[] calldata owners) external returns (address) {
+    return this.createAccount(uint256(uint160(source)), owners);
+  }
+
+  function getAddress(address source, PublicKey[] calldata owners) external view returns (address) {
+    return this.getAddress(uint256(uint160(source)), owners);
+  }
+
   function donateStake() external payable {
     ENTRYPOINT.addStake{ value: msg.value }(1 days);
   }
 
-  function _initializeAccount(IAccountInitializable account, bytes memory owners) internal override {
+  function _initializeAccount(IAccountInitializable account, uint256 salt, bytes memory owners) internal override {
     address[] memory plugins = new address[](2);
     plugins[0] = WEBAUTHN_OWNER_PLUGIN;
     plugins[1] = address(EXA_PLUGIN);
@@ -50,6 +58,8 @@ contract ExaAccountFactory is WebauthnModularAccountFactory {
 
     bytes[] memory initBytes = new bytes[](2);
     initBytes[0] = owners;
+    // forge-lint: disable-next-line(unsafe-typecast) -- salt fits in address by construction in createAccount
+    if (salt != 0) initBytes[1] = abi.encode(address(uint160(salt)));
 
     emit ExaAccountInitialized(address(account));
 

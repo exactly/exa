@@ -130,4 +130,6 @@ contract MockAccessControl is AccessControl {
   constructor() {
     _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
   }
+
+  function setSource(address, address) external { } // solhint-disable-line no-empty-blocks
 }

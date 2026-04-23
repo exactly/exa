@@ -650,8 +650,8 @@ importers:
         specifier: ^0.1.26
         version: 0.1.26
       webauthn-owner-plugin:
-        specifier: exactly/webauthn-owner-plugin#9c0c38b
-        version: https://codeload.github.com/exactly/webauthn-owner-plugin/tar.gz/9c0c38bd63c2aa70b60c03c815e9de108e264cda
+        specifier: exactly/webauthn-owner-plugin#f52b3f2
+        version: https://codeload.github.com/exactly/webauthn-owner-plugin/tar.gz/f52b3f2adcaea0899d916215776bd03df7ec7647
       webauthn-sol:
         specifier: base/webauthn-sol#v1.0.0
         version: https://codeload.github.com/base/webauthn-sol/tar.gz/619f20ab0f074fef41066ee4ab24849a913263b2
@@ -13429,6 +13429,10 @@ packages:
 
   webauthn-owner-plugin@https://codeload.github.com/exactly/webauthn-owner-plugin/tar.gz/9c0c38bd63c2aa70b60c03c815e9de108e264cda:
     resolution: {tarball: https://codeload.github.com/exactly/webauthn-owner-plugin/tar.gz/9c0c38bd63c2aa70b60c03c815e9de108e264cda}
+    version: 0.0.0
+
+  webauthn-owner-plugin@https://codeload.github.com/exactly/webauthn-owner-plugin/tar.gz/f52b3f2adcaea0899d916215776bd03df7ec7647:
+    resolution: {tarball: https://codeload.github.com/exactly/webauthn-owner-plugin/tar.gz/f52b3f2adcaea0899d916215776bd03df7ec7647}
     version: 0.0.0
 
   webauthn-p256@0.0.10:
@@ -29640,6 +29644,8 @@ snapshots:
   web-namespaces@2.0.1: {}
 
   webauthn-owner-plugin@https://codeload.github.com/exactly/webauthn-owner-plugin/tar.gz/9c0c38bd63c2aa70b60c03c815e9de108e264cda: {}
+
+  webauthn-owner-plugin@https://codeload.github.com/exactly/webauthn-owner-plugin/tar.gz/f52b3f2adcaea0899d916215776bd03df7ec7647: {}
 
   webauthn-p256@0.0.10:
     dependencies:

@@ -117,6 +117,7 @@ contract ExaPluginTest is ForkTest {
   address[] internal owners;
   address payable internal collector;
   ExaAccount internal account;
+  ExaAccountFactory internal factory;
   ExaPlugin internal exaPlugin;
   WebauthnOwnerPlugin internal ownerPlugin;
   IssuerChecker internal issuerChecker;
@@ -206,7 +207,6 @@ contract ExaPluginTest is ForkTest {
         installmentsRouter: IInstallmentsRouter(address(p.installmentsRouter())),
         issuerChecker: issuerChecker,
         proposalManager: IProposalManager(address(proposalManager)),
-        collector: collector,
         swapper: address(m.swapper()),
         firstKeeper: keeper
       })
@@ -214,7 +214,7 @@ contract ExaPluginTest is ForkTest {
     proposalManager.grantRole(proposalManager.PROPOSER_ROLE(), address(exaPlugin));
 
     ownerPlugin = new WebauthnOwnerPlugin();
-    ExaAccountFactory factory = new ExaAccountFactory(
+    factory = new ExaAccountFactory(
       address(this), ownerPlugin, exaPlugin, address(new UpgradeableModularAccount(ENTRYPOINT)), ENTRYPOINT
     );
 
@@ -1661,12 +1661,12 @@ contract ExaPluginTest is ForkTest {
     bytes memory route = abi.encodeCall(
       MockSwapper.swapExactAmountOut, (exaEXA.asset(), maxAmountIn, address(usdc), minAmountOut, address(exaPlugin))
     );
-    uint256 balance = usdc.balanceOf(exaPlugin.collector());
+    uint256 balance = usdc.balanceOf(collector);
     (uint256 amountIn, uint256 amountOut) = account.collectCollateral(
       minAmountOut, exaEXA, maxAmountIn, block.timestamp, route, _issuerOp(minAmountOut, block.timestamp)
     );
 
-    assertEq(usdc.balanceOf(exaPlugin.collector()), balance + minAmountOut, "collector's usdc != expected");
+    assertEq(usdc.balanceOf(collector), balance + minAmountOut, "collector's usdc != expected");
     assertEq(exaUSDC.balanceOf(address(account)), amountOut - minAmountOut, "account's usdc != expected");
     assertEq(exaEXA.balanceOf(address(account)), prevCollateral - maxAmountIn, "account's collateral != expected");
 
@@ -2033,12 +2033,12 @@ contract ExaPluginTest is ForkTest {
     bytes memory route = abi.encodeCall(
       MockSwapper.swapExactAmountOut, (exaEXA.asset(), maxAmountIn, address(usdc), minAmountOut, address(exaPlugin))
     );
-    uint256 balance = usdc.balanceOf(exaPlugin.collector());
+    uint256 balance = usdc.balanceOf(collector);
     (uint256 amountIn, uint256 amountOut) = account.collectCollateral(
       minAmountOut, exaEXA, maxAmountIn, block.timestamp, route, _issuerOp(minAmountOut, block.timestamp)
     );
 
-    assertEq(usdc.balanceOf(exaPlugin.collector()), balance + minAmountOut, "collector's usdc != expected");
+    assertEq(usdc.balanceOf(collector), balance + minAmountOut, "collector's usdc != expected");
     assertEq(exaUSDC.balanceOf(address(account)), amountOut - minAmountOut, "account's usdc != expected");
     assertEq(exaEXA.balanceOf(address(account)), prevCollateral - amountIn, "account's collateral != expected");
 
@@ -2079,9 +2079,10 @@ contract ExaPluginTest is ForkTest {
       hex"00000000000000000000000000000000000000000000000000000000018f7705000000000000000000000000000000000000000000000000000000000000016000000000000000000000000000000000000000000000000000000000000000034578610000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002a30783030303030303030303030303030303030303030303030303030303030303030303030303030303000000000000000000000000000000000000000000000000000000000000000000000111111125421ca6dc452d289314280a0f8842a65000000000000000000000000111111125421ca6dc452d289314280a0f8842a6500000000000000000000000068f180fcce6836688e9084f035309e29bf0a20950000000000000000000000000b2c639c533813f4aa9d7837caf62653d097ff850000000000000000000000000000000000000000000000000000000000009c4000000000000000000000000000000000000000000000000000000000000000e0000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000004e807ed2379000000000000000000000000b63aae6c353636d66df13b89ba4425cfe13d10ba00000000000000000000000068f180fcce6836688e9084f035309e29bf0a20950000000000000000000000000b2c639c533813f4aa9d7837caf62653d097ff85000000000000000000000000b63aae6c353636d66df13b89ba4425cfe13d10ba0000000000000000000000001231deb6f5749ef6ce6943a275a1d3e7486f4eae0000000000000000000000000000000000000000000000000000000000009c4000000000000000000000000000000000000000000000000000000000018f770400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000120000000000000000000000000000000000000000000000000000000000000039600000000000000000000000000000000000000000000000000000000037800a007e5c0d20000000000000000000000000000000000000000000000000003540000f051204c4af8dbc524681930a27b2f1af5bcc8062e6fb768f180fcce6836688e9084f035309e29bf0a209500447dc2038200000000000000000000000068f180fcce6836688e9084f035309e29bf0a209500000000000000000000000042000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000002495763e3d93b6000000000000000000000000b63aae6c353636d66df13b89ba4425cfe13d10ba00000000000000000000000042f527f50f16a103b6ccab48bccca214500c102100a0c9e75c480000000000000013130c0000000000000000000000000000000000000000000002360001d300006302a000000000000000000000000000000000000000000000000000000000005f6305ee63c1e580c1738d90e2e26c35784a0d3e3d8a9f795074bca44200000000000000000000000000000000000006111111125421ca6dc452d289314280a0f8842a655106a062ae8a9c5e11aaa026fc2670b0d65ccc8b285842000000000000000000000000000000000000060004cac88ea9000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000009708bd00000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000111111125421ca6dc452d289314280a0f8842a6500000000000000000000000000000000000000000000000000000000671fb839000000000000000000000000000000000000000000000000000000000000000100000000000000000000000042000000000000000000000000000000000000060000000000000000000000000b2c639c533813f4aa9d7837caf62653d097ff850000000000000000000000000000000000000000000000000000000000000000000000000000000000000000f1046053aa5682b4f9a81b5481394da16be5ff5a02a0000000000000000000000000000000000000000000000000000000000097095eee63c1e580d4cb5566b5c16ef2f4a08b1438052013171212a24200000000000000000000000000000000000006111111125421ca6dc452d289314280a0f8842a65000000000000000000002a94d114000000000000000000000000000000000000000000000000"
     );
 
-    uint256 balance = usdc.balanceOf(exaPlugin.collector());
+    address forkCollector = proposalManager.sources(address(0));
+    uint256 balance = usdc.balanceOf(forkCollector);
     account.collectCollateral(21e6, exaWBTC, maxAmountIn, block.timestamp, route, _issuerOp(21e6, block.timestamp));
-    assertEq(usdc.balanceOf(exaPlugin.collector()) - balance, 21e6);
+    assertEq(usdc.balanceOf(forkCollector) - balance, 21e6);
   }
 
   function test_collectInstallments_collects() external {
@@ -2837,7 +2838,6 @@ contract ExaPluginTest is ForkTest {
         installmentsRouter: IInstallmentsRouter(address(this)),
         issuerChecker: issuerChecker,
         proposalManager: IProposalManager(address(proposalManager)),
-        collector: collector,
         swapper: address(0),
         firstKeeper: keeper
       })
@@ -3029,7 +3029,6 @@ contract ExaPluginTest is ForkTest {
         installmentsRouter: IInstallmentsRouter(address(this)),
         issuerChecker: issuerChecker,
         proposalManager: IProposalManager(address(proposalManager)),
-        collector: collector,
         swapper: address(this),
         firstKeeper: keeper
       })
@@ -3250,8 +3249,9 @@ contract ExaPluginTest is ForkTest {
   }
 
   function test_setCollector_sets_whenAdmin() external {
-    exaPlugin.setCollector(address(0x1));
-    assertEq(exaPlugin.collector(), address(0x1));
+    address source = makeAddr("source");
+    proposalManager.setCollector(source, address(0x1));
+    assertEq(proposalManager.sources(source), address(0x1));
   }
 
   function test_setCollector_reverts_whenNotAdmin() external {
@@ -3259,22 +3259,122 @@ contract ExaPluginTest is ForkTest {
     vm.startPrank(nonAdmin);
     vm.expectRevert(
       abi.encodeWithSelector(
-        IAccessControl.AccessControlUnauthorizedAccount.selector, nonAdmin, exaPlugin.DEFAULT_ADMIN_ROLE()
+        IAccessControl.AccessControlUnauthorizedAccount.selector, nonAdmin, proposalManager.DEFAULT_ADMIN_ROLE()
       )
     );
-    exaPlugin.setCollector(address(0x2));
+    proposalManager.setCollector(makeAddr("source"), address(0x2));
   }
 
   function test_setCollector_reverts_whenAddressZero() external {
     vm.expectRevert(ZeroAddress.selector);
-    exaPlugin.setCollector(address(0));
+    proposalManager.setCollector(makeAddr("source"), address(0));
   }
 
   function test_setCollector_emitsCollectorSet() external {
+    address source = makeAddr("source");
     address newCollector = address(0x1);
-    vm.expectEmit(true, true, true, true, address(exaPlugin));
-    emit CollectorSet(newCollector, address(this));
-    exaPlugin.setCollector(newCollector);
+    vm.expectEmit(true, true, true, true, address(proposalManager));
+    emit CollectorSet(source, newCollector, address(this));
+    proposalManager.setCollector(source, newCollector);
+  }
+
+  function test_setSource_reverts_whenNotProposer() external {
+    address nonProposer = address(0x1);
+    vm.startPrank(nonProposer);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        IAccessControl.AccessControlUnauthorizedAccount.selector, nonProposer, proposalManager.PROPOSER_ROLE()
+      )
+    );
+    proposalManager.setSource(address(0x420), makeAddr("source"));
+  }
+
+  function test_createAccount_withSource_bindsAccountToSource() external {
+    address source = makeAddr("source");
+    proposalManager.setCollector(source, makeAddr("customCollector"));
+    address fresh = _createAccountWithSource(source);
+    assertEq(proposalManager.accounts(fresh), source);
+  }
+
+  function test_createAccount_reverts_whenSourceUnregistered() external {
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PluginManagerInternals.PluginInstallCallbackFailed.selector,
+        address(exaPlugin),
+        abi.encodeWithSelector(Unauthorized.selector)
+      )
+    );
+    _createAccountWithSource(makeAddr("source"));
+  }
+
+  function test_getAddress_withSource_matchesCreate() external {
+    address source = makeAddr("source");
+    proposalManager.setCollector(source, makeAddr("customCollector"));
+    assertEq(factory.getAddress(source, owners.toPublicKeys()), factory.createAccount(source, owners.toPublicKeys()));
+  }
+
+  function test_collectorOf_returnsDefaultCollector_whenNoSource() external view {
+    assertEq(proposalManager.accounts(address(account)), address(0));
+    assertEq(proposalManager.sources(address(0)), collector);
+    assertEq(proposalManager.collectorOf(address(account)), collector);
+  }
+
+  function test_collectDebit_routesToPerSourceCollector() external {
+    address source = makeAddr("source");
+    address customCollector = makeAddr("customCollector");
+    proposalManager.setCollector(source, customCollector);
+    ExaAccount fresh = ExaAccount(payable(_createAccountWithSource(source)));
+    usdc.mint(address(fresh), 10_000e6);
+
+    uint256 amount = 100e6;
+    uint256 timestamp = block.timestamp;
+    vm.startPrank(keeper);
+    fresh.poke(exaUSDC);
+    fresh.collectDebit(
+      amount,
+      timestamp,
+      _sign(
+        issuerKey,
+        keccak256(
+          abi.encodePacked(
+            "\x19\x01",
+            domainSeparator,
+            keccak256(
+              abi.encode(
+                keccak256(bytes("Collection(address account,uint256 amount,uint40 timestamp)")),
+                fresh,
+                amount,
+                timestamp
+              )
+            )
+          )
+        )
+      )
+    );
+    vm.stopPrank();
+
+    assertEq(usdc.balanceOf(customCollector), amount);
+    assertEq(usdc.balanceOf(collector), 0);
+  }
+
+  function testFuzz_sourceIsolation(address sourceA, address sourceB, address collectorA, address collectorB) external {
+    vm.assume(sourceA != address(0) && sourceB != address(0) && sourceA != sourceB);
+    vm.assume(collectorA != address(0) && collectorB != address(0) && collectorA != collectorB);
+
+    proposalManager.setCollector(sourceA, collectorA);
+    proposalManager.setCollector(sourceB, collectorB);
+
+    address accountA = _createAccountWithSource(sourceA);
+    address accountB = _createAccountWithSource(sourceB);
+
+    assertEq(proposalManager.collectorOf(accountA), collectorA);
+    assertEq(proposalManager.collectorOf(accountB), collectorB);
+  }
+
+  function _createAccountWithSource(address source) internal returns (address) {
+    address[] memory newOwners = new address[](1);
+    newOwners[0] = makeAddr(string.concat("owner-", vm.toString(source)));
+    return factory.createAccount(source, newOwners.toPublicKeys());
   }
 
   function test_setSwapper_sets_whenAdmin() external {
@@ -3597,7 +3697,6 @@ contract ExaPluginTest is ForkTest {
         installmentsRouter: IInstallmentsRouter(protocol("InstallmentsRouter")),
         issuerChecker: issuerChecker,
         proposalManager: proposalManager,
-        collector: acct("collector"),
         swapper: 0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE,
         firstKeeper: keeper
       })
@@ -3764,7 +3863,6 @@ contract ExaPluginTest is ForkTest {
         installmentsRouter: IInstallmentsRouter(protocol("InstallmentsRouter")),
         issuerChecker: issuerChecker,
         proposalManager: proposalManager,
-        collector: acct("collector"),
         swapper: 0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE,
         firstKeeper: keeper
       })
