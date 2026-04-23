@@ -298,7 +298,7 @@ contract ExaPreviewerTest is ForkTest {
       FixedLib.INTERVAL, amounts, type(uint256).max, block.timestamp, _issuerOp(30e6, block.timestamp)
     );
 
-    assertEq(usdc.balanceOf(address(exaPlugin.collector())), 30e6);
+    assertEq(usdc.balanceOf(collector), 30e6);
   }
 
   function test_assets_returnsAssets() external view {

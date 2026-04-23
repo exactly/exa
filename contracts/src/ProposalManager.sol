@@ -9,6 +9,7 @@ import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 import { ExaPlugin } from "./ExaPlugin.sol";
 import {
   BorrowAtMaturityData,
+  CollectorSet,
   CrossRepayData,
   DelaySet,
   IAuditor,
@@ -28,6 +29,8 @@ import {
   ProposalType,
   Proposed,
   RollDebtData,
+  SourceAlreadySet,
+  SourceSet,
   TargetAllowed,
   Timelocked,
   Unauthorized,
@@ -41,7 +44,6 @@ contract ProposalManager is IProposalManager, AccessControl {
   string public constant NAME = "ProposalManager";
   string public constant VERSION = "1";
 
-  bytes32 public constant COLLECTOR_ROLE = keccak256("COLLECTOR_ROLE");
   bytes32 public constant PROPOSER_ROLE = keccak256("PROPOSER_ROLE");
 
   IAuditor public immutable AUDITOR;
@@ -53,6 +55,8 @@ contract ProposalManager is IProposalManager, AccessControl {
   mapping(address account => uint256 nonce) public nonces;
   mapping(address account => uint256 nonce) public queueNonces;
   mapping(address account => mapping(uint256 nonce => Proposal lastProposal)) public proposals;
+  mapping(address account => address source) public accounts;
+  mapping(address source => address collector) public sources;
 
   constructor(
     address owner,
@@ -67,7 +71,7 @@ contract ProposalManager is IProposalManager, AccessControl {
     DEBT_MANAGER = debtManager;
     INSTALLMENTS_ROUTER = installmentsRouter;
 
-    _grantRole(COLLECTOR_ROLE, collector_);
+    _setCollector(address(0), collector_);
     _grantRole(DEFAULT_ADMIN_ROLE, owner);
 
     for (uint256 i = 0; i < targets.length; ++i) {
@@ -125,7 +129,7 @@ contract ProposalManager is IProposalManager, AccessControl {
     if (target == address(INSTALLMENTS_ROUTER)) {
       if (selector == IInstallmentsRouter.borrow.selector) {
         (,,,, address receiver) = abi.decode(callData, (IMarket, uint256, uint256[], uint256, address));
-        if (hasRole(COLLECTOR_ROLE, receiver)) return;
+        if (receiver == _collectorOf(sender)) return;
       }
       revert Unauthorized();
     }
@@ -151,7 +155,7 @@ contract ProposalManager is IProposalManager, AccessControl {
       return _checkBorrowAtMaturityProposal(sender, target, callData);
     } else if (selector == IERC4626.withdraw.selector) {
       (amount, receiver, owner) = abi.decode(callData, (uint256, address, address));
-      if (hasRole(COLLECTOR_ROLE, receiver)) return;
+      if (receiver == _collectorOf(sender)) return;
       if (hasRole(PROPOSER_ROLE, receiver) && !_checkCallHash(target, selector, amount, receiver, owner)) return;
       Proposal memory proposal = shiftProposal(owner);
       if (
@@ -168,7 +172,7 @@ contract ProposalManager is IProposalManager, AccessControl {
       return _checkMarketProposal(proposal, target, amount, receiver);
     } else if (selector == IMarket.borrow.selector) {
       (, receiver,) = abi.decode(callData, (uint256, address, address));
-      if (!hasRole(COLLECTOR_ROLE, receiver)) revert Unauthorized();
+      if (receiver != _collectorOf(sender)) revert Unauthorized();
       return;
     }
   }
@@ -176,7 +180,7 @@ contract ProposalManager is IProposalManager, AccessControl {
   function _checkBorrowAtMaturityProposal(address sender, IMarket target, bytes memory callData) internal {
     (uint256 maturity, uint256 amount, uint256 maxAssets, address receiver,) =
       abi.decode(callData, (uint256, uint256, uint256, address, address));
-    if (hasRole(COLLECTOR_ROLE, receiver)) return;
+    if (receiver == _collectorOf(sender)) return;
 
     Proposal memory proposal = shiftProposal(sender);
     if (proposal.proposalType == ProposalType.BORROW_AT_MATURITY) {
@@ -254,8 +258,24 @@ contract ProposalManager is IProposalManager, AccessControl {
     _allowTarget(target, allowed);
   }
 
+  function setCollector(address source, address collector) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    _setCollector(source, collector);
+  }
+
   function setDelay(uint256 delay_) external onlyRole(DEFAULT_ADMIN_ROLE) {
     _setDelay(delay_);
+  }
+
+  function setSource(address account, address source) external onlyRole(PROPOSER_ROLE) {
+    if (source == address(0)) revert ZeroAddress();
+    if (sources[source] == address(0)) revert Unauthorized();
+    if (accounts[account] != address(0)) revert SourceAlreadySet();
+    accounts[account] = source;
+    emit SourceSet(account, source);
+  }
+
+  function collectorOf(address account) external view returns (address) {
+    return _collectorOf(account);
   }
 
   function checkLiquidity(address account) external view {
@@ -313,6 +333,17 @@ contract ProposalManager is IProposalManager, AccessControl {
 
     allowlist[target] = allowed;
     emit TargetAllowed(target, msg.sender, allowed);
+  }
+
+  function _collectorOf(address account) internal view returns (address collector) {
+    collector = sources[accounts[account]];
+    if (collector == address(0)) revert Unauthorized();
+  }
+
+  function _setCollector(address source, address collector) internal {
+    if (collector == address(0)) revert ZeroAddress();
+    sources[source] = collector;
+    emit CollectorSet(source, collector, msg.sender);
   }
 
   function _checkMarket(IMarket market) internal view {

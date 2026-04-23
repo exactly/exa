@@ -43,6 +43,7 @@ interface IExaAccount {
 
 interface IProposalManager {
   function checkLiquidity(address account) external view;
+  function collectorOf(address account) external view returns (address);
   function delay() external view returns (uint256);
   function nextProposal(address account) external view returns (uint256 nonce, Proposal memory proposal);
   function nonces(address account) external view returns (uint256);
@@ -54,7 +55,9 @@ interface IProposalManager {
   function propose(address account, IMarket market, uint256 amount, ProposalType proposalType, bytes memory data)
     external;
   function queueNonces(address account) external view returns (uint256);
+  function setCollector(address source, address collector) external;
   function setNonce(address account, uint256 nonce) external;
+  function setSource(address account, address source) external;
 }
 
 interface IDebtManager {
@@ -80,7 +83,7 @@ interface IFlashLoaner {
 
 event FlashLoanerSet(address indexed account, IFlashLoaner indexed flashLoaner);
 
-event CollectorSet(address indexed collector, address indexed account);
+event CollectorSet(address indexed source, address indexed collector, address indexed sender);
 
 event DelaySet(uint256 delay);
 
@@ -99,6 +102,8 @@ event Proposed(
   bytes data,
   uint256 unlock
 );
+
+event SourceSet(address indexed account, address indexed source);
 
 event SwapperSet(address indexed swapper, address indexed sender);
 
@@ -187,6 +192,7 @@ error NoProposal();
 error NotMarket();
 error PendingProposals();
 error Replay();
+error SourceAlreadySet();
 error Timelocked();
 error Unauthorized();
 error ZeroAddress();

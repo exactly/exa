@@ -35,7 +35,6 @@ contract DeployExaPlugin is BaseScript {
         installmentsRouter: IInstallmentsRouter(protocol("InstallmentsRouter")),
         issuerChecker: IssuerChecker(broadcast("IssuerChecker")),
         proposalManager: IProposalManager(broadcast("ProposalManager")),
-        collector: acct("collector"),
         swapper: acct("swapper"),
         firstKeeper: acct("keeper")
       })

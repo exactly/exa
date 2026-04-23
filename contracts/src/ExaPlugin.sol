@@ -32,7 +32,6 @@ import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { CrossRepayCallbackData, ExaPluginExtension, RepayCallbackData } from "./ExaPluginExtension.sol";
 import {
   BorrowAtMaturityData,
-  CollectorSet,
   CrossRepayData,
   Disagreement,
   ExtensionFailed,
@@ -93,7 +92,6 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
   IFlashLoaner public flashLoaner;
   IProposalManager public proposalManager;
   address public swapper;
-  address public collector;
   mapping(address plugin => bool allowed) public allowlist;
 
   bytes32 public callHash;
@@ -115,7 +113,6 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
     _grantRole(DEFAULT_ADMIN_ROLE, p.owner);
     _setFlashLoaner(p.flashLoaner);
     _setSwapper(p.swapper);
-    _setCollector(p.collector);
     _setProposalManager(p.proposalManager);
 
     USDC.forceApprove(address(EXA_USDC), type(uint256).max);
@@ -208,7 +205,7 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
     // slither-disable-next-line reentrancy-benign -- markets are safe
     delete callHash;
     (amountIn, amountOut) = _swap(IERC20(collateral.asset()), IERC20(USDC), maxAmountIn, amount, route);
-    IERC20(USDC).safeTransfer(collector, amount);
+    IERC20(USDC).safeTransfer(_collectorOf(msg.sender), amount);
 
     uint256 unspentCollateral = maxAmountIn - amountIn;
     if (unspentCollateral != 0) {
@@ -241,13 +238,13 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
     _executeFromSender(
       address(EXA_USDC),
       0,
-      abi.encodeCall(IMarket.borrowAtMaturity, (maturity, amount, maxRepay, collector, msg.sender))
+      abi.encodeCall(IMarket.borrowAtMaturity, (maturity, amount, maxRepay, _collectorOf(msg.sender), msg.sender))
     );
   }
 
   function collectDebit(uint256 amount, uint256 timestamp, bytes calldata signature) external {
     _checkIssuer(msg.sender, amount, timestamp, signature);
-    _withdrawFromSender(EXA_USDC, amount, collector);
+    _withdrawFromSender(EXA_USDC, amount, _collectorOf(msg.sender));
   }
 
   function collectInstallments(
@@ -267,7 +264,7 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
       address(INSTALLMENTS_ROUTER),
       address(EXA_USDC),
       maxRepay,
-      abi.encodeCall(IInstallmentsRouter.borrow, (EXA_USDC, firstMaturity, amounts, maxRepay, collector))
+      abi.encodeCall(IInstallmentsRouter.borrow, (EXA_USDC, firstMaturity, amounts, maxRepay, _collectorOf(msg.sender)))
     );
     _approveFromSender(address(EXA_USDC), address(INSTALLMENTS_ROUTER), 0);
   }
@@ -304,10 +301,6 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
     _setFlashLoaner(flashLoaner_);
   }
 
-  function setCollector(address collector_) external onlyRole(DEFAULT_ADMIN_ROLE) {
-    _setCollector(collector_);
-  }
-
   function setProposalManager(IProposalManager proposalManager_) external onlyRole(DEFAULT_ADMIN_ROLE) {
     _setProposalManager(proposalManager_);
   }
@@ -323,7 +316,10 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
   }
 
   /// @inheritdoc BasePlugin
-  function onInstall(bytes calldata) external override { } // solhint-disable-line no-empty-blocks
+  function onInstall(bytes calldata data) external override {
+    if (data.length == 0) return;
+    proposalManager.setSource(msg.sender, abi.decode(data, (address)));
+  }
 
   /// @inheritdoc BasePlugin
   function onUninstall(bytes calldata) external override { } // solhint-disable-line no-empty-blocks
@@ -589,6 +585,10 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
     if (!_isMarket(market)) revert NotMarket();
   }
 
+  function _collectorOf(address account) internal view returns (address) {
+    return proposalManager.collectorOf(account);
+  }
+
   function _crossRepay(Proposal memory proposal) internal {
     CrossRepayData memory crossData = abi.decode(proposal.data, (CrossRepayData));
     bytes memory data = _hash(
@@ -709,12 +709,6 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
     emit FlashLoanerSet(msg.sender, flashLoaner_);
   }
 
-  function _setCollector(address collector_) internal {
-    if (collector_ == address(0)) revert ZeroAddress();
-    collector = collector_;
-    emit CollectorSet(collector_, msg.sender);
-  }
-
   function _setProposalManager(IProposalManager proposalManager_) internal {
     if (address(proposalManager_) == address(0)) revert ZeroAddress();
     proposalManager = proposalManager_;
@@ -829,7 +823,6 @@ struct Parameters {
   IInstallmentsRouter installmentsRouter;
   IssuerChecker issuerChecker;
   IProposalManager proposalManager;
-  address collector;
   address swapper;
   address firstKeeper;
 }
