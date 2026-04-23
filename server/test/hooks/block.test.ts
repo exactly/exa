@@ -438,6 +438,7 @@ describe("proposal", () => {
     it("fingerprints outer catch by reason", async () => {
       const setUser = await spyScopeSetUser();
       const proposal = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
+      const match = matchProposal(proposal.args.account, proposal.args.nonce);
       const simulateContract = vi.spyOn(publicClient, "simulateContract");
       const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
       vi.mocked(continueTrace).mockImplementationOnce(() => {
@@ -447,7 +448,7 @@ describe("proposal", () => {
             functionName: "executeProposal",
             message: "execution reverted: proposal outer reason fallback",
           }),
-          { abi: [], contractAddress: bobAccount, functionName: "executeProposal" },
+          { abi: [], contractAddress: bobAccount, functionName: "executeProposal", args: [proposal.args.nonce] },
         );
       });
 
@@ -474,7 +475,8 @@ describe("proposal", () => {
             .mocked(captureException)
             .mock.calls.slice(initialCaptureExceptionCalls)
             .some(
-              ([, hint]) =>
+              ([error, hint]) =>
+                match.capture([error, hint]) &&
                 typeof hint === "object" &&
                 "fingerprint" in hint &&
                 Array.isArray(hint.fingerprint) &&
@@ -484,7 +486,8 @@ describe("proposal", () => {
       );
 
       const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
-      const captureExceptionFingerprints = captureExceptionCalls.flatMap(([, hint]) =>
+      const proposalCaptureCalls = captureExceptionCalls.filter((call) => match.capture(call));
+      const captureExceptionFingerprints = proposalCaptureCalls.flatMap(([, hint]) =>
         typeof hint === "object" && "fingerprint" in hint && Array.isArray(hint.fingerprint) ? [hint.fingerprint] : [],
       );
 
@@ -506,6 +509,7 @@ describe("proposal", () => {
 
     it("fingerprints outer catch by signature", async () => {
       const proposal = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
+      const match = matchProposal(proposal.args.account, proposal.args.nonce);
       const simulateContract = vi.spyOn(publicClient, "simulateContract");
       const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
       vi.mocked(continueTrace).mockImplementationOnce(() => {
@@ -541,7 +545,8 @@ describe("proposal", () => {
             .mocked(captureException)
             .mock.calls.slice(initialCaptureExceptionCalls)
             .some(
-              ([, hint]) =>
+              ([error, hint]) =>
+                match.capture([error, hint]) &&
                 typeof hint === "object" &&
                 "fingerprint" in hint &&
                 Array.isArray(hint.fingerprint) &&
@@ -551,7 +556,8 @@ describe("proposal", () => {
       );
 
       const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
-      const captureExceptionFingerprints = captureExceptionCalls.flatMap(([, hint]) =>
+      const proposalCaptureCalls = captureExceptionCalls.filter((call) => match.capture(call));
+      const captureExceptionFingerprints = proposalCaptureCalls.flatMap(([, hint]) =>
         typeof hint === "object" && "fingerprint" in hint && Array.isArray(hint.fingerprint) ? [hint.fingerprint] : [],
       );
 
@@ -567,6 +573,7 @@ describe("proposal", () => {
 
     it("fingerprints outer catch as unknown contract revert", async () => {
       const proposal = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
+      const match = matchProposal(proposal.args.account, proposal.args.nonce);
       const simulateContract = vi.spyOn(publicClient, "simulateContract");
       const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
       vi.mocked(continueTrace).mockImplementationOnce(() => {
@@ -602,7 +609,8 @@ describe("proposal", () => {
             .mocked(captureException)
             .mock.calls.slice(initialCaptureExceptionCalls)
             .some(
-              ([, hint]) =>
+              ([error, hint]) =>
+                match.capture([error, hint]) &&
                 typeof hint === "object" &&
                 "fingerprint" in hint &&
                 Array.isArray(hint.fingerprint) &&
@@ -612,7 +620,8 @@ describe("proposal", () => {
       );
 
       const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
-      const captureExceptionFingerprints = captureExceptionCalls.flatMap(([, hint]) =>
+      const proposalCaptureCalls = captureExceptionCalls.filter((call) => match.capture(call));
+      const captureExceptionFingerprints = proposalCaptureCalls.flatMap(([, hint]) =>
         typeof hint === "object" && "fingerprint" in hint && Array.isArray(hint.fingerprint) ? [hint.fingerprint] : [],
       );
 
@@ -630,8 +639,9 @@ describe("proposal", () => {
       const proposal = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
       const simulateContract = vi.spyOn(publicClient, "simulateContract");
       const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
+      const error = new Error("nonce reset failed");
       vi.mocked(continueTrace).mockImplementationOnce(() => {
-        throw new Error("nonce reset failed");
+        throw error;
       });
 
       await appClient.index.$post({
@@ -656,9 +666,8 @@ describe("proposal", () => {
           vi
             .mocked(captureException)
             .mock.calls.some(
-              ([error, hint]) =>
-                error instanceof Error &&
-                error.message === "nonce reset failed" &&
+              ([captured, hint]) =>
+                captured === error &&
                 typeof hint === "object" &&
                 "fingerprint" in hint &&
                 Array.isArray(hint.fingerprint) &&
@@ -668,7 +677,8 @@ describe("proposal", () => {
       );
 
       const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
-      const captureExceptionFingerprints = captureExceptionCalls.flatMap(([, hint]) =>
+      const proposalCaptureCalls = captureExceptionCalls.filter(([captured]) => captured === error);
+      const captureExceptionFingerprints = proposalCaptureCalls.flatMap(([, hint]) =>
         typeof hint === "object" && "fingerprint" in hint && Array.isArray(hint.fingerprint) ? [hint.fingerprint] : [],
       );
 
