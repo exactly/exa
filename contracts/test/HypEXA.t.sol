@@ -3,6 +3,11 @@ pragma solidity ^0.8.0;
 
 import { IAccessControl } from "openzeppelin-contracts/contracts/access/IAccessControl.sol";
 import { TimelockController } from "openzeppelin-contracts/contracts/governance/TimelockController.sol";
+import { ERC1967Utils } from "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Utils.sol";
+import { ProxyAdmin } from "openzeppelin-contracts/contracts/proxy/transparent/ProxyAdmin.sol";
+import {
+  ITransparentUpgradeableProxy
+} from "openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import { EXA } from "@exactly/protocol/periphery/EXA.sol";
 import { TypeCasts } from "@hyperlane-xyz/core/contracts/libs/TypeCasts.sol";
@@ -68,7 +73,7 @@ contract HypEXATest is ForkTest {
     opRedeployer.setUp();
     opRedeployer.prepare();
     opRedeployer.deployEXAImpl();
-    opRedeployer.upgradeEXA(address(exa));
+    _upgradeEXA(address(exa), address(opRedeployer.exa()));
     opRouter = opRedeployer.deployRouter(address(exa));
     vm.prank(acct("exactly"));
     exa.grantRole(keccak256("BRIDGE_ROLE"), address(opRouter));
@@ -229,4 +234,12 @@ contract HypEXATest is ForkTest {
   }
 
   // solhint-enable func-name-mixedcase
+
+  function _upgradeEXA(address proxy, address implementation) internal {
+    ProxyAdmin p = ProxyAdmin(address(uint160(uint256(vm.load(proxy, ERC1967Utils.ADMIN_SLOT)))));
+    vm.prank(p.owner());
+    p.upgradeAndCall(
+      ITransparentUpgradeableProxy(proxy), implementation, abi.encodeCall(EXA.initialize2, (acct("exactly")))
+    );
+  }
 }
