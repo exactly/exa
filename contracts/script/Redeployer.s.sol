@@ -193,12 +193,11 @@ contract Redeployer is BaseScript {
 
   /// @notice Deploys EXA token and upgrades the proxy to it.
   function deployEXA(address proxy) external {
-    address admin = acct("admin");
-    vm.startBroadcast(admin);
+    vm.startBroadcast(acct("admin"));
     exa = EXA(CREATE3_FACTORY.deploy(keccak256(abi.encode("EXA")), vm.getCode("EXA.sol:EXA")));
     proxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(proxy), address(exa), abi.encodeCall(EXA.initialize, ()));
     proxyAdmin.upgradeAndCall(
-      ITransparentUpgradeableProxy(proxy), address(exa), abi.encodeCall(EXA.initialize2, (admin))
+      ITransparentUpgradeableProxy(proxy), address(exa), abi.encodeCall(EXA.initialize2, (acct("exactly")))
     );
     vm.stopBroadcast();
   }
@@ -211,10 +210,11 @@ contract Redeployer is BaseScript {
 
   /// @notice Upgrades an existing EXA proxy to the latest implementation.
   function upgradeEXA(address proxy) external {
-    address admin = acct("admin");
     ProxyAdmin p = ProxyAdmin(address(uint160(uint256(vm.load(proxy, ERC1967Utils.ADMIN_SLOT)))));
     vm.broadcast(p.owner());
-    p.upgradeAndCall(ITransparentUpgradeableProxy(proxy), address(exa), abi.encodeCall(EXA.initialize2, (admin)));
+    p.upgradeAndCall(
+      ITransparentUpgradeableProxy(proxy), address(exa), abi.encodeCall(EXA.initialize2, (acct("exactly")))
+    );
   }
 
   function deployRouter(address token) external returns (HypXERC20 router) {

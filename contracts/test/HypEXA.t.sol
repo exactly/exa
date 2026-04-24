@@ -21,7 +21,6 @@ contract HypEXATest is ForkTest {
   HypXERC20 internal baseRouter;
   HypXERC20 internal polygonRouter;
   Redeployer internal opRedeployer;
-  address internal admin;
   address internal opMailbox;
   address internal baseMailbox;
   address internal polygonMailbox;
@@ -39,12 +38,12 @@ contract HypEXATest is ForkTest {
     polygonRedeployer.setUp();
     if (address(polygonRedeployer.proxyAdmin()).code.length == 0) polygonRedeployer.prepare();
     polygonRedeployer.proxyThrough(polygonRedeployer.findNonce(acct("deployer"), address(exa), 1000) + 1);
-    polygonRedeployer.deployEXA(address(exa));
     set("exactly", makeAddr("exactly")); // no exactly on polygon — test-only chain
     set("ProxyAdmin", address(polygonRedeployer.proxyAdmin())); // no protocol deployment on polygon
+    polygonRedeployer.deployEXA(address(exa));
     polygonRouter = polygonRedeployer.deployRouter(address(exa));
     unset("ProxyAdmin");
-    vm.prank(acct("admin"));
+    vm.prank(makeAddr("exactly"));
     exa.grantRole(keccak256("BRIDGE_ROLE"), address(polygonRouter));
     polygonRedeployer.setupRouter(OP_DOMAIN);
     polygonRedeployer.setupRouter(BASE_DOMAIN);
@@ -58,21 +57,20 @@ contract HypEXATest is ForkTest {
     baseRedeployer.proxyThrough(baseRedeployer.findNonce(acct("deployer"), address(exa), 1000) + 1);
     baseRedeployer.deployEXA(address(exa));
     baseRouter = baseRedeployer.deployRouter(address(exa));
-    vm.prank(acct("admin"));
+    vm.prank(acct("exactly"));
     exa.grantRole(keccak256("BRIDGE_ROLE"), address(baseRouter));
     baseRedeployer.setupRouter(OP_DOMAIN);
     baseRedeployer.setupRouter(POLYGON_DOMAIN);
 
     opFork = vm.createSelectFork("optimism", 147_967_000);
     opMailbox = acct("mailbox");
-    admin = acct("admin");
     opRedeployer = new Redeployer();
     opRedeployer.setUp();
     opRedeployer.prepare();
     opRedeployer.deployEXAImpl();
     opRedeployer.upgradeEXA(address(exa));
     opRouter = opRedeployer.deployRouter(address(exa));
-    vm.prank(admin);
+    vm.prank(acct("exactly"));
     exa.grantRole(keccak256("BRIDGE_ROLE"), address(opRouter));
     opRedeployer.setupRouter(BASE_DOMAIN);
     opRedeployer.setupRouter(POLYGON_DOMAIN);
@@ -161,7 +159,7 @@ contract HypEXATest is ForkTest {
   }
 
   function test_transferRemote_reverts_withoutBridgeRole() external {
-    vm.prank(admin);
+    vm.prank(acct("exactly"));
     exa.revokeRole(keccak256("BRIDGE_ROLE"), address(opRouter));
 
     uint256 fee = opRouter.quoteGasPayment(BASE_DOMAIN);
@@ -173,7 +171,7 @@ contract HypEXATest is ForkTest {
 
   function test_handle_reverts_withoutBridgeRole() external {
     vm.selectFork(baseFork);
-    vm.prank(admin);
+    vm.prank(acct("exactly"));
     exa.revokeRole(keccak256("BRIDGE_ROLE"), address(baseRouter));
 
     vm.prank(baseMailbox);
@@ -207,7 +205,7 @@ contract HypEXATest is ForkTest {
 
   function test_proposeBridgeRole_schedulesGrantOnTimelock() external {
     vm.selectFork(opFork);
-    vm.prank(admin);
+    vm.prank(acct("exactly"));
     exa.revokeRole(keccak256("BRIDGE_ROLE"), address(opRouter));
 
     bytes32 salt = keccak256("HypEXA.BRIDGE_ROLE");
