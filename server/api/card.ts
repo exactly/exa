@@ -387,7 +387,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
             const card = await createCard(
               credential.pandaId,
               SIGNATURE_PRODUCT_ID,
-              limit == null ? undefined : limit * USD_TO_CENTS,
+              limit == null ? undefined : limit * 100,
             );
             let mode = 0;
             try {
