@@ -421,6 +421,7 @@ export default function Bridge() {
     mutationFn: async () => {
       if (!senderAddress || !source || !account) throw new Error("missing transfer context");
       if (!isSameChain) throw new Error("transfer mutation invoked for different chains");
+      await switchChain(senderConfig, { chainId: source.chain });
       setBridgeStatus(t("Submitting transfer transaction..."));
       const recipient = getAddress(account);
       let hash: Hex;
@@ -428,9 +429,9 @@ export default function Bridge() {
         hash = await sendTx({ chainId: source.chain, to: recipient, value: sourceAmount });
       } else {
         if (!transferSimulation) throw new Error("missing transfer simulation");
-        hash = await transfer(transferSimulation.request);
+        hash = await transfer({ ...transferSimulation.request, chainId: source.chain });
       }
-      await waitForTransactionReceipt(senderConfig, { hash });
+      await waitForTransactionReceipt(senderConfig, { hash, chainId: source.chain });
       setBridgeStatus(t("Transfer transaction submitted"));
     },
     onSuccess: async () => {
