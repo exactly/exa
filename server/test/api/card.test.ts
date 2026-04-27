@@ -464,10 +464,6 @@ describe("authenticated", () => {
   it("creates a panda credit card with signature product id", async () => {
     vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: "createCreditCard", last4: "1224" });
 
-    const ethCredential = await database.query.credentials.findFirst({
-      columns: { account: true },
-      where: eq(credentials.id, "eth"),
-    });
     vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
 
     const response = await appClient.index.$post({ header: { "test-credential-id": "eth" } });
