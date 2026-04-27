@@ -8,6 +8,7 @@ import { ScrollView, YStack } from "tamagui";
 
 import ARS from "../../assets/images/ars.svg";
 import Background from "../../assets/images/background.svg";
+import Base from "../../assets/images/base.svg";
 import BRL from "../../assets/images/brl.svg";
 import EUR from "../../assets/images/euro.svg";
 import MXN from "../../assets/images/mxn.svg";
@@ -29,7 +30,7 @@ type SvgComponent = React.FC<{ height: string; viewBox?: string; width: string }
 type Layer = { Svg: SvgComponent; viewBox?: string };
 
 const fiat: Record<string, SvgComponent> = { ARS, BRL, EUR, GBP, MXN, USD };
-const networks: Record<string, SvgComponent> = { SOLANA: Solana, STELLAR: Stellar, TRON: Tron };
+const networks: Record<string, SvgComponent> = { BASE: Base, SOLANA: Solana, STELLAR: Stellar, TRON: Tron };
 const crypto: Record<string, SvgComponent> = { USDC, USDT };
 
 const NATIVE = "0 0 390 390";
