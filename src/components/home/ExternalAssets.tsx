@@ -86,8 +86,13 @@ export default function ExternalAssets() {
     },
   });
 
-  function handleAssetPress(asset: ExternalAsset) {
+  function handleSelect(asset: ExternalAsset) {
     if (!exaAccount) return;
+    if (asset.chainId === chain.id) {
+      selectionAsync().catch(reportError);
+      router.push({ pathname: "/send-funds", params: { asset: asset.address } });
+      return;
+    }
     if (isUnsupported(asset.chainId, deployedChains)) {
       const group = groups.find(({ chainId }) => chainId === asset.chainId);
       setPendingUnsupported({ asset, chainName: group?.chainName ?? `Chain ${asset.chainId}` });
@@ -127,7 +132,7 @@ export default function ExternalAssets() {
             isFirst={index === 0}
             disabled={isUnsupported(group.chainId, deployedChains)}
             pending={pendingChains.has(group.chainId)}
-            onAssetPress={handleAssetPress}
+            onSelect={handleSelect}
           />
         ))}
       </YStack>
@@ -227,13 +232,13 @@ function NetworkSection({
   group,
   isFirst,
   disabled,
-  onAssetPress,
+  onSelect,
   pending,
 }: {
   disabled: boolean;
   group: NetworkGroup;
   isFirst: boolean;
-  onAssetPress: (asset: ExternalAsset) => void;
+  onSelect: (asset: ExternalAsset) => void;
   pending: boolean;
 }) {
   return (
@@ -246,7 +251,7 @@ function NetworkSection({
           disabled={disabled}
           pending={pending}
           onPress={() => {
-            onAssetPress(asset);
+            onSelect(asset);
           }}
         />
       ))}

@@ -8,6 +8,7 @@ import { ScrollView, Separator, XStack, YStack } from "tamagui";
 
 import { useForm } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
+import { safeParse } from "valibot";
 
 import chain from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
@@ -26,7 +27,7 @@ import View from "../shared/View";
 
 export default function ReceiverSelection() {
   const router = useRouter();
-  const { receiver } = useLocalSearchParams();
+  const { receiver, asset } = useLocalSearchParams();
   const { t } = useTranslation();
 
   const { data: recentContacts } = useQuery<undefined | { address: Address; ens: string }[]>({
@@ -40,6 +41,14 @@ export default function ReceiverSelection() {
   const form = useForm({
     defaultValues: { receiver: typeof receiver === "string" ? receiver : "" },
     onSubmit: ({ value }) => {
+      const presetAsset = safeParse(Address, asset);
+      if (presetAsset.success) {
+        router.push({
+          pathname: "/send-funds/amount",
+          params: { receiver: value.receiver, asset: presetAsset.output },
+        });
+        return;
+      }
       router.push({ pathname: "/send-funds/asset", params: { receiver: value.receiver } });
     },
   });
