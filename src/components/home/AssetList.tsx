@@ -1,6 +1,9 @@
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { selectionAsync } from "expo-haptics";
+import { useRouter } from "expo-router";
+
 import { Info } from "@tamagui/lucide-icons";
 import { XStack, YStack } from "tamagui";
 
@@ -8,6 +11,7 @@ import chain from "@exactly/common/generated/chain";
 import { floatingDepositRates } from "@exactly/lib";
 
 import CollateralAssetsSheet from "./CollateralAssetsSheet";
+import reportError from "../../utils/reportError";
 import useMarkets from "../../utils/useMarkets";
 import AssetLogo from "../shared/AssetLogo";
 import ChainLogo from "../shared/ChainLogo";
@@ -15,8 +19,11 @@ import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
+import type { Address } from "@exactly/common/validation";
+
 export default function AssetList() {
   const { t } = useTranslation();
+  const router = useRouter();
   const { markets, rateSnapshot, timestamp } = useMarkets();
   const [sheetOpen, setSheetOpen] = useState(false);
 
@@ -50,6 +57,11 @@ export default function AssetList() {
         onInfoPress={() => {
           setSheetOpen(true);
         }}
+        onSelect={(asset) => {
+          if (!asset.market) return;
+          selectionAsync().catch(reportError);
+          router.push({ pathname: "/send-funds", params: { asset: asset.market as Address } });
+        }}
       />
       <CollateralAssetsSheet open={sheetOpen} onClose={() => setSheetOpen(false)} />
     </>
@@ -67,7 +79,7 @@ type AssetItem = {
   usdValue: bigint;
 };
 
-function AssetRow({ asset }: { asset: AssetItem }) {
+function AssetRow({ asset, onPress }: { asset: AssetItem; onPress?: () => void }) {
   const {
     t,
     i18n: { language },
@@ -75,7 +87,16 @@ function AssetRow({ asset }: { asset: AssetItem }) {
   const { symbol, amount, decimals, usdValue, usdPrice, rate } = asset;
   const digits = Math.min(8, Math.max(0, decimals - Math.ceil(Math.log10(Math.max(1, Number(usdValue) / 1e18)))));
   return (
-    <XStack alignItems="center" borderColor="$borderNeutralSoft" paddingVertical="$s3_5" gap="$s2" width="100%">
+    <XStack
+      alignItems="center"
+      borderColor="$borderNeutralSoft"
+      paddingVertical="$s3_5"
+      gap="$s2"
+      width="100%"
+      cursor={onPress ? "pointer" : "default"}
+      pressStyle={onPress ? { opacity: 0.7 } : undefined}
+      onPress={onPress}
+    >
       <XStack gap="$s3_5" alignItems="center" flex={1}>
         <View position="relative">
           <AssetLogo height={32} symbol={symbol} width={32} />
@@ -137,10 +158,12 @@ function AssetRow({ asset }: { asset: AssetItem }) {
 function AssetSection({
   title,
   assets,
+  onSelect,
   onInfoPress,
 }: {
   assets: AssetItem[];
   onInfoPress?: () => void;
+  onSelect?: (asset: AssetItem) => void;
   title: string;
 }) {
   if (assets.length === 0) return null;
@@ -153,7 +176,11 @@ function AssetSection({
         {onInfoPress ? <Info size={16} color="$interactiveOnBaseBrandSoft" /> : null}
       </XStack>
       {assets.map((asset) => (
-        <AssetRow key={asset.symbol} asset={asset} />
+        <AssetRow
+          key={asset.symbol}
+          asset={asset}
+          onPress={onSelect && asset.amount > 0n ? () => onSelect(asset) : undefined}
+        />
       ))}
     </YStack>
   );
