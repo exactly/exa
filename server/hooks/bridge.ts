@@ -3,6 +3,7 @@ import { captureEvent, captureException, setUser } from "@sentry/core";
 import createDebug from "debug";
 import { and, DrizzleQueryError, eq, isNull } from "drizzle-orm";
 import { Hono } from "hono";
+import { HTTPException } from "hono/http-exception";
 import { validator } from "hono/validator";
 import { createHash, createVerify } from "node:crypto";
 import { literal, object, parse, picklist, string, unknown, variant } from "valibot";
@@ -129,7 +130,7 @@ export default new Hono().post(
                 .where(and(eq(credentials.id, referenceId), isNull(credentials.bridgeId)))
                 .returning({ account: credentials.account, source: credentials.source })
                 .then(([updated]) => {
-                  if (!updated) throw new Error("no match found when pairing bridge id");
+                  if (!updated) throw new HTTPException(409, { message: "credential pairing failed" });
                   captureEvent({
                     message: "bridge credential paired",
                     level: "warning",
