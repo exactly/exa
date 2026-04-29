@@ -6,7 +6,7 @@ import { useRouter } from "expo-router";
 
 import { ChevronRight, CircleHelp, CreditCard, DollarSign, Eye, EyeOff, Hash, Snowflake } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
-import { ScrollView, Separator, Spinner, Square, Switch, XStack, YStack } from "tamagui";
+import { ScrollView, Separator, Spinner, Square, XStack, YStack } from "tamagui";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 
@@ -44,6 +44,7 @@ import LatestActivity from "../shared/LatestActivity";
 import PluginUpgrade from "../shared/PluginUpgrade";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
+import Switch from "../shared/Switch";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
@@ -347,6 +348,10 @@ export default function Card() {
                   {cardDetails && (
                     <>
                       <XStack
+                        role="switch"
+                        aria-checked={displayStatus === "FROZEN"}
+                        aria-label={t("Freeze card")}
+                        aria-disabled={isFetchingCard || isSettingCardStatus}
                         justifyContent="space-between"
                         paddingVertical="$s4"
                         alignItems="center"
@@ -372,27 +377,9 @@ export default function Card() {
                             {t("Freeze card")}
                           </Text>
                         </XStack>
-                        <XStack alignItems="center" justifyContent="center" height={24}>
-                          <Switch
-                            scale={0.9}
-                            margin={0}
-                            padding="$s1"
-                            pointerEvents="none"
-                            checked={displayStatus === "FROZEN"}
-                            backgroundColor={
-                              displayStatus === "FROZEN" ? "$backgroundBrandMild" : "$backgroundStrong"
-                            }
-                            borderWidth={0}
-                            height={24}
-                            width={60}
-                          >
-                            <Switch.Thumb
-                              checked={displayStatus === "FROZEN"}
-                              animation="default"
-                              backgroundColor={displayStatus === "FROZEN" ? "$backgroundBrand" : "$backgroundSoft"}
-                            />
-                          </Switch>
-                        </XStack>
+                        <Switch checked={displayStatus === "FROZEN"}>
+                          <Switch.Thumb />
+                        </Switch>
                       </XStack>
                       <Separator borderColor="$borderNeutralSoft" />
                     </>

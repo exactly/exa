@@ -16,7 +16,7 @@ import { selectionAsync } from "expo-haptics";
 
 import { CalendarDays, ChevronRight, CreditCard, Info, Snowflake, Wallet, Zap } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
-import { AnimatePresence, Spinner, Square, Switch, useTheme, View, XStack, YStack } from "tamagui";
+import { AnimatePresence, Spinner, Square, useTheme, View, XStack, YStack } from "tamagui";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 
@@ -25,6 +25,7 @@ import Exa from "../../assets/images/exa.svg";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { setCardStatus, type CardDetails } from "../../utils/server";
+import Switch from "../shared/Switch";
 import Text from "../shared/Text";
 
 export default function CardStatus({
@@ -209,6 +210,10 @@ export default function CardStatus({
               exitStyle={{ opacity: 0, transform: [{ translateY: -8 }] }}
             >
               <XStack
+                role="switch"
+                aria-checked={frozen}
+                aria-label={t("Freeze card")}
+                aria-disabled={isSettingCardStatus}
                 justifyContent="space-between"
                 paddingVertical="$s4"
                 alignItems="center"
@@ -231,21 +236,9 @@ export default function CardStatus({
                     {t("Freeze card")}
                   </Text>
                 </XStack>
-                <XStack alignItems="center" justifyContent="center" height={24}>
-                  <Switch
-                    scale={0.9}
-                    margin={0}
-                    padding="$s1"
-                    pointerEvents="none"
-                    checked={frozen}
-                    backgroundColor="$backgroundBrandMild"
-                    borderWidth={0}
-                    height={24}
-                    width={60}
-                  >
-                    <Switch.Thumb checked={frozen} animation="default" backgroundColor="$backgroundBrand" />
-                  </Switch>
-                </XStack>
+                <Switch checked={frozen}>
+                  <Switch.Thumb />
+                </Switch>
               </XStack>
             </YStack>
           )}
