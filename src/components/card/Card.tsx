@@ -355,7 +355,7 @@ export default function Card() {
                             )}
                           </Square>
                           <Text subHeadline color="$uiNeutralPrimary">
-                            {displayStatus === "FROZEN" ? t("Unfreeze card") : t("Freeze card")}
+                            {t("Freeze card")}
                           </Text>
                         </XStack>
                         <XStack alignItems="center" justifyContent="center" height={24}>
