@@ -90,7 +90,7 @@ export default new Hono().post(
         ),
       }),
     }),
-    validatorHook({ code: "bad alchemy", status: 200, debug }),
+    validatorHook({ code: "bad alchemy", debug }),
   ),
   async (c) => {
     const payload = c.req.valid("json");
@@ -172,149 +172,157 @@ export default new Hono().post(
       },
     });
     const client = createPublicClient({ chain, transport, rpcSchema: rpcSchema<RpcSchema>() }).extend(trace);
-    Promise.allSettled(
-      [...pokes].map(([account, { publicKey, factory, source, assets }]) =>
-        continueTrace({ sentryTrace, baggage }, () =>
-          withScope((scope) =>
-            startSpan(
-              { name: "account activity", op: "exa.activity", attributes: { account }, forceTransaction: true },
-              async (span) => {
-                scope.setUser({ id: account });
-                const isDeployed = !!(await client.getCode({ address: account }));
-                scope.setTag("exa.new", !isDeployed);
-                if (!isDeployed) {
-                  try {
-                    await createWalletClient({ chain, transport, account: keeper.account })
-                      .extend((wallet) => extender(wallet, { publicClient: client, traceClient: client }))
-                      .exaSend(
-                        { name: "create account", op: "exa.account", attributes: { account } },
-                        {
-                          address: factory,
-                          functionName: "createAccount",
-                          args: [0n, [decodePublicKey(publicKey, bytesToBigInt)]],
-                          abi: exaAccountFactoryAbi,
-                        },
-                        chain.id === exaChain.id ? undefined : { fees: "auto" },
-                      );
-                    track({ event: "AccountFunded", userId: account, properties: { source } });
-                  } catch (error: unknown) {
-                    span.setStatus({ code: SPAN_STATUS_ERROR, message: "account_failed" });
-                    throw error;
+    try {
+      const activityResults = await Promise.allSettled(
+        [...pokes].map(([account, { publicKey, factory, source, assets }]) =>
+          continueTrace({ sentryTrace, baggage }, () =>
+            withScope((scope) =>
+              startSpan(
+                { name: "account activity", op: "exa.activity", attributes: { account }, forceTransaction: true },
+                async (span) => {
+                  scope.setUser({ id: account });
+                  const isDeployed = !!(await client.getCode({ address: account }));
+                  scope.setTag("exa.new", !isDeployed);
+                  if (!isDeployed) {
+                    try {
+                      await createWalletClient({ chain, transport, account: keeper.account })
+                        .extend((wallet) => extender(wallet, { publicClient: client, traceClient: client }))
+                        .exaSend(
+                          { name: "create account", op: "exa.account", attributes: { account } },
+                          {
+                            address: factory,
+                            functionName: "createAccount",
+                            args: [0n, [decodePublicKey(publicKey, bytesToBigInt)]],
+                            abi: exaAccountFactoryAbi,
+                          },
+                          chain.id === exaChain.id ? undefined : { fees: "auto" },
+                        );
+                      track({ event: "AccountFunded", userId: account, properties: { source } });
+                    } catch (error: unknown) {
+                      span.setStatus({ code: SPAN_STATUS_ERROR, message: "account_failed" });
+                      throw error;
+                    }
                   }
-                }
-                if (chain.id !== exaChain.id) {
-                  span.setStatus({ code: SPAN_STATUS_OK });
-                  return;
-                }
-                if (assets.has(ETH)) assets.delete(WETH);
-                const results = await Promise.allSettled(
-                  [...assets]
-                    .filter((asset) => marketsByAsset.has(asset) || asset === ETH)
-                    .map(async (asset) =>
-                      withRetry(
-                        () =>
-                          keeper
-                            .exaSend(
-                              { name: "poke account", op: "exa.poke", attributes: { account, asset } },
-                              {
-                                address: account,
-                                abi: [...exaPluginAbi, ...upgradeableModularAccountAbi, ...auditorAbi, ...marketAbi],
-                                ...(asset === ETH
-                                  ? { functionName: "pokeETH" }
-                                  : {
-                                      functionName: "poke",
-                                      args: [marketsByAsset.get(asset)!], // eslint-disable-line @typescript-eslint/no-non-null-assertion
-                                    }),
-                              },
-                              { ignore: ["NoBalance()"] },
-                            )
-                            .then((receipt) => {
-                              if (receipt) return receipt;
-                              throw new Error("NoBalance()");
-                            }),
-                        {
-                          delay: 2000,
-                          retryCount: 5,
-                          shouldRetry: ({ error }) => {
-                            if (error instanceof Error && error.message === "NoBalance()") return true;
-                            withScope((captureScope) => {
-                              captureScope.setUser({ id: account });
-                              captureException(error, { level: "error", fingerprint: revertFingerprint(error) });
-                            });
-                            return true;
+                  if (chain.id !== exaChain.id) {
+                    span.setStatus({ code: SPAN_STATUS_OK });
+                    return;
+                  }
+                  if (assets.has(ETH)) assets.delete(WETH);
+                  const pokeResults = await Promise.allSettled(
+                    [...assets]
+                      .filter((asset) => marketsByAsset.has(asset) || asset === ETH)
+                      .map(async (asset) =>
+                        withRetry(
+                          () =>
+                            keeper
+                              .exaSend(
+                                { name: "poke account", op: "exa.poke", attributes: { account, asset } },
+                                {
+                                  address: account,
+                                  abi: [...exaPluginAbi, ...upgradeableModularAccountAbi, ...auditorAbi, ...marketAbi],
+                                  ...(asset === ETH
+                                    ? { functionName: "pokeETH" }
+                                    : {
+                                        functionName: "poke",
+                                        args: [marketsByAsset.get(asset)!], // eslint-disable-line @typescript-eslint/no-non-null-assertion
+                                      }),
+                                },
+                                { ignore: ["NoBalance()"] },
+                              )
+                              .then((receipt) => {
+                                if (receipt) return receipt;
+                                throw new Error("NoBalance()");
+                              }),
+                          {
+                            delay: 2000,
+                            retryCount: 5,
+                            shouldRetry: ({ error }) => {
+                              if (error instanceof Error && error.message === "NoBalance()") return true;
+                              withScope((captureScope) => {
+                                captureScope.setUser({ id: account });
+                                captureException(error, { level: "error", fingerprint: revertFingerprint(error) });
+                              });
+                              return true;
+                            },
+                          },
+                        ),
+                      ),
+                  );
+                  for (const result of pokeResults) {
+                    if (result.status === "fulfilled") continue;
+                    if (result.reason instanceof Error && result.reason.message === "NoBalance()") {
+                      withScope((captureScope) => {
+                        captureScope.setUser({ id: account });
+                        captureScope.addEventProcessor((event) => {
+                          if (event.exception?.values?.[0]) event.exception.values[0].type = "NoBalance";
+                          return event;
+                        });
+                        captureException(result.reason, {
+                          level: "warning",
+                          fingerprint: ["{{ default }}", "NoBalance"],
+                        });
+                      });
+                      continue;
+                    }
+                    span.setStatus({ code: SPAN_STATUS_ERROR, message: "poke_failed" });
+                    throw result.reason;
+                  }
+                  autoCredit(account)
+                    .then(async (auto) => {
+                      span.setAttribute("exa.autoCredit", auto);
+                      if (!auto) return;
+                      const credential = await database.query.credentials.findFirst({
+                        where: eq(credentials.account, account),
+                        columns: {},
+                        with: {
+                          cards: {
+                            columns: { id: true, mode: true },
+                            where: inArray(cards.status, ["ACTIVE", "FROZEN"]),
                           },
                         },
-                      ),
-                    ),
-                );
-                for (const result of results) {
-                  if (result.status === "fulfilled") continue;
-                  if (result.reason instanceof Error && result.reason.message === "NoBalance()") {
-                    withScope((captureScope) => {
-                      captureScope.setUser({ id: account });
-                      captureScope.addEventProcessor((event) => {
-                        if (event.exception?.values?.[0]) event.exception.values[0].type = "NoBalance";
-                        return event;
                       });
-                      captureException(result.reason, {
-                        level: "warning",
-                        fingerprint: ["{{ default }}", "NoBalance"],
-                      });
-                    });
-                    continue;
-                  }
-                  span.setStatus({ code: SPAN_STATUS_ERROR, message: "poke_failed" });
-                  throw result.reason;
-                }
-                autoCredit(account)
-                  .then(async (auto) => {
-                    span.setAttribute("exa.autoCredit", auto);
-                    if (!auto) return;
-                    const credential = await database.query.credentials.findFirst({
-                      where: eq(credentials.account, account),
-                      columns: {},
-                      with: {
-                        cards: {
-                          columns: { id: true, mode: true },
-                          where: inArray(cards.status, ["ACTIVE", "FROZEN"]),
-                        },
-                      },
-                    });
-                    if (!credential || credential.cards.length === 0) return;
-                    const card = credential.cards[0];
-                    span.setAttribute("exa.card", card?.id);
-                    if (card?.mode !== 0) return;
-                    await database.update(cards).set({ mode: 1 }).where(eq(cards.id, card.id));
-                    span.setAttribute("exa.mode", 1);
-                    sendPushNotification({
-                      userId: account,
-                      headings: t("Card mode changed"),
-                      contents: t("Credit mode activated"),
-                    }).catch((error: unknown) => captureException(error));
-                  })
-                  .catch((error: unknown) => captureException(error));
-                span.setStatus({ code: SPAN_STATUS_OK });
-              },
+                      if (!credential || credential.cards.length === 0) return;
+                      const card = credential.cards[0];
+                      span.setAttribute("exa.card", card?.id);
+                      if (card?.mode !== 0) return;
+                      await database.update(cards).set({ mode: 1 }).where(eq(cards.id, card.id));
+                      span.setAttribute("exa.mode", 1);
+                      sendPushNotification({
+                        userId: account,
+                        headings: t("Card mode changed"),
+                        contents: t("Credit mode activated"),
+                      }).catch((error: unknown) => captureException(error));
+                    })
+                    .catch((error: unknown) => captureException(error));
+                  span.setStatus({ code: SPAN_STATUS_OK });
+                },
+              ),
             ),
-          ),
-        ).catch((error: unknown) => {
-          withScope((scope) => {
-            scope.setUser({ id: account });
-            captureException(error, { level: "error", fingerprint: revertFingerprint(error) });
-          });
-          throw error;
-        }),
-      ),
-    )
-      .then((results) => {
-        getActiveSpan()?.setStatus(
-          results.every((result) => result.status === "fulfilled")
-            ? { code: SPAN_STATUS_OK }
-            : { code: SPAN_STATUS_ERROR, message: "activity_failed" },
-        );
-      })
-      .catch((error: unknown) => captureException(error));
-    return c.json({});
+          ).catch((error: unknown) => {
+            withScope((scope) => {
+              scope.setUser({ id: account });
+              captureException(error, { level: "error", fingerprint: revertFingerprint(error) });
+            });
+            throw error;
+          }),
+        ),
+      );
+      getActiveSpan()?.setStatus(
+        activityResults.every((result) => result.status === "fulfilled")
+          ? { code: SPAN_STATUS_OK }
+          : { code: SPAN_STATUS_ERROR, message: "activity_failed" },
+      );
+      const rejected = activityResults.filter(
+        (result): result is PromiseRejectedResult => result.status === "rejected",
+      );
+      if (rejected.length > 0) {
+        return c.json({ code: "activityFailed", failed: rejected.length }, 500);
+      }
+      return c.json({});
+    } catch (error: unknown) {
+      captureException(error);
+      return c.json({ code: "activityError" }, 500);
+    }
   },
 );
 
