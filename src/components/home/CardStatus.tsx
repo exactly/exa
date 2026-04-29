@@ -14,14 +14,16 @@ import { scheduleOnRN } from "react-native-worklets";
 
 import { selectionAsync } from "expo-haptics";
 
-import { CalendarDays, ChevronRight, CreditCard, Info, Wallet, Zap } from "@tamagui/lucide-icons";
-import { useTheme, View, XStack, YStack } from "tamagui";
+import { CalendarDays, ChevronRight, CreditCard, Info, Snowflake, Wallet, Zap } from "@tamagui/lucide-icons";
+import { AnimatePresence, Spinner, Square, Switch, useTheme, View, XStack, YStack } from "tamagui";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 
 import CardBg from "../../assets/images/card-bg.svg";
 import Exa from "../../assets/images/exa.svg";
+import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
+import { setCardStatus, type CardDetails } from "../../utils/server";
 import Text from "../shared/Text";
 
 export default function CardStatus({
@@ -52,6 +54,19 @@ export default function CardStatus({
   spotlightRef?: React.RefObject<null | RNView>;
 }) {
   const { t } = useTranslation();
+  const { data: card } = useQuery<CardDetails>({ queryKey: ["card", "details"] });
+  const {
+    mutateAsync: changeCardStatus,
+    isPending: isSettingCardStatus,
+    variables: optimisticCardStatus,
+  } = useMutation({
+    mutationKey: ["card", "status"],
+    mutationFn: setCardStatus,
+    onSettled: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["card", "details"] });
+    },
+  });
+  const frozen = (isSettingCardStatus ? optimisticCardStatus : card?.status) === "FROZEN";
   return (
     <YStack
       key="card-status"
@@ -94,12 +109,16 @@ export default function CardStatus({
             <View position="absolute" top={0} left={0} right={0} bottom={0} alignItems="center" justifyContent="center">
               <CardBg width="100%" height="100%" preserveAspectRatio="xMidYMid meet" />
             </View>
-            <Exa
-              width={50}
-              height={20}
-              style={styles.exa}
-              {...(Platform.OS === "web" ? undefined : { shouldRasterizeIOS: true })}
-            />
+            <AnimatePresence>
+              {frozen ? null : (
+                <Exa
+                  width={50}
+                  height={20}
+                  style={styles.exa}
+                  {...(Platform.OS === "web" ? undefined : { shouldRasterizeIOS: true })}
+                />
+              )}
+            </AnimatePresence>
             <XStack
               hitSlop={15}
               style={styles.details}
@@ -112,6 +131,7 @@ export default function CardStatus({
               animateOnly={["transform", "backgroundColor"]}
               pressStyle={{ scale: 0.92, backgroundColor: "rgba(255,255,255,0.15)" }}
               cursor="pointer"
+              zIndex={4}
               onPress={(event) => {
                 event.stopPropagation();
                 selectionAsync().catch(reportError);
@@ -123,23 +143,135 @@ export default function CardStatus({
                 {t("Details")}
               </Text>
             </XStack>
+            <AnimatePresence>
+              {frozen && (
+                <View
+                  key="frozen-overlay"
+                  position="absolute"
+                  top={0}
+                  left={0}
+                  right={0}
+                  bottom={0}
+                  backgroundColor="rgba(0,0,0,0.4)"
+                  zIndex={2}
+                  pointerEvents="none"
+                  animation="default"
+                  animateOnly={["opacity"]}
+                  opacity={1}
+                  enterStyle={{ opacity: 0 }}
+                  exitStyle={{ opacity: 0 }}
+                />
+              )}
+              {frozen && (
+                <View
+                  key="frozen-icon"
+                  position="absolute"
+                  top={0}
+                  bottom={0}
+                  left="$s4"
+                  justifyContent="center"
+                  zIndex={3}
+                  pointerEvents="none"
+                  animation="default"
+                  animateOnly={["opacity", "transform"]}
+                  opacity={1}
+                  enterStyle={{ opacity: 0, transform: [{ scale: 0.7 }] }}
+                  exitStyle={{ opacity: 0, transform: [{ scale: 0.7 }] }}
+                >
+                  <Snowflake size={48} strokeWidth={2} color="white" />
+                </View>
+              )}
+            </AnimatePresence>
           </XStack>
         </Pressable>
-        <PayModeToggle
-          spotlightRef={spotlightRef}
-          mode={mode}
-          onInstallmentsPress={onInstallmentsPress}
-          onModeChange={onModeChange}
-        />
+        <AnimatePresence>
+          {frozen && (
+            <YStack
+              key="freeze-toggle"
+              animation="default"
+              animateOnly={["opacity", "transform"]}
+              enterStyle={{ opacity: 0, transform: [{ translateY: -8 }] }}
+              exitStyle={{ opacity: 0, transform: [{ translateY: -8 }] }}
+            >
+              <XStack
+                justifyContent="space-between"
+                paddingVertical="$s4"
+                alignItems="center"
+                cursor="pointer"
+                onPress={() => {
+                  if (isSettingCardStatus) return;
+                  selectionAsync().catch(reportError);
+                  changeCardStatus("ACTIVE").catch(reportError);
+                }}
+              >
+                <XStack alignItems="center" gap="$s3">
+                  <Square size={24}>
+                    {isSettingCardStatus ? (
+                      <Spinner width={24} color="$interactiveBaseBrandDefault" alignSelf="flex-start" />
+                    ) : (
+                      <Snowflake size={24} color="$interactiveBaseBrandDefault" />
+                    )}
+                  </Square>
+                  <Text subHeadline color="$uiNeutralPrimary">
+                    {t("Freeze card")}
+                  </Text>
+                </XStack>
+                <XStack alignItems="center" justifyContent="center" height={24}>
+                  <Switch
+                    scale={0.9}
+                    margin={0}
+                    padding="$s1"
+                    pointerEvents="none"
+                    checked={frozen}
+                    backgroundColor="$backgroundBrandMild"
+                    borderWidth={0}
+                    height={24}
+                    width={60}
+                  >
+                    <Switch.Thumb checked={frozen} animation="default" backgroundColor="$backgroundBrand" />
+                  </Switch>
+                </XStack>
+              </XStack>
+            </YStack>
+          )}
+          {!frozen && (
+            <YStack
+              key="pay-mode"
+              animation="default"
+              animateOnly={["opacity", "transform"]}
+              enterStyle={{ opacity: 0, transform: [{ translateY: 8 }] }}
+              exitStyle={{ opacity: 0, transform: [{ translateY: 8 }] }}
+            >
+              <PayModeToggle
+                spotlightRef={spotlightRef}
+                mode={mode}
+                onInstallmentsPress={onInstallmentsPress}
+                onModeChange={onModeChange}
+              />
+            </YStack>
+          )}
+        </AnimatePresence>
       </YStack>
-      <LimitPaginator
-        collateral={collateral}
-        creditLimit={creditLimit}
-        mode={mode}
-        onCreditLimitInfoPress={onCreditLimitInfoPress}
-        onSpendingLimitInfoPress={onSpendingLimitInfoPress}
-        spendingLimit={spendingLimit}
-      />
+      <AnimatePresence>
+        {!frozen && (
+          <YStack
+            key="limit-paginator"
+            animation="default"
+            animateOnly={["opacity", "transform"]}
+            enterStyle={{ opacity: 0, transform: [{ translateY: 8 }] }}
+            exitStyle={{ opacity: 0, transform: [{ translateY: 8 }] }}
+          >
+            <LimitPaginator
+              collateral={collateral}
+              creditLimit={creditLimit}
+              mode={mode}
+              onCreditLimitInfoPress={onCreditLimitInfoPress}
+              onSpendingLimitInfoPress={onSpendingLimitInfoPress}
+              spendingLimit={spendingLimit}
+            />
+          </YStack>
+        )}
+      </AnimatePresence>
     </YStack>
   );
 }
