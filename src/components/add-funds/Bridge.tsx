@@ -9,7 +9,7 @@ import { useToastController } from "@tamagui/toast";
 import { ScrollView, Spinner, Square, XStack, YStack } from "tamagui";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { switchChain, waitForTransactionReceipt } from "@wagmi/core";
+import { switchChain, waitForCallsStatus, waitForTransactionReceipt } from "@wagmi/core";
 import {
   encodeFunctionData,
   erc20Abi,
@@ -17,8 +17,6 @@ import {
   getAddress,
   isAddress,
   parseUnits,
-  TransactionExecutionError,
-  UserRejectedRequestError,
   zeroAddress,
   type Hex,
 } from "viem";
@@ -32,7 +30,7 @@ import AssetSelectSheet from "./AssetSelectSheet";
 import { getBridgeSources, getRouteFrom, tokenCorrelation, type BridgeSources, type RouteFrom } from "../../utils/lifi";
 import openBrowser from "../../utils/openBrowser";
 import queryClient from "../../utils/queryClient";
-import reportError from "../../utils/reportError";
+import reportError, { classifyError } from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useMarkets from "../../utils/useMarkets";
 import ownerConfig from "../../utils/wagmi/owner";
@@ -117,7 +115,7 @@ export default function Bridge() {
 
   const previousSourceRef = useRef<string | undefined>(undefined);
 
-  const effectiveSource = useMemo(() => {
+  const source = useMemo(() => {
     if (assetGroups.length === 0) return;
     const isValid =
       !!selectedSource &&
@@ -136,8 +134,8 @@ export default function Bridge() {
     if (group && asset) return { chain: group.chain.id, address: asset.token.address };
   }, [assetGroups, selectedSource, bridge?.defaultChainId, bridge?.defaultTokenAddress]);
 
-  const selectedGroup = assetGroups.find((group) => group.chain.id === effectiveSource?.chain);
-  const selectedAsset = selectedGroup?.assets.find((asset) => asset.token.address === effectiveSource?.address);
+  const selectedGroup = assetGroups.find((group) => group.chain.id === source?.chain);
+  const selectedAsset = selectedGroup?.assets.find((asset) => asset.token.address === source?.address);
 
   const sourceToken = selectedAsset?.token;
   const sourceBalance = selectedAsset?.balance ?? 0n;
@@ -145,8 +143,8 @@ export default function Bridge() {
   const sourceTokenSymbol = sourceToken?.symbol;
 
   const insufficientBalance = sourceAmount > sourceBalance;
-  const isSameChain = effectiveSource?.chain === chain.id;
-  const isNativeSource = effectiveSource?.address === zeroAddress;
+  const isSameChain = source?.chain === chain.id;
+  const isNativeSource = source?.address === zeroAddress;
 
   const destinationTokens = useMemo(() => bridge?.tokensByChain[chain.id] ?? [], [bridge?.tokensByChain]);
   const destinationBalances = useMemo(() => bridge?.balancesByChain[chain.id] ?? [], [bridge?.balancesByChain]);
@@ -199,7 +197,7 @@ export default function Bridge() {
   const bridgeQuoteEnabled =
     !!senderAddress &&
     !!account &&
-    !!effectiveSource &&
+    !!source &&
     !!sourceToken &&
     !!destinationToken &&
     sourceAmount > 0n &&
@@ -216,7 +214,7 @@ export default function Bridge() {
       "quote",
       senderAddress,
       account,
-      effectiveSource,
+      source,
       sourceToken,
       destinationToken,
       sourceAmount,
@@ -226,7 +224,7 @@ export default function Bridge() {
       if (
         !senderAddress ||
         !account ||
-        !effectiveSource ||
+        !source ||
         !sourceToken ||
         !destinationToken ||
         sourceAmount === 0n ||
@@ -234,7 +232,7 @@ export default function Bridge() {
       )
         throw new Error("invalid bridge parameters");
       return getRouteFrom({
-        fromChainId: effectiveSource.chain,
+        fromChainId: source.chain,
         toChainId: chain.id,
         fromTokenAddress: sourceToken.address,
         toTokenAddress: destinationToken.address,
@@ -245,6 +243,7 @@ export default function Bridge() {
     },
     enabled: bridgeQuoteEnabled,
     refetchInterval: 15_000,
+    meta: { warnError: () => true },
   });
 
   const toAmount = bridgeQuote ? BigInt(bridgeQuote.estimate.toAmount) : sourceAmount;
@@ -265,22 +264,22 @@ export default function Bridge() {
   } = useSimulateContract({
     config: senderConfig,
     account: senderAddress,
-    chainId: transferSimulationEnabled ? effectiveSource.chain : undefined,
-    address: transferSimulationEnabled ? getAddress(effectiveSource.address) : undefined,
+    chainId: transferSimulationEnabled ? source.chain : undefined,
+    address: transferSimulationEnabled ? getAddress(source.address) : undefined,
     abi: erc20Abi,
     functionName: "transfer",
     args: transferSimulationEnabled ? ([getAddress(account), sourceAmount] as const) : undefined,
-    query: { enabled: transferSimulationEnabled },
+    query: { enabled: transferSimulationEnabled, meta: { warnError: () => true } },
   });
 
-  const approvalTokenAddress =
-    effectiveSource?.address && isAddress(effectiveSource.address) ? effectiveSource.address : undefined;
+  const approvalTokenAddress = source?.address && isAddress(source.address) ? source.address : undefined;
   const approvalSpenderAddress = bridgeQuote?.estimate.approvalAddress;
   const approvalChainId = bridgeQuote?.chainId;
 
   const canReadAllowance =
     !!senderAddress &&
     !!approvalTokenAddress &&
+    approvalTokenAddress !== zeroAddress &&
     !!approvalChainId &&
     !!approvalSpenderAddress &&
     approvalSpenderAddress !== zeroAddress &&
@@ -310,19 +309,15 @@ export default function Bridge() {
       setBridgePreview({ sourceToken, sourceAmount: BigInt(route.estimate.fromAmount) });
     },
     mutationFn: async (from) => {
-      if (!senderAddress || !effectiveSource || !account) throw new Error("missing bridge context");
+      if (!senderAddress || !source || !account) throw new Error("missing bridge context");
       if (isSameChain) throw new Error("invalid bridge context");
-
-      setBridgeStatus(t("Switching to {{chain}}...", { chain: selectedGroup?.chain.name ?? `Chain ${from.chainId}` }));
-      await switchChain(senderConfig, { chainId: from.chainId });
-
       const spender = from.estimate.approvalAddress;
       const requiresApproval =
         !!spender &&
         spender !== zeroAddress &&
-        effectiveSource.address !== zeroAddress &&
+        source.address !== zeroAddress &&
         isAddress(spender) &&
-        isAddress(effectiveSource.address);
+        isAddress(source.address);
 
       let approval: Hex | undefined;
       let currentAllowance = allowanceData;
@@ -349,24 +344,40 @@ export default function Bridge() {
         }
       }
       setBridgeStatus(t("Submitting bridge transaction..."));
+      let id: string | undefined;
       try {
-        await sendCallsTx({
+        const result = await sendCallsTx({
+          chainId: source.chain,
           calls: [
-            ...(approval ? [{ to: getAddress(effectiveSource.address), data: approval }] : []),
+            ...(approval ? [{ to: getAddress(source.address), data: approval }] : []),
             { to: from.to, data: from.data, value: from.value },
           ],
         });
-        setBridgeStatus(t("Bridge transaction submitted"));
+        id = result.id;
       } catch (error) {
-        reportError(error);
-        if (approval) {
-          const hash = await sendTx({ to: getAddress(effectiveSource.address), data: approval });
-          await waitForTransactionReceipt(senderConfig, { hash });
+        if (classifyError(error).authKnown) throw error;
+        reportError(error, {
+          level: "warning",
+          extra: error instanceof Error ? { cause: error.cause } : undefined,
+        });
+        await switchChain(senderConfig, { chainId: source.chain });
+        try {
+          if (approval) {
+            const hash = await sendTx({ chainId: source.chain, to: getAddress(source.address), data: approval });
+            await waitForTransactionReceipt(senderConfig, { hash, chainId: source.chain });
+          }
+          const hash = await sendTx({ chainId: source.chain, to: from.to, data: from.data, value: from.value });
+          await waitForTransactionReceipt(senderConfig, { hash, chainId: source.chain });
+        } finally {
+          await switchChain(senderConfig, { chainId: chain.id }).catch(reportError);
         }
-        const hash = await sendTx({ to: from.to, data: from.data, value: from.value });
-        await waitForTransactionReceipt(senderConfig, { hash });
         setBridgeStatus(t("Bridge transaction submitted"));
+        return;
       }
+      if (!id) throw new Error("missing sendCalls id");
+      const { status } = await waitForCallsStatus(senderConfig, { id });
+      if (status === "failure") throw new Error("failed to submit bridge transaction");
+      setBridgeStatus(t("Bridge transaction submitted"));
     },
     onSuccess: async () => {
       toast.show(t("Bridge transaction submitted"), {
@@ -398,20 +409,19 @@ export default function Bridge() {
       setBridgePreview({ sourceToken, sourceAmount });
     },
     mutationFn: async () => {
-      if (!senderAddress || !effectiveSource || !account) throw new Error("missing transfer context");
+      if (!senderAddress || !source || !account) throw new Error("missing transfer context");
       if (!isSameChain) throw new Error("transfer mutation invoked for different chains");
-
-      await switchChain(senderConfig, { chainId: effectiveSource.chain });
       setBridgeStatus(t("Submitting transfer transaction..."));
+      await switchChain(senderConfig, { chainId: chain.id });
       const recipient = getAddress(account);
       let hash: Hex;
       if (isNativeSource) {
-        hash = await sendTx({ to: recipient, value: sourceAmount });
+        hash = await sendTx({ chainId: source.chain, to: recipient, value: sourceAmount });
       } else {
         if (!transferSimulation) throw new Error("missing transfer simulation");
-        hash = await transfer(transferSimulation.request);
+        hash = await transfer({ ...transferSimulation.request, chainId: source.chain });
       }
-      await waitForTransactionReceipt(senderConfig, { hash });
+      await waitForTransactionReceipt(senderConfig, { hash, chainId: source.chain });
       setBridgeStatus(t("Transfer transaction submitted"));
     },
     onSuccess: async () => {
@@ -791,8 +801,7 @@ export default function Bridge() {
                         {t("Source network")}
                       </Text>
                       <Text caption color="$uiNeutralPrimary" textAlign="right" flexShrink={1}>
-                        {selectedGroup?.chain.name ??
-                          (effectiveSource?.chain ? t("Chain {{id}}", { id: effectiveSource.chain }) : "—")}
+                        {selectedGroup?.chain.name ?? (source?.chain ? t("Chain {{id}}", { id: source.chain }) : "—")}
                       </Text>
                     </XStack>
                     <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
@@ -962,7 +971,7 @@ export default function Bridge() {
             setAssetSheetOpen(false);
           }}
           groups={assetGroups}
-          selected={effectiveSource}
+          selected={source}
           onSelect={(chainId, token) => {
             setSourceAmount(0n);
             setSelectedSource({ chain: chainId, address: token.address });
@@ -988,12 +997,10 @@ export default function Bridge() {
 }
 
 function handleError(error: unknown, toast: ReturnType<typeof useToastController>, t: TFunction, isTransfer?: boolean) {
-  if (error instanceof UserRejectedRequestError) return;
-  if (error instanceof TransactionExecutionError && error.shortMessage === "User rejected the request.") return;
-  toast.show(isTransfer ? t("Transfer failed. Please try again.") : t("Bridge failed. Please try again."), {
-    native: true,
-    duration: 1000,
-    burntOptions: { haptic: "error", preset: "error" },
-  });
-  reportError(error);
+  if (!reportError(error).authKnown)
+    toast.show(isTransfer ? t("Transfer failed. Please try again.") : t("Bridge failed. Please try again."), {
+      native: true,
+      duration: 1000,
+      burntOptions: { haptic: "error", preset: "error" },
+    });
 }

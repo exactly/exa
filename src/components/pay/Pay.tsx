@@ -53,6 +53,7 @@ export default function Pay() {
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
     address,
+    chainId: chain.id,
     factory: credential?.factory,
     factoryData: credential && accountInit(credential),
     query: { refetchOnMount: true, enabled: !!address && !!credential },

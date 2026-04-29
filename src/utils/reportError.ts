@@ -4,9 +4,9 @@ import { BaseError, ContractFunctionRevertedError } from "viem";
 import revertReason from "@exactly/common/revertReason";
 
 export default function reportError(error: unknown, hint?: Parameters<typeof captureException>[1]) {
-  console.error(error); // eslint-disable-line no-console
   const parsed = parseError(error);
   const classification = classify(parsed);
+  if (!classification.knownWarning) console.error(error); // eslint-disable-line no-console
   try {
     const value = classification.fingerprint;
     const level =
@@ -18,8 +18,10 @@ export default function reportError(error: unknown, hint?: Parameters<typeof cap
       (parsed.name && parsed.name !== "Error" && parsed.name !== "APIError" ? parsed.name : undefined) ??
       parsed.status ??
       parsed.message;
-    if (!warning && !info && value === undefined) return captureException(error, hint);
-    let eventId: ReturnType<typeof captureException> | undefined;
+    if (!warning && !info && value === undefined) {
+      captureException(error, hint);
+      return classification;
+    }
     withScope((scope) => {
       if (warning) scope.setLevel("warning");
       else if (info) scope.setLevel("info");
@@ -34,12 +36,12 @@ export default function reportError(error: unknown, hint?: Parameters<typeof cap
           return event;
         });
       }
-      eventId = captureException(error, hint);
+      captureException(error, hint);
     });
-    return eventId;
   } catch (sentryError) {
     console.error(sentryError); // eslint-disable-line no-console
   }
+  return classification;
 }
 
 const passkeyCancelledMessages = new Set([
@@ -62,50 +64,39 @@ const networkTypes = [
 ] as const;
 type ParsedError = ReturnType<typeof parseError>;
 
-export function isPasskeyCancelled(error: unknown) {
-  return classify(parseError(error)).passkeyCancelled;
-}
-
 export function classifyError(error: unknown) {
   return classify(parseError(error));
 }
 
 function parseError(error: unknown) {
+  const root = walkCause(error);
   const code =
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    typeof error.code === "string" &&
-    error.code.length > 0
-      ? error.code
+    typeof root === "object" && root !== null && "code" in root && typeof root.code === "string" && root.code.length > 0
+      ? root.code
       : undefined;
   const status =
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    typeof error.code === "number" &&
-    Number.isFinite(error.code)
-      ? String(error.code)
+    typeof root === "object" &&
+    root !== null &&
+    "code" in root &&
+    typeof root.code === "number" &&
+    Number.isFinite(root.code)
+      ? String(root.code)
       : undefined;
   const name =
-    typeof error === "object" &&
-    error !== null &&
-    "name" in error &&
-    typeof error.name === "string" &&
-    error.name.length > 0
-      ? error.name
+    typeof root === "object" && root !== null && "name" in root && typeof root.name === "string" && root.name.length > 0
+      ? root.name
       : undefined;
   const message =
-    error instanceof Error
-      ? normalizeMessage(error.message)
-      : typeof error === "string"
-        ? normalizeMessage(error)
-        : typeof error === "object" &&
-            error !== null &&
-            "message" in error &&
-            typeof error.message === "string" &&
-            error.message.length > 0
-          ? normalizeMessage(error.message)
+    root instanceof Error
+      ? normalizeMessage(root.message)
+      : typeof root === "string"
+        ? normalizeMessage(root)
+        : typeof root === "object" &&
+            root !== null &&
+            "message" in root &&
+            typeof root.message === "string" &&
+            root.message.length > 0
+          ? normalizeMessage(root.message)
           : undefined;
   const revert = error instanceof BaseError && error.walk((r) => r instanceof ContractFunctionRevertedError) !== null;
   const reason = revertReason(error, { fallback: "unknown" });
@@ -124,9 +115,18 @@ function classify({ code, message, name, reason, revert, status }: ParsedError) 
       authPrefixes.some((prefix) => message.startsWith(prefix)));
   const passkeyWarning = passkeyKnown && !passkeyCancelled && !passkeyNotAllowed;
   const biometric = code === "ERR_BIOMETRIC";
-  const authKnown = passkeyKnown || passkeyNotAllowed || biometric || message === "invalid operation";
+  const walletRejected = status === "4001" || status === "5000";
+  const bundleCancelled = status === "5730";
+  const authKnown =
+    passkeyKnown ||
+    passkeyNotAllowed ||
+    biometric ||
+    walletRejected ||
+    bundleCancelled ||
+    message === "invalid operation";
   const network = classifyNetwork(message);
-  const knownWarning = passkeyKnown || biometric || message === "invalid operation";
+  const knownWarning =
+    passkeyKnown || biometric || walletRejected || bundleCancelled || message === "invalid operation";
   const knownInfo = network !== undefined;
   const known = knownWarning || knownInfo;
   const value =
@@ -146,6 +146,7 @@ function classify({ code, message, name, reason, revert, status }: ParsedError) 
       : [code]);
   return {
     authKnown,
+    bundleCancelled,
     fingerprint: value,
     known,
     knownInfo,
@@ -155,12 +156,24 @@ function classify({ code, message, name, reason, revert, status }: ParsedError) 
     passkeyNotAllowed,
     passkeyWarning,
     revert,
+    walletRejected,
   };
 }
 
 function normalizeMessage(message: string) {
   const value = message.startsWith("Error: ") ? message.slice("Error: ".length) : message;
   return value.trim();
+}
+
+function walkCause(error: unknown) {
+  const seen = new WeakSet<object>();
+  let current = error;
+  while (typeof current === "object" && current !== null && "cause" in current && current.cause !== undefined) {
+    if (seen.has(current)) return current;
+    seen.add(current);
+    current = current.cause;
+  }
+  return current;
 }
 
 function classifyNetwork(message: string | undefined) {

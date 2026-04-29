@@ -8,7 +8,7 @@ import { Square, XStack, YStack } from "tamagui";
 import { useQuery } from "@tanstack/react-query";
 
 import accountInit from "@exactly/common/accountInit";
-import { exaPluginAddress, marketUSDCAddress } from "@exactly/common/generated/chain";
+import chain, { exaPluginAddress, marketUSDCAddress } from "@exactly/common/generated/chain";
 import { useReadUpgradeableModularAccountGetInstalledPlugins } from "@exactly/common/generated/hooks";
 
 import GradientScrollView from "./GradientScrollView";
@@ -47,6 +47,7 @@ export default function Success({
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
     address,
+    chainId: chain.id,
     factory: credential?.factory,
     factoryData: credential && accountInit(credential),
     query: { enabled: !!address && !!credential },

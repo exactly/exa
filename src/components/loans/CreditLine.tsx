@@ -9,7 +9,7 @@ import { Separator, XStack, YStack } from "tamagui";
 import { formatUnits } from "viem";
 import { useBytecode } from "wagmi";
 
-import { marketUSDCAddress } from "@exactly/common/generated/chain";
+import chain, { marketUSDCAddress } from "@exactly/common/generated/chain";
 import { borrowLimit } from "@exactly/lib";
 
 import queryClient, { type Loan } from "../../utils/queryClient";
@@ -26,7 +26,7 @@ export default function CreditLine() {
     t,
     i18n: { language },
   } = useTranslation();
-  const { data: bytecode } = useBytecode({ address, query: { enabled: !!address } });
+  const { data: bytecode } = useBytecode({ address, chainId: chain.id, query: { enabled: !!address } });
   const { markets, firstMaturity } = useMarkets({ enabled: !!bytecode });
   return (
     <YStack backgroundColor="$backgroundSoft" borderRadius="$s3">

@@ -11,7 +11,7 @@ import { ScrollView, Separator, Spinner, Square, Switch, XStack, YStack } from "
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import accountInit from "@exactly/common/accountInit";
-import { marketUSDCAddress } from "@exactly/common/generated/chain";
+import chain, { marketUSDCAddress } from "@exactly/common/generated/chain";
 import { useReadUpgradeableModularAccountGetInstalledPlugins } from "@exactly/common/generated/hooks";
 
 import CardDetails from "./CardDetails";
@@ -97,6 +97,7 @@ export default function Card() {
   const { refetch: refetchInstalledPlugins, isFetching: isFetchingPlugins } =
     useReadUpgradeableModularAccountGetInstalledPlugins({
       address,
+      chainId: chain.id,
       factory: credential?.factory,
       factoryData: credential && accountInit(credential),
       query: { enabled: !!address && !!credential },
