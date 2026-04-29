@@ -54,62 +54,55 @@ export default function CardContents({
     >
       <YStack height="100%" justifyContent="space-between" alignItems="flex-start" flex={1} width="100%" zIndex={1}>
         <AnimatePresence exitBeforeEnter>
-          <>
-            {disabled ? (
-              <LockKeyhole size={40} strokeWidth={2} color="white" />
-            ) : revealing ? (
-              <AnimatedView style={rStyle}>
-                <Loader size={40} strokeWidth={2} color="white" />
-              </AnimatedView>
-            ) : frozen ? (
-              <Snowflake size={40} strokeWidth={2} color="white" />
-            ) : isCredit ? (
-              <View
-                key="credit"
-                animation="default"
-                enterStyle={{ opacity: 0, transform: [{ translateX: -100 }] }}
-                exitStyle={{ opacity: 0, transform: [{ translateX: -100 }] }}
-                transform={[{ translateX: 0 }]}
-              >
-                <Text sensitive color="white" title maxFontSizeMultiplier={1} numberOfLines={1}>
-                  {`$${(markets ? Number(borrowLimit(markets, marketUSDCAddress)) / 1e6 : 0).toLocaleString(language, {
-                    style: "decimal",
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}`}
+          {disabled ? (
+            <LockKeyhole size={40} strokeWidth={2} color="white" />
+          ) : revealing ? (
+            <AnimatedView style={rStyle}>
+              <Loader size={40} strokeWidth={2} color="white" />
+            </AnimatedView>
+          ) : frozen ? null : isCredit ? (
+            <View
+              key="credit"
+              animation="default"
+              enterStyle={{ opacity: 0, transform: [{ translateX: -100 }] }}
+              exitStyle={{ opacity: 0, transform: [{ translateX: -100 }] }}
+              transform={[{ translateX: 0 }]}
+            >
+              <Text sensitive color="white" title maxFontSizeMultiplier={1} numberOfLines={1}>
+                {`$${(markets ? Number(borrowLimit(markets, marketUSDCAddress)) / 1e6 : 0).toLocaleString(language, {
+                  style: "decimal",
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}`}
+              </Text>
+              <View>
+                <Text color="white" emphasized caption maxFontSizeMultiplier={1} textTransform="uppercase">
+                  {t("Available balance")}
                 </Text>
-                <View>
-                  <Text color="white" emphasized caption maxFontSizeMultiplier={1} textTransform="uppercase">
-                    {t("Available balance")}
-                  </Text>
-                </View>
               </View>
-            ) : (
-              <View
-                key="debit"
-                animation="default"
-                enterStyle={{ opacity: 0, transform: [{ translateX: 100 }] }}
-                exitStyle={{ opacity: 0, transform: [{ translateX: 100 }] }}
-                transform={[{ translateX: 0 }]}
-              >
-                <Text sensitive color="white" title maxFontSizeMultiplier={1} numberOfLines={1}>
-                  {`$${(markets ? Number(withdrawLimit(markets, marketUSDCAddress)) / 1e6 : 0).toLocaleString(
-                    language,
-                    {
-                      style: "decimal",
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    },
-                  )}`}
+            </View>
+          ) : (
+            <View
+              key="debit"
+              animation="default"
+              enterStyle={{ opacity: 0, transform: [{ translateX: 100 }] }}
+              exitStyle={{ opacity: 0, transform: [{ translateX: 100 }] }}
+              transform={[{ translateX: 0 }]}
+            >
+              <Text sensitive color="white" title maxFontSizeMultiplier={1} numberOfLines={1}>
+                {`$${(markets ? Number(withdrawLimit(markets, marketUSDCAddress)) / 1e6 : 0).toLocaleString(language, {
+                  style: "decimal",
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}`}
+              </Text>
+              <View>
+                <Text color="white" emphasized caption maxFontSizeMultiplier={1} textTransform="uppercase">
+                  {t("Available balance")}
                 </Text>
-                <View>
-                  <Text color="white" emphasized caption maxFontSizeMultiplier={1} textTransform="uppercase">
-                    {t("Available balance")}
-                  </Text>
-                </View>
               </View>
-            )}
-          </>
+            </View>
+          )}
         </AnimatePresence>
       </YStack>
       <XStack animation="default" position="absolute" right={0} left={0} top={0} bottom={0} justifyContent="flex-end">
@@ -129,6 +122,43 @@ export default function CardContents({
           />
         )}
       </XStack>
+      <AnimatePresence>
+        {frozen && !disabled && !revealing && (
+          <View
+            key="frozen-overlay"
+            position="absolute"
+            top={0}
+            left={0}
+            right={0}
+            bottom={0}
+            backgroundColor="rgba(0,0,0,0.4)"
+            zIndex={2}
+            pointerEvents="none"
+            animation="default"
+            animateOnly={["opacity"]}
+            opacity={1}
+            enterStyle={{ opacity: 0 }}
+            exitStyle={{ opacity: 0 }}
+          />
+        )}
+        {frozen && !disabled && !revealing && (
+          <View
+            key="frozen-icon"
+            position="absolute"
+            top="$s4"
+            left="$s4"
+            zIndex={3}
+            pointerEvents="none"
+            animation="default"
+            animateOnly={["opacity"]}
+            opacity={1}
+            enterStyle={{ opacity: 0 }}
+            exitStyle={{ opacity: 0 }}
+          >
+            <Snowflake size={40} strokeWidth={2} color="white" />
+          </View>
+        )}
+      </AnimatePresence>
     </XStack>
   );
 }
