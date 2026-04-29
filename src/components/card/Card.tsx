@@ -2,6 +2,7 @@ import React, { useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { RefreshControl } from "react-native";
 
+import { selectionAsync } from "expo-haptics";
 import { useRouter } from "expo-router";
 
 import { ChevronRight, CircleHelp, CreditCard, DollarSign, Eye, EyeOff, Hash, Snowflake } from "@tamagui/lucide-icons";
@@ -323,6 +324,7 @@ export default function Card() {
                     justifyContent="space-between"
                     cursor="pointer"
                     onPress={() => {
+                      selectionAsync().catch(reportError);
                       revealCard().catch(reportError);
                     }}
                   >
@@ -346,6 +348,7 @@ export default function Card() {
                         cursor="pointer"
                         onPress={() => {
                           if (isFetchingCard || isSettingCardStatus) return;
+                          selectionAsync().catch(reportError);
                           if (cardDetails.status === "FROZEN") {
                             changeCardStatus("ACTIVE").catch(reportError);
                             return;
@@ -381,6 +384,7 @@ export default function Card() {
                         justifyContent="space-between"
                         cursor="pointer"
                         onPress={() => {
+                          selectionAsync().catch(reportError);
                           setDisplayPIN(true);
                         }}
                       >
@@ -404,6 +408,7 @@ export default function Card() {
                     gap="$s3"
                     onPress={() => {
                       if (!limit) return;
+                      selectionAsync().catch(reportError);
                       setSpendingLimitsOpen(true);
                     }}
                   >
