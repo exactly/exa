@@ -593,7 +593,6 @@
   "Turn {{currency}} transfers to onchain USDC": "Convierte transferencias de {{currency}} a USDC on-chain",
   "Unable to fetch a bridge quote right now. Please adjust the amount or try again later.": "No es posible obtener una cotización de bridge en este momento. Ajusta el monto o inténtalo más tarde.",
   "Unable to simulate a transfer right now. Please adjust the amount or try again later.": "No es posible simular una transferencia en este momento. Ajusta el monto o inténtalo más tarde.",
-  "Unfreeze card": "Descongelar tarjeta",
   "Unknown": "Desconocido",
   "Unlike monthly payments, our installments are due every 4 weeks, which means payments are aligned with a 28-day cycle rather than the calendar month.": "A diferencia de los pagos mensuales, nuestras cuotas vencen cada 4 semanas, lo que significa que los pagos se alinean con un ciclo de 28 días en lugar del mes calendario.",
   "Upcoming payments": "Pagos próximos",
