@@ -1,5 +1,36 @@
 # @exactly/mobile
 
+## 1.2.5
+
+### Patch Changes
+
+- [#985](https://github.com/exactly/exa/pull/985) [`3e50726`](https://github.com/exactly/exa/commit/3e507266d8bd8137fd3a3a1450459825f5ce6533) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 restructure swap state screen layouts
+
+- [#973](https://github.com/exactly/exa/pull/973) [`acef232`](https://github.com/exactly/exa/commit/acef232279552bb9016708f666c602ac1c5b829b) Thanks [@franm91](https://github.com/franm91)! - ✨ support bridge kyc link
+
+- [#985](https://github.com/exactly/exa/pull/985) [`69588da`](https://github.com/exactly/exa/commit/69588dac4b3533d4b541c24e07bf360404799d93) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix usd display for dust token balances
+
+- [#986](https://github.com/exactly/exa/pull/986) [`14d4e28`](https://github.com/exactly/exa/commit/14d4e28f96c551a79c996d5d888a2796e554108d) Thanks [@franm91](https://github.com/franm91)! - ✨ add stellar memo
+
+- [#985](https://github.com/exactly/exa/pull/985) [`7a445dc`](https://github.com/exactly/exa/commit/7a445dc61a79e8b221ed411dcb8e31c12aa0dabe) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 disable retries in custom transport
+
+- [#985](https://github.com/exactly/exa/pull/985) [`1be0bd8`](https://github.com/exactly/exa/commit/1be0bd87999ba64b543dcba6e05ec437778c1330) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 align close buttons to start
+
+- [#985](https://github.com/exactly/exa/pull/985) [`d89abcc`](https://github.com/exactly/exa/commit/d89abcc0a1e2dd171c2a96e82cae26d158443bbd) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 refine portfolio tap feedback
+
+- [#985](https://github.com/exactly/exa/pull/985) [`8aa9f1b`](https://github.com/exactly/exa/commit/8aa9f1b0a4b2f931fddbcf98c620855ef125112e) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 improve defi sheets layout
+
+- [#987](https://github.com/exactly/exa/pull/987) [`8d4a628`](https://github.com/exactly/exa/commit/8d4a6280fcc51bde3d6953ed130c00b5e388fc5a) Thanks [@franm91](https://github.com/franm91)! - ✨ add base ramp
+
+- [#985](https://github.com/exactly/exa/pull/985) [`7e59d69`](https://github.com/exactly/exa/commit/7e59d693a6cfff1574895739e3e355545a4debd8) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ♻️ use sets for query client exclusions
+
+- [#980](https://github.com/exactly/exa/pull/980) [`45fcb30`](https://github.com/exactly/exa/commit/45fcb3031a14c6d55c65b47acb4e634c2ac36b40) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix proposal block override time
+
+- [#985](https://github.com/exactly/exa/pull/985) [`5e3d3fc`](https://github.com/exactly/exa/commit/5e3d3fcc7f8d5a941ac878bc74041835fa816e01) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 stabilize receiver input controlled state
+
+- Updated dependencies [[`7093014`](https://github.com/exactly/exa/commit/70930149004f567dc5366d183c5cadc5d5cbcc63), [`d30e604`](https://github.com/exactly/exa/commit/d30e604affbc1938e754ca4144a059cf22a71b45), [`d0a9c1a`](https://github.com/exactly/exa/commit/d0a9c1ac54338e487a9cf4f14b9775c16ccbf5cf)]:
+  - @exactly/server@0.2.90
+
 ## 1.2.4
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # @exactly/server
 
+## 0.2.90
+
+### Patch Changes
+
+- [#951](https://github.com/exactly/exa/pull/951) [`7093014`](https://github.com/exactly/exa/commit/70930149004f567dc5366d183c5cadc5d5cbcc63) Thanks [@mainqueg](https://github.com/mainqueg)! - ✨ add evm network support for bridge onramp
+
+- [#950](https://github.com/exactly/exa/pull/950) [`d30e604`](https://github.com/exactly/exa/commit/d30e604affbc1938e754ca4144a059cf22a71b45) Thanks [@mainqueg](https://github.com/mainqueg)! - ✨ add kyc link allowlist for bridge onboarding
+
+- [#893](https://github.com/exactly/exa/pull/893) [`d0a9c1a`](https://github.com/exactly/exa/commit/d0a9c1ac54338e487a9cf4f14b9775c16ccbf5cf) Thanks [@nfmelendez](https://github.com/nfmelendez)! - ✨ support multiple cards in statement
+
 ## 0.2.89
 
 ### Patch Changes
