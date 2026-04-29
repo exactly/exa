@@ -16,6 +16,7 @@ import { useReadUpgradeableModularAccountGetInstalledPlugins } from "@exactly/co
 
 import CardDetails from "./CardDetails";
 import CardDisclaimer from "./CardDisclaimer";
+import CardFreezeSheet from "./CardFreezeSheet";
 import CardPIN from "./CardPIN";
 import ExaCard from "./exa-card/ExaCard";
 import SpendingLimits from "./SpendingLimits";
@@ -58,6 +59,7 @@ export default function Card() {
   } = useTranslation();
   const [disclaimerShown, setDisclaimerShown] = useState(false);
   const [verificationFailureShown, setVerificationFailureShown] = useState(false);
+  const [freezeConfirmOpen, setFreezeConfirmOpen] = useState(false);
 
   const { data: cardDetailsOpen } = useQuery<boolean>({ queryKey: ["card-details-open"] });
   const [spendingLimitsOpen, setSpendingLimitsOpen] = useState(false);
@@ -199,12 +201,20 @@ export default function Card() {
   });
 
   const {
-    mutateAsync: changeCardStatus,
+    mutate: changeCardStatus,
     isPending: isSettingCardStatus,
     variables: optimisticCardStatus,
   } = useMutation({
     mutationKey: ["card", "status"],
     mutationFn: setCardStatus,
+    onError: (error) => {
+      reportError(error);
+      toast.show(t("An error occurred. Please try again later."), {
+        native: true,
+        duration: 1000,
+        burntOptions: { haptic: "error", preset: "error" },
+      });
+    },
     onSettled: async () => {
       await queryClient.invalidateQueries({ queryKey: ["card", "details"] });
     },
@@ -301,7 +311,7 @@ export default function Card() {
                 <PluginUpgrade />
                 <ExaCard
                   revealing={isRevealing || isGeneratingCard || beginKYC.isPending}
-                  frozen={cardDetails?.status === "FROZEN"}
+                  frozen={displayStatus === "FROZEN"}
                   onPress={() => {
                     if (isRevealing || isGeneratingCard || beginKYC.isPending) return;
                     revealCard().catch(reportError);
@@ -343,7 +353,11 @@ export default function Card() {
                         cursor="pointer"
                         onPress={() => {
                           if (isFetchingCard || isSettingCardStatus) return;
-                          changeCardStatus(cardDetails.status === "FROZEN" ? "ACTIVE" : "FROZEN").catch(reportError);
+                          if (cardDetails.status === "FROZEN") {
+                            changeCardStatus("ACTIVE");
+                            return;
+                          }
+                          setFreezeConfirmOpen(true);
                         }}
                       >
                         <XStack alignItems="center" gap="$s3">
@@ -362,21 +376,20 @@ export default function Card() {
                           <Switch
                             scale={0.9}
                             margin={0}
-                            padding={0}
+                            padding="$s1"
                             pointerEvents="none"
                             checked={displayStatus === "FROZEN"}
-                            backgroundColor="$backgroundMild"
-                            borderColor="$borderNeutralSoft"
+                            backgroundColor={
+                              displayStatus === "FROZEN" ? "$backgroundBrandMild" : "$backgroundStrong"
+                            }
+                            borderWidth={0}
                             height={24}
                             width={60}
                           >
                             <Switch.Thumb
                               checked={displayStatus === "FROZEN"}
-                              shadowColor="$uiNeutralSecondary"
                               animation="default"
-                              backgroundColor={
-                                displayStatus === "ACTIVE" ? "$interactiveDisabled" : "$interactiveBaseBrandDefault"
-                              }
+                              backgroundColor={displayStatus === "FROZEN" ? "$backgroundBrand" : "$backgroundSoft"}
                             />
                           </Switch>
                         </XStack>
@@ -524,6 +537,16 @@ export default function Card() {
           open={verificationFailureShown}
           onClose={() => {
             setVerificationFailureShown(false);
+          }}
+        />
+        <CardFreezeSheet
+          open={freezeConfirmOpen}
+          onClose={() => {
+            setFreezeConfirmOpen(false);
+          }}
+          onConfirm={() => {
+            setFreezeConfirmOpen(false);
+            changeCardStatus("FROZEN");
           }}
         />
       </View>

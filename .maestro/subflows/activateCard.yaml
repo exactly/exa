@@ -11,7 +11,14 @@ appId: ${APP_ID ?? "app.exactly"}
 - assertVisible: Manually add your card to Apple Pay & Google Pay to make contactless payments.
 - tapOn: Close
 - tapOn: Freeze card
+- tapOn: { text: Freeze card, below: "Freeze your card?" }
+- assertNotVisible: "Freeze your card?"
+- waitForAnimationToEnd
 - tapOn: Freeze card
+- waitForAnimationToEnd
+- tapOn: Freeze card
+- assertVisible: Freeze your card?
+- tapOn: Cancel
 - tapOn: View PIN number
 - tapOn: Close
 - tapOn: Weekly spending limit
