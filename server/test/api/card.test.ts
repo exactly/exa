@@ -6,6 +6,7 @@ import "../mocks/pax";
 import "../mocks/persona";
 
 import { eq } from "drizzle-orm";
+import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { testClient } from "hono/testing";
 import { parse } from "valibot";
@@ -25,6 +26,8 @@ import * as panda from "../../utils/panda";
 import * as pax from "../../utils/pax";
 import * as persona from "../../utils/persona";
 import ServiceError from "../../utils/ServiceError";
+
+import type { UnofficialStatusCode } from "hono/utils/http-status";
 
 const appClient = testClient(app);
 
@@ -120,11 +123,51 @@ describe("authenticated", () => {
 
     vi.spyOn(panda, "getCard").mockResolvedValueOnce(cardTemplate);
     vi.spyOn(panda, "getUser").mockResolvedValueOnce(userTemplate);
+    const processorDetails = vi.spyOn(panda, "getProcessorDetails").mockResolvedValueOnce({
+      processorCardId: "proc-default",
+      timeBasedSecret: "secret-default",
+    });
 
     vi.spyOn(panda, "isPanda").mockResolvedValueOnce(true);
 
     const response = await appClient.index.$get(
       { header: { sessionid: "fakeSession" } },
+      { headers: { "test-credential-id": "default" } },
+    );
+    const json = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    expect(json).toStrictEqual({
+      ...panTemplate,
+      ...pinTemplate,
+      displayName: "First Last",
+      expirationMonth: "9",
+      expirationYear: "2029",
+      lastFour: "1234",
+      mode: 0,
+      provider: "panda",
+      status: "ACTIVE",
+      limit: { amount: 5000, frequency: "per24HourPeriod" },
+      productId: PLATINUM_PRODUCT_ID,
+    });
+    expect(processorDetails).not.toHaveBeenCalled();
+  });
+
+  it("returns panda card provisioning when requested", async () => {
+    vi.spyOn(panda, "getSecrets").mockResolvedValueOnce(panTemplate);
+    vi.spyOn(panda, "getPIN").mockResolvedValueOnce(pinTemplate);
+    vi.spyOn(panda, "getCard").mockResolvedValueOnce(cardTemplate);
+    vi.spyOn(panda, "getUser").mockResolvedValueOnce(userTemplate);
+    const processorDetails = vi.spyOn(panda, "getProcessorDetails").mockResolvedValueOnce({
+      processorCardId: "proc-default",
+      timeBasedSecret: "secret-default",
+    });
+
+    vi.spyOn(panda, "isPanda").mockResolvedValueOnce(true);
+
+    const response = await appClient.index.$get(
+      { header: { sessionid: "fakeSession" }, query: { scope: "provisioning" } },
       { headers: { "test-credential-id": "default" } },
     );
     const json = await response.json();
@@ -142,7 +185,9 @@ describe("authenticated", () => {
       status: "ACTIVE",
       limit: { amount: 5000, frequency: "per24HourPeriod" },
       productId: PLATINUM_PRODUCT_ID,
+      provisioning: { processorCardId: "proc-default", timeBasedSecret: "secret-default" },
     });
+    expect(processorDetails).toHaveBeenCalledExactlyOnceWith("default");
   });
 
   it("returns panda card with signature product id", async () => {
@@ -151,6 +196,10 @@ describe("authenticated", () => {
 
     vi.spyOn(panda, "getCard").mockResolvedValueOnce(cardTemplate);
     vi.spyOn(panda, "getUser").mockResolvedValueOnce(userTemplate);
+    const processorDetails = vi.spyOn(panda, "getProcessorDetails").mockResolvedValueOnce({
+      processorCardId: "proc-sig",
+      timeBasedSecret: "secret-sig",
+    });
 
     vi.spyOn(panda, "isPanda").mockResolvedValueOnce(true);
 
@@ -161,6 +210,7 @@ describe("authenticated", () => {
     const json = await response.json();
 
     expect(response.status).toBe(200);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
     expect(json).toStrictEqual({
       ...panTemplate,
       ...pinTemplate,
@@ -174,6 +224,7 @@ describe("authenticated", () => {
       limit: { amount: 5000, frequency: "per24HourPeriod" },
       productId: SIGNATURE_PRODUCT_ID,
     });
+    expect(processorDetails).not.toHaveBeenCalled();
   });
 
   it("returns 403 no panda when no panda customer", async () => {
@@ -217,6 +268,10 @@ describe("authenticated", () => {
         "Not Found",
       ),
     );
+    vi.spyOn(panda, "getProcessorDetails").mockResolvedValueOnce({
+      processorCardId: "proc-x",
+      timeBasedSecret: "secret-x",
+    });
 
     const response = await appClient.index.$get(
       { header: { sessionid: "fakeSession" } },
@@ -240,6 +295,10 @@ describe("authenticated", () => {
         "User exists but is not approved yet",
       ),
     );
+    vi.spyOn(panda, "getProcessorDetails").mockResolvedValueOnce({
+      processorCardId: "proc-x",
+      timeBasedSecret: "secret-x",
+    });
 
     const response = await appClient.index.$get(
       { header: { sessionid: "fakeSession" } },
@@ -264,6 +323,10 @@ describe("authenticated", () => {
         "user exists but is not approved",
       ),
     );
+    vi.spyOn(panda, "getProcessorDetails").mockResolvedValueOnce({
+      processorCardId: "proc-x",
+      timeBasedSecret: "secret-x",
+    });
 
     const response = await appClient.index.$get(
       { header: { sessionid: "fakeSession" } },
@@ -280,6 +343,10 @@ describe("authenticated", () => {
     vi.spyOn(panda, "getPIN").mockResolvedValueOnce(pinTemplate);
     vi.spyOn(panda, "getCard").mockResolvedValueOnce(cardTemplate);
     vi.spyOn(panda, "getUser").mockRejectedValueOnce(new ServiceError("Panda", 404, "", "NotFoundError"));
+    vi.spyOn(panda, "getProcessorDetails").mockResolvedValueOnce({
+      processorCardId: "proc-x",
+      timeBasedSecret: "secret-x",
+    });
 
     const response = await appClient.index.$get(
       { header: { sessionid: "fakeSession" } },
@@ -296,6 +363,10 @@ describe("authenticated", () => {
     vi.spyOn(panda, "getPIN").mockResolvedValueOnce(pinTemplate);
     vi.spyOn(panda, "getCard").mockResolvedValueOnce(cardTemplate);
     vi.spyOn(panda, "getUser").mockRejectedValueOnce(new HTTPException(500, { message: "unexpected panda failure" }));
+    vi.spyOn(panda, "getProcessorDetails").mockResolvedValueOnce({
+      processorCardId: "proc-x",
+      timeBasedSecret: "secret-x",
+    });
 
     const response = await appClient.index.$get(
       { header: { sessionid: "fakeSession" } },
@@ -318,6 +389,10 @@ describe("authenticated", () => {
         "User exists, but is not approved",
       ),
     );
+    vi.spyOn(panda, "getProcessorDetails").mockResolvedValueOnce({
+      processorCardId: "proc-x",
+      timeBasedSecret: "secret-x",
+    });
 
     const response = await appClient.index.$get(
       { header: { sessionid: "fakeSession" } },
@@ -334,6 +409,10 @@ describe("authenticated", () => {
     vi.spyOn(panda, "getPIN").mockResolvedValueOnce(pinTemplate);
     vi.spyOn(panda, "getCard").mockResolvedValueOnce(cardTemplate);
     vi.spyOn(panda, "getUser").mockRejectedValueOnce(new HTTPException(500, { message: "internal server error" }));
+    vi.spyOn(panda, "getProcessorDetails").mockResolvedValueOnce({
+      processorCardId: "proc-x",
+      timeBasedSecret: "secret-x",
+    });
 
     const response = await appClient.index.$get(
       { header: { sessionid: "fakeSession" } },
@@ -795,6 +874,130 @@ describe("authenticated", () => {
     });
 
     expect(card?.status).toBe("DELETED");
+  });
+
+  it("returns 404 when provisioning reports stale card", async () => {
+    const error = new ServiceError("Panda", 404, "not found");
+    vi.spyOn(panda, "getSecrets").mockResolvedValueOnce(panTemplate);
+    vi.spyOn(panda, "getPIN").mockResolvedValueOnce(pinTemplate);
+    vi.spyOn(panda, "getCard").mockResolvedValueOnce(cardTemplate);
+    vi.spyOn(panda, "getUser").mockResolvedValueOnce(userTemplate);
+    vi.spyOn(panda, "getProcessorDetails").mockRejectedValueOnce(error);
+
+    const response = await appClient.index.$get(
+      { header: { sessionid: "fakeSession" }, query: { scope: "provisioning" } },
+      { headers: { "test-credential-id": "default" } },
+    );
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toStrictEqual({ code: "no card" });
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(
+      error,
+      expect.objectContaining({
+        extra: { cardId: "default", credentialId: "default", pandaId: "default", status: "ACTIVE" },
+        fingerprint: ["{{ default }}", "stale processor card"],
+        level: "warning",
+      }),
+    );
+  });
+
+  it("returns 404 when provisioning reports stale card through parent onError", async () => {
+    const error = new ServiceError("Panda", 404, "not found");
+    vi.spyOn(panda, "getSecrets").mockResolvedValueOnce(panTemplate);
+    vi.spyOn(panda, "getPIN").mockResolvedValueOnce(pinTemplate);
+    vi.spyOn(panda, "getCard").mockResolvedValueOnce(cardTemplate);
+    vi.spyOn(panda, "getUser").mockResolvedValueOnce(userTemplate);
+    vi.spyOn(panda, "getProcessorDetails").mockRejectedValueOnce(error);
+
+    const server = new Hono().route("/api/card", app);
+    server.onError((_error, c) =>
+      c.json({ code: "unexpected error", legacy: "unexpected error" }, 555 as UnofficialStatusCode),
+    );
+
+    const response = await server.request("http://example.com/api/card?scope=provisioning", {
+      headers: { sessionid: "fakeSession", "test-credential-id": "default" },
+    });
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toStrictEqual({ code: "no card" });
+  });
+
+  it("returns 404 when provisioning reports stale card and user lookup fails", async () => {
+    const stale = new ServiceError("Panda", 404, "not found");
+    const forbidden = new ServiceError(
+      "Panda",
+      403,
+      '{"message":"User exists but is not approved yet","error":"ForbiddenError","statusCode":403}',
+      "ForbiddenError",
+      "User exists but is not approved yet",
+    );
+    vi.spyOn(panda, "getSecrets").mockResolvedValueOnce(panTemplate);
+    vi.spyOn(panda, "getPIN").mockResolvedValueOnce(pinTemplate);
+    vi.spyOn(panda, "getCard").mockResolvedValueOnce(cardTemplate);
+    vi.spyOn(panda, "getUser").mockRejectedValueOnce(forbidden);
+    vi.spyOn(panda, "getProcessorDetails").mockRejectedValueOnce(stale);
+
+    const response = await appClient.index.$get(
+      { header: { sessionid: "fakeSession" }, query: { scope: "provisioning" } },
+      { headers: { "test-credential-id": "default" } },
+    );
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toStrictEqual({ code: "no card" });
+  });
+
+  it("returns 403 when provisioning reports unapproved user", async () => {
+    const error = new ServiceError(
+      "Panda",
+      403,
+      '{"message":"User exists but is not approved yet","error":"ForbiddenError","statusCode":403}',
+      "ForbiddenError",
+      "User exists but is not approved yet",
+    );
+    vi.spyOn(panda, "getSecrets").mockResolvedValueOnce(panTemplate);
+    vi.spyOn(panda, "getPIN").mockResolvedValueOnce(pinTemplate);
+    vi.spyOn(panda, "getCard").mockResolvedValueOnce(cardTemplate);
+    vi.spyOn(panda, "getUser").mockResolvedValueOnce(userTemplate);
+    vi.spyOn(panda, "getProcessorDetails").mockRejectedValueOnce(error);
+
+    const response = await appClient.index.$get(
+      { header: { sessionid: "fakeSession" }, query: { scope: "provisioning" } },
+      { headers: { "test-credential-id": "default" } },
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toStrictEqual({ code: "no panda" });
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(
+      error,
+      expect.objectContaining({
+        extra: {
+          cardId: "default",
+          credentialId: "default",
+          pandaId: "default",
+          status: "ACTIVE",
+          userIssue: "PandaForbidden",
+        },
+        fingerprint: ["{{ default }}", "PandaForbidden"],
+        level: "warning",
+      }),
+    );
+  });
+
+  it("returns 500 when provisioning reports unexpected error", async () => {
+    vi.spyOn(panda, "getSecrets").mockResolvedValueOnce(panTemplate);
+    vi.spyOn(panda, "getPIN").mockResolvedValueOnce(pinTemplate);
+    vi.spyOn(panda, "getCard").mockResolvedValueOnce(cardTemplate);
+    vi.spyOn(panda, "getUser").mockResolvedValueOnce(userTemplate);
+    vi.spyOn(panda, "getProcessorDetails").mockRejectedValueOnce(new ServiceError("Panda", 500, "internal error"));
+
+    const response = await appClient.index.$get(
+      { header: { sessionid: "fakeSession" }, query: { scope: "provisioning" } },
+      { headers: { "test-credential-id": "default" } },
+    );
+
+    expect(response.status).toBe(500);
+    expect(panda.getProcessorDetails).toHaveBeenCalledWith("default");
+    expect(captureException).not.toHaveBeenCalled();
   });
 
   describe("migration", () => {

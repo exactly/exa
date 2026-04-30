@@ -13,6 +13,7 @@ import {
   nullable,
   number,
   object,
+  optional,
   parse,
   picklist,
   pipe,
@@ -32,7 +33,17 @@ import database, { cards, credentials } from "../database";
 import t from "../i18n";
 import auth from "../middleware/auth";
 import { sendPushNotification } from "../utils/onesignal";
-import { autoCredit, createCard, getCard, getPIN, getSecrets, getUser, setPIN, updateCard } from "../utils/panda";
+import {
+  autoCredit,
+  createCard,
+  getCard,
+  getPIN,
+  getProcessorDetails,
+  getSecrets,
+  getUser,
+  setPIN,
+  updateCard,
+} from "../utils/panda";
 import { addCapita, deriveAssociateId } from "../utils/pax";
 import { getAccount } from "../utils/persona";
 import { customer } from "../utils/sardine";
@@ -70,6 +81,12 @@ const CardResponse = object({
     ]),
   }),
   productId: pipe(string(), metadata({ examples: ["402"] })),
+  provisioning: optional(
+    object({
+      processorCardId: pipe(string(), metadata({ examples: ["card_abc123"] })),
+      timeBasedSecret: pipe(string(), metadata({ examples: ["otp_xyz"] })),
+    }),
+  ),
 });
 
 const CreatedCardResponse = object({
@@ -106,10 +123,22 @@ export default new Hono()
     "/",
     vValidator("header", object({ sessionid: string() }), validatorHook({ code: "bad session id", status: 400 })),
     auth(),
+    vValidator(
+      "query",
+      optional(
+        object({
+          scope: optional(literal("provisioning")),
+        }),
+        {},
+      ),
+      validatorHook(),
+    ),
     describeRoute({
       summary: "Get card information",
       description: `
 Retrieve the card profile and encrypted card data for an authenticated user.
+
+Successful responses include push-provisioning credentials in the \`provisioning\` field only when the \`scope=provisioning\` query parameter is sent.
 
 **Retrieving encrypted card details**
 1. **Generate a session ID**: Encrypt a 32‑character hexadecimal secret (no spaces/dashes) with the provided public RSA key using RSA‑OAEP.
@@ -212,17 +241,53 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
       const account = parse(Address, credential.account);
       setUser({ id: account });
       if (!credential.pandaId) return c.json({ code: "no panda" }, 403);
-      if (credential.cards.length > 0 && credential.cards[0]) {
-        const { id, lastFour, status, mode, productId } = credential.cards[0];
-        if (status === "DELETED") throw new Error("card deleted");
-        const [{ expirationMonth, expirationYear, limit }, pan, user, pin] = await Promise.all([
-          getCard(id),
-          getSecrets(id, c.req.valid("header").sessionid),
-          getUser(credential.pandaId).catch((error: unknown) => {
-            const issue = noUser(error);
-            if (!issue) throw error;
-            const shouldCapture = issue.error.status === 404 || status === "ACTIVE";
-            if (shouldCapture) {
+      if (credential.cards.length === 0 || !credential.cards[0]) return c.json({ code: "no card" }, 404);
+      const { id, lastFour, status, mode, productId } = credential.cards[0];
+      if (status === "DELETED") throw new Error("card deleted");
+      const [{ expirationMonth, expirationYear, limit }, pan, user, pin, provisioning] = await Promise.all([
+        getCard(id),
+        getSecrets(id, c.req.valid("header").sessionid),
+        getUser(credential.pandaId).catch((error: unknown) => {
+          const issue = noUser(error);
+          if (!issue) throw error;
+          const shouldCapture = issue.error.status === 404 || status === "ACTIVE";
+          if (shouldCapture) {
+            withScope((scope) => {
+              scope.addEventProcessor((event) => {
+                if (event.exception?.values?.[0]) event.exception.values[0].type = issue.type;
+                return event;
+              });
+              captureException(issue.error, {
+                level: "warning",
+                fingerprint: ["{{ default }}", issue.type],
+                extra: {
+                  cardId: id,
+                  credentialId,
+                  pandaId: credential.pandaId,
+                  status,
+                  shouldCapture,
+                  userIssue: issue.type,
+                },
+              });
+            });
+          }
+          return null;
+        }),
+        getPIN(id, c.req.valid("header").sessionid),
+        c.req.valid("query").scope === "provisioning"
+          ? getProcessorDetails(id).catch((error: unknown) => {
+              if (error instanceof ServiceError && error.status === 404) {
+                withScope(() => {
+                  captureException(error, {
+                    level: "warning",
+                    fingerprint: ["{{ default }}", "stale processor card"],
+                    extra: { cardId: id, credentialId, pandaId: credential.pandaId, status },
+                  });
+                });
+                return { code: "no card" as const };
+              }
+              const issue = noUser(error);
+              if (!issue) throw error;
               withScope((scope) => {
                 scope.addEventProcessor((event) => {
                   if (event.exception?.values?.[0]) event.exception.values[0].type = issue.type;
@@ -236,34 +301,36 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
                     credentialId,
                     pandaId: credential.pandaId,
                     status,
-                    shouldCapture,
                     userIssue: issue.type,
                   },
                 });
               });
-            }
-            return null;
-          }),
-          getPIN(id, c.req.valid("header").sessionid),
-        ]);
-        if (!user) return c.json({ code: "no panda" }, 403);
-        return c.json(
-          {
-            ...pan,
-            ...pin,
-            displayName: `${user.firstName} ${user.lastName}`,
-            expirationMonth,
-            expirationYear,
-            lastFour,
-            mode,
-            provider: "panda" as const,
-            status,
-            limit,
-            productId,
-          } satisfies InferOutput<typeof CardResponse>,
-          200,
-        );
-      } else return c.json({ code: "no card" }, 404);
+              return { code: "no panda" as const };
+            })
+          : null,
+      ]);
+      if (provisioning && "code" in provisioning && provisioning.code === "no card")
+        return c.json({ code: "no card" }, 404);
+      if (!user) return c.json({ code: "no panda" }, 403);
+      if (provisioning && "code" in provisioning) return c.json({ code: "no panda" }, 403);
+      c.header("Cache-Control", "no-store");
+      return c.json(
+        {
+          ...pan,
+          ...pin,
+          displayName: `${user.firstName} ${user.lastName}`,
+          expirationMonth,
+          expirationYear,
+          lastFour,
+          mode,
+          provider: "panda" as const,
+          status,
+          limit,
+          productId,
+          ...(provisioning && !("code" in provisioning) ? { provisioning } : {}),
+        } satisfies InferOutput<typeof CardResponse>,
+        200,
+      );
     },
   )
   .post(

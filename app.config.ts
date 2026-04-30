@@ -1,7 +1,17 @@
 import type { PluginConfigType as BuildPropertiesConfig } from "expo-build-properties/build/pluginConfig";
 import type { FontProps } from "expo-font/plugin/build/withFonts";
 
-import { AndroidConfig, withAndroidManifest, withAppBuildGradle, type ConfigPlugin } from "expo/config-plugins";
+import {
+  AndroidConfig,
+  IOSConfig,
+  withAndroidManifest,
+  withAppBuildGradle,
+  withDangerousMod,
+  withXcodeProject,
+  type ConfigPlugin,
+} from "expo/config-plugins";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
 import { env } from "node:process";
 
 import metadata from "./package.json";
@@ -40,6 +50,7 @@ export default {
     associatedDomains: [`webcredentials:${env.APP_DOMAIN ?? "sandbox.exactly.app"}`],
     supportsTablet: false,
     buildNumber: String(versionCode),
+    entitlements: { "com.apple.developer.payment-pass-provisioning": true },
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
       CFBundleAllowMixedLocalizations: true,
@@ -109,6 +120,110 @@ export default {
         largeIcons: ["src/assets/notifications_default_large.png"],
       },
     ],
+    // @ts-expect-error inline plugin
+    ((config) => {
+      const withAndroid = withDangerousMod(config, [
+        "android",
+        (c) => {
+          const source = path.join(c.modRequest.projectRoot, "src/assets/mea_config");
+          const destination = path.join(c.modRequest.projectRoot, "android/app/src/main/assets/mea_config");
+          mkdirSync(path.dirname(destination), { recursive: true });
+          if (existsSync(source)) copyFileSync(source, destination);
+          return c;
+        },
+      ]);
+      return withXcodeProject(withAndroid, (c) => {
+        const source = path.join(c.modRequest.projectRoot, "src/assets/mea_config");
+        const projectName = c.modRequest.projectName ?? "";
+        const destination = path.join(c.modRequest.projectRoot, "ios", projectName, "mea_config");
+        if (existsSync(source)) {
+          copyFileSync(source, destination);
+          IOSConfig.XcodeUtils.addResourceFileToGroup({
+            filepath: `${projectName}/mea_config`,
+            groupName: projectName,
+            project: c.modResults, // eslint-disable-line @typescript-eslint/no-unsafe-assignment -- expo xcode project type
+            isBuildFile: true,
+          });
+        }
+        return c;
+      });
+    }) satisfies ConfigPlugin,
+    // @ts-expect-error inline plugin
+    ((config) =>
+      withDangerousMod(config, [
+        "android",
+        (c) => {
+          const buildGradle = path.join(c.modRequest.projectRoot, "android/build.gradle");
+          const meaRepo = `    maven {
+      url "https://nexus.ext.meawallet.com/repository/mpp-android-group/"
+      credentials {
+        username = "${env.MEAWALLET_ANDROID_USER}"
+        password = "${env.MEAWALLET_ANDROID_PASS}"
+      }
+    }`;
+          const contents = readFileSync(buildGradle, "utf8");
+          if (!contents.includes("nexus.ext.meawallet.com")) {
+            const replaced = contents.replace(/(allprojects[\s\S]*?repositories\s*\{)/, `$1\n${meaRepo}`); // cspell:ignore allprojects
+            if (replaced === contents)
+              throw new Error("meawallet: failed to inject maven repo into android/build.gradle");
+            writeFileSync(buildGradle, replaced);
+          }
+          return c;
+        },
+      ])) satisfies ConfigPlugin,
+    // @ts-expect-error inline plugin
+    ((config) =>
+      withDangerousMod(config, [
+        "ios",
+        (c) => {
+          const podfile = path.join(c.modRequest.projectRoot, "ios/Podfile"); // cspell:ignore podfile Podfile OBJC RCTJS RCTUI modulemap fmodule
+          if (!existsSync(podfile)) return c;
+          const workaround = `    rctHeaders = "#{installer.sandbox.root}/Headers/Public/React-RCTAppDelegate"
+    Dir.mkdir(rctHeaders) unless Dir.exist?(rctHeaders)
+    File.write("#{rctHeaders}/React-RCTAppDelegate-umbrella.h", <<~'H')
+      #ifdef __OBJC__
+      #import <UIKit/UIKit.h>
+      #endif
+      #import "RCTAppDelegate.h"
+      #import "RCTAppSetupUtils.h"
+      #import "RCTArchConfiguratorProtocol.h"
+      #import "RCTDefaultReactNativeFactoryDelegate.h"
+      #import "RCTDependencyProvider.h"
+      #import "RCTJSRuntimeConfiguratorProtocol.h"
+      #import "RCTReactNativeFactory.h"
+      #import "RCTRootViewFactory.h"
+      #import "RCTUIConfiguratorProtocol.h"
+    H
+    File.write("#{rctHeaders}/React_RCTAppDelegate.modulemap", <<~MAP)
+      module React_RCTAppDelegate {
+        umbrella header "React-RCTAppDelegate-umbrella.h"
+        export *
+        module * { export * }
+      }
+    MAP
+    installer.pods_project.targets.each do |target|
+      next unless target.name == "meawallet-react-native-mpp"
+      target.build_configurations.each do |buildConfiguration|
+        flags = buildConfiguration.build_settings["OTHER_SWIFT_FLAGS"] || "$(inherited)"
+        next if flags.include?("React_RCTAppDelegate.modulemap")
+        buildConfiguration.build_settings["OTHER_SWIFT_FLAGS"] =
+          "#{flags} -Xcc -fmodule-map-file=\${PODS_ROOT}/Headers/Public/React-RCTAppDelegate/React_RCTAppDelegate.modulemap"
+      end
+    end
+`;
+          const contents = readFileSync(podfile, "utf8");
+          if (!contents.includes("React_RCTAppDelegate.modulemap")) {
+            const replaced = contents.replace(
+              /(\s{4}react_native_post_install\([\s\S]*?\n\s{4}\)\n)/,
+              `$1${workaround}`,
+            );
+            if (replaced === contents)
+              throw new Error("meawallet: failed to inject react_native_post_install workaround into ios/Podfile");
+            writeFileSync(podfile, replaced);
+          }
+          return c;
+        },
+      ])) satisfies ConfigPlugin,
     // @ts-expect-error inline plugin
     ((config) =>
       withAndroidManifest(

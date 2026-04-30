@@ -44,6 +44,7 @@
     "@intercom/intercom-react-native": "^9.8.0",
     "@intercom/messenger-js-sdk": "^0.0.18",
     "@lifi/sdk": "3.7.7",
+    "@meawallet/react-native-mpp": "^2.2.2",
     "@peculiar/asn1-ecc": "^2.6.1",
     "@peculiar/asn1-schema": "^2.6.0",
     "@peculiar/webcrypto": "^1.5.0",
@@ -167,6 +168,9 @@
   "packageManager": "pnpm@10.33.0",
   "pnpm": {
     "overrides": {
+      "@typescript-eslint/eslint-plugin": "8.58.0",
+      "@typescript-eslint/parser": "8.58.0",
+      "eslint-plugin-n": "17.24.0",
       "@wagmi/core": "catalog:",
       "abitype>zod": "^4.0.0",
       "comlink": "$comlink",
@@ -202,6 +206,7 @@
     },
     "patchedDependencies": {
       "@lifi/sdk": "patches/@lifi__sdk.patch",
+      "@meawallet/react-native-mpp": "patches/@meawallet__react-native-mpp.patch",
       "embedded-postgres": "patches/embedded-postgres.patch",
       "eslint-config-universe": "patches/eslint-config-universe.patch"
     },

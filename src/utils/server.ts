@@ -100,6 +100,19 @@ async function getCard() {
 queryClient.setQueryDefaults(["card", "details"], { queryFn: getCard });
 export type CardDetails = Awaited<ReturnType<typeof getCard>>;
 
+export async function getWalletCredentials() {
+  await auth();
+  const { id } = await session();
+  const response = await api.card.$get({ header: { sessionid: id }, query: { scope: "provisioning" } });
+  if (!response.ok) {
+    const { code } = await response.json();
+    throw new APIError(response.status, code);
+  }
+  const card = await response.json();
+  if (!card.provisioning) throw new Error("bad card provisioning response");
+  return { cardId: card.provisioning.processorCardId, cardSecret: card.provisioning.timeBasedSecret };
+}
+
 async function getPIN() {
   const result = await getCard();
   if (!result) return null;
