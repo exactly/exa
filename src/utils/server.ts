@@ -104,6 +104,7 @@ async function getPIN() {
   const result = await getCard();
   if (!result) return null;
   const { secret, encryptedPan, encryptedCvc, pin } = result;
+  if (!encryptedPan || !encryptedCvc) return null;
   const [pan, cvc, decryptedPIN] = await Promise.all([
     decrypt(encryptedPan.data, encryptedPan.iv, secret),
     decrypt(encryptedCvc.data, encryptedCvc.iv, secret),

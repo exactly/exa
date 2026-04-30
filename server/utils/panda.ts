@@ -18,7 +18,7 @@ import {
   type BaseIssue,
   type BaseSchema,
 } from "valibot";
-import { BaseError, ContractFunctionZeroDataError } from "viem";
+import { BaseError, ContractFunctionZeroDataError, recoverTypedDataAddress } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { base, optimism } from "viem/chains";
 
@@ -39,6 +39,8 @@ import ServiceError from "./ServiceError";
 import verifySignature from "./verifySignature";
 import database, { credentials } from "../database";
 import publicClient from "../utils/publicClient";
+
+import type { Hex } from "@exactly/common/validation";
 
 const plugin = exaPluginAddress.toLowerCase();
 
@@ -155,6 +157,35 @@ export async function setPIN(cardId: string, sessionId: string, pin: { data: str
     { encryptedPin: pin },
     "PUT",
   );
+}
+
+export function getNonce(userId: string) {
+  return request(object({ nonce: string() }), `/issuing/users/${userId}/signatures/generate-nonce`);
+}
+
+export function verify(
+  userId: string,
+  payload:
+    | {
+        assertion: {
+          clientExtensionResults: Record<string, unknown>;
+          id: string;
+          rawId: string;
+          response: { authenticatorData: string; clientDataJSON: string; signature: string; userHandle?: string };
+          type: "public-key";
+        };
+        authType: "webauthn";
+        credential: {
+          counter: number;
+          publicKey: { data: number[]; type: "Buffer" };
+          transports: null | string[];
+        };
+        factory: string;
+        statement: string;
+      }
+    | { authType: "siwe"; message: string; signature: string },
+) {
+  return request(object({}), `/issuing/users/${userId}/signatures/verify`, {}, payload, "PUT");
 }
 
 async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
@@ -352,6 +383,42 @@ export function signIssuerOp({ account, amount, timestamp }: { account: Address;
     primaryType: amount < 0n ? "Refund" : "Collection",
     message: { account, amount: amount < 0n ? -amount : amount, timestamp },
   });
+}
+
+export function verifyPandaSignature({
+  account,
+  amount,
+  timestamp,
+  signature,
+}: {
+  account: Address;
+  amount: bigint;
+  signature: Hex;
+  timestamp: number;
+}) {
+  return recoverTypedDataAddress({
+    domain: {
+      chainId: chain.id,
+      name: "IssuerChecker",
+      version: "1",
+      verifyingContract: issuerCheckerAddress,
+    },
+    types: {
+      Collection: [
+        { name: "account", type: "address" },
+        { name: "amount", type: "uint256" },
+        { name: "timestamp", type: "uint40" },
+      ],
+      Refund: [
+        { name: "account", type: "address" },
+        { name: "amount", type: "uint256" },
+        { name: "timestamp", type: "uint40" },
+      ],
+    },
+    primaryType: amount < 0n ? "Refund" : "Collection",
+    message: { account, amount: amount < 0n ? -amount : amount, timestamp },
+    signature,
+  }).then((recovered) => parse(Address, recovered) === parse(Address, "0xB9771269312B32676B77C9db2242c8d1836F1a85"));
 }
 
 const mutexes = new Map<Address, MutexInterface>();
