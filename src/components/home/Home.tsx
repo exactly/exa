@@ -33,6 +33,8 @@ import PortfolioSummary from "./PortfolioSummary";
 import SpendingLimitSheet from "./SpendingLimitSheet";
 import VisaSignatureBanner from "./VisaSignatureBanner";
 import VisaSignatureModal from "./VisaSignatureSheet";
+import { newMessage } from "../../utils/intercom";
+import { startCardLimitKYC } from "../../utils/persona";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { cardModeMutationOptions } from "../../utils/server";
@@ -55,7 +57,7 @@ import SafeView from "../shared/SafeView";
 import View from "../shared/View";
 
 import type { ActivityItem } from "../../utils/queryClient";
-import type { CardDetails, KYCStatus } from "../../utils/server";
+import type { CardActivity, CardDetails, KYCStatus } from "../../utils/server";
 import type { Credential } from "@exactly/common/validation";
 
 const HEALTH_FACTOR_THRESHOLD = (WAD * 11n) / 10n;
@@ -131,6 +133,20 @@ export default function Home() {
     kycStatus && "code" in kycStatus && (kycStatus.code === "ok" || kycStatus.code === "legacy kyc"),
   );
   const { data: card } = useQuery<CardDetails>({ queryKey: ["card", "details"], enabled: !!account && !!bytecode });
+  const { data: cardActivity } = useQuery<CardActivity[]>({ queryKey: ["activity", "card"] });
+  const { data: cardLimitStatus } = useQuery<KYCStatus>({ queryKey: ["kyc", "cardLimit"], enabled: !!card });
+  const cardLimitProcessing = cardLimitStatus?.code === "processing";
+  const cardLimitApproved = cardLimitStatus?.code === "ok";
+  const spendingLimitReached = useMemo(() => {
+    if (!card?.limit.amount || !cardActivity) return false;
+    const limit = card.limit.amount / 100;
+    const totalSpent = cardActivity.reduce((sum, item) => {
+      if (item.type !== "panda") return sum;
+      const elapsed = (Date.now() - new Date(item.timestamp).getTime()) / 1000;
+      return elapsed <= 604_800 ? sum + item.usdAmount : sum;
+    }, 0);
+    return totalSpent / limit >= 0.9;
+  }, [card?.limit.amount, cardActivity]);
   const { data: spotlightShown } = useQuery<boolean>({ queryKey: ["settings", "installments-spotlight"] });
   const toast = useToastController();
   const { mutate: mutateMode } = useMutation({
@@ -207,6 +223,32 @@ export default function Home() {
           <View flex={1} gap="$s5" paddingBottom="$s5">
             <YStack backgroundColor="$backgroundSoft" padding="$s4" gap="$s4">
               {markets && healthFactor(markets) < HEALTH_FACTOR_THRESHOLD && <LiquidationAlert />}
+              {spendingLimitReached && !cardLimitProcessing && (
+                <InfoAlert
+                  variant="warning"
+                  title={t("You've reached 90% of your weekly card spending limit.")}
+                  actionText={t("Increase spending limit")}
+                  onPress={() => {
+                    if (cardLimitApproved) newMessage(t("I want to increase my spending limit")).catch(reportError);
+                    else
+                      startCardLimitKYC()
+                        .then((result) => {
+                          if (result.status === "error")
+                            toast.show(t("Something went wrong. Please try again."), {
+                              native: true,
+                              burntOptions: { haptic: "error", preset: "error" },
+                            });
+                        })
+                        .catch((error: unknown) => {
+                          reportError(error);
+                          toast.show(t("Something went wrong. Please try again."), {
+                            native: true,
+                            burntOptions: { haptic: "error", preset: "error" },
+                          });
+                        });
+                  }}
+                />
+              )}
               {(showKYCMigration || showPluginOutdated) && (
                 <InfoAlert
                   title={t(
