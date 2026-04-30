@@ -12,7 +12,7 @@ export default function deployedOptions(address: Address | undefined, chainId: n
       address !== undefined && chainId !== undefined
         ? async () => !!(await getBytecode(exaConfig, { address, chainId }))
         : skipToken,
-    staleTime: (query) => (query.state.data ? Infinity : 0),
+    staleTime: (query) => (query.state.data === undefined ? 0 : Infinity),
     gcTime: Infinity,
   });
 }
