@@ -6,15 +6,22 @@ import { http } from "viem";
 import * as chains from "viem/chains";
 import { createConfig, createStorage, custom, injected } from "wagmi";
 
+import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import chain from "@exactly/common/generated/chain";
 
+import alchemyChainById from "../alchemyChains";
 import publicClient from "../publicClient";
 
 const config = createConfig({
   chains: [chain, ...Object.values(chains)],
   connectors: [miniAppConnector(), injected()],
   transports: {
-    ...Object.fromEntries(Object.values(chains).map((c) => [c.id, http()])),
+    ...Object.fromEntries(
+      Object.values(chains).map((c) => [
+        c.id,
+        http(alchemyChainById.get(c.id)?.rpcUrls.alchemy?.http[0]?.concat(`/${alchemyAPIKey}`)),
+      ]),
+    ),
     [chain.id]: custom(publicClient),
   },
   storage: createStorage({ key: "wagmi.owner", storage: AsyncStorage }),
