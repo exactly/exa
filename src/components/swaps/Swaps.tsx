@@ -228,9 +228,9 @@ export default function Swaps() {
   const tool = route?.tool ?? "";
 
   const isInsufficientBalance = useMemo(() => {
-    if (!fromToken || !toToken) return false;
+    if (!fromToken) return false;
     return fromAmount > getBalance(fromToken.token);
-  }, [fromToken, toToken, fromAmount, getBalance]);
+  }, [fromToken, fromAmount, getBalance]);
 
   const {
     request: swapPropose,
@@ -359,7 +359,7 @@ export default function Swaps() {
       updateSwap((old) => ({ ...old, enableSimulations: false }));
     },
     onSuccess() {
-      queryClient.invalidateQueries({ queryKey: ["lifi", "tokenBalances"] }).catch(reportError);
+      queryClient.invalidateQueries({ queryKey: ["lifi", "balances"] }).catch(reportError);
       queryClient.invalidateQueries({ queryKey: marketsQueryKey }).catch(reportError);
       updateSwap((old) => ({ ...old, fromAmount: 0n, toAmount: 0n }));
     },
@@ -562,9 +562,7 @@ export default function Swaps() {
                       ? "$interactiveOnDisabled"
                       : caution && acknowledged
                         ? "$interactiveOnBaseErrorSoft"
-                        : caution && !acknowledged
-                          ? "$interactiveOnBaseErrorSoft"
-                          : "$interactiveOnBaseBrandDefault"
+                        : "$interactiveOnBaseBrandDefault"
                   }
                 />
               )

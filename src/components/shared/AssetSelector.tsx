@@ -27,10 +27,10 @@ export default function AssetSelector({
     i18n: { language },
   } = useTranslation();
   const [selectedMarket, setSelectedMarket] = useState<Address | undefined>();
-  const { assets, externalAssets, markets, isPending } = usePortfolio({ sortBy });
+  const { assets, externalAssets, markets, isPending, isBalancesPending } = usePortfolio({ sortBy });
 
   if (assets.length === 0) {
-    if (isPending || !markets) {
+    if (isPending || isBalancesPending || !markets) {
       return (
         <YStack gap="$s2" borderWidth={1} borderRadius="$r3" borderColor="$borderNeutralSeparator" padding="$s3">
           <AssetSkeleton />
@@ -125,7 +125,7 @@ export default function AssetSelector({
             </ToggleGroup.Item>
           );
         })}
-        {isPending ? <AssetSkeleton /> : null}
+        {isBalancesPending ? <AssetSkeleton /> : null}
       </ToggleGroup>
     </YStack>
   );

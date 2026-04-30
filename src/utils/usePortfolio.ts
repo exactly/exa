@@ -1,14 +1,17 @@
 import { useMemo } from "react";
 
 import { useQuery } from "@tanstack/react-query";
+import { formatUnits } from "viem";
 
+import chain from "@exactly/common/generated/chain";
 import { floatingDepositRates, withdrawLimit } from "@exactly/lib";
 
-import { tokenBalancesOptions } from "./lifi";
+import { balancesOptions } from "./lifi";
 import useAccount from "./useAccount";
 import useMarkets from "./useMarkets";
 
 import type { Hex } from "@exactly/common/validation";
+import type { TokenAmount } from "@lifi/sdk";
 
 export type ProtocolAsset = {
   asset: Hex;
@@ -25,6 +28,7 @@ export type ProtocolAsset = {
 export type ExternalAsset = {
   address: string;
   amount?: bigint;
+  chainId: number;
   decimals: number;
   logoURI?: string;
   name: string;
@@ -40,7 +44,15 @@ export default function usePortfolio(options?: { sortBy?: "usdcFirst" | "usdValu
   const { address: account } = useAccount();
   const { markets, rateSnapshot, timestamp, isPending: isMarketsPending } = useMarkets();
 
-  const { data: tokenBalances, isPending: isExternalPending } = useQuery(tokenBalancesOptions(account));
+  const { data: balances, isLoading: isBalancesPending } = useQuery(balancesOptions(account));
+
+  const protocolSymbols = useMemo(() => {
+    if (!markets) return [];
+    const excluded = new Set(["USDC.e", "DAI", "WETH"]);
+    const symbols = new Set(markets.map((m) => m.symbol.slice(3)).filter((s) => !excluded.has(s)));
+    symbols.add("ETH");
+    return [...symbols];
+  }, [markets]);
 
   const portfolio = useMemo(() => {
     if (!markets) return { depositMarkets: [], balanceUSD: 0n };
@@ -92,45 +104,77 @@ export default function usePortfolio(options?: { sortBy?: "usdcFirst" | "usdValu
   }, [markets]);
 
   const externalAssets = useMemo<ExternalAsset[]>(() => {
-    const balances = tokenBalances ?? [];
-    if (balances.length === 0) return [];
+    const tokens = balances?.[chain.id] ?? [];
+    if (!markets || tokens.length === 0) return [];
+    const marketAddresses = new Set(markets.map(({ market }) => market.toLowerCase()));
+    return tokens
+      .filter((token) => !marketAddresses.has(token.address.toLowerCase()))
+      .flatMap((token) => {
+        const asset = toExternalAsset(token);
+        return asset ? [asset] : [];
+      });
+  }, [balances, markets]);
 
-    const marketAddresses = new Set(markets?.map(({ market }) => market.toLowerCase()));
-    return balances
-      .filter(({ address }) => !marketAddresses.has(address.toLowerCase()))
-      .map((token) => ({
-        ...token,
-        usdValue: (Number(token.priceUSD) * Number(token.amount ?? 0n)) / 10 ** token.decimals,
-        type: "external" as const,
-      }));
-  }, [tokenBalances, markets]);
-
-  const assets = useMemo<PortfolioAsset[]>(() => {
-    const combined = [...protocolAssets, ...externalAssets];
-    return combined.sort((a, b) => {
-      if (options?.sortBy === "usdcFirst") {
-        const aSymbol = a.symbol;
-        const bSymbol = b.symbol;
-        if (aSymbol === "USDC" && bSymbol !== "USDC") return -1;
-        if (bSymbol === "USDC" && aSymbol !== "USDC") return 1;
+  const crossChainAssets = useMemo<ExternalAsset[]>(() => {
+    if (!balances) return [];
+    const result: ExternalAsset[] = [];
+    for (const [chainIdKey, tokens] of Object.entries(balances)) {
+      const chainId = Number(chainIdKey);
+      if (!Number.isInteger(chainId) || chainId === chain.id) continue;
+      for (const token of tokens) {
+        const asset = toExternalAsset(token);
+        if (asset) result.push(asset);
       }
-      return b.usdValue - a.usdValue;
-    });
-  }, [protocolAssets, externalAssets, options?.sortBy]);
+    }
+    return result;
+  }, [balances]);
+
+  const assets = useMemo<PortfolioAsset[]>(
+    () => [...protocolAssets, ...externalAssets].sort(compareAssets(options?.sortBy)),
+    [protocolAssets, externalAssets, options?.sortBy],
+  );
+
+  const allAssets = useMemo<PortfolioAsset[]>(
+    () => [...protocolAssets, ...externalAssets, ...crossChainAssets].sort(compareAssets(options?.sortBy)),
+    [protocolAssets, externalAssets, crossChainAssets, options?.sortBy],
+  );
+
+  const externalUSD = useMemo(() => externalAssets.reduce((sum, asset) => sum + asset.usdValue, 0), [externalAssets]);
 
   const totalBalanceUSD = useMemo(() => {
-    const externalUSD = externalAssets.reduce((sum, asset) => sum + asset.usdValue, 0);
-    return portfolio.balanceUSD + BigInt(Math.round(externalUSD * 1e18));
-  }, [portfolio.balanceUSD, externalAssets]);
+    const crossChainUSD = crossChainAssets.reduce((sum, asset) => sum + asset.usdValue, 0);
+    return portfolio.balanceUSD + BigInt(Math.round((externalUSD + crossChainUSD) * 1e18));
+  }, [portfolio.balanceUSD, externalUSD, crossChainAssets]);
 
   return {
     portfolio,
     averageRate,
     assets,
+    allAssets,
     protocolAssets,
     externalAssets,
+    crossChainAssets,
     totalBalanceUSD,
+    protocolSymbols,
     markets,
-    isPending: isExternalPending || isMarketsPending,
+    isPending: isMarketsPending,
+    isBalancesPending,
   };
+}
+
+function compareAssets(sortBy: "usdcFirst" | "usdValue" | undefined) {
+  return function compare(a: PortfolioAsset, b: PortfolioAsset) {
+    if (sortBy === "usdcFirst") {
+      if (a.symbol === "USDC" && b.symbol !== "USDC") return -1;
+      if (b.symbol === "USDC" && a.symbol !== "USDC") return 1;
+    }
+    return b.usdValue - a.usdValue;
+  };
+}
+
+function toExternalAsset(token: TokenAmount): ExternalAsset | undefined {
+  if (!token.amount) return undefined;
+  const rawUsd = Number(formatUnits(token.amount, token.decimals)) * Number(token.priceUSD);
+  const usdValue = Number.isFinite(rawUsd) && rawUsd > 0 ? rawUsd : 0;
+  return { ...token, type: "external", usdValue };
 }

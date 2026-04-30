@@ -44,16 +44,20 @@ export default function reportError(error: unknown, hint?: Parameters<typeof cap
   return classification;
 }
 
-const passkeyCancelledMessages = new Set([
-  "The operation couldn’t be completed. (com.apple.AuthenticationServices.AuthorizationError error 1001.)",
-  "The operation couldn’t be completed. (com.apple.AuthenticationServices.AuthorizationError error 1004.)",
-  "The operation couldn’t be completed. Device must be unlocked to perform request.",
-  "UserCancelled",
-]);
-const passkeyKnownMessages = new Set([
-  ...passkeyCancelledMessages,
-  "The operation couldn’t be completed. Stolen Device Protection is enabled and biometry is required.",
-]);
+const passkeyCancelledCodes = new Set(["ERR_USER_CANCELLED", "ERR_PASSKEY_REQUEST_FAILED"]);
+const passkeyCancelledPatterns = [
+  /com\.apple\.AuthenticationServices\.AuthorizationError\D+\b1001\b/i,
+  /com\.apple\.AuthenticationServices\.AuthorizationError\D+\b1004\b/i,
+  /^UserCancelled$/,
+];
+const passkeyKnownCodes = new Set([...passkeyCancelledCodes, "ERR_PENDING_PASSKEY_REQUEST"]);
+const passkeyKnownPatterns = [
+  ...passkeyCancelledPatterns,
+  /com\.apple\.AuthenticationServices\.AuthorizationError/i,
+  /Biometrics must be enabled/,
+  /Device must be unlocked/,
+  /There is already a pending passkey request/,
+];
 const authPrefixes = ["androidx.credentials.exceptions.domerrors.NotAllowedError"];
 const networkTypes = [
   ["ConnectionLost", /network connection was lost/i],
@@ -74,14 +78,17 @@ function parseError(error: unknown) {
     typeof root === "object" && root !== null && "code" in root && typeof root.code === "string" && root.code.length > 0
       ? root.code
       : undefined;
-  const status =
-    typeof root === "object" &&
-    root !== null &&
-    "code" in root &&
-    typeof root.code === "number" &&
-    Number.isFinite(root.code)
-      ? String(root.code)
-      : undefined;
+  let status: string | undefined;
+  for (
+    let cause: unknown = error;
+    cause != null && typeof cause === "object";
+    cause = (cause as { cause?: unknown }).cause
+  ) {
+    if ("code" in cause && typeof cause.code === "number" && Number.isFinite(cause.code)) {
+      status = String(cause.code);
+      break;
+    }
+  }
   const name =
     typeof root === "object" && root !== null && "name" in root && typeof root.name === "string" && root.name.length > 0
       ? root.name
@@ -106,13 +113,14 @@ function parseError(error: unknown) {
 function classify({ code, message, name, reason, revert, status }: ParsedError) {
   const passkeyNotAllowed =
     name === "NotAllowedError" || (message !== undefined && authPrefixes.some((prefix) => message.startsWith(prefix)));
-  const passkeyCancelled = message !== undefined && passkeyCancelledMessages.has(message);
+  const passkeyCancelled =
+    (code !== undefined && passkeyCancelledCodes.has(code)) ||
+    (message !== undefined && passkeyCancelledPatterns.some((pattern) => pattern.test(message)));
   const passkeyKnown =
-    message !== undefined &&
-    (passkeyKnownMessages.has(message) ||
-      message.includes("Biometrics must be enabled") ||
-      message.includes("There is already a pending passkey request") ||
-      authPrefixes.some((prefix) => message.startsWith(prefix)));
+    (code !== undefined && passkeyKnownCodes.has(code)) ||
+    (message !== undefined &&
+      (passkeyKnownPatterns.some((pattern) => pattern.test(message)) ||
+        authPrefixes.some((prefix) => message.startsWith(prefix))));
   const passkeyWarning = passkeyKnown && !passkeyCancelled && !passkeyNotAllowed;
   const biometric = code === "ERR_BIOMETRIC";
   const walletRejected = status === "4001" || status === "5000";

@@ -7,6 +7,8 @@ import { dehydrate, QueryCache, QueryClient, type Query } from "@tanstack/react-
 import { deserialize, serialize } from "wagmi";
 import { hashFn, structuralSharing } from "wagmi/query";
 
+import chain from "@exactly/common/generated/chain";
+
 import reportError from "./reportError";
 import { isAvailable as isOwnerAvailable } from "./wagmi/owner";
 import release from "../generated/release";
@@ -34,6 +36,7 @@ function versionAwareDeserialize(cache: string): PersistedClient {
 }
 
 export const persister = createAsyncStoragePersister({
+  key: `tanstack.${chain.id}`,
   serialize,
   deserialize: versionAwareDeserialize,
   storage: AsyncStorage,

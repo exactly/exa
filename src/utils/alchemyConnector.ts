@@ -68,8 +68,7 @@ export default createConnector<ClientWithAlchemyMethods | SmartAccountClient>(({
     accountClient = undefined;
     if (error) reportError(error);
   },
-  getProvider({ chainId } = {}) {
-    if (chainId && chainId !== chain.id) throw new SwitchChainError(new ChainNotConfiguredError());
+  getProvider() {
     return Promise.resolve(accountClient ?? publicClient);
   },
   getChainId: () => Promise.resolve(chain.id),

@@ -15,7 +15,7 @@ import {
   type TokenAmount,
 } from "@lifi/sdk";
 import { queryOptions } from "@tanstack/react-query";
-import { parse } from "valibot";
+import { array, looseObject, number, object, optional, parse, pipe, record, regex, string } from "valibot";
 import { encodeFunctionData, formatUnits, getAddress, type Address } from "viem";
 import { anvil } from "viem/chains";
 
@@ -33,7 +33,9 @@ export const lifiChainsOptions = queryOptions({
   gcTime: Infinity,
   enabled: !chain.testnet && chain.id !== anvil.id,
   queryFn: async () => {
+    if (chain.testnet || chain.id === anvil.id) return [];
     try {
+      ensureConfig();
       return await getChains({ chainTypes: [ChainType.EVM] });
     } catch (error) {
       reportError(error);
@@ -48,9 +50,11 @@ export const lifiTokensOptions = queryOptions({
   gcTime: Infinity,
   enabled: !chain.testnet && chain.id !== anvil.id,
   queryFn: async () => {
+    if (chain.testnet || chain.id === anvil.id) return [];
     try {
-      const { tokens } = await getTokens({ chainTypes: [ChainType.EVM] });
-      const allTokens = Object.values(tokens).flat();
+      ensureConfig();
+      const { tokens } = await getTokens({ chains: [chain.id] });
+      const allTokens = tokens[chain.id] ?? [];
       if (chain.id !== optimism.id) return allTokens;
       const exa = await getToken(chain.id, "0x1e925De1c68ef83bD98eE3E130eF14a50309C01B").catch((error: unknown) => {
         reportError(error);
@@ -63,28 +67,41 @@ export const lifiTokensOptions = queryOptions({
   },
 });
 
-export function tokenBalancesOptions(account: Address | undefined) {
+export function balancesOptions(account: Address | undefined) {
   return queryOptions({
-    queryKey: ["lifi", "tokenBalances", account],
+    queryKey: ["lifi", "balances", account],
     staleTime: 30_000,
     gcTime: 60_000,
     enabled: !!account && !chain.testnet && chain.id !== anvil.id,
     queryFn: async () => {
-      if (!account) return [];
-      try {
-        const allTokens =
-          queryClient.getQueryData<Token[]>(lifiTokensOptions.queryKey) ??
-          (await queryClient.fetchQuery(lifiTokensOptions));
-        const tokens = allTokens.filter((token) => (token.chainId as number) === chain.id);
-        if (tokens.length === 0) return [];
-        ensureConfig();
-        const balances = await getTokenBalancesByChain(account, { [chain.id]: tokens });
-        return balances[chain.id]?.filter((balance) => balance.amount && balance.amount > 0n) ?? [];
-      } catch (error) {
-        reportError(error);
-        return [];
-      }
+      if (!account) return {} as Record<number, TokenAmount[]>;
+      ensureConfig();
+      const [balances, exa] = await Promise.all([
+        getWalletBalances(account).catch((error: unknown) => {
+          reportError(error);
+          return {} as Record<number, TokenAmount[]>;
+        }),
+        chain.id === optimism.id
+          ? getToken(chain.id, "0x1e925De1c68ef83bD98eE3E130eF14a50309C01B")
+              .then((token) => getTokenBalancesByChain(account, { [chain.id]: [token] }))
+              .then((result) => result[chain.id]?.[0])
+              .catch((error: unknown) => {
+                reportError(error);
+              })
+          : undefined,
+      ]);
+      if (exa) balances[chain.id] = [exa, ...(balances[chain.id] ?? [])];
+      return balances;
     },
+  });
+}
+
+export function bridgeSourcesOptions(account: Address | undefined, protocolSymbols: string[] = []) {
+  return queryOptions({
+    queryKey: ["bridge", "sources", account],
+    queryFn: () => getBridgeSources(account),
+    staleTime: 60_000,
+    enabled: !!account && protocolSymbols.length > 0 && !chain.testnet && chain.id !== anvil.id,
   });
 }
 
@@ -101,8 +118,6 @@ function ensureConfig() {
     },
   });
   configured = true;
-  queryClient.prefetchQuery(lifiTokensOptions).catch(reportError);
-  queryClient.prefetchQuery(lifiChainsOptions).catch(reportError);
 }
 
 export async function getRoute(
@@ -174,16 +189,8 @@ export async function getRoute(
 }
 
 async function getAllTokens(): Promise<Token[]> {
-  ensureConfig();
   if (chain.testnet || chain.id === anvil.id) return [];
-  const response = await getTokens({ chains: [chain.id] });
-  const tokens = response.tokens[chain.id] ?? [];
-  try {
-    const exa = await getToken(chain.id, "0x1e925De1c68ef83bD98eE3E130eF14a50309C01B");
-    return [exa, ...tokens];
-  } catch {
-    return tokens;
-  }
+  return queryClient.getQueryData<Token[]>(lifiTokensOptions.queryKey) ?? queryClient.fetchQuery(lifiTokensOptions);
 }
 
 export async function getAsset(account: Address) {
@@ -194,6 +201,7 @@ export async function getAsset(account: Address) {
 
 export async function getTokenBalances(account: Address) {
   if (chain.testnet || chain.id === anvil.id) return [];
+  ensureConfig();
   const tokens = await getAllTokens();
   const balances = await getTokenBalancesByChain(account, { [chain.id]: tokens });
   return balances[chain.id]?.filter((balance) => balance.amount && balance.amount > 0n) ?? [];
@@ -356,69 +364,68 @@ export async function getRouteFrom({
   };
 }
 
+export type TokenBalance = { balance: bigint; token: Token; usdValue: number };
+
+export function tokenAmountsToBalances(tokenAmounts: TokenAmount[]): TokenBalance[] {
+  return tokenAmounts
+    .filter((token): token is TokenAmount & { amount: bigint } => !!token.amount && token.amount > 0n)
+    .map((token) => {
+      const balance = token.amount;
+      const rawUsd = Number(formatUnits(balance, token.decimals)) * Number(token.priceUSD);
+      const usdValue = Number.isFinite(rawUsd) && rawUsd > 0 ? rawUsd : 0;
+      return { token, balance, usdValue };
+    })
+    .sort((a, b) => {
+      if (b.usdValue !== a.usdValue) return b.usdValue - a.usdValue;
+      return a.token.symbol.localeCompare(b.token.symbol);
+    });
+}
+
 export type BridgeSources = {
-  balancesByChain: Record<number, TokenAmount[]>;
+  balancesByChain: Record<number, TokenBalance[]>;
   chains: ExtendedChain[];
   defaultChainId?: number;
   defaultTokenAddress?: string;
-  ownerAssetsByChain: Record<number, { balance: bigint; token: Token; usdValue: number }[]>;
   tokensByChain: Record<number, Token[]>;
   usdByChain: Record<number, number>;
   usdByToken: Record<string, number>;
 };
 
-export async function getBridgeSources(account?: string, protocolSymbols: string[] = []): Promise<BridgeSources> {
+export async function getBridgeSources(account?: Address): Promise<BridgeSources> {
   ensureConfig();
   if (!account) throw new Error("account is required");
-  const bridgeTokenSymbols = new Set(protocolSymbols);
-  if (bridgeTokenSymbols.size === 0) throw new Error("protocol symbols is required");
-  const supportedChains = await getChains({ chainTypes: [ChainType.EVM] });
-  const chainIds = supportedChains.map((item) => item.id);
-  const { tokens: supportedTokens } = await getTokens({ chainTypes: [ChainType.EVM] });
+  const [supportedChains, destinationTokens, allBalances] = await Promise.all([
+    queryClient.getQueryData<ExtendedChain[]>(lifiChainsOptions.queryKey) ?? queryClient.fetchQuery(lifiChainsOptions),
+    queryClient.getQueryData<Token[]>(lifiTokensOptions.queryKey) ?? queryClient.fetchQuery(lifiTokensOptions),
+    queryClient.fetchQuery(balancesOptions(account)),
+  ]);
 
   const usdByChain: Record<number, number> = {};
   const usdByToken: Record<string, number> = {};
-  const tokensByChain: Record<number, Token[]> = {};
-  const ownerAssetsByChain: Record<number, { balance: bigint; token: Token; usdValue: number }[]> = {};
+  const tokensByChain: Record<number, Token[]> = { [chain.id]: destinationTokens };
+  const balancesByChain: Record<number, TokenBalance[]> = {};
 
-  for (const id of chainIds) {
-    const chainTokens = supportedTokens[id] ?? [];
-    if (chainTokens.length > 0) tokensByChain[id] = chainTokens;
-  }
-
-  const balancesByChain = await getTokenBalancesByChain(
-    account,
-    Object.fromEntries(Object.entries(tokensByChain).map(([id, chainTokens]) => [Number(id), chainTokens])),
-  );
-
-  for (const [chainId, chainTokens] of Object.entries(tokensByChain)) {
+  for (const [chainId, tokenAmounts] of Object.entries(allBalances)) {
     const id = Number(chainId);
-    const tokenAmounts = balancesByChain[id] ?? [];
-    const assets = chainTokens.map((token) => {
-      const balance = tokenAmounts.find((t) => t.address === token.address)?.amount ?? 0n;
-      const key = `${id}:${token.address}`;
-      const usdValue = Number(formatUnits(balance, token.decimals)) * Number(token.priceUSD);
-      usdByToken[key] = usdValue;
-      return { token, balance, usdValue };
-    });
+    const balances = tokenAmountsToBalances(tokenAmounts);
 
-    const relevantAssets = assets
-      .filter(({ usdValue }) => usdValue > 0)
-      .sort((a, b) => {
-        if (b.usdValue !== a.usdValue) return b.usdValue - a.usdValue;
-        return a.token.symbol.localeCompare(b.token.symbol);
-      });
-
-    if (relevantAssets.length > 0) {
-      ownerAssetsByChain[id] = relevantAssets;
+    if (id === chain.id) {
+      for (const { token, usdValue } of balances) {
+        const key = `${id}:${token.address}`;
+        usdByToken[key] = usdValue;
+      }
     }
 
-    const total = relevantAssets.reduce((sum, { usdValue }) => sum + usdValue, 0);
+    if (balances.length > 0) {
+      balancesByChain[id] = balances;
+    }
+
+    const total = balances.reduce((sum, { usdValue }) => sum + usdValue, 0);
     if (total > 0) usdByChain[id] = total;
   }
 
   const chains = [...supportedChains]
-    .filter((c) => (usdByChain[c.id] ?? 0) > 0)
+    .filter((c) => (balancesByChain[c.id]?.length ?? 0) > 0)
     .sort((a, b) => {
       const bValue = usdByChain[b.id] ?? 0;
       const aValue = usdByChain[a.id] ?? 0;
@@ -430,20 +437,70 @@ export async function getBridgeSources(account?: string, protocolSymbols: string
 
   let defaultTokenAddress: string | undefined;
   if (defaultChainId !== undefined) {
-    const assetsForChain = ownerAssetsByChain[defaultChainId] ?? [];
-    defaultTokenAddress = assetsForChain[0]?.token.address;
+    defaultTokenAddress = balancesByChain[defaultChainId]?.[0]?.token.address;
   }
 
   return {
     chains,
     tokensByChain,
-    balancesByChain,
     usdByChain,
     usdByToken,
-    ownerAssetsByChain,
+    balancesByChain,
     defaultChainId,
     defaultTokenAddress,
   };
+}
+
+async function getWalletBalances(account: Address) {
+  const balances: Record<number, TokenAmount[]> = {};
+  const lifiConfig = config.get();
+  let offset: string | undefined;
+  do {
+    const url = new URL(`${lifiConfig.apiUrl}/wallets/${account}/balances`);
+    url.searchParams.set("extended", "true");
+    url.searchParams.set("limit", "1000");
+    if (offset) url.searchParams.set("offset", offset);
+    const response = await fetch(url, {
+      headers: {
+        ...(lifiConfig.apiKey && { "x-lifi-api-key": lifiConfig.apiKey }),
+        ...(lifiConfig.integrator && { "x-lifi-integrator": lifiConfig.integrator }),
+      },
+    });
+    if (!response.ok) throw new Error("wallet balances request failed");
+    const json = parse(
+      object({
+        balances: optional(
+          record(
+            string(),
+            array(
+              looseObject({
+                chainId: number(),
+                address: string(),
+                symbol: string(),
+                decimals: number(),
+                name: string(),
+                priceUSD: optional(string(), "0"),
+                logoURI: optional(string()),
+                amount: pipe(string(), regex(/^\d+$/)),
+              }),
+            ),
+          ),
+        ),
+        offset: optional(string()),
+      }),
+      await response.json(),
+    );
+    for (const [chainId, tokens] of Object.entries(json.balances ?? {})) {
+      const id = Number(chainId);
+      if (!Number.isInteger(id)) continue;
+      balances[id] = [
+        ...(balances[id] ?? []),
+        ...tokens.map(({ amount, ...token }) => ({ ...token, amount: BigInt(amount) })),
+      ];
+    }
+    offset = json.offset;
+  } while (offset);
+  return balances;
 }
 
 export const tokenCorrelation = {

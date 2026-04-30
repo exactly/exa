@@ -1,17 +1,72 @@
-import React from "react";
+import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { selectionAsync } from "expo-haptics";
+import { useRouter } from "expo-router";
+
+import { Info } from "@tamagui/lucide-icons";
 import { XStack, YStack } from "tamagui";
 
-import { parseUnits } from "viem";
-
+import chain from "@exactly/common/generated/chain";
 import { floatingDepositRates } from "@exactly/lib";
 
+import CollateralAssetsSheet from "./CollateralAssetsSheet";
+import reportError from "../../utils/reportError";
 import useMarkets from "../../utils/useMarkets";
-import usePortfolio from "../../utils/usePortfolio";
 import AssetLogo from "../shared/AssetLogo";
+import ChainLogo from "../shared/ChainLogo";
 import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
+import View from "../shared/View";
+
+import type { Address } from "@exactly/common/validation";
+
+export default function AssetList() {
+  const { t } = useTranslation();
+  const router = useRouter();
+  const { markets, rateSnapshot, timestamp } = useMarkets();
+  const [sheetOpen, setSheetOpen] = useState(false);
+
+  const rates = rateSnapshot ? floatingDepositRates(rateSnapshot, Number(timestamp)) : [];
+
+  const collateralAssets =
+    markets
+      ?.map((market) => {
+        const symbol = market.symbol.slice(3) === "WETH" ? "ETH" : market.symbol.slice(3);
+        const rate = rates.find((r: { market: string; rate: bigint }) => r.market === market.market)?.rate;
+        return {
+          symbol,
+          name: symbol,
+          assetName: market.assetName === "Wrapped Ether" ? "Ether" : market.assetName,
+          market: market.market,
+          amount: market.floatingDepositAssets,
+          decimals: market.decimals,
+          usdPrice: market.usdPrice,
+          usdValue: (market.floatingDepositAssets * market.usdPrice) / BigInt(10 ** market.decimals),
+          rate,
+        };
+      })
+      .filter(({ amount, symbol }) => (symbol === "USDC.e" ? amount > 0n : true))
+      .sort((a, b) => Number(b.usdValue) - Number(a.usdValue)) ?? [];
+
+  return (
+    <>
+      <AssetSection
+        title={t("Collateral assets")}
+        assets={collateralAssets}
+        onInfoPress={() => {
+          setSheetOpen(true);
+        }}
+        onSelect={(asset) => {
+          if (!asset.market) return;
+          selectionAsync().catch(reportError);
+          router.push({ pathname: "/send-funds", params: { asset: asset.market as Address } });
+        }}
+      />
+      <CollateralAssetsSheet open={sheetOpen} onClose={() => setSheetOpen(false)} />
+    </>
+  );
+}
 
 type AssetItem = {
   amount: bigint;
@@ -24,7 +79,7 @@ type AssetItem = {
   usdValue: bigint;
 };
 
-function AssetRow({ asset }: { asset: AssetItem }) {
+function AssetRow({ asset, onPress }: { asset: AssetItem; onPress?: () => void }) {
   const {
     t,
     i18n: { language },
@@ -32,9 +87,23 @@ function AssetRow({ asset }: { asset: AssetItem }) {
   const { symbol, amount, decimals, usdValue, usdPrice, rate } = asset;
   const digits = Math.min(8, Math.max(0, decimals - Math.ceil(Math.log10(Math.max(1, Number(usdValue) / 1e18)))));
   return (
-    <XStack alignItems="center" borderColor="$borderNeutralSoft" paddingVertical="$s3_5" gap="$s2" width="100%">
+    <XStack
+      alignItems="center"
+      borderColor="$borderNeutralSoft"
+      paddingVertical="$s3_5"
+      gap="$s2"
+      width="100%"
+      cursor={onPress ? "pointer" : "default"}
+      pressStyle={onPress ? { opacity: 0.7 } : undefined}
+      onPress={onPress}
+    >
       <XStack gap="$s3_5" alignItems="center" flex={1}>
-        <AssetLogo height={32} symbol={symbol} width={32} />
+        <View position="relative">
+          <AssetLogo height={32} symbol={symbol} width={32} />
+          <View position="absolute" bottom={-4} right={-4}>
+            <ChainLogo chainId={chain.id} size={16} borderRadius="$r_0" />
+          </View>
+        </View>
         <YStack gap="$s2" alignItems="flex-start">
           <Text subHeadline color="$uiNeutralPrimary" numberOfLines={1}>
             {symbol}
@@ -86,60 +155,33 @@ function AssetRow({ asset }: { asset: AssetItem }) {
   );
 }
 
-function AssetSection({ title, assets }: { assets: AssetItem[]; title: string }) {
+function AssetSection({
+  title,
+  assets,
+  onSelect,
+  onInfoPress,
+}: {
+  assets: AssetItem[];
+  onInfoPress?: () => void;
+  onSelect?: (asset: AssetItem) => void;
+  title: string;
+}) {
   if (assets.length === 0) return null;
   return (
     <YStack backgroundColor="$backgroundSoft" borderRadius="$r3" padding="$s4" gap="$s3">
-      <Text emphasized headline color="$uiNeutralPrimary">
-        {title}
-      </Text>
+      <XStack alignItems="center" gap="$s2" onPress={onInfoPress}>
+        <Text emphasized headline color="$uiNeutralPrimary">
+          {title}
+        </Text>
+        {onInfoPress ? <Info size={16} color="$interactiveOnBaseBrandSoft" /> : null}
+      </XStack>
       {assets.map((asset) => (
-        <AssetRow key={asset.symbol} asset={asset} />
+        <AssetRow
+          key={asset.symbol}
+          asset={asset}
+          onPress={onSelect && asset.amount > 0n ? () => onSelect(asset) : undefined}
+        />
       ))}
-    </YStack>
-  );
-}
-
-export default function AssetList() {
-  const { t } = useTranslation();
-  const { markets, rateSnapshot, timestamp } = useMarkets();
-  const { externalAssets } = usePortfolio();
-
-  const rates = rateSnapshot ? floatingDepositRates(rateSnapshot, Number(timestamp)) : [];
-
-  const collateralAssets =
-    markets
-      ?.map((market) => {
-        const symbol = market.symbol.slice(3) === "WETH" ? "ETH" : market.symbol.slice(3);
-        const rate = rates.find((r: { market: string; rate: bigint }) => r.market === market.market)?.rate;
-        return {
-          symbol,
-          name: symbol,
-          assetName: market.assetName === "Wrapped Ether" ? "Ether" : market.assetName,
-          market: market.market,
-          amount: market.floatingDepositAssets,
-          decimals: market.decimals,
-          usdPrice: market.usdPrice,
-          usdValue: (market.floatingDepositAssets * market.usdPrice) / BigInt(10 ** market.decimals),
-          rate,
-        };
-      })
-      .filter(({ amount, symbol }) => (symbol === "USDC.e" ? amount > 0n : true))
-      .sort((a, b) => Number(b.usdValue) - Number(a.usdValue)) ?? [];
-
-  const externalAssetItems = externalAssets.map(({ symbol, name, amount, decimals, usdValue, priceUSD }) => ({
-    symbol,
-    name,
-    amount: amount ?? 0n,
-    decimals,
-    usdValue: parseUnits(usdValue.toFixed(18), 18),
-    usdPrice: parseUnits(priceUSD, 18),
-  }));
-
-  return (
-    <YStack gap="$s4">
-      <AssetSection title={t("Collateral Assets")} assets={collateralAssets} />
-      <AssetSection title={t("Other Assets")} assets={externalAssetItems} />
     </YStack>
   );
 }
