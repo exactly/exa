@@ -49,7 +49,11 @@ if (!process.env.PANDA_API_KEY) throw new Error("missing panda api key");
 const key = process.env.PANDA_API_KEY;
 export default key;
 
-export async function createCard(userId: string, productId: typeof PLATINUM_PRODUCT_ID | typeof SIGNATURE_PRODUCT_ID) {
+export async function createCard(
+  userId: string,
+  productId: typeof PLATINUM_PRODUCT_ID | typeof SIGNATURE_PRODUCT_ID,
+  amount = 1_000_000,
+) {
   return await request(
     CardResponse,
     `/issuing/users/${userId}/cards`,
@@ -57,7 +61,7 @@ export async function createCard(userId: string, productId: typeof PLATINUM_PROD
     parse(CreateCardRequest, {
       type: "virtual",
       status: "active",
-      limit: { amount: 1_000_000, frequency: "per7DayPeriod" },
+      limit: { amount, frequency: "per7DayPeriod" },
       configuration: {
         productId,
         virtualCardArt: {

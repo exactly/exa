@@ -18,12 +18,16 @@ import database, { credentials } from "../database/index";
 import auth from "../middleware/auth";
 import decodePublicKey from "../utils/decodePublicKey";
 import {
+  CARD_LIMIT_TEMPLATE,
   createInquiry,
   CRYPTOMATE_TEMPLATE,
   getAccount,
+  getCardLimitStatus,
   getInquiry,
   getPendingInquiryTemplate,
+  getUnknownAccount,
   PANDA_TEMPLATE,
+  parseAccount,
   resumeInquiry,
   scopeValidationErrors,
 } from "../utils/persona";
@@ -41,7 +45,7 @@ export default new Hono()
       "query",
       object({
         countryCode: optional(literal("true")),
-        scope: optional(picklist(["basic", "bridge", "manteca"])),
+        scope: optional(picklist(["basic", "bridge", "cardLimit", "manteca"])),
       }),
       validatorHook(),
     ),
@@ -58,6 +62,45 @@ export default new Hono()
       const account = parse(Address, credential.account);
       setUser({ id: account });
       setContext("exa", { credential });
+
+      if (scope === "cardLimit") {
+        const unknownAccount = c.req.valid("query").countryCode
+          ? await getUnknownAccount(credentialId).catch((error: unknown): undefined => {
+              captureException(error, { level: "error", contexts: { details: { credentialId, scope: "cardLimit" } } });
+            })
+          : undefined;
+        if (unknownAccount) {
+          const countryCode = parseAccount(unknownAccount, "basic")?.attributes["country-code"];
+          countryCode && c.header("User-Country", countryCode);
+        }
+        const cardLimit = await getCardLimitStatus(credentialId, unknownAccount);
+
+        switch (cardLimit.status) {
+          case "resolved":
+            return c.json({ code: "ok" }, 200);
+          case "approved":
+            captureException(new Error("inquiry approved but account not updated"), {
+              level: "error",
+              contexts: { inquiry: { templateId: CARD_LIMIT_TEMPLATE, referenceId: credentialId } },
+            });
+            return c.json({ code: "ok" }, 200);
+          case "noTemplate":
+            return c.json({ code: "no kyc" }, 400);
+          case "noInquiry":
+          case "created":
+          case "pending":
+          case "expired":
+            return c.json({ code: "not started" }, 400);
+          case "completed":
+          case "needs_review":
+            return c.json({ code: "processing" }, 400);
+          case "failed":
+          case "declined":
+            return c.json({ code: "bad kyc" }, 400);
+          default:
+            throw new Error("unknown inquiry status");
+        }
+      }
 
       if (scope === "basic" && credential.pandaId) {
         if (c.req.valid("query").countryCode) {
@@ -108,12 +151,12 @@ export default new Hono()
           return c.json({ code: "not started", legacy: "kyc not started" }, 400);
         case "completed":
         case "needs_review":
-          return c.json({ code: "bad kyc", legacy: "kyc not approved" }, 400); // TODO send a different response for this transitory statuses
+          return c.json({ code: "processing", legacy: "kyc not approved" }, 400);
         case "failed":
         case "declined":
           return c.json({ code: "bad kyc", legacy: "kyc not approved" }, 400);
         default:
-          throw new Error("Unknown inquiry status");
+          throw new Error("unknown inquiry status");
       }
     },
   )
@@ -124,7 +167,7 @@ export default new Hono()
       "json",
       object({
         redirectURI: optional(string()),
-        scope: optional(picklist(["basic", "bridge", "manteca"])),
+        scope: optional(picklist(["basic", "bridge", "cardLimit", "manteca"])),
       }),
       validatorHook({ debug }),
     ),
@@ -140,6 +183,51 @@ export default new Hono()
       if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
       setUser({ id: parse(Address, credential.account) });
       setContext("exa", { credential });
+
+      if (scope === "cardLimit") {
+        const cardLimit = await getCardLimitStatus(credentialId);
+        switch (cardLimit.status) {
+          case "resolved":
+            return c.json({ code: "already approved" }, 400);
+          case "approved":
+            captureException(new Error("inquiry approved but account not updated"), {
+              level: "error",
+              contexts: { inquiry: { templateId: CARD_LIMIT_TEMPLATE, referenceId: credentialId } },
+            });
+            return c.json({ code: "already approved" }, 400);
+          case "noTemplate":
+            return c.json({ code: "not started" }, 400);
+          case "noInquiry": {
+            const basicAccount = await getAccount(credentialId, "basic").catch((error: unknown) => {
+              captureException(error, { level: "error", contexts: { details: { credentialId, scope: "cardLimit" } } });
+            });
+            const { data } = await createInquiry(
+              credentialId,
+              CARD_LIMIT_TEMPLATE,
+              redirectURI,
+              basicAccount
+                ? {
+                    "name-first": basicAccount.attributes["name-first"],
+                    "name-last": basicAccount.attributes["name-last"],
+                  }
+                : undefined,
+            );
+            return c.json(await generateInquiryTokens(data.id), 200);
+          }
+          case "completed":
+          case "needs_review":
+            return c.json({ code: "processing" }, 400);
+          case "pending":
+          case "created":
+          case "expired":
+            return c.json(await generateInquiryTokens(cardLimit.id), 200);
+          case "failed":
+          case "declined":
+            return c.json({ code: "failed" }, 400);
+          default:
+            throw new Error("unknown inquiry status");
+        }
+      }
 
       let inquiryTemplateId: Awaited<ReturnType<typeof getPendingInquiryTemplate>>;
       try {
@@ -157,8 +245,7 @@ export default new Hono()
       const inquiry = await getInquiry(credentialId, inquiryTemplateId);
       if (!inquiry) {
         const { data } = await createInquiry(credentialId, inquiryTemplateId, redirectURI);
-        const { inquiryId, sessionToken } = await generateInquiryTokens(data.id);
-        return c.json({ inquiryId, sessionToken }, 200);
+        return c.json(await generateInquiryTokens(data.id), 200);
       }
 
       switch (inquiry.attributes.status) {
@@ -173,15 +260,13 @@ export default new Hono()
           return c.json({ code: "failed", legacy: "kyc failed" }, 400);
         case "completed":
         case "needs_review":
-          return c.json({ code: "failed", legacy: "kyc failed" }, 400); // TODO send a different response
+          return c.json({ code: "processing", legacy: "kyc failed" }, 400);
         case "pending":
         case "created":
-        case "expired": {
-          const { inquiryId, sessionToken } = await generateInquiryTokens(inquiry.id);
-          return c.json({ inquiryId, sessionToken }, 200);
-        }
+        case "expired":
+          return c.json(await generateInquiryTokens(inquiry.id), 200);
         default:
-          throw new Error("Unknown inquiry status");
+          throw new Error("unknown inquiry status");
       }
     },
   );
