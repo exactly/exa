@@ -27,9 +27,7 @@ import type { UnofficialStatusCode } from "hono/utils/http-status";
 
 const app = new Hono();
 app.use(trimTrailingSlash());
-
 app.route("/api", api);
-
 app.route("/hooks/activity", activityHook);
 app.route("/hooks/block", block);
 app.route("/hooks/bridge", bridge);
