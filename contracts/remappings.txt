@@ -9,10 +9,12 @@ webauthn-owner-plugin/=node_modules/webauthn-owner-plugin/src
 webauthn-sol/=node_modules/webauthn-sol/src
 
 @exactly/protocol/=node_modules/@exactly/protocol/contracts/
+node_modules/@exactly/protocol/:@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/
 @openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable-v4/
 @openzeppelin/contracts-upgradeable-v4/=node_modules/@openzeppelin/contracts-upgradeable-v4/
 @openzeppelin/contracts-v4/=node_modules/@openzeppelin/contracts-v4/
 @openzeppelin/contracts/=node_modules/@openzeppelin/contracts-v4/
+@hyperlane-xyz/=node_modules/@hyperlane-xyz/
 account-abstraction/=node_modules/account-abstraction/contracts/
 forge-std/=node_modules/forge-std/src/
 solmate/=node_modules/solmate/
