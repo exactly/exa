@@ -86,24 +86,17 @@ export default function Review() {
     marketAddress: market,
   });
 
-  const installmentsAmount = singleInstallment
+  const totalAmount = singleInstallment
     ? (borrow?.assets ?? 0n)
+    : (split?.installments.reduce((accumulator, current) => accumulator + current, 0n) ?? 0n);
+
+  const installmentsAmount = singleInstallment
+    ? totalAmount
     : split
-      ? split.installments.reduce((accumulator, current) => accumulator + current, 0n) /
-        BigInt(split.installments.length)
+      ? totalAmount / BigInt(split.installments.length)
       : 0n;
 
-  const totalAmount = borrow
-    ? borrow.assets
-    : split
-      ? split.installments.reduce((accumulator, current) => accumulator + current, 0n)
-      : 0n;
-
-  const feeAmount = borrow
-    ? borrow.assets - (amount ?? 0n)
-    : split
-      ? split.installments.reduce((accumulator, current) => accumulator + current, 0n) - (amount ?? 0n)
-      : 0n;
+  const feeAmount = totalAmount === 0n ? 0n : totalAmount - (amount ?? 0n);
 
   const { mutateAsync: mutateSendCalls } = useSendCalls();
   const {
@@ -165,10 +158,10 @@ export default function Review() {
       }),
     [maturity, language],
   );
-  const rate = borrow
-    ? Number(
-        ((borrow.assets - (amount ?? 0n)) * WAD * 31_536_000n) / ((amount ?? 0n) * (borrow.maturity - timestamp)),
-      ) / 1e18
+  const rate = singleInstallment
+    ? borrow && amount
+      ? Number((feeAmount * WAD * 31_536_000n) / (amount * (borrow.maturity - timestamp))) / 1e18
+      : 0
     : split
       ? Number(split.effectiveRate) / 1e18
       : 0;
@@ -283,10 +276,7 @@ export default function Review() {
                     <XStack alignItems="center" gap="$s2">
                       <AssetLogo height={16} symbol={symbol} width={16} />
                       <Text title3 color="$uiNeutralPrimary">
-                        {(
-                          Number(singleInstallment ? totalAmount : installmentsAmount) /
-                          10 ** (assetMarket?.decimals ?? 6)
-                        ).toLocaleString(language, {
+                        {(Number(installmentsAmount) / 10 ** (assetMarket?.decimals ?? 6)).toLocaleString(language, {
                           minimumFractionDigits: 2,
                           maximumFractionDigits: 2,
                         })}

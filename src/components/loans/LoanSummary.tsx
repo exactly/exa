@@ -75,7 +75,7 @@ export default function LoanSummary({ loan }: { loan: Loan }) {
             <AssetLogo height={16} symbol={symbol} width={16} />
             <Text title3>
               {!isBorrow && installments
-                ? (Number(installments.amounts.reduce((a, b) => a + b, 0n)) / 1e6).toLocaleString(language, {
+                ? (Number(installments.installments.reduce((a, b) => a + b, 0n)) / 1e6).toLocaleString(language, {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
                   })
