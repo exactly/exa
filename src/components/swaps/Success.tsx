@@ -136,6 +136,8 @@ export default function Success({
   );
 }
 
-const invalidateSwap = () => void queryClient.invalidateQueries({ queryKey: ["swap"] }).catch(reportError);
+function invalidateSwap() {
+  queryClient.invalidateQueries({ queryKey: ["swap"] }).catch(reportError);
+}
 
 const StyledGradient = styled(LinearGradient, {});
