@@ -193,25 +193,6 @@ export async function getRoute(
   };
 }
 
-async function getAllTokens(): Promise<Token[]> {
-  if (chain.testnet || chain.id === anvil.id) return [];
-  return queryClient.getQueryData<Token[]>(lifiTokensOptions.queryKey) ?? queryClient.fetchQuery(lifiTokensOptions);
-}
-
-export async function getAsset(account: Address) {
-  if (chain.testnet || chain.id === anvil.id) return;
-  const tokens = await getAllTokens();
-  return tokens.find((token) => token.address === account);
-}
-
-export async function getTokenBalances(account: Address) {
-  if (chain.testnet || chain.id === anvil.id) return [];
-  ensureConfig();
-  const tokens = await getAllTokens();
-  const balances = await getTokenBalancesByChain(account, { [chain.id]: tokens });
-  return balances[chain.id]?.filter((balance) => balance.amount && balance.amount > 0n) ?? [];
-}
-
 const allowList = new Set([
   "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
   "0x4200000000000000000000000000000000000042",
