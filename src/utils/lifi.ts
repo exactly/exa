@@ -405,7 +405,9 @@ export async function getBridgeSources(account?: Address): Promise<BridgeSources
 
   const usdByChain: Record<number, number> = {};
   const usdByToken: Record<string, number> = {};
-  const tokensByChain: Record<number, Token[]> = { [chain.id]: destinationTokens };
+  const tokensByChain: Record<number, Token[]> = {
+    [chain.id]: destinationTokens.filter((token) => (token.chainId as number) === chain.id),
+  };
   const balancesByChain: Record<number, TokenBalance[]> = {};
 
   for (const [chainId, tokenAmounts] of Object.entries(allBalances)) {
