@@ -387,7 +387,7 @@ export type BridgeSources = {
   chains: ExtendedChain[];
   defaultChainId?: number;
   defaultTokenAddress?: string;
-  tokensByChain: Record<number, Token[]>;
+  destinationTokens: Token[];
   usdByChain: Record<number, number>;
   usdByToken: Record<string, number>;
 };
@@ -395,7 +395,7 @@ export type BridgeSources = {
 export async function getBridgeSources(account?: Address): Promise<BridgeSources> {
   ensureConfig();
   if (!account) throw new Error("account is required");
-  const [supportedChains, destinationTokens, allBalances] = await Promise.all([
+  const [supportedChains, allTokens, allBalances] = await Promise.all([
     queryClient.getQueryData<ExtendedChain[]>(lifiChainsOptions.queryKey) ?? queryClient.fetchQuery(lifiChainsOptions),
     queryClient.getQueryData<Token[]>(lifiTokensOptions.queryKey) ?? queryClient.fetchQuery(lifiTokensOptions),
     queryClient.fetchQuery(balancesOptions(account)),
@@ -403,7 +403,7 @@ export async function getBridgeSources(account?: Address): Promise<BridgeSources
 
   const usdByChain: Record<number, number> = {};
   const usdByToken: Record<string, number> = {};
-  const tokensByChain: Record<number, Token[]> = { [chain.id]: destinationTokens };
+  const destinationTokens = allTokens.filter((token) => (token.chainId as number) === chain.id);
   const balancesByChain: Record<number, TokenBalance[]> = {};
 
   for (const [chainId, tokenAmounts] of Object.entries(allBalances)) {
@@ -443,7 +443,7 @@ export async function getBridgeSources(account?: Address): Promise<BridgeSources
 
   return {
     chains,
-    tokensByChain,
+    destinationTokens,
     usdByChain,
     usdByToken,
     balancesByChain,
