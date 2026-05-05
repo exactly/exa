@@ -39,6 +39,7 @@ interface IExaAccount {
   ) external;
   function poke(IMarket market) external;
   function pokeETH() external;
+  function spendCollateral(IMarket market, uint256 amount, address receiver, bytes calldata signature) external;
 }
 
 interface IProposalManager {

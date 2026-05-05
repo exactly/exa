@@ -97,6 +97,7 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
   bytes32 public callHash;
   bytes32 private flashLoaning;
   address private uninstalling;
+  mapping(address account => uint256 nonce) public spendNonces;
 
   constructor(Parameters memory p) {
     USDC = IERC20(p.exaUSDC.asset());
@@ -279,6 +280,41 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
     _poke(EXA_WETH);
   }
 
+  function spendCollateral(IMarket market, uint256 amount, address receiver, bytes calldata signature) external {
+    _checkMarket(market);
+
+    uint256 nonce = spendNonces[msg.sender];
+    spendNonces[msg.sender] = nonce + 1;
+    bytes32 digest = keccak256(
+        abi.encode(
+          keccak256( // solhint-disable-line gas-small-strings
+            "SpendCollateral(uint256 chainId,address plugin,address account,address market,uint256 amount,address receiver,uint256 nonce)"
+          ),
+          block.chainid,
+          address(this),
+          msg.sender,
+          market,
+          amount,
+          receiver,
+          nonce
+        )
+      ).toEthSignedMessageHash();
+    if (!hasRole(KEEPER_ROLE, digest.recoverCalldata(signature))) revert Unauthorized();
+
+    callHash = keccak256(abi.encode(market, IERC4626.withdraw.selector, amount, address(this), msg.sender))
+      & ~bytes32(uint256(1));
+    _withdrawFromSender(market, amount, address(this));
+    // slither-disable-next-line reentrancy-benign -- markets are safe
+    delete callHash;
+
+    if (market == EXA_WETH) {
+      WETH.withdraw(amount);
+      receiver.safeTransferETH(amount);
+    } else {
+      IERC20(market.asset()).safeTransfer(receiver, amount);
+    }
+  }
+
   function receiveFlashLoan(IERC20[] calldata, uint256[] calldata, uint256[] calldata, bytes calldata) external {
     // solhint-disable avoid-low-level-calls
     // slither-disable-next-line controlled-delegatecall,low-level-calls -- extension is safe
@@ -327,7 +363,7 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
   /// @inheritdoc BasePlugin
   // solhint-disable-next-line function-max-lines
   function pluginManifest() external pure override returns (PluginManifest memory manifest) {
-    bytes4[] memory executionFunctions = new bytes4[](13);
+    bytes4[] memory executionFunctions = new bytes4[](14);
     executionFunctions[0] = this.swap.selector;
     executionFunctions[1] = this.propose.selector;
     executionFunctions[2] = this.executeProposal.selector;
@@ -341,6 +377,7 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
     executionFunctions[10] = this.collectInstallments.selector;
     executionFunctions[11] = this.poke.selector;
     executionFunctions[12] = this.pokeETH.selector;
+    executionFunctions[13] = this.spendCollateral.selector;
     manifest.executionFunctions = executionFunctions;
 
     ManifestFunction memory selfRuntimeValidationFunction = ManifestFunction({
@@ -359,7 +396,7 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
       dependencyIndex: 0
     });
 
-    ManifestAssociatedFunction[] memory runtimeValidationFunctions = new ManifestAssociatedFunction[](13);
+    ManifestAssociatedFunction[] memory runtimeValidationFunctions = new ManifestAssociatedFunction[](14);
     runtimeValidationFunctions[0] = ManifestAssociatedFunction({
       executionSelector: IExaAccount.swap.selector, associatedFunction: selfRuntimeValidationFunction
     });
@@ -402,6 +439,9 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
     });
     runtimeValidationFunctions[12] = ManifestAssociatedFunction({
       executionSelector: IExaAccount.pokeETH.selector, associatedFunction: keeperRuntimeValidationFunction
+    });
+    runtimeValidationFunctions[13] = ManifestAssociatedFunction({
+      executionSelector: IExaAccount.spendCollateral.selector, associatedFunction: selfRuntimeValidationFunction
     });
     manifest.runtimeValidationFunctions = runtimeValidationFunctions;
 

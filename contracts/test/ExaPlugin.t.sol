@@ -3781,6 +3781,91 @@ contract ExaPluginTest is ForkTest {
     assertEq(proposalManager.queueNonces(address(account)), queueNonce, "queue nonce didn't stay the same");
   }
 
+  function test_userOp_spendCollateral_succeeds() external {
+    vm.prank(keeper);
+    account.poke(exaUSDC);
+
+    address receiver = address(0x420);
+    uint256 amount = 1000e6;
+    uint256 prevBalance = usdc.balanceOf(receiver);
+    uint256 prevShares = exaUSDC.balanceOf(address(account));
+
+    UserOperation[] memory userOps = new UserOperation[](1);
+    userOps[0] = _op(_spendCall(exaUSDC, amount, receiver, keeperKey), ownerKey);
+
+    ENTRYPOINT.handleOps(userOps, payable(address(0x1)));
+
+    assertEq(usdc.balanceOf(receiver), prevBalance + amount, "receiver balance != expected");
+    assertLt(exaUSDC.balanceOf(address(account)), prevShares, "account shares != expected");
+    assertEq(exaPlugin.spendNonces(address(account)), 1, "nonce != expected");
+  }
+
+  function test_userOp_spendCollateral_succeeds_forETHCollateral() external {
+    vm.prank(keeper);
+    account.pokeETH();
+    vm.deal(address(account), 1 ether);
+
+    address receiver = address(0x420);
+    uint256 amount = 1 ether;
+    uint256 prevBalance = receiver.balance;
+
+    UserOperation[] memory userOps = new UserOperation[](1);
+    userOps[0] = _op(_spendCall(exaWETH, amount, receiver, keeperKey), ownerKey);
+
+    ENTRYPOINT.handleOps(userOps, payable(address(0x1)));
+
+    assertEq(receiver.balance, prevBalance + amount, "receiver did not receive ETH");
+  }
+
+  function test_userOp_spendCollateral_reverts_whenSignerLacksKeeperRole() external {
+    vm.prank(keeper);
+    account.poke(exaUSDC);
+
+    (, uint256 attackerKey) = makeAddrAndKey("attacker");
+
+    UserOperation[] memory userOps = new UserOperation[](1);
+    userOps[0] = _op(_spendCall(exaUSDC, 1000e6, address(0x420), attackerKey), ownerKey);
+
+    vm.expectEmit(true, true, true, true, address(ENTRYPOINT));
+    emit UserOperationRevertReason(
+      ENTRYPOINT.getUserOpHash(userOps[0]), address(account), 0, abi.encodeWithSelector(Unauthorized.selector)
+    );
+    ENTRYPOINT.handleOps(userOps, payable(address(0x1)));
+  }
+
+  function test_userOp_spendCollateral_reverts_whenReplayed() external {
+    vm.prank(keeper);
+    account.poke(exaUSDC);
+
+    bytes memory call = _spendCall(exaUSDC, 1000e6, address(0x420), keeperKey);
+
+    UserOperation[] memory userOps = new UserOperation[](1);
+    userOps[0] = _op(call, ownerKey);
+    ENTRYPOINT.handleOps(userOps, payable(address(0x1)));
+
+    userOps[0] = _op(call, ownerKey);
+    vm.expectEmit(true, true, true, true, address(ENTRYPOINT));
+    emit UserOperationRevertReason(
+      ENTRYPOINT.getUserOpHash(userOps[0]), address(account), 1, abi.encodeWithSelector(Unauthorized.selector)
+    );
+    ENTRYPOINT.handleOps(userOps, payable(address(0x1)));
+  }
+
+  function test_spendCollateral_reverts_withoutSignedUserOp() external {
+    bytes memory signature = _spendSignature(exaUSDC, 1000e6, keeper, keeperKey);
+
+    vm.prank(keeper);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        UpgradeableModularAccount.RuntimeValidationFunctionReverted.selector,
+        exaPlugin,
+        FunctionId.RUNTIME_VALIDATION_SELF,
+        abi.encodeWithSelector(Unauthorized.selector)
+      )
+    );
+    account.spendCollateral(exaUSDC, 1000e6, keeper, signature);
+  }
+
   // solhint-enable func-name-mixedcase
 
   function _issuerOp(uint256 amount, uint256 timestamp) internal view returns (bytes memory signature) {
@@ -3893,6 +3978,45 @@ contract ExaPluginTest is ForkTest {
   function _sign(uint256 privateKey, bytes32 digest) internal pure returns (bytes memory) {
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
     return abi.encodePacked(r, s, v);
+  }
+
+  function _spendSignature(IMarket market, uint256 amount, address receiver, uint256 signerKey)
+    internal
+    view
+    returns (bytes memory)
+  {
+    bytes32 digest = keccak256(
+      abi.encode(
+        keccak256( // solhint-disable-line gas-small-strings
+          "SpendCollateral(uint256 chainId,address plugin,address account,address market,uint256 amount,address receiver,uint256 nonce)"
+        ),
+        block.chainid,
+        address(exaPlugin),
+        address(account),
+        market,
+        amount,
+        receiver,
+        exaPlugin.spendNonces(address(account))
+      )
+    );
+    return _sign(signerKey, ECDSA.toEthSignedMessageHash(digest));
+  }
+
+  function _spendCall(IMarket market, uint256 amount, address receiver, uint256 signerKey)
+    internal
+    view
+    returns (bytes memory)
+  {
+    return abi.encodeCall(
+      UpgradeableModularAccount.execute,
+      (
+        address(account),
+        0,
+        abi.encodeCall(
+          IExaAccount.spendCollateral, (market, amount, receiver, _spendSignature(market, amount, receiver, signerKey))
+        )
+      )
+    );
   }
 
   function _unsignedOp(bytes memory callData, uint256 index) internal view returns (UserOperation memory op) {
