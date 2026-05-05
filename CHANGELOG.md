@@ -1,5 +1,16 @@
 # @exactly/mobile
 
+## 1.2.6
+
+### Patch Changes
+
+- [#994](https://github.com/exactly/exa/pull/994) [`0e918e9`](https://github.com/exactly/exa/commit/0e918e9a42926fd9fca28179685a6f53506d1605) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 route owner rpc through alchemy
+
+- [#999](https://github.com/exactly/exa/pull/999) [`fd77e1b`](https://github.com/exactly/exa/commit/fd77e1b1e679bee9d58de5be09ee1129dbb3cd2a) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix loan totals calculation
+
+- Updated dependencies [[`8e35a6d`](https://github.com/exactly/exa/commit/8e35a6d17286da1f52d77964861542cd1e16e752), [`58365d3`](https://github.com/exactly/exa/commit/58365d372f223226d5e83ad842804829e0ca5798)]:
+  - @exactly/server@0.2.91
+
 ## 1.2.5
 
 ### Patch Changes

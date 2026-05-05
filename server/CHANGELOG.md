@@ -1,5 +1,13 @@
 # @exactly/server
 
+## 0.2.91
+
+### Patch Changes
+
+- [#949](https://github.com/exactly/exa/pull/949) [`8e35a6d`](https://github.com/exactly/exa/commit/8e35a6d17286da1f52d77964861542cd1e16e752) Thanks [@aguxez](https://github.com/aguxez)! - ✨ add card provisioning
+
+- [#991](https://github.com/exactly/exa/pull/991) [`58365d3`](https://github.com/exactly/exa/commit/58365d372f223226d5e83ad842804829e0ca5798) Thanks [@nfmelendez](https://github.com/nfmelendez)! - ✨ add panda signature
+
 ## 0.2.90
 
 ### Patch Changes
