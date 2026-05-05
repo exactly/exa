@@ -166,7 +166,7 @@ export default function Bridge() {
   const isTransfer = isSameChain && !isExaSender;
   const isNativeSource = source?.address === zeroAddress;
 
-  const destinationTokens = useMemo(() => bridge?.tokensByChain[chain.id] ?? [], [bridge?.tokensByChain]);
+  const destinationTokens = useMemo(() => bridge?.destinationTokens ?? [], [bridge?.destinationTokens]);
 
   const effectiveDestinationAddress = useMemo(() => {
     if (!sourceTokenAddress) return;
