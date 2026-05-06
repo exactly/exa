@@ -135,7 +135,7 @@ export default function CardDetails({ open, onClose }: { onClose: () => void; op
                         headline
                         letterSpacing={2}
                         mono
-                        color={card.productId === PLATINUM_PRODUCT_ID ? "uiNeutralInversePrimary" : "white"}
+                        color={card.productId === PLATINUM_PRODUCT_ID ? "$uiNeutralInversePrimary" : "white"}
                       >
                         {`${card.expirationMonth}/${card.expirationYear.length === 4 ? card.expirationYear.slice(-2) : card.expirationYear}`}
                       </Text>
@@ -153,7 +153,7 @@ export default function CardDetails({ open, onClose }: { onClose: () => void; op
                         headline
                         letterSpacing={2}
                         mono
-                        color={card.productId === PLATINUM_PRODUCT_ID ? "uiNeutralInversePrimary" : "white"}
+                        color={card.productId === PLATINUM_PRODUCT_ID ? "$uiNeutralInversePrimary" : "white"}
                       >
                         {details.cvc}
                       </Text>
@@ -164,7 +164,7 @@ export default function CardDetails({ open, onClose }: { onClose: () => void; op
                       emphasized
                       headline
                       letterSpacing={2}
-                      color={card.productId === PLATINUM_PRODUCT_ID ? "uiNeutralInversePrimary" : "white"}
+                      color={card.productId === PLATINUM_PRODUCT_ID ? "$uiNeutralInversePrimary" : "white"}
                     >
                       {card.displayName}
                     </Text>
