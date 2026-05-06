@@ -51,19 +51,14 @@ export const lifiTokensOptions = queryOptions({
   enabled: !chain.testnet && chain.id !== anvil.id,
   queryFn: async () => {
     if (chain.testnet || chain.id === anvil.id) return [];
-    try {
-      ensureConfig();
-      const { tokens } = await getTokens({ chainTypes: [ChainType.EVM] });
-      const allTokens = Object.values(tokens).flat();
-      if (chain.id !== infra.optimism.id) return allTokens;
-      const exa = await getToken(chain.id, "0x1e925De1c68ef83bD98eE3E130eF14a50309C01B").catch((error: unknown) => {
-        reportError(error);
-      });
-      return exa ? [exa, ...allTokens.filter((t) => t.address.toLowerCase() !== exa.address.toLowerCase())] : allTokens;
-    } catch (error) {
+    ensureConfig();
+    const { tokens } = await getTokens({ chainTypes: [ChainType.EVM] });
+    const allTokens = Object.values(tokens).flat();
+    if (chain.id !== infra.optimism.id) return allTokens;
+    const exa = await getToken(chain.id, "0x1e925De1c68ef83bD98eE3E130eF14a50309C01B").catch((error: unknown) => {
       reportError(error);
-      return [] as Token[];
-    }
+    });
+    return exa ? [exa, ...allTokens.filter((t) => t.address.toLowerCase() !== exa.address.toLowerCase())] : allTokens;
   },
 });
 
