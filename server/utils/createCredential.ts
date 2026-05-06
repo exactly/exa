@@ -1,4 +1,6 @@
-import { captureException, setUser } from "@sentry/core";
+import { SPAN_STATUS_ERROR } from "@sentry/core";
+import { addBreadcrumb, captureException, setUser, startSpan } from "@sentry/node";
+import { Queue, Worker, type Job } from "bullmq";
 import { setSignedCookie } from "hono/cookie";
 import { parse } from "valibot";
 import { hexToBytes, isAddress } from "viem";
@@ -9,9 +11,10 @@ import domain from "@exactly/common/domain";
 import { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
-import { updateWebhookAddresses } from "./alchemy";
+import { headers } from "./alchemy";
 import authSecret from "./authSecret";
 import decodePublicKey from "./decodePublicKey";
+import { queue as redisConnection } from "./redis";
 import { customer } from "./sardine";
 import { identify } from "./segment";
 import database from "../database";
@@ -26,6 +29,8 @@ export default async function createCredential<C extends string>(
   credentialId: C,
   options?: { source?: string; webauthn?: WebAuthnCredential },
 ) {
+  if (!webhookId) throw new WebhookNotReadyError();
+
   const publicKey =
     options?.webauthn?.publicKey ?? (isAddress(credentialId) ? new Uint8Array(hexToBytes(credentialId)) : undefined);
   if (!publicKey) throw new Error("bad credential");
@@ -45,6 +50,7 @@ export default async function createCredential<C extends string>(
       source: options?.source,
     },
   ]);
+
   await Promise.all([
     setSignedCookie(c, "credential_id", credentialId, authSecret, {
       expires,
@@ -53,7 +59,6 @@ export default async function createCredential<C extends string>(
         ? { sameSite: "lax", secure: false }
         : { domain, sameSite: "none", secure: true, partitioned: true }),
     }),
-    updateWebhookAddresses(webhookId, [account]).catch((error: unknown) => captureException(error)),
     customer({
       flow: { name: "signup", type: "signup" },
       customer: {
@@ -62,6 +67,78 @@ export default async function createCredential<C extends string>(
       },
     }).catch((error: unknown) => captureException(error, { level: "error" })),
   ]);
+
+  queue.add("create", { account, webhookId }).catch((error: unknown) =>
+    captureException(error, {
+      level: "error",
+      extra: { job: "create", account, webhookId, credentialId },
+    }),
+  );
+
   identify({ userId: account });
   return { credentialId, factory: parse(Address, exaAccountFactoryAddress), x, y, auth: expires.getTime() };
+}
+
+const queueName = "account";
+
+export const queue = new Queue(queueName, { connection: redisConnection });
+
+export const worker = new Worker(
+  queueName,
+  (job: Job<{ account: Address; webhookId: string }>) =>
+    startSpan(
+      { name: "credential.processor", op: "queue.process", attributes: { job: job.name, ...job.data } },
+      async (span) => {
+        switch (job.name) {
+          case "create": {
+            const response = await fetch("https://dashboard.alchemy.com/api/update-webhook-addresses", {
+              method: "PATCH",
+              headers,
+              body: JSON.stringify({
+                webhook_id: job.data.webhookId,
+                addresses_to_add: [job.data.account],
+                addresses_to_remove: [],
+              }),
+            });
+            if (!response.ok) {
+              const text = await response.text();
+              span.setStatus({ code: SPAN_STATUS_ERROR, message: text });
+              throw new Error(`${response.status} ${text}`);
+            }
+            break;
+          }
+          default: {
+            const message = `Unknown job name: ${job.name}`;
+            span.setStatus({ code: SPAN_STATUS_ERROR, message });
+            throw new Error(message);
+          }
+        }
+      },
+    ),
+  { connection: redisConnection, limiter: { max: 10, duration: 1000 } },
+);
+
+worker
+  .on("failed", (job, error) => {
+    captureException(error, { level: "error", extra: { job: job?.data } });
+  })
+  .on("completed", (job) => {
+    addBreadcrumb({ category: "queue", message: `Job ${job.id} completed`, level: "info", data: { job: job.data } });
+  })
+  .on("active", (job) => {
+    addBreadcrumb({ category: "queue", message: `Job ${job.id} active`, level: "info", data: { job: job.data } });
+  })
+  .on("error", (error) => {
+    captureException(error, { level: "error", tags: { queue: queueName } });
+  });
+
+export async function closeQueue() {
+  await Promise.all([worker.close(), queue.close()]);
+}
+
+export class WebhookNotReadyError extends Error {
+  constructor() {
+    super("alchemy webhook not initialized yet, retry credential creation");
+    this.name = "WebhookNotReadyError";
+  }
 }

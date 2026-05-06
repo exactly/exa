@@ -1,4 +1,4 @@
-import "../mocks/alchemy";
+import { findWebhook as findWebhookMock } from "../mocks/alchemy";
 import "../mocks/deployments";
 import "../mocks/keeper";
 import "../mocks/onesignal";
@@ -1177,3 +1177,23 @@ const mockERC20Abi = [
     stateMutability: "nonpayable",
   },
 ] as const;
+
+describe("webhook initialization", () => {
+  beforeEach(() => vi.resetModules());
+
+  it("sets webhookId when existing hook is found", async () => {
+    vi.mocked(findWebhookMock).mockResolvedValueOnce({ id: "existing-hook-id", signing_key: "existing-signing-key" });
+    const activity = await import("../../hooks/activity");
+    await vi.waitUntil(() => activity.webhookId === "existing-hook-id", 5000);
+    expect(activity.webhookId).toBe("existing-hook-id");
+  });
+
+  it("captures exception when webhook initialization fails", async () => {
+    const error = new Error("alchemy error");
+    vi.mocked(findWebhookMock).mockRejectedValueOnce(error);
+    const { captureException: ce } = await import("@sentry/node");
+    await import("../../hooks/activity");
+    await vi.waitUntil(() => vi.mocked(ce).mock.calls.some(([error_]) => error_ === error), 5000);
+    expect(ce).toHaveBeenCalledWith(error, { level: "error" });
+  });
+});
