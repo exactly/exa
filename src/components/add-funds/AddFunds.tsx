@@ -78,7 +78,7 @@ export default function AddFunds() {
     }
     if (!providers) return null;
     return (
-      <YStack gap="$s4">
+      <YStack gap="$s3_5">
         {Object.entries(providers).flatMap(([providerKey, provider]) =>
           provider.onramp.currencies
             .filter((item) => (filter === "crypto") === (typeof item === "object"))
