@@ -1,5 +1,54 @@
 # @exactly/mobile
 
+## 1.2.7
+
+### Patch Changes
+
+- [#922](https://github.com/exactly/exa/pull/922) [`34a7d69`](https://github.com/exactly/exa/commit/34a7d690607fc2edd93559796289bd449cbcf608) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 use unified auth error classification
+
+- [#922](https://github.com/exactly/exa/pull/922) [`ba5d22a`](https://github.com/exactly/exa/commit/ba5d22ad8e1052b855293ab1eec86d64223b2791) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 improve repay disabled button condition
+
+- [#922](https://github.com/exactly/exa/pull/922) [`c5f3b48`](https://github.com/exactly/exa/commit/c5f3b4866ee653644b5f9c4181d900b14fc3cf83) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 forward chain id in account client
+
+- [`4850f97`](https://github.com/exactly/exa/commit/4850f9716e5306968787089e59150d22933b9284) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 drop unfreeze card label
+
+- [#922](https://github.com/exactly/exa/pull/922) [`2e76aa3`](https://github.com/exactly/exa/commit/2e76aa35f95b68c84afd832d4881f3a42e5ff70d) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix swaps query invalidation
+
+- [#1006](https://github.com/exactly/exa/pull/1006) [`2312fc2`](https://github.com/exactly/exa/commit/2312fc2ebf7d34eca7babc9a46c5bb9e3cf17306) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix card details color
+
+- [`3852fbb`](https://github.com/exactly/exa/commit/3852fbbbd0e00a101b8aa442bbd5f63e744808fa) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 fix bridge close button alignment
+
+- [#922](https://github.com/exactly/exa/pull/922) [`089affc`](https://github.com/exactly/exa/commit/089affc5ee29471738caa9861d5e9d2a1215dc7d) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 preserve quoted amount on swap token flip
+
+- [`358fdb0`](https://github.com/exactly/exa/commit/358fdb0fb6aa501bf2d873eec43d76c9bf0176ef) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add card freeze confirmation sheet
+
+- [#922](https://github.com/exactly/exa/pull/922) [`9c30eae`](https://github.com/exactly/exa/commit/9c30eae91a9814dbb09f0388c2c08813acac6d3b) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix pay simulation pending state
+
+- [#922](https://github.com/exactly/exa/pull/922) [`dfeb19d`](https://github.com/exactly/exa/commit/dfeb19d88ace1b52179ddb8d8a7a528847e93ec0) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 pass chain id to bridge calls
+
+- [#922](https://github.com/exactly/exa/pull/922) [`d2ea96f`](https://github.com/exactly/exa/commit/d2ea96ff6615d53fdd542c63ef67717bef7d8866) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ♻️ pass explicit chain id to send calls hooks
+
+- [#922](https://github.com/exactly/exa/pull/922) [`954b170`](https://github.com/exactly/exa/commit/954b170d0c7ddda00239270ad54d9e904e3aa2e0) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ♻️ decouple swap input state from route result
+
+- [#922](https://github.com/exactly/exa/pull/922) [`b798e75`](https://github.com/exactly/exa/commit/b798e75335d5d505fc3322a3d4614f3882448b07) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 preserve swap amounts on auth cancel
+
+- [#922](https://github.com/exactly/exa/pull/922) [`7aa9248`](https://github.com/exactly/exa/commit/7aa92481996531a27113be590eeb6d56774faa45) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ♻️ migrate remaining flows to send calls
+
+- [`6e364a6`](https://github.com/exactly/exa/commit/6e364a6d3afbbd323288dd3b27a77ec541911f3f) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ show frozen overlay on card
+
+- [`a417b04`](https://github.com/exactly/exa/commit/a417b043788ebb94fe32326260223c7b1af77cd7) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add freeze controls to home card
+
+- [#1006](https://github.com/exactly/exa/pull/1006) [`8c2785c`](https://github.com/exactly/exa/commit/8c2785c533e2fd8104ecda312ac2c5ee9a9ef2ca) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 unify add funds screen spacing
+
+- [`5a24906`](https://github.com/exactly/exa/commit/5a24906ed859d663cef94590933152bc486be120) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ create shared switch component
+
+- [#995](https://github.com/exactly/exa/pull/995) [`b22b4eb`](https://github.com/exactly/exa/commit/b22b4ebb4fa54b1e6b0c97df45e88bf8d257a461) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 add haptic feedback to card actions
+
+- [#922](https://github.com/exactly/exa/pull/922) [`fdc4d93`](https://github.com/exactly/exa/commit/fdc4d9312171055de0fa8a7c00817c6a6fa0d426) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ♻️ pass explicit chain id to read hooks
+
+- Updated dependencies [[`f724117`](https://github.com/exactly/exa/commit/f72411793f4d132811ca2e430b8ee7006d04d4d4), [`92b2c24`](https://github.com/exactly/exa/commit/92b2c24458470b700f8a3c0cd935eb0204c079c9), [`6e4d2c8`](https://github.com/exactly/exa/commit/6e4d2c87b774d0de12cd9d3208fdc83badacfd08), [`8215d0d`](https://github.com/exactly/exa/commit/8215d0d6911ee36ad038ef7722defbf409ff3fe0), [`e736d6f`](https://github.com/exactly/exa/commit/e736d6f0006d8104a0107c84ad09411b31639875)]:
+  - @exactly/server@0.2.92
+
 ## 1.2.6
 
 ### Patch Changes

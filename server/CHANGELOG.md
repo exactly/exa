@@ -1,5 +1,19 @@
 # @exactly/server
 
+## 0.2.92
+
+### Patch Changes
+
+- [#881](https://github.com/exactly/exa/pull/881) [`f724117`](https://github.com/exactly/exa/commit/f72411793f4d132811ca2e430b8ee7006d04d4d4) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🛂 add org auth middleware
+
+- [`92b2c24`](https://github.com/exactly/exa/commit/92b2c24458470b700f8a3c0cd935eb0204c079c9) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ⬆️ upgrade hono and major `@hono/node-server`
+
+- [#881](https://github.com/exactly/exa/pull/881) [`6e4d2c8`](https://github.com/exactly/exa/commit/6e4d2c87b774d0de12cd9d3208fdc83badacfd08) Thanks [@nfmelendez](https://github.com/nfmelendez)! - ➕ install better auth
+
+- [#881](https://github.com/exactly/exa/pull/881) [`8215d0d`](https://github.com/exactly/exa/commit/8215d0d6911ee36ad038ef7722defbf409ff3fe0) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🛂 setup better auth
+
+- [#974](https://github.com/exactly/exa/pull/974) [`e736d6f`](https://github.com/exactly/exa/commit/e736d6f0006d8104a0107c84ad09411b31639875) Thanks [@aguxez](https://github.com/aguxez)! - 🦺 filter notifications to known tokens only
+
 ## 0.2.91
 
 ### Patch Changes
