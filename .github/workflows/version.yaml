@@ -43,6 +43,7 @@ jobs:
           title: ${{ steps.title.outputs.title }}
           publish: pnpm changeset publish
           version: ./.changeset/version.sh
+          prDraft: create
           setupGitUser: false
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_GITHUB_TOKEN }}
