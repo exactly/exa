@@ -61,11 +61,12 @@ import {
   type Address,
   type Call,
   type Chain,
+  type ExtractCapabilities,
   type Hex,
   type TransactionRequest,
   type Transport,
 } from "viem";
-import { anvil, base } from "viem/chains";
+import { anvil } from "viem/chains";
 
 import accountInit from "@exactly/common/accountInit";
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
@@ -143,22 +144,19 @@ export default async function createAccountClient({ credentialId, factory, x, y 
         }),
     customMiddleware: dummySignatureMiddleware,
   });
-  const crossChainClients = new Map<number, Promise<SmartAccountClient<Transport, Chain, SmartContractAccount>>>();
-  function getCrossChainClient(targetChainId: number) {
-    const cached = crossChainClients.get(targetChainId);
+  const crossChainAccounts = new Map<
+    number,
+    Promise<{
+      account: SmartContractAccount;
+      alchemyTransport: ReturnType<typeof alchemy>;
+      readClient: SmartAccountClient<Transport, Chain, SmartContractAccount>;
+      transport: Transport;
+    }>
+  >();
+  function getCrossChainAccount(targetChain: Chain) {
+    const cached = crossChainAccounts.get(targetChain.id);
     if (cached) return cached;
-    const targetChain = alchemyChainById.get(targetChainId);
-    if (!targetChain) throw new Error(`unsupported chain ${targetChainId}`);
-    const config =
-      targetChain.id === base.id
-        ? { apiKey: "d_pBtamzsxX6zNEa5eQzT", gasPolicyId: "ac4d73b4-5e7d-404d-b972-55c99f14f134" } // cspell:ignore d_pBtamzsxX6zNEa5eQzT
-        : {
-            apiKey: alchemyAPIKey,
-            gasPolicyId: targetChain.testnet
-              ? "dc767b7d-9ce8-4512-ba67-ebe2cf7a1577"
-              : "cb9db554-658f-46eb-ae73-8bff8ed2556b",
-          };
-    const alchemyTransport = alchemy({ apiKey: config.apiKey });
+    const alchemyTransport = alchemy({ apiKey: alchemyAPIKey });
     const targetTransport = custom(createAlchemyPublicRpcClient({ chain: targetChain, transport: alchemyTransport }));
     const promise = toSmartContractAccount({
       chain: targetChain,
@@ -166,20 +164,22 @@ export default async function createAccountClient({ credentialId, factory, x, y 
       entryPoint: getEntryPoint(targetChain),
       ...accountOptions,
     })
-      .then((targetAccount) =>
-        createSmartAccountClient({
+      .then((targetAccount) => ({
+        account: targetAccount,
+        alchemyTransport,
+        readClient: createSmartAccountClient({
           chain: targetChain,
           transport: targetTransport,
           account: targetAccount,
-          ...alchemyGasAndPaymasterAndDataMiddleware({ policyId: config.gasPolicyId, transport: alchemyTransport }),
           customMiddleware: dummySignatureMiddleware,
         }),
-      )
+        transport: targetTransport,
+      }))
       .catch((error: unknown) => {
-        crossChainClients.delete(targetChainId);
+        crossChainAccounts.delete(targetChain.id);
         throw error;
       });
-    crossChainClients.set(targetChainId, promise);
+    crossChainAccounts.set(targetChain.id, promise);
     return promise;
   }
   return createBundlerClient({
@@ -192,25 +192,66 @@ export default async function createAccountClient({ credentialId, factory, x, y 
         switch (method) {
           case "wallet_sendCalls": {
             if (!Array.isArray(params) || params.length !== 1) throw new Error("bad params");
-            const { calls, chainId, from, id } = params[0] as {
+            const { calls, capabilities, chainId, from, id } = params[0] as {
               calls: readonly Call[];
+              capabilities?: ExtractCapabilities<"sendCalls", "Request">;
               chainId?: Hex;
               from?: Address;
               id?: string;
             };
             if (from && from !== accountAddress) throw new Error("bad account");
             const targetChainId = chainId ? hexToNumber(chainId) : chain.id;
+            const context = capabilities?.paymasterService?.context as
+              | undefined
+              | { erc20Context?: { maxTokenAmount?: bigint; tokenAddress?: Address }; policyId?: string | string[] };
+            const policyToken =
+              context?.erc20Context?.tokenAddress && context.erc20Context.maxTokenAmount !== undefined
+                ? { address: context.erc20Context.tokenAddress, maxTokenAmount: context.erc20Context.maxTokenAmount }
+                : undefined;
             if (targetChainId !== chain.id) {
-              const crossClient = await getCrossChainClient(targetChainId);
+              const targetChain = alchemyChainById.get(targetChainId);
+              if (!targetChain) throw new Error(`unsupported chain ${targetChainId}`);
+              const sponsor = targetChain.testnet
+                ? "dc767b7d-9ce8-4512-ba67-ebe2cf7a1577"
+                : "cb9db554-658f-46eb-ae73-8bff8ed2556b";
+              const policyId = [
+                ...(context?.policyId ? (Array.isArray(context.policyId) ? context.policyId : [context.policyId]) : []),
+                sponsor,
+              ];
+              const remote = await getCrossChainAccount(targetChain);
+              const crossClient = createSmartAccountClient({
+                chain: targetChain,
+                transport: remote.transport,
+                account: remote.account,
+                ...alchemyGasAndPaymasterAndDataMiddleware({
+                  policyId,
+                  policyToken,
+                  transport: remote.alchemyTransport,
+                }),
+                customMiddleware: dummySignatureMiddleware,
+              });
               const { hash } = await crossClient.sendUserOperation({
                 uo: calls.map(({ to, data = "0x", value }) => ({ from: accountAddress, target: to, data, value })),
                 overrides: { verificationGasLimit: { multiplier: 2 } },
               });
               return { id: concat([hash, numberToHex(targetChainId, { size: 32 }), UO_MAGIC_ID]) };
             }
+            const policyId = [
+              ...(context?.policyId ? (Array.isArray(context.policyId) ? context.policyId : [context.policyId]) : []),
+              ...(alchemyGasPolicyId ? [alchemyGasPolicyId] : []),
+            ];
             if (queryClient.getQueryData<AuthMethod>(["method"]) === "webauthn") {
-              if (targetChainId !== chain.id) throw new Error("unsupported chain");
-              const { hash } = await client.sendUserOperation({
+              const uoClient =
+                context && policyId.length > 0
+                  ? createSmartAccountClient({
+                      chain,
+                      transport,
+                      account,
+                      ...alchemyGasManagerMiddleware(policyId, policyToken),
+                      customMiddleware: dummySignatureMiddleware,
+                    })
+                  : client;
+              const { hash } = await uoClient.sendUserOperation({
                 uo: calls.map(({ to, data = "0x", value }) => ({ from: accountAddress, target: to, data, value })),
               });
               return { id: concat([hash, numberToHex(chain.id, { size: 32 }), UO_MAGIC_ID]) };
@@ -230,7 +271,21 @@ export default async function createAccountClient({ credentialId, factory, x, y 
                   paymasterService: {
                     optional: true,
                     url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
-                    context: { policyId: alchemyGasPolicyId },
+                    ...(policyId.length > 0
+                      ? {
+                          context: {
+                            policyId,
+                            ...(policyToken
+                              ? {
+                                  erc20Context: {
+                                    tokenAddress: policyToken.address,
+                                    maxTokenAmount: numberToHex(policyToken.maxTokenAmount),
+                                  },
+                                }
+                              : {}),
+                          },
+                        }
+                      : {}),
                   },
                 },
               });
@@ -254,7 +309,13 @@ export default async function createAccountClient({ credentialId, factory, x, y 
             if (!Array.isArray(params) || params.length !== 1 || typeof params[0] !== "string") throw new Error("bad");
             if (params[0].endsWith(UO_MAGIC_ID.slice(2)) && isHex(params[0]) && params[0].length === 194) {
               const uoChainId = hexToNumber(trim(sliceHex(params[0], -64, -32)));
-              const uoClient = uoChainId === chain.id ? client : await getCrossChainClient(uoChainId);
+              let uoClient: SmartAccountClient<Transport, Chain, SmartContractAccount> = client;
+              if (uoChainId !== chain.id) {
+                const uoChain = alchemyChainById.get(uoChainId);
+                if (!uoChain) throw new Error(`unsupported chain ${uoChainId}`);
+                const { readClient } = await getCrossChainAccount(uoChain);
+                uoClient = readClient;
+              }
               const receipt = await uoClient.getUserOperationReceipt(sliceHex(params[0], 0, 32));
               return {
                 version: "2.0.0",
@@ -287,7 +348,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
                     paymasterService: {
                       optional: true,
                       url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
-                      context: { policyId: alchemyGasPolicyId },
+                      ...(alchemyGasPolicyId ? { context: { policyId: alchemyGasPolicyId } } : {}),
                     },
                   },
                 });
