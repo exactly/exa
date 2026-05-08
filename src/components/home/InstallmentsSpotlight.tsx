@@ -36,28 +36,30 @@ export default function InstallmentsSpotlight({
   useEffect(() => {
     let scrolled = false;
     let attempts = 0;
+    let previous: undefined | { height: number; width: number; x: number; y: number };
     const id = setInterval(() => {
-      if (++attempts > 10) {
+      if (++attempts > 40) {
         clearInterval(id);
         return;
       }
       targetRef.current?.measureInWindow((x, y, width, height) => {
-        if (width > 0 && height > 0 && y >= 0 && y + height <= screenHeight) {
+        const valid = width > 0 && height > 0 && y >= 0 && y + height <= screenHeight;
+        if (valid && previous?.x === x && previous.y === y && previous.width === width && previous.height === height) {
           clearInterval(id);
           setTarget({ x, y, width, height });
           return;
         }
-        if (!scrolled) {
-          scrolled = true;
-          if (width > 0 && height > 0) {
-            const contentY = scrollOffset.current + y;
-            scrollRef.current?.scrollTo({ y: Math.max(0, contentY - screenHeight / 3), animated: true });
-          } else {
-            scrollRef.current?.scrollTo({ y: 0, animated: true });
-          }
+        previous = valid ? { x, y, width, height } : undefined;
+        if (valid || scrolled) return;
+        scrolled = true;
+        if (width > 0 && height > 0) {
+          const contentY = scrollOffset.current + y;
+          scrollRef.current?.scrollTo({ y: Math.max(0, contentY - screenHeight / 3), animated: true });
+        } else {
+          scrollRef.current?.scrollTo({ y: 0, animated: true });
         }
       });
-    }, 500);
+    }, 120);
     return () => clearInterval(id);
   }, [screenHeight, scrollOffset, scrollRef, targetRef]);
   if (!target) return null;
