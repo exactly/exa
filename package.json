@@ -14,8 +14,8 @@
     "prepare": "nx prepare mobile",
     "prepare:generated": "mkdir -p src/generated",
     "generate:expo": "expo customize tsconfig.json",
-    "generate:release": "mkdir -p src/generated && echo \"module.exports = /** @type {const} */ ('$(git describe --tags --abbrev=7 --match '@exactly/mobile@*' | sed 's/@exactly\\///')')\" > src/generated/release.js",
-    "generate:version": "mkdir -p src/generated && echo \"module.exports = /** @type {const} */ ($(git rev-list --count HEAD))\" > src/generated/versionCode.js",
+    "generate:release": "pnpm run prepare:generated && echo \"module.exports = /** @type {const} */ ('$(git describe --tags --abbrev=7 --match '@exactly/mobile@*' | sed 's/@exactly\\///')')\" > src/generated/release.js",
+    "generate:version": "pnpm run prepare:generated && echo \"module.exports = /** @type {const} */ ($(git rev-list --count HEAD))\" > src/generated/versionCode.js",
     "e2e:iphone": "maestro start-device --platform=ios --os-version=26 --device-locale=es-419",
     "e2e:android:proxy": "adb start-server && adb reverse tcp:3000 tcp:3000 && adb reverse tcp:8545 tcp:8545 && adb reverse tcp:8969 tcp:8969",
     "e2e:maestro": "maestro test .maestro/flows --include-tags=critical",
@@ -338,7 +338,7 @@
         ],
         "inputs": [],
         "outputs": [
-          "{projectRoot}/generated/release.js"
+          "{projectRoot}/src/generated/release.js"
         ],
         "cache": false
       },
@@ -352,7 +352,7 @@
         ],
         "inputs": [],
         "outputs": [
-          "{projectRoot}/generated/versionCode.js"
+          "{projectRoot}/src/generated/versionCode.js"
         ],
         "cache": false
       },
