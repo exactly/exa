@@ -34,7 +34,6 @@ jobs:
           version: v1.5.1
       - uses: expo/expo-github-action@v8
         with:
-          packager: pnpm
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
       - uses: actions/cache@v5
