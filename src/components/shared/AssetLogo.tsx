@@ -50,7 +50,7 @@ export default function AssetLogo({
     defaultUri ??
     (symbol
       ? getTokenLogoURI(
-          tokens.filter((token) => (token.chainId as number) === chain.id),
+          tokens.filter((token) => token.chainId === (chain.id as typeof token.chainId)),
           symbol,
         )
       : undefined);
