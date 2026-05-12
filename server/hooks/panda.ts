@@ -1644,7 +1644,7 @@ const Webhook = v.variant("resource", [
 ]);
 
 const webhookConfig = v.object({
-  type: v.picklist(["uphold"]),
+  type: v.picklist(["integrator", "uphold"]),
   webhooks: v.record(
     v.string(),
     v.object({

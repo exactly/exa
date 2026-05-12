@@ -198,6 +198,8 @@ authClient.siwe
           console.log("webhooks", webhooks);
 
           // only if owner or admin roles for the organization
+          // returns 201 with the created webhook (including its secret) on success,
+          // or 409 { code: "name conflict" } if a webhook with this name already exists
           const newWebhook = await authClient.$fetch(`${baseURL}/api/webhook`, {
             headers,
             method: "POST",
@@ -207,6 +209,25 @@ authClient.siwe
             },
           });
           console.log("new webhook", newWebhook);
+
+          // fetch a single webhook by name
+          const oneWebhook = await authClient.$fetch(`${baseURL}/api/webhook/foobar`, { headers });
+          console.log("one webhook", oneWebhook);
+
+          // update an existing webhook (returns 404 if it does not exist; the signing secret is preserved and not returned)
+          const updated = await authClient.$fetch(`${baseURL}/api/webhook/foobar`, {
+            headers,
+            method: "PATCH",
+            body: { url: "https://updated.test.com" },
+          });
+          console.log("updated webhook", updated);
+
+          // delete a webhook (returns 404 if it does not exist)
+          const deleted = await authClient.$fetch(`${baseURL}/api/webhook/foobar`, {
+            headers,
+            method: "DELETE",
+          });
+          console.log("deleted webhook", deleted);
         },
         onError: (context) => {
           console.log("authorization error", context);
