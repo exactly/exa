@@ -48,12 +48,16 @@ export const lifiTokensOptions = queryOptions({
   queryKey: ["lifi", "tokens"],
   staleTime: Infinity,
   gcTime: Infinity,
+  retry: 3,
   enabled: !chain.testnet && chain.id !== anvil.id,
   queryFn: async () => {
     if (chain.testnet || chain.id === anvil.id) return [];
     ensureConfig();
     const { tokens } = await getTokens({ chainTypes: [ChainType.EVM] });
     const allTokens = Object.values(tokens).flat();
+    if (!allTokens.some((token) => token.chainId === (chain.id as typeof token.chainId))) {
+      throw new Error("missing destination tokens");
+    }
     if (chain.id !== infra.optimism.id) return allTokens;
     const exa = await getToken(chain.id, "0x1e925De1c68ef83bD98eE3E130eF14a50309C01B").catch((error: unknown) => {
       reportError(error);
@@ -382,7 +386,7 @@ export type BridgeSources = {
   chains: ExtendedChain[];
   defaultChainId?: number;
   defaultTokenAddress?: string;
-  destinationTokens: Token[];
+  tokensByChain: Record<number, Token[]>;
   usdByChain: Record<number, number>;
   usdByToken: Record<string, number>;
 };
@@ -390,15 +394,21 @@ export type BridgeSources = {
 export async function getBridgeSources(account?: Address): Promise<BridgeSources> {
   ensureConfig();
   if (!account) throw new Error("account is required");
+  const cachedTokens = queryClient.getQueryData<Token[]>(lifiTokensOptions.queryKey);
   const [supportedChains, allTokens, allBalances] = await Promise.all([
     queryClient.getQueryData<ExtendedChain[]>(lifiChainsOptions.queryKey) ?? queryClient.fetchQuery(lifiChainsOptions),
-    queryClient.getQueryData<Token[]>(lifiTokensOptions.queryKey) ?? queryClient.fetchQuery(lifiTokensOptions),
+    cachedTokens?.some((token) => token.chainId === (chain.id as typeof token.chainId))
+      ? cachedTokens
+      : queryClient.fetchQuery(lifiTokensOptions).catch((error: unknown) => {
+          reportError(error);
+          return [] as Token[];
+        }),
     queryClient.fetchQuery(balancesOptions(account)),
   ]);
 
   const usdByChain: Record<number, number> = {};
   const usdByToken: Record<string, number> = {};
-  const destinationTokens = allTokens.filter((token) => (token.chainId as number) === chain.id);
+  const destinationTokens = allTokens.filter((token) => token.chainId === (chain.id as typeof token.chainId));
   const balancesByChain: Record<number, TokenBalance[]> = {};
 
   for (const [chainId, tokenAmounts] of Object.entries(allBalances)) {
@@ -438,7 +448,7 @@ export async function getBridgeSources(account?: Address): Promise<BridgeSources
 
   return {
     chains,
-    destinationTokens,
+    tokensByChain: { [chain.id]: destinationTokens },
     usdByChain,
     usdByToken,
     balancesByChain,
